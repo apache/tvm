@@ -8,9 +8,9 @@
 
 #include <vector>
 #include "./node.h"
-#include "./attr_frame.h"
 
 namespace nngraph {
+
 /*!
  * \brief Symbolic computation graph.
  */
@@ -33,8 +33,6 @@ class Graph {
  private:
   /*! \brief outputs of the graph. */
   std::vector<NodeEntry> outputs_;
-  /*! \brief additional internal attribute */
-  AttrFrame attr_frame_;
 };
 
 }  // namespace nngraph
