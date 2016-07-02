@@ -1,18 +1,21 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file base.h
- * \brief Configuation of nngraph as well as basic data structure.
+ * \brief Graph node data structure.
  */
 #ifndef NNGRAPH_NODE_H_
 #define NNGRAPH_NODE_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 #include <unordered_map>
-#include "./op_prop.h"
+#include "./op.h"
 
 namespace nngraph {
+
 // Forward declare node.
-struct Node;
+class Node;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
@@ -23,43 +26,40 @@ struct NodeEntry {
 };
 
 /*!
+ * \brief The attributes of the current operation node.
+ *  Usually are additional parameters like axis,
+ */
+struct NodeAttrs {
+  /*! \brief The dictionary representation of attributes */
+  std::unordered_map<std::string, std::string> dict;
+  /*!
+   * \brief A parsed version of attributes,
+   * This is generated if OpProperty.attr_parser is registered.
+   * The object can be used to quickly access attributes.
+   */
+  any parsed;
+};
+
+/*!
  * \brief Node represents an operation in a computation graph.
  */
-struct Node {
+class Node {
+ public:
   /*! \brief name of the node */
   std::string name;
   /*! \brief the operator this node is pointing at */
-  const OpProperty *op;
+  const Op *op;
   /*! \brief inputs to this node */
   std::vector<NodeEntry> inputs;
+  /*! \brief The attributes in the node. */
+  NodeAttrs attrs;
+  /*! \brief destructor of node */
+  ~Node();
   /*!
-   * \brief additional attributes about the node,
-   *  Use pointer to save space, as attr can be accessed in a slow way,
-   *  not every node will have attributes.
+   * \brief create a new empty shared_ptr of Node.
+   * \return a created empty node.
    */
-  std::unordered_map<std::string, std::string> attr;
-
-  ~Node() {
-    if (inputs.size() != 0) {
-      // explicit deletion via DFS
-      // this is used to avoid stackoverflow caused by chain of deletions
-      std::vector<Node*> stack{this};
-      std::vector<std::shared_ptr<Node> > to_delete;
-      while (!stack.empty()) {
-        Node* n = stack.back();
-        stack.pop_back();
-        for (NodeEntry& e: n->inputs) {
-          if (e.node.unique()) {
-            stack.push_back(e.node.get());
-            to_delete.emplace_back(std::move(e.node));
-          } else {
-            e.node.reset();
-          }
-        }
-        n->inputs.clear();
-      }
-    }
-  }
+  static std::shared_ptr<Node> Create();
 };
 
 }  // namespace nngraph

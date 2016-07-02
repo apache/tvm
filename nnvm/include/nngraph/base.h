@@ -9,6 +9,7 @@
 #include <dmlc/base.h>
 #include <dmlc/any.h>
 #include <dmlc/logging.h>
+#include <dmlc/registry.h>
 
 namespace nngraph {
 
@@ -39,4 +40,5 @@ inline const T& get(const any& src) {
 }
 
 }  // namespace nngraph
-#endif // NNGRAPH_BASE_H_
+
+#endif  // NNGRAPH_BASE_H_
