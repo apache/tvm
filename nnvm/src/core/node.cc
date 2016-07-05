@@ -24,6 +24,13 @@ Node::~Node() {
           e.node.reset();
         }
       }
+      for (std::shared_ptr<Node>& sp : n->control_deps) {
+        if (sp.unique()) {
+          stack.push_back(sp.get());
+        } else {
+          sp.reset();
+        }
+      }
       n->inputs.clear();
     }
   }
