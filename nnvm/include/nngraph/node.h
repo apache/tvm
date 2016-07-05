@@ -47,20 +47,39 @@ class Node {
  public:
   /*! \brief name of the node */
   std::string name;
-  /*! \brief the operator this node is pointing at */
+  /*!
+   * \brief The operator this node uses.
+   *  For place holder variable, op == nullptr.
+   */
   const Op *op;
   /*! \brief inputs to this node */
   std::vector<NodeEntry> inputs;
+  /*!
+   * \brief Optional control flow dependencies
+   *  Gives operation must be performed before this operation.
+   */
+  std::vector<std::shared_ptr<Node> > control_deps;
   /*! \brief The attributes in the node. */
   NodeAttrs attrs;
   /*! \brief destructor of node */
   ~Node();
+  /*!
+   * \brief return whether node is placeholder variable.
+   *  This is equivalent to op == nullptr
+   * \return whether node is placeholder input variable
+   */
+  inline bool is_variable() const;
   /*!
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
    */
   static std::shared_ptr<Node> Create();
 };
+
+// implementation of functions.
+inline bool Node::is_variable() const {
+  return this->op == nullptr;
+}
 
 }  // namespace nngraph
 
