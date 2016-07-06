@@ -13,12 +13,11 @@
 namespace nngraph {
 
 /*!
- * \brief Index to the graph.
- *  Maps pointers to Node to consecutive integers.
- *
- *  This is an Auxililary data structure that can be used
- *  to iterate over the graph in a more efficient manner.
- *  It also allows storing
+ * \brief Auxililary data structure to index a graph.
+ *  It maps Nodes in the graph to consecutive integers node_id.
+ *  It also maps IndexedGraph::NodeEntry to consecutive integer entry_id.
+ *  This allows storing properties of Node and NodeEntry into
+ *  compact vector and quickly access them without resorting to hashmap.
  */
 struct IndexedGraph {
  public:

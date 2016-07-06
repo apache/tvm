@@ -36,7 +36,7 @@ void test_tuple() {
 
 void test_graph() {
   nngraph::Graph g;
-  g.DFSVisit([](const std::shared_ptr<nngraph::Node>& n){
+  g.DFSVisit([](const std::shared_ptr<const nngraph::Node>& n){
     });
 }
 int main() {

@@ -46,6 +46,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
   });
 
   // setup array view
+  // input_entries_ and control_rptr must not change after this step.
   const NodeEntry* iptr = dmlc::BeginPtr(input_entries_);
   for (size_t nid = 0; nid < nodes_.size(); ++nid) {
     nodes_[nid].inputs = array_view<NodeEntry>(
