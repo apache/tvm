@@ -60,7 +60,7 @@ class Tuple {
     this->swap(src);
   }
   /*!
-   * \brief construct an Tuple to fill the value with v.
+
    * \param ndim the number of dimension of the Tuple
    * \param v The value to fill.
    */

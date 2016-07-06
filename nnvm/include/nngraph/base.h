@@ -10,11 +10,19 @@
 #include <dmlc/any.h>
 #include <dmlc/logging.h>
 #include <dmlc/registry.h>
+#include <dmlc/array_view.h>
 
 namespace nngraph {
 
 /*! \brief any type */
 using any = dmlc::any;
+
+/*!
+ * \brief array_veiw type
+ * \tparam ValueType The value content of array view.
+ */
+template<typename ValueType>
+using array_view = dmlc::array_view<ValueType>;
 
 /*!
  * \brief get reference of type T stored in src.

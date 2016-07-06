@@ -2,6 +2,7 @@
 #include <nngraph/op.h>
 #include <nngraph/graph.h>
 #include <nngraph/tuple.h>
+#include <nngraph/graph_attr_types.h>
 #include <string>
 
 void test_op() {
@@ -32,6 +33,12 @@ void test_tuple() {
   CHECK((s == TShape{1, 2, 3}));
 }
 
+
+void test_graph() {
+  nngraph::Graph g;
+  g.DFSVisit([](const std::shared_ptr<nngraph::Node>& n){
+    });
+}
 int main() {
   test_tuple();
   return 0;
