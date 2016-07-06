@@ -96,6 +96,10 @@ struct IndexedGraph {
   inline const Node& operator[](const nngraph::Node* node) const {
     return nodes_[node_id(node)];
   }
+  /*! \return list of argument nodes */
+  inline const std::vector<uint32_t>& arg_nodes() const {
+    return arg_nodes_;
+  }
   /*!
    * \brief Constructor an IndexedGraph from normal Graph
    * \param other The source graph.
@@ -107,6 +111,8 @@ struct IndexedGraph {
  private:
   // node pointers in CSR structure.
   std::vector<Node> nodes_;
+  // index to argument nodes
+  std::vector<uint32_t> arg_nodes_;
   // mapping from node to index.
   std::unordered_map<const nngraph::Node*, uint32_t> node2index_;
   // CSR pointer of node entries

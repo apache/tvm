@@ -69,6 +69,8 @@ class Node {
    * \return whether node is placeholder input variable
    */
   inline bool is_variable() const;
+  /*! \return number of outputs from this node */
+  inline uint32_t num_outputs() const;
   /*!
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
@@ -79,6 +81,15 @@ class Node {
 // implementation of functions.
 inline bool Node::is_variable() const {
   return this->op == nullptr;
+}
+
+inline uint32_t Node::num_outputs() const {
+  if (is_variable()) return 1;
+  if (this->op->num_outputs >= 0) {
+    return static_cast<uint32_t>(this->op->num_outputs);
+  } else {
+    return this->op->get_num_outputs(*this);
+  }
 }
 
 }  // namespace nngraph
