@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include "./base.h"
 #include "./op.h"
 
 namespace nngraph {
