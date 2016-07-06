@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
+#include "./base.h"
 #include "./node.h"
 
 namespace nngraph {
@@ -23,9 +24,12 @@ class Graph {
  public:
   /*! \brief outputs of the computation graph. */
   std::vector<NodeEntry> outputs;
-  /*! \brief attributes of a graph */
-  std::unordered_map<std::string, any> attrs;
-
+  /*!
+   * \brief attributes of a graph
+   *  Each attribute is immutable,
+   *  and can be shared across multiple Instance of graph
+   */
+  std::unordered_map<std::string, std::shared_ptr<const any> > attrs;
   /*!
    * \brief perform a Post Order DFS visit to each node in the graph.
    *  This order is deterministic and is also topoligical sorted.
