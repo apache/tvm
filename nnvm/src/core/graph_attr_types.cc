@@ -3,10 +3,10 @@
  * \file graph_attr_types.cc
  * \brief Graph node data structure.
  */
-#include <nngraph/graph_attr_types.h>
+#include <nnvm/graph_attr_types.h>
 #include <limits>
 
-namespace nngraph {
+namespace nnvm {
 
 // implement constructor from graph
 IndexedGraph::IndexedGraph(const Graph &g) {
@@ -14,7 +14,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
   std::vector<size_t> inputs_rptr{0}, control_rptr{0};
 
   g.DFSVisit([this, &inputs_rptr, &control_rptr]
-             (const std::shared_ptr<nngraph::Node>& n) {
+             (const std::shared_ptr<nnvm::Node>& n) {
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
       uint32_t nid = static_cast<uint32_t>(nodes_.size());
       // nodes_
@@ -59,4 +59,4 @@ IndexedGraph::IndexedGraph(const Graph &g) {
   }
 }
 
-}  // namespace nngraph
+}  // namespace nnvm

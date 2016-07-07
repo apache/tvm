@@ -3,14 +3,14 @@
  * \file graph_attr_types.h
  * \brief Data structures that can appear in graph attributes.
  */
-#ifndef NNGRAPH_GRAPH_ATTR_TYPES_H_
-#define NNGRAPH_GRAPH_ATTR_TYPES_H_
+#ifndef NNVM_GRAPH_ATTR_TYPES_H_
+#define NNVM_GRAPH_ATTR_TYPES_H_
 
 #include <vector>
 #include <unordered_map>
 #include "./graph.h"
 
-namespace nngraph {
+namespace nnvm {
 
 /*!
  * \brief Auxililary data structure to index a graph.
@@ -39,7 +39,7 @@ struct IndexedGraph {
   /*! \brief Node data structure in IndexedGraph */
   struct Node {
     /*! \brief pointer to the source node */
-    const nngraph::Node* source;
+    const nnvm::Node* source;
     /*! \brief inputs to the node */
     array_view<NodeEntry> inputs;
     /*! \brief control flow dependencies to the node */
@@ -68,7 +68,7 @@ struct IndexedGraph {
    * \param e The entry to query for index.
    * \return the unique index.
    */
-  inline uint32_t entry_id(const nngraph::NodeEntry& e) const {
+  inline uint32_t entry_id(const nnvm::NodeEntry& e) const {
     return entry_rptr_[node_id(e.node.get())] + e.index;
   }
   /*!
@@ -76,7 +76,7 @@ struct IndexedGraph {
    * \param node The Node to query for index.
    * \return the node index.
    */
-  inline uint32_t node_id(const nngraph::Node* node) const {
+  inline uint32_t node_id(const nnvm::Node* node) const {
     return node2index_.at(node);
   }
   /*!
@@ -92,7 +92,7 @@ struct IndexedGraph {
    * \param node The pointer to the Node structure
    * \return const reference to the corresponding IndexedGraph::Node
    */
-  inline const Node& operator[](const nngraph::Node* node) const {
+  inline const Node& operator[](const nnvm::Node* node) const {
     return nodes_[node_id(node)];
   }
   /*! \return list of argument nodes */
@@ -113,7 +113,7 @@ struct IndexedGraph {
   // index to argument nodes
   std::vector<uint32_t> arg_nodes_;
   // mapping from node to index.
-  std::unordered_map<const nngraph::Node*, uint32_t> node2index_;
+  std::unordered_map<const nnvm::Node*, uint32_t> node2index_;
   // CSR pointer of node entries
   std::vector<size_t> entry_rptr_;
   // space to store input entries of each
@@ -122,6 +122,6 @@ struct IndexedGraph {
   std::vector<uint32_t> control_deps_;
 };
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_GRAPH_ATTR_TYPES_H_
+#endif  // NNVM_GRAPH_ATTR_TYPES_H_

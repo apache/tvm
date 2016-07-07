@@ -3,15 +3,15 @@
  * \file tuple.h
  * \brief Data structure Tuple and TShape to store dynamic sized shapes.
  */
-#ifndef NNGRAPH_TUPLE_H_
-#define NNGRAPH_TUPLE_H_
+#ifndef NNVM_TUPLE_H_
+#define NNVM_TUPLE_H_
 
 #include <vector>
 #include <type_traits>
 #include <algorithm>
 #include <iostream>
 
-namespace nngraph {
+namespace nnvm {
 
 /*! \brief data type to store array index */
 typedef uint32_t index_t;
@@ -329,6 +329,6 @@ class TShape : public Tuple<index_t> {
   }
 };
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_TUPLE_H_
+#endif  // NNVM_TUPLE_H_

@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file base.h
- * \brief Configuation of nngraph as well as basic data structure.
+ * \brief Configuation of nnvm as well as basic data structure.
  */
-#ifndef NNGRAPH_BASE_H_
-#define NNGRAPH_BASE_H_
+#ifndef NNVM_BASE_H_
+#define NNVM_BASE_H_
 
 #include <dmlc/base.h>
 #include <dmlc/any.h>
@@ -12,7 +12,7 @@
 #include <dmlc/registry.h>
 #include <dmlc/array_view.h>
 
-namespace nngraph {
+namespace nnvm {
 
 /*! \brief any type */
 using any = dmlc::any;
@@ -47,6 +47,6 @@ inline const T& get(const any& src) {
   return dmlc::get<T>(src);
 }
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_BASE_H_
+#endif  // NNVM_BASE_H_

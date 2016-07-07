@@ -3,8 +3,8 @@
  * \file op.h
  * \brief Operator information structor.
  */
-#ifndef NNGRAPH_OP_H_
-#define NNGRAPH_OP_H_
+#ifndef NNVM_OP_H_
+#define NNVM_OP_H_
 
 #include <string>
 #include <vector>
@@ -13,7 +13,7 @@
 #include <functional>
 #include "./base.h"
 
-namespace nngraph {
+namespace nnvm {
 
 // forward declarations
 class Node;
@@ -38,18 +38,18 @@ static const int kVarg = -1;
  *  // registeration of oeprators
  *  // NOTE that the attr function can register any
  *  // additional attributes to the operator
- *  NNGRAPH_REGISTER_OP(add)
+ *  NNVM_REGISTER_OP(add)
  *  .describe("add two inputs together")
  *  .set_num_inputs(2)
  *  .attr<OpKernel>("gpu_kernel", AddKernel);
  *
- *  NNGRAPH_REGISTER_OP(sub)
+ *  NNVM_REGISTER_OP(sub)
  *  .describe("substract one tensor from another")
  *  .set_num_inputs(2);
  *
  *  // Can call regster multiple times in different files
  *  // to register different part of information
- *  NNGRAPH_REGISTER_OP(sub)
+ *  NNVM_REGISTER_OP(sub)
  *  .attr<OpKernel>("gpu_kernel", SubKernel);
  *
  *  // get operators from registry.
@@ -124,7 +124,7 @@ class Op {
    *                       const std::vector<TShape>& ishapes) {
    *     // we can use the parsed version of param
    *     // without repeatively parsing the parameter
-   *     const SumParam& param = nngraph::get<SumParam>(attrs.parsed);
+   *     const SumParam& param = nnvm::get<SumParam>(attrs.parsed);
    *  }
    * \endcode
    */
@@ -234,36 +234,36 @@ class OpMap {
 };
 
 // internal macros to make
-#define NNGRAPH_STR_CONCAT_(__x, __y) __x##__y
-#define NNGRAPH_STR_CONCAT(__x, __y) NNGRAPH_STR_CONCAT_(__x, __y)
-#define NNGRAPH_REGISTER_VAR_DEF(OpName)                              \
-  static ::nngraph::Op & __make_ ## NNGraphOp ## _ ## OpName
+#define NNVM_STR_CONCAT_(__x, __y) __x##__y
+#define NNVM_STR_CONCAT(__x, __y) NNVM_STR_CONCAT_(__x, __y)
+#define NNVM_REGISTER_VAR_DEF(OpName)                              \
+  static ::nnvm::Op & __make_ ## NnvmOp ## _ ## OpName
 
 /*!
- * \def NNGRAPH_REGISTER_OP
+ * \def NNVM_REGISTER_OP
  * \brief Register
  * This macro must be used under namespace dmlc, and only used once in cc file.
  * \param OpName The name of registry
  *
  * \code
  *
- *  NNGRAPH_REGISTER_OP(add)
+ *  NNVM_REGISTER_OP(add)
  *  .describe("add two inputs together")
  *  .set_num_inputs(2)
  *  .attr<OpKernel>("gpu_kernel", AddKernel);
  *
  * \endcode
  */
-#define NNGRAPH_REGISTER_OP(OpName)                                     \
-  NNGRAPH_STR_CONCAT(NNGRAPH_REGISTER_VAR_DEF(OpName), __COUNTER__) =   \
-      ::dmlc::Registry<::nngraph::Op>::Get()->__REGISTER_OR_GET__(#OpName)
+#define NNVM_REGISTER_OP(OpName)                                     \
+  NNVM_STR_CONCAT(NNVM_REGISTER_VAR_DEF(OpName), __COUNTER__) =   \
+      ::dmlc::Registry<::nnvm::Op>::Get()->__REGISTER_OR_GET__(#OpName)
 
 // implementations of template functions after this.
 // member function of Op
 template<typename ValueType>
 inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
   const any& ref = GetAttrMap(key);
-  return nngraph::get<OpMap<ValueType> >(ref);
+  return nnvm::get<OpMap<ValueType> >(ref);
 }
 
 template<typename ValueType>
@@ -282,7 +282,7 @@ inline Op& Op::attr(  // NOLINT(*)
           << " previously " << pmap->type().name()
           << " current " << typeid(OpMap<ValueType>).name();
       std::vector<std::pair<ValueType, int> >& vec =
-          nngraph::get<OpMap<ValueType> >(*pmap).data_;
+          nnvm::get<OpMap<ValueType> >(*pmap).data_;
       // resize the value type.
       vec.resize(index_ + 1,
                  std::make_pair(ValueType(), 0));
@@ -338,6 +338,6 @@ inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
   return data_[idx].first;
 }
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_OP_H_
+#endif  // NNVM_OP_H_

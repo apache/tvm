@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file graph.h
- * \brief Configuation of nngraph as well as basic data structure.
+ * \brief Configuation of nnvm as well as basic data structure.
  */
-#ifndef NNGRAPH_GRAPH_H_
-#define NNGRAPH_GRAPH_H_
+#ifndef NNVM_GRAPH_H_
+#define NNVM_GRAPH_H_
 
 #include <vector>
 #include <string>
@@ -15,7 +15,7 @@
 #include "./base.h"
 #include "./node.h"
 
-namespace nngraph {
+namespace nnvm {
 
 /*!
  * \brief Symbolic computation graph.
@@ -98,6 +98,6 @@ inline void Graph::DFSVisit(FVisit fvisit) const {
       });
 }
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_GRAPH_H_
+#endif  // NNVM_GRAPH_H_
