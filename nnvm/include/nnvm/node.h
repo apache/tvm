@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file base.h
+ * \file node.h
  * \brief Graph node data structure.
  */
-#ifndef NNGRAPH_NODE_H_
-#define NNGRAPH_NODE_H_
+#ifndef NNVM_NODE_H_
+#define NNVM_NODE_H_
 
 #include <memory>
 #include <string>
@@ -13,7 +13,7 @@
 #include "./base.h"
 #include "./op.h"
 
-namespace nngraph {
+namespace nnvm {
 
 // Forward declare node.
 class Node;
@@ -93,6 +93,6 @@ inline uint32_t Node::num_outputs() const {
   }
 }
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_NODE_H_
+#endif  // NNVM_NODE_H_

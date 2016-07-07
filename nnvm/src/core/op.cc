@@ -3,18 +3,18 @@
  * \file op.cc
  * \brief Support for operator registry.
  */
-#include <nngraph/base.h>
-#include <nngraph/op.h>
+#include <nnvm/base.h>
+#include <nnvm/op.h>
 
 #include <atomic>
 #include <mutex>
 
 namespace dmlc {
 // enable registry
-DMLC_REGISTRY_ENABLE(nngraph::Op);
+DMLC_REGISTRY_ENABLE(nnvm::Op);
 }  // namespace dmlc
 
-namespace nngraph {
+namespace nnvm {
 
 // single manager of operator information.
 struct OpManager {
@@ -66,4 +66,4 @@ void Op::UpdateAttrMap(const std::string& key,
   updater(&value);
 }
 
-}  // namespace nngraph
+}  // namespace nnvm

@@ -3,15 +3,15 @@
  * \file pass.cc
  * \brief Support for pass registry.
  */
-#include <nngraph/pass.h>
+#include <nnvm/pass.h>
 #include <algorithm>
 
 namespace dmlc {
 // enable registry
-DMLC_REGISTRY_ENABLE(nngraph::PassFunctionReg);
+DMLC_REGISTRY_ENABLE(nnvm::PassFunctionReg);
 }  // namespace dmlc
 
-namespace nngraph {
+namespace nnvm {
 
 const PassFunctionReg* FindPassDep(const std::string&attr_name) {
   for (auto* r : dmlc::Registry<PassFunctionReg>::List()) {
@@ -54,4 +54,4 @@ Graph ApplyPass(const Graph& src,
   return g;
 }
 
-}  // namespace nngraph
+}  // namespace nnvm
