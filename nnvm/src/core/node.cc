@@ -3,9 +3,9 @@
  * \file node.cc
  * \brief Graph node data structure.
  */
-#include <nngraph/node.h>
+#include <nnvm/node.h>
 
-namespace nngraph {
+namespace nnvm {
 
 Node::~Node() {
   if (inputs.size() != 0) {
@@ -42,4 +42,4 @@ std::shared_ptr<Node> Node::Create() {
   return std::make_shared<Node>();
 }
 
-}  // namespace nngraph
+}  // namespace nnvm

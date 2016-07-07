@@ -3,15 +3,15 @@
  * \file pass.h
  * \brief Pass that can be applied to a graph.
  */
-#ifndef NNGRAPH_PASS_H_
-#define NNGRAPH_PASS_H_
+#ifndef NNVM_PASS_H_
+#define NNVM_PASS_H_
 
 #include <vector>
 #include <functional>
 #include "./base.h"
 #include "./graph.h"
 
-namespace nngraph {
+namespace nnvm {
 
 /*!
  * \brief A PassFunction is a basic "Operator on Graph"
@@ -90,12 +90,12 @@ struct PassFunctionReg
 };
 
 /*!
- * \def NNGRAPH_REGISTER_PASS
+ * \def NNVM_REGISTER_PASS
  * \brief Macro to register pass fuctions.
  *
  * \code
  * // example of registering a shape inference pass
- * NNGRAPH_REGISTER_PASS(InferShape)
+ * NNVM_REGISTER_PASS(InferShape)
  * .describe("Shape Inference function, generate graph attributes")
  * .provide_graph_attr("data_shape")
  * .depend_graph_attr("indexed_graph")
@@ -105,9 +105,9 @@ struct PassFunctionReg
  *   });
  * \endcode
  */
-#define NNGRAPH_REGISTER_PASS(name)                                     \
-  DMLC_REGISTRY_REGISTER(::nngraph::PassFunctionReg, PassFunctionReg, name)
+#define NNVM_REGISTER_PASS(name)                                     \
+  DMLC_REGISTRY_REGISTER(::nnvm::PassFunctionReg, PassFunctionReg, name)
 
-}  // namespace nngraph
+}  // namespace nnvm
 
-#endif  // NNGRAPH_PASS_H_
+#endif  // NNVM_PASS_H_
