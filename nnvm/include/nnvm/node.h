@@ -31,6 +31,8 @@ struct NodeEntry {
  *  Usually are additional parameters like axis,
  */
 struct NodeAttrs {
+  /*! \brief name of the node */
+  std::string name;
   /*! \brief The dictionary representation of attributes */
   std::unordered_map<std::string, std::string> dict;
   /*!
@@ -46,13 +48,11 @@ struct NodeAttrs {
  */
 class Node {
  public:
-  /*! \brief name of the node */
-  std::string name;
   /*!
    * \brief The operator this node uses.
    *  For place holder variable, op == nullptr.
    */
-  const Op *op;
+  const Op *op{nullptr};
   /*! \brief inputs to this node */
   std::vector<NodeEntry> inputs;
   /*!
