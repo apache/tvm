@@ -6,6 +6,7 @@
 #include <nnvm/base.h>
 #include <nnvm/op.h>
 
+#include <memory>
 #include <atomic>
 #include <mutex>
 
@@ -23,7 +24,7 @@ struct OpManager {
   // global operator counter
   std::atomic<int> op_counter{0};
   // storage of additional attribute table.
-  std::unordered_map<std::string, any> attr;
+  std::unordered_map<std::string, std::unique_ptr<any> > attr;
   // get singleton of the
   static OpManager* Global() {
     static OpManager inst;
@@ -46,24 +47,24 @@ const Op* Op::Get(const std::string& name) {
 }
 
 // Get attribute map by key
-const any& Op::GetAttrMap(const std::string& key) {
-  // assume no operator registration during
-  // the execution phase.
-  const auto& dict = OpManager::Global()->attr;
+const any* Op::GetAttrMap(const std::string& key) {
+  auto& dict =  OpManager::Global()->attr;
   auto it = dict.find(key);
-  CHECK(it != dict.end() && it->first == key)
-      << "Cannot find Operator attribute " << key
-      << " for any operator";
-  return it->second;
+  if (it != dict.end()) {
+    return it->second.get();
+  } else {
+    return nullptr;
+  }
 }
 
-// update attribute map by updater function.
+// update attribute map
 void Op::UpdateAttrMap(const std::string& key,
                        std::function<void(any*)> updater) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::mutex>(mgr->mutex);
-  any& value = mgr->attr[key];
-  updater(&value);
+  std::unique_ptr<any>& value = mgr->attr[key];
+  if (value.get() == nullptr) value.reset(new any());
+  if (updater != nullptr) updater(value.get());
 }
 
 }  // namespace nnvm
