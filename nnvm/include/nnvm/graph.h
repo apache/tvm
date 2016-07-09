@@ -14,11 +14,13 @@
 #include <unordered_set>
 #include "./base.h"
 #include "./node.h"
+#include "./symbolic.h"
 
 namespace nnvm {
 
 /*!
  * \brief Symbolic computation graph.
+ *  This is the intermediate representation for optimization pass.
  */
 class Graph {
  public:
@@ -30,15 +32,17 @@ class Graph {
    *  and can be shared across multiple Instance of graph
    */
   std::unordered_map<std::string, std::shared_ptr<const any> > attrs;
-  /*!
-   * \brief perform a Post Order DFS visit to each node in the graph.
-   *  This order is deterministic and is also topoligical sorted.
-   * \param fvisit a function of type std::function<void(const std::shared_ptr<Node>&)>
-   * \tparam FVisit The function type to perform the visit.
-   */
-  template<typename FVisit>
-  inline void DFSVisit(FVisit fvisit) const;
 };
+
+/*!
+ * \brief perform a Post Order DFS visit to each node in the graph.
+ *  This order is deterministic and is also topoligical sorted.
+ * \param heads The heads in the graph.
+ * \param fvisit a function of type std::function<void(const std::shared_ptr<Node>&)>
+ * \tparam FVisit The function type to perform the visit.
+ */
+template<typename FVisit>
+inline void DFSVisit(const std::vector<NodeEntry>& heads, FVisit fvisit);
 
 // inline function implementations
 template <typename GNode, typename HashType,
@@ -75,10 +79,11 @@ void PostOrderDFSVisit(const std::vector<GNode>& heads,
 }
 
 template<typename FVisit>
-inline void Graph::DFSVisit(FVisit fvisit) const {
+inline void DFSVisit(const std::vector<NodeEntry>& heads,
+                     FVisit fvisit) {
   typedef const std::shared_ptr<Node>* GNode;
-  std::vector<GNode> head_nodes(outputs.size());
-  std::transform(outputs.begin(), outputs.end(), head_nodes.begin(),
+  std::vector<GNode> head_nodes(heads.size());
+  std::transform(heads.begin(), heads.end(), head_nodes.begin(),
                  [](const NodeEntry& e)->GNode {
                    return &e.node;
                  });
