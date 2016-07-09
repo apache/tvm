@@ -10,6 +10,7 @@
 #include <vector>
 #include <utility>
 #include <typeinfo>
+#include <limits>
 #include <functional>
 #include "./base.h"
 
@@ -22,8 +23,8 @@ template<typename ValueType>
 class OpMap;
 class OpRegistryEntry;
 
-/*! \brief constant to indicate variable length inout and output */
-static const int kVarg = -1;
+/*! \brief constant to indicate it take any length of positional inputs */
+static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
 
 /*!
  * \brief Operator structure.
@@ -79,23 +80,31 @@ class Op {
   /*!
    * \brief number of inputs to the operator,
    * -1 means it is variable length
+   * When get_num_inputs is presented,
+   * the number will be decided by get_num_inputs instead.
+   * \sa get_num_inputs
    */
-  int num_inputs = 0;
+  uint32_t num_inputs = 1;
   /*!
    * \brief number of outputs of the operator
-   *  -1 means it is variable length
+   *  When get_num_outputs is presented.
    *  The number of outputs will be decided by
    *  get_num_outputs function
    * \sa get_num_outputs
    */
-  int num_outputs = 1;
+  uint32_t num_outputs = 1;
   /*!
    * \brief get number of outputs given information about the node.
-   *  This is only valid when num_outputs == -1.
-   * \param node The constructed node.
+   * \param attrs The attribute of the node
    * \return number of outputs.
    */
-  int (*get_num_outputs)(const Node& node) = nullptr;
+  uint32_t (*get_num_outputs)(const NodeAttrs& attrs) = nullptr;
+  /*!
+   * \brief get number of inputs given information about the node.
+   * \param attrs The attribute of the node
+   * \return number of inputs
+   */
+  uint32_t (*get_num_inputs)(const NodeAttrs& attrs) = nullptr;
   /*!
    * \brief Attribute parser to parse the NodeAttrs information.
    *
@@ -143,19 +152,25 @@ class Op {
    * \param n The number of inputs to be set.
    * \return reference to self.
    */
-  inline Op& set_num_inputs(int n);  // NOLINT(*)
-  /*!
-   * \brief Set the num_outputs
-   * \param n The number of outputs to be set.
-   * \return reference to self.
-   */
-  inline Op& set_num_outputs(int n);  // NOLINT(*)
+  inline Op& set_num_inputs(uint32_t n);  // NOLINT(*)
   /*!
    * \brief Set the get_num_outputs function.
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_outputs(int (*fn)(const Node& node));  // NOLINT(*)
+  inline Op& set_num_inputs(uint32_t (*fn)(const NodeAttrs& attr));  // NOLINT(*)
+  /*!
+   * \brief Set the num_outputs
+   * \param n The number of outputs to be set.
+   * \return reference to self.
+   */
+  inline Op& set_num_outputs(uint32_t n);  // NOLINT(*)
+  /*!
+   * \brief Set the get_num_outputs function.
+   * \param fn The function to be set.
+   * \return reference to self.
+   */
+  inline Op& set_num_outputs(uint32_t (*fn)(const NodeAttrs& attr));  // NOLINT(*)
   /*!
    * \brief Set the attr_parser function.
    * \param fn The number of outputs to be set.
@@ -180,6 +195,7 @@ class Op {
   static const Op* Get(const std::string& op_name);
   /*!
    * \brief Get additional registered attribute about operators.
+   *  If nothing has been registered, an empty OpMap will be returned.
    * \param attr_name The name of the attribute.
    * \return An OpMap of specified attr_name.
    * \tparam ValueType The type of the attribute.
@@ -197,7 +213,7 @@ class Op {
   // internal constructor
   Op();
   // get const reference to certain attribute
-  static const any& GetAttrMap(const std::string& key);
+  static const any* GetAttrMap(const std::string& key);
   // update the attribute OpMap
   static void UpdateAttrMap(const std::string& key,
                             std::function<void(any*)> updater);
@@ -217,6 +233,13 @@ class OpMap {
    * \return the const reference to the content value.
    */
   inline const ValueType& operator[](const Op* op) const;
+  /*!
+   * \brief get the corresponding value element at op with default value.
+   * \param op The key to the map
+   * \param def_value The default value when the key does not exist.
+   * \return the const reference to the content value.
+   */
+  inline const ValueType& get(const Op* op, const ValueType& def_value) const;
   /*!
    * \brief Check if the map has op as key.
    * \param op The key to the map
@@ -262,8 +285,18 @@ class OpMap {
 // member function of Op
 template<typename ValueType>
 inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
-  const any& ref = GetAttrMap(key);
-  return nnvm::get<OpMap<ValueType> >(ref);
+  const any* ref = GetAttrMap(key);
+  if (ref == nullptr) {
+    UpdateAttrMap(key, [key](any* pmap) {
+        if (pmap->empty()) {
+          OpMap<ValueType> pm;
+          pm.attr_name_ = key;
+          *pmap = std::move(pm);
+        }
+      });
+    ref = GetAttrMap(key);
+  }
+  return nnvm::get<OpMap<ValueType> >(*ref);
 }
 
 template<typename ValueType>
@@ -273,7 +306,7 @@ inline Op& Op::attr(  // NOLINT(*)
       if (pmap->empty()) {
         OpMap<ValueType> pm;
         pm.attr_name_ = attr_name;
-        *pmap = pm;
+        *pmap = std::move(pm);
       }
       CHECK_EQ(pmap->type(), typeid(OpMap<ValueType>))
           << "Attribute " << attr_name
@@ -301,18 +334,22 @@ inline Op& Op::describe(const std::string& descr) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_inputs(int n) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(uint32_t n) {  // NOLINT(*)
   this->num_inputs = n;
   return *this;
 }
 
-inline Op& Op::set_num_outputs(int n) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(uint32_t (*fn)(const NodeAttrs&)) {  // NOLINT(*)
+  this->get_num_inputs = fn;
+  return *this;
+}
+
+inline Op& Op::set_num_outputs(uint32_t n) {  // NOLINT(*)
   this->num_outputs = n;
   return *this;
 }
 
-inline Op& Op::set_num_outputs(int (*fn)(const Node& node)) {  // NOLINT(*)
-  this->num_outputs = kVarg;
+inline Op& Op::set_num_outputs(uint32_t (*fn)(const NodeAttrs&)) {  // NOLINT(*)
   this->get_num_outputs = fn;
   return *this;
 }
@@ -336,6 +373,16 @@ inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
         << "Attribute " << attr_name_
         << " has not been registered for Operator " << op->name;
   return data_[idx].first;
+}
+
+template<typename ValueType>
+inline const ValueType& OpMap<ValueType>::get(const Op* op, const ValueType& def_value) const {
+  const uint32_t idx = op->index_;
+  if (idx < data_.size() && data_[idx].second) {
+    return data_[idx].first;
+  } else {
+    return def_value;
+  }
 }
 
 }  // namespace nnvm

@@ -158,7 +158,7 @@ Graph LoadJSON(const Graph& src) {
 Graph SaveJSON(const Graph& src) {
   JSONGraph jgraph;
   std::unordered_map<Node*, uint32_t> node2index;
-  src.DFSVisit([&node2index, &jgraph](const std::shared_ptr<Node>& n) {
+  DFSVisit(src.outputs, [&node2index, &jgraph](const std::shared_ptr<Node>& n) {
       uint32_t nid = static_cast<uint32_t>(jgraph.nodes.size());
       node2index[n.get()] = nid;
       if (n->is_variable()) {

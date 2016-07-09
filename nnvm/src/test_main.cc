@@ -8,7 +8,7 @@
 void test_op() {
   using namespace nnvm;
   auto add = Op::Get("add");
-  auto nick = Op::GetAttr<std::string>("nick_name");
+  static auto& nick = Op::GetAttr<std::string>("nick_name");
   LOG(INFO) << "nick=" << nick[add];
 }
 
@@ -35,9 +35,7 @@ void test_tuple() {
 
 
 void test_graph() {
-  nnvm::Graph g;
-  g.DFSVisit([](const std::shared_ptr<const nnvm::Node>& n){
-    });
+  nnvm::Symbol s;
 }
 int main() {
   test_tuple();
