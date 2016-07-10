@@ -26,9 +26,9 @@ class Symbol {
   /*! \brief option passed to ListAttr */
   enum ListAttrOption {
     /*! \brief recursively list all attributes */
-    kRecursive,
+    kRecursive = 0,
     /*! \brief only list attributes in current node */
-    kShallow
+    kShallow = 1
   };
 
   /*! \brief output entries contained in the symbol */
@@ -69,7 +69,7 @@ class Symbol {
    *
    * The rest of the symbols will remain the same name.
    *
-   * \param positional arguments
+   * \param args positional arguments
    * \param kwargs keyword arguments for the symbol
    * \param name name of returned symbol.
    */
@@ -108,8 +108,7 @@ class Symbol {
    *
    *  This function mutate the node's symbol and is not recommended.
    *
-   * \param key the key of the attribute
-   * \param value the value of the attribute.
+   * \param attrs The attributes to set.
    */
   void SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs);
   /*!
@@ -119,16 +118,15 @@ class Symbol {
    *   The name of symbol will be pre-pended to each key.
    * \return The created attribute.
    */
-  std::unordered_map<std::string, std::string> ListAttr(ListAttrOption option) const;
+  std::unordered_map<std::string, std::string> ListAttrs(ListAttrOption option) const;
   /*!
    * \brief create symbolic functor(AtomicSymbol) by given operator and attributes.
-   * \param op_name The name of the operator.
+   * \param op The operator.
    * \param attrs The additional attributes.
-   *
    * \return Symbol that can be used to call compose further.
    */
-  static Symbol CreateFunctor(const std::string& op_name,
-                              const std::unordered_map<std::string, std::string>& attrs);
+  static Symbol CreateFunctor(const Op* op,
+                              std::unordered_map<std::string, std::string>&& attrs);
   /*!
    * \brief create variable symbol node
    * \param name name of the variable
