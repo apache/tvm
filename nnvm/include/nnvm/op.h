@@ -75,7 +75,10 @@ class Op {
  public:
   /*! \brief name of the operator */
   std::string name;
-  /*! \brief detailed description of the operator */
+  /*!
+   * \brief detailed description of the operator
+   *  This can be used to generate docstring automatically for the operator.
+   */
   std::string description;
   /*!
    * \brief number of inputs to the operator,
@@ -339,7 +342,7 @@ inline Op& Op::set_num_inputs(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_inputs(uint32_t (*fn)(const NodeAttrs&)) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(uint32_t (*fn)(const NodeAttrs& attr)) {  // NOLINT(*)
   this->get_num_inputs = fn;
   return *this;
 }
@@ -349,7 +352,7 @@ inline Op& Op::set_num_outputs(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_outputs(uint32_t (*fn)(const NodeAttrs&)) {  // NOLINT(*)
+inline Op& Op::set_num_outputs(uint32_t (*fn)(const NodeAttrs& attr)) {  // NOLINT(*)
   this->get_num_outputs = fn;
   return *this;
 }

@@ -322,7 +322,7 @@ void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& a
   }
 }
 
-std::unordered_map<std::string, std::string> Symbol::ListAttr(ListAttrOption option) const {
+std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption option) const {
   if (option == kRecursive) {
     std::unordered_map<std::string, std::string> ret;
     DFSVisit(this->outputs, [&ret](const std::shared_ptr<Node>& n) {
@@ -336,12 +336,12 @@ std::unordered_map<std::string, std::string> Symbol::ListAttr(ListAttrOption opt
   }
 }
 
-Symbol Symbol::CreateFunctor(const std::string& op_name,
-                             const std::unordered_map<std::string, std::string>& attrs) {
+Symbol Symbol::CreateFunctor(const Op* op,
+                             std::unordered_map<std::string, std::string>&& attrs) {
   Symbol s;
   std::shared_ptr<Node> n = Node::Create();
-  n->op = Op::Get(op_name);
-  n->attrs.dict = attrs;
+  n->op = op;
+  n->attrs.dict = std::move(attrs);
   if (n->op->attr_parser != nullptr) {
     (*n->op->attr_parser)(&(n->attrs));
   }

@@ -5,7 +5,7 @@ export CFLAGS =  -std=c++11 -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loop
 # specify tensor path
 .PHONY: clean all test lint doc
 
-all: lib/libnngraph.so lib/libnngraph.a cli_test
+all: lib/libnnvm.so lib/libnnvm.a cli_test
 
 SRC = $(wildcard src/*.cc src/*/*.cc example/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
@@ -20,11 +20,11 @@ build/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libnngraph.so: $(ALL_DEP)
+lib/libnnvm.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libnngraph.a: $(ALL_DEP)
+lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
@@ -32,7 +32,7 @@ cli_test: $(ALL_DEP) build/test_main.o
 	$(CXX) $(CFLAGS)  -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lint:
-	python2 dmlc-core/scripts/lint.py nngraph cpp include src
+	python2 dmlc-core/scripts/lint.py nnvm cpp include src
 
 doc:
 	doxygen docs/Doxyfile
