@@ -143,6 +143,7 @@ Graph LoadJSON(const Graph& src) {
   for (uint32_t nid : jgraph.arg_nodes) {
     CHECK(jgraph.nodes[nid].node->is_variable());
   }
+
   // return the graph
   Graph ret;
   ret.attrs = std::move(jgraph.attrs);
@@ -176,6 +177,10 @@ Graph SaveJSON(const Graph& src) {
       }
       jgraph.nodes.emplace_back(std::move(jnode));
     });
+
+  for (const NodeEntry& e : src.outputs) {
+    jgraph.heads.push_back(std::make_pair(node2index.at(e.node.get()), e.index));
+  }
 
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);

@@ -323,10 +323,10 @@ inline Op& Op::attr(  // NOLINT(*)
       vec.resize(index_ + 1,
                  std::make_pair(ValueType(), 0));
       std::pair<ValueType, int>& p = vec[index_];
-      CHECK(p.second == 0 || p.first == value)
+      CHECK(p.second == 0)
           << "Attribute " << attr_name
           << " of operator " << this->name
-          << " is already registered to a different value";
+          << " is already registered.";
           vec[index_] = std::make_pair(value, 1);
     });
   return *this;

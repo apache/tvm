@@ -112,6 +112,15 @@ class Symbol {
    */
   void SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs);
   /*!
+   * \brief Get attributes from the symbol.
+   *  This only works for symbol with outputs from single operators.
+   *  For grouped sybmbol, an error will be raised.
+   * \param key Key of the attribute. When key == "name", it returns the name attirbute.
+   * \param out the output value of the attribute.
+   * \return true if the attribute exists, false if the attribute do not exist.
+   */
+  bool GetAttr(const std::string& key, std::string* out) const;
+  /*!
    * \brief Get attribute dictionary from the symbol.
    *  For grouped sybmbol, an error will be raised.
    * \param option If recursive is set, the attributes of all children are retrieved,
