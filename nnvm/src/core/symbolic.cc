@@ -196,8 +196,9 @@ void Symbol::Compose(const std::vector<Symbol>& args,
         static auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
         FListInputNames fn = flist_inputs.get(n->op, nullptr);
         auto arg_names = (fn == nullptr) ? std::vector<std::string>{"data"} : fn(n->attrs);
-        CHECK_EQ(arg_names.size(), n_req);
-
+        if (arg_names.size() != n_req) {
+          LOG(FATAL) << "Not enough argument to call operator " << outputs[0].node->op->name;
+        }
         size_t nmatched = 0;
         for (size_t i = args.size(); i < n_req; ++i) {
           auto it = kwargs.find(arg_names[i]);
@@ -311,15 +312,37 @@ Symbol Symbol::GetInternals() const {
 }
 
 void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs) {
-  CHECK_EQ(outputs.size(), 1)
-      << "SetAttrs only works for nongrouped symbol";
-  Node* n = outputs[0].node.get();
+  Node* node = outputs[0].node.get();
+  for (const NodeEntry& e : outputs) {
+    CHECK(node == e.node.get())
+        << "Symbol.SetAttrs only works for non-grouped symbol";
+  }
   for (const auto& kv : attrs) {
-    n->attrs.dict[kv.first] = kv.second;
+    if (kv.first == "name") {
+      node->attrs.name = kv.second;
+    } else {
+      node->attrs.dict[kv.first] = kv.second;
+    }
   }
-  if (n->op->attr_parser != nullptr) {
-    (*n->op->attr_parser)(&(n->attrs));
+  if (node->op != nullptr && node->op->attr_parser != nullptr) {
+    (*node->op->attr_parser)(&(node->attrs));
   }
+}
+
+bool Symbol::GetAttr(const std::string& key, std::string* out) const {
+  Node* node = outputs[0].node.get();
+  for (const NodeEntry& e : outputs) {
+    CHECK(node == e.node.get())
+        << "Symbol.SetAttrs only works for non-grouped symbol";
+  }
+  if (key == "name") {
+    *out = node->attrs.name;
+    return true;
+  }
+  auto it = node->attrs.dict.find(key);
+  if (it == node->attrs.dict.end()) return false;
+  *out = it->second;
+  return true;
 }
 
 std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption option) const {
