@@ -30,8 +30,8 @@ typedef unsigned int nn_uint;
 typedef void *AtomicSymbolCreator;
 /*! \brief handle to a symbol that can be bind as operator */
 typedef void *SymbolHandle;
-/*! \brief handle to a AtomicSymbol */
-typedef void *AtomicSymbolHandle;
+/*! \brief handle to Graph */
+typedef void *GraphHandle;
 
 /*!
  * \brief return str message of the last error
@@ -71,7 +71,7 @@ NNVM_DLL int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
                                          const char ***arg_names,
                                          const char ***arg_type_infos,
                                          const char ***arg_descriptions,
-                                         const char **return_type = NULL);
+                                         const char **return_type);
 /*!
  * \brief Create an AtomicSymbol functor.
  * \param creator the AtomicSymbolCreator
@@ -123,7 +123,18 @@ NNVM_DLL int NNSymbolCopy(SymbolHandle symbol, SymbolHandle *out);
  * \return 0 when success, -1 when failure happens
  */
 NNVM_DLL int NNSymbolPrint(SymbolHandle symbol, const char **out_str);
-
+/*!
+ * \brief Get string attribute from symbol
+ * \param symbol the source symbol
+ * \param key The key of the symbol.
+ * \param out The result attribute, can be NULL if the attribute do not exist.
+ * \param success Whether the result is contained in out.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNSymbolGetAttr(SymbolHandle symbol,
+                             const char* key,
+                             const char** out,
+                             int *success);
 /*!
  * \brief Set string attribute from symbol.
  *  NOTE: Setting attribute to a symbol can affect the semantics(mutable/immutable) of symbolic graph.
@@ -215,5 +226,60 @@ NNVM_DLL int NNSymbolCompose(SymbolHandle sym,
                              nn_uint num_args,
                              const char** keys,
                              SymbolHandle* args);
+
+// Graph IR API
+/*!
+ * \brief create a graph handle from symbol
+ * \param symbol The symbol representing the graph.
+ * \param graph The graph handle created.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphCreate(SymbolHandle symbol, GraphHandle *graph);
+/*!
+ * \brief free the graph handle
+ * \param handle The handle to be freed.
+ */
+NNVM_DLL int NNGraphFree(GraphHandle handle);
+/*!
+ * \brief Get a new symbol from the graph.
+ * \param graph The graph handle.
+ * \param symbol The corresponding symbol
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphGetSymbol(GraphHandle graph, SymbolHandle *symbol);
+/*!
+ * \brief Get Set a std::string typed attribute to graph.
+ * \param handle The graph handle.
+ * \param key The key to the attribute.
+ * \param value The value to be exposed.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphSetStrAttr(GraphHandle handle,
+                               const char* key,
+                               const char* value);
+/*!
+ * \brief Get Set a std::string typed attribute from graph attribute.
+ * \param handle The graph handle.
+ * \param key The key to the attribute.
+ * \param out The result attribute, can be NULL if the attribute do not exist.
+ * \param success Whether the result is contained in out.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphGetStrAttr(SymbolHandle handle,
+                               const char* key,
+                               const char** out,
+                               int *success);
+/*!
+ * \brief Apply pass on the src graph.
+ * \param src The source graph handle.
+ * \param num_pass The number of pass to be applied.
+ * \param pass_names The names of the pass.
+ * \param dst The result graph.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphApplyPass(GraphHandle src,
+                              nn_uint num_pass,
+                              const char** pass_names,
+                              GraphHandle *dst);
 
 #endif  // NNVM_C_API_H_
