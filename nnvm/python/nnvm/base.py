@@ -47,6 +47,7 @@ SymbolCreatorHandle = ctypes.c_void_p
 SymbolHandle = ctypes.c_void_p
 GraphHandle = ctypes.c_void_p
 
+
 #----------------------------
 # helper function definition
 #----------------------------

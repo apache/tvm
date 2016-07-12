@@ -248,27 +248,34 @@ NNVM_DLL int NNGraphFree(GraphHandle handle);
  */
 NNVM_DLL int NNGraphGetSymbol(GraphHandle graph, SymbolHandle *symbol);
 /*!
- * \brief Get Set a std::string typed attribute to graph.
+ * \brief Get Set a attribute in json format.
+ * This feature allows pass graph attributes back and forth in reasonable speed.
+ *
  * \param handle The graph handle.
  * \param key The key to the attribute.
- * \param value The value to be exposed.
+ * \param json_value The value need to be in format [type_name, value],
+ *  Where type_name is a registered type string in C++ side via DMLC_JSON_ENABLE_ANY.
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNGraphSetStrAttr(GraphHandle handle,
-                               const char* key,
-                               const char* value);
+NNVM_DLL int NNGraphSetJSONAttr(GraphHandle handle,
+                                const char* key,
+                                const char* json_value);
 /*!
- * \brief Get Set a std::string typed attribute from graph attribute.
+ * \brief Get a serialized attrirbute from graph.
+ * This feature allows pass graph attributes back and forth in reasonable speed.
+ *
  * \param handle The graph handle.
  * \param key The key to the attribute.
- * \param out The result attribute, can be NULL if the attribute do not exist.
+ * \param json_out The result attribute, can be NULL if the attribute do not exist.
+ *  The json_out is an array of [type_name, value].
+ *  Where the type_name is a registered type string in C++ side via DMLC_JSON_ENABLE_ANY.
  * \param success Whether the result is contained in out.
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNGraphGetStrAttr(SymbolHandle handle,
-                               const char* key,
-                               const char** out,
-                               int *success);
+NNVM_DLL int NNGraphGetJSONAttr(SymbolHandle handle,
+                                const char* key,
+                                const char** json_out,
+                                int *success);
 /*!
  * \brief Apply pass on the src graph.
  * \param src The source graph handle.
