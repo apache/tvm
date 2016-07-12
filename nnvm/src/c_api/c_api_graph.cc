@@ -8,6 +8,7 @@
 #include <nnvm/symbolic.h>
 #include <nnvm/graph.h>
 #include <nnvm/pass.h>
+#include <dmlc/json.h>
 #include "./c_api_common.h"
 
 using namespace nnvm;
@@ -34,26 +35,35 @@ int NNGraphGetSymbol(GraphHandle graph, SymbolHandle *symbol) {
   API_END_HANDLE_ERROR(delete s);
 }
 
-int NNGraphSetStrAttr(GraphHandle handle,
-                      const char* key,
-                      const char* value) {
+int NNGraphSetJSONAttr(GraphHandle handle,
+                       const char* key,
+                       const char* json_value) {
   API_BEGIN();
   Graph* g = static_cast<Graph*>(handle);
-  g->attrs[std::string(key)] = std::make_shared<any>(std::string(value));
+  std::string temp(json_value);
+  std::istringstream is(temp);
+  dmlc::JSONReader reader(&is);
+  nnvm::any value;
+  reader.Read(&value);
+  g->attrs[std::string(key)] = std::make_shared<any>(std::move(value));
   API_END();
 }
 
-int NNGraphGetStrAttr(GraphHandle handle,
+int NNGraphGetJSONAttr(GraphHandle handle,
                       const char* key,
-                      const char** out,
+                      const char** json_out,
                       int *success) {
+  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   Graph* g = static_cast<Graph*>(handle);
   std::string skey(key);
   auto it = g->attrs.find(skey);
   if (it != g->attrs.end()) {
-    const std::string& str = nnvm::get<std::string>(*it->second.get());
-    *out = str.c_str();
+    std::ostringstream os;
+    dmlc::JSONWriter writer(&os);
+    writer.Write(*it->second.get());
+    ret->ret_str = os.str();
+    *json_out = (ret->ret_str).c_str();
     *success = 1;
   } else {
     *success = 0;

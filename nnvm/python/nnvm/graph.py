@@ -5,11 +5,13 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 import sys
+import json
 from .base import _LIB
 from .base import c_array, c_str, nn_uint, py_str, string_types
 from .base import GraphHandle, SymbolHandle
 from .base import check_call
 from .symbol import Symbol
+
 
 class Graph(object):
     """Graph is the graph object that can be used to apply optimization pass.
@@ -31,7 +33,7 @@ class Graph(object):
     def __del__(self):
         check_call(_LIB.NNGraphFree(self.handle))
 
-    def attr(self, key):
+    def json_attr(self, key):
         """Get attribute string from the graph.
 
         Parameters
@@ -46,24 +48,33 @@ class Graph(object):
         """
         ret = ctypes.c_char_p()
         success = ctypes.c_int()
-        check_call(_LIB.NNGraphGetStrAttr(
+        check_call(_LIB.NNGraphGetJSONAttr(
             self.handle, c_str(key), ctypes.byref(ret), ctypes.byref(success)))
         if success.value != 0:
-            return py_str(ret.value)
+            json_str = py_str(ret.value)
+            return json.loads(json_str)[1]
         else:
             return None
 
-    def _set_attr(self, **kwargs):
+    def _set_json_attr(self, key, value, type_name=None):
         """Set the attribute of the symbol.
 
         Parameters
         ----------
-        **kwargs
-            The attributes to set
+        key : string
+            The key of the attribute
+        value : value
+            The any type that can be dumped to json
+        type_name : string
+            The typename registered on c++ side.
         """
-        for k, v in kwargs.items():
-            check_call(_LIB.NNGraphSetStrAttr(
-                self.handle, c_str(k), c_str(v)))
+        if isinstance(value, string_types):
+            type_name = 'str'
+        elif type_name is None:
+            raise ValueError("Need to specify type_name")
+        json_value = json.dumps([type_name, value])
+        check_call(_LIB.NNGraphSetJSONAttr(
+            self.handle, c_str(key), c_str(json_value)))
 
     @property
     def symbol(self):
