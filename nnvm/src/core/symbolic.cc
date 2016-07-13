@@ -13,6 +13,43 @@ namespace symbol_constants {
 const char *kNamespaceSeparator = "_";
 }  // namespace symbol_constants
 
+// auxililary version attribute in variable.
+struct VariableParam {
+  uint32_t version{0};
+};
+
+std::shared_ptr<Node> CreateVariableNode(const std::string& name) {
+  std::shared_ptr<Node> n = Node::Create();
+  n->op = nullptr;
+  n->attrs.name = name;
+  n->attrs.parsed = VariableParam();
+  return n;
+}
+
+// scan over a node's input, update the version to latest
+// If the node's op mutates a certain input variable,
+// The version of that varaible will increase
+// version is used to implicitly order the mutation sequences
+inline void UpdateNodeVersion(Node *n) {
+  static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
+  for (NodeEntry& e : n->inputs) {
+    if (e.node->is_variable()) {
+      e.version = nnvm::get<VariableParam>(e.node->attrs.parsed).version;
+    }
+  }
+  if (fmutate_inputs.count(n->op) != 0) {
+    FMutateInput fmutate = fmutate_inputs[n->op];
+    for (uint32_t i = 0; i < n->inputs.size(); ++i) {
+      if (fmutate(n->attrs, i)) {
+        NodeEntry& e = n->inputs[i];
+        CHECK(e.node->is_variable())
+            << "Mutation target can only be Variable";
+        // increase the version of the variable.
+        ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
+      }
+    }
+  }
+}
 
 inline std::string DefaultVarName(const std::string &op_name,
                                   const std::string &arg_name) {
@@ -67,13 +104,13 @@ Symbol Symbol::Copy() const {
   for (const auto &kv : old_new) {
     for (const NodeEntry& e : kv.first->inputs) {
       Node *ptr = e.node.get();
-      kv.second->inputs.emplace_back(NodeEntry{old_new[ptr], e.index});
+      kv.second->inputs.emplace_back(NodeEntry{old_new[ptr], e.index, e.version});
     }
   }
   // set the head
   Symbol ret;
   for (const NodeEntry &e : outputs) {
-    ret.outputs.emplace_back(NodeEntry{old_new[e.node.get()], e.index});
+    ret.outputs.emplace_back(NodeEntry{old_new[e.node.get()], e.index, e.version});
   }
   return ret;
 }
@@ -95,8 +132,14 @@ void Symbol::Print(std::ostream &os) const {
           os << "Name: " << node->attrs.name << " Op:" << node->op->name << '\n'
              << "Inputs:\n";
           for (size_t i = 0; i < node->inputs.size(); ++i) {
-            os << "\targ[" << i << "]=" << node->inputs[i].node->attrs.name
-               << '(' << node->inputs[i].index << ")\n";
+            const NodeEntry& e = node->inputs[i];
+            os << "\targ[" << i << "]=" << e.node->attrs.name
+               << '(' << e.index << ")";
+            if (e.node->is_variable()) {
+              os << " version=" << e.version << '\n';
+            } else {
+              os << '\n';
+            }
           }
           os << "Attrs:\n";
           for (auto &kv : node->attrs.dict) {
@@ -163,6 +206,8 @@ std::vector<std::string> Symbol::ListOutputs() const {
 void Symbol::Compose(const std::vector<Symbol>& args,
                      const std::unordered_map<std::string, Symbol>& kwargs,
                      const std::string& name) {
+  static auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
+
   CHECK_EQ(outputs.size(), 1)
       << "Only composition of value function is supported currently";
   CHECK(!outputs[0].node->is_variable()) << "Variable cannot be composed";
@@ -193,7 +238,6 @@ void Symbol::Compose(const std::vector<Symbol>& args,
       }
       // switch to keyword argument matching
       if (args.size() != n_req) {
-        static auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
         FListInputNames fn = flist_inputs.get(n->op, nullptr);
         auto arg_names = (fn == nullptr) ? std::vector<std::string>{"data"} : fn(n->attrs);
         if (arg_names.size() != n_req) {
@@ -206,8 +250,8 @@ void Symbol::Compose(const std::vector<Symbol>& args,
             n->inputs[i] = it->second.outputs[0];
             ++nmatched;
           } else {
-            n->inputs[i] = NodeEntry{Node::Create(), 0};
-            n->inputs[i].node->attrs.name = DefaultVarName(name, arg_names[i]);
+            n->inputs[i] = NodeEntry{
+              CreateVariableNode(DefaultVarName(name, arg_names[i])), 0, 0};
           }
         }
 
@@ -226,6 +270,7 @@ void Symbol::Compose(const std::vector<Symbol>& args,
         n->inputs.push_back(s.outputs[0]);
       }
     }
+    UpdateNodeVersion(n);
   } else {
     // general composition
     CHECK_EQ(args.size(), 0)
@@ -253,24 +298,31 @@ void Symbol::Compose(const std::vector<Symbol>& args,
     DFSVisit(this->outputs, find_replace_map);
 
     if (nmatched == kwargs.size() && arg_counter < args.size()) {
+      std::vector<Node*> update_nodes;
       std::vector<std::pair<NodeEntry*, const NodeEntry*> > replace_plan;
-      auto find_replace_plan = [&replace_map, &replace_plan]
+      auto find_replace_plan = [&replace_map, &replace_plan, &update_nodes]
           (const std::shared_ptr<Node> &node) {
         // visit all the childs, find possible replacement
+        bool repl = false;
         for (size_t i = 0; i < node->inputs.size(); ++i) {
           NodeEntry *e = &(node->inputs[i]);
           if (e->node->is_variable()) {
             auto iter = replace_map.find(e->node.get());
             if (iter != replace_map.end()) {
               replace_plan.push_back(std::make_pair(e, iter->second));
+              repl = true;
             }
           }
         }
+        if (repl) update_nodes.push_back(node.get());
       };
       DFSVisit(this->outputs, find_replace_plan);
 
       for (const auto& kv : replace_plan) {
         *(kv.first) = *(kv.second);
+      }
+      for (Node* n : update_nodes) {
+        UpdateNodeVersion(n);
       }
     } else {
       std::vector<std::string> keys = GetKeys(kwargs);
@@ -303,9 +355,15 @@ Symbol Symbol::GetInternals() const {
   Symbol ret;
   DFSVisit(this->outputs, [&ret](const std::shared_ptr<Node>& node) {
       Node* n = node.get();
-      uint32_t nout = n->num_outputs();
-      for (uint32_t i = 0; i < nout; ++i) {
-        ret.outputs.emplace_back(NodeEntry{node, i});
+      if (n->is_variable()) {
+        // grab version from variable.
+        VariableParam& param = nnvm::get<VariableParam>(n->attrs.parsed);
+        ret.outputs.emplace_back(NodeEntry{node, 0, param.version});
+      } else {
+        uint32_t nout = n->num_outputs();
+        for (uint32_t i = 0; i < nout; ++i) {
+          ret.outputs.emplace_back(NodeEntry{node, i, 0});
+        }
       }
     });
   return ret;
@@ -325,7 +383,7 @@ void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& a
     }
   }
   if (node->op != nullptr && node->op->attr_parser != nullptr) {
-    (*node->op->attr_parser)(&(node->attrs));
+    node->op->attr_parser(&(node->attrs));
   }
 }
 
@@ -366,9 +424,9 @@ Symbol Symbol::CreateFunctor(const Op* op,
   n->op = op;
   n->attrs.dict = std::move(attrs);
   if (n->op->attr_parser != nullptr) {
-    (*n->op->attr_parser)(&(n->attrs));
+    n->op->attr_parser(&(n->attrs));
   }
-  s.outputs.emplace_back(NodeEntry{std::move(n), 0});
+  s.outputs.emplace_back(NodeEntry{std::move(n), 0, 0});
   return s;
 }
 
@@ -382,10 +440,7 @@ Symbol Symbol::CreateGroup(const std::vector<Symbol> &symbols) {
 
 Symbol Symbol::CreateVariable(const std::string& name) {
   Symbol s;
-  std::shared_ptr<Node> n = Node::Create();
-  n->op = nullptr;
-  n->attrs.name = name;
-  s.outputs.emplace_back(NodeEntry{std::move(n), 0});
+  s.outputs.emplace_back(NodeEntry{CreateVariableNode(name), 0, 0});
   return s;
 }
 

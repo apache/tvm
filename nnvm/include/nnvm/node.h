@@ -24,6 +24,13 @@ struct NodeEntry {
   std::shared_ptr<Node> node;
   /*! \brief index of output from the source. */
   uint32_t index;
+  /*!
+   * \brief version of input Variable.
+   *  This field can only be nonzero when this->node is a Variable node.
+   *  version is increased by one each time a Variable get composed to a mutation Op.
+   *  This information can be helpful to decide order of operations when sequence of mutation happens.
+   */
+  uint32_t version;
 };
 
 /*!

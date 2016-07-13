@@ -24,6 +24,20 @@ def test_default_input():
     except NNVMError:
         pass
 
+def test_mutate_input():
+    x = sym.Variable('x')
+    y = sym.conv2d(data=x, name='conv')
+    z = sym.assign(x, y)
+    t = sym.add(z, x)
+
+    try:
+        z = sym.assign(z, z)
+        assert False
+    except NNVMError:
+        pass
+
+
 if __name__ == "__main__":
     test_default_input()
     test_compose()
+    test_mutate_input()
