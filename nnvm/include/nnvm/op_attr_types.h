@@ -12,8 +12,8 @@
 
 namespace nnvm {
 
-// These types are optional attributes in each op
-// Some of them are needed for certain pass.
+// These types are optional attributes in each operator.
+// Each attribute can be required by some passes.
 
 /*!
  * \brief Return list of input arguments names of each operator.
@@ -36,6 +36,16 @@ using FListInputNames = std::function<std::vector<std::string> (const NodeAttrs&
  *  FListOutputNames customized naming for operator outputs.
  */
 using FListOutputNames = std::function<std::vector<std::string> (const NodeAttrs& attrs)>;
+
+/*!
+ * \brief Check whether operator will mutate k-th input.
+ * \param index The input index
+ * \return Whether this operator will mutate index-th input.
+ *
+ * \note Register under "FMutateInput", default return false
+ * FMutateInputs enables mutation order handling correctly.
+ */
+using FMutateInput = std::function<bool (const NodeAttrs& attrs, uint32_t index)>;
 
 }  // namespace nnvm
 
