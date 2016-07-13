@@ -6,6 +6,7 @@
 #include <utility>
 
 using nnvm::FListInputNames;
+using nnvm::FMutateInput;
 using nnvm::NodeAttrs;
 
 NNVM_REGISTER_OP(add)
@@ -29,3 +30,10 @@ NNVM_REGISTER_OP(conv2d)
 
 NNVM_REGISTER_OP(add)
 .attr<std::string>("nick_name", "plus");
+
+NNVM_REGISTER_OP(assign)
+.set_num_inputs(2)
+.set_num_outputs(1)
+.attr<FMutateInput>("FMutateInput", [](const NodeAttrs& attrs, uint32_t index) {
+    return index == 0;
+  });

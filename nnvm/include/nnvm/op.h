@@ -101,13 +101,13 @@ class Op {
    * \param attrs The attribute of the node
    * \return number of outputs.
    */
-  uint32_t (*get_num_outputs)(const NodeAttrs& attrs) = nullptr;
+  std::function<uint32_t(const NodeAttrs& attrs)> get_num_outputs = nullptr;
   /*!
    * \brief get number of inputs given information about the node.
    * \param attrs The attribute of the node
    * \return number of inputs
    */
-  uint32_t (*get_num_inputs)(const NodeAttrs& attrs) = nullptr;
+  std::function<uint32_t(const NodeAttrs& attrs)> get_num_inputs = nullptr;
   /*!
    * \brief Attribute parser to parse the NodeAttrs information.
    *
@@ -140,8 +140,7 @@ class Op {
    *  }
    * \endcode
    */
-  void (*attr_parser)(NodeAttrs* attrs) = nullptr;
-
+  std::function<void(NodeAttrs* attrs)> attr_parser = nullptr;
   // function fields.
   /*!
    * \brief setter function during registration
@@ -161,7 +160,7 @@ class Op {
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_inputs(uint32_t (*fn)(const NodeAttrs& attr));  // NOLINT(*)
+  inline Op& set_num_inputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the num_outputs
    * \param n The number of outputs to be set.
@@ -173,13 +172,13 @@ class Op {
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_outputs(uint32_t (*fn)(const NodeAttrs& attr));  // NOLINT(*)
+  inline Op& set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the attr_parser function.
    * \param fn The number of outputs to be set.
    * \return reference to self.
    */
-  inline Op& set_attr_parser(void (*fn)(NodeAttrs* attrs));  // NOLINT(*)
+  inline Op& set_attr_parser(std::function<void (NodeAttrs* attrs)> fn);  // NOLINT(*)
   /*!
    * \brief Register additional attributes to operator.
    * \param attr_name The name of the attribute.
@@ -342,7 +341,7 @@ inline Op& Op::set_num_inputs(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_inputs(uint32_t (*fn)(const NodeAttrs& attr)) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_inputs = fn;
   return *this;
 }
@@ -352,12 +351,12 @@ inline Op& Op::set_num_outputs(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_outputs(uint32_t (*fn)(const NodeAttrs& attr)) {  // NOLINT(*)
+inline Op& Op::set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_outputs = fn;
   return *this;
 }
 
-inline Op& Op::set_attr_parser(void (*fn)(NodeAttrs* attrs)) {  // NOLINT(*)
+inline Op& Op::set_attr_parser(std::function<void (NodeAttrs* attrs)> fn) {  // NOLINT(*)
   this->attr_parser = fn;
   return *this;
 }
