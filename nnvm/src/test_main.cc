@@ -2,42 +2,85 @@
 #include <nnvm/op.h>
 #include <nnvm/graph.h>
 #include <nnvm/tuple.h>
+#include <nnvm/c_api.h>
 #include <nnvm/graph_attr_types.h>
+#include <dmlc/timer.h>
 #include <string>
 
-void test_op() {
+void test_speed() {
+  auto add = nnvm::Op::Get("add");
+  double tstart = dmlc::GetTime();
+  size_t rep = 1000;
+  size_t n = 1000;
+  std::unordered_map<std::string, const nnvm::Symbol*> tmp;
+  std::vector<const nnvm::Symbol*> vec{2};
+  std::string name = "xx";
+  for (size_t t = 0; t < rep; ++t) {
+    nnvm::Symbol s = nnvm::Symbol::CreateVariable("x");
+    for (size_t i = 0; i < n; ++i) {
+      nnvm::Symbol nw = nnvm::Symbol::CreateFunctor(add, {});
+      vec[0] = &s;
+      vec[1] =&s;
+      tmp.clear();
+      nw.Compose(vec, tmp, name);
+      s = nw;
+    }
+  }
+  double tend = dmlc::GetTime();
+  LOG(INFO) << "compose speed = " << n * rep / (tend - tstart) << " ops/sec";
+}
+
+void test_node_speed() {
   using namespace nnvm;
-  auto add = Op::Get("add");
-  static auto& nick = Op::GetAttr<std::string>("nick_name");
-  LOG(INFO) << "nick=" << nick[add];
+  auto add = nnvm::Op::Get("add");
+  double tstart = dmlc::GetTime();
+  size_t rep = 1000;
+  size_t n = 100;
+  for (size_t t = 0; t < rep; ++t) {
+    nnvm::Symbol s = nnvm::Symbol::CreateVariable("x");
+    for (size_t i = 0; i < n; ++i) {
+      auto xx = NodeEntry{Node::Create(), 0, 0};
+      NodeEntry x = s.outputs[0];
+      xx.node->op = add;
+      xx.node->inputs.emplace_back(x);
+      xx.node->inputs.emplace_back(x);
+      Symbol ss;
+      ss.outputs.push_back(xx);
+      s = ss;
+    }
+  }
+  double tend = dmlc::GetTime();
+  LOG(INFO) << "test_node_speed speed = " << n * rep / (tend - tstart) << " ops/sec";
 }
 
-void test_tuple() {
-  using nnvm::Tuple;
-  using nnvm::TShape;
-  Tuple<int> x{1, 2, 3};
-  Tuple<int> y{1, 2, 3, 5, 6};
-  x = std::move(y);
-
-  CHECK_EQ(x.ndim(), 5);
-  Tuple<int> z{1, 2, 3, 5, 6};
-  std::ostringstream os;
-  os << z;
-  CHECK_EQ(os.str(), "(1,2,3,5,6)");
-  std::istringstream is(os.str());
-  is >> y;
-  CHECK_EQ(x, y);
-  Tuple<nnvm::index_t> ss{1, 2, 3};
-  TShape s = ss;
-  s = std::move(ss);
-  CHECK((s == TShape{1, 2, 3}));
+void test_api_speed() {
+  auto add = (void*)nnvm::Op::Get("add");  // NOLINT(*)
+  double tstart = dmlc::GetTime();
+  size_t rep = 1000;
+  size_t n = 1000;
+  std::unordered_map<std::string, const nnvm::Symbol*> tmp;
+  std::vector<const nnvm::Symbol*> vec{2};
+  std::string name = "xx";
+  for (size_t t = 0; t < rep; ++t) {
+    SymbolHandle s;
+    NNSymbolCreateVariable("xx", &s);
+    for (size_t i = 0; i < n; ++i) {
+      SymbolHandle arg[2];
+      SymbolHandle ss;
+      NNSymbolCreateAtomicSymbol(add, 0, nullptr, nullptr, &ss);
+      arg[0] = s;
+      arg[1] = s;
+      NNSymbolCompose(ss, "nn", 2, nullptr, arg);
+      s = ss;
+    }
+  }
+  double tend = dmlc::GetTime();
+  LOG(INFO) << "API compose speed = " << n * rep / (tend - tstart) << " ops/sec";
 }
 
-
-void test_graph() {
-  nnvm::Symbol s;
-}
 int main() {
-  test_tuple();
+  test_speed();
+  test_node_speed();
+  test_api_speed();
   return 0;
 }

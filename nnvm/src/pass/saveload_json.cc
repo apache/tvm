@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file saveload_json.cc
- * \brief Passes that defines save and load graph to/from JSON file.
+ * \brief Save and load graph to/from JSON file.
  */
 #include <nnvm/pass.h>
 #include <dmlc/json.h>

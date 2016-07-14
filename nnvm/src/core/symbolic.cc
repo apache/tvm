@@ -45,7 +45,7 @@ inline void UpdateNodeVersion(Node *n) {
         CHECK(e.node->is_variable())
             << "Mutation target can only be Variable";
         // increase the version of the variable.
-        ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
+        e.version = ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
       }
     }
   }
@@ -98,13 +98,19 @@ Symbol Symbol::Copy() const {
   std::unordered_map<Node*, std::shared_ptr<Node> > old_new;
   // use DFSVisit to copy all the nodes
   DFSVisit(this->outputs, [&old_new](const std::shared_ptr<Node>& node) {
-      old_new[node.get()] =  std::make_shared<Node>(*node);
+      std::shared_ptr<Node> np = Node::Create();
+      np->op = node->op;
+      np->attrs = node->attrs;
+      old_new[node.get()] = std::move(np);
     });
   // connect nodes of new graph
   for (const auto &kv : old_new) {
     for (const NodeEntry& e : kv.first->inputs) {
       Node *ptr = e.node.get();
       kv.second->inputs.emplace_back(NodeEntry{old_new[ptr], e.index, e.version});
+    }
+    for (const std::shared_ptr<Node>& p : kv.first->control_deps) {
+      kv.second->control_deps.emplace_back(old_new[p.get()]);
     }
   }
   // set the head
@@ -120,7 +126,7 @@ void Symbol::Print(std::ostream &os) const {
     os << "AtomicFunctor "<< " Op:" << outputs[0].node->op->name << '\n';
   } else {
     // use DFSVisit to copy all the nodes
-    os << "Outputs:\n";
+    os << "Symbol Outputs:\n";
     for (size_t i = 0; i < outputs.size(); ++i) {
       os << "\toutput[" << i << "]=" << outputs[i].node->attrs.name
          << '(' << outputs[i].index << ")\n";
@@ -129,7 +135,8 @@ void Symbol::Print(std::ostream &os) const {
         if (node->is_variable()) {
           os << "Variable:" << node->attrs.name << '\n';
         } else {
-          os << "Name: " << node->attrs.name << " Op:" << node->op->name << '\n'
+          os << "--------------------\n";
+          os << "Op:" << node->op->name << ", Name=" << node->attrs.name << '\n'
              << "Inputs:\n";
           for (size_t i = 0; i < node->inputs.size(); ++i) {
             const NodeEntry& e = node->inputs[i];
@@ -141,9 +148,17 @@ void Symbol::Print(std::ostream &os) const {
               os << '\n';
             }
           }
-          os << "Attrs:\n";
-          for (auto &kv : node->attrs.dict) {
-            os << '\t' << kv.first << '=' << kv.second << '\n';
+          if (!node->attrs.dict.empty()) {
+            os << "Attrs:\n";
+            for (auto &kv : node->attrs.dict) {
+              os << '\t' << kv.first << '=' << kv.second << '\n';
+            }
+          }
+          if (node->control_deps.size() != 0) {
+            os << "Control deps:\n";
+            for (size_t i = 0; i < node->control_deps.size(); ++i) {
+              os << "\tcdep[" << i << "]=" << node->control_deps[i]->attrs.name << '\n';
+            }
           }
         }
       });
@@ -203,8 +218,8 @@ std::vector<std::string> Symbol::ListOutputs() const {
 }
 
 // compositional logic
-void Symbol::Compose(const std::vector<Symbol>& args,
-                     const std::unordered_map<std::string, Symbol>& kwargs,
+void Symbol::Compose(const array_view<const Symbol*>& args,
+                     const std::unordered_map<std::string, const Symbol*>& kwargs,
                      const std::string& name) {
   static auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
 
@@ -213,11 +228,11 @@ void Symbol::Compose(const std::vector<Symbol>& args,
   CHECK(!outputs[0].node->is_variable()) << "Variable cannot be composed";
   // parameter check.
   for (size_t i = 0; i < args.size(); ++i) {
-    CHECK_EQ(args[i].outputs.size(), 1)
+    CHECK_EQ(args[i]->outputs.size(), 1)
         << "Argument " << i << " is a tuple, single value is required";
   }
   for (const auto& kv : kwargs) {
-    CHECK_EQ(kv.second.outputs.size(), 1)
+    CHECK_EQ(kv.second->outputs.size(), 1)
         << "Keyword Argument " << kv.first << " is a tuple, single value is required";
   }
   // assign new name
@@ -234,7 +249,7 @@ void Symbol::Compose(const std::vector<Symbol>& args,
           << "Incorrect number of arguments, requires " << n_req
           << ", provided " << args.size();
       for (size_t i = 0; i < args.size(); ++i) {
-        n->inputs[i] = args[i].outputs[0];
+        n->inputs[i] = args[i]->outputs[0];
       }
       // switch to keyword argument matching
       if (args.size() != n_req) {
@@ -247,7 +262,7 @@ void Symbol::Compose(const std::vector<Symbol>& args,
         for (size_t i = args.size(); i < n_req; ++i) {
           auto it = kwargs.find(arg_names[i]);
           if (it != kwargs.end() && it->first == arg_names[i]) {
-            n->inputs[i] = it->second.outputs[0];
+            n->inputs[i] = it->second->outputs[0];
             ++nmatched;
           } else {
             n->inputs[i] = NodeEntry{
@@ -266,8 +281,8 @@ void Symbol::Compose(const std::vector<Symbol>& args,
     } else {
       CHECK_EQ(kwargs.size(), 0) << "Variable length function do not accept kwargs";
       n->inputs.reserve(args.size());
-      for (const Symbol& s : args) {
-        n->inputs.push_back(s.outputs[0]);
+      for (const Symbol* s : args) {
+        n->inputs.push_back(s->outputs[0]);
       }
     }
     UpdateNodeVersion(n);
@@ -283,13 +298,13 @@ void Symbol::Compose(const std::vector<Symbol>& args,
         (const std::shared_ptr<Node> &node) {
       if (node->is_variable()) {
         if (arg_counter < args.size()) {
-          replace_map[node.get()] = &(args[arg_counter].outputs[0]);
+          replace_map[node.get()] = &(args[arg_counter]->outputs[0]);
           ++arg_counter;
         } else {
             // match kwargs
           auto kit = kwargs.find(node->attrs.name);
           if (kit != kwargs.end()) {
-            replace_map[node.get()] = &(kit->second.outputs[0]);
+            replace_map[node.get()] = &(kit->second->outputs[0]);
             ++nmatched;
           }
         }
@@ -334,8 +349,8 @@ void Symbol::Compose(const std::vector<Symbol>& args,
   }
 }
 
-Symbol Symbol::operator () (const std::vector<Symbol>& args,
-                            const std::unordered_map<std::string, Symbol>& kwargs,
+Symbol Symbol::operator () (const array_view<const Symbol*>& args,
+                            const std::unordered_map<std::string, const Symbol*>& kwargs,
                             const std::string& name) const {
   Symbol s = this->Copy();
   s.Compose(args, kwargs, name);

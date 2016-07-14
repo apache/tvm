@@ -73,8 +73,8 @@ class Symbol {
    * \param kwargs keyword arguments for the symbol
    * \param name name of returned symbol.
    */
-  void Compose(const std::vector<Symbol>& args,
-               const std::unordered_map<std::string, Symbol>& kwargs,
+  void Compose(const array_view<const Symbol*>& args,
+               const std::unordered_map<std::string, const Symbol*>& kwargs,
                const std::string& name);
   /*!
    * \brief Apply the symbol as a function, compose with arguments
@@ -84,8 +84,8 @@ class Symbol {
    * \param name name of returned symbol.
    * \return a new Symbol which is the composition of current symbol with its arguments
    */
-  Symbol operator () (const std::vector<Symbol>& args,
-                      const std::unordered_map<std::string, Symbol>& kwargs,
+  Symbol operator () (const array_view<const Symbol*>& args,
+                      const std::unordered_map<std::string, const Symbol*>& kwargs,
                       const std::string& name) const;
   /*!
    * \brief Add control flow depenencies to operators involved in symbols.
