@@ -217,22 +217,26 @@ int NNSymbolCompose(SymbolHandle sym,
                     const char** keys,
                     SymbolHandle* args) {
   API_BEGIN();
-  std::string s_name;
-  if (name != nullptr) s_name = name;
-
+  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+  std::string& s_name = ret->ret_str;
+  std::unordered_map<std::string, const Symbol*>& kwargs
+      = ret->kwarg_symbol;
+  if (name != nullptr) {
+    s_name = name;
+  } else {
+    s_name.clear();
+  }
   Symbol* s = static_cast<Symbol*>(sym);
   if (keys == nullptr && num_args != 0) {
-    std::vector<Symbol> pos_args;
-    for (nn_uint i = 0; i < num_args; ++i) {
-      pos_args.push_back(*((Symbol*)args[i]));  //  NOLINT(*)
-    }
-    s->Compose(pos_args, {}, s_name);
+    kwargs.clear();
+    array_view<const Symbol*> parg(
+        (Symbol**)args, (Symbol**)args + num_args); // NOLINT(*)
+    s->Compose(parg, kwargs, s_name);
   } else {
-    std::unordered_map<std::string, Symbol> kwargs;
     for (nn_uint i = 0; i < num_args; ++i) {
-      kwargs[keys[i]] = *((Symbol*)args[i]);  //  NOLINT(*)
+      kwargs[keys[i]] = (Symbol*)args[i];  //  NOLINT(*)
     }
-    s->Compose({}, kwargs, s_name);
+    s->Compose(array_view<const Symbol*>(), kwargs, s_name);
   }
   API_END();
 }

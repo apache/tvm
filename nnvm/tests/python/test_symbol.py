@@ -36,8 +36,16 @@ def test_mutate_input():
     except NNVMError:
         pass
 
+def test_copy():
+    x = sym.Variable('x')
+    z = sym.Variable('z')
+    y = sym.exp(sym.add(x, x, name='add', gpu=2),
+                name='exp', gpu=1, attr={"kk": "1"})
+
+    assert y.__copy__().debug_str() == y.debug_str()
 
 if __name__ == "__main__":
+    test_copy()
     test_default_input()
     test_compose()
     test_mutate_input()
