@@ -10,6 +10,7 @@
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <nnvm/c_api.h>
+#include <nnvm/symbolic.h>
 #include <vector>
 #include <string>
 
@@ -36,6 +37,8 @@ struct NNAPIThreadLocalEntry {
   std::vector<const char *> ret_vec_charp;
   /*! \brief result holder for returning handles */
   std::vector<void *> ret_handles;
+  /*! \brief argument holder to hold symbol */
+  std::unordered_map<std::string, const nnvm::Symbol*> kwarg_symbol;
 };
 
 /*! \brief Thread local store that can be used to hold return values. */

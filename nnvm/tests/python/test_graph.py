@@ -1,3 +1,4 @@
+import json
 import nnvm.symbol as sym
 import nnvm.graph as graph
 
@@ -17,7 +18,24 @@ def test_graph_json_attr():
     g._set_json_attr('ilist', [1,2,3], 'list_int')
     assert g.json_attr('ilist') == [1,2,3]
 
+def test_order_mutation_pass():
+    x = sym.Variable('x')
+    y = sym.conv2d(data=x, name='conv', dev='gpu')
+    y = sym.add(y, x, name='add1')
+    # write after read
+    z = sym.assign(x, y, name='assign')
+    # read after write
+    t = sym.add(y, x, name='add2')
+    g = graph.create(sym.Group([t, z]))
+    jgraph = json.loads(g.apply(['OrderMutation', 'SaveJSON']).json_attr('json'))
+    jnodes = jgraph['nodes']
+    nindex = {n['name']: i for i, n in enumerate(jnodes)}
+    assert nindex['assign'] in jnodes[nindex['add2']]['control_deps']
+    assert nindex['conv'] in jnodes[nindex['assign']]['control_deps']
+    assert nindex['add1'] in jnodes[nindex['assign']]['control_deps']
+
 
 if __name__ == "__main__":
+    test_order_mutation_pass()
     test_graph_json_attr()
     test_json_pass()
