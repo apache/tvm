@@ -24,7 +24,7 @@ Node::~Node() {
           e.node.reset();
         }
       }
-      for (std::shared_ptr<Node>& sp : n->control_deps) {
+      for (NodePtr& sp : n->control_deps) {
         if (sp.unique()) {
           stack.push_back(sp.get());
         } else {
@@ -36,7 +36,7 @@ Node::~Node() {
   }
 }
 
-std::shared_ptr<Node> Node::Create() {
+NodePtr Node::Create() {
   // NOTE: possible change to thread local memory pool
   // via std::allocate_shared instead for faster allocation.
   return std::make_shared<Node>();
