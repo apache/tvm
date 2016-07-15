@@ -1,6 +1,6 @@
 # coding: utf-8
 """Automatic naming support for symbolic API."""
-from __future__ import absolute_import
+from __future__ import absolute_import as _abs
 
 class NameManager(object):
     """NameManager to do automatic naming.

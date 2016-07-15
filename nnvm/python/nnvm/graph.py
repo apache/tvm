@@ -6,10 +6,10 @@ from __future__ import absolute_import as _abs
 import ctypes
 import sys
 import json
-from .base import _LIB
-from .base import c_array, c_str, nn_uint, py_str, string_types
-from .base import GraphHandle, SymbolHandle
-from .base import check_call
+from ._base import _LIB
+from ._base import c_array, c_str, nn_uint, py_str, string_types
+from ._base import GraphHandle, SymbolHandle
+from ._base import check_call
 from .symbol import Symbol
 
 

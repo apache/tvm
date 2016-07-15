@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import sys
+import os
 import ctypes
 import numpy as np
 from . import libinfo
@@ -31,7 +32,7 @@ class NNVMError(Exception):
 def _load_lib():
     """Load libary by searching possible path."""
     lib_path = libinfo.find_lib_path()
-    lib = ctypes.cdll.LoadLibrary(lib_path[0])
+    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
     # DMatrix functions
     lib.NNGetLastError.restype = ctypes.c_char_p
     return lib
@@ -41,12 +42,12 @@ __version__ = libinfo.__version__
 # library instance of nnvm
 _LIB = _load_lib()
 
+
 # type definitions
 nn_uint = ctypes.c_uint
 SymbolCreatorHandle = ctypes.c_void_p
 SymbolHandle = ctypes.c_void_p
 GraphHandle = ctypes.c_void_p
-
 
 #----------------------------
 # helper function definition

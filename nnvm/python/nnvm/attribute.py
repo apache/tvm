@@ -2,7 +2,7 @@
 """Attribute scoping support for symbolic API."""
 from __future__ import absolute_import
 
-from .base import string_types
+from ._base import string_types
 
 class AttrScope(object):
     """Attribute manager for scoping.
@@ -59,4 +59,3 @@ class AttrScope(object):
         AttrScope.current = self._old_scope
 
 AttrScope.current = AttrScope()
-
