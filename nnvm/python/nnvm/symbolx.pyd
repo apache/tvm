@@ -1,0 +1,6 @@
+ctypedef void* SymbolHandle
+
+
+cdef class Symbol:
+    # handle for symbolic operator.
+    cdef SymbolHandle handle
