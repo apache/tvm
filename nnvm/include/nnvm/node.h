@@ -20,8 +20,7 @@ class Node;
 
 /*!
  * \brief we always used NodePtr for a reference pointer
- *  to the node, so this alias can be changed in case we need
- *  even faster graph composition than 3M ops/sec.
+ *  to the node, so this alias can be changed in case.
  *
  *  By default, NodePtr is a std::shared_ptr of node
  */

@@ -35,7 +35,7 @@ void test_node_speed() {
   auto add = nnvm::Op::Get("add");
   double tstart = dmlc::GetTime();
   size_t rep = 1000;
-  size_t n = 100;
+  size_t n = 1000;
   for (size_t t = 0; t < rep; ++t) {
     nnvm::Symbol s = nnvm::Symbol::CreateVariable("x");
     for (size_t i = 0; i < n; ++i) {
