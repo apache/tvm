@@ -123,7 +123,11 @@ Symbol Symbol::Copy() const {
 
 void Symbol::Print(std::ostream &os) const {
   if (outputs.size() == 1 && outputs[0].node->inputs.size() == 0) {
-    os << "AtomicFunctor "<< " Op:" << outputs[0].node->op->name << '\n';
+    if (outputs[0].node->is_variable()) {
+      os << "Variable:" << outputs[0].node->attrs.name << '\n';
+    } else {
+      os << "AtomicFunctor "<< " Op:" << outputs[0].node->op->name << '\n';
+    }
   } else {
     // use DFSVisit to copy all the nodes
     os << "Symbol Outputs:\n";

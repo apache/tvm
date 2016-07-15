@@ -10,6 +10,8 @@
 
 #ifdef __cplusplus
 #define NNVM_EXTERN_C extern "C"
+#else
+#define NNVM_EXTERN_C
 #endif
 
 /*! \brief NNVM_DLL prefix for windows */
@@ -42,7 +44,7 @@ typedef void *GraphHandle;
  *  this function is threadsafe and can be called by different thread
  *  \return error info
  */
-NNVM_DLL const char *NNGetLastError();
+NNVM_DLL const char *NNGetLastError(void);
 
 /*!
  * \brief list all the available AtomicSymbolEntry
