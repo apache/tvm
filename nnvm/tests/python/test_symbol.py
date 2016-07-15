@@ -1,5 +1,5 @@
 import nnvm.symbol as sym
-from nnvm.base import NNVMError
+from nnvm import NNVMError
 
 def test_compose():
     x = sym.Variable('x')

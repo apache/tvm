@@ -1,9 +1,9 @@
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops\
-	 -Iinclude -Idmlc-core/include -I../include -fPIC -L../lib
+	 -Iinclude -Idmlc-core/include -fPIC
 
 # specify tensor path
-.PHONY: clean all test lint doc python
+.PHONY: clean all test lint doc cython cython3
 
 all: lib/libnnvm.so lib/libnnvm.a cli_test
 
@@ -31,8 +31,12 @@ lib/libnnvm.a: $(ALL_DEP)
 cli_test: $(ALL_DEP) build/test_main.o
 	$(CXX) $(CFLAGS)  -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-python:
+cython:
 	cd python; python setup.py build_ext --inplace
+
+cython3:
+	cd python; python3 setup.py build_ext --inplace
+
 
 lint:
 	python2 dmlc-core/scripts/lint.py nnvm cpp include src
