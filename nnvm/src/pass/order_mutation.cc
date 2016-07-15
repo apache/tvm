@@ -21,7 +21,7 @@ inline T get_with_default(const std::unordered_map<Node*, T> &map,
 
 Graph OrderMutation(const Graph& src) {
   std::unordered_map<Node*, std::vector<NodeEntry> > version_hist;
-  DFSVisit(src.outputs, [&version_hist](const std::shared_ptr<Node>& n) {
+  DFSVisit(src.outputs, [&version_hist](const NodePtr& n) {
       for (const NodeEntry& e : n->inputs) {
         if (e.node->is_variable()) {
           if (e.version != 0 && version_hist.count(e.node.get()) == 0) {
@@ -33,8 +33,8 @@ Graph OrderMutation(const Graph& src) {
   // no mutation happens, everything if fine.
   if (version_hist.size() == 0) return src;
   // start preparing for remapping the nodes.
-  std::unordered_map<Node*, std::shared_ptr<Node> > old_new;
-  auto prepare = [&version_hist, &old_new] (const std::shared_ptr<Node>& n) {
+  std::unordered_map<Node*, NodePtr> old_new;
+  auto prepare = [&version_hist, &old_new] (const NodePtr& n) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
     bool need_repl = false;
     for (size_t i = 0; i < n->inputs.size(); ++i) {
@@ -52,11 +52,11 @@ Graph OrderMutation(const Graph& src) {
         if (old_new.count(e.node.get()) != 0) need_repl = true;
       }
     }
-    for (const std::shared_ptr<Node>& p : n->control_deps) {
+    for (const NodePtr& p : n->control_deps) {
       if (old_new.count(p.get()) != 0) need_repl = true;
     }
     if (need_repl) {
-      std::shared_ptr<Node> np = Node::Create();
+      NodePtr np = Node::Create();
       np->op = n->op;
       np->attrs = n->attrs;
       old_new[n.get()] = std::move(np);
@@ -84,7 +84,7 @@ Graph OrderMutation(const Graph& src) {
         kv.second->inputs.push_back(e);
       }
     }
-    for (const std::shared_ptr<Node>& p : kv.first->control_deps) {
+    for (const NodePtr& p : kv.first->control_deps) {
       kv.second->control_deps.emplace_back(
           get_with_default(old_new, p.get(), p));
     }
