@@ -12,7 +12,7 @@ Node::~Node() {
     // explicit deletion via DFS
     // this is used to avoid stackoverflow caused by chain of deletions
     std::vector<Node*> stack{this};
-    std::vector<std::shared_ptr<Node> > to_delete;
+    std::vector<NodePtr> to_delete;
     while (!stack.empty()) {
       Node* n = stack.back();
       stack.pop_back();
@@ -37,8 +37,6 @@ Node::~Node() {
 }
 
 NodePtr Node::Create() {
-  // NOTE: possible change to thread local memory pool
-  // via std::allocate_shared instead for faster allocation.
   return std::make_shared<Node>();
 }
 

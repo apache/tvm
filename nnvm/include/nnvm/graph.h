@@ -81,7 +81,7 @@ void PostOrderDFSVisit(const std::vector<GNode>& heads,
 template<typename FVisit>
 inline void DFSVisit(const std::vector<NodeEntry>& heads,
                      FVisit fvisit) {
-  typedef const std::shared_ptr<Node>* GNode;
+  typedef const NodePtr* GNode;
   std::vector<GNode> head_nodes(heads.size());
   std::transform(heads.begin(), heads.end(), head_nodes.begin(),
                  [](const NodeEntry& e)->GNode {

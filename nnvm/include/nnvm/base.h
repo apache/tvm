@@ -8,6 +8,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/any.h>
+#include <dmlc/memory.h>
 #include <dmlc/logging.h>
 #include <dmlc/registry.h>
 #include <dmlc/array_view.h>

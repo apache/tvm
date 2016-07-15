@@ -14,7 +14,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
   std::vector<size_t> inputs_rptr{0}, control_rptr{0};
 
   DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr]
-             (const std::shared_ptr<nnvm::Node>& n) {
+             (const NodePtr& n) {
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
       uint32_t nid = static_cast<uint32_t>(nodes_.size());
       // nodes_
