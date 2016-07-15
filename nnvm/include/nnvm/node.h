@@ -18,10 +18,19 @@ namespace nnvm {
 // Forward declare node.
 class Node;
 
+/*!
+ * \brief we always used NodePtr for a reference pointer
+ *  to the node, so this alias can be changed in case we need
+ *  even faster graph composition than 3M ops/sec.
+ *
+ *  By default, NodePtr is a std::shared_ptr of node
+ */
+using NodePtr = std::shared_ptr<Node>;
+
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
   /*! \brief the source node of this data */
-  std::shared_ptr<Node> node;
+  NodePtr node;
   /*! \brief index of output from the source. */
   uint32_t index;
   /*!
@@ -66,7 +75,7 @@ class Node {
    * \brief Optional control flow dependencies
    *  Gives operation must be performed before this operation.
    */
-  std::vector<std::shared_ptr<Node> > control_deps;
+  std::vector<NodePtr> control_deps;
   /*! \brief The attributes in the node. */
   NodeAttrs attrs;
   /*! \brief destructor of node */
@@ -85,7 +94,7 @@ class Node {
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
    */
-  static std::shared_ptr<Node> Create();
+  static NodePtr Create();
 };
 
 // implementation of functions.

@@ -32,7 +32,7 @@ struct JSONNode {
   // the node entry structure in serialized format
   typedef std::pair<uint32_t, uint32_t> Entry;
   // pointer to the graph node
-  std::shared_ptr<Node> node;
+  NodePtr node;
   // inputs
   std::vector<Entry> inputs;
   // control flow dependencies
@@ -159,7 +159,7 @@ Graph LoadJSON(const Graph& src) {
 Graph SaveJSON(const Graph& src) {
   JSONGraph jgraph;
   std::unordered_map<Node*, uint32_t> node2index;
-  DFSVisit(src.outputs, [&node2index, &jgraph](const std::shared_ptr<Node>& n) {
+  DFSVisit(src.outputs, [&node2index, &jgraph](const NodePtr& n) {
       uint32_t nid = static_cast<uint32_t>(jgraph.nodes.size());
       node2index[n.get()] = nid;
       if (n->is_variable()) {
@@ -172,7 +172,7 @@ Graph SaveJSON(const Graph& src) {
         jnode.inputs.emplace_back(
             std::make_pair(node2index.at(e.node.get()), e.index));
       }
-      for (const std::shared_ptr<Node>& c : n->control_deps) {
+      for (const NodePtr& c : n->control_deps) {
         jnode.control_deps.push_back(node2index.at(c.get()));
       }
       jgraph.nodes.emplace_back(std::move(jnode));

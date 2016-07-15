@@ -18,8 +18,8 @@ struct VariableParam {
   uint32_t version{0};
 };
 
-std::shared_ptr<Node> CreateVariableNode(const std::string& name) {
-  std::shared_ptr<Node> n = Node::Create();
+NodePtr CreateVariableNode(const std::string& name) {
+  NodePtr n = Node::Create();
   n->op = nullptr;
   n->attrs.name = name;
   n->attrs.parsed = VariableParam();
@@ -95,10 +95,10 @@ inline bool IsAtomic(const std::vector<NodeEntry>& outputs) {
 
 // public functions
 Symbol Symbol::Copy() const {
-  std::unordered_map<Node*, std::shared_ptr<Node> > old_new;
+  std::unordered_map<Node*, NodePtr> old_new;
   // use DFSVisit to copy all the nodes
-  DFSVisit(this->outputs, [&old_new](const std::shared_ptr<Node>& node) {
-      std::shared_ptr<Node> np = Node::Create();
+  DFSVisit(this->outputs, [&old_new](const NodePtr& node) {
+      NodePtr np = Node::Create();
       np->op = node->op;
       np->attrs = node->attrs;
       old_new[node.get()] = std::move(np);
@@ -109,7 +109,7 @@ Symbol Symbol::Copy() const {
       Node *ptr = e.node.get();
       kv.second->inputs.emplace_back(NodeEntry{old_new[ptr], e.index, e.version});
     }
-    for (const std::shared_ptr<Node>& p : kv.first->control_deps) {
+    for (const NodePtr& p : kv.first->control_deps) {
       kv.second->control_deps.emplace_back(old_new[p.get()]);
     }
   }
@@ -131,7 +131,7 @@ void Symbol::Print(std::ostream &os) const {
       os << "\toutput[" << i << "]=" << outputs[i].node->attrs.name
          << '(' << outputs[i].index << ")\n";
     }
-    DFSVisit(this->outputs, [&os](const std::shared_ptr<Node>& node) {
+    DFSVisit(this->outputs, [&os](const NodePtr& node) {
         if (node->is_variable()) {
           os << "Variable:" << node->attrs.name << '\n';
         } else {
@@ -179,7 +179,7 @@ Symbol Symbol::operator[] (size_t index) const {
 
 std::vector<std::string> Symbol::ListArguments() const {
   std::vector<std::string> ret;
-  DFSVisit(this->outputs, [&ret](const std::shared_ptr<Node> &node) {
+  DFSVisit(this->outputs, [&ret](const NodePtr &node) {
       if (node->is_variable()) {
         ret.push_back(node->attrs.name);
       }
@@ -295,7 +295,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     std::unordered_map<Node *, const NodeEntry*> replace_map;
     // replace map stores the existing replacement plan for arguments node
     auto find_replace_map = [&nmatched, &arg_counter, &args, &kwargs, &replace_map]
-        (const std::shared_ptr<Node> &node) {
+        (const NodePtr &node) {
       if (node->is_variable()) {
         if (arg_counter < args.size()) {
           replace_map[node.get()] = &(args[arg_counter]->outputs[0]);
@@ -316,7 +316,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
       std::vector<Node*> update_nodes;
       std::vector<std::pair<NodeEntry*, const NodeEntry*> > replace_plan;
       auto find_replace_plan = [&replace_map, &replace_plan, &update_nodes]
-          (const std::shared_ptr<Node> &node) {
+          (const NodePtr &node) {
         // visit all the childs, find possible replacement
         bool repl = false;
         for (size_t i = 0; i < node->inputs.size(); ++i) {
@@ -368,7 +368,7 @@ void Symbol::AddControlDeps(const Symbol& src) {
 
 Symbol Symbol::GetInternals() const {
   Symbol ret;
-  DFSVisit(this->outputs, [&ret](const std::shared_ptr<Node>& node) {
+  DFSVisit(this->outputs, [&ret](const NodePtr& node) {
       Node* n = node.get();
       if (n->is_variable()) {
         // grab version from variable.
@@ -421,7 +421,7 @@ bool Symbol::GetAttr(const std::string& key, std::string* out) const {
 std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption option) const {
   if (option == kRecursive) {
     std::unordered_map<std::string, std::string> ret;
-    DFSVisit(this->outputs, [&ret](const std::shared_ptr<Node>& n) {
+    DFSVisit(this->outputs, [&ret](const NodePtr& n) {
         for (const auto& it : n->attrs.dict) {
           ret[n->attrs.name + symbol_constants::kNamespaceSeparator + it.first] = it.second;
         }
@@ -435,7 +435,7 @@ std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption op
 Symbol Symbol::CreateFunctor(const Op* op,
                              std::unordered_map<std::string, std::string>&& attrs) {
   Symbol s;
-  std::shared_ptr<Node> n = Node::Create();
+  NodePtr n = Node::Create();
   n->op = op;
   n->attrs.dict = std::move(attrs);
   if (n->op->attr_parser != nullptr) {
