@@ -3,7 +3,7 @@ export CFLAGS =  -std=c++11 -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loop
 	 -Iinclude -Idmlc-core/include -fPIC
 
 # specify tensor path
-.PHONY: clean all test lint doc cython cython3
+.PHONY: clean all test lint doc cython cython3 cyclean
 
 all: lib/libnnvm.so lib/libnnvm.a cli_test
 
@@ -37,6 +37,8 @@ cython:
 cython3:
 	cd python; python3 setup.py build_ext --inplace
 
+cyclean:
+	rm -rf python/nnvm/*/*.so python/nnvm/*/*.cpp
 
 lint:
 	python2 dmlc-core/scripts/lint.py nnvm cpp include src

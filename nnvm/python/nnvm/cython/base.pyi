@@ -9,6 +9,21 @@ cdef py_str(const char* x):
         return x.decode("utf-8")
 
 
+cdef c_str(pystr):
+    """Create ctypes char * from a python string
+    Parameters
+    ----------
+    string : string type
+        python string
+
+    Returns
+    -------
+    str : c_char_p
+        A char pointer that can be passed to C API
+    """
+    return pystr.encode("utf-8")
+
+
 cdef CALL(int ret):
     if ret != 0:
         raise NNVMError(NNGetLastError())
@@ -19,6 +34,13 @@ cdef const char** CBeginPtr(vector[const char*]& vec):
         return &vec[0]
     else:
         return NULL
+
+cdef vector[const char*] SVec2Ptr(vector[string]& vec):
+    cdef vector[const char*] svec
+    svec.resize(vec.size())
+    for i in range(vec.size()):
+        svec[i] = vec[i].c_str()
+    return svec
 
 
 cdef BuildDoc(nn_uint num_args,
