@@ -2,6 +2,7 @@ from __future__ import absolute_import as _abs
 
 import sys as _sys
 import ctypes as _ctypes
+from numbers import Number as _Number
 from .._base import NNVMError
 from ..name import NameManager
 from ..attribute import AttrScope
@@ -64,8 +65,7 @@ cdef extern from "nnvm/c_api.h":
                         const char** keys,
                         SymbolHandle* args);
 
-
-cdef class Symbol:
+cdef class SymbolBase:
     """Symbol is symbolic graph."""
     # handle for symbolic operator.
     cdef SymbolHandle handle
@@ -85,76 +85,6 @@ cdef class Symbol:
     def handle(self):
         return _ctypes.cast(<unsigned long>self.handle, _ctypes.c_void_p)
 
-    def __copy__(self):
-        return self.__deepcopy__()
-
-    def __deepcopy__(self, _ = None):
-        cdef SymbolHandle handle
-        CALL(NNSymbolCopy(self.handle, &handle))
-        return NewSymbol(handle)
-
-    def __getitem__(self, index):
-        if isinstance(index, str):
-            idx = None
-            for i, name in enumerate(self.list_outputs()):
-                if name == index:
-                    if idx is not None:
-                        raise ValueError('There are multiple outputs with name \"%s\"' % index)
-                    idx = i
-            if idx is None:
-                raise ValueError('Cannot find output that matches name \"%s\"' % index)
-            index = idx
-        if not isinstance(index, int):
-            raise TypeError('Symbol only support integer index to fetch i-th output')
-        cdef SymbolHandle handle
-        cdef nn_uint c_index = index
-        CALL(NNSymbolGetOutput(self.handle, c_index, &handle))
-        return NewSymbol(handle)
-
-    def attr(self, key):
-        """Get attribute string from the symbol, this function only works for non-grouped symbol.
-
-        Parameters
-        ----------
-        key : str
-            The key to get attribute from.
-
-        Returns
-        -------
-        value : str
-            The attribute value of the key, returns None if attribute do not exist.
-        """
-        cdef const char* ret
-        cdef int success
-        key = c_str(key)
-
-        CALL(NNSymbolGetAttr(
-            self.handle, key, &ret, &success))
-        if success != 0:
-            return py_str(ret.value)
-        else:
-            return None
-
-    def list_attr(self, recursive=False):
-        """Get all attributes from the symbol.
-
-        Parameters
-        ----------
-        recursive : bool
-            Default `False`. When `recursive` is `True`, list recursively all the
-            attributes in the descendents. The attribute names are pre-pended with
-            the symbol names to avoid conflicts. If `False`, then only attributes
-            that belongs to this symbol is returned, and the attribute names will
-            **not** be pre-pended with the symbol name.
-        """
-        cdef nn_uint size
-        cdef const char** pairs
-        cdef int option
-        option = 0 if recursive else 1
-        CALL(NNSymbolListAttrs(
-            self.handle, option, &size, &pairs))
-        return {py_str(pairs[i*2]): py_str(pairs[i*2+1]) for i in range(size)}
-
     def _set_attr(self, **kwargs):
         """Set the attribute of the symbol.
 
@@ -164,49 +94,6 @@ cdef class Symbol:
             The attributes to set
         """
         SymbolSetAttr(self.handle, kwargs)
-
-    def get_internals(self):
-        """Get a new grouped symbol whose output contains all the internal outputs of this symbol.
-
-        Returns
-        -------
-        sgroup : Symbol
-            The internal of the symbol.
-        """
-        cdef SymbolHandle handle
-        CALL(NNSymbolGetInternals(self.handle, &handle))
-        return NewSymbol(handle)
-
-    def list_arguments(self):
-        """List all the arguments in the symbol.
-
-        Returns
-        -------
-        args : list of string
-            List of all the arguments.
-        """
-        cdef nn_uint size
-        cdef const char ** sarr
-        CALL(NNSymbolListArguments(self.handle, &size, &sarr))
-        return [py_str(sarr[i]) for i in range(size)]
-
-    def list_outputs(self):
-        """List all outputs in the symbol.
-
-        Returns
-        -------
-        returns : list of string
-            List of all the outputs.
-        """
-        cdef nn_uint size
-        cdef const char ** sarr
-        CALL(NNSymbolListOutputs(self.handle, &size, &sarr))
-        return [py_str(sarr[i]) for i in range(size)]
-
-    def debug_str(self):
-        cdef const char* out_str
-        CALL(NNSymbolPrint(self.handle, &out_str))
-        return py_str(out_str)
 
 
 cdef SymbolSetAttr(SymbolHandle handle, dict kwargs):
@@ -224,33 +111,17 @@ cdef SymbolSetAttr(SymbolHandle handle, dict kwargs):
         handle, num_args, CBeginPtr(param_keys), CBeginPtr(param_vals)))
 
 
+_symbol_cls = SymbolBase
+
+def _set_symbol_class(cls):
+    global _symbol_cls
+    _symbol_cls = cls
+
 cdef NewSymbol(SymbolHandle handle):
     """Create a new symbol given handle"""
-    sym = Symbol(None)
-    sym.handle = handle
+    sym = _symbol_cls(None)
+    (<SymbolBase>sym).handle = handle
     return sym
-
-
-def Variable(name, **kwargs):
-    """Create a symbolic variable with specified name.
-
-    Parameters
-    ----------
-    name : str
-        Name of the variable.
-    kwargs : dict of string -> string
-        Additional attributes to set on the variable.
-
-    Returns
-    -------
-    variable : Symbol
-        The created variable symbol.
-    """
-    cdef SymbolHandle handle
-    name = c_str(name)
-    CALL(NNSymbolCreateVariable(name, &handle))
-    return NewSymbol(handle)
-
 
 cdef _make_atomic_symbol_function(AtomicSymbolCreator handle):
     """Create an atomic symbol function by handle and funciton name."""
@@ -292,9 +163,9 @@ cdef _make_atomic_symbol_function(AtomicSymbolCreator handle):
 
         if len(kwargs) != 0:
             for k, v in kwargs.items():
-                if isinstance(v, Symbol):
+                if isinstance(v, SymbolBase):
                     ssymbol_keys.push_back(c_str(k))
-                    symbol_args.push_back((<Symbol>v).handle)
+                    symbol_args.push_back((<SymbolBase>v).handle)
                 else:
                     sparam_keys.push_back(c_str(k))
                     sparam_vals.push_back(c_str(str(v)))
@@ -304,9 +175,9 @@ cdef _make_atomic_symbol_function(AtomicSymbolCreator handle):
                 raise TypeError("compose only accept input Symbols\
                     either as positional or keyword arguments, not both")
             for v in args:
-                if not isinstance(v, Symbol):
+                if not isinstance(v, SymbolBase):
                     raise TypeError('Compose expect `Symbol` as arguments')
-                symbol_args.push_back((<Symbol>v).handle)
+                symbol_args.push_back((<SymbolBase>v).handle)
 
         cdef vector[const char*] param_keys = SVec2Ptr(sparam_keys)
         cdef vector[const char*] param_vals = SVec2Ptr(sparam_vals)
@@ -344,46 +215,20 @@ cdef _make_atomic_symbol_function(AtomicSymbolCreator handle):
     return creator
 
 
-def Group(symbols):
-    """Create a symbol that groups symbols together.
-
-    Parameters
-    ----------
-    symbols : list
-        List of symbols to be grouped.
-
-    Returns
-    -------
-    sym : Symbol
-        The created group symbol.
-     """
-    cdef vector[SymbolHandle] ihandles
-    cdef SymbolHandle handle
-
-    for sym in symbols:
-        if not isinstance(sym, Symbol):
-            raise TypeError("Expect Symbols in the list input")
-        ihandles.push_back((<Symbol>sym).handle)
-    if ihandles.size() == 0:
-        raise ValueError("expect at least one element in the input")
-    CALL(NNSymbolCreateGroup(<nn_uint>ihandles.size(),
-                             &ihandles[0], &handle))
-    return NewSymbol(handle)
-
-
 def _init_symbol_module():
     """List and add all the atomic symbol functions to current module."""
     cdef AtomicSymbolCreator* plist
     cdef nn_uint size
     CALL(NNSymbolListAtomicSymbolCreators(&size, &plist))
     module_obj = _sys.modules["nnvm.symbol"]
+    module_internal = _sys.modules["nnvm._symbol_internal"]
     for i in range(size):
         function = _make_atomic_symbol_function(plist[i])
+
         if function.__name__.startswith('_'):
-            setattr(Symbol, function.__name__, staticmethod(function))
+            setattr(module_internal, function.__name__, function)
         else:
             setattr(module_obj, function.__name__, function)
-
 
 # Initialize the atomic symbol in startups
 _init_symbol_module()

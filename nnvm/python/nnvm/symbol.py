@@ -2,13 +2,214 @@
 from __future__ import absolute_import as _abs
 import sys as _sys
 import os as _os
+import ctypes as _ctypes
 
+from numbers import Number as _Number
+from . import _base
+from ._base import _LIB, check_call as _check_call
+from . import _symbol_internal as _internal
+from .attribute import AttrScope
+
+# Use different verison of SymbolBase
+# When possible, use cython to speedup part of computation.
 try:
     if int(_os.environ.get("NNVM_ENABLE_CYTHON", True)) == 0:
-        from .ctypes.symbol import Symbol, Variable
+        from .ctypes.symbol import SymbolBase, _set_symbol_class
     elif _sys.version_info >= (3, 0):
-        from ._cy3.symbol import Symbol, Variable, Group
+        from ._cy3.symbol import SymbolBase, _set_symbol_class
     else:
-        from ._cy2.symbol import Symbol, Variable, Group
+        from ._cy2.symbol import SymbolBase, _set_symbol_class
 except:
-    from .ctypes.symbol import Symbol, Variable, Group
+    from .ctypes.symbol import SymbolBase, _set_symbol_class
+
+
+class Symbol(SymbolBase):
+    """Symbol is basic operation unit for symbolic graph compostion."""
+    # disable dictionary storage, also do not have parent type.
+    __slots__ = []
+
+    def __add__(self, other):
+        if isinstance(other, Symbol):
+            return _internal.__add__symbol__(self, other)
+        elif isinstance(other, _Number):
+            return _internal.__add__scalar__(self, scalar=other)
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __copy__(self):
+        return self.__deepcopy__()
+
+    def __deepcopy__(self, _=None):
+        handle = _base.SymbolHandle()
+        _base.check_call(_LIB.NNSymbolCopy(self.handle,
+                                           _ctypes.byref(handle)))
+        return Symbol(handle)
+
+    def __getitem__(self, index):
+        if isinstance(index, _base.string_types):
+            idx = None
+            for i, name in enumerate(self.list_outputs()):
+                if name == index:
+                    if idx is not None:
+                        raise ValueError('There are multiple outputs with name \"%s\"' % index)
+                    idx = i
+            if idx is None:
+                raise ValueError('Cannot find output that matches name \"%s\"' % index)
+            index = idx
+        if not isinstance(index, int):
+            raise TypeError('Symbol only support integer index to fetch i-th output')
+        handle = _base.SymbolHandle()
+        _check_call(_LIB.NNSymbolGetOutput(
+            self.handle, _base.nn_uint(index), _ctypes.byref(handle)))
+        return Symbol(handle=handle)
+
+    def attr(self, key):
+        """Get attribute string from the symbol, this function only works for non-grouped symbol.
+
+        Parameters
+        ----------
+        key : str
+            The key to get attribute from.
+
+        Returns
+        -------
+        value : str
+            The attribute value of the key, returns None if attribute do not exist.
+        """
+        ret = _ctypes.c_char_p()
+        success = _ctypes.c_int()
+        _check_call(_LIB.NNSymbolGetAttr(
+            self.handle, c_str(key), _ctypes.byref(ret), _ctypes.byref(success)))
+        if success.value != 0:
+            return _base.py_str(ret.value)
+        else:
+            return None
+
+    def list_attr(self, recursive=False):
+        """Get all attributes from the symbol.
+
+        Parameters
+        ----------
+        recursive : bool
+            Default `False`. When `recursive` is `True`, list recursively all the
+            attributes in the descendents. The attribute names are pre-pended with
+            the symbol names to avoid conflicts. If `False`, then only attributes
+            that belongs to this symbol is returned, and the attribute names will
+            **not** be pre-pended with the symbol name.
+        """
+        size = _base.nn_uint()
+        pairs = _ctypes.POINTER(_ctypes.c_char_p)()
+        option = _ctypes.c_int(0) if recursive else _ctypes.c_int(1)
+        _check_call(_LIB.NNSymbolListAttrs(
+            self.handle, option, _ctypes.byref(size), _ctypes.byref(pairs)))
+        return {_base.py_str(pairs[i*2]): _base.py_str(pairs[i*2+1]) for i in range(size.value)}
+
+    def get_internals(self):
+        """Get a new grouped symbol whose output contains all the internal outputs of this symbol.
+
+        Returns
+        -------
+        sgroup : Symbol
+            The internal of the symbol.
+        """
+        handle = _base.SymbolHandle()
+        _check_call(_LIB.NNSymbolGetInternals(
+            self.handle, _ctypes.byref(handle)))
+        return Symbol(handle=handle)
+
+    def list_arguments(self):
+        """List all the arguments in the symbol.
+
+        Returns
+        -------
+        args : list of string
+            List of all the arguments.
+        """
+        size = _ctypes.c_uint()
+        sarr = _ctypes.POINTER(_ctypes.c_char_p)()
+        _check_call(_LIB.NNSymbolListArguments(
+            self.handle, _ctypes.byref(size), _ctypes.byref(sarr)))
+        return [_base.py_str(sarr[i]) for i in range(size.value)]
+
+    def list_outputs(self):
+        """List all outputs in the symbol.
+
+        Returns
+        -------
+        returns : list of string
+            List of all the outputs.
+        """
+        size = _ctypes.c_uint()
+        sarr = _ctypes.POINTER(_ctypes.c_char_p)()
+        _check_call(_LIB.NNSymbolListOutputs(
+            self.handle, _ctypes.byref(size), _ctypes.byref(sarr)))
+        return [_base.py_str(sarr[i]) for i in range(size.value)]
+
+    def debug_str(self):
+        """Get a debug string.
+
+        Returns
+        -------
+        debug_str : string
+            Debug string of the symbol.
+        """
+        debug_str = _ctypes.c_char_p()
+        _check_call(_LIB.NNSymbolPrint(
+            self.handle, _ctypes.byref(debug_str)))
+        return _base.py_str(debug_str.value)
+
+
+def Variable(name, **kwargs):
+    """Create a symbolic variable with specified name.
+
+    Parameters
+    ----------
+    name : str
+        Name of the variable.
+    kwargs : dict of string -> string
+        Additional attributes to set on the variable.
+
+    Returns
+    -------
+    variable : Symbol
+        The created variable symbol.
+    """
+    if not isinstance(name, _base.string_types):
+        raise TypeError('Expect a string for variable `name`')
+    handle = _base.SymbolHandle()
+    _base.check_call(_LIB.NNSymbolCreateVariable(
+        _base.c_str(name), _ctypes.byref(handle)))
+    ret = Symbol(handle)
+    attr = AttrScope.current.get(kwargs)
+    if attr:
+        ret._set_attr(**attr)
+    return ret
+
+
+def Group(symbols):
+    """Create a symbol that groups symbols together.
+
+    Parameters
+    ----------
+    symbols : list
+        List of symbols to be grouped.
+
+    Returns
+    -------
+    sym : Symbol
+        The created group symbol.
+     """
+    ihandles = []
+    for sym in symbols:
+        if not isinstance(sym, Symbol):
+            raise TypeError('Expect Symbols in the list input')
+        ihandles.append(sym.handle)
+    handle = _base.SymbolHandle()
+    _check_call(_LIB.NNSymbolCreateGroup(
+        _base.nn_uint(len(ihandles)),
+        _base.c_array(_base.SymbolHandle, ihandles),
+        _ctypes.byref(handle)))
+    return Symbol(handle)
+
+# Set the real symbol class to Symbol
+_set_symbol_class(Symbol)
