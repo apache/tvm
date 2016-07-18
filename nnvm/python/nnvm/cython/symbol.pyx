@@ -14,10 +14,6 @@ include "./base.pyi"
 
 cdef extern from "nnvm/c_api.h":
     const char* NNGetLastError();
-    int NNSymbolCreateVariable(const char *name, SymbolHandle *out);
-    int NNSymbolCreateGroup(nn_uint num_symbols,
-                            SymbolHandle *symbols,
-                            SymbolHandle *out);
     int NNSymbolListAtomicSymbolCreators(nn_uint *out_size,
                                          AtomicSymbolCreator **out_array);
     int NNSymbolCreateAtomicSymbol(AtomicSymbolCreator creator,
@@ -34,31 +30,10 @@ cdef extern from "nnvm/c_api.h":
                                     const char ***arg_descriptions,
                                     const char **return_type);
     int NNSymbolFree(SymbolHandle symbol);
-    int NNSymbolPrint(SymbolHandle symbol, const char **out_str);
-    int NNSymbolCopy(SymbolHandle symbol, SymbolHandle *out);
-    int NNSymbolGetAttr(SymbolHandle symbol,
-                        const char* key,
-                        const char** out,
-                        int *success);
     int NNSymbolSetAttrs(SymbolHandle symbol,
                          nn_uint num_param,
                          const char** keys,
                          const char** values);
-    int NNSymbolListAttrs(SymbolHandle symbol,
-                          int recursive_option,
-                          nn_uint *out_size,
-                          const char*** out);
-    int NNSymbolListArguments(SymbolHandle symbol,
-                              nn_uint *out_size,
-                              const char ***out_str_array);
-    int NNSymbolListOutputs(SymbolHandle symbol,
-                            nn_uint *out_size,
-                            const char ***out_str_array);
-    int NNSymbolGetInternals(SymbolHandle symbol,
-                             SymbolHandle *out);
-    int NNSymbolGetOutput(SymbolHandle symbol,
-                          nn_uint index,
-                          SymbolHandle *out);
     int NNSymbolCompose(SymbolHandle sym,
                         const char* name,
                         nn_uint num_args,
