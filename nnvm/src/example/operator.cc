@@ -11,9 +11,11 @@ using nnvm::NodeAttrs;
 
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
-.set_num_inputs(2)
-.attr("inplace_pair", std::make_pair(0, 0));
+.set_num_inputs(2);
 
+NNVM_REGISTER_OP(__add_symbol__)
+.describe("Alias of add")
+.set_num_inputs(2);
 
 NNVM_REGISTER_OP(exp)
 .describe("take exponmential")

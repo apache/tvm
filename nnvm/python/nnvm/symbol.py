@@ -30,11 +30,70 @@ class Symbol(SymbolBase):
 
     def __add__(self, other):
         if isinstance(other, Symbol):
-            return _internal.__add__symbol__(self, other)
+            return _internal.__add_symbol__(self, other)
         elif isinstance(other, _Number):
-            return _internal.__add__scalar__(self, scalar=other)
+            return _internal.__add_scalar__(self, scalar=other)
         else:
             raise TypeError("type %s not supported" % str(type(other)))
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if isinstance(other, Symbol):
+            return _internal.__sub_symbol__(self, other)
+        if isinstance(other, Number):
+            return _internal.__sub_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __rsub__(self, other):
+        if isinstance(other, Number):
+            return _internal.__rsub_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __mul__(self, other):
+        if isinstance(other, Symbol):
+            return _internal.__mul_symbol__(self, other)
+        if isinstance(other, Number):
+            return _internal.__mul_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __div__(self, other):
+        if isinstance(other, Symbol):
+            return _internal.__div_symbol__(self, other)
+        if isinstance(other, Number):
+            return _internal.__div_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __rdiv__(self, other):
+        if isinstance(other, Number):
+            return _internal.__rdiv_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __truediv__(self, other):
+        return self.__div__(other)
+
+    def __rtruediv__(self, other):
+        return self.__rdiv__(other)
+
+    def __pow__(self, other):
+        if isinstance(other, Symbol):
+            return _internal.__pow_symbol__(self, other)
+        if isinstance(other, Number):
+            return _internal.__pow_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __neg__(self):
+        return self.__mul__(-1.0)
 
     def __copy__(self):
         return self.__deepcopy__()

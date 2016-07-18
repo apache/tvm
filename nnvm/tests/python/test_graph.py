@@ -33,7 +33,7 @@ def test_order_mutation_pass():
     assert nindex['assign'] in jnodes[nindex['add2']]['control_deps']
     assert nindex['conv'] in jnodes[nindex['assign']]['control_deps']
     assert nindex['add1'] in jnodes[nindex['assign']]['control_deps']
-
+    assert jnodes[nindex['assign']]['inputs'][0][2] == 1
 
 if __name__ == "__main__":
     test_order_mutation_pass()
