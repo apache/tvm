@@ -30,7 +30,32 @@ namespace pass {
 // auxiliary node structure for serialization.
 struct JSONNode {
   // the node entry structure in serialized format
-  typedef std::pair<uint32_t, uint32_t> Entry;
+  struct Entry {
+    uint32_t node_id;
+    uint32_t index;
+    uint32_t version;
+    void Save(dmlc::JSONWriter *writer) const {
+      writer->BeginArray();
+      writer->WriteArrayItem(node_id);
+      writer->WriteArrayItem(index);
+      writer->WriteArrayItem(version);
+      writer->EndArray();
+    }
+    void Load(dmlc::JSONReader *reader) {
+      reader->BeginArray();
+      CHECK(reader->NextArrayItem()) << "invalid json format";
+      reader->Read(&node_id);
+      CHECK(reader->NextArrayItem()) << "invalid json format";
+      reader->Read(&index);
+      if (reader->NextArrayItem()) {
+        reader->Read(&version);
+        CHECK(!reader->NextArrayItem()) << "invalid json format";
+      } else {
+        version = 0;
+      }
+    }
+  };
+
   // pointer to the graph node
   NodePtr node;
   // inputs
@@ -75,6 +100,10 @@ struct JSONNode {
     if (op_type_str != "null") {
       try {
         node->op = Op::Get(op_type_str);
+        // rebuild attribute parser
+        if (node->op->attr_parser != nullptr) {
+          node->op->attr_parser(&(node->attrs));
+        }
       } catch (const dmlc::Error &err) {
         std::ostringstream os;
         os << "Failed loading Op " << node->attrs.name
@@ -132,7 +161,7 @@ Graph LoadJSON(const Graph& src) {
     n.node->inputs.reserve(n.inputs.size());
     for (const JSONNode::Entry &e : n.inputs) {
       n.node->inputs.emplace_back(
-          NodeEntry{jgraph.nodes[e.first].node, e.second});
+          NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
     }
     n.node->control_deps.reserve(n.control_deps.size());
     for (uint32_t nid : n.control_deps) {
@@ -150,7 +179,7 @@ Graph LoadJSON(const Graph& src) {
   ret.outputs.reserve(jgraph.heads.size());
   for (const JSONNode::Entry &e : jgraph.heads) {
     ret.outputs.emplace_back(
-        NodeEntry{jgraph.nodes[e.first].node, e.second});
+        NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
   }
   return ret;
 }
@@ -170,7 +199,7 @@ Graph SaveJSON(const Graph& src) {
       jnode.inputs.reserve(n->inputs.size());
       for (const NodeEntry& e : n->inputs) {
         jnode.inputs.emplace_back(
-            std::make_pair(node2index.at(e.node.get()), e.index));
+            JSONNode::Entry{node2index.at(e.node.get()), e.index, e.version});
       }
       for (const NodePtr& c : n->control_deps) {
         jnode.control_deps.push_back(node2index.at(c.get()));
@@ -179,7 +208,8 @@ Graph SaveJSON(const Graph& src) {
     });
 
   for (const NodeEntry& e : src.outputs) {
-    jgraph.heads.push_back(std::make_pair(node2index.at(e.node.get()), e.index));
+    jgraph.heads.push_back(
+        JSONNode::Entry{node2index.at(e.node.get()), e.index, e.version});
   }
 
   std::ostringstream os;
