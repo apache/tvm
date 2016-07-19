@@ -3,10 +3,17 @@
  * \file graph_attr_types.cc
  * \brief Graph node data structure.
  */
-#include <nnvm/graph_attr_types.h>
+#include <nnvm/graph.h>
 #include <limits>
 
 namespace nnvm {
+
+const IndexedGraph& Graph::indexed_graph() {
+  if (indexed_graph_ == nullptr) {
+    indexed_graph_.reset(new IndexedGraph(*this));
+  }
+  return *indexed_graph_;
+}
 
 // implement constructor from graph
 IndexedGraph::IndexedGraph(const Graph &g) {
