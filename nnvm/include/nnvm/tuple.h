@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <algorithm>
 #include <iostream>
+#include "./base.h"
 
 namespace nnvm {
 
@@ -179,7 +180,23 @@ class Tuple {
   inline const ValueType& operator[](index_t i) const {
     return begin()[i];
   }
-
+  /*!
+   * \brief Save Tuple to JSON.
+   * \param writer JSONWriter
+   */
+  inline void Save(dmlc::JSONWriter* writer) const {
+    std::vector<ValueType> tmp(begin(), end());
+    writer->Write(tmp);
+  }
+  /*!
+   * \brief Load Tuple from JSON.
+   * \param reader JSONReader
+   */
+  inline void Load(dmlc::JSONReader* reader) {
+    std::vector<ValueType> tmp;
+    reader->Read(&tmp);
+    this->assign(tmp.begin(), tmp.end());
+  }
   /*!
    * \brief allow output string of tuple to ostream
    * \param os the output stream
@@ -287,6 +304,8 @@ class TShape : public Tuple<index_t> {
  public:
   // inheritate other constructors from Tuple
   using Tuple<index_t>::Tuple;
+  /*! \brief default constructor */
+  TShape() = default;
   /*!
    * \brief copy constructor of TShape
    * \param s source shape.

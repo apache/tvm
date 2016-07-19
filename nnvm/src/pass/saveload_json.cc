@@ -120,6 +120,7 @@ struct JSONNode {
 struct JSONGraph {
   std::vector<JSONNode> nodes;
   std::vector<uint32_t> arg_nodes;
+  std::vector<uint32_t> node_row_ptr;
   std::vector<JSONNode::Entry> heads;
   std::unordered_map<std::string, std::shared_ptr<const any> > attrs;
 
@@ -127,6 +128,7 @@ struct JSONGraph {
     writer->BeginObject();
     writer->WriteObjectKeyValue("nodes", nodes);
     writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
+    writer->WriteObjectKeyValue("node_row_ptr", node_row_ptr);
     writer->WriteObjectKeyValue("heads", heads);
     if (attrs.size() != 0) {
       writer->WriteObjectKeyValue("attrs", attrs);
@@ -140,6 +142,7 @@ struct JSONGraph {
     helper.DeclareField("nodes", &nodes);
     helper.DeclareField("arg_nodes", &arg_nodes);
     helper.DeclareField("heads", &heads);
+    helper.DeclareOptionalField("node_row_ptr", &node_row_ptr);
     helper.DeclareOptionalField("attrs", &attrs);
     helper.ReadAllFields(reader);
   }
@@ -188,6 +191,7 @@ Graph LoadJSON(const Graph& src) {
 Graph SaveJSON(const Graph& src) {
   JSONGraph jgraph;
   std::unordered_map<Node*, uint32_t> node2index;
+  jgraph.node_row_ptr.push_back(0);
   DFSVisit(src.outputs, [&node2index, &jgraph](const NodePtr& n) {
       uint32_t nid = static_cast<uint32_t>(jgraph.nodes.size());
       node2index[n.get()] = nid;
@@ -204,6 +208,8 @@ Graph SaveJSON(const Graph& src) {
       for (const NodePtr& c : n->control_deps) {
         jnode.control_deps.push_back(node2index.at(c.get()));
       }
+      jgraph.node_row_ptr.push_back(
+          jgraph.node_row_ptr.back() + n->num_outputs());
       jgraph.nodes.emplace_back(std::move(jnode));
     });
 

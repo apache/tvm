@@ -9,6 +9,7 @@
 #include <nnvm/op_attr_types.h>
 
 namespace nnvm {
+namespace pass {
 
 template<typename T>
 inline T get_with_default(const std::unordered_map<Node*, T> &map,
@@ -139,4 +140,5 @@ NNVM_REGISTER_PASS(OrderMutation)
 .set_body(OrderMutation)
 .set_change_graph(true);
 
+}  // namespace pass
 }  // namespace nnvm
