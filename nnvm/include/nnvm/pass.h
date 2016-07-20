@@ -23,7 +23,7 @@ namespace nnvm {
  * \param src The graph to be transformed.
  * \return The generated graph.
  */
-typedef std::function<Graph (const Graph& src)> PassFunction;
+typedef std::function<Graph (Graph src)> PassFunction;
 
 /*!
  * \brief Apply a series of pass transformations on g.
@@ -31,7 +31,7 @@ typedef std::function<Graph (const Graph& src)> PassFunction;
  * \param pass The name of pass to be applied.
  * \return The transformed graph
  */
-Graph ApplyPass(const Graph& src,
+Graph ApplyPass(Graph src,
                 const std::vector<std::string>& pass);
 
 /*!

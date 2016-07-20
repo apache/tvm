@@ -4,6 +4,7 @@
 #include <nnvm/tuple.h>
 #include <nnvm/c_api.h>
 #include <nnvm/graph_attr_types.h>
+#include <nnvm/pass_functions.h>
 #include <dmlc/timer.h>
 #include <string>
 

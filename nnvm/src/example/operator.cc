@@ -4,6 +4,7 @@
 #include <nnvm/base.h>
 #include <nnvm/op.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/node.h>
 #include <nnvm/graph_attr_types.h>
 #include <utility>
 
@@ -29,6 +30,31 @@ inline bool SameShape(const NodeAttrs& attrs,
   }
   return true;
 }
+
+// simple demonstration of reshape.
+NNVM_REGISTER_OP(reshape)
+.describe("reshape source to target shape")
+.set_num_inputs(1)
+.set_attr_parser(
+    [](NodeAttrs* attrs) {
+      // parse attr parser to get target attribute
+      TShape target;
+      std::istringstream is(attrs->dict.at("target"));
+      CHECK(is >> target);
+      attrs->parsed = std::move(target);
+    })
+.attr<FInferShape>(
+    "FInferShape", [] (const NodeAttrs& attrs,
+                       array_view<TShape*> ishape,
+                       array_view<TShape*> oshape) {
+      // get parsed attribute
+      const TShape& target = nnvm::get<TShape>(attrs.parsed);
+      *oshape[0] = target;
+      if (ishape[0]->ndim() == 0) return false;
+      CHECK_EQ(ishape[0]->Size(), target.Size())
+          << "Reshape op: source target shape mismatch";
+      return true;
+    });
 
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
