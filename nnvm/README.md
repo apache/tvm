@@ -1,6 +1,6 @@
 # NNVM: Build deep learning system by parts
 
-NNVM is not a deep learning library. It is a modular, lightweight library to
+NNVM is not a deep learning library. It is a modular, decentralized and lightweight library to
 help build deep learning libraries efficiently.
 
 ## What is it
@@ -8,7 +8,7 @@ help build deep learning libraries efficiently.
 While most deep learning systems offer end to end solutions,
 it is interesting to ask if we can actually assemble a deep learning system by parts.
 The goal is to enable hackers can customize optimizations, target platforms and set of operators they care about.
-We believe that the modular system is an interesting direction.
+We believe that the decentralized modular system is an interesting direction.
 The hope is that effective parts can be assembled together just like you assemble your own desktops.
 So the customized deep learning solution can be minimax, minimum in terms of dependencies,
 while maxiziming the users' need.
@@ -18,7 +18,7 @@ computation graph optimization such as memory reduction, device allocation,
 operator fusion while being agnostic to the operator
 interface defintion and how operators are executed.
 NNVM is inspired by LLVM, aiming to be an intermediate representation library
-for neural nets and computation graphs in general.
+for neural nets and computation graphs generation and optimizations.
 
 ## Deep learning system by parts
 
