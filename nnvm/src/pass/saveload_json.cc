@@ -149,7 +149,7 @@ struct JSONGraph {
 };
 
 // Load a graph from JSON file.
-Graph LoadJSON(const Graph& src) {
+Graph LoadJSON(Graph src) {
   CHECK_NE(src.attrs.count("json"), 0)
       << "Load JSON require json to be presented.";
   const std::string &json_str =
@@ -188,7 +188,7 @@ Graph LoadJSON(const Graph& src) {
 }
 
 // save a graph to json
-Graph SaveJSON(const Graph& src) {
+Graph SaveJSON(Graph src) {
   JSONGraph jgraph;
   std::unordered_map<Node*, uint32_t> node2index;
   jgraph.node_row_ptr.push_back(0);

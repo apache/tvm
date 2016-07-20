@@ -35,7 +35,23 @@ def test_order_mutation_pass():
     assert nindex['add1'] in jnodes[nindex['assign']]['control_deps']
     assert jnodes[nindex['assign']]['inputs'][0][2] == 1
 
+def test_infer_shape():
+    x = sym.Variable('x', shape=(4, 2))
+    y = sym.add(x, x, name='add1')
+    y = sym.reshape(y, target=(2, 4), name="reshape1")
+    g = graph.create(y)
+    g._set_json_attr("shape_attr_key", "shape")
+    g = g.apply('InferShape')
+    jgraph = json.loads(g.apply('SaveJSON').json_attr('json'))
+    jnodes = jgraph['nodes']
+    jnode_row_ptr = jgraph['node_row_ptr']
+    nindex = {n['name']: i for i, n in enumerate(jnodes)}
+    assert g.json_attr('shape')[jnode_row_ptr[nindex["reshape1"]]] == [2, 4]
+    assert g.json_attr('shape')[jnode_row_ptr[nindex["add1"]]] == [4, 2]
+
+
 if __name__ == "__main__":
     test_order_mutation_pass()
     test_graph_json_attr()
     test_json_pass()
+    test_infer_shape()

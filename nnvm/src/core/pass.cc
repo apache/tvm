@@ -22,7 +22,7 @@ const PassFunctionReg* FindPassDep(const std::string&attr_name) {
   return nullptr;
 }
 
-Graph ApplyPass(const Graph& src,
+Graph ApplyPass(Graph g,
                 const std::vector<std::string>& pass) {
   std::vector<const PassFunctionReg*> fpass;
   for (auto& name : pass) {
@@ -32,11 +32,9 @@ Graph ApplyPass(const Graph& src,
     fpass.push_back(reg);
   }
 
-  Graph g;
-  const Graph* s = &src;
   for (auto r : fpass) {
     for (auto& dep : r->graph_attr_dependency) {
-      if (s->attrs.count(dep) == 0) {
+      if (g.attrs.count(dep) == 0) {
         auto* pass_dep = FindPassDep(dep);
         std::string msg;
         if (pass_dep != nullptr) {
@@ -48,8 +46,7 @@ Graph ApplyPass(const Graph& src,
                    << msg;
       }
     }
-    g = r->body(*s);
-    s = &g;
+    g = r->body(std::move(g));
   }
   return g;
 }
