@@ -39,6 +39,21 @@ using JSONString = std::string;
  */
 using ShapeVector = std::vector<TShape>;
 
+/*!
+ * \brief The result holder of type of each NodeEntry in the graph.
+ * \note Stored under graph.attrs["dtype"], provided by Pass "InferType"
+ *
+ * \code
+ *  Graph g = ApplyPass(src_graph, {"InferType"});
+ *  const DTypeVector& types = g.GetAttr<ShapeVector>("dtype");
+ *  // get shape by entry id
+ *  int entry_type = dtypes[g.indexed_graph().entry_id(my_entry)];
+ * \endcode
+ *
+ * \sa FInferType
+ */
+using DTypeVector = std::vector<int>;
+
 }  // namespace nnvm
 
 #endif  // NNVM_GRAPH_ATTR_TYPES_H_

@@ -71,6 +71,26 @@ inline Graph InferShape(Graph graph,
   return ApplyPass(std::move(graph), {"InferShape"});
 }
 
+/*!
+ * \brief Infer types in the graph given the information.
+ * \param graph source graph
+ * \param shape_args The shapes of aruguments to the graph.
+ * \param shape_attr_key The key to the node attribute that can indicate shape.
+ * \return A graph with new attribute "shape" containing inferred shape of each NodeEntry.
+ *  The index of ShapeVector is given by graph.indexed_graph().entry_id
+ */
+inline Graph InferType(Graph graph,
+                       DTypeVector type_args = {},
+                       std::string type_attr_key = "") {
+  if (type_args.size() != 0) {
+    graph.attrs["type_args"] = std::make_shared<any>(std::move(type_args));
+  }
+  if (type_attr_key.length() != 0) {
+    graph.attrs["type_attr_key"] = std::make_shared<any>(std::move(type_attr_key));
+  }
+  return ApplyPass(std::move(graph), {"InferType"});
+}
+
 }  // namespace pass
 }  // namespace nnvm
 #endif  // NNVM_PASS_FUNCTIONS_H_

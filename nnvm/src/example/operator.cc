@@ -13,6 +13,7 @@ namespace myproject {
 using nnvm::FListInputNames;
 using nnvm::FMutateInput;
 using nnvm::FInferShape;
+using nnvm::FInferType;
 using nnvm::NodeAttrs;
 using nnvm::TShape;
 using nnvm::array_view;
@@ -55,6 +56,28 @@ NNVM_REGISTER_OP(reshape)
           << "Reshape op: source target shape mismatch";
       return true;
     });
+
+
+NNVM_REGISTER_OP(cast)
+.describe("cast source type to target")
+.set_num_inputs(1)
+.set_attr_parser(
+    [](NodeAttrs* attrs) {
+      // parse attr parser to get target attribute
+      int dtype;
+      std::istringstream is(attrs->dict.at("dtype"));
+      CHECK(is >> dtype);
+      attrs->parsed = std::move(dtype);
+    })
+.attr<FInferShape>("FInferShape", SameShape)
+.attr<FInferType>(
+    "FInferType", [](const NodeAttrs& attrs,
+                     array_view<int*> itype,
+                     array_view<int*> otype) {
+      *otype[0] = nnvm::get<int>(attrs.parsed);
+      return true;
+    });
+
 
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
