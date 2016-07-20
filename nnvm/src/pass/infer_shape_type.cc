@@ -10,18 +10,21 @@
 namespace nnvm {
 namespace pass {
 
-template<typename AttrType>
+template<typename AttrType, typename IsNone>
 Graph InferAttr(Graph &&ret,
                 const AttrType def_value,
                 const char* infer_name,
                 const char* arg_name,
                 const char* attr_key_name,
                 const char* attr_name,
-                const char* known_name) {
+                const char* known_name,
+                IsNone fis_none) {
   using AttrVector = std::vector<AttrType>;
   const IndexedGraph& idx = ret.indexed_graph();
   static auto& finfer_shape =
       Op::GetAttr<FInferNodeEntryAttr<AttrType> >(infer_name);
+  static auto& is_backward =
+      Op::GetAttr<TIsBackwardOp>("TIsBackwardOp");
   // reshape shape vector
   AttrVector rshape(idx.num_node_entries(), def_value);
 
@@ -66,6 +69,19 @@ Graph InferAttr(Graph &&ret,
     if (finfer_shape.count(inode.source->op)) {
       num_known +=
           finfer_shape[inode.source->op](inode.source->attrs, ishape, oshape);
+    } else if (is_backward.get(inode.source->op, false)) {
+      // backward operator inference.
+      CHECK_GE(inode.control_deps.size(), 1)
+          << "BackwardOp need to have control_deps to its forward op";
+      const auto& fnode = idx[inode.control_deps[0]];
+      CHECK_EQ(fnode.inputs.size(), inode.source->num_outputs())
+          << "BackwardOp need to correspond to the forward node";
+      bool known = true;
+      for (size_t i = 0; i < fnode.inputs.size(); ++i) {
+        *oshape[i] = rshape[idx.entry_id(fnode.inputs[i])];
+        if (fis_none(*oshape[i])) known = false;
+      }
+      num_known += known;
     }
   }
   // set the shapes
@@ -79,13 +95,10 @@ NNVM_REGISTER_PASS(InferShape)
 .describe("Infer the shape of each node entries.")
 .set_body([](Graph ret) {
     return InferAttr<TShape>(
-        std::move(ret),
-        TShape(),
-        "FInferShape",
-        "shape_args",
-        "shape_attr_key",
-        "shape",
-        "shape_num_known_nodes");
+        std::move(ret), TShape(),
+        "FInferShape", "shape_args", "shape_attr_key",
+        "shape", "shape_num_known_nodes",
+        [](const TShape& s) { return s.ndim() == 0; });
   })
 .set_change_graph(false)
 .provide_graph_attr("shape");
@@ -94,13 +107,10 @@ NNVM_REGISTER_PASS(InferType)
 .describe("Infer the dtype of each node entries.")
 .set_body([](Graph ret) {
     return InferAttr<int>(
-        std::move(ret),
-        0,
-        "FInferType",
-        "dtype_args",
-        "dtype_attr_key",
-        "dtype",
-        "dtype_num_known_nodes");
+        std::move(ret), 0,
+        "FInferType", "dtype_args", "dtype_attr_key",
+        "dtype", "dtype_num_known_nodes",
+        [](const int t) { return t == -1; });
   })
 .set_change_graph(false)
 .provide_graph_attr("dtype");

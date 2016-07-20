@@ -14,12 +14,13 @@ void test_speed() {
   size_t rep = 1000;
   size_t n = 1000;
   std::unordered_map<std::string, const nnvm::Symbol*> tmp;
+  std::unordered_map<std::string, std::string> kwargs;
   std::vector<const nnvm::Symbol*> vec{2};
   std::string name = "xx";
   for (size_t t = 0; t < rep; ++t) {
     nnvm::Symbol s = nnvm::Symbol::CreateVariable("x");
     for (size_t i = 0; i < n; ++i) {
-      nnvm::Symbol nw = nnvm::Symbol::CreateFunctor(add, {});
+      nnvm::Symbol nw = nnvm::Symbol::CreateFunctor(add, kwargs);
       vec[0] = &s;
       vec[1] =&s;
       tmp.clear();

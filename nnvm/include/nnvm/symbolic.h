@@ -135,7 +135,7 @@ class Symbol {
    * \return Symbol that can be used to call compose further.
    */
   static Symbol CreateFunctor(const Op* op,
-                              std::unordered_map<std::string, std::string>&& attrs);
+                              std::unordered_map<std::string, std::string> attrs);
   /*!
    * \brief create variable symbol node
    * \param name name of the variable
