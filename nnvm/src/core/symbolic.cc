@@ -437,7 +437,7 @@ std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption op
 }
 
 Symbol Symbol::CreateFunctor(const Op* op,
-                             std::unordered_map<std::string, std::string>&& attrs) {
+                             std::unordered_map<std::string, std::string> attrs) {
   Symbol s;
   NodePtr n = Node::Create();
   n->op = op;

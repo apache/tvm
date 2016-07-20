@@ -80,6 +80,19 @@ using FInferShape = FInferNodeEntryAttr<TShape>;
  */
 using FInferType = FInferNodeEntryAttr<int>;
 
+/*!
+ * \brief Whether this op is an explicit backward operator
+ *
+ *  If TIsBackwardOp is set to be true:
+ *   - The first control_deps of the node points to the corresponding forward operator.
+ *   - The outputs operator corresponds to exactly inputs of forward op one by one.
+ *
+ * \note Register under "TIsBackwardOp", default to false.
+ *
+ * This enables easier shape/type inference for backward operators for slice and reduction.
+ */
+using TIsBackwardOp = bool;
+
 }  // namespace nnvm
 
 #endif  // NNVM_OP_ATTR_TYPES_H_
