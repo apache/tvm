@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file infer_shape.cc
- * \brief Inference the shapes given
+ * \brief Inference the shapes given existin information.
  */
 #include <nnvm/pass.h>
 #include <nnvm/op_attr_types.h>
@@ -10,14 +10,23 @@
 namespace nnvm {
 namespace pass {
 
-Graph InferShape(Graph ret) {
+template<typename AttrType>
+Graph InferAttr(Graph &&ret,
+                const AttrType def_value,
+                const char* infer_name,
+                const char* arg_name,
+                const char* attr_key_name,
+                const char* attr_name,
+                const char* known_name) {
+  using AttrVector = std::vector<AttrType>;
   const IndexedGraph& idx = ret.indexed_graph();
-  static auto& finfer_shape = Op::GetAttr<FInferShape>("FInferShape");
+  static auto& finfer_shape =
+      Op::GetAttr<FInferNodeEntryAttr<AttrType> >(infer_name);
   // reshape shape vector
-  ShapeVector rshape(idx.num_node_entries());
+  AttrVector rshape(idx.num_node_entries(), def_value);
 
-  if (ret.attrs.count("shape_args") != 0) {
-    const ShapeVector& shape_args = ret.GetAttr<ShapeVector>("shape_args");
+  if (ret.attrs.count(arg_name) != 0) {
+    const AttrVector& shape_args = ret.GetAttr<AttrVector>(arg_name);
     CHECK_LE(shape_args.size(), idx.arg_nodes().size())
         << "shape args is more than number of arguments";
     for (size_t i = 0; i < shape_args.size(); ++i) {
@@ -25,12 +34,12 @@ Graph InferShape(Graph ret) {
     }
   }
   std::string shape_attr_key;
-  if (ret.attrs.count("shape_attr_key") != 0) {
-    shape_attr_key = ret.GetAttr<std::string>("shape_attr_key");
+  if (ret.attrs.count(attr_key_name) != 0) {
+    shape_attr_key = ret.GetAttr<std::string>(attr_key_name);
   }
 
   // temp space for shape inference.
-  std::vector<TShape*> ishape, oshape;
+  std::vector<AttrType*> ishape, oshape;
   // number of completed nodes
   size_t num_known = 0;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
@@ -41,7 +50,7 @@ Graph InferShape(Graph ret) {
         if (it != inode.source->attrs.dict.end()) {
           CHECK_EQ(inode.source->num_outputs(), 1);
           std::istringstream is(it->second);
-          CHECK(is >> rshape[idx.entry_id(nid, 0)]) << "Invalid shape attribute";
+          CHECK(is >> rshape[idx.entry_id(nid, 0)]) << "Invalid attribute";
         }
       }
       continue;
@@ -60,19 +69,44 @@ Graph InferShape(Graph ret) {
     }
   }
   // set the shapes
-  ret.attrs["shape"] = std::make_shared<any>(std::move(rshape));
+  ret.attrs[attr_name] = std::make_shared<any>(std::move(rshape));
   // number of nodes who knows the shape.
-  ret.attrs["shape_num_known_nodes"] = std::make_shared<any>(num_known);
+  ret.attrs[known_name] = std::make_shared<any>(num_known);
   return ret;
 }
 
 NNVM_REGISTER_PASS(InferShape)
 .describe("Infer the shape of each node entries.")
-.set_body(InferShape)
+.set_body([](Graph ret) {
+    return InferAttr<TShape>(
+        std::move(ret),
+        TShape(),
+        "FInferShape",
+        "shape_args",
+        "shape_attr_key",
+        "shape",
+        "shape_num_known_nodes");
+  })
 .set_change_graph(false)
 .provide_graph_attr("shape");
 
+NNVM_REGISTER_PASS(InferType)
+.describe("Infer the dtype of each node entries.")
+.set_body([](Graph ret) {
+    return InferAttr<int>(
+        std::move(ret),
+        0,
+        "FInferType",
+        "dtype_args",
+        "dtype_attr_key",
+        "dtype",
+        "dtype_num_known_nodes");
+  })
+.set_change_graph(false)
+.provide_graph_attr("dtype");
+
 DMLC_JSON_ENABLE_ANY(ShapeVector, list_shape);
+DMLC_JSON_ENABLE_ANY(DTypeVector, list_int);
 
 }  // namespace pass
 }  // namespace nnvm

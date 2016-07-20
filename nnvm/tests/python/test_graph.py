@@ -49,9 +49,37 @@ def test_infer_shape():
     assert g.json_attr('shape')[jnode_row_ptr[nindex["reshape1"]]] == [2, 4]
     assert g.json_attr('shape')[jnode_row_ptr[nindex["add1"]]] == [4, 2]
 
+def test_infer_shape():
+    x = sym.Variable('x', shape=(4, 2))
+    y = sym.add(x, x, name='add1')
+    y = sym.reshape(y, target=(2, 4), name="reshape1")
+    g = graph.create(y)
+    g._set_json_attr("shape_attr_key", "shape")
+    g = g.apply('InferShape')
+    jgraph = json.loads(g.apply('SaveJSON').json_attr('json'))
+    jnodes = jgraph['nodes']
+    jnode_row_ptr = jgraph['node_row_ptr']
+    nindex = {n['name']: i for i, n in enumerate(jnodes)}
+    assert g.json_attr('shape')[jnode_row_ptr[nindex["reshape1"]]] == [2, 4]
+    assert g.json_attr('shape')[jnode_row_ptr[nindex["add1"]]] == [4, 2]
+
+def test_infer_type():
+    x = sym.Variable('x')
+    y = sym.add(x, x, name='add1')
+    y = sym.cast(y, dtype=1, name="cast1")
+    g = graph.create(y)
+    g = g.apply('InferType')
+    jgraph = json.loads(g.apply('SaveJSON').json_attr('json'))
+    jnodes = jgraph['nodes']
+    jnode_row_ptr = jgraph['node_row_ptr']
+    nindex = {n['name']: i for i, n in enumerate(jnodes)}
+    assert g.json_attr('dtype')[jnode_row_ptr[nindex["cast1"]]] == 1
+    assert g.json_attr('dtype')[jnode_row_ptr[nindex["add1"]]] == 0
+
 
 if __name__ == "__main__":
     test_order_mutation_pass()
     test_graph_json_attr()
     test_json_pass()
     test_infer_shape()
+    test_infer_type()

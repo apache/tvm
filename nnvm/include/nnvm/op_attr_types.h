@@ -51,24 +51,34 @@ using FListOutputNames = std::function<std::vector<std::string> (const NodeAttrs
 using FMutateInput = std::function<bool (const NodeAttrs& attrs, uint32_t index)>;
 
 /*!
+ * \brief Inference function of certain type.
+ * \tparam AttrType The type of the attribute to be infered.
+ * \return whether all attributes are inferred.
+ */
+template<typename AttrType>
+using FInferNodeEntryAttr = std::function<bool (const NodeAttrs& attrs,
+                                                array_view<AttrType*> in_attrs,
+                                                array_view<AttrType*> out_attrs)>;
+/*!
  * \brief Shape inference function.
  *  Update the shapes given the input shape information.
  *  TShape.ndim() == 0 means the shape is still unknown.
- *
- * \param attrs The attributes of the node.
- * \param in_shapes Array of shapes from the inputs.
- * \param out_shapes Array of shapes from the outputs.
- *
- * \return Whether all the shapes are known.
  *
  * \note Register under "FInferShape",
  *  by default do not update any shapes.
  *
  *  FInferShape is needed by shape inference
  */
-using FInferShape = std::function<bool (const NodeAttrs& attrs,
-                                        array_view<TShape*> in_shapes,
-                                        array_view<TShape*> out_shapes)>;
+using FInferShape = FInferNodeEntryAttr<TShape>;
+
+/*!
+ * \brief Type inference function.
+ *  Update the type given the known type information.
+ *
+ * \note Register under "FInferType",
+ *  by default set all the output types to 0.
+ */
+using FInferType = FInferNodeEntryAttr<int>;
 
 }  // namespace nnvm
 
