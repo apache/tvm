@@ -68,14 +68,18 @@ struct JSONNode {
     writer->BeginObject();
     if (node->op != nullptr) {
       writer->WriteObjectKeyValue("op", node->op->name);
-      writer->WriteObjectKeyValue("attr", node->attrs.dict);
     } else {
       std::string json_null = "null";
       writer->WriteObjectKeyValue("op", json_null);
     }
     writer->WriteObjectKeyValue("name", node->attrs.name);
+    if (node->attrs.dict.size() != 0) {
+      writer->WriteObjectKeyValue("attr", node->attrs.dict);
+    }
     writer->WriteObjectKeyValue("inputs", inputs);
-    writer->WriteObjectKeyValue("control_deps", control_deps);
+    if (control_deps.size() != 0) {
+      writer->WriteObjectKeyValue("control_deps", control_deps);
+    }
     writer->EndObject();
   }
 
