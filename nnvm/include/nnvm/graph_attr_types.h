@@ -45,7 +45,7 @@ using ShapeVector = std::vector<TShape>;
  *
  * \code
  *  Graph g = ApplyPass(src_graph, {"InferType"});
- *  const DTypeVector& types = g.GetAttr<ShapeVector>("dtype");
+ *  const DTypeVector& types = g.GetAttr<DTypeVector>("dtype");
  *  // get shape by entry id
  *  int entry_type = dtypes[g.indexed_graph().entry_id(my_entry)];
  * \endcode
@@ -53,6 +53,28 @@ using ShapeVector = std::vector<TShape>;
  * \sa FInferType
  */
 using DTypeVector = std::vector<int>;
+
+/*!
+ * \brief The result holder of device of each operator in the graph.
+ * \note Stored under graph.attrs["device"], provided by Pass "PlaceDevice"
+ *
+ * \code
+ *  Graph g = ApplyPass(src_graph, {"PlaceDevice"});
+ *  const &device = g.GetAttr<DeviceVector>("dtype");
+ *  // get device by node_id
+ *  int device_type = device[g.indexed_graph().node_id(my_node)];
+ * \endcode
+ */
+using DeviceVector = std::vector<int>;
+
+/*!
+ * \brief The result holder of device of each operator in the graph.
+ *
+ * \note Stored under graph.attrs["device_assign_map"], needed by Pass "PlaceDevice"
+ * -1 means unknown device
+ */
+using DeviceAssignMap = std::unordered_map<std::string, int>;
+
 
 }  // namespace nnvm
 

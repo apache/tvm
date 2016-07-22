@@ -35,10 +35,14 @@ Graph InferAttr(Graph &&ret,
     for (size_t i = 0; i < shape_args.size(); ++i) {
       rshape[idx.entry_id(idx.arg_nodes()[i], 0)] = shape_args[i];
     }
+    // erase the provided arguments
+    ret.attrs.erase(arg_name);
   }
   std::string shape_attr_key;
   if (ret.attrs.count(attr_key_name) != 0) {
     shape_attr_key = ret.GetAttr<std::string>(attr_key_name);
+    // erase the provided arguments
+    ret.attrs.erase(attr_key_name);
   }
 
   // temp space for shape inference.

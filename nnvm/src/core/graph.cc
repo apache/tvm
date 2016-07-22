@@ -40,7 +40,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       for (const auto& e : n->inputs) {
         auto it = node2index_.find(e.node.get());
         CHECK(it != node2index_.end() && it->first == e.node.get());
-        input_entries_.emplace_back(NodeEntry{it->second, e.index});
+        input_entries_.emplace_back(NodeEntry{it->second, e.index, e.version});
       }
       inputs_rptr.push_back(input_entries_.size());
       // control deps

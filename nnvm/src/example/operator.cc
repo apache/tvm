@@ -94,6 +94,11 @@ NNVM_REGISTER_OP(exp)
 .attr("inplace_pair", std::make_pair(0, 0))
 .attr<FInferShape>("FInferShape", SameShape);
 
+NNVM_REGISTER_OP(cross_device_copy)
+.describe("Copy data across device.")
+.set_num_inputs(1)
+.attr<FInferShape>("FInferShape", SameShape);
+
 
 NNVM_REGISTER_OP(conv2d)
 .describe("take conv of input")
