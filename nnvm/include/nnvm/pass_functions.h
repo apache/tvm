@@ -91,6 +91,24 @@ inline Graph InferType(Graph graph,
   return ApplyPass(std::move(graph), {"InferType"});
 }
 
+/*!
+ * \brief Place the devices
+ * \param graph source graph
+ * \param device_group_attr_key The attribute name for hinting the device group.
+ * \param device_assign_map The assignment map of device
+ * \param device_copy_op The name of copy op to be inserted when cross device copy happened.
+ * \return A graph with new attribute "device", cotaining device information of each node.
+ */
+inline Graph PlaceDevice(Graph graph,
+                         std::string device_group_attr_key,
+                         DeviceAssignMap device_assign_map,
+                         std::string device_copy_op) {
+  graph.attrs["device_group_attr_key"] = std::make_shared<any>(std::move(device_group_attr_key));
+  graph.attrs["device_assign_map"] = std::make_shared<any>(std::move(device_assign_map));
+  graph.attrs["device_copy_op"] = std::make_shared<any>(std::move(device_copy_op));
+  return ApplyPass(std::move(graph), {"PlaceDevice"});
+}
+
 }  // namespace pass
 }  // namespace nnvm
 #endif  // NNVM_PASS_FUNCTIONS_H_

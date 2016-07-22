@@ -71,14 +71,8 @@ class IndexedGraph {
     uint32_t node_id;
     /*! \brief index of output from the source. */
     uint32_t index;
-    /*!
-     * \brief compare equality
-     * \param other the other entry to compare
-     * \return whether two entries equals to each other
-     */
-    inline bool operator==(const NodeEntry& other) const {
-      return node_id == other.node_id && index == other.index;
-    }
+    /*! \brief version of the node */
+    uint32_t version;
   };
   /*! \brief Node data structure in IndexedGraph */
   struct Node {

@@ -20,6 +20,13 @@ interface defintion and how operators are executed.
 NNVM is inspired by LLVM, aiming to be an intermediate representation library
 for neural nets and computation graphs generation and optimizations.
 
+## Why build deep learning system by parts
+
+- Essential parts can be assembled in minimum way for embedding systems.
+- Hackers can hack the parts they need and compose with other well defined parts.
+- Decentralized modules enable new extensions creators to own their project
+  without creating a monothilic version.
+
 ## Deep learning system by parts
 
 This is one way to divide the deep learning system into common parts.
