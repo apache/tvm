@@ -60,7 +60,7 @@ using DTypeVector = std::vector<int>;
  *
  * \code
  *  Graph g = ApplyPass(src_graph, {"PlaceDevice"});
- *  const &device = g.GetAttr<DeviceVector>("dtype");
+ *  const &device = g.GetAttr<DeviceVector>("device");
  *  // get device by node_id
  *  int device_type = device[g.indexed_graph().node_id(my_node)];
  * \endcode
@@ -75,6 +75,21 @@ using DeviceVector = std::vector<int>;
  */
 using DeviceAssignMap = std::unordered_map<std::string, int>;
 
+/*!
+ * \brief The result holder of storage id of each NodeEntry in the graph.
+ *
+ * \note Stored under graph.attrs["storage"], provided by Pass "PlanMemory"
+ *  Storage id is a continuous integer.
+ *  If the storage id is -1 then the storage is not assigned.
+ *
+ * \code
+ *  Graph g = ApplyPass(src_graph, {"PlanMemory"});
+ *  const &storage = g.GetAttr<StorageVector>("storage");
+ *  // get storage id by entry
+ *  int storage_id = storage[g.indexed_graph().entry_id(my_entry)];
+ * \endcode
+ */
+using StorageVector = std::vector<int>;
 
 }  // namespace nnvm
 

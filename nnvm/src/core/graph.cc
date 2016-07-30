@@ -52,6 +52,11 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       control_rptr.push_back(control_deps_.size());
   });
 
+  for (const auto& e : g.outputs) {
+    outputs_.emplace_back(NodeEntry{
+        node2index_.at(e.node.get()), e.index, e.version});
+  }
+
   // setup array view
   // input_entries_ and control_rptr must not change after this step.
   const NodeEntry* iptr = dmlc::BeginPtr(input_entries_);

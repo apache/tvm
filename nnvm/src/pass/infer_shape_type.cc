@@ -121,6 +121,7 @@ NNVM_REGISTER_PASS(InferType)
 
 DMLC_JSON_ENABLE_ANY(ShapeVector, list_shape);
 DMLC_JSON_ENABLE_ANY(DTypeVector, list_int);
+DMLC_JSON_ENABLE_ANY(size_t, size_t);
 
 }  // namespace pass
 }  // namespace nnvm
