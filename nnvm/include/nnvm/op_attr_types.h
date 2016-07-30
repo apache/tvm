@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <string>
+#include <utility>
 #include <functional>
 #include "./base.h"
 #include "./tuple.h"
@@ -92,6 +93,20 @@ using FInferType = FInferNodeEntryAttr<int>;
  * This enables easier shape/type inference for backward operators for slice and reduction.
  */
 using TIsBackwardOp = bool;
+
+/*!
+ * \brief Get possible inplace options.
+ *  This function enables optimization to reuse memory of inputs in output.
+ * \param attrs The attributes of the node
+ * \param in_data The input data.
+ * \param out_data The output data.
+ * \return list of pair of that maps input->output,
+ *   indicating possible in place operations.
+ *
+ * \note Register under "FInplaceOption", by default no inplace can happen.
+ */
+using FInplaceOption = std::function<
+  std::vector<std::pair<int, int> > (const NodeAttrs& attrs)>;
 
 }  // namespace nnvm
 

@@ -147,6 +147,10 @@ class IndexedGraph {
   inline const std::vector<uint32_t>& arg_nodes() const {
     return arg_nodes_;
   }
+  /*! \return list of output entries */
+  inline const std::vector<NodeEntry>& outputs() const {
+    return outputs_;
+  }
 
  private:
   friend class Graph;
@@ -159,6 +163,8 @@ class IndexedGraph {
   std::vector<Node> nodes_;
   // index to argument nodes
   std::vector<uint32_t> arg_nodes_;
+  // space to store the outputs entries
+  std::vector<NodeEntry> outputs_;
   // mapping from node to index.
   std::unordered_map<const nnvm::Node*, uint32_t> node2index_;
   // CSR pointer of node entries
