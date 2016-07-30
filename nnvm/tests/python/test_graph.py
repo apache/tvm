@@ -95,6 +95,25 @@ def test_place_device():
     assert g.json_attr('device')[jnode_row_ptr[nindex["add3"]]] == 1
     assert g.json_attr('device')[jnode_row_ptr[nindex["cast1"]]] == 0
 
+def test_plan_memory():
+    x = sym.Variable('x', shape=(4, 2))
+    x2 = sym.add(x, x, name='addk')
+    y = sym.reshape(x2, target=(2, 4), name="reshapek")
+    y = sym.add(y, x2, name="add2")
+    y = sym.add(y, y)
+    g = graph.create(y)
+    g._set_json_attr("shape_attr_key", "shape")
+    g = g.apply(["InferShape", "InferType", "PlanMemory"])
+    jgraph = json.loads(g.apply('SaveJSON').json_attr('json'))
+    jnodes = jgraph['nodes']
+    jnode_row_ptr = jgraph['node_row_ptr']
+    storage_id = g.json_attr('storage_id')
+    nindex = {n['name']: i for i, n in enumerate(jnodes)}
+    assert (storage_id[jnode_row_ptr[nindex["addk"]]] !=
+            storage_id[jnode_row_ptr[nindex["reshapek"]]])
+    assert (storage_id[jnode_row_ptr[nindex["add2"]]] ==
+            storage_id[jnode_row_ptr[nindex["reshapek"]]])
+
 
 if __name__ == "__main__":
     test_order_mutation_pass()
@@ -103,3 +122,4 @@ if __name__ == "__main__":
     test_infer_shape()
     test_infer_type()
     test_place_device()
+    test_plan_memory()

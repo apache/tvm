@@ -14,6 +14,7 @@ using nnvm::FListInputNames;
 using nnvm::FMutateInput;
 using nnvm::FInferShape;
 using nnvm::FInferType;
+using nnvm::FInplaceOption;
 using nnvm::NodeAttrs;
 using nnvm::TShape;
 using nnvm::array_view;
@@ -30,6 +31,10 @@ inline bool SameShape(const NodeAttrs& attrs,
     *pshape = *ishape[0];
   }
   return true;
+}
+
+inline std::vector<std::pair<int, int> > InplaceIn0Out0(const NodeAttrs& attrs) {
+  return {{0, 0}};
 }
 
 // simple demonstration of reshape.
@@ -55,7 +60,8 @@ NNVM_REGISTER_OP(reshape)
       CHECK_EQ(ishape[0]->Size(), target.Size())
           << "Reshape op: source target shape mismatch";
       return true;
-    });
+    })
+.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0);
 
 
 NNVM_REGISTER_OP(cast)
@@ -82,7 +88,8 @@ NNVM_REGISTER_OP(cast)
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
 .set_num_inputs(2)
-.attr<FInferShape>("FInferShape", SameShape);
+.attr<FInferShape>("FInferShape", SameShape)
+.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0);
 
 NNVM_REGISTER_OP(__add_symbol__)
 .describe("Alias of add")
