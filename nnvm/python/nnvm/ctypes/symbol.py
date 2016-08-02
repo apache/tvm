@@ -98,12 +98,12 @@ class SymbolBase(object):
         **kwargs
             The attributes to set
         """
-        keys = _base.c_array(_ctypes.c_char_p,
-                             [_base.c_str(key) for key in kwargs.keys()])
-        vals = _base.c_array(_ctypes.c_char_p,
-                             [_base.c_str(str(val)) for val in kwargs.values()])
-        num_args = _base.nn_uint(len(kwargs))
-        _check_call(_LIB.NNSymbolSetAttrs(
+        keys = c_array(ctypes.c_char_p,
+                       [c_str(key) for key in kwargs.keys()])
+        vals = c_array(ctypes.c_char_p,
+                       [c_str(str(val)) for val in kwargs.values()])
+        num_args = nn_uint(len(kwargs))
+        check_call(_LIB.NNSymbolSetAttrs(
             self.handle, num_args, keys, vals))
 
 
