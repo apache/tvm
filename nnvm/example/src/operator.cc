@@ -98,7 +98,6 @@ NNVM_REGISTER_OP(__add_symbol__)
 NNVM_REGISTER_OP(exp)
 .describe("take exponential")
 .set_num_inputs(1)
-.attr("inplace_pair", std::make_pair(0, 0))
 .attr<FInferShape>("FInferShape", SameShape);
 
 NNVM_REGISTER_OP(cross_device_copy)
