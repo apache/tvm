@@ -1,15 +1,15 @@
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loops\
-	 -Iinclude -Idmlc-core/include -fPIC
+	 -Iinclude -fPIC
 
 # specify tensor path
 .PHONY: clean all test lint doc cython cython3 cyclean
 
-all: lib/libnnvm.so lib/libnnvm.a cli_test
+all: lib/libnnvm.a lib/libnnvm_example.so
 
-SRC = $(wildcard src/*.cc src/*/*.cc example/*.cc)
+SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-ALL_DEP = $(filter-out build/test_main.o, $(ALL_OBJ))
+ALL_DEP = $(ALL_OBJ)
 
 include tests/cpp/unittest.mk
 
@@ -20,16 +20,14 @@ build/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libnnvm.so: $(ALL_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-cli_test: $(ALL_DEP) build/test_main.o
-	$(CXX) $(CFLAGS)  -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+lib/libnnvm_example.so: example/src/operator.cc lib/libnnvm.a
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cc, $^) $(LDFLAGS) -Wl,--whole-archive lib/libnnvm.a -Wl,--no-whole-archive
 
 cython:
 	cd python; python setup.py build_ext --inplace
