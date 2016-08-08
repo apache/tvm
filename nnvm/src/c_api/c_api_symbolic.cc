@@ -19,7 +19,6 @@ int NNSymbolListAtomicSymbolCreators(nn_uint *out_size,
   API_END();
 }
 
-
 int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
                                 const char **name,
                                 const char **description,
@@ -36,7 +35,6 @@ int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
   *num_doc_args = 0;
   API_END();
 }
-
 
 int NNSymbolCreateAtomicSymbol(AtomicSymbolCreator creator,
                                nn_uint num_param,
@@ -179,13 +177,15 @@ int NNSymbolListAttrs(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolListArguments(SymbolHandle symbol,
-                          nn_uint *out_size,
-                          const char ***out_str_array) {
+int NNSymbolListInputNames(SymbolHandle symbol,
+                           int option,
+                           nn_uint *out_size,
+                           const char ***out_str_array) {
   Symbol *s = static_cast<Symbol*>(symbol);
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
-  ret->ret_vec_str = std::move(s->ListArguments());
+  ret->ret_vec_str = std::move(
+      s->ListInputNames(Symbol::ListInputOption(option)));
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
@@ -195,13 +195,13 @@ int NNSymbolListArguments(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolListOutputs(SymbolHandle symbol,
-                        nn_uint *out_size,
-                        const char ***out_str_array) {
+int NNSymbolListOutputNames(SymbolHandle symbol,
+                            nn_uint *out_size,
+                            const char ***out_str_array) {
   Symbol *s = static_cast<Symbol*>(symbol);
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
-  ret->ret_vec_str = std::move(s->ListOutputs());
+  ret->ret_vec_str = std::move(s->ListOutputNames());
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
@@ -221,6 +221,7 @@ int NNSymbolCompose(SymbolHandle sym,
   std::string& s_name = ret->ret_str;
   std::unordered_map<std::string, const Symbol*>& kwargs
       = ret->kwarg_symbol;
+  kwargs.clear();
   if (name != nullptr) {
     s_name = name;
   } else {

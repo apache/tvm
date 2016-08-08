@@ -83,10 +83,10 @@ inline Graph InferType(Graph graph,
                        DTypeVector type_args = {},
                        std::string type_attr_key = "") {
   if (type_args.size() != 0) {
-    graph.attrs["type_args"] = std::make_shared<any>(std::move(type_args));
+    graph.attrs["dtype_args"] = std::make_shared<any>(std::move(type_args));
   }
   if (type_attr_key.length() != 0) {
-    graph.attrs["type_attr_key"] = std::make_shared<any>(std::move(type_attr_key));
+    graph.attrs["dtype_attr_key"] = std::make_shared<any>(std::move(type_attr_key));
   }
   return ApplyPass(std::move(graph), {"InferType"});
 }

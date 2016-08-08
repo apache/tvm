@@ -289,7 +289,9 @@ template<typename ValueType>
 inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
   const any* ref = GetAttrMap(key);
   if (ref == nullptr) {
+    // update the attribute map of the key by creating new empty OpMap
     UpdateAttrMap(key, [key](any* pmap) {
+        // use callback so it is in lockscope
         if (pmap->empty()) {
           OpMap<ValueType> pm;
           pm.attr_name_ = key;
@@ -304,7 +306,9 @@ inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
 template<typename ValueType>
 inline Op& Op::attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value) {
+  // update the attribute map of the key by creating new empty if needed.
   UpdateAttrMap(attr_name, [this, attr_name, value](any* pmap) {
+      // the callback is in lockscope so is threadsafe.
       if (pmap->empty()) {
         OpMap<ValueType> pm;
         pm.attr_name_ = attr_name;

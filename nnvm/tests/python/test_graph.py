@@ -35,6 +35,16 @@ def test_order_mutation_pass():
     assert nindex['add1'] in jnodes[nindex['assign']]['control_deps']
     assert jnodes[nindex['assign']]['inputs'][0][2] == 1
 
+def test_list_args():
+    x = sym.Variable('x')
+    z = sym.Variable('z')
+    y = sym.conv2d(data=x, name='conv', dev='gpu')
+    y = sym.add(y, z, name='add1')
+    # write after read
+    z = sym.assign(x, y, name='assign')
+    assert z.list_inputs('read_only') == ['conv_weight', 'z']
+    assert z.list_inputs('aux_state') == ['x']
+
 def test_infer_shape():
     x = sym.Variable('x', shape=(4, 2))
     y = sym.add(x, x, name='add1')
@@ -109,3 +119,4 @@ if __name__ == "__main__":
     test_infer_type()
     test_place_device()
     test_plan_memory()
+    test_list_args()

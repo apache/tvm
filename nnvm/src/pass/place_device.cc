@@ -10,6 +10,7 @@
 
 namespace nnvm {
 namespace pass {
+namespace {
 
 // simply logic to place device according to device_group hint
 // insert copy node when there is
@@ -176,5 +177,6 @@ NNVM_REGISTER_PASS(PlaceDevice)
 
 DMLC_JSON_ENABLE_ANY(DeviceAssignMap, dict_str_int);
 
+}  // namespace
 }  // namespace pass
 }  // namespace nnvm
