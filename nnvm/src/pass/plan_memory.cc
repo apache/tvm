@@ -12,6 +12,7 @@
 
 namespace nnvm {
 namespace pass {
+namespace {
 
 // simple graph based allocator.
 class GraphAllocator {
@@ -91,7 +92,7 @@ class GraphAllocator {
         if ((*idx_)[nid].source->is_variable()) continue;
         importance[nid] = 1;
       }
-      num_match_color_ = ColorNodeGroup(
+      num_match_color_ = pass::ColorNodeGroup(
           *idx_, importance, num_match_color_, &node_color_);
     }
   }
@@ -223,5 +224,6 @@ NNVM_REGISTER_PASS(PlanMemory)
 .depend_graph_attr("shape")
 .provide_graph_attr("storage_id");
 
+}  // namespace
 }  // namespace pass
 }  // namespace nnvm

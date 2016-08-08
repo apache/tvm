@@ -45,11 +45,6 @@ struct NNAPIThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<NNAPIThreadLocalEntry> NNAPIThreadLocalStore;
 
 /*!
- * \brief Set the last error message needed by C API
- * \param msg The error message to set.
- */
-void NNAPISetLastError(const char* msg);
-/*!
  * \brief handle exception throwed out
  * \param e the exception
  * \return the return value of API after exception is handled

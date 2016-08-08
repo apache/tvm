@@ -181,17 +181,41 @@ Symbol Symbol::operator[] (size_t index) const {
   }
 }
 
-std::vector<std::string> Symbol::ListArguments() const {
+std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
   std::vector<std::string> ret;
-  DFSVisit(this->outputs, [&ret](const NodePtr &node) {
-      if (node->is_variable()) {
+  if (option == kAll) {
+    DFSVisit(this->outputs, [&ret](const NodePtr &node) {
+        if (node->is_variable()) {
+          ret.push_back(node->attrs.name);
+        }
+      });
+  } else {
+    std::unordered_set<Node*> mutable_set;
+    std::vector<Node*> vlist;
+    static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
+    DFSVisit(this->outputs, [&ret, &mutable_set, &vlist](const NodePtr &node) {
+        if (node->is_variable()) {
+          vlist.push_back(node.get());
+        } else if (fmutate_inputs.count(node->op)) {
+          FMutateInput fmutate = fmutate_inputs[node->op];
+          for (uint32_t i = 0; i < node->inputs.size(); ++i) {
+            if (fmutate(node->attrs, i)) {
+              mutable_set.insert(node->inputs[i].node.get());
+            }
+          }
+        }
+      });
+    for (Node* node : vlist) {
+      if ((option == kReadOnlyArgs && mutable_set.count(node) == 0) ||
+          (option == kAuxiliaryStates && mutable_set.count(node) != 0)) {
         ret.push_back(node->attrs.name);
       }
-    });
+    }
+  }
   return ret;
 }
 
-std::vector<std::string> Symbol::ListOutputs() const {
+std::vector<std::string> Symbol::ListOutputNames() const {
   static auto& flist_ouputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
   std::vector<std::string> ret;
   for (auto &head : outputs) {
@@ -345,10 +369,10 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
       }
     } else {
       std::vector<std::string> keys = GetKeys(kwargs);
-      std::vector<std::string> arg_names = ListArguments();
+      std::vector<std::string> arg_names = ListInputNames(kAll);
       array_view<std::string> view(dmlc::BeginPtr(arg_names) + arg_counter,
                                    dmlc::BeginPtr(arg_names) + arg_names.size());
-      KeywordArgumentMismatch("Symbol.Compose", keys, ListArguments());
+      KeywordArgumentMismatch("Symbol.Compose", keys, arg_names);
     }
   }
 }

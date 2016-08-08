@@ -48,6 +48,7 @@ Graph ApplyPass(Graph g,
     }
     g = r->body(std::move(g));
   }
+
   return g;
 }
 
