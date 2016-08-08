@@ -4,6 +4,7 @@
  * \brief Save and load graph to/from JSON file.
  */
 #include <nnvm/pass.h>
+#include <nnvm/pass_functions.h>
 #include <dmlc/json.h>
 #include <algorithm>
 
@@ -26,6 +27,7 @@ struct Handler<std::shared_ptr<const any> > {
 
 namespace nnvm {
 namespace pass {
+namespace {
 
 // auxiliary node structure for serialization.
 struct JSONNode {
@@ -35,7 +37,7 @@ struct JSONNode {
     uint32_t index;
     uint32_t version;
     void Save(dmlc::JSONWriter *writer) const {
-      writer->BeginArray();
+      writer->BeginArray(false);
       writer->WriteArrayItem(node_id);
       writer->WriteArrayItem(index);
       writer->WriteArrayItem(version);
@@ -74,7 +76,10 @@ struct JSONNode {
     }
     writer->WriteObjectKeyValue("name", node->attrs.name);
     if (node->attrs.dict.size() != 0) {
-      writer->WriteObjectKeyValue("attr", node->attrs.dict);
+      // write attributes in order;
+      std::map<std::string, std::string> dict(
+          node->attrs.dict.begin(), node->attrs.dict.end());
+      writer->WriteObjectKeyValue("attr", dict);
     }
     writer->WriteObjectKeyValue("inputs", inputs);
     if (control_deps.size() != 0) {
@@ -247,5 +252,6 @@ NNVM_REGISTER_PASS(SaveJSON)
 DMLC_JSON_ENABLE_ANY(std::string, str);
 DMLC_JSON_ENABLE_ANY(std::vector<int>, list_int);
 
+}  // namespace
 }  // namespace pass
 }  // namespace nnvm

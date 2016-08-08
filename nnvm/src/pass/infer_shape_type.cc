@@ -9,6 +9,7 @@
 
 namespace nnvm {
 namespace pass {
+namespace {
 
 template<typename AttrType, typename IsNone>
 Graph InferAttr(Graph &&ret,
@@ -17,7 +18,7 @@ Graph InferAttr(Graph &&ret,
                 const char* arg_name,
                 const char* attr_key_name,
                 const char* attr_name,
-                const char* known_name,
+                const char* unknown_name,
                 IsNone fis_none) {
   using AttrVector = std::vector<AttrType>;
   const IndexedGraph& idx = ret.indexed_graph();
@@ -48,11 +49,11 @@ Graph InferAttr(Graph &&ret,
   // temp space for shape inference.
   std::vector<AttrType*> ishape, oshape;
   // number of completed nodes
-  size_t num_known = 0;
+  size_t num_unknown = 0;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) {
-      if (shape_attr_key.length() != 0) {
+      if (shape_attr_key.length() != 0 && fis_none(rshape[idx.entry_id(nid, 0)])) {
         auto it = inode.source->attrs.dict.find(shape_attr_key);
         if (it != inode.source->attrs.dict.end()) {
           CHECK_EQ(inode.source->num_outputs(), 1);
@@ -71,8 +72,8 @@ Graph InferAttr(Graph &&ret,
       oshape[i] = &rshape[idx.entry_id(nid, i)];
     }
     if (finfer_shape.count(inode.source->op)) {
-      num_known +=
-          finfer_shape[inode.source->op](inode.source->attrs, ishape, oshape);
+      num_unknown +=
+          !(finfer_shape[inode.source->op](inode.source->attrs, ishape, oshape));
     } else if (is_backward.get(inode.source->op, false)) {
       // backward operator inference.
       CHECK_GE(inode.control_deps.size(), 1)
@@ -85,13 +86,13 @@ Graph InferAttr(Graph &&ret,
         *oshape[i] = rshape[idx.entry_id(fnode.inputs[i])];
         if (fis_none(*oshape[i])) known = false;
       }
-      num_known += known;
+      num_unknown += !known;
     }
   }
   // set the shapes
   ret.attrs[attr_name] = std::make_shared<any>(std::move(rshape));
   // number of nodes who knows the shape.
-  ret.attrs[known_name] = std::make_shared<any>(num_known);
+  ret.attrs[unknown_name] = std::make_shared<any>(num_unknown);
   return ret;
 }
 
@@ -101,7 +102,7 @@ NNVM_REGISTER_PASS(InferShape)
     return InferAttr<TShape>(
         std::move(ret), TShape(),
         "FInferShape", "shape_args", "shape_attr_key",
-        "shape", "shape_num_known_nodes",
+        "shape", "shape_num_unknown_nodes",
         [](const TShape& s) { return s.ndim() == 0; });
   })
 .set_change_graph(false)
@@ -113,7 +114,7 @@ NNVM_REGISTER_PASS(InferType)
     return InferAttr<int>(
         std::move(ret), 0,
         "FInferType", "dtype_args", "dtype_attr_key",
-        "dtype", "dtype_num_known_nodes",
+        "dtype", "dtype_num_unknown_nodes",
         [](const int t) { return t == -1; });
   })
 .set_change_graph(false)
@@ -123,5 +124,6 @@ DMLC_JSON_ENABLE_ANY(ShapeVector, list_shape);
 DMLC_JSON_ENABLE_ANY(DTypeVector, list_int);
 DMLC_JSON_ENABLE_ANY(size_t, size_t);
 
+}  // namespace
 }  // namespace pass
 }  // namespace nnvm

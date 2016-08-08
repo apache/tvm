@@ -58,17 +58,9 @@ class Tuple {
    * \brief move constructor from Tuple
    * \param src the source shape
    */
-  inline Tuple(Tuple<ValueType>&& src) {
-    this->swap(src);
-  }
-  /*!
 
-   * \param ndim the number of dimension of the Tuple
-   * \param v The value to fill.
-   */
-  inline Tuple(index_t ndim, ValueType v) {
-    this->SetDim(ndim);
-    std::fill_n(begin(), ndim, v);
+  inline Tuple(Tuple<ValueType>&& src) { // NOLINT(*)
+    this->swap(src);
   }
   /*!
    * \brief construct the Tuple from content of iterator
@@ -97,7 +89,7 @@ class Tuple {
    * \brief Swap current object with other
    * \param other another object to be swapped.
    */
-  inline void swap(Tuple<ValueType>& other) noexcept {  // NOLINT(*)
+  inline void swap(Tuple<ValueType>& other) {  // NOLINT(*)
     std::swap(ndim_, other.ndim_);
     std::swap(num_heap_allocated_, other.num_heap_allocated_);
     std::swap(data_stack_, other.data_stack_);
@@ -275,7 +267,7 @@ class Tuple {
     return is;
   }
 
- private:
+ protected:
   // stack cache size
   static const uint32_t kStackCache = 4;
   /*! \brief number of dimension of the tuple */
@@ -303,22 +295,47 @@ class Tuple {
  */
 class TShape : public Tuple<index_t> {
  public:
-  // inheritate other constructors from Tuple
-  using Tuple<index_t>::Tuple;
   /*! \brief default constructor */
   TShape() = default;
+  /*!
+   * constructor to construct a shape with all 1.
+   * \param ndim the number of dimension
+   */
+  inline TShape(index_t ndim) {  // NOLINT(*)
+    this->SetDim(ndim);
+    std::fill_n(begin(), ndim, 1);
+  }
   /*!
    * \brief copy constructor of TShape
    * \param s source shape.
    */
-  inline TShape(const Tuple<index_t>& s)  // NOLINT(*)
-      : Tuple<index_t>(s) {}
+  inline TShape(const Tuple<index_t>& s) { // NOLINT(*)
+    this->assign(s.begin(), s.end());
+  }
+  /*!
+   * \brief constructor from initializer list
+   * \param init the initializer_list
+   */
+  inline TShape(std::initializer_list<index_t> init) {
+    this->assign(init.begin(), init.end());
+  }
   /*!
    * \brief move constructor.
    * \param s source shape.
    */
   inline TShape(Tuple<index_t>&& s) {  // NOLINT(*)
     this->swap(s);
+  }
+  /*!
+   * \brief construct the Tuple from content of iterator
+   * \param begin the beginning of iterator
+   * \param end end the end of the iterator
+   * \tparam RandomAccessIterator iterator type
+   */
+  template<typename RandomAccessIterator>
+  inline TShape(RandomAccessIterator begin,
+                RandomAccessIterator end) {
+    this->assign(begin, end);
   }
   /*!
    * \brief assignment function from tshape
@@ -347,6 +364,164 @@ class TShape : public Tuple<index_t> {
     }
     return size;
   }
+  /*!
+   * \return product shape in [dimstart,dimend)
+   * \param dimstart start dimension
+   * \param dimend end dimension
+   */
+  inline index_t ProdShape(int dimstart, int dimend) const {
+    index_t num = 1;
+    const index_t *d = this->data();
+    for (int i = dimstart; i < dimend; ++i) {
+      num *= d[i];
+    }
+    return num;
+  }
+  /*! \return the begin data pointer to content of the tuple */
+  inline const index_t *data() const {
+    return begin();
+  }
+  /*! \return the begin data pointer to content of the tuple */
+  inline index_t *data() {
+    return begin();
+  }
+#ifdef MSHADOW_XINLINE
+  template<int dim>
+  inline TShape(mshadow::Shape<dim> &&s) {// NOLINT(*)
+    this->assign(s.shape_, s.shape_ + dim);
+  }
+  /*!
+   * \brief assignment from shape
+   * \param shape source shape
+   * \tparam dim shape dimension
+   * \return reference of self
+   */
+  template<int dim>
+  inline TShape &operator=(const mshadow::Shape<dim> &shape) {
+    this->assign(shape.shape_, shape.shape_ + dim);
+    return *this;
+  }
+  /*!
+   * \brief get the shape of tensor specifying dim
+   * \return the shape requested
+   * \tparam dim dimension of the tensor
+   */
+  template<int dim>
+  inline mshadow::Shape<dim> get() const {
+    CHECK_EQ(dim, ndim())
+        << "dimension do not match target dimension " << dim << " vs " << ndim();
+    const index_t *d = this->data();
+    mshadow::Shape<dim> s;
+    for (int i = 0; i < dim; ++i) {
+      s[i] = d[i];
+    }
+    return s;
+  }
+  /*!
+   * flatten the higher dimension to second dimension, return a 2D shape
+   * \return the flat 2d shape
+   */
+  inline mshadow::Shape<2> FlatTo2D(void) const {
+    mshadow::Shape<2> s;
+    if (ndim() == 0) return mshadow::Shape2(0, 0);
+    const index_t *d = this->data();
+    s.shape_[1] = d[ndim() - 1];
+    index_t ymax = 1;
+    for (index_t i = 1; i < ndim(); ++i) {
+      ymax *= d[i - 1];
+    }
+    s.shape_[0] = ymax;
+    return s;
+  }
+  /*!
+   * flatten the shape into three parts: [0, axis_begin), [axis_begin, axis_end], (axis_end, ndim)
+   * \param axis_begin The beginning axis specified.
+   * \param axis_end The ending axis specified.
+   * \return the flat 3d shape
+   */
+  inline mshadow::Shape<3> FlatTo3D(index_t axis_begin, index_t axis_end) const {
+    CHECK(axis_end >= axis_begin);
+    mshadow::Shape<3> s;
+    if (ndim() == 0) return mshadow::Shape3(0, 0, 0);
+    const index_t *d = this->data();
+    s.shape_[0] = 1;
+    s.shape_[1] = 1;
+    s.shape_[2] = 1;
+
+    for (index_t i = 0; i < axis_begin; ++i) {
+      s.shape_[0] *= d[i];
+    }
+    for (index_t i = axis_begin; i <= axis_end; ++i) {
+      s.shape_[1] *= d[i];
+    }
+    for (index_t i = axis_end + 1; i < ndim(); ++i) {
+      s.shape_[2] *= d[i];
+    }
+    return s;
+  }
+  /*!
+   * flatten the axis before and after the specified axis, so it becomes 3D tensor
+   * \param axis The axis specified.
+   * \return the flat 3d shape
+   */
+  inline mshadow::Shape<3> FlatTo3D(index_t axis) const {
+    return FlatTo3D(axis, axis);
+  }
+  inline bool operator==(const TShape &s) const {
+    if (ndim() != s.ndim()) return false;
+    return std::equal(begin(), end(), s.begin());
+  }
+  inline bool operator!=(const TShape &s) const {
+    return !(*this == s);
+  }
+  /*!
+   * \return whether two shape equals
+   * \param s the shape to compare against
+   * \tparam dim dimension of the shape
+   */
+  template<int dim>
+  inline bool operator==(const mshadow::Shape<dim> &s) const {
+    if (ndim_ != dim) return false;
+    const index_t *d = dim <= kStackCache ? data_stack_ : data_heap_;
+    for (index_t i = 0; i < dim; ++i) {
+      if (d[i] != s.shape_[i]) return false;
+    }
+    return true;
+  }
+  /*!
+   * \return whether two shape not equals
+   * \param s the shape to compare against
+   * \tparam dim dimension of the shape
+   */
+  template<int dim>
+  inline bool operator!=(const mshadow::Shape<dim> &s) const {
+    return !(*this == s);
+  }
+  /*!
+   * \brief save the content into binary stream
+   * \param strm the output stream
+   * \tparam TStream any stream type that have write
+   */
+  template<typename TStream>
+  inline void Save(TStream *strm) const {
+    strm->Write(&ndim_, sizeof(ndim_));
+    strm->Write(data(), sizeof(index_t) * ndim_);
+  }
+  /*!
+   * \brief load the content from binary stream
+   * \param strm the output stream
+   * \tparam TStream any stream type that have write
+   * \return whether the load is successful
+   */
+  template<typename TStream>
+  inline bool Load(TStream *strm) {
+    if (strm->Read(&ndim_, sizeof(ndim_)) != sizeof(ndim_)) return false;
+    this->SetDim(ndim_);
+    size_t nread = sizeof(index_t) * ndim_;
+    if (strm->Read(data(), nread) != nread) return false;
+    return true;
+  }
+#endif
 };
 
 }  // namespace nnvm

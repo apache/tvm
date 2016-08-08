@@ -30,6 +30,18 @@ class Symbol {
     /*! \brief only list attributes in current node */
     kShallow = 1
   };
+  /*! \brief option passed to ListInputNames */
+  enum ListInputOption {
+    /*! \brief list all the arguments */
+    kAll = 0,
+    /*! \brief list only read only arguments */
+    kReadOnlyArgs = 1,
+    /*!
+     * \brief List auxiliary states that can be mutated by the graph.
+     *  This excludes the ReadOnly arguments
+     */
+    kAuxiliaryStates = 2
+  };
 
   /*! \brief output entries contained in the symbol */
   std::vector<NodeEntry> outputs;
@@ -51,18 +63,20 @@ class Symbol {
    */
   Symbol operator[] (size_t index) const;
   /*!
-   * \brief List the arguments names.
+   * \brief List the input names.
+   * \param option The options to list the arguments.
    *
    * The position of the returned list also corresponds to calling position in operator()
    * \return the arguments list of this symbol, they can be either named or unnamed (empty string).
+   * \sa ListInputOption
    */
-  std::vector<std::string> ListArguments() const;
+  std::vector<std::string> ListInputNames(ListInputOption option) const;
   /*!
    * \brief List the names of outputs for this symbol.
    *  For normal operators, it is usually symbol node name + "_output"
    * \return get the descriptions of outputs for this symbol.
    */
-  std::vector<std::string> ListOutputs() const;
+  std::vector<std::string> ListOutputNames() const;
   /*!
    * \brief Compose the symbol with arguments, this changes the current symbol.
    * The kwargs passed in can be in-complete,

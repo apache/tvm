@@ -176,9 +176,16 @@ class Symbol(SymbolBase):
             self.handle, _ctypes.byref(handle)))
         return Symbol(handle=handle)
 
-    def list_arguments(self):
-        """List all the arguments in the symbol.
+    def list_inputs(self, option='all'):
+        """List all the inputs in the symbol.
 
+        Parameters
+        ----------
+        option : {'all', 'read_only', 'aux_state'}, optional
+           The listing option
+           - 'all' will list all the arguments.
+           - 'read_only' lists arguments that are readed by the graph.
+           - 'aux_state' lists arguments that are mutated by the graph as state.
         Returns
         -------
         args : list of string
@@ -186,8 +193,16 @@ class Symbol(SymbolBase):
         """
         size = _ctypes.c_uint()
         sarr = _ctypes.POINTER(_ctypes.c_char_p)()
-        _check_call(_LIB.NNSymbolListArguments(
-            self.handle, _ctypes.byref(size), _ctypes.byref(sarr)))
+        if option == 'all':
+            copt = _ctypes.c_int(0)
+        elif option == 'read_only':
+            copt = _ctypes.c_int(1)
+        elif option == 'aux_state':
+            copt = _ctypes.c_int(2)
+        else:
+            raise ValueError("option need to be in {'all', 'read_only, 'aux_state'}")
+        _check_call(_LIB.NNSymbolListInputNames(
+            self.handle, copt, _ctypes.byref(size), _ctypes.byref(sarr)))
         return [_base.py_str(sarr[i]) for i in range(size.value)]
 
     def list_outputs(self):
@@ -200,7 +215,7 @@ class Symbol(SymbolBase):
         """
         size = _ctypes.c_uint()
         sarr = _ctypes.POINTER(_ctypes.c_char_p)()
-        _check_call(_LIB.NNSymbolListOutputs(
+        _check_call(_LIB.NNSymbolListOutputNames(
             self.handle, _ctypes.byref(size), _ctypes.byref(sarr)))
         return [_base.py_str(sarr[i]) for i in range(size.value)]
 

@@ -36,6 +36,12 @@ typedef void *SymbolHandle;
 typedef void *GraphHandle;
 
 /*!
+ * \brief Set the last error message needed by C API
+ * \param msg The error message to set.
+ */
+NNVM_DLL void NNAPISetLastError(const char* msg);
+
+/*!
  * \brief return str message of the last error
  *  all function in this file will return 0 when success
  *  and -1 when an error occured,
@@ -171,25 +177,30 @@ NNVM_DLL int NNSymbolListAttrs(SymbolHandle symbol,
                                nn_uint *out_size,
                                const char*** out);
 /*!
- * \brief List arguments in the symbol.
+ * \brief List inputs in the symbol.
  * \param symbol the symbol
+ * \param option The option to list the inputs
+ *   option=0 means list all arguments.
+ *   option=1 means list arguments that are readed only by the graph.
+ *   option=2 means list arguments that are mutated by the graph.
  * \param out_size output size
  * \param out_str_array pointer to hold the output string array
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNSymbolListArguments(SymbolHandle symbol,
-                                   nn_uint *out_size,
-                                   const char ***out_str_array);
+NNVM_DLL int NNSymbolListInputNames(SymbolHandle symbol,
+                                    int option,
+                                    nn_uint *out_size,
+                                    const char ***out_str_array);
 /*!
- * \brief List returns in the symbol.
+ * \brief List returns names in the symbol.
  * \param symbol the symbol
  * \param out_size output size
  * \param out_str_array pointer to hold the output string array
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNSymbolListOutputs(SymbolHandle symbol,
-                                 nn_uint *out_size,
-                                 const char ***out_str_array);
+NNVM_DLL int NNSymbolListOutputNames(SymbolHandle symbol,
+                                     nn_uint *out_size,
+                                     const char ***out_str_array);
 /*!
  * \brief Get a symbol that contains all the internals.
  * \param symbol The symbol

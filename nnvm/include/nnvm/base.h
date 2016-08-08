@@ -16,37 +16,13 @@
 namespace nnvm {
 
 /*! \brief any type */
-using any = dmlc::any;
+using dmlc::any;
 
-/*!
- * \brief array_veiw type
- * \tparam ValueType The value content of array view.
- */
-template<typename ValueType>
-using array_view = dmlc::array_view<ValueType>;
+/*! \brief array_veiw type  */
+using dmlc::array_view;
 
-/*!
- * \brief get reference of type T stored in src.
- * \param src The source container
- * \return the reference to the type.
- * \tparam T The type to be fetched.
- */
-template<typename T>
-inline T& get(any& src) {  // NOLINT(*)
-  return dmlc::get<T>(src);
-}
-
-/*!
- * \brief get const reference of type T stored in src.
- * \param src The source container
- * \return the reference to the type.
- * \tparam T The type to be fetched.
- */
-
-template<typename T>
-inline const T& get(const any& src) {
-  return dmlc::get<T>(src);
-}
+/*!\brief getter function of any type */
+using dmlc::get;
 
 }  // namespace nnvm
 

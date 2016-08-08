@@ -7,7 +7,7 @@ def test_compose():
     y = sym.exp(sym.add(x, x, name='add', gpu=2),
                 name='exp', gpu=1, attr={"kk": "1"})
 
-    assert y.list_arguments() == ['x']
+    assert y.list_inputs() == ['x']
     assert y.list_outputs() == ["exp_output"]
     assert y.list_attr()['gpu'] == '1'
     z = y.get_internals()
@@ -17,7 +17,7 @@ def test_compose():
 def test_default_input():
     x = sym.Variable('x')
     y = sym.conv2d(data=x, name='conv')
-    assert y.list_arguments() == ['x', 'conv_weight']
+    assert y.list_inputs() == ['x', 'conv_weight']
     try:
         z = sym.add(x)
         assert False
