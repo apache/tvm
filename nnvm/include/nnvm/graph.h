@@ -144,8 +144,8 @@ class IndexedGraph {
     return nodes_[node_id(node)];
   }
   /*! \return list of argument nodes */
-  inline const std::vector<uint32_t>& arg_nodes() const {
-    return arg_nodes_;
+  inline const std::vector<uint32_t>& input_nodes() const {
+    return input_nodes_;
   }
   /*! \return list of output entries */
   inline const std::vector<NodeEntry>& outputs() const {
@@ -161,8 +161,8 @@ class IndexedGraph {
   explicit IndexedGraph(const Graph& other);
   // node pointers in CSR structure.
   std::vector<Node> nodes_;
-  // index to argument nodes
-  std::vector<uint32_t> arg_nodes_;
+  // index to input nodes
+  std::vector<uint32_t> input_nodes_;
   // space to store the outputs entries
   std::vector<NodeEntry> outputs_;
   // mapping from node to index.

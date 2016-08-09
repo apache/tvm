@@ -31,22 +31,19 @@ NodePtr CreateVariableNode(const std::string& name) {
 // The version of that varaible will increase
 // version is used to implicitly order the mutation sequences
 inline void UpdateNodeVersion(Node *n) {
-  static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
+  static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
   for (NodeEntry& e : n->inputs) {
     if (e.node->is_variable()) {
       e.version = nnvm::get<VariableParam>(e.node->attrs.parsed).version;
     }
   }
   if (fmutate_inputs.count(n->op) != 0) {
-    FMutateInput fmutate = fmutate_inputs[n->op];
-    for (uint32_t i = 0; i < n->inputs.size(); ++i) {
-      if (fmutate(n->attrs, i)) {
-        NodeEntry& e = n->inputs[i];
-        CHECK(e.node->is_variable())
-            << "Mutation target can only be Variable";
-        // increase the version of the variable.
-        e.version = ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
-      }
+    for (uint32_t i : fmutate_inputs[n->op](n->attrs)) {
+      NodeEntry& e = n->inputs[i];
+      CHECK(e.node->is_variable())
+          << "Mutation target can only be Variable";
+      // increase the version of the variable.
+      e.version = ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
     }
   }
 }
@@ -192,16 +189,13 @@ std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
   } else {
     std::unordered_set<Node*> mutable_set;
     std::vector<Node*> vlist;
-    static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
+    static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     DFSVisit(this->outputs, [&ret, &mutable_set, &vlist](const NodePtr &node) {
         if (node->is_variable()) {
           vlist.push_back(node.get());
         } else if (fmutate_inputs.count(node->op)) {
-          FMutateInput fmutate = fmutate_inputs[node->op];
-          for (uint32_t i = 0; i < node->inputs.size(); ++i) {
-            if (fmutate(node->attrs, i)) {
-              mutable_set.insert(node->inputs[i].node.get());
-            }
+          for (uint32_t i : fmutate_inputs[node->op](node->attrs)){
+            mutable_set.insert(node->inputs[i].node.get());
           }
         }
       });

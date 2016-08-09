@@ -21,6 +21,13 @@ inline T get_with_default(const std::unordered_map<Node*, T> &map,
   return def;
 }
 
+inline bool IsMutate(const std::vector<uint32_t>& mutate_inputs, uint32_t i) {
+  if (mutate_inputs.size() == 0) return false;
+  auto it = std::lower_bound(
+      mutate_inputs.begin(), mutate_inputs.end(), i);
+  return (it != mutate_inputs.end()) && (*it == i);
+}
+
 Graph OrderMutation(const Graph& src) {
   std::unordered_map<Node*, std::vector<NodeEntry> > version_hist;
   DFSVisit(src.outputs, [&version_hist](const NodePtr& n) {
@@ -37,7 +44,13 @@ Graph OrderMutation(const Graph& src) {
   // start preparing for remapping the nodes.
   std::unordered_map<Node*, NodePtr> old_new;
   auto prepare = [&version_hist, &old_new] (const NodePtr& n) {
-    static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
+    static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
+    std::vector<uint32_t> mutate_inputs;
+    if (!n->is_variable() && fmutate_inputs.count(n->op)) {
+      mutate_inputs = fmutate_inputs[n->op](n->attrs);
+    }
+    std::sort(mutate_inputs.begin(), mutate_inputs.end());
+
     bool need_repl = false;
     for (size_t i = 0; i < n->inputs.size(); ++i) {
       const NodeEntry& e = n->inputs[i];
@@ -46,9 +59,7 @@ Graph OrderMutation(const Graph& src) {
         auto it = version_hist.find(e.node.get());
         if (it != version_hist.end()) {
           std::vector<NodeEntry>& vec = it->second;
-          uint32_t is_mutate =
-              fmutate_inputs.count(n->op) ? fmutate_inputs[n->op](n->attrs, i) : 0;
-          vec.emplace_back(NodeEntry{n, is_mutate, e.version});
+          vec.emplace_back(NodeEntry{n, IsMutate(mutate_inputs, i), e.version});
         }
       } else {
         if (old_new.count(e.node.get()) != 0) need_repl = true;
@@ -91,18 +102,21 @@ Graph OrderMutation(const Graph& src) {
           get_with_default(old_new, p.get(), p));
     }
     // add control deps
-    static auto& fmutate_inputs = Op::GetAttr<FMutateInput>("FMutateInput");
+    static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
+    std::vector<uint32_t> mutate_inputs;
+    if (fmutate_inputs.count(kv.first->op)) {
+      mutate_inputs = fmutate_inputs[kv.first->op](kv.first->attrs);
+    }
+    std::sort(mutate_inputs.begin(), mutate_inputs.end());
+
     for (size_t i = 0; i < kv.first->inputs.size(); ++i) {
       const NodeEntry& e = kv.first->inputs[i];
       if (e.node->is_variable() && version_hist.count(e.node.get()) != 0) {
-        FMutateInput fmutate = fmutate_inputs.get(kv.first->op, nullptr);
-        uint32_t is_mutate = (fmutate == nullptr) ? 0 : fmutate(kv.first->attrs, i);
         std::vector<NodeEntry>& vec = version_hist.at(e.node.get());
-
         auto it = std::lower_bound(vec.begin(), vec.end(),
                                    NodeEntry{nullptr, 1, e.version},
                                    comparator);
-        if (is_mutate != 0) {
+        if (IsMutate(mutate_inputs, i)) {
           int read_dep = 0;
           while (it != vec.begin()) {
             --it;
