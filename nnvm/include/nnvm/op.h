@@ -368,12 +368,14 @@ inline Op& Op::set_attr_parser(std::function<void (NodeAttrs* attrs)> fn) {  // 
 // member functions of OpMap
 template<typename ValueType>
 inline int OpMap<ValueType>::count(const Op* op) const {
+  if (op == nullptr) return 0;
   const uint32_t idx = op->index_;
   return idx < data_.size() ? data_[idx].second : 0;
 }
 
 template<typename ValueType>
 inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
+  CHECK(op != nullptr);
   const uint32_t idx = op->index_;
   CHECK(idx < data_.size() && data_[idx].second)
         << "Attribute " << attr_name_
@@ -383,6 +385,7 @@ inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
 
 template<typename ValueType>
 inline const ValueType& OpMap<ValueType>::get(const Op* op, const ValueType& def_value) const {
+  if (op == nullptr) return def_value;
   const uint32_t idx = op->index_;
   if (idx < data_.size() && data_[idx].second) {
     return data_[idx].first;

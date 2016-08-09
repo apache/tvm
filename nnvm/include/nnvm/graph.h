@@ -147,6 +147,10 @@ class IndexedGraph {
   inline const std::vector<uint32_t>& input_nodes() const {
     return input_nodes_;
   }
+  /*! \return list of mutable nodes */
+  inline const std::unordered_set<uint32_t>& mutable_input_nodes() const {
+    return mutable_input_nodes_;
+  }
   /*! \return list of output entries */
   inline const std::vector<NodeEntry>& outputs() const {
     return outputs_;
@@ -161,8 +165,10 @@ class IndexedGraph {
   explicit IndexedGraph(const Graph& other);
   // node pointers in CSR structure.
   std::vector<Node> nodes_;
-  // index to input nodes
+  // index all to input nodes
   std::vector<uint32_t> input_nodes_;
+  // index to mutable input nodes
+  std::unordered_set<uint32_t> mutable_input_nodes_;
   // space to store the outputs entries
   std::vector<NodeEntry> outputs_;
   // mapping from node to index.

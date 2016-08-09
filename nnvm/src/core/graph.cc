@@ -4,6 +4,7 @@
  * \brief Graph node data structure.
  */
 #include <nnvm/graph.h>
+#include <nnvm/op_attr_types.h>
 #include <limits>
 
 namespace nnvm {
@@ -57,12 +58,20 @@ IndexedGraph::IndexedGraph(const Graph &g) {
         node2index_.at(e.node.get()), e.index, e.version});
   }
 
+  static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
+  std::unordered_set<uint32_t> mutable_inputs;
   // setup array view
   // input_entries_ and control_rptr must not change after this step.
   const NodeEntry* iptr = dmlc::BeginPtr(input_entries_);
   for (size_t nid = 0; nid < nodes_.size(); ++nid) {
     nodes_[nid].inputs = array_view<NodeEntry>(
         iptr + inputs_rptr[nid], iptr + inputs_rptr[nid + 1]);
+    if (nodes_[nid].source->op != nullptr &&
+        fmutate_inputs.count(nodes_[nid].source->op)) {
+      for (uint32_t i : fmutate_inputs[nodes_[nid].source->op](nodes_[nid].source->attrs)) {
+        mutable_input_nodes_.insert(nodes_[nid].inputs[i].node_id);
+      }
+    }
   }
   const uint32_t* cptr = dmlc::BeginPtr(control_deps_);
   for (size_t nid = 0; nid < nodes_.size(); ++nid) {
