@@ -101,7 +101,7 @@ NNVM_REGISTER_PASS(InferShape)
 .set_body([](Graph ret) {
     return InferAttr<TShape>(
         std::move(ret), TShape(),
-        "FInferShape", "shape_args", "shape_attr_key",
+        "FInferShape", "shape_inputs", "shape_attr_key",
         "shape", "shape_num_unknown_nodes",
         [](const TShape& s) { return s.ndim() == 0; });
   })
