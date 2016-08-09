@@ -54,16 +54,16 @@ inline Graph OrderMutation(Graph src) {
 /*!
  * \brief Infer shapes in the graph given the information.
  * \param graph source graph
- * \param shape_args The shapes of aruguments to the graph.
+ * \param shape_inputs The shapes of aruguments to the graph.
  * \param shape_attr_key The key to the node attribute that can indicate shape.
  * \return A graph with new attribute "shape" containing inferred shape of each NodeEntry.
  *  The index of ShapeVector is given by graph.indexed_graph().entry_id
  */
 inline Graph InferShape(Graph graph,
-                        ShapeVector shape_args = {},
+                        ShapeVector shape_inputs = {},
                         std::string shape_attr_key = "") {
-  if (shape_args.size() != 0) {
-    graph.attrs["shape_args"] = std::make_shared<any>(std::move(shape_args));
+  if (shape_inputs.size() != 0) {
+    graph.attrs["shape_inputs"] = std::make_shared<any>(std::move(shape_inputs));
   }
   if (shape_attr_key.length() != 0) {
     graph.attrs["shape_attr_key"] = std::make_shared<any>(std::move(shape_attr_key));
@@ -74,19 +74,19 @@ inline Graph InferShape(Graph graph,
 /*!
  * \brief Infer types in the graph given the information.
  * \param graph source graph
- * \param shape_args The shapes of aruguments to the graph.
- * \param shape_attr_key The key to the node attribute that can indicate shape.
+ * \param dtype_inputs The shapes of inputs to the graph.
+ * \param dtype_attr_key The key to the node attribute that can indicate shape.
  * \return A graph with new attribute "shape" containing inferred shape of each NodeEntry.
  *  The index of ShapeVector is given by graph.indexed_graph().entry_id
  */
 inline Graph InferType(Graph graph,
-                       DTypeVector type_args = {},
-                       std::string type_attr_key = "") {
-  if (type_args.size() != 0) {
-    graph.attrs["dtype_args"] = std::make_shared<any>(std::move(type_args));
+                       DTypeVector dtype_inputs = {},
+                       std::string dtype_attr_key = "") {
+  if (dtype_inputs.size() != 0) {
+    graph.attrs["dtype_inputs"] = std::make_shared<any>(std::move(dtype_inputs));
   }
-  if (type_attr_key.length() != 0) {
-    graph.attrs["dtype_attr_key"] = std::make_shared<any>(std::move(type_attr_key));
+  if (dtype_attr_key.length() != 0) {
+    graph.attrs["dtype_attr_key"] = std::make_shared<any>(std::move(dtype_attr_key));
   }
   return ApplyPass(std::move(graph), {"InferType"});
 }

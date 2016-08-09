@@ -11,7 +11,7 @@
 namespace myproject {
 
 using nnvm::FListInputNames;
-using nnvm::FMutateInput;
+using nnvm::FMutateInputs;
 using nnvm::FInferShape;
 using nnvm::FInferType;
 using nnvm::FInplaceOption;
@@ -119,8 +119,8 @@ NNVM_REGISTER_OP(add)
 NNVM_REGISTER_OP(assign)
 .set_num_inputs(2)
 .set_num_outputs(1)
-.attr<FMutateInput>("FMutateInput", [](const NodeAttrs& attrs, uint32_t index) {
-    return index == 0;
+.attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
+    return std::vector<uint32_t>{0};
   });
 
 }  // namespace myproject
