@@ -15,7 +15,7 @@ template<typename AttrType, typename IsNone>
 Graph InferAttr(Graph &&ret,
                 const AttrType def_value,
                 const char* infer_name,
-                const char* arg_name,
+                const char* input_name,
                 const char* attr_key_name,
                 const char* attr_name,
                 const char* unknown_name,
@@ -29,15 +29,15 @@ Graph InferAttr(Graph &&ret,
   // reshape shape vector
   AttrVector rshape(idx.num_node_entries(), def_value);
 
-  if (ret.attrs.count(arg_name) != 0) {
-    const AttrVector& shape_args = ret.GetAttr<AttrVector>(arg_name);
-    CHECK_LE(shape_args.size(), idx.arg_nodes().size())
+  if (ret.attrs.count(input_name) != 0) {
+    const AttrVector& shape_args = ret.GetAttr<AttrVector>(input_name);
+    CHECK_LE(shape_args.size(), idx.input_nodes().size())
         << "shape args is more than number of arguments";
     for (size_t i = 0; i < shape_args.size(); ++i) {
-      rshape[idx.entry_id(idx.arg_nodes()[i], 0)] = shape_args[i];
+      rshape[idx.entry_id(idx.input_nodes()[i], 0)] = shape_args[i];
     }
     // erase the provided arguments
-    ret.attrs.erase(arg_name);
+    ret.attrs.erase(input_name);
   }
   std::string shape_attr_key;
   if (ret.attrs.count(attr_key_name) != 0) {
@@ -113,7 +113,7 @@ NNVM_REGISTER_PASS(InferType)
 .set_body([](Graph ret) {
     return InferAttr<int>(
         std::move(ret), 0,
-        "FInferType", "dtype_args", "dtype_attr_key",
+        "FInferType", "dtype_inputs", "dtype_attr_key",
         "dtype", "dtype_num_unknown_nodes",
         [](const int t) { return t == -1; });
   })

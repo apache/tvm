@@ -43,13 +43,12 @@ using FListOutputNames = std::function<std::vector<std::string> (const NodeAttrs
 /*!
  * \brief Check whether operator will mutate k-th input.
  * \param attrs The attributes of the node.
- * \param index The input index
- * \return Whether this operator will mutate index-th input.
+ * \return list of input indices it mutates.
  *
- * \note Register under "FMutateInput", default return false
+ * \note Register under "FMutateInputs", default return false
  * FMutateInputs enables mutation order handling correctly.
  */
-using FMutateInput = std::function<bool (const NodeAttrs& attrs, uint32_t index)>;
+using FMutateInputs = std::function<std::vector<uint32_t> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Inference function of certain type.

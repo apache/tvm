@@ -30,7 +30,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       nodes_.emplace_back(std::move(new_node));
       // arg_nodes_
       if (n->is_variable()) {
-        arg_nodes_.push_back(nid);
+        input_nodes_.push_back(nid);
       }
       // node2index_
       node2index_[n.get()] = nid;
