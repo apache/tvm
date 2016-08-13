@@ -48,6 +48,8 @@ struct NodeEntry {
 struct NodeAttrs {
   /*! \brief name of the node */
   std::string name;
+  /*! \brief Vector representation of positional attributes */
+  std::vector<double> scalars;
   /*! \brief The dictionary representation of attributes */
   std::unordered_map<std::string, std::string> dict;
   /*!
