@@ -22,10 +22,7 @@ inline T get_with_default(const std::unordered_map<Node*, T> &map,
 }
 
 inline bool IsMutate(const std::vector<uint32_t>& mutate_inputs, uint32_t i) {
-  if (mutate_inputs.size() == 0) return false;
-  auto it = std::lower_bound(
-      mutate_inputs.begin(), mutate_inputs.end(), i);
-  return (it != mutate_inputs.end()) && (*it == i);
+  return std::binary_search(mutate_inputs.begin(), mutate_inputs.end(), i);
 }
 
 Graph OrderMutation(const Graph& src) {
