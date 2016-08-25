@@ -151,7 +151,10 @@ void Symbol::Print(std::ostream &os) const {
           }
           if (!node->attrs.dict.empty()) {
             os << "Attrs:\n";
-            for (auto &kv : node->attrs.dict) {
+            // make an ordered copy because unordered_map doesn't guarantee order.
+            std::map<std::string, std::string> sorted_dict(
+              node->attrs.dict.begin(), node->attrs.dict.end());
+            for (auto &kv : sorted_dict) {
               os << '\t' << kv.first << '=' << kv.second << '\n';
             }
           }

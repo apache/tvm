@@ -57,8 +57,8 @@ using FMutateInputs = std::function<std::vector<uint32_t> (const NodeAttrs& attr
  */
 template<typename AttrType>
 using FInferNodeEntryAttr = std::function<bool (const NodeAttrs& attrs,
-                                                array_view<AttrType*> in_attrs,
-                                                array_view<AttrType*> out_attrs)>;
+                                                std::vector<AttrType> *in_attrs,
+                                                std::vector<AttrType> *out_attrs)>;
 /*!
  * \brief Shape inference function.
  *  Update the shapes given the input shape information.

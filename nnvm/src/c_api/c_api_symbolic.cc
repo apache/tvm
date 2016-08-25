@@ -28,11 +28,26 @@ int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
                                 const char ***arg_descriptions,
                                 const char **return_type) {
   const Op *op = static_cast<const Op *>(creator);
+  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
 
   API_BEGIN();
   *name = op->name.c_str();
   *description = op->description.c_str();
-  *num_doc_args = 0;
+  *num_doc_args = static_cast<nn_uint>(op->arguments.size());
+  if (return_type) *return_type = nullptr;
+  ret->ret_vec_charp.clear();
+  for (size_t i = 0; i < op->arguments.size(); ++i) {
+    ret->ret_vec_charp.push_back(op->arguments[i].name.c_str());
+  }
+  for (size_t i = 0; i < op->arguments.size(); ++i) {
+    ret->ret_vec_charp.push_back(op->arguments[i].type_info_str.c_str());
+  }
+  for (size_t i = 0; i < op->arguments.size(); ++i) {
+    ret->ret_vec_charp.push_back(op->arguments[i].description.c_str());
+  }
+  *arg_names = dmlc::BeginPtr(ret->ret_vec_charp);
+  *arg_type_infos = dmlc::BeginPtr(ret->ret_vec_charp) + op->arguments.size();
+  *arg_descriptions = dmlc::BeginPtr(ret->ret_vec_charp) + (op->arguments.size() * 2);
   API_END();
 }
 
