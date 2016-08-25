@@ -150,6 +150,7 @@ Graph PlanMemory(Graph ret) {
   }
   // step 2: allocate memory.
   StorageVector storage(idx.num_node_entries(), -1);
+  std::vector<int> storage_inplace_index(idx.num_node_entries(), -1);
   const ShapeVector& shape_vec = ret.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = ret.GetAttr<DTypeVector>("dtype");
   const DeviceVector* device_vec = nullptr;
@@ -173,8 +174,10 @@ Graph PlanMemory(Graph ret) {
         uint32_t eid_out = idx.entry_id(nid, kv.second);
         uint32_t eid_in = idx.entry_id(inode.inputs[kv.first]);
         if (ref_count[eid_in] == 1 && storage[eid_in] != GraphAllocator::kBadStorageID) {
+          // inplace optimization
           storage[eid_out] = storage[eid_in];
           ref_count[eid_in] = 0;
+          storage_inplace_index[eid_out] = kv.first;
         }
       }
     }
@@ -209,8 +212,8 @@ Graph PlanMemory(Graph ret) {
       }
     }
   }
-
   ret.attrs["storage_id"] = std::make_shared<any>(std::move(storage));
+  ret.attrs["storage_inplace_index"] = std::make_shared<any>(std::move(storage_inplace_index));
   ret.attrs["storage_allocated_bytes"] = std::make_shared<any>(allocator.TotalAllocBytes());
   ret.attrs["storage_num_not_allocated"] = std::make_shared<any>(num_not_allocated);
   return ret;
@@ -222,7 +225,8 @@ NNVM_REGISTER_PASS(PlanMemory)
 .set_change_graph(false)
 .depend_graph_attr("dtype")
 .depend_graph_attr("shape")
-.provide_graph_attr("storage_id");
+.provide_graph_attr("storage_id")
+.provide_graph_attr("storage_inplace_index");
 
 }  // namespace
 }  // namespace pass

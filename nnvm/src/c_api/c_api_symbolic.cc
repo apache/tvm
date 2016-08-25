@@ -160,7 +160,7 @@ int NNSymbolListAttrs(SymbolHandle symbol,
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   std::unordered_map<std::string, std::string> attr =
-      std::move(s->ListAttrs(static_cast<Symbol::ListAttrOption>(option)));  // NOLINT(*)
+      s->ListAttrs(static_cast<Symbol::ListAttrOption>(option));  // NOLINT(*)
 
   std::vector<std::string>& attr_list = ret->ret_vec_str;
   attr_list.clear();
@@ -184,8 +184,8 @@ int NNSymbolListInputNames(SymbolHandle symbol,
   Symbol *s = static_cast<Symbol*>(symbol);
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
-  ret->ret_vec_str = std::move(
-      s->ListInputNames(Symbol::ListInputOption(option)));
+  ret->ret_vec_str =
+      s->ListInputNames(Symbol::ListInputOption(option));
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
@@ -201,7 +201,7 @@ int NNSymbolListOutputNames(SymbolHandle symbol,
   Symbol *s = static_cast<Symbol*>(symbol);
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
-  ret->ret_vec_str = std::move(s->ListOutputNames());
+  ret->ret_vec_str = s->ListOutputNames();
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());

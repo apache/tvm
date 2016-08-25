@@ -89,7 +89,7 @@ struct JSONNode {
   }
 
   void Load(dmlc::JSONReader *reader) {
-    node = std::move(Node::Create());
+    node = Node::Create();
     control_deps.clear();
     dmlc::JSONObjectReadHelper helper;
     std::string op_type_str;
