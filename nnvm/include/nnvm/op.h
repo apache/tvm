@@ -6,6 +6,7 @@
 #ifndef NNVM_OP_H_
 #define NNVM_OP_H_
 
+#include <dmlc/parameter.h>
 #include <string>
 #include <vector>
 #include <utility>
@@ -22,6 +23,7 @@ struct NodeAttrs;
 template<typename ValueType>
 class OpMap;
 class OpRegistryEntry;
+using dmlc::ParamFieldInfo;
 
 /*! \brief constant to indicate it take any length of positional inputs */
 static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
@@ -80,6 +82,8 @@ class Op {
    *  This can be used to generate docstring automatically for the operator.
    */
   std::string description;
+  /* \brief description of inputs and keyword arguments*/
+  std::vector<ParamFieldInfo> arguments;
   /*!
    * \brief number of inputs to the operator,
    * -1 means it is variable length
@@ -149,6 +153,22 @@ class Op {
    * \return reference to self.
    */
   inline Op& describe(const std::string& descr);  // NOLINT(*)
+  /*!
+   * \brief Add argument information to the function.
+   * \param name Name of the argument.
+   * \param type Type of the argument.
+   * \param description Description of the argument.
+   * \return reference to self.
+   */
+  inline Op& add_argument(const std::string &name,
+                          const std::string &type,
+                          const std::string &description);
+  /*!
+   * \brief Append list if arguments to the end.
+   * \param args Additional list of arguments.
+   * \return reference to self.
+   */
+  inline Op& add_arguments(const std::vector<ParamFieldInfo> &args);
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -337,6 +357,18 @@ inline Op& Op::attr(  // NOLINT(*)
 
 inline Op& Op::describe(const std::string& descr) {  // NOLINT(*)
   this->description = descr;
+  return *this;
+}
+
+inline Op& Op::add_argument(const std::string &name,
+                            const std::string &type,
+                            const std::string &description) {
+  arguments.push_back({name, type, type, description});
+  return *this;
+}
+
+inline Op& Op::add_arguments(const std::vector<ParamFieldInfo> &args) {
+  this->arguments.insert(arguments.end(), args.begin(), args.end());
   return *this;
 }
 

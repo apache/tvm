@@ -21,14 +21,14 @@ using nnvm::array_view;
 
 // simply return the shape as same
 inline bool SameShape(const NodeAttrs& attrs,
-                      array_view<TShape*> ishape,
-                      array_view<TShape*> oshape) {
-  if (ishape.size() == 0 || ishape[0]->ndim() == 0) return false;
-  for (TShape* pshape : oshape) {
-    *pshape = *ishape[0];
+                      std::vector<TShape> *ishape,
+                      std::vector<TShape> *oshape) {
+  if (ishape->size() == 0 || (*ishape)[0].ndim() == 0) return false;
+  for (TShape& pshape : *oshape) {
+    pshape = (*ishape)[0];
   }
-  for (TShape* pshape : ishape) {
-    *pshape = *ishape[0];
+  for (TShape& pshape : *ishape) {
+    pshape = (*ishape)[0];
   }
   return true;
 }
@@ -51,13 +51,13 @@ NNVM_REGISTER_OP(reshape)
     })
 .attr<FInferShape>(
     "FInferShape", [] (const NodeAttrs& attrs,
-                       array_view<TShape*> ishape,
-                       array_view<TShape*> oshape) {
+                       std::vector<TShape> *ishape,
+                       std::vector<TShape> *oshape) {
       // get parsed attribute
       const TShape& target = nnvm::get<TShape>(attrs.parsed);
-      *oshape[0] = target;
-      if (ishape[0]->ndim() == 0) return false;
-      CHECK_EQ(ishape[0]->Size(), target.Size())
+      (*oshape)[0] = target;
+      if ((*ishape)[0].ndim() == 0) return false;
+      CHECK_EQ((*ishape)[0].Size(), target.Size())
           << "Reshape op: source target shape mismatch";
       return true;
     })
@@ -78,9 +78,9 @@ NNVM_REGISTER_OP(cast)
 .attr<FInferShape>("FInferShape", SameShape)
 .attr<FInferType>(
     "FInferType", [](const NodeAttrs& attrs,
-                     array_view<int*> itype,
-                     array_view<int*> otype) {
-      *otype[0] = nnvm::get<int>(attrs.parsed);
+                     std::vector<int> *itype,
+                     std::vector<int> *otype) {
+      (*otype)[0] = nnvm::get<int>(attrs.parsed);
       return true;
     });
 

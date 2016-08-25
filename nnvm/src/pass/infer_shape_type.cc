@@ -47,44 +47,52 @@ Graph InferAttr(Graph &&ret,
   }
 
   // temp space for shape inference.
-  std::vector<AttrType*> ishape, oshape;
+  std::vector<AttrType> ishape, oshape;
   // number of completed nodes
   size_t num_unknown = 0;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
+    uint32_t num_inputs = inode.inputs.size();
+    uint32_t num_outputs = inode.source->num_outputs();
     if (inode.source->is_variable()) {
       if (shape_attr_key.length() != 0 && fis_none(rshape[idx.entry_id(nid, 0)])) {
         auto it = inode.source->attrs.dict.find(shape_attr_key);
         if (it != inode.source->attrs.dict.end()) {
-          CHECK_EQ(inode.source->num_outputs(), 1);
+          CHECK_EQ(num_outputs, 1);
           std::istringstream is(it->second);
           CHECK(is >> rshape[idx.entry_id(nid, 0)]) << "Invalid attribute";
         }
       }
       continue;
     }
-    ishape.resize(inode.inputs.size());
-    for (uint32_t i = 0; i < ishape.size(); ++i) {
-      ishape[i] = &rshape[idx.entry_id(inode.inputs[i])];
-    }
-    oshape.resize(inode.source->num_outputs());
-    for (uint32_t i = 0; i < oshape.size(); ++i) {
-      oshape[i] = &rshape[idx.entry_id(nid, i)];
-    }
     if (finfer_shape.count(inode.source->op)) {
+      ishape.resize(num_inputs, def_value);
+      for (uint32_t i = 0; i < ishape.size(); ++i) {
+        ishape[i] = rshape[idx.entry_id(inode.inputs[i])];
+      }
+      oshape.resize(num_outputs, def_value);
+      for (uint32_t i = 0; i < oshape.size(); ++i) {
+        oshape[i] = rshape[idx.entry_id(nid, i)];
+      }
       num_unknown +=
-          !(finfer_shape[inode.source->op](inode.source->attrs, ishape, oshape));
+          !(finfer_shape[inode.source->op](inode.source->attrs, &ishape, &oshape));
+      for (uint32_t i = 0; i < num_inputs; ++i) {
+        rshape[idx.entry_id(inode.inputs[i])] = ishape[i];
+      }
+      for (uint32_t i = 0; i < num_outputs; ++i) {
+        rshape[idx.entry_id(nid, i)] = oshape[i];
+      }
     } else if (is_backward.get(inode.source->op, false)) {
       // backward operator inference.
       CHECK_GE(inode.control_deps.size(), 1)
           << "BackwardOp need to have control_deps to its forward op";
       const auto& fnode = idx[inode.control_deps[0]];
-      CHECK_EQ(fnode.inputs.size(), inode.source->num_outputs())
+      CHECK_EQ(fnode.inputs.size(), num_outputs)
           << "BackwardOp need to correspond to the forward node";
       bool known = true;
       for (size_t i = 0; i < fnode.inputs.size(); ++i) {
-        *oshape[i] = rshape[idx.entry_id(fnode.inputs[i])];
-        if (fis_none(*oshape[i])) known = false;
+        rshape[idx.entry_id(nid, i)] = rshape[idx.entry_id(fnode.inputs[i])];
+        if (fis_none(rshape[idx.entry_id(nid, i)])) known = false;
       }
       num_unknown += !known;
     }

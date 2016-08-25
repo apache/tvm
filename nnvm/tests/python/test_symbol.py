@@ -41,7 +41,6 @@ def test_copy():
     z = sym.Variable('z')
     y = sym.exp(sym.add(x, x, name='add', gpu=2),
                 name='exp', gpu=1, attr={"kk": "1"})
-
     assert y.__copy__().debug_str() == y.debug_str()
 
 if __name__ == "__main__":
