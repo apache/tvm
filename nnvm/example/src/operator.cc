@@ -15,12 +15,13 @@ using nnvm::FMutateInputs;
 using nnvm::FInferShape;
 using nnvm::FInferType;
 using nnvm::FInplaceOption;
+using nnvm::Node;
 using nnvm::NodeAttrs;
 using nnvm::TShape;
 using nnvm::array_view;
 
 // simply return the shape as same
-inline bool SameShape(const NodeAttrs& attrs,
+inline bool SameShape(const Node& n,
                       std::vector<TShape> *ishape,
                       std::vector<TShape> *oshape) {
   if (ishape->size() == 0 || (*ishape)[0].ndim() == 0) return false;
@@ -33,7 +34,7 @@ inline bool SameShape(const NodeAttrs& attrs,
   return true;
 }
 
-inline std::vector<std::pair<int, int> > InplaceIn0Out0(const NodeAttrs& attrs) {
+inline std::vector<std::pair<int, int> > InplaceIn0Out0(const Node& n) {
   return {{0, 0}};
 }
 
@@ -50,11 +51,11 @@ NNVM_REGISTER_OP(reshape)
       attrs->parsed = std::move(target);
     })
 .attr<FInferShape>(
-    "FInferShape", [] (const NodeAttrs& attrs,
+    "FInferShape", [] (const Node& n,
                        std::vector<TShape> *ishape,
                        std::vector<TShape> *oshape) {
       // get parsed attribute
-      const TShape& target = nnvm::get<TShape>(attrs.parsed);
+      const TShape& target = nnvm::get<TShape>(n.attrs.parsed);
       (*oshape)[0] = target;
       if ((*ishape)[0].ndim() == 0) return false;
       CHECK_EQ((*ishape)[0].Size(), target.Size())
@@ -77,10 +78,10 @@ NNVM_REGISTER_OP(cast)
     })
 .attr<FInferShape>("FInferShape", SameShape)
 .attr<FInferType>(
-    "FInferType", [](const NodeAttrs& attrs,
+    "FInferType", [](const Node& n,
                      std::vector<int> *itype,
                      std::vector<int> *otype) {
-      (*otype)[0] = nnvm::get<int>(attrs.parsed);
+      (*otype)[0] = nnvm::get<int>(n.attrs.parsed);
       return true;
     });
 
@@ -109,7 +110,7 @@ NNVM_REGISTER_OP(cross_device_copy)
 NNVM_REGISTER_OP(conv2d)
 .describe("take conv of input")
 .set_num_inputs(2)
-.attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+.attr<FListInputNames>("FListInputNames", [](const Node& n) {
     return std::vector<std::string>{"data", "weight"};
   });
 
@@ -119,7 +120,7 @@ NNVM_REGISTER_OP(add)
 NNVM_REGISTER_OP(assign)
 .set_num_inputs(2)
 .set_num_outputs(1)
-.attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
+.attr<FMutateInputs>("FMutateInputs", [](const Node& n) {
     return std::vector<uint32_t>{0};
   });
 
