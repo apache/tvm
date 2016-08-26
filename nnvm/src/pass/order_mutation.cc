@@ -44,7 +44,7 @@ Graph OrderMutation(const Graph& src) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     std::vector<uint32_t> mutate_inputs;
     if (!n->is_variable() && fmutate_inputs.count(n->op)) {
-      mutate_inputs = fmutate_inputs[n->op](n->attrs);
+      mutate_inputs = fmutate_inputs[n->op](*n);
     }
     std::sort(mutate_inputs.begin(), mutate_inputs.end());
 
@@ -102,7 +102,7 @@ Graph OrderMutation(const Graph& src) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     std::vector<uint32_t> mutate_inputs;
     if (fmutate_inputs.count(kv.first->op)) {
-      mutate_inputs = fmutate_inputs[kv.first->op](kv.first->attrs);
+      mutate_inputs = fmutate_inputs[kv.first->op](*kv.first);
     }
     std::sort(mutate_inputs.begin(), mutate_inputs.end());
 
