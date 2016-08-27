@@ -68,7 +68,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
         iptr + inputs_rptr[nid], iptr + inputs_rptr[nid + 1]);
     if (nodes_[nid].source->op != nullptr &&
         fmutate_inputs.count(nodes_[nid].source->op)) {
-      for (uint32_t i : fmutate_inputs[nodes_[nid].source->op](*(nodes_[nid].source))) {
+      for (uint32_t i : fmutate_inputs[nodes_[nid].source->op](nodes_[nid].source->attrs)) {
         mutable_input_nodes_.insert(nodes_[nid].inputs[i].node_id);
       }
     }

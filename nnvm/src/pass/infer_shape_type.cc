@@ -75,7 +75,7 @@ Graph InferAttr(Graph &&ret,
         oshape[i] = rshape[idx.entry_id(nid, i)];
       }
       num_unknown +=
-          !(finfer_shape[inode.source->op](*inode.source, &ishape, &oshape));
+          !(finfer_shape[inode.source->op](inode.source->attrs, &ishape, &oshape));
       for (uint32_t i = 0; i < num_inputs; ++i) {
         rshape[idx.entry_id(inode.inputs[i])] = ishape[i];
       }

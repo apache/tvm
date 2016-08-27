@@ -38,7 +38,7 @@ inline void UpdateNodeVersion(Node *n) {
     }
   }
   if (fmutate_inputs.count(n->op) != 0) {
-    for (uint32_t i : fmutate_inputs[n->op](*n)) {
+    for (uint32_t i : fmutate_inputs[n->op](n->attrs)) {
       NodeEntry& e = n->inputs[i];
       CHECK(e.node->is_variable())
           << "Mutation target can only be Variable";
@@ -197,7 +197,7 @@ std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
         if (node->is_variable()) {
           vlist.push_back(node.get());
         } else if (fmutate_inputs.count(node->op)) {
-          for (uint32_t i : fmutate_inputs[node->op](*node)){
+          for (uint32_t i : fmutate_inputs[node->op](node->attrs)){
             mutable_set.insert(node->inputs[i].node.get());
           }
         }
@@ -223,7 +223,7 @@ std::vector<std::string> Symbol::ListOutputNames() const {
       std::string rname;
       FListOutputNames fn = flist_ouputs.get(head.node->op, nullptr);
       if (fn != nullptr) {
-        rname = fn(*head.node)[head.index];
+        rname = fn(head.node->attrs)[head.index];
       } else {
         rname = "output";
         if (head.node->num_outputs() != 1) {
@@ -279,7 +279,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
       // switch to keyword argument matching
       if (args.size() != n_req) {
         FListInputNames fn = flist_inputs.get(n->op, nullptr);
-        auto arg_names = (fn == nullptr) ? std::vector<std::string>{"data"} : fn(*n);
+        auto arg_names = (fn == nullptr) ? std::vector<std::string>{"data"} : fn(n->attrs);
         if (arg_names.size() != n_req) {
           LOG(FATAL) << "Not enough argument to call operator " << outputs[0].node->op->name;
         }
