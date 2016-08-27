@@ -11,11 +11,9 @@
 #define NNVM_PASS_FUNCTIONS_H_
 
 #include <string>
-#include <vector>
 #include <memory>
 #include "./base.h"
 #include "./pass.h"
-#include "./node.h"
 #include "./graph_attr_types.h"
 
 namespace nnvm {
@@ -109,33 +107,6 @@ inline Graph PlaceDevice(Graph graph,
   graph.attrs["device_assign_map"] = std::make_shared<any>(std::move(device_assign_map));
   graph.attrs["device_copy_op"] = std::make_shared<any>(std::move(device_copy_op));
   return ApplyPass(std::move(graph), {"PlaceDevice"});
-}
-
-/*!
- * \brief Get the gradient graph whose outputs are gradients of xs wrt to ys.
- * \param graph source graph
- * \param ys The entries we want to take gradient from.
- * \param xs The input we want to
- * \param aggregate_fun aggregation function applied to aggregate the inputs
- * \param mirror_fun Optional mirror function to do mirror optimization and save memory.
- * \return A new graph, whose outputs corresponds to inputs of xs.
- */
-inline Graph Gradient(
-    Graph graph,
-    std::vector<NodeEntry> ys,
-    std::vector<NodeEntry> xs,
-    std::function<NodeEntry(std::vector<NodeEntry>&& inputs)> aggregate_fun = nullptr,
-    std::function<int(const Node& node)> mirror_fun = nullptr) {
-  graph.attrs["grad_ys"] = std::make_shared<any>(std::move(ys));
-  graph.attrs["grad_xs"] = std::make_shared<any>(std::move(xs));
-  if (aggregate_fun != nullptr) {
-    graph.attrs["grad_aggregate_fun"] = std::make_shared<any>(aggregate_fun);
-  }
-  if (mirror_fun != nullptr) {
-    graph.attrs["grad_mirror_fun"] = std::make_shared<any>(mirror_fun);
-  }
-
-  return ApplyPass(std::move(graph), {"Gradient"});
 }
 
 }  // namespace pass

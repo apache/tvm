@@ -169,7 +169,7 @@ Graph PlanMemory(Graph ret) {
     if (inode.source->is_variable()) continue;
     // check inplace option
     if (finplace_option.count(inode.source->op) != 0) {
-      auto inplace_pairs = finplace_option[inode.source->op](*inode.source);
+      auto inplace_pairs = finplace_option[inode.source->op](inode.source->attrs);
       for (auto& kv : inplace_pairs) {
         uint32_t eid_out = idx.entry_id(nid, kv.second);
         uint32_t eid_in = idx.entry_id(inode.inputs[kv.first]);
