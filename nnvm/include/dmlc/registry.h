@@ -216,7 +216,7 @@ class FunctionRegEntryBase {
  * \sa FactoryRegistryEntryBase
  */
 #define DMLC_REGISTRY_REGISTER(EntryType, EntryTypeName, Name)          \
-  static EntryType & __make_ ## EntryTypeName ## _ ## Name ## __ =      \
+  static DMLC_ATTRIBUTE_UNUSED EntryType & __make_ ## EntryTypeName ## _ ## Name ## __ = \
       ::dmlc::Registry<EntryType>::Get()->__REGISTER__(#Name)           \
 
 /*!
@@ -272,6 +272,7 @@ class FunctionRegEntryBase {
  */
 #define DMLC_REGISTRY_LINK_TAG(UniqueTag)                                \
   int __dmlc_registry_file_tag_ ## UniqueTag ## __();                   \
-  static int __reg_file_tag_ ## UniqueTag ## __ = __dmlc_registry_file_tag_ ## UniqueTag ## __();
+  static int DMLC_ATTRIBUTE_UNUSED __reg_file_tag_ ## UniqueTag ## __ = \
+      __dmlc_registry_file_tag_ ## UniqueTag ## __();
 }  // namespace dmlc
 #endif  // DMLC_REGISTRY_H_
