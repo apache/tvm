@@ -15,6 +15,10 @@ using nnvm::FMutateInputs;
 using nnvm::FInferShape;
 using nnvm::FInferType;
 using nnvm::FInplaceOption;
+using nnvm::Node;
+using nnvm::NodePtr;
+using nnvm::NodeEntry;
+using nnvm::FGradient;
 using nnvm::NodeAttrs;
 using nnvm::TShape;
 using nnvm::array_view;
@@ -35,6 +39,17 @@ inline bool SameShape(const NodeAttrs& attrs,
 
 inline std::vector<std::pair<int, int> > InplaceIn0Out0(const NodeAttrs& attrs) {
   return {{0, 0}};
+}
+
+// quick helper to make node
+inline NodeEntry MakeNode(const char* op_name,
+                          std::string node_name,
+                          std::vector<NodeEntry> inputs) {
+  NodePtr p = Node::Create();
+  p->op = nnvm::Op::Get(op_name);
+  p->attrs.name = std::move(node_name);
+  p->inputs = std::move(inputs);
+  return NodeEntry{p, 0, 0};
 }
 
 // simple demonstration of reshape.
@@ -84,21 +99,67 @@ NNVM_REGISTER_OP(cast)
       return true;
     });
 
+NNVM_REGISTER_OP(exp)
+.describe("take exponential")
+.set_num_inputs(1)
+.attr<FInferShape>("FInferShape", SameShape)
+.attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return std::vector<NodeEntry>{
+        MakeNode("mul", n->attrs.name + "_grad",
+                 {ograds[0], NodeEntry{n, 0, 0}})
+      };
+    });
+
+NNVM_REGISTER_OP(identity)
+.describe("identity function")
+.set_num_inputs(1)
+.attr<FInferShape>("FInferShape", SameShape)
+.attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return std::vector<NodeEntry>{ograds[0]};
+    });
 
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
 .set_num_inputs(2)
 .attr<FInferShape>("FInferShape", SameShape)
-.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0);
+.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{ograds[0], ograds[0]};
+    });
 
-NNVM_REGISTER_OP(__add_symbol__)
-.describe("Alias of add")
-.set_num_inputs(2);
+NNVM_REGISTER_OP(mul)
+.describe("multiply two data together")
+.set_num_inputs(2)
+.attr<FInferShape>("FInferShape", SameShape)
+.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{
+        MakeNode("mul", n->attrs.name + "_grad_0",
+                 {ograds[0], n->inputs[1]}),
+        MakeNode("mul", n->attrs.name + "_grad_1",
+                 {ograds[0], n->inputs[0]})
+      };
+    });
 
-NNVM_REGISTER_OP(exp)
-.describe("take exponential")
-.set_num_inputs(1)
-.attr<FInferShape>("FInferShape", SameShape);
+NNVM_REGISTER_OP(__ewise_sum__)
+.describe("elementwise sum")
+.set_num_inputs(nnvm::kVarg);
+
+NNVM_REGISTER_OP(__zero__)
+.describe("set output to zero")
+.set_num_inputs(0);
+
+NNVM_REGISTER_OP(__one__)
+.describe("set output to one")
+.set_num_inputs(0);
 
 NNVM_REGISTER_OP(cross_device_copy)
 .describe("Copy data across device.")

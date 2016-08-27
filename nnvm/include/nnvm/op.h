@@ -279,10 +279,8 @@ class OpMap {
 };
 
 // internal macros to make
-#define NNVM_STR_CONCAT_(__x, __y) __x##__y
-#define NNVM_STR_CONCAT(__x, __y) NNVM_STR_CONCAT_(__x, __y)
 #define NNVM_REGISTER_VAR_DEF(OpName)                              \
-  static ::nnvm::Op & __make_ ## NnvmOp ## _ ## OpName
+  static DMLC_ATTRIBUTE_UNUSED ::nnvm::Op & __make_ ## NnvmOp ## _ ## OpName
 
 /*!
  * \def NNVM_REGISTER_OP
@@ -300,7 +298,7 @@ class OpMap {
  * \endcode
  */
 #define NNVM_REGISTER_OP(OpName)                                     \
-  NNVM_STR_CONCAT(NNVM_REGISTER_VAR_DEF(OpName), __COUNTER__) =   \
+  DMLC_STR_CONCAT(NNVM_REGISTER_VAR_DEF(OpName), __COUNTER__) =         \
       ::dmlc::Registry<::nnvm::Op>::Get()->__REGISTER_OR_GET__(#OpName)
 
 // implementations of template functions after this.

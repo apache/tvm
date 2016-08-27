@@ -10,7 +10,7 @@ from ._base import _LIB
 from ._base import c_array, c_str, nn_uint, py_str, string_types
 from ._base import GraphHandle, SymbolHandle
 from ._base import check_call
-from .symbol import Symbol
+from .symbol import Symbol, Group as _Group
 
 
 class Graph(object):
@@ -56,8 +56,27 @@ class Graph(object):
         else:
             return None
 
+    def _set_symbol_list_attr(self, key, value):
+        """Set the attribute of the graph.
+
+        Parameters
+        ----------
+        key : string
+            The key of the attribute
+        value : value
+            The any type that can be dumped to json
+        type_name : string
+            The typename registered on c++ side.
+        """
+        if isinstance(value, list):
+            value = _Group(value)
+        if not isinstance(value, Symbol):
+            raise ValueError("value need to be grouped symbol")
+        check_call(_LIB.NNGraphSetNodeEntryListAttr_(
+            self.handle, c_str(key), value.handle))
+
     def _set_json_attr(self, key, value, type_name=None):
-        """Set the attribute of the symbol.
+        """Set the attribute of the graph.
 
         Parameters
         ----------

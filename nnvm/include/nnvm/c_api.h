@@ -260,6 +260,7 @@ NNVM_DLL int NNGraphFree(GraphHandle handle);
  * \return 0 when success, -1 when failure happens
  */
 NNVM_DLL int NNGraphGetSymbol(GraphHandle graph, SymbolHandle *symbol);
+
 /*!
  * \brief Get Set a attribute in json format.
  * This feature allows pass graph attributes back and forth in reasonable speed.
@@ -273,6 +274,7 @@ NNVM_DLL int NNGraphGetSymbol(GraphHandle graph, SymbolHandle *symbol);
 NNVM_DLL int NNGraphSetJSONAttr(GraphHandle handle,
                                 const char* key,
                                 const char* json_value);
+
 /*!
  * \brief Get a serialized attrirbute from graph.
  * This feature allows pass graph attributes back and forth in reasonable speed.
@@ -289,6 +291,21 @@ NNVM_DLL int NNGraphGetJSONAttr(SymbolHandle handle,
                                 const char* key,
                                 const char** json_out,
                                 int *success);
+
+/*!
+ * \brief Set a attribute whose type is std::vector<NodeEntry> in c++
+ * This feature allows pass List of symbolic variables for gradient request.
+ *
+ * \note This is beta feature only used for test purpos
+ *
+ * \param handle The graph handle.
+ * \param key The key to the attribute.
+ * \param list The symbol whose outputs represents the list of NodeEntry to be passed.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphSetNodeEntryListAttr_(GraphHandle handle,
+                                          const char* key,
+                                          SymbolHandle list);
 /*!
  * \brief Apply pass on the src graph.
  * \param src The source graph handle.

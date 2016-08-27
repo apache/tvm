@@ -35,6 +35,17 @@ int NNGraphGetSymbol(GraphHandle graph, SymbolHandle *symbol) {
   API_END_HANDLE_ERROR(delete s);
 }
 
+int NNGraphSetNodeEntryListAttr_(GraphHandle handle,
+                                 const char* key,
+                                 SymbolHandle list) {
+  API_BEGIN();
+  Symbol* s = static_cast<Symbol*>(list);
+  Graph* g = static_cast<Graph*>(handle);
+  g->attrs[std::string(key)]
+      = std::make_shared<any>(s->outputs);
+  API_END();
+}
+
 int NNGraphSetJSONAttr(GraphHandle handle,
                        const char* key,
                        const char* json_value) {

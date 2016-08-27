@@ -109,6 +109,37 @@ inline Graph PlaceDevice(Graph graph,
   return ApplyPass(std::move(graph), {"PlaceDevice"});
 }
 
+/*!
+ * \brief Get the gradient graph whose outputs are gradients of xs wrt to ys.
+ * \param graph source graph
+ * \param ys The entries we want to take gradient from.
+ * \param xs The input to take gradient with respect to.
+ * \param ys_out_grad The symbol for additional gradient to be propagate back to y.
+ * \param aggregate_fun aggregation function applied to aggregate the inputs
+ * \param mirror_fun Optional mirror function to do mirror optimization and save memory.
+ * \return A new graph, whose outputs corresponds to inputs of xs.
+ */
+inline Graph Gradient(
+    Graph graph,
+    std::vector<NodeEntry> ys,
+    std::vector<NodeEntry> xs,
+    std::vector<NodeEntry> ys_out_grad,
+    std::function<NodeEntry(std::vector<NodeEntry>&& inputs)> aggregate_fun = nullptr,
+    std::function<int(const Node& node)> mirror_fun = nullptr) {
+  graph.attrs["grad_ys"] = std::make_shared<any>(std::move(ys));
+
+  graph.attrs["grad_xs"] = std::make_shared<any>(std::move(xs));
+  graph.attrs["grad_ys_out_grad"] = std::make_shared<any>(std::move(ys_out_grad));
+  if (aggregate_fun != nullptr) {
+    graph.attrs["grad_aggregate_fun"] = std::make_shared<any>(aggregate_fun);
+  }
+  if (mirror_fun != nullptr) {
+    graph.attrs["grad_mirror_fun"] = std::make_shared<any>(mirror_fun);
+  }
+
+  return ApplyPass(std::move(graph), {"Gradient"});
+}
+
 }  // namespace pass
 }  // namespace nnvm
 #endif  // NNVM_PASS_FUNCTIONS_H_
