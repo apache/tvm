@@ -17,6 +17,7 @@ namespace nnvm {
 
 // Forward declare node.
 class Node;
+
 /*!
  * \brief we always used NodePtr for a reference pointer
  *  to the node, so this alias can be changed in case.
@@ -47,6 +48,8 @@ struct NodeEntry {
 struct NodeAttrs {
   /*! \brief name of the node */
   std::string name;
+  /*! \brief Vector representation of positional attributes */
+  std::vector<double> scalars;
   /*! \brief The dictionary representation of attributes */
   std::unordered_map<std::string, std::string> dict;
   /*!
@@ -105,7 +108,7 @@ inline uint32_t Node::num_outputs() const {
   if (this->op->get_num_outputs == nullptr) {
     return this->op->num_outputs;
   } else {
-    return this->op->get_num_outputs(*this);
+    return this->op->get_num_outputs(this->attrs);
   }
 }
 
@@ -114,7 +117,7 @@ inline uint32_t Node::num_inputs() const {
   if (this->op->get_num_inputs == nullptr) {
     return this->op->num_inputs;
   } else {
-    return this->op->get_num_inputs(*this);
+    return this->op->get_num_inputs(this->attrs);
   }
 }
 

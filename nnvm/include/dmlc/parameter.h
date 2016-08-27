@@ -251,8 +251,7 @@ struct Parameter {
     static ::dmlc::parameter::ParamManagerSingleton<PType> inst(#PType); \
     return &inst.manager;                                               \
   }                                                                     \
-  static DMLC_ATTRIBUTE_UNUSED ::dmlc::parameter::ParamManager&         \
-  __make__ ## PType ## ParamManager__ =                                 \
+  static ::dmlc::parameter::ParamManager &__make__ ## PType ## ParamManager__ = \
       (*PType::__MANAGER__())                                           \
 
 //! \endcond
