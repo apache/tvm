@@ -46,6 +46,11 @@ struct NodeEntry {
  *  Usually are additional parameters like axis,
  */
 struct NodeAttrs {
+  /*!
+   * \brief The operator this node uses.
+   *  For place holder variable, op == nullptr.
+   */
+  const Op *op{nullptr};
   /*! \brief name of the node */
   std::string name;
   /*! \brief Vector representation of positional attributes */
@@ -65,11 +70,8 @@ struct NodeAttrs {
  */
 class Node {
  public:
-  /*!
-   * \brief The operator this node uses.
-   *  For place holder variable, op == nullptr.
-   */
-  const Op *op{nullptr};
+  /*! \brief The attributes in the node. */
+  NodeAttrs attrs;
   /*! \brief inputs to this node */
   std::vector<NodeEntry> inputs;
   /*!
@@ -77,10 +79,10 @@ class Node {
    *  Gives operation must be performed before this operation.
    */
   std::vector<NodePtr> control_deps;
-  /*! \brief The attributes in the node. */
-  NodeAttrs attrs;
   /*! \brief destructor of node */
   ~Node();
+  /*! \return operator in this node */
+  inline const Op* op() const;
   /*!
    * \brief return whether node is placeholder variable.
    *  This is equivalent to op == nullptr
@@ -99,25 +101,28 @@ class Node {
 };
 
 // implementation of functions.
+inline const Op* Node::op() const {
+  return this->attrs.op;
+}
 inline bool Node::is_variable() const {
-  return this->op == nullptr;
+  return this->op() == nullptr;
 }
 
 inline uint32_t Node::num_outputs() const {
   if (is_variable()) return 1;
-  if (this->op->get_num_outputs == nullptr) {
-    return this->op->num_outputs;
+  if (this->op()->get_num_outputs == nullptr) {
+    return this->op()->num_outputs;
   } else {
-    return this->op->get_num_outputs(this->attrs);
+    return this->op()->get_num_outputs(this->attrs);
   }
 }
 
 inline uint32_t Node::num_inputs() const {
   if (is_variable()) return 1;
-  if (this->op->get_num_inputs == nullptr) {
-    return this->op->num_inputs;
+  if (this->op()->get_num_inputs == nullptr) {
+    return this->op()->num_inputs;
   } else {
-    return this->op->get_num_inputs(this->attrs);
+    return this->op()->get_num_inputs(this->attrs);
   }
 }
 

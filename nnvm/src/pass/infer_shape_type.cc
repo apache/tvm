@@ -65,7 +65,7 @@ Graph InferAttr(Graph &&ret,
       }
       continue;
     }
-    if (finfer_shape.count(inode.source->op)) {
+    if (finfer_shape.count(inode.source->op())) {
       ishape.resize(num_inputs, def_value);
       for (uint32_t i = 0; i < ishape.size(); ++i) {
         ishape[i] = rshape[idx.entry_id(inode.inputs[i])];
@@ -75,14 +75,14 @@ Graph InferAttr(Graph &&ret,
         oshape[i] = rshape[idx.entry_id(nid, i)];
       }
       num_unknown +=
-          !(finfer_shape[inode.source->op](inode.source->attrs, &ishape, &oshape));
+          !(finfer_shape[inode.source->op()](inode.source->attrs, &ishape, &oshape));
       for (uint32_t i = 0; i < num_inputs; ++i) {
         rshape[idx.entry_id(inode.inputs[i])] = ishape[i];
       }
       for (uint32_t i = 0; i < num_outputs; ++i) {
         rshape[idx.entry_id(nid, i)] = oshape[i];
       }
-    } else if (is_backward.get(inode.source->op, false)) {
+    } else if (is_backward.get(inode.source->op(), false)) {
       // backward operator inference.
       CHECK_GE(inode.control_deps.size(), 1)
           << "BackwardOp need to have control_deps to its forward op";

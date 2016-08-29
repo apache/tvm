@@ -43,8 +43,8 @@ Graph OrderMutation(const Graph& src) {
   auto prepare = [&version_hist, &old_new] (const NodePtr& n) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     std::vector<uint32_t> mutate_inputs;
-    if (!n->is_variable() && fmutate_inputs.count(n->op)) {
-      mutate_inputs = fmutate_inputs[n->op](n->attrs);
+    if (!n->is_variable() && fmutate_inputs.count(n->op())) {
+      mutate_inputs = fmutate_inputs[n->op()](n->attrs);
     }
     std::sort(mutate_inputs.begin(), mutate_inputs.end());
 
@@ -67,7 +67,6 @@ Graph OrderMutation(const Graph& src) {
     }
     if (need_repl) {
       NodePtr np = Node::Create();
-      np->op = n->op;
       np->attrs = n->attrs;
       old_new[n.get()] = std::move(np);
     }
@@ -101,8 +100,8 @@ Graph OrderMutation(const Graph& src) {
     // add control deps
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     std::vector<uint32_t> mutate_inputs;
-    if (fmutate_inputs.count(kv.first->op)) {
-      mutate_inputs = fmutate_inputs[kv.first->op](kv.first->attrs);
+    if (fmutate_inputs.count(kv.first->op())) {
+      mutate_inputs = fmutate_inputs[kv.first->op()](kv.first->attrs);
     }
     std::sort(mutate_inputs.begin(), mutate_inputs.end());
 
