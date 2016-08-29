@@ -20,11 +20,11 @@ NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
     return std::move(v[0]);
   } else if (v.size() == 0) {
     NodePtr zero_node = Node::Create();
-    zero_node->op = Op::Get("__zero__");
+    zero_node->attrs.op = Op::Get("__zero__");
     return NodeEntry{zero_node, 0, 0};
   } else {
     NodePtr sum_node = Node::Create();
-    sum_node->op = Op::Get("__ewise_sum__");
+    sum_node->attrs.op = Op::Get("__ewise_sum__");
     sum_node->inputs = std::move(v);
     return NodeEntry{sum_node, 0, 0};
   }
@@ -109,7 +109,7 @@ Graph Gradient(Graph src) {
       e.sum = agg_fun(std::move(e.grads));
       out_agg_grads.push_back(e.sum);
     }
-    std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op]
+    std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()]
         (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()), out_agg_grads);
     auto git = input_grads.begin();
     for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {

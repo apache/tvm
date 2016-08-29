@@ -68,8 +68,8 @@ struct JSONNode {
   // function to save JSON node.
   void Save(dmlc::JSONWriter *writer) const {
     writer->BeginObject();
-    if (node->op != nullptr) {
-      writer->WriteObjectKeyValue("op", node->op->name);
+    if (node->op() != nullptr) {
+      writer->WriteObjectKeyValue("op", node->op()->name);
     } else {
       std::string json_null = "null";
       writer->WriteObjectKeyValue("op", json_null);
@@ -108,10 +108,10 @@ struct JSONNode {
 
     if (op_type_str != "null") {
       try {
-        node->op = Op::Get(op_type_str);
+        node->attrs.op = Op::Get(op_type_str);
         // rebuild attribute parser
-        if (node->op->attr_parser != nullptr) {
-          node->op->attr_parser(&(node->attrs));
+        if (node->op()->attr_parser != nullptr) {
+          node->op()->attr_parser(&(node->attrs));
         }
       } catch (const dmlc::Error &err) {
         std::ostringstream os;
@@ -120,7 +120,7 @@ struct JSONNode {
         throw dmlc::Error(os.str());
       }
     } else {
-      node->op = nullptr;
+      node->attrs.op = nullptr;
     }
   }
 };

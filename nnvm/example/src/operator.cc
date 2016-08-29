@@ -46,7 +46,7 @@ inline NodeEntry MakeNode(const char* op_name,
                           std::string node_name,
                           std::vector<NodeEntry> inputs) {
   NodePtr p = Node::Create();
-  p->op = nnvm::Op::Get(op_name);
+  p->attrs.op = nnvm::Op::Get(op_name);
   p->attrs.name = std::move(node_name);
   p->inputs = std::move(inputs);
   return NodeEntry{p, 0, 0};
