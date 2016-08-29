@@ -20,7 +20,7 @@ struct VariableParam {
 
 NodePtr CreateVariableNode(const std::string& name) {
   NodePtr n = Node::Create();
-  n->op = nullptr;
+  n->attrs.op = nullptr;
   n->attrs.name = name;
   n->attrs.parsed = VariableParam();
   return n;
@@ -37,8 +37,8 @@ inline void UpdateNodeVersion(Node *n) {
       e.version = nnvm::get<VariableParam>(e.node->attrs.parsed).version;
     }
   }
-  if (fmutate_inputs.count(n->op) != 0) {
-    for (uint32_t i : fmutate_inputs[n->op](n->attrs)) {
+  if (fmutate_inputs.count(n->op()) != 0) {
+    for (uint32_t i : fmutate_inputs[n->op()](n->attrs)) {
       NodeEntry& e = n->inputs[i];
       CHECK(e.node->is_variable())
           << "Mutation target can only be Variable";
@@ -96,7 +96,6 @@ Symbol Symbol::Copy() const {
   // use DFSVisit to copy all the nodes
   DFSVisit(this->outputs, [&old_new](const NodePtr& node) {
       NodePtr np = Node::Create();
-      np->op = node->op;
       np->attrs = node->attrs;
       old_new[node.get()] = std::move(np);
     });
@@ -123,7 +122,7 @@ void Symbol::Print(std::ostream &os) const {
     if (outputs[0].node->is_variable()) {
       os << "Variable:" << outputs[0].node->attrs.name << '\n';
     } else {
-      os << "AtomicFunctor "<< " Op:" << outputs[0].node->op->name << '\n';
+      os << "AtomicFunctor "<< " Op:" << outputs[0].node->op()->name << '\n';
     }
   } else {
     // use DFSVisit to copy all the nodes
@@ -137,7 +136,7 @@ void Symbol::Print(std::ostream &os) const {
           os << "Variable:" << node->attrs.name << '\n';
         } else {
           os << "--------------------\n";
-          os << "Op:" << node->op->name << ", Name=" << node->attrs.name << '\n'
+          os << "Op:" << node->op()->name << ", Name=" << node->attrs.name << '\n'
              << "Inputs:\n";
           for (size_t i = 0; i < node->inputs.size(); ++i) {
             const NodeEntry& e = node->inputs[i];
@@ -196,8 +195,8 @@ std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
     DFSVisit(this->outputs, [&ret, &mutable_set, &vlist](const NodePtr &node) {
         if (node->is_variable()) {
           vlist.push_back(node.get());
-        } else if (fmutate_inputs.count(node->op)) {
-          for (uint32_t i : fmutate_inputs[node->op](node->attrs)){
+        } else if (fmutate_inputs.count(node->op())) {
+          for (uint32_t i : fmutate_inputs[node->op()](node->attrs)){
             mutable_set.insert(node->inputs[i].node.get());
           }
         }
@@ -221,7 +220,7 @@ std::vector<std::string> Symbol::ListOutputNames() const {
     } else {
       const std::string& hname = head.node->attrs.name;
       std::string rname;
-      FListOutputNames fn = flist_ouputs.get(head.node->op, nullptr);
+      FListOutputNames fn = flist_ouputs.get(head.node->op(), nullptr);
       if (fn != nullptr) {
         rname = fn(head.node->attrs)[head.index];
       } else {
@@ -278,10 +277,10 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
       }
       // switch to keyword argument matching
       if (args.size() != n_req) {
-        FListInputNames fn = flist_inputs.get(n->op, nullptr);
+        FListInputNames fn = flist_inputs.get(n->op(), nullptr);
         auto arg_names = (fn == nullptr) ? std::vector<std::string>{"data"} : fn(n->attrs);
         if (arg_names.size() != n_req) {
-          LOG(FATAL) << "Not enough argument to call operator " << outputs[0].node->op->name;
+          LOG(FATAL) << "Not enough argument to call operator " << outputs[0].node->op()->name;
         }
         size_t nmatched = 0;
         for (size_t i = args.size(); i < n_req; ++i) {
@@ -422,8 +421,8 @@ void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& a
       node->attrs.dict[kv.first] = kv.second;
     }
   }
-  if (node->op != nullptr && node->op->attr_parser != nullptr) {
-    node->op->attr_parser(&(node->attrs));
+  if (node->op() != nullptr && node->op()->attr_parser != nullptr) {
+    node->op()->attr_parser(&(node->attrs));
   }
 }
 
@@ -461,10 +460,10 @@ Symbol Symbol::CreateFunctor(const Op* op,
                              std::unordered_map<std::string, std::string> attrs) {
   Symbol s;
   NodePtr n = Node::Create();
-  n->op = op;
+  n->attrs.op = op;
   n->attrs.dict = std::move(attrs);
-  if (n->op->attr_parser != nullptr) {
-    n->op->attr_parser(&(n->attrs));
+  if (n->op()->attr_parser != nullptr) {
+    n->op()->attr_parser(&(n->attrs));
   }
   s.outputs.emplace_back(NodeEntry{std::move(n), 0, 0});
   return s;

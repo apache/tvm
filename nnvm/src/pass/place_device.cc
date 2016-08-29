@@ -109,9 +109,9 @@ Graph PlaceDevice(Graph src) {
                 NodeEntry{it->second, 0, 0});
           } else {
             NodePtr copy_node = Node::Create();
-            copy_node->op = copy_op;
             std::ostringstream os;
             os << inode.source->inputs[i].node->attrs.name << "_" << e.index <<"_copy";
+            copy_node->attrs.op = copy_op;
             copy_node->attrs.name = os.str();
             copy_node->inputs.push_back(inode.source->inputs[i]);
             copy_map[copy_key] = copy_node;

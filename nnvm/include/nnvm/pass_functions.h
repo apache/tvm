@@ -12,6 +12,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 #include "./base.h"
 #include "./pass.h"
 #include "./graph_attr_types.h"
