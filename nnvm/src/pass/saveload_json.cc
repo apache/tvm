@@ -12,11 +12,11 @@ namespace dmlc {
 namespace json {
 // overload handler for shared ptr
 template<>
-struct Handler<std::shared_ptr<const any> > {
-  inline static void Write(JSONWriter *writer, const std::shared_ptr<const any> &data) {
+struct Handler<std::shared_ptr<any> > {
+  inline static void Write(JSONWriter *writer, const std::shared_ptr<any> &data) {
     writer->Write(*data);
   }
-  inline static void Read(JSONReader *reader, std::shared_ptr<const any> *data) {
+  inline static void Read(JSONReader *reader, std::shared_ptr<any> *data) {
     any v;
     reader->Read(&v);
     *data = std::make_shared<any>(std::move(v));
@@ -131,7 +131,7 @@ struct JSONGraph {
   std::vector<uint32_t> arg_nodes;
   std::vector<uint32_t> node_row_ptr;
   std::vector<JSONNode::Entry> heads;
-  std::unordered_map<std::string, std::shared_ptr<const any> > attrs;
+  std::unordered_map<std::string, std::shared_ptr<any> > attrs;
 
   void Save(dmlc::JSONWriter *writer) const {
     writer->BeginObject();

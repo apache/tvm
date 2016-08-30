@@ -24,8 +24,8 @@ Graph InferAttr(Graph &&ret,
   const IndexedGraph& idx = ret.indexed_graph();
   static auto& finfer_shape =
       Op::GetAttr<FInferNodeEntryAttr<AttrType> >(infer_name);
-  static auto& is_backward =
-      Op::GetAttr<TIsBackwardOp>("TIsBackwardOp");
+  static auto& backward_map =
+      Op::GetAttr<FBackwardOutToInIndex>("FBackwardOutToInIndex");
   // reshape shape vector
   AttrVector rshape(idx.num_node_entries(), def_value);
 
@@ -82,16 +82,19 @@ Graph InferAttr(Graph &&ret,
       for (uint32_t i = 0; i < num_outputs; ++i) {
         rshape[idx.entry_id(nid, i)] = oshape[i];
       }
-    } else if (is_backward.get(inode.source->op(), false)) {
+    } else if (backward_map.count(inode.source->op())) {
       // backward operator inference.
       CHECK_GE(inode.control_deps.size(), 1)
           << "BackwardOp need to have control_deps to its forward op";
       const auto& fnode = idx[inode.control_deps[0]];
-      CHECK_EQ(fnode.inputs.size(), num_outputs)
-          << "BackwardOp need to correspond to the forward node";
+      std::vector<uint32_t> out_map =
+          backward_map[inode.source->op()](inode.source->attrs);
       bool known = true;
-      for (size_t i = 0; i < fnode.inputs.size(); ++i) {
-        rshape[idx.entry_id(nid, i)] = rshape[idx.entry_id(fnode.inputs[i])];
+      for (size_t i = 0; i < out_map.size(); ++i) {
+        uint32_t in_id = out_map[i];
+        CHECK_LT(in_id, fnode.inputs.size());
+        rshape[idx.entry_id(nid, i)] =
+            rshape[idx.entry_id(fnode.inputs[in_id])];
         if (fis_none(rshape[idx.entry_id(nid, i)])) known = false;
       }
       num_unknown += !known;

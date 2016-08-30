@@ -30,18 +30,34 @@ class Graph {
   std::vector<NodeEntry> outputs;
   /*!
    * \brief attributes of a graph
-   *  Each attribute is immutable,
-   *  and can be shared across multiple Instance of graph
+   *  Note that attribute is shared pointer and can be shared across graphs.
+   *
+   *  It is highly recommended to keep each attribute immutable.
+   *  It is also safe to implement an copy-on-write semnatics.
+   *
+   *  Copy when shared_ptr.unique is not true, while reuse original space
+   *  when shared_ptr.unique is true.
    */
-  std::unordered_map<std::string, std::shared_ptr<const any> > attrs;
+  std::unordered_map<std::string, std::shared_ptr<any> > attrs;
   /*!
-   * \brief Get the attribute from attrs.
+   * \brief Get the immutable attribute from attrs.
    * \param attr_name the name of the attribute
    * \return the reference to corresponding attribute
    * \tparam T the type of the attribute.
    */
   template<typename T>
   inline const T& GetAttr(const std::string& attr_name);
+  /*!
+   * \brief Get a move copy of the attribute, implement copy on write semantics.
+   *  The content is moved if the reference counter of shared_ptr is 1.
+   *  The attribute is erased from attrs after the call.
+   *
+   * \param attr_name the name of the attribute
+   * \return a new copy of the corresponding attribute.
+   * \tparam T the type of the attribute.
+   */
+  template<typename T>
+  inline T MoveCopyAttr(const std::string& attr_name);
   /*!
    * \brief get a indexed graph of current graph, if not exist, create it on demand
    * \return The indexed graph.
@@ -198,6 +214,20 @@ inline const T& Graph::GetAttr(const std::string& attr_name) {
   CHECK(it != attrs.end())
       << "Cannot find attribute " << attr_name << " in the graph";
   return nnvm::get<T>(*it->second);
+}
+
+template<typename T>
+inline T Graph::MoveCopyAttr(const std::string& attr_name) {
+  auto it = attrs.find(attr_name);
+  CHECK(it != attrs.end())
+      << "Cannot find attribute " << attr_name << " in the graph";
+  std::shared_ptr<any> sptr = it->second;
+  attrs.erase(it);
+  if (sptr.unique()) {
+    return std::move(nnvm::get<T>(*sptr));
+  } else {
+    return nnvm::get<T>(*sptr);
+  }
 }
 
 template <typename GNode, typename HashType,
