@@ -12,6 +12,7 @@ namespace nnvm {
 namespace pass {
 namespace {
 
+
 // simply logic to place device according to device_group hint
 // insert copy node when there is
 Graph PlaceDevice(Graph src) {
@@ -21,13 +22,20 @@ Graph PlaceDevice(Graph src) {
       << "Need graph attribute \"device_assign_map\" in PlaceDevice";
   CHECK_NE(src.attrs.count("device_copy_op"), 0)
       << "Need graph attribute \"device_copy_op\" in PlaceDevice";
-
   std::string device_group_attr_key = src.GetAttr<std::string>("device_group_attr_key");
   const Op* copy_op = Op::Get(src.GetAttr<std::string>("device_copy_op"));
   auto& device_assign_map = src.GetAttr<DeviceAssignMap>("device_assign_map");
   const IndexedGraph& idx = src.indexed_graph();
 
-  DeviceVector device(idx.num_nodes(), -1);
+  DeviceVector device;
+  // copy on write semanatics
+  if (src.attrs.count("device") != 0) {
+    device = src.MoveCopyAttr<DeviceVector>("device");
+    CHECK_EQ(device.size(), idx.num_nodes());
+  } else {
+    device.resize(idx.num_nodes(), -1);
+  }
+
   // forward pass
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
