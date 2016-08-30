@@ -180,33 +180,42 @@ Symbol Symbol::operator[] (size_t index) const {
   }
 }
 
-std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
-  std::vector<std::string> ret;
+std::vector<NodePtr> Symbol::ListInputs(ListInputOption option) const {
+  std::vector<NodePtr> ret;
   if (option == kAll) {
     DFSVisit(this->outputs, [&ret](const NodePtr &node) {
         if (node->is_variable()) {
-          ret.push_back(node->attrs.name);
+          ret.push_back(node);
         }
       });
   } else {
     std::unordered_set<Node*> mutable_set;
-    std::vector<Node*> vlist;
+    std::vector<NodePtr> vlist;
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     DFSVisit(this->outputs, [&ret, &mutable_set, &vlist](const NodePtr &node) {
         if (node->is_variable()) {
-          vlist.push_back(node.get());
+          vlist.push_back(node);
         } else if (fmutate_inputs.count(node->op())) {
           for (uint32_t i : fmutate_inputs[node->op()](node->attrs)){
             mutable_set.insert(node->inputs[i].node.get());
           }
         }
       });
-    for (Node* node : vlist) {
-      if ((option == kReadOnlyArgs && mutable_set.count(node) == 0) ||
-          (option == kAuxiliaryStates && mutable_set.count(node) != 0)) {
-        ret.push_back(node->attrs.name);
+    for (const NodePtr& node : vlist) {
+      if ((option == kReadOnlyArgs && mutable_set.count(node.get()) == 0) ||
+          (option == kAuxiliaryStates && mutable_set.count(node.get()) != 0)) {
+        ret.emplace_back(node);
       }
     }
+  }
+  return ret;
+}
+
+std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
+  std::vector<NodePtr> inputs = ListInputs(option);
+  std::vector<std::string> ret(inputs.size());
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    ret[i] = inputs[i]->attrs.name;
   }
   return ret;
 }

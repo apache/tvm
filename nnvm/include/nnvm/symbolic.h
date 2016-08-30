@@ -63,6 +63,15 @@ class Symbol {
    */
   Symbol operator[] (size_t index) const;
   /*!
+   * \brief List the input variable nodes
+   * \param option The options to list the arguments.
+   *
+   * The position of the returned list also corresponds to calling position in operator()
+   * \return the arguments list of this symbol, they can be either named or unnamed (empty string).
+   * \sa ListInputOption
+   */
+  std::vector<NodePtr> ListInputs(ListInputOption option) const;
+  /*!
    * \brief List the input names.
    * \param option The options to list the arguments.
    *

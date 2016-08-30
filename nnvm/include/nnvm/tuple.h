@@ -233,7 +233,7 @@ class Tuple {
         return is;
     }
     }
-    index_t idx;
+    ValueType idx;
     std::vector<ValueType> tmp;
     while (is >> idx) {
       tmp.push_back(idx);
