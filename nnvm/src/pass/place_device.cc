@@ -25,7 +25,6 @@ Graph PlaceDevice(Graph src) {
   const Op* copy_op = Op::Get(src.GetAttr<std::string>("device_copy_op"));
   auto& device_assign_map = src.GetAttr<DeviceAssignMap>("device_assign_map");
   const IndexedGraph& idx = src.indexed_graph();
-
   DeviceVector device;
   // copy on write semanatics
   if (src.attrs.count("device") != 0) {
@@ -79,10 +78,10 @@ Graph PlaceDevice(Graph src) {
     src.attrs["device"] = std::make_shared<any>(std::move(device));
     return src;
   }
-
   std::map<std::tuple<uint32_t, uint32_t, int>, NodePtr> copy_map;
   std::vector<NodePtr> new_node_map(idx.num_nodes(), nullptr);
   std::unordered_map<const Node*, int> new_device_map;
+  static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
 
   // insert copy node
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
@@ -90,6 +89,16 @@ Graph PlaceDevice(Graph src) {
     const auto& inode = idx[nid];
     // check if mutation is needed
     bool need_mutate = false;
+    if (!inode.source->is_variable() && fmutate_inputs.count(inode.source->op())) {
+      for (uint32_t index : fmutate_inputs[inode.source->op()](inode.source->attrs)) {
+        auto e = inode.inputs[index];
+        if (new_node_map[e.node_id] != nullptr || dev_id != device[e.node_id]) {
+          LOG(FATAL) << " mutable state cannot go across device"
+                     << " op=" << inode.source->op()->name
+                     << " input_state_index=" << index;
+        }
+      }
+    }
     for (const IndexedGraph::NodeEntry& e : inode.inputs) {
       if (new_node_map[e.node_id] != nullptr || dev_id != device[e.node_id]) {
         need_mutate = true; break;
@@ -101,6 +110,9 @@ Graph PlaceDevice(Graph src) {
           need_mutate = true; break;
         }
       }
+    }
+    if (inode.source->is_variable()) {
+      CHECK(!need_mutate) << "consistency check";
     }
     if (need_mutate) {
       NodePtr new_node = Node::Create();
@@ -120,7 +132,15 @@ Graph PlaceDevice(Graph src) {
             os << inode.source->inputs[i].node->attrs.name << "_" << e.index <<"_copy";
             copy_node->attrs.op = copy_op;
             copy_node->attrs.name = os.str();
-            copy_node->inputs.push_back(inode.source->inputs[i]);
+            if (new_node_map[e.node_id] != nullptr) {
+              copy_node->inputs.emplace_back(
+                NodeEntry{new_node_map[e.node_id], e.index, 0});
+            } else {
+              copy_node->inputs.push_back(inode.source->inputs[i]);
+            }
+            if (copy_node->attrs.op->attr_parser != nullptr) {
+              copy_node->attrs.op->attr_parser(&(copy_node->attrs));
+            }
             copy_map[copy_key] = copy_node;
             new_device_map[copy_node.get()] = dev_id;
             new_node->inputs.emplace_back(
@@ -130,7 +150,7 @@ Graph PlaceDevice(Graph src) {
           if (new_node_map[e.node_id] != nullptr) {
             new_node->inputs.emplace_back(
                 NodeEntry{new_node_map[e.node_id], e.index, 0});
-        } else {
+          } else {
             new_node->inputs.push_back(inode.source->inputs[i]);
           }
         }
@@ -150,7 +170,6 @@ Graph PlaceDevice(Graph src) {
       new_device_map[inode.source] = dev_id;
     }
   }
-
   // make the new graph
   Graph ret;
   for (const NodeEntry& e : src.outputs) {
@@ -163,10 +182,11 @@ Graph PlaceDevice(Graph src) {
   }
   DeviceVector new_device_vec(ret.indexed_graph().num_nodes());
   for (uint32_t nid = 0; nid < ret.indexed_graph().num_nodes(); ++nid) {
-    if (new_device_map.count(ret.indexed_graph()[nid].source) == 0) {
-      LOG(INFO) << "canot find " << ret.indexed_graph()[nid].source->attrs.name;
+    auto source = ret.indexed_graph()[nid].source;
+    if (new_device_map.count(source) == 0) {
+      LOG(FATAL) << "canot find " << source;
     }
-    new_device_vec[nid] = new_device_map.at(ret.indexed_graph()[nid].source);
+    new_device_vec[nid] = new_device_map.at(source);
   }
   ret.attrs["device"] = std::make_shared<any>(std::move(new_device_vec));
   return ret;
