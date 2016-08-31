@@ -299,6 +299,8 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
           } else {
             n->inputs[i] = NodeEntry{
               CreateVariableNode(DefaultVarName(name, arg_names[i])), 0, 0};
+            // copy attribute of parent over automatically created variables
+            n->inputs[i].node->attrs.dict = n->attrs.dict;
           }
         }
 
