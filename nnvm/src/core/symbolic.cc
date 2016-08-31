@@ -87,7 +87,7 @@ inline std::vector<std::string> GetKeys(
 
 // whether the symbol is atomic functor
 inline bool IsAtomic(const std::vector<NodeEntry>& outputs) {
-  return outputs.size() == 1 && outputs[0].node->inputs.size() == 0;
+  return outputs[0].node->inputs.size() == 0;
 }
 
 // public functions
@@ -222,6 +222,7 @@ std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
 
 std::vector<std::string> Symbol::ListOutputNames() const {
   static auto& flist_ouputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
+
   std::vector<std::string> ret;
   for (auto &head : outputs) {
     if (head.node->is_variable()) {
@@ -256,8 +257,6 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
                      const std::string& name) {
   static auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
 
-  CHECK_EQ(outputs.size(), 1)
-      << "Only composition of value function is supported currently";
   CHECK(!outputs[0].node->is_variable()) << "Variable cannot be composed";
   // parameter check.
   for (size_t i = 0; i < args.size(); ++i) {
@@ -400,6 +399,7 @@ void Symbol::AddControlDeps(const Symbol& src) {
 }
 
 Symbol Symbol::GetInternals() const {
+  static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol ret;
   DFSVisit(this->outputs, [&ret](const NodePtr& node) {
       Node* n = node.get();
@@ -409,6 +409,9 @@ Symbol Symbol::GetInternals() const {
         ret.outputs.emplace_back(NodeEntry{node, 0, param.version});
       } else {
         uint32_t nout = n->num_outputs();
+        if (fnum_vis_output.count(n->op())) {
+          nout = fnum_vis_output[n->op()](n->attrs);
+        }
         for (uint32_t i = 0; i < nout; ++i) {
           ret.outputs.emplace_back(NodeEntry{node, i, 0});
         }
@@ -467,6 +470,7 @@ std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption op
 
 Symbol Symbol::CreateFunctor(const Op* op,
                              std::unordered_map<std::string, std::string> attrs) {
+  static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol s;
   NodePtr n = Node::Create();
   n->attrs.op = op;
@@ -474,7 +478,14 @@ Symbol Symbol::CreateFunctor(const Op* op,
   if (n->op()->attr_parser != nullptr) {
     n->op()->attr_parser(&(n->attrs));
   }
-  s.outputs.emplace_back(NodeEntry{std::move(n), 0, 0});
+
+  uint32_t nout = n->num_outputs();
+  if (fnum_vis_output.count(n->op())) {
+    nout = fnum_vis_output[n->op()](n->attrs);
+  }
+  for (uint32_t i = 0; i < nout; ++i) {
+    s.outputs.emplace_back(NodeEntry{n, i, 0});
+  }
   return s;
 }
 

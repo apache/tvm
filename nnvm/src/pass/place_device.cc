@@ -12,7 +12,6 @@ namespace nnvm {
 namespace pass {
 namespace {
 
-
 // simply logic to place device according to device_group hint
 // insert copy node when there is
 Graph PlaceDevice(Graph src) {
