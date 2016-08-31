@@ -46,7 +46,7 @@ class Graph {
    * \tparam T the type of the attribute.
    */
   template<typename T>
-  inline const T& GetAttr(const std::string& attr_name);
+  inline const T& GetAttr(const std::string& attr_name) const;
   /*!
    * \brief Get a move copy of the attribute, implement copy on write semantics.
    *  The content is moved if the reference counter of shared_ptr is 1.
@@ -209,7 +209,7 @@ inline void DFSVisit(const std::vector<NodeEntry>& heads, FVisit fvisit);
 
 // inline function implementations
 template<typename T>
-inline const T& Graph::GetAttr(const std::string& attr_name) {
+inline const T& Graph::GetAttr(const std::string& attr_name) const {
   auto it = attrs.find(attr_name);
   CHECK(it != attrs.end())
       << "Cannot find attribute " << attr_name << " in the graph";

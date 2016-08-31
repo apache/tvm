@@ -18,7 +18,7 @@ def test_graph_gradient():
     print("Original graph")
     print(y.debug_str())
     print("Gradient  graph")
-    print grad_graph.symbol.debug_str()
+    print(grad_graph.symbol.debug_str())
 
 if __name__ == "__main__":
     test_graph_gradient()
