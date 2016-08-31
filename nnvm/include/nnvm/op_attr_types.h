@@ -31,6 +31,18 @@ namespace nnvm {
 using FListInputNames = std::function<std::vector<std::string> (const NodeAttrs& attrs)>;
 
 /*!
+ * \brief Return number of visible outputs by the user.
+ *
+ * \param attrs The attributes of the node.
+ *
+ * \note Register under "FNumVisibleOutputs", default not registered.
+ *  This can be used to hide certain output from the user,
+ *  but the additional outputs can be used to pass information from
+ *  forward to gradient pass.
+ */
+using FNumVisibleOutputs = std::function<uint32_t (const NodeAttrs& attrs)>;
+
+/*!
  * \brief Return list of output arguments names of each operator.
  *
  * \param attrs The attributes of the node.
