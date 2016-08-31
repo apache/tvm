@@ -22,3 +22,9 @@ TEST(Tuple, Basic) {
   s = std::move(ss);
   CHECK((s == TShape{1, 2, 3}));
 }
+
+int main(int argc, char ** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
+}
