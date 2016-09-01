@@ -44,11 +44,15 @@ if [ ${TASK} == "python_test" ]; then
         nosetests3 tests/python/ || exit -1
     fi
 
-    python -m nose tests/python/ || exit -1
-    python3 -m nose tests/python/ || exit -1
     make cython || exit -1
     make cython3 || exit -1
-    python -m nose tests/python/ || exit -1
-    python3 -m nose tests/python/ || exit -1
+
+    if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+        python -m nose tests/python/ || exit -1
+        python3 -m nose tests/python/ || exit -1
+    else
+        nosetests tests/python/ || exit -1
+        nosetests3 tests/python/ || exit -1
+    fi
     exit 0
 fi

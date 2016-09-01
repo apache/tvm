@@ -61,7 +61,7 @@ inline Graph OrderMutation(Graph src) {
  *  The index of ShapeVector is given by graph.indexed_graph().entry_id
  */
 inline Graph InferShape(Graph graph,
-                        ShapeVector shape_inputs = {},
+                        ShapeVector shape_inputs,
                         std::string shape_attr_key = "") {
   if (shape_inputs.size() != 0) {
     graph.attrs["shape_inputs"] = std::make_shared<any>(std::move(shape_inputs));
@@ -81,7 +81,7 @@ inline Graph InferShape(Graph graph,
  *  The index of ShapeVector is given by graph.indexed_graph().entry_id
  */
 inline Graph InferType(Graph graph,
-                       DTypeVector dtype_inputs = {},
+                       DTypeVector dtype_inputs,
                        std::string dtype_attr_key = "") {
   if (dtype_inputs.size() != 0) {
     graph.attrs["dtype_inputs"] = std::make_shared<any>(std::move(dtype_inputs));

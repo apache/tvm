@@ -13,7 +13,3 @@ fi
 if [ ${TASK} == "lint" ]; then
     pip install cpplint 'pylint==1.4.4' 'astroid==1.3.6' --user `whoami`
 fi
-
-if [ ! -d dmlc-core ]; then
-    git clone https://github.com/dmlc/dmlc-core
-fi
