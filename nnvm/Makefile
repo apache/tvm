@@ -11,6 +11,17 @@ SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
 ALL_DEP = $(ALL_OBJ)
 
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S), Darwin)
+	WHOLE_ARCH= -force_load
+	NO_WHOLE_ARCH= -noforce_load
+else
+	WHOLE_ARCH= --whole-archive
+	NO_WHOLE_ARCH= --no-whole-archive
+endif
+
+
 include tests/cpp/unittest.mk
 
 test: $(TEST)
@@ -27,7 +38,7 @@ lib/libnnvm.a: $(ALL_DEP)
 
 lib/libnnvm_example.so: example/src/operator.cc lib/libnnvm.a
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cc, $^) $(LDFLAGS) -Wl,--whole-archive lib/libnnvm.a -Wl,--no-whole-archive
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cc, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
 
 cython:
 	cd python; python setup.py build_ext --inplace

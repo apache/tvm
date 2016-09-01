@@ -1,5 +1,8 @@
 # NNVM: Build deep learning system by parts
 
+[![Build Status](https://travis-ci.org/dmlc/nnvm.svg?branch=master)](https://travis-ci.org/dmlc/nnvm)
+[![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
+
 NNVM is not a deep learning library. It is a modular,
 decentralized and lightweight part to help build deep learning libraries.
 
