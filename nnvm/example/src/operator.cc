@@ -1,5 +1,7 @@
 // Copyright (c) 2016 by Contributors
 // This is an example on how we can register operator information to NNVM
+// these operator information are used to support various graph building and optimizations
+// see tests/python/ folder for the test-cases that uses these information.
 
 #include <nnvm/base.h>
 #include <nnvm/op.h>
