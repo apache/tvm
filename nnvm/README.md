@@ -32,7 +32,7 @@ This is essentially ***Unix philosophy*** applied to machine learning system.
   without creating a monothilic version.
 
 Deep learning system itself is not necessary one part, for example
-here are some relative independent parts that can
+here are some relative independent parts that can be isolated
 
 - Computation graph definition, manipulation.
 - Computation graph intermediate optimization.
