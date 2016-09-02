@@ -346,7 +346,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     };
     DFSVisit(this->outputs, find_replace_map);
 
-    if (nmatched == kwargs.size() && arg_counter < args.size()) {
+    if (nmatched == kwargs.size() && arg_counter <= args.size()) {
       std::vector<Node*> update_nodes;
       std::vector<std::pair<NodeEntry*, const NodeEntry*> > replace_plan;
       auto find_replace_plan = [&replace_map, &replace_plan, &update_nodes]
