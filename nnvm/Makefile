@@ -14,8 +14,8 @@ ALL_DEP = $(ALL_OBJ)
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S), Darwin)
-	WHOLE_ARCH= -force_load
-	NO_WHOLE_ARCH= -noforce_load
+	WHOLE_ARCH= -all_load
+	NO_WHOLE_ARCH= -noall_load
 else
 	WHOLE_ARCH= --whole-archive
 	NO_WHOLE_ARCH= --no-whole-archive
