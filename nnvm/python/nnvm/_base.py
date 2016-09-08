@@ -45,7 +45,7 @@ _LIB = _load_lib()
 
 # type definitions
 nn_uint = ctypes.c_uint
-SymbolCreatorHandle = ctypes.c_void_p
+OpHandle = ctypes.c_void_p
 SymbolHandle = ctypes.c_void_p
 GraphHandle = ctypes.c_void_p
 

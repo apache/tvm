@@ -127,6 +127,7 @@ NNVM_REGISTER_OP(identity)
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
 .set_num_inputs(2)
+.add_alias("__add_symbol__")
 .attr<FInferShape>("FInferShape", SameShape)
 .attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .attr<FGradient>(

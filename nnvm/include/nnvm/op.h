@@ -200,6 +200,13 @@ class Op {
    */
   inline Op& set_attr_parser(std::function<void (NodeAttrs* attrs)> fn);  // NOLINT(*)
   /*!
+   * \brief Add another alias to this operator.
+   *   The same Op can be queried with Op::Get(alias)
+   * \param alias The alias of the operator.
+   * \return reference to self.
+   */
+  Op& add_alias(const std::string& alias);  // NOLINT(*)
+  /*!
    * \brief Register additional attributes to operator.
    * \param attr_name The name of the attribute.
    * \param value The value to be set.

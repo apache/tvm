@@ -12,15 +12,16 @@ from .attribute import AttrScope
 
 # Use different verison of SymbolBase
 # When possible, use cython to speedup part of computation.
+
 try:
-    if int(_os.environ.get("NNVM_ENABLE_CYTHON", True)) == 0:
-        from .ctypes.symbol import SymbolBase, _set_symbol_class
+    if int(_os.environ.get("MXNET_ENABLE_CYTHON", True)) == 0:
+        from ._ctypes.symbol import SymbolBase,  _init_symbol_module
     elif _sys.version_info >= (3, 0):
-        from ._cy3.symbol import SymbolBase, _set_symbol_class
+        from ._cy3.symbol import SymbolBase,  _init_symbol_module
     else:
-        from ._cy2.symbol import SymbolBase, _set_symbol_class
-except:
-    from .ctypes.symbol import SymbolBase, _set_symbol_class
+        from ._cy2.symbol import SymbolBase,  _init_symbol_module
+except ImportError:
+    from ._ctypes.symbol import SymbolBase,  _init_symbol_module
 
 
 class Symbol(SymbolBase):
@@ -286,4 +287,4 @@ def Group(symbols):
     return Symbol(handle)
 
 # Set the real symbol class to Symbol
-_set_symbol_class(Symbol)
+_init_symbol_module(Symbol, "nnvm")

@@ -29,7 +29,7 @@
 typedef unsigned int nn_uint;
 
 /*! \brief handle to a function that takes param and creates symbol */
-typedef void *AtomicSymbolCreator;
+typedef void *OpHandle;
 /*! \brief handle to a symbol that can be bind as operator */
 typedef void *SymbolHandle;
 /*! \brief handle to Graph */
@@ -53,17 +53,39 @@ NNVM_DLL void NNAPISetLastError(const char* msg);
 NNVM_DLL const char *NNGetLastError(void);
 
 /*!
- * \brief list all the available AtomicSymbolEntry
+ * \brief list all the available operator names, include entries.
+ * \param out_size the size of returned array
+ * \param out_array the output operator name array.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNListAllOpNames(nn_uint *out_size,
+                              const char*** out_array);
+
+/*!
+ * \brief Get operator handle given name.
+ * \param op_name The name of the operator.
+ * \param op_out The returnning op handle.
+ */
+NNVM_DLL int NNGetOpHandle(const char* op_name,
+                           OpHandle* op_out);
+
+/*!
+ * \brief list all the available operators.
+ *  This won't include the alias, use ListAllNames
+ *  instead to get all alias names.
+ *
  * \param out_size the size of returned array
  * \param out_array the output AtomicSymbolCreator array
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNSymbolListAtomicSymbolCreators(nn_uint *out_size,
-                                              AtomicSymbolCreator **out_array);
+NNVM_DLL int NNListUniqueOps(nn_uint *out_size,
+                             OpHandle **out_array);
+
 /*!
  * \brief Get the detailed information about atomic symbol.
- * \param creator the AtomicSymbolCreator.
- * \param name The returned name of the creator.
+ * \param op The operator handle.
+ * \param real_name The returned name of the creator.
+ *   This name is not the alias name of the atomic symbol.
  * \param description The returned description of the symbol.
  * \param num_doc_args Number of arguments that contain documents.
  * \param arg_names Name of the arguments of doc args
@@ -72,24 +94,24 @@ NNVM_DLL int NNSymbolListAtomicSymbolCreators(nn_uint *out_size,
  * \param return_type Return type of the function, if any.
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
-                                         const char **name,
-                                         const char **description,
-                                         nn_uint *num_doc_args,
-                                         const char ***arg_names,
-                                         const char ***arg_type_infos,
-                                         const char ***arg_descriptions,
-                                         const char **return_type);
+NNVM_DLL int NNGetOpInfo(OpHandle op,
+                         const char **real_name,
+                         const char **description,
+                         nn_uint *num_doc_args,
+                         const char ***arg_names,
+                         const char ***arg_type_infos,
+                         const char ***arg_descriptions,
+                         const char **return_type);
 /*!
  * \brief Create an AtomicSymbol functor.
- * \param creator the AtomicSymbolCreator
+ * \param op The operator handle
  * \param num_param the number of parameters
  * \param keys the keys to the params
  * \param vals the vals of the params
  * \param out pointer to the created symbol handle
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNSymbolCreateAtomicSymbol(AtomicSymbolCreator creator,
+NNVM_DLL int NNSymbolCreateAtomicSymbol(OpHandle op,
                                         nn_uint num_param,
                                         const char **keys,
                                         const char **vals,
