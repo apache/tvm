@@ -10,24 +10,45 @@
 
 using namespace nnvm;
 
-int NNSymbolListAtomicSymbolCreators(nn_uint *out_size,
-                                     AtomicSymbolCreator **out_array) {
+int NNListAllOpNames(nn_uint *out_size,
+                     const char*** out_array) {
   API_BEGIN();
-  auto &vec = dmlc::Registry<Op>::List();
-  *out_size = static_cast<nn_uint>(vec.size());
-  *out_array = (AtomicSymbolCreator*)(dmlc::BeginPtr(vec));  //  NOLINT(*)
+  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+  ret->ret_vec_str = dmlc::Registry<Op>::ListAllNames();
+  ret->ret_vec_charp.clear();
+  for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
+    ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
+  }
+  *out_array = dmlc::BeginPtr(ret->ret_vec_charp);
+  *out_size = static_cast<nn_uint>(ret->ret_vec_str.size());
   API_END();
 }
 
-int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
-                                const char **name,
-                                const char **description,
-                                nn_uint *num_doc_args,
-                                const char ***arg_names,
-                                const char ***arg_type_infos,
-                                const char ***arg_descriptions,
-                                const char **return_type) {
-  const Op *op = static_cast<const Op *>(creator);
+int NNGetOpHandle(const char* op_name,
+                  OpHandle* op_out) {
+  API_BEGIN();
+  *op_out = (OpHandle)Op::Get(op_name);  // NOLINT(*)
+  API_END();
+}
+
+int NNListUniqueOps(nn_uint *out_size,
+                          OpHandle **out_array) {
+  API_BEGIN();
+  auto &vec = dmlc::Registry<Op>::List();
+  *out_size = static_cast<nn_uint>(vec.size());
+  *out_array = (OpHandle*)(dmlc::BeginPtr(vec));  //  NOLINT(*)
+  API_END();
+}
+
+int NNGetOpInfo(OpHandle handle,
+                const char **name,
+                const char **description,
+                nn_uint *num_doc_args,
+                const char ***arg_names,
+                const char ***arg_type_infos,
+                const char ***arg_descriptions,
+                const char **return_type) {
+  const Op *op = static_cast<const Op *>(handle);
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
 
   API_BEGIN();
@@ -51,7 +72,7 @@ int NNSymbolGetAtomicSymbolInfo(AtomicSymbolCreator creator,
   API_END();
 }
 
-int NNSymbolCreateAtomicSymbol(AtomicSymbolCreator creator,
+int NNSymbolCreateAtomicSymbol(OpHandle creator,
                                nn_uint num_param,
                                const char **keys,
                                const char **vals,

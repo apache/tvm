@@ -38,6 +38,11 @@ Op::Op() {
   index_ = mgr->op_counter++;
 }
 
+Op& Op::add_alias(const std::string& alias) {  // NOLINT(*)
+  dmlc::Registry<Op>::Get()->AddAlias(this->name, alias);
+  return *this;
+}
+
 // find operator by name
 const Op* Op::Get(const std::string& name) {
   const Op* op = dmlc::Registry<Op>::Find(name);
