@@ -32,7 +32,11 @@ NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
 
 // helper entry
 struct GradEntry {
+#ifdef _MSC_VER
+  NodeEntry sum = NodeEntry{nullptr, 0, 0};
+#else
   NodeEntry sum{nullptr, 0, 0};
+#endif
   std::vector<NodeEntry> grads;
 };
 
