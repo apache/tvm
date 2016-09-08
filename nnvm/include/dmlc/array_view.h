@@ -42,11 +42,23 @@ class array_view {
    * \param other another array view.
    */
   array_view(const array_view<ValueType> &other) = default;  // NOLINT(*)
+#ifndef _MSC_VER
   /*!
    * \brief default move constructor
    * \param other another array view.
    */
   array_view(array_view<ValueType>&& other) = default; // NOLINT(*)
+#else
+  /*!
+  * \brief default move constructor
+  * \param other another array view.
+  */
+  array_view(array_view<ValueType>&& other) { // NOLINT(*)
+    begin_ = other.begin_;
+    size_ = other.size_;
+    other.begin_ = nullptr;
+  }
+#endif
   /*!
    * \brief default assign constructor
    * \param other another array view.
