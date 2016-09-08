@@ -8,7 +8,7 @@ import ctypes
 import sys
 from .._base import _LIB
 from .._base import c_array, c_str, nn_uint, py_str, string_types
-from .._base import SymbolHandle
+from .._base import SymbolHandle, OpHandle
 from .._base import check_call, ctypes2docstring
 from ..name import NameManager
 from ..attribute import AttrScope
@@ -114,9 +114,9 @@ def _set_symbol_class(cls):
     _symbol_cls = cls
 
 
-def _make_atomic_symbol_function(handle):
+def _make_atomic_symbol_function(handle, name):
     """Create an atomic symbol function by handle and funciton name."""
-    name = ctypes.c_char_p()
+    real_name = ctypes.c_char_p()
     desc = ctypes.c_char_p()
     num_args = nn_uint()
     arg_names = ctypes.POINTER(ctypes.c_char_p)()
@@ -124,15 +124,15 @@ def _make_atomic_symbol_function(handle):
     arg_descs = ctypes.POINTER(ctypes.c_char_p)()
     ret_type = ctypes.c_char_p()
 
-    check_call(_LIB.NNSymbolGetAtomicSymbolInfo(
-        handle, ctypes.byref(name), ctypes.byref(desc),
+    check_call(_LIB.NNGetOpInfo(
+        handle, ctypes.byref(real_name), ctypes.byref(desc),
         ctypes.byref(num_args),
         ctypes.byref(arg_names),
         ctypes.byref(arg_types),
         ctypes.byref(arg_descs),
         ctypes.byref(ret_type)))
     param_str = ctypes2docstring(num_args, arg_names, arg_types, arg_descs)
-    func_name = py_str(name.value)
+    func_name = name
     desc = py_str(desc.value)
 
     doc_str = ('%s\n\n' +
@@ -199,22 +199,25 @@ def _make_atomic_symbol_function(handle):
     return creator
 
 
-def _init_symbol_module():
+def _init_symbol_module(symbol_class, root_namespace):
     """List and add all the atomic symbol functions to current module."""
-    plist = ctypes.POINTER(ctypes.c_void_p)()
+    _set_symbol_class(symbol_class)
+    plist = ctypes.POINTER(ctypes.c_char_p)()
     size = ctypes.c_uint()
 
-    check_call(_LIB.NNSymbolListAtomicSymbolCreators(ctypes.byref(size),
-                                                     ctypes.byref(plist)))
-    module_obj = sys.modules["nnvm.symbol"]
-    module_internal = sys.modules["nnvm._symbol_internal"]
+    check_call(_LIB.NNListAllOpNames(ctypes.byref(size),
+                                     ctypes.byref(plist)))
+    op_names = []
     for i in range(size.value):
-        hdl = SymbolHandle(plist[i])
-        function = _make_atomic_symbol_function(hdl)
+        op_names.append(py_str(plist[i]))
+
+    module_obj = sys.modules["%s.symbol" % root_namespace]
+    module_internal = sys.modules["%s._symbol_internal" % root_namespace]
+    for name in op_names:
+        hdl = OpHandle()
+        check_call(_LIB.NNGetOpHandle(c_str(name), ctypes.byref(hdl)))
+        function = _make_atomic_symbol_function(hdl, name)
         if function.__name__.startswith('_'):
             setattr(module_internal, function.__name__, function)
         else:
             setattr(module_obj, function.__name__, function)
-
-# Initialize the atomic symbol in startups
-_init_symbol_module()

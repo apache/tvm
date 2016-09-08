@@ -1,5 +1,5 @@
 ctypedef void* SymbolHandle
-ctypedef void* AtomicSymbolCreator
+ctypedef void* OpHandle
 ctypedef unsigned nn_uint
 
 cdef py_str(const char* x):
