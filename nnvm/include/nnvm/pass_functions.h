@@ -33,7 +33,7 @@ inline Graph LoadJSON(const std::string& json_str) {
 
 /*!
  * \brief Save a graph to json, redirects to "SaveJSON" pass.
- * \param graph The to be saved.
+ * \param graph The graph to be saved as json format.
  * \return The json string.
  */
 inline std::string SaveJSON(Graph graph) {
@@ -42,11 +42,14 @@ inline std::string SaveJSON(Graph graph) {
 }
 
 /*!
- * \brief Add control flow dependencies between nodes
- *  To correctly order mutation and read to resolve
- *  write after read problem and read after write problems.
- * \param src source graph
- * \return A graph that added control flow dependencies.
+ * \brief Add control flow dependencies between nodes.
+ *
+ *  This function will enforce the correct order between
+ *  write (mutable operators) and read (immutable operators)
+ *  to sovle write-after-read and read-after-write problems.
+ *
+ * \param src The input graph.
+ * \return A graph with proper control flow dependencies added.
  */
 inline Graph OrderMutation(Graph src) {
   return ApplyPass(std::move(src), {"OrderMutation"});
@@ -54,11 +57,12 @@ inline Graph OrderMutation(Graph src) {
 
 /*!
  * \brief Infer shapes in the graph given the information.
- * \param graph source graph
- * \param shape_inputs The shapes of aruguments to the graph.
- * \param shape_attr_key The key to the node attribute that can indicate shape.
+ * \param graph The input graph.
+ * \param shape_inputs The shapes of input symbols to the graph.
+ * \param shape_attr_key The key to the node attribute that can indicate shape. This is
+ *                       the place where manual hint for shapes could be injected.
  * \return A graph with new attribute "shape" containing inferred shape of each NodeEntry.
- *  The index of ShapeVector is given by graph.indexed_graph().entry_id
+ *         The index of ShapeVector is given by graph.indexed_graph().entry_id.
  */
 inline Graph InferShape(Graph graph,
                         ShapeVector shape_inputs,
@@ -74,11 +78,12 @@ inline Graph InferShape(Graph graph,
 
 /*!
  * \brief Infer types in the graph given the information.
- * \param graph source graph
- * \param dtype_inputs The shapes of inputs to the graph.
- * \param dtype_attr_key The key to the node attribute that can indicate shape.
- * \return A graph with new attribute "shape" containing inferred shape of each NodeEntry.
- *  The index of ShapeVector is given by graph.indexed_graph().entry_id
+ * \param graph The input graph.
+ * \param dtype_inputs The types of input symbols to the graph.
+ * \param dtype_attr_key The key to the node attribute that can indicate types. This is
+ *                       the place where manual hint for types could be injected.
+ * \return A graph with new attribute "dtype" containing inferred type of each NodeEntry.
+ *         The index of ShapeVector is given by graph.indexed_graph().entry_id.
  */
 inline Graph InferType(Graph graph,
                        DTypeVector dtype_inputs,
@@ -93,10 +98,16 @@ inline Graph InferType(Graph graph,
 }
 
 /*!
- * \brief Place the devices
- * \param graph source graph
- * \param device_group_attr_key The attribute name for hinting the device group.
- * \param device_assign_map The assignment map of device
+ * \brief Place the devices for each operator in the graph.
+ *
+ *  Current device placement is quite simple. Each operator is assigned to a "group" (stored
+ *  in `device_group_attr_key` attribute). Each group is assigned to a device (stored in
+ *  `device_assign_map` attribute). Operators will be placed to the device assigned to its
+ *  group. Copy operators will be injected if cross device reference happens.
+ *
+ * \param graph The input graph.
+ * \param device_group_attr_key The attribute name for hints of device group.
+ * \param device_assign_map The assignment map of device.
  * \param device_copy_op The name of copy op to be inserted when cross device copy happened.
  * \return A graph with new attribute "device", cotaining device information of each node.
  */
@@ -112,13 +123,13 @@ inline Graph PlaceDevice(Graph graph,
 
 /*!
  * \brief Get the gradient graph whose outputs are gradients of xs wrt to ys.
- * \param graph source graph
+ * \param graph The input graph.
  * \param ys The entries we want to take gradient from.
  * \param xs The input to take gradient with respect to.
  * \param ys_out_grad The symbol for additional gradient to be propagate back to y.
- * \param aggregate_fun aggregation function applied to aggregate the inputs
+ * \param aggregate_fun Aggregation function applied to aggregate the inputs.
  * \param mirror_fun Optional mirror function to do mirror optimization and save memory.
- * \return A new graph, whose outputs corresponds to inputs of xs.
+ * \return A new graph, whose outputs correspond to inputs of xs.
  */
 inline Graph Gradient(
     Graph graph,

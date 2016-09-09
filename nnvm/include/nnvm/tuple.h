@@ -19,11 +19,11 @@ namespace nnvm {
 typedef uint32_t index_t;
 
 /*!
- * \brief A dynamic sized array data strcuture
- *  that is optimized for storing small number of elements with same type.
- *  Data will be stored in stack when number of elements is small.
+ * \brief A dynamic sized array data strcuture that is optimized for storing
+ *        small number of elements with same type.
  *
- *  It is suitable to hold Shape of Tensor.
+ *  Data will be stored in stack when number of elements is small.
+ *  It is suitable to hold shape of Tensor.
  *
  * \tparam ValueType The type of data stored inside tuple.
  * \sa TShape
