@@ -19,7 +19,13 @@
 
 namespace nnvm {
 /*!
- * \brief Symbol is used to represent the
+ * \brief Symbol is help class used to represent the operator node in Graph.
+ * 
+ *  Symbol acts as an interface for building graphs from different components
+ *  like Variable, Functor and Group. Symbol is also exported to python front-end
+ *  (while Graph is not) to enable quick test and deployment. Conceptually,
+ *  symbol is the final operation of a graph and thus including all the information
+ *  required (the graph) to evaluate its output value.
  */
 class Symbol {
  public:
@@ -47,42 +53,46 @@ class Symbol {
   std::vector<NodeEntry> outputs;
 
   /*!
-   * \brief copy the symbol
-   * \return a deep copy of the symbolic graph.
+   * \brief Copy the symbol.
+   * \return A deep copy of this symbol.
    */
   Symbol Copy() const;
   /*!
-   * \brief print the symbol info to output stream.
-   * \param os the output stream we like to print to
+   * \brief Print the symbol info to output stream.
+   * \param os The output stream to print to.
    */
   void Print(std::ostream &os) const; // NOLINT(*)
   /*!
-   * \brief get the index th element from the returned tuple.
-   * \param index index of multi output
-   * \return the symbol corresponds to the indexed element.
+   * \brief Get the index-th element from the returned tuple.
+   * \param index Index of multi output.
+   * \return The symbol corresponds to the indexed element.
    */
   Symbol operator[] (size_t index) const;
   /*!
-   * \brief List the input variable nodes
-   * \param option The options to list the arguments.
+   * \brief List the input variable nodes.
    *
-   * The position of the returned list also corresponds to calling position in operator()
-   * \return the arguments list of this symbol, they can be either named or unnamed (empty string).
+   *  The order of the returned list is the same as the order of the input list to `operator()`.
+   *
+   * \param option The options to list the arguments.
+   * \return The arguments list of this symbol, they can be either named or unnamed (empty string).
    * \sa ListInputOption
    */
   std::vector<NodePtr> ListInputs(ListInputOption option) const;
   /*!
    * \brief List the input names.
-   * \param option The options to list the arguments.
    *
-   * The position of the returned list also corresponds to calling position in operator()
-   * \return the arguments list of this symbol, they can be either named or unnamed (empty string).
+   *  The order of the returned list is the same as the order of the input list to `operator()`.
+   *
+   * \param option The options to list the arguments.
+   * \return The arguments list of this symbol, they can be either named or unnamed (empty string).
    * \sa ListInputOption
    */
   std::vector<std::string> ListInputNames(ListInputOption option) const;
   /*!
    * \brief List the names of outputs for this symbol.
-   *  For normal operators, it is usually symbol node name + "_output"
+   *
+   *  For normal operators, it is usually symbol node name + "_output".
+   *
    * \return get the descriptions of outputs for this symbol.
    */
   std::vector<std::string> ListOutputNames() const;
@@ -92,28 +102,30 @@ class Symbol {
    *
    * The rest of the symbols will remain the same name.
    *
-   * \param args positional arguments
-   * \param kwargs keyword arguments for the symbol
-   * \param name name of returned symbol.
+   * \param args Positional arguments.
+   * \param kwargs Keyword arguments for the symbol.
+   * \param name Name of returned symbol.
    */
   void Compose(const array_view<const Symbol*>& args,
                const std::unordered_map<std::string, const Symbol*>& kwargs,
                const std::string& name);
   /*!
    * \brief Apply the symbol as a function, compose with arguments
-   * This is equivalent to Copy then Compose.
-   * \param args positional arguments for the symbol
-   * \param kwargs keyword arguments for the symbol
-   * \param name name of returned symbol.
-   * \return a new Symbol which is the composition of current symbol with its arguments
+   *
+   *  This is equivalent to Copy then Compose.
+   *
+   * \param args Positional arguments for the symbol.
+   * \param kwargs Keyword arguments for the symbol.
+   * \param name Name of returned symbol.
+   * \return A new Symbol which is the composition of current symbol with its arguments.
    */
   Symbol operator () (const array_view<const Symbol*>& args,
                       const std::unordered_map<std::string, const Symbol*>& kwargs,
                       const std::string& name) const;
   /*!
-   * \brief Add control flow depenencies to operators involved in symbols.
-   *  For grouped sybmbol, an error will be raised.
-   *  This mutate current symbolic Node.
+   * \brief Add control flow depenencies to the operators in symbols.
+   *
+   *  For grouped symbol, an error will be raised. This mutates current symbolic Node.
    *
    * \param src The symbols to depend on.
    */
@@ -121,38 +133,43 @@ class Symbol {
   /*
    * \brief Get all the internal nodes of the symbol.
    * \return symbol A new symbol whose output contains all the outputs of the symbols
-   *  Including input variables and intermediate outputs.
+   *                including input variables and intermediate outputs.
    */
   Symbol GetInternals() const;
   /*!
-   * \brief set additional attributes to current node.
-   *  This only works for symbol with outputs from single operators.
-   *  For grouped sybmbol, an error will be raised.
+   * \brief Set additional attributes to current node.
    *
-   *  This function mutate the node's symbol and is not recommended.
+   *  This only works for symbol with outputs from single operators.
+   *  For grouped symbol, an error will be raised.
+   *
+   *  This function mutates the node's symbol and is not recommended.
    *
    * \param attrs The attributes to set.
    */
   void SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs);
   /*!
    * \brief Get attributes from the symbol.
+   *
    *  This only works for symbol with outputs from single operators.
-   *  For grouped sybmbol, an error will be raised.
+   *  For grouped symbol, an error will be raised.
+   *
    * \param key Key of the attribute. When key == "name", it returns the name attirbute.
-   * \param out the output value of the attribute.
-   * \return true if the attribute exists, false if the attribute do not exist.
+   * \param out The output value of the attribute.
+   * \return true If the attribute exists, false if the attribute does not exist.
    */
   bool GetAttr(const std::string& key, std::string* out) const;
   /*!
    * \brief Get attribute dictionary from the symbol.
-   *  For grouped sybmbol, an error will be raised.
-   * \param option If recursive is set, the attributes of all children are retrieved,
-   *   The name of symbol will be pre-pended to each key.
+   *
+   *  For grouped symbol, an error will be raised.
+   *
+   * \param option If recursive flag is set, the attributes of all children are retrieved.
+   *               The name of symbol will be pre-pended to each key.
    * \return The created attribute.
    */
   std::unordered_map<std::string, std::string> ListAttrs(ListAttrOption option) const;
   /*!
-   * \brief create symbolic functor(AtomicSymbol) by given operator and attributes.
+   * \brief Create symbolic functor(AtomicSymbol) by given operator and attributes.
    * \param op The operator.
    * \param attrs The additional attributes.
    * \return Symbol that can be used to call compose further.
@@ -160,15 +177,15 @@ class Symbol {
   static Symbol CreateFunctor(const Op* op,
                               std::unordered_map<std::string, std::string> attrs);
   /*!
-   * \brief create variable symbol node
-   * \param name name of the variable
-   * \return the new variable
+   * \brief Create symbol node representing variable.
+   * \param name Name of the variable.
+   * \return The symbol.
    */
   static Symbol CreateVariable(const std::string& name);
   /*!
-   * \brief create equivalence of symbol by grouping the symbols together
-   * \param symbols list of symbols
-   * \return the grouped symbol
+   * \brief Create equivalence of symbol by grouping the symbols together.
+   * \param symbols A list of symbols to be grouped.
+   * \return The grouped symbol.
    */
   static Symbol CreateGroup(const std::vector<Symbol>& symbols);
 };
