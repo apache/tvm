@@ -29,11 +29,22 @@ typedef std::function<Graph (Graph src)> PassFunction;
 /*!
  * \brief Apply a series of pass transformations on the input graph.
  * \param src The graph to be transformed.
+ * \param passes A list of pass names to be applied.
+ * \return The transformed graph
+ */
+Graph ApplyPasses(Graph src,
+                  const std::vector<std::string>& passes);
+
+/*!
+ * \brief Apply one pass to the graph.
+ * \param src The graph to be transformed.
  * \param pass The name of pass to be applied.
  * \return The transformed graph.
  */
-Graph ApplyPass(Graph src,
-                const std::vector<std::string>& pass);
+inline Graph ApplyPass(Graph src, const std::string& pass) {
+  return ApplyPasses(src, {pass});
+}
+
 
 /*!
  * \brief Registry entry for DataIterator factory functions.
