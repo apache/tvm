@@ -113,7 +113,7 @@ class Graph(object):
         cpass = c_array(ctypes.c_char_p, [c_str(key) for key in passes])
         ghandle = GraphHandle()
         npass = nn_uint(len(passes))
-        check_call(_LIB.NNGraphApplyPass(self.handle, npass, cpass, ctypes.byref(ghandle)))
+        check_call(_LIB.NNGraphApplyPasses(self.handle, npass, cpass, ctypes.byref(ghandle)))
         return Graph(ghandle)
 
 

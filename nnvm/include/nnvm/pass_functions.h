@@ -28,7 +28,7 @@ namespace pass {
 inline Graph LoadJSON(const std::string& json_str) {
   Graph ret;
   ret.attrs["json"] = std::make_shared<any>(json_str);
-  return ApplyPass(ret, {"LoadJSON"});
+  return ApplyPass(ret, "LoadJSON");
 }
 
 /*!
@@ -37,7 +37,7 @@ inline Graph LoadJSON(const std::string& json_str) {
  * \return The json string.
  */
 inline std::string SaveJSON(Graph graph) {
-  Graph ret = ApplyPass(std::move(graph), {"SaveJSON"});
+  Graph ret = ApplyPass(std::move(graph), "SaveJSON");
   return ret.GetAttr<std::string>("json");
 }
 
@@ -52,7 +52,7 @@ inline std::string SaveJSON(Graph graph) {
  * \return A graph with proper control flow dependencies added.
  */
 inline Graph OrderMutation(Graph src) {
-  return ApplyPass(std::move(src), {"OrderMutation"});
+  return ApplyPass(std::move(src), "OrderMutation");
 }
 
 /*!
@@ -73,7 +73,7 @@ inline Graph InferShape(Graph graph,
   if (shape_attr_key.length() != 0) {
     graph.attrs["shape_attr_key"] = std::make_shared<any>(std::move(shape_attr_key));
   }
-  return ApplyPass(std::move(graph), {"InferShape"});
+  return ApplyPass(std::move(graph), "InferShape");
 }
 
 /*!
@@ -94,7 +94,7 @@ inline Graph InferType(Graph graph,
   if (dtype_attr_key.length() != 0) {
     graph.attrs["dtype_attr_key"] = std::make_shared<any>(std::move(dtype_attr_key));
   }
-  return ApplyPass(std::move(graph), {"InferType"});
+  return ApplyPass(std::move(graph), "InferType");
 }
 
 /*!
@@ -118,7 +118,7 @@ inline Graph PlaceDevice(Graph graph,
   graph.attrs["device_group_attr_key"] = std::make_shared<any>(std::move(device_group_attr_key));
   graph.attrs["device_assign_map"] = std::make_shared<any>(std::move(device_assign_map));
   graph.attrs["device_copy_op"] = std::make_shared<any>(std::move(device_copy_op));
-  return ApplyPass(std::move(graph), {"PlaceDevice"});
+  return ApplyPass(std::move(graph), "PlaceDevice");
 }
 
 /*!
@@ -149,7 +149,7 @@ inline Graph Gradient(
     graph.attrs["grad_mirror_fun"] = std::make_shared<any>(mirror_fun);
   }
 
-  return ApplyPass(std::move(graph), {"Gradient"});
+  return ApplyPass(std::move(graph), "Gradient");
 }
 
 }  // namespace pass

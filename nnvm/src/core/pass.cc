@@ -22,8 +22,8 @@ const PassFunctionReg* FindPassDep(const std::string&attr_name) {
   return nullptr;
 }
 
-Graph ApplyPass(Graph g,
-                const std::vector<std::string>& pass) {
+Graph ApplyPasses(Graph g,
+                  const std::vector<std::string>& pass) {
   std::vector<const PassFunctionReg*> fpass;
   for (auto& name : pass) {
     auto* reg = dmlc::Registry<PassFunctionReg>::Find(name);
