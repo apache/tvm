@@ -115,6 +115,8 @@ Graph Gradient(Graph src) {
     }
     std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()]
         (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()), out_agg_grads);
+    CHECK_EQ((*rit)->inputs.size(), input_grads.size())
+        << "Gradient function not returning enough gradient";
     auto git = input_grads.begin();
     for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {
       output_grads[it->node.get()][it->index].grads.emplace_back(std::move(*git));
