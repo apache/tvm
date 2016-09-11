@@ -329,16 +329,16 @@ NNVM_DLL int NNGraphSetNodeEntryListAttr_(GraphHandle handle,
                                           const char* key,
                                           SymbolHandle list);
 /*!
- * \brief Apply pass on the src graph.
+ * \brief Apply passes on the src graph.
  * \param src The source graph handle.
  * \param num_pass The number of pass to be applied.
  * \param pass_names The names of the pass.
  * \param dst The result graph.
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNGraphApplyPass(GraphHandle src,
-                              nn_uint num_pass,
-                              const char** pass_names,
-                              GraphHandle *dst);
+NNVM_DLL int NNGraphApplyPasses(GraphHandle src,
+                                nn_uint num_pass,
+                                const char** pass_names,
+                                GraphHandle *dst);
 
 #endif  // NNVM_C_API_H_

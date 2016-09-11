@@ -18,7 +18,7 @@ namespace nnvm {
  * \note Stored under ret.attrs["json"], provided by Pass "SaveJSON"
 
  * \code
- *  Graph ret = ApplyPass(src_graph, {"SaveJSON"});
+ *  Graph ret = ApplyPass(src_graph, "SaveJSON");
  *  const JSONString& json = ret.GetAttr<JSONString>("shape");
  * \endcode
  */
@@ -29,7 +29,7 @@ using JSONString = std::string;
  * \note Stored under graph.attrs["shape"], provided by Pass "InferShape"
  *
  * \code
- *  Graph g = ApplyPass(src_graph, {"InferShape"});
+ *  Graph g = ApplyPass(src_graph, "InferShape");
  *  const ShapeVector& shapes = g.GetAttr<ShapeVector>("shape");
  *  // get shape by entry id
  *  TShape entry_shape = shapes[g.indexed_graph().entry_id(my_entry)];
@@ -44,7 +44,7 @@ using ShapeVector = std::vector<TShape>;
  * \note Stored under graph.attrs["dtype"], provided by Pass "InferType"
  *
  * \code
- *  Graph g = ApplyPass(src_graph, {"InferType"});
+ *  Graph g = ApplyPass(src_graph, "InferType");
  *  const DTypeVector& types = g.GetAttr<DTypeVector>("dtype");
  *  // get shape by entry id
  *  int entry_type = dtypes[g.indexed_graph().entry_id(my_entry)];
@@ -59,7 +59,7 @@ using DTypeVector = std::vector<int>;
  * \note Stored under graph.attrs["device"], provided by Pass "PlaceDevice"
  *
  * \code
- *  Graph g = ApplyPass(src_graph, {"PlaceDevice"});
+ *  Graph g = ApplyPass(src_graph, "PlaceDevice");
  *  const &device = g.GetAttr<DeviceVector>("device");
  *  // get device by node_id
  *  int device_type = device[g.indexed_graph().node_id(my_node)];
@@ -83,7 +83,7 @@ using DeviceAssignMap = std::unordered_map<std::string, int>;
  *  If the storage id is -1 then the storage is not assigned.
  *
  * \code
- *  Graph g = ApplyPass(src_graph, {"PlanMemory"});
+ *  Graph g = ApplyPass(src_graph, "PlanMemory");
  *  const &storage = g.GetAttr<StorageVector>("storage");
  *  // get storage id by entry
  *  int storage_id = storage[g.indexed_graph().entry_id(my_entry)];

@@ -82,17 +82,17 @@ int NNGraphGetJSONAttr(GraphHandle handle,
   API_END();
 }
 
-int NNGraphApplyPass(GraphHandle src,
-                     nn_uint num_pass,
-                     const char** pass_names,
-                     GraphHandle *dst) {
+int NNGraphApplyPasses(GraphHandle src,
+                       nn_uint num_pass,
+                       const char** pass_names,
+                       GraphHandle *dst) {
   Graph* g = new Graph();
   API_BEGIN();
   std::vector<std::string> vpass;
   for (nn_uint i = 0; i < num_pass; ++i) {
     vpass.emplace_back(std::string(pass_names[i]));
   }
-  *g = ApplyPass(*static_cast<Graph*>(src), vpass);
+  *g = ApplyPasses(*static_cast<Graph*>(src), vpass);
   *dst = g;
   API_END_HANDLE_ERROR(delete g);
 }

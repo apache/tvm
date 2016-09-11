@@ -13,7 +13,7 @@ namespace {
 
 template<typename AttrType, typename IsNone>
 Graph InferAttr(Graph &&ret,
-                const AttrType def_value,
+                const AttrType default_val,
                 const char* infer_name,
                 const char* input_name,
                 const char* attr_key_name,
@@ -23,16 +23,16 @@ Graph InferAttr(Graph &&ret,
   using AttrVector = std::vector<AttrType>;
   const IndexedGraph& idx = ret.indexed_graph();
   static auto& finfer_shape =
-      Op::GetAttr<FInferNodeEntryAttr<AttrType> >(infer_name);
+      Op::GetAttr<FInferNodeEntryAttr<AttrType>>(infer_name);
   static auto& backward_map =
       Op::GetAttr<FBackwardOutToInIndex>("FBackwardOutToInIndex");
   // reshape shape vector
-  AttrVector rshape(idx.num_node_entries(), def_value);
+  AttrVector rshape(idx.num_node_entries(), default_val);
 
   if (ret.attrs.count(input_name) != 0) {
     const AttrVector& shape_args = ret.GetAttr<AttrVector>(input_name);
     CHECK_LE(shape_args.size(), idx.input_nodes().size())
-        << "shape args is more than number of arguments";
+        << "More provided shapes than number of arguments.";
     for (size_t i = 0; i < shape_args.size(); ++i) {
       rshape[idx.entry_id(idx.input_nodes()[i], 0)] = shape_args[i];
     }
@@ -46,36 +46,41 @@ Graph InferAttr(Graph &&ret,
     ret.attrs.erase(attr_key_name);
   }
 
-  // temp space for shape inference.
+  // Temp space for shape inference.
   std::vector<AttrType> ishape, oshape;
   // number of completed nodes
   size_t num_unknown = 0;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
-    uint32_t num_inputs = inode.inputs.size();
-    uint32_t num_outputs = inode.source->num_outputs();
+    const uint32_t num_inputs = inode.inputs.size();
+    const uint32_t num_outputs = inode.source->num_outputs();
     if (inode.source->is_variable()) {
-      if (shape_attr_key.length() != 0 && fis_none(rshape[idx.entry_id(nid, 0)])) {
+      // Variable node. No operator. Only one output entry.
+      CHECK(inode.source->op() == nullptr);
+      CHECK_EQ(num_outputs, 1);
+      const uint32_t out_ent_id = idx.entry_id(nid, 0);
+      if (shape_attr_key.length() != 0 && fis_none(rshape[out_ent_id])) {
         auto it = inode.source->attrs.dict.find(shape_attr_key);
         if (it != inode.source->attrs.dict.end()) {
-          CHECK_EQ(num_outputs, 1);
           std::istringstream is(it->second);
-          CHECK(is >> rshape[idx.entry_id(nid, 0)]) << "Invalid attribute";
+          CHECK(is >> rshape[out_ent_id]) << "Invalid attribute";
         }
       }
-      continue;
-    }
-    if (finfer_shape.count(inode.source->op())) {
-      ishape.resize(num_inputs, def_value);
+    } else if (finfer_shape.count(inode.source->op())) {
+      // Forward operator inference.
+      ishape.resize(num_inputs, default_val);
       for (uint32_t i = 0; i < ishape.size(); ++i) {
         ishape[i] = rshape[idx.entry_id(inode.inputs[i])];
       }
-      oshape.resize(num_outputs, def_value);
+      oshape.resize(num_outputs, default_val);
       for (uint32_t i = 0; i < oshape.size(); ++i) {
         oshape[i] = rshape[idx.entry_id(nid, i)];
       }
-      num_unknown +=
-          !(finfer_shape[inode.source->op()](inode.source->attrs, &ishape, &oshape));
+      // Call inference function of the operator.
+      bool forward_known = finfer_shape[inode.source->op()](
+          inode.source->attrs, &ishape, &oshape);
+      num_unknown += !forward_known;
+      // Save to the result map.
       for (uint32_t i = 0; i < num_inputs; ++i) {
         rshape[idx.entry_id(inode.inputs[i])] = ishape[i];
       }
@@ -83,10 +88,12 @@ Graph InferAttr(Graph &&ret,
         rshape[idx.entry_id(nid, i)] = oshape[i];
       }
     } else if (backward_map.count(inode.source->op())) {
-      // backward operator inference.
+      // Backward operator inference.
       CHECK_GE(inode.control_deps.size(), 1)
           << "BackwardOp need to have control_deps to its forward op";
-      const auto& fnode = idx[inode.control_deps[0]];
+      const IndexedGraph::Node& fnode = idx[inode.control_deps[0]];
+      // Inference the outputs of backward operator (equal to the inputs
+      // of its corresponding forward operator).
       std::vector<uint32_t> out_map =
           backward_map[inode.source->op()](inode.source->attrs);
       bool known = true;

@@ -179,11 +179,11 @@ class IndexedGraph {
    * \param other The source graph.
    */
   explicit IndexedGraph(const Graph& other);
-  // node pointers in CSR structure.
+  // Node pointers in CSR structure.
   std::vector<Node> nodes_;
-  // index all to input nodes
+  // Index to all input nodes.
   std::vector<uint32_t> input_nodes_;
-  // index to mutable input nodes
+  // Index to all mutable input nodes.
   std::unordered_set<uint32_t> mutable_input_nodes_;
   // space to store the outputs entries
   std::vector<NodeEntry> outputs_;
