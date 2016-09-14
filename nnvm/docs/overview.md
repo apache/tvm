@@ -110,13 +110,13 @@ NNVM_REGISTER_OP(add)
 
 // register to tell first input can be calculate inplace with first output
 NNVM_REGISTER_OP(add)
-.attr<FInplaceOption>("FInplaceOption", [](const NodeAttrs& attrs) {
+.set_attr<FInplaceOption>("FInplaceOption", [](const NodeAttrs& attrs) {
   return std::vector<std::pair<int, int> >{{0, 0}};
  });
 
 NNVM_REGISTER_OP(exp)
 .set_num_inputs(1)
-.attr<FInplaceOption>("FInplaceOption", [](const NodeAttrs& attrs) {
+.set_attr<FInplaceOption>("FInplaceOption", [](const NodeAttrs& attrs) {
   return std::vector<std::pair<int, int> >{{0, 0}};
  });
 ```
