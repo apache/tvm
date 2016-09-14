@@ -66,7 +66,7 @@ NNVM_REGISTER_OP(reshape)
       CHECK(is >> target);
       attrs->parsed = std::move(target);
     })
-.attr<FInferShape>(
+.set_attr<FInferShape>(
     "FInferShape", [] (const NodeAttrs& attrs,
                        std::vector<TShape> *ishape,
                        std::vector<TShape> *oshape) {
@@ -78,7 +78,7 @@ NNVM_REGISTER_OP(reshape)
           << "Reshape op: source target shape mismatch";
       return true;
     })
-.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0);
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0);
 
 
 NNVM_REGISTER_OP(cast)
@@ -92,8 +92,8 @@ NNVM_REGISTER_OP(cast)
       CHECK(is >> dtype);
       attrs->parsed = std::move(dtype);
     })
-.attr<FInferShape>("FInferShape", SameShape)
-.attr<FInferType>(
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FInferType>(
     "FInferType", [](const NodeAttrs& attrs,
                      std::vector<int> *itype,
                      std::vector<int> *otype) {
@@ -104,8 +104,8 @@ NNVM_REGISTER_OP(cast)
 NNVM_REGISTER_OP(exp)
 .describe("take exponential")
 .set_num_inputs(1)
-.attr<FInferShape>("FInferShape", SameShape)
-.attr<FGradient>(
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
       return std::vector<NodeEntry>{
@@ -117,8 +117,8 @@ NNVM_REGISTER_OP(exp)
 NNVM_REGISTER_OP(identity)
 .describe("identity function")
 .set_num_inputs(1)
-.attr<FInferShape>("FInferShape", SameShape)
-.attr<FGradient>(
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
       return std::vector<NodeEntry>{ograds[0]};
@@ -128,9 +128,9 @@ NNVM_REGISTER_OP(add)
 .describe("add two data together")
 .set_num_inputs(2)
 .add_alias("__add_symbol__")
-.attr<FInferShape>("FInferShape", SameShape)
-.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.attr<FGradient>(
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{ograds[0], ograds[0]};
@@ -139,9 +139,9 @@ NNVM_REGISTER_OP(add)
 NNVM_REGISTER_OP(mul)
 .describe("multiply two data together")
 .set_num_inputs(2)
-.attr<FInferShape>("FInferShape", SameShape)
-.attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.attr<FGradient>(
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{
@@ -167,23 +167,23 @@ NNVM_REGISTER_OP(__one__)
 NNVM_REGISTER_OP(cross_device_copy)
 .describe("Copy data across device.")
 .set_num_inputs(1)
-.attr<FInferShape>("FInferShape", SameShape);
+.set_attr<FInferShape>("FInferShape", SameShape);
 
 
 NNVM_REGISTER_OP(conv2d)
 .describe("take conv of input")
 .set_num_inputs(2)
-.attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
     return std::vector<std::string>{"data", "weight"};
   });
 
 NNVM_REGISTER_OP(add)
-.attr<std::string>("nick_name", "plus");
+.set_attr<std::string>("nick_name", "plus");
 
 NNVM_REGISTER_OP(assign)
 .set_num_inputs(2)
 .set_num_outputs(1)
-.attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
+.set_attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
     return std::vector<uint32_t>{0};
   });
 
