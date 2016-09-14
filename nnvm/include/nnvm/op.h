@@ -44,7 +44,7 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  *  NNVM_REGISTER_OP(add)
  *  .describe("add two inputs together")
  *  .set_num_inputs(2)
- *  .attr<OpKernel>("gpu_kernel", AddKernel);
+ *  .set_attr<OpKernel>("gpu_kernel", AddKernel);
  *
  *  NNVM_REGISTER_OP(sub)
  *  .describe("substract one tensor from another")
@@ -53,7 +53,7 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  *  // Can call regster multiple times in different files
  *  // to register different part of information
  *  NNVM_REGISTER_OP(sub)
- *  .attr<OpKernel>("gpu_kernel", SubKernel);
+ *  .set_attr<OpKernel>("gpu_kernel", SubKernel);
  *
  *  // get operators from registry.
  *  void my_function() {
@@ -213,8 +213,8 @@ class Op {
    * \tparam ValueType The type of the value to be set.
    */
   template<typename ValueType>
-  inline Op& attr(const std::string& attr_name,  // NOLINT(*)
-                  const ValueType& value);
+  inline Op& set_attr(const std::string& attr_name,  // NOLINT(*)
+                      const ValueType& value);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
@@ -300,7 +300,7 @@ class OpMap {
  *  NNVM_REGISTER_OP(add)
  *  .describe("add two inputs together")
  *  .set_num_inputs(2)
- *  .attr<OpKernel>("gpu_kernel", AddKernel);
+ *  .set_attr<OpKernel>("gpu_kernel", AddKernel);
  *
  * \endcode
  */
@@ -329,7 +329,7 @@ inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
 }
 
 template<typename ValueType>
-inline Op& Op::attr(  // NOLINT(*)
+inline Op& Op::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value) {
   // update the attribute map of the key by creating new empty if needed.
   UpdateAttrMap(attr_name, [this, attr_name, value](any* pmap) {
