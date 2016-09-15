@@ -6,10 +6,10 @@
 NNVM_REGISTER_OP(add)
 .describe("add two data together")
 .set_num_inputs(2)
-.attr("inplace_pair", std::make_pair(0, 0));
+.set_attr("inplace_pair", std::make_pair(0, 0));
 
 NNVM_REGISTER_OP(add)
-.attr<std::string>("nick_name", "plus");
+.set_attr<std::string>("nick_name", "plus");
 
 
 TEST(Op, GetAttr) {
