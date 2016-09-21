@@ -59,6 +59,22 @@ def test_infer_shape():
     assert g.json_attr('shape')[jnode_row_ptr[nindex["reshape1"]]] == [2, 4]
     assert g.json_attr('shape')[jnode_row_ptr[nindex["add1"]]] == [4, 2]
 
+def test_infer_shape_known_partial():
+    x = sym.Variable('x', shape=(4, 2))
+    y = sym.add(x, x, name='add1')
+    y = sym.reshape(y, target=(2, 4), name="reshape1")
+    g = graph.create(y)
+    jgraph = json.loads(g.apply('SaveJSON').json_attr('json'))
+    shape = [[4, 2], [] , []]
+    g._set_json_attr("shape", shape, 'list_shape')
+    g = g.apply("InferShape")
+    jnodes = jgraph['nodes']
+    jnode_row_ptr = jgraph['node_row_ptr']
+    nindex = {n['name']: i for i, n in enumerate(jnodes)}
+    assert g.json_attr('shape')[jnode_row_ptr[nindex["reshape1"]]] == [2, 4]
+    assert g.json_attr('shape')[jnode_row_ptr[nindex["add1"]]] == [4, 2]
+
+
 def test_infer_type():
     x = sym.Variable('x')
     y = sym.add(x, x, name='add1')
@@ -116,6 +132,7 @@ if __name__ == "__main__":
     test_graph_json_attr()
     test_json_pass()
     test_infer_shape()
+    test_infer_shape_known_partial()
     test_infer_type()
     test_place_device()
     test_plan_memory()
