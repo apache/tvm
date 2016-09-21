@@ -103,8 +103,8 @@ struct JSONNode {
     std::unordered_map<std::string, std::string> param;
     helper.DeclareOptionalField("param", &param);
     helper.DeclareOptionalField("backward_source_id", &backward_source_id);
-    node->attrs.dict.insert(param.begin(), param.end());
     helper.ReadAllFields(reader);
+    node->attrs.dict.insert(param.begin(), param.end());
 
     if (op_type_str != "null") {
       try {
