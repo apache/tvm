@@ -171,6 +171,8 @@ class IndexedGraph {
   inline const std::vector<NodeEntry>& outputs() const {
     return outputs_;
   }
+  // disalllow copy assign
+  IndexedGraph(const IndexedGraph&) = delete;
 
  private:
   friend class Graph;

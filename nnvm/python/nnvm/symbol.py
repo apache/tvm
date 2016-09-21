@@ -57,7 +57,7 @@ class Symbol(SymbolBase):
     def __mul__(self, other):
         if isinstance(other, Symbol):
             return _internal.__mul_symbol__(self, other)
-        if isinstance(other, Number):
+        if isinstance(other, _Number):
             return _internal.__mul_scalar__(self, scalar=other)
         else:
             raise TypeError('type %s not supported' % str(type(other)))

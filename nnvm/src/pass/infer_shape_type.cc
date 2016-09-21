@@ -23,11 +23,16 @@ Graph InferAttr(Graph &&ret,
   using AttrVector = std::vector<AttrType>;
   const IndexedGraph& idx = ret.indexed_graph();
   static auto& finfer_shape =
-      Op::GetAttr<FInferNodeEntryAttr<AttrType>>(infer_name);
+      Op::GetAttr<FInferNodeEntryAttr<AttrType> >(infer_name);
   static auto& backward_map =
       Op::GetAttr<FBackwardOutToInIndex>("FBackwardOutToInIndex");
   // reshape shape vector
-  AttrVector rshape(idx.num_node_entries(), default_val);
+  AttrVector rshape;
+  if (ret.attrs.count(attr_name) != 0) {
+    rshape = ret.MoveCopyAttr<AttrVector>(attr_name);
+  } else {
+    rshape.resize(idx.num_node_entries(), default_val);
+  }
 
   if (ret.attrs.count(input_name) != 0) {
     const AttrVector& shape_args = ret.GetAttr<AttrVector>(input_name);
@@ -39,6 +44,7 @@ Graph InferAttr(Graph &&ret,
     // erase the provided arguments
     ret.attrs.erase(input_name);
   }
+
   std::string shape_attr_key;
   if (ret.attrs.count(attr_key_name) != 0) {
     shape_attr_key = ret.GetAttr<std::string>(attr_key_name);
