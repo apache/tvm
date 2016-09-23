@@ -134,6 +134,13 @@ NNVM_DLL int NNSymbolCreateGroup(nn_uint num_symbols,
                                  SymbolHandle *symbols,
                                  SymbolHandle *out);
 /*!
+ * \brief Add src_dep to the handle as control dep.
+ * \param handle The symbol to add dependency edges on.
+ * \param src_dep the source handles.
+ */
+NNVM_DLL int NNAddControlDeps(SymbolHandle handle,
+                              SymbolHandle src_dep);
+/*!
  * \brief Free the symbol handle.
  * \param symbol the symbol
  * \return 0 when success, -1 when failure happens

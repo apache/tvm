@@ -76,10 +76,11 @@ def test_infer_shape_known_partial():
 
 
 def test_infer_type():
-    x = sym.Variable('x')
+    x = sym.Variable('x', dtype=0)
     y = sym.add(x, x, name='add1')
     y = sym.cast(y, dtype=1, name="cast1")
     g = graph.create(y)
+    g._set_json_attr("dtype_attr_key", "dtype")
     g = g.apply('InferType')
     jgraph = json.loads(g.apply('SaveJSON').json_attr('json'))
     jnodes = jgraph['nodes']
