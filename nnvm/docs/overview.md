@@ -13,7 +13,7 @@ with the modular tools like CuDNN and CUDA, it is not hard to assemble a C++ API
 However, most users like to use python/R/scala or other languages.
 By registering the operators to NNVM, X can now get the graph composition
 language front-end on these languages quickly without coding it up for
-each type of langugage.
+each type of language.
 
 Y want to build a deep learning serving system on embedded devices.
 To do that, we need to cut things off, as opposed to add new parts,
@@ -97,7 +97,7 @@ Eventually the operator interface become big and have to evolve in the centraliz
 
 In NNVM, we decided to change the design and support arbitrary type of operator attributes,
 without need to change the operator registry. This also echos the need of minimum interface
-so that the code can be easier to share accross multiple projects
+so that the code can be easier to share across multiple projects
 
 User can register new attribute, such as inplace property checking function as follows.
 ```c++
@@ -122,7 +122,7 @@ NNVM_REGISTER_OP(exp)
 ```
 
 These attributes can be queried at arbitrary parts of the code, like the following parts.
-Under the hood, each attributes are stored in a any type columar store,
+Under the hood, each attributes are stored in a any type columnar store,
 that can easily be retrieved and cast back to typed table and do quick lookups.
 
 ```c++

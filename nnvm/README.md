@@ -15,11 +15,11 @@ We believe that the decentralized modular system is an interesting direction.
 
 The hope is that effective parts can be assembled together just like you assemble your own desktops.
 So the customized deep learning solution can be minimax, minimum in terms of dependencies,
-while maxiziming the users' need.
+while maximizing the users' need.
 
 NNVM offers one such part, it provides a generic way to do
 computation graph optimization such as memory reduction, device allocation and more
-while being agnostic to the operator interface defintion and how operators are executed.
+while being agnostic to the operator interface definition and how operators are executed.
 NNVM is inspired by LLVM, aiming to be a high level intermediate representation library
 for neural nets and computation graphs generation and optimizations.
 
@@ -32,7 +32,7 @@ This is essentially ***Unix philosophy*** applied to machine learning system.
 - Essential parts can be assembled in minimum way for embedding systems.
 - Developers can hack the parts they need and compose with other well defined parts.
 - Decentralized modules enable new extensions creators to own their project
-  without creating a monothilic version.
+  without creating a monolithic version.
 
 Deep learning system itself is not necessary one part, for example
 here are some relative independent parts that can be isolated
