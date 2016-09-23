@@ -32,11 +32,19 @@ int NNGetOpHandle(const char* op_name,
 }
 
 int NNListUniqueOps(nn_uint *out_size,
-                          OpHandle **out_array) {
+                    OpHandle **out_array) {
   API_BEGIN();
   auto &vec = dmlc::Registry<Op>::List();
   *out_size = static_cast<nn_uint>(vec.size());
   *out_array = (OpHandle*)(dmlc::BeginPtr(vec));  //  NOLINT(*)
+  API_END();
+}
+
+int NNAddControlDeps(SymbolHandle handle,
+                     SymbolHandle src_dep) {
+  API_BEGIN();
+  static_cast<Symbol*>(handle)->AddControlDeps(
+      *static_cast<Symbol*>(src_dep));
   API_END();
 }
 

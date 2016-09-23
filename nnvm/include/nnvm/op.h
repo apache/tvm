@@ -348,8 +348,10 @@ inline Op& Op::set_attr(  // NOLINT(*)
       std::vector<std::pair<ValueType, int> >& vec =
           nnvm::get<OpMap<ValueType> >(*pmap).data_;
       // resize the value type.
-      vec.resize(index_ + 1,
-                 std::make_pair(ValueType(), 0));
+      if (vec.size() <= index_) {
+        vec.resize(index_ + 1,
+                   std::make_pair(ValueType(), 0));
+      }
       std::pair<ValueType, int>& p = vec[index_];
       CHECK(p.second == 0)
           << "Attribute " << attr_name
