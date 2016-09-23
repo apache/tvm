@@ -233,6 +233,22 @@ class Symbol(SymbolBase):
             self.handle, _ctypes.byref(debug_str)))
         return _base.py_str(debug_str.value)
 
+    def _add_control_deps(self, deps):
+        """Add control flow dependencies.
+        This makes current op depend on the deps.
+        Only use when necessary,
+        this function mutate the current symbol node.
+
+        Returns
+        -------
+        deps : Symbol for list of symbol
+            The dependencies
+        """
+        if isinstance(deps, list):
+            deps = Group(deps)
+        _check_call(_LIB.NNAddControlDeps(
+            self.handle, deps.handle))
+
 
 def Variable(name, **kwargs):
     """Create a symbolic variable with specified name.

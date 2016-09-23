@@ -227,7 +227,7 @@ class Tuple {
         return is;
       }
       is.get();
-      if (ch == '(') break;
+      if (ch == '(' || ch == '[') break;
       if (!isspace(ch)) {
         is.setstate(std::ios::failbit);
         return is;
@@ -250,13 +250,13 @@ class Tuple {
           if (isspace(ch)) {
             is.get(); continue;
           }
-          if (ch == ')') {
+          if (ch == ')' || ch == ']') {
             is.get(); break;
           }
           break;
         }
-        if (ch == ')') break;
-      } else if (ch == ')') {
+        if (ch == ')' || ch == ']') break;
+      } else if (ch == ')' || ch == ']') {
         break;
       } else {
         is.setstate(std::ios::failbit);
