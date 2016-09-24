@@ -84,6 +84,7 @@ NNVM_REGISTER_OP(reshape)
 NNVM_REGISTER_OP(cast)
 .describe("cast source type to target")
 .set_num_inputs(1)
+.include("ElementwiseOpAttr")
 .set_attr_parser(
     [](NodeAttrs* attrs) {
       // parse attr parser to get target attribute
@@ -92,7 +93,6 @@ NNVM_REGISTER_OP(cast)
       CHECK(is >> dtype);
       attrs->parsed = std::move(dtype);
     })
-.set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FInferType>(
     "FInferType", [](const NodeAttrs& attrs,
                      std::vector<int> *itype,
@@ -101,23 +101,10 @@ NNVM_REGISTER_OP(cast)
       return true;
     });
 
-NNVM_REGISTER_OP(exp)
-.describe("take exponential")
-.set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", SameShape)
-.set_attr<FGradient>(
-    "FGradient", [](const NodePtr& n,
-                    const std::vector<NodeEntry>& ograds) {
-      return std::vector<NodeEntry>{
-        MakeNode("mul", n->attrs.name + "_grad",
-                 {ograds[0], NodeEntry{n, 0, 0}})
-      };
-    });
-
 NNVM_REGISTER_OP(identity)
 .describe("identity function")
 .set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
@@ -128,7 +115,7 @@ NNVM_REGISTER_OP(add)
 .describe("add two data together")
 .set_num_inputs(2)
 .add_alias("__add_symbol__")
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
@@ -139,6 +126,7 @@ NNVM_REGISTER_OP(add)
 NNVM_REGISTER_OP(mul)
 .describe("multiply two data together")
 .set_num_inputs(2)
+.include("ElementwiseOpAttr")
 .set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .set_attr<FGradient>(
@@ -186,5 +174,23 @@ NNVM_REGISTER_OP(assign)
 .set_attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
     return std::vector<uint32_t>{0};
   });
+
+NNVM_REGISTER_OP_GROUP(ElementwiseOpAttr)
+.set_attr<FInferShape>("FInferShape", SameShape);
+
+
+NNVM_REGISTER_OP(exp)
+.describe("take exponential")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return std::vector<NodeEntry>{
+        MakeNode("mul", n->attrs.name + "_grad",
+                 {ograds[0], NodeEntry{n, 0, 0}})
+      };
+    });
+
 
 }  // namespace myproject

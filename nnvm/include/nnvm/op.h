@@ -22,6 +22,7 @@ class Node;
 struct NodeAttrs;
 template<typename ValueType>
 class OpMap;
+class OpGroup;
 class OpRegistryEntry;
 using dmlc::ParamFieldInfo;
 
@@ -44,7 +45,13 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  *  NNVM_REGISTER_OP(add)
  *  .describe("add two inputs together")
  *  .set_num_inputs(2)
- *  .set_attr<OpKernel>("gpu_kernel", AddKernel);
+ *  .set_attr<OpKernel>("OpKernel<gpu>", AddKernel)
+ *  .include("ElementwiseOpAttr");
+ *
+ *  // can register attribute by group
+ *  // all the ops that include the group get the attribute.
+ *  NNVM_REGISTER_OP_GROUP(ElementwiseOpAttr)
+ *  .set_attr<FInferShape>("FInferShape", ElementwiseInferShape);
  *
  *  NNVM_REGISTER_OP(sub)
  *  .describe("substract one tensor from another")
@@ -53,7 +60,8 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  *  // Can call regster multiple times in different files
  *  // to register different part of information
  *  NNVM_REGISTER_OP(sub)
- *  .set_attr<OpKernel>("gpu_kernel", SubKernel);
+ *  .set_attr<OpKernel>("OpKernel<gpu>", SubKernel);
+ *  .include("ElementwiseOpAttr");
  *
  *  // get operators from registry.
  *  void my_function() {
@@ -65,7 +73,7 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  *
  *    // get additional registered information,
  *    // Assume user registered a OpKernel type attribute as gpu_kernel on each operator.
- *    const OpMap<OpKernel>& kernel = Op::GetAttr<OpKernel>("gpu_kernel");
+ *    const OpMap<OpKernel>& kernel = Op::GetAttr<OpKernel>("OpKernel<gpu>");
  *    // we can get the kernel functions by using operator as key.
  *    auto add_kernel = kernel[add];
  *    auto sub_kernel = kernel[sub];
@@ -200,6 +208,23 @@ class Op {
    */
   inline Op& set_attr_parser(std::function<void (NodeAttrs* attrs)> fn);  // NOLINT(*)
   /*!
+   * \brief Register additional attributes to operator.
+   * \param attr_name The name of the attribute.
+   * \param value The value to be set.
+   * \param plevel The priority level of this set,
+   *  an higher priority level attribute
+   *  will replace lower priority level attribute.
+   *  Must be bigger than 0.
+   *
+   *  Cannot set with same plevel twice in the code.
+   *
+   * \tparam ValueType The type of the value to be set.
+   */
+  template<typename ValueType>
+  inline Op& set_attr(const std::string& attr_name,  // NOLINT(*)
+                      const ValueType& value,
+                      int plevel = 10);
+  /*!
    * \brief Add another alias to this operator.
    *   The same Op can be queried with Op::Get(alias)
    * \param alias The alias of the operator.
@@ -207,14 +232,13 @@ class Op {
    */
   Op& add_alias(const std::string& alias);  // NOLINT(*)
   /*!
-   * \brief Register additional attributes to operator.
-   * \param attr_name The name of the attribute.
-   * \param value The value to be set.
-   * \tparam ValueType The type of the value to be set.
+   * \brief Include all the attributes from an registered op group.
+   * \param group_name The name of the group.
+   * \return reference to self.
+   *
+   * \sa NNVM_REGISTER_OP_GROUP
    */
-  template<typename ValueType>
-  inline Op& set_attr(const std::string& attr_name,  // NOLINT(*)
-                      const ValueType& value);
+  Op& include(const std::string& group_name);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
@@ -235,6 +259,7 @@ class Op {
  private:
   template<typename ValueType>
   friend class OpMap;
+  friend class OpGroup;
   friend class dmlc::Registry<Op>;
   // Program internal unique index of operator.
   // Used to help index the program.
@@ -246,6 +271,13 @@ class Op {
   // update the attribute OpMap
   static void UpdateAttrMap(const std::string& key,
                             std::function<void(any*)> updater);
+  // add a trigger based on tag matching on certain tag attribute
+  // This will apply trigger on all the op such that
+  // include the corresponding group.
+  // The trigger will also be applied to all future registrations
+  // that calls include
+  static void AddGroupTrigger(const std::string& group_name,
+                              std::function<void(Op*)> trigger);
 };
 
 /*!
@@ -285,14 +317,44 @@ class OpMap {
   OpMap() = default;
 };
 
+/*!
+ * \brief auxiliary data structure used to
+ *  set attributes to a group of operators
+ */
+class OpGroup {
+ public:
+  /*! \brief the tag key to be matched */
+  std::string group_name;
+  /*!
+   * \brief Register additional attributes to operator group.
+   * \param attr_name The name of the attribute.
+   * \param value The value to be set.
+   * \param plevel The priority level of this set,
+   *  an higher priority level attribute
+   *  will replace lower priority level attribute.
+   *  Must be bigger than 0.
+   *
+   *  Cannot set with same plevel twice in the code.
+   *
+   * \tparam ValueType The type of the value to be set.
+   */
+  template<typename ValueType>
+  inline OpGroup& set_attr(const std::string& attr_name,  // NOLINT(*)
+                           const ValueType& value,
+                           int plevel = 1);
+};
+
 // internal macros to make
-#define NNVM_REGISTER_VAR_DEF(OpName)                              \
+#define NNVM_REGISTER_VAR_DEF(OpName)                                   \
   static DMLC_ATTRIBUTE_UNUSED ::nnvm::Op & __make_ ## NnvmOp ## _ ## OpName
+
+#define NNVM_REGISTER_GVAR_DEF(TagName)                                     \
+  static DMLC_ATTRIBUTE_UNUSED ::nnvm::OpGroup __make_ ## NnvmOpGroup ## _ ## TagName
 
 /*!
  * \def NNVM_REGISTER_OP
- * \brief Register
- * This macro must be used under namespace dmlc, and only used once in cc file.
+ * \brief Register a new operator, or set attribute of the corresponding op.
+ *
  * \param OpName The name of registry
  *
  * \code
@@ -307,6 +369,31 @@ class OpMap {
 #define NNVM_REGISTER_OP(OpName)                                     \
   DMLC_STR_CONCAT(NNVM_REGISTER_VAR_DEF(OpName), __COUNTER__) =         \
       ::dmlc::Registry<::nnvm::Op>::Get()->__REGISTER_OR_GET__(#OpName)
+
+/*!
+ * \def NNVM_REGISTER_OP_GROUP
+ * \brief Register attribute to a group of operators.
+ * These attributes will be registered to Op that include the group.
+ *
+ * \param GroupName The name of the group.
+ *
+ * \code
+ *
+ *  NNVM_REGISTER_OP(add)
+ *  .include("ElementwiseOpAttr");
+ *
+ *  // register same attributes to all the ops that include the group
+ *  NNVM_REGISTER_OP_GROUP(ElementwiseOpAttr)
+ *  .set_attr<FInferShape>("FInferShape", ElementwiseInferShape);
+ *
+ *  NNVM_REGISTER_OP(mul)
+ *  .include("ElementwiseOpAttr");
+ *
+ * \endcode
+ */
+#define NNVM_REGISTER_OP_GROUP(GroupName)                               \
+  DMLC_STR_CONCAT(NNVM_REGISTER_GVAR_DEF(GroupName), __COUNTER__) =     \
+      ::nnvm::OpGroup {#GroupName}
 
 // implementations of template functions after this.
 // member function of Op
@@ -330,9 +417,14 @@ inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
 
 template<typename ValueType>
 inline Op& Op::set_attr(  // NOLINT(*)
-    const std::string& attr_name, const ValueType& value) {
+    const std::string& attr_name,
+    const ValueType& value,
+    int plevel) {
+  CHECK_GT(plevel, 0)
+      << "plevel in set_attr must be greater than 0";
   // update the attribute map of the key by creating new empty if needed.
-  UpdateAttrMap(attr_name, [this, attr_name, value](any* pmap) {
+  UpdateAttrMap(attr_name,
+                [this, attr_name, value, plevel](any* pmap) {
       // the callback is in lockscope so is threadsafe.
       if (pmap->empty()) {
         OpMap<ValueType> pm;
@@ -353,14 +445,17 @@ inline Op& Op::set_attr(  // NOLINT(*)
                    std::make_pair(ValueType(), 0));
       }
       std::pair<ValueType, int>& p = vec[index_];
-      CHECK(p.second == 0)
+      CHECK(p.second != plevel)
           << "Attribute " << attr_name
           << " of operator " << this->name
-          << " is already registered.";
-          vec[index_] = std::make_pair(value, 1);
+          << " is already registered with same plevel=" << plevel;
+      if (p.second < plevel) {
+        vec[index_] = std::make_pair(value, plevel);
+      }
     });
   return *this;
 }
+
 
 inline Op& Op::describe(const std::string& descr) {  // NOLINT(*)
   this->description = descr;
@@ -409,7 +504,7 @@ template<typename ValueType>
 inline int OpMap<ValueType>::count(const Op* op) const {
   if (op == nullptr) return 0;
   const uint32_t idx = op->index_;
-  return idx < data_.size() ? data_[idx].second : 0;
+  return idx < data_.size() ? (data_[idx].second != 0) : 0;
 }
 
 template<typename ValueType>
@@ -431,6 +526,17 @@ inline const ValueType& OpMap<ValueType>::get(const Op* op, const ValueType& def
   } else {
     return def_value;
   }
+}
+
+template<typename ValueType>
+inline OpGroup& OpGroup::set_attr(const std::string& attr_name,
+                                  const ValueType& value,
+                                  int plevel) {
+  auto trigger = [attr_name, value, plevel](Op* op) {
+    op->set_attr<ValueType>(attr_name, value, plevel);
+  };
+  Op::AddGroupTrigger(group_name, trigger);
+  return *this;
 }
 
 }  // namespace nnvm
