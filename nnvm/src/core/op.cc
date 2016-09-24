@@ -9,6 +9,7 @@
 #include <memory>
 #include <atomic>
 #include <mutex>
+#include <unordered_set>
 
 namespace dmlc {
 // enable registry
@@ -20,11 +21,16 @@ namespace nnvm {
 // single manager of operator information.
 struct OpManager {
   // mutex to avoid registration from multiple threads.
-  std::mutex mutex;
+  // recursive is needed for trigger(which calls UpdateAttrMap)
+  std::recursive_mutex mutex;
   // global operator counter
   std::atomic<int> op_counter{0};
   // storage of additional attribute table.
   std::unordered_map<std::string, std::unique_ptr<any> > attr;
+  // storage of existing triggers
+  std::unordered_map<std::string, std::vector<std::function<void(Op*)>  > > tmap;
+  // group of each operator.
+  std::vector<std::unordered_set<std::string> > op_group;
   // get singleton of the
   static OpManager* Global() {
     static OpManager inst;
@@ -66,10 +72,42 @@ const any* Op::GetAttrMap(const std::string& key) {
 void Op::UpdateAttrMap(const std::string& key,
                        std::function<void(any*)> updater) {
   OpManager* mgr = OpManager::Global();
-  std::lock_guard<std::mutex>(mgr->mutex);
+  std::lock_guard<std::recursive_mutex>(mgr->mutex);
   std::unique_ptr<any>& value = mgr->attr[key];
   if (value.get() == nullptr) value.reset(new any());
   if (updater != nullptr) updater(value.get());
+}
+
+void Op::AddGroupTrigger(const std::string& group_name,
+                         std::function<void(Op*)> trigger) {
+  OpManager* mgr = OpManager::Global();
+  std::lock_guard<std::recursive_mutex>(mgr->mutex);
+  auto& tvec = mgr->tmap[group_name];
+  tvec.push_back(trigger);
+  auto& op_group = mgr->op_group;
+  for (const Op* op : dmlc::Registry<Op>::List()) {
+    if (op->index_ < op_group.size() &&
+        op_group[op->index_].count(group_name) != 0) {
+      trigger((Op*)op);  // NOLINT(*)
+    }
+  }
+}
+
+Op& Op::include(const std::string& group_name) {
+  OpManager* mgr = OpManager::Global();
+  std::lock_guard<std::recursive_mutex>(mgr->mutex);
+  auto it = mgr->tmap.find(group_name);
+  if (it != mgr->tmap.end()) {
+    for (auto& trigger : it->second) {
+      trigger(this);
+    }
+  }
+  auto& op_group = mgr->op_group;
+  if (index_ >= op_group.size()) {
+    op_group.resize(index_ + 1);
+  }
+  op_group[index_].insert(group_name);
+  return *this;
 }
 
 }  // namespace nnvm
