@@ -221,6 +221,25 @@ int NNSymbolListAttrs(SymbolHandle symbol,
   API_END();
 }
 
+int NNSymbolListInputVariables(SymbolHandle symbol,
+                               int option,
+                               nn_uint *out_size,
+                               SymbolHandle** out_sym_array) {
+  Symbol *s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+  API_BEGIN();
+  std::vector<NodePtr> vs = s->ListInputs(Symbol::ListInputOption(option));
+  ret->ret_handles.clear();
+  for (size_t i = 0; i < vs.size(); ++i) {
+    nnvm::Symbol* rs = new nnvm::Symbol();
+    rs->outputs.push_back(NodeEntry{vs[i], 0, 0});
+    ret->ret_handles.push_back(rs);
+  }
+  *out_size = static_cast<nn_uint>(vs.size());
+  *out_sym_array = dmlc::BeginPtr(ret->ret_handles);
+  API_END();
+}
+
 int NNSymbolListInputNames(SymbolHandle symbol,
                            int option,
                            nn_uint *out_size,

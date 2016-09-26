@@ -108,7 +108,7 @@ class Symbol(SymbolBase):
     def __getitem__(self, index):
         if isinstance(index, _base.string_types):
             idx = None
-            for i, name in enumerate(self.list_outputs()):
+            for i, name in enumerate(self.list_output_names()):
                 if name == index:
                     if idx is not None:
                         raise ValueError('There are multiple outputs with name \"%s\"' % index)
@@ -177,7 +177,40 @@ class Symbol(SymbolBase):
             self.handle, _ctypes.byref(handle)))
         return Symbol(handle=handle)
 
-    def list_inputs(self, option='all'):
+    def _get_list_copt(self, option):
+        """internal function to get list option"""
+        if option == 'all':
+            return _ctypes.c_int(0)
+        elif option == 'read_only':
+            return _ctypes.c_int(1)
+        elif option == 'aux_state':
+            return _ctypes.c_int(2)
+        else:
+            raise ValueError("option need to be in {'all', 'read_only, 'aux_state'}")
+
+    def list_input_variables(self, option='all'):
+        """List all the input variables in the symbol.
+
+        Parameters
+        ----------
+        option : {'all', 'read_only', 'aux_state'}, optional
+           The listing option
+           - 'all' will list all the arguments.
+           - 'read_only' lists arguments that are readed by the graph.
+           - 'aux_state' lists arguments that are mutated by the graph as state.
+        Returns
+        -------
+        vars : list of symbol
+            List of all the variables
+        """
+        size = _ctypes.c_uint()
+        sarr = _ctypes.POINTER(_base.SymbolHandle)()
+        _check_call(_LIB.NNSymbolListInputVariables(
+            self.handle, self._get_list_copt(option),
+            _ctypes.byref(size), _ctypes.byref(sarr)))
+        return [Symbol(_base.SymbolHandle(sarr[i])) for i in range(size.value)]
+
+    def list_input_names(self, option='all'):
         """List all the inputs in the symbol.
 
         Parameters
@@ -194,19 +227,12 @@ class Symbol(SymbolBase):
         """
         size = _ctypes.c_uint()
         sarr = _ctypes.POINTER(_ctypes.c_char_p)()
-        if option == 'all':
-            copt = _ctypes.c_int(0)
-        elif option == 'read_only':
-            copt = _ctypes.c_int(1)
-        elif option == 'aux_state':
-            copt = _ctypes.c_int(2)
-        else:
-            raise ValueError("option need to be in {'all', 'read_only, 'aux_state'}")
         _check_call(_LIB.NNSymbolListInputNames(
-            self.handle, copt, _ctypes.byref(size), _ctypes.byref(sarr)))
+            self.handle, self._get_list_copt(option),
+            _ctypes.byref(size), _ctypes.byref(sarr)))
         return [_base.py_str(sarr[i]) for i in range(size.value)]
 
-    def list_outputs(self):
+    def list_output_names(self):
         """List all outputs in the symbol.
 
         Returns
