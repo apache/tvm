@@ -87,7 +87,8 @@ inline std::vector<std::string> GetKeys(
 
 // whether the symbol is atomic functor
 inline bool IsAtomic(const std::vector<NodeEntry>& outputs) {
-  return outputs[0].node->inputs.size() == 0;
+  return outputs[0].node->inputs.size() == 0 &&
+      outputs[0].node->control_deps.size() == 0;
 }
 
 // public functions
@@ -118,7 +119,9 @@ Symbol Symbol::Copy() const {
 }
 
 void Symbol::Print(std::ostream &os) const {
-  if (outputs.size() == 1 && outputs[0].node->inputs.size() == 0) {
+  if (outputs.size() == 1 &&
+      outputs[0].node->inputs.size() == 0 &&
+      outputs[0].node->control_deps.size() == 0) {
     if (outputs[0].node->is_variable()) {
       os << "Variable:" << outputs[0].node->attrs.name << '\n';
     } else {

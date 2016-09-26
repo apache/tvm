@@ -205,8 +205,25 @@ NNVM_DLL int NNSymbolListAttrs(SymbolHandle symbol,
                                int recursive_option,
                                nn_uint *out_size,
                                const char*** out);
+
 /*!
- * \brief List inputs in the symbol.
+ * \brief List inputs variables in the symbol.
+ * \param symbol the symbol
+ * \param option The option to list the inputs
+ *   option=0 means list all arguments.
+ *   option=1 means list arguments that are readed only by the graph.
+ *   option=2 means list arguments that are mutated by the graph.
+ * \param out_size output size
+ * \param out_sym_array the output array.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNSymbolListInputVariables(SymbolHandle symbol,
+                                        int option,
+                                        nn_uint *out_size,
+                                        SymbolHandle** out_sym_array);
+
+/*!
+ * \brief List input names in the symbol.
  * \param symbol the symbol
  * \param option The option to list the inputs
  *   option=0 means list all arguments.

@@ -69,6 +69,7 @@ Graph Gradient(Graph src) {
   // topo sort
   std::vector<NodePtr> topo_order;
   std::unordered_map<Node*, std::vector<GradEntry> > output_grads;
+
   DFSVisit(ys, [&](const NodePtr& node) {
       if (output_grads.count(node.get()) == 0) {
         output_grads[node.get()].resize(node->num_outputs());
@@ -113,13 +114,15 @@ Graph Gradient(Graph src) {
       e.sum = agg_fun(std::move(e.grads));
       out_agg_grads.push_back(e.sum);
     }
-    std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()]
-        (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()), out_agg_grads);
-    CHECK_EQ((*rit)->inputs.size(), input_grads.size())
-        << "Gradient function not returning enough gradient";
-    auto git = input_grads.begin();
-    for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {
-      output_grads[it->node.get()][it->index].grads.emplace_back(std::move(*git));
+    if ((*rit)->inputs.size() != 0) {
+      std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()]
+          (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()), out_agg_grads);
+      CHECK_EQ((*rit)->inputs.size(), input_grads.size())
+          << "Gradient function not returning enough gradient";
+      auto git = input_grads.begin();
+      for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {
+        output_grads[it->node.get()][it->index].grads.emplace_back(std::move(*git));
+      }
     }
   }
   // take out the xs' grads

@@ -42,8 +42,8 @@ def test_list_args():
     y = sym.add(y, z, name='add1')
     # write after read
     z = sym.assign(x, y, name='assign')
-    assert z.list_inputs('read_only') == ['conv_weight', 'z']
-    assert z.list_inputs('aux_state') == ['x']
+    assert z.list_input_names('read_only') == ['conv_weight', 'z']
+    assert z.list_input_names('aux_state') == ['x']
 
 def test_infer_shape():
     x = sym.Variable('x', shape=(4, 2))
