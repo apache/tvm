@@ -139,7 +139,7 @@ class Symbol(SymbolBase):
         ret = _ctypes.c_char_p()
         success = _ctypes.c_int()
         _check_call(_LIB.NNSymbolGetAttr(
-            self.handle, c_str(key), _ctypes.byref(ret), _ctypes.byref(success)))
+            self.handle, _base.c_str(key), _ctypes.byref(ret), _ctypes.byref(success)))
         if success.value != 0:
             return _base.py_str(ret.value)
         else:
