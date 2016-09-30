@@ -25,6 +25,9 @@ for neural nets and computation graphs generation and optimizations.
 
 See [Overview](docs/overview.md) for an introduction on what it provides.
 
+## Example
+See [TinyFlow](https://github.com/tqchen/tinyflow) on how you can build a TensorFlow API with NNVM and Torch.
+ 
 ## Why build learning system by parts
 
 This is essentially ***Unix philosophy*** applied to machine learning system.
