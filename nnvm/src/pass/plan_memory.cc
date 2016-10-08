@@ -174,6 +174,7 @@ Graph PlanMemory(Graph ret) {
         uint32_t eid_out = idx.entry_id(nid, kv.second);
         uint32_t eid_in = idx.entry_id(inode.inputs[kv.first]);
         if (ref_count[eid_in] == 1 &&
+            ref_count[eid_out] != 0 &&
             storage[eid_out] == GraphAllocator::kBadStorageID &&
             storage[eid_in] != GraphAllocator::kBadStorageID &&
             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
