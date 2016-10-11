@@ -119,7 +119,11 @@ Graph InferAttr(Graph &&ret,
           << "Attribute " << infer_name
           << " is not registed by op " << inode.source->op()->name;
         // Call inference function of the operator.
-        forward_known = finfer(inode.source->attrs, &ishape, &oshape);
+        try {
+          forward_known = finfer(inode.source->attrs, &ishape, &oshape);
+        } catch (const std::exception& e) {
+          throw dmlc::Error(e.what() + std::string(" with ") + inode.source->attrs.name);
+        }
       }
       // Save to the result map.
       for (uint32_t i = 0; i < num_inputs; ++i) {
