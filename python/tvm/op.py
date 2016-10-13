@@ -8,16 +8,20 @@ class BinaryOp(object):
         return _binary_op_cls(self, lhs, rhs)
 
 class AddOp(BinaryOp):
-    pass
+    def format_str(self, lhs, rhs):
+        return '(%s + %s)' % (lhs, rhs)
 
 class SubOp(BinaryOp):
-    pass
+    def format_str(self, lhs, rhs):
+        return '(%s - %s)' % (lhs, rhs)
 
 class MulOp(BinaryOp):
-    pass
+    def format_str(self, lhs, rhs):
+        return '(%s * %s)' % (lhs, rhs)
 
 class DivOp(BinaryOp):
-    pass
+    def format_str(self, lhs, rhs):
+        return '(%s / %s)' % (lhs, rhs)
 
 
 add = AddOp()
