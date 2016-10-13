@@ -7,7 +7,13 @@ class Var(Expr):
         self.name = name
         self.expr = expr
 
+    def assign(self, expr):
+        self.expr = expr
+
     def children(self):
         if self.expr is None:
             return ()
         return self.expr.children()
+
+    def same_as(self, other):
+        return (self.name == other.name)
