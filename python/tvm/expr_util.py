@@ -2,6 +2,7 @@
 from __future__ import absolute_import as _abs
 from . import expr as _expr
 from . import op as _op
+from . import tensor as _tensor
 
 def expr_with_new_children(e, children):
     """Returns same expr as e but with new children
@@ -75,6 +76,8 @@ def format_str(expr):
             return str(e.value)
         elif isinstance(e, _expr.Var):
             return e.name
+        elif isinstance(e, _tensor.TensorReadExpr):
+            return "%s(%s)" % (e.tensor.name, ','.join(result_children))
         else:
             raise TypeError("Do not know how to handle type " + str(type(e)))
     return transform(expr, make_str)

@@ -1,5 +1,4 @@
 import tvm
-from tvm import expr
 
 def test_bind():
     x = tvm.Var('x')
