@@ -1,8 +1,12 @@
 """Base class of symbolic expression"""
 from __future__ import absolute_import as _abs
 from numbers import Number as _Number
-from . import op as _op
 from . import var_name as _name
+
+__addop__ = None
+__subop__ = None
+__mulop__ = None
+__divop__ = None
 
 class Expr(object):
     """Base class of expression.
@@ -20,28 +24,28 @@ class Expr(object):
         return ()
 
     def __add__(self, other):
-        return BinaryOpExpr(_op.add, self, other)
+        return BinaryOpExpr(__addop__, self, other)
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __sub__(self, other):
-        return BinaryOpExpr(_op.sub, self, other)
+        return BinaryOpExpr(__subop__, self, other)
 
     def __rsub__(self, other):
-        return BinaryOpExpr(_op.sub, other, self)
+        return BinaryOpExpr(__subop__, other, self)
 
     def __mul__(self, other):
-        return BinaryOpExpr(_op.mul, self, other)
+        return BinaryOpExpr(__mulop__, self, other)
 
     def __rmul__(self, other):
-        return BinaryOpExpr(_op.mul, other, self)
+        return BinaryOpExpr(__mulop__, other, self)
 
     def __div__(self, other):
-        return BinaryOpExpr(_op.div, self, other)
+        return BinaryOpExpr(__divop__, self, other)
 
     def __rdiv__(self, other):
-        return BinaryOpExpr(_op.div, other, self)
+        return BinaryOpExpr(__divop__, other, self)
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -75,7 +79,8 @@ class Var(Expr):
         optional name to the var.
     """
     def __init__(self, name=None):
-        self.name = name if name else _name.NameManager.current.get(name)
+        if name is None: name = 'i'
+        self.name = _name.NameManager.current.get(name)
 
 
 class ConstExpr(Expr):
@@ -95,8 +100,7 @@ class BinaryOpExpr(Expr):
     def children(self):
         return (self.lhs, self.rhs)
 
-_op.binary_op_cls = BinaryOpExpr
-
+    
 class UnaryOpExpr(Expr):
     """Unary operator expression."""
     def __init__(self, op, src):
