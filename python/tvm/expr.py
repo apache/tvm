@@ -38,7 +38,7 @@ class Expr(object):
         return BinaryOpExpr(_op.div, self, other)
 
     def __rdiv__(self, other):
-        return BinaryOpExpr(_op.div, self, other)
+        return BinaryOpExpr(_op.div, other, self)
 
     def __truediv__(self, other):
         return self.__div__(other)
