@@ -79,7 +79,7 @@ class Var(Expr):
         optional name to the var.
     """
     def __init__(self, name=None):
-        if name is None: name = 'i'
+        if name is None: name = 'index'
         self.name = _name.NameManager.current.get(name)
 
 
@@ -100,7 +100,7 @@ class BinaryOpExpr(Expr):
     def children(self):
         return (self.lhs, self.rhs)
 
-    
+
 class UnaryOpExpr(Expr):
     """Unary operator expression."""
     def __init__(self, op, src):
