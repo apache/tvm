@@ -26,6 +26,6 @@ def test_simplify():
     assert tvm.format_str(tvm.simplify(e4)) == '0'
 
 if __name__ == "__main__":
-    test_simplify()
     test_basic()
     test_bind()
+    test_simplify()
