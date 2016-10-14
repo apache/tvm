@@ -108,7 +108,27 @@ class UnaryOpExpr(Expr):
         self.src = _symbol(src)
 
     def children(self):
-        return (self.src)
+        return (self.src,)
+
+
+class ReduceExpr(Expr):
+    def __init__(self, op, src,  rdom):
+        self.op = op
+        self.src = src
+        self.rdom = rdom
+
+    def children(self):
+        return (self.src,)
+
+
+class TensorReadExpr(Expr):
+    """Tensor read expression, tensor[indices]"""
+    def __init__(self, tensor, indices):
+        self.tensor = tensor
+        self.indices = indices
+
+    def children(self):
+        return self.indices
 
 
 def const(value):

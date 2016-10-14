@@ -22,14 +22,19 @@ def canonical_to_expr(c):
     else:
         return _expr.const(0)
 
+
 class BinaryOp(object):
     """Base class of binary operator"""
     def __call__(self, lhs, rhs):
         return _expr.BinaryOpExpr(self, lhs, rhs)
 
+
 class AddOp(BinaryOp):
     def format_str(self, lhs, rhs):
         return '(%s + %s)' % (lhs, rhs)
+
+    def format_reduce_str(self, src, rd):
+        return "reduce_sum(%s, rdom=%s)" % (src, str(rd))
 
     def canonical(self, lhs, rhs):
         lhs = lhs.copy()
@@ -39,6 +44,7 @@ class AddOp(BinaryOp):
             else:
                 lhs[k] = v
         return lhs
+
 
 class SubOp(BinaryOp):
     def format_str(self, lhs, rhs):
@@ -52,6 +58,7 @@ class SubOp(BinaryOp):
             else:
                 lhs[k] = -v
         return lhs
+
 
 class MulOp(BinaryOp):
     def format_str(self, lhs, rhs):
@@ -72,6 +79,7 @@ class MulOp(BinaryOp):
             return rhs
         return {elhs * erhs: 1}
 
+
 class DivOp(BinaryOp):
     def format_str(self, lhs, rhs):
         return '(%s / %s)' % (lhs, rhs)
@@ -86,6 +94,7 @@ class DivOp(BinaryOp):
         elhs = canonical_to_expr(lhs)
         return {elhs / erhs: 1}
 
+
 class MaxOp(BinaryOp):
     def format_str(self, lhs, rhs):
         return 'max(%s, %s)' % (lhs, rhs)
@@ -96,6 +105,7 @@ class MaxOp(BinaryOp):
         if isinstance(ediff, _expr.ConstExpr):
             return lhs if ediff.value >= 0 else rhs
         return {MaxOp()(lhs, rhs): 1}
+
 
 class MinOp(BinaryOp):
     def format_str(self, lhs, rhs):
@@ -120,3 +130,16 @@ _expr.__addop__ = add
 _expr.__subop__ = sub
 _expr.__mulop__ = mul
 _expr.__divop__ = div
+
+
+def reduce_sum(expr, rdom):
+    return _expr.ReduceExpr(add, expr, rdom)
+
+def reduce_prod(expr, rdom):
+    return _expr.ReduceExpr(mul, expr, rdom)
+
+def reduce_min(expr, rdom):
+    return _expr.ReduceExpr(min, expr, rdom)
+
+def reduce_max(expr, rdom):
+    return _expr.ReduceExpr(max, expr, rdom)

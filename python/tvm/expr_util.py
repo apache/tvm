@@ -2,7 +2,6 @@
 from __future__ import absolute_import as _abs
 from . import expr as _expr
 from . import op as _op
-from . import tensor as _tensor
 
 def expr_with_new_children(e, children):
     """Returns same expr as e but with new children
@@ -50,8 +49,25 @@ def transform(e, f):
     result : return value of f
         The final result of transformation.
     """
-    assert isinstance(e, _expr.Expr)
+    if not isinstance(e, _expr.Expr):
+        raise TypeError("Cannot handle type %s" % type(e))
     return f(e , [transform(c, f) for c in e.children()])
+
+
+def visit(e, f):
+    """Apply f to each element of e
+
+    Parameters
+    ----------
+    e : Expr
+       The input expression.
+
+    f : function with signiture (e)
+    """
+    assert isinstance(e, _expr.Expr)
+    for c in e.children():
+        visit(c, f)
+    f(e)
 
 
 def format_str(expr):
@@ -76,11 +92,14 @@ def format_str(expr):
             return str(e.value)
         elif isinstance(e, _expr.Var):
             return e.name
-        elif isinstance(e, _tensor.TensorReadExpr):
+        elif isinstance(e, _expr.TensorReadExpr):
             return "%s(%s)" % (e.tensor.name, ','.join(result_children))
+        elif isinstance(e, _expr.ReduceExpr):
+            return e.op.format_reduce_str(result_children[0], e.rdom.domain)
         else:
             raise TypeError("Do not know how to handle type " + str(type(e)))
     return transform(expr, make_str)
+
 
 def simplify(expr):
     """simplify expression
