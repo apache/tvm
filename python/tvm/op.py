@@ -6,7 +6,7 @@ constant_canonical_key = '__constant__'
 def canonical_to_expr(c):
     elements = []
     for k, v in sorted(c.items()):
-        if k == constant_canonical_key:
+        if k == constant_canonical_key and v != 0:
             elements.append(_expr.const(v))
         elif v == 0:
             continue
@@ -87,7 +87,7 @@ class DivOp(BinaryOp):
         if isinstance(erhs, _expr.ConstExpr):
             lhs = lhs.copy()
             for k, v in lhs.items():
-                lhs[k] /= erhs.value
+                lhs[k] /= float(erhs.value)
             return lhs
         elhs = canonical_to_expr(lhs)
         return {elhs / erhs: 1}

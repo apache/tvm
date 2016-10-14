@@ -25,7 +25,6 @@ class Tensor(object):
 
         self.name = name if name else "TensorObj"
         self.inputs = None
-        self.rdom = None
 
     def __call__(self, *indices):
         if len(indices) != self.ndim:
