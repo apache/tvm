@@ -1,6 +1,7 @@
 from __future__ import absolute_import as _abs
 from . import expr as _expr
 from . import expr_util as _expr_util
+from . import domain as _dom
 
 
 class Tensor(object):
@@ -39,16 +40,17 @@ class Tensor(object):
         """
         if self.inputs is not None:
             return self.inputs
-        self.inputs = []
+        inputs = []
         if self.expr:
             def collect(e):
                 if isinstance(e, _expr.TensorReadExpr):
-                    self.inputs.append(e.tensor)
+                    inputs.append(e.tensor)
             _expr_util.visit(self.expr, collect)
+        self.inputs = set(inputs)
         return self.inputs
 
-    def infer_input_domains(self, out_domain):
-        """Infer the input domains of each domain given output domains
+    def infer_input_domains(self, out_domain, inputs):
+        """Infer the input domains of each domain in given inputs list.
 
         Parameters
         ----------
@@ -64,7 +66,26 @@ class Tensor(object):
         index_domains = {
             self.dim_index[i] : out_domain[i] for i in range(len(out_domain))
         }
-        def collect(e):
-            if isinstance(e, _expr.TensorReadExpr):
-                self.inputs.append(e.tensor)
-        _expr_util.visit(self.expr, collect)
+        iset = {}
+        for t in inputs:
+            assert t in self.input_tensors()
+            iset[t] = []
+
+        def prepare(e):
+            if isinstance(e, _expr.ReduceExpr):
+                rd = e.rdom
+                for i in range(len(rd.domain)):
+                    index_domains[rd.index[i]] = rd.domain[i]
+            elif isinstance(e, _expr.TensorReadExpr):
+                if e.tensor in iset:
+                    iset[e.tensor].append(e)
+        _expr_util.visit(self.expr, prepare)
+        result = {}
+        for k, v in iset.items():
+            dm = [None] * len(v[0].indices)
+            for e in v:
+                for i, idx in enumerate(e.indices):
+                    dm[i] = _dom.union_range(
+                        dm[i], _dom.infer_range(idx, index_domains, allow_unbind_var=False))
+            result[k] = dm
+        return result

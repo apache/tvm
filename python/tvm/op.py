@@ -22,7 +22,6 @@ def canonical_to_expr(c):
     else:
         return _expr.const(0)
 
-
 class BinaryOp(object):
     """Base class of binary operator"""
     def __call__(self, lhs, rhs):
@@ -44,7 +43,6 @@ class AddOp(BinaryOp):
             else:
                 lhs[k] = v
         return lhs
-
 
 class SubOp(BinaryOp):
     def format_str(self, lhs, rhs):
