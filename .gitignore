@@ -89,3 +89,5 @@ ENV/
 .ropeproject
 *~
 *.pyc
+*~
+build
