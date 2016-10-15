@@ -17,7 +17,7 @@ class Range(object):
         self.extent = _expr_util.simplify(end - begin)
 
     def is_value(self):
-        return isinstance(self.extent, _expr.ConstExpr) and self.extend.value == 1
+        return isinstance(self.extent, _expr.ConstExpr) and self.extent.value == 1
 
     def __str__(self):
         return "(%s, %s)" % (
