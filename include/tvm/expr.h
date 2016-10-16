@@ -34,12 +34,12 @@ class Expr : public NodeRef {
    * \brief copy constructor
    * \param other the input
    */
-  Expr(const Expr& other) = default;  // NOLINT(*)
+  Expr(const Expr& other) = default;
   /*!
    * \brief move constructor
    * \param other the input
    */
-  Expr(Expr&& other) = default;  // NOLINT(*)
+  Expr(Expr&& other) = default;
   /*!
    * \brief assign operator.
    * \param other the input.
@@ -66,9 +66,20 @@ class Expr : public NodeRef {
    * \brief constructor from node pointer
    * \param nptr Another node shared pointer
    */
-  explicit Expr(std::shared_ptr<Node> nptr) : NodeRef(nptr) {}
+  explicit Expr(std::shared_ptr<Node>&& nptr) : NodeRef(std::move(nptr)) {
+    CHECK(node_.get() != nullptr);
+  }
   /*! \return the expression type of the expression  */
   inline DataType dtype() const;
+  // print the expression.
+  friend std::ostream& operator<<(std::ostream &os, const Expr& e) {  // NOLINT(*)
+    e.Print(os);
+    return os;
+  }
+
+ private:
+  // print the expression
+  void Print(std::ostream& os) const;  // NOLINT(*)
 };
 
 /*! \brief Variable class */
@@ -77,10 +88,8 @@ class Var : public Expr {
   Var(std::string name="", DataType dtype=kInt32);  // NOLINT(*)
 };
 
-/*! \brief */
 Expr IntConstant(int64_t value);
 Expr FloatConstant(int64_t value);
-Expr operator+(Expr lhs, Expr rhs);
 
 /*! \brief base of expression node */
 class ExprNode : public Node {

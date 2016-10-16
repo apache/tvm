@@ -3,12 +3,16 @@ export CFLAGS =  -std=c++11 -Wall -O2  -Wno-unknown-pragmas -funroll-loops\
 	 -Iinclude -Idmlc-core/include -fPIC
 
 # specify tensor path
-.PHONY: clean all
+.PHONY: clean all test
 
 all: lib/libtvm.a
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
 ALL_DEP = $(ALL_OBJ)
+
+include tests/cpp/unittest.mk
+
+test: $(TEST)
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
@@ -24,7 +28,7 @@ lint:
 	python2 dmlc-core/scripts/lint.py tvm cpp include src
 
 clean:
-	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o
+	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
 
 -include build/*.d
 -include build/*/*.d
