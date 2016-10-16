@@ -3,7 +3,7 @@ export CFLAGS =  -std=c++11 -Wall -O2  -Wno-unknown-pragmas -funroll-loops\
 	 -Iinclude -Idmlc-core/include -fPIC
 
 # specify tensor path
-.PHONY: clean all test
+.PHONY: clean all test doc
 
 all: lib/libtvm.a
 SRC = $(wildcard src/*.cc src/*/*.cc)
@@ -26,6 +26,9 @@ lib/libtvm.a: $(ALL_DEP)
 
 lint:
 	python2 dmlc-core/scripts/lint.py tvm cpp include src
+
+doc:
+	doxygen docs/Doxyfile
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d

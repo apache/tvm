@@ -36,7 +36,7 @@ class UnaryOp {
    * \param src left operand
    * \return the result expr
    */
-  Expr operator()(Expr lhs, Expr rhs) const;
+  Expr operator()(Expr src) const;
 };
 
 
@@ -110,6 +110,11 @@ DEFINE_OP_OVERLOAD(/, DivOp);
 
 DEFINE_BINARY_OP_FUNCTION(max, MaxOp);
 DEFINE_BINARY_OP_FUNCTION(min, MinOp);
+
+// overload negation
+inline Expr operator-(Expr src) {
+  return src * (-1);
+}
 
 }  // namespace tvm
 
