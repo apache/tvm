@@ -76,7 +76,7 @@ using FNodeRefVisit = std::function<void(const char* key, NodeRef* ref)>;
 class Node {
  public:
   /*! \brief virtual destructor */
-  virtual ~Node();
+  virtual ~Node() {}
   /*! \return The unique type key of the node */
   virtual const char* type_key() const = 0;
   /*! \brief verify the correctness of node struct after it get mutated by visitor */
@@ -101,8 +101,6 @@ class Node {
    */
   template<typename TNode>
   inline bool is_type() const;
-  /*! \return the node type */
-  inline NodeType node_type() const;
 
  protected:
   // node ref can see this
@@ -120,12 +118,15 @@ class NodeRef {
    */
   template<typename TNode>
   inline const TNode* Get() const;
+  /*! \return the node type */
+  inline NodeType node_type() const;
   /*! \return wheyjer the expression is null */
   inline bool is_null() const;
 
- protected:
   NodeRef() = default;
-  explicit NodeRef(std::shared_ptr<Node> node) : node_(node) {}
+  explicit NodeRef(std::shared_ptr<Node>&& node) : node_(std::move(node)) {}
+
+ protected:
   /*! \brief the internal node */
   std::shared_ptr<Node> node_;
 };
@@ -146,8 +147,8 @@ struct NodeFactoryReg
   .set_body([]() { return std::make_shared<TypeName>(); })
 
 // implementations of inline functions after this
-inline NodeType Node::node_type() const {
-  return node_type_;
+inline NodeType NodeRef::node_type() const {
+  return node_->node_type_;
 }
 
 template<typename TNode>
