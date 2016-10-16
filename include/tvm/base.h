@@ -123,10 +123,11 @@ class NodeRef {
   /*! \return wheyjer the expression is null */
   inline bool is_null() const;
 
+ protected:
+  template<typename T, typename>
+  friend class Array;
   NodeRef() = default;
   explicit NodeRef(std::shared_ptr<Node>&& node) : node_(std::move(node)) {}
-
- protected:
   /*! \brief the internal node */
   std::shared_ptr<Node> node_;
 };
