@@ -126,6 +126,7 @@ class NodeRef {
  protected:
   template<typename T, typename>
   friend class Array;
+  friend class APIVariantValue;
   NodeRef() = default;
   explicit NodeRef(std::shared_ptr<Node>&& node) : node_(std::move(node)) {}
   /*! \brief the internal node */
@@ -136,7 +137,7 @@ class NodeRef {
 using NodeFactory = std::function<std::shared_ptr<Node> ()>;
 
 /*!
- * \brief Registry entry for DataIterator factory functions.
+ * \brief Registry entry for NodeFactory
  */
 struct NodeFactoryReg
     : public dmlc::FunctionRegEntryBase<NodeFactoryReg,
