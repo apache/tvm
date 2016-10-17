@@ -5,6 +5,10 @@
 #include <tvm/expr_node.h>
 #include <memory>
 
+namespace dmlc {
+DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
+}  // namespace dmlc
+
 namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(VarNode);

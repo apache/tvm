@@ -6,6 +6,7 @@
 #ifndef TVM_TENSOR_H_
 #define TVM_TENSOR_H_
 
+#include <string>
 #include "./expr.h"
 #include "./array.h"
 
@@ -43,9 +44,7 @@ class TensorNode : public Node {
 
 class Tensor : public NodeRef {
  public:
-  Tensor(Array<Expr> shape);
-  Tensor(Array<Expr> shape, std::function<Expr (Var, Var, Var)> f3) {
-  }
+  explicit Tensor(Array<Expr> shape);
   inline size_t ndim() const;
 
   template<typename... Args>
