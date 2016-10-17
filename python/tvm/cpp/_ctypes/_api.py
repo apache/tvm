@@ -50,7 +50,7 @@ class NodeBase(object):
         check_call(_LIB.TVMNodeGetAttr(
             self.handle, c_str(name),
             ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
-        return RET_SWITCH[ret_typeid.value](ret_val)
+        ret = RET_SWITCH[ret_typeid.value](ret_val)
 
 
 def _type_key(handle):
