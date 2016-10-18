@@ -59,6 +59,29 @@ struct APIAttrGetter : public AttrVisitor {
   }
 };
 
+struct APIAttrDir : public AttrVisitor {
+  std::vector<std::string>* names;
+
+  void Visit(const char* key, double* value) override {
+    names->push_back(key);
+  }
+  void Visit(const char* key, int64_t* value) override {
+    names->push_back(key);
+  }
+  void Visit(const char* key, DataType* value) override {
+    names->push_back(key);
+  }
+  void Visit(const char* key, std::string* value) override {
+    names->push_back(key);
+  }
+  void Visit(const char* key, const UnaryOp** value) override {
+    names->push_back(key);
+  }
+  void Visit(const char* key, const BinaryOp** value) override {
+    names->push_back(key);
+  }
+};
+
 const char *TVMGetLastError() {
   return TVMAPIThreadLocalStore::Get()->last_error.c_str();
 }
@@ -189,6 +212,29 @@ int TVMNodeGetAttr(NodeHandle handle,
   }
   API_END_HANDLE_ERROR(ret->Clear());
 }
+
+int TVMNodeListAttrNames(NodeHandle handle,
+                         int *out_size,
+                         const char*** out_array) {
+  TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
+  API_BEGIN();
+  ret->ret_vec_str.clear();
+  TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
+  APIAttrDir dir;
+  dir.names = &(ret->ret_vec_str);
+  (*tnode)->VisitAttrs(&dir);
+  (*tnode)->VisitNodeRefFields([ret](const char* key, NodeRef* ref) {
+      ret->ret_vec_str.push_back(key);
+    });
+  ret->ret_vec_charp.clear();
+  for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
+    ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
+  }
+  *out_array = dmlc::BeginPtr(ret->ret_vec_charp);
+  *out_size = static_cast<int>(ret->ret_vec_str.size());
+  API_END();
+}
+
 
 inline void TVMAPIThreadLocalEntry::SetReturn(ArgVariant* ret_val,
                                               int* ret_typeid) {

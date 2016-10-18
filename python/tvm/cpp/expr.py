@@ -42,5 +42,5 @@ class Var(Expr):
     pass
 
 @register_node("BinaryOpNode")
-class BinaryOpNode(Expr):
+class BinaryOpExpr(Expr):
     pass

@@ -46,6 +46,7 @@ class IntNode : public ExprNode {
   }
   void VisitAttrs(AttrVisitor* visitor) override {
     visitor->Visit("value", &value);
+    visitor->Visit("dtype", &dtype_);
   }
 };
 
@@ -64,6 +65,7 @@ class FloatNode : public ExprNode {
   }
   void VisitAttrs(AttrVisitor* visitor) override {
     visitor->Visit("value", &value);
+    visitor->Visit("dtype", &dtype_);
   }
 };
 
@@ -94,6 +96,7 @@ class UnaryOpNode : public ExprNode {
   }
   void VisitAttrs(AttrVisitor* visitor) override {
     visitor->Visit("op", &op);
+    visitor->Visit("dtype", &dtype_);
   }
   void VisitNodeRefFields(FNodeRefVisit fvisit) override {
     fvisit("src", &src);
@@ -130,12 +133,51 @@ struct BinaryOpNode : public ExprNode {
   }
   void VisitAttrs(AttrVisitor* visitor) override {
     visitor->Visit("op", &op);
+    visitor->Visit("dtype", &dtype_);
   }
   void VisitNodeRefFields(FNodeRefVisit fvisit) override {
     fvisit("lhs", &lhs);
     fvisit("rhs", &rhs);
   }
 };
+
+/*! \brief Binary mapping operator */
+struct ReduceNode : public ExprNode {
+ public:
+  /*! \brief The operator */
+  const BinaryOp* op;
+  /*! \brief The source operand */
+  Expr src;
+  /*! \brief The reduction domain */
+  RDomain rdom;
+  /*! \brief constructor, do not use constructor */
+  ReduceNode() {
+    node_type_ = kReduceNode;
+  }
+  ReduceNode(const BinaryOp* op, Expr && src, RDomain && rdom)
+      : op(op), src(std::move(src)), rdom(std::move(rdom)) {
+    node_type_ = kReduceNode;
+    dtype_ = this->src.dtype();
+  }
+  ~ReduceNode() {
+    this->Destroy();
+  }
+  const char* type_key() const override {
+    return "ReduceNode";
+  }
+  void Verify() const override {
+    CHECK_EQ(dtype_, src.dtype());
+  }
+  void VisitAttrs(AttrVisitor* visitor) override {
+    visitor->Visit("op", &op);
+    visitor->Visit("dtype", &dtype_);
+  }
+  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
+    fvisit("src", &src);
+    fvisit("rdom", &rdom);
+  }
+};
+
 }  // namespace tvm
 
 #endif  // TVM_EXPR_NODE_H_

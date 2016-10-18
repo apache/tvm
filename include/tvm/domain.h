@@ -14,8 +14,12 @@
 namespace tvm {
 
 
-// using Domain = Array<Range>;
+//using Domain = Array<Range>;
 
+
+class RDomain : public NodeRef {
+
+};
 
 
 }  // namespace tvm

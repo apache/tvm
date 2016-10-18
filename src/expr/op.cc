@@ -20,6 +20,13 @@ Expr BinaryOp::operator()(Expr lhs, Expr rhs) const {
   return Expr(std::move(nptr));
 }
 
+Expr BinaryOp::Reduce(Expr src, RDomain rdom) const {
+  auto nptr = std::make_shared<ReduceNode>(
+      this, std::move(src), std::move(rdom));
+  nptr->Verify();
+  return Expr(std::move(nptr));
+}
+
 const BinaryOp* BinaryOp::Get(const char* name) {
   const auto* op = dmlc::Registry<BinaryOpReg>::Find(name);
   CHECK(op != nullptr) << "cannot find " << name;

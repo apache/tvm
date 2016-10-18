@@ -131,6 +131,20 @@ class NodeRef {
   inline NodeType node_type() const;
   /*! \return wheyjer the expression is null */
   inline bool is_null() const;
+  /*!
+   * \brief Comparator
+   * \param other Another node ref.
+   * \return the compare result.
+   */
+  inline bool operator==(const NodeRef& other) const;
+  /*!
+   * \brief Comparator
+   * \param other Another node ref.
+   * \return the compare result.
+   */
+  inline bool operator!=(const NodeRef& other) const;
+  /*! \return the hash function for NodeRef */
+  inline size_t hash() const;
 
  protected:
   template<typename T, typename>
@@ -182,5 +196,26 @@ inline bool NodeRef::is_null() const {
   return node_.get() == nullptr;
 }
 
+inline bool NodeRef::operator==(const NodeRef& other) const {
+  return node_.get() == other.node_.get();
+}
+
+inline bool NodeRef::operator!=(const NodeRef& other) const {
+  return node_.get() != other.node_.get();
+}
+
+inline size_t NodeRef::hash() const {
+  return std::hash<Node*>()(node_.get());
+}
+
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<::tvm::NodeRef> {
+  std::size_t operator()(const ::tvm::NodeRef& k) const {
+    return k.hash();
+  }
+};
+}  // namespace std
 #endif  // TVM_BASE_H_

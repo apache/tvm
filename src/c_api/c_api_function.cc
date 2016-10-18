@@ -46,6 +46,13 @@ TVM_REGISTER_API(_binary_op)
 .add_argument("lhs", "Expr", "left operand")
 .add_argument("rhs", "Expr", "right operand");
 
+TVM_REGISTER_API(_raw_ptr)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    CHECK(args.at(0).type_id == kNodeHandle);
+    *ret = reinterpret_cast<int64_t>(args.at(0).sptr.get());
+  })
+.add_argument("src", "NodeBase", "the node base");
+
 // transformations
 TVM_REGISTER_API(format_str)
 .set_body([](const ArgStack& args,  RetValue *ret) {

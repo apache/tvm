@@ -113,4 +113,13 @@ inline Expr constant(T value) {
 }
 
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<::tvm::Expr> {
+  std::size_t operator()(const ::tvm::NodeRef& k) const {
+    return k.hash();
+  }
+};
+}  // namespace std
 #endif  // TVM_EXPR_H_

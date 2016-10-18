@@ -136,4 +136,14 @@ TVM_DLL int TVMNodeGetAttr(NodeHandle handle,
                            ArgVariant* out_value,
                            int* out_typeid);
 
+/*!
+ * \brief get attributes names in the node.
+ * \param handle The node handle
+ * \param out_size The number of functions
+ * \param out_array The array of function names.
+ */
+TVM_DLL int TVMNodeListAttrNames(NodeHandle handle,
+                                 int *out_size,
+                                 const char*** out_array);
+
 #endif  // TVM_C_API_H_

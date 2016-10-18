@@ -11,6 +11,7 @@ from .._base import _LIB
 from .._base import c_str, py_str, string_types
 from .._base import FunctionHandle, NodeHandle
 from .._base import check_call, ctypes2docstring
+from .. import _function_internal
 
 
 class ArgVariant(ctypes.Union):
@@ -70,6 +71,27 @@ class NodeBase(object):
             self.handle, c_str(name),
             ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
         return RET_SWITCH[ret_typeid.value](ret_val)
+
+    def __hash__(self):
+        return _function_internal._raw_ptr(self)
+
+    def __eq__(self, other):
+        if not isinstance(other, NodeBase):
+            return False
+        return self.__hash__() == other.__hash__()
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __dir__(self):
+        plist = ctypes.POINTER(ctypes.c_char_p)()
+        size = ctypes.c_uint()
+        check_call(_LIB.TVMNodeListAttrNames(
+            self.handle, ctypes.byref(size), ctypes.byref(plist)))
+        names = []
+        for i in range(size.value):
+            names.append(py_str(plist[i]))
+        return names
 
 
 def _push_arg(arg):

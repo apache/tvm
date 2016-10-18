@@ -9,6 +9,7 @@
 #include <dmlc/registry.h>
 #include <string>
 #include "./expr.h"
+#include "./domain.h"
 
 namespace tvm {
 
@@ -26,6 +27,13 @@ class BinaryOp {
    * \return the result expr
    */
   Expr operator()(Expr lhs, Expr rhs) const;
+  /*!
+   * \brief make a reduction of src over rdom,
+   * \param src Source expression.
+   * \param rdom reduction domain.
+   * \return the result expr
+   */
+  Expr Reduce(Expr src, RDomain rdom) const;
   /*!
    * \brief get binary op by name
    * \param name name of operator
@@ -112,6 +120,12 @@ class MinOp : public BinaryOp {
     return (*op)(lhs, rhs);                             \
   }
 
+#define DEFINE_REDUCE_FUNCTION(FuncName, OpName)              \
+  inline Expr FuncName(Expr src, RDomain rdom) {              \
+    static const BinaryOp* op = BinaryOp::Get(#OpName);       \
+    return op->Reduce(src, rdom);                             \
+  }
+
 DEFINE_BINARY_OP_OVERLOAD(+);
 DEFINE_BINARY_OP_OVERLOAD(-);
 DEFINE_BINARY_OP_OVERLOAD(*);
@@ -119,6 +133,10 @@ DEFINE_BINARY_OP_OVERLOAD(/);
 
 DEFINE_BINARY_OP_FUNCTION(max);
 DEFINE_BINARY_OP_FUNCTION(min);
+
+DEFINE_REDUCE_FUNCTION(max, max);
+DEFINE_REDUCE_FUNCTION(min, min);
+DEFINE_REDUCE_FUNCTION(sum, +);
 
 // overload negation
 inline Expr operator-(Expr src) {
