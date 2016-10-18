@@ -27,6 +27,7 @@ class VarNode : public ExprNode {
   }
   void VisitAttrs(AttrVisitor* visitor) override {
     visitor->Visit("name", &name);
+    visitor->Visit("dtype", &dtype_);
   }
 };
 

@@ -25,7 +25,26 @@ kDouble = 2
 kStr = 3
 kNodeHandle = 4
 
-RET_SWITCH = None
+
+def _type_key(handle):
+    ret_val = ArgVariant()
+    ret_typeid = ctypes.c_int()
+    check_call(_LIB.TVMNodeGetAttr(
+        handle, c_str("type_key"),
+        ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
+    return py_str(ret_val.v_str)
+
+NODE_TYPE = {
+}
+
+RET_SWITCH = {
+    kNull: lambda x: None,
+    kLong: lambda x: x.v_long,
+    kDouble: lambda x: x.v_double,
+    kStr: lambda x: py_str(x.v_str),
+    kNodeHandle: lambda x: NODE_TYPE.get(_type_key(x), NodeBase)(x.v_handle)
+}
+
 
 class NodeBase(object):
     """Symbol is symbolic graph."""
@@ -50,27 +69,8 @@ class NodeBase(object):
         check_call(_LIB.TVMNodeGetAttr(
             self.handle, c_str(name),
             ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
-        ret = RET_SWITCH[ret_typeid.value](ret_val)
+        return RET_SWITCH[ret_typeid.value](ret_val)
 
-
-def _type_key(handle):
-    ret_val = ArgVariant()
-    ret_typeid = ctypes.c_int()
-    check_call(_LIB.TVMNodeGetAttr(
-        handle, c_str("type_key"),
-        ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
-    return py_str(ret_val.v_str)
-
-NODE_TYPE = {
-}
-
-RET_SWITCH = {
-    kNull: lambda x: None,
-    kLong: lambda x: x.v_long.value,
-    kDouble: lambda x: x.v_double.value,
-    kStr: lambda x: py_str(x.v_str),
-    kNodeHandle: lambda x: NODE_TYPE.get(_type_key(x), NodeBase)(x.v_handle)
-}
 
 def _push_arg(arg):
     a = ArgVariant()
