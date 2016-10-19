@@ -28,23 +28,6 @@ def _symbol(value):
         return value
 
 
-def binary_op(op, lhs, rhs):
-    """Binary operator given op lhs and rhs
-
-    Parameters
-    ----------
-    op : str
-        The operator string
-
-    lhs : Expr/number
-        The left operand
-
-    rhs : Expr/number
-        The right operand
-    """
-    return _function_internal._binary_op(op, _symbol(lhs), _symbol(rhs))
-
-
 def max(lhs, rhs):
     """Max of two expressions
 

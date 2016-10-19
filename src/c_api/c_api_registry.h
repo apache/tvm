@@ -62,7 +62,17 @@ struct APIVariantValue {
     if (type_id == kNull) return T();
     CHECK_EQ(type_id, kNodeHandle);
     std::shared_ptr<Node> x = sptr;
-    return T(std::move(x));
+    T inst;
+    inst.node_ = std::move(x);
+    return inst;
+  }
+  inline operator Expr() const {
+    if (type_id == kNull) return Expr();
+    if (type_id == kLong) return IntConstant(operator int64_t());
+    if (type_id == kDouble) return FloatConstant(operator double());
+    CHECK_EQ(type_id, kNodeHandle);
+    std::shared_ptr<Node> x = sptr;
+    return Expr(std::move(x));
   }
   inline operator double() const {
     CHECK_EQ(type_id, kDouble);

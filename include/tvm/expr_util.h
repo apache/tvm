@@ -40,6 +40,18 @@ inline void Visit(const Expr& expr, FVisit fvisit) {
       Visit(n->src, fvisit);
       break;
     }
+    case kReduceNode: {
+      const auto* n = expr.Get<ReduceNode>();
+      Visit(n->src, fvisit);
+      break;
+    }
+    case kTensorReadNode: {
+      const auto* n = expr.Get<TensorReadNode>();
+      for (size_t i = 0; i < n->indices.size(); ++i) {
+        Visit(n->indices[i], fvisit);
+      }
+      break;
+    }
     default: break;
   }
   fvisit(expr);

@@ -1,6 +1,5 @@
 from ._ctypes._api import NodeBase, register_node
 from .function import binary_op
-from ._function_internal import _binary_op
 
 class Expr(NodeBase):
     def __add__(self, other):

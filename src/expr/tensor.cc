@@ -4,6 +4,7 @@
  */
 #include <tvm/tensor.h>
 #include <tvm/expr_node.h>
+#include <tvm/expr_util.h>
 #include <memory>
 
 namespace tvm {
@@ -41,6 +42,24 @@ Expr Tensor::operator()(Array<Expr> indices) const {
   node->tensor = *this;
   node->indices = std::move(indices);
   return Expr(std::move(node));
+}
+
+std::vector<Tensor> Tensor::InputTensors() const {
+  const TensorNode* n = static_cast<const TensorNode*>(node_.get());
+  std::vector<Tensor> inputs;
+  if (n->source.is_null()) return inputs;
+  Visit(n->source, [&inputs](const Expr& e) {
+      if (e.node_type() == kTensorReadNode) {
+        inputs.push_back(e.Get<TensorReadNode>()->tensor);
+      }
+    });
+  return inputs;
+}
+
+bool Tensor::IsRTensor() const {
+  const TensorNode* n = static_cast<const TensorNode*>(node_.get());
+  if (n->source.is_null()) return false;
+  return n->source.node_type() == kReduceNode;
 }
 
 TVM_REGISTER_NODE_TYPE(TensorNode);

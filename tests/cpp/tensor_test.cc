@@ -13,6 +13,11 @@ TEST(Tensor, Basic) {
   auto C = Tensor({m, n}, [&](Var i, Var j) {
       return sum(A(i, rd.i0()) * B(j, rd.i0()), rd);
     }, "C");
+
+  auto inputs = C.InputTensors();
+  CHECK(inputs[0] == A);
+  CHECK(inputs[1] == B);
+  CHECK(C.IsRTensor());
 }
 
 int main(int argc, char ** argv) {
