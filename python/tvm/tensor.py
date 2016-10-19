@@ -2,6 +2,7 @@ from __future__ import absolute_import as _abs
 from . import expr as _expr
 from . import expr_util as _expr_util
 from . import domain as _dom
+from . import var_name as _name
 
 
 class Tensor(object):
@@ -23,13 +24,26 @@ class Tensor(object):
             self.shape = shape if shape else tuple(
                 _expr.Var("%s_%d_" % (shape_name, i)) for i in range(ndim))
 
-        self.name = name if name else "TensorObj"
+        self.name = name if name else _name.NameManager.current.get("TensorObj")
         self.inputs = None
 
-    def __call__(self, *indices):
+    def __call__(self, *indices, **option):
         if len(indices) != self.ndim:
             raise ValueError("Need to provide %d index in tensor slice" % self.ndim)
-        return _expr.TensorReadExpr(self, indices)
+        if 'flatten' in option and option['flatten']:
+            stride = [1]
+            for i in reversed(range(1, len(indices))):
+                stride.insert(0, self.shape[i] * stride[0])
+            index = indices[0] * stride[0]
+            for i in range(1, len(indices)):
+                index = index + indices[i] * stride[i]
+            index = _expr_util.simplify(index)
+            return _expr.TensorRefExpr(self, [index])
+        return _expr.TensorRefExpr(self, indices)
+
+    @property
+    def domain(self):
+        return _dom.Domain([_dom.Range(self.shape[i]) for i in range(self.ndim)])
 
     def input_tensors(self):
         """List of input tensors to this tensor.
@@ -43,7 +57,7 @@ class Tensor(object):
         inputs = []
         if self.expr:
             def collect(e):
-                if isinstance(e, _expr.TensorReadExpr):
+                if isinstance(e, _expr.TensorRefExpr):
                     inputs.append(e.tensor)
             _expr_util.visit(self.expr, collect)
         self.inputs = set(inputs)
@@ -93,7 +107,7 @@ class Tensor(object):
                 rd = e.rdom
                 for i in range(len(rd.domain)):
                     index_domains[rd.index[i]] = rd.domain[i]
-            elif isinstance(e, _expr.TensorReadExpr):
+            elif isinstance(e, _expr.TensorRefExpr):
                 if e.tensor in iset:
                     iset[e.tensor].append(e)
         _expr_util.visit(begin_expr, prepare)

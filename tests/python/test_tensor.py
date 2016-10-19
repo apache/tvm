@@ -12,7 +12,7 @@ def test_tensor_inputs():
     B = tvm.Tensor(2, name='B')
     T = tvm.Tensor(3, lambda i, j, k: A(i, k) * B(j, k),
                    shape=(A.shape[0], B.shape[0], A.shape[1]))
-    assert(T.input_tensors() == [A, B])
+    assert(T.input_tensors() == set([A, B]))
 
 def test_tensor_reduce():
     A = tvm.Tensor(2, name='A')
@@ -25,5 +25,6 @@ def test_tensor_reduce():
     print(tvm.format_str(C.expr))
 
 if __name__ == "__main__":
+    test_tensor()
     test_tensor_inputs()
     test_tensor_reduce()

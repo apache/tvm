@@ -27,8 +27,12 @@ def expr_with_new_children(e, children):
                     else _expr.BinaryOpExpr(e.op, children[0], children[1]))
         elif isinstance(e, _expr.UnaryOpExpr):
             return e if children[0] == e.src else _expr.UnaryOpExpr(e.op, children[0])
+        elif isinstance(e, _expr.TensorRefExpr):
+            return e if children == e.indices else _expr.TensorRefExpr(e.tensor, children)
+        elif isinstance(e, _expr.ReduceExpr):
+            return e if children[0] == e.src else _expr.ReduceExpr(e.op, children[0], e.rdom)
         else:
-            raise TypeError("donnot know how to handle Expr %s" % type(e))
+            raise TypeError("do not know how to handle Expr %s" % type(e))
     else:
         return e
 
@@ -92,8 +96,8 @@ def format_str(expr):
             return str(e.value)
         elif isinstance(e, _expr.Var):
             return e.name
-        elif isinstance(e, _expr.TensorReadExpr):
-            return "%s(%s)" % (e.tensor.name, ','.join(result_children))
+        elif isinstance(e, _expr.TensorRefExpr):
+            return "%s[%s]" % (e.tensor.name, ','.join(result_children))
         elif isinstance(e, _expr.ReduceExpr):
             return e.op.format_reduce_str(result_children[0], e.rdom.domain)
         else:
@@ -120,7 +124,7 @@ def simplify(expr):
         elif isinstance(e, _expr.UnaryOpExpr):
             return e.op.canonical(result_children[0])
         elif isinstance(e, _expr.ConstExpr):
-            return {_op.constant_canonical_key: e.value}
+            return {_op.const_canonical_key: e.value}
         elif isinstance(e, _expr.Var):
             return {e: 1}
         else:

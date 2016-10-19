@@ -112,7 +112,7 @@ class UnaryOpExpr(Expr):
 
 
 class ReduceExpr(Expr):
-    def __init__(self, op, src,  rdom):
+    def __init__(self, op, src, rdom):
         self.op = op
         self.src = src
         self.rdom = rdom
@@ -121,8 +121,8 @@ class ReduceExpr(Expr):
         return (self.src,)
 
 
-class TensorReadExpr(Expr):
-    """Tensor read expression, tensor[indices]"""
+class TensorRefExpr(Expr):
+    """Tensor reference expression, tensor[indices]"""
     def __init__(self, tensor, indices):
         self.tensor = tensor
         self.indices = indices
