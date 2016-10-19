@@ -48,6 +48,13 @@ void Expr::Print(std::ostream& os) const {
       os << ')';
       return;
     }
+    case kReduceNode: {
+      const auto* n = Get<ReduceNode>();
+      os << "reduce("<< n->op->FunctionName() << ", ";
+      n->src.Print(os);
+      os << ", " << n->rdom << ')';
+      return;
+    }
     default: {
       LOG(FATAL) << "not able to handle type " << typeid(node_.get()).name();
     }

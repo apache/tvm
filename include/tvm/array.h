@@ -128,6 +128,18 @@ class Array : public NodeRef {
     if (node_.get() == nullptr) return 0;
     return static_cast<const ArrayNode*>(node_.get())->data.size();
   }
+  friend std::ostream& operator<<(std::ostream &os, const Array<T>& r) {  // NOLINT(*)
+    for (size_t i = 0; i < r.size(); ++i) {
+      if (i == 0) {
+        os << '[';
+      } else {
+        os << ", ";
+      }
+      os << r[i];
+    }
+    os << ']';
+    return os;
+  }
 };
 
 }  // namespace tvm

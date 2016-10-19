@@ -11,8 +11,8 @@
 #include "./tensor.h"
 #include "./expr.h"
 
-
 namespace tvm {
+
 /*! \brief variable node for symbolic variables */
 class VarNode : public ExprNode {
  public:
