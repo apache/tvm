@@ -23,10 +23,10 @@ class ArrayNode : public Node {
     return "ArrayNode";
   }
   void VisitAttrs(AttrVisitor* visitor) override {
-    LOG(FATAL) << "need to specially handle list";
+    LOG(FATAL) << "need to specially handle list attrs";
   }
   void VisitNodeRefFields(FNodeRefVisit fvisit) override {
-    LOG(FATAL) << "need to specially handle list";
+    // Do nothing, specially handled
   }
 };
 

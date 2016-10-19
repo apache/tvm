@@ -22,7 +22,9 @@ Expr Range::extent() const {
 RDomain::RDomain(Domain domain) {
   std::vector<Var> index;
   for (size_t i = 0; i < domain.size(); ++i) {
-    index.push_back(Var("reduction_index"));
+    std::ostringstream os;
+    os << "reduction_index" << i;
+    index.push_back(Var(os.str()));
   }
   Array<Var> idx(index);
   node_ = std::make_shared<RDomainNode>(

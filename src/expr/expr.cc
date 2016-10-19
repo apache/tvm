@@ -55,6 +55,11 @@ void Expr::Print(std::ostream& os) const {
       os << ", " << n->rdom << ')';
       return;
     }
+    case kTensorReadNode: {
+      const auto* n = Get<TensorReadNode>();
+      os << n->tensor.name() << n->indices;
+      return;
+    }
     default: {
       LOG(FATAL) << "not able to handle type " << typeid(node_.get()).name();
     }

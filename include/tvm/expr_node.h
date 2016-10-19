@@ -141,7 +141,7 @@ struct BinaryOpNode : public ExprNode {
   }
 };
 
-/*! \brief Binary mapping operator */
+/*! \brief Reduction operator operator */
 struct ReduceNode : public ExprNode {
  public:
   /*! \brief The operator */
@@ -175,6 +175,43 @@ struct ReduceNode : public ExprNode {
   void VisitNodeRefFields(FNodeRefVisit fvisit) override {
     fvisit("src", &src);
     fvisit("rdom", &rdom);
+  }
+};
+
+/*! \brief Tensor read operator */
+struct TensorReadNode : public ExprNode {
+ public:
+  /*! \brief The tensor to be read from */
+  Tensor tensor;
+  /*! \brief The indices of read */
+  Array<Expr> indices;
+  /*! \brief constructor, do not use constructor */
+  TensorReadNode() {
+    node_type_ = kTensorReadNode;
+  }
+  TensorReadNode(Tensor && tensor, Array<Expr> && indices)
+      : tensor(std::move(tensor)), indices(std::move(indices)) {
+    node_type_ = kReduceNode;
+    dtype_ = tensor.dtype();
+  }
+  ~TensorReadNode() {
+    this->Destroy();
+  }
+  const char* type_key() const override {
+    return "TensorReadNode";
+  }
+  void Verify() const override {
+    CHECK_EQ(dtype_, tensor.dtype());
+    for (size_t i = 0; i < indices.size(); ++i) {
+      CHECK_EQ(indices[i].dtype(), kInt32);
+    }
+  }
+  void VisitAttrs(AttrVisitor* visitor) override {
+    visitor->Visit("dtype", &dtype_);
+  }
+  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
+    fvisit("tensor", &tensor);
+    fvisit("indices", &indices);
   }
 };
 
