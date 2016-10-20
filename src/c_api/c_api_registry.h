@@ -57,7 +57,7 @@ struct APIVariantValue {
     return *this;
   }
   template<typename T,
-         typename = typename std::enable_if<std::is_base_of<NodeRef, T>::value>::type >
+         typename = typename std::enable_if<std::is_base_of<NodeRef, T>::value>::type>
   inline operator T() const {
     if (type_id == kNull) return T();
     CHECK_EQ(type_id, kNodeHandle);

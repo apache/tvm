@@ -24,6 +24,9 @@ def _symbol(value):
     """Convert a value to expression."""
     if isinstance(value, _Number):
         return constant(value)
+    elif isinstance(value, list):
+        value = [_symbol(x) for x in value]
+        return _function_internal._Array(*value)
     else:
         return value
 

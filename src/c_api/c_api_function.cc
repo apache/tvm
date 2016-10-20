@@ -61,6 +61,41 @@ TVM_REGISTER_API(Range)
 .add_argument("begin", "Expr", "beginning of the range.")
 .add_argument("end", "Expr", "end of the range");
 
+TVM_REGISTER_API(_Array)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    std::vector<std::shared_ptr<Node> > data;
+    for (size_t i = 0; i < args.size(); ++i) {
+      CHECK(args.at(i).type_id == kNodeHandle);
+      data.push_back(args.at(i).sptr);
+    }
+    auto node = std::make_shared<ArrayNode>();
+    node->data = std::move(data);
+    ret->type_id = kNodeHandle;
+    ret->sptr = node;
+  });
+
+TVM_REGISTER_API(_ArrayGetItem)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    CHECK(args.at(0).type_id == kNodeHandle);
+    int64_t i = args.at(1);
+    auto& sptr = args.at(0).sptr;
+    CHECK(sptr->is_type<ArrayNode>());
+    auto* n = static_cast<const ArrayNode*>(sptr.get());
+    CHECK_LT(static_cast<size_t>(i), n->data.size())
+        << "out of bound of array";
+    ret->sptr = n->data[i];
+    ret->type_id = kNodeHandle;
+  });
+
+TVM_REGISTER_API(_ArraySize)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    CHECK(args.at(0).type_id == kNodeHandle);
+    auto& sptr = args.at(0).sptr;
+    CHECK(sptr->is_type<ArrayNode>());
+    *ret = static_cast<int64_t>(
+        static_cast<const ArrayNode*>(sptr.get())->data.size());
+  });
+
 TVM_REGISTER_API(_TensorInput)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = Tensor(

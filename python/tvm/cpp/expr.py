@@ -1,3 +1,4 @@
+from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
 from .function import binary_op
 
@@ -40,6 +41,26 @@ class Expr(NodeBase):
 class Var(Expr):
     pass
 
+@register_node("IntNode")
+class IntExpr(Expr):
+    pass
+
+@register_node("FloatNode")
+class FloatExpr(Expr):
+    pass
+
+@register_node("UnaryOpNode")
+class UnaryOpExpr(Expr):
+    pass
+
 @register_node("BinaryOpNode")
 class BinaryOpExpr(Expr):
+    pass
+
+@register_node("ReduceNode")
+class ReduceExpr(Expr):
+    pass
+
+@register_node("TensorReadNode")
+class TensorReadExpr(Expr):
     pass
