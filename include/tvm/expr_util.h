@@ -16,9 +16,7 @@ namespace tvm {
  * \param src The source expression
  * \return the simplified expression.
  */
-inline Expr Simplify(Expr src) {
-  return src;
-}
+Expr Simplify(Expr src);
 
 /*!
  * \brief visit the exression node in expr tree in post DFS order.

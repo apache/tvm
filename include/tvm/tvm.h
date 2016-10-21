@@ -12,5 +12,6 @@
 #include "./tensor.h"
 #include "./domain.h"
 #include "./array.h"
+#include "./expr_util.h"
 
 #endif  // TVM_TVM_H_

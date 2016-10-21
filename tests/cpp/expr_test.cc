@@ -21,6 +21,15 @@ TEST(Expr, Reduction) {
   CHECK(os.str() == "reduce(+, ((x + 1) + 2), rdomain([[0, 3)]))");
 }
 
+TEST(Expr, Simplify) {
+  using namespace tvm;
+  Var x("x");
+  auto z = max(x + 1 + 2, x + 10) * 100;
+  std::ostringstream os;
+  os << Simplify(z);
+  CHECK(os.str() == "((x * 100) + 1000)");
+}
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

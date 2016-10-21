@@ -172,6 +172,7 @@ def register_node(type_key):
     """
     def register(cls):
         NODE_TYPE[type_key] = cls
+        return cls
     return register
 
 
