@@ -32,6 +32,8 @@ class ArrayNode : public Node {
 
 /*!
  * \brief Immutable array container of NodeRef in DSL graph.
+ *  Array implements copy on write semantics, which means array is mutable
+ *  but copy will happen when array is referenced in more than two places.
  * \tparam T The content NodeRef type.
  */
 template<typename T,
@@ -127,6 +129,62 @@ class Array : public NodeRef {
   inline size_t size() const {
     if (node_.get() == nullptr) return 0;
     return static_cast<const ArrayNode*>(node_.get())->data.size();
+  }
+  /*! \brief copy on write semantics */
+  inline void CopyOnWrite() {
+    if (node_.get() == nullptr || node_.unique()) return;
+    node_ = std::make_shared<ArrayNode>(
+        *static_cast<const ArrayNode*>(node_.get()));
+  }
+  /*!
+   * \brief push a new item to the back of the list
+   * \param item The item to be pushed.
+   */
+  inline void push_back(const T& item) {
+    this->CopyOnWrite();
+    static_cast<ArrayNode*>(node_.get())->data.push_back(item.node_);
+  }
+  /*!
+   * \brief set i-th element of the array.
+   * \param i The index
+   * \param other The value to be setted.
+   */
+  inline void Set(size_t i, const T& value) {
+    this->CopyOnWrite();
+    static_cast<ArrayNode*>(node_.get())->data[i] = value.node_;
+  }
+  /*! \brief wrapper class to represent an array reference */
+  struct ArrayItemRef {
+    /*! \brief reference to parent */
+    Array<T>* parent;
+    /*! \brief The index */
+    size_t index;
+    /*!
+     * \brief assign operator
+     * \param value The value to be assigned
+     * \return reference to self.
+     */
+    inline ArrayItemRef& operator=(const T& other) {
+      parent->Set(index, other);
+      return *this;
+    }
+    /*! \brief The conversion operator */
+    inline operator T() const {
+      return (*static_cast<const Array<T>*>(parent))[index];
+    }
+    // overload print
+    friend std::ostream& operator<<(
+        std::ostream &os, const typename Array<T>::ArrayItemRef& r) {  // NOLINT(*0
+      return os << r.operator T();
+    }
+  };
+  /*!
+   * \brief Get reference of i-th element from array.
+   * \param i The index
+   * \return the ref to i-th element.
+   */
+  inline ArrayItemRef operator[](size_t i) {
+    return ArrayItemRef{this, i};
   }
   friend std::ostream& operator<<(std::ostream &os, const Array<T>& r) {  // NOLINT(*)
     for (size_t i = 0; i < r.size(); ++i) {

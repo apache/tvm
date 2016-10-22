@@ -12,6 +12,18 @@ TEST(Array, Expr) {
   LOG(INFO) << list[1];
 }
 
+TEST(Array, Mutate) {
+  using namespace tvm;
+  Var x("x");
+  auto z = max(x + 1 + 2, 100);
+  Array<Expr> list{x, z, z};
+  auto list2 = list;
+  list[1] = x;
+
+  LOG(INFO) << list[1];
+  LOG(INFO) << list2[1];
+}
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

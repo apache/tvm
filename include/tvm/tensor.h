@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <type_traits>
+#include "./base.h"
 #include "./expr.h"
 #include "./array.h"
 
