@@ -30,6 +30,25 @@ TEST(Expr, Simplify) {
   CHECK(os.str() == "((x * 100) + 1000)");
 }
 
+TEST(Expr, Bind) {
+  using namespace tvm;
+  Var x("x"), y("y"), z("z");
+  Var i("i"), j("j");
+  Tensor A({y, z}, "A");
+  Expr e1 = x * 5;
+  std::unordered_map<Expr, Expr> dict = {{x, y * 10 + z}};
+  std::ostringstream os1, os2;
+  os1 << Bind(e1, dict);
+  CHECK(os1.str() == "(((y * 10) + z) * 5)");
+  
+  Expr e2 = A(i, j);
+  dict.clear();
+  dict[i] = 64 * x;
+  dict[j] = z + 16 * y;
+  os2 << Bind(e2, dict);
+  CHECK(os2.str() == "A[(64 * x), (z + (16 * y))]");
+}
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

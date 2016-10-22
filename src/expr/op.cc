@@ -13,6 +13,12 @@ DMLC_REGISTRY_ENABLE(::tvm::UnaryOpReg);
 
 namespace tvm {
 
+Expr UnaryOp::operator()(Expr src) const {
+  auto nptr = std::make_shared<UnaryOpNode>(this, std::move(src));
+  nptr->Verify();
+  return Expr(std::move(nptr));
+}
+
 Expr BinaryOp::operator()(Expr lhs, Expr rhs) const {
   auto nptr = std::make_shared<BinaryOpNode>(
       this, std::move(lhs), std::move(rhs));

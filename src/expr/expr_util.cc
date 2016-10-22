@@ -146,6 +146,68 @@ Expr Simplify(Expr src) {
   return cexpr.AsExpr();
 }
 
+Expr ExprWithNewChildren(Expr src, std::vector<Expr> children) {
+  if (children.size()) {
+    switch (src.node_type()) {
+      case kBinaryOpNode: {
+        const auto* n = src.Get<BinaryOpNode>();
+        if (n->lhs == children[0] && n->rhs == children[0])
+          return src;
+        return (*n->op)(children[0], children[1]);
+      }
+      case kUnaryOpNode: {
+        const auto* n = src.Get<UnaryOpNode>();
+        if (n->src == children[0])
+          return src;
+        return (*n->op)(children[0]);
+      }
+      case kReduceNode: {
+        const auto* n = src.Get<ReduceNode>();
+        if (n->src == children[0])
+          return src;
+        return (n->op)->Reduce(children[0], n->rdom);
+      }
+      case kTensorReadNode: {
+        const auto* n = src.Get<TensorReadNode>();
+        bool same = true;
+        for (size_t i = 0; i < n->indices.size(); ++i) {
+          if (n->indices[i] != children[i]) {
+            same = false;
+            break;
+          }
+        }
+        if (same)
+          return src;
+        Array<Expr> indices(children);
+        return n->tensor(indices);
+      }
+      default: {
+        return src;
+      }
+    }
+  }
+  return src;
+}
+
+Expr Bind(Expr src, std::unordered_map<Expr, Expr> dict) {
+  auto replace = [&](Expr e, std::vector<Expr> children) {
+    switch (e.node_type()) {
+      case kVarNode: {
+        auto it = dict.find(e);
+        if (it != dict.end()) {
+          return it->second;
+        }
+        return e;
+      }
+      default: {
+        return ExprWithNewChildren(e, children);
+      }
+    }
+  };
+
+  return Transform(src, replace);
+}
+
 void Expr::Print(std::ostream& os) const {
   if (is_null()) {
     os << "null"; return;
