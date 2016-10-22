@@ -12,7 +12,7 @@
 #include <memory>
 #include <functional>
 #include <typeinfo>
-
+#include <type_traits>
 
 namespace tvm {
 

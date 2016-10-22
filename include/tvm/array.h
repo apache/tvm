@@ -147,7 +147,7 @@ class Array : public NodeRef {
   /*!
    * \brief set i-th element of the array.
    * \param i The index
-   * \param other The value to be setted.
+   * \param value The value to be setted.
    */
   inline void Set(size_t i, const T& value) {
     this->CopyOnWrite();
@@ -161,7 +161,7 @@ class Array : public NodeRef {
     size_t index;
     /*!
      * \brief assign operator
-     * \param value The value to be assigned
+     * \param other The value to be assigned
      * \return reference to self.
      */
     inline ArrayItemRef& operator=(const T& other) {

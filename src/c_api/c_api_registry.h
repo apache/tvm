@@ -10,6 +10,7 @@
 #include <tvm/expr.h>
 #include <tvm/c_api.h>
 #include <memory>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -84,6 +85,8 @@ struct APIVariantValue {
   }
   inline operator int() const {
     CHECK_EQ(type_id, kLong);
+    CHECK_LE(v_union.v_long,
+             std::numeric_limits<int>::max());
     return v_union.v_long;
   }
   inline operator std::string() const {
