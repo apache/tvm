@@ -31,7 +31,7 @@ class ArrayNode : public Node {
 };
 
 /*!
- * \brief Immutable array container of NodeRef in DSL graph.
+ * \brief Array container of NodeRef in DSL graph.
  *  Array implements copy on write semantics, which means array is mutable
  *  but copy will happen when array is referenced in more than two places.
  * \tparam T The content NodeRef type.

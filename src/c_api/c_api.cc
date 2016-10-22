@@ -45,7 +45,7 @@ struct APIAttrGetter : public AttrVisitor {
   void Visit(const char* key, int64_t* value) override {
     if (skey == key) *ret = value[0];
   }
-  void Visit(const char* key, DataType* value) override {
+  void Visit(const char* key, int* value) override {
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }
   void Visit(const char* key, std::string* value) override {
@@ -68,7 +68,7 @@ struct APIAttrDir : public AttrVisitor {
   void Visit(const char* key, int64_t* value) override {
     names->push_back(key);
   }
-  void Visit(const char* key, DataType* value) override {
+  void Visit(const char* key, int* value) override {
     names->push_back(key);
   }
   void Visit(const char* key, std::string* value) override {
