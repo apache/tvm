@@ -15,34 +15,8 @@
 
 namespace tvm {
 
-/*! \brief Node to represent a tensor */
-class TensorNode : public Node {
- public:
-  /*! \brief optional name of the tensor */
-  std::string name;
-  /*! \brief data type in the content of the tensor */
-  DataType dtype;
-  /*! \brief The index representing each dimension, used by source expression. */
-  Array<Var> dim_index;
-  /*! \brief The shape of the tensor */
-  Array<Expr> shape;
-  /*! \brief source expression */
-  Expr source;
-  /*! \brief constructor */
-  TensorNode() {}
-  const char* type_key() const override {
-    return "TensorNode";
-  }
-  void VisitAttrs(AttrVisitor* visitor) override {
-    visitor->Visit("name", &name);
-    visitor->Visit("dtype", &dtype);
-  }
-  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
-    fvisit("dim_index", &dim_index);
-    fvisit("shape", &shape);
-    fvisit("source", &source);
-  }
-};
+// Internal node container of Tensor
+class TensorNode;
 
 /*! \brief The compute function to specify the input source of a Tensor */
 using FCompute = std::function<Expr (const Array<Var>& i)>;
@@ -94,30 +68,13 @@ class Tensor : public NodeRef {
       :Tensor(shape, GetFCompute(f), name) {}
   Tensor(Array<Expr> shape, std::function<Expr(Var, Var, Var, Var)> f, std::string name = "tensor")
         :Tensor(shape, GetFCompute(f), name) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const TensorNode* operator->() const;
   /*! \return The dimension of the tensor */
-  inline size_t ndim() const {
-    return static_cast<const TensorNode*>(node_.get())->shape.size();
-  }
-  /*! \return The name of the tensor */
-  inline const std::string& name() const {
-    return static_cast<const TensorNode*>(node_.get())->name;
-  }
-  /*! \return The data type tensor */
-  inline DataType dtype() const {
-    return static_cast<const TensorNode*>(node_.get())->dtype;
-  }
-  /*! \return The source expression of intermediate tensor */
-  inline const Expr& source() const {
-    return static_cast<const TensorNode*>(node_.get())->source;
-  }
-  /*! \return The internal dimension index used by source expression */
-  inline const Array<Var>& dim_index() const {
-    return static_cast<const TensorNode*>(node_.get())->dim_index;
-  }
-  /*! \return The shape of the tensor */
-  inline const Array<Expr>& shape() const {
-    return static_cast<const TensorNode*>(node_.get())->shape;
-  }
+  inline size_t ndim() const;
   /*!
    * \brief Take elements from the tensor
    * \param args The indices
@@ -138,14 +95,55 @@ class Tensor : public NodeRef {
   std::vector<Tensor> InputTensors() const;
   /*! \return whether the tensor stores a result of reduction */
   bool IsRTensor() const;
-  // printt function
-  friend std::ostream& operator<<(std::ostream &os, const Tensor& t) {  // NOLINT(*)
-    os << "Tensor(shape=" << t.shape()
-       << ", source=" << t.source()
-       << ", name=" << t.name() << ')';
-    return os;
+  // overload print function
+  friend std::ostream& operator<<(std::ostream &os, const Tensor& t);
+};
+
+/*! \brief Node to represent a tensor */
+class TensorNode : public Node {
+ public:
+  /*! \brief optional name of the tensor */
+  std::string name;
+  /*! \brief data type in the content of the tensor */
+  DataType dtype;
+  /*! \brief The index representing each dimension, used by source expression. */
+  Array<Var> dim_index;
+  /*! \brief The shape of the tensor */
+  Array<Expr> shape;
+  /*! \brief source expression */
+  Expr source;
+  /*! \brief constructor */
+  TensorNode() {}
+  const char* type_key() const override {
+    return "TensorNode";
+  }
+  void VisitAttrs(AttrVisitor* visitor) override {
+    visitor->Visit("name", &name);
+    visitor->Visit("dtype", &dtype);
+  }
+  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
+    fvisit("dim_index", &dim_index);
+    fvisit("shape", &shape);
+    fvisit("source", &source);
   }
 };
+
+// implementations
+
+inline const TensorNode* Tensor::operator->() const {
+  return static_cast<const TensorNode*>(node_.get());
+}
+
+inline size_t Tensor::ndim() const {
+  return (*this)->shape.size();
+}
+
+inline std::ostream& operator<<(std::ostream &os, const Tensor& t) {  // NOLINT(*)
+  os << "Tensor(shape=" << t->shape
+     << ", source=" << t->source
+     << ", name=" << t->name << ')';
+  return os;
+}
 
 }  // namespace tvm
 #endif  // TVM_TENSOR_H_

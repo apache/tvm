@@ -256,7 +256,7 @@ void Expr::Print(std::ostream& os) const {
     }
     case kTensorReadNode: {
       const auto* n = Get<TensorReadNode>();
-      os << n->tensor.name() << n->indices;
+      os << n->tensor->name << n->indices;
       return;
     }
     default: {

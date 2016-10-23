@@ -192,7 +192,7 @@ struct TensorReadNode : public ExprNode {
   TensorReadNode(Tensor && tensor, Array<Expr> && indices)
       : tensor(std::move(tensor)), indices(std::move(indices)) {
     node_type_ = kReduceNode;
-    dtype_ = tensor.dtype();
+    dtype_ = tensor->dtype;
   }
   ~TensorReadNode() {
     this->Destroy();
@@ -201,7 +201,7 @@ struct TensorReadNode : public ExprNode {
     return "TensorReadNode";
   }
   void Verify() const override {
-    CHECK_EQ(dtype_, tensor.dtype());
+    CHECK_EQ(dtype_, tensor->dtype);
     for (size_t i = 0; i < indices.size(); ++i) {
       CHECK_EQ(indices[i].dtype(), kInt32);
     }
