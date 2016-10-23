@@ -22,12 +22,27 @@ class NodeRef;
 class UnaryOp;
 class BinaryOp;
 
+/*! \brief pointer type mask */
+const int kPtrTypeMask = 16;
+
 /*! \brief list of all supported data types */
 enum DataType : int {
   kUnknown = 0,
   kInt32 = 1,
-  kFloat32 = 2
+  kFloat32 = 2,
+  kInt32Buffer = kInt32 | kPtrTypeMask,
+  kFloat32Buffer = kFloat32 | kPtrTypeMask
 };
+
+/*!
+ * \brief convert pointer type to data type
+ * \param ptr_type The pointer type.
+ * \return The corresponding data type.
+ */
+inline DataType Ptr2DataType(DataType ptr_type) {
+  CHECK_GE(ptr_type, kPtrTypeMask);
+  return static_cast<DataType>(ptr_type & (kPtrTypeMask -1));
+}
 
 /*!
  * \brief List of subset node types used for quick runtime switch.
@@ -45,6 +60,7 @@ enum NodeType {
   kBinaryOpNode,
   kReduceNode,
   kTensorReadNode,
+  kBufferReadNode,
   // stmt nodes
   kStoreNode,
   kForRangeNode,
@@ -157,6 +173,8 @@ class NodeRef {
   inline bool operator!=(const NodeRef& other) const;
   /*! \return the hash function for NodeRef */
   inline size_t hash() const;
+  /*! \return the raw internal pointer of  the node */
+  inline Node* node_ptr() const;
 
  protected:
   template<typename T, typename>
@@ -217,7 +235,11 @@ inline bool NodeRef::operator!=(const NodeRef& other) const {
 }
 
 inline size_t NodeRef::hash() const {
-  return std::hash<Node*>()(node_.get());
+  return std::hash<Node*>()(node_ptr());
+}
+
+inline Node* NodeRef::node_ptr() const {
+  return node_.get();
 }
 
 }  // namespace tvm
