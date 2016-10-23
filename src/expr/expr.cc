@@ -5,7 +5,6 @@
 #include <tvm/expr.h>
 #include <tvm/op.h>
 #include <tvm/expr_node.h>
-#include <cctype>
 
 namespace tvm {
 
@@ -25,6 +24,14 @@ Expr IntConstant(int64_t value) {
 Expr FloatConstant(double value) {
   auto nptr = std::make_shared<FloatNode>();
   nptr->value = value;
+  return Expr(std::move(nptr));
+}
+
+Expr BufferRead(Var buffer, Expr offset) {
+  auto nptr = std::make_shared<BufferReadNode>();
+  nptr->buffer = std::move(buffer);
+  nptr->offset = std::move(offset);
+  nptr->Verify();
   return Expr(std::move(nptr));
 }
 

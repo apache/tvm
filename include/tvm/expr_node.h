@@ -12,10 +12,8 @@
 #include "./expr.h"
 
 namespace tvm {
-
 /*! \brief variable node for symbolic variables */
-class VarNode : public ExprNode {
- public:
+struct VarNode : public ExprNode {
   /*! \brief hint name of the variable */
   std::string name;
   /*! \brief constructor */
@@ -32,7 +30,7 @@ class VarNode : public ExprNode {
 };
 
 /*! \brief integer constant node */
-class IntNode : public ExprNode {
+struct IntNode : public ExprNode {
  public:
   /*! \brief the value field */
   int64_t value;
@@ -51,8 +49,7 @@ class IntNode : public ExprNode {
 };
 
 /*! \brief float constant node */
-class FloatNode : public ExprNode {
- public:
+struct FloatNode : public ExprNode {
   /*! \brief the value field */
   double value;
   /*! \brief constructor */
@@ -61,7 +58,7 @@ class FloatNode : public ExprNode {
     dtype_ = kFloat32;
   }
   const char* type_key() const override {
-    return "IntNode";
+    return "FloatNode";
   }
   void VisitAttrs(AttrVisitor* visitor) override {
     visitor->Visit("value", &value);
@@ -70,8 +67,7 @@ class FloatNode : public ExprNode {
 };
 
 /*! \brief Unary mapping operator */
-class UnaryOpNode : public ExprNode {
- public:
+struct UnaryOpNode : public ExprNode {
   /*! \brief The operator */
   const UnaryOp* op;
   /*! \brief The source expression */
@@ -105,7 +101,6 @@ class UnaryOpNode : public ExprNode {
 
 /*! \brief Binary mapping operator */
 struct BinaryOpNode : public ExprNode {
- public:
   /*! \brief The operator */
   const BinaryOp* op;
   /*! \brief The left operand */
@@ -143,7 +138,6 @@ struct BinaryOpNode : public ExprNode {
 
 /*! \brief Reduction operator operator */
 struct ReduceNode : public ExprNode {
- public:
   /*! \brief The operator */
   const BinaryOp* op;
   /*! \brief The source operand */
@@ -180,7 +174,6 @@ struct ReduceNode : public ExprNode {
 
 /*! \brief Tensor read operator */
 struct TensorReadNode : public ExprNode {
- public:
   /*! \brief The tensor to be read from */
   Tensor tensor;
   /*! \brief The indices of read */
@@ -212,6 +205,32 @@ struct TensorReadNode : public ExprNode {
   void VisitNodeRefFields(FNodeRefVisit fvisit) override {
     fvisit("tensor", &tensor);
     fvisit("indices", &indices);
+  }
+};
+
+/*! \brief Buffer read node */
+struct BufferReadNode : public ExprNode {
+  /*! \brief The buffer variable to be read from */
+  Var buffer;
+  /*! \brief The offset to be read from */
+  Expr offset;
+  /*! \brief constructor, do not use constructor */
+  BufferReadNode() {
+    node_type_ = kBufferReadNode;
+  }
+  const char* type_key() const override {
+    return "BufferReadNode";
+  }
+  void Verify() const override {
+    CHECK_EQ(dtype_, Ptr2DataType(buffer.dtype()));
+    CHECK_EQ(offset.dtype(), kInt32);
+  }
+  void VisitAttrs(AttrVisitor* visitor) override {
+    visitor->Visit("dtype", &dtype_);
+  }
+  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
+    fvisit("buffer", &buffer);
+    fvisit("offset", &offset);
   }
 };
 

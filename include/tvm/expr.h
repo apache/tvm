@@ -10,8 +10,9 @@
 #include "./base.h"
 
 namespace tvm {
-// forward declare Expr
+// Forward declare Expr
 class Expr;
+class Var;
 
 /*!
  * \brief create a constant expression
@@ -24,34 +25,33 @@ template<typename T,
 inline Expr constant(T value);
 
 /*!
+ * \brief create a integer expression
+ * \param value The value to the expression
+ * \return the expression.
+ */
+Expr IntConstant(int64_t value);
+
+/*!
+ * \brief create a float expression.
+ * \param value The value to the expression
+ * \return the expression.
+ */
+Expr FloatConstant(double value);
+
+/*!
+ * \brief create a float expression.
+ * \param value The value to the expression
+ * \return the expression.
+ */
+Expr BufferRead(Var buffer, Expr offset);
+
+/*!
  * \brief a expression type, holds a ref to root of an AST
  */
 class Expr : public NodeRef {
  public:
   /*! \brief default constructor */
-  Expr() = default;
-  /*!
-   * \brief copy constructor
-   * \param other the input
-   */
-  Expr(const Expr& other) = default;
-  /*!
-   * \brief move constructor
-   * \param other the input
-   */
-  Expr(Expr&& other) = default;
-  /*!
-   * \brief assign operator.
-   * \param other the input.
-   * \return reference to self
-   */
-  Expr& operator=(const Expr& other) = default;
-  /*!
-   * \brief assign move operator.
-   * \param other the input.
-   * \return reference to self
-   */
-  Expr& operator=(Expr&& other) = default;
+  Expr() {}
   /*!
    * \brief constructor from constant value
    * \param value the constant value
@@ -82,14 +82,16 @@ class Expr : public NodeRef {
   void Print(std::ostream& os) const;  // NOLINT(*)
 };
 
-/*! \brief Variable class */
+/*!
+ * \brief Variable class to represent the symbolic placeholder
+ *  in the DSL, internally it is a VarNode.
+ *
+ *  The Variable is uniquely identified by the address of VarNode.
+ */
 class Var : public Expr {
  public:
   Var(std::string name="", DataType dtype=kInt32);  // NOLINT(*)
 };
-
-Expr IntConstant(int64_t value);
-Expr FloatConstant(double value);
 
 /*! \brief base of expression node */
 class ExprNode : public Node {
@@ -98,7 +100,7 @@ class ExprNode : public Node {
   DataType dtype_{kUnknown};
 };
 
-// inline implementations
+// implementations
 inline DataType Expr::dtype() const {
   return static_cast<const ExprNode*>(node_.get())->dtype_;
 }
