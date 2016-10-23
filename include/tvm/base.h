@@ -37,6 +37,7 @@ enum DataType : int {
  * \note kOtherNodes could mean more than one node type.
  */
 enum NodeType {
+  // expr nodes
   kVarNode,
   kIntNode,
   kFloatNode,
@@ -44,6 +45,10 @@ enum NodeType {
   kBinaryOpNode,
   kReduceNode,
   kTensorReadNode,
+  // stmt nodes
+  kStoreNode,
+  kForRangeNode,
+  kIfThenElseNode,
   kOtherNodes
 };
 
