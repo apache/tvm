@@ -13,7 +13,7 @@ def find_lib_path():
         List of all found path to the libraries
     """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    api_path = os.path.join(curr_path, '../../../lib/')
+    api_path = os.path.join(curr_path, '../../lib/')
     cmake_build_path = os.path.join(curr_path, '../../build/Release/')
     dll_path = [curr_path, api_path, cmake_build_path]
     if os.name == 'nt':

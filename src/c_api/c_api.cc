@@ -27,36 +27,6 @@ struct TVMAPIThreadLocalEntry {
   inline void SetReturn(ArgVariant* ret_val, int* ret_typeid);
 };
 
-namespace tvm {
-inline std::string Type2String(const Type& t) {
-  std::ostringstream os;
-  os << t;
-  return os.str();
-}
-
-inline Type String2Type(std::string s) {
-  std::istringstream is(s);
-  halide_type_code_t code;
-  if (s.substr(0, 3) == "int") {
-    code = Type::Int; s = s.substr(3);
-  } else if (s.substr(0, 4) == "uint") {
-    code = Type::UInt; s = s.substr(4);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  int bits, lanes = 0;
-  if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  return Type(code, bits, lanes);
-}
-
-}
-
 using namespace tvm;
 
 /*! \brief Thread local store that can be used to hold return values. */
@@ -86,7 +56,7 @@ struct APIAttrGetter : public AttrVisitor {
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }
   void Visit(const char* key, Type* value) final {
-    if (skey == key) *ret = Type2String(value[0]);
+    if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, std::string* value) final {
     if (skey == key) *ret = value[0];

@@ -1,11 +1,6 @@
-"""Init proptype of the TVM"""
+"""C++ backend related python scripts"""
 from __future__ import absolute_import as _abs
 
-from .op import *
-from .expr import Var, const
-from .expr_util import *
-from .tensor import Tensor
-from .domain import Range, RDom, infer_range
-from .split import Split
-from .buffer import Scope, Buffer
-from .schedule import Schedule
+from .function import *
+from ._ctypes._api import register_node
+from . import expr

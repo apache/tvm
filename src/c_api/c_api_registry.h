@@ -16,6 +16,33 @@
 
 namespace tvm {
 
+inline std::string Type2String(const Type& t) {
+  std::ostringstream os;
+  os << t;
+  return os.str();
+}
+
+inline Type String2Type(std::string s) {
+  std::istringstream is(s);
+  halide_type_code_t code;
+  if (s.substr(0, 3) == "int") {
+    code = Type::Int; s = s.substr(3);
+  } else if (s.substr(0, 4) == "uint") {
+    code = Type::UInt; s = s.substr(4);
+  } else if (s.substr(0, 5) == "float") {
+    code = Type::Float; s = s.substr(5);
+  } else if (s.substr(0, 5) == "float") {
+    code = Type::Float; s = s.substr(5);
+  } else {
+    LOG(FATAL) << "unknown type " << s;
+  }
+  int bits, lanes = 1;
+  if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
+    LOG(FATAL) << "unknown type " << s;
+  }
+  return Type(code, bits, lanes);
+}
+
 /*! \brief Variant container for API calls */
 struct APIVariantValue {
   /*! \brief the type id */
@@ -57,6 +84,9 @@ struct APIVariantValue {
     this->sptr = ref.node_;
     return *this;
   }
+  inline APIVariantValue& operator=(const Type& value) {
+    return operator=(Type2String(value));
+  }
   template<typename T,
          typename = typename std::enable_if<std::is_base_of<NodeRef, T>::value>::type>
   inline operator T() const {
@@ -88,6 +118,9 @@ struct APIVariantValue {
   inline operator std::string() const {
     CHECK_EQ(type_id, kStr);
     return str;
+  }
+  inline operator Type() const {
+    return String2Type(operator std::string());
   }
 };
 
