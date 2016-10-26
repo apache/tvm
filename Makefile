@@ -1,14 +1,17 @@
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2  -Wno-unknown-pragmas -funroll-loops\
-	 -Iinclude -Idmlc-core/include -fPIC
+	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC
 
 # specify tensor path
 .PHONY: clean all test doc
 
 all: lib/libtvm.a lib/libtvm.so
+
+LIB_HALIDE_IR = HalideIR/lib/libHalideIR.a
+
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-ALL_DEP = $(ALL_OBJ)
+ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
 
 include tests/cpp/unittest.mk
 
@@ -27,6 +30,11 @@ lib/libtvm.a: $(ALL_DEP)
 lib/libtvm.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+$(LIB_HALIDE_IR): LIBHALIDEIR
+
+LIBHALIDEIR:
+	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
 lint:
 	python2 dmlc-core/scripts/lint.py tvm cpp include src

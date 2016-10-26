@@ -4,7 +4,6 @@
  * \file c_api.cc
  */
 #include <tvm/c_api.h>
-#include <tvm/op.h>
 #include "./c_api_common.h"
 #include "./c_api_registry.h"
 
@@ -28,6 +27,36 @@ struct TVMAPIThreadLocalEntry {
   inline void SetReturn(ArgVariant* ret_val, int* ret_typeid);
 };
 
+namespace tvm {
+inline std::string Type2String(const Type& t) {
+  std::ostringstream os;
+  os << t;
+  return os.str();
+}
+
+inline Type String2Type(std::string s) {
+  std::istringstream is(s);
+  halide_type_code_t code;
+  if (s.substr(0, 3) == "int") {
+    code = Type::Int; s = s.substr(3);
+  } else if (s.substr(0, 4) == "uint") {
+    code = Type::UInt; s = s.substr(4);
+  } else if (s.substr(0, 5) == "float") {
+    code = Type::Float; s = s.substr(5);
+  } else if (s.substr(0, 5) == "float") {
+    code = Type::Float; s = s.substr(5);
+  } else {
+    LOG(FATAL) << "unknown type " << s;
+  }
+  int bits, lanes = 0;
+  if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
+    LOG(FATAL) << "unknown type " << s;
+  }
+  return Type(code, bits, lanes);
+}
+
+}
+
 using namespace tvm;
 
 /*! \brief Thread local store that can be used to hold return values. */
@@ -39,45 +68,59 @@ struct APIAttrGetter : public AttrVisitor {
   std::string skey;
   APIVariantValue* ret;
 
-  void Visit(const char* key, double* value) override {
+  void Visit(const char* key, double* value) final {
     if (skey == key) *ret = value[0];
   }
-  void Visit(const char* key, int64_t* value) override {
+  void Visit(const char* key, int64_t* value) final {
     if (skey == key) *ret = value[0];
   }
-  void Visit(const char* key, int* value) override {
+  void Visit(const char* key, uint64_t* value) final {
+    CHECK_LE(value[0], std::numeric_limits<int64_t>::max())
+        << "cannot return too big constant";
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }
-  void Visit(const char* key, std::string* value) override {
+  void Visit(const char* key, int* value) final {
+    if (skey == key) *ret = static_cast<int64_t>(value[0]);
+  }
+  void Visit(const char* key, bool* value) final {
+    if (skey == key) *ret = static_cast<int64_t>(value[0]);
+  }
+  void Visit(const char* key, Type* value) final {
+    if (skey == key) *ret = Type2String(value[0]);
+  }
+  void Visit(const char* key, std::string* value) final {
     if (skey == key) *ret = value[0];
   }
-  void Visit(const char* key, const UnaryOp** value) override {
-    if (skey == key) *ret = value[0]->FunctionName();
-  }
-  void Visit(const char* key, const BinaryOp** value) override {
-    if (skey == key) *ret = value[0]->FunctionName();
+  void Visit(const char* key, NodeRef* value) final {
+    if (skey == key) *ret = value[0];
   }
 };
 
 struct APIAttrDir : public AttrVisitor {
   std::vector<std::string>* names;
 
-  void Visit(const char* key, double* value) override {
+  void Visit(const char* key, double* value) final {
     names->push_back(key);
   }
-  void Visit(const char* key, int64_t* value) override {
+  void Visit(const char* key, int64_t* value) final {
     names->push_back(key);
   }
-  void Visit(const char* key, int* value) override {
+  void Visit(const char* key, uint64_t* value) final {
     names->push_back(key);
   }
-  void Visit(const char* key, std::string* value) override {
+  void Visit(const char* key, bool* value) final {
     names->push_back(key);
   }
-  void Visit(const char* key, const UnaryOp** value) override {
+  void Visit(const char* key, int* value) final {
     names->push_back(key);
   }
-  void Visit(const char* key, const BinaryOp** value) override {
+  void Visit(const char* key, Type* value) final {
+    names->push_back(key);
+  }
+  void Visit(const char* key, std::string* value) final {
+    names->push_back(key);
+  }
+  void Visit(const char* key, NodeRef* value) final {
     names->push_back(key);
   }
 };
@@ -199,15 +242,7 @@ int TVMNodeGetAttr(NodeHandle handle,
     if (ret->ret_value.type_id != kNull) {
       ret->SetReturn(ret_val, ret_typeid);
     } else {
-      const std::string& skey = getter.skey;
-      (*tnode)->VisitNodeRefFields([&skey, ret](const char* key, NodeRef* ref) {
-        if (key == skey) ret->ret_value = *ref;
-        });
-      if (ret->ret_value.type_id != kNull) {
-        ret->SetReturn(ret_val, ret_typeid);
-      } else {
-        *ret_typeid = kNull;
-      }
+      *ret_typeid = kNull;
     }
   }
   API_END_HANDLE_ERROR(ret->Clear());
@@ -223,9 +258,6 @@ int TVMNodeListAttrNames(NodeHandle handle,
   APIAttrDir dir;
   dir.names = &(ret->ret_vec_str);
   (*tnode)->VisitAttrs(&dir);
-  (*tnode)->VisitNodeRefFields([ret](const char* key, NodeRef* ref) {
-      ret->ret_vec_str.push_back(key);
-    });
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
