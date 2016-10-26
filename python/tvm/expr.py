@@ -1,34 +1,35 @@
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
 from . import function as _func
+from . import make as _make
 
 class Expr(NodeBase):
     def __repr__(self):
         return _func.format_str(self)
 
     def __add__(self, other):
-        return binary_op('+', self, other)
+        return _make.Add(self, other)
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __sub__(self, other):
-        return binary_op('-', self, other)
+        return _make.Sub(self, other)
 
     def __rsub__(self, other):
-        return binary_op('-', other, self)
+        return _make.Sub(other, self)
 
     def __mul__(self, other):
-        return binary_op('*', self, other)
+        return _make.Mul(self, other)
 
     def __rmul__(self, other):
-        return binary_op('*', other, self)
+        return _make.Mul(other, self)
 
     def __div__(self, other):
-        return binary_op('/', self, other)
+        return _make.Div(self, other)
 
     def __rdiv__(self, other):
-        return binary_op('/', other, self)
+        return _make.Div(other, self)
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -39,15 +40,126 @@ class Expr(NodeBase):
     def __neg__(self):
         return self.__mul__(-1)
 
-
-@register_node("IntImm")
-class IntImm(Expr):
+class ConstExpr(Expr):
     pass
 
-@register_node("UIntImm")
-class UIntImm(Expr):
+class BinaryOpExpr(Expr):
     pass
 
-@register_node("FloatImm")
-class FloatImm(Expr):
+class CmpExpr(Expr):
+    pass
+
+class LogicalExpr(Expr):
+    pass
+
+@register_node
+class FloatImm(ConstExpr):
+    pass
+
+@register_node
+class IntImm(ConstExpr):
+    pass
+
+@register_node
+class UIntImm(ConstExpr):
+    pass
+
+@register_node
+class StringImm(ConstExpr):
+    pass
+
+@register_node
+class Cast(Expr):
+    pass
+
+@register_node
+class Variable(Expr):
+    pass
+
+@register_node
+class Add(BinaryOpExpr):
+    pass
+
+@register_node
+class Sub(BinaryOpExpr):
+    pass
+
+@register_node
+class Mul(BinaryOpExpr):
+    pass
+
+@register_node
+class Div(BinaryOpExpr):
+    pass
+
+@register_node
+class Mod(BinaryOpExpr):
+    pass
+
+@register_node
+class Min(BinaryOpExpr):
+    pass
+
+@register_node
+class Max(BinaryOpExpr):
+    pass
+
+@register_node
+class EQ(CmpExpr):
+    pass
+
+@register_node
+class NE(CmpExpr):
+    pass
+
+@register_node
+class LT(CmpExpr):
+    pass
+
+@register_node
+class LE(CmpExpr):
+    pass
+
+@register_node
+class GT(CmpExpr):
+    pass
+
+@register_node
+class GE(CmpExpr):
+    pass
+
+@register_node
+class And(LogicalExpr):
+    pass
+
+@register_node
+class Or(LogicalExpr):
+    pass
+
+@register_node
+class Not(LogicalExpr):
+    pass
+
+@register_node
+class Select(Expr):
+    pass
+
+@register_node
+class Load(Expr):
+    pass
+
+@register_node
+class Ramp(Expr):
+    pass
+
+@register_node
+class Broadcast(Expr):
+    pass
+
+@register_node
+class Call(Expr):
+    pass
+
+@register_node
+class Let(Expr):
     pass

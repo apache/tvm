@@ -162,19 +162,23 @@ def _make_function(handle, name):
     return func
 
 
-def register_node(type_key):
+def register_node(type_key=None):
     """register node type
 
     Parameters
     ----------
-    type_key : str
+    type_key : str or cls
         The type key of the node
     """
-    def register(cls):
-        NODE_TYPE[type_key] = cls
+    if isinstance(type_key, str):
+        def register(cls):
+            NODE_TYPE[type_key] = cls
+            return cls
+        return register
+    else:
+        cls = type_key
+        NODE_TYPE[cls.__name__] = cls
         return cls
-    return register
-
 
 def _init_function_module(root_namespace):
     """List and add all the functions to current module."""
@@ -189,11 +193,21 @@ def _init_function_module(root_namespace):
 
     module_obj = sys.modules["%s.function" % root_namespace]
     module_internal = sys.modules["%s._function_internal" % root_namespace]
+    module_make = sys.modules["%s.make" % root_namespace]
+
     for name in op_names:
         hdl = FunctionHandle()
         check_call(_LIB.TVMGetFunctionHandle(c_str(name), ctypes.byref(hdl)))
-        function = _make_function(hdl, name)
-        if function.__name__.startswith('_'):
+        if name.startswith("_make_"):
+            fname = name[6:]
+        else:
+            fname = name
+
+        function = _make_function(hdl, fname)
+
+        if name.startswith("_make_"):
+            setattr(module_make, function.__name__, function)
+        elif function.__name__.startswith('_'):
             setattr(module_internal, function.__name__, function)
         else:
             setattr(module_obj, function.__name__, function)

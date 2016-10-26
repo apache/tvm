@@ -8,12 +8,12 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/registry.h>
+#include <tvm/node.h>
 #include <string>
 #include <memory>
 #include <functional>
 #include <typeinfo>
 #include <type_traits>
-#include <tvm/node.h>
 
 namespace tvm {
 

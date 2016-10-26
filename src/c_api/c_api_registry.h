@@ -24,7 +24,7 @@ inline std::string Type2String(const Type& t) {
 
 inline Type String2Type(std::string s) {
   std::istringstream is(s);
-  halide_type_code_t code;
+  halide_type_code_t code = Type::Int;
   if (s.substr(0, 3) == "int") {
     code = Type::Int; s = s.substr(3);
   } else if (s.substr(0, 4) == "uint") {
@@ -36,7 +36,7 @@ inline Type String2Type(std::string s) {
   } else {
     LOG(FATAL) << "unknown type " << s;
   }
-  int bits, lanes = 1;
+  int bits = 32, lanes = 1;
   if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
     LOG(FATAL) << "unknown type " << s;
   }
@@ -109,11 +109,19 @@ struct APIVariantValue {
     CHECK_EQ(type_id, kLong);
     return v_union.v_long;
   }
+  inline operator uint64_t() const {
+    CHECK_EQ(type_id, kLong);
+    return v_union.v_long;
+  }
   inline operator int() const {
     CHECK_EQ(type_id, kLong);
     CHECK_LE(v_union.v_long,
              std::numeric_limits<int>::max());
     return v_union.v_long;
+  }
+  inline operator bool() const {
+    CHECK_EQ(type_id, kLong);
+    return v_union.v_long != 0;
   }
   inline operator std::string() const {
     CHECK_EQ(type_id, kStr);

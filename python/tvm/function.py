@@ -2,6 +2,7 @@ from __future__ import absolute_import as _abs
 from numbers import Number as _Number, Integral as _Integral
 from ._ctypes._api import _init_function_module
 from .import _function_internal
+from .import make as _make
 
 int32 = "int32"
 float32 = "float32"

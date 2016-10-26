@@ -6,8 +6,8 @@
 #ifndef TVM_EXPR_H_
 #define TVM_EXPR_H_
 
-#include <type_traits>
 #include <ir/Expr.h>
+#include <type_traits>
 #include "./base.h"
 
 namespace tvm {
@@ -15,5 +15,5 @@ namespace tvm {
 using Halide::Type;
 using Halide::Expr;
 
-}  // namespace std
+}  // namespace tvm
 #endif  // TVM_EXPR_H_
