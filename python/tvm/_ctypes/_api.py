@@ -5,7 +5,7 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 import sys
-from numbers import Number as Number
+from numbers import Number, Integral
 
 from .._base import _LIB
 from .._base import c_str, py_str, string_types
@@ -93,6 +93,27 @@ class NodeBase(object):
             names.append(py_str(plist[i]))
         return names
 
+def const(value, dtype=None):
+    """construct a constant"""
+    if dtype is None:
+        if isinstance(value, Integral):
+            dtype = 'int32'
+        else:
+            dtype = 'float32'
+    return _function_internal._const(value, dtype)
+
+
+def convert(value):
+    """Convert a value to expression."""
+    if isinstance(value, Number):
+        return const(value)
+    elif isinstance(value, list):
+        value = [convert(x) for x in value]
+        return _function_internal._Array(*value)
+    else:
+        if not isinstance(value, NodeBase):
+            raise ValueError("don't know how to handle type %s" % type(value))
+
 
 def _push_arg(arg):
     a = ArgVariant()
@@ -147,9 +168,16 @@ def _make_function(handle, name):
     doc_str = doc_str % (desc, param_str)
     arg_names = [py_str(arg_names[i]) for i in range(num_args.value)]
 
-    def func(*args, **kwargs):
+    def func(*args):
         """TVM function"""
-        for arg in args:
+        cargs = []
+        for x in args:
+            if isinstance(x, list):
+                cargs.append(convert(x))
+            else:
+                cargs.append(x)
+
+        for arg in cargs:
             _push_arg(arg)
         ret_val = ArgVariant()
         ret_typeid = ctypes.c_int()

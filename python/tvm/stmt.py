@@ -21,6 +21,10 @@ class ProducerConsumer(Stmt):
 
 @register_node
 class For(Stmt):
+    Serial = 0
+    Parallel = 1
+    Vectorized = 2
+    Unrolled = 3
     pass
 
 @register_node

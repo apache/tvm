@@ -19,7 +19,26 @@ def test_ir():
     assert isinstance(stmt, tvm.stmt.Evaluate)
     print tvm.format_str(stmt)
 
+def test_basic():
+    a = tvm.Var('a')
+    b = tvm.Var('b')
+    c =  a + b
+    assert tvm.format_str(c) == '(%s + %s)' % (a.name, b.name)
+
+def test_array():
+    a = tvm.convert([1,2,3])
+
+def test_stmt():
+    print tvm.make.Provide('a', [1,2,3], [1,2,3])
+    print tvm.make.For('a', 0, 1,
+                       tvm.stmt.For.Serial, 0,
+                       tvm.make.Evaluate(0))
+
+
+
 if __name__ == "__main__":
     test_const()
     test_make()
     test_ir()
+    test_basic()
+    test_stmt()

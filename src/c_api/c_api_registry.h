@@ -96,8 +96,10 @@ struct APIVariantValue {
   }
   inline operator Expr() const {
     if (type_id == kNull) return Expr();
-    if (type_id == kLong) return Expr(operator int64_t());
-    if (type_id == kDouble) return Expr(operator double());
+    if (type_id == kLong) return Expr(operator int());
+    if (type_id == kDouble) {
+      return Expr(static_cast<float>(operator double()));
+    }
     CHECK_EQ(type_id, kNodeHandle);
     return Expr(sptr);
   }

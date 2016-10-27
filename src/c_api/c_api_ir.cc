@@ -14,6 +14,30 @@ using namespace Halide::Internal;
 using ArgStack = const std::vector<APIVariantValue>;
 using RetValue = APIVariantValue;
 
+TVM_REGISTER_API(_Var)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = Variable::make(args.at(1), args.at(0));
+  });
+
+TVM_REGISTER_API(_make_For)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = For::make(args.at(0),
+                     args.at(1),
+                     args.at(2),
+                     static_cast<ForType>(args.at(3).operator int()),
+                     static_cast<Halide::DeviceAPI>(args.at(4).operator int()),
+                     args.at(5));
+  });
+
+TVM_REGISTER_API(_make_Allocate)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = Allocate::make(args.at(0),
+                          args.at(1),
+                          args.at(2),
+                          args.at(3),
+                          args.at(4));
+  });
+
 // make from two arguments
 #define REGISTER_MAKE1(Node)                                 \
   TVM_REGISTER_API(_make_## Node)                            \
@@ -33,7 +57,7 @@ using RetValue = APIVariantValue;
       *ret = Node::make(args.at(0), args.at(1), args.at(2)); \
     })                                                       \
 
-#define REGISTER_MAKE_BINARY_OP(Node)                            \
+#define REGISTER_MAKE_BINARY_OP(Node)                        \
   TVM_REGISTER_API(_make_## Node)                            \
   .set_body([](const ArgStack& args,  RetValue *ret) {       \
       Expr a = args.at(0), b = args.at(1);                   \
@@ -67,13 +91,12 @@ REGISTER_MAKE3(Select);
 REGISTER_MAKE3(Ramp);
 REGISTER_MAKE2(Broadcast);
 REGISTER_MAKE3(Let);
+// TODO(tqchen) Call;
 REGISTER_MAKE3(LetStmt);
 REGISTER_MAKE2(AssertStmt);
 REGISTER_MAKE3(ProducerConsumer);
-// TODO(tqchen) For;
 REGISTER_MAKE3(Store);
-// TODO(tqchen) Provide;
-// TODO(tqchen) Allocate;
+REGISTER_MAKE3(Provide);
 REGISTER_MAKE1(Free);
 // TODO(tqchen) Realize;
 REGISTER_MAKE2(Block);
