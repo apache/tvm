@@ -43,13 +43,13 @@ class Symbol(SymbolBase):
     def __sub__(self, other):
         if isinstance(other, Symbol):
             return _internal.__sub_symbol__(self, other)
-        if isinstance(other, Number):
+        if isinstance(other, _Number):
             return _internal.__sub_scalar__(self, scalar=other)
         else:
             raise TypeError('type %s not supported' % str(type(other)))
 
     def __rsub__(self, other):
-        if isinstance(other, Number):
+        if isinstance(other, _Number):
             return _internal.__rsub_scalar__(self, scalar=other)
         else:
             raise TypeError('type %s not supported' % str(type(other)))
@@ -68,13 +68,13 @@ class Symbol(SymbolBase):
     def __div__(self, other):
         if isinstance(other, Symbol):
             return _internal.__div_symbol__(self, other)
-        if isinstance(other, Number):
+        if isinstance(other, _Number):
             return _internal.__div_scalar__(self, scalar=other)
         else:
             raise TypeError('type %s not supported' % str(type(other)))
 
     def __rdiv__(self, other):
-        if isinstance(other, Number):
+        if isinstance(other, _Number):
             return _internal.__rdiv_scalar__(self, scalar=other)
         else:
             raise TypeError('type %s not supported' % str(type(other)))
@@ -88,8 +88,14 @@ class Symbol(SymbolBase):
     def __pow__(self, other):
         if isinstance(other, Symbol):
             return _internal.__pow_symbol__(self, other)
-        if isinstance(other, Number):
+        if isinstance(other, _Number):
             return _internal.__pow_scalar__(self, scalar=other)
+        else:
+            raise TypeError('type %s not supported' % str(type(other)))
+
+    def __rpow__(self, other):
+        if isinstance(other, _Number):
+            return _internal.__rpow_scalar__(self, scalar=other)
         else:
             raise TypeError('type %s not supported' % str(type(other)))
 
