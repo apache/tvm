@@ -6,4 +6,4 @@ from ._ctypes._api import register_node
 from . import expr
 from . import stmt
 from . import make
-from . import domain
+from . import collections
