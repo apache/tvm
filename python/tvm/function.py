@@ -41,4 +41,27 @@ def convert(value):
     else:
         return value
 
+
+def Range(begin, **kwargs):
+    """Create a TVM Range object.
+
+    User can either call:
+    Range(10) to get a range in [0, 10)
+
+    or
+    Range(begin=1, extent=10), to get a range in [0, 11)
+
+    Parameters
+    ----------
+    begin : Expr
+        The beginning of the expression.
+
+    extent : optional, Expr
+        The extent(i.e. the length) of the range.
+    """
+    if "extent" in kwargs:
+        return _function_internal._Range(begin, kwargs["extent"])
+    else:
+        return _function_internal._Range(0, begin);
+
 _init_function_module("tvm")

@@ -14,3 +14,10 @@ class Array(NodeBase):
 
     def __repr__(self):
         return '[' + (','.join(str(x) for x in self)) + ']'
+
+
+@register_node
+class Range(NodeBase):
+    def __repr__(self):
+        return ('Range(min='+ str(self.min) +
+                ', extent=' + str(self.extent) + ')')
