@@ -8,16 +8,10 @@ TEST(Tensor, Basic) {
   Var m("m"), n("n"), l("l");
   Tensor A({m, l}, "A");
   Tensor B({n, l}, "B");
-  RDomain rd({{0, l}});
 
   auto C = Tensor({m, n}, [&](Var i, Var j) {
-      return sum(A(i, rd.i0()) * B(j, rd.i0()), rd);
+      return A(i, j) * B(j, i);
     }, "C");
-
-  auto inputs = C.InputTensors();
-  CHECK(inputs[0] == A);
-  CHECK(inputs[1] == B);
-  CHECK(C.IsRTensor());
 }
 
 int main(int argc, char ** argv) {

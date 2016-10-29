@@ -9,9 +9,10 @@
 #include <string>
 #include <vector>
 #include <type_traits>
+#include <tvm/array.h>
+#include <ir/FunctionBase.h>
 #include "./base.h"
 #include "./expr.h"
-#include "./array.h"
 
 namespace tvm {
 
@@ -35,11 +36,13 @@ inline FCompute GetFCompute(std::function<Expr(Var, Var, Var, Var)> f) {
   return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
 }
 
+using Halide::IR::FunctionRef;
+
 /*!
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public NodeRef {
+class Tensor : public FunctionRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
@@ -51,7 +54,7 @@ class Tensor : public NodeRef {
    */
   explicit Tensor(Array<Expr> shape,
                   std::string name = "tensor",
-                  DataType dtype = kFloat32);
+                  Type dtype = Float(32));
   /*!
    * \brief constructor of intermediate result.
    * \param shape Shape of the tensor.
@@ -91,10 +94,6 @@ class Tensor : public NodeRef {
    * \return the result expression representing tensor read.
    */
   Expr operator()(Array<Expr> indices) const;
-  /*! \return list of input tensors to this tensor */
-  std::vector<Tensor> InputTensors() const;
-  /*! \return whether the tensor stores a result of reduction */
-  bool IsRTensor() const;
   // overload print function
   friend std::ostream& operator<<(std::ostream &os, const Tensor& t);
 };
@@ -105,9 +104,9 @@ class TensorNode : public Node {
   /*! \brief optional name of the tensor */
   std::string name;
   /*! \brief data type in the content of the tensor */
-  DataType dtype;
+  Type dtype;
   /*! \brief The index representing each dimension, used by source expression. */
-  Array<Var> dim_index;
+  Array<Var> dim_var;
   /*! \brief The shape of the tensor */
   Array<Expr> shape;
   /*! \brief source expression */
@@ -115,16 +114,15 @@ class TensorNode : public Node {
   /*! \brief constructor */
   TensorNode() {}
   const char* type_key() const override {
-    return "TensorNode";
+    return "Tensor";
   }
-  void VisitAttrs(AttrVisitor* visitor) override {
-    visitor->Visit("name", &name);
-    visitor->Visit("dtype", &dtype);
-  }
-  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
-    fvisit("dim_index", &dim_index);
-    fvisit("shape", &shape);
-    fvisit("source", &source);
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("dtype", &dtype);
+    v->Visit("dim_var", &dim_var);
+    v->Visit("shape", &shape);
+    v->Visit("source", &source);
+
   }
 };
 
