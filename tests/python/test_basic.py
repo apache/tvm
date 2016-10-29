@@ -9,7 +9,7 @@ def test_make():
     x = tvm.const(1)
     y = tvm.make.IntImm('int32', 1)
     z = x + y
-    print tvm.format_str(z)
+    print(tvm.format_str(z))
 
 def test_ir():
     x = tvm.const(1)
@@ -17,7 +17,6 @@ def test_ir():
     z = x + y
     stmt = tvm.make.Evaluate(z)
     assert isinstance(stmt, tvm.stmt.Evaluate)
-    print tvm.format_str(stmt)
 
 def test_basic():
     a = tvm.Var('a')
@@ -29,10 +28,9 @@ def test_array():
     a = tvm.convert([1,2,3])
 
 def test_stmt():
-    print tvm.make.Provide('a', [1,2,3], [1,2,3])
-    print tvm.make.For('a', 0, 1,
-                       tvm.stmt.For.Serial, 0,
-                       tvm.make.Evaluate(0))
+    tvm.make.For(tvm.Var('i'), 0, 1,
+                 tvm.stmt.For.Serial, 0,
+                 tvm.make.Evaluate(0))
 
 
 
