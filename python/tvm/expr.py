@@ -54,6 +54,7 @@ class LogicalExpr(Expr):
 
 @register_node("Variable")
 class Var(Expr):
+
     pass
 
 @register_node
@@ -162,6 +163,12 @@ class Broadcast(Expr):
 
 @register_node
 class Call(Expr):
+    Extern = 0
+    ExternCPlusPlus = 1
+    PureExtern = 2
+    Halide = 3
+    Intrinsic = 4
+    PureIntrinsic = 5
     pass
 
 @register_node

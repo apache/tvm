@@ -107,13 +107,13 @@ def convert(value):
     """Convert a value to expression."""
     if isinstance(value, Number):
         return const(value)
-    elif isinstance(value, list):
+    elif isinstance(value, (list, tuple)):
         value = [convert(x) for x in value]
         return _function_internal._Array(*value)
     else:
         if not isinstance(value, NodeBase):
             raise ValueError("don't know how to handle type %s" % type(value))
-
+        return value
 
 def _push_arg(arg):
     a = ArgVariant()
@@ -172,7 +172,7 @@ def _make_function(handle, name):
         """TVM function"""
         cargs = []
         for x in args:
-            if isinstance(x, list):
+            if isinstance(x, (list, tuple)):
                 cargs.append(convert(x))
             else:
                 cargs.append(x)

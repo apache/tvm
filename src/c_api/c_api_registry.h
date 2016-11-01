@@ -80,8 +80,12 @@ struct APIVariantValue {
     return *this;
   }
   inline APIVariantValue& operator=(const NodeRef& ref) {
-    type_id = kNodeHandle;
-    this->sptr = ref.node_;
+    if (ref.node_.get() == nullptr) {
+      type_id = kNull;
+    } else {
+      type_id = kNodeHandle;
+      this->sptr = ref.node_;
+    }
     return *this;
   }
   inline APIVariantValue& operator=(const Type& value) {

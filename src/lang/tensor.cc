@@ -42,6 +42,20 @@ Expr Tensor::operator()(Array<Expr> indices) const {
       (*this)->dtype, (*this)->name, indices, Call::Halide, *this);
 }
 
+Tensor TensorNode::make(Array<Expr> shape,
+                        std::string name,
+                        Type dtype,
+                        Array<Var> dim_var,
+                        Expr source) {
+  auto n = std::make_shared<TensorNode>();
+  n->shape = shape;
+  n->name = name;
+  n->dtype = dtype;
+  n->dim_var = dim_var;
+  n->source = source;
+  return Tensor(n);
+}
+
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
 }  // namespace tvm

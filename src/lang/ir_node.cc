@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file expr_node.cc
+ * \file ir_node.cc
  */
 #include <tvm/base.h>
 #include <tvm/expr.h>

@@ -6,11 +6,12 @@
 #ifndef TVM_TENSOR_H_
 #define TVM_TENSOR_H_
 
+#include <tvm/array.h>
+#include <ir/FunctionBase.h>
 #include <string>
 #include <vector>
 #include <type_traits>
-#include <tvm/array.h>
-#include <ir/FunctionBase.h>
+
 #include "./base.h"
 #include "./expr.h"
 
@@ -46,6 +47,7 @@ class Tensor : public FunctionRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
+  explicit Tensor(std::shared_ptr<Node> n) : FunctionRef(n) {}
   /*!
    * \brief constructor of input tensor
    * \param shape Shape of the tensor.
@@ -101,14 +103,14 @@ class Tensor : public FunctionRef {
 /*! \brief Node to represent a tensor */
 class TensorNode : public Node {
  public:
+  /*! \brief The shape of the tensor */
+  Array<Expr> shape;
   /*! \brief optional name of the tensor */
   std::string name;
   /*! \brief data type in the content of the tensor */
   Type dtype;
   /*! \brief The index representing each dimension, used by source expression. */
   Array<Var> dim_var;
-  /*! \brief The shape of the tensor */
-  Array<Expr> shape;
   /*! \brief source expression */
   Expr source;
   /*! \brief constructor */
@@ -117,13 +119,17 @@ class TensorNode : public Node {
     return "Tensor";
   }
   void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("shape", &shape);
     v->Visit("name", &name);
     v->Visit("dtype", &dtype);
     v->Visit("dim_var", &dim_var);
-    v->Visit("shape", &shape);
     v->Visit("source", &source);
-
   }
+  static Tensor make(Array<Expr> shape,
+                     std::string name,
+                     Type dtype,
+                     Array<Var> dim_var,
+                     Expr source);
 };
 
 // implementations

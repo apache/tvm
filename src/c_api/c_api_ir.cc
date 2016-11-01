@@ -29,6 +29,16 @@ TVM_REGISTER_API(_make_For)
                      args.at(5));
   });
 
+
+TVM_REGISTER_API(_make_Call)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = Call::make(args.at(0),
+                      args.at(1),
+                      args.at(2),
+                      static_cast<Call::CallType>(args.at(3).operator int()),
+                      args.at(4));
+  });
+
 TVM_REGISTER_API(_make_Allocate)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = Allocate::make(args.at(0),
@@ -91,7 +101,6 @@ REGISTER_MAKE3(Select);
 REGISTER_MAKE3(Ramp);
 REGISTER_MAKE2(Broadcast);
 REGISTER_MAKE3(Let);
-// TODO(tqchen) Call;
 REGISTER_MAKE3(LetStmt);
 REGISTER_MAKE2(AssertStmt);
 REGISTER_MAKE3(ProducerConsumer);

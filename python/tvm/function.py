@@ -35,33 +35,45 @@ def convert(value):
     """Convert a value to expression."""
     if isinstance(value, _Number):
         return const(value)
-    elif isinstance(value, list):
+    elif isinstance(value, (list, tuple)):
         value = [convert(x) for x in value]
         return _function_internal._Array(*value)
     else:
         return value
 
 
-def Range(begin, **kwargs):
-    """Create a TVM Range object.
-
-    User can either call:
-    Range(10) to get a range in [0, 10)
-
-    or
-    Range(begin=1, extent=10), to get a range in [0, 11)
+def Tensor(shape, fcompute=None, dtype=None, name="TensorObj"):
+    """Construct a tensor object in dataflow.
 
     Parameters
     ----------
-    begin : Expr
-        The beginning of the expression.
+    shape: Tuple of Expr
+        The shape of the tensor
 
-    extent : optional, Expr
-        The extent(i.e. the length) of the range.
+    fcompute: lambda function of *indices-> value
+        Specifies the input source expression
+
+    dtype: str, optional
+        The data type of the tensor, must specify when fcompute is not specified.
+
+    name: str, optional
+        The name hint of the tensor
+
+    Returns
+    -------
+    tensor: tensor.Tensor
+        The created tensor
     """
-    if "extent" in kwargs:
-        return _function_internal._Range(begin, kwargs["extent"])
+    ndim = len(shape)
+    dim_var = [Var("dim_var%d" % i) for i in range(ndim)]
+    if fcompute:
+        source = fcompute(*dim_var)
+        return _function_internal._Tensor(
+            shape, name, source.dtype, dim_var, source)
     else:
-        return _function_internal._Range(0, begin);
+        dtype = float32 if dtype is None else dtype
+        return _function_internal._Tensor(
+            shape, name, dtype, None, None)
+
 
 _init_function_module("tvm")
