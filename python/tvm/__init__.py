@@ -7,3 +7,4 @@ from . import expr
 from . import stmt
 from . import make
 from . import collections
+from . import tensor
