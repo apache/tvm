@@ -48,6 +48,10 @@ Tensor TensorNode::make(Array<Expr> shape,
                         Array<Var> dim_var,
                         Expr source) {
   auto n = std::make_shared<TensorNode>();
+  if (source.defined()) {
+    CHECK_EQ(source.type(), dtype);
+    CHECK_EQ(dim_var.size(), shape.size());
+  }
   n->shape = shape;
   n->name = name;
   n->dtype = dtype;

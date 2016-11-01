@@ -4,15 +4,45 @@
  */
 #include <tvm/base.h>
 #include <tvm/expr.h>
+#include <tvm/ir_node.h>
 #include <ir/IR.h>
+#include <ir/IRPrinter.h>
 #include <memory>
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
 }  // namespace dmlc
 
-namespace tvm {
 
+namespace Halide {
+namespace Internal {
+
+template<>
+void ExprNode<tvm::ir::Reduce>::accept(IRVisitor *v) const {
+  LOG(FATAL) << "Reduce do not work with IRVisitor yet";
+}
+
+}  // namespace Internal
+}  // namespace Halide
+
+namespace tvm {
+namespace ir {
+
+// reduce
+TVM_REGISTER_NODE_TYPE(Reduce);
+
+Expr make(std::string op, Expr source, RDomain rdom) {
+  auto n = std::make_shared<Reduce>();
+  CHECK(source.defined());
+  n->type = source.type();
+  n->source = source;
+  n->op = op;
+  n->rdom = rdom;
+  return Expr(n);
+}
+
+
+// HalideIR node
 using namespace Halide::Internal;
 
 TVM_REGISTER_NODE_TYPE(FloatImm);
@@ -55,5 +85,5 @@ TVM_REGISTER_NODE_TYPE(Realize);
 TVM_REGISTER_NODE_TYPE(Block);
 TVM_REGISTER_NODE_TYPE(IfThenElse);
 TVM_REGISTER_NODE_TYPE(Evaluate);
-
+}  // namespace ir
 }  // namespace tvm
