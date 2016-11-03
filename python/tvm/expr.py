@@ -1,12 +1,8 @@
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
-from . import function as _func
 from . import make as _make
 
 class Expr(NodeBase):
-    def __repr__(self):
-        return _func.format_str(self)
-
     def __add__(self, other):
         return _make.Add(self, other)
 
@@ -52,9 +48,14 @@ class CmpExpr(Expr):
 class LogicalExpr(Expr):
     pass
 
+
+
 @register_node("Variable")
 class Var(Expr):
+    pass
 
+@register_node
+class Reduce(Expr):
     pass
 
 @register_node
