@@ -28,6 +28,9 @@ enum AttachType : int {
 /*! \brief schedule container */
 class Schedule : public NodeRef {
  public:
+  Schedule() {}
+  explicit Schedule(std::shared_ptr<Node> n) : NodeRef(n) {}
+  Schedule(Tensor tensor, std::string scope);
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -38,6 +41,8 @@ class Schedule : public NodeRef {
 /*! \brief schedule container */
 class AttachSpec : public NodeRef {
  public:
+  AttachSpec() {}
+  explicit AttachSpec(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -59,15 +64,13 @@ class AttachSpecNode : public Node {
   Split attach_split;
   /*! \brief the child schedule to be attached. */
   Schedule schedule;
-  const char* type_key() const override {
-    return "AttachSpecNode";
+  const char* type_key() const final {
+    return "AttachSpec";
   }
-  void VisitAttrs(AttrVisitor* visitor) override {
-    visitor->Visit("attach_type", &attach_type);
-  }
-  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
-    fvisit("attach_split", &attach_split);
-    fvisit("schedule", &schedule);
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("attach_type", &attach_type);
+    v->Visit("attach_split", &attach_split);
+    v->Visit("schedule", &schedule);
   }
 };
 
@@ -82,16 +85,14 @@ class ScheduleNode : public Node {
   Array<Split> splits;
   /*! \brief attach specifications */
   Array<AttachSpec> attachs;
-  const char* type_key() const override {
-    return "AttachSpecNode";
+  const char* type_key() const final {
+    return "Schedule";
   }
-  void VisitAttrs(AttrVisitor* visitor) override {
-    visitor->Visit("scope", &scope);
-  }
-  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
-    fvisit("tensor", &tensor);
-    fvisit("splits", &splits);
-    fvisit("attachs", &attachs);
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("scope", &scope);
+    v->Visit("tensor", &tensor);
+    v->Visit("splits", &splits);
+    v->Visit("attachs", &attachs);
   }
 };
 

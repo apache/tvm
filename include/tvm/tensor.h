@@ -115,7 +115,7 @@ class TensorNode : public Node {
   Expr source;
   /*! \brief constructor */
   TensorNode() {}
-  const char* type_key() const override {
+  const char* type_key() const final {
     return "Tensor";
   }
   void VisitAttrs(AttrVisitor* v) final {

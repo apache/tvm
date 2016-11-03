@@ -122,22 +122,6 @@ def sum(expr, rdom):
     x =  _make.Reduce("Add", expr, rdom)
     return x
 
-def sum(expr, rdom):
-    """Create a sum expression over rdom
-
-    Parameters
-    ----------
-    expr : Expr
-        The source expression.
-
-    rdom : RDomain
-        The reduction domainx
-    """
-    assert isinstance(expr, _expr.Expr)
-    assert isinstance(rdom, _collections.RDomain)
-    x =  _make.Reduce("Add", expr, rdom)
-    return x
-
 def min(expr, rdom):
     """Create a min expression over rdom
 
@@ -154,7 +138,6 @@ def min(expr, rdom):
     x =  _make.Reduce("Min", expr, rdom)
     return x
 
-
 def max(expr, rdom):
     """Create a min expression over rdom
 
@@ -170,6 +153,14 @@ def max(expr, rdom):
     assert isinstance(rdom, _collections.RDomain)
     x =  _make.Reduce("Max", expr, rdom)
     return x
+
+
+def Schedule(tensor, scope="global"):
+    return _function_internal._Schedule(tensor, scope)
+
+
+def Split(dim, factor, over_rdom=False):
+    return _function_internal._DimSplit(dim, factor, over_rdom)
 
 
 _init_function_module("tvm")

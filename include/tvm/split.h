@@ -7,7 +7,6 @@
 #define TVM_SPLIT_H_
 
 #include "./base.h"
-#include "./array.h"
 #include "./domain.h"
 
 namespace tvm {
@@ -20,8 +19,7 @@ class Split : public NodeRef {
  public:
   /*! \brief default constructor  */
   Split() {}
-  /*! \return  Whether the split is over RDomain or not */
-  inline bool is_over_rdom() const;
+  explicit Split(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -37,47 +35,34 @@ class Split : public NodeRef {
 class SplitNode : public Node {
  public:
   /*! \brief whether the split is over reduction domain*/
-  int split_over_rdom{0};
-  /*!
-   * \brief given the output domain, infer input domain
-   * \param split_index The index to be splitted on
-   * \param out_domain The outer domain
-   * \return The inferred inner domain.
-   */
-  virtual Domain InferInnerDomain(Expr split_index, Domain out_domain) const = 0;
+  bool split_over_rdom{false};
 };
 
 /*! \brief simple split node that splits over one dimension */
 class DimSplitNode : public SplitNode {
  public:
   /*! \brief The dimension to split on */
-  int64_t dim_index;
+  int dim_index;
   /*! \brief The factor of the split */
   Expr factor;
   /*! \brief constructor */
   DimSplitNode() {}
-  const char* type_key() const override {
-    return "DimSplitNode";
+  const char* type_key() const final {
+    return "DimSplit";
   }
-  void VisitAttrs(AttrVisitor* visitor) override {
-    visitor->Visit("split_over_rdom", &split_over_rdom);
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("split_over_rdom", &split_over_rdom);
+    v->Visit("dim_index", &dim_index);
+    v->Visit("factor", &factor);
   }
-  void VisitNodeRefFields(FNodeRefVisit fvisit) override {
-    fvisit("factor", &factor);
-  }
-  Domain InferInnerDomain(Expr split_index, Domain out_domain) const override {
-    LOG(FATAL) << "not implemented";
-    return Domain();
-  }
+  static Split make(int dim_index,
+                    Expr factor,
+                    bool over_rdom);
 };
 
 // Implementations of inline functions
 inline const SplitNode* Split::operator->() const {
   return static_cast<const SplitNode*>(node_.get());
-}
-
-inline bool Split::is_over_rdom() const {
-  return (*this)->split_over_rdom != 0;
 }
 
 }  // namespace tvm

@@ -6,6 +6,8 @@
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
 #include <tvm/domain.h>
+#include <tvm/split.h>
+#include <tvm/schedule.h>
 #include <ir/IROperator.h>
 #include "./c_api_registry.h"
 
@@ -73,6 +75,7 @@ TVM_REGISTER_API(Range)
       *ret = Range(args.at(0), args.at(1));
     }
   })
+.describe("create a domain range")
 .add_argument("begin", "Expr", "beginning of the range.")
 .add_argument("end", "Expr", "extent of the range");
 
@@ -88,6 +91,16 @@ TVM_REGISTER_API(_Tensor)
 TVM_REGISTER_API(_RDomain)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = RDomain(args.at(0).operator Domain());
+  });
+
+TVM_REGISTER_API(_DimSplit)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = DimSplitNode::make(args.at(0), args.at(1), args.at(2));
+  });
+
+TVM_REGISTER_API(_Schedule)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = Schedule(args.at(0), args.at(1));
   });
 
 }  // namespace tvm
