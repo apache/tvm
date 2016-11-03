@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir_node.h
+ * \file ir.h
  * \brief Additional high level nodes in the IR
  */
-#ifndef TVM_IR_NODE_H_
-#define TVM_IR_NODE_H_
+#ifndef TVM_IR_H_
+#define TVM_IR_H_
 
 #include <ir/Expr.h>
 #include <ir/IR.h>
