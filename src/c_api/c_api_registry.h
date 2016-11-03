@@ -44,7 +44,8 @@ inline Type String2Type(std::string s) {
 }
 
 /*! \brief Variant container for API calls */
-struct APIVariantValue {
+class APIVariantValue {
+ public:
   /*! \brief the type id */
   ArgVariantID type_id{kNull};
   /*! \brief shared pointer container */
