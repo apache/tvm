@@ -9,7 +9,7 @@ def test_make():
     x = tvm.const(1)
     y = tvm.make.IntImm('int32', 1)
     z = x + y
-    print(tvm.format_str(z))
+    print(z)
 
 def test_ir():
     x = tvm.const(1)
@@ -22,7 +22,7 @@ def test_basic():
     a = tvm.Var('a')
     b = tvm.Var('b')
     c =  a + b
-    assert tvm.format_str(c) == '(%s + %s)' % (a.name, b.name)
+    assert str(c) == '(%s + %s)' % (a.name, b.name)
 
 def test_array():
     a = tvm.convert([1,2,3])
