@@ -4,7 +4,7 @@
  */
 #include <tvm/base.h>
 #include <tvm/expr.h>
-#include <tvm/ir_node.h>
+#include <tvm/ir.h>
 #include <ir/IR.h>
 #include <ir/IRPrinter.h>
 #include <memory>
