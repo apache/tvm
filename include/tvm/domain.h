@@ -46,6 +46,7 @@ class RDomain : public NodeRef {
  public:
   /*! \brief constructor*/
   RDomain() {}
+  explicit RDomain(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * constructor by domain
    * \param domain The domain of reduction.

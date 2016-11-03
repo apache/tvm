@@ -22,3 +22,8 @@ class Range(NodeBase):
     def __repr__(self):
         return ('Range(min='+ str(self.min) +
                 ', extent=' + str(self.extent) + ')')
+
+
+@register_node
+class RDomain(NodeBase):
+    pass

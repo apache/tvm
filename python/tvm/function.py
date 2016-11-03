@@ -1,8 +1,10 @@
 from __future__ import absolute_import as _abs
 from numbers import Number as _Number, Integral as _Integral
 from ._ctypes._api import _init_function_module
-from .import _function_internal
-from .import make as _make
+from . import _function_internal
+from . import make as _make
+from . import expr as _expr
+from . import collections as _collections
 
 int32 = "int32"
 float32 = "float32"
@@ -74,6 +76,100 @@ def Tensor(shape, fcompute=None, dtype=None, name="TensorObj"):
         dtype = float32 if dtype is None else dtype
         return _function_internal._Tensor(
             shape, name, dtype, None, None)
+
+
+def RDomain(dom):
+    """Create a reduction domain given domain
+
+    Parameters
+    ----------
+    dom : list of Range or list of pairs
+       The reduction domain.
+
+    Returns
+    -------
+    rdom : RDomain
+       The result rdomain
+    """
+    if not isinstance(dom, (list, tuple)):
+        dom = [dom]
+    elif not isinstance(dom[0], (list, tuple)):
+        dom = [dom]
+    dnorm = []
+    for x in dom:
+        if isinstance(x, (list, tuple)):
+            if len(x) != 2:
+                raise ValueError("need to list of ranges")
+            dnorm.append(Range(x[0], x[1]))
+        else:
+            dnorm.append(x)
+    dnorm = convert(dnorm)
+    return _function_internal._RDomain(dnorm)
+
+
+def sum(expr, rdom):
+    """Create a sum expression over rdom
+
+    Parameters
+    ----------
+    expr : Expr
+        The source expression.
+
+    rdom : RDomain
+        The reduction domainx
+    """
+    assert isinstance(rdom, _collections.RDomain)
+    x =  _make.Reduce("Add", expr, rdom)
+    return x
+
+def sum(expr, rdom):
+    """Create a sum expression over rdom
+
+    Parameters
+    ----------
+    expr : Expr
+        The source expression.
+
+    rdom : RDomain
+        The reduction domainx
+    """
+    assert isinstance(expr, _expr.Expr)
+    assert isinstance(rdom, _collections.RDomain)
+    x =  _make.Reduce("Add", expr, rdom)
+    return x
+
+def min(expr, rdom):
+    """Create a min expression over rdom
+
+    Parameters
+    ----------
+    expr : Expr
+        The source expression.
+
+    rdom : RDomain
+        The reduction domainx
+    """
+    assert isinstance(expr, _expr.Expr)
+    assert isinstance(rdom, _collections.RDomain)
+    x =  _make.Reduce("Min", expr, rdom)
+    return x
+
+
+def max(expr, rdom):
+    """Create a min expression over rdom
+
+    Parameters
+    ----------
+    expr : Expr
+        The source expression.
+
+    rdom : RDomain
+        The reduction domainx
+    """
+    assert isinstance(expr, _expr.Expr)
+    assert isinstance(rdom, _collections.RDomain)
+    x =  _make.Reduce("Max", expr, rdom)
+    return x
 
 
 _init_function_module("tvm")

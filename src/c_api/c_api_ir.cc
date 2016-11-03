@@ -4,11 +4,13 @@
  * \file c_api_ir.cc
  */
 #include <tvm/expr.h>
+#include <tvm/ir.h>
 #include <ir/IROperator.h>
 #include "./c_api_registry.h"
 
 namespace tvm {
 
+using namespace tvm::ir;
 using namespace Halide::Internal;
 
 using ArgStack = const std::vector<APIVariantValue>;
@@ -29,6 +31,12 @@ TVM_REGISTER_API(_make_For)
                      args.at(5));
   });
 
+TVM_REGISTER_API(_make_Reduce)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = Reduce::make(args.at(0),
+                        args.at(1),
+                        args.at(2));
+  });
 
 TVM_REGISTER_API(_make_Call)
 .set_body([](const ArgStack& args,  RetValue *ret) {

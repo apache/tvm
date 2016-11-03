@@ -18,7 +18,7 @@ namespace tvm {
 using ArgStack = const std::vector<APIVariantValue>;
 using RetValue = APIVariantValue;
 
-TVM_REGISTER_API(format_str)
+TVM_REGISTER_API(_format_str)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     using Halide::Internal::BaseExprNode;
     using Halide::Internal::BaseStmtNode;

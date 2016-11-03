@@ -61,6 +61,9 @@ class NodeBase(object):
         """
         self.handle = handle
 
+    def __repr__(self):
+        return _function_internal.format_str(self)
+
     def __del__(self):
         check_call(_LIB.TVMNodeFree(self.handle))
 

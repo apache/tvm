@@ -17,10 +17,21 @@ DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
 namespace Halide {
 namespace Internal {
 
+using tvm::ir::Reduce;
+
 template<>
-void ExprNode<tvm::ir::Reduce>::accept(IRVisitor *v) const {
+void ExprNode<Reduce>::accept(IRVisitor *v) const {
   LOG(FATAL) << "Reduce do not work with IRVisitor yet";
 }
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<Reduce>([](const Reduce *op, IRPrinter *p) {
+  p->stream << "reduce("
+            << op->op
+            << ", ";
+  p->print(op->source);
+  p->stream << ", rdom=" << op->rdom << ")";
+});
 
 }  // namespace Internal
 }  // namespace Halide
@@ -31,7 +42,7 @@ namespace ir {
 // reduce
 TVM_REGISTER_NODE_TYPE(Reduce);
 
-Expr make(std::string op, Expr source, RDomain rdom) {
+Expr Reduce::make(std::string op, Expr source, RDomain rdom) {
   auto n = std::make_shared<Reduce>();
   CHECK(source.defined());
   n->type = source.type();

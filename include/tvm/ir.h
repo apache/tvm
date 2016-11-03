@@ -48,4 +48,4 @@ struct Reduce : public ExprNode<Reduce> {
 }  // namespace ir
 }  // namespace tvm
 
-#endif  // TVM_IR_NODE_H_
+#endif  // TVM_IR_H_
