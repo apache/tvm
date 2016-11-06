@@ -53,13 +53,7 @@ class IRMutator {
 };
 
 /*!
- * \brief templatized base class of subclass of IRMutator
- *
- *  Use "curiously recurring template pattern" to implement mutate for you.
- *  Child class need to declare IRMutatorBase<T>::vtable_expr and IRMutatorBase<T>::vtable_stmt
- *
- * \note This only implement direct subclass from IRMutator, similar code
- *    can be created to implement deeper subclassing when needed.
+ * \brief Example on how to subclass and override behavior of IRMutator
  */
 class IRMutatorExample : public IRMutator {
  public:
