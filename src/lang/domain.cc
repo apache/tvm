@@ -12,6 +12,10 @@ Range::Range(Expr begin, Expr end)
   // TODO(tqchen) add simplify to end - begin
 }
 
+Range Range::make_with_min_extent(Expr min, Expr extent) {
+  return Range(std::make_shared<Halide::IR::RangeNode>(min, extent));
+}
+
 RDomain::RDomain(Domain domain) {
   std::vector<Var> index;
   for (size_t i = 0; i < domain.size(); ++i) {
@@ -22,6 +26,10 @@ RDomain::RDomain(Domain domain) {
   Array<Var> idx(index);
   node_ = std::make_shared<RDomainNode>(
       std::move(idx), std::move(domain));
+}
+
+RDomain RDomain::make(Array<Var> index, Domain domain) {
+  return RDomain(std::make_shared<RDomainNode>(index, domain));
 }
 
 TVM_REGISTER_NODE_TYPE(RDomainNode);

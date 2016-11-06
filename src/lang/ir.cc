@@ -20,7 +20,7 @@ namespace Internal {
 using tvm::ir::Reduce;
 
 template<>
-void ExprNode<Reduce>::accept(IRVisitor *v) const {
+void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
   LOG(FATAL) << "Reduce do not work with IRVisitor yet";
 }
 

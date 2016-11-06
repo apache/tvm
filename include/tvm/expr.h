@@ -8,7 +8,7 @@
 
 #include <ir/Expr.h>
 #include <ir/IROperator.h>
-#include <type_traits>
+#include <string>
 #include "./base.h"
 
 namespace tvm {
@@ -28,7 +28,12 @@ using Halide::select;
 
 using Halide::Expr;
 using Halide::Internal::Stmt;
-using Var = Halide::VarExpr;
+
+class Var : public Halide::VarExpr {
+ public:
+  explicit Var(const std::string& name_hint = "v",
+               Type t = Int(32)) : VarExpr(name_hint, t) {}
+};
 
 }  // namespace tvm
 #endif  // TVM_EXPR_H_

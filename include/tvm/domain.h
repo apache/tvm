@@ -36,6 +36,8 @@ class Range : public Halide::IR::Range {
    * \param end The end of the range.
    */
   Range(Expr begin, Expr end);
+
+  static Range make_with_min_extent(Expr min, Expr extent);
 };
 
 /*! \brief Domain is a multi-dimensional range */
@@ -74,6 +76,8 @@ class RDomain : public NodeRef {
   inline Var i0() const {
     return index(0);
   }
+  // low level constructor
+  static RDomain make(Array<Var> index, Domain domain);
 };
 
 /*! \brief use RDom as alias of RDomain */
@@ -88,8 +92,8 @@ class RDomainNode : public Node {
   Domain domain;
   /*! \brief constructor */
   RDomainNode() {}
-  RDomainNode(Array<Var> && index, Domain && domain)
-      : index(std::move(index)), domain(std::move(domain)) {
+  RDomainNode(Array<Var> index, Domain domain)
+      : index(index), domain(domain) {
   }
   const char* type_key() const override {
     return "RDomain";
