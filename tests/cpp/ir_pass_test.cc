@@ -1,20 +1,25 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tvm.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 
-TEST(IRVisitor, CountVar) {
+TEST(IRPass, Substitute) {
   using namespace Halide::Internal;
   using namespace tvm;
-  int n_var = 0;
   Var x("x"), y;
-
-  auto z = x + 1 + y + y;
-  ir::PostOrderVisit(z, [&n_var](const IRNodeRef& n) {
-      if (n.as<Variable>()) ++n_var;
-    });
-  CHECK_EQ(n_var, 2);
+  auto z = x + y;
+  {
+    auto zz = ir::Substitute({{y.get(), 11}}, z);
+    std::ostringstream os;
+    os << zz;
+    CHECK(os.str() == "(x + 11)");
+  }
+  {
+    auto zz = ir::Substitute({{z.get(), 11}}, z);
+    std::ostringstream os;
+    os << zz;
+    CHECK(os.str() == "11");
+  }
 }
 
 int main(int argc, char ** argv) {

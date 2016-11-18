@@ -14,10 +14,10 @@ class IRApplyVisit : public IRVisitor {
  public:
   explicit IRApplyVisit(std::function<void(const IRNodeRef&)> f) : f_(f) {}
 
-  void visit(const IRNodeRef& node) final {
+  void Visit(const IRNodeRef& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
-    IRVisitor::visit(node);
+    IRVisitor::Visit(node);
     f_(node);
   }
 
@@ -25,17 +25,17 @@ class IRApplyVisit : public IRVisitor {
   std::function<void(const IRNodeRef&)> f_;
   std::unordered_set<const Node*> visited_;
 };
+
 }  // namespace
+
+void PostOrderVisit(const IRNodeRef& node, std::function<void(const IRNodeRef&)> fvisit) {
+  IRApplyVisit(fvisit).Visit(node);
+}
 
 IRVisitor::FVisit& IRVisitor::vtable() {  // NOLINT(*)
   static FVisit inst; return inst;
 }
 
-
-void PostOrderVisit(const IRNodeRef& node, std::function<void(const IRNodeRef&)> fvisit) {
-  IRApplyVisit v(fvisit);
-  v.visit(node);
-}
 
 // namespace to register the functors.
 namespace {
@@ -47,22 +47,22 @@ void NoOp(const IRNodeRef& n, IRVisitor* v) {
 
 inline void VisitArray(Array<Expr> arr, IRVisitor* v) {
   for (size_t i = 0; i < arr.size(); i++) {
-    v->visit(arr[i]);
+    v->Visit(arr[i]);
   }
 }
 
 inline void VisitRDom(RDomain rdom, IRVisitor* v) {
   for (size_t i = 0; i < rdom->domain.size(); i++) {
     Range r = rdom->domain[i];
-    v->visit(r->min);
-    v->visit(r->extent);
+    v->Visit(r->min);
+    v->Visit(r->extent);
   }
 }
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Reduce>([](const Reduce* op, IRVisitor* v) {
     VisitRDom(op->rdom, v);
-    v->visit(op->source);
+    v->Visit(op->source);
   });
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
@@ -74,14 +74,14 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Cast>([](const Cast* op, IRVisitor* v) {
-    v->visit(op->value);
+    v->Visit(op->value);
   });
 
 // binary operator
 template<typename T>
 inline void Binary(const T* op, IRVisitor* v) {
-  v->visit(op->a);
-  v->visit(op->b);
+  v->Visit(op->a);
+  v->Visit(op->b);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
@@ -103,51 +103,51 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Not>([](const Not* op, IRVisitor* v) {
-    v->visit(op->a);
+    v->Visit(op->a);
   })
 .set_dispatch<Select>([](const Select *op, IRVisitor* v) {
-    v->visit(op->condition);
-    v->visit(op->true_value);
-    v->visit(op->false_value);
+    v->Visit(op->condition);
+    v->Visit(op->true_value);
+    v->Visit(op->false_value);
   })
 .set_dispatch<Load>([](const Load *op, IRVisitor* v) {
-    v->visit(op->index);
+    v->Visit(op->index);
   })
 .set_dispatch<Ramp>([](const Ramp *op, IRVisitor* v) {
-    v->visit(op->base);
-    v->visit(op->stride);
+    v->Visit(op->base);
+    v->Visit(op->stride);
   })
 .set_dispatch<Broadcast>([](const Broadcast *op, IRVisitor* v) {
-    v->visit(op->value);
+    v->Visit(op->value);
   })
 .set_dispatch<Call>([](const Call *op, IRVisitor* v) {
     VisitArray(op->args, v);
   })
 .set_dispatch<Let>([](const Let *op, IRVisitor* v) {
-    v->visit(op->value);
-    v->visit(op->body);
+    v->Visit(op->value);
+    v->Visit(op->body);
   });
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<LetStmt>([](const LetStmt *op, IRVisitor* v) {
-    v->visit(op->value);
-    v->visit(op->body);
+    v->Visit(op->value);
+    v->Visit(op->body);
   })
 .set_dispatch<AssertStmt>([](const AssertStmt *op, IRVisitor* v) {
-    v->visit(op->condition);
-    v->visit(op->message);
+    v->Visit(op->condition);
+    v->Visit(op->message);
   })
 .set_dispatch<ProducerConsumer>([](const ProducerConsumer *op, IRVisitor* v) {
-    v->visit(op->body);
+    v->Visit(op->body);
   })
 .set_dispatch<For>([](const For *op, IRVisitor* v) {
-    v->visit(op->min);
-    v->visit(op->extent);
-    v->visit(op->body);
+    v->Visit(op->min);
+    v->Visit(op->extent);
+    v->Visit(op->body);
   })
 .set_dispatch<Store>([](const Store *op, IRVisitor* v) {
-    v->visit(op->value);
-    v->visit(op->index);
+    v->Visit(op->value);
+    v->Visit(op->index);
   })
 .set_dispatch<Provide>([](const Provide *op, IRVisitor* v) {
     VisitArray(op->args, v);
@@ -155,36 +155,36 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
   })
 .set_dispatch<Allocate>([](const Allocate *op, IRVisitor* v) {
     for (size_t i = 0; i < op->extents.size(); i++) {
-      v->visit(op->extents[i]);
+      v->Visit(op->extents[i]);
     }
-    v->visit(op->body);
-    v->visit(op->condition);
+    v->Visit(op->body);
+    v->Visit(op->condition);
     if (op->new_expr.defined()) {
-      v->visit(op->new_expr);
+      v->Visit(op->new_expr);
     }
   })
 .set_dispatch<Free>(NoOp)
 .set_dispatch<Realize>([](const Realize *op, IRVisitor* v) {
     // Mutate the bounds
     for (size_t i = 0; i < op->bounds.size(); i++) {
-      v->visit(op->bounds[i]->min);
-      v->visit(op->bounds[i]->extent);
+      v->Visit(op->bounds[i]->min);
+      v->Visit(op->bounds[i]->extent);
     }
 
-    v->visit(op->body);
-    v->visit(op->condition);
+    v->Visit(op->body);
+    v->Visit(op->condition);
   })
 .set_dispatch<Block>([](const Block *op, IRVisitor* v) {
-    v->visit(op->first);
-    v->visit(op->rest);
+    v->Visit(op->first);
+    v->Visit(op->rest);
   })
 .set_dispatch<IfThenElse>([](const IfThenElse *op, IRVisitor* v) {
-    v->visit(op->condition);
-    v->visit(op->then_case);
-    v->visit(op->else_case);
+    v->Visit(op->condition);
+    v->Visit(op->then_case);
+    v->Visit(op->else_case);
   })
 .set_dispatch<Evaluate>([](const Evaluate *op, IRVisitor* v) {
-    v->visit(op->value);
+    v->Visit(op->value);
   });
 
 }  // namespace

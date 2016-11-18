@@ -13,10 +13,10 @@ class IRVar2Const : public IRMutator {
  public:
   VarExpr var;
   int int_val;
-  Expr mutate(Expr expr) final {
+  Expr Mutate(Expr expr) final {
     static const FMutateExpr& f = IRVar2Const::vtable_expr();
     return (f.can_dispatch(expr) ?
-            f(expr, expr, this) : IRMutator::mutate(expr));
+            f(expr, expr, this) : IRMutator::Mutate(expr));
   }
   static FMutateExpr &vtable_expr();
 };
@@ -46,29 +46,10 @@ TEST(IRMutator, Basic) {
   IRVar2Const mu;
   mu.var = y;
   mu.int_val = 10;
-  auto zz = mu.mutate(z);
+  auto zz = mu.Mutate(z);
   std::ostringstream os;
   os << zz;
   CHECK(os.str() == "(x + 10)");
-}
-
-TEST(IRMutator, Substitute) {
-  using namespace Halide::Internal;
-  using namespace tvm;
-  Var x("x"), y;
-  auto z = x + y;
-  {
-    auto zz = Substitute({{y.get(), 11}}, z);
-    std::ostringstream os;
-    os << zz;
-    CHECK(os.str() == "(x + 11)");
-  }
-  {
-    auto zz = Substitute({{z.get(), 11}}, z);
-    std::ostringstream os;
-    os << zz;
-    CHECK(os.str() == "11");
-  }
 }
 
 int main(int argc, char ** argv) {

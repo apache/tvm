@@ -101,7 +101,7 @@ class Tensor : public FunctionRef {
 };
 
 /*! \brief Node to represent a tensor */
-class TensorNode : public Node {
+class TensorNode : public FunctionBaseNode {
  public:
   /*! \brief The shape of the tensor */
   Array<Expr> shape;
@@ -124,6 +124,12 @@ class TensorNode : public Node {
     v->Visit("dtype", &dtype);
     v->Visit("dim_var", &dim_var);
     v->Visit("source", &source);
+  }
+  const std::string& func_name() const final {
+    return name;
+  }
+  int outputs() const final {
+    return 1;
   }
   static Tensor make(Array<Expr> shape,
                      std::string name,

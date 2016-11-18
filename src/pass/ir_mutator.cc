@@ -8,32 +8,6 @@
 namespace tvm {
 namespace ir {
 
-namespace {
-// visitor to implement apply
-class IRSubstitute : public IRMutator {
- public:
-  Expr mutate(Expr expr) final {
-    const IRNode* v = expr.get();
-    if (v != nullptr) {
-      auto it = replacements_.find(v);
-      if (it != replacements_.end()) {
-        return it->second;
-      }
-    }
-    return IRMutator::mutate(expr);
-  }
-  explicit IRSubstitute(const std::unordered_map<const IRNode*, Expr>& replacements)
-      : replacements_(replacements) {}
-
- private:
-  const std::unordered_map<const IRNode*, Expr>& replacements_;
-};
-}  // namespace
-
-Expr Substitute(const std::unordered_map<const IRNode*, Expr>& replacements, Expr expr) {
-  return IRSubstitute(replacements).mutate(expr);
-}
-
 IRMutator::FMutateExpr& IRMutator::vtable_expr() {  // NOLINT(*)
   static FMutateExpr inst; return inst;
 }
@@ -57,7 +31,7 @@ inline Array<Expr> MutateArray(Array<Expr> arr, IRMutator *m) {
   bool changed = false;
   for (size_t i = 0; i < arr.size(); i++) {
     Expr old_elem = arr[i];
-    Expr new_elem = m->mutate(old_elem);
+    Expr new_elem = m->Mutate(old_elem);
     if (!new_elem.same_as(old_elem)) changed = true;
     new_arr[i] = new_elem;
   }
@@ -73,8 +47,8 @@ inline RDomain MutateRDom(RDomain rdom, IRMutator *m) {
   bool changed = false;
   for (size_t i = 0; i < rdom->domain.size(); i++) {
     Range r = rdom->domain[i];
-    Expr new_min = m->mutate(r->min);
-    Expr new_extent = m->mutate(r->extent);
+    Expr new_min = m->Mutate(r->min);
+    Expr new_extent = m->Mutate(r->extent);
     if (!r->min.same_as(new_min)) changed = true;
     if (!r->extent.same_as(new_extent)) changed = true;
     new_dom[i] = Range::make_with_min_extent(new_min, new_extent);
@@ -89,7 +63,7 @@ inline RDomain MutateRDom(RDomain rdom, IRMutator *m) {
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .set_dispatch<Reduce>([](const Reduce* op, const Expr& e, IRMutator* m) {
     RDomain new_rdom  = MutateRDom(op->rdom, m);
-    Expr new_source  = m->mutate(op->source);
+    Expr new_source  = m->Mutate(op->source);
     if (op->rdom.same_as(new_rdom) &&
         op->source.same_as(new_source)) {
       return e;
@@ -107,7 +81,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .set_dispatch<Cast>([](const Cast* op, const Expr& e, IRMutator* m) {
-    Expr value = m->mutate(op->value);
+    Expr value = m->Mutate(op->value);
     if (value.same_as(op->value)) {
       return e;
     } else {
@@ -118,8 +92,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 // binary operator
 template<typename T>
 inline Expr Binary(const T* op, const Expr& e, IRMutator* m) {
-  Expr a = m->mutate(op->a);
-  Expr b = m->mutate(op->b);
+  Expr a = m->Mutate(op->a);
+  Expr b = m->Mutate(op->b);
   if (a.same_as(op->a) &&
       b.same_as(op->b)) {
     return e;
@@ -147,7 +121,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .set_dispatch<Not>([](const Not* op, const Expr& e, IRMutator* m) {
-    Expr a = m->mutate(op->a);
+    Expr a = m->Mutate(op->a);
     if (a.same_as(op->a)) {
       return e;
     } else {
@@ -155,9 +129,9 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
     }
   })
 .set_dispatch<Select>([](const Select *op, const Expr& e, IRMutator* m) {
-    Expr cond = m->mutate(op->condition);
-    Expr t = m->mutate(op->true_value);
-    Expr f = m->mutate(op->false_value);
+    Expr cond = m->Mutate(op->condition);
+    Expr t = m->Mutate(op->true_value);
+    Expr f = m->Mutate(op->false_value);
     if (cond.same_as(op->condition) &&
         t.same_as(op->true_value) &&
         f.same_as(op->false_value)) {
@@ -167,7 +141,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
     }
   })
 .set_dispatch<Load>([](const Load *op, const Expr& e, IRMutator* m) {
-    Expr index = m->mutate(op->index);
+    Expr index = m->Mutate(op->index);
     if (index.same_as(op->index)) {
       return e;
     } else {
@@ -175,8 +149,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
     }
   })
 .set_dispatch<Ramp>([](const Ramp *op, const Expr& e, IRMutator* m) {
-    Expr base = m->mutate(op->base);
-    Expr stride = m->mutate(op->stride);
+    Expr base = m->Mutate(op->base);
+    Expr stride = m->Mutate(op->stride);
     if (base.same_as(op->base) &&
         stride.same_as(op->stride)) {
       return e;
@@ -185,7 +159,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
     }
   })
 .set_dispatch<Broadcast>([](const Broadcast *op, const Expr& e, IRMutator* m) {
-    Expr value = m->mutate(op->value);
+    Expr value = m->Mutate(op->value);
     if (value.same_as(op->value)) {
       return e;
     } else {
@@ -202,8 +176,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
     }
   })
 .set_dispatch<Let>([](const Let *op, const Expr& e, IRMutator* m) {
-    Expr value = m->mutate(op->value);
-    Expr body = m->mutate(op->body);
+    Expr value = m->Mutate(op->value);
+    Expr body = m->Mutate(op->body);
     if (value.same_as(op->value) &&
         body.same_as(op->body)) {
       return e;
@@ -214,8 +188,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 .set_dispatch<LetStmt>([](const LetStmt *op, const Stmt& s, IRMutator* m) {
-    Expr value = m->mutate(op->value);
-    Stmt body = m->mutate(op->body);
+    Expr value = m->Mutate(op->value);
+    Stmt body = m->Mutate(op->body);
     if (value.same_as(op->value) &&
         body.same_as(op->body)) {
       return s;
@@ -224,8 +198,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<AssertStmt>([](const AssertStmt *op, const Stmt& s, IRMutator* m) {
-    Expr condition = m->mutate(op->condition);
-    Expr message = m->mutate(op->message);
+    Expr condition = m->Mutate(op->condition);
+    Expr message = m->Mutate(op->message);
 
     if (condition.same_as(op->condition) && message.same_as(op->message)) {
       return s;
@@ -234,7 +208,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<ProducerConsumer>([](const ProducerConsumer *op, const Stmt& s, IRMutator* m) {
-    Stmt body = m->mutate(op->body);
+    Stmt body = m->Mutate(op->body);
     if (body.same_as(op->body)) {
       return s;
     } else {
@@ -242,9 +216,9 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<For>([](const For *op, const Stmt& s, IRMutator* m) {
-    Expr min = m->mutate(op->min);
-    Expr extent = m->mutate(op->extent);
-    Stmt body = m->mutate(op->body);
+    Expr min = m->Mutate(op->min);
+    Expr extent = m->Mutate(op->extent);
+    Stmt body = m->Mutate(op->body);
     if (min.same_as(op->min) &&
         extent.same_as(op->extent) &&
         body.same_as(op->body)) {
@@ -255,8 +229,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<Store>([](const Store *op, const Stmt& s, IRMutator* m) {
-    Expr value = m->mutate(op->value);
-    Expr index = m->mutate(op->index);
+    Expr value = m->Mutate(op->value);
+    Expr index = m->Mutate(op->index);
     if (value.same_as(op->value) && index.same_as(op->index)) {
       return s;
     } else {
@@ -276,14 +250,14 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     std::vector<Expr> new_extents;
     bool all_extents_unmodified = true;
     for (size_t i = 0; i < op->extents.size(); i++) {
-        new_extents.push_back(m->mutate(op->extents[i]));
+        new_extents.push_back(m->Mutate(op->extents[i]));
         all_extents_unmodified &= new_extents[i].same_as(op->extents[i]);
     }
-    Stmt body = m->mutate(op->body);
-    Expr condition = m->mutate(op->condition);
+    Stmt body = m->Mutate(op->body);
+    Expr condition = m->Mutate(op->condition);
     Expr new_expr;
     if (op->new_expr.defined()) {
-      new_expr = m->mutate(op->new_expr);
+      new_expr = m->Mutate(op->new_expr);
     }
     if (all_extents_unmodified &&
         body.same_as(op->body) &&
@@ -308,16 +282,16 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     for (size_t i = 0; i < op->bounds.size(); i++) {
         Expr old_min = op->bounds[i]->min;
         Expr old_extent = op->bounds[i]->extent;
-        Expr new_min = m->mutate(old_min);
-        Expr new_extent = m->mutate(old_extent);
+        Expr new_min = m->Mutate(old_min);
+        Expr new_extent = m->Mutate(old_extent);
         if (!new_min.same_as(old_min))  bounds_changed = true;
         if (!new_extent.same_as(old_extent)) bounds_changed = true;
         new_bounds.push_back(
             Range::make_by_min_extent(new_min, new_extent));
     }
 
-    Stmt body = m->mutate(op->body);
-    Expr condition = m->mutate(op->condition);
+    Stmt body = m->Mutate(op->body);
+    Expr condition = m->Mutate(op->condition);
     if (!bounds_changed &&
         body.same_as(op->body) &&
         condition.same_as(op->condition)) {
@@ -328,8 +302,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<Block>([](const Block *op, const Stmt& s, IRMutator* m) {
-    Stmt first = m->mutate(op->first);
-    Stmt rest = m->mutate(op->rest);
+    Stmt first = m->Mutate(op->first);
+    Stmt rest = m->Mutate(op->rest);
     if (first.same_as(op->first) &&
         rest.same_as(op->rest)) {
       return s;
@@ -338,9 +312,9 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<IfThenElse>([](const IfThenElse *op, const Stmt& s, IRMutator* m) {
-    Expr condition = m->mutate(op->condition);
-    Stmt then_case = m->mutate(op->then_case);
-    Stmt else_case = m->mutate(op->else_case);
+    Expr condition = m->Mutate(op->condition);
+    Stmt then_case = m->Mutate(op->then_case);
+    Stmt else_case = m->Mutate(op->else_case);
     if (condition.same_as(op->condition) &&
         then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
@@ -350,7 +324,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
     }
   })
 .set_dispatch<Evaluate>([](const Evaluate *op, const Stmt& s, IRMutator* m) {
-    Expr v = m->mutate(op->value);
+    Expr v = m->Mutate(op->value);
     if (v.same_as(op->value)) {
       return s;
     } else {

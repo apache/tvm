@@ -24,7 +24,7 @@ class IRVisitor {
   /*!
    * \brief recursively visit an IR node
    */
-  virtual void visit(const IRNodeRef& node) {
+  virtual void Visit(const IRNodeRef& node) {
     static const FVisit& f = vtable();
     if (node.defined()) f(node, this);
   }

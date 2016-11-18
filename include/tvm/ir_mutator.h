@@ -29,7 +29,7 @@ class IRMutator {
    * \brief mutate expression
    * \return the mutated expr
    */
-  virtual Expr mutate(Expr expr) {
+  virtual Expr Mutate(Expr expr) {
     static const FMutateExpr& f = vtable_expr();
     return f(expr, expr, this);
   }
@@ -37,7 +37,7 @@ class IRMutator {
    * \brief mutate expression
    * \return the mutated stmt
    */
-  virtual Stmt mutate(Stmt stmt) {
+  virtual Stmt Mutate(Stmt stmt) {
     static const FMutateStmt& f = vtable_stmt();
     return f(stmt, stmt, this);
   }
@@ -58,27 +58,20 @@ class IRMutator {
  */
 class IRMutatorExample : public IRMutator {
  public:
-  Expr mutate(Expr expr) final {
+  Expr Mutate(Expr expr) final {
     static const FMutateExpr& f = IRMutatorExample::vtable_expr();
     return (f.can_dispatch(expr) ?
-            f(expr, expr, this) : IRMutator::mutate(expr));
+            f(expr, expr, this) : IRMutator::Mutate(expr));
   }
-  Stmt mutate(Stmt stmt) final {
+  Stmt Mutate(Stmt stmt) final {
     static const FMutateStmt& f = IRMutatorExample::vtable_stmt();
     return (f.can_dispatch(stmt) ?
-            f(stmt, stmt, this) : IRMutator::mutate(stmt));
+            f(stmt, stmt, this) : IRMutator::Mutate(stmt));
   }
   // to be implemented by child class
   static FMutateExpr& vtable_expr();  // NOLINT(*)
   static FMutateStmt& vtable_stmt();  // NOLINT(*)
 };
-
-/*!
- * \brief Substitute occurance of IRNode to be expr
- * \param replacements The replacement rule of substitution
- * \param expr The expression to be substituted.
- */
-Expr Substitute(const std::unordered_map<const IRNode*, Expr>& replacements, Expr expr);
 
 }  // namespace ir
 }  // namespace tvm

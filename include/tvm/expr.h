@@ -27,6 +27,7 @@ using Halide::abs;
 using Halide::select;
 
 using Halide::Expr;
+using Halide::IR::FunctionBaseNode;
 using Halide::Internal::Stmt;
 
 class Var : public Halide::VarExpr {
