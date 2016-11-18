@@ -199,6 +199,7 @@ Graph LoadJSON(Graph src) {
 // save a graph to json
 Graph SaveJSON(Graph src) {
   JSONGraph jgraph;
+  jgraph.attrs = src.attrs;
   std::unordered_map<Node*, uint32_t> node2index;
   jgraph.node_row_ptr.push_back(0);
   DFSVisit(src.outputs, [&node2index, &jgraph](const NodePtr& n) {
