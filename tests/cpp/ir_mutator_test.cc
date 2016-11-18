@@ -52,6 +52,25 @@ TEST(IRMutator, Basic) {
   CHECK(os.str() == "(x + 10)");
 }
 
+TEST(IRMutator, Substitute) {
+  using namespace Halide::Internal;
+  using namespace tvm;
+  Var x("x"), y;
+  auto z = x + y;
+  {
+    auto zz = Substitute({{y.get(), 11}}, z);
+    std::ostringstream os;
+    os << zz;
+    CHECK(os.str() == "(x + 11)");
+  }
+  {
+    auto zz = Substitute({{z.get(), 11}}, z);
+    std::ostringstream os;
+    os << zz;
+    CHECK(os.str() == "11");
+  }
+}
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

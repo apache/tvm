@@ -7,6 +7,7 @@
 #define TVM_IR_MUTATOR_H_
 
 #include <tvm/ir_node.h>
+#include <unordered_map>
 #include "./expr.h"
 
 namespace tvm {
@@ -71,6 +72,13 @@ class IRMutatorExample : public IRMutator {
   static FMutateExpr& vtable_expr();  // NOLINT(*)
   static FMutateStmt& vtable_stmt();  // NOLINT(*)
 };
+
+/*!
+ * \brief Substitute occurance of IRNode to be expr
+ * \param replacements The replacement rule of substitution
+ * \param expr The expression to be substituted.
+ */
+Expr Substitute(const std::unordered_map<const IRNode*, Expr>& replacements, Expr expr);
 
 }  // namespace ir
 }  // namespace tvm

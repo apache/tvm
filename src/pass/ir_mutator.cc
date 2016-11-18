@@ -8,6 +8,32 @@
 namespace tvm {
 namespace ir {
 
+namespace {
+// visitor to implement apply
+class IRSubstitute : public IRMutator {
+ public:
+  Expr mutate(Expr expr) final {
+    const IRNode* v = expr.get();
+    if (v != nullptr) {
+      auto it = replacements_.find(v);
+      if (it != replacements_.end()) {
+        return it->second;
+      }
+    }
+    return IRMutator::mutate(expr);
+  }
+  explicit IRSubstitute(const std::unordered_map<const IRNode*, Expr>& replacements)
+      : replacements_(replacements) {}
+
+ private:
+  const std::unordered_map<const IRNode*, Expr>& replacements_;
+};
+}  // namespace
+
+Expr Substitute(const std::unordered_map<const IRNode*, Expr>& replacements, Expr expr) {
+  return IRSubstitute(replacements).mutate(expr);
+}
+
 IRMutator::FMutateExpr& IRMutator::vtable_expr() {  // NOLINT(*)
   static FMutateExpr inst; return inst;
 }
