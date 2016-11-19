@@ -28,7 +28,7 @@ bool VerifySSA(const IRNodeRef& ir);
  * \param stmt The source statement to be converted.
  * \return The converted form.
  */
-Stmt ConvertSSA(const Stmt stmt);
+Stmt ConvertSSA(const Stmt& stmt);
 
 /*!
  * \brief inline all calls of f in stmt.

@@ -3,23 +3,25 @@
 #include <tvm/tvm.h>
 #include <tvm/ir_pass.h>
 
-TEST(IRPass, Substitute) {
+
+TEST(IRSSA, Convert) {
+  using namespace Halide::Internal;
+  using namespace tvm;
+  Var x("x"), y;
+  Expr let = Let::make(x, 1, x + 1);
+
+  auto z = let + let;
+  CHECK(!ir::VerifySSA(z));
+  auto z_ssa = ir::ConvertSSA(Evaluate::make(z));
+  CHECK(ir::VerifySSA(z_ssa));
+}
+
+TEST(IRSSA, Basic) {
   using namespace Halide::Internal;
   using namespace tvm;
   Var x("x"), y;
   auto z = x + y;
-  {
-    auto zz = ir::Substitute({{y.get(), 11}}, z);
-    std::ostringstream os;
-    os << zz;
-    CHECK(os.str() == "(x + 11)");
-  }
-  {
-    auto zz = ir::Substitute({{z.get(), 11}}, z);
-    std::ostringstream os;
-    os << zz;
-    CHECK(os.str() == "11");
-  }
+  CHECK(ir::VerifySSA(z));
 }
 
 int main(int argc, char ** argv) {

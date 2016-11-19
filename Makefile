@@ -1,3 +1,4 @@
+export CXX=g++
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2  -Wno-unknown-pragmas -funroll-loops\
 	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC
