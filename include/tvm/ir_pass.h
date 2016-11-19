@@ -14,11 +14,35 @@ namespace tvm {
 namespace ir {
 
 /*!
- * \brief Substitute occurance of IRNode in expr
- * \param replacements The replacement rule of substitution
- * \param expr The expression to be substituted.
+ * \brief verifies whether the IR stmt or Expr is in SSA form.
+ *  That is: each VarExpr is defined and assigned once(in Let/For)
+ *
+ * \param ir The root of the IR DAG.
+ * \return Whether IR is in SSA form.
+ * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-Expr Substitute(const std::unordered_map<const IRNode*, Expr>& replacements, Expr expr);
+bool VerifySSA(const IRNodeRef& ir);
+
+/*!
+ * \brief Convert a IR node to be SSA form.
+ * \param stmt The source statement to be converted.
+ * \return The converted form.
+ */
+Stmt ConvertSSA(const Stmt stmt);
+
+/*!
+ * \brief inline all calls of f in stmt.
+ *
+ * \param f The function reference to be inlined
+ * \param args The arguments variable of the function.
+ * \param body The defintion body of the function.
+ * \param stmt The statement to apply inline optimization.
+ * \return The result stmt
+ *
+ * \note All the passes in this file uses SSA form and outputs SSA form.
+ */
+Stmt InlineSSA(FunctionRef f, const std::vector<Var>& args, Expr body, Stmt stmt);
+
 
 }  // namespace ir
 }  // namespace tvm
