@@ -45,6 +45,49 @@ struct Reduce : public ExprNode<Reduce> {
   static constexpr const char* Max = "Max";
   static constexpr const char* Min = "Min";
 };
+
+// Reuse IR node defintiion from HalideIR
+using Halide::Internal::IntImm;
+using Halide::Internal::UIntImm;
+using Halide::Internal::FloatImm;
+using Halide::Internal::StringImm;
+using Halide::Internal::Cast;
+using Halide::Internal::Variable;
+using Halide::Internal::Add;
+using Halide::Internal::Sub;
+using Halide::Internal::Mul;
+using Halide::Internal::Div;
+using Halide::Internal::Mod;
+using Halide::Internal::Min;
+using Halide::Internal::Max;
+using Halide::Internal::EQ;
+using Halide::Internal::NE;
+using Halide::Internal::LT;
+using Halide::Internal::LE;
+using Halide::Internal::GT;
+using Halide::Internal::GE;
+using Halide::Internal::And;
+using Halide::Internal::Or;
+using Halide::Internal::Not;
+using Halide::Internal::Select;
+using Halide::Internal::Load;
+using Halide::Internal::Ramp;
+using Halide::Internal::Broadcast;
+using Halide::Internal::Call;
+using Halide::Internal::Let;
+using Halide::Internal::LetStmt;
+using Halide::Internal::AssertStmt;
+using Halide::Internal::ProducerConsumer;
+using Halide::Internal::For;
+using Halide::Internal::Store;
+using Halide::Internal::Provide;
+using Halide::Internal::Allocate;
+using Halide::Internal::Free;
+using Halide::Internal::Realize;
+using Halide::Internal::Block;
+using Halide::Internal::IfThenElse;
+using Halide::Internal::Evaluate;
+
 }  // namespace ir
 }  // namespace tvm
 
