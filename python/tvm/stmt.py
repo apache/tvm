@@ -1,11 +1,9 @@
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
-from . import function as _func
 from . import make as _make
 
 class Stmt(NodeBase):
-    def __repr__(self):
-        return _func.format_str(self)
+    pass
 
 @register_node
 class LetStmt(Stmt):
