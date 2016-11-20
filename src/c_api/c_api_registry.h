@@ -97,6 +97,9 @@ class APIVariantValue {
   inline operator T() const {
     if (type_id == kNull) return T();
     CHECK_EQ(type_id, kNodeHandle);
+    // use dynamic RTTI for safety
+    CHECK(dynamic_cast<typename T::ContainerType*>(sptr.get()))
+        << "wrong type specified";
     return T(sptr);
   }
   inline operator Expr() const {

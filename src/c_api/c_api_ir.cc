@@ -56,6 +56,23 @@ TVM_REGISTER_API(_make_Allocate)
                           args.at(4));
   });
 
+TVM_REGISTER_API(_make_LetStmt)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+
+    if (args.size() == 3) {
+      *ret = LetStmt::make(args.at(0),
+                            args.at(1),
+                            args.at(2));
+    } else {
+      CHECK_EQ(args.size(), 5);
+      *ret = LetStmt::make(args.at(0),
+                           args.at(1),
+                           args.at(2),
+                           args.at(3),
+                           args.at(4));
+    }
+  });
+
 // make from two arguments
 #define REGISTER_MAKE1(Node)                                 \
   TVM_REGISTER_API(_make_## Node)                            \
@@ -109,7 +126,6 @@ REGISTER_MAKE3(Select);
 REGISTER_MAKE3(Ramp);
 REGISTER_MAKE2(Broadcast);
 REGISTER_MAKE3(Let);
-REGISTER_MAKE3(LetStmt);
 REGISTER_MAKE2(AssertStmt);
 REGISTER_MAKE3(ProducerConsumer);
 REGISTER_MAKE3(Store);
