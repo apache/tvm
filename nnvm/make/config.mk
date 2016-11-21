@@ -20,15 +20,13 @@
 # choice of compiler
 #--------------------
 
-export CC = gcc
-export CXX = g++
 export NVCC = nvcc
 
 # the additional link flags you want to add
-ADD_LDFLAGS =
+ADD_LDFLAGS=
 
 # the additional compile flags you want to add
-ADD_CFLAGS =
+ADD_CFLAGS=
 
 #----------------------------
 # plugins
