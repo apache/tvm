@@ -137,6 +137,18 @@ using FInplaceOption = std::function<
   std::vector<std::pair<int, int> > (const NodeAttrs& attrs)>;
 
 /*!
+ * \brief Get list of inputs in the op whose content are actually not used by the operator
+ *  These are dummy input that can be used for example in zeros_like, ones_like.
+ *
+ * \param attrs The attributes of the node
+ * \return list input index that are not used by the operator.
+ *
+ * \note Register under "FIgnoreInputs".
+ */
+using FIgnoreInputs = std::function<
+  std::vector<uint32_t> (const NodeAttrs& attrs)>;
+
+/*!
  * \brief Get the gradient node of the op node
  *  This function generates the backward graph of the node
  * \param nodeptr The node to take gradient
