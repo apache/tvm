@@ -129,6 +129,7 @@ inline Graph PlaceDevice(Graph graph,
  * \param ys_out_grad The symbol for additional gradient to be propagate back to y.
  * \param aggregate_fun Aggregation function applied to aggregate the inputs.
  * \param mirror_fun Optional mirror function to do mirror optimization and save memory.
+ * \param attr_hint_fun Optional, hint function to output a node that like src, but its attr is same as like.
  * \return A new graph, whose outputs correspond to inputs of xs.
  */
 inline Graph Gradient(
@@ -137,7 +138,9 @@ inline Graph Gradient(
     std::vector<NodeEntry> xs,
     std::vector<NodeEntry> ys_out_grad,
     std::function<NodeEntry(std::vector<NodeEntry>&& inputs)> aggregate_fun = nullptr,
-    std::function<int(const Node& node)> mirror_fun = nullptr) {
+    std::function<int(const Node& node)> mirror_fun = nullptr,
+    std::function<NodeEntry(const NodeEntry& src, const NodeEntry &like)>
+    attr_hint_fun = nullptr) {
   graph.attrs["grad_ys"] = std::make_shared<any>(std::move(ys));
 
   graph.attrs["grad_xs"] = std::make_shared<any>(std::move(xs));
@@ -145,8 +148,13 @@ inline Graph Gradient(
   if (aggregate_fun != nullptr) {
     graph.attrs["grad_aggregate_fun"] = std::make_shared<any>(aggregate_fun);
   }
+
   if (mirror_fun != nullptr) {
     graph.attrs["grad_mirror_fun"] = std::make_shared<any>(mirror_fun);
+  }
+
+  if (attr_hint_fun != nullptr) {
+    graph.attrs["attr_hint_fun"] = std::make_shared<any>(attr_hint_fun);
   }
 
   return ApplyPass(std::move(graph), "Gradient");
