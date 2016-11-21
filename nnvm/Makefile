@@ -1,6 +1,29 @@
+ROOTDIR = $(CURDIR)
+
+ifndef config
+ifneq ("$(wildcard ./config.mk)", "")
+	config = config.mk
+else
+	config = make/config.mk
+endif
+endif
+include $(config)
+
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loops\
 	 -Iinclude -fPIC
+
+ifneq ($(ADD_CFLAGS), NONE)
+	CFLAGS += $(ADD_CFLAGS)
+endif
+
+ifneq ($(ADD_LDFLAGS), NONE)
+	LFFLAGS += $(ADD_LDFLAGS)
+endif
+
+# plugin
+PLUGIN_OBJ =
+include $(NNVM_PLUGINS)
 
 # specify tensor path
 .PHONY: clean all test lint doc cython cython3 cyclean
@@ -8,8 +31,8 @@ export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loop
 all: lib/libnnvm.a lib/libnnvm_example.so
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
-ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-ALL_DEP = $(ALL_OBJ)
+ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
+ALL_DEP = $(ALL_OBJ) $(PLUGIN_OBJ)
 
 UNAME_S := $(shell uname -s)
 
@@ -26,11 +49,15 @@ include tests/cpp/unittest.mk
 
 test: $(TEST)
 
-build/%.o: src/%.cc
+build/src/%.o: src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
+build/plugin/%.o: plugin/%.cc
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT build/plugin/$*.o $< >build/plugin/$*.d
+	$(CXX) -c $(CFLAGS) -c $< -o $@
 
 lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
