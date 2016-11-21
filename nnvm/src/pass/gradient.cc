@@ -43,6 +43,7 @@ struct GradEntry {
 Graph Gradient(Graph src) {
   using nnvm::FGradient;
   using MirrorFun = std::function<int (const Node& node)>;
+  using AttrHintFun = std::function<NodeEntry (const NodeEntry& src, const NodeEntry &like)>;
 
   CHECK_NE(src.attrs.count("grad_ys"), 0)
       << "Gradient require grad_ys to be presented.";
@@ -65,6 +66,10 @@ Graph Gradient(Graph src) {
   if (src.attrs.count("grad_mirror_fun") != 0) {
     mirror_fun = src.GetAttr<MirrorFun>("grad_mirror_fun");
   }
+  AttrHintFun attr_hint_fun = nullptr;
+  if (src.attrs.count("attr_hint_fun") != 0) {
+    attr_hint_fun = src.GetAttr<AttrHintFun>("attr_hint_fun");
+  }
 
   // topo sort
   std::vector<NodePtr> topo_order;
@@ -79,7 +84,11 @@ Graph Gradient(Graph src) {
 
   CHECK_EQ(ys.size(), ys_out_grad.size());
   for (size_t i = 0; i < ys.size(); ++i) {
-    output_grads[ys[i].node.get()][ys[i].index].grads = { ys_out_grad[i] };
+    NodeEntry ograd = ys_out_grad[i];
+    if (attr_hint_fun != nullptr) {
+      ograd = attr_hint_fun(ograd, ys[i]);
+    }
+    output_grads[ys[i].node.get()][ys[i].index].grads = { ograd };
   }
 
   // construct mirror reduece memory strategy if needed
@@ -105,6 +114,8 @@ Graph Gradient(Graph src) {
 
   // traverse backward
   static auto& grad_fun_map = Op::GetAttr<FGradient>("FGradient");
+  static auto& finfer_shape = Op::GetAttr<FInferShape>("FInferShape");
+
   std::vector<NodeEntry> out_agg_grads;
   for (auto rit = topo_order.rbegin(); rit != topo_order.rend(); ++rit) {
     const NodePtr& ptr = *rit;
@@ -115,8 +126,17 @@ Graph Gradient(Graph src) {
       out_agg_grads.push_back(e.sum);
     }
     if ((*rit)->inputs.size() != 0) {
-      std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()]
-          (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()), out_agg_grads);
+      NodePtr fwd_node = (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()));
+      std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()](
+          fwd_node, out_agg_grads);
+
+      if (attr_hint_fun != nullptr) {
+        // only insert hint when shape inference function is not available.
+        for (size_t i = 0; i < input_grads.size(); ++i) {
+          if (finfer_shape.count(input_grads[i].node->op())) continue;
+          input_grads[i] = attr_hint_fun(input_grads[i], fwd_node->inputs[i]);
+        }
+      }
       CHECK_EQ((*rit)->inputs.size(), input_grads.size())
           << "Gradient function not returning enough gradient";
       auto git = input_grads.begin();

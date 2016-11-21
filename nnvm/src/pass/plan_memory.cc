@@ -137,12 +137,24 @@ class GraphAllocator {
 Graph PlanMemory(Graph ret) {
   // setup ref counter
   const IndexedGraph& idx = ret.indexed_graph();
+
+  static auto& fignore_inputs = Op::GetAttr<FIgnoreInputs>("FIgnoreInputs");
   // reference counter of each node
   std::vector<uint32_t> ref_count(idx.num_node_entries(), 0);
   // step 1: initialize reference count
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
-    for (const auto& e : idx[nid].inputs) {
+    const auto& inode = idx[nid];
+    if (inode.source->is_variable()) continue;
+    for (const auto& e : inode.inputs) {
       ++ref_count[idx.entry_id(e)];
+    }
+    // no dataflow dependency is needed for those are ignored.
+    // revoke the dependency counter.
+    if (fignore_inputs.count(inode.source->op()) != 0) {
+      auto ignore_inputs = fignore_inputs[inode.source->op()](inode.source->attrs);
+      for (uint32_t i : ignore_inputs) {
+        --ref_count[idx.entry_id(inode.inputs[i])];
+      }
     }
   }
   for (const auto& e : idx.outputs()) {
@@ -195,8 +207,18 @@ Graph PlanMemory(Graph ret) {
         storage[eid] = allocator.Request(dev_id, dtype_vec[eid], shape_vec[eid], nid);
       }
     }
+
+    // check if certain inputs is ignored.
+    std::vector<uint32_t> ignore_inputs;
+    if (fignore_inputs.count(inode.source->op()) != 0) {
+      ignore_inputs = fignore_inputs[inode.source->op()](inode.source->attrs);
+      std::sort(ignore_inputs.begin(), ignore_inputs.end());
+    }
     // then free inputs
-    for (const auto& e : inode.inputs) {
+    for (size_t i = 0; i < inode.inputs.size(); ++i) {
+      // ref counter of ignored input is already decreased.
+      if (std::binary_search(ignore_inputs.begin(), ignore_inputs.end(), i)) continue;
+      const auto& e = inode.inputs[i];
       uint32_t eid = idx.entry_id(e);
       // temp_ref_count == 0 means it is taken by inplace op
       if (ref_count[eid] == 0) continue;
