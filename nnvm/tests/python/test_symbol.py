@@ -12,7 +12,7 @@ def test_compose():
     assert y.list_attr()['gpu'] == '1'
     z = y.get_internals()
     assert z['add_output'].list_output_names() == ['add_output']
-    assert y.list_attr(recursive=True)['add_gpu'] == '2'
+    assert y.list_attr(recursive=True)['add$gpu'] == '2'
 
 def test_default_input():
     x = sym.Variable('x')
