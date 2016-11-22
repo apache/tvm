@@ -10,7 +10,7 @@
 namespace nnvm {
 
 namespace symbol_constants {
-const char *kNamespaceSeparator = "_";
+const char *kNamespaceSeparator = "$";
 }  // namespace symbol_constants
 
 // auxililary version attribute in variable.

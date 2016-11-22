@@ -63,7 +63,9 @@ enum ParamInitOption {
   /*! \brief allow unknown parameters */
   kAllowUnknown,
   /*! \brief need to match exact parameters */
-  kAllMatch
+  kAllMatch,
+  /*! \brief allow unmatched hidden field with format __*__ */
+  kAllowHidden
 };
 }  // namespace parameter
 /*!
@@ -122,11 +124,11 @@ struct Parameter {
    */
   template<typename Container>
   inline void Init(const Container &kwargs,
-                   parameter::ParamInitOption option = parameter::kAllowUnknown) {
+                   parameter::ParamInitOption option = parameter::kAllowHidden) {
     PType::__MANAGER__()->RunInit(static_cast<PType*>(this),
                                   kwargs.begin(), kwargs.end(),
                                   NULL,
-                                  option == parameter::kAllowUnknown);
+                                  option);
   }
   /*!
    * \brief initialize the parameter by keyword arguments.
@@ -143,7 +145,7 @@ struct Parameter {
     std::vector<std::pair<std::string, std::string> > unknown;
     PType::__MANAGER__()->RunInit(static_cast<PType*>(this),
                                   kwargs.begin(), kwargs.end(),
-                                  &unknown, true);
+                                  &unknown, parameter::kAllowUnknown);
     return unknown;
   }
   /*!
@@ -369,7 +371,7 @@ class ParamManager {
                       RandomAccessIterator begin,
                       RandomAccessIterator end,
                       std::vector<std::pair<std::string, std::string> > *unknown_args,
-                      bool allow_unknown) const {
+                      parameter::ParamInitOption option) const {
     std::set<FieldAccessEntry*> selected_args;
     for (RandomAccessIterator it = begin; it != end; ++it) {
       FieldAccessEntry *e = Find(it->first);
@@ -381,7 +383,13 @@ class ParamManager {
         if (unknown_args != NULL) {
           unknown_args->push_back(*it);
         } else {
-          if (!allow_unknown) {
+          if (option != parameter::kAllowUnknown) {
+            if (option == parameter::kAllowHidden &&
+                it->first.length() > 4 &&
+                it->first.find("__") == 0 &&
+                it->first.rfind("__") == it->first.length()-2) {
+              continue;
+            }
             std::ostringstream os;
             os << "Cannot find argument \'" << it->first << "\', Possible Arguments:\n";
             os << "----------------\n";

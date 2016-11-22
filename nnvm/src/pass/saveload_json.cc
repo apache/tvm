@@ -109,10 +109,6 @@ struct JSONNode {
     if (op_type_str != "null") {
       try {
         node->attrs.op = Op::Get(op_type_str);
-        // rebuild attribute parser
-        if (node->op()->attr_parser != nullptr) {
-          node->op()->attr_parser(&(node->attrs));
-        }
       } catch (const dmlc::Error &err) {
         std::ostringstream os;
         os << "Failed loading Op " << node->attrs.name
@@ -163,6 +159,10 @@ Graph LoadJSON(Graph src) {
       << "Load JSON require json to be presented.";
   const std::string &json_str =
       nnvm::get<std::string>(*src.attrs.at("json"));
+  bool no_parse = false;
+  if (src.attrs.count("load_json_no_parse")) {
+    no_parse = nnvm::get<bool>(*src.attrs.at("load_json_no_parse"));
+  }
   std::istringstream is(json_str);
   dmlc::JSONReader reader(&is);
   JSONGraph jgraph;
@@ -178,6 +178,11 @@ Graph LoadJSON(Graph src) {
     n.node->control_deps.reserve(n.control_deps.size());
     for (uint32_t nid : n.control_deps) {
       n.node->control_deps.push_back(jgraph.nodes[nid].node);
+    }
+    // rebuild attribute parser
+    if (!no_parse && n.node->op() != nullptr &&
+        n.node->op()->attr_parser != nullptr) {
+      n.node->op()->attr_parser(&(n.node->attrs));
     }
   }
   // consistent check
