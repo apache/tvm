@@ -44,19 +44,43 @@ def convert(value):
         return value
 
 
-def Tensor(shape, fcompute=None, dtype=None, name="TensorObj"):
-    """Construct a tensor object in dataflow.
+def placeholder(shape, dtype = None, name="TensorObj"):
+    """Construct an empty tensor object.
 
     Parameters
     ----------
     shape: Tuple of Expr
         The shape of the tensor
 
+    dtype: str, optional
+        The data type of the tensor
+
+    name: str, optional
+        The name hint of the tensor
+
+    Returns
+    -------
+    tensor: tensor.Tensor
+        The created tensor
+    """
+    dtype = float32 if dtype is None else dtype
+    return _function_internal._Tensor(
+        shape, name, dtype, None, 0)
+
+
+def compute(shape, fcompute, name="TensorCompute"):
+    """Construct a new tensor by computing over the shape domain.
+
+    The compute rule is result[axis] = fcompute(axis)
+
+    Parameters
+    ----------
+    shape: Tuple of Expr
+        The shape of the tensor
+
+
     fcompute: lambda function of *indices-> value
         Specifies the input source expression
-
-    dtype: str, optional
-        The data type of the tensor, must specify when fcompute is not specified.
 
     name: str, optional
         The name hint of the tensor
@@ -68,14 +92,12 @@ def Tensor(shape, fcompute=None, dtype=None, name="TensorObj"):
     """
     ndim = len(shape)
     dim_var = [Var("dim_var%d" % i) for i in range(ndim)]
-    if fcompute:
-        source = fcompute(*dim_var)
-        return _function_internal._Tensor(
-            shape, name, source.dtype, dim_var, source)
-    else:
-        dtype = float32 if dtype is None else dtype
-        return _function_internal._Tensor(
-            shape, name, dtype, None, None)
+    body = fcompute(*dim_var)
+    dom = [Range(0, x) for x in shape]
+    op_node = _function_internal._ComputeOp(
+        dom, name, dim_var, body)
+    return _function_internal._Tensor(
+        shape, name, body.dtype, op_node, 0)
 
 
 def RDomain(dom):

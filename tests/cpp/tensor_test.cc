@@ -9,7 +9,7 @@ TEST(Tensor, Basic) {
   Tensor A({m, l}, "A");
   Tensor B({n, l}, "B");
 
-  auto C = Tensor({m, n}, [&](Var i, Var j) {
+  auto C = Compute({m, n}, [&](Var i, Var j) {
       return A(i, j) * B(j, i);
     }, "C");
 }

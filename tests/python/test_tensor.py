@@ -4,9 +4,9 @@ def test_tensor():
     m = tvm.Var('m')
     n = tvm.Var('n')
     l = tvm.Var('l')
-    A = tvm.Tensor((m, l), name='A')
-    B = tvm.Tensor((n, l), name='B')
-    T = tvm.Tensor((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
+    A = tvm.placeholder((m, l), name='A')
+    B = tvm.placeholder((n, l), name='B')
+    T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
 
     print(T.source)
     assert(tuple(T.shape) == (m, n, l))
@@ -16,11 +16,11 @@ def test_tensor_reduce():
     m = tvm.Var('m')
     n = tvm.Var('n')
     l = tvm.Var('l')
-    A = tvm.Tensor((m, l), name='A')
-    B = tvm.Tensor((n, l), name='B')
-    T = tvm.Tensor((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
+    A = tvm.placeholder((m, l), name='A')
+    B = tvm.placeholder((n, l), name='B')
+    T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
     rd = tvm.RDomain(tvm.Range(A.shape[1]))
-    C = tvm.Tensor((m, n), lambda i, j: tvm.sum(T(i, j, rd.index[0]), rdom=rd))
+    C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rd.index[0]), rdom=rd))
     print(C.source)
 
 if __name__ == "__main__":

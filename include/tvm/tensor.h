@@ -14,28 +14,12 @@
 
 #include "./base.h"
 #include "./expr.h"
+#include "./operation.h"
 
 namespace tvm {
 
 // Internal node container of Tensor
 class TensorNode;
-
-/*! \brief The compute function to specify the input source of a Tensor */
-using FCompute = std::function<Expr (const Array<Var>& i)>;
-
-// converters from other functions into fcompute
-inline FCompute GetFCompute(std::function<Expr(Var x)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0]); };
-}
-inline FCompute GetFCompute(std::function<Expr(Var, Var)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0], i[1]); };
-}
-inline FCompute GetFCompute(std::function<Expr(Var, Var, Var)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
-}
-inline FCompute GetFCompute(std::function<Expr(Var, Var, Var, Var)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
-}
 
 using Halide::IR::FunctionRef;
 
@@ -57,22 +41,6 @@ class Tensor : public FunctionRef {
   explicit Tensor(Array<Expr> shape,
                   std::string name = "tensor",
                   Type dtype = Float(32));
-  /*!
-   * \brief constructor of intermediate result.
-   * \param shape Shape of the tensor.
-   * \param fcompute The compute function to create the tensor.
-   * \param name The optional name of the tensor.
-   */
-  Tensor(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
-  // same constructor, specialized for different fcompute function
-  Tensor(Array<Expr> shape, std::function<Expr(Var)> f, std::string name = "tensor")
-      :Tensor(shape, GetFCompute(f), name) {}
-  Tensor(Array<Expr> shape, std::function<Expr(Var, Var)> f, std::string name = "tensor")
-      :Tensor(shape, GetFCompute(f), name) {}
-  Tensor(Array<Expr> shape, std::function<Expr(Var, Var, Var)> f, std::string name = "tensor")
-      :Tensor(shape, GetFCompute(f), name) {}
-  Tensor(Array<Expr> shape, std::function<Expr(Var, Var, Var, Var)> f, std::string name = "tensor")
-        :Tensor(shape, GetFCompute(f), name) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -100,6 +68,58 @@ class Tensor : public FunctionRef {
   friend std::ostream& operator<<(std::ostream &os, const Tensor& t);
 };
 
+/*! \brief The compute function to specify the input source of a Tensor */
+using FCompute = std::function<Expr (const Array<Var>& i)>;
+
+// converters from other functions into fcompute
+inline FCompute GetFCompute(std::function<Expr(Var x)> f) {
+  return [f] (const Array<Var>& i) { return f(i[0]); };
+}
+inline FCompute GetFCompute(std::function<Expr(Var, Var)> f) {
+  return [f] (const Array<Var>& i) { return f(i[0], i[1]); };
+}
+inline FCompute GetFCompute(std::function<Expr(Var, Var, Var)> f) {
+  return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
+}
+inline FCompute GetFCompute(std::function<Expr(Var, Var, Var, Var)> f) {
+  return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
+}
+
+/*!
+ * \brief Construct a new tensor by computing over shape,
+ *  using the computation rule: result_tensor[axis] = fcompute(axis)
+ * \param shape Shape of the tensor.
+ * \param fcompute The compute function to create the tensor.
+ * \param name The optional name of the tensor.
+ */
+Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
+
+// same as compute, specialized for different fcompute function
+inline Tensor Compute(Array<Expr> shape,
+                      std::function<Expr(Var)> f,
+                      std::string name = "tensor") {
+  FCompute fc = [f] (const Array<Var>& i) { return f(i[0]); };
+  return Compute(shape, fc, name);
+}
+inline Tensor Compute(Array<Expr> shape,
+                      std::function<Expr(Var, Var)> f,
+                      std::string name = "tensor") {
+  FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1]); };
+  return Compute(shape, fc, name);
+}
+inline Tensor Compute(Array<Expr> shape,
+                      std::function<Expr(Var, Var, Var)> f,
+                      std::string name = "tensor") {
+  FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
+  return  Compute(shape, fc, name);
+}
+inline Tensor Compute(Array<Expr> shape,
+                      std::function<Expr(Var, Var, Var, Var)> f,
+                      std::string name = "tensor") {
+  FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
+  return Compute(shape, fc, name);
+}
+
 /*! \brief Node to represent a tensor */
 class TensorNode : public FunctionBaseNode {
  public:
@@ -109,10 +129,10 @@ class TensorNode : public FunctionBaseNode {
   std::string name;
   /*! \brief data type in the content of the tensor */
   Type dtype;
-  /*! \brief The index representing each dimension, used by source expression. */
-  Array<Var> dim_var;
-  /*! \brief source expression */
-  Expr source;
+  /*! \brief the source operation, can be None */
+  Operation source_op;
+  /*! \brief the output index from source operation */
+  int source_index{0};
   /*! \brief constructor */
   TensorNode() {}
   const char* type_key() const final {
@@ -122,8 +142,8 @@ class TensorNode : public FunctionBaseNode {
     v->Visit("shape", &shape);
     v->Visit("name", &name);
     v->Visit("dtype", &dtype);
-    v->Visit("dim_var", &dim_var);
-    v->Visit("source", &source);
+    v->Visit("source_op", &source_op);
+    v->Visit("source_index", &source_index);
   }
   const std::string& func_name() const final {
     return name;
@@ -134,8 +154,8 @@ class TensorNode : public FunctionBaseNode {
   static Tensor make(Array<Expr> shape,
                      std::string name,
                      Type dtype,
-                     Array<Var> dim_var,
-                     Expr source);
+                     Operation source_op,
+                     int source_index);
 };
 
 // implementations
@@ -150,7 +170,6 @@ inline size_t Tensor::ndim() const {
 
 inline std::ostream& operator<<(std::ostream &os, const Tensor& t) {  // NOLINT(*)
   os << "Tensor(shape=" << t->shape
-     << ", source=" << t->source
      << ", name=" << t->name << ')';
   return os;
 }

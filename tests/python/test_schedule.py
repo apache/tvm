@@ -4,9 +4,9 @@ def test_schedule_create():
     m = tvm.Var('m')
     n = tvm.Var('n')
     l = tvm.Var('l')
-    A = tvm.Tensor((m, l), name='A')
-    B = tvm.Tensor((n, l), name='B')
-    T = tvm.Tensor((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
+    A = tvm.placeholder((m, l), name='A')
+    B = tvm.placeholder((n, l), name='B')
+    T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
 
     sch = tvm.Schedule(T, scope="shared")
     tk1 = tvm.Split(0, 10)

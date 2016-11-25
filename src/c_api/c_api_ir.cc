@@ -58,7 +58,6 @@ TVM_REGISTER_API(_make_Allocate)
 
 TVM_REGISTER_API(_make_LetStmt)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-
     if (args.size() == 3) {
       *ret = LetStmt::make(args.at(0),
                             args.at(1),

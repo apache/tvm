@@ -16,23 +16,6 @@ Tensor::Tensor(Array<Expr> shape, std::string name, Type dtype) {
   node_ = std::move(node);
 }
 
-Tensor::Tensor(Array<Expr> shape, FCompute fcompute, std::string name) {
-  auto node = std::make_shared<TensorNode>();
-  node->name = std::move(name);
-  node->shape = std::move(shape);
-  size_t ndim = node->shape.size();
-  std::vector<Var> dim_index;
-  for (size_t i = 0; i < ndim; ++i) {
-    std::ostringstream os;
-    os << "dim_index" << i;
-    dim_index.push_back(Var(os.str()));
-  }
-  node->dim_var = Array<Var>(dim_index);
-  node->source = fcompute(node->dim_var);
-  node->dtype = node->source.type();
-  node_ = std::move(node);
-}
-
 Expr Tensor::operator()(Array<Expr> indices) const {
   using Halide::Internal::Call;
   CHECK_EQ(ndim(), indices.size())
@@ -42,21 +25,18 @@ Expr Tensor::operator()(Array<Expr> indices) const {
       (*this)->dtype, (*this)->name, indices, Call::Halide, *this);
 }
 
+
 Tensor TensorNode::make(Array<Expr> shape,
                         std::string name,
                         Type dtype,
-                        Array<Var> dim_var,
-                        Expr source) {
+                        Operation source_op,
+                        int source_index) {
   auto n = std::make_shared<TensorNode>();
-  if (source.defined()) {
-    CHECK_EQ(source.type(), dtype);
-    CHECK_EQ(dim_var.size(), shape.size());
-  }
   n->shape = shape;
   n->name = name;
   n->dtype = dtype;
-  n->dim_var = dim_var;
-  n->source = source;
+  n->source_op = source_op;
+  n->source_index = source_index;
   return Tensor(n);
 }
 

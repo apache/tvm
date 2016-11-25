@@ -8,6 +8,7 @@
 
 #include <tvm/ir_node.h>
 #include <unordered_map>
+#include <vector>
 #include "./expr.h"
 
 namespace tvm {
