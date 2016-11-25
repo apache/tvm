@@ -95,32 +95,13 @@ using FInferType = FInferNodeEntryAttr<int>;
 
 /*!
  * \brief Whether this op is an explicit backward operator,
- *  and the correspondence of each output to input.
- *
- *  If FBackwardOutToInIndex exists:
+ * If TIsBackward is true:
  *   - The first control_deps of the node points to the corresponding forward operator.
- *   - The k-th outputs corresponds to the FBackwardOutputToInputIndex()[k]-th input of forward op.
  *
- * \note Register under "FBackwardOutToInIndex"
- * This enables easier shape/type inference for backward operators for slice and reduction.
- */
-using FBackwardOutToInIndex = std::function<
-  std::vector<uint32_t> (const NodeAttrs& attrs)>;
-
-/*!
- * \brief Whether this op is an explicit backward operator,
- *  Returns list of input index that corresponds to the outputs of the forward operator.
- *
- *  If FBackwardInGradIndex exists:
- *   - The first control_deps of the node points to the corresponding forward operator.
- *   - The FBackwardInGradIndex[i]-th input of backward op corresponds to the i-th
- *      output of forward operator.
- *
- * \note Register under "FBackwardInGradIndex"
+ * \note Register under "TIsBackward"
  * This enables easier shape/type inference for backward operators.
  */
-using FBackwardInGradIndex = std::function<
-  std::vector<uint32_t> (const NodeAttrs& attrs)>;
+using TIsBackward = bool;
 
 /*!
  * \brief Get possible inplace options.
