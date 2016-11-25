@@ -121,7 +121,6 @@ class IRConvertSSA : public IRMutator {
     } else {
       Expr e = IRMutator::Mutate(expr);
       return e;
-
     }
   }
 
