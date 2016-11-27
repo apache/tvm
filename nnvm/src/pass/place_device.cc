@@ -41,7 +41,7 @@ Graph PlaceDevice(Graph src) {
     if (it != inode.source->attrs.dict.end()) {
       const std::string& device_group = it->second;
       auto dit = device_assign_map.find(device_group);
-      CHECK_NE(dit, device_assign_map.end())
+      CHECK(dit != device_assign_map.end())
           << "The device assignment not found for group " << device_group;
       device[nid] = dit->second;
     } else {
