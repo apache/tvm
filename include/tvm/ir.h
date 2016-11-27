@@ -18,6 +18,7 @@ namespace ir {
 
 using Halide::Internal::ExprNode;
 using Halide::Internal::IRNodeType;
+using Halide::Internal::ForType;
 
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {

@@ -156,13 +156,13 @@ class IRConvertSSA : public IRMutator {
 
 }  // namespace
 
-bool VerifySSA(const IRNodeRef& ir) {
+bool VerifySSA(const Stmt& ir) {
   IRVerifySSA v;
   v.Visit(ir);
   return v.is_ssa;
 }
 
-Stmt ConvertSSA(const Stmt& stmt) {
+Stmt ConvertSSA(Stmt stmt) {
   return IRConvertSSA().Mutate(stmt);
 }
 
