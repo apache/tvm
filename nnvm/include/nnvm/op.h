@@ -431,7 +431,7 @@ inline Op& Op::set_attr(  // NOLINT(*)
         pm.attr_name_ = attr_name;
         *pmap = std::move(pm);
       }
-      CHECK_EQ(pmap->type(), typeid(OpMap<ValueType>))
+      CHECK(pmap->type() == typeid(OpMap<ValueType>))
           << "Attribute " << attr_name
           << " of operator " << this->name
           << " is registered as inconsistent types"
