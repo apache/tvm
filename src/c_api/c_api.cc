@@ -164,14 +164,16 @@ int TVMPushStack(ArgVariant arg,
   API_BEGIN();
   ret->arg_stack.resize(ret->arg_stack.size() + 1);
   APIVariantValue& v = ret->arg_stack.back();
+
   v.type_id = static_cast<ArgVariantID>(type_id);
   if (type_id == kStr) {
-    v = arg.v_str;
+    v.str = arg.v_str;
   }  else if (type_id == kNodeHandle) {
     v.sptr = *static_cast<TVMAPINode*>(arg.v_handle);
   } else {
     v.v_union = arg;
   }
+
   API_END_HANDLE_ERROR(ret->Clear());
 }
 

@@ -10,9 +10,9 @@ TEST(IRSSA, Convert) {
   Var x("x"), y;
   Expr let = Let::make(x, 1, x + 1);
 
-  auto z = let + let;
+  auto z = Evaluate::make(let + let);
   CHECK(!ir::VerifySSA(z));
-  auto z_ssa = ir::ConvertSSA(Evaluate::make(z));
+  auto z_ssa = ir::ConvertSSA(z);
   CHECK(ir::VerifySSA(z_ssa));
 }
 
@@ -20,7 +20,7 @@ TEST(IRSSA, Basic) {
   using namespace Halide::Internal;
   using namespace tvm;
   Var x("x"), y;
-  auto z = x + y;
+  auto z = Evaluate::make(x + y);
   CHECK(ir::VerifySSA(z));
 }
 

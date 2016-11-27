@@ -9,9 +9,7 @@
 #include "./c_api_registry.h"
 
 namespace tvm {
-
-using namespace tvm::ir;
-using namespace Halide::Internal;
+namespace ir {
 
 using ArgStack = const std::vector<APIVariantValue>;
 using RetValue = APIVariantValue;
@@ -135,4 +133,5 @@ REGISTER_MAKE2(Block);
 REGISTER_MAKE3(IfThenElse);
 REGISTER_MAKE1(Evaluate);
 
+}  // namespace ir
 }  // namespace tvm

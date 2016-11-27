@@ -1,7 +1,10 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file ir_pass.h
- * \brief Collection of IR pass functions and visit functions
+ * \brief Collection of IR pass functions
+ *
+ *  All the pass functions in this file are for Stmt,
+ *  We can use PassFunction(Evaluate(expr)) to apply it to Expr
  */
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
@@ -22,14 +25,14 @@ namespace ir {
  * \return Whether IR is in SSA form.
  * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-bool VerifySSA(const IRNodeRef& ir);
+bool VerifySSA(const Stmt& ir);
 
 /*!
  * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.
  * \return The converted form.
  */
-Stmt ConvertSSA(const Stmt& stmt);
+Stmt ConvertSSA(Stmt stmt);
 
 /*!
  * \brief inline all calls of f in stmt.
@@ -42,8 +45,10 @@ Stmt ConvertSSA(const Stmt& stmt);
  *
  * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-Stmt InlineSSA(FunctionRef f, const std::vector<Var>& args, Expr body, Stmt stmt);
-
+Stmt Inline(FunctionRef f,
+            Array<Var> args,
+            Expr body,
+            Stmt stmt);
 
 }  // namespace ir
 }  // namespace tvm

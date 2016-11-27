@@ -19,7 +19,6 @@ using RetValue = APIVariantValue;
 TVM_REGISTER_API(_const)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     using Halide::Internal::make_const;
-
     if (args.at(0).type_id == kLong) {
       *ret = make_const(args.at(1), args.at(0).operator int64_t());
     } else if (args.at(0).type_id == kDouble) {

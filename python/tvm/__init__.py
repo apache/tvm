@@ -6,6 +6,7 @@ from . import tensor as tensor
 from . import expr
 from . import stmt
 from . import make
+from . import ir_pass
 from . import collections
 from . import schedule
 

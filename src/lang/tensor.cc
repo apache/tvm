@@ -21,8 +21,9 @@ Expr Tensor::operator()(Array<Expr> indices) const {
   CHECK_EQ(ndim(), indices.size())
       << "Tensor dimension mismatch in read"
       << "ndim = " << ndim() << ", indices.size=" << indices.size();
-  return Call::make(
+  auto n Call::make(
       (*this)->dtype, (*this)->name, indices, Call::Halide, *this);
+  return n;
 }
 
 

@@ -43,6 +43,17 @@ inline Type String2Type(std::string s) {
   return Type(code, bits, lanes);
 }
 
+inline const char* TypeId2Str(ArgVariantID type_id) {
+  switch (type_id) {
+    case kNull: return "Null";
+    case kLong: return "Long";
+    case kDouble: return "Double";
+    case kStr: return "Str";
+    case kNodeHandle: return "NodeHandle";
+    default: LOG(FATAL) << "unknown type_id=" << type_id; return "";
+  }
+}
+
 /*! \brief Variant container for API calls */
 class APIVariantValue {
  public:
@@ -70,6 +81,11 @@ class APIVariantValue {
     return *this;
   }
   inline APIVariantValue& operator=(int64_t value) {
+    type_id = kLong;
+    v_union.v_long = value;
+    return *this;
+  }
+  inline APIVariantValue& operator=(bool value) {
     type_id = kLong;
     v_union.v_long = value;
     return *this;
@@ -130,11 +146,13 @@ class APIVariantValue {
     return v_union.v_long;
   }
   inline operator bool() const {
-    CHECK_EQ(type_id, kLong);
+    CHECK_EQ(type_id, kLong)
+        << "expect boolean(int) but get " << TypeId2Str(type_id);
     return v_union.v_long != 0;
   }
   inline operator std::string() const {
-    CHECK_EQ(type_id, kStr);
+    CHECK_EQ(type_id, kStr)
+        << "expect Str but get " << TypeId2Str(type_id);
     return str;
   }
   inline operator Type() const {

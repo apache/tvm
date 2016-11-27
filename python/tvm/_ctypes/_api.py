@@ -224,21 +224,19 @@ def _init_function_module(root_namespace):
 
     module_obj = sys.modules["%s.function" % root_namespace]
     module_internal = sys.modules["%s._function_internal" % root_namespace]
-    module_make = sys.modules["%s.make" % root_namespace]
+    namespace_match = {
+        "_make_" : sys.modules["%s.make" % root_namespace],
+        "_pass_" : sys.modules["%s.ir_pass" % root_namespace]
+    }
 
     for name in op_names:
         hdl = FunctionHandle()
         check_call(_LIB.TVMGetFunctionHandle(c_str(name), ctypes.byref(hdl)))
-        if name.startswith("_make_"):
-            fname = name[6:]
-        else:
-            fname = name
-
+        fname = name
+        target_module = module_internal if name.startswith('_') else module_obj
+        for k, v in namespace_match.items():
+            if name.startswith(k):
+                fname = name[len(k):]
+                target_module = v
         function = _make_function(hdl, fname)
-
-        if name.startswith("_make_"):
-            setattr(module_make, function.__name__, function)
-        elif function.__name__.startswith('_'):
-            setattr(module_internal, function.__name__, function)
-        else:
-            setattr(module_obj, function.__name__, function)
+        setattr(target_module, function.__name__, function)
