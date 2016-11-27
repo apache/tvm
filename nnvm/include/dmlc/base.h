@@ -37,6 +37,14 @@
 #define DMLC_LOG_CUSTOMIZE 0
 #endif
 
+/*!
+ * \brief Wheter to print stack trace for fatal error,
+ * enabled on linux when using gcc.
+ */
+#if (!defined(DMLC_LOG_STACK_TRACE) && defined(__GNUC__))
+#define DMLC_LOG_STACK_TRACE 1
+#endif
+
 /*! \brief whether compile with hdfs support */
 #ifndef DMLC_USE_HDFS
 #define DMLC_USE_HDFS 0
@@ -201,7 +209,7 @@ inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
   }
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a const vector
  * \param vec input vector
  * \return beginning address of a vector
  */
@@ -214,7 +222,7 @@ inline const T *BeginPtr(const std::vector<T> &vec) {
   }
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a string
  * \param str input string
  * \return beginning address of a string
  */
@@ -223,7 +231,7 @@ inline char* BeginPtr(std::string &str) {  // NOLINT(*)
   return &str[0];
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a const string
  * \param str input string
  * \return beginning address of a string
  */
