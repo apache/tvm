@@ -130,9 +130,9 @@ class TensorNode : public FunctionBaseNode {
   /*! \brief data type in the content of the tensor */
   Type dtype;
   /*! \brief the source operation, can be None */
-  Operation source_op;
+  Operation op;
   /*! \brief the output index from source operation */
-  int source_index{0};
+  int value_index{0};
   /*! \brief constructor */
   TensorNode() {}
   const char* type_key() const final {
@@ -142,8 +142,8 @@ class TensorNode : public FunctionBaseNode {
     v->Visit("shape", &shape);
     v->Visit("name", &name);
     v->Visit("dtype", &dtype);
-    v->Visit("source_op", &source_op);
-    v->Visit("source_index", &source_index);
+    v->Visit("op", &op);
+    v->Visit("value_index", &value_index);
   }
   const std::string& func_name() const final {
     return name;
@@ -154,8 +154,8 @@ class TensorNode : public FunctionBaseNode {
   static Tensor make(Array<Expr> shape,
                      std::string name,
                      Type dtype,
-                     Operation source_op,
-                     int source_index);
+                     Operation op,
+                     int value_index);
 };
 
 // implementations

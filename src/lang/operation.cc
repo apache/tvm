@@ -28,24 +28,24 @@ Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
     dom.push_back(Range(0, shape[i]));
   }
 
-  op_node->iter_var = Array<Var>(dim_index);
+  op_node->dim_var = Array<Var>(dim_index);
   op_node->domain = Domain(dom);
-  op_node->body = fcompute(op_node->iter_var);
+  op_node->body = fcompute(op_node->dim_var);
   op_node->name = name;
   node->dtype = op_node->body.type();
-  node->source_op = Operation(op_node);
-  node->source_index = 0;
+  node->op = Operation(op_node);
+  node->value_index = 0;
   return Tensor(node);
 }
 
 Operation ComputeOpNode::make(Domain domain,
                               std::string name,
-                              Array<Var> iter_var,
+                              Array<Var> dim_var,
                               Expr body) {
   auto n = std::make_shared<ComputeOpNode>();
   n->domain = domain;
   n->name = name;
-  n->iter_var = iter_var;
+  n->dim_var = dim_var;
   n->body = body;
   return Operation(n);
 }

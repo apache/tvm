@@ -30,14 +30,14 @@ Expr Tensor::operator()(Array<Expr> indices) const {
 Tensor TensorNode::make(Array<Expr> shape,
                         std::string name,
                         Type dtype,
-                        Operation source_op,
-                        int source_index) {
+                        Operation op,
+                        int value_index) {
   auto n = std::make_shared<TensorNode>();
   n->shape = shape;
   n->name = name;
   n->dtype = dtype;
-  n->source_op = source_op;
-  n->source_index = source_index;
+  n->op = op;
+  n->value_index = value_index;
   return Tensor(n);
 }
 

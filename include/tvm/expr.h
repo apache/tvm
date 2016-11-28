@@ -37,6 +37,8 @@ class Var : public Halide::VarExpr {
  public:
   explicit Var(const std::string& name_hint = "v",
                Type t = Int(32)) : VarExpr(name_hint, t) {}
+
+  explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
 };
 
 }  // namespace tvm

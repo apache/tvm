@@ -9,10 +9,11 @@ def test_schedule_create():
     T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
 
     sch = tvm.Schedule(T, scope="shared")
-    tk1 = tvm.Split(0, 10)
+    tk1 = tvm.Split(T.op.dim_var[0], 10)
     assert isinstance(sch, tvm.schedule.Schedule)
     assert isinstance(tk1, tvm.schedule.DimSplit)
 
+    print(tk1.var)
     print(sch.scope)
     print(sch.attachs)
 

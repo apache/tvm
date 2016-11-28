@@ -7,6 +7,7 @@
 #define TVM_SPLIT_H_
 
 #include "./base.h"
+#include "./expr.h"
 #include "./domain.h"
 
 namespace tvm {
@@ -34,15 +35,13 @@ class Split : public NodeRef {
  */
 class SplitNode : public Node {
  public:
-  /*! \brief whether the split is over reduction domain*/
-  bool split_over_rdom{false};
+  /*! \brief the variable to be splitted on */
+  Var var;
 };
 
 /*! \brief simple split node that splits over one dimension */
 class DimSplitNode : public SplitNode {
  public:
-  /*! \brief The dimension to split on */
-  int dim_index;
   /*! \brief The factor of the split */
   Expr factor;
   /*! \brief constructor */
@@ -51,13 +50,10 @@ class DimSplitNode : public SplitNode {
     return "DimSplit";
   }
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("split_over_rdom", &split_over_rdom);
-    v->Visit("dim_index", &dim_index);
+    v->Visit("var", &var);
     v->Visit("factor", &factor);
   }
-  static Split make(int dim_index,
-                    Expr factor,
-                    bool over_rdom);
+  static Split make(Var var, Expr factor);
 };
 
 // Implementations of inline functions

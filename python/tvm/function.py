@@ -91,7 +91,10 @@ def compute(shape, fcompute, name="TensorCompute"):
         The created tensor
     """
     ndim = len(shape)
-    dim_var = [Var("dim_var%d" % i) for i in range(ndim)]
+    arg_names = fcompute.__code__.co_varnames
+    if ndim != len(arg_names):
+        raise ValueError("fcompute do not match dimension")
+    dim_var = [Var(x) for x in arg_names]
     body = fcompute(*dim_var)
     dom = [Range(0, x) for x in shape]
     op_node = _function_internal._ComputeOp(

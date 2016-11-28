@@ -7,7 +7,7 @@ def test_inline():
     X = T(100)
     stmt = tvm.make.Evaluate(T(10) + 11 * T(100))
     stmt = tvm.ir_pass.Inline(
-        T, T.source_op.iter_var, T.source_op.body, stmt)
+        T, T.op.dim_var, T.op.body, stmt)
     print(stmt)
     assert(tvm.ir_pass.VerifySSA(stmt))
 

@@ -6,9 +6,9 @@
 
 namespace tvm {
 
-Schedule::Schedule(Tensor tensor, std::string scope) {
+Schedule::Schedule(Operation op, std::string scope) {
   auto n = std::make_shared<ScheduleNode>();
-  n->tensor = tensor;
+  n->op = op;
   n->scope = scope;
   node_ = n;
 }

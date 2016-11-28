@@ -102,7 +102,7 @@ TVM_REGISTER_API(_RDomain)
 
 TVM_REGISTER_API(_DimSplit)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-    *ret = DimSplitNode::make(args.at(0), args.at(1), args.at(2));
+    *ret = DimSplitNode::make(args.at(0), args.at(1));
   });
 
 TVM_REGISTER_API(_Schedule)

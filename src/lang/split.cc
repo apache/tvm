@@ -6,13 +6,11 @@
 
 namespace tvm {
 
-Split DimSplitNode::make(int dim_index,
-                         Expr factor,
-                         bool over_rdom) {
+Split DimSplitNode::make(Var var,
+                         Expr factor) {
   auto n = std::make_shared<DimSplitNode>();
   CHECK_EQ(factor.type().lanes(), 1);
-  n->split_over_rdom = over_rdom;
-  n->dim_index = dim_index;
+  n->var = var;
   n->factor = factor;
   return Split(n);
 }

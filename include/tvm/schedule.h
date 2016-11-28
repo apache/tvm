@@ -9,7 +9,7 @@
 #include <string>
 #include "./base.h"
 #include "./split.h"
-#include "./tensor.h"
+#include "./operation.h"
 
 namespace tvm {
 
@@ -30,7 +30,7 @@ class Schedule : public NodeRef {
  public:
   Schedule() {}
   explicit Schedule(std::shared_ptr<Node> n) : NodeRef(n) {}
-  Schedule(Tensor tensor, std::string scope);
+  Schedule(Operation op, std::string scope);
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -77,11 +77,11 @@ class AttachSpecNode : public Node {
 /*! \brief represents the schedule of the tensor */
 class ScheduleNode : public Node {
  public:
-  /*! \brief Tensor to be scheduled */
-  Tensor tensor;
+  /*! \brief The operation to be scheduled */
+  Operation op;
   /*! \brief The thread scope level of the schedule */
   std::string scope;
-  /*! \brief Splits over domains or rdomains */
+  /*! \brief Splits over iteration domains */
   Array<Split> splits;
   /*! \brief attach specifications */
   Array<AttachSpec> attachs;
@@ -90,7 +90,7 @@ class ScheduleNode : public Node {
   }
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("scope", &scope);
-    v->Visit("tensor", &tensor);
+    v->Visit("op", &op);
     v->Visit("splits", &splits);
     v->Visit("attachs", &attachs);
   }

@@ -10,7 +10,6 @@
 #include "./expr.h"
 #include "./domain.h"
 
-
 namespace tvm {
 
 // internal node container for Operation
@@ -38,15 +37,15 @@ class OperationNode : public Node {
   Domain domain;
   /*! \brief optional name of the operation */
   std::string name;
-  /*! \brief index iteration variables on the domain of operation. */
-  Array<Var> iter_var;
 };
 
 /*!
- * \brief A Compute op that compute a tensor over certain range.
+ * \brief A Compute op that compute a tensor on certain domain.
  */
 class ComputeOpNode : public OperationNode {
  public:
+  /*! \brief iter-Var over the dimensions */
+  Array<Var> dim_var;
   /*! \brief the compute expression */
   Expr body;
   /*! \brief constructor */
@@ -58,12 +57,12 @@ class ComputeOpNode : public OperationNode {
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("domain", &domain);
     v->Visit("name", &name);
-    v->Visit("iter_var", &iter_var);
+    v->Visit("dim_var", &dim_var);
     v->Visit("body", &body);
   }
   static Operation make(Domain domain,
                         std::string name,
-                        Array<Var> iter_var,
+                        Array<Var> dim_var,
                         Expr body);
 };
 
