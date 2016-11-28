@@ -14,12 +14,14 @@
 
 #include "./base.h"
 #include "./expr.h"
-#include "./operation.h"
+#include "./domain.h"
 
 namespace tvm {
 
 // Internal node container of Tensor
 class TensorNode;
+// internal node container for Operation
+class OperationNode;
 
 using Halide::IR::FunctionRef;
 
@@ -68,57 +70,24 @@ class Tensor : public FunctionRef {
   friend std::ostream& operator<<(std::ostream &os, const Tensor& t);
 };
 
-/*! \brief The compute function to specify the input source of a Tensor */
-using FCompute = std::function<Expr (const Array<Var>& i)>;
-
-// converters from other functions into fcompute
-inline FCompute GetFCompute(std::function<Expr(Var x)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0]); };
-}
-inline FCompute GetFCompute(std::function<Expr(Var, Var)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0], i[1]); };
-}
-inline FCompute GetFCompute(std::function<Expr(Var, Var, Var)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
-}
-inline FCompute GetFCompute(std::function<Expr(Var, Var, Var, Var)> f) {
-  return [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
-}
-
-/*!
- * \brief Construct a new tensor by computing over shape,
- *  using the computation rule: result_tensor[axis] = fcompute(axis)
- * \param shape Shape of the tensor.
- * \param fcompute The compute function to create the tensor.
- * \param name The optional name of the tensor.
- */
-Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
-
-// same as compute, specialized for different fcompute function
-inline Tensor Compute(Array<Expr> shape,
-                      std::function<Expr(Var)> f,
-                      std::string name = "tensor") {
-  FCompute fc = [f] (const Array<Var>& i) { return f(i[0]); };
-  return Compute(shape, fc, name);
-}
-inline Tensor Compute(Array<Expr> shape,
-                      std::function<Expr(Var, Var)> f,
-                      std::string name = "tensor") {
-  FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1]); };
-  return Compute(shape, fc, name);
-}
-inline Tensor Compute(Array<Expr> shape,
-                      std::function<Expr(Var, Var, Var)> f,
-                      std::string name = "tensor") {
-  FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
-  return  Compute(shape, fc, name);
-}
-inline Tensor Compute(Array<Expr> shape,
-                      std::function<Expr(Var, Var, Var, Var)> f,
-                      std::string name = "tensor") {
-  FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
-  return Compute(shape, fc, name);
-}
+/*! \brief Operation that produces tensors */
+class Operation : public NodeRef {
+ public:
+  /*! \brief default constructor  */
+  Operation() {}
+  explicit Operation(std::shared_ptr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const OperationNode* operator->() const;
+  /*!
+   * \brief get the i-th output of the operation.
+   * \param i the output index.
+   * \return The i-th output.
+   */
+  Tensor output(size_t i) const;
+};
 
 /*! \brief Node to represent a tensor */
 class TensorNode : public FunctionBaseNode {
@@ -158,7 +127,31 @@ class TensorNode : public FunctionBaseNode {
                      int value_index);
 };
 
-// implementations
+/*!
+ * \brief base class of operation node.
+ */
+class OperationNode : public Node {
+ public:
+  /*! \brief The domain of iteration of this op. */
+  Domain domain;
+  /*! \brief iter-Var over the dimensions */
+  Array<Var> dim_var;
+  /*! \brief optional name of the operation */
+  std::string name;
+  /*! \return number of outputs of this op */
+  virtual size_t num_outputs() const = 0;
+  /*! \return name of i-th output */
+  virtual std::string output_name(size_t i) const = 0;
+  /*! \return type of i-th output */
+  virtual Type output_dtype(size_t i) const = 0;
+  /*! \return shape of i-th output */
+  virtual Array<Expr> output_shape(size_t i) const = 0;
+};
+
+// Implementations of inline functions
+inline const OperationNode* Operation::operator->() const {
+  return static_cast<const OperationNode*>(node_.get());
+}
 
 inline const TensorNode* Tensor::operator->() const {
   return static_cast<const TensorNode*>(node_.get());

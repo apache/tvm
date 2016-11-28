@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <vector>
 #include "./expr.h"
+#include "./schedule.h"
 
 namespace tvm {
 namespace ir {
@@ -49,6 +50,14 @@ Stmt Inline(FunctionRef f,
             Array<Var> args,
             Expr body,
             Stmt stmt);
+
+/*!
+ * \brief Schedule s' dependent operations.
+ *
+ * \param s The schedule to be realized
+ * \return the result Stmt
+ */
+Stmt ScheduelOps(Schedule s);
 
 }  // namespace ir
 }  // namespace tvm

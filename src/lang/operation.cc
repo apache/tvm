@@ -10,12 +10,9 @@
 namespace tvm {
 
 Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
-  auto node = std::make_shared<TensorNode>();
   auto op_node = std::make_shared<ComputeOpNode>();
-  node->name = name;
-  node->shape = shape;
   // compute dimension.
-  size_t ndim = node->shape.size();
+  size_t ndim = shape.size();
   std::vector<Var> dim_index;
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
@@ -32,10 +29,8 @@ Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   op_node->domain = Domain(dom);
   op_node->body = fcompute(op_node->dim_var);
   op_node->name = name;
-  node->dtype = op_node->body.type();
-  node->op = Operation(op_node);
-  node->value_index = 0;
-  return Tensor(node);
+
+  return Operation(op_node).output(0);
 }
 
 Operation ComputeOpNode::make(Domain domain,
@@ -49,6 +44,37 @@ Operation ComputeOpNode::make(Domain domain,
   n->body = body;
   return Operation(n);
 }
+
+Tensor Operation::output(size_t i) const {
+  auto node = std::make_shared<TensorNode>();
+  node->op = *this;
+  node->value_index = 0;
+  node->name =  (*this)->output_name(i);
+  node->dtype = (*this)->output_dtype(i);
+  node->shape = (*this)->output_shape(i);
+  return Tensor(node);
+}
+
+std::string ComputeOpNode::output_name(size_t i) const {
+  CHECK_EQ(i, 0);
+  return name;
+}
+
+Type ComputeOpNode::output_dtype(size_t i) const {
+  CHECK_EQ(i, 0);
+  return body.type();
+}
+
+Array<Expr> ComputeOpNode::output_shape(size_t i) const {
+  CHECK_EQ(i, 0);
+  std::vector<Expr> shape;
+  for (size_t i = 0; i < domain.size(); ++i) {
+    shape.push_back(domain[i]->extent);
+  }
+  return Array<Expr>(shape);
+}
+
+
 
 TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 
