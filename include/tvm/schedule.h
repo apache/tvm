@@ -62,6 +62,10 @@ class ScheduleNode : public Node {
   const char* type_key() const final {
     return "Schedule";
   }
+  const uint32_t type_index() const final {
+    static uint32_t tidx = TypeKey2Index(type_key());
+    return tidx;
+  }
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("scope", &scope);
     v->Visit("op", &op);

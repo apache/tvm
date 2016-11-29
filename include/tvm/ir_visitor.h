@@ -15,7 +15,7 @@ namespace ir {
  * \brief a base class for visitor to iterative traverse the IR
  *
  *  This IRVisitor is implemented via IRFunctor
- *  This enables extensions of possible new IRNode.
+ *  This enables extensions of possible new Node.
  *
  * \sa IRFunctor, PostOrderVisit
  */
@@ -24,14 +24,14 @@ class IRVisitor {
   /*!
    * \brief recursively visit an IR node
    */
-  virtual void Visit(const IRNodeRef& node) {
+  virtual void Visit(const NodeRef& node) {
     static const FVisit& f = vtable();
     if (node.defined()) f(node, this);
   }
   /*! \brief destructor */
   virtual ~IRVisitor() {}
   /*! \brief functor type of visitor */
-  using FVisit = IRFunctor<void(const IRNodeRef&, IRVisitor*)>;
+  using FVisit = IRFunctor<void(const NodeRef&, IRVisitor*)>;
   /*! \return internal vtable*/
   static FVisit& vtable();
 };
@@ -42,7 +42,7 @@ class IRVisitor {
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
-void PostOrderVisit(const IRNodeRef& node, std::function<void(const IRNodeRef&)> fvisit);
+void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
 
 }  // namespace ir
 }  // namespace tvm

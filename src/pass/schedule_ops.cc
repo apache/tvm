@@ -5,21 +5,37 @@
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include "./scope.h"
 
 namespace tvm {
 namespace ir {
 namespace {
 
-Stmt MakeCompute(const ComputeOpNode* op, const Array<Split>& splits) {
-  Tensor output;
-  std::vector<Expr> args(op->dim_var.size());
-  for (size_t i = 0; i < args.size(); ++i) {
-    args[i] = op->dim_var[i];
+/*!
+ * \brief make nest loops given list of stmt, whose body is not defined.
+ * \param nest A list of For and LetStmt, whose body is not defined.
+ * \param body The inner-most body of the loop
+ */
+Stmt MakeLoop(std::vector<Stmt>&& nest, Stmt body) {
+  while (!nest.empty()) {
+    Stmt s = std::move(nest.back()); nest.pop_back();
+    if (s.as<For>()) {
+      auto n = std::make_shared<For>(*s.as<For>());
+      n->body = body;
+      body = Stmt(n);
+    } else if (s.as<LetStmt>()) {
+      auto n = std::make_shared<LetStmt>(*s.as<LetStmt>());
+      n->body = body;
+      body = Stmt(n);
+    } else if (s.as<AttrStmt>()) {
+      auto n = std::make_shared<AttrStmt>(*s.as<AttrStmt>());
+      n->body = body;
+      body = Stmt(n);
+    } else {
+      LOG(FATAL) << "not supported nest type";
+    }
   }
-  Array<Expr> values{op->body};
-  Stmt stmt = Provide::make(output, values, args);
-  // add splits from ousside most to outsidemost to innermost
-  return stmt;
+  return body;
 }
 
 

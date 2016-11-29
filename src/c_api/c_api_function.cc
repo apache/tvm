@@ -26,9 +26,9 @@ TVM_REGISTER_API(_format_str)
     CHECK(args.at(0).type_id == kNodeHandle);
     std::ostringstream os;
     auto& sptr = args.at(0).sptr;
-    if (sptr->is_type<TensorNode>()) {
+    if (dynamic_cast<const TensorNode*>(sptr.get())) {
       os << args.at(0).operator Tensor();
-    } else if (sptr->is_type<RDomainNode>()) {
+    } else if (dynamic_cast<const RDomainNode*>(sptr.get())) {
       os << args.at(0).operator RDomain();
     } else if (dynamic_cast<const BaseExprNode*>(sptr.get())) {
       os << args.at(0).operator Expr();

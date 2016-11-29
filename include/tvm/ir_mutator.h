@@ -6,7 +6,7 @@
 #ifndef TVM_IR_MUTATOR_H_
 #define TVM_IR_MUTATOR_H_
 
-#include <tvm/ir_node.h>
+#include <tvm/ir_functor.h>
 #include <unordered_map>
 #include "./expr.h"
 
@@ -16,7 +16,7 @@ namespace ir {
  * \brief a base class for mutator to iterative mutate the IR
  *
  *  This IRMutator is implemented via IRFunctor instead of Visitor Pattern.
- *  This enables easy extensions of possible new IRNode.
+ *  This enables easy extensions of possible new Node.
  *  It also makes changing return types easier.
  *
  * \note If you want to return a different type other than Expr and Stmt,
@@ -44,9 +44,9 @@ class IRMutator {
   /*! \brief destructor */
   virtual ~IRMutator() {}
   /*! \brief functor type of expr mutation */
-  using FMutateExpr = IRFunctor<Expr(const IRNodeRef&, const Expr&, IRMutator*)>;
+  using FMutateExpr = IRFunctor<Expr(const NodeRef&, const Expr&, IRMutator*)>;
   /*! \brief functor type of stmt mutation */
-  using FMutateStmt = IRFunctor<Stmt(const IRNodeRef&, const Stmt&, IRMutator*)>;
+  using FMutateStmt = IRFunctor<Stmt(const NodeRef&, const Stmt&, IRMutator*)>;
   /*! \return internal vtable of expr */
   static FMutateExpr& vtable_expr();  // NOLINT(*)
   /*! \return internal stmt of expr */

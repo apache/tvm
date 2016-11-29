@@ -9,7 +9,7 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
-#include <tvm/ir_node.h>
+#include <tvm/ir_functor.h>
 #include <unordered_map>
 #include <vector>
 #include "./expr.h"

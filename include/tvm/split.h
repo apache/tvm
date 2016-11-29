@@ -46,14 +46,15 @@ class DimSplitNode : public SplitNode {
   Expr factor;
   /*! \brief constructor */
   DimSplitNode() {}
-  const char* type_key() const final {
-    return "DimSplit";
-  }
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("var", &var);
     v->Visit("factor", &factor);
   }
   static Split make(Var var, Expr factor);
+
+  static constexpr const char* _type_key = "DimSplit";
+  TVM_DECLARE_NODE_TYPE_INFO(DimSplitNode);
 };
 
 // Implementations of inline functions

@@ -11,7 +11,7 @@ TEST(IRVisitor, CountVar) {
   Var x("x"), y;
 
   auto z = x + 1 + y + y;
-  ir::PostOrderVisit(z, [&n_var](const IRNodeRef& n) {
+  ir::PostOrderVisit(z, [&n_var](const NodeRef& n) {
       if (n.as<Variable>()) ++n_var;
     });
   CHECK_EQ(n_var, 2);

@@ -9,5 +9,6 @@
 #include "./base.h"
 #include "./expr.h"
 #include "./tensor.h"
+#include "./operation.h"
 
 #endif  // TVM_TVM_H_

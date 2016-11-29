@@ -95,13 +95,13 @@ class RDomainNode : public Node {
   RDomainNode(Array<Var> index, Domain domain)
       : index(index), domain(domain) {
   }
-  const char* type_key() const override {
-    return "RDomain";
-  }
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("index", &index);
     v->Visit("domain", &domain);
   }
+
+  static constexpr const char* _type_key = "RDomain";
+  TVM_DECLARE_NODE_TYPE_INFO(RDomainNode);
 };
 
 inline const RDomainNode* RDomain::operator->() const {

@@ -12,9 +12,9 @@ namespace {
 // visitor to implement apply
 class IRApplyVisit : public IRVisitor {
  public:
-  explicit IRApplyVisit(std::function<void(const IRNodeRef&)> f) : f_(f) {}
+  explicit IRApplyVisit(std::function<void(const NodeRef&)> f) : f_(f) {}
 
-  void Visit(const IRNodeRef& node) final {
+  void Visit(const NodeRef& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
     IRVisitor::Visit(node);
@@ -22,13 +22,13 @@ class IRApplyVisit : public IRVisitor {
   }
 
  private:
-  std::function<void(const IRNodeRef&)> f_;
+  std::function<void(const NodeRef&)> f_;
   std::unordered_set<const Node*> visited_;
 };
 
 }  // namespace
 
-void PostOrderVisit(const IRNodeRef& node, std::function<void(const IRNodeRef&)> fvisit) {
+void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit) {
   IRApplyVisit(fvisit).Visit(node);
 }
 
@@ -42,7 +42,7 @@ namespace {
 
 using namespace Halide::Internal;
 
-void NoOp(const IRNodeRef& n, IRVisitor* v) {
+void NoOp(const NodeRef& n, IRVisitor* v) {
 }
 
 inline void VisitArray(Array<Expr> arr, IRVisitor* v) {

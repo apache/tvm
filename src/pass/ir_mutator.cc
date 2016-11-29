@@ -22,7 +22,7 @@ namespace {
 using namespace Halide::Internal;
 
 // const expr
-inline Expr ReturnSelfExpr(const IRNodeRef&, const Expr& e, IRMutator*) {
+inline Expr ReturnSelfExpr(const NodeRef&, const Expr& e, IRMutator*) {
   return e;
 }
 

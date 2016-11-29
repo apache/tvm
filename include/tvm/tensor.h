@@ -104,9 +104,7 @@ class TensorNode : public FunctionBaseNode {
   int value_index{0};
   /*! \brief constructor */
   TensorNode() {}
-  const char* type_key() const final {
-    return "Tensor";
-  }
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("shape", &shape);
     v->Visit("name", &name);
@@ -125,6 +123,9 @@ class TensorNode : public FunctionBaseNode {
                      Type dtype,
                      Operation op,
                      int value_index);
+
+  static constexpr const char* _type_key = "Tensor";
+  TVM_DECLARE_NODE_TYPE_INFO(TensorNode);
 };
 
 /*!

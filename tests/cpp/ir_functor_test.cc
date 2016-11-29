@@ -1,7 +1,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tvm.h>
-#include <tvm/ir_node.h>
+#include <tvm/ir_functor.h>
 
 TEST(IRF, Basic) {
   using namespace Halide::Internal;
@@ -9,7 +9,7 @@ TEST(IRF, Basic) {
   Var x("x");
   auto z = x + 1;
 
-  IRFunctor<int(const IRNodeRef& n, int b)> f;
+  IRFunctor<int(const NodeRef& n, int b)> f;
   LOG(INFO) << "x";
   f.set_dispatch<Variable>([](const Variable* n, int b) {
       return b;

@@ -23,9 +23,6 @@ class ComputeOpNode : public OperationNode {
   /*! \brief constructor */
   ComputeOpNode() {}
 
-  const char* type_key() const final {
-    return "ComputeOp";
-  }
   size_t num_outputs() const final {
     return 1;
   }
@@ -43,6 +40,9 @@ class ComputeOpNode : public OperationNode {
                         std::string name,
                         Array<Var> dim_var,
                         Expr body);
+
+  static constexpr const char* _type_key = "ComputeOp";
+  TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode);
 };
 
 
