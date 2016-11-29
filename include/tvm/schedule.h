@@ -38,42 +38,7 @@ class Schedule : public NodeRef {
   inline const ScheduleNode* operator->() const;
 };
 
-/*! \brief schedule container */
-class AttachSpec : public NodeRef {
- public:
-  AttachSpec() {}
-  explicit AttachSpec(std::shared_ptr<Node> n) : NodeRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const AttachSpecNode* operator->() const;
-};
-
 // defintion of node containers
-
-/*! \brief The attach specification of each subschedule */
-class AttachSpecNode : public Node {
- public:
-  /*! \brief The attachment type */
-  AttachType attach_type;
-  /*!
-   * \brief The split to be attached to,
-   *  only valid when attach_type is kRoot
-   */
-  Split attach_split;
-  /*! \brief the child schedule to be attached. */
-  Schedule schedule;
-  const char* type_key() const final {
-    return "AttachSpec";
-  }
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("attach_type", &attach_type);
-    v->Visit("attach_split", &attach_split);
-    v->Visit("schedule", &schedule);
-  }
-};
-
 /*! \brief represents the schedule of the tensor */
 class ScheduleNode : public Node {
  public:
@@ -83,8 +48,17 @@ class ScheduleNode : public Node {
   std::string scope;
   /*! \brief Splits over iteration domains */
   Array<Split> splits;
-  /*! \brief attach specifications */
-  Array<AttachSpec> attachs;
+  /*! \brief The attachment type of the schedule */
+  AttachType attach_type;
+  /*!
+   * \brief The attach point of this schedule, if it is a split
+   * \note This is not a cyclic dependency,
+   *  because split do not refer back to parent schedule.
+   */
+  Split attach_parent;
+  /*! \brief the schedules that this schedule depend on */
+  Array<Schedule> children;
+  // the type key
   const char* type_key() const final {
     return "Schedule";
   }
@@ -92,17 +66,15 @@ class ScheduleNode : public Node {
     v->Visit("scope", &scope);
     v->Visit("op", &op);
     v->Visit("splits", &splits);
-    v->Visit("attachs", &attachs);
+    v->Visit("attach_type", &attach_type);
+    v->Visit("attach_parent", &attach_parent);
+    v->Visit("children", &children);
   }
 };
 
 // implementations
 inline const ScheduleNode* Schedule::operator->() const {
   return static_cast<const ScheduleNode*>(node_.get());
-}
-
-inline const AttachSpecNode* AttachSpec::operator->() const {
-  return static_cast<const AttachSpecNode*>(node_.get());
 }
 
 }  // namespace tvm

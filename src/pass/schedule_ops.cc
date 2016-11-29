@@ -13,11 +13,19 @@ namespace {
 // inject the operator's realization on the stmt.
 class InjectRealize : public IRMutator {
  public:
-  explicit InjectRealize(std::vector<Tensor> tensors)
-      : tensors_(tensors) {}
-  std::vector<Tensor> tensors_;
-};
+  explicit InjectRealize(Schedule sch)
+      : sch_(sch) {}
 
+  Stmt Mutate(Stmt stmt) final {
+    stmt = IRMutator::Mutate(stmt);
+    const For* op = stmt.as<For>();
+    return stmt;
+  }
+
+ private:
+  // the operations to be carried
+  Schedule sch_;
+};
 
 }  // namespace
 }  // namespace ir

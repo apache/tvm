@@ -66,6 +66,12 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
+.set_dispatch<AttrStmt>([](const AttrStmt* op, IRVisitor* v) {
+    v->Visit(op->value);
+    v->Visit(op->body);
+  });
+
+TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<IntImm>(NoOp)
 .set_dispatch<UIntImm>(NoOp)
 .set_dispatch<FloatImm>(NoOp)

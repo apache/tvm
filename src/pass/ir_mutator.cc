@@ -72,6 +72,18 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
     }
   });
 
+TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
+.set_dispatch<AttrStmt>([](const AttrStmt* op, const Stmt& s, IRMutator* m) {
+    Expr value = m->Mutate(op->value);
+    Stmt body = m->Mutate(op->body);
+    if (value.same_as(op->value) &&
+        body.same_as(op->body)) {
+      return s;
+    } else {
+      return AttrStmt::make(op->node, op->type_key, op->value, op->body);
+    }
+  });
+
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .set_dispatch<IntImm>(ReturnSelfExpr)
 .set_dispatch<UIntImm>(ReturnSelfExpr)

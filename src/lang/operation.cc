@@ -74,8 +74,6 @@ Array<Expr> ComputeOpNode::output_shape(size_t i) const {
   return Array<Expr>(shape);
 }
 
-
-
 TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 
 }  // namespace tvm

@@ -29,13 +29,6 @@ TVM_REGISTER_API(_make_For)
                      args.at(5));
   });
 
-TVM_REGISTER_API(_make_Reduce)
-.set_body([](const ArgStack& args,  RetValue *ret) {
-    *ret = Reduce::make(args.at(0),
-                        args.at(1),
-                        args.at(2));
-  });
-
 TVM_REGISTER_API(_make_Call)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = Call::make(args.at(0),
@@ -52,22 +45,6 @@ TVM_REGISTER_API(_make_Allocate)
                           args.at(2),
                           args.at(3),
                           args.at(4));
-  });
-
-TVM_REGISTER_API(_make_LetStmt)
-.set_body([](const ArgStack& args,  RetValue *ret) {
-    if (args.size() == 3) {
-      *ret = LetStmt::make(args.at(0),
-                            args.at(1),
-                            args.at(2));
-    } else {
-      CHECK_EQ(args.size(), 5);
-      *ret = LetStmt::make(args.at(0),
-                           args.at(1),
-                           args.at(2),
-                           args.at(3),
-                           args.at(4));
-    }
   });
 
 // make from two arguments
@@ -89,6 +66,12 @@ TVM_REGISTER_API(_make_LetStmt)
       *ret = Node::make(args.at(0), args.at(1), args.at(2)); \
     })                                                       \
 
+#define REGISTER_MAKE4(Node)                                 \
+  TVM_REGISTER_API(_make_## Node)                                       \
+  .set_body([](const ArgStack& args,  RetValue *ret) {                  \
+*ret = Node::make(args.at(0), args.at(1), args.at(2), args.at(3));      \
+    })                                                                  \
+
 #define REGISTER_MAKE_BINARY_OP(Node)                        \
   TVM_REGISTER_API(_make_## Node)                            \
   .set_body([](const ArgStack& args,  RetValue *ret) {       \
@@ -98,6 +81,9 @@ TVM_REGISTER_API(_make_LetStmt)
     })                                                       \
   .add_argument("lhs", "Expr", "left operand")               \
   .add_argument("rhs", "Expr", "right operand")
+
+REGISTER_MAKE3(Reduce);
+REGISTER_MAKE4(AttrStmt);
 
 REGISTER_MAKE2(IntImm);
 REGISTER_MAKE2(UIntImm);
@@ -123,6 +109,7 @@ REGISTER_MAKE3(Select);
 REGISTER_MAKE3(Ramp);
 REGISTER_MAKE2(Broadcast);
 REGISTER_MAKE3(Let);
+REGISTER_MAKE3(LetStmt);
 REGISTER_MAKE2(AssertStmt);
 REGISTER_MAKE3(ProducerConsumer);
 REGISTER_MAKE3(Store);

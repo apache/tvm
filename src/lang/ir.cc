@@ -18,10 +18,16 @@ namespace Halide {
 namespace Internal {
 
 using tvm::ir::Reduce;
+using tvm::ir::AttrStmt;
 
 template<>
 void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
-  LOG(FATAL) << "Reduce do not work with IRVisitor yet";
+  LOG(FATAL) << "Reduce do not work with old Visitor, use IRFunctor style visitor";
+}
+
+template<>
+void StmtNode<AttrStmt>::accept(IRVisitor *v, const Stmt&) const {
+  LOG(FATAL) << "AttrStmt do not work with old Visitor, use IRFunctor style visitor";
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -33,14 +39,19 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ", rdom=" << op->rdom << ")";
 });
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<AttrStmt>([](const AttrStmt *op, IRPrinter *p) {
+    p->stream << "attr " << op->type_key << " = ";
+    p->print(op->value);
+    p->stream << '\n';
+    p->print(op->body);
+});
+
 }  // namespace Internal
 }  // namespace Halide
 
 namespace tvm {
 namespace ir {
-
-// reduce
-TVM_REGISTER_NODE_TYPE(Reduce);
 
 Expr Reduce::make(std::string op, Expr source, RDomain rdom) {
   auto n = std::make_shared<Reduce>();
@@ -52,9 +63,17 @@ Expr Reduce::make(std::string op, Expr source, RDomain rdom) {
   return Expr(n);
 }
 
+Stmt AttrStmt::make(NodeRef node, std::string type_key, Expr value, Stmt body) {
+  auto n = std::make_shared<AttrStmt>();
+  n->node = node;
+  n->type_key = type_key;
+  n->value = value;
+  n->body = body;
+  return Stmt(n);
+}
 
-// HalideIR node
-using namespace Halide::Internal;
+TVM_REGISTER_NODE_TYPE(Reduce);
+TVM_REGISTER_NODE_TYPE(AttrStmt);
 
 TVM_REGISTER_NODE_TYPE(FloatImm);
 TVM_REGISTER_NODE_TYPE(IntImm);

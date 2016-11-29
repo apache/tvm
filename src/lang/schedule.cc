@@ -13,7 +13,6 @@ Schedule::Schedule(Operation op, std::string scope) {
   node_ = n;
 }
 
-TVM_REGISTER_NODE_TYPE(AttachSpecNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
 }  // namespace tvm

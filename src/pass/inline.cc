@@ -19,11 +19,12 @@ class IRInline : public IRMutator {
       : f_(f), args_(args), body_(body) {}
 
   Expr Mutate(Expr expr) final {
+    expr = IRMutator::Mutate(expr);
     const Call* call = expr.as<Call>();
     if (call != nullptr && call->func == f_) {
       return InlineCall(call);
     } else {
-      return IRMutator::Mutate(expr);
+      return expr;
     }
   }
 

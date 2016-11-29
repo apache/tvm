@@ -22,10 +22,15 @@ def test_let():
     x = tvm.Var('x')
     y = tvm.Var('y')
     stmt = tvm.make.LetStmt(
-        x, 10, tvm.make.Evaluate(x + 1), y, "stride")
-    assert stmt.attr_of_node == y
-    print(stmt)
+        x, 10, tvm.make.Evaluate(x + 1));
 
+def test_attr():
+    x = tvm.Var('x')
+    y = tvm.Var('y')
+    stmt = tvm.make.AttrStmt(
+        y, "stride", 10, tvm.make.Evaluate(x + 1));
+    assert stmt.node == y
+    print(stmt)
 
 def test_basic():
     a = tvm.Var('a')
@@ -44,6 +49,8 @@ def test_stmt():
 
 
 if __name__ == "__main__":
+    test_attr()
+
     test_const()
     test_make()
     test_ir()

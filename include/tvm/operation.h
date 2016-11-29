@@ -32,6 +32,7 @@ class ComputeOpNode : public OperationNode {
   std::string output_name(size_t i) const final;
   Type output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("domain", &domain);
     v->Visit("name", &name);
