@@ -10,6 +10,23 @@ namespace tvm {
 namespace ir {
 namespace {
 
+Stmt MakeCompute(const ComputeOpNode* op, const Array<Split>& splits) {
+  Tensor output;
+  std::vector<Expr> args(op->dim_var.size());
+  for (size_t i = 0; i < args.size(); ++i) {
+    args[i] = op->dim_var[i];
+  }
+  Array<Expr> values{op->body};
+  Stmt stmt = Provide::make(output, values, args);
+  // add splits from ousside most to outsidemost to innermost
+  return stmt;
+}
+
+
+Stmt MakePipeline(const Schedule& sch, Stmt body) {
+  return body;
+}
+
 // inject the operator's realization on the stmt.
 class InjectRealize : public IRMutator {
  public:
@@ -18,8 +35,16 @@ class InjectRealize : public IRMutator {
 
   Stmt Mutate(Stmt stmt) final {
     stmt = IRMutator::Mutate(stmt);
-    const For* op = stmt.as<For>();
-    return stmt;
+    const AttrStmt* op = stmt.as<AttrStmt>();
+    if (op != nullptr &&
+        op->type_key == "Split" &&
+        op->node == sch_->attach_parent) {
+      return AttrStmt::make(
+          op->node, op->type_key, op->value,
+          MakePipeline(sch_, op->body));
+    } else {
+      return stmt;
+    }
   }
 
  private:
