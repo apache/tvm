@@ -17,7 +17,7 @@ namespace {
 
 // global functor to get var definition from
 struct FGetVarDef {
-  using FType = IRFunctor<VarExpr (const IRNodeRef&)>;
+  using FType = IRFunctor<VarExpr (const NodeRef&)>;
   static FType& vtable() {  // NOLINT(*)
     static FType inst; return inst;
   }
@@ -37,8 +37,8 @@ TVM_STATIC_IR_FUNCTOR(FGetVarDef, vtable)
   });
 
 struct FSetVarDef {
-  using FTypeExpr = IRFunctor<Expr (const IRNodeRef&, VarExpr)>;
-  using FTypeStmt = IRFunctor<Stmt (const IRNodeRef&, VarExpr)>;
+  using FTypeExpr = IRFunctor<Expr (const NodeRef&, VarExpr)>;
+  using FTypeStmt = IRFunctor<Stmt (const NodeRef&, VarExpr)>;
   static FTypeExpr& vtable_expr() {  // NOLINT(*)
     static FTypeExpr inst; return inst;
   }
@@ -69,7 +69,7 @@ class IRVerifySSA : public IRVisitor {
  public:
   bool is_ssa{true};
 
-  void Visit(const IRNodeRef& n) final {
+  void Visit(const NodeRef& n) final {
     if (!is_ssa) return;
     static auto& fget_var_def = FGetVarDef::vtable();
     if (fget_var_def.can_dispatch(n)) {
