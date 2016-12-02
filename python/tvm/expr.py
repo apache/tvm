@@ -2,7 +2,7 @@ from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
 from . import make as _make
 
-class Expr(NodeBase):
+class ExprCompatible(NodeBase):
     def __add__(self, other):
         return _make.Add(self, other)
 
@@ -35,6 +35,10 @@ class Expr(NodeBase):
 
     def __neg__(self):
         return self.__mul__(-1)
+
+
+class Expr(ExprCompatible):
+    pass
 
 class ConstExpr(Expr):
     pass
