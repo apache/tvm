@@ -13,32 +13,25 @@ Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
-  std::vector<Var> dim_index;
+  std::vector<IterVar> dim_var;
+  std::vector<Var> args;
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "dim_var" << i;
-    dim_index.push_back(Var(os.str()));
+    dim_var.push_back(IterVar(Range(0, shape[i]), os.str()));
+    args.push_back(dim_var.back()->var);
   }
 
-  std::vector<Range> dom;
-  for (size_t i = 0; i < ndim; ++i) {
-    dom.push_back(Range(0, shape[i]));
-  }
-
-  op_node->dim_var = Array<Var>(dim_index);
-  op_node->domain = Domain(dom);
-  op_node->body = fcompute(op_node->dim_var);
+  op_node->dim_var = Array<IterVar>(dim_var);
+  op_node->body = fcompute(args);
   op_node->name = name;
-
   return Operation(op_node).output(0);
 }
 
-Operation ComputeOpNode::make(Domain domain,
-                              std::string name,
-                              Array<Var> dim_var,
+Operation ComputeOpNode::make(std::string name,
+                              Array<IterVar> dim_var,
                               Expr body) {
   auto n = std::make_shared<ComputeOpNode>();
-  n->domain = domain;
   n->name = name;
   n->dim_var = dim_var;
   n->body = body;
@@ -55,6 +48,10 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
+Array<IterVar> ComputeOpNode::root_iter_vars() const {
+  return dim_var;
+}
+
 std::string ComputeOpNode::output_name(size_t i) const {
   CHECK_EQ(i, 0);
   return name;
@@ -68,8 +65,9 @@ Type ComputeOpNode::output_dtype(size_t i) const {
 Array<Expr> ComputeOpNode::output_shape(size_t i) const {
   CHECK_EQ(i, 0);
   std::vector<Expr> shape;
-  for (size_t i = 0; i < domain.size(); ++i) {
-    shape.push_back(domain[i]->extent);
+  for (size_t i = 0; i < dim_var.size(); ++i) {
+    const Range& r = dim_var[i]->dom;
+    shape.push_back(r->extent);
   }
   return Array<Expr>(shape);
 }

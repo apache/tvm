@@ -83,11 +83,11 @@ def compute(shape, fcompute, name="TensorCompute"):
     arg_names = fcompute.__code__.co_varnames
     if ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension")
-    dim_var = [Var(x) for x in arg_names]
-    body = fcompute(*dim_var)
-    dom = [Range(0, x) for x in shape]
+
+    dim_var = [IterVar((0, s), x) for x, s in zip(arg_names, shape)]
+    body = fcompute(*[v.var for v in dim_var])
     op_node = _function_internal._ComputeOp(
-        dom, name, dim_var, body)
+        name, dim_var, body)
     return _function_internal._Tensor(
         shape, name, body.dtype, op_node, 0)
 

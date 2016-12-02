@@ -24,12 +24,12 @@ Range Range::make_with_min_extent(Expr min, Expr extent) {
 }
 
 IterVar::IterVar(Range dom, std::string var_name, std::string thread_tag)
-    : IterVar(IterVarNode::make(Var(var_name, Int(32)), dom, thread_tag)) {}
+    : IterVar(IterVarNode::make(dom, Var(var_name, Int(32)), thread_tag)) {}
 
-IterVar IterVarNode::make(Var var, Range dom, std::string thread_tag) {
+IterVar IterVarNode::make(Range dom, Var var, std::string thread_tag) {
   std::shared_ptr<IterVarNode> n = std::make_shared<IterVarNode>();
-  n->var = var;
   n->dom = dom;
+  n->var = var;
   n->thread_tag = thread_tag;
   return IterVar(n);
 }

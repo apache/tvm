@@ -38,32 +38,6 @@ Stmt MakeLoop(std::vector<Stmt>&& nest, Stmt body) {
   return body;
 }
 
-void MakeLoop(const DimSplitNode* op,
-              const Split& s,
-              Scope<AttrKey, Expr>* pscope,
-              std::vector<Stmt>* nest) {
-  auto& scope = *pscope;
-  Expr out_min = scope[{op->var, "min"}];
-  Expr out_ext = scope[{op->var, "extent"}];
-  Expr stride = op->factor;
-  Var offset(s->var->name_hint + ".offset", Int(32));
-  // for loop with stride
-  // TODO(tqchen) split the loop to deal with tails
-  nest->emplace_back(
-      For::make(
-          offset, out_min, out_ext,
-          ForType::Parallel, DeviceAPI::None, Stmt()));
-  Expr in_min = offset + out_min;
-  Expr in_ext = min(stride, out_ext - offset);
-  // declare min and extent of the corresponding variable
-  nest->emplace_back(AttrStmt::make(op->var, "min", in_min, Stmt()));
-  nest->emplace_back(AttrStmt::make(op->var, "extent", in_ext, Stmt()));
-  // declare this is  the loop
-  nest->emplace_back(AttrStmt::make(s, "split", 0, Stmt()));
-  // setup the scope.
-  pscope->Push({op->var, "min"}, in_min);
-  pscope->Push({op->var, "extent"}, in_ext);
-}
 
 
 Stmt MakePipeline(const Schedule& sch, Stmt body) {

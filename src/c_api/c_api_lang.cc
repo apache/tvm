@@ -5,7 +5,6 @@
  */
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
-#include <tvm/split.h>
 #include <tvm/schedule.h>
 #include "./c_api_registry.h"
 
@@ -89,8 +88,7 @@ TVM_REGISTER_API(_ComputeOp)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = ComputeOpNode::make(args.at(0),
                                args.at(1),
-                               args.at(2),
-                               args.at(3));
+                               args.at(2));
   });
 
 
@@ -99,11 +97,6 @@ TVM_REGISTER_API(_IterVar)
     *ret = IterVar(args.at(0), args.at(1), args.at(2));
   });
 
-
-TVM_REGISTER_API(_DimSplit)
-.set_body([](const ArgStack& args,  RetValue *ret) {
-    *ret = DimSplitNode::make(args.at(0), args.at(1));
-  });
 
 TVM_REGISTER_API(_Schedule)
 .set_body([](const ArgStack& args,  RetValue *ret) {

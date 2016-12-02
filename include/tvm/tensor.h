@@ -174,12 +174,10 @@ class TensorNode : public FunctionBaseNode {
  */
 class OperationNode : public Node {
  public:
-  /*! \brief The domain of iteration of this op. */
-  Domain domain;
-  /*! \brief iter-Var over the dimensions */
-  Array<Var> dim_var;
   /*! \brief optional name of the operation */
   std::string name;
+  /*! \return the list of iteration variable at root */
+  virtual Array<IterVar> root_iter_vars() const = 0;
   /*! \return number of outputs of this op */
   virtual size_t num_outputs() const = 0;
   /*! \return name of i-th output */

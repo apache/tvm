@@ -133,13 +133,13 @@ std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
  */
 class IterVarNode : public Node {
  public:
-  /*! \brief The looping variable */
-  Var var;
   /*!
    * \brief the domain of iteration, if known, can be None
    *  For the intermediate schedule node, before schedule.
    */
   Range dom;
+  /*! \brief The looping variable */
+  Var var;
   /*!
    * \brief additional tag on the iteration variable,
    *  set this if this is binded already to a known thread tag.
@@ -147,12 +147,13 @@ class IterVarNode : public Node {
   std::string thread_tag;
 
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("var", &var);
     v->Visit("dom", &dom);
+    v->Visit("var", &var);
     v->Visit("thread_tag", &thread_tag);
   }
 
-  static IterVar make(Var var, Range dom, std::string thread_tag);
+  static IterVar make(Range dom, Var var, std::string thread_tag);
+
   static constexpr const char* _type_key = "IterVar";
   TVM_DECLARE_NODE_TYPE_INFO(IterVarNode);
 };
