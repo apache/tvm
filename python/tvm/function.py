@@ -103,33 +103,34 @@ def compute(shape, fcompute, name="TensorCompute"):
         shape, name, body.dtype, op_node, 0)
 
 
-def RDomain(dom):
-    """Create a reduction domain given domain
+def IterVar(dom, name='iter', thread_tag=''):
+    """Create a iteration variable
 
     Parameters
     ----------
-    dom : list of Range or list of pairs
-       The reduction domain.
+    dom : Range
+       The domain of iteration.
+
+    name : str
+       The name of iteration variable.
+
+    thread_tag : str
+        The thread tag of the iteration variable.
 
     Returns
     -------
-    rdom : RDomain
-       The result rdomain
+    iter_var : IterVar
+       The result itervar
     """
-    if not isinstance(dom, (list, tuple)):
-        dom = [dom]
-    elif not isinstance(dom[0], (list, tuple)):
-        dom = [dom]
-    dnorm = []
-    for x in dom:
-        if isinstance(x, (list, tuple)):
-            if len(x) != 2:
-                raise ValueError("need to list of ranges")
-            dnorm.append(Range(x[0], x[1]))
-        else:
-            dnorm.append(x)
-    dnorm = convert(dnorm)
-    return _function_internal._RDomain(dnorm)
+    if isinstance(dom, (list, tuple)):
+        if len(dom) != 2:
+            raise ValueError("need to list of ranges")
+        dom = Range(dom[0], dom[1])
+
+    if not isinstance(dom, _collections.Range):
+        raise ValueError("dom need to be Range")
+
+    return _function_internal._IterVar(dom, name, thread_tag)
 
 
 def sum(expr, rdom):
@@ -143,9 +144,10 @@ def sum(expr, rdom):
     rdom : RDomain
         The reduction domainx
     """
-    assert isinstance(rdom, _collections.RDomain)
+    rdom = rdom if isinstance(rdom, list) else [rdom]
     x =  _make.Reduce("Add", expr, rdom)
     return x
+
 
 def min(expr, rdom):
     """Create a min expression over rdom
@@ -158,10 +160,10 @@ def min(expr, rdom):
     rdom : RDomain
         The reduction domainx
     """
-    assert isinstance(expr, _expr.Expr)
-    assert isinstance(rdom, _collections.RDomain)
+    rdom = rdom if isinstance(rdom, list) else [rdom]
     x =  _make.Reduce("Min", expr, rdom)
     return x
+
 
 def max(expr, rdom):
     """Create a min expression over rdom
@@ -174,8 +176,7 @@ def max(expr, rdom):
     rdom : RDomain
         The reduction domainx
     """
-    assert isinstance(expr, _expr.Expr)
-    assert isinstance(rdom, _collections.RDomain)
+    rdom = rdom if isinstance(rdom, list) else [rdom]
     x =  _make.Reduce("Max", expr, rdom)
     return x
 

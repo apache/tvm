@@ -42,27 +42,29 @@ inline Array<Expr> MutateArray(Array<Expr> arr, IRMutator *m) {
   }
 }
 
-inline RDomain MutateRDom(RDomain rdom, IRMutator *m) {
-  std::vector<Range> new_dom(rdom->domain.size());
+inline Array<IterVar> MutateRDom(Array<IterVar> rdom, IRMutator *m) {
+  std::vector<IterVar> new_dom(rdom.size());
   bool changed = false;
-  for (size_t i = 0; i < rdom->domain.size(); i++) {
-    Range r = rdom->domain[i];
+  for (size_t i = 0; i < rdom.size(); i++) {
+    IterVar v = rdom[i];
+    Range r = v->dom;
     Expr new_min = m->Mutate(r->min);
     Expr new_extent = m->Mutate(r->extent);
     if (!r->min.same_as(new_min)) changed = true;
     if (!r->extent.same_as(new_extent)) changed = true;
-    new_dom[i] = Range::make_with_min_extent(new_min, new_extent);
+    new_dom[i] = IterVarNode::make(
+        v->var, Range::make_with_min_extent(new_min, new_extent), v->thread_tag);
   }
   if (!changed) {
     return rdom;
   } else {
-    return RDomain::make(rdom->index, Domain(new_dom));
+    return Array<IterVar>(new_dom);
   }
 }
 
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .set_dispatch<Reduce>([](const Reduce* op, const Expr& e, IRMutator* m) {
-    RDomain new_rdom  = MutateRDom(op->rdom, m);
+    Array<IterVar> new_rdom  = MutateRDom(op->rdom, m);
     Expr new_source  = m->Mutate(op->source);
     if (op->rdom.same_as(new_rdom) &&
         op->source.same_as(new_source)) {

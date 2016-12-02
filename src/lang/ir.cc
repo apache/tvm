@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir_node.cc
+ * \file ir.cc
  */
 #include <tvm/base.h>
 #include <tvm/expr.h>
@@ -8,11 +8,6 @@
 #include <ir/IR.h>
 #include <ir/IRPrinter.h>
 #include <memory>
-
-namespace dmlc {
-DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
-}  // namespace dmlc
-
 
 namespace Halide {
 namespace Internal {
@@ -53,9 +48,12 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 namespace tvm {
 namespace ir {
 
-Expr Reduce::make(std::string op, Expr source, RDomain rdom) {
+Expr Reduce::make(std::string op, Expr source, Array<IterVar> rdom) {
   auto n = std::make_shared<Reduce>();
   CHECK(source.defined());
+  for (size_t i = 0; i < rdom.size(); ++i) {
+    CHECK(rdom[i].defined());
+  }
   n->type = source.type();
   n->source = source;
   n->op = op;

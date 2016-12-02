@@ -11,7 +11,7 @@
 #include <type_traits>
 #include <string>
 #include "./base.h"
-#include "./domain.h"
+#include "./expr.h"
 
 namespace tvm {
 namespace ir {
@@ -30,11 +30,11 @@ struct Reduce : public ExprNode<Reduce> {
   std::string op;
   /*! \brief The source operand */
   Expr source;
-  /*! \brief The reduction domain */
-  RDomain rdom;
+  /*! \brief The reduction domains */
+  Array<IterVar> rdom;
 
-  /*! \brief construct expr from name and rdom */
-  static Expr make(std::string name, Expr src, RDomain rdom);
+  /*! \brief construct expr from op and rdom */
+  static Expr make(std::string op, Expr src, Array<IterVar> rdom);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);

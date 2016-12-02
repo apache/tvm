@@ -5,10 +5,8 @@
  */
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
-#include <tvm/domain.h>
 #include <tvm/split.h>
 #include <tvm/schedule.h>
-#include <ir/IROperator.h>
 #include "./c_api_registry.h"
 
 namespace tvm {
@@ -95,10 +93,12 @@ TVM_REGISTER_API(_ComputeOp)
                                args.at(3));
   });
 
-TVM_REGISTER_API(_RDomain)
+
+TVM_REGISTER_API(_IterVar)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-    *ret = RDomain(args.at(0).operator Domain());
+    *ret = IterVar(args.at(0), args.at(1), args.at(2));
   });
+
 
 TVM_REGISTER_API(_DimSplit)
 .set_body([](const ArgStack& args,  RetValue *ret) {

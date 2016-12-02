@@ -41,6 +41,12 @@ Tensor TensorNode::make(Array<Expr> shape,
   return Tensor(n);
 }
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<TensorNode>([](const TensorNode *t, IRPrinter *p) {
+    p->stream << "Tensor(shape=" << t->shape
+              << ", name=" << t->name << ')';
+  });
+
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
 }  // namespace tvm

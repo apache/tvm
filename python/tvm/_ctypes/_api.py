@@ -118,6 +118,7 @@ def convert(value):
             raise ValueError("don't know how to handle type %s" % type(value))
         return value
 
+
 def _push_arg(arg):
     a = ArgVariant()
     if arg is None:

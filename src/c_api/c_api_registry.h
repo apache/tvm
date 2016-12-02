@@ -125,7 +125,13 @@ class APIVariantValue {
       return Expr(static_cast<float>(operator double()));
     }
     CHECK_EQ(type_id, kNodeHandle);
-    return Expr(sptr);
+    if (sptr->is_type<IterVarNode>()) {
+      return IterVar(sptr)->var;
+    } else {
+      CHECK(dynamic_cast<typename Expr::ContainerType*>(sptr.get()))
+          << "did not pass in Expr in a place need Expr";
+      return Expr(sptr);
+    }
   }
   inline operator double() const {
     CHECK_EQ(type_id, kDouble);

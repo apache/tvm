@@ -67,7 +67,6 @@ void MakeLoop(const DimSplitNode* op,
 
 
 Stmt MakePipeline(const Schedule& sch, Stmt body) {
-
   return body;
 }
 

@@ -45,15 +45,15 @@ using namespace Halide::Internal;
 void NoOp(const NodeRef& n, IRVisitor* v) {
 }
 
-inline void VisitArray(Array<Expr> arr, IRVisitor* v) {
+inline void VisitArray(const Array<Expr>& arr, IRVisitor* v) {
   for (size_t i = 0; i < arr.size(); i++) {
     v->Visit(arr[i]);
   }
 }
 
-inline void VisitRDom(RDomain rdom, IRVisitor* v) {
-  for (size_t i = 0; i < rdom->domain.size(); i++) {
-    Range r = rdom->domain[i];
+inline void VisitRDom(const Array<IterVar>& rdom, IRVisitor* v) {
+  for (size_t i = 0; i < rdom.size(); i++) {
+    Range r = rdom[i]->dom;
     v->Visit(r->min);
     v->Visit(r->extent);
   }

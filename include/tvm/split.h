@@ -8,7 +8,6 @@
 
 #include "./base.h"
 #include "./expr.h"
-#include "./domain.h"
 
 namespace tvm {
 

@@ -7,7 +7,7 @@ def test_tensor():
     A = tvm.placeholder((m, l), name='A')
     B = tvm.placeholder((n, l), name='B')
     T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
-
+    print(T)
     print(T.op.body)
     assert(tuple(T.shape) == (m, n, l))
     assert(A.source is None)
@@ -19,8 +19,8 @@ def test_tensor_reduce():
     A = tvm.placeholder((m, l), name='A')
     B = tvm.placeholder((n, l), name='B')
     T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
-    rd = tvm.RDomain(tvm.Range(A.shape[1]))
-    C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rd.index[0]), rdom=rd))
+    rv = tvm.IterVar((0, A.shape[1]), name="k")
+    C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), rdom=rv))
 
     print(C.op.body)
 

@@ -14,7 +14,6 @@
 
 #include "./base.h"
 #include "./expr.h"
-#include "./domain.h"
 
 namespace tvm {
 
@@ -66,8 +65,8 @@ class Tensor : public FunctionRef {
    * \return the result expression representing tensor read.
    */
   Expr operator()(Array<Expr> indices) const;
-  // overload print function
-  friend std::ostream& operator<<(std::ostream &os, const Tensor& t);
+  /*! \brief specify container node */
+  using ContainerType = TensorNode;
 };
 
 /*! \brief Operation that produces tensors */
@@ -87,6 +86,8 @@ class Operation : public NodeRef {
    * \return The i-th output.
    */
   Tensor output(size_t i) const;
+  /*! \brief specify container node */
+  using ContainerType = OperationNode;
 };
 
 /*! \brief Node to represent a tensor */
@@ -160,12 +161,6 @@ inline const TensorNode* Tensor::operator->() const {
 
 inline size_t Tensor::ndim() const {
   return (*this)->shape.size();
-}
-
-inline std::ostream& operator<<(std::ostream &os, const Tensor& t) {  // NOLINT(*)
-  os << "Tensor(shape=" << t->shape
-     << ", name=" << t->name << ')';
-  return os;
 }
 
 }  // namespace tvm

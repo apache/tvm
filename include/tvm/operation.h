@@ -8,7 +8,6 @@
 
 #include <string>
 #include "./expr.h"
-#include "./domain.h"
 #include "./tensor.h"
 
 namespace tvm {

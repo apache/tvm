@@ -2,6 +2,7 @@
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
 from . import _function_internal
+from . import expr as _expr
 
 @register_node
 class Array(NodeBase):
@@ -19,11 +20,9 @@ class Array(NodeBase):
 
 @register_node
 class Range(NodeBase):
-    def __repr__(self):
-        return ('Range(min='+ str(self.min) +
-                ', extent=' + str(self.extent) + ')')
+    pass
 
 
 @register_node
-class RDomain(NodeBase):
+class IterVar(_expr.ExprCompatible):
     pass
