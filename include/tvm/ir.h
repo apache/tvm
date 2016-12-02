@@ -20,6 +20,7 @@ using Halide::Internal::ExprNode;
 using Halide::Internal::StmtNode;
 using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
+using Halide::DeviceAPI;
 
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {
