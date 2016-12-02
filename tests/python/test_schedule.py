@@ -8,7 +8,7 @@ def test_schedule_create():
     B = tvm.placeholder((n, l), name='B')
     T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
 
-    sch = tvm.Schedule(T, scope="shared")
+    sch = tvm.Schedule(T.op, scope="shared")
     tk1 = tvm.Split(T.op.dim_var[0], 10)
     assert isinstance(sch, tvm.schedule.Schedule)
     assert isinstance(tk1, tvm.schedule.DimSplit)

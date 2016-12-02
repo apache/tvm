@@ -38,8 +38,36 @@ Stmt MakeLoop(std::vector<Stmt>&& nest, Stmt body) {
   return body;
 }
 
+void MakeLoop(const DimSplitNode* op,
+              const Split& s,
+              Scope<AttrKey, Expr>* pscope,
+              std::vector<Stmt>* nest) {
+  auto& scope = *pscope;
+  Expr out_min = scope[{op->var, "min"}];
+  Expr out_ext = scope[{op->var, "extent"}];
+  Expr stride = op->factor;
+  Var offset(s->var->name_hint + ".offset", Int(32));
+  // for loop with stride
+  // TODO(tqchen) split the loop to deal with tails
+  nest->emplace_back(
+      For::make(
+          offset, out_min, out_ext,
+          ForType::Parallel, DeviceAPI::None, Stmt()));
+  Expr in_min = offset + out_min;
+  Expr in_ext = min(stride, out_ext - offset);
+  // declare min and extent of the corresponding variable
+  nest->emplace_back(AttrStmt::make(op->var, "min", in_min, Stmt()));
+  nest->emplace_back(AttrStmt::make(op->var, "extent", in_ext, Stmt()));
+  // declare this is  the loop
+  nest->emplace_back(AttrStmt::make(s, "split", 0, Stmt()));
+  // setup the scope.
+  pscope->Push({op->var, "min"}, in_min);
+  pscope->Push({op->var, "extent"}, in_ext);
+}
+
 
 Stmt MakePipeline(const Schedule& sch, Stmt body) {
+
   return body;
 }
 
@@ -50,10 +78,17 @@ class InjectRealize : public IRMutator {
       : sch_(sch) {}
 
   Stmt Mutate(Stmt stmt) final {
-    stmt = IRMutator::Mutate(stmt);
     const AttrStmt* op = stmt.as<AttrStmt>();
+    if (op != nullptr) {
+      attr_scope_.Push({op->node, op->type_key}, op->value);
+      stmt = IRMutator::Mutate(stmt);
+      attr_scope_.Pop({op->node, op->type_key});
+    } else {
+      stmt = IRMutator::Mutate(stmt);
+    }
+
     if (op != nullptr &&
-        op->type_key == "Split" &&
+        op->type_key == "split" &&
         op->node == sch_->attach_parent) {
       return AttrStmt::make(
           op->node, op->type_key, op->value,
@@ -66,6 +101,7 @@ class InjectRealize : public IRMutator {
  private:
   // the operations to be carried
   Schedule sch_;
+  Scope<AttrKey, Expr> attr_scope_;
 };
 
 }  // namespace

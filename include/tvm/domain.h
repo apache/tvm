@@ -15,6 +15,7 @@ namespace tvm {
 
 /*! \brief container class of reduction domain */
 class RDomainNode;
+class IterDomainNode;
 
 /*!
  * \brief same as Halide::IR::Range
@@ -39,6 +40,9 @@ class Range : public Halide::IR::Range {
 
   static Range make_with_min_extent(Expr min, Expr extent);
 };
+
+
+
 
 /*! \brief Domain is a multi-dimensional range */
 using Domain = Array<Range>;
@@ -82,6 +86,20 @@ class RDomain : public NodeRef {
 
 /*! \brief use RDom as alias of RDomain */
 using RDom = RDomain;
+
+/*!
+ * \brief An iteration variable representing an iteration
+ *  over a one dimensional domain.
+ */
+class IterVarNode : public Node {
+  /*! \brief The */
+  Var var;
+  /*! \brief the domain of iteration */
+  Range dom;
+  /*! \brief additional tag  on the iteration variable */
+  std::string tag;
+};
+
 
 /*! \brief reduction domain node */
 class RDomainNode : public Node {

@@ -21,6 +21,7 @@ def test_tensor_reduce():
     T = tvm.compute((m, n, l), lambda i, j, k: A(i, k) * B(j, k))
     rd = tvm.RDomain(tvm.Range(A.shape[1]))
     C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rd.index[0]), rdom=rd))
+
     print(C.op.body)
 
 if __name__ == "__main__":
