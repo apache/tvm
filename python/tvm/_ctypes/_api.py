@@ -13,7 +13,6 @@ from .._base import FunctionHandle, NodeHandle
 from .._base import check_call, ctypes2docstring
 from .. import _function_internal
 
-
 class ArgVariant(ctypes.Union):
     _fields_ = [("v_long", ctypes.c_long),
                 ("v_double", ctypes.c_double),
@@ -46,6 +45,9 @@ RET_SWITCH = {
     kNodeHandle: lambda x: NODE_TYPE.get(_type_key(x), NodeBase)(x.v_handle)
 }
 
+class SliceBase(object):
+    """base class of slice object"""
+    pass
 
 class NodeBase(object):
     """Symbol is symbolic graph."""
@@ -113,6 +115,8 @@ def convert(value):
     elif isinstance(value, (list, tuple)):
         value = [convert(x) for x in value]
         return _function_internal._Array(*value)
+    elif isinstance(value, SliceBase):
+        return value.tensor(*value.indices)
     else:
         if not isinstance(value, NodeBase):
             raise ValueError("don't know how to handle type %s" % type(value))
@@ -176,7 +180,7 @@ def _make_function(handle, name):
         """TVM function"""
         cargs = []
         for x in args:
-            if isinstance(x, (list, tuple)):
+            if isinstance(x, (list, tuple, SliceBase)):
                 cargs.append(convert(x))
             else:
                 cargs.append(x)

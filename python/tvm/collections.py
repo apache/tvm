@@ -24,5 +24,5 @@ class Range(NodeBase):
 
 
 @register_node
-class IterVar(_expr.ExprCompatible):
+class IterVar(NodeBase, _expr.ExprOp):
     pass

@@ -1,6 +1,6 @@
 from __future__ import absolute_import as _abs
 from numbers import Number as _Number, Integral as _Integral
-from ._ctypes._api import _init_function_module
+from ._ctypes._api import _init_function_module, convert
 from . import _function_internal
 from . import make as _make
 from . import expr as _expr
@@ -31,17 +31,6 @@ def Var(name="tindex", dtype=int32):
         The data type
     """
     return _function_internal._Var(name, dtype)
-
-
-def convert(value):
-    """Convert a value to expression."""
-    if isinstance(value, _Number):
-        return const(value)
-    elif isinstance(value, (list, tuple)):
-        value = [convert(x) for x in value]
-        return _function_internal._Array(*value)
-    else:
-        return value
 
 
 def placeholder(shape, dtype = None, name="TensorObj"):

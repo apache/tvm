@@ -65,6 +65,46 @@ class Tensor : public FunctionRef {
    * \return the result expression representing tensor read.
    */
   Expr operator()(Array<Expr> indices) const;
+  /*!
+   * \brief data structure to represent a slice that fixes first k coordinates.
+   *  This is used to enable syntax sugar of Tensor[x][y][z] to get the element.
+   */
+  class Slice {
+   public:
+    // construct via tensor and indices
+    Slice(const Tensor& tensor, std::vector<Expr> indices)
+        : tensor_(tensor), indices_(indices) {}
+    /*!
+     * \brief get i-th slice from the current slice.
+     * \param i the index of the coordinate
+     * \return the subsequent slice.
+     */
+    inline Slice operator[](Expr i) {
+      std::vector<Expr> other = indices_;
+      other.emplace_back(i);
+      return Slice(tensor_, other);
+    }
+    /*!
+     * \brief Convert slice to expression.
+     *  This is only valid when all the coordinates are fully specified.
+     * \return the corresponding expression of this slice.
+     */
+    inline operator Expr() const {
+      return tensor_(indices_);
+    }
+
+   private:
+    const Tensor& tensor_;
+    std::vector<Expr> indices_;
+  };
+  /*!
+   * \brief get i-th slice from the current Tensor.
+   * \param i the index of the coordinate
+   * \return the subsequent slice.
+   */
+  inline Slice operator[](Expr i) const {
+    return Slice(*this, {i});
+  }
   /*! \brief specify container node */
   using ContainerType = TensorNode;
 };
@@ -162,6 +202,43 @@ inline const TensorNode* Tensor::operator->() const {
 inline size_t Tensor::ndim() const {
   return (*this)->shape.size();
 }
+
+// macro to turn every operation of slice to expression
+#define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op)                              \
+  inline Expr operator Op (const Tensor::Slice& a) {                    \
+    return Op a.operator Expr() ;                                       \
+  }
+
+#define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                             \
+  template<typename T>                                                  \
+  inline Expr operator Op (const Tensor::Slice& a, const T& b) {        \
+    return a.operator Expr() Op b;                                      \
+  }                                                                     \
+  template<typename T>                                                  \
+  inline Expr operator Op (const T& a, const Tensor::Slice& b) {        \
+    return a Op b.operator Expr();                                      \
+  }                                                                     \
+  inline Expr operator Op (const Tensor::Slice& a, const Tensor::Slice& b) { \
+    return a.operator Expr() Op b.operator Expr();                      \
+  }
+
+DEFINE_OVERLOAD_SLICE_UNARY_OP(!);
+DEFINE_OVERLOAD_SLICE_UNARY_OP(-);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(+);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(-);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(*);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(/);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(%);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(==);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(<=);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(>=);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(!=);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(&&);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(||);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(>>);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(<<);
+DEFINE_OVERLOAD_SLICE_BINARY_OP(>);  // NOLINT(*)
+DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 }  // namespace tvm
 #endif  // TVM_TENSOR_H_
