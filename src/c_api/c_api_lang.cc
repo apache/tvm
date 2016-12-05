@@ -103,4 +103,53 @@ TVM_REGISTER_API(_Schedule)
     *ret = Schedule(args.at(0), args.at(1));
   });
 
+TVM_REGISTER_API(_ScheduleSplitByFactor)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    IterVar outer, inner;
+    args.at(0).operator Schedule()
+        .split(args.at(1), &outer, &inner, args.at(2));
+    *ret = Array<IterVar>({outer, inner});
+  });
+
+TVM_REGISTER_API(_ScheduleSplitByOuter)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    IterVar inner;
+    args.at(0).operator Schedule()
+        .split(args.at(1), args.at(2), &inner, args.at(3));
+    *ret = inner;
+  });
+
+TVM_REGISTER_API(_ScheduleFuse)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    IterVar fused;
+    args.at(0).operator Schedule()
+        .split(args.at(1), args.at(2), &fused);
+    *ret = fused;
+  });
+
+TVM_REGISTER_API(_ScheduleComputeAt)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    args.at(0).operator Schedule()
+        .compute_at(args.at(1), args.at(2));
+  });
+
+TVM_REGISTER_API(_ScheduleComputeInline)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    args.at(0).operator Schedule()
+        .compute_inline(args.at(1));
+  });
+
+TVM_REGISTER_API(_ScheduleComputeRoot)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    args.at(0).operator Schedule()
+        .compute_root(args.at(1));
+  });
+
+TVM_REGISTER_API(_ScheduleReorder)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    args.at(0).operator Schedule()
+        .reorder(args.at(1));
+  });
+
+
 }  // namespace tvm

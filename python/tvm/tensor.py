@@ -7,6 +7,8 @@ from . import expr as _expr
 class TensorSlice(SliceBase, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
     def __init__(self, tensor, indices):
+        if not isinstance(indices, tuple):
+            indices = (indices,)
         self.tensor = tensor
         self.indices = indices
 

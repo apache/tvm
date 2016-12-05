@@ -79,6 +79,9 @@ def compute(shape, fcompute, name="TensorCompute"):
     tensor: tensor.Tensor
         The created tensor
     """
+    if isinstance(shape, _expr.Expr):
+        shape = (shape, )
+
     ndim = len(shape)
     arg_names = fcompute.__code__.co_varnames
     if ndim != len(arg_names):
@@ -86,6 +89,7 @@ def compute(shape, fcompute, name="TensorCompute"):
 
     dim_var = [IterVar((0, s), x) for x, s in zip(arg_names, shape)]
     body = fcompute(*[v.var for v in dim_var])
+    body = convert(body)
     op_node = _function_internal._ComputeOp(
         name, dim_var, body)
     return _function_internal._Tensor(
@@ -172,10 +176,6 @@ def max(expr, rdom):
 
 def Schedule(tensor, scope="global"):
     return _function_internal._Schedule(tensor, scope)
-
-
-def Split(dim, factor, over_rdom=False):
-    return _function_internal._DimSplit(dim, factor, over_rdom)
 
 
 _init_function_module("tvm")

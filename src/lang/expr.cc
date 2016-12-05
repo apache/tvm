@@ -57,7 +57,9 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     if (op->var->name_hint.length() != 0) {
       p->stream  << op->var->name_hint << ", ";
     }
-    p->stream << op->dom;
+    if (op->dom.defined()) {
+      p->stream << op->dom;
+    }
     if (op->thread_tag.length() != 0) {
       p->stream << ", " << op->thread_tag;
     }

@@ -50,16 +50,19 @@ class Schedule : public NodeRef {
    * \brief specify the schedule to be computed at the parent schedule's scope.
    * \param parent The parent schedule.
    * \param scope The iteration point to carry the schedule.
+   * \return reference to self.
    */
   Schedule& compute_at(Schedule parent, IterVar scope);   // NOLINT(*)
   /*!
    * \brief Compute the function inline, attach it at parent.
    * \param parent The parent schedule to be attached to.
+   * \return reference to self.
    */
   Schedule& compute_inline(Schedule parent);   // NOLINT(*)
   /*!
    * \brief Compute the function at root, attach it to its parent.
    * \param parent The parent schedule to be attached to.
+   * \return reference to self.
    */
   Schedule& compute_root(Schedule parent);  // NOLINT(*)
   /*!
@@ -68,7 +71,7 @@ class Schedule : public NodeRef {
    * \param p_outer The result outer domain
    * \param p_inner The result inner domain.
    * \param factor The split factor of the loop.
-   * \param outer The generated
+   * \return reference to self.
    */
   Schedule& split(IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor);  // NOLINT(*)
   /*!
@@ -80,6 +83,7 @@ class Schedule : public NodeRef {
    * \param p_inner The result inner domain.
    * \param factor Optional, the factor of the split,
    *  factor must be provided such that factor * outer.extent >= parent.extent.
+   * \return reference to self.
    */
   Schedule& split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor = Expr());   // NOLINT(*)
   /*!
@@ -87,11 +91,13 @@ class Schedule : public NodeRef {
    * \param inner The inner domain to be fused
    * \param outer The outer domain to be fused.
    * \param p_target The result target domain.
+   * \return reference to self.
    */
   Schedule& fuse(IterVar inner, IterVar outer, IterVar* p_target);  // NOLINT(*)
   /*!
    * \brief Reorder the iteration
    * \param order The order of iteration variable.
+   * \return reference to self.
    */
   Schedule& reorder(const Array<IterVar>& order);   // NOLINT(*)
 };

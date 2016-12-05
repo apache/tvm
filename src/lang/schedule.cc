@@ -17,11 +17,37 @@ size_t FindIterVar(ArrayNode* array_node, const IterVar& v) {
   return array_node->data.size();
 }
 
-size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* const IterVar& v) {
-  size_t pos = Find(leaf_iter_vars, parent);
+size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) {
+  size_t pos = FindIterVar(leaf_vars, v);
+  if (pos < leaf_vars->data.size()) return pos;
+
+  if (FindIterVar(all_vars, v) < all_vars->data.size()) {
+    LOG(FATAL) << "Operate on iter var " << v
+               << "that has already been splitted";
+  } else {
+    LOG(FATAL) << "Operate on iter var " << v
+               << "that is not part of the schedule";
+  }
+  return 0;
 }
 
+void Split(ScheduleNode* self, IterVar parent,
+           IterVar outer, IterVar inner, Expr factor) {
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
+
+  self->relations.push_back(SplitNode::make(parent, outer, inner, factor));
+  // add vars to all vars
+  all_vars->data.push_back(outer.node_);
+  all_vars->data.push_back(inner.node_);
+  // replace the position.
+  leaf_vars->data.erase(leaf_vars->data.begin() + pos);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, inner.node_);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, outer.node_);
 }
+
+}  // namespace
 
 Schedule::Schedule(Operation op, std::string scope) {
   auto n = std::make_shared<ScheduleNode>();
@@ -36,6 +62,14 @@ Schedule& Schedule::compute_at(Schedule parent, IterVar scope) {   // NOLINT(*)
   CHECK_EQ((*this)->attach_type, kNone);
   (*this)->attach_type = kScope;
   (*this)->attach_parent = scope;
+  bool found = false;
+  for (size_t i = 0; i < parent->leaf_iter_vars.size(); ++i) {
+    if (scope == parent->leaf_iter_vars[i]) {
+      found = true; break;
+    }
+  }
+  CHECK(found)
+      << "Cannot compute at a iteration variable that is not part of parent leaf vars";
   parent->children.push_back(*this);
   return *this;
 }
@@ -56,17 +90,63 @@ Schedule& Schedule::compute_root(Schedule parent) {   // NOLINT(*)
 
 Schedule& Schedule::split(
     IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor) {  // NOLINT(*)
-  ScheduleNode* self = operator->();
-  ArrayNode* leaf_iter_vars = self->leaf_iter_vars.CopyOnWrite();
+  // place holder for the splitted results.
+  IterVar outer(Range(), parent->var->name_hint + ".outer");
+  IterVar inner(Range(), parent->var->name_hint + ".inner");
+  *p_outer = outer; *p_inner = inner;
 
-  CHECK(pos != leaf_iter_vars->data.size())
-      << "Cannot find IterVar " << parent << " in the active leaf vars"
-      << " this means "
+  Split(operator->(), parent, outer, inner, factor);
+  return *this;
+}
+
+Schedule& Schedule::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor) { // NOLINT(*)
+  // place holder for the splitted results.
+  IterVar inner(Range(), parent->var->name_hint + ".inner");
+  *p_inner = inner;
+  Split(operator->(), parent, outer, inner, factor);
 
   return *this;
 }
 
+Schedule& Schedule::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
+  IterVar fused(Range(), outer->var->name_hint + "." + inner->var->name_hint + ".fused");
+  ScheduleNode* self = operator->();
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
 
+  self->relations.push_back(FuseNode::make(inner, outer, fused));
+  all_vars->data.push_back(fused.node_);
+
+  size_t pos_inner = FindLeafVar(all_vars, leaf_vars, inner);
+  size_t pos_outer = FindLeafVar(all_vars, leaf_vars, outer);
+  CHECK_EQ(pos_inner, pos_outer + 1)
+      << "Can only fuse iterations that are consecutive between each other";
+  leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
+                        leaf_vars->data.begin() + pos_inner);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,
+                         fused.node_);
+  return *this;
+}
+
+Schedule& Schedule::reorder(const Array<IterVar>& order) {  // NOLINT(*)
+  ScheduleNode* self = operator->();
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  std::vector<size_t> pos;
+
+  for (size_t i = 0; i < order.size(); ++i) {
+    pos.push_back(FindLeafVar(all_vars, leaf_vars, order[i]));
+  }
+  std::vector<std::shared_ptr<Node> > temp;
+  for (size_t i = 0; i < pos.size(); ++i) {
+    temp.emplace_back(leaf_vars->data[pos[i]]);
+  }
+  std::sort(pos.begin(), pos.end());
+  for (size_t i = 0; i < pos.size(); ++i) {
+    leaf_vars->data[pos[i]] = temp[i];
+  }
+  return *this;
+}
 
 IterVarRelation SplitNode::make(
     IterVar parent, IterVar outer,

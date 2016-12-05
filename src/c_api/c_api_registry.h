@@ -115,7 +115,7 @@ class APIVariantValue {
     CHECK_EQ(type_id, kNodeHandle);
     // use dynamic RTTI for safety
     CHECK(dynamic_cast<typename T::ContainerType*>(sptr.get()))
-        << "wrong type specified";
+        << "wrong type specified, expected " << typeid(typename T::ContainerType).name();
     return T(sptr);
   }
   inline operator Expr() const {
