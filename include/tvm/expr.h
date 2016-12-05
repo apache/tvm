@@ -107,18 +107,21 @@ using Halide::select;
 /*!
  * \brief sum of of source expression over rdom
  * \param source The source expression.
+ * \param rdom List of iteration variables that will be used for reduction.
  */
 Expr sum(Expr source, Array<IterVar> rdom);
 
 /*!
  * \brief max of of source expression over rdom
  * \param source The source expression.
+ * \param rdom List of iteration variables that will be used for reduction.
  */
 Expr max(Expr source, Array<IterVar> rdom);
 
 /*!
  * \brief max of of source expression over rdom
  * \param source The source expression.
+ * \param rdom List of iteration variables that will be used for reduction.
  */
 Expr min(Expr source, Array<IterVar> rdom);
 
