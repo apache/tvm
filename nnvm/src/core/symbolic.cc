@@ -446,8 +446,7 @@ void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& a
 bool Symbol::GetAttr(const std::string& key, std::string* out) const {
   Node* node = outputs[0].node.get();
   for (const NodeEntry& e : outputs) {
-    CHECK(node == e.node.get())
-        << "Symbol.SetAttrs only works for non-grouped symbol";
+    if (node != e.node.get()) return false;
   }
   if (key == "name") {
     *out = node->attrs.name;
