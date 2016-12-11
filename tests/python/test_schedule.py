@@ -34,8 +34,18 @@ def test_reorder():
     sch_T.reorder(*order)
     assert tuple(sch_T.leaf_iter_vars) == order
 
+def test_tile():
+    m = tvm.Var('m')
+    n = tvm.Var('n')
+    A = tvm.placeholder((m, n), name='A')
+    T = tvm.compute((m, n), lambda i, j: A[i, j])
+
+    sch_T = tvm.Schedule(T.op, scope="shared")
+    xo, yo, xi, yi = sch_T.tile(T.op.dim_var[0], T.op.dim_var[1], x_factor=10, y_factor=5)
+    assert tuple(sch_T.leaf_iter_vars) == (xi, yi, xo, yo)
 
 if __name__ == "__main__":
     test_schedule_create()
     test_reorder()
+    test_tile()
 

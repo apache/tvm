@@ -107,3 +107,8 @@ class Schedule(NodeBase):
             The order to be ordered
         """
         _function_internal._ScheduleReorder(self, args)
+
+    def tile(self, x_parent, y_parent, x_factor, y_factor):
+        x_outer, y_outer, x_inner, y_inner = _function_internal._ScheduleTile(
+            self, x_parent, y_parent, x_factor, y_factor)
+        return x_outer, y_outer, x_inner, y_inner
