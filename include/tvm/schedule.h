@@ -100,6 +100,9 @@ class Schedule : public NodeRef {
    * \return reference to self.
    */
   Schedule& reorder(const Array<IterVar>& order);   // NOLINT(*)
+  Schedule& tile(IterVar x_parent, IterVar y_parent, IterVar* p_x_outer,
+                 IterVar* p_y_outer, IterVar* p_x_inner, IterVar* p_y_inner,
+                 Expr x_factor, Expr y_factor);   // NOLINT(*)
 };
 
 /*!

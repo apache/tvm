@@ -151,5 +151,13 @@ TVM_REGISTER_API(_ScheduleReorder)
         .reorder(args.at(1));
   });
 
+TVM_REGISTER_API(_ScheduleTile)
+  .set_body([](const ArgStack& args, RetValue *ret) {
+    IterVar x_outer, y_outer, x_inner, y_inner;
+    args.at(0).operator Schedule()
+        .tile(args.at(1), args.at(2), &x_outer, &y_outer,
+              &x_inner, &y_inner, args.at(3), args.at(4));
+    *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
+  });
 
 }  // namespace tvm
