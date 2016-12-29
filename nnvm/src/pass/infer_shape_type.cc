@@ -136,7 +136,7 @@ Graph InferAttr(Graph &&ret,
           try {
             forward_known = finfer(inode.source->attrs, &ishape, &oshape);
           } catch (const std::exception& e) {
-            throw dmlc::Error(e.what() + std::string(" with ") + inode.source->attrs.name);
+            throw dmlc::Error("Error in operator " + inode.source->attrs.name + ": " + e.what());
           }
         } else {
           CHECK(!last_iter)
