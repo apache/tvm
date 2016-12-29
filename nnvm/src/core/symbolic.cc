@@ -472,6 +472,17 @@ std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption op
   }
 }
 
+std::vector<std::tuple<std::string, std::string, std::string> >
+    Symbol::ListAttrsRecursive() const {
+  std::vector<std::tuple<std::string, std::string, std::string> > ret;
+  DFSVisit(this->outputs, [&ret](const NodePtr& n) {
+      for (const auto& it : n->attrs.dict) {
+        ret.emplace_back(std::make_tuple(n->attrs.name, it.first, it.second));
+      }
+    });
+  return ret;
+}
+
 Symbol Symbol::CreateFunctor(const Op* op,
                              std::unordered_map<std::string, std::string> attrs) {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
