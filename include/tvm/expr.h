@@ -171,4 +171,13 @@ inline IterVar::operator Expr() const {
 }
 
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<::tvm::IterVar> {
+  std::size_t operator()(const ::tvm::IterVar& k) const {
+    return k.hash();
+  }
+};
+}
 #endif  // TVM_EXPR_H_
