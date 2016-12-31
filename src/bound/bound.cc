@@ -66,23 +66,21 @@ void PassUp(const Schedule& s,
             const std::unordered_map<IterVar, Range>& dom_map,
             std::unordered_map<IterVar, IntSet>* p_state) {
   auto& state = *p_state;
-  for (size_t i = s->relations.size(); i != 0;--i) {
+  for (size_t i = s->relations.size(); i != 0; --i) {
     IterVarRelation rel = s->relations[i - 1];
     if (rel.as<SplitNode>()) {
       IntSet parent;
       const SplitNode* r = rel.as<SplitNode>();
-      IntSet::PassUp(
-          r, dom_map,
-          state.at(r->outer), state.at(r->inner),
-          &parent);
+      PassUp(r, dom_map,
+             state.at(r->outer), state.at(r->inner),
+             &parent);
       state[r->parent] = parent;
     } else if (rel.as<FuseNode>()) {
       IntSet outer, inner;
       const FuseNode* r = rel.as<FuseNode>();
-      IntSet::PassUp(
-          r, dom_map,
-          state.at(r->fused),
-          &outer, &inner);
+      PassUp(r, dom_map,
+             state.at(r->fused),
+             &outer, &inner);
       state[r->outer] = outer;
       state[r->inner] = inner;
     } else {

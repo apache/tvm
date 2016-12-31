@@ -10,8 +10,6 @@
 namespace tvm {
 namespace ir {
 namespace {
-
-
 }  // namespace
 }  // namespace ir
 }  // namespace tvm
