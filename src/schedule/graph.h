@@ -1,0 +1,47 @@
+/*!
+ *  Copyright (c) 2016 by Contributors
+ * \file graph.h
+ * \brief Utilities to get information about schedule graph.
+ */
+#ifndef TVM_SCHEDULE_GRAPH_H_
+#define TVM_SCHEDULE_GRAPH_H_
+
+#include <tvm/expr.h>
+#include <tvm/schedule.h>
+#include <unordered_map>
+#include <vector>
+
+namespace tvm {
+namespace schedule {
+
+/*!
+ * \brief data structure of Operation->Tensors it reads
+ */
+using ReadGraph = std::unordered_map<Operation, std::vector<Tensor> >;
+
+/*!
+ * \brief Get read graph of each operation to all the
+ *  Tensors that it directly depends on.
+ *
+ *  The result map contains Operations needed to finish root Operation.
+ * \param root The root operation.
+ * \return The result map.
+ */
+ReadGraph CreateReadGraph(const Operation& root);
+
+/*!
+ * \brief Get a post DFS ordered of operations in the graph.
+ * \param root The root of the graph.
+ * \param g The read graph.
+ * \return vector order of Operations in PostDFS order.
+ *
+ * \note PostDFSOrder is a special case of Topoligical order,
+ *   and can be used when topoligical order is needed.
+ */
+std::vector<Operation> PostDFSOrder(
+    const Operation& root, const ReadGraph& g);
+
+}  // namespace schedule
+}  // namespace tvm
+
+#endif  // TVM_SCHEDULE_GRAPH_H_

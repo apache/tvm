@@ -239,4 +239,13 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(>);  // NOLINT(*)
 DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<::tvm::Operation> {
+  std::size_t operator()(const ::tvm::Operation& k) const {
+    return k.hash();
+  }
+};
+}
 #endif  // TVM_TENSOR_H_

@@ -8,7 +8,7 @@
 #include "./bound.h"
 
 namespace tvm {
-namespace bound {
+namespace schedule {
 
 // result = ceil((a / b)), both a and b are positive integer
 inline Expr DivCeil(Expr a, Expr b) {
@@ -89,5 +89,10 @@ void PassUp(const Schedule& s,
   }
 }
 
-}  // namespace bound
+
+std::unordered_map<IterVar, Range> InferBound(Schedule sch) {
+  return {};
+}
+
+}  // namespace schedule
 }  // namespace tvm
