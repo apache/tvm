@@ -7,7 +7,7 @@
 #include "./int_set.h"
 
 namespace tvm {
-namespace bound {
+namespace schedule {
 
 using namespace ir;
 
@@ -338,6 +338,5 @@ IntSet Eval(Expr e,
   return m.Eval(e);
 }
 
-}  // namespace bound
+}  // namespace schedule
 }  // namespace tvm
-

@@ -3,14 +3,14 @@
  * \file int_set.h
  * \brief Abstraction for all integer set operations.
  */
-#ifndef TVM_BOUND_INT_SET_H_
-#define TVM_BOUND_INT_SET_H_
+#ifndef TVM_SCHEDULE_INT_SET_H_
+#define TVM_SCHEDULE_INT_SET_H_
 
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
 
 namespace tvm {
-namespace bound {
+namespace schedule {
 
 // internal node container of int set.
 class IntSetNode;
@@ -97,7 +97,7 @@ void PassUp(const FuseNode* s,
  */
 IntSet Union(const Array<IntSet>& sets);
 
-}  // namespace bound
+}  // namespace schedule
 }  // namespace tvm
 
-#endif  // TVM_BOUND_INT_SET_H_
+#endif  // TVM_SCHEDULE_INT_SET_H_
