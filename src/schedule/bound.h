@@ -19,7 +19,7 @@ namespace schedule {
  * \param sch The root schedule to infer all the bounds.
  * \return the result bound of the iteration Variable
  */
-std::unordered_map<IterVar, Range> InferBound(Schedule sch);
+Map<IterVar, Range> InferBound(Schedule sch);
 
 }  // namespace schedule
 }  // namespace tvm

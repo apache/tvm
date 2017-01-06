@@ -143,7 +143,7 @@ void InferBound(const Schedule& sch,
 }
 
 
-std::unordered_map<IterVar, Range> InferBound(Schedule sch) {
+Map<IterVar, Range> InferBound(Schedule sch) {
   return {};
 }
 

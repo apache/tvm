@@ -239,7 +239,8 @@ def _init_function_module(root_namespace):
     module_internal = sys.modules["%s._function_internal" % root_namespace]
     namespace_match = {
         "_make_" : sys.modules["%s.make" % root_namespace],
-        "_pass_" : sys.modules["%s.ir_pass" % root_namespace]
+        "_pass_" : sys.modules["%s.ir_pass" % root_namespace],
+        "_schedule_" : sys.modules["%s.schedule" % root_namespace]
     }
 
     for name in op_names:
