@@ -6,7 +6,7 @@
 #ifndef TVM_TENSOR_H_
 #define TVM_TENSOR_H_
 
-#include <tvm/array.h>
+#include <tvm/container.h>
 #include <ir/FunctionBase.h>
 #include <string>
 #include <vector>

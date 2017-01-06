@@ -122,7 +122,7 @@ inline Range Negation(Range a) {
 }
 
 inline IntSet Negation(IntSet a) {
-  CHECK_EQ(a->concrete.size(), 0);
+  CHECK_EQ(a->concrete.size(), 0U);
   auto n = std::make_shared<IntSetNode>();
   n->base = Negation(a->base);
   for (size_t i = 0; i < a->domain.size(); ++i) {
@@ -180,6 +180,11 @@ IntSet IntSet::make(Range dom) {
   auto n = std::make_shared<IntSetNode>();
   n->base = dom;
   return IntSet(n);
+}
+
+IntSet IntSet::make_all_set() {
+  LOG(FATAL) << "TODO";
+  return IntSet();
 }
 
 void PassUp(const SplitNode* s,

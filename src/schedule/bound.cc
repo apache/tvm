@@ -4,6 +4,7 @@
  * \brief The bound inference logic.
  */
 #include <tvm/ir.h>
+#include <tvm/ir_visitor.h>
 #include "./int_set.h"
 #include "./bound.h"
 
@@ -22,8 +23,7 @@ void PassDown(const Schedule& s,
               std::unordered_map<IterVar, Range>* p_state) {
   auto& state = *p_state;
   // forwar iteration on relations
-  for (size_t i = 0; i < s->relations.size(); ++i) {
-    IterVarRelation rel = s->relations[i];
+  for (IterVarRelation rel : s->relations) {
     if (rel.as<SplitNode>()) {
       const SplitNode* r = rel.as<SplitNode>();
       CHECK(state.count(r->parent));
@@ -87,6 +87,59 @@ void PassUp(const Schedule& s,
       LOG(FATAL) << "unknown relation type";
     }
   }
+}
+
+void PassBound(
+    const Tensor& tensor,
+    const std::vector<IntSet>& arg_bounds,
+    std::unordered_map<IterVar, std::vector<IntSet> >* result) {
+  if (tensor->op.as<ComputeOpNode>()) {
+    auto root_iter_vars = tensor->op->root_iter_vars();
+    CHECK_EQ(tensor.ndim(), root_iter_vars.size());
+    for (size_t i = 0; i < tensor.ndim(); ++i) {
+      (*result)[root_iter_vars[i]].push_back(arg_bounds[i]);
+    }
+  } else {
+    LOG(FATAL) << "unknown operation mode";
+  }
+}
+
+void PassBound(
+    Operation op,
+    std::unordered_map<IterVar, IntSet>* ebound) {
+  if (op.as<ComputeOpNode>()) {
+    auto fvisit = [ebound](const NodeRef& n) {
+      auto *call = n.as<ir::Call>();
+      if (call != nullptr && call->func.defined()) {
+        Tensor t(call->func.node_);
+        std::vector<IntSet> arg_bounds;
+        for (size_t i = 0; i < t.ndim(); ++i) {
+          arg_bounds.push_back(Eval(call->args[i], *ebound));
+        }
+      }
+    };
+    ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
+  } else {
+    LOG(FATAL) << "unknown operation mode";
+  }
+}
+
+void InferBound(const Schedule& sch,
+                std::unordered_map<IterVar, Range>* rmap) {
+  CHECK_NE(sch->attach_type, kNone);
+  if (sch->attach_type == kInline) return;
+  if (sch->attach_type == kRoot) {
+    auto root_iter_vars = sch->op->root_iter_vars();
+    for (size_t i = 0; i < root_iter_vars.size(); ++i) {
+      auto v = root_iter_vars[i];
+      CHECK(v->dom.defined());
+      CHECK(!rmap->count(v));
+      (*rmap)[v] = v->dom;
+    }
+  }
+  // get range of all child iter vars.
+  PassDown(sch, rmap);
+  // pass iteration variable to children
 }
 
 

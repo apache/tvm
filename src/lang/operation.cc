@@ -53,17 +53,17 @@ Array<IterVar> ComputeOpNode::root_iter_vars() const {
 }
 
 std::string ComputeOpNode::output_name(size_t i) const {
-  CHECK_EQ(i, 0);
+  CHECK_EQ(i, 0U);
   return name;
 }
 
 Type ComputeOpNode::output_dtype(size_t i) const {
-  CHECK_EQ(i, 0);
+  CHECK_EQ(i, 0U);
   return body.type();
 }
 
 Array<Expr> ComputeOpNode::output_shape(size_t i) const {
-  CHECK_EQ(i, 0);
+  CHECK_EQ(i, 0U);
   std::vector<Expr> shape;
   for (size_t i = 0; i < dim_var.size(); ++i) {
     const Range& r = dim_var[i]->dom;

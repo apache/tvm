@@ -45,7 +45,7 @@ struct APIAttrGetter : public AttrVisitor {
     if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, uint64_t* value) final {
-    CHECK_LE(value[0], std::numeric_limits<int64_t>::max())
+    CHECK_LE(value[0], static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         << "cannot return too big constant";
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }

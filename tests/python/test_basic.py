@@ -38,8 +38,6 @@ def test_basic():
     c =  a + b
     assert str(c) == '(%s + %s)' % (a.name, b.name)
 
-def test_array():
-    a = tvm.convert([1,2,3])
 
 def test_stmt():
     x = tvm.make.Evaluate(0)

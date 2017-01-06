@@ -115,6 +115,14 @@ def convert(value):
     elif isinstance(value, (list, tuple)):
         value = [convert(x) for x in value]
         return _function_internal._Array(*value)
+    elif isinstance(value, dict):
+        vlist = []
+        for it in value.items():
+            if not isinstance(it[0], NodeBase):
+                raise ValueError("key of map must already been a container type")
+            vlist.append(it[0])
+            vlist.append(convert(it[1]))
+        return _function_internal._Map(*vlist)
     elif isinstance(value, SliceBase):
         return value.tensor(*value.indices)
     else:
