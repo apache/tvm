@@ -27,6 +27,7 @@ using Halide::IR::FunctionRef;
 using Halide::IR::FunctionBaseNode;
 using Halide::Internal::Stmt;
 using Halide::Internal::IRPrinter;
+using Halide::Internal::Variable;
 
 /*! \brief a named variable in TVM */
 class Var : public Halide::VarExpr {
@@ -35,6 +36,9 @@ class Var : public Halide::VarExpr {
                Type t = Int(32)) : VarExpr(name_hint, t) {}
 
   explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
+
+  /*! \brief type indicate the container type */
+  using ContainerType = Variable;
 };
 
 

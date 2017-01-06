@@ -10,5 +10,16 @@ def test_inline():
     print(stmt)
     assert(tvm.ir_pass.VerifySSA(stmt))
 
+    try:
+        # pass in int array(wrong argument type)
+        # must raise an error
+        stmt = tvm.ir_pass.Inline(
+            T, [1,2,3], T.op.body, stmt)
+        assert False
+    except tvm.TVMError:
+        pass
+
+
+
 if __name__ == "__main__":
     test_inline()

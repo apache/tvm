@@ -83,7 +83,6 @@ using Halide::Internal::UIntImm;
 using Halide::Internal::FloatImm;
 using Halide::Internal::StringImm;
 using Halide::Internal::Cast;
-using Halide::Internal::Variable;
 using Halide::Internal::Add;
 using Halide::Internal::Sub;
 using Halide::Internal::Mul;

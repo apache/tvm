@@ -10,4 +10,5 @@ from . import ir_pass
 from . import collections
 from . import schedule
 
+from ._base import TVMError
 from .function import *

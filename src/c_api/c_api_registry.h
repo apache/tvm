@@ -54,6 +54,43 @@ inline const char* TypeId2Str(ArgVariantID type_id) {
   }
 }
 
+template<typename T>
+struct NodeTypeChecker {
+  static inline void Check(Node* sptr) {
+    using ContainerType = typename T::ContainerType;
+    // use dynamic RTTI for safety
+    CHECK(dynamic_cast<ContainerType*>(sptr))
+        << "wrong type specified, expected " << typeid(ContainerType).name();
+  }
+};
+
+template<typename T>
+struct NodeTypeChecker<Array<T> > {
+  static inline void Check(Node* sptr) {
+    // use dynamic RTTI for safety
+    CHECK(sptr != nullptr && sptr->is_type<ArrayNode>())
+        << "wrong type specified, expected Array";
+    ArrayNode* n = static_cast<ArrayNode*>(sptr);
+    for (const auto& p : n->data) {
+      NodeTypeChecker<T>::Check(p.get());
+    }
+  }
+};
+
+template<typename K, typename V>
+struct NodeTypeChecker<Map<K, V> > {
+  static inline void Check(Node* sptr) {
+    // use dynamic RTTI for safety
+    CHECK(sptr != nullptr && sptr->is_type<MapNode>())
+        << "wrong type specified, expected Map";
+    MapNode* n = static_cast<MapNode*>(sptr);
+    for (const auto& kv : n->data) {
+      NodeTypeChecker<K>::Check(kv.first.get());
+      NodeTypeChecker<V>::Check(kv.second.get());
+    }
+  }
+};
+
 /*! \brief Variant container for API calls */
 class APIVariantValue {
  public:
@@ -109,13 +146,11 @@ class APIVariantValue {
     return operator=(Type2String(value));
   }
   template<typename T,
-         typename = typename std::enable_if<std::is_base_of<NodeRef, T>::value>::type>
+           typename = typename std::enable_if<std::is_base_of<NodeRef, T>::value>::type>
   inline operator T() const {
     if (type_id == kNull) return T();
     CHECK_EQ(type_id, kNodeHandle);
-    // use dynamic RTTI for safety
-    CHECK(dynamic_cast<typename T::ContainerType*>(sptr.get()))
-        << "wrong type specified, expected " << typeid(typename T::ContainerType).name();
+    NodeTypeChecker<T>::Check(sptr.get());
     return T(sptr);
   }
   inline operator Expr() const {
