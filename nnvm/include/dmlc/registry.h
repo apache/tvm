@@ -75,7 +75,7 @@ class Registry {
    * \return ref to the registered entry, used to set properties
    */
   inline EntryType &__REGISTER__(const std::string& name) {
-    CHECK_EQ(fmap_.count(name), 0)
+    CHECK_EQ(fmap_.count(name), 0U)
         << name << " already registered";
     EntryType *e = new EntryType();
     e->name = name;

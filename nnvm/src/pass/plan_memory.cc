@@ -21,6 +21,8 @@ class GraphAllocator {
   using StorageID = int;
   // bad storage id
   static const StorageID kBadStorageID = -1;
+  // external storage id
+  static const StorageID kExternalStorageID = -2;
   // request a free storage
   StorageID Request(int dev_id, int dtype, TShape shape, uint32_t node_id) {
     if (shape.ndim() == 0) return kBadStorageID;
@@ -62,6 +64,7 @@ class GraphAllocator {
   // release a memory space.
   void Release(StorageID id, uint32_t node_id) {
     CHECK_NE(id, kBadStorageID);
+    if (id == kExternalStorageID) return;
     StorageEntry *e = data_[id].get();
     e->released_by_node = node_id;
     free_.insert({e->max_bytes, e});
@@ -161,7 +164,14 @@ Graph PlanMemory(Graph ret) {
     ++ref_count[idx.entry_id(e)];
   }
   // step 2: allocate memory.
-  StorageVector storage(idx.num_node_entries(), -1);
+  StorageVector storage;
+
+  if (ret.attrs.count("storage") != 0) {
+    storage = ret.MoveCopyAttr<StorageVector>("storage");
+  } else {
+    storage.resize(idx.num_node_entries(), -1);
+  }
+
   std::vector<int> storage_inplace_index(idx.num_node_entries(), -1);
   const ShapeVector& shape_vec = ret.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = ret.GetAttr<DTypeVector>("dtype");
