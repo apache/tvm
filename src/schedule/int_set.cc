@@ -176,13 +176,33 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->stream << ')';
   });
 
-IntSet IntSet::make(Range dom) {
+IntSet IntSet::make_range(Range dom) {
   auto n = std::make_shared<IntSetNode>();
   n->base = dom;
   return IntSet(n);
 }
 
+Range IntSet::GetCoverRange() const {
+  const IntSetNode* s = operator->();
+  CHECK(s != nullptr) << "empty set";
+  if (s->domain.size() == 0 && s->concrete.size() == 0) {
+    return s->base;
+  }
+  LOG(FATAL) << "not yet implemented";
+  return Range();
+}
+
+IntSet IntSet::make_point(Expr point) {
+  return IntSet::make_range(Range::make_with_min_extent(point, 1));
+}
+
 IntSet IntSet::make_all_set() {
+  LOG(FATAL) << "TODO";
+  return IntSet();
+}
+
+IntSet Union(const Array<IntSet>& set) {
+  if (set.size() == 1) return set[0];
   LOG(FATAL) << "TODO";
   return IntSet();
 }
@@ -197,7 +217,7 @@ void PassUp(const SplitNode* s,
       dom_map.count(s->parent) &&
       Match(outer, dom_map.at(s->outer)) &&
       Match(inner, dom_map.at(s->inner))) {
-    *parent = IntSet::make(dom_map.at(s->parent));
+    *parent = IntSet::make_range(dom_map.at(s->parent));
     return;
   }
   // copy construct
@@ -230,21 +250,21 @@ void PassUp(const FuseNode* s,
   CHECK(dom_map.count(s->fused));
 
   if (Match(fused, dom_map.at(s->fused))) {
-    *outer = IntSet::make(dom_map.at(s->outer));
-    *inner = IntSet::make(dom_map.at(s->inner));
+    *outer = IntSet::make_range(dom_map.at(s->outer));
+    *inner = IntSet::make_range(dom_map.at(s->inner));
     return;
   }
 
   if (IsNumber(fused)) {
     Expr value = AsNumber(fused);
     Expr factor = dom_map.at(s->outer)->extent;
-    *outer = IntSet::make(Range::make_with_min_extent(value / factor, 1));
-    *inner = IntSet::make(Range::make_with_min_extent(value % factor, 1));
+    *outer = IntSet::make_point(value / factor);
+    *inner = IntSet::make_point(value % factor);
   } else {
     LOG(WARNING) << "use fallback inference rule in fuse";
     // simply use the entire set, this rule can be enhanced.
-    *outer = IntSet::make(dom_map.at(s->outer));
-    *inner = IntSet::make(dom_map.at(s->inner));
+    *outer = IntSet::make_range(dom_map.at(s->outer));
+    *inner = IntSet::make_range(dom_map.at(s->inner));
     return;
   }
 }
@@ -272,7 +292,7 @@ class IRSetEvaluator {
 };
 
 inline IntSet ConstOp(const NodeRef&, const Expr& e, IRSetEvaluator*) {
-  return IntSet::make(Range::make_with_min_extent(e, 1));
+  return IntSet::make_point(e);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
@@ -286,7 +306,7 @@ TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
     if (it != m->dom_map.end()) {
       return it->second;
     } else {
-      return IntSet::make(Range::make_with_min_extent(e, 1));
+      return IntSet::make_point(e);
     }
   });
 
@@ -298,10 +318,9 @@ inline IntSet Binary(const T* op, const Expr& e, IRSetEvaluator* m) {
   if (IsNumber(a) && IsNumber(b)) {
     if (Match(a, op->a) &&
         Match(b, op->b)) {
-      return IntSet::make(Range::make_with_min_extent(e, 1));
+      return IntSet::make_point(e);
     } else {
-      return IntSet::make(Range::make_with_min_extent(
-          T::make(AsNumber(a), AsNumber(b)), 1));
+      return IntSet::make_point(T::make(AsNumber(a), AsNumber(b)));
     }
   } else {
     return BinaryCombine<T>(a, b);
@@ -319,7 +338,7 @@ TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
 
 // use simply bound for logical expressions for now.
 inline IntSet Logical(const NodeRef&, const Expr& e, IRSetEvaluator*) {
-  return IntSet::make(Range::make_with_min_extent(0, 2));
+  return IntSet::make_range(Range::make_with_min_extent(0, 2));
 }
 
 TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
@@ -334,8 +353,8 @@ TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
 
 }  // namespace
 
-IntSet Eval(Expr e,
-            const std::unordered_map<IterVar, IntSet>& dom_map) {
+IntSet EvalSet(Expr e,
+               const Map<IterVar, IntSet>& dom_map) {
   IRSetEvaluator m;
   for (auto kv : dom_map) {
     m.dom_map[kv.first->var.as<Variable>()] = kv.second;

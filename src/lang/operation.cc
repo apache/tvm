@@ -9,6 +9,11 @@
 
 namespace tvm {
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<ComputeOpNode>([](const ComputeOpNode *op, IRPrinter *p) {
+    p->stream << "op(" << op << ")";
+});
+
 Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.

@@ -6,8 +6,9 @@
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
 #include <tvm/schedule.h>
-#include "../schedule/bound.h"
 #include "./c_api_registry.h"
+#include "../schedule/bound.h"
+#include "../schedule/graph.h"
 
 namespace tvm {
 namespace schedule {
@@ -20,8 +21,16 @@ using RetValue = APIVariantValue;
       *ret = PassName(args.at(0));                                \
     })                                                            \
 
+#define REGISTER_SCHEDULE_PASS2(PassName)                         \
+  TVM_REGISTER_API(_schedule_## PassName)                         \
+  .set_body([](const ArgStack& args,  RetValue *ret) {            \
+      *ret = PassName(args.at(0), args.at(1));                    \
+    })                                                            \
+
 
 REGISTER_SCHEDULE_PASS1(InferBound);
+REGISTER_SCHEDULE_PASS1(CreateReadGraph);
+REGISTER_SCHEDULE_PASS2(PostDFSOrder);
 
 }  // namespace schedule
 }  // namespace tvm

@@ -17,7 +17,7 @@ namespace schedule {
 /*!
  * \brief data structure of Operation->Tensors it reads
  */
-using ReadGraph = std::unordered_map<Operation, std::vector<Tensor> >;
+using ReadGraph = Map<Operation, Array<Tensor> >;
 
 /*!
  * \brief Get read graph of each operation to all the
@@ -38,7 +38,7 @@ ReadGraph CreateReadGraph(const Operation& root);
  * \note PostDFSOrder is a special case of Topoligical order,
  *   and can be used when topoligical order is needed.
  */
-std::vector<Operation> PostDFSOrder(
+Array<Operation> PostDFSOrder(
     const Operation& root, const ReadGraph& g);
 
 }  // namespace schedule

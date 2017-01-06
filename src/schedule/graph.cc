@@ -14,26 +14,29 @@ namespace schedule {
 
 // construct a read graph that gives readers of each operation
 // that the root depend on
-ReadGraph CreateReadGraph(Operation root) {
-  std::unordered_map<Operation, std::vector<Tensor> > rmap;
-  rmap[root] = {};
+ReadGraph CreateReadGraph(const Operation& root) {
+  ReadGraph rmap;
   std::vector<Operation> stack{root};
+  std::unordered_set<const Node*> visited{root.get()};
+
   while (!stack.empty()) {
-    Operation r = stack.back();
+    Operation op = stack.back();
     stack.pop_back();
-    auto& vec = rmap.at(r);
-    if (r.as<ComputeOpNode>()) {
-      auto fvisit = [&vec, &rmap, &stack](const NodeRef& n) {
+    Array<Tensor> deps;
+    if (op.as<ComputeOpNode>()) {
+      auto fvisit = [&deps, &visited, &stack](const NodeRef& n) {
         auto *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
           Tensor t(call->func.node_);
-          vec.push_back(t);
-          if (t->op.defined() && rmap.count(t->op) == 0) {
-            rmap[t->op] = {}; stack.push_back(t->op);
+          deps.push_back(t);
+          if (t->op.defined() && visited.count(t->op.get()) == 0) {
+            visited.insert(t->op.get());
+            stack.push_back(t->op);
           }
         }
       };
-      ir::PostOrderVisit(r.as<ComputeOpNode>()->body, fvisit);
+      ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
+      rmap.Set(op, deps);
     } else {
       LOG(FATAL) << "unknown operation mode";
     }
@@ -43,9 +46,9 @@ ReadGraph CreateReadGraph(Operation root) {
 
 
 void PostDFSOrder(const Operation& op,
-                    const ReadGraph& g,
-                    std::unordered_set<Operation>* visited,
-                    std::vector<Operation>* post_order) {
+                  const ReadGraph& g,
+                  std::unordered_set<Operation>* visited,
+                  Array<Operation>* post_order) {
   visited->insert(op);
   for (const auto& t : g.at(op)) {
     if (t->op.defined() && !visited->count(t->op)) {
@@ -55,10 +58,10 @@ void PostDFSOrder(const Operation& op,
   post_order->push_back(op);
 }
 
-std::vector<Operation> PostDFSOrder(
+Array<Operation> PostDFSOrder(
     const Operation& root, const ReadGraph& g) {
   std::unordered_set<Operation> visited;
-  std::vector<Operation> post_order;
+  Array<Operation> post_order;
   PostDFSOrder(root, g, &visited, &post_order);
   return post_order;
 }

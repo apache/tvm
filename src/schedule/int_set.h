@@ -29,6 +29,10 @@ class IntSet : public NodeRef {
     return !defined();
   }
   /*!
+   * \return a range that covers the IntSet
+   */
+  Range GetCoverRange() const;
+  /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
@@ -37,7 +41,12 @@ class IntSet : public NodeRef {
    * \param dom The domain to be created.
    * \return create integer set from existing domain
    */
-  static IntSet make(Range dom);
+  static IntSet make_range(Range dom);
+  /*!
+   * \param point
+   * \return create integer set that only contains one point
+   */
+  static IntSet make_point(Expr point);
   /*!
    * \return create integer set that represents everything
    */
@@ -52,8 +61,8 @@ class IntSet : public NodeRef {
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet Eval(Expr e,
-            const std::unordered_map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(Expr e,
+               const Map<IterVar, IntSet>& dom_map);
 /*!
  * \brief Conditional upward message passing.
  *
