@@ -13,10 +13,10 @@ DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
 }  // namespace dmlc
 
 namespace tvm {
-
 Range::Range(Expr begin, Expr end)
-    : Range(std::make_shared<Halide::IR::RangeNode>(begin, end - begin)) {
-  // TODO(tqchen) add simplify to end - begin
+    : Range(std::make_shared<Halide::IR::RangeNode>(
+          begin,
+          is_zero(begin) ? end : (end - begin))) {
 }
 
 Range Range::make_with_min_extent(Expr min, Expr extent) {

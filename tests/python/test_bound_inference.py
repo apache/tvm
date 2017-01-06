@@ -8,11 +8,11 @@ def test_bound1():
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
     sA1 = tvm.Schedule(A1.op)
     sA2 = tvm.Schedule(A2.op)
-    xo, xi = sA2.split(A2.op.dim_var[0], 8)
+    xo, xi = sA2.split(A2.op.axis[0], 8)
     sA1.compute_at(sA2, xo)
     bounds = tvm.schedule.InferBound(sA2)
     assert isinstance(bounds, tvm.collections.Map)
-    assert(bounds[A1.op.dim_var[0]].extent.value == 8)
+    assert(bounds[A1.op.axis[0]].extent.value == 8)
 
 def test_bound2():
     m = tvm.Var('m')
@@ -22,12 +22,12 @@ def test_bound2():
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
     sA1 = tvm.Schedule(A1.op)
     sA2 = tvm.Schedule(A2.op)
-    xo, yo, xi, yi = sA2.tile(A2.op.dim_var[0], A2.op.dim_var[1], 8, 8)
+    xo, yo, xi, yi = sA2.tile(A2.op.axis[0], A2.op.axis[1], 8, 8)
     sA1.compute_at(sA2, yo)
     bounds = tvm.schedule.InferBound(sA2)
     assert isinstance(bounds, tvm.collections.Map)
-    assert(bounds[A1.op.dim_var[0]].extent.value == 8)
-    assert(bounds[A1.op.dim_var[1]].extent.value == 8)
+    assert(bounds[A1.op.axis[0]].extent.value == 8)
+    assert(bounds[A1.op.axis[1]].extent.value == 8)
 
 def test_bound3():
     m = tvm.Var('m')
@@ -38,16 +38,16 @@ def test_bound3():
     sA1 = tvm.Schedule(A1.op, scope="shared")
     sA2 = tvm.Schedule(A2.op)
     thread_x = tvm.IterVar((0, 16), thread_tag="threadIdx.x")
-    xo, xi = sA2.split(A2.op.dim_var[0], 32)
+    xo, xi = sA2.split(A2.op.axis[0], 32)
     xi0, xi1 = sA2.split(xi, outer=thread_x)
-    yo, yi = sA2.split(A2.op.dim_var[1], 16)
+    yo, yi = sA2.split(A2.op.axis[1], 16)
     sA2.reorder(xo, xi0, yo, xi1, yi)
     sA1.compute_at(sA2, yo)
 
     bounds = tvm.schedule.InferBound(sA2)
     assert isinstance(bounds, tvm.collections.Map)
-    assert(bounds[A1.op.dim_var[0]].extent.value==32)
-    assert(bounds[A1.op.dim_var[1]].extent.value==16)
+    assert(bounds[A1.op.axis[0]].extent.value==32)
+    assert(bounds[A1.op.axis[1]].extent.value==16)
 
 
 def test_create_read_graph():

@@ -37,6 +37,7 @@ using TVMAPINode = std::shared_ptr<Node>;
 struct APIAttrGetter : public AttrVisitor {
   std::string skey;
   APIVariantValue* ret;
+  bool found_node_ref{false};
 
   void Visit(const char* key, double* value) final {
     if (skey == key) *ret = value[0];
@@ -62,7 +63,10 @@ struct APIAttrGetter : public AttrVisitor {
     if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, NodeRef* value) final {
-    if (skey == key) *ret = value[0];
+    if (skey == key) {
+      *ret = value[0];
+      found_node_ref = true;
+    }
   }
 };
 
@@ -198,7 +202,8 @@ int TVMNodeFree(NodeHandle handle) {
 int TVMNodeGetAttr(NodeHandle handle,
                    const char* key,
                    ArgVariant* ret_val,
-                   int* ret_typeid) {
+                   int* ret_typeid,
+                   int* ret_success) {
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   API_BEGIN();
   ret->ret_value.type_id = kNull;
@@ -209,11 +214,14 @@ int TVMNodeGetAttr(NodeHandle handle,
   if (getter.skey == "type_key") {
     ret_val->v_str = (*tnode)->type_key();
     *ret_typeid = kStr;
+    *ret_success = 1;
   } else {
     (*tnode)->VisitAttrs(&getter);
     if (ret->ret_value.type_id != kNull) {
       ret->SetReturn(ret_val, ret_typeid);
+      *ret_success = 1;
     } else {
+      *ret_success = getter.found_node_ref ? 1 : 0;
       *ret_typeid = kNull;
     }
   }

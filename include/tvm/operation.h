@@ -17,8 +17,8 @@ namespace tvm {
  */
 class ComputeOpNode : public OperationNode {
  public:
-  /*! \brief Iteration variables over the dimensions */
-  Array<IterVar> dim_var;
+  /*! \brief IterVar on each axis */
+  Array<IterVar> axis;
   /*! \brief the compute expression */
   Expr body;
   /*! \brief constructor */
@@ -34,11 +34,11 @@ class ComputeOpNode : public OperationNode {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
-    v->Visit("dim_var", &dim_var);
+    v->Visit("axis", &axis);
     v->Visit("body", &body);
   }
   static Operation make(std::string name,
-                        Array<IterVar> dim_var,
+                        Array<IterVar> axis,
                         Expr body);
 
   static constexpr const char* _type_key = "ComputeOp";

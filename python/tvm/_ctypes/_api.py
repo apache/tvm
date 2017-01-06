@@ -72,10 +72,18 @@ class NodeBase(object):
     def __getattr__(self, name):
         ret_val = ArgVariant()
         ret_typeid = ctypes.c_int()
+        ret_success = ctypes.c_int()
         check_call(_LIB.TVMNodeGetAttr(
             self.handle, c_str(name),
-            ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
-        return RET_SWITCH[ret_typeid.value](ret_val)
+            ctypes.byref(ret_val),
+            ctypes.byref(ret_typeid),
+            ctypes.byref(ret_success)))
+        value = RET_SWITCH[ret_typeid.value](ret_val)
+        if not ret_success.value:
+            raise AttributeError(
+                "'%s' object has no attribute '%s'" % (str(type(self)), name))
+        return value
+
 
     def __hash__(self):
         return _function_internal._raw_ptr(self)

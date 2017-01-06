@@ -10,7 +10,7 @@ def test_tensor():
     print(T)
     print(T.op.body)
     assert(tuple(T.shape) == (m, n, l))
-    assert(A.source is None)
+    assert(A.op is None)
 
 def test_tensor_reduce():
     m = tvm.Var('m')

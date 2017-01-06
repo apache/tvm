@@ -129,12 +129,14 @@ TVM_DLL int TVMNodeFree(NodeHandle handle);
  * \param handle The node handle
  * \param key The attribute name
  * \param out_value The attribute value
- * \param out_typeid The typeif of the attribute.
+ * \param out_typeid The typeid of the attribute.
+ * \param out_success Whether get is successful.
  */
 TVM_DLL int TVMNodeGetAttr(NodeHandle handle,
                            const char* key,
                            ArgVariant* out_value,
-                           int* out_typeid);
+                           int* out_typeid,
+                           int* out_success);
 
 /*!
  * \brief get attributes names in the node.
