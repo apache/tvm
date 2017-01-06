@@ -165,8 +165,15 @@ bool ScopeRelax(const IterVar& iv, const std::string& scope) {
     {"shared", 1},
     {"local", 2}
   };
-
-  return scope_rank.at(scope) <= scope_rank.at(iv->thread_tag);
+  static std::unordered_map<std::string, int> thread_tag_rank{
+    {"gridIdx.x", 0},
+    {"gridIdx.y", 0},
+    {"gridIdx.z", 0},
+    {"threadIdx.x", 1},
+    {"threadIdx.y", 1},
+    {"threadIdx.z", 1}
+  };
+  return scope_rank.at(scope) <= thread_tag_rank.at(iv->thread_tag);
 }
 
 void InferBound(
