@@ -66,7 +66,7 @@ Graph InferAttr(Graph &&ret,
     if (inode.source->is_variable()) {
       // Variable node. No operator. Only one output entry.
       CHECK(inode.source->op() == nullptr);
-      CHECK_EQ(num_outputs, 1);
+      CHECK_EQ(num_outputs, 1U);
       const uint32_t out_ent_id = idx.entry_id(nid, 0);
       if (shape_attr_key.length() != 0 && fis_none(rshape[out_ent_id])) {
         auto it = inode.source->attrs.dict.find(shape_attr_key);
@@ -76,7 +76,7 @@ Graph InferAttr(Graph &&ret,
         }
       }
     } else if (is_backward.get(inode.source->op(), false)) {
-      CHECK_GE(inode.control_deps.size(), 1)
+      CHECK_GE(inode.control_deps.size(), 1U)
         << "BackwardOp need to have control_deps to its forward op";
       const IndexedGraph::Node& fnode = idx[inode.control_deps[0]];
       NodePtr fwd_ptr = inode.source->control_deps[0];
