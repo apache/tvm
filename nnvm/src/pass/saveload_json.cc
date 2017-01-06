@@ -155,7 +155,7 @@ struct JSONGraph {
 
 // Load a graph from JSON file.
 Graph LoadJSON(Graph src) {
-  CHECK_NE(src.attrs.count("json"), 0)
+  CHECK_NE(src.attrs.count("json"), 0U)
       << "Load JSON require json to be presented.";
   const std::string &json_str =
       nnvm::get<std::string>(*src.attrs.at("json"));

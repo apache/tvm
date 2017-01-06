@@ -263,11 +263,11 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   CHECK(!outputs[0].node->is_variable()) << "Variable cannot be composed";
   // parameter check.
   for (size_t i = 0; i < args.size(); ++i) {
-    CHECK_EQ(args[i]->outputs.size(), 1)
+    CHECK_EQ(args[i]->outputs.size(), 1U)
         << "Argument " << i << " is a tuple, single value is required";
   }
   for (const auto& kv : kwargs) {
-    CHECK_EQ(kv.second->outputs.size(), 1)
+    CHECK_EQ(kv.second->outputs.size(), 1U)
         << "Keyword Argument " << kv.first << " is a tuple, single value is required";
   }
   // assign new name
@@ -316,7 +316,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
         }
       }
     } else {
-      CHECK_EQ(kwargs.size(), 0) << "Variable length function do not accept kwargs";
+      CHECK_EQ(kwargs.size(), 0U) << "Variable length function do not accept kwargs";
       n->inputs.reserve(args.size());
       for (const Symbol* s : args) {
         n->inputs.push_back(s->outputs[0]);
@@ -325,7 +325,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     UpdateNodeVersion(n);
   } else {
     // general composition
-    CHECK_EQ(args.size(), 0)
+    CHECK_EQ(args.size(), 0U)
         << "General composition only support kwargs for now";
     size_t nmatched = 0;
     size_t arg_counter = 0;
@@ -395,7 +395,7 @@ Symbol Symbol::operator () (const array_view<const Symbol*>& args,
 }
 
 void Symbol::AddControlDeps(const Symbol& src) {
-  CHECK_EQ(outputs.size(), 1)
+  CHECK_EQ(outputs.size(), 1U)
       << "AddControlDeps only works for nongrouped symbol";
   Node* n = outputs[0].node.get();
   for (const NodeEntry& sp : src.outputs) {

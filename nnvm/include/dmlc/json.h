@@ -747,8 +747,8 @@ inline void JSONWriter::BeginArray(bool multi_line) {
 }
 
 inline void JSONWriter::EndArray() {
-  CHECK_NE(scope_multi_line_.size(), 0);
-  CHECK_NE(scope_counter_.size(), 0);
+  CHECK_NE(scope_multi_line_.size(), 0U);
+  CHECK_NE(scope_counter_.size(), 0U);
   bool newline = scope_multi_line_.back();
   size_t nelem = scope_counter_.back();
   scope_multi_line_.pop_back();
@@ -764,8 +764,8 @@ inline void JSONWriter::BeginObject(bool multi_line) {
 }
 
 inline void JSONWriter::EndObject() {
-  CHECK_NE(scope_multi_line_.size(), 0);
-  CHECK_NE(scope_counter_.size(), 0);
+  CHECK_NE(scope_multi_line_.size(), 0U);
+  CHECK_NE(scope_counter_.size(), 0U);
   bool newline = scope_multi_line_.back();
   size_t nelem = scope_counter_.back();
   scope_multi_line_.pop_back();
@@ -842,7 +842,7 @@ inline void JSONObjectReadHelper::ReadAllFields(JSONReader *reader) {
     for (std::map<std::string, Entry>::iterator
              it = map_.begin(); it != map_.end(); ++it) {
       if (it->second.optional) continue;
-      CHECK_NE(visited.count(it->first), 0)
+      CHECK_NE(visited.count(it->first), 0U)
           << "JSONReader: Missing field \"" << it->first << "\"\n At "
           << reader->line_info();
     }
@@ -857,7 +857,7 @@ inline void JSONObjectReadHelper::ReaderFunction(JSONReader *reader, void *addr)
 template<typename T>
 inline void JSONObjectReadHelper::
 DeclareFieldInternal(const std::string &key, T *addr, bool optional) {
-  CHECK_EQ(map_.count(key), 0)
+  CHECK_EQ(map_.count(key), 0U)
       << "Adding duplicate field " << key;
   Entry e;
   e.func = ReaderFunction<T>;

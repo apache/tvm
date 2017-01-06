@@ -15,11 +15,11 @@ namespace {
 // simply logic to place device according to device_group hint
 // insert copy node when there is
 Graph PlaceDevice(Graph src) {
-  CHECK_NE(src.attrs.count("device_group_attr_key"), 0)
+  CHECK(src.attrs.count("device_group_attr_key"))
       << "Need graph attribute \"device_group_attr_key\" in PlaceDevice";
-  CHECK_NE(src.attrs.count("device_assign_map"), 0)
+  CHECK(src.attrs.count("device_assign_map"))
       << "Need graph attribute \"device_assign_map\" in PlaceDevice";
-  CHECK_NE(src.attrs.count("device_copy_op"), 0)
+  CHECK(src.attrs.count("device_copy_op"))
       << "Need graph attribute \"device_copy_op\" in PlaceDevice";
   std::string device_group_attr_key = src.GetAttr<std::string>("device_group_attr_key");
   const Op* copy_op = Op::Get(src.GetAttr<std::string>("device_copy_op"));

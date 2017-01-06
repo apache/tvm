@@ -46,11 +46,11 @@ Graph Gradient(Graph src) {
   using MirrorFun = std::function<int (const Node& node)>;
   using AttrHintFun = std::function<NodeEntry (const NodeEntry& src, const NodeEntry &like)>;
 
-  CHECK_NE(src.attrs.count("grad_ys"), 0)
+  CHECK_NE(src.attrs.count("grad_ys"), 0U)
       << "Gradient require grad_ys to be presented.";
-  CHECK_NE(src.attrs.count("grad_ys_out_grad"), 0)
+  CHECK_NE(src.attrs.count("grad_ys_out_grad"), 0U)
       << "Gradient require grad_ys_out_grad to be presented.";
-  CHECK_NE(src.attrs.count("grad_xs"), 0)
+  CHECK_NE(src.attrs.count("grad_xs"), 0U)
       << "Gradient require grad_xs to be presented.";
   const std::vector<NodeEntry>& ys =
       src.GetAttr<std::vector<NodeEntry> >("grad_ys");

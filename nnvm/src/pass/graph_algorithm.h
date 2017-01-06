@@ -75,7 +75,7 @@ inline uint32_t ColorNodeGroup(
     std::vector<uint32_t> node_importance,
     uint32_t max_ncolor,
     std::vector<uint32_t> *color) {
-  CHECK_NE(max_ncolor, 0);
+  CHECK_NE(max_ncolor, 0U);
   CHECK_EQ(graph.num_nodes(), node_importance.size());
 
   color->clear();
