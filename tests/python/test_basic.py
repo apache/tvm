@@ -30,7 +30,15 @@ def test_attr():
     stmt = tvm.make.AttrStmt(
         y, "stride", 10, tvm.make.Evaluate(x + 1));
     assert stmt.node == y
-    print(stmt)
+
+    a = tvm.convert(1)
+    assert a.value == 1
+    try:
+        a.no_field
+        assert False
+    except AttributeError:
+        pass
+
 
 def test_basic():
     a = tvm.Var('a')
@@ -48,7 +56,6 @@ def test_stmt():
 
 if __name__ == "__main__":
     test_attr()
-
     test_const()
     test_make()
     test_ir()
