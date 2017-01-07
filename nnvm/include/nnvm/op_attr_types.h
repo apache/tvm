@@ -142,6 +142,18 @@ using FGradient = std::function<std::vector<NodeEntry>(
     const NodePtr& nodeptr,
     const std::vector<NodeEntry>& out_grads)>;
 
+/*!
+ * \brief Set the attributes of input variable.
+ *  Usually used for setting initialization or weight decay.
+ *  \param attrs The attributes of this node.
+ *  \param var the input variable
+ *  \param index index of var in all inputs
+ */
+using FSetInputVarAttrOnCompose = std::function<void(
+    const NodeAttrs& attrs,
+    NodePtr var,
+    const int index)>;
+
 }  // namespace nnvm
 
 #endif  // NNVM_OP_ATTR_TYPES_H_
