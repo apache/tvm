@@ -387,6 +387,11 @@ class TShape : public Tuple<index_t> {
   }
 #ifdef MSHADOW_XINLINE
   template<int dim>
+  inline TShape(const mshadow::Shape<dim> &s) {// NOLINT(*)
+    this->assign(s.shape_, s.shape_ + dim);
+  }
+
+  template<int dim>
   inline TShape(mshadow::Shape<dim> &&s) {// NOLINT(*)
     this->assign(s.shape_, s.shape_ + dim);
   }
