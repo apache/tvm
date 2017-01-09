@@ -220,23 +220,25 @@ void PassUp(const SplitNode* s,
     *parent = IntSet::make_range(dom_map.at(s->parent));
     return;
   }
+  Expr factor = dom_map.at(s->outer)->extent;
   CHECK(outer.defined());
   CHECK(inner.defined());
+  CHECK(factor.defined());
   // copy construct
   auto n = std::make_shared<IntSetNode>(*(inner.operator->()));
 
   if (IsNumber(outer)) {
     // shift the base offset
     n->base = Range::make_with_min_extent(
-        AsNumber(outer) * s->factor + inner->base->min,
+        AsNumber(outer) * factor + inner->base->min,
         inner->base->extent);
   } else {
     // default use all domains in the data.
     n->domain.push_back(outer->base);
-    n->stride.push_back(s->factor);
+    n->stride.push_back(factor);
     for (size_t i = 0; i < outer->domain.size(); ++i) {
       n->domain.push_back(outer->domain[i]);
-      n->stride.push_back(outer->stride[i] * s->factor);
+      n->stride.push_back(outer->stride[i] * factor);
     }
   }
   *parent = IntSet(n);

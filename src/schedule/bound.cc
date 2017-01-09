@@ -101,7 +101,11 @@ void PassToOperation(
     const Tensor& tensor,
     const std::vector<IntSet>& dim_bounds,
     std::unordered_map<IterVar, std::vector<IntSet> >* result) {
-
+  // This is a push style operation, given output bound, push to the op IterVar bound.
+  // It cannot handle complicated cases where op bound is coupled with bounds of
+  // all of its outputs, without having a simple communicative union relation.
+  //
+  // Eventually, we need to change the inference to be a Pull style inference
   if (tensor->op.as<ComputeOpNode>()) {
     auto root_iter_vars = tensor->op->root_iter_vars();
     CHECK_EQ(tensor.ndim(), root_iter_vars.size());

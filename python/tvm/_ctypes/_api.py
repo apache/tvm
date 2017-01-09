@@ -29,9 +29,12 @@ kNodeHandle = 4
 def _type_key(handle):
     ret_val = ArgVariant()
     ret_typeid = ctypes.c_int()
+    ret_success = ctypes.c_int()
     check_call(_LIB.TVMNodeGetAttr(
         handle, c_str("type_key"),
-        ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
+        ctypes.byref(ret_val),
+        ctypes.byref(ret_typeid),
+        ctypes.byref(ret_success)))
     return py_str(ret_val.v_str)
 
 NODE_TYPE = {

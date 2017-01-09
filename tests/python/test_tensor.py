@@ -11,6 +11,12 @@ def test_tensor():
     print(T.op.body)
     assert(tuple(T.shape) == (m, n, l))
     assert(A.op is None)
+    assert(A == A)
+    assert(T.op.output(0) == T)
+    assert(T.op.output(0).__hash__() == T.__hash__())
+    d = {T.op.output(0) : 1}
+    assert(d[T] == 1)
+
 
 def test_tensor_reduce():
     m = tvm.Var('m')
@@ -21,7 +27,6 @@ def test_tensor_reduce():
     T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
     rv = tvm.IterVar((0, A.shape[1]), name="k")
     C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), rdom=rv))
-
     print(C.op.body)
 
 if __name__ == "__main__":

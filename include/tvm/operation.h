@@ -86,4 +86,17 @@ inline Tensor Compute(Array<Expr> shape,
 
 }  // namespace tvm
 
+
+namespace std {
+template <>
+struct hash<::tvm::Tensor> {
+  std::size_t operator()(const ::tvm::Tensor& k) const {
+    if (k.defined() && k->op.defined()) {
+      return k->op.hash();
+    } else{
+      return k.hash();
+    }
+  }
+};
+}  // namespace std
 #endif  // TVM_OPERATION_H_

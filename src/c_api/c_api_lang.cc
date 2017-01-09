@@ -149,11 +149,28 @@ TVM_REGISTER_API(_Tensor)
                             args.at(4));
   });
 
+TVM_REGISTER_API(_TensorEqual)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = args.at(0).operator Tensor() == args.at(1).operator Tensor();
+  });
+
+TVM_REGISTER_API(_TensorHash)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = static_cast<int64_t>(
+        std::hash<Tensor>()(args.at(0).operator Tensor()));
+  });
+
 TVM_REGISTER_API(_ComputeOp)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = ComputeOpNode::make(args.at(0),
                                args.at(1),
                                args.at(2));
+  });
+
+TVM_REGISTER_API(_OpGetOutput)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = args.at(0).operator Operation().output(
+        args.at(1).operator size_t());
   });
 
 

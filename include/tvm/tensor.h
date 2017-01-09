@@ -47,6 +47,12 @@ class Tensor : public FunctionRef {
    * \return the pointer to the internal node container
    */
   inline const TensorNode* operator->() const;
+  /*!
+   * \brief check if two tensors equals each other.
+   * \param other tensor to be checked.
+   * \return whether the two tensors equals each other.
+   */
+  inline bool operator==(const Tensor& other) const;
   /*! \return The dimension of the tensor */
   inline size_t ndim() const;
   /*!
@@ -199,6 +205,17 @@ inline const TensorNode* Tensor::operator->() const {
 
 inline size_t Tensor::ndim() const {
   return (*this)->shape.size();
+}
+
+inline bool Tensor::operator==(const Tensor& other) const {
+  if (get() == other.get()) return true;
+  if (get() == nullptr || other.get() == nullptr) return false;
+  if ((*this)->op.defined() || other->op.defined()) {
+    return (*this)->op == other->op &&
+        (*this)->value_index == other->value_index;
+  } else {
+    return false;
+  }
 }
 
 // macro to turn every operation of slice to expression
