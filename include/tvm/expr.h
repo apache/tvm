@@ -17,6 +17,7 @@ namespace tvm {
 
 using Halide::Type;
 using Halide::Float;
+using Halide::Bool;
 using Halide::Int;
 using Halide::UInt;
 using Halide::Handle;
@@ -28,6 +29,8 @@ using Halide::IR::FunctionBaseNode;
 using Halide::Internal::Stmt;
 using Halide::Internal::IRPrinter;
 using Halide::Internal::Variable;
+
+using Halide::Internal::make_const;
 
 /*! \brief a named variable in TVM */
 class Var : public Halide::VarExpr {

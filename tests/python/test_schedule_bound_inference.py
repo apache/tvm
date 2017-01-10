@@ -65,7 +65,7 @@ def test_create_read_graph():
 
 
 if __name__ == "__main__":
+    test_create_read_graph()
     test_bound3()
     test_bound1()
     test_bound2()
-    test_create_read_graph()

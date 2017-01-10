@@ -22,6 +22,7 @@ class IRInline : public IRMutator {
     expr = IRMutator::Mutate(expr);
     const Call* call = expr.as<Call>();
     if (call != nullptr && call->func == f_) {
+      CHECK_EQ(call->value_index, 0);
       return InlineCall(call);
     } else {
       return expr;
@@ -55,6 +56,8 @@ Stmt Inline(FunctionRef f,
             Array<Var> args,
             Expr body,
             Stmt stmt) {
+  CHECK_EQ(f->num_outputs(), 1)
+      << "can only inline output single value operation";
   return ConvertSSA(IRInline(f, args, body).Mutate(stmt));
 }
 }  // namespace ir

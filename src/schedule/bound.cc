@@ -5,8 +5,8 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/schedule_pass.h>
 #include "./int_set.h"
-#include "./bound.h"
 #include "./graph.h"
 
 namespace tvm {
@@ -113,7 +113,7 @@ void PassToOperation(
       (*result)[root_iter_vars[i]].push_back(dim_bounds[i]);
     }
   } else {
-    LOG(FATAL) << "unknown operation mode";
+    LOG(FATAL) << "unknown operation mode " << tensor->op->type_key();
   }
 }
 
@@ -140,8 +140,8 @@ BoundProp(const Array<Operation>& post_order,
       auto fvisit = [p_state, &result](const NodeRef& n) {
         auto *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
-          Tensor t(call->func.node_);
-          if (t->op.defined()) {
+          Tensor t = Operation(call->func.node_).output(call->value_index);
+          if (t->op.defined() && !t->op.as<PlaceholderOpNode>()) {
             std::vector<IntSet> arg_bounds;
             for (size_t i = 0; i < t.ndim(); ++i) {
               arg_bounds.push_back(EvalSet(call->args[i], result));

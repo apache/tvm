@@ -18,6 +18,16 @@
 namespace tvm {
 namespace ir {
 
+
+/*!
+ * \brief Schedule s' dependent operations.
+ *
+ * \param s The schedule to be realized
+ * \param dom_map The domain of each iter vars.
+ * \return the result Stmt
+ */
+Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
+
 /*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each VarExpr is defined and assigned once(in Let/For)
@@ -50,14 +60,6 @@ Stmt Inline(FunctionRef f,
             Array<Var> args,
             Expr body,
             Stmt stmt);
-
-/*!
- * \brief Schedule s' dependent operations.
- *
- * \param s The schedule to be realized
- * \return the result Stmt
- */
-Stmt ScheduelOps(Schedule s);
 
 }  // namespace ir
 }  // namespace tvm

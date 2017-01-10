@@ -254,11 +254,11 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
   })
 .set_dispatch<Provide>([](const Provide *op, const Stmt& s, IRMutator* m) {
     auto new_args = MutateArray(op->args, m);
-    auto new_values = MutateArray(op->values, m);
-    if (op->args.same_as(new_args) && op->values.same_as(new_values)) {
+    auto new_value = m->Mutate(op->value);
+    if (op->args.same_as(new_args) && op->value.same_as(new_value)) {
       return s;
     } else {
-      return Provide::make(op->func, new_values, new_args);
+      return Provide::make(op->func, op->value_index, new_value, new_args);
     }
   })
 .set_dispatch<Allocate>([](const Allocate *op, const Stmt& s, IRMutator* m) {
@@ -312,7 +312,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
         condition.same_as(op->condition)) {
       return s;
     } else {
-      return Realize::make(op->func, op->types, new_bounds,
+      return Realize::make(op->func, op->value_index,
+                           op->type, new_bounds,
                            condition, body);
     }
   })
@@ -329,7 +330,10 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 .set_dispatch<IfThenElse>([](const IfThenElse *op, const Stmt& s, IRMutator* m) {
     Expr condition = m->Mutate(op->condition);
     Stmt then_case = m->Mutate(op->then_case);
-    Stmt else_case = m->Mutate(op->else_case);
+    Stmt else_case;
+    if (else_case.defined()) {
+      else_case = m->Mutate(op->else_case);
+    }
     if (condition.same_as(op->condition) &&
         then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {

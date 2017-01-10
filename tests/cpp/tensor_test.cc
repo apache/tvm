@@ -5,8 +5,9 @@
 TEST(Tensor, Basic) {
   using namespace tvm;
   Var m("m"), n("n"), l("l");
-  Tensor A({m, l}, "A");
-  Tensor B({n, l}, "B");
+
+  Tensor A = Placeholder({m, l}, Float(32), "A");
+  Tensor B = Placeholder({n, l}, Float(32), "B");
 
   auto C = Compute({m, n}, [&](Var i, Var j) {
       return A[i][j];
@@ -19,8 +20,8 @@ TEST(Tensor, Basic) {
 TEST(Tensor, Reduce) {
   using namespace tvm;
   Var m("m"), n("n"), l("l");
-  Tensor A({m, l}, "A");
-  Tensor B({n, l}, "B");
+  Tensor A = Placeholder({m, l}, Float(32), "A");
+  Tensor B = Placeholder({n, l}, Float(32), "B");
   IterVar rv(Range{0, l}, "k");
 
   auto C = Compute({m, n}, [&](Var i, Var j) {

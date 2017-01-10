@@ -6,8 +6,8 @@
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
 #include <tvm/schedule.h>
+#include <tvm/schedule_pass.h>
 #include "./c_api_registry.h"
-#include "../schedule/bound.h"
 #include "../schedule/graph.h"
 
 namespace tvm {

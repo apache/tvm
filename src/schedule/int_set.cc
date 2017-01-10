@@ -220,7 +220,7 @@ void PassUp(const SplitNode* s,
     *parent = IntSet::make_range(dom_map.at(s->parent));
     return;
   }
-  Expr factor = dom_map.at(s->outer)->extent;
+  Expr factor = dom_map.at(s->inner)->extent;
   CHECK(outer.defined());
   CHECK(inner.defined());
   CHECK(factor.defined());
@@ -261,7 +261,7 @@ void PassUp(const FuseNode* s,
 
   if (IsNumber(fused)) {
     Expr value = AsNumber(fused);
-    Expr factor = dom_map.at(s->outer)->extent;
+    Expr factor = dom_map.at(s->inner)->extent;
     *outer = IntSet::make_point(value / factor);
     *inner = IntSet::make_point(value % factor);
   } else {
