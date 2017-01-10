@@ -23,9 +23,9 @@ matrix:
 
 # dependent apt packages
 addons:
-  sources:
-      - ubuntu-toolchain-r-test
   apt:
+    sources:
+      - ubuntu-toolchain-r-test
     packages:
       - doxygen
       - wget
