@@ -233,6 +233,15 @@ class Tuple {
         return is;
     }
     }
+    // Handle empty tuple
+    while (isspace(is.peek())) {
+      is.get();
+    }
+    if (is.peek() == ')') {
+      is.get();
+      return is;
+    }
+    // Handle non-empty tuple
     ValueType idx;
     std::vector<ValueType> tmp;
     while (is >> idx) {
