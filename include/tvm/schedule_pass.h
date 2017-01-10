@@ -1,14 +1,17 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file bound.h
- * \brief The bound inference logics on the schedule.
+ * \file schedule_pass.h
+ * \brief  Collection of Schedule pass functions.
+ *
+ *  These passes works on the schedule hyper-graph
+ *  and infers information such as bounds, check conditions
+ *  read/write dependencies between the IterVar
  */
-#ifndef TVM_SCHEDULE_BOUND_H_
-#define TVM_SCHEDULE_BOUND_H_
+#ifndef TVM_SCHEDULE_PASS_H_
+#define TVM_SCHEDULE_PASS_H_
 
-#include <tvm/expr.h>
-#include <tvm/schedule.h>
-#include <unordered_map>
+#include "./base.h"
+#include "./schedule.h"
 
 namespace tvm {
 namespace schedule {
@@ -23,5 +26,4 @@ Map<IterVar, Range> InferBound(Schedule sch);
 
 }  // namespace schedule
 }  // namespace tvm
-
-#endif  // TVM_SCHEDULE_BOUND_H_
+#endif  // TVM_SCHEDULE_PASS_H_

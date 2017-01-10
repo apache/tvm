@@ -157,7 +157,7 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
   })
 .set_dispatch<Provide>([](const Provide *op, IRVisitor* v) {
     VisitArray(op->args, v);
-    VisitArray(op->values, v);
+    v->Visit(op->value);
   })
 .set_dispatch<Allocate>([](const Allocate *op, IRVisitor* v) {
     for (size_t i = 0; i < op->extents.size(); i++) {

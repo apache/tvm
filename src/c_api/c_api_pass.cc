@@ -7,7 +7,6 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include "./c_api_registry.h"
-#include "../schedule/bound.h"
 
 namespace tvm {
 namespace ir {
@@ -36,6 +35,7 @@ using RetValue = APIVariantValue;
 REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
 REGISTER_PASS4(Inline);
+REGISTER_PASS2(ScheduleOps);
 
 }  // namespace ir
 }  // namespace tvm

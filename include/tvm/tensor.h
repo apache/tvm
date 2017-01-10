@@ -28,20 +28,11 @@ using Halide::IR::FunctionRef;
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public FunctionRef {
+class Tensor : public NodeRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
-  explicit Tensor(std::shared_ptr<Node> n) : FunctionRef(n) {}
-  /*!
-   * \brief constructor of input tensor
-   * \param shape Shape of the tensor.
-   * \param name optional name of the Tensor.
-   * \param dtype The data type of the input tensor.
-   */
-  explicit Tensor(Array<Expr> shape,
-                  std::string name = "tensor",
-                  Type dtype = Float(32));
+  explicit Tensor(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -116,11 +107,11 @@ class Tensor : public FunctionRef {
 };
 
 /*! \brief Operation that produces tensors */
-class Operation : public NodeRef {
+class Operation : public FunctionRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Operation(std::shared_ptr<Node> n) : FunctionRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -137,12 +128,10 @@ class Operation : public NodeRef {
 };
 
 /*! \brief Node to represent a tensor */
-class TensorNode : public FunctionBaseNode {
+class TensorNode : public Node {
  public:
   /*! \brief The shape of the tensor */
   Array<Expr> shape;
-  /*! \brief optional name of the tensor */
-  std::string name;
   /*! \brief data type in the content of the tensor */
   Type dtype;
   /*! \brief the source operation, can be None */
@@ -154,19 +143,11 @@ class TensorNode : public FunctionBaseNode {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("shape", &shape);
-    v->Visit("name", &name);
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
     v->Visit("value_index", &value_index);
   }
-  const std::string& func_name() const final {
-    return name;
-  }
-  int outputs() const final {
-    return 1;
-  }
   static Tensor make(Array<Expr> shape,
-                     std::string name,
                      Type dtype,
                      Operation op,
                      int value_index);
@@ -178,16 +159,18 @@ class TensorNode : public FunctionBaseNode {
 /*!
  * \brief base class of operation node.
  */
-class OperationNode : public Node {
+class OperationNode : public FunctionBaseNode {
  public:
   /*! \brief optional name of the operation */
   std::string name;
+  /*! \return name of the operation */
+  const std::string& func_name() const final {
+    return name;
+  }
+  /*! \return number of outputs of this op */
+  virtual int num_outputs() const = 0;
   /*! \return the list of iteration variable at root */
   virtual Array<IterVar> root_iter_vars() const = 0;
-  /*! \return number of outputs of this op */
-  virtual size_t num_outputs() const = 0;
-  /*! \return name of i-th output */
-  virtual std::string output_name(size_t i) const = 0;
   /*! \return type of i-th output */
   virtual Type output_dtype(size_t i) const = 0;
   /*! \return shape of i-th output */

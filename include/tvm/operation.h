@@ -13,6 +13,36 @@
 namespace tvm {
 
 /*!
+ * \brief A placeholder op represents an input placeholder.
+ */
+class PlaceholderOpNode : public OperationNode {
+ public:
+  /*! \brief The shape of the input */
+  Array<Expr> shape;
+  /*! \brief The data type of the input. */
+  Type dtype;
+
+  int num_outputs() const final {
+    return 1;
+  }
+  Array<IterVar> root_iter_vars() const final;
+  Type output_dtype(size_t i) const final;
+  Array<Expr> output_shape(size_t i) const final;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("shape", &shape);
+    v->Visit("dtype", &dtype);
+  }
+  static Operation make(std::string name,
+                        Array<Expr> shape,
+                        Type dtype);
+
+  static constexpr const char* _type_key = "PlaceholderOp";
+  TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode);
+};
+
+/*!
  * \brief A Compute op that compute a tensor on certain domain.
  */
 class ComputeOpNode : public OperationNode {
@@ -24,11 +54,10 @@ class ComputeOpNode : public OperationNode {
   /*! \brief constructor */
   ComputeOpNode() {}
 
-  size_t num_outputs() const final {
+  int num_outputs() const final {
     return 1;
   }
   Array<IterVar> root_iter_vars() const final;
-  std::string output_name(size_t i) const final;
   Type output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
 
@@ -48,6 +77,16 @@ class ComputeOpNode : public OperationNode {
 
 /*! \brief The compute function to specify the input source of a Tensor */
 using FCompute = std::function<Expr (const Array<Var>& i)>;
+
+/*!
+ * \brief create a place holder tensor.
+ * \param shape The shape of the tensor.
+ * \param dtype the data type of the tensor.
+ * \param name The name of the Tensor.
+ */
+Tensor Placeholder(Array<Expr> shape,
+                   Type dtype = Float(32),
+                   std::string name = "placeholder");
 
 /*!
  * \brief Construct a new tensor by computing over shape,

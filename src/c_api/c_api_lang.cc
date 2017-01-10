@@ -143,7 +143,6 @@ TVM_REGISTER_API(Range)
 TVM_REGISTER_API(_Tensor)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = TensorNode::make(args.at(0),
-                            args.at(1),
                             args.at(2),
                             args.at(3),
                             args.at(4));
@@ -158,6 +157,13 @@ TVM_REGISTER_API(_TensorHash)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = static_cast<int64_t>(
         std::hash<Tensor>()(args.at(0).operator Tensor()));
+  });
+
+TVM_REGISTER_API(_Placeholder)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = Placeholder(args.at(0),
+                       args.at(1),
+                       args.at(2));
   });
 
 TVM_REGISTER_API(_ComputeOp)

@@ -36,7 +36,7 @@ class Scope {
    */
   inline void Pop(const K& key) {
     auto& v = data_[key];
-    CHECK_NE(v.size(), 0);
+    CHECK_NE(v.size(), 0U);
     v.pop_back();
   }
 

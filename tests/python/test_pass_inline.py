@@ -6,7 +6,7 @@ def test_inline():
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.make.Evaluate(T[10] + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
-        T, [x.var for x in T.op.axis], T.op.body, stmt)
+        T.op, [x.var for x in T.op.axis], T.op.body, stmt)
     print(stmt)
     assert(tvm.ir_pass.VerifySSA(stmt))
 
@@ -14,7 +14,7 @@ def test_inline():
         # pass in int array(wrong argument type)
         # must raise an error
         stmt = tvm.ir_pass.Inline(
-            T, [1,2,3], T.op.body, stmt)
+            T.op, [1,2,3], T.op.body, stmt)
         assert False
     except tvm.TVMError:
         pass

@@ -27,18 +27,20 @@ ReadGraph CreateReadGraph(const Operation& root) {
       auto fvisit = [&deps, &visited, &stack](const NodeRef& n) {
         auto *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
-          Tensor t(call->func.node_);
-          deps.push_back(t);
-          if (t->op.defined() && visited.count(t->op.get()) == 0) {
-            visited.insert(t->op.get());
-            stack.push_back(t->op);
+          Operation call_op(call->func.node_);
+          deps.push_back(call_op.output(call->value_index));
+          if (call_op.defined() && visited.count(call_op.get()) == 0) {
+            visited.insert(call_op.get());
+            stack.push_back(call_op);
           }
         }
       };
       ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
       rmap.Set(op, deps);
     } else {
-      LOG(FATAL) << "unknown operation mode";
+      if (!op.as<PlaceholderOpNode>()) {
+        LOG(FATAL) << "unknown Operation" << op->type_key();
+      }
     }
   }
   return rmap;
@@ -51,7 +53,7 @@ void PostDFSOrder(const Operation& op,
                   Array<Operation>* post_order) {
   visited->insert(op);
   for (const auto& t : g.at(op)) {
-    if (t->op.defined() && !visited->count(t->op)) {
+    if (!t->op.as<PlaceholderOpNode>() && !visited->count(t->op)) {
       PostDFSOrder(t->op, g, visited, post_order);
     }
   }

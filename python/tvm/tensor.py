@@ -34,7 +34,9 @@ class Tensor(NodeBase):
             else:
                 raise ValueError("The indices must be expression")
 
-        return _make.Call(self.dtype, self.name, args, _expr.Call.Halide, self, 0)
+        return _make.Call(self.dtype, self.op.name,
+                          args, _expr.Call.Halide,
+                          self.op, self.value_index)
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)
@@ -70,4 +72,8 @@ class Operation(NodeBase):
 
 @register_node
 class ComputeOp(Operation):
+    pass
+
+@register_node
+class PlaceholderOp(Operation):
     pass

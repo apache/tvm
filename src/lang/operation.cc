@@ -9,10 +9,72 @@
 
 namespace tvm {
 
+Tensor Operation::output(size_t i) const {
+  auto node = std::make_shared<TensorNode>();
+  node->op = *this;
+  node->value_index = 0;
+  node->dtype = (*this)->output_dtype(i);
+  node->shape = (*this)->output_shape(i);
+  return Tensor(node);
+}
+
+// PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ComputeOpNode>([](const ComputeOpNode *op, IRPrinter *p) {
-    p->stream << "op(" << op << ")";
+.set_dispatch<PlaceholderOpNode>([](const PlaceholderOpNode *op, IRPrinter *p) {
+    p->stream << "placeholder(" << op->name << ", " << op << ")";
 });
+
+TVM_REGISTER_NODE_TYPE(PlaceholderOpNode);
+
+Array<IterVar> PlaceholderOpNode::root_iter_vars() const {
+  return {};
+}
+
+Type PlaceholderOpNode::output_dtype(size_t i) const {
+  CHECK_EQ(i, 0U);
+  return dtype;
+}
+
+Array<Expr> PlaceholderOpNode::output_shape(size_t i) const {
+  CHECK_EQ(i, 0U);
+  return shape;
+}
+
+Operation PlaceholderOpNode::make(std::string name,
+                                  Array<Expr> shape,
+                                  Type dtype) {
+  auto n = std::make_shared<PlaceholderOpNode>();
+  n->name = name;
+  n->shape = shape;
+  n->dtype = dtype;
+  return Operation(n);
+}
+
+
+
+Tensor Placeholder(Array<Expr> shape, Type dtype, std::string name) {
+  return PlaceholderOpNode::make(name, shape, dtype).output(0);
+}
+
+// ComputeOpNode
+Array<IterVar> ComputeOpNode::root_iter_vars() const {
+  return axis;
+}
+
+Type ComputeOpNode::output_dtype(size_t i) const {
+  CHECK_EQ(i, 0U);
+  return body.type();
+}
+
+Array<Expr> ComputeOpNode::output_shape(size_t i) const {
+  CHECK_EQ(i, 0U);
+  std::vector<Expr> shape;
+  for (size_t i = 0; i < axis.size(); ++i) {
+    const Range& r = axis[i]->dom;
+    shape.push_back(r->extent);
+  }
+  return Array<Expr>(shape);
+}
 
 Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   auto op_node = std::make_shared<ComputeOpNode>();
@@ -43,39 +105,10 @@ Operation ComputeOpNode::make(std::string name,
   return Operation(n);
 }
 
-Tensor Operation::output(size_t i) const {
-  auto node = std::make_shared<TensorNode>();
-  node->op = *this;
-  node->value_index = 0;
-  node->name =  (*this)->output_name(i);
-  node->dtype = (*this)->output_dtype(i);
-  node->shape = (*this)->output_shape(i);
-  return Tensor(node);
-}
-
-Array<IterVar> ComputeOpNode::root_iter_vars() const {
-  return axis;
-}
-
-std::string ComputeOpNode::output_name(size_t i) const {
-  CHECK_EQ(i, 0U);
-  return name;
-}
-
-Type ComputeOpNode::output_dtype(size_t i) const {
-  CHECK_EQ(i, 0U);
-  return body.type();
-}
-
-Array<Expr> ComputeOpNode::output_shape(size_t i) const {
-  CHECK_EQ(i, 0U);
-  std::vector<Expr> shape;
-  for (size_t i = 0; i < axis.size(); ++i) {
-    const Range& r = axis[i]->dom;
-    shape.push_back(r->extent);
-  }
-  return Array<Expr>(shape);
-}
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<ComputeOpNode>([](const ComputeOpNode *op, IRPrinter *p) {
+    p->stream << "compute(" << op->name << ", " << op << ")";
+});
 
 TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 

@@ -10,7 +10,7 @@ def test_tensor():
     print(T)
     print(T.op.body)
     assert(tuple(T.shape) == (m, n, l))
-    assert(A.op is None)
+    assert(isinstance(A.op, tvm.tensor.PlaceholderOp))
     assert(A == A)
     assert(T.op.output(0) == T)
     assert(T.op.output(0).__hash__() == T.__hash__())

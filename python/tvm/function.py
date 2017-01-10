@@ -33,7 +33,7 @@ def Var(name="tindex", dtype=int32):
     return _function_internal._Var(name, dtype)
 
 
-def placeholder(shape, dtype = None, name="TensorObj"):
+def placeholder(shape, dtype = None, name="placeholder"):
     """Construct an empty tensor object.
 
     Parameters
@@ -53,11 +53,11 @@ def placeholder(shape, dtype = None, name="TensorObj"):
         The created tensor
     """
     dtype = float32 if dtype is None else dtype
-    return _function_internal._Tensor(
-        shape, name, dtype, None, 0)
+    return _function_internal._Placeholder(
+        shape, dtype, name)
 
 
-def compute(shape, fcompute, name="TensorCompute"):
+def compute(shape, fcompute, name="compute"):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
