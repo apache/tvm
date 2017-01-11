@@ -24,14 +24,14 @@ using ReadGraph = Map<Operation, Array<Tensor> >;
  *  Tensors that it directly depends on.
  *
  *  The result map contains Operations needed to finish root Operation.
- * \param root The root operation.
+ * \param roots The root operation.
  * \return The result map.
  */
-ReadGraph CreateReadGraph(const Operation& root);
+ReadGraph CreateReadGraph(const Array<Operation>& roots);
 
 /*!
  * \brief Get a post DFS ordered of operations in the graph.
- * \param root The root of the graph.
+ * \param roots The root of the graph.
  * \param g The read graph.
  * \return vector order of Operations in PostDFS order.
  *
@@ -39,7 +39,7 @@ ReadGraph CreateReadGraph(const Operation& root);
  *   and can be used when topoligical order is needed.
  */
 Array<Operation> PostDFSOrder(
-    const Operation& root, const ReadGraph& g);
+    const Array<Operation>& roots, const ReadGraph& g);
 
 }  // namespace schedule
 }  // namespace tvm

@@ -3,6 +3,7 @@
  * \file schedule.cc
  */
 #include <tvm/schedule.h>
+#include "./graph.h"
 
 namespace tvm {
 
@@ -31,7 +32,7 @@ size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) 
   return 0;
 }
 
-void Split(ScheduleNode* self, IterVar parent,
+void Split(StageNode* self, IterVar parent,
            IterVar outer, IterVar inner, Expr factor) {
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -49,19 +50,30 @@ void Split(ScheduleNode* self, IterVar parent,
 
 }  // namespace
 
-Schedule::Schedule(Operation op, std::string scope) {
-  auto n = std::make_shared<ScheduleNode>();
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<StageNode>([](const StageNode *op, IRPrinter *p) {
+  p->stream << "stage("
+            << op->op
+            << ")";
+});
+
+Stage::Stage(Operation op) {
+  auto n = std::make_shared<StageNode>();
   n->op = op;
-  n->scope = scope;
   n->all_iter_vars = op->root_iter_vars();
   n->leaf_iter_vars = op->root_iter_vars();
   node_ = n;
 }
 
-Schedule& Schedule::compute_at(Schedule parent, IterVar scope) {   // NOLINT(*)
-  CHECK_EQ((*this)->attach_type, kNone);
+Stage& Stage::set_scope(std::string scope) {  // NOLINT(*)
+  (*this)->scope = scope;
+  return *this;
+}
+
+Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
   (*this)->attach_type = kScope;
-  (*this)->attach_parent = scope;
+  (*this)->attach_ivar = scope;
+  (*this)->attach_stage = parent;
   bool found = false;
   for (size_t i = 0; i < parent->leaf_iter_vars.size(); ++i) {
     if (scope == parent->leaf_iter_vars[i]) {
@@ -70,25 +82,20 @@ Schedule& Schedule::compute_at(Schedule parent, IterVar scope) {   // NOLINT(*)
   }
   CHECK(found)
       << "Cannot compute at a iteration variable that is not part of parent leaf vars";
-  parent->children.push_back(*this);
   return *this;
 }
 
-Schedule& Schedule::compute_inline(Schedule parent) {   // NOLINT(*)
-  CHECK_EQ((*this)->attach_type, kNone);
+Stage& Stage::compute_inline() {   // NOLINT(*)
   (*this)->attach_type = kInline;
-  parent->children.push_back(*this);
   return *this;
 }
 
-Schedule& Schedule::compute_root(Schedule parent) {   // NOLINT(*)
-  CHECK_EQ((*this)->attach_type, kNone);
+Stage& Stage::compute_root() {   // NOLINT(*)
   (*this)->attach_type = kRoot;
-  parent->children.push_back(*this);
   return *this;
 }
 
-Schedule& Schedule::split(
+Stage& Stage::split(
     IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor) {  // NOLINT(*)
   // place holder for the splitted results.
   IterVar outer(Range(), parent->var->name_hint + ".outer");
@@ -99,7 +106,7 @@ Schedule& Schedule::split(
   return *this;
 }
 
-Schedule& Schedule::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor) { // NOLINT(*)
+Stage& Stage::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor) { // NOLINT(*)
   // place holder for the splitted results.
   IterVar inner(Range(), parent->var->name_hint + ".inner");
   *p_inner = inner;
@@ -108,9 +115,9 @@ Schedule& Schedule::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr 
   return *this;
 }
 
-Schedule& Schedule::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
+Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
   IterVar fused(Range(), outer->var->name_hint + "." + inner->var->name_hint + ".fused");
-  ScheduleNode* self = operator->();
+  StageNode* self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
 
@@ -128,8 +135,8 @@ Schedule& Schedule::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // 
   return *this;
 }
 
-Schedule& Schedule::reorder(const Array<IterVar>& order) {  // NOLINT(*)
-  ScheduleNode* self = operator->();
+Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
+  StageNode* self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   std::vector<size_t> pos;
@@ -148,14 +155,32 @@ Schedule& Schedule::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   return *this;
 }
 
-Schedule& Schedule::tile(IterVar x_parent, IterVar y_parent,
-                         IterVar* p_x_outer, IterVar* p_y_outer,
-                         IterVar* p_x_inner, IterVar* p_y_inner,
-                         Expr x_factor, Expr y_factor) { // NOLINT(*)
+Stage& Stage::tile(IterVar x_parent, IterVar y_parent,
+                   IterVar* p_x_outer, IterVar* p_y_outer,
+                   IterVar* p_x_inner, IterVar* p_y_inner,
+                   Expr x_factor, Expr y_factor) { // NOLINT(*)
   split(x_parent, p_x_outer, p_x_inner, x_factor);
   split(y_parent, p_y_outer, p_y_inner, y_factor);
   reorder(Array<IterVar>({*p_x_outer, *p_y_outer, *p_x_inner, *p_y_inner}));
   return *this;
+}
+
+
+Schedule::Schedule(Array<Operation> ops) {
+  auto n = std::make_shared<ScheduleNode>();
+  n->roots = ops;
+  auto g = schedule::CreateReadGraph(n->roots);
+  Array<Operation> post_order = schedule::PostDFSOrder(n->roots, g);
+  for (Operation op : post_order) {
+    Stage stage(op);
+    n->stages.push_back(stage);
+    n->stage_map.Set(op, stage);
+  }
+  node_ = std::move(n);
+}
+
+Stage Schedule::operator[](const Operation& op) {
+  return (*this)->stage_map.at(op);
 }
 
 IterVarRelation SplitNode::make(
@@ -178,7 +203,7 @@ IterVarRelation FuseNode::make(
   return IterVarRelation(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ScheduleNode);
+TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
 TVM_REGISTER_NODE_TYPE(FuseNode);
 

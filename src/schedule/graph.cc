@@ -14,10 +14,15 @@ namespace schedule {
 
 // construct a read graph that gives readers of each operation
 // that the root depend on
-ReadGraph CreateReadGraph(const Operation& root) {
+ReadGraph CreateReadGraph(const Array<Operation>& roots) {
   ReadGraph rmap;
-  std::vector<Operation> stack{root};
-  std::unordered_set<const Node*> visited{root.get()};
+  std::vector<Operation> stack;
+  std::unordered_set<const Node*> visited;
+  // initialize the roots
+  for (Operation op : roots) {
+    stack.push_back(op);
+    visited.insert(op.get());
+  }
 
   while (!stack.empty()) {
     Operation op = stack.back();
@@ -51,20 +56,22 @@ void PostDFSOrder(const Operation& op,
                   const ReadGraph& g,
                   std::unordered_set<Operation>* visited,
                   Array<Operation>* post_order) {
+  if (op.as<PlaceholderOpNode>() || visited->count(op)) return;
   visited->insert(op);
   for (const auto& t : g.at(op)) {
-    if (!t->op.as<PlaceholderOpNode>() && !visited->count(t->op)) {
-      PostDFSOrder(t->op, g, visited, post_order);
-    }
+    PostDFSOrder(t->op, g, visited, post_order);
   }
   post_order->push_back(op);
 }
 
 Array<Operation> PostDFSOrder(
-    const Operation& root, const ReadGraph& g) {
+    const Array<Operation>& roots,
+    const ReadGraph& g) {
   std::unordered_set<Operation> visited;
   Array<Operation> post_order;
-  PostDFSOrder(root, g, &visited, &post_order);
+  for (Operation op : roots) {
+    PostDFSOrder(op, g, &visited, &post_order);
+  }
   return post_order;
 }
 

@@ -176,7 +176,7 @@ TVM_REGISTER_API(_ComputeOp)
 TVM_REGISTER_API(_OpGetOutput)
 .set_body([](const ArgStack& args,  RetValue *ret) {
     *ret = args.at(0).operator Operation().output(
-        args.at(1).operator size_t());
+        args.at(1).operator int64_t());
   });
 
 
@@ -185,64 +185,69 @@ TVM_REGISTER_API(_IterVar)
     *ret = IterVar(args.at(0), args.at(1), args.at(2));
   });
 
-
 TVM_REGISTER_API(_Schedule)
-.set_body([](const ArgStack& args,  RetValue *ret) {
-    *ret = Schedule(args.at(0), args.at(1));
+.set_body([](const ArgStack& args, RetValue *ret) {
+    *ret = Schedule(args.at(0).operator Array<Operation>());
   });
 
-TVM_REGISTER_API(_ScheduleSplitByFactor)
+TVM_REGISTER_API(_StageSetScope)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    args.at(0).operator Stage()
+        .set_scope(args.at(1));
+  });
+
+TVM_REGISTER_API(_StageSplitByFactor)
 .set_body([](const ArgStack& args, RetValue *ret) {
     IterVar outer, inner;
-    args.at(0).operator Schedule()
+    args.at(0).operator Stage()
         .split(args.at(1), &outer, &inner, args.at(2));
     *ret = Array<IterVar>({outer, inner});
   });
 
-TVM_REGISTER_API(_ScheduleSplitByOuter)
+TVM_REGISTER_API(_StageSplitByOuter)
 .set_body([](const ArgStack& args, RetValue *ret) {
     IterVar inner;
-    args.at(0).operator Schedule()
+    args.at(0).operator Stage()
         .split(args.at(1), args.at(2), &inner, args.at(3));
     *ret = inner;
   });
 
-TVM_REGISTER_API(_ScheduleFuse)
+TVM_REGISTER_API(_StageFuse)
 .set_body([](const ArgStack& args, RetValue *ret) {
     IterVar fused;
-    args.at(0).operator Schedule()
+    args.at(0).operator Stage()
         .split(args.at(1), args.at(2), &fused);
     *ret = fused;
   });
 
-TVM_REGISTER_API(_ScheduleComputeAt)
+TVM_REGISTER_API(_StageComputeAt)
 .set_body([](const ArgStack& args, RetValue *ret) {
-    args.at(0).operator Schedule()
+    args.at(0).operator Stage()
         .compute_at(args.at(1), args.at(2));
   });
 
-TVM_REGISTER_API(_ScheduleComputeInline)
+TVM_REGISTER_API(_StageComputeInline)
 .set_body([](const ArgStack& args, RetValue *ret) {
-    args.at(0).operator Schedule()
-        .compute_inline(args.at(1));
+    args.at(0).operator Stage()
+        .compute_inline();
   });
 
-TVM_REGISTER_API(_ScheduleComputeRoot)
+TVM_REGISTER_API(_StageComputeRoot)
 .set_body([](const ArgStack& args, RetValue *ret) {
-    args.at(0).operator Schedule()
-        .compute_root(args.at(1));
+    args.at(0).operator Stage()
+        .compute_root();
   });
 
-TVM_REGISTER_API(_ScheduleReorder)
+TVM_REGISTER_API(_StageReorder)
 .set_body([](const ArgStack& args, RetValue *ret) {
-    args.at(0).operator Schedule()
+    args.at(0).operator Stage()
         .reorder(args.at(1));
   });
 
-TVM_REGISTER_API(_ScheduleTile)
+TVM_REGISTER_API(_StageTile)
   .set_body([](const ArgStack& args, RetValue *ret) {
     IterVar x_outer, y_outer, x_inner, y_inner;
-    args.at(0).operator Schedule()
+    args.at(0).operator Stage()
         .tile(args.at(1), args.at(2), &x_outer, &y_outer,
               &x_inner, &y_inner, args.at(3), args.at(4));
     *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
