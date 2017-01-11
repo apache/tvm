@@ -17,10 +17,10 @@ inline Expr DivCeil(Expr a, Expr b) {
   return (a + b - 1) / b;
 }
 
-// Downward message passing algorithm on schedule s,
+// Downward message passing algorithm on stage schedule s,
 // pass the range state down from the root to the leaves
-// after this pass, every IterVar in the schedule hyper graph will have a range(domain)
-void PassDown(const Schedule& s,
+// after this pass, every IterVar in the stage hyper graph will have a range(domain)
+void PassDown(const Stage& s,
               std::unordered_map<IterVar, Range>* p_state) {
   auto& state = *p_state;
   // forwar iteration on relations
@@ -63,7 +63,7 @@ void PassDown(const Schedule& s,
 // pass the integer set on each leave loop up to the root
 // dom_map is the result of PassDown, it records the domain of each IterVar.
 // dom_map can be used to get cached result in reverse construction.
-void PassUp(const ScheduleNode* s,
+void PassUp(const Stage& s,
             const std::unordered_map<IterVar, Range>& dom_map,
             std::unordered_map<IterVar, IntSet>* p_state) {
   auto& state = *p_state;
@@ -180,13 +180,11 @@ bool ScopeRelax(const IterVar& iv, const std::string& scope) {
   return scope_rank.at(scope) <= thread_tag_rank.at(iv->thread_tag);
 }
 
-void InferBound(
-    const ScheduleNode* parent,
-    const Schedule& sch,
-    std::unordered_map<IterVar, Range>* rmap) {
-  if (sch->attach_type == kInline) return;
-  if (sch->attach_type == kRoot || sch->attach_type == kNone) {
-    auto root_iter_vars = sch->op->root_iter_vars();
+void InferBound(const Stage& stage,
+                std::unordered_map<IterVar, Range>* rmap) {
+  if (stage->attach_type == kInline) return;
+  if (stage->attach_type == kRoot || stage->attach_type == kNone) {
+    auto root_iter_vars = stage->op->root_iter_vars();
     for (auto iv :  root_iter_vars) {
       CHECK(iv->dom.defined());
       CHECK(!rmap->count(iv));
@@ -194,22 +192,23 @@ void InferBound(
     }
   }
   // get range of all child iter vars.
-  PassDown(sch, rmap);
+  PassDown(stage, rmap);
 
-  if (sch->attach_type == kScope) {
-    CHECK(parent != nullptr);
-    auto g = CreateReadGraph(parent->op);
-    auto post_order = PostDFSOrder(parent->op, g);
+  if (stage->attach_type == kScope) {
+    Stage parent = stage->attach_stage;
+    CHECK(parent.defined());
+    auto g = CreateReadGraph({parent->op});
+    auto post_order = PostDFSOrder({parent->op}, g);
     std::unordered_map<IterVar, IntSet> up_state;
 
     bool fix_value = true;
     for (auto iv : parent->leaf_iter_vars) {
-      if (fix_value && !ScopeRelax(iv, sch->scope)) {
+      if (fix_value && !ScopeRelax(iv, stage->scope)) {
         up_state[iv] = IntSet::make_point(iv->var);
       } else {
         up_state[iv] = IntSet::make_range(rmap->at(iv));
       }
-      if (sch->attach_parent == iv) {
+      if (stage->attach_ivar == iv) {
         fix_value = false;
       }
     }
@@ -221,24 +220,22 @@ void InferBound(
       bp_state[iv] = {up_state.at(iv)};
     }
     auto result = BoundProp(post_order, &bp_state);
-    for (auto iv : sch->op->root_iter_vars()) {
+    for (auto iv : stage->op->root_iter_vars()) {
       CHECK(result.count(iv));
       CHECK(!rmap->count(iv));
       (*rmap)[iv] = result.at(iv).GetCoverRange();
     }
-  }
-  // also call infer bound on children
-  for (Schedule child : sch->children) {
-    InferBound(sch.operator->(), child, rmap);
   }
 }
 
 
 Map<IterVar, Range> InferBound(Schedule sch) {
   std::unordered_map<IterVar, Range> ret;
-  CHECK(sch->attach_type != kInline && sch->attach_type != kScope)
-      << "the Schedule is not a root Schedule";
-  InferBound(nullptr, sch, &ret);
+  // reverse post DFS order, from out most stage to the innermost
+  for (size_t i = sch->stages.size(); i != 0; --i) {
+    Stage stage = sch->stages[i - 1];
+    InferBound(stage, &ret);
+  }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
 

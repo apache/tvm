@@ -174,8 +174,17 @@ def max(expr, rdom):
     return x
 
 
-def Schedule(tensor, scope="global"):
-    return _function_internal._Schedule(tensor, scope)
+def Schedule(ops):
+    """Create a schedule for list of ops
+
+    Parameters
+    ----------
+    ops : list of Operations
+        The source expression.
+    """
+    if not isinstance(ops, (list, _collections.Array)):
+        ops = [ops]
+    return _function_internal._Schedule(ops)
 
 
 _init_function_module("tvm")

@@ -8,9 +8,7 @@ os:
 
 env:
   # code analysis
-  - TASK=lint
-  - TASK=cpp_test
-  - TASK=python_test
+  - TASK=all_test
 
 branches:
   only:

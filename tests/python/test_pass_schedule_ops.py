@@ -6,10 +6,12 @@ def test_schedule0():
     l = tvm.Var('l')
     A = tvm.placeholder((m, l), name='A')
     A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
-    sA1 = tvm.Schedule(A1.op)
-    bounds = tvm.schedule.InferBound(sA1)
+
+    s = tvm.Schedule(A1.op)
+
+    bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.collections.Map)
-    stmt = tvm.ir_pass.ScheduleOps(sA1, bounds)
+    stmt = tvm.ir_pass.ScheduleOps(s, bounds)
     print(stmt)
 
 def test_schedule1():
@@ -17,11 +19,12 @@ def test_schedule1():
     l = tvm.Var('l')
     A = tvm.placeholder((m, l), name='A')
     A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
-    sA1 = tvm.Schedule(A1.op)
-    xo, xi = sA1.split(A1.op.axis[0], 8)
-    bounds = tvm.schedule.InferBound(sA1)
+
+    s = tvm.Schedule(A1.op)
+    xo, xi = s[A1].split(A1.op.axis[0], 8)
+    bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.collections.Map)
-    stmt = tvm.ir_pass.ScheduleOps(sA1, bounds)
+    stmt = tvm.ir_pass.ScheduleOps(s, bounds)
     print(stmt)
 
 def test_schedule2():
@@ -30,13 +33,13 @@ def test_schedule2():
     A = tvm.placeholder((m, l), name='A')
     A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
-    sA1 = tvm.Schedule(A1.op)
-    sA2 = tvm.Schedule(A2.op)
-    xo, xi = sA2.split(A2.op.axis[0], 8)
-    sA1.compute_at(sA2, xo)
-    bounds = tvm.schedule.InferBound(sA2)
+
+    s = tvm.Schedule(A2.op)
+    xo, xi = s[A2].split(A2.op.axis[0], 8)
+    s[A1].compute_at(s[A2], xo)
+    bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.collections.Map)
-    stmt = tvm.ir_pass.ScheduleOps(sA2, bounds)
+    stmt = tvm.ir_pass.ScheduleOps(s, bounds)
     print(stmt)
 
 

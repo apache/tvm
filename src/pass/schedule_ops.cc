@@ -22,7 +22,7 @@ namespace {
  * \param p_state The message passing state
  *     IterVar->The assignment.
  */
-void PassUpOffset(const Schedule& s,
+void PassUpOffset(const Stage& s,
                   const Map<IterVar, Range>& dom_map,
                   std::unordered_map<IterVar, Expr>* p_state) {
   auto& state = *p_state;
@@ -130,7 +130,7 @@ Stmt MergeNest(std::vector<std::vector<Stmt> > nest, Stmt body) {
  *  The flattened Stmt are ordered from outmost to inner most order.
  */
 std::vector<std::vector<Stmt> > MakeLoopNest(
-    const Schedule& sch,
+    const Stage& sch,
     const Map<IterVar, Range>& dom_map) {
   // optional, use let to define some CSE in dom_map.
   auto leaf_iter_vars = sch->leaf_iter_vars;
@@ -244,7 +244,7 @@ Stmt MakeRealize(const ComputeOpNode* op,
                        bounds, make_const(Bool(1), true), body);
 }
 
-Stmt MakePipeline(const Schedule& sch,
+Stmt MakePipeline(const Stage& sch,
                   const Map<IterVar, Range>& dom_map,
                   Stmt consumer) {
   std::vector<Tensor> tensors;
@@ -280,7 +280,7 @@ Stmt MakePipeline(const Schedule& sch,
 // inject the operator's realization on the stmt.
 class InjectRealize : public IRMutator {
  public:
-  InjectRealize(Schedule schedule, Map<IterVar, Range> dom_map)
+  InjectRealize(Stage schedule, Map<IterVar, Range> dom_map)
       : schedule(schedule), dom_map(dom_map) {}
 
   Stmt Mutate(Stmt stmt) final {
@@ -289,7 +289,7 @@ class InjectRealize : public IRMutator {
     const AttrStmt* op = stmt.as<AttrStmt>();
     if (op != nullptr &&
         op->type_key == "scope") {
-      if (op->node == schedule->attach_parent) {
+      if (op->node == schedule->attach_ivar) {
         CHECK(!found_attach);
         found_attach = true;
         stmt = AttrStmt::make(
@@ -301,40 +301,12 @@ class InjectRealize : public IRMutator {
     return stmt;
   }
   // the operations to be carried
-  Schedule schedule;
+  Stage schedule;
   // domain map
   Map<IterVar, Range> dom_map;
   // whether attach point is found
   bool found_attach{false};
 };
-
-
-
-void GetOpToScheduleMap(
-    Schedule s,
-    std::unordered_map<Operation, Schedule>* ret) {
-  CHECK(!ret->count(s->op))
-      << "Duplicated schedule for op";
-  (*ret)[s->op] = s;
-  for (Schedule c : s->children) {
-    GetOpToScheduleMap(c, ret);
-  }
-}
-
-// order schedule by DFS calling order of ops
-std::vector<Schedule> OrderSchedule(Schedule s) {
-  auto g = schedule::CreateReadGraph(s->op);
-  auto post_order = schedule::PostDFSOrder(s->op, g);
-  std::unordered_map<Operation, Schedule> op2sch;
-  GetOpToScheduleMap(s, &op2sch);
-  std::vector<Schedule> sorder;
-
-  // reverse iteration.
-  for (size_t i = post_order.size(); i != 0; --i) {
-    sorder.push_back(op2sch.at(post_order[i - 1]));
-  }
-  return sorder;
-}
 
 Stmt InjectInline(const Operation op, Stmt body) {
   CHECK(body.defined());
@@ -351,11 +323,11 @@ Stmt InjectInline(const Operation op, Stmt body) {
 }  // namespace
 
 Stmt ScheduleOps(
-    Schedule s, Map<IterVar, Range> dom_map) {
-  std::vector<Schedule> svec = OrderSchedule(s);
+    Schedule sch, Map<IterVar, Range> dom_map) {
   Stmt body = Stmt();
-
-  for (Schedule s : svec) {
+  // reverse the post DFS order.
+  for (size_t i = sch->stages.size(); i != 0; --i) {
+    Stage s = sch->stages[i - 1];
     if (s->attach_type == kInline) {
       body = InjectInline(s->op, body);
     } else if (s->attach_type == kRoot || s-> attach_type == kNone) {
