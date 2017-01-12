@@ -4,6 +4,12 @@ def test_array():
     a = tvm.convert([1,2,3])
     assert len(a) == 3
 
+def test_array_save_load_json():
+    a = tvm.convert([1,2,3])
+    json_str = tvm.save_json(a)
+    a_loaded = tvm.load_json(json_str)
+    assert(a[1].value == 2)
+
 def test_map():
     a = tvm.Var('a')
     b = tvm.Var('b')
@@ -15,6 +21,20 @@ def test_map():
     assert str(dd) == str(amap)
     assert a + 1 not in amap
 
+def test_map_save_load_json():
+    a = tvm.Var('a')
+    b = tvm.Var('b')
+    amap = tvm.convert({a: 2,
+                        b: 3})
+    json_str = tvm.save_json(amap)
+    amap = tvm.load_json(json_str)
+    assert len(amap) == 2
+    dd = {kv[0].name : kv[1].value for kv in amap.items()}
+    assert(dd == {"a": 2, "b": 3})
+
+
 if __name__ == "__main__":
     test_array()
     test_map()
+    test_array_save_load_json()
+    test_map_save_load_json()

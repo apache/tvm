@@ -13,8 +13,11 @@ DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
 }  // namespace dmlc
 
 namespace tvm {
+
+using Halide::IR::RangeNode;
+
 Range::Range(Expr begin, Expr end)
-    : Range(std::make_shared<Halide::IR::RangeNode>(
+    : Range(std::make_shared<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
 }
@@ -67,10 +70,14 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Halide::IR::RangeNode>([](const Halide::IR::RangeNode *op, IRPrinter *p) {
+.set_dispatch<RangeNode>([](const Halide::IR::RangeNode *op, IRPrinter *p) {
     p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
   });
 
+
+TVM_REGISTER_NODE_TYPE(ArrayNode);
+TVM_REGISTER_NODE_TYPE(MapNode);
+TVM_REGISTER_NODE_TYPE(RangeNode);
 TVM_REGISTER_NODE_TYPE(IterVarNode);
 
 }  // namespace tvm

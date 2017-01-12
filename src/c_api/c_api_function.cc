@@ -34,4 +34,16 @@ TVM_REGISTER_API(_raw_ptr)
   })
 .add_argument("src", "NodeBase", "the node base");
 
+TVM_REGISTER_API(_save_json)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = SaveJSON(args.at(0));
+  })
+.add_argument("src", "json_str", "the node ");
+
+TVM_REGISTER_API(_load_json)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = NodeRef(LoadJSON_(args.at(0)));
+  })
+.add_argument("src", "NodeBase", "the node");
+
 }  // namespace tvm
