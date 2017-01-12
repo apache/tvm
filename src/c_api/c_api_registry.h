@@ -13,35 +13,9 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include "../base/common.h"
 
 namespace tvm {
-
-inline std::string Type2String(const Type& t) {
-  std::ostringstream os;
-  os << t;
-  return os.str();
-}
-
-inline Type String2Type(std::string s) {
-  std::istringstream is(s);
-  halide_type_code_t code = Type::Int;
-  if (s.substr(0, 3) == "int") {
-    code = Type::Int; s = s.substr(3);
-  } else if (s.substr(0, 4) == "uint") {
-    code = Type::UInt; s = s.substr(4);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  int bits = 32, lanes = 1;
-  if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  return Type(code, bits, lanes);
-}
 
 inline const char* TypeId2Str(ArgVariantID type_id) {
   switch (type_id) {

@@ -206,5 +206,6 @@ IterVarRelation FuseNode::make(
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
 TVM_REGISTER_NODE_TYPE(FuseNode);
+TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
 }  // namespace tvm

@@ -15,14 +15,15 @@
 /*! \brief TVM_DLL prefix for windows */
 #ifdef _WIN32
 #ifdef TVM_EXPORTS
-#define TVM_DLL TVM_EXTERN_C __declspec(dllexport)
+#define TVM_DLL __declspec(dllexport)
 #else
-#define TVM_DLL TVM_EXTERN_C __declspec(dllimport)
+#define TVM_DLL __declspec(dllimport)
 #endif
 #else
-#define TVM_DLL TVM_EXTERN_C
+#define TVM_DLL
 #endif
 
+TVM_EXTERN_C {
 /*! \brief handle to functions */
 typedef void* FunctionHandle;
 /*! \brief handle to node */
@@ -147,5 +148,5 @@ TVM_DLL int TVMNodeGetAttr(NodeHandle handle,
 TVM_DLL int TVMNodeListAttrNames(NodeHandle handle,
                                  int *out_size,
                                  const char*** out_array);
-
+}  // TVM_EXTERN_C
 #endif  // TVM_C_API_H_

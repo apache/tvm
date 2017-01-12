@@ -19,6 +19,38 @@ def const(value, dtype=None):
     return _function_internal._const(value, dtype)
 
 
+def load_json(json_str):
+    """Load tvm object from json_str.
+
+    Parameters
+    ----------
+    json_str : str
+        The json string
+
+    Returns
+    -------
+    node : Node
+        The loaded tvm node.
+    """
+    return _function_internal._load_json(json_str)
+
+
+def save_json(node):
+    """Load tvm object as json string.
+
+    Parameters
+    ----------
+    node : Node
+        A TVM Node object to be saved.
+
+    Returns
+    -------
+    json_str : str
+        Saved json string.
+    """
+    return _function_internal._save_json(node)
+
+
 def Var(name="tindex", dtype=int32):
     """Create a new variable with specified name and dtype
 

@@ -89,7 +89,6 @@ class NodeBase(object):
                 "'%s' object has no attribute '%s'" % (str(type(self)), name))
         return value
 
-
     def __hash__(self):
         return _function_internal._raw_ptr(self)
 
@@ -110,6 +109,29 @@ class NodeBase(object):
         for i in range(size.value):
             names.append(py_str(plist[i]))
         return names
+
+    def __reduce__(self):
+        return (type(self), (None,), self.__getstate__())
+
+    def __getstate__(self):
+        handle = self.handle
+        if handle is not None:
+            return {'handle': _function_internal._save_json(self)}
+        else:
+            return {'handle': None}
+
+    def __setstate__(self, state):
+        # pylint: disable=assigning-non-slot
+        handle = state['handle']
+        if handle is not None:
+            json_str = handle
+            _push_arg(json_str)
+            other = _function_internal._load_json(json_str)
+            self.handle = other.handle
+            other.handle = None
+        else:
+            self.handle = None
+
 
 def const(value, dtype=None):
     """construct a constant"""

@@ -1,4 +1,5 @@
 import tvm
+import pickle as pkl
 
 def test_schedule_create():
     m = tvm.Var('m')
@@ -16,6 +17,18 @@ def test_schedule_create():
     xo, xi = s[AA].split(AA.op.axis[0], factor=10)
     s[T].reorder(xi2, xi1)
     assert T.op.axis[1] in s[T].leaf_iter_vars
+
+    # save load json
+    json_str = tvm.save_json(s)
+    s_loaded = tvm.load_json(json_str)
+    assert isinstance(s_loaded, tvm.schedule.Schedule)
+    assert(str(s_loaded.roots[0].body) == str(s.roots[0].body))
+
+    # pickle unpickle
+    dump = pkl.dumps(s)
+    s_loaded = pkl.loads(dump)
+    assert isinstance(s_loaded, tvm.schedule.Schedule)
+    assert(str(s_loaded.roots[0].body) == str(s.roots[0].body))
 
 def test_reorder():
     m = tvm.Var('m')

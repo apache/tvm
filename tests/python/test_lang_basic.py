@@ -5,6 +5,16 @@ def test_const():
     assert x.dtype == 'int32'
     assert isinstance(x, tvm.expr.IntImm)
 
+def test_const_saveload_json():
+    # save load json
+    x = tvm.const(1)
+    y = tvm.const(10)
+    z = x + y
+    z = z + z
+    json_str = tvm.save_json(z)
+    zz = tvm.load_json(json_str)
+    assert tvm.save_json(zz) == tvm.save_json(z)
+
 def test_make():
     x = tvm.const(1)
     y = tvm.make.IntImm('int32', 1)
@@ -57,6 +67,7 @@ def test_stmt():
 if __name__ == "__main__":
     test_attr()
     test_const()
+    test_const_saveload_json()
     test_make()
     test_ir()
     test_basic()
