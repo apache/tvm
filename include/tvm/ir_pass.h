@@ -68,7 +68,7 @@ Stmt Inline(Stmt stmt,
  *  to single dimensional Load/Store
  *
  * \param stmt The stmt to be trasnformed.
- * \param buffer_map Map specifies external
+ * \param extern_buffer Map specifies external
  *    buffer assignment of input and outputs.
  */
 Stmt StorageFlatten(Stmt stmt,
