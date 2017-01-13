@@ -3,6 +3,7 @@
  * \file buffer.cc
  */
 #include <tvm/buffer.h>
+#include <tvm/ir.h>
 
 namespace tvm {
 
@@ -22,6 +23,35 @@ Buffer::Buffer(Array<Expr> shape,
           name,
           Var(name, Type(Type::Handle, 0, 0)),
           shape, Array<Expr>(), dtype)) {
+}
+
+inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
+  Expr base;
+  if (n->strides.size() == 0) {
+    CHECK_EQ(n->shape.size(), index.size());
+    base = index[0];
+    for (size_t i = 1; i < index.size(); ++i) {
+      base = base * n->shape[i] + index[i];
+    }
+  } else {
+    CHECK_EQ(n->strides.size(), index.size());
+    base = index[0] * n->strides[0];
+    for (size_t i = 1; i < index.size(); ++i) {
+      base = base + index[i] * n->strides[i];
+    }
+  }
+  return base;
+}
+
+Expr Buffer::MakeLoad(Array<Expr> index) const {
+  const BufferNode* n = operator->();
+  return ir::Load::make(n->dtype, n->ptr, BufferOffset(n, index));
+}
+
+Stmt Buffer::MakeStore(Array<Expr> index, Expr value) const {
+  const BufferNode* n = operator->();
+  CHECK_EQ(value.type(), n->dtype);
+  return ir::Store::make(n->ptr, BufferOffset(n, index), value);
 }
 
 Buffer BufferNode::make(std::string name,

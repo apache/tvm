@@ -13,7 +13,6 @@
 
 namespace tvm {
 namespace ir {
-namespace {
 
 /*!
  * \brief use message passing to calculate the assignment of each Var inside the loop body.
@@ -317,10 +316,9 @@ Stmt InjectInline(const Operation op, Stmt body) {
   for (auto iv : compute->axis) {
     args.push_back(iv->var);
   }
-  return Inline(op, args, compute->body, body);
+  return Inline(body, op, args, compute->body);
 }
 
-}  // namespace
 
 Stmt ScheduleOps(
     Schedule sch, Map<IterVar, Range> dom_map) {

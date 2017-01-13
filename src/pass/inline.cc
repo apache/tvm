@@ -8,7 +8,6 @@
 
 namespace tvm {
 namespace ir {
-namespace {
 
 // inliner to inline a function
 // the result may not be SSA,
@@ -50,12 +49,10 @@ class IRInline : public IRMutator {
   }
 };
 
-}  // namespace
-
-Stmt Inline(FunctionRef f,
+Stmt Inline(Stmt stmt,
+            FunctionRef f,
             Array<Var> args,
-            Expr body,
-            Stmt stmt) {
+            Expr body) {
   CHECK_EQ(f->num_outputs(), 1)
       << "can only inline output single value operation";
   return ConvertSSA(IRInline(f, args, body).Mutate(stmt));

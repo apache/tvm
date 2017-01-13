@@ -1,6 +1,6 @@
 # coding: utf-8
 # pylint: disable=invalid-name, protected-access, too-many-arguments, too-many-lines
-# pylint: disable=attribute-defined-outside-init, no-member,
+# pylint: disable=attribute-defined-outside-init, no-member, missing-docstring
 """Symbolic configuration API."""
 from __future__ import absolute_import as _abs
 

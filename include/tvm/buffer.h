@@ -33,6 +33,19 @@ class Buffer : public NodeRef {
                   Type dtype = Float(32),
                   std::string name = "buffer");
   /*!
+   * \brief Generate a load expression loading the index location of buffer.
+   * \param index The index to the buffer.
+   * \return The load expression.
+   */
+  Expr MakeLoad(Array<Expr> index) const;
+  /*!
+   * \brief Generate a store statement.
+   * \param index The index to the buffer.
+   * \param value The value to be stored.
+   * \return The load expression.
+   */
+  Stmt MakeStore(Array<Expr> index, Expr value) const;
+  /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
