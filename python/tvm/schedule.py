@@ -1,3 +1,4 @@
+# pylint: disable=protected-access, no-member
 """Collection structure in the high level DSL."""
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
@@ -6,15 +7,18 @@ from . import tensor as _tensor
 
 @register_node
 class Split(NodeBase):
+    """Split operation on axis."""
     pass
 
 @register_node
 class Fuse(NodeBase):
+    """Fuse operation on axis."""
     pass
 
 
 @register_node
 class Schedule(NodeBase):
+    """Schedule for all the stages."""
     def __getitem__(self, k):
         if isinstance(k, _tensor.Tensor):
             k = k.op
@@ -26,6 +30,7 @@ class Schedule(NodeBase):
 
 @register_node
 class Stage(NodeBase):
+    """A Stage represents schedule for one operation."""
     def split(self, parent, factor=None, outer=None):
         """Split the stage either by factor providing outer scope, or both
 
@@ -132,6 +137,32 @@ class Stage(NodeBase):
         _function_internal._StageReorder(self, args)
 
     def tile(self, x_parent, y_parent, x_factor, y_factor):
+        """ Perform tiling on two dimensions
+
+        The final loop order from outmost to inner most are
+        [x_outer, y_outer, x_inner, y_inner]
+
+        Parameters
+        ----------
+        x_parent : IterVar
+            The original x dimension
+        y_parent : IterVar
+            The original y dimension
+        x_factor : Expr
+            The stride factor on x axis
+        y_factor : Expr The stride factor on y axis
+
+        Returns
+        -------
+        x_outer : IterVar
+            Outer axis of x dimension
+        y_outer : IterVar
+            Outer axis of y dimension
+        x_inner : IterVar
+            Inner axis of x dimension
+        p_y_inner : IterVar
+            Inner axis of y dimension
+        """
         x_outer, y_outer, x_inner, y_inner = _function_internal._StageTile(
             self, x_parent, y_parent, x_factor, y_factor)
         return x_outer, y_outer, x_inner, y_inner

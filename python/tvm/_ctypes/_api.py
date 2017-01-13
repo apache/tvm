@@ -1,5 +1,6 @@
 # coding: utf-8
 # pylint: disable=invalid-name, protected-access, too-many-arguments, too-many-lines
+# pylint: disable=attribute-defined-outside-init, no-member, missing-docstring
 """Symbolic configuration API."""
 from __future__ import absolute_import as _abs
 
@@ -14,6 +15,7 @@ from .._base import check_call, ctypes2docstring
 from .. import _function_internal
 
 class ArgVariant(ctypes.Union):
+    """ArgVariant in C API"""
     _fields_ = [("v_long", ctypes.c_long),
                 ("v_double", ctypes.c_double),
                 ("v_str", ctypes.c_char_p),
@@ -30,8 +32,8 @@ NODE_TYPE = {
 
 def _return_node(x):
     handle = x.v_handle
-    if not isinstance(handle, ctypes.c_void_p):
-        handle = ctypes.c_void_p(handle)
+    if not isinstance(handle, NodeHandle):
+        handle = NodeHandle(handle)
     ret_val = ArgVariant()
     ret_typeid = ctypes.c_int()
     ret_success = ctypes.c_int()
@@ -47,7 +49,7 @@ RET_SWITCH = {
     kLong: lambda x: x.v_long,
     kDouble: lambda x: x.v_double,
     kStr: lambda x: py_str(x.v_str),
-    kNodeHandle: lambda x: _return_node(x)
+    kNodeHandle: _return_node
 }
 
 class SliceBase(object):
@@ -251,6 +253,7 @@ def register_node(type_key=None):
     """
     if isinstance(type_key, str):
         def register(cls):
+            """internal register function"""
             NODE_TYPE[type_key] = cls
             return cls
         return register
@@ -273,9 +276,9 @@ def _init_function_module(root_namespace):
     module_obj = sys.modules["%s.function" % root_namespace]
     module_internal = sys.modules["%s._function_internal" % root_namespace]
     namespace_match = {
-        "_make_" : sys.modules["%s.make" % root_namespace],
-        "_pass_" : sys.modules["%s.ir_pass" % root_namespace],
-        "_schedule_" : sys.modules["%s.schedule" % root_namespace]
+        "_make_": sys.modules["%s.make" % root_namespace],
+        "_pass_": sys.modules["%s.ir_pass" % root_namespace],
+        "_schedule_": sys.modules["%s.schedule" % root_namespace]
     }
 
     for name in op_names:

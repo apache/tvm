@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <vector>
 #include "./expr.h"
+#include "./buffer.h"
 #include "./schedule.h"
 
 namespace tvm {
@@ -56,10 +57,22 @@ Stmt ConvertSSA(Stmt stmt);
  *
  * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-Stmt Inline(FunctionRef f,
+Stmt Inline(Stmt stmt,
+            FunctionRef f,
             Array<Var> args,
-            Expr body,
-            Stmt stmt);
+            Expr body);
+
+
+/*!
+ * \brief Flatten the multi-dimensional read/write
+ *  to single dimensional Load/Store
+ *
+ * \param stmt The stmt to be trasnformed.
+ * \param extern_buffer Map specifies external
+ *    buffer assignment of input and outputs.
+ */
+Stmt StorageFlatten(Stmt stmt,
+                    Map<Tensor, Buffer> extern_buffer);
 
 }  // namespace ir
 }  // namespace tvm

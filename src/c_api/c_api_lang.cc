@@ -5,6 +5,7 @@
  */
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
+#include <tvm/buffer.h>
 #include <tvm/schedule.h>
 #include "./c_api_registry.h"
 
@@ -140,12 +141,21 @@ TVM_REGISTER_API(Range)
 .add_argument("begin", "Expr", "beginning of the range.")
 .add_argument("end", "Expr", "extent of the range");
 
-TVM_REGISTER_API(_Tensor)
+TVM_REGISTER_API(_Buffer)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-    *ret = TensorNode::make(args.at(0),
+    *ret = BufferNode::make(args.at(0),
+                            args.at(1),
                             args.at(2),
                             args.at(3),
                             args.at(4));
+  });
+
+TVM_REGISTER_API(_Tensor)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+    *ret = TensorNode::make(args.at(0),
+                            args.at(1),
+                            args.at(2),
+                            args.at(3));
   });
 
 TVM_REGISTER_API(_TensorEqual)

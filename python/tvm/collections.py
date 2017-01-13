@@ -1,3 +1,4 @@
+# pylint: disable=protected-access, no-member
 """Collection structure in the high level DSL."""
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
@@ -6,6 +7,7 @@ from . import expr as _expr
 
 @register_node
 class Array(NodeBase):
+    """Array container of TVM"""
     def __getitem__(self, i):
         if i >= len(self):
             raise IndexError("array index out ot range")
@@ -19,6 +21,7 @@ class Array(NodeBase):
 
 @register_node
 class Map(NodeBase):
+    """Map container of TVM"""
     def __getitem__(self, k):
         return _function_internal._MapGetItem(self, k)
 
@@ -26,6 +29,7 @@ class Map(NodeBase):
         return _function_internal._MapCount(self, k) != 0
 
     def items(self):
+        """Get the items from the map"""
         akvs = _function_internal._MapItems(self)
         return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
 
@@ -38,9 +42,17 @@ class Map(NodeBase):
 
 @register_node
 class Range(NodeBase):
+    """Represent range in TVM"""
     pass
 
 
 @register_node
 class IterVar(NodeBase, _expr.ExprOp):
+    """Represent iteration variable."""
+    pass
+
+
+@register_node
+class Buffer(NodeBase):
+    """Represent a Buffer in TVM."""
     pass
