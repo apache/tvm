@@ -42,10 +42,11 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots) {
       };
       ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
       rmap.Set(op, deps);
+    } else if (op.as<PlaceholderOpNode>()) {
+      // empty set of deps
+      rmap.Set(op, deps);
     } else {
-      if (!op.as<PlaceholderOpNode>()) {
-        LOG(FATAL) << "unknown Operation" << op->type_key();
-      }
+      LOG(FATAL) << "unknown Operation" << op->type_key();
     }
   }
   return rmap;
@@ -56,7 +57,7 @@ void PostDFSOrder(const Operation& op,
                   const ReadGraph& g,
                   std::unordered_set<Operation>* visited,
                   Array<Operation>* post_order) {
-  if (op.as<PlaceholderOpNode>() || visited->count(op)) return;
+  if (visited->count(op)) return;
   visited->insert(op);
   for (const auto& t : g.at(op)) {
     PostDFSOrder(t->op, g, visited, post_order);

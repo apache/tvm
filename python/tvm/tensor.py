@@ -1,3 +1,5 @@
+# pylint: disable=protected-access, no-member, invalid-name
+"""Tensor related abstractions"""
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, SliceBase, register_node, convert
 from . import collections as _collections
@@ -51,10 +53,12 @@ class Tensor(NodeBase):
 
     @property
     def ndim(self):
+        """Dimension of the tensor."""
         return len(self.shape)
 
 
 class Operation(NodeBase):
+    """Represent an operation that generate a tensor"""
     def output(self, index):
         """Get the index-th output of the operation
 
@@ -72,8 +76,10 @@ class Operation(NodeBase):
 
 @register_node
 class ComputeOp(Operation):
+    """Compute operation."""
     pass
 
 @register_node
 class PlaceholderOp(Operation):
+    """Placeholder operation."""
     pass

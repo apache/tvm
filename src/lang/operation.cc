@@ -1,4 +1,3 @@
-
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file operation.cc

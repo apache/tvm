@@ -37,7 +37,7 @@ LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
 lint:
-	python2 dmlc-core/scripts/lint.py tvm cpp include src
+	python2 dmlc-core/scripts/lint.py tvm all include src python
 
 doc:
 	doxygen docs/Doxyfile

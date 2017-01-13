@@ -63,8 +63,8 @@ def test_create_read_graph():
     assert g[A2.op][0] == A1
     assert g[A1.op][0] == A
     post_order = tvm.schedule.PostDFSOrder([A2.op], g)
-    assert(post_order[0] == A1.op)
-    assert(post_order[1] == A2.op)
+    assert(post_order[0] == A.op)
+    assert(post_order[1] == A1.op)
 
 
 if __name__ == "__main__":

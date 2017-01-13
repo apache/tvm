@@ -256,7 +256,7 @@ Stmt MakePipeline(const Stage& sch,
   if (sch->op.as<ComputeOpNode>()) {
     provide = MakeProvide(sch->op.as<ComputeOpNode>(), tensors);
   } else {
-    LOG(FATAL) << "not supported op";
+    LOG(FATAL) << "not supported op " << sch->op->type_key();
   }
   std::vector<std::vector<Stmt> > nest = MakeLoopNest(sch, dom_map);
   Stmt producer = MergeNest(nest, provide);
@@ -328,6 +328,8 @@ Stmt ScheduleOps(
   // reverse the post DFS order.
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage s = sch->stages[i - 1];
+    // no need to specify place holder op.
+    if (s->op.as<PlaceholderOpNode>()) continue;
     if (s->attach_type == kInline) {
       body = InjectInline(s->op, body);
     } else if (s->attach_type == kRoot || s-> attach_type == kNone) {

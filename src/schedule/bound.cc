@@ -151,8 +151,10 @@ BoundProp(const Array<Operation>& post_order,
         }
       };
       ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
+    } else if (op.as<PlaceholderOpNode>()) {
+      // do nothing
     } else {
-      LOG(FATAL) << "unknown operation mode";
+      LOG(FATAL) << "unknown operation mode " << op->type_key();
     }
   }
   return result;

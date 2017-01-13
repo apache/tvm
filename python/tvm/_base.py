@@ -1,10 +1,9 @@
 # coding: utf-8
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, no-member
 """ ctypes library of nnvm and helper functions """
 from __future__ import absolute_import
 
 import sys
-import os
 import ctypes
 import numpy as np
 from . import libinfo

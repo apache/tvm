@@ -1,5 +1,8 @@
+# pylint: disable=protected-access, no-member, invalid-name
+# pylint: disable=redefined-builtin, undefined-variable
+"""Functions defined in TVM."""
 from __future__ import absolute_import as _abs
-from numbers import Number as _Number, Integral as _Integral
+from numbers import Integral as _Integral
 from ._ctypes._api import _init_function_module, convert
 from . import _function_internal
 from . import make as _make
@@ -8,6 +11,7 @@ from . import collections as _collections
 
 int32 = "int32"
 float32 = "float32"
+handle = "handle"
 
 def const(value, dtype=None):
     """construct a constant"""
@@ -65,7 +69,7 @@ def Var(name="tindex", dtype=int32):
     return _function_internal._Var(name, dtype)
 
 
-def placeholder(shape, dtype = None, name="placeholder"):
+def placeholder(shape, dtype=None, name="placeholder"):
     """Construct an empty tensor object.
 
     Parameters
@@ -84,6 +88,7 @@ def placeholder(shape, dtype = None, name="placeholder"):
     tensor: tensor.Tensor
         The created tensor
     """
+    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     dtype = float32 if dtype is None else dtype
     return _function_internal._Placeholder(
         shape, dtype, name)
@@ -111,8 +116,7 @@ def compute(shape, fcompute, name="compute"):
     tensor: tensor.Tensor
         The created tensor
     """
-    if isinstance(shape, _expr.Expr):
-        shape = (shape, )
+    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
 
     ndim = len(shape)
     arg_names = fcompute.__code__.co_varnames
@@ -125,7 +129,44 @@ def compute(shape, fcompute, name="compute"):
     op_node = _function_internal._ComputeOp(
         name, dim_var, body)
     return _function_internal._Tensor(
-        shape, name, body.dtype, op_node, 0)
+        shape, body.dtype, op_node, 0)
+
+
+def Buffer(shape, dtype=None,
+           name="buffer", ptr=None,
+           strides=None):
+    """Create a new buffer
+
+    Parameters
+    ----------
+    shape : tuple of Expr
+        The shape of the buffer.
+
+    dtype : str, optional
+        The data type of the buffer.
+
+    name : str, optional
+        The name of the buffer.
+
+    ptr : Var, optional
+        The data pointer in the buffer.
+
+    strides: array of Expr
+        The stride of the buffer.
+
+    Returns
+    -------
+    buffer : Buffer
+        The created buffer
+    """
+    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    dtype = float32 if dtype is None else dtype
+    strides = () if strides is None else strides
+    if ptr is None:
+        ptr = Var(name, "handle")
+
+    return _function_internal._Buffer(
+        name, ptr, shape, strides, dtype)
 
 
 def IterVar(dom, name='iter', thread_tag=''):
@@ -170,7 +211,7 @@ def sum(expr, rdom):
         The reduction domainx
     """
     rdom = rdom if isinstance(rdom, list) else [rdom]
-    x =  _make.Reduce("Add", expr, rdom)
+    x = _make.Reduce("Add", expr, rdom)
     return x
 
 
@@ -186,7 +227,7 @@ def min(expr, rdom):
         The reduction domainx
     """
     rdom = rdom if isinstance(rdom, list) else [rdom]
-    x =  _make.Reduce("Min", expr, rdom)
+    x = _make.Reduce("Min", expr, rdom)
     return x
 
 
@@ -202,7 +243,7 @@ def max(expr, rdom):
         The reduction domainx
     """
     rdom = rdom if isinstance(rdom, list) else [rdom]
-    x =  _make.Reduce("Max", expr, rdom)
+    x = _make.Reduce("Max", expr, rdom)
     return x
 
 

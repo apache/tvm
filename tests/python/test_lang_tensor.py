@@ -33,6 +33,7 @@ def test_tensor_reduce():
     assert(isinstance(C_loaded, tvm.tensor.Tensor))
     assert(str(C_loaded) == str(C))
 
+
 if __name__ == "__main__":
     test_tensor()
     test_tensor_reduce()
