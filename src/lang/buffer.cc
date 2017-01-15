@@ -51,7 +51,7 @@ Expr Buffer::MakeLoad(Array<Expr> index) const {
 Stmt Buffer::MakeStore(Array<Expr> index, Expr value) const {
   const BufferNode* n = operator->();
   CHECK_EQ(value.type(), n->dtype);
-  return ir::Store::make(n->ptr, BufferOffset(n, index), value);
+  return ir::Store::make(n->ptr, value, BufferOffset(n, index));
 }
 
 Buffer BufferNode::make(std::string name,

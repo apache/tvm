@@ -225,7 +225,7 @@ def _make_function(handle, name):
         """TVM function"""
         cargs = []
         for x in args:
-            if isinstance(x, (list, tuple, SliceBase)):
+            if isinstance(x, (list, tuple, dict, SliceBase)):
                 cargs.append(convert(x))
             else:
                 cargs.append(x)

@@ -36,6 +36,7 @@ REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
 REGISTER_PASS4(Inline);
 REGISTER_PASS2(ScheduleOps);
+REGISTER_PASS2(StorageFlatten);
 
 }  // namespace ir
 }  // namespace tvm

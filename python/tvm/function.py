@@ -133,7 +133,8 @@ def compute(shape, fcompute, name="compute"):
 
 
 def Buffer(shape, dtype=None,
-           name="buffer", ptr=None,
+           name="buffer",
+           ptr=None,
            strides=None):
     """Create a new buffer
 
