@@ -21,8 +21,21 @@
 namespace tvm {
 namespace ir {
 
-using Halide::Internal::equal;
-using Halide::Internal::simplify;
+inline bool Equal(Expr a, Expr b) {
+  return Halide::Internal::equal(a, b);
+}
+
+inline bool Equal(Stmt a, Stmt b) {
+  return Halide::Internal::equal(a, b);
+}
+
+inline Expr Simplify(Expr a) {
+  return Halide::Internal::simplify(a);
+}
+
+inline Stmt Simplify(Stmt a) {
+  return Halide::Internal::simplify(a);
+}
 
 /*!
  * \brief Schedule s' dependent operations.

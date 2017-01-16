@@ -17,20 +17,20 @@ TVM_REGISTER_API(_pass_Simplify)
 .set_body([](const ArgStack& args, RetValue *ret) {
     CHECK(args.at(0).type_id == kNodeHandle);
     if (dynamic_cast<Expr::ContainerType*>(args.at(0).sptr.get())) {
-      *ret = simplify(args.at(0).operator Expr());
+      *ret = Simplify(args.at(0).operator Expr());
     } else {
-      *ret = simplify(args.at(0).operator Stmt());
+      *ret = Simplify(args.at(0).operator Stmt());
     }
   });
 
-TVM_REGISTER_API(_pass_equal)
+TVM_REGISTER_API(_pass_Equal)
 .set_body([](const ArgStack& args, RetValue *ret) {
     CHECK(args.at(0).type_id == kNodeHandle);
     CHECK(args.at(1).type_id == kNodeHandle);
     if (dynamic_cast<Expr::ContainerType*>(args.at(0).sptr.get())) {
-      *ret = equal(args.at(0).operator Expr(), args.at(1).operator Expr());
+      *ret = Equal(args.at(0).operator Expr(), args.at(1).operator Expr());
     } else {
-      *ret = equal(args.at(0).operator Stmt(), args.at(1).operator Stmt());
+      *ret = Equal(args.at(0).operator Stmt(), args.at(1).operator Stmt());
     }
   });
 
