@@ -10,16 +10,19 @@ from numbers import Number, Integral
 
 from .._base import _LIB
 from .._base import c_str, py_str, string_types
-from .._base import FunctionHandle, NodeHandle
 from .._base import check_call, ctypes2docstring
 from .. import _function_internal
 
-class ArgVariant(ctypes.Union):
-    """ArgVariant in C API"""
+class TVMArg(ctypes.Union):
+    """TVMArg in C API"""
     _fields_ = [("v_long", ctypes.c_long),
                 ("v_double", ctypes.c_double),
                 ("v_str", ctypes.c_char_p),
                 ("v_handle", ctypes.c_void_p)]
+
+# type definitions
+APIFunctionHandle = ctypes.c_void_p
+NodeHandle = ctypes.c_void_p
 
 kNull = 0
 kLong = 1
@@ -34,7 +37,7 @@ def _return_node(x):
     handle = x.v_handle
     if not isinstance(handle, NodeHandle):
         handle = NodeHandle(handle)
-    ret_val = ArgVariant()
+    ret_val = TVMArg()
     ret_typeid = ctypes.c_int()
     ret_success = ctypes.c_int()
     check_call(_LIB.TVMNodeGetAttr(
@@ -77,7 +80,7 @@ class NodeBase(object):
         check_call(_LIB.TVMNodeFree(self.handle))
 
     def __getattr__(self, name):
-        ret_val = ArgVariant()
+        ret_val = TVMArg()
         ret_typeid = ctypes.c_int()
         ret_success = ctypes.c_int()
         check_call(_LIB.TVMNodeGetAttr(
@@ -169,21 +172,21 @@ def convert(value):
 
 
 def _push_arg(arg):
-    a = ArgVariant()
+    a = TVMArg()
     if arg is None:
-        _LIB.TVMPushStack(a, ctypes.c_int(kNull))
+        _LIB.TVMAPIPushStack(a, ctypes.c_int(kNull))
     elif isinstance(arg, NodeBase):
         a.v_handle = arg.handle
-        _LIB.TVMPushStack(a, ctypes.c_int(kNodeHandle))
+        _LIB.TVMAPIPushStack(a, ctypes.c_int(kNodeHandle))
     elif isinstance(arg, int):
         a.v_long = ctypes.c_long(arg)
-        _LIB.TVMPushStack(a, ctypes.c_int(kLong))
+        _LIB.TVMAPIPushStack(a, ctypes.c_int(kLong))
     elif isinstance(arg, Number):
         a.v_double = ctypes.c_double(arg)
-        _LIB.TVMPushStack(a, ctypes.c_int(kDouble))
+        _LIB.TVMAPIPushStack(a, ctypes.c_int(kDouble))
     elif isinstance(arg, string_types):
         a.v_str = c_str(arg)
-        _LIB.TVMPushStack(a, ctypes.c_int(kStr))
+        _LIB.TVMAPIPushStack(a, ctypes.c_int(kStr))
     else:
         raise TypeError("Don't know how to handle type %s" % type(arg))
 
@@ -198,7 +201,7 @@ def _make_function(handle, name):
     arg_descs = ctypes.POINTER(ctypes.c_char_p)()
     ret_type = ctypes.c_char_p()
 
-    check_call(_LIB.TVMGetFunctionInfo(
+    check_call(_LIB.TVMGetAPIFunctionInfo(
         handle, ctypes.byref(real_name), ctypes.byref(desc),
         ctypes.byref(num_args),
         ctypes.byref(arg_names),
@@ -232,9 +235,9 @@ def _make_function(handle, name):
 
         for arg in cargs:
             _push_arg(arg)
-        ret_val = ArgVariant()
+        ret_val = TVMArg()
         ret_typeid = ctypes.c_int()
-        check_call(_LIB.TVMFunctionCall(
+        check_call(_LIB.TVMAPIFunctionCall(
             handle, ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
         return RET_SWITCH[ret_typeid.value](ret_val)
 
@@ -267,8 +270,8 @@ def _init_function_module(root_namespace):
     plist = ctypes.POINTER(ctypes.c_char_p)()
     size = ctypes.c_uint()
 
-    check_call(_LIB.TVMListFunctionNames(ctypes.byref(size),
-                                         ctypes.byref(plist)))
+    check_call(_LIB.TVMListAPIFunctionNames(ctypes.byref(size),
+                                            ctypes.byref(plist)))
     op_names = []
     for i in range(size.value):
         op_names.append(py_str(plist[i]))
@@ -282,8 +285,8 @@ def _init_function_module(root_namespace):
     }
 
     for name in op_names:
-        hdl = FunctionHandle()
-        check_call(_LIB.TVMGetFunctionHandle(c_str(name), ctypes.byref(hdl)))
+        hdl = APIFunctionHandle()
+        check_call(_LIB.TVMGetAPIFunctionHandle(c_str(name), ctypes.byref(hdl)))
         fname = name
         target_module = module_internal if name.startswith('_') else module_obj
         for k, v in namespace_match.items():

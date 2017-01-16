@@ -9,8 +9,6 @@
 
 /*! \brief entry to to easily hold returning information */
 struct TVMAPIThreadLocalEntry {
-  /*! \brief hold last error */
-  std::string last_error;
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;
   /*! \brief result holder for returning string pointers */
@@ -99,16 +97,8 @@ struct APIAttrDir : public AttrVisitor {
   }
 };
 
-const char *TVMGetLastError() {
-  return TVMAPIThreadLocalStore::Get()->last_error.c_str();
-}
-
-void TVMAPISetLastError(const char* msg) {
-  TVMAPIThreadLocalStore::Get()->last_error = msg;
-}
-
-int TVMListFunctionNames(int *out_size,
-                         const char*** out_array) {
+int TVMListAPIFunctionNames(int *out_size,
+                            const char*** out_array) {
   API_BEGIN();
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   ret->ret_vec_str = dmlc::Registry<APIFunctionReg>::ListAllNames();
@@ -121,23 +111,23 @@ int TVMListFunctionNames(int *out_size,
   API_END();
 }
 
-int TVMGetFunctionHandle(const char* fname,
-                         FunctionHandle* out) {
+int TVMGetAPIFunctionHandle(const char* fname,
+                            APIFunctionHandle* out) {
   API_BEGIN();
   const APIFunctionReg* reg = dmlc::Registry<APIFunctionReg>::Find(fname);
   CHECK(reg != nullptr) << "cannot find function " << fname;
-  *out = (FunctionHandle)reg;
+  *out = (APIFunctionHandle)reg;
   API_END();
 }
 
-int TVMGetFunctionInfo(FunctionHandle handle,
-                       const char **real_name,
-                       const char **description,
-                       int *num_doc_args,
-                       const char ***arg_names,
-                       const char ***arg_type_infos,
-                       const char ***arg_descriptions,
-                       const char **return_type) {
+int TVMGetAPIFunctionInfo(APIFunctionHandle handle,
+                          const char **real_name,
+                          const char **description,
+                          int *num_doc_args,
+                          const char ***arg_names,
+                          const char ***arg_type_infos,
+                          const char ***arg_descriptions,
+                          const char **return_type) {
   const auto *op = static_cast<const APIFunctionReg *>(handle);
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
 
@@ -162,8 +152,8 @@ int TVMGetFunctionInfo(FunctionHandle handle,
   API_END();
 }
 
-int TVMPushStack(ArgVariant arg,
-                 int type_id) {
+int TVMAPIPushStack(ArgVariant arg,
+                    int type_id) {
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   API_BEGIN();
   ret->arg_stack.resize(ret->arg_stack.size() + 1);
@@ -181,9 +171,9 @@ int TVMPushStack(ArgVariant arg,
   API_END_HANDLE_ERROR(ret->Clear());
 }
 
-int TVMFunctionCall(FunctionHandle handle,
-                    ArgVariant* ret_val,
-                    int* ret_typeid) {
+int TVMAPIFunctionCall(APIFunctionHandle handle,
+                       ArgVariant* ret_val,
+                       int* ret_typeid) {
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   API_BEGIN();
   const auto *op = static_cast<const APIFunctionReg *>(handle);

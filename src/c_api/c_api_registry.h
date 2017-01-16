@@ -15,6 +15,9 @@
 #include <vector>
 #include "../base/common.h"
 
+using ArgVariant = TVMArg;
+using ArgVariantID = TVMArgTypeID;
+
 namespace tvm {
 
 inline const char* TypeId2Str(ArgVariantID type_id) {
