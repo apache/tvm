@@ -9,6 +9,8 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
+#include <ir/IREquality.h>
+#include <pass/Simplify.h>
 #include <tvm/ir_functor.h>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +21,8 @@
 namespace tvm {
 namespace ir {
 
+using Halide::Internal::equal;
+using Halide::Internal::simplify;
 
 /*!
  * \brief Schedule s' dependent operations.
