@@ -9,6 +9,8 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
+#include <ir/IREquality.h>
+#include <pass/Simplify.h>
 #include <tvm/ir_functor.h>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +21,21 @@
 namespace tvm {
 namespace ir {
 
+inline bool Equal(Expr a, Expr b) {
+  return Halide::Internal::equal(a, b);
+}
+
+inline bool Equal(Stmt a, Stmt b) {
+  return Halide::Internal::equal(a, b);
+}
+
+inline Expr Simplify(Expr a) {
+  return Halide::Internal::simplify(a);
+}
+
+inline Stmt Simplify(Stmt a) {
+  return Halide::Internal::simplify(a);
+}
 
 /*!
  * \brief Schedule s' dependent operations.
