@@ -83,7 +83,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
         body.same_as(op->body)) {
       return s;
     } else {
-      return AttrStmt::make(op->node, op->type_key, op->value, op->body);
+      return AttrStmt::make(op->node, op->type_key, value, body);
     }
   });
 
