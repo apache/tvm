@@ -41,10 +41,6 @@ __version__ = libinfo.__version__
 # library instance of nnvm
 _LIB = _load_lib()
 
-# type definitions
-FunctionHandle = ctypes.c_void_p
-NodeHandle = ctypes.c_void_p
-
 #----------------------------
 # helper function definition
 #----------------------------
