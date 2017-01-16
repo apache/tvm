@@ -6,74 +6,28 @@
 #ifndef TVM_C_API_H_
 #define TVM_C_API_H_
 
-#ifdef __cplusplus
-#define TVM_EXTERN_C extern "C"
-#else
-#define TVM_EXTERN_C
-#endif
-
-/*! \brief TVM_DLL prefix for windows */
-#ifdef _WIN32
-#ifdef TVM_EXPORTS
-#define TVM_DLL __declspec(dllexport)
-#else
-#define TVM_DLL __declspec(dllimport)
-#endif
-#else
-#define TVM_DLL
-#endif
+#include "./c_runtime_api.h"
 
 TVM_EXTERN_C {
 /*! \brief handle to functions */
-typedef void* FunctionHandle;
+typedef void* APIFunctionHandle;
 /*! \brief handle to node */
 typedef void* NodeHandle;
-
-/*!
- * \brief union type for returning value of attributes
- *  Attribute type can be identified by id
- */
-typedef union {
-  long v_long;  // NOLINT(*)
-  double v_double;
-  const char* v_str;
-  NodeHandle v_handle;
-} ArgVariant;
-
-/*! \brief attribute types */
-typedef enum {
-  kNull = 0,
-  kLong = 1,
-  kDouble = 2,
-  kStr = 3,
-  kNodeHandle = 4
-} ArgVariantID;
-
-/*!
- * \brief return str message of the last error
- *  all function in this file will return 0 when success
- *  and -1 when an error occured,
- *  NNGetLastError can be called to retrieve the error
- *
- *  this function is threadsafe and can be called by different thread
- *  \return error info
- */
-TVM_DLL const char *TVMGetLastError(void);
 
 /*!
  * \brief List all the node function name
  * \param out_size The number of functions
  * \param out_array The array of function names.
  */
-TVM_DLL int TVMListFunctionNames(int *out_size,
+TVM_DLL int TVMListAPIFunctionNames(int *out_size,
                                  const char*** out_array);
 /*!
  * \brief get function handle by name
  * \param name The name of function
  * \param handle The returning function handle
  */
-TVM_DLL int TVMGetFunctionHandle(const char* name,
-                                 FunctionHandle *handle);
+TVM_DLL int TVMGetAPIFunctionHandle(const char* name,
+                                    APIFunctionHandle *handle);
 
 /*!
  * \brief Get the detailed information about function.
@@ -88,14 +42,14 @@ TVM_DLL int TVMGetFunctionHandle(const char* name,
  * \param return_type Return type of the function, if any.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMGetFunctionInfo(FunctionHandle handle,
-                               const char **real_name,
-                               const char **description,
-                               int *num_doc_args,
-                               const char ***arg_names,
-                               const char ***arg_type_infos,
-                               const char ***arg_descriptions,
-                               const char **return_type);
+TVM_DLL int TVMGetAPIFunctionInfo(APIFunctionHandle handle,
+                                  const char **real_name,
+                                  const char **description,
+                                  int *num_doc_args,
+                                  const char ***arg_names,
+                                  const char ***arg_type_infos,
+                                  const char ***arg_descriptions,
+                                  const char **return_type);
 
 /*!
  * \brief Push an argument to the function calling stack.
@@ -104,8 +58,8 @@ TVM_DLL int TVMGetFunctionInfo(FunctionHandle handle,
  * \param arg number of attributes
  * \param type_id The typeid of attributes.
  */
-TVM_DLL int TVMPushStack(ArgVariant arg,
-                         int type_id);
+TVM_DLL int TVMAPIPushStack(TVMArg arg,
+                            int type_id);
 
 /*!
  * \brief call a function by using arguments in the stack.
@@ -115,9 +69,9 @@ TVM_DLL int TVMPushStack(ArgVariant arg,
  * \param ret_val The return value.
  * \param ret_typeid the type id of return value.
  */
-TVM_DLL int TVMFunctionCall(FunctionHandle handle,
-                            ArgVariant* ret_val,
-                            int* ret_typeid);
+TVM_DLL int TVMAPIFunctionCall(APIFunctionHandle handle,
+                               TVMArg* ret_val,
+                               int* ret_typeid);
 
 /*!
  * \brief free the node handle
@@ -135,7 +89,7 @@ TVM_DLL int TVMNodeFree(NodeHandle handle);
  */
 TVM_DLL int TVMNodeGetAttr(NodeHandle handle,
                            const char* key,
-                           ArgVariant* out_value,
+                           TVMArg* out_value,
                            int* out_typeid,
                            int* out_success);
 
