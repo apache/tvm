@@ -4,13 +4,14 @@
  * \file error_handle.cc
  */
 #include <dmlc/thread_local.h>
+#include <string>
 #include "./runtime_common.h"
 
-struct ErrorEntry {
+struct TVMErrorEntry {
   std::string last_error;
 };
 
-typedef dmlc::ThreadLocalStore<ErrorEntry> TVMAPIErrorStore;
+typedef dmlc::ThreadLocalStore<TVMErrorEntry> TVMAPIErrorStore;
 
 const char *TVMGetLastError() {
   return TVMAPIErrorStore::Get()->last_error.c_str();
