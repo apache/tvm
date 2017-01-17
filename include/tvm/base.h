@@ -17,6 +17,20 @@
 
 namespace tvm {
 
+/*!
+ *\brief whether to use CUDA runtime
+ */
+#ifndef TVM_CUDA_RUNTIME
+#define TVM_CUDA_RUNTIME 1
+#endif
+
+/*!
+ *\brief whether to use opencl runtime
+ */
+#ifndef TVM_OPENCL_RUNTIME
+#define TVM_OPENCL_RUNTIME 0
+#endif
+
 using ::tvm::Node;
 using ::tvm::NodeRef;
 using ::tvm::AttrVisitor;

@@ -58,6 +58,7 @@ def check_call(ret):
     if ret != 0:
         raise TVMError(py_str(_LIB.TVMGetLastError()))
 
+
 def c_str(string):
     """Create ctypes char * from a python string
     Parameters
@@ -71,6 +72,26 @@ def c_str(string):
         A char pointer that can be passed to C API
     """
     return ctypes.c_char_p(string.encode('utf-8'))
+
+
+def c_array(ctype, values):
+    """Create ctypes array from a python array
+
+    Parameters
+    ----------
+    ctype : ctypes data type
+        data type of the array we want to convert to
+
+    values : tuple or list
+        data content
+
+    Returns
+    -------
+    out : ctypes array
+        Created ctypes array
+    """
+    return (ctype * len(values))(*values)
+
 
 def ctypes2docstring(num_args, arg_names, arg_types, arg_descs, remove_dup=True):
     """Convert ctypes returned doc string information into parameters docstring.

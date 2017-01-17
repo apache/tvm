@@ -34,7 +34,7 @@
 
 TVM_EXTERN_C {
 /*! \brief type of array index. */
-typedef unsigned tvm_index_t;
+typedef uint32_t tvm_index_t;
 
 /*!
  * \brief union type for arguments and return values
@@ -68,7 +68,7 @@ typedef enum {
   /*! \brief NVidia GPU device(CUDA) */
   kGPU = 2,
   /*! \brief opencl device */
-  KOpenCL = 4
+  kOpenCL = 4
 } TVMDeviceMask;
 
 /*!
@@ -79,7 +79,7 @@ typedef struct {
   int dev_mask;
   /*! \brief the device id */
   int dev_id;
-} TVMDevice;
+} TVMContext;
 
 /*! \brief The type code in TVMDataType */
 typedef enum {
@@ -122,8 +122,8 @@ typedef struct {
   tvm_index_t ndim;
   /*! \brief The data type flag */
   TVMDataType dtype;
-  /*! \brief The device this array sits on */
-  TVMDevice device;
+  /*! \brief The device context this array sits on */
+  TVMContext ctx;
 } TVMArray;
 
 /*!
@@ -151,20 +151,30 @@ typedef TVMArray* TVMArrayHandle;
 TVM_DLL const char *TVMGetLastError(void);
 
 /*!
+ * \brief Whether the specified context is enabled.
+ *
+ * \param ctx The context to be checked.
+ * \param out_enabled whether the ctx is enabled.
+ * \return Whether the function is successful.
+ */
+TVM_DLL int TVMContextEnabled(TVMContext ctx,
+                              int* out_enabled);
+
+/*!
  * \brief Allocate a nd-array's memory,
  *  including space of shape, of given spec.
  *
  * \param shape The shape of the array, the data content will be copied to out
  * \param ndim The number of dimension of the array.
  * \param dtype The array data type.
- * \param device The device this array sits on.
+ * \param ctx The ctx this array sits on.
  * \param out The output handle.
  * \return Whether the function is successful.
  */
 TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
                           tvm_index_t ndim,
-                          int dtype,
-                          TVMDevice device,
+                          TVMDataType dtype,
+                          TVMContext ctx,
                           TVMArrayHandle* out);
 /*!
  * \brief Free the TVM Array.
@@ -183,9 +193,10 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
                                TVMStreamHandle stream);
 /*!
  * \brief Wait until all computations on stream completes.
- * \param stream the stream to be synchronized.
+ * \param ctx The ctx to be synchronized.
+ * \param stream The stream to be synchronized.
  */
-TVM_DLL int TVMSynchronize(TVMStreamHandle stream);
+TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
 
 /*!
  * \brief Launch a generated TVM function

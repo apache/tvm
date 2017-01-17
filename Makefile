@@ -1,6 +1,12 @@
-export LDFLAGS = -pthread -lm
-export CFLAGS =  -std=c++11 -Wall -O2\
-	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC
+ifndef config
+ifneq ("$(wildcard ./config.mk)","")
+	config = config.mk
+else
+	config = make/config.mk
+endif
+endif
+
+include $(config)
 
 # specify tensor path
 .PHONY: clean all test doc
@@ -12,6 +18,30 @@ LIB_HALIDE_IR = HalideIR/lib/libHalideIR.a
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
 ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
+
+ifneq ($(USE_CUDA_PATH), NONE)
+	NVCC=$(USE_CUDA_PATH)/bin/nvcc
+endif
+
+export LDFLAGS = -pthread -lm
+export CFLAGS =  -std=c++11 -Wall -O2\
+	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC
+
+ifneq ($(ADD_CFLAGS), NONE)
+	CFLAGS += $(ADD_CFLAGS)
+endif
+
+ifneq ($(ADD_LDFLAGS), NONE)
+	LDFLAGS += $(ADD_LDFLAGS)
+endif
+
+
+ifeq ($(USE_CUDA), 1)
+	CFLAGS += -DTVM_CUDA_RUNTIME=1
+	LDFLAGS += -lcuda -lcudart
+else
+	CFLAGS += -DTVM_CUDA_RUNTIME=0
+endif
 
 include tests/cpp/unittest.mk
 

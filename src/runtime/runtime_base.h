@@ -1,13 +1,13 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file c_runtime_common.h
- * \brief Common fields of all C APIs
+ * \file runtime_base.h
+ * \brief Base of all C APIs
  */
-#ifndef TVM_RUNTIME_RUNTIME_COMMON_H_
-#define TVM_RUNTIME_RUNTIME_COMMON_H_
+#ifndef TVM_RUNTIME_RUNTIME_BASE_H_
+#define TVM_RUNTIME_RUNTIME_BASE_H_
 
 #include <tvm/c_runtime_api.h>
-#include <exception>
+#include <stdexcept>
 
 /*! \brief  macro to guard beginning and end section of all functions */
 #define API_BEGIN() try {
@@ -33,4 +33,4 @@ inline int TVMAPIHandleException(const std::runtime_error &e) {
   return -1;
 }
 
-#endif  // TVM_RUNTIME_RUNTIME_COMMON_H_
+#endif  // TVM_RUNTIME_RUNTIME_BASE_H_

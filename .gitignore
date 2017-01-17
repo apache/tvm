@@ -91,3 +91,4 @@ ENV/
 *.pyc
 *~
 build
+config.mk
