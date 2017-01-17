@@ -14,6 +14,9 @@ if [ ${TASK} == "lint" ] || [ ${TASK} == "all_test" ]; then
     fi
 fi
 
+cp make/config.mk config.mk
+echo "USE_CUDA=0" >> config.mk
+echo "USE_OPENCL=0" >> config.mk
 
 if [ ! ${TRAVIS_OS_NAME} == "osx" ]; then
     # use g++-4.8 for linux
