@@ -5,7 +5,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <string>
-#include "./runtime_common.h"
+#include "./runtime_base.h"
 
 struct TVMErrorEntry {
   std::string last_error;

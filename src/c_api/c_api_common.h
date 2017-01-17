@@ -14,6 +14,6 @@
 #include <string>
 #include <exception>
 #include "./c_api_registry.h"
-#include "../runtime/runtime_common.h"
+#include "../runtime/runtime_base.h"
 
 #endif  // TVM_C_API_C_API_COMMON_H_
