@@ -37,10 +37,10 @@ endif
 
 
 ifeq ($(USE_CUDA), 1)
-	CFLAGS += -DTVM_RUNTIME_CUDA=1
+	CFLAGS += -DTVM_CUDA_RUNTIME=1
 	LDFLAGS += -lcuda -lcudart
 else
-	CFLAGS += -DTVM_RUNTIME_CUDA=0
+	CFLAGS += -DTVM_CUDA_RUNTIME=0
 endif
 
 include tests/cpp/unittest.mk
