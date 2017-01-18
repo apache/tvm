@@ -94,29 +94,23 @@ class IRConvertSSA : public IRMutator {
     static auto& fset_var_def = FSetVarDef::vtable_expr();
     if (fget_var_def.can_dispatch(expr)) {
       VarExpr v = fget_var_def(expr);
-      std::string old_name = v->name_hint;
-      // Sanity check for Allocate
+      VarExpr new_var = v;
       if (defined_.count(v.get()) != 0) {
         CHECK(expr.as<Allocate>() == nullptr)
             << "One allocation in two places, cannot rename buffer in allocate";
+        new_var = Variable::make(v->type, v->name_hint);
       } else {
         defined_.insert(v.get());
       }
-      // assign a unique name to variable
-      std::stringstream new_name;
-      if (name_index_.count(old_name) != 0) {
-        new_name << old_name << name_index_[old_name];
-        name_index_[old_name] += 1;
-      } else {
-        new_name << old_name << "0";
-        name_index_[old_name] = 1;
-      }
-      VarExpr new_var = Variable::make(v->type, new_name.str());
       scope_[v.get()].push_back(new_var);
       Expr new_expr = IRMutator::Mutate(expr);
       scope_[v.get()].pop_back();
 
-      return fset_var_def(new_expr, new_var);
+      if (!new_var.same_as(v)) {
+        return fset_var_def(new_expr, new_var);
+      } else {
+        return new_expr;
+      }
     } else if (expr.as<Variable>()) {
       const Variable* v = expr.as<Variable>();
       if (scope_.count(v) != 0) {
@@ -135,25 +129,21 @@ class IRConvertSSA : public IRMutator {
     static auto& fset_var_def = FSetVarDef::vtable_stmt();
     if (fget_var_def.can_dispatch(stmt)) {
       VarExpr v = fget_var_def(stmt);
-      std::string old_name = v->name_hint;
-      if (defined_.count(v.get()) == 0) {
+      VarExpr new_var = v;
+      if (defined_.count(v.get()) != 0) {
+        new_var = Variable::make(v->type, v->name_hint);
+      } else {
         defined_.insert(v.get());
       }
-      // assign a unique name to variable
-      std::stringstream new_name;
-      if (name_index_.count(old_name) != 0) {
-        new_name << old_name << name_index_[old_name];
-        name_index_[old_name] += 1;
-      } else {
-        new_name << old_name << "0";
-        name_index_[old_name] = 1;
-      }
-      VarExpr new_var = Variable::make(v->type, new_name.str());
       scope_[v.get()].push_back(new_var);
       Stmt new_stmt = IRMutator::Mutate(stmt);
       scope_[v.get()].pop_back();
 
-      return fset_var_def(new_stmt, new_var);
+      if (!new_var.same_as(v)) {
+        return fset_var_def(new_stmt, new_var);
+      } else {
+        return new_stmt;
+      }
     } else {
       return IRMutator::Mutate(stmt);
     }
@@ -162,7 +152,6 @@ class IRConvertSSA : public IRMutator {
  private:
   std::unordered_map<const Variable*, std::vector<VarExpr> > scope_;
   std::unordered_set<const Variable*> defined_;
-  std::unordered_map<std::string, int> name_index_;
 };
 
 }  // namespace

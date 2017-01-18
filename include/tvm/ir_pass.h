@@ -57,8 +57,7 @@ Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
 bool VerifySSA(const Stmt& ir);
 
 /*!
- * \brief Convert a IR node to be SSA form and assign a unique name
- *  to each variable.
+ * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.
  * \return The converted form.
  */
