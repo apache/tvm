@@ -117,11 +117,13 @@ def compute(shape, fcompute, name="compute"):
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
-
     ndim = len(shape)
     arg_names = fcompute.__code__.co_varnames
+
+    if fcompute.__code__.co_argcount == 0 and len(arg_names) == 1:
+        arg_names = ["i%d" % i for i in range(ndim)]
     if ndim != len(arg_names):
-        raise ValueError("fcompute do not match dimension")
+        raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
     dim_var = [IterVar((0, s), x) for x, s in zip(arg_names, shape)]
     body = fcompute(*[v.var for v in dim_var])
@@ -170,7 +172,7 @@ def Buffer(shape, dtype=None,
         name, ptr, shape, strides, dtype)
 
 
-def IterVar(dom, name='iter', thread_tag=''):
+def IterVar(dom=None, name=None, thread_tag=''):
     """Create a iteration variable
 
     Parameters
@@ -189,14 +191,17 @@ def IterVar(dom, name='iter', thread_tag=''):
     iter_var : IterVar
        The result itervar
     """
-    if isinstance(dom, (list, tuple)):
-        if len(dom) != 2:
-            raise ValueError("need to list of ranges")
-        dom = Range(dom[0], dom[1])
+    if dom is not None:
+        if isinstance(dom, (list, tuple)):
+            if len(dom) != 2:
+                raise ValueError("need to list of ranges")
+            dom = Range(dom[0], dom[1])
 
-    if not isinstance(dom, _collections.Range):
-        raise ValueError("dom need to be Range")
-
+        if not isinstance(dom, _collections.Range):
+            raise ValueError("dom need to be Range")
+    if name is None:
+        name = thread_tag if thread_tag else name
+    name = name if name else 'iter'
     return _function_internal._IterVar(dom, name, thread_tag)
 
 

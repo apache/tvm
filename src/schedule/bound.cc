@@ -5,6 +5,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/ir_pass.h>
 #include <tvm/schedule_pass.h>
 #include "./int_set.h"
 #include "./graph.h"
@@ -14,7 +15,7 @@ namespace schedule {
 
 // result = ceil((a / b)), both a and b are positive integer
 inline Expr DivCeil(Expr a, Expr b) {
-  return (a + b - 1) / b;
+  return ir::Simplify((a + b - 1) / b);
 }
 
 // Downward message passing algorithm on stage schedule s,

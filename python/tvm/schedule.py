@@ -56,8 +56,6 @@ class Stage(NodeBase):
         if outer is not None:
             if outer.thread_tag == '':
                 raise ValueError("split by outer must have special thread_tag")
-            if outer.dom is None:
-                raise ValueError("split by outer must have specified domain")
             inner = _function_internal._StageSplitByOuter(self, parent, outer, factor)
         else:
             if factor is None:
