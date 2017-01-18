@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file device_api.hx
+ * \file device_api.h
  * \brief Device specific API
  */
 #ifndef TVM_RUNTIME_DEVICE_API_H_
@@ -11,6 +11,21 @@
 
 namespace tvm {
 namespace runtime {
+/*!
+ * \brief Initialize the device.
+ * \param option_keys Additional option  keys to pass.
+ * \param option_vals Additional option values to pass
+ * \param num_options Number of options to be passed into it.
+ * \return 0 if success, 1: if already initialized
+ * \tparam xpu The device mask.
+ */
+template<TVMDeviceMask xpu>
+inline bool DeviceInit(const char** option_keys,
+                       const char** option_vals,
+                       int num_options) {
+  return true;
+}
+
 /*!
  * \brief Whether ctx is enabled.
  * \param ctx The device context to perform operation.
@@ -93,7 +108,8 @@ inline void StreamSync(TVMContext ctx, TVMStreamHandle stream);
 }  // namespace runtime
 }  // namespace tvm
 
-#include "./device_api_gpu.h"
 #include "./device_api_cpu.h"
+#include "./device_api_gpu.h"
+#include "./device_api_opencl.h"
 
 #endif  // TVM_RUNTIME_DEVICE_API_H_

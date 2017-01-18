@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 
 from .._base import _LIB
-from .._base import c_array
+from .._base import c_array, c_str
 from .._base import check_call
 
 
@@ -180,6 +180,30 @@ def sync(ctx):
         The context to be synced
     """
     check_call(_LIB.TVMSynchronize(ctx, None))
+
+
+def init_opencl(**kwargs):
+    """Initialize the opencl with the options.
+
+    Parameters
+    ----------
+    kwargs : dict
+        The options
+    """
+    keys = []
+    vals = []
+    for k, v in kwargs.items():
+        keys.append(c_str(k))
+        vals.append(c_str(v))
+    dev_mask = ctypes.c_int(4)
+    out_code = ctypes.c_int()
+    check_call(_LIB.TVMDeviceInit(
+        dev_mask,
+        c_array(ctypes.c_char_p, keys),
+        c_array(ctypes.c_char_p, vals),
+        ctypes.c_int(len(keys)),
+        ctypes.byref(out_code)))
+    return out_code.value != 0
 
 
 class NDArrayBase(object):
