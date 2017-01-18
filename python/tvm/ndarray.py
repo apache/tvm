@@ -9,6 +9,7 @@ import numpy as _np
 from ._ctypes._runtime_api import TVMContext, TVMDataType, NDArrayBase
 from ._ctypes._runtime_api import cpu, gpu, opencl, empty, sync
 from ._ctypes._runtime_api import _init_runtime_module
+from ._ctypes._runtime_api import init_opencl
 
 
 class NDArray(NDArrayBase):

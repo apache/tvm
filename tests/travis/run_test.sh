@@ -16,13 +16,15 @@ fi
 
 cp make/config.mk config.mk
 echo "USE_CUDA=0" >> config.mk
-echo "USE_OPENCL=0" >> config.mk
 
-if [ ! ${TRAVIS_OS_NAME} == "osx" ]; then
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+    echo "USE_OPENCL=1" >> config.mk
+else
     # use g++-4.8 for linux
     if [ ${CXX} == "g++" ]; then
         export CXX=g++-4.8
     fi
+    echo "USE_OPENCL=0" >> config.mk
 fi
 
 if [ ${TASK} == "cpp_test" ] || [ ${TASK} == "all_test" ]; then

@@ -64,6 +64,23 @@ inline size_t GetDataAlignment(TVMArray* arr) {
 
 using namespace tvm::runtime;
 
+int TVMDeviceInit(int dev_mask,
+                  const char** option_keys,
+                  const char** option_vals,
+                  int num_options,
+                  int* out_code) {
+  API_BEGIN();
+  *out_code = 1;
+  switch (dev_mask) {
+    case kOpenCL: {
+      *out_code = DeviceInit<kOpenCL>(option_keys, option_vals, num_options);
+      break;
+    }
+    default: break;
+  }
+  API_END();
+}
+
 int TVMContextEnabled(TVMContext ctx,
                       int* out_enabled) {
   API_BEGIN();
