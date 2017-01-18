@@ -15,22 +15,22 @@ using RetValue = APIVariantValue;
 
 TVM_REGISTER_API(_pass_Simplify)
 .set_body([](const ArgStack& args, RetValue *ret) {
-    CHECK(args.at(0).type_id == kNodeHandle);
-    if (dynamic_cast<Expr::ContainerType*>(args.at(0).sptr.get())) {
-      *ret = Simplify(args.at(0).operator Expr());
-    } else {
+    if (dynamic_cast<Stmt::ContainerType*>(args.at(0).sptr.get())) {
       *ret = Simplify(args.at(0).operator Stmt());
+    } else {
+      *ret = Simplify(args.at(0).operator Expr());
     }
   });
 
 TVM_REGISTER_API(_pass_Equal)
 .set_body([](const ArgStack& args, RetValue *ret) {
-    CHECK(args.at(0).type_id == kNodeHandle);
-    CHECK(args.at(1).type_id == kNodeHandle);
-    if (dynamic_cast<Expr::ContainerType*>(args.at(0).sptr.get())) {
-      *ret = Equal(args.at(0).operator Expr(), args.at(1).operator Expr());
-    } else {
+    if (dynamic_cast<Stmt::ContainerType*>(args.at(0).sptr.get())) {
+      CHECK(args.at(1).type_id == kNodeHandle);
       *ret = Equal(args.at(0).operator Stmt(), args.at(1).operator Stmt());
+    } else {
+      Expr a = args.at(0).operator Expr();
+      Expr b = args.at(1).operator Expr();
+      *ret = Equal(a, b);
     }
   });
 
