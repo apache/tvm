@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ctxice_api_gpu.h
+ * \file device_api_gpu.h
  * \brief GPU specific API
  */
 #ifndef TVM_RUNTIME_DEVICE_API_GPU_H_
@@ -14,15 +14,6 @@
 
 namespace tvm {
 namespace runtime {
-/*!
- * \brief Check CUDA error.
- * \param msg Message to print if an error occured.
- */
-#define CHECK_CUDA_ERROR(msg)                                           \
-  {                                                                     \
-    cudaError_t e = cudaGetLastError();                                 \
-    CHECK_EQ(e, cudaSuccess) << (msg) << " CUDA: " << cudaGetErrorString(e); \
-  }
 
 /*!
  * \brief Protected CUDA call.

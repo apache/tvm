@@ -37,6 +37,9 @@ ADD_CFLAGS =
 # whether use CUDA during compile
 USE_CUDA = 1
 
+# whether use OpenCL during compile
+USE_OPENCL = 0
+
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE
 # USE_CUDA_PATH = /usr/local/cuda

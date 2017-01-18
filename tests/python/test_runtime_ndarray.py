@@ -2,6 +2,7 @@ import tvm
 import numpy as np
 
 def enabled_ctx_list():
+    tvm.init_opencl()
     ctx_list = [tvm.cpu(0), tvm.gpu(0), tvm.opencl(0)]
     ctx_list = [ctx for ctx in ctx_list if ctx.enabled]
     return ctx_list

@@ -26,6 +26,7 @@ endif
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2\
 	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC
+export FRAMEWORKS=
 
 ifneq ($(ADD_CFLAGS), NONE)
 	CFLAGS += $(ADD_CFLAGS)
@@ -43,6 +44,20 @@ else
 	CFLAGS += -DTVM_CUDA_RUNTIME=0
 endif
 
+
+ifeq ($(USE_OPENCL), 1)
+	CFLAGS += -DTVM_OPENCL_RUNTIME=1
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S), Darwin)
+		FRAMEWORKS += -framework OpenCL
+	else
+		LDFLAGS += -lOpenCL
+	endif
+else
+	CFLAGS += -DTVM_OPENCL_RUNTIME=0
+endif
+
+
 include tests/cpp/unittest.mk
 
 test: $(TEST)
@@ -59,7 +74,7 @@ lib/libtvm.a: $(ALL_DEP)
 
 lib/libtvm.so: $(ALL_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 $(LIB_HALIDE_IR): LIBHALIDEIR
 

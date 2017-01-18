@@ -24,7 +24,7 @@ class Schedule(NodeBase):
             k = k.op
         if not isinstance(k, _tensor.Operation):
             raise ValueError("Expect schedule key to be Tensor or Operation")
-        if not k in self.stage_map:
+        if k not in self.stage_map:
             raise ValueError("Cannot find the operation %s in schedule" % (str(k)))
         return self.stage_map[k]
 

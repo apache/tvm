@@ -151,6 +151,23 @@ typedef TVMArray* TVMArrayHandle;
 TVM_DLL const char *TVMGetLastError(void);
 
 /*!
+ * \brief Initialize certain type of devices, this may
+ *  not be necessary for all device types. But is needed for OpenCL.
+ *
+ * \param dev_mask The device mask of device type to be initialized
+ * \param option_keys Additional option  keys to pass.
+ * \param option_vals Additional option values to pass
+ * \param num_options Number of options to be passed into it.
+ * \param out_code 1: success, 0: already initialized
+ * \return Whether the function is successful.
+ */
+TVM_DLL int TVMDeviceInit(int dev_mask,
+                          const char** option_keys,
+                          const char** option_vals,
+                          int num_options,
+                          int *out_code);
+
+/*!
  * \brief Whether the specified context is enabled.
  *
  * \param ctx The context to be checked.
