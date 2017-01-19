@@ -34,14 +34,11 @@ inline const char* TypeId2Str(ArgVariantID type_id) {
 template<typename T>
 struct NodeTypeChecker {
   static inline bool Check(Node* sptr) {
-#if DMLC_ENABLE_RTTI
     // This is the only place in the project where RTTI is used
-    // can be turned off: which will cause non-strict checking.
+    // It can be turned off, but will make non strict checking.
+    // TODO(tqchen) possibly find alternative to turn of RTTI
     using ContainerType = typename T::ContainerType;
     return (dynamic_cast<ContainerType*>(sptr) != nullptr);
-#else
-    return true;
-#endif
   }
   static inline void PrintName(std::ostringstream& os) { // NOLINT(*)
     using ContainerType = typename T::ContainerType;
@@ -52,7 +49,6 @@ struct NodeTypeChecker {
 template<typename T>
 struct NodeTypeChecker<Array<T> > {
   static inline bool Check(Node* sptr) {
-    // use dynamic RTTI for safety
     if (sptr == nullptr) return false;
     if (!sptr->is_type<ArrayNode>()) return false;
     ArrayNode* n = static_cast<ArrayNode*>(sptr);
