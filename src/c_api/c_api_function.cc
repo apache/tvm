@@ -18,8 +18,6 @@ using RetValue = APIVariantValue;
 
 TVM_REGISTER_API(_format_str)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-    using Halide::Internal::BaseExprNode;
-    using Halide::Internal::BaseStmtNode;
     CHECK(args.at(0).type_id == kNodeHandle);
     std::ostringstream os;
     os << args.at(0).operator NodeRef();

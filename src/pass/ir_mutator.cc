@@ -16,11 +16,6 @@ IRMutator::FMutateStmt& IRMutator::vtable_stmt() {  // NOLINT(*)
   static FMutateStmt inst; return inst;
 }
 
-// namespace to register the functors.
-namespace {
-
-using namespace Halide::Internal;
-
 // const expr
 inline Expr ReturnSelfExpr(const NodeRef&, const Expr& e, IRMutator*) {
   return e;
@@ -290,7 +285,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
   return s;
   })
 .set_dispatch<Realize>([](const Realize *op, const Stmt& s, IRMutator* m) {
-    Region new_bounds;
+    Halide::Internal::Region new_bounds;
     bool bounds_changed = false;
 
     // Mutate the bounds
@@ -350,7 +345,5 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
       return Evaluate::make(v);
     }
   });
-
-}  // namespace
 }  // namespace ir
 }  // namespace tvm
