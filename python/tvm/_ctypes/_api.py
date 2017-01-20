@@ -281,6 +281,7 @@ def _init_function_module(root_namespace):
     namespace_match = {
         "_make_": sys.modules["%s.make" % root_namespace],
         "_pass_": sys.modules["%s.ir_pass" % root_namespace],
+        "_codegen_": sys.modules["%s.codegen" % root_namespace],
         "_schedule_": sys.modules["%s.schedule" % root_namespace]
     }
 
