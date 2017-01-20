@@ -49,34 +49,6 @@ struct Reduce : public ExprNode<Reduce> {
   static constexpr const char* Min = "Min";
 };
 
-/*!
- * \brief Define certain auxiliary attribute for the body to be a symbolic value.
- *  This is used to insert hint(shape, storage, split) about certain scopes.
- */
-struct AttrStmt : public StmtNode<AttrStmt> {
-  /*! \brief this is attribute about certain node */
-  NodeRef node;
-  /*! \brief the type key of the attribute */
-  std::string type_key;
-  /*! \brief The attribute value, value is well defined at current scope. */
-  Expr value;
-  /*! \brief The body statement to be executed */
-  Stmt body;
-
-  /*! \brief construct expr from name and rdom */
-  static Stmt make(NodeRef node, std::string type_key, Expr value, Stmt body);
-
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("node", &node);
-    v->Visit("type_key", &type_key);
-    v->Visit("value", &value);
-    v->Visit("body", &body);
-  }
-
-  static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
-  static constexpr const char* _type_key = "AttrStmt";
-};
-
 // Reuse IR node defintiion from HalideIR
 using Halide::Internal::IntImm;
 using Halide::Internal::UIntImm;
@@ -106,6 +78,7 @@ using Halide::Internal::Broadcast;
 using Halide::Internal::Call;
 using Halide::Internal::Let;
 using Halide::Internal::LetStmt;
+using Halide::Internal::AttrStmt;
 using Halide::Internal::AssertStmt;
 using Halide::Internal::ProducerConsumer;
 using Halide::Internal::For;
