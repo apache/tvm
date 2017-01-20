@@ -8,6 +8,7 @@ from . import expr
 from . import stmt
 from . import make
 from . import ir_pass
+from . import codegen
 from . import collections
 from . import schedule
 
