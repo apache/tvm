@@ -30,7 +30,7 @@ inline Type String2Type(std::string s) {
   } else if (s.substr(0, 5) == "float") {
     code = Type::Float; s = s.substr(5);
   } else if (s == "handle") {
-    return Type(Type::Handle, 0, 0);
+    return Type(Type::Handle, 32, 1);
   } else {
     LOG(FATAL) << "unknown type " << s;
   }

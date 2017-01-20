@@ -19,10 +19,18 @@ def mock_test_add():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.ir_pass.ScheduleOps(s, bounds)
 
+
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
     Bb = tvm.Buffer(B.shape, B.dtype, name='B')
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
+    print(stmt)
+    output_ssa = False
+    code = tvm.codegen.CompileToC(stmt, "myadd",
+                                  [Ab.ptr, Bb.ptr, Cb.ptr, n],
+                                  output_ssa)
 
+    print(code)
     def codegen():
         # generate host/device code
         host_code, device_code = tvm.codegen.GenCUDA(
