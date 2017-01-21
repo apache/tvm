@@ -30,6 +30,7 @@
 #endif
 
 #include <stdint.h>
+#include <stddef.h>
 
 
 TVM_EXTERN_C {
@@ -216,18 +217,45 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
 TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
 
 /*!
- * \brief Launch a generated TVM function
+ * \brief TVM Function API: Get resource requirement
+ *
+ *  By default TVM function try not to do internal allocations.
+ *  Instead, TVMFuncRequirement can be called, given the input arguments.
+ *
+ * \param func function handle to be launched.
+ * \param args The arguments
+ * \param arg_type_ids The type id of the arguments
+ * \param num_args Number of arguments.
+ * \param out_workspace_size The workspace size needed to launch this function.
+ * \param out_workspace_align The alignment requirement of workspace.
+ *
+ * \note The data pointer in the arrays is not used by requirement.
+ */
+TVM_DLL int TVMFuncRequirement(TVMFunctionHandle func,
+                               TVMArg* args,
+                               int* arg_type_ids,
+                               int num_args,
+                               size_t* out_workspace_size,
+                               size_t* out_workspace_align);
+
+/*!
+ * \brief TVM Function API: Launch generated function.
+ *
  * \param func function handle to be launched.
  * \param args The arguments
  * \param arg_type_ids The type id of the arguments
  * \param num_args Number of arguments.
  * \param stream The stream this function to be launched on.
+ * \param workspace Additional workspace used to launch this function.
+ *
+ * \sa TVMFuncRequirement
  */
-TVM_DLL int TVMLaunch(TVMFunctionHandle func,
-                      TVMArg* args,
-                      int* arg_type_ids,
-                      int num_args,
-                      TVMStreamHandle stream);
+TVM_DLL int TVMFuncLaunch(TVMFunctionHandle func,
+                          TVMArg* args,
+                          int* arg_type_ids,
+                          int num_args,
+                          TVMStreamHandle stream,
+                          TVMArrayHandle workspace);
 }  // TVM_EXTERN_C
 
 #endif  // TVM_C_RUNTIME_API_H_

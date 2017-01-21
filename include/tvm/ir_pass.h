@@ -57,6 +57,12 @@ Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
 bool VerifySSA(const Stmt& ir);
 
 /*!
+ * \brief Whether the expression have side effect.
+ * \return whether expression have side effect
+ */
+bool HasSideEffect(const Expr& e);
+
+/*!
  * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.
  * \return The converted form.
@@ -78,7 +84,6 @@ Stmt Inline(Stmt stmt,
             FunctionRef f,
             Array<Var> args,
             Expr body);
-
 
 /*!
  * \brief Flatten the multi-dimensional read/write

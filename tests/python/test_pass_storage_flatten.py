@@ -18,6 +18,7 @@ def test_flatten2():
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
     A2b = tvm.Buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})
+    stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
 
 if __name__ == "__main__":

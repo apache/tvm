@@ -50,6 +50,9 @@ class Buffer : public NodeRef {
    * \return the pointer to the internal node container
    */
   inline const BufferNode* operator->() const;
+
+  /*! \brief specify container node */
+  using ContainerType = BufferNode;
 };
 
 /*! \brief Node to represent a buffer */
