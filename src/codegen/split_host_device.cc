@@ -5,6 +5,7 @@
  */
 #include <tvm/codegen.h>
 #include <tvm/ir.h>
+#include <tvm/module.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_map>
