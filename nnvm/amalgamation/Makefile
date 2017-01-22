@@ -9,10 +9,9 @@ nnvm.cc:
 	python generate.py $@
 
 nnvm.d: nnvm.cc
-	${CXX} ${CFLAGS} -MD -MF $@ \
+	${CXX} ${CFLAGS} -M -MT nnvm.o \
 		-I ${NNVM_ROOT}/ -I ${NNVM_ROOT}/include \
-		-D__MIN__=$(MIN) -c $+
-	rm nnvm.o
+		-D__MIN__=$(MIN) $+ > nnvm.d
 
 nnvm-all.cc: nnvm.d nnvm.cc
 	python ./amalgamation.py $+ $@
