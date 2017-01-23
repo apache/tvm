@@ -8,6 +8,7 @@
 
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/module.h>
 #include <string>
 #include <unordered_map>
 
@@ -23,16 +24,12 @@ class CodeGenC {
  public:
   /*!
    * \brief Generate the C code of statement
-   * \param body The body of the function.
-   * \param fun_name The name of the function.
-   * \param args The arguments to the function.
+   * \param f The function to be compiled
    * \param output_ssa Whether output ssa form.
    * \note Only call compile once,
    *  create a new codegen object each time.
    */
-  std::string Compile(Stmt body,
-                      std::string fun_name,
-                      Array<Var> args,
+  std::string Compile(LoweredFunc f,
                       bool output_ssa);
   /*!
    * \brief Print the Stmt n to CodeGenC->stream
@@ -49,7 +46,7 @@ class CodeGenC {
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
-  inline std::string PrintExpr(const Expr& n) {
+  std::string PrintExpr(const Expr& n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
@@ -85,7 +82,9 @@ class CodeGenC {
   virtual void PrintStmt(const ir::Store* op);
   virtual void PrintStmt(const ir::Allocate* op);
   virtual void PrintStmt(const ir::AttrStmt* op);
+  virtual void PrintStmt(const ir::AssertStmt* op);
   virtual void PrintExpr(const ir::Load* op, std::ostream& os);  // NOLINT(*)
+  virtual void PrintExpr(const ir::Call* op, std::ostream& os);  // NOLINT(*)
   virtual void PrintExpr(const ir::Let* op, std::ostream& os);  // NOLINT(*)
   virtual void PrintExpr(const ir::Ramp* op, std::ostream& os);  // NOLINT(*)
   virtual void PrintExpr(const ir::Broadcast* op, std::ostream& os);  // NOLINT(*)
@@ -116,7 +115,13 @@ class CodeGenC {
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  bool BufferTypeMatch(const Variable* buf_var, Type t) const;
+  bool HandleTypeMatch(const Variable* buf_var, Type t) const;
+  /*!
+   * \brief Register the data type of buf_var
+   * \param buf_var The buffer variable.
+   * \param t The type to be checked.
+   */
+  void HandleTypeRegister(const Variable* buf_var, Type t);
   /*!
    * \brief get a unique name with the corresponding prefix
    * \param prefix The prefix of the name
@@ -128,7 +133,7 @@ class CodeGenC {
   /*! \brief name of each variable */
   std::unordered_map<const Variable*, std::string> var_idmap_;
   /*! \brief the data type of allocated buffers */
-  std::unordered_map<const Variable*, Type> alloc_buf_type_;
+  std::unordered_map<const Variable*, Type> handle_data_type_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief assignment map of ssa */
