@@ -17,36 +17,28 @@ class IRInline : public IRMutator {
   IRInline(FunctionRef f, Array<Var> args, Expr body)
       : f_(f), args_(args), body_(body) {}
 
-  Expr Mutate(Expr expr) final {
-    expr = IRMutator::Mutate(expr);
-    const Call* call = expr.as<Call>();
-    if (call != nullptr && call->func == f_) {
-      CHECK_EQ(call->value_index, 0);
-      return InlineCall(call);
-    } else {
-      return expr;
-    }
-  }
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Call>();
 
-  Stmt Mutate(Stmt stmt) final {
-    return IRMutator::Mutate(stmt);
+    if (op->func == f_) {
+      CHECK_EQ(op->value_index, 0);
+      Expr expr = body_;
+      CHECK_EQ(args_.size(), op->args.size())
+          << op->args.size() << " vs " << args_.size();
+      for (size_t i = 0; i < args_.size(); ++i) {
+        expr = Let::make(args_[i], op->args[i], expr);
+      }
+      return expr;
+    } else {
+      return e;
+    }
   }
 
  private:
   FunctionRef f_;
   Array<Var> args_;
   Expr body_;
-
-  Expr InlineCall(const Call* op) {
-    Expr expr = body_;
-
-    CHECK_EQ(args_.size(), op->args.size())
-        << op->args.size() << " vs " << args_.size();
-    for (size_t i = 0; i < args_.size(); ++i) {
-      expr = Let::make(args_[i], op->args[i], expr);
-    }
-    return expr;
-  }
 };
 
 Stmt Inline(Stmt stmt,

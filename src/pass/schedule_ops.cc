@@ -9,6 +9,7 @@
 #include <tvm/schedule_pass.h>
 
 #include "./scope.h"
+#include "./ir_util.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
@@ -32,18 +33,27 @@ void PassUpOffset(const Stage& s,
       Expr outer = state.at(s->outer);
       Expr inner = state.at(s->inner);
       Expr factor = dom_map.at(s->inner)->extent;
-      Expr offset = inner + outer * factor;
-      Expr outer_min = dom_map.at(s->parent)->min;
-      if (!is_zero(outer_min)) {
-        offset = outer_min + offset;
+      Expr parent_min = dom_map.at(s->parent)->min;
+      state[s->parent] = inner + outer * factor;
+      // add min if they exist
+      if (!is_zero(parent_min)) {
+        state[s->parent] = parent_min + state[s->parent];
       }
-      state[s->parent] = offset;
     } else if (rel.as<FuseNode>()) {
       const FuseNode* s = rel.as<FuseNode>();
       Expr value = state.at(s->fused);
       Expr factor = dom_map.at(s->inner)->extent;
+      Expr outer_min = dom_map.at(s->outer)->min;
+      Expr inner_min = dom_map.at(s->inner)->min;
       state[s->outer] = value / factor;
       state[s->inner] = value % factor;
+      // add min if they exist
+      if (!is_zero(outer_min)) {
+        state[s->outer] = outer_min + state[s->outer];
+      }
+      if (!is_zero(inner_min)) {
+        state[s->inner] = outer_min + state[s->inner];
+      }
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -82,45 +92,6 @@ void SplitByAdd(Expr expr,
 }
 
 /*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and LetStmt, whose body is not defined.
- * \param body body
- */
-Stmt MergeNest(std::vector<std::vector<Stmt> > nest, Stmt body) {
-  // use reverse iteration
-  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
-    for (auto rj = ri->rbegin(); rj != ri->rend(); ++rj) {
-      Stmt s = *rj;
-      if (s.as<For>()) {
-        auto n = std::make_shared<For>(*s.as<For>());
-        CHECK(is_no_op(n->body));
-        n->body = body;
-        body = Stmt(n);
-      } else if (s.as<LetStmt>()) {
-        auto n = std::make_shared<LetStmt>(*s.as<LetStmt>());
-        CHECK(is_no_op(n->body));
-        n->body = body;
-        body = Stmt(n);
-      } else if (s.as<AttrStmt>()) {
-        auto n = std::make_shared<AttrStmt>(*s.as<AttrStmt>());
-        CHECK(is_no_op(n->body));
-        n->body = body;
-        body = Stmt(n);
-      } else if (s.as<IfThenElse>()) {
-        auto n = std::make_shared<IfThenElse>(*s.as<IfThenElse>());
-        CHECK(is_no_op(n->then_case));
-        CHECK(!n->else_case.defined());
-        n->then_case = body;
-        body = Stmt(n);
-      } else {
-        LOG(FATAL) << "not supported nest type";
-      }
-    }
-  }
-  return body;
-}
-
-/*!
  * \brief Make the loop nest of the correspondings schedule.
  * \param sch The schedule.
  * \param dom_map The domain map.
@@ -142,16 +113,32 @@ std::vector<std::vector<Stmt> > MakeLoopNest(
 
   for (size_t i = 0; i < leaf_iter_vars.size(); ++i) {
     auto iv = leaf_iter_vars[i];
+    Range dom = dom_map.at(iv);
     // initialize the offset and loop_level
     offset[iv] = iv->var;
     loop_level[iv->var.as<Variable>()] = i + 1;
     // Mark the iter var in the IR, to remember the point
     if (iv->thread_tag.length() == 0) {
-      Range dom = dom_map.at(iv);
+      if (is_zero(dom->min)) {
+        nest[i + 1].emplace_back(
+            For::make(iv->var, 0, dom->extent,
+                      ForType::Serial, DeviceAPI::None, no_op));
+      } else {
+        Var idx(iv->var->name_hint + ".idx", iv->var.type());
+        nest[i + 1].emplace_back(
+            For::make(idx, 0, dom->extent,
+                      ForType::Serial, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(
+            LetStmt::make(iv->var, dom->min + idx, no_op));
+      }
+    } else {
+      // Always restrict threaded IterVar to starts from 0.
+      CHECK(is_zero(dom->min));
+      // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          For::make(iv->var, dom->min, dom->extent,
-                    ForType::Serial, DeviceAPI::None, no_op));
+          AttrStmt::make(iv, "thread_extent", dom->extent, no_op));
     }
+    // annotate the extent of the IterVar
     nest[i + 1].emplace_back(
         AttrStmt::make(iv, "scope", iv->var, no_op));
   }

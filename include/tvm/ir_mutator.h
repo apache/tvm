@@ -9,6 +9,7 @@
 #include <tvm/ir_functor.h>
 #include <unordered_map>
 #include "./expr.h"
+#include "./ir.h"
 
 namespace tvm {
 namespace ir {
@@ -51,6 +52,20 @@ class IRMutator {
   static FMutateExpr& vtable_expr();  // NOLINT(*)
   /*! \return internal stmt of expr */
   static FMutateStmt& vtable_stmt();  // NOLINT(*)
+  // Set of overloadable functions
+  // The underscore allows Mutate not to be shadowed by inheritance
+  virtual Stmt Mutate_(const LetStmt* op, const Stmt& s);
+  virtual Stmt Mutate_(const AttrStmt* op, const Stmt& s);
+  virtual Stmt Mutate_(const For* op, const Stmt& s);
+  virtual Stmt Mutate_(const Provide* op, const Stmt& s);
+  virtual Stmt Mutate_(const Allocate* op, const Stmt& s);
+  virtual Stmt Mutate_(const Realize* op, const Stmt& s);
+  virtual Stmt Mutate_(const Store* op, const Stmt& s);
+  virtual Stmt Mutate_(const Free* op, const Stmt& s);
+  virtual Expr Mutate_(const Call* op, const Expr& e);
+  virtual Expr Mutate_(const Load* op, const Expr& s);
+  virtual Expr Mutate_(const Variable* op, const Expr& e);
+  virtual Expr Mutate_(const Let* op, const Expr& e);
 };
 
 /*!

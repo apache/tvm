@@ -34,6 +34,17 @@ class IRVisitor {
   using FVisit = IRFunctor<void(const NodeRef&, IRVisitor*)>;
   /*! \return internal vtable*/
   static FVisit& vtable();
+  // overloadable visit function.
+  virtual void Visit_(const Variable* op);
+  virtual void Visit_(const AttrStmt* op);
+  virtual void Visit_(const LetStmt* op);
+  virtual void Visit_(const For* op);
+  virtual void Visit_(const Allocate* op);
+  virtual void Visit_(const Load* op);
+  virtual void Visit_(const Store* op);
+  virtual void Visit_(const Let* op);
+  virtual void Visit_(const Free* op);
+  virtual void Visit_(const Call* op);
 };
 
 /*!

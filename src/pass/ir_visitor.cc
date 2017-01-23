@@ -8,7 +8,6 @@
 
 namespace tvm {
 namespace ir {
-namespace {
 // visitor to implement apply
 class IRApplyVisit : public IRVisitor {
  public:
@@ -26,7 +25,6 @@ class IRApplyVisit : public IRVisitor {
   std::unordered_set<const Node*> visited_;
 };
 
-}  // namespace
 
 void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit) {
   IRApplyVisit(fvisit).Visit(node);
@@ -35,12 +33,6 @@ void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvi
 IRVisitor::FVisit& IRVisitor::vtable() {  // NOLINT(*)
   static FVisit inst; return inst;
 }
-
-
-// namespace to register the functors.
-namespace {
-
-using namespace Halide::Internal;
 
 void NoOp(const NodeRef& n, IRVisitor* v) {
 }
@@ -59,24 +51,82 @@ inline void VisitRDom(const Array<IterVar>& rdom, IRVisitor* v) {
   }
 }
 
+#define DISPATCH_TO_VISIT(OP)                       \
+  set_dispatch<OP>([](const OP* op, IRVisitor* v) { \
+      v->Visit_(op);                                \
+    })
+
+TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
+.DISPATCH_TO_VISIT(Variable)
+.DISPATCH_TO_VISIT(LetStmt)
+.DISPATCH_TO_VISIT(For)
+.DISPATCH_TO_VISIT(Allocate)
+.DISPATCH_TO_VISIT(Load)
+.DISPATCH_TO_VISIT(Store)
+.DISPATCH_TO_VISIT(Let)
+.DISPATCH_TO_VISIT(Call)
+.DISPATCH_TO_VISIT(Free);
+
+void IRVisitor::Visit_(const Variable* op) {}
+
+void IRVisitor::Visit_(const LetStmt *op) {
+  this->Visit(op->value);
+  this->Visit(op->body);
+}
+
+void IRVisitor::Visit_(const AttrStmt* op) {
+  this->Visit(op->value);
+  this->Visit(op->body);
+}
+
+void IRVisitor::Visit_(const For *op) {
+  IRVisitor* v = this;
+  v->Visit(op->min);
+  v->Visit(op->extent);
+  v->Visit(op->body);
+}
+
+void IRVisitor::Visit_(const Allocate *op) {
+  IRVisitor* v = this;
+  for (size_t i = 0; i < op->extents.size(); i++) {
+    v->Visit(op->extents[i]);
+  }
+  v->Visit(op->body);
+  v->Visit(op->condition);
+  if (op->new_expr.defined()) {
+    v->Visit(op->new_expr);
+  }
+}
+
+void IRVisitor::Visit_(const Load *op) {
+  this->Visit(op->index);
+}
+
+void IRVisitor::Visit_(const Store *op) {
+  this->Visit(op->value);
+  this->Visit(op->index);
+}
+
+void IRVisitor::Visit_(const Let *op) {
+  this->Visit(op->value);
+  this->Visit(op->body);
+}
+
+void IRVisitor::Visit_(const Free* op) {}
+
+void IRVisitor::Visit_(const Call *op) {
+  VisitArray(op->args, this);
+}
+
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Reduce>([](const Reduce* op, IRVisitor* v) {
     VisitRDom(op->rdom, v);
     v->Visit(op->source);
-  });
-
-TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
-.set_dispatch<AttrStmt>([](const AttrStmt* op, IRVisitor* v) {
-    v->Visit(op->value);
-    v->Visit(op->body);
-  });
-
-TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
+  })
 .set_dispatch<IntImm>(NoOp)
 .set_dispatch<UIntImm>(NoOp)
 .set_dispatch<FloatImm>(NoOp)
-.set_dispatch<StringImm>(NoOp)
-.set_dispatch<Variable>(NoOp);
+.set_dispatch<StringImm>(NoOp);
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Cast>([](const Cast* op, IRVisitor* v) {
@@ -116,29 +166,15 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
     v->Visit(op->true_value);
     v->Visit(op->false_value);
   })
-.set_dispatch<Load>([](const Load *op, IRVisitor* v) {
-    v->Visit(op->index);
-  })
 .set_dispatch<Ramp>([](const Ramp *op, IRVisitor* v) {
     v->Visit(op->base);
     v->Visit(op->stride);
   })
 .set_dispatch<Broadcast>([](const Broadcast *op, IRVisitor* v) {
     v->Visit(op->value);
-  })
-.set_dispatch<Call>([](const Call *op, IRVisitor* v) {
-    VisitArray(op->args, v);
-  })
-.set_dispatch<Let>([](const Let *op, IRVisitor* v) {
-    v->Visit(op->value);
-    v->Visit(op->body);
   });
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
-.set_dispatch<LetStmt>([](const LetStmt *op, IRVisitor* v) {
-    v->Visit(op->value);
-    v->Visit(op->body);
-  })
 .set_dispatch<AssertStmt>([](const AssertStmt *op, IRVisitor* v) {
     v->Visit(op->condition);
     v->Visit(op->message);
@@ -146,30 +182,10 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<ProducerConsumer>([](const ProducerConsumer *op, IRVisitor* v) {
     v->Visit(op->body);
   })
-.set_dispatch<For>([](const For *op, IRVisitor* v) {
-    v->Visit(op->min);
-    v->Visit(op->extent);
-    v->Visit(op->body);
-  })
-.set_dispatch<Store>([](const Store *op, IRVisitor* v) {
-    v->Visit(op->value);
-    v->Visit(op->index);
-  })
 .set_dispatch<Provide>([](const Provide *op, IRVisitor* v) {
     VisitArray(op->args, v);
     v->Visit(op->value);
   })
-.set_dispatch<Allocate>([](const Allocate *op, IRVisitor* v) {
-    for (size_t i = 0; i < op->extents.size(); i++) {
-      v->Visit(op->extents[i]);
-    }
-    v->Visit(op->body);
-    v->Visit(op->condition);
-    if (op->new_expr.defined()) {
-      v->Visit(op->new_expr);
-    }
-  })
-.set_dispatch<Free>(NoOp)
 .set_dispatch<Realize>([](const Realize *op, IRVisitor* v) {
     // Mutate the bounds
     for (size_t i = 0; i < op->bounds.size(); i++) {
@@ -193,6 +209,5 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
     v->Visit(op->value);
   });
 
-}  // namespace
 }  // namespace ir
 }  // namespace tvm

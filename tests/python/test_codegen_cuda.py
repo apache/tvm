@@ -24,31 +24,15 @@ def mock_test_add():
     Bb = tvm.Buffer(B.shape, B.dtype, name='B')
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
+    stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
     output_ssa = False
-    code = tvm.codegen.CompileToC(stmt, "myadd",
-                                  [Ab.ptr, Bb.ptr, Cb.ptr, n],
-                                  output_ssa)
+    f = tvm.codegen.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 1)
 
-    print(code)
-    def codegen():
-        # generate host/device code
-        host_code, device_code = tvm.codegen.GenCUDA(
-            s,
-            inputs={A: Ab, B:Bb},
-            outputs={C: Cb},
-            args=[A, B, C])
-        # generate a function based on the code
-        f = tvm.cuda.build_function(host_code, device_code)
-        # create arrays
-        a = tvm.nd.array(np.ones(10), ctx=tvm.gpu(0))
-        b = tvm.nd.array(np.ones(10), ctx=tvm.gpu(0))
-        c = tvm.nd.array(np.zeros(10), ctx=tvm.gpu(0))
-        # calll the generated code
-        f(a, b, c)
-        # sync the result
-        np.testing.assert_equal(c.asnumpy(), np.ones(10) * 2)
-
+    f_list = tvm.codegen.SplitHostDevice(f)
+    for x in f_list:
+        code = tvm.codegen.CompileToC(x, output_ssa)
+        print(code)
 
 if __name__ == "__main__":
     mock_test_add()

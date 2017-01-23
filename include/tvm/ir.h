@@ -49,6 +49,48 @@ struct Reduce : public ExprNode<Reduce> {
   static constexpr const char* Min = "Min";
 };
 
+/*! \brief namespace of TVM Intrinsic functions */
+namespace intrinsic {
+// Most of the intrinsics is to enab
+/*!
+ * \brief See pesudo code
+ *
+ *  Type tvm_api_load_arg(TVMArg* args, int* args_type_id, i) {
+ *     assert(arg_type_id[i] == typeid(Type));
+ *     return args[i];
+ *  }
+ */
+constexpr const char* tvm_api_load_arg = "tvm_api_load_arg";
+/*!
+ * \brief See pesudo code
+ *
+ *  Type tvm_array_get_field(TVMArray* arr, int field_id) {
+ *     return arr->field;
+ *  }
+ * \sa TVMArrayFieldKind
+ */
+constexpr const char* tvm_array_get_field = "tvm_array_get_field";
+/*!
+ * \brief See pesudo code
+ *
+ *  bool tvm_handle_is_null(void* handle) {
+ *     return handle == nullptr
+ *  }
+ */
+constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
+
+/*! \brief The field id of each field in array */
+enum TVMArrayFieldKind {
+  kData = 0,
+  kNDim = 1,
+  kShape = 2,
+  kStrides = 3,
+  kTypeCode = 4,
+  kTypeBits = 5,
+  kTypeLanes = 6
+};
+}   // namespace intrinsic
+
 // Reuse IR node defintiion from HalideIR
 using Halide::Internal::IntImm;
 using Halide::Internal::UIntImm;

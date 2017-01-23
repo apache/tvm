@@ -7,6 +7,7 @@
 #define TVM_BASE_COMMON_H_
 
 #include <tvm/base.h>
+#include <tvm/expr.h>
 #include <string>
 
 namespace tvm {
@@ -30,7 +31,7 @@ inline Type String2Type(std::string s) {
   } else if (s.substr(0, 5) == "float") {
     code = Type::Float; s = s.substr(5);
   } else if (s == "handle") {
-    return Type(Type::Handle, 32, 1);
+    return Handle();
   } else {
     LOG(FATAL) << "unknown type " << s;
   }
