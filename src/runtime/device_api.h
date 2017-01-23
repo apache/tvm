@@ -7,7 +7,7 @@
 #define TVM_RUNTIME_DEVICE_API_H_
 
 #include <tvm/base.h>
-#include <tvm/c_runtime_api.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 namespace tvm {
 namespace runtime {

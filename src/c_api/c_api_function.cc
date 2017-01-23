@@ -8,7 +8,7 @@
 #include "./c_api_registry.h"
 
 namespace dmlc {
-DMLC_REGISTRY_ENABLE(::tvm::APIFunctionReg);
+DMLC_REGISTRY_ENABLE(::tvm::APIFuncReg);
 }  // namespace dmlc
 
 namespace tvm {
@@ -18,7 +18,7 @@ using RetValue = APIVariantValue;
 
 TVM_REGISTER_API(_format_str)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-    CHECK(args.at(0).type_id == kNodeHandle);
+    CHECK(args.at(0).type_code == kNodeHandle);
     std::ostringstream os;
     os << args.at(0).operator NodeRef();
     *ret = os.str();
@@ -27,7 +27,7 @@ TVM_REGISTER_API(_format_str)
 
 TVM_REGISTER_API(_raw_ptr)
 .set_body([](const ArgStack& args,  RetValue *ret) {
-    CHECK(args.at(0).type_id == kNodeHandle);
+    CHECK(args.at(0).type_code == kNodeHandle);
     *ret = reinterpret_cast<int64_t>(args.at(0).sptr.get());
   })
 .add_argument("src", "NodeBase", "the node base");

@@ -4,15 +4,15 @@
 from __future__ import absolute_import as _abs
 
 import ctypes
+from numbers import Number, Integral
 import numpy as np
 
 from .._base import _LIB
-from .._base import c_array, c_str
+from .._base import c_array, c_str, string_types
 from .._base import check_call
-
+from ._types import TVMValue, TypeCode, TVMType
 
 tvm_index_t = ctypes.c_uint32
-
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
@@ -72,52 +72,13 @@ def opencl(dev_id=0):
     return TVMContext(4, dev_id)
 
 
-class TVMDataType(ctypes.Structure):
-    """TVM datatype structure"""
-    _fields_ = [("type_code", ctypes.c_uint8),
-                ("bits", ctypes.c_uint8),
-                ("lanes", ctypes.c_uint16)]
-    CODE2STR = {
-        0 : 'int',
-        1 : 'uint',
-        2 : 'float'
-    }
-    def __init__(self, type_str, lanes=1):
-        super(TVMDataType, self).__init__()
-        if isinstance(type_str, np.dtype):
-            type_str = str(type_str)
-
-        if type_str.startswith("int"):
-            self.type_code = 0
-            bits = int(type_str[3:])
-        elif type_str.startswith("uint"):
-            self.type_code = 1
-            bits = int(type_str[4:])
-        elif type_str.startswith("float"):
-            self.type_code = 2
-            bits = int(type_str[5:])
-        else:
-            raise ValueError("Donot know how to handle type %s" % type_str)
-        bits = 32 if bits == 0 else bits
-        if (bits & (bits - 1)) != 0 or bits < 8:
-            raise ValueError("Donot know how to handle type %s" % type_str)
-        self.bits = bits
-        self.lanes = lanes
-
-    def __repr__(self):
-        x = "%s%d" % (TVMDataType.CODE2STR[self.type_code], self.bits)
-        if self.lanes != 1:
-            x += "x%d" % self.lanes
-        return x
-
-
 class TVMArray(ctypes.Structure):
-    """TVMArg in C API"""
+    """TVMValue in C API"""
     _fields_ = [("data", ctypes.c_void_p),
                 ("shape", ctypes.POINTER(tvm_index_t)),
                 ("strides", ctypes.POINTER(tvm_index_t)),
                 ("ndim", tvm_index_t),
-                ("dtype", TVMDataType),
+                ("dtype", TVMType),
                 ("ctx", TVMContext)]
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)
@@ -133,7 +94,7 @@ def numpyasarray(np_data):
     arr.data = data.ctypes.data_as(ctypes.c_void_p)
     arr.shape = shape
     arr.strides = None
-    arr.dtype = TVMDataType(np.dtype(data.dtype).name)
+    arr.dtype = TVMType(np.dtype(data.dtype).name)
     arr.ndim = data.ndim
     # CPU device
     arr.ctx = cpu(0)
@@ -141,6 +102,7 @@ def numpyasarray(np_data):
 
 
 _ndarray_cls = None
+_function_cls = None
 
 
 def empty(shape, dtype="float32", ctx=cpu(0)):
@@ -165,7 +127,7 @@ def empty(shape, dtype="float32", ctx=cpu(0)):
     shape = c_array(tvm_index_t, shape)
     ndim = tvm_index_t(len(shape))
     handle = TVMArrayHandle()
-    dtype = TVMDataType(dtype)
+    dtype = TVMType(dtype)
     check_call(_LIB.TVMArrayAlloc(
         shape, ndim, dtype, ctx, ctypes.byref(handle)))
     return _ndarray_cls(handle)
@@ -313,6 +275,51 @@ class NDArrayBase(object):
         return target
 
 
-def _init_runtime_module(ndarray_class):
+class FunctionBase(object):
+    """A function object at runtim."""
+    __slots__ = ["handle"]
+    # pylint: disable=no-member
+    def __init__(self, handle):
+        """Initialize the function with handle
+
+        Parameters
+        ----------
+        handle : FunctionHandle
+            the handle to the underlying function.
+        """
+        self.handle = handle
+
+    def __del__(self):
+        check_call(_LIB.TVMFuncFree(self.handle))
+
+    def __call__(self, *args):
+        num_args = len(args)
+        tvm_args = (TVMValue * num_args)()
+        tvm_type_code = (ctypes.c_int * num_args)()
+        for i, arg in enumerate(args):
+            if arg is None:
+                tvm_args[i].v_handle = None
+                tvm_type_code[i] = TypeCode.NULL
+            elif isinstance(arg, NDArrayBase):
+                tvm_args[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
+                tvm_type_code[i] = TypeCode.HANDLE
+            elif isinstance(arg, Integral):
+                tvm_args[i].v_int64 = arg
+                tvm_type_code[i] = TypeCode.INT
+            elif isinstance(arg, Number):
+                tvm_args[i].v_float64 = arg
+                tvm_type_code[i] = TypeCode.FLOAT
+            elif isinstance(arg, string_types):
+                tvm_args[i].v_str = c_str(arg)
+                tvm_type_code[i] = TypeCode.STR
+            else:
+                raise TypeError("Don't know how to handle type %s" % type(arg))
+        check_call(_LIB.TVMFuncCall(
+            self.handle, tvm_args, tvm_type_code, ctypes.c_int(num_args)))
+
+
+def _init_runtime_module(ndarray_class, function_class):
     global _ndarray_cls
+    global _function_cls
     _ndarray_cls = ndarray_class
+    _function_cls = function_class

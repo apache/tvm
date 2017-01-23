@@ -9,25 +9,25 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/c_api.h>
+#include <tvm/runtime/runtime.h>
 #include <memory>
 #include <limits>
 #include <string>
 #include <vector>
 #include "../base/common.h"
 
-using ArgVariant = TVMArg;
-using ArgVariantID = TVMArgTypeID;
-
 namespace tvm {
 
-inline const char* TypeId2Str(ArgVariantID type_id) {
-  switch (type_id) {
-    case kNull: return "Null";
-    case kLong: return "Long";
-    case kDouble: return "Double";
-    case kStr: return "Str";
+inline const char* TVMTypeCode2Str(int type_code) {
+  switch (type_code) {
+    case kInt: return "int";
+    case kFloat: return "float";
+    case kStr: return "str";
+    case kHandle: return "Handle";
+    case kNull: return "NULL";
     case kNodeHandle: return "NodeHandle";
-    default: LOG(FATAL) << "unknown type_id=" << type_id; return "";
+    default: LOG(FATAL) << "unknown type_code="
+                        << static_cast<int>(type_code); return "";
   }
 }
 
@@ -96,51 +96,60 @@ inline std::string NodeTypeName() {
 class APIVariantValue {
  public:
   /*! \brief the type id */
-  ArgVariantID type_id{kNull};
+  int type_code{kNull};
   /*! \brief shared pointer container */
   std::shared_ptr<Node> sptr;
   /*! \brief string container */
   std::string str;
   /*! \brief the variant holder */
-  ArgVariant v_union;
+  TVMValue v_union;
+  /*! \brief std::function */
+  runtime::PackedFunc::FType func;
   // constructor
-  APIVariantValue() {}
+  APIVariantValue() {
+  }
   // clear value
   inline void Clear() {
   }
   // assign op
   inline APIVariantValue& operator=(double value) {
-    type_id = kDouble;
-    v_union.v_double = value;
+    type_code = kFloat;
+    v_union.v_float64 = value;
     return *this;
   }
   inline APIVariantValue& operator=(std::nullptr_t value) {
-    type_id = kNull;
+    type_code = kHandle;
+    v_union.v_handle = value;
     return *this;
   }
   inline APIVariantValue& operator=(int64_t value) {
-    type_id = kLong;
-    v_union.v_long = value;
+    type_code = kInt;
+    v_union.v_int64 = value;
     return *this;
   }
   inline APIVariantValue& operator=(bool value) {
-    type_id = kLong;
-    v_union.v_long = value;
+    type_code = kInt;
+    v_union.v_int64 = value;
     return *this;
   }
   inline APIVariantValue& operator=(std::string value) {
-    type_id = kStr;
+    type_code = kStr;
     str = std::move(value);
     v_union.v_str = str.c_str();
     return *this;
   }
   inline APIVariantValue& operator=(const NodeRef& ref) {
     if (ref.node_.get() == nullptr) {
-      type_id = kNull;
+      type_code = kNull;
     } else {
-      type_id = kNodeHandle;
+      type_code = kNodeHandle;
       this->sptr = ref.node_;
     }
+    return *this;
+  }
+  inline APIVariantValue& operator=(const runtime::PackedFunc& f) {
+    type_code = kFuncHandle;
+    this->func = f.body();
     return *this;
   }
   inline APIVariantValue& operator=(const Type& value) {
@@ -149,19 +158,21 @@ class APIVariantValue {
   template<typename T,
            typename = typename std::enable_if<std::is_base_of<NodeRef, T>::value>::type>
   inline operator T() const {
-    if (type_id == kNull) return T();
-    CHECK_EQ(type_id, kNodeHandle);
+    if (type_code == kNull) return T();
+    CHECK_EQ(type_code, kNodeHandle);
     CHECK(NodeTypeChecker<T>::Check(sptr.get()))
         << "Did not get expected type " << NodeTypeName<T>();
     return T(sptr);
   }
   inline operator Expr() const {
-    if (type_id == kNull) return Expr();
-    if (type_id == kLong) return Expr(operator int());
-    if (type_id == kDouble) {
+    if (type_code == kNull) {
+      return Expr();
+    }
+    if (type_code == kInt) return Expr(operator int());
+    if (type_code == kFloat) {
       return Expr(static_cast<float>(operator double()));
     }
-    CHECK_EQ(type_id, kNodeHandle);
+    CHECK_EQ(type_code, kNodeHandle);
     if (sptr->is_type<IterVarNode>()) {
       return IterVar(sptr)->var;
     } else {
@@ -171,52 +182,58 @@ class APIVariantValue {
     }
   }
   inline operator double() const {
-    CHECK_EQ(type_id, kDouble);
-    return v_union.v_double;
+    CHECK_EQ(type_code, kFloat);
+    return v_union.v_float64;
   }
   inline operator int64_t() const {
-    CHECK_EQ(type_id, kLong);
-    return v_union.v_long;
+    CHECK_EQ(type_code, kInt);
+    return v_union.v_int64;
   }
   inline operator uint64_t() const {
-    CHECK_EQ(type_id, kLong);
-    return v_union.v_long;
+    CHECK_EQ(type_code, kInt);
+    return v_union.v_int64;
   }
   inline operator int() const {
-    CHECK_EQ(type_id, kLong);
-    CHECK_LE(v_union.v_long,
+    CHECK_EQ(type_code, kInt);
+    CHECK_LE(v_union.v_int64,
              std::numeric_limits<int>::max());
-    return v_union.v_long;
+    return v_union.v_int64;
   }
   inline operator bool() const {
-    CHECK_EQ(type_id, kLong)
-        << "expect boolean(int) but get " << TypeId2Str(type_id);
-    return v_union.v_long != 0;
+    CHECK_EQ(type_code, kInt)
+        << "expect boolean(int) but get "
+        << TVMTypeCode2Str(type_code);
+    return v_union.v_int64 != 0;
   }
   inline operator std::string() const {
-    CHECK_EQ(type_id, kStr)
-        << "expect Str but get " << TypeId2Str(type_id);
+    CHECK_EQ(type_code, kStr)
+        << "expect Str but get "
+        << TVMTypeCode2Str(type_code);
     return str;
   }
   inline operator Type() const {
     return String2Type(operator std::string());
   }
+  inline operator runtime::PackedFunc() const {
+    CHECK_EQ(type_code, kFuncHandle);
+    return runtime::PackedFunc(func);
+  }
 };
 
 // common defintiion of API function.
-using APIFunction = std::function<
+using APIFunc = std::function<
   void(const std::vector<APIVariantValue> &args, APIVariantValue* ret)>;
 
 /*!
  * \brief Registry entry for DataIterator factory functions.
  */
-struct APIFunctionReg
-    : public dmlc::FunctionRegEntryBase<APIFunctionReg,
-                                        APIFunction> {
+struct APIFuncReg
+    : public dmlc::FunctionRegEntryBase<APIFuncReg,
+                                        APIFunc> {
 };
 
-#define TVM_REGISTER_API(TypeName)                                      \
-  DMLC_REGISTRY_REGISTER(::tvm::APIFunctionReg, APIFunctionReg, TypeName) \
+#define TVM_REGISTER_API(TypeName)                                \
+  DMLC_REGISTRY_REGISTER(::tvm::APIFuncReg, APIFuncReg, TypeName) \
 
 }  // namespace tvm
 

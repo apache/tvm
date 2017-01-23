@@ -22,7 +22,7 @@ struct TVMAPIThreadLocalEntry {
     arg_stack.clear();
     ret_value.sptr.reset();
   }
-  inline void SetReturn(ArgVariant* ret_val, int* ret_typeid);
+  inline void SetReturn(TVMValue* ret_val, int* ret_type_code);
 };
 
 using namespace tvm;
@@ -97,11 +97,11 @@ struct APIAttrDir : public AttrVisitor {
   }
 };
 
-int TVMListAPIFunctionNames(int *out_size,
+int TVMListAPIFuncNames(int *out_size,
                             const char*** out_array) {
   API_BEGIN();
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
-  ret->ret_vec_str = dmlc::Registry<APIFunctionReg>::ListAllNames();
+  ret->ret_vec_str = dmlc::Registry<APIFuncReg>::ListAllNames();
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
@@ -111,16 +111,16 @@ int TVMListAPIFunctionNames(int *out_size,
   API_END();
 }
 
-int TVMGetAPIFunctionHandle(const char* fname,
-                            APIFunctionHandle* out) {
+int TVMGetAPIFuncHandle(const char* fname,
+                            APIFuncHandle* out) {
   API_BEGIN();
-  const APIFunctionReg* reg = dmlc::Registry<APIFunctionReg>::Find(fname);
+  const APIFuncReg* reg = dmlc::Registry<APIFuncReg>::Find(fname);
   CHECK(reg != nullptr) << "cannot find function " << fname;
-  *out = (APIFunctionHandle)reg;
+  *out = (APIFuncHandle)reg;
   API_END();
 }
 
-int TVMGetAPIFunctionInfo(APIFunctionHandle handle,
+int TVMGetAPIFuncInfo(APIFuncHandle handle,
                           const char **real_name,
                           const char **description,
                           int *num_doc_args,
@@ -128,7 +128,7 @@ int TVMGetAPIFunctionInfo(APIFunctionHandle handle,
                           const char ***arg_type_infos,
                           const char ***arg_descriptions,
                           const char **return_type) {
-  const auto *op = static_cast<const APIFunctionReg *>(handle);
+  const auto *op = static_cast<const APIFuncReg *>(handle);
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
 
   API_BEGIN();
@@ -152,33 +152,37 @@ int TVMGetAPIFunctionInfo(APIFunctionHandle handle,
   API_END();
 }
 
-int TVMAPIPushStack(ArgVariant arg,
-                    int type_id) {
+int TVMAPIPushStack(TVMValue arg,
+                    int type_code) {
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   API_BEGIN();
   ret->arg_stack.resize(ret->arg_stack.size() + 1);
   APIVariantValue& v = ret->arg_stack.back();
 
-  v.type_id = static_cast<ArgVariantID>(type_id);
-  if (type_id == kStr) {
-    v.str = arg.v_str;
-  }  else if (type_id == kNodeHandle) {
-    v.sptr = *static_cast<TVMAPINode*>(arg.v_handle);
-  } else {
-    v.v_union = arg;
+  v.type_code = type_code;
+  switch (type_code) {
+    case kInt: case kUInt: case kFloat: case kNull: {
+      v.v_union = arg; break;
+    }
+    case kStr: {
+      v.str = arg.v_str; break;
+    }
+    case kNodeHandle: {
+      v.sptr = *static_cast<TVMAPINode*>(arg.v_handle); break;
+    }
+    default: LOG(FATAL) << "TVM API cannot take type " << TVMTypeCode2Str(type_code);
   }
-
   API_END_HANDLE_ERROR(ret->Clear());
 }
 
-int TVMAPIFunctionCall(APIFunctionHandle handle,
-                       ArgVariant* ret_val,
-                       int* ret_typeid) {
+int TVMAPIFuncCall(APIFuncHandle handle,
+                   TVMValue* ret_val,
+                   int* ret_type_code) {
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   API_BEGIN();
-  const auto *op = static_cast<const APIFunctionReg *>(handle);
+  const auto *op = static_cast<const APIFuncReg *>(handle);
   op->body(ret->arg_stack, &(ret->ret_value));
-  ret->SetReturn(ret_val, ret_typeid);
+  ret->SetReturn(ret_val, ret_type_code);
   ret->arg_stack.clear();
   API_END_HANDLE_ERROR(ret->Clear());
 }
@@ -191,28 +195,28 @@ int TVMNodeFree(NodeHandle handle) {
 
 int TVMNodeGetAttr(NodeHandle handle,
                    const char* key,
-                   ArgVariant* ret_val,
-                   int* ret_typeid,
+                   TVMValue* ret_val,
+                   int* ret_type_code,
                    int* ret_success) {
   TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
   API_BEGIN();
-  ret->ret_value.type_id = kNull;
+  ret->ret_value.type_code = kNull;
   APIAttrGetter getter;
   getter.skey = key;
   getter.ret = &(ret->ret_value);
   TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
   if (getter.skey == "type_key") {
     ret_val->v_str = (*tnode)->type_key();
-    *ret_typeid = kStr;
+    *ret_type_code = kStr;
     *ret_success = 1;
   } else {
     (*tnode)->VisitAttrs(&getter);
-    if (ret->ret_value.type_id != kNull) {
-      ret->SetReturn(ret_val, ret_typeid);
+    if (ret->ret_value.type_code != kNull) {
+      ret->SetReturn(ret_val, ret_type_code);
       *ret_success = 1;
     } else {
       *ret_success = getter.found_node_ref ? 1 : 0;
-      *ret_typeid = kNull;
+      *ret_type_code = kNull;
     }
   }
   API_END_HANDLE_ERROR(ret->Clear());
@@ -238,16 +242,18 @@ int TVMNodeListAttrNames(NodeHandle handle,
 }
 
 
-inline void TVMAPIThreadLocalEntry::SetReturn(ArgVariant* ret_val,
-                                              int* ret_typeid) {
+inline void TVMAPIThreadLocalEntry::SetReturn(TVMValue* ret_val,
+                                              int* ret_type_code) {
   APIVariantValue& rv = ret_value;
-  *ret_typeid = rv.type_id;
-  if (rv.type_id == kNodeHandle) {
+  *ret_type_code = rv.type_code;
+  if (rv.type_code == kNodeHandle) {
     if (rv.sptr.get() != nullptr) {
       ret_val->v_handle = new TVMAPINode(std::move(rv.sptr));
     } else {
       ret_val->v_handle = nullptr;
     }
+  } else if (rv.type_code == kFuncHandle) {
+    ret_val->v_handle = new runtime::PackedFunc::FType(std::move(rv.func));
   } else {
     *ret_val = rv.v_union;
   }

@@ -10,6 +10,8 @@
 #include "./base.h"
 #include "./expr.h"
 #include "./module.h"
+#include "./runtime/runtime.h"
+
 
 namespace tvm {
 /*! \brief namespace for lowlevel IR pass and codegen */
@@ -61,6 +63,9 @@ Array<Var> UndefinedVars(const LoweredFunc& f);
  *     the others are device functions.
  */
 Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
+
+
+runtime::PackedFunc BuildStackVM(LoweredFunc func);
 
 }  // namespace codegen
 }  // namespace tvm

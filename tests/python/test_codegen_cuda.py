@@ -15,10 +15,10 @@ def mock_test_add():
     thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
     _, x = s[C].split(C.op.axis[0], factor=num_thread, outer=grid_x)
     _, x = s[C].split(x, outer=thread_x)
+
     # compile to IR
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.ir_pass.ScheduleOps(s, bounds)
-
 
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
     Bb = tvm.Buffer(B.shape, B.dtype, name='B')

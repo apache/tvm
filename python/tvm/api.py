@@ -3,8 +3,8 @@
 """Functions defined in TVM."""
 from __future__ import absolute_import as _abs
 from numbers import Integral as _Integral
-from ._ctypes._api import _init_function_module, convert
-from . import _function_internal
+from ._ctypes._api import _init_api_module, convert
+from . import _api_internal
 from . import make as _make
 from . import expr as _expr
 from . import collections as _collections
@@ -20,7 +20,7 @@ def const(value, dtype=None):
             dtype = 'int32'
         else:
             dtype = 'float32'
-    return _function_internal._const(value, dtype)
+    return _api_internal._const(value, dtype)
 
 
 def load_json(json_str):
@@ -36,7 +36,7 @@ def load_json(json_str):
     node : Node
         The loaded tvm node.
     """
-    return _function_internal._load_json(json_str)
+    return _api_internal._load_json(json_str)
 
 
 def save_json(node):
@@ -52,7 +52,7 @@ def save_json(node):
     json_str : str
         Saved json string.
     """
-    return _function_internal._save_json(node)
+    return _api_internal._save_json(node)
 
 
 def Var(name="tindex", dtype=int32):
@@ -66,7 +66,7 @@ def Var(name="tindex", dtype=int32):
     dtype : int
         The data type
     """
-    return _function_internal._Var(name, dtype)
+    return _api_internal._Var(name, dtype)
 
 
 def placeholder(shape, dtype=None, name="placeholder"):
@@ -90,7 +90,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     dtype = float32 if dtype is None else dtype
-    return _function_internal._Placeholder(
+    return _api_internal._Placeholder(
         shape, dtype, name)
 
 
@@ -128,9 +128,9 @@ def compute(shape, fcompute, name="compute"):
     dim_var = [IterVar((0, s), x) for x, s in zip(arg_names, shape)]
     body = fcompute(*[v.var for v in dim_var])
     body = convert(body)
-    op_node = _function_internal._ComputeOp(
+    op_node = _api_internal._ComputeOp(
         name, dim_var, body)
-    return _function_internal._Tensor(
+    return _api_internal._Tensor(
         shape, body.dtype, op_node, 0)
 
 
@@ -168,7 +168,7 @@ def Buffer(shape, dtype=None,
     if ptr is None:
         ptr = Var(name, "handle")
 
-    return _function_internal._Buffer(
+    return _api_internal._Buffer(
         name, ptr, shape, strides, dtype)
 
 
@@ -202,7 +202,7 @@ def IterVar(dom=None, name=None, thread_tag=''):
     if name is None:
         name = thread_tag if thread_tag else name
     name = name if name else 'iter'
-    return _function_internal._IterVar(dom, name, thread_tag)
+    return _api_internal._IterVar(dom, name, thread_tag)
 
 
 def sum(expr, rdom):
@@ -263,7 +263,7 @@ def Schedule(ops):
     """
     if not isinstance(ops, (list, _collections.Array)):
         ops = [ops]
-    return _function_internal._Schedule(ops)
+    return _api_internal._Schedule(ops)
 
 
-_init_function_module("tvm")
+_init_api_module("tvm")
