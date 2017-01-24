@@ -78,6 +78,14 @@ constexpr const char* tvm_array_get_field = "tvm_array_get_field";
  *  }
  */
 constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
+/*!
+ * \brief See pesudo code
+ *
+ *  bool tvm_print(VType value) {
+ *     LOG(INFO) << value;
+ *  }
+ */
+constexpr const char* tvm_print = "tvm_print";
 
 /*! \brief The field id of each field in array */
 enum TVMArrayFieldKind {

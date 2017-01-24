@@ -7,7 +7,6 @@
 #define TVM_CODEGEN_CODEGEN_C_H_
 
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/module.h>
 #include <string>
 #include <unordered_map>
