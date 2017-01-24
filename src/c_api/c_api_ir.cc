@@ -46,7 +46,8 @@ TVM_REGISTER_API(_make_Call)
                       args.at(1),
                       args.at(2),
                       static_cast<Call::CallType>(args.at(3).operator int()),
-                      args.at(4));
+                      args.at(4),
+                      args.at(5));
   });
 
 TVM_REGISTER_API(_make_Allocate)

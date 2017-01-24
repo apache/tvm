@@ -4,7 +4,7 @@
  * \brief Device specific implementations
  */
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/runtime.h>
+#include <tvm/runtime/packed_func.h>
 #include <algorithm>
 #include "./runtime_base.h"
 #include "./device_api.h"
@@ -170,7 +170,7 @@ int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
 
 int TVMFuncFree(TVMFunctionHandle func) {
   API_BEGIN();
-  delete static_cast<PackedFunc::FType*>(func);
+  delete static_cast<PackedFunc*>(func);
   API_END();
 }
 
@@ -179,7 +179,35 @@ int TVMFuncCall(TVMFunctionHandle func,
                 int* arg_type_codes,
                 int num_args) {
   API_BEGIN();
-  (*static_cast<const PackedFunc::FType*>(func))(
+  (*static_cast<const PackedFunc*>(func)).CallPacked(
       args, arg_type_codes, num_args);
+  API_END();
+}
+
+int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
+                           void* resource_handle,
+                           TVMPackedCFuncFinalizer fin,
+                           TVMFunctionHandle *out) {
+  API_BEGIN();
+  if (fin == nullptr) {
+    *out = new PackedFunc(
+        [func, resource_handle](const TVMValue* args,
+                                const int* type_codes,
+                                int num_args) {
+          func((TVMValue*)args, (int*)type_codes, // NOLINT(*)
+               num_args, resource_handle);
+        });
+  } else {
+    // wrap it in a shared_ptr, with fin as deleter.
+    // so fin will be called when the lambda went out of scope.
+    std::shared_ptr<void> rpack(resource_handle, fin);
+    *out = new PackedFunc(
+        [func, rpack](const TVMValue* args,
+                      const int* type_codes,
+                      int num_args) {
+          func((TVMValue*)args, (int*)type_codes, // NOLINT(*)
+               num_args, rpack.get());
+      });
+  }
   API_END();
 }

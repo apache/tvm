@@ -1,6 +1,6 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/runtime.h>
+#include <tvm/runtime/packed_func.h>
 
 TEST(PackedFunc, Basic) {
   using namespace tvm::runtime;

@@ -20,9 +20,6 @@ namespace tvm {
 // Internal node container of lowered function.
 class LoweredFuncNode;
 
-// Internal node container of module.
-class ModuleNode;
-
 /*!
  * \brief LoweredFunc represents function after lowering.
  *  This is the final IR representation before codegen.

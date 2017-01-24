@@ -1,9 +1,9 @@
 # pylint: disable=protected-access, no-member, invalid-name
-# pylint: disable=redefined-builtin, undefined-variable
+# pylint: disable=redefined-builtin, undefined-variable, unused-import
 """Functions defined in TVM."""
 from __future__ import absolute_import as _abs
 from numbers import Integral as _Integral
-from ._ctypes._api import _init_api_module, convert
+from ._ctypes._api import _init_api_module, convert, register_func, get_global_func
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
