@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, SliceBase, register_node, convert
 from . import collections as _collections
-from . import _function_internal
+from . import _api_internal
 from . import make as _make
 from . import expr as _expr
 
@@ -44,12 +44,12 @@ class Tensor(NodeBase):
         return TensorSlice(self, indices)
 
     def __hash__(self):
-        return _function_internal._TensorHash(self)
+        return _api_internal._TensorHash(self)
 
     def __eq__(self, other):
         if not isinstance(other, Tensor):
             return False
-        return _function_internal._TensorEqual(self, other)
+        return _api_internal._TensorEqual(self, other)
 
     @property
     def ndim(self):
@@ -72,7 +72,7 @@ class Operation(NodeBase):
         out : Tensor
             The i-th output.
         """
-        return _function_internal._OpGetOutput(self, index)
+        return _api_internal._OpGetOutput(self, index)
 
 @register_node
 class ComputeOp(Operation):

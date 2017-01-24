@@ -1,1 +1,0 @@
-"""namespace of internal function"""

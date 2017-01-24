@@ -3,7 +3,8 @@
  * \file c_runtime_api.cc
  * \brief Device specific implementations
  */
-#include <tvm/c_runtime_api.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/runtime.h>
 #include <algorithm>
 #include "./runtime_base.h"
 #include "./device_api.h"
@@ -34,7 +35,7 @@ inline void TVMArrayFree_(TVMArray* arr) {
   delete arr;
 }
 
-inline void VerifyType(TVMDataType dtype) {
+inline void VerifyType(TVMType dtype) {
   CHECK_GE(dtype.lanes, 1U);
   if (dtype.type_code == kFloat) {
     CHECK_EQ(dtype.bits % 32U, 0U);
@@ -98,7 +99,7 @@ int TVMContextEnabled(TVMContext ctx,
 
 int TVMArrayAlloc(const tvm_index_t* shape,
                   tvm_index_t ndim,
-                  TVMDataType dtype,
+                  TVMType dtype,
                   TVMContext ctx,
                   TVMArrayHandle* out) {
   TVMArray* arr = nullptr;
@@ -164,5 +165,21 @@ int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
   TVM_DEVICE_SWITCH(ctx, {
       StreamSync<xpu>(ctx, stream);
     });
+  API_END();
+}
+
+int TVMFuncFree(TVMFunctionHandle func) {
+  API_BEGIN();
+  delete static_cast<PackedFunc::FType*>(func);
+  API_END();
+}
+
+int TVMFuncCall(TVMFunctionHandle func,
+                TVMValue* args,
+                int* arg_type_codes,
+                int num_args) {
+  API_BEGIN();
+  (*static_cast<const PackedFunc::FType*>(func))(
+      args, arg_type_codes, num_args);
   API_END();
 }

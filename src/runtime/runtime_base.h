@@ -6,7 +6,7 @@
 #ifndef TVM_RUNTIME_RUNTIME_BASE_H_
 #define TVM_RUNTIME_RUNTIME_BASE_H_
 
-#include <tvm/c_runtime_api.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <stdexcept>
 
 /*! \brief  macro to guard beginning and end section of all functions */

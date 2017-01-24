@@ -11,24 +11,26 @@ from numbers import Number, Integral
 from .._base import _LIB
 from .._base import c_str, py_str, string_types
 from .._base import check_call, ctypes2docstring
-from .. import _function_internal
-
-class TVMArg(ctypes.Union):
-    """TVMArg in C API"""
-    _fields_ = [("v_long", ctypes.c_long),
-                ("v_double", ctypes.c_double),
-                ("v_str", ctypes.c_char_p),
-                ("v_handle", ctypes.c_void_p)]
+from .. import _api_internal
+from . import _runtime_api
+from ._types import TVMValue, TypeCode
 
 # type definitions
-APIFunctionHandle = ctypes.c_void_p
+APIFuncHandle = ctypes.c_void_p
 NodeHandle = ctypes.c_void_p
+FunctionHandle = ctypes.c_void_p
 
-kNull = 0
-kLong = 1
-kDouble = 2
-kStr = 3
-kNodeHandle = 4
+class APIType(object):
+    """TVMType used in API calls"""
+    INT = ctypes.c_int(TypeCode.INT)
+    UINT = ctypes.c_int(TypeCode.UINT)
+    FLOAT = ctypes.c_int(TypeCode.FLOAT)
+    HANDLE = ctypes.c_int(TypeCode.HANDLE)
+    NULL = ctypes.c_int(TypeCode.NULL)
+    NODE_HANDLE = ctypes.c_int(TypeCode.NODE_HANDLE)
+    STR = ctypes.c_int(TypeCode.STR)
+    FUNC_HANDLE = ctypes.c_int(TypeCode.FUNC_HANDLE)
+
 
 NODE_TYPE = {
 }
@@ -37,22 +39,31 @@ def _return_node(x):
     handle = x.v_handle
     if not isinstance(handle, NodeHandle):
         handle = NodeHandle(handle)
-    ret_val = TVMArg()
-    ret_typeid = ctypes.c_int()
+    ret_val = TVMValue()
+    ret_type_code = ctypes.c_int()
     ret_success = ctypes.c_int()
     check_call(_LIB.TVMNodeGetAttr(
         handle, c_str("type_key"),
         ctypes.byref(ret_val),
-        ctypes.byref(ret_typeid),
+        ctypes.byref(ret_type_code),
         ctypes.byref(ret_success)))
     return NODE_TYPE.get(py_str(ret_val.v_str), NodeBase)(handle)
 
+
+def _return_func(x):
+    handle = x.v_handle
+    if not isinstance(handle, FunctionHandle):
+        handle = FunctionHandle(handle)
+    return _runtime_api._function_cls(handle)
+
+
 RET_SWITCH = {
-    kNull: lambda x: None,
-    kLong: lambda x: x.v_long,
-    kDouble: lambda x: x.v_double,
-    kStr: lambda x: py_str(x.v_str),
-    kNodeHandle: _return_node
+    TypeCode.NULL: lambda x: None,
+    TypeCode.INT: lambda x: x.v_int64,
+    TypeCode.FLOAT: lambda x: x.v_float64,
+    TypeCode.STR: lambda x: py_str(x.v_str),
+    TypeCode.NODE_HANDLE: _return_node,
+    TypeCode.FUNC_HANDLE: _return_func
 }
 
 class SliceBase(object):
@@ -74,28 +85,28 @@ class NodeBase(object):
         self.handle = handle
 
     def __repr__(self):
-        return _function_internal._format_str(self)
+        return _api_internal._format_str(self)
 
     def __del__(self):
         check_call(_LIB.TVMNodeFree(self.handle))
 
     def __getattr__(self, name):
-        ret_val = TVMArg()
-        ret_typeid = ctypes.c_int()
+        ret_val = TVMValue()
+        ret_type_code = ctypes.c_int()
         ret_success = ctypes.c_int()
         check_call(_LIB.TVMNodeGetAttr(
             self.handle, c_str(name),
             ctypes.byref(ret_val),
-            ctypes.byref(ret_typeid),
+            ctypes.byref(ret_type_code),
             ctypes.byref(ret_success)))
-        value = RET_SWITCH[ret_typeid.value](ret_val)
+        value = RET_SWITCH[ret_type_code.value](ret_val)
         if not ret_success.value:
             raise AttributeError(
                 "'%s' object has no attribute '%s'" % (str(type(self)), name))
         return value
 
     def __hash__(self):
-        return _function_internal._raw_ptr(self)
+        return _api_internal._raw_ptr(self)
 
     def __eq__(self, other):
         if not isinstance(other, NodeBase):
@@ -121,7 +132,7 @@ class NodeBase(object):
     def __getstate__(self):
         handle = self.handle
         if handle is not None:
-            return {'handle': _function_internal._save_json(self)}
+            return {'handle': _api_internal._save_json(self)}
         else:
             return {'handle': None}
 
@@ -131,7 +142,7 @@ class NodeBase(object):
         if handle is not None:
             json_str = handle
             _push_arg(json_str)
-            other = _function_internal._load_json(json_str)
+            other = _api_internal._load_json(json_str)
             self.handle = other.handle
             other.handle = None
         else:
@@ -145,7 +156,7 @@ def const(value, dtype=None):
             dtype = 'int32'
         else:
             dtype = 'float32'
-    return _function_internal._const(value, dtype)
+    return _api_internal._const(value, dtype)
 
 
 def convert(value):
@@ -154,7 +165,7 @@ def convert(value):
         return const(value)
     elif isinstance(value, (list, tuple)):
         value = [convert(x) for x in value]
-        return _function_internal._Array(*value)
+        return _api_internal._Array(*value)
     elif isinstance(value, dict):
         vlist = []
         for it in value.items():
@@ -162,7 +173,7 @@ def convert(value):
                 raise ValueError("key of map must already been a container type")
             vlist.append(it[0])
             vlist.append(convert(it[1]))
-        return _function_internal._Map(*vlist)
+        return _api_internal._Map(*vlist)
     elif isinstance(value, SliceBase):
         return value.tensor(*value.indices)
     else:
@@ -172,21 +183,21 @@ def convert(value):
 
 
 def _push_arg(arg):
-    a = TVMArg()
+    a = TVMValue()
     if arg is None:
-        _LIB.TVMAPIPushStack(a, ctypes.c_int(kNull))
+        _LIB.TVMAPIPushStack(a, APIType.NULL)
     elif isinstance(arg, NodeBase):
         a.v_handle = arg.handle
-        _LIB.TVMAPIPushStack(a, ctypes.c_int(kNodeHandle))
-    elif isinstance(arg, int):
-        a.v_long = ctypes.c_long(arg)
-        _LIB.TVMAPIPushStack(a, ctypes.c_int(kLong))
+        _LIB.TVMAPIPushStack(a, APIType.NODE_HANDLE)
+    elif isinstance(arg, Integral):
+        a.v_int64 = ctypes.c_int64(arg)
+        _LIB.TVMAPIPushStack(a, APIType.INT)
     elif isinstance(arg, Number):
         a.v_double = ctypes.c_double(arg)
-        _LIB.TVMAPIPushStack(a, ctypes.c_int(kDouble))
+        _LIB.TVMAPIPushStack(a, APIType.FLOAT)
     elif isinstance(arg, string_types):
         a.v_str = c_str(arg)
-        _LIB.TVMAPIPushStack(a, ctypes.c_int(kStr))
+        _LIB.TVMAPIPushStack(a, APIType.STR)
     else:
         raise TypeError("Don't know how to handle type %s" % type(arg))
 
@@ -201,7 +212,7 @@ def _make_function(handle, name):
     arg_descs = ctypes.POINTER(ctypes.c_char_p)()
     ret_type = ctypes.c_char_p()
 
-    check_call(_LIB.TVMGetAPIFunctionInfo(
+    check_call(_LIB.TVMGetAPIFuncInfo(
         handle, ctypes.byref(real_name), ctypes.byref(desc),
         ctypes.byref(num_args),
         ctypes.byref(arg_names),
@@ -214,13 +225,7 @@ def _make_function(handle, name):
     desc = py_str(desc.value)
 
     doc_str = ('%s\n\n' +
-               '%s\n' +
-               'name : string, optional.\n' +
-               '    Name of the resulting symbol.\n\n' +
-               'Returns\n' +
-               '-------\n' +
-               'symbol: Symbol\n' +
-               '    The result symbol.')
+               '%s\n')
     doc_str = doc_str % (desc, param_str)
     arg_names = [py_str(arg_names[i]) for i in range(num_args.value)]
 
@@ -235,11 +240,11 @@ def _make_function(handle, name):
 
         for arg in cargs:
             _push_arg(arg)
-        ret_val = TVMArg()
-        ret_typeid = ctypes.c_int()
-        check_call(_LIB.TVMAPIFunctionCall(
-            handle, ctypes.byref(ret_val), ctypes.byref(ret_typeid)))
-        return RET_SWITCH[ret_typeid.value](ret_val)
+        ret_val = TVMValue()
+        ret_type_code = ctypes.c_int()
+        check_call(_LIB.TVMAPIFuncCall(
+            handle, ctypes.byref(ret_val), ctypes.byref(ret_type_code)))
+        return RET_SWITCH[ret_type_code.value](ret_val)
 
     func.__name__ = func_name
     func.__doc__ = doc_str
@@ -265,19 +270,19 @@ def register_node(type_key=None):
         NODE_TYPE[cls.__name__] = cls
         return cls
 
-def _init_function_module(root_namespace):
+def _init_api_module(root_namespace):
     """List and add all the functions to current module."""
     plist = ctypes.POINTER(ctypes.c_char_p)()
     size = ctypes.c_uint()
 
-    check_call(_LIB.TVMListAPIFunctionNames(ctypes.byref(size),
-                                            ctypes.byref(plist)))
+    check_call(_LIB.TVMListAPIFuncNames(ctypes.byref(size),
+                                        ctypes.byref(plist)))
     op_names = []
     for i in range(size.value):
         op_names.append(py_str(plist[i]))
 
-    module_obj = sys.modules["%s.function" % root_namespace]
-    module_internal = sys.modules["%s._function_internal" % root_namespace]
+    module_obj = sys.modules["%s.api" % root_namespace]
+    module_internal = sys.modules["%s._api_internal" % root_namespace]
     namespace_match = {
         "_make_": sys.modules["%s.make" % root_namespace],
         "_pass_": sys.modules["%s.ir_pass" % root_namespace],
@@ -286,8 +291,8 @@ def _init_function_module(root_namespace):
     }
 
     for name in op_names:
-        hdl = APIFunctionHandle()
-        check_call(_LIB.TVMGetAPIFunctionHandle(c_str(name), ctypes.byref(hdl)))
+        hdl = APIFuncHandle()
+        check_call(_LIB.TVMGetAPIFuncHandle(c_str(name), ctypes.byref(hdl)))
         fname = name
         target_module = module_internal if name.startswith('_') else module_obj
         for k, v in namespace_match.items():

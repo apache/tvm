@@ -9,8 +9,8 @@
  *  So this is a minimum runtime code gluing, and some limited
  *  memory management code to enable quick testing.
  */
-#ifndef TVM_C_RUNTIME_API_H_
-#define TVM_C_RUNTIME_API_H_
+#ifndef TVM_RUNTIME_C_RUNTIME_API_H_
+#define TVM_RUNTIME_C_RUNTIME_API_H_
 
 #ifdef __cplusplus
 #define TVM_EXTERN_C extern "C"
@@ -38,27 +38,51 @@ TVM_EXTERN_C {
 typedef uint32_t tvm_index_t;
 
 /*!
- * \brief union type for arguments and return values
- *  in both runtime API and TVM API calls
+ * \brief Union type of values
+ *  being passed through API and function calls.
  */
 typedef union {
-  long v_long;  // NOLINT(*)
-  double v_double;
-  const char* v_str;
+  int64_t v_int64;
+  double v_float64;
   void* v_handle;
-} TVMArg;
+  const char* v_str;
+} TVMValue;
 
 /*!
- * \brief The type index in TVM.
+ * \brief The type code in TVMType
+ * \note TVMType is used in two places.
  */
 typedef enum {
-  kNull = 0,
-  kLong = 1,
-  kDouble = 2,
-  kStr = 3,
-  kNodeHandle = 4,
-  kArrayHandle = 5
-} TVMArgTypeID;
+  kInt = 0U,
+  kUInt = 1U,
+  kFloat = 2U,
+  kHandle = 3U,
+  // The next few fields are extension types
+  // that is used by TVM API calls.
+  kNull = 4U,
+  kNodeHandle = 5U,
+  kStr = 6U,
+  kFuncHandle = 7U
+} TVMTypeCode;
+
+/*!
+ * \brief The data type used in TVM Runtime.
+ *
+ *  Examples
+ *   - float: type_code = 2, bits = 32, lanes=1
+ *   - float4(vectorized 4 float): type_code = 2, bits = 32, lanes=4
+ *   - int8: type_code = 0, bits = 8, lanes=1
+ *
+ * \note Arguments TVM API function always takes bits=64 and lanes=1
+ */
+typedef struct {
+  /*! \brief type code, in TVMTypeCode */
+  uint8_t type_code;
+  /*! \brief number of bits of the type */
+  uint8_t bits;
+  /*! \brief number of lanes, */
+  uint16_t lanes;
+} TVMType;
 
 /*!
  * \brief The device type
@@ -82,29 +106,6 @@ typedef struct {
   int dev_id;
 } TVMContext;
 
-/*! \brief The type code in TVMDataType */
-typedef enum {
-  kInt = 0U,
-  kUInt = 1U,
-  kFloat = 2U
-} TVMTypeCode;
-
-/*!
- * \brief the data type
- *  Examples
- *   - float: type_code = 2, bits = 32, lanes=1
- *   - float4(vectorized 4 float): type_code = 2, bits = 32, lanes=4
- *   - int8: type_code = 0, bits = 8, lanes=1
- */
-typedef struct {
-  /*! \brief type code, in TVMTypeCode */
-  uint8_t type_code;
-  /*! \brief number of bits of the type */
-  uint8_t bits;
-  /*! \brief number of lanes, */
-  uint16_t lanes;
-} TVMDataType;
-
 /*!
  * \brief Data structure representing a n-dimensional array(tensor).
  *  This is used to pass data specification into TVM.
@@ -122,7 +123,7 @@ typedef struct {
   /*! \brief number of dimensions of the array */
   tvm_index_t ndim;
   /*! \brief The data type flag */
-  TVMDataType dtype;
+  TVMType dtype;
   /*! \brief The device context this array sits on */
   TVMContext ctx;
 } TVMArray;
@@ -191,7 +192,7 @@ TVM_DLL int TVMContextEnabled(TVMContext ctx,
  */
 TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
                           tvm_index_t ndim,
-                          TVMDataType dtype,
+                          TVMType dtype,
                           TVMContext ctx,
                           TVMArrayHandle* out);
 /*!
@@ -217,45 +218,27 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
 TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
 
 /*!
- * \brief TVM Function API: Get resource requirement
- *
- *  By default TVM function try not to do internal allocations.
- *  Instead, TVMFuncRequirement can be called, given the input arguments.
- *
- * \param func function handle to be launched.
- * \param args The arguments
- * \param arg_type_ids The type id of the arguments
- * \param num_args Number of arguments.
- * \param out_workspace_size The workspace size needed to launch this function.
- * \param out_workspace_align The alignment requirement of workspace.
- *
- * \note The data pointer in the arrays is not used by requirement.
+ * \brief Free the function when it is no longer needed.
+ * \param func The function handle
+ * \return whether
  */
-TVM_DLL int TVMFuncRequirement(TVMFunctionHandle func,
-                               TVMArg* args,
-                               int* arg_type_ids,
-                               int num_args,
-                               size_t* out_workspace_size,
-                               size_t* out_workspace_align);
+TVM_DLL int TVMFuncFree(TVMFunctionHandle func);
 
 /*!
- * \brief TVM Function API: Launch generated function.
+ * \brief Call a function whose parameters are all packed.
  *
- * \param func function handle to be launched.
+ * \param func node handle of the function.
  * \param args The arguments
- * \param arg_type_ids The type id of the arguments
+ * \param type_codes The type codes of the arguments
  * \param num_args Number of arguments.
- * \param stream The stream this function to be launched on.
- * \param workspace Additional workspace used to launch this function.
  *
- * \sa TVMFuncRequirement
+ * \return 0 when success, -1 when failure happens
+ * \note TVM calls always exchanges with type bits=64, lanes=1
  */
-TVM_DLL int TVMFuncLaunch(TVMFunctionHandle func,
-                          TVMArg* args,
-                          int* arg_type_ids,
-                          int num_args,
-                          TVMStreamHandle stream,
-                          TVMArrayHandle workspace);
+TVM_DLL int TVMFuncCall(TVMFunctionHandle func,
+                        TVMValue* args,
+                        int* type_codes,
+                        int num_args);
 }  // TVM_EXTERN_C
 
-#endif  // TVM_C_RUNTIME_API_H_
+#endif  // TVM_RUNTIME_C_RUNTIME_API_H_

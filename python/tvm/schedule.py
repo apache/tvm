@@ -2,7 +2,7 @@
 """Collection structure in the high level DSL."""
 from __future__ import absolute_import as _abs
 from ._ctypes._api import NodeBase, register_node
-from . import _function_internal
+from . import _api_internal
 from . import tensor as _tensor
 
 @register_node
@@ -56,11 +56,11 @@ class Stage(NodeBase):
         if outer is not None:
             if outer.thread_tag == '':
                 raise ValueError("split by outer must have special thread_tag")
-            inner = _function_internal._StageSplitByOuter(self, parent, outer, factor)
+            inner = _api_internal._StageSplitByOuter(self, parent, outer, factor)
         else:
             if factor is None:
                 raise ValueError("either outer or factor need to be provided")
-            outer, inner = _function_internal._StageSplitByFactor(self, parent, factor)
+            outer, inner = _api_internal._StageSplitByFactor(self, parent, factor)
         return outer, inner
 
     def fuse(self, inner, outer):
@@ -79,7 +79,7 @@ class Stage(NodeBase):
         inner : IterVar
             The fused variable of iteration.
         """
-        return _function_internal._StageFuse(self, inner, outer)
+        return _api_internal._StageFuse(self, inner, outer)
 
     def set_scope(self, scope):
         """Set the thread scope of this stage
@@ -89,7 +89,7 @@ class Stage(NodeBase):
         scope : str
             The thread scope of this stage
         """
-        return _function_internal._StageSetScope(self, scope)
+        return _api_internal._StageSetScope(self, scope)
 
     def compute_at(self, parent, scope):
         """Attach the stage at parent's scope
@@ -102,7 +102,7 @@ class Stage(NodeBase):
         scope : IterVar
             The loop scope t be attached to.
         """
-        _function_internal._StageComputeAt(self, parent, scope)
+        _api_internal._StageComputeAt(self, parent, scope)
 
     def compute_inline(self):
         """Mark stage as inline
@@ -112,7 +112,7 @@ class Stage(NodeBase):
         parent : Stage
             The parent stage
         """
-        _function_internal._StageComputeInline(self)
+        _api_internal._StageComputeInline(self)
 
     def compute_root(self):
         """Attach the stage at parent, and mark it as root
@@ -122,7 +122,7 @@ class Stage(NodeBase):
         parent : Stage
             The parent stage
         """
-        _function_internal._StageComputeInline(self)
+        _api_internal._StageComputeInline(self)
 
     def reorder(self, *args):
         """reorder the arguments in the specified order.
@@ -132,7 +132,7 @@ class Stage(NodeBase):
         args : list of IterVar
             The order to be ordered
         """
-        _function_internal._StageReorder(self, args)
+        _api_internal._StageReorder(self, args)
 
     def tile(self, x_parent, y_parent, x_factor, y_factor):
         """ Perform tiling on two dimensions
@@ -161,6 +161,6 @@ class Stage(NodeBase):
         p_y_inner : IterVar
             Inner axis of y dimension
         """
-        x_outer, y_outer, x_inner, y_inner = _function_internal._StageTile(
+        x_outer, y_outer, x_inner, y_inner = _api_internal._StageTile(
             self, x_parent, y_parent, x_factor, y_factor)
         return x_outer, y_outer, x_inner, y_inner

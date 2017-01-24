@@ -16,4 +16,4 @@ from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, init_opencl
 
 from ._base import TVMError
-from .function import *
+from .api import *
