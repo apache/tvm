@@ -81,11 +81,13 @@ constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
 /*!
  * \brief See pesudo code
  *
- *  bool tvm_print(VType value) {
- *     LOG(INFO) << value;
+ *  int tvm_call_global(name, TVMValue* args) {
+ *     PackedFunc f = PackedFunc::GetGlobal(name);
+ *     f (args, type_code_of(args), len(args));
+ *     return 0;
  *  }
  */
-constexpr const char* tvm_print = "tvm_print";
+constexpr const char* tvm_call_global = "tvm_call_global";
 
 /*! \brief The field id of each field in array */
 enum TVMArrayFieldKind {
