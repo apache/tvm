@@ -6,11 +6,11 @@ This is a simplified runtime API for quick testing and proptyping.
 from __future__ import absolute_import as _abs
 import numpy as _np
 
-from ._ctypes._runtime_api import TVMContext, TVMType, NDArrayBase, FunctionBase
-from ._ctypes._runtime_api import cpu, gpu, opencl, empty, sync
-from ._ctypes._runtime_api import _init_runtime_module
-from ._ctypes._runtime_api import init_opencl
-
+from ._ctypes._ndarray import TVMContext, TVMType, NDArrayBase
+from ._ctypes._ndarray import cpu, gpu, opencl, empty, sync
+from ._ctypes._ndarray import _init_ndarray_module
+from ._ctypes._ndarray import init_opencl
+from ._ctypes._function import Function
 
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
@@ -23,11 +23,6 @@ class NDArray(NDArrayBase):
     Instead, this is a minimal data structure to demonstrate
     how can we use TVM in existing project which might have their own array containers.
     """
-    pass
-
-
-class Function(FunctionBase):
-    """Function class that can executed a generated code."""
     pass
 
 
@@ -54,4 +49,4 @@ def array(arr, ctx=cpu(0)):
     return ret
 
 
-_init_runtime_module(NDArray, Function)
+_init_ndarray_module(NDArray)

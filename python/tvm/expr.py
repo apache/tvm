@@ -1,6 +1,6 @@
 # pylint: disable=protected-access, no-member, missing-docstring
 from __future__ import absolute_import as _abs
-from ._ctypes._api import NodeBase, register_node
+from ._ctypes._node import NodeBase, register_node
 from . import make as _make
 
 class ExprOp(object):

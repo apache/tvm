@@ -3,9 +3,11 @@
  * \file c_runtime_api.cc
  * \brief Device specific implementations
  */
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <algorithm>
+#include <string>
 #include "./runtime_base.h"
 #include "./device_api.h"
 
@@ -37,7 +39,7 @@ inline void TVMArrayFree_(TVMArray* arr) {
 
 inline void VerifyType(TVMType dtype) {
   CHECK_GE(dtype.lanes, 1U);
-  if (dtype.type_code == kFloat) {
+  if (dtype.code == kFloat) {
     CHECK_EQ(dtype.bits % 32U, 0U);
   } else {
     CHECK_EQ(dtype.bits % 8U, 0U);
@@ -64,6 +66,12 @@ inline size_t GetDataAlignment(TVMArray* arr) {
 }  // namespace tvm
 
 using namespace tvm::runtime;
+
+struct TVMRuntimeEntry {
+  std::string ret_str;
+};
+
+typedef dmlc::ThreadLocalStore<TVMRuntimeEntry> TVMAPIRuntimeStore;
 
 int TVMDeviceInit(int dev_mask,
                   const char** option_keys,
@@ -177,10 +185,31 @@ int TVMFuncFree(TVMFunctionHandle func) {
 int TVMFuncCall(TVMFunctionHandle func,
                 TVMValue* args,
                 int* arg_type_codes,
-                int num_args) {
+                int num_args,
+                TVMValue* ret_val,
+                int* ret_type_code) {
   API_BEGIN();
+  TVMRetValue rv;
   (*static_cast<const PackedFunc*>(func)).CallPacked(
-      args, arg_type_codes, num_args);
+      TVMArgs(args, arg_type_codes, num_args), &rv);
+  // handle return string.
+  if (rv.type_code() == kStr) {
+    TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
+    e->ret_str = rv.operator std::string();
+    *ret_type_code = kStr;
+    ret_val->v_str = e->ret_str.c_str();
+  } else {
+    rv.MoveToCHost(ret_val, ret_type_code);
+  }
+  API_END();
+}
+
+int TVMCFuncSetReturn(TVMRetValueHandle ret,
+                      TVMValue value,
+                      int type_code) {
+  API_BEGIN();
+  TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
+  *rv = TVMArgValue(value, type_code);
   API_END();
 }
 
@@ -191,22 +220,18 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
   API_BEGIN();
   if (fin == nullptr) {
     *out = new PackedFunc(
-        [func, resource_handle](const TVMValue* args,
-                                const int* type_codes,
-                                int num_args) {
-          func((TVMValue*)args, (int*)type_codes, // NOLINT(*)
-               num_args, resource_handle);
+        [func, resource_handle](TVMArgs args, TVMRetValue* rv) {
+          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
+               args.num_args, rv, resource_handle);
         });
   } else {
     // wrap it in a shared_ptr, with fin as deleter.
     // so fin will be called when the lambda went out of scope.
     std::shared_ptr<void> rpack(resource_handle, fin);
     *out = new PackedFunc(
-        [func, rpack](const TVMValue* args,
-                      const int* type_codes,
-                      int num_args) {
-          func((TVMValue*)args, (int*)type_codes, // NOLINT(*)
-               num_args, rpack.get());
+        [func, rpack](TVMArgs args, TVMRetValue* rv) {
+          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
+               args.num_args, rv, rpack.get());
       });
   }
   API_END();

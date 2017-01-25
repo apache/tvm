@@ -12,19 +12,22 @@ using namespace ir;
 
 runtime::PackedFunc BuildStackVM(LoweredFunc func) {
   StackVM vm = codegen::CodeGenStackVM().Compile(func);
-  auto f = [vm](const TVMValue* args, const int* type_codes, int num_args) {
-    LOG(INFO) << "Run stack VM";
+  using runtime::TVMArgs;
+  using runtime::TVMRetValue;
+
+  auto f = [vm](TVMArgs args, TVMRetValue* rv) {
     StackVM::State* s = StackVM::ThreadLocalState();
     s->sp = 0;
     s->pc = 0;
     if (s->heap.size() < vm.heap_size) {
       s->heap.resize(vm.heap_size);
     }
-    s->heap[0].v_handle = (void*)args;  // NOLINT(*)
-    s->heap[1].v_handle = (void*)type_codes;  // NOLINT(*)
-    s->heap[2].v_int64 = num_args;
+    s->heap[0].v_handle = (void*)args.values;  // NOLINT(*)
+    s->heap[1].v_handle = (void*)args.type_codes;  // NOLINT(*)
+    s->heap[2].v_int64 = args.num_args;
     vm.Run(s);
   };
+
   return runtime::PackedFunc(f);
 }
 
@@ -118,6 +121,9 @@ int CodeGenStackVM::GetGlobalFuncID(std::string name) {
   auto it = fun_idmap_.find(name);
   if (it != fun_idmap_.end()) return it->second;
   using runtime::PackedFunc;
+  using runtime::TVMArgs;
+  using runtime::TVMRetValue;
+
   PackedFunc f = PackedFunc::GetGlobal(name);
   auto extern_f = [f](const TVMValue* args, int num_args) {
     CHECK_EQ(num_args % 2, 0);
@@ -128,7 +134,8 @@ int CodeGenStackVM::GetGlobalFuncID(std::string name) {
       int code = (tcode >> (8 * 3)) & 255;
       type_codes[i] = code;
     }
-    f.CallPacked(args, &type_codes[0], num_args);
+    TVMRetValue rv;
+    f.CallPacked(TVMArgs(args, &type_codes[0], num_args), &rv);
     TVMValue r; r.v_int64 = 0;
     return r;
   };

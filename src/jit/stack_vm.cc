@@ -302,7 +302,8 @@ void StackVM::Run(State* s) const {
         STACK_VM_TVM_LOAD_ARG(tc == kFloat, "float"); break;
       }
       case TVM_LOAD_ARG_HANDLE: {
-        STACK_VM_TVM_LOAD_ARG(tc == kHandle || tc == kNull, "handle"); break;
+        STACK_VM_TVM_LOAD_ARG(
+            tc == kHandle || tc == kNull || tc == kArrayHandle, "handle"); break;
       }
       case TVM_ARRAY_GET_DATA: {
         STACK_VM_TVM_ARRARY_GET(v_handle, void*, data); break;
@@ -317,7 +318,7 @@ void StackVM::Run(State* s) const {
         STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, ndim); break;
       }
       case TVM_ARRAY_GET_TYPE_CODE: {
-        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.type_code); break;
+        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.code); break;
       }
       case TVM_ARRAY_GET_TYPE_BITS: {
         STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.bits); break;

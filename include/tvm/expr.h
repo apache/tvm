@@ -12,6 +12,7 @@
 #include <string>
 #include <algorithm>
 #include "./base.h"
+#include "./runtime/packed_func.h"
 
 namespace tvm {
 

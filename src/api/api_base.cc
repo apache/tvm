@@ -1,0 +1,37 @@
+/*!
+ *  Copyright (c) 2017 by Contributors
+ *  Implementation of basic API functions
+ * \file api_base.cc
+ */
+#include <tvm/expr.h>
+#include <tvm/tensor.h>
+#include <tvm/api_registry.h>
+
+namespace tvm {
+
+TVM_REGISTER_API(_format_str)
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    CHECK(args[0].type_code() == kNodeHandle);
+    std::ostringstream os;
+    os << args[0].operator NodeRef();
+    *ret = os.str();
+  });
+
+TVM_REGISTER_API(_raw_ptr)
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    CHECK(args[0].type_code() == kNodeHandle);
+    *ret = reinterpret_cast<int64_t>(
+        args[0].node_sptr().get());
+  });
+
+TVM_REGISTER_API(_save_json)
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = SaveJSON(args[0]);
+  });
+
+TVM_REGISTER_API(_load_json)
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = NodeRef(LoadJSON_(args[0]));
+  });
+
+}  // namespace tvm

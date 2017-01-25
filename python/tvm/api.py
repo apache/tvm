@@ -2,16 +2,23 @@
 # pylint: disable=redefined-builtin, undefined-variable, unused-import
 """Functions defined in TVM."""
 from __future__ import absolute_import as _abs
+
 from numbers import Integral as _Integral
-from ._ctypes._api import _init_api_module, convert, register_func, get_global_func
+
+from ._ctypes._types import TVMType
+from ._ctypes._node import register_node, NodeBase
+from ._ctypes._node import convert_to_node as _convert_to_node
+from ._ctypes._function import Function
+from ._ctypes._function import _init_api_functions, register_func, get_global_func
+from ._ctypes._function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
 from . import collections as _collections
 
-int32 = "int32"
-float32 = "float32"
-handle = "handle"
+int32 = TVMType("int32")
+float32 = TVMType("float32")
+handle = TVMType("handle")
 
 def const(value, dtype=None):
     """construct a constant"""
@@ -266,4 +273,25 @@ def Schedule(ops):
     return _api_internal._Schedule(ops)
 
 
-_init_api_module("tvm")
+def convert(value):
+    """Convert value to TVM node or function.
+
+    Parameters
+    ----------
+    value : python value
+
+    Returns
+    -------
+    tvm_val : Node or function
+        Converted value in TVM
+    """
+    if isinstance(value, (Function, NodeBase)):
+        return value
+
+    if callable(value):
+        return _convert_tvm_func(value)
+    else:
+        return _convert_to_node(value)
+
+
+_init_api_functions("tvm")

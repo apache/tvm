@@ -1,7 +1,7 @@
 # pylint: disable=protected-access, no-member, invalid-name
 """Tensor related abstractions"""
 from __future__ import absolute_import as _abs
-from ._ctypes._api import NodeBase, SliceBase, register_node, convert
+from ._ctypes._node import NodeBase, SliceBase, register_node, convert_to_node
 from . import collections as _collections
 from . import _api_internal
 from . import make as _make
@@ -26,7 +26,7 @@ class Tensor(NodeBase):
         ndim = self.ndim
         if len(indices) != ndim:
             raise ValueError("Need to provide %d index in tensor slice" % ndim)
-        indices = convert(indices)
+        indices = convert_to_node(indices)
         args = []
         for x in indices:
             if isinstance(x, _collections.IterVar):
