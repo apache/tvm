@@ -9,7 +9,7 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/c_api.h>
-#include <tvm/runtime/runtime.h>
+#include <tvm/runtime/packed_func.h>
 #include <memory>
 #include <limits>
 #include <string>

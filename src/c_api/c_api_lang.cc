@@ -4,6 +4,7 @@
  * \file c_api_lang.cc
  */
 #include <tvm/expr.h>
+#include <tvm/ir.h>
 #include <tvm/tensor.h>
 #include <tvm/buffer.h>
 #include <tvm/schedule.h>
@@ -26,6 +27,13 @@ TVM_REGISTER_API(_const)
   })
 .add_argument("src", "Number", "source number")
 .add_argument("dtype", "str", "data type");
+
+
+TVM_REGISTER_API(_str)
+.set_body([](const ArgStack& args,  RetValue *ret) {
+  *ret = ir::StringImm::make(args.at(0));
+});
+
 
 TVM_REGISTER_API(_Array)
 .set_body([](const ArgStack& args,  RetValue *ret) {

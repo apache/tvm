@@ -1,35 +1,43 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file runtime.h
+ * \file packed_func.h
  * \brief Runtime related c++ class.
  */
-#ifndef TVM_RUNTIME_RUNTIME_H_
-#define TVM_RUNTIME_RUNTIME_H_
+#ifndef TVM_RUNTIME_PACKED_FUNC_H_
+#define TVM_RUNTIME_PACKED_FUNC_H_
 
 #include <functional>
 #include <tuple>
+#include <vector>
+#include <string>
 #include "./c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Packed function is a runtime function
- *  whose argument type_codes are erased by packed format.
+ * \brief Packed function is a type-erased function.
+ *  The arguments are passed by packed format.
  *
- *  This is an useful unified interface to call generated functions.
+ *  This is an useful unified interface to call generated functions,
+ *  It is the unified function function type of TVM.
+ *  It corresponds to TVMFunctionHandle in C runtime API.
  */
 class PackedFunc {
  public:
   /*! \brief The internal std::function */
   using FType = std::function<void(const TVMValue* args, const int* type_codes, int num_args)>;
+  /*! \brief default constructor */
   PackedFunc() {}
+  /*!
+   * \brief constructing a packed function from a std::function.
+   * \param body the internal container of packed function.
+   */
   explicit PackedFunc(FType body) : body_(body) {}
   /*!
-   * \brief invoke the packed function by directly passing in arguments.
+   * \brief Call packed function by directly passing in unpacked format.
    * \param args Arguments to be passed.
    * \tparam Args arguments to be passed.
-   * \return The first return value.
    */
   template<typename... Args>
   inline void operator()(Args&& ...args) const;
@@ -41,9 +49,25 @@ class PackedFunc {
    */
   inline void CallPacked(const TVMValue* args, const int* type_codes, int num_args) const;
   /*! \return the internal body function */
-  inline FType body() const {
-    return body_;
-  }
+  inline FType body() const;
+  /*!
+   * \brief Register f as into global function table
+   * \param name The name of the function.
+   * \param f The function to be registered.
+   * \return Reference to the registered function.
+   * \note The returned reference is valid until the end of the program
+   */
+  static const PackedFunc& RegisterGlobal(const std::string& name, PackedFunc f);
+  /*!
+   * \brief Get the global function by name.
+   * \param name The name of the function.
+   * \return reference to the registered function.
+   */
+  static const PackedFunc& GetGlobal(const std::string& name);
+  /*!
+   * \brief Get the names of currently registered global function.
+   */
+  static std::vector<std::string> ListGlobalNames();
 
  private:
   /*! \brief internal container of packed function */
@@ -54,6 +78,10 @@ class PackedFunc {
 inline void PackedFunc::CallPacked(
     const TVMValue* args, const int* type_codes, int num_args) const {
   body_(args, type_codes, num_args);
+}
+
+inline PackedFunc::FType PackedFunc::body() const {
+  return body_;
 }
 
 template<bool stop, std::size_t I, typename F, typename ...Args>
@@ -124,4 +152,4 @@ inline void PackedFunc::operator()(Args&& ...args) const {
 }
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_RUNTIME_H_
+#endif  // TVM_RUNTIME_PACKED_FUNC_H_

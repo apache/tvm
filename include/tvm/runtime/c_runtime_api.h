@@ -161,7 +161,7 @@ TVM_DLL const char *TVMGetLastError(void);
  * \param option_vals Additional option values to pass
  * \param num_options Number of options to be passed into it.
  * \param out_code 1: success, 0: already initialized
- * \return Whether the function is successful.
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMDeviceInit(int dev_mask,
                           const char** option_keys,
@@ -188,7 +188,7 @@ TVM_DLL int TVMContextEnabled(TVMContext ctx,
  * \param dtype The array data type.
  * \param ctx The ctx this array sits on.
  * \param out The output handle.
- * \return Whether the function is successful.
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
                           tvm_index_t ndim,
@@ -198,6 +198,7 @@ TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
 /*!
  * \brief Free the TVM Array.
  * \param handle The array handle to be freed.
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
 
@@ -206,6 +207,7 @@ TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
  * \param from The array to be copied from.
  * \param to The target space.
  * \param stream The stream where the copy happens, can be NULL.
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
                                TVMArrayHandle to,
@@ -214,13 +216,14 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
  * \brief Wait until all computations on stream completes.
  * \param ctx The ctx to be synchronized.
  * \param stream The stream to be synchronized.
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
 
 /*!
  * \brief Free the function when it is no longer needed.
  * \param func The function handle
- * \return whether
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMFuncFree(TVMFunctionHandle func);
 
@@ -239,6 +242,57 @@ TVM_DLL int TVMFuncCall(TVMFunctionHandle func,
                         TVMValue* args,
                         int* type_codes,
                         int num_args);
+
+/*!
+ * \brief C type of packed function.
+ *
+ * \param args The arguments
+ * \param type_codes The type codes of the arguments
+ * \param num_args Number of arguments.
+ * \param resource_handle The handle additional resouce handle from fron-end.
+ */
+typedef void (*TVMPackedCFunc)(
+    TVMValue* args, int* type_codes, int num_args, void* resource_handle);
+
+/*!
+ * \brief C callback to free the resource handle in C packed function.
+ * \param resource_handle The handle additional resouce handle from fron-end.
+ */
+typedef void (*TVMPackedCFuncFinalizer)(void* resource_handle);
+
+/*!
+ * \brief Wrap a TVMPackedCFunc to become a FunctionHandle.
+ *
+ * The resource_handle will be managed by TVM API, until the function is no longer used.
+ *
+ * \param func The packed C function.
+ * \param resource_handle The resource handle from front-end, can be NULL.
+ * \param fin The finalizer on resource handle when the FunctionHandle get freed, can be NULL
+ * \param out the result function handle.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
+                                   void* resource_handle,
+                                   TVMPackedCFuncFinalizer fin,
+                                   TVMFunctionHandle *out);
+
+/*!
+ * \brief Register the function to runtime's global table.
+ *
+ * The registered function then can be pulled by the backend by the name.
+ *
+ * \param name The name of the function.
+ * \param f The function to be registered.
+ */
+TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f);
+
+/*!
+ * \brief Get a global function.
+ *
+ * \param name The name of the function.
+ * \param out the result function pointer.
+ */
+TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
 }  // TVM_EXTERN_C
 
 #endif  // TVM_RUNTIME_C_RUNTIME_API_H_

@@ -1,6 +1,6 @@
 # coding: utf-8
 # pylint: disable=invalid-name, protected-access, too-many-arguments, too-many-lines
-# pylint: disable=attribute-defined-outside-init, no-member, missing-docstring
+# pylint: disable=attribute-defined-outside-init, no-member, missing-docstring, too-many-return-statements
 """Symbolic configuration API."""
 from __future__ import absolute_import as _abs
 
@@ -13,7 +13,7 @@ from .._base import c_str, py_str, string_types
 from .._base import check_call, ctypes2docstring
 from .. import _api_internal
 from . import _runtime_api
-from ._types import TVMValue, TypeCode
+from ._types import TVMValue, TypeCode, TVMPackedCFunc, TVMCFuncFinalizer
 
 # type definitions
 APIFuncHandle = ctypes.c_void_p
@@ -57,6 +57,13 @@ def _return_func(x):
     return _runtime_api._function_cls(handle)
 
 
+def _return_handle(x):
+    handle = x.v_handle
+    if not isinstance(handle, ctypes.c_void_p):
+        handle = ctypes.c_void_p(handle)
+    return handle
+
+
 RET_SWITCH = {
     TypeCode.NULL: lambda x: None,
     TypeCode.INT: lambda x: x.v_int64,
@@ -65,6 +72,15 @@ RET_SWITCH = {
     TypeCode.NODE_HANDLE: _return_node,
     TypeCode.FUNC_HANDLE: _return_func
 }
+
+PACK_ARG_SWITCH = {
+    TypeCode.NULL: lambda x: None,
+    TypeCode.INT: lambda x: x.v_int64,
+    TypeCode.FLOAT: lambda x: x.v_float64,
+    TypeCode.STR: lambda x: py_str(x.v_str),
+    TypeCode.HANDLE: lambda x: _return_handle,
+}
+
 
 class SliceBase(object):
     """base class of slice object"""
@@ -159,10 +175,53 @@ def const(value, dtype=None):
     return _api_internal._const(value, dtype)
 
 
+def _ctypes_free_resource(rhandle):
+    """callback to free resources when it it not needed."""
+    pyobj = ctypes.cast(rhandle, ctypes.py_object)
+    ctypes.pythonapi.Py_DecRef(pyobj)
+
+# Global callback that is always alive
+TVM_FREE_PYOBJ = TVMCFuncFinalizer(_ctypes_free_resource)
+ctypes.pythonapi.Py_IncRef(ctypes.py_object(TVM_FREE_PYOBJ))
+
+def convert_to_tvm_func(pyfunc):
+    """Convert a python function to TVM function
+
+    Parameters
+    ----------
+    pyfunc : python function
+        The python function to be converted.
+
+    Returns
+    -------
+    tvmfunc: tvm.nd.Function
+        The converted tvm function.
+    """
+    local_pyfunc = pyfunc
+    def cfun(args, type_codes, num_args, _):
+        """ ctypes function """
+        num_args = num_args.value if isinstance(num_args, ctypes.c_int) else num_args
+        pyargs = [PACK_ARG_SWITCH[type_codes[i]](args[i]) for i in range(num_args)]
+        local_pyfunc(*pyargs)
+    handle = FunctionHandle()
+    f = TVMPackedCFunc(cfun)
+    # NOTE: We will need to use python-api to increase ref count of the f
+    # TVM_FREE_PYOBJ will be called after it is no longer needed.
+    pyobj = ctypes.py_object(f)
+    ctypes.pythonapi.Py_IncRef(pyobj)
+    check_call(_LIB.TVMFuncCreateFromCFunc(
+        f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)))
+    return _runtime_api._function_cls(handle)
+
+
 def convert(value):
     """Convert a value to expression."""
-    if isinstance(value, Number):
+    if isinstance(value, (NodeBase, _runtime_api.FunctionBase)):
+        return value
+    elif isinstance(value, Number):
         return const(value)
+    elif isinstance(value, string_types):
+        return _api_internal._str(value)
     elif isinstance(value, (list, tuple)):
         value = [convert(x) for x in value]
         return _api_internal._Array(*value)
@@ -176,10 +235,11 @@ def convert(value):
         return _api_internal._Map(*vlist)
     elif isinstance(value, SliceBase):
         return value.tensor(*value.indices)
+    elif callable(value):
+        return convert_to_tvm_func(value)
     else:
-        if not isinstance(value, NodeBase):
-            raise ValueError("don't know how to handle type %s" % type(value))
-        return value
+        raise ValueError("don't know how to handle type %s" % type(value))
+    return value
 
 
 def _push_arg(arg):
@@ -269,6 +329,59 @@ def register_node(type_key=None):
         cls = type_key
         NODE_TYPE[cls.__name__] = cls
         return cls
+
+
+def register_func(func_name, f=None):
+    """Register global function
+
+    Parameters
+    ----------
+    func_name : str or function
+        The function name
+
+    f : function
+        The function to be registered.
+
+    Returns
+    -------
+    fregister : function
+        Register function if f is not specified.
+    """
+    if callable(func_name):
+        f = func_name
+        func_name = f.__name__
+
+    if not isinstance(func_name, str):
+        raise ValueError("expect string function name")
+    def register(myf):
+        """internal register function"""
+        if not isinstance(myf, _runtime_api.FunctionBase):
+            myf = convert_to_tvm_func(myf)
+        check_call(_LIB.TVMFuncRegisterGlobal(
+            c_str(func_name), myf.handle))
+    if f:
+        register(f)
+    else:
+        return register
+
+
+def get_global_func(name):
+    """Get a global function by name
+
+    Parameters
+    ----------
+    name : str
+        The name of the global function
+
+    Returns
+    -------
+    func : tvm.nd.Function
+        The function to be returned.
+    """
+    handle = FunctionHandle()
+    check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
+    return _runtime_api._function_cls(handle)
+
 
 def _init_api_module(root_namespace):
     """List and add all the functions to current module."""

@@ -70,3 +70,16 @@ class TVMType(ctypes.Structure):
         if self.lanes != 1:
             x += "x%d" % self.lanes
         return x
+
+
+TVMPackedCFunc = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(TVMValue),
+    ctypes.POINTER(ctypes.c_int),
+    ctypes.c_int,
+    ctypes.c_void_p)
+
+
+TVMCFuncFinalizer = ctypes.CFUNCTYPE(
+    None,
+    ctypes.c_void_p)

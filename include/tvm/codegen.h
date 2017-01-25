@@ -10,7 +10,7 @@
 #include "./base.h"
 #include "./expr.h"
 #include "./module.h"
-#include "./runtime/runtime.h"
+#include "./runtime/packed_func.h"
 
 
 namespace tvm {

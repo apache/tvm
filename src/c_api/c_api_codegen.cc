@@ -52,5 +52,10 @@ TVM_REGISTER_API(_codegen_DummyHelloFunction)
     *ret = runtime::PackedFunc(DummyHelloFunction);
   });
 
+TVM_REGISTER_API(_codegen_BuildStackVM)
+.set_body([](const ArgStack& args, RetValue *ret) {
+    *ret = BuildStackVM(args.at(0));
+  });
+
 }  // namespace codegen
 }  // namespace tvm
