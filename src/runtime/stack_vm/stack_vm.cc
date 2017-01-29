@@ -7,7 +7,7 @@
 #include "./stack_vm.h"
 
 namespace tvm {
-namespace jit {
+namespace runtime {
 
 typedef dmlc::ThreadLocalStore<StackVM::State> StackVMStateStore;
 
@@ -126,7 +126,6 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_CODE0(SELECT);
     STACK_VM_PRINT_HEAP_ACCESS(STORE_HEAP);
     STACK_VM_PRINT_HEAP_ACCESS(LOAD_HEAP);
-    STACK_VM_PRINT_CODE1(CALL_EXTERN);
     STACK_VM_PRINT_CODE1(ASSERT);
     STACK_VM_PRINT_JUMP(RJUMP_IF_TRUE);
     STACK_VM_PRINT_JUMP(RJUMP_IF_FALSE);
@@ -143,6 +142,22 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_CODE);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_BITS);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_LANES);
+    // packed function.
+    case CALL_PACKED_FUNC: {
+      int num_args = code[pc + 1].v_int;
+      os << "[" << pc << "]\tCALL_PACKED_FUNC "
+         << " num_args=" << num_args
+         << " fid=" << code[pc + 2].v_int;
+      os << " type_codes:";
+      for (int i = 0; i < num_args; ++i) {
+        os << ' ' << code[pc + 3 + i].v_int;
+      }
+      os << '\n';
+      for (int i = 0; i < num_args + 2; ++i) {
+        os << "[" << pc + 1 << "]" << std::endl;
+      }
+      return pc + 3 + num_args;
+    }
   }
   LOG(FATAL) << "unknown op code " << code[pc].op_code;
   return 0;
@@ -160,6 +175,19 @@ std::ostream& operator<<(std::ostream& os, const StackVM& vm) {  // NOLINT(*)
   return os;
 }
 
+void StackVM::operator()(const runtime::TVMArgs& args) const {
+  StackVM::State* s = StackVM::ThreadLocalState();
+  s->sp = 0;
+  s->pc = 0;
+  if (s->heap.size() < this->heap_size) {
+    s->heap.resize(this->heap_size);
+  }
+  s->heap[0].v_handle = (void*)args.values;  // NOLINT(*)
+  s->heap[1].v_handle = (void*)args.type_codes;  // NOLINT(*)
+  s->heap[2].v_int64 = args.num_args;
+  this->Run(s);
+}
+
 void StackVM::Run(State* s) const {
   int64_t sp = s->sp;
   int64_t pc = s->pc;
@@ -174,7 +202,6 @@ void StackVM::Run(State* s) const {
     heap.resize(heap_size);
   }
   const int64_t code_size = static_cast<int64_t>(code.size());
-
   while (pc < code_size) {
     switch (code[pc].op_code) {
       case ADD_I64: STACK_VM_BINOP(+, v_int64); break;
@@ -252,13 +279,19 @@ void StackVM::Run(State* s) const {
         pc += 2;
         break;
       }
-      case CALL_EXTERN: {
-        int num_args = static_cast<int>(stack[sp].v_int64);
-        int call_fid = code[pc + 1].v_int;
-        stack[sp - num_args] = extern_func[call_fid](
-            &stack[sp - num_args], num_args);
-        sp = sp - num_args;
-        pc += 2;
+      case CALL_PACKED_FUNC: {
+        // call packed function.
+        int num_args = code[pc + 1].v_int;
+        int call_fid = code[pc + 2].v_int;
+        static_assert(sizeof(Code) == sizeof(int) &&
+                      alignof(Code) == alignof(int), "asusmption");
+        const int* type_codes = &(code[pc].v_int) + 3;
+        runtime::TVMRetValue rv;
+        packed_func[call_fid].CallPacked(
+            runtime::TVMArgs(&stack[sp + 1 - num_args], type_codes, num_args), &rv);
+        sp = sp + 1 - num_args;
+        stack[sp] = rv.value();
+        pc += 3 + num_args;
         break;
       }
       case ASSERT: {
@@ -331,5 +364,5 @@ void StackVM::Run(State* s) const {
   }
 }
 
-}  // namespace jit
+}  // namespace runtime
 }  // namespace tvm

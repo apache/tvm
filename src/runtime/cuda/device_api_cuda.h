@@ -1,32 +1,20 @@
 /*!
- *  Copyright (c) 2016 by Contributors
- * \file device_api_gpu.h
+ *  Copyright (c) 2017 by Contributors
+ * \file device_api_cuda.h
  * \brief GPU specific API
  */
-#ifndef TVM_RUNTIME_DEVICE_API_GPU_H_
-#define TVM_RUNTIME_DEVICE_API_GPU_H_
+#ifndef TVM_RUNTIME_CUDA_DEVICE_API_CUDA_H_
+#define TVM_RUNTIME_CUDA_DEVICE_API_CUDA_H_
 
-#include <dmlc/logging.h>
-#include "./device_api.h"
+#include "./cuda_common.h"
 
 #if TVM_CUDA_RUNTIME
+
+#include <dmlc/logging.h>
 #include <cuda_runtime.h>
 
 namespace tvm {
 namespace runtime {
-
-/*!
- * \brief Protected CUDA call.
- * \param func Expression to call.
- *
- * It checks for CUDA errors after invocation of the expression.
- */
-#define CUDA_CALL(func)                                            \
-  {                                                                \
-    cudaError_t e = (func);                                        \
-    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)       \
-        << "CUDA: " << cudaGetErrorString(e);                      \
-  }
 
 template<>
 inline void* AllocDataSpace<kGPU>(TVMContext ctx, size_t size, size_t alignment) {
@@ -94,4 +82,4 @@ inline void StreamSync<kGPU>(TVMContext ctx, TVMStreamHandle stream) {
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_CUDA_RUNTIME
-#endif  // TVM_RUNTIME_DEVICE_API_GPU_H_
+#endif  // TVM_RUNTIME_CUDA_DEVICE_API_CUDA_H_

@@ -117,7 +117,7 @@ RETURN_SWITCH = {
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
-    TypeCode.TVM_TYPE: lambda x: x.v_type,
+    TypeCode.TVM_TYPE: lambda x: str(x.v_type),
     TypeCode.STR: lambda x: py_str(x.v_str)
 }
 
@@ -127,6 +127,6 @@ C_TO_PY_ARG_SWITCH = {
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
-    TypeCode.TVM_TYPE: lambda x: x.v_type,
+    TypeCode.TVM_TYPE: lambda x: str(x.v_type),
     TypeCode.STR: lambda x: py_str(x.v_str)
 }

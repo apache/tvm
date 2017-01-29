@@ -2,7 +2,7 @@
 
 This is a simplified runtime API for quick testing and proptyping.
 """
-# pylint: disable=unused-import
+# pylint: disable=unused-import, invalid-name
 from __future__ import absolute_import as _abs
 import numpy as _np
 
@@ -11,6 +11,8 @@ from ._ctypes._ndarray import cpu, gpu, opencl, empty, sync
 from ._ctypes._ndarray import _init_ndarray_module
 from ._ctypes._ndarray import init_opencl
 from ._ctypes._function import Function
+
+cl = opencl
 
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.

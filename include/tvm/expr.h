@@ -12,7 +12,7 @@
 #include <string>
 #include <algorithm>
 #include "./base.h"
-#include "./runtime/packed_func.h"
+#include "./runtime/c_runtime_api.h"
 
 namespace tvm {
 
@@ -32,6 +32,19 @@ using Halide::Internal::IRPrinter;
 using Halide::Internal::Variable;
 
 using Halide::Internal::make_const;
+
+
+inline Type TVMType2Type(TVMType t) {
+  return Type(static_cast<halide_type_code_t>(t.code), t.bits, t.lanes);
+}
+
+inline TVMType Type2TVMType(Type t) {
+  TVMType ret;
+  ret.code = static_cast<uint8_t>(t.code());
+  ret.bits = static_cast<uint8_t>(t.bits());
+  ret.lanes = static_cast<uint16_t>(t.lanes());
+  return ret;
+}
 
 /*! \brief a named variable in TVM */
 class Var : public Halide::VarExpr {

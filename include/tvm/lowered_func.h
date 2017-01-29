@@ -1,11 +1,11 @@
 /*!
- *  Copyright (c) 2016 by Contributors
- * \file module.h
- * \brief Low level IR module,
- *  Contains lowered function information.
+ *  Copyright (c) 2017 by Contributors
+ * \file lowered_func.h
+ * \brief Information about a lowered TVM function.
+ *  This data structure is final step toward codegen.
  */
-#ifndef TVM_MODULE_H_
-#define TVM_MODULE_H_
+#ifndef TVM_LOWERED_FUNC_H_
+#define TVM_LOWERED_FUNC_H_
 
 #include <tvm/container.h>
 #include <ir/FunctionBase.h>
@@ -102,4 +102,13 @@ inline const LoweredFuncNode* LoweredFunc::operator->() const {
 
 }  // namespace tvm
 
-#endif  // TVM_MODULE_H_
+namespace std {
+template <>
+struct hash<::tvm::LoweredFunc> {
+  std::size_t operator()(const ::tvm::LoweredFunc& k) const {
+    return k.hash();
+  }
+};
+}
+
+#endif  // TVM_LOWERED_FUNC_H_

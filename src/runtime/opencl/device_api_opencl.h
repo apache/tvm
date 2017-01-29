@@ -1,137 +1,21 @@
 /*!
- *  Copyright (c) 2016 by Contributors
+ *  Copyright (c) 2017 by Contributors
  * \file device_api_opencl.h
  * \brief OpenCL specific API
  */
-#ifndef TVM_RUNTIME_DEVICE_API_OPENCL_H_
-#define TVM_RUNTIME_DEVICE_API_OPENCL_H_
+#ifndef TVM_RUNTIME_OPENCL_DEVICE_API_OPENCL_H_
+#define TVM_RUNTIME_OPENCL_DEVICE_API_OPENCL_H_
+
+#include <tvm/runtime/config.h>
 
 #if TVM_OPENCL_RUNTIME
-
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/opencl.h>
-#endif
-
-#include <mutex>
 #include <string>
 #include <vector>
-
+#include "./opencl_common.h"
 
 namespace tvm {
 namespace runtime {
 namespace cl {
-
-static_assert(sizeof(cl_mem) ==sizeof(void*),
-              "Required to store cl_mem inside void*");
-
-inline const char* CLGetErrorString(cl_int error) {
-  switch (error) {
-    case CL_SUCCESS: return "CL_SUCCESS";
-    case CL_DEVICE_NOT_FOUND: return "CL_DEVICE_NOT_FOUND";
-    case CL_DEVICE_NOT_AVAILABLE: return "CL_DEVICE_NOT_AVAILABLE";
-    case CL_COMPILER_NOT_AVAILABLE: return "CL_COMPILER_NOT_AVAILABLE";
-    case CL_MEM_OBJECT_ALLOCATION_FAILURE: return "CL_MEM_OBJECT_ALLOCATION_FAILURE";
-    case CL_OUT_OF_RESOURCES: return "CL_OUT_OF_RESOURCES";
-    case CL_OUT_OF_HOST_MEMORY: return "CL_OUT_OF_HOST_MEMORY";
-    case CL_PROFILING_INFO_NOT_AVAILABLE: return "CL_PROFILING_INFO_NOT_AVAILABLE";
-    case CL_MEM_COPY_OVERLAP: return "CL_MEM_COPY_OVERLAP";
-    case CL_IMAGE_FORMAT_MISMATCH: return "CL_IMAGE_FORMAT_MISMATCH";
-    case CL_IMAGE_FORMAT_NOT_SUPPORTED: return "CL_IMAGE_FORMAT_NOT_SUPPORTED";
-    case CL_BUILD_PROGRAM_FAILURE: return "CL_BUILD_PROGRAM_FAILURE";
-    case CL_MAP_FAILURE: return "CL_MAP_FAILURE";
-    case CL_INVALID_VALUE: return "CL_INVALID_VALUE";
-    case CL_INVALID_DEVICE_TYPE: return "CL_INVALID_DEVICE_TYPE";
-    case CL_INVALID_PLATFORM: return "CL_INVALID_PLATFORM";
-    case CL_INVALID_DEVICE: return "CL_INVALID_DEVICE";
-    case CL_INVALID_CONTEXT: return "CL_INVALID_CONTEXT";
-    case CL_INVALID_QUEUE_PROPERTIES: return "CL_INVALID_QUEUE_PROPERTIES";
-    case CL_INVALID_COMMAND_QUEUE: return "CL_INVALID_COMMAND_QUEUE";
-    case CL_INVALID_HOST_PTR: return "CL_INVALID_HOST_PTR";
-    case CL_INVALID_MEM_OBJECT: return "CL_INVALID_MEM_OBJECT";
-    case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR: return "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-    case CL_INVALID_IMAGE_SIZE: return "CL_INVALID_IMAGE_SIZE";
-    case CL_INVALID_SAMPLER: return "CL_INVALID_SAMPLER";
-    case CL_INVALID_BINARY: return "CL_INVALID_BINARY";
-    case CL_INVALID_BUILD_OPTIONS: return "CL_INVALID_BUILD_OPTIONS";
-    case CL_INVALID_PROGRAM: return "CL_INVALID_PROGRAM";
-    case CL_INVALID_PROGRAM_EXECUTABLE: return "CL_INVALID_PROGRAM_EXECUTABLE";
-    case CL_INVALID_KERNEL_NAME: return "CL_INVALID_KERNEL_NAME";
-    case CL_INVALID_KERNEL_DEFINITION: return "CL_INVALID_KERNEL_DEFINITION";
-    case CL_INVALID_KERNEL: return "CL_INVALID_KERNEL";
-    case CL_INVALID_ARG_INDEX: return "CL_INVALID_ARG_INDEX";
-    case CL_INVALID_ARG_VALUE: return "CL_INVALID_ARG_VALUE";
-    case CL_INVALID_ARG_SIZE: return "CL_INVALID_ARG_SIZE";
-    case CL_INVALID_KERNEL_ARGS: return "CL_INVALID_KERNEL_ARGS";
-    case CL_INVALID_WORK_DIMENSION: return "CL_INVALID_WORK_DIMENSION";
-    case CL_INVALID_WORK_GROUP_SIZE: return "CL_INVALID_WORK_GROUP_SIZE";
-    case CL_INVALID_WORK_ITEM_SIZE: return "CL_INVALID_WORK_ITEM_SIZE";
-    case CL_INVALID_GLOBAL_OFFSET: return "CL_INVALID_GLOBAL_OFFSET";
-    case CL_INVALID_EVENT_WAIT_LIST: return "CL_INVALID_EVENT_WAIT_LIST";
-    case CL_INVALID_EVENT: return "CL_INVALID_EVENT";
-    case CL_INVALID_OPERATION: return "CL_INVALID_OPERATION";
-    case CL_INVALID_GL_OBJECT: return "CL_INVALID_GL_OBJECT";
-    case CL_INVALID_BUFFER_SIZE: return "CL_INVALID_BUFFER_SIZE";
-    case CL_INVALID_MIP_LEVEL: return "CL_INVALID_MIP_LEVEL";
-    default: return "Unknown OpenCL error code";
-  }
-}
-
-/*!
- * \brief Protected OpenCL call
- * \param func Expression to call.
- */
-#define OPENCL_CHECK_ERROR(e)                                           \
-  {                                                                     \
-    CHECK(e == CL_SUCCESS)                                              \
-        << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); \
-  }
-
-#define OPENCL_CALL(func)                                             \
-  {                                                                   \
-    cl_int e = (func);                                                \
-    OPENCL_CHECK_ERROR(e);                                            \
-  }
-
-// Process local opencl workspace
-class OpenCLWorkspace {
- public:
-  // global platform id
-  cl_platform_id platform_id;
-  // global context of this process
-  cl_context context{nullptr};
-  // the devices
-  std::vector<cl_device_id> devices;
-  // the queues
-  std::vector<cl_command_queue> queues;
-  // the mutex for initialization
-  std::mutex mu;
-  // destructor
-  ~OpenCLWorkspace() {
-    if (context != nullptr) {
-      OPENCL_CALL(clReleaseContext(context));
-    }
-  }
-  // whether the workspace is initialized.
-  inline bool initialized() const {
-    return context != nullptr;
-  }
-  // get the queue of the context
-  cl_command_queue GetQueue(TVMContext ctx) const {
-    CHECK_EQ(ctx.dev_mask, kOpenCL);
-    CHECK(initialized())
-        << "The OpenCL is not initialized";
-    CHECK(ctx.dev_id >= 0  && static_cast<size_t>(ctx.dev_id) < queues.size())
-        << "Invalid OpenCL dev_id=" << ctx.dev_id;
-    return queues[ctx.dev_id];
-  }
-  // get the global workspace
-  static OpenCLWorkspace* Global() {
-    static OpenCLWorkspace inst;
-    return &inst;
-  }
-};
 
 inline std::string GetPlatformInfo(
     cl_platform_id pid, cl_platform_info param_name) {
@@ -307,4 +191,4 @@ inline void StreamSync<kOpenCL>(TVMContext ctx, TVMStreamHandle stream) {
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_OPENCL_RUNTIME
-#endif  // TVM_RUNTIME_DEVICE_API_OPENCL_H_
+#endif  // TVM_RUNTIME_OPENCL_DEVICE_API_OPENCL_H_
