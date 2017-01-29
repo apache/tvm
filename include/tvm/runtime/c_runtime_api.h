@@ -36,18 +36,6 @@
 TVM_EXTERN_C {
 /*! \brief type of array index. */
 typedef uint32_t tvm_index_t;
-
-/*!
- * \brief Union type of values
- *  being passed through API and function calls.
- */
-typedef union {
-  int64_t v_int64;
-  double v_float64;
-  void* v_handle;
-  const char* v_str;
-} TVMValue;
-
 /*!
  * \brief The type code in TVMType
  * \note TVMType is used in two places.
@@ -60,9 +48,11 @@ typedef enum {
   // The next few fields are extension types
   // that is used by TVM API calls.
   kNull = 4U,
-  kNodeHandle = 5U,
-  kStr = 6U,
-  kFuncHandle = 7U
+  kArrayHandle = 5U,
+  kTVMType = 6U,
+  kNodeHandle = 7U,
+  kStr = 8U,
+  kFuncHandle = 9U
 } TVMTypeCode;
 
 /*!
@@ -77,12 +67,24 @@ typedef enum {
  */
 typedef struct {
   /*! \brief type code, in TVMTypeCode */
-  uint8_t type_code;
+  uint8_t code;
   /*! \brief number of bits of the type */
   uint8_t bits;
   /*! \brief number of lanes, */
   uint16_t lanes;
 } TVMType;
+
+/*!
+ * \brief Union type of values
+ *  being passed through API and function calls.
+ */
+typedef union {
+  int64_t v_int64;
+  double v_float64;
+  void* v_handle;
+  const char* v_str;
+  TVMType v_type;
+} TVMValue;
 
 /*!
  * \brief The device type
@@ -133,11 +135,10 @@ typedef struct {
  * can be NULL, which indicates the default one.
  */
 typedef void* TVMStreamHandle;
-/*!
- * \brief Pointer to function handle that points to
- * a generated TVM function.
- */
+/*! \brief Handle to packed function handle. */
 typedef void* TVMFunctionHandle;
+/*! \brief Handle to hold return value. */
+typedef void* TVMRetValueHandle;
 /*! \brief the array handle */
 typedef TVMArray* TVMArrayHandle;
 
@@ -228,20 +229,45 @@ TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
 TVM_DLL int TVMFuncFree(TVMFunctionHandle func);
 
 /*!
- * \brief Call a function whose parameters are all packed.
+ * \brief Call a Packed TVM Function.
  *
  * \param func node handle of the function.
- * \param args The arguments
+ * \param arg_values The arguments
  * \param type_codes The type codes of the arguments
  * \param num_args Number of arguments.
  *
+ * \param ret_val The return value.
+ * \param ret_type_code the type code of return value.
+ *
  * \return 0 when success, -1 when failure happens
  * \note TVM calls always exchanges with type bits=64, lanes=1
+ *
+ * \note API calls always exchanges with type bits=64, lanes=1
+ *   If API call returns container handles (e.g. FunctionHandle)
+ *   these handles should be managed by the front-end.
+ *   The front-end need to call free function (e.g. TVMFuncFree)
+ *   to free these handles.
  */
 TVM_DLL int TVMFuncCall(TVMFunctionHandle func,
-                        TVMValue* args,
+                        TVMValue* arg_values,
                         int* type_codes,
-                        int num_args);
+                        int num_args,
+                        TVMValue* ret_val,
+                        int* ret_type_code);
+
+/*!
+ * \brief Set the return value of TVMPackedCFunc.
+ *
+ *  This function is called by TVMPackedCFunc to set the return value.
+ *  When this function is not called, the function returns null by default.
+ *
+ * \param ret The return value handle, pass by ret in TVMPackedCFunc
+ * \param value The value to be returned.
+ * \param type_code The type of the value to be returned.
+ */
+TVM_DLL int TVMCFuncSetReturn(TVMRetValueHandle ret,
+                              TVMValue value,
+                              int type_code);
 
 /*!
  * \brief C type of packed function.
@@ -249,10 +275,17 @@ TVM_DLL int TVMFuncCall(TVMFunctionHandle func,
  * \param args The arguments
  * \param type_codes The type codes of the arguments
  * \param num_args Number of arguments.
+ * \param ret The return value handle.
  * \param resource_handle The handle additional resouce handle from fron-end.
+ *
+ * \sa TVMCFuncSetReturn
  */
 typedef void (*TVMPackedCFunc)(
-    TVMValue* args, int* type_codes, int num_args, void* resource_handle);
+    TVMValue* args,
+    int* type_codes,
+    int num_args,
+    TVMRetValueHandle ret,
+    void* resource_handle);
 
 /*!
  * \brief C callback to free the resource handle in C packed function.
@@ -291,8 +324,20 @@ TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f);
  *
  * \param name The name of the function.
  * \param out the result function pointer.
+ *
+ * \note The function handle of global function is managed by TVM runtime,
+ *  So TVMFuncFree is should not be called when it get deleted.
  */
 TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
+
+/*!
+ * \brief List all the globally registered function name
+ * \param out_size The number of functions
+ * \param out_array The array of function names.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMFuncListGlobalNames(int *out_size,
+                                   const char*** out_array);
 }  // TVM_EXTERN_C
 
 #endif  // TVM_RUNTIME_C_RUNTIME_API_H_

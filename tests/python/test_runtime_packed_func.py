@@ -17,10 +17,22 @@ def test_get_global():
     @tvm.register_func
     def my_packed_func(*args):
         assert(tuple(args) == targs)
+        return 10
     # get it out from global function table
     f = tvm.get_global_func("my_packed_func")
     assert isinstance(f, tvm.nd.Function)
-    f(*targs)
+    y = f(*targs)
+    assert y == 10
+
+
+def test_return_func():
+    def addy(y):
+        def add(x):
+            return tvm.convert(x + y)
+        return add
+    myf = tvm.convert(addy)
+    f = myf(10)
+    assert f(11).value == 21
 
 
 def test_convert():
@@ -38,3 +50,4 @@ if __name__ == "__main__":
     test_function()
     test_convert()
     test_get_global()
+    test_return_func()

@@ -4,7 +4,7 @@ language: cpp
 
 os:
   - linux
-  - osx
+  #  - osx
 
 env:
   # code analysis

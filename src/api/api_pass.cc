@@ -1,53 +1,51 @@
 /*!
- *  Copyright (c) 2016 by Contributors
+ *  Copyright (c) 2017 by Contributors
  *  Exposre of pass functions.
- * \file c_api_pass.cc
+ * \file api_pass.cc
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include "./c_api_registry.h"
+#include <tvm/api_registry.h>
 
 namespace tvm {
 namespace ir {
-using ArgStack = const std::vector<APIVariantValue>;
-using RetValue = APIVariantValue;
 
 TVM_REGISTER_API(_pass_Simplify)
-.set_body([](const ArgStack& args, RetValue *ret) {
-    if (NodeTypeChecker<Stmt>::Check(args.at(0).sptr.get())) {
-      *ret = Simplify(args.at(0).operator Stmt());
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args[0].IsNodeType<Stmt>()) {
+      *ret = Simplify(args[0].operator Stmt());
     } else {
-      *ret = Simplify(args.at(0).operator Expr());
+      *ret = Simplify(args[0].operator Expr());
     }
   });
 
 TVM_REGISTER_API(_pass_Equal)
-.set_body([](const ArgStack& args, RetValue *ret) {
-    if (NodeTypeChecker<Stmt>::Check(args.at(0).sptr.get())) {
-      *ret = Equal(args.at(0).operator Stmt(), args.at(1).operator Stmt());
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args[0].IsNodeType<Stmt>()) {
+      *ret = Equal(args[0].operator Stmt(), args[1].operator Stmt());
     } else {
-      *ret = Equal(args.at(0).operator Expr(), args.at(1).operator Expr());
+      *ret = Equal(args[0].operator Expr(), args[1].operator Expr());
     }
   });
 
 // make from two arguments
 #define REGISTER_PASS1(PassName)                                  \
   TVM_REGISTER_API(_pass_## PassName)                             \
-  .set_body([](const ArgStack& args,  RetValue *ret) {            \
-      *ret = PassName(args.at(0));                                \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
+      *ret = PassName(args[0]);                                   \
     })                                                            \
 
 #define REGISTER_PASS2(PassName)                                  \
   TVM_REGISTER_API(_pass_## PassName)                             \
-  .set_body([](const ArgStack& args,  RetValue *ret) {            \
-      *ret = PassName(args.at(0), args.at(1));                    \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
+      *ret = PassName(args[0], args[1]);                          \
     })                                                            \
 
 #define REGISTER_PASS4(PassName)                                        \
   TVM_REGISTER_API(_pass_## PassName)                                   \
-  .set_body([](const ArgStack& args,  RetValue *ret) {                  \
-      *ret = PassName(args.at(0), args.at(1), args.at(2), args.at(3));  \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+      *ret = PassName(args[0], args[1], args[2], args[3]);              \
     })                                                                  \
 
 REGISTER_PASS1(ConvertSSA);

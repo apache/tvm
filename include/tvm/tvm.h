@@ -10,5 +10,6 @@
 #include "./expr.h"
 #include "./tensor.h"
 #include "./operation.h"
+#include "./packed_func_ext.h"
 
 #endif  // TVM_TVM_H_
