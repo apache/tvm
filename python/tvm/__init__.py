@@ -1,7 +1,7 @@
 # pylint: disable=redefined-builtin, wildcard-import
 """C++ backend related python scripts"""
 from __future__ import absolute_import as _abs
-from ._ctypes._api import register_node
+from ._ctypes._node import register_node
 
 from . import tensor
 from . import expr

@@ -136,7 +136,6 @@ class HostDeviceSplitter : public IRMutator {
  public:
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->type_key == "thread_extent") {
-      LOG(INFO) << "??";
       IterVar iv(op->node.node_);
       return SplitDeviceFunc(s);
     }

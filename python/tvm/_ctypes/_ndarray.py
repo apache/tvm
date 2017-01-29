@@ -1,18 +1,15 @@
 # pylint: disable=invalid-name, protected-access, too-many-arguments,  global-statement
 # pylint: disable=attribute-defined-outside-init, no-member, missing-docstring
 """Symbolic configuration API."""
-from __future__ import absolute_import as _abs
+from __future__ import absolute_import
 
 import ctypes
-from numbers import Number, Integral
 import numpy as np
 
-from .._base import _LIB
-from .._base import c_array, c_str, string_types
-from .._base import check_call
-from ._types import TVMValue, TypeCode, TVMType
+from .._base import _LIB, check_call
+from .._base import c_array, c_str
+from ._types import TVMType, tvm_index_t
 
-tvm_index_t = ctypes.c_uint32
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
@@ -37,6 +34,19 @@ class TVMContext(ctypes.Structure):
         ret = ctypes.c_int()
         check_call(_LIB.TVMContextEnabled(self, ctypes.byref(ret)))
         return ret.value != 0
+
+
+class TVMArray(ctypes.Structure):
+    """TVMValue in C API"""
+    _fields_ = [("data", ctypes.c_void_p),
+                ("shape", ctypes.POINTER(tvm_index_t)),
+                ("strides", ctypes.POINTER(tvm_index_t)),
+                ("ndim", tvm_index_t),
+                ("dtype", TVMType),
+                ("ctx", TVMContext)]
+
+
+TVMArrayHandle = ctypes.POINTER(TVMArray)
 
 
 def cpu(dev_id=0):
@@ -72,18 +82,6 @@ def opencl(dev_id=0):
     return TVMContext(4, dev_id)
 
 
-class TVMArray(ctypes.Structure):
-    """TVMValue in C API"""
-    _fields_ = [("data", ctypes.c_void_p),
-                ("shape", ctypes.POINTER(tvm_index_t)),
-                ("strides", ctypes.POINTER(tvm_index_t)),
-                ("ndim", tvm_index_t),
-                ("dtype", TVMType),
-                ("ctx", TVMContext)]
-
-TVMArrayHandle = ctypes.POINTER(TVMArray)
-
-
 def numpyasarray(np_data):
     """Return a TVMArray representation of a numpy array.
     """
@@ -102,7 +100,6 @@ def numpyasarray(np_data):
 
 
 _ndarray_cls = None
-_function_cls = None
 
 
 def empty(shape, dtype="float32", ctx=cpu(0)):
@@ -275,51 +272,6 @@ class NDArrayBase(object):
         return target
 
 
-class FunctionBase(object):
-    """A function object at runtim."""
-    __slots__ = ["handle"]
-    # pylint: disable=no-member
-    def __init__(self, handle):
-        """Initialize the function with handle
-
-        Parameters
-        ----------
-        handle : FunctionHandle
-            the handle to the underlying function.
-        """
-        self.handle = handle
-
-    def __del__(self):
-        check_call(_LIB.TVMFuncFree(self.handle))
-
-    def __call__(self, *args):
-        num_args = len(args)
-        tvm_args = (TVMValue * num_args)()
-        tvm_type_code = (ctypes.c_int * num_args)()
-        for i, arg in enumerate(args):
-            if arg is None:
-                tvm_args[i].v_handle = None
-                tvm_type_code[i] = TypeCode.NULL
-            elif isinstance(arg, NDArrayBase):
-                tvm_args[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
-                tvm_type_code[i] = TypeCode.HANDLE
-            elif isinstance(arg, Integral):
-                tvm_args[i].v_int64 = arg
-                tvm_type_code[i] = TypeCode.INT
-            elif isinstance(arg, Number):
-                tvm_args[i].v_float64 = arg
-                tvm_type_code[i] = TypeCode.FLOAT
-            elif isinstance(arg, string_types):
-                tvm_args[i].v_str = c_str(arg)
-                tvm_type_code[i] = TypeCode.STR
-            else:
-                raise TypeError("Don't know how to handle type %s" % type(arg))
-        check_call(_LIB.TVMFuncCall(
-            self.handle, tvm_args, tvm_type_code, ctypes.c_int(num_args)))
-
-
-def _init_runtime_module(ndarray_class, function_class):
+def _init_ndarray_module(ndarray_class):
     global _ndarray_cls
-    global _function_cls
     _ndarray_cls = ndarray_class
-    _function_cls = function_class

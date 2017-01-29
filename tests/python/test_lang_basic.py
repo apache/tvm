@@ -2,7 +2,8 @@ import tvm
 
 def test_const():
     x = tvm.const(1)
-    assert x.dtype == 'int32'
+    print(x.dtype)
+    assert x.dtype == tvm.int32
     assert isinstance(x, tvm.expr.IntImm)
 
 def test_const_saveload_json():
