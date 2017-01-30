@@ -86,8 +86,7 @@ class TVMValue(ctypes.Union):
     _fields_ = [("v_int64", ctypes.c_int64),
                 ("v_float64", ctypes.c_double),
                 ("v_handle", ctypes.c_void_p),
-                ("v_str", ctypes.c_char_p),
-                ("v_type", TVMType)]
+                ("v_str", ctypes.c_char_p)]
 
 
 TVMPackedCFunc = ctypes.CFUNCTYPE(
@@ -117,7 +116,6 @@ RETURN_SWITCH = {
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
-    TypeCode.TVM_TYPE: lambda x: str(x.v_type),
     TypeCode.STR: lambda x: py_str(x.v_str)
 }
 
@@ -127,6 +125,5 @@ C_TO_PY_ARG_SWITCH = {
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
-    TypeCode.TVM_TYPE: lambda x: str(x.v_type),
     TypeCode.STR: lambda x: py_str(x.v_str)
 }

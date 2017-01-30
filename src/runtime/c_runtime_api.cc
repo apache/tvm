@@ -193,7 +193,8 @@ int TVMFuncCall(TVMFunctionHandle func,
   (*static_cast<const PackedFunc*>(func)).CallPacked(
       TVMArgs(args, arg_type_codes, num_args), &rv);
   // handle return string.
-  if (rv.type_code() == kStr) {
+  if (rv.type_code() == kStr ||
+      rv.type_code() == kTVMType) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
     e->ret_str = rv.operator std::string();
     *ret_type_code = kStr;

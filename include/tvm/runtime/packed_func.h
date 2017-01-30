@@ -163,6 +163,12 @@ inline const char* TypeCode2Str(int type_code);
  */
 inline TVMType String2TVMType(std::string s);
 
+/*!
+ * \brief convert a TVM type to string.
+ * \param t The type to be converted.
+ * \return The corresponding tvm type in string.
+ */
+inline std::string TVMType2String(TVMType t);
 
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T)                           \
@@ -259,6 +265,9 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator TVMArray*;
   // conversion operator.
   operator std::string() const {
+    if (type_code_ == kTVMType) {
+      return TVMType2String(operator TVMType());
+    }
     TVM_CHECK_TYPE_CODE(type_code_, kStr);
     return std::string(value_.v_str);
   }
@@ -328,6 +337,9 @@ class TVMRetValue : public TVMPODValue_ {
   }
   // conversion operators
   operator std::string() const {
+    if (type_code_ == kTVMType) {
+      return TVMType2String(operator TVMType());
+    }
     TVM_CHECK_TYPE_CODE(type_code_, kStr);
     return *ptr<std::string>();
   }
@@ -507,9 +519,18 @@ inline const char* TypeCode2Str(int type_code) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
-  return os << TypeCode2Str(t.code)
-            << static_cast<int>(t.bits)
-            << 'x' << static_cast<int>(t.lanes);
+  os << TypeCode2Str(t.code)
+     << static_cast<int>(t.bits);
+  if (t.lanes != 1) {
+    os << 'x' << static_cast<int>(t.lanes);
+  }
+  return os;
+}
+
+inline std::string TVMType2String(TVMType t) {
+  std::ostringstream os;
+  os << t;
+  return os.str();
 }
 
 inline TVMType String2TVMType(std::string s) {

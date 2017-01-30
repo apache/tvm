@@ -121,7 +121,8 @@ int TVMNodeGetAttr(NodeHandle handle,
   } else {
     (*tnode)->VisitAttrs(&getter);
     *ret_success = getter.found_node_ref || rv.type_code() != kNull;
-    if (rv.type_code() == kStr) {
+    if (rv.type_code() == kStr ||
+        rv.type_code() == kTVMType) {
       TVMAPIThreadLocalEntry *e = TVMAPIThreadLocalStore::Get();
       e->ret_str = rv.operator std::string();
       *ret_type_code = kStr;
