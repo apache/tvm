@@ -28,6 +28,9 @@ ADD_LDFLAGS=
 # the additional compile flags you want to add
 ADD_CFLAGS=
 
+# path to dmlc-core module 
+#DMLC_CORE_PATH=
+
 #----------------------------
 # plugins
 #----------------------------
