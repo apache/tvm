@@ -10,12 +10,13 @@ def test_makeapi():
     s = tvm.Schedule(C.op)
 
     bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.ir_pass.ScheduleOps(s, bounds)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
 
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
     Bb = tvm.Buffer(B.shape, B.dtype, name='B')
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
+
     num_packed_args = 2
     f = tvm.codegen.MakeAPI(stmt, "myadd", [n, Ab, Bb, Cb], num_packed_args)
     assert(f.handle_data_type[Ab.data].dtype == Ab.dtype)

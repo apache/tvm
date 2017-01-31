@@ -5,6 +5,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 
 namespace tvm {
@@ -31,6 +32,27 @@ bool HasSideEffect(const Expr& e) {
   IRSideEffect v;
   v.Visit(e);
   return v.has_side_effect_;
+}
+
+class IRSubstitue : public IRMutator {
+ public:
+  Expr Mutate_(const Variable* op, const Expr& e) final {
+    auto it = smap.find(op);
+    if (it != smap.end()) {
+      return it->second;
+    } else {
+      return e;
+    }
+  }
+  std::unordered_map<const Variable*, Expr> smap;
+};
+
+Stmt Substitute(Stmt stmt, const Map<IterVar, Expr>& value_map) {
+  IRSubstitue m;
+  for (auto kv : value_map) {
+    m.smap[kv.first->var.get()] = kv.second;
+  }
+  return m.Mutate(stmt);
 }
 }  // namespace ir
 }  // namespace tvm

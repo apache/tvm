@@ -26,7 +26,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
             << op->op
             << ", ";
   p->print(op->source);
-  p->stream << ", rdom=" << op->rdom << ")";
+  p->stream << ", axis=" << op->axis << ")";
 });
 
 }  // namespace Internal
@@ -35,16 +35,16 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 namespace tvm {
 namespace ir {
 
-Expr Reduce::make(std::string op, Expr source, Array<IterVar> rdom) {
+Expr Reduce::make(std::string op, Expr source, Array<IterVar> axis) {
   auto n = std::make_shared<Reduce>();
   CHECK(source.defined());
-  for (size_t i = 0; i < rdom.size(); ++i) {
-    CHECK(rdom[i].defined());
+  for (size_t i = 0; i < axis.size(); ++i) {
+    CHECK(axis[i].defined());
   }
   n->type = source.type();
   n->source = source;
   n->op = op;
-  n->rdom = rdom;
+  n->axis = axis;
   return Expr(n);
 }
 

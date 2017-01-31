@@ -4,6 +4,7 @@
  */
 #include <tvm/operation.h>
 #include <tvm/tensor.h>
+#include <tvm/ir.h>
 #include <memory>
 
 namespace tvm {
@@ -57,7 +58,12 @@ Tensor Placeholder(Array<Expr> shape, Type dtype, std::string name) {
 
 // ComputeOpNode
 Array<IterVar> ComputeOpNode::root_iter_vars() const {
-  return axis;
+  if (reduce_axis.size() == 0) return axis;
+  Array<IterVar> ret = axis;
+  for (IterVar iv : reduce_axis) {
+    ret.push_back(iv);
+  }
+  return ret;
 }
 
 Type ComputeOpNode::output_dtype(size_t i) const {
@@ -101,6 +107,9 @@ Operation ComputeOpNode::make(std::string name,
   n->name = name;
   n->axis = axis;
   n->body = body;
+  if (n->body->is_type<ir::Reduce>()) {
+    n->reduce_axis = n->body.as<ir::Reduce>()->axis;
+  }
   return Operation(n);
 }
 

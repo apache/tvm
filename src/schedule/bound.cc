@@ -54,6 +54,11 @@ void PassDown(const Stage& s,
       const Range& range_inner = state.at(r->inner);
       state[r->fused] = Range::make_with_min_extent(
           0, range_outer->extent * range_inner->extent);
+    } else if (rel.as<RebaseNode>()) {
+      const RebaseNode* r = rel.as<RebaseNode>();
+      CHECK(state.count(r->parent));
+      state[r->rebased] = Range::make_with_min_extent(
+          0, state.at(r->parent)->extent);
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -85,6 +90,13 @@ void PassUp(const Stage& s,
              &outer, &inner);
       state[r->outer] = outer;
       state[r->inner] = inner;
+    } else if (rel.as<RebaseNode>()) {
+      IntSet parent;
+      const RebaseNode* r = rel.as<RebaseNode>();
+      PassUp(r, dom_map,
+             state.at(r->rebased),
+             &parent);
+      state[r->parent] = parent;
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -109,9 +121,15 @@ void PassToOperation(
   // Eventually, we need to change the inference to be a Pull style inference
   if (tensor->op.as<ComputeOpNode>()) {
     auto root_iter_vars = tensor->op->root_iter_vars();
-    CHECK_EQ(tensor.ndim(), root_iter_vars.size());
-    for (size_t i = 0; i < tensor.ndim(); ++i) {
-      (*result)[root_iter_vars[i]].push_back(dim_bounds[i]);
+    const ComputeOpNode* op = tensor->op.as<ComputeOpNode>();
+    CHECK_EQ(op->axis.size() + op->reduce_axis.size(), root_iter_vars.size());
+    for (size_t i = 0; i < op->axis.size(); ++i) {
+      (*result)[op->axis[i]].push_back(dim_bounds[i]);
+    }
+    // reduction.
+    for (size_t i = 0; i < op->reduce_axis.size(); ++i) {
+      (*result)[op->reduce_axis[i]].push_back(
+          IntSet::range(op->reduce_axis[i]->dom));
     }
   } else {
     LOG(FATAL) << "unknown operation mode " << tensor->op->type_key();
@@ -173,9 +191,9 @@ bool ScopeRelax(const IterVar& iv, const std::string& scope) {
     {"local", 2}
   };
   static std::unordered_map<std::string, int> thread_tag_rank{
-    {"gridIdx.x", 0},
-    {"gridIdx.y", 0},
-    {"gridIdx.z", 0},
+    {"blockIdx.x", 0},
+    {"blockIdx.y", 0},
+    {"blockIdx.z", 0},
     {"threadIdx.x", 1},
     {"threadIdx.y", 1},
     {"threadIdx.z", 1}
@@ -194,8 +212,6 @@ void InferBound(const Stage& stage,
       (*rmap)[iv] = iv->dom;
     }
   }
-  // get range of all child iter vars.
-  PassDown(stage, rmap);
 
   if (stage->attach_type == kScope) {
     Stage parent = stage->attach_stage;
@@ -206,10 +222,18 @@ void InferBound(const Stage& stage,
 
     bool fix_value = true;
     for (auto iv : parent->leaf_iter_vars) {
+      Range vrange = rmap->at(iv);
+      CHECK(is_zero(vrange->min))
+          << "InferBound requires every leaf iter var's min equals 0, "
+          << "call schedule.normalize to achieve this.";
+      // special optimization to remove trivial loop
+      if (is_one(vrange->extent)) {
+        up_state[iv] = IntSet::single_point(vrange->min);
+      }
       if (fix_value && !ScopeRelax(iv, stage->scope)) {
-        up_state[iv] = IntSet::make_point(iv->var);
+        up_state[iv] = IntSet::single_point(iv->var);
       } else {
-        up_state[iv] = IntSet::make_range(rmap->at(iv));
+        up_state[iv] = IntSet::range(vrange);
       }
       if (stage->attach_ivar == iv) {
         fix_value = false;
@@ -223,12 +247,30 @@ void InferBound(const Stage& stage,
       bp_state[iv] = {up_state.at(iv)};
     }
     auto result = BoundProp(post_order, &bp_state);
+
+    // Set relaxation
+    Map<IterVar, IntSet> relax_set;
+    Stage s = stage;
+    while (s->attach_type == kScope) {
+      s = s->attach_stage;
+      for (auto iv : s->leaf_iter_vars) {
+        if (ScopeRelax(iv, stage->scope)) {
+          relax_set.Set(iv, IntSet::range(rmap->at(iv)));
+        }
+      }
+    }
     for (auto iv : stage->op->root_iter_vars()) {
       CHECK(result.count(iv));
       CHECK(!rmap->count(iv));
-      (*rmap)[iv] = result.at(iv).GetCoverRange();
+      Range r = result.at(iv).cover_range(iv->dom);
+      if (relax_set.size() != 0) {
+        r = EvalSet(r, relax_set).cover_range(iv->dom);
+      }
+      (*rmap)[iv] = r;
     }
   }
+  // get range of all child iter vars.
+  PassDown(stage, rmap);
 }
 
 

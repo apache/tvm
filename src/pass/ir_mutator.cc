@@ -37,7 +37,7 @@ inline Array<Expr> MutateArray(Array<Expr> arr, IRMutator *m) {
   }
 }
 
-inline Array<IterVar> MutateRDom(Array<IterVar> rdom, IRMutator *m) {
+inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {
   std::vector<IterVar> new_dom(rdom.size());
   bool changed = false;
   for (size_t i = 0; i < rdom.size(); i++) {
@@ -237,13 +237,13 @@ Expr IRMutator::Mutate_(const Let *op, const Expr& e) {
 
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .set_dispatch<Reduce>([](const Reduce* op, const Expr& e, IRMutator* m) {
-    Array<IterVar> new_rdom  = MutateRDom(op->rdom, m);
+    Array<IterVar> new_axis  = MutateIterVarArr(op->axis, m);
     Expr new_source  = m->Mutate(op->source);
-    if (op->rdom.same_as(new_rdom) &&
+    if (op->axis.same_as(new_axis) &&
         op->source.same_as(new_source)) {
       return e;
     } else {
-      return Reduce::make(op->op, new_source, new_rdom);
+      return Reduce::make(op->op, new_source, new_axis);
     }
   });
 

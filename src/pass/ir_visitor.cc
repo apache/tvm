@@ -120,7 +120,7 @@ void IRVisitor::Visit_(const Call *op) {
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Reduce>([](const Reduce* op, IRVisitor* v) {
-    VisitRDom(op->rdom, v);
+    VisitRDom(op->axis, v);
     v->Visit(op->source);
   })
 .set_dispatch<IntImm>(NoOp)

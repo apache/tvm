@@ -22,35 +22,48 @@ class IntSet : public NodeRef {
  public:
   /*! \brief constructor */
   IntSet() {}
-  // constructor from not deontainer.
+  // constructor from not container.
   explicit IntSet(std::shared_ptr<Node> n) : NodeRef(n) {}
-  /*! \return whether the set is empty */
-  inline bool is_empty() const {
-    return !defined();
-  }
-  /*!
-   * \return a range that covers the IntSet
-   */
-  Range GetCoverRange() const;
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
   inline const IntSetNode* operator->() const;
   /*!
-   * \param dom The domain to be created.
-   * \return create integer set from existing domain
+   * \brief Find a range that covers the region.
+   * \param max_range The range to be covered.
+   * \return The covering range.
    */
-  static IntSet make_range(Range dom);
+  Range cover_range(Range max_range) const;
   /*!
-   * \param point
-   * \return create integer set that only contains one point
+   * \brief find an interval that covers the set.
+   * \return The covering interval set.
    */
-  static IntSet make_point(Expr point);
+  IntSet cover_interval() const;
+  /*! \return Whether the set represent everything  */
+  bool is_everything() const;
+  /*! \return Whether the set is a single point */
+  bool is_single_point() const;
+  /*! \return Whether the set contains everything */
+  static IntSet everything();
   /*!
-   * \return create integer set that represents everything
+   * \brief construct a point set.
+   * \param point The point in the set.
+   * \return construct a single point set
    */
-  static IntSet make_all_set();
+  static IntSet single_point(Expr point);
+  /*!
+   * \brief Construct a set representing a range.
+   * \param r The range
+   * \return constructed set.
+   */
+  static IntSet range(Range r);
+};
+
+/*!
+ * \brief Base class of all IntSet containers.
+ */
+struct IntSetNode : public Node {
 };
 
 /*!
@@ -63,6 +76,18 @@ class IntSet : public NodeRef {
  */
 IntSet EvalSet(Expr e,
                const Map<IterVar, IntSet>& dom_map);
+
+/*!
+ * \brief Find an symbolic integer set that contains is union over
+ *  all the possible conditional values in dom_map.
+ *
+ * \param r The initial range.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values.
+ */
+IntSet EvalSet(Range r,
+               const Map<IterVar, IntSet>& dom_map);
+
 /*!
  * \brief Conditional upward message passing.
  *
@@ -99,12 +124,34 @@ void PassUp(const FuseNode* s,
             const IntSet& fused,
             IntSet* outer,
             IntSet* inner);
+
+/*!
+ * \brief Conditional upward message passing.
+ *
+ * Get domain of parent, condition on domain of children.
+ * Domain is represented as IntSet.
+ *
+ * \param s The Fuse relation node.
+ * \param dom_map The old domain result from downward message passing.
+ *    Contains the domain set if all the children are full set.
+ * \param rebased domain of rebased iteration.
+ * \param parent The result domain of parent iteration.
+ */
+void PassUp(const RebaseNode* s,
+            const std::unordered_map<IterVar, Range>& dom_map,
+            const IntSet& fused,
+            IntSet* parent);
 /*!
  * \brief Create an union set of all sets
  * \param sets The sets to be unioned
  * \return the set after union
  */
 IntSet Union(const Array<IntSet>& sets);
+
+// implementation
+inline const IntSetNode* IntSet::operator->() const {
+  return static_cast<const IntSetNode*>(node_.get());
+}
 
 }  // namespace schedule
 }  // namespace tvm

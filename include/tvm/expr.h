@@ -32,6 +32,9 @@ using Halide::Internal::IRPrinter;
 using Halide::Internal::Variable;
 
 using Halide::Internal::make_const;
+using Halide::Internal::make_zero;
+using Halide::Internal::as_const_int;
+using Halide::Internal::as_const_uint;
 
 
 inline Type TVMType2Type(TVMType t) {
@@ -126,25 +129,25 @@ using Halide::abs;
 using Halide::select;
 
 /*!
- * \brief sum of of source expression over rdom
+ * \brief sum of of source expression over axis
  * \param source The source expression.
- * \param rdom List of iteration variables that will be used for reduction.
+ * \param axis List of iteration variables that will be used for reduction.
  */
-Expr sum(Expr source, Array<IterVar> rdom);
+Expr sum(Expr source, Array<IterVar> axis);
 
 /*!
- * \brief max of of source expression over rdom
+ * \brief max of of source expression over axis
  * \param source The source expression.
- * \param rdom List of iteration variables that will be used for reduction.
+ * \param axis List of iteration variables that will be used for reduction.
  */
-Expr max(Expr source, Array<IterVar> rdom);
+Expr max(Expr source, Array<IterVar> axis);
 
 /*!
- * \brief max of of source expression over rdom
+ * \brief max of of source expression over axis
  * \param source The source expression.
- * \param rdom List of iteration variables that will be used for reduction.
+ * \param axis List of iteration variables that will be used for reduction.
  */
-Expr min(Expr source, Array<IterVar> rdom);
+Expr min(Expr source, Array<IterVar> axis);
 
 
 // print functions for expr

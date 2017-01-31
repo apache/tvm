@@ -3,8 +3,8 @@
  * \file ir_pass.h
  * \brief Collection of IR pass functions
  *
- *  All the pass functions in this file are for Stmt,
- *  We can use PassFunction(Evaluate(expr)) to apply it to Expr
+ *  When the pass functions in this file are for Stmt,
+ *  we can use PassFunction(Evaluate(expr)) to apply it to Expr
  */
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
@@ -38,15 +38,6 @@ inline Stmt Simplify(Stmt a) {
 }
 
 /*!
- * \brief Schedule s' dependent operations.
- *
- * \param s The schedule to be realized
- * \param dom_map The domain of each iter vars.
- * \return the result Stmt
- */
-Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
-
-/*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each VarExpr is defined and assigned once(in Let/For)
  *
@@ -68,6 +59,14 @@ bool HasSideEffect(const Expr& e);
  * \return The converted form.
  */
 Stmt ConvertSSA(Stmt stmt);
+
+/*!
+ * \brief Substitute the var specified in key->var to be value.
+ * \param stmt The source statement to be substituted
+ * \param value_map The map of new values.
+ * \return The converted form.
+ */
+Stmt Substitute(Stmt stmt, const Map<IterVar, Expr>& value_map);
 
 /*!
  * \brief inline all calls of f in stmt.

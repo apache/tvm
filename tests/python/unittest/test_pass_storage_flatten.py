@@ -12,7 +12,7 @@ def test_flatten2():
     s[A1].compute_at(s[A2], xo)
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.collections.Map)
-    stmt = tvm.ir_pass.ScheduleOps(s, bounds)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
 
     print(stmt)
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
