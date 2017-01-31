@@ -7,17 +7,18 @@
 #define TVM_CODEGEN_CODEGEN_STACK_VM_H_
 
 #include <tvm/ir.h>
-#include <tvm/module.h>
+#include <tvm/lowered_func.h>
 #include <tvm/codegen.h>
 #include <string>
+#include <vector>
 #include <unordered_map>
 
-#include "../jit/stack_vm.h"
+#include "../runtime/stack_vm/stack_vm.h"
 
 namespace tvm {
 namespace codegen {
 
-using jit::StackVM;
+using runtime::StackVM;
 
 /*!
  * \brief A base class to generate a stack VM.
@@ -26,13 +27,16 @@ using jit::StackVM;
  */
 class CodeGenStackVM {
  public:
-  /*!
+ /*!
    * \brief Generate a stack VM representing
    * \param f The function to be compiled
+   * \param device_funcs The extern device functions to be linked.
    * \note Only call compile once,
    *  create a new codegen object each time.
    */
-  StackVM Compile(LoweredFunc f);
+  StackVM Compile(
+      LoweredFunc f,
+      const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs);
   /*! \brief Push stmt to generate new code */
   void Push(const Stmt& n);
     /*! \brief Push expr to generate new code */
@@ -50,6 +54,13 @@ class CodeGenStackVM {
    */
   int64_t PushOp(StackVM::OpCode opcode, int operand);
   /*!
+   * \brief Push a call packed function.
+   * \param fid The function id.
+   * \param arg_type_codes The type codes of arguments.
+   */
+  void PushCallPacked(int fid,
+                      const std::vector<int>& arg_type_codes);
+  /*!
    * \brief Set the relative jump offset to be offset.
    * \param operand_index The indexed returned by PushOp.
    * \param operand The operand to be set.
@@ -65,11 +76,6 @@ class CodeGenStackVM {
    * \return the id of the string.
    */
   int GetStrID(const std::string& key);
-  /*!
-   * \brief Push the function to the VM and get a id.
-   * \param f The function to be pushed.
-   */
-  int GetGlobalFuncID(std::string name);
   /*!
    * \brief Allocate a variable name for a newly defined var.
    * \param v The variable.
@@ -101,8 +107,10 @@ class CodeGenStackVM {
   std::unordered_map<const Variable*, int> var_idmap_;
   /*! \brief id of each string */
   std::unordered_map<std::string, int> str_idmap_;
-  /*! \brief id of each function */
-  std::unordered_map<std::string, int> fun_idmap_;
+  /*! \brief id of each global function */
+  std::unordered_map<std::string, int> global_fun_idmap_;
+  /*! \brief id of device function */
+  std::unordered_map<LoweredFunc, int> device_fun_idmap_;
 };
 
 }  // namespace codegen

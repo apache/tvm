@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file codegen_stack_vm.cc
  */
+#include <tvm/packed_func_ext.h>
 #include <limits>
 #include "./codegen_stack_vm.h"
 
@@ -10,54 +11,33 @@ namespace codegen {
 
 using namespace ir;
 
-runtime::PackedFunc BuildStackVM(LoweredFunc func) {
-  StackVM vm = codegen::CodeGenStackVM().Compile(func);
-  using runtime::TVMArgs;
-  using runtime::TVMRetValue;
-
+PackedFunc BuildStackVM(
+    LoweredFunc func,
+    const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs) {
+  StackVM vm = codegen::CodeGenStackVM().Compile(func, device_funcs);
   auto f = [vm](TVMArgs args, TVMRetValue* rv) {
-    StackVM::State* s = StackVM::ThreadLocalState();
-    s->sp = 0;
-    s->pc = 0;
-    if (s->heap.size() < vm.heap_size) {
-      s->heap.resize(vm.heap_size);
-    }
-    s->heap[0].v_handle = (void*)args.values;  // NOLINT(*)
-    s->heap[1].v_handle = (void*)args.type_codes;  // NOLINT(*)
-    s->heap[2].v_int64 = args.num_args;
-    vm.Run(s);
+    vm(args);
   };
-
-  return runtime::PackedFunc(f);
-}
-
-TVMValue TVMPrint(const TVMValue* args, int num_args) {
-  CHECK_EQ(num_args, 2);
-  int tcode = static_cast<int>(args[1].v_int64);
-  int code = (tcode >> (8 * 3)) & 255;
-  int bits = (tcode >> (8 * 2)) & 255;
-  int lanes = tcode & ((1 << 16) - 1);
-  Type t((halide_type_code_t)code, bits, lanes);
-  if (t.is_handle()) {
-    LOG(INFO) << t << ": " << args[0].v_handle;
-  } else if (t.is_float()) {
-    LOG(INFO) << t << ": " << args[0].v_float64;
-  } else {
-    LOG(INFO) << t << ": " << args[0].v_int64;
-  }
-  TVMValue r; r.v_int64 = 0;
-  return r;
+  return PackedFunc(f);
 }
 
 CodeGenStackVM::FType& CodeGenStackVM::vtable() {  // NOLINT(*)
   static FType inst; return inst;
 }
 
-StackVM CodeGenStackVM::Compile(LoweredFunc f) {
+StackVM CodeGenStackVM::Compile(
+    LoweredFunc f,
+    const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs) {
   for (size_t i = 0; i < f->args.size(); ++i) {
     Var v = f->args[i];
     int vid = AllocVarID(v.get());
     CHECK_EQ(static_cast<size_t>(vid), i);
+  }
+  // setup device function map
+  for (const auto& kv : device_funcs) {
+    int fid = static_cast<int>(vm_.packed_func.size());
+    vm_.packed_func.push_back(kv.second);
+    device_fun_idmap_[kv.first] = fid;
   }
   this->Push(f->body);
   return std::move(vm_);
@@ -117,33 +97,23 @@ int CodeGenStackVM::AllocVarID(const Variable* v) {
   return vid;
 }
 
-int CodeGenStackVM::GetGlobalFuncID(std::string name) {
-  auto it = fun_idmap_.find(name);
-  if (it != fun_idmap_.end()) return it->second;
-  using runtime::PackedFunc;
-  using runtime::TVMArgs;
-  using runtime::TVMRetValue;
-
-  PackedFunc f = PackedFunc::GetGlobal(name);
-  auto extern_f = [f](const TVMValue* args, int num_args) {
-    CHECK_EQ(num_args % 2, 0);
-    num_args = num_args / 2;
-    std::vector<int> type_codes(std::max(num_args, 1));
-    for (int i = 0; i < num_args; ++i) {
-      int tcode = static_cast<int>(args[num_args + i].v_int64);
-      int code = (tcode >> (8 * 3)) & 255;
-      type_codes[i] = code;
-    }
-    TVMRetValue rv;
-    f.CallPacked(TVMArgs(args, &type_codes[0], num_args), &rv);
-    TVMValue r; r.v_int64 = 0;
-    return r;
-  };
-  int fid = static_cast<int>(vm_.extern_func.size());
-  vm_.extern_func.push_back(extern_f);
-  fun_idmap_[name] = fid;
-
-  return fid;
+void CodeGenStackVM::PushCallPacked(
+    int fid, const std::vector<int>& arg_type_codes) {
+  StackVM::Code code;
+  // CALL_PACKED_FUNC
+  code.op_code = StackVM::CALL_PACKED_FUNC;
+  vm_.code.push_back(code);
+  // num_args
+  code.v_int = static_cast<int>(arg_type_codes.size());
+  vm_.code.push_back(code);
+  // fid
+  code.v_int = fid;
+  vm_.code.push_back(code);
+  // type codes.
+  for (int tcode : arg_type_codes) {
+    code.v_int = tcode;
+    vm_.code.push_back(code);
+  }
 }
 
 int CodeGenStackVM::GetVarID(const Variable* v) const {
@@ -162,7 +132,7 @@ void CodeGenStackVM::Push_(const ir::Load* op) {
     this->PushOp(StackVM::PUSH_I64, op->type.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
-    this->PushOp(StackVM::GetLoad(op->type));
+    this->PushOp(StackVM::GetLoad(Type2TVMType(op->type)));
   }
 }
 void CodeGenStackVM::Push_(const ir::Store* op) {
@@ -172,7 +142,7 @@ void CodeGenStackVM::Push_(const ir::Store* op) {
   this->PushOp(StackVM::MUL_I64);
   this->PushOp(StackVM::ADDR_ADD);
   this->Push(op->value);
-  this->PushOp(StackVM::GetStore(op->value.type()));
+  this->PushOp(StackVM::GetStore(Type2TVMType(op->value.type())));
 }
 
 void CodeGenStackVM::Push_(const ir::Allocate* op) {
@@ -231,22 +201,49 @@ void CodeGenStackVM::Push_(const ir::Call* op) {
     for (size_t i = 1; i < op->args.size(); ++i) {
       this->Push(op->args[i]);
     }
+    // find the fuction id.
+    const std::string& func_name = s->value;
+    auto it = global_fun_idmap_.find(func_name);
+    int fid;
+    if (it != global_fun_idmap_.end()) {
+      fid = it->second;
+    } else {
+      fid = static_cast<int>(vm_.packed_func.size());
+      PackedFunc f = PackedFunc::GetGlobal(func_name);
+      vm_.packed_func.push_back(f);
+      global_fun_idmap_[func_name] = fid;
+    }
+    // get the argument type code.
+    std::vector<int> arg_type_codes;
     for (size_t i = 1; i < op->args.size(); ++i) {
       Type t = op->args[i].type();
       int code = t.code();
-      int bits = t.bits();
       int lanes = t.lanes();
-      int tcode = (code << (8 * 3)) | (bits << 16) | lanes;
-      this->PushOp(StackVM::PUSH_I64, tcode);
+      CHECK_EQ(lanes, 1);
+      arg_type_codes.push_back(code);
     }
-    int num_args = static_cast<int>((op->args.size() - 1) * 2);
-    this->PushOp(StackVM::PUSH_I64, num_args);
-    this->PushOp(StackVM::CALL_EXTERN, GetGlobalFuncID(s->value));
+    this->PushCallPacked(fid, arg_type_codes);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
     this->PushOp(StackVM::EQ_I64);
+  } else if (op->call_type == Call::Extern && op->func.defined()) {
+    CHECK(op->func->is_type<LoweredFuncNode>());
+    LoweredFunc f(op->func.node_);
+    auto it = device_fun_idmap_.find(f);
+    CHECK(it != device_fun_idmap_.end())
+        << "Cannot find device function " << f->name;
+    const int fid = it->second;
+    std::vector<int> arg_type_codes(op->args.size());
+    for (size_t i = 0; i < op->args.size(); ++i) {
+      this->Push(op->args[i]);
+      Type t = op->args[i].type();
+      int lanes = t.lanes();
+      CHECK_EQ(lanes, 1);
+      arg_type_codes[i] = t.code();
+    }
+    this->PushCallPacked(fid, arg_type_codes);
   } else {
     this->HandleUnknownCall(op);
   }
@@ -275,6 +272,8 @@ inline void PushBinary(StackVM::OpCode op_int64,
     p->PushOp(StackVM::CodeI64ToF64(op_int64));
   }
 }
+
+
 
 
 inline void PushCast(Type dst,

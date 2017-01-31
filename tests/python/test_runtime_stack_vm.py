@@ -10,6 +10,7 @@ def test_stack_vm_basic():
     a = tvm.nd.array(np.zeros(10, dtype='float32'))
     @tvm.register_func
     def tvm_call_back_get_shape(shape0):
+        print(shape0)
         assert shape0 == a.shape[0]
 
     n = tvm.Var('n')
@@ -74,3 +75,5 @@ def test_stack_vm_cond():
 
 if __name__ == "__main__":
     test_stack_vm_cond()
+    test_stack_vm_loop()
+    test_stack_vm_basic()

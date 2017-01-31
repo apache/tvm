@@ -90,8 +90,8 @@ def _make_tvm_args(args, temp_args):
             values[i].v_float64 = arg
             type_codes[i] = TypeCode.FLOAT
         elif isinstance(arg, TVMType):
-            values[i].v_type = arg
-            type_codes[i] = TypeCode.TVM_TYPE
+            values[i].v_str = c_str(str(arg))
+            type_codes[i] = TypeCode.STR
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
             type_codes[i] = TypeCode.STR

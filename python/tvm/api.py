@@ -16,9 +16,9 @@ from . import make as _make
 from . import expr as _expr
 from . import collections as _collections
 
-int32 = TVMType("int32")
-float32 = TVMType("float32")
-handle = TVMType("handle")
+int32 = "int32"
+float32 = "float32"
+handle = "handle"
 
 def const(value, dtype=None):
     """construct a constant"""

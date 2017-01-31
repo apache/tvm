@@ -15,7 +15,7 @@ all: lib/libtvm.a lib/libtvm.so
 
 LIB_HALIDE_IR = HalideIR/lib/libHalideIR.a
 
-SRC = $(wildcard src/*.cc src/*/*.cc)
+SRC = $(wildcard src/*.cc src/*/*.cc src/*/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
 ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
 
@@ -39,7 +39,7 @@ endif
 
 ifeq ($(USE_CUDA), 1)
 	CFLAGS += -DTVM_CUDA_RUNTIME=1
-	LDFLAGS += -lcuda -lcudart
+	LDFLAGS += -lcuda -lcudart -lnvrtc
 else
 	CFLAGS += -DTVM_CUDA_RUNTIME=0
 endif
@@ -92,3 +92,4 @@ clean:
 
 -include build/*.d
 -include build/*/*.d
+-include build/*/*/*.d

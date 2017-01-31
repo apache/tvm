@@ -14,6 +14,7 @@
 
 #include "./base.h"
 #include "./expr.h"
+#include "./runtime/packed_func.h"
 
 namespace tvm {
 using runtime::TVMArgs;
@@ -162,19 +163,7 @@ inline void TVMArgsSetter::operator()(size_t i, NodeRef& other) const {  // NOLI
   type_codes_[i] = kNodeHandle;
 }
 
-// Type related stuffs
-inline Type TVMType2Type(TVMType t) {
-  return Type(static_cast<halide_type_code_t>(t.code), t.bits, t.lanes);
-}
-
-inline TVMType Type2TVMType(Type t) {
-  TVMType ret;
-  ret.code = static_cast<uint8_t>(t.code());
-  ret.bits = static_cast<uint8_t>(t.bits());
-  ret.lanes = static_cast<uint16_t>(t.lanes());
-  return ret;
-}
-
+// type related stuffs
 inline TVMRetValue& TVMRetValue::operator=(const Halide::Type& t) {
   return this->operator=(Type2TVMType(t));
 }

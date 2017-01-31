@@ -9,6 +9,12 @@ from . import expr as _expr
 class Array(NodeBase):
     """Array container of TVM"""
     def __getitem__(self, i):
+        if isinstance(i, slice):
+            start = i.start if i.start is not None else 0
+            stop = i.stop if i.stop is not None else len(self)
+            step = i.step if i.step is not None else 1
+            return [self[idx] for idx in range(start, stop, step)]
+
         if i >= len(self):
             raise IndexError("array index out ot range")
         return _api_internal._ArrayGetItem(self, i)

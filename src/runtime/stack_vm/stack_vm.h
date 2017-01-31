@@ -5,24 +5,29 @@
  *
  *  This can be used to interepret host side code
  *  to setup calls into device functions
- *  when only JIT for device is available(via NVRTC or OpenCL).
+ *  when only Runtime compilation for device is available(via NVRTC or OpenCL).
  */
-#ifndef TVM_JIT_STACK_VM_H_
-#define TVM_JIT_STACK_VM_H_
+#ifndef TVM_RUNTIME_STACK_VM_STACK_VM_H_
+#define TVM_RUNTIME_STACK_VM_STACK_VM_H_
 
-#include <tvm/base.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
 #include <string>
 #include <vector>
 
 namespace tvm {
-namespace jit {
+namespace runtime {
 
 /*!
  * \brief A simple stack-based virtual machine.
  */
 class StackVM {
  public:
+  /*!
+   * \brief Invoke the StackVM as PackedFunc
+   * \param args The arguments to the StackVM.
+   */
+  void operator()(const TVMArgs& args) const;
   /*!
    * \brief The opcode of stack vm
    * \note Notation
@@ -121,16 +126,19 @@ class StackVM {
      */
     SELECT,
     /*!
-     * \brief call an extern function
+     * \brief call an extern packed function
      * \code
      *  num_args = stack[sp].v_int64;
      *  call_fid = code[pc + 1].v_int;
      *  f = extern_func[call_fid];
-     *  stack[sp - num_args] = f(&stack[sp - num_args], num_args);
+     *  int* type_codes = &(code[pc + 2].v_int)
+     *  stack[sp - num_args] = f(&stack[sp - num_args], type_codes, num_args);
      *  sp = sp - num_args;
+     *  // The type codes are hidden in the code space.
+     *  pc = pc + 2 + num_args
      * \endcode
      */
-    CALL_EXTERN,
+    CALL_PACKED_FUNC,
     /*!
      * \brief Assert condition is true.
      * \code
@@ -217,14 +225,12 @@ class StackVM {
   int64_t PrintCode(std::ostream&os, int64_t pc) const;  // NOLINT(*)
   /*! \brief Get thread local state of the stack VM */
   static State* ThreadLocalState();
-  /*! \brief extern function that will mutate the state */
-  using ExternFunc = std::function<TVMValue (const TVMValue* args, int num_args)>;
   /*! \brief The instructions */
   std::vector<Code> code;
   /*! \brief constant error messages */
   std::vector<std::string> str_data;
-  /*! \brief Extern functions */
-  std::vector<ExternFunc> extern_func;
+  /*! \brief Extern functions in packed func format */
+  std::vector<runtime::PackedFunc> packed_func;
   /*! \brief name of each heap id*/
   std::vector<std::string> heap_id_name;
   /*! \brief The memory size needed */
@@ -254,20 +260,20 @@ class StackVM {
    * \param t the type code.
    * \return The load opcode
    */
-  static OpCode GetLoad(Type t) {
-    CHECK_EQ(t.lanes(), 1);
-    if (t.is_handle()) return ADDR_LOAD_HANDLE;
-    if (t.is_int()) {
-      switch (t.bits()) {
+  static OpCode GetLoad(TVMType t) {
+    CHECK_EQ(t.lanes, 1U);
+    if (t.code == kHandle) return ADDR_LOAD_HANDLE;
+    if (t.code == kInt) {
+      switch (t.bits) {
         case 32 : return ADDR_LOAD_INT32;
         case 64 : return ADDR_LOAD_INT64;
       }
-    } else if (t.is_uint()) {
-      switch (t.bits()) {
+    } else if (t.code == kUInt) {
+      switch (t.bits) {
         case 32 : return ADDR_LOAD_UINT32;
       }
-    } else if (t.is_float()) {
-      switch (t.bits()) {
+    } else if (t.code == kFloat) {
+      switch (t.bits) {
         case 64 : return ADDR_LOAD_FP64;
       }
     }
@@ -279,20 +285,19 @@ class StackVM {
    * \param t the type code.
    * \return The load opcode
    */
-  static OpCode GetStore(Type t) {
-    CHECK_EQ(t.lanes(), 1);
-    if (t.is_int()) {
-      switch (t.bits()) {
+  static OpCode GetStore(TVMType t) {
+    CHECK_EQ(t.lanes, 1U);
+    if (t.code == kInt) {
+      switch (t.bits) {
         case 64 : return ADDR_STORE_INT64;
       }
     }
     LOG(FATAL) << "Cannot store type " << t;
     return ADDR_LOAD_FP64;
   }
-
   friend std::ostream& operator<<(std::ostream& os, const StackVM& vm);  // NOLINT(*)
 };
 
-}  // namespace jit
+}  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_JIT_STACK_VM_H_
+#endif  // TVM_RUNTIME_STACK_VM_STACK_VM_H_
