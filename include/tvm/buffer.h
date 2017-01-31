@@ -61,7 +61,7 @@ class BufferNode : public Node {
   /*! \brief optional name of the buffer */
   std::string name;
   /*! \brief The pointer to the head of the data */
-  Var ptr;
+  Var data;
   /*! \brief The shape of the buffer */
   Array<Expr> shape;
   /*!
@@ -77,7 +77,7 @@ class BufferNode : public Node {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
-    v->Visit("ptr", &ptr);
+    v->Visit("data", &data);
     v->Visit("shape", &shape);
     v->Visit("strides", &strides);
     v->Visit("dtype", &dtype);

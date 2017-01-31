@@ -6,6 +6,11 @@ from . import _api_internal
 from . import tensor as _tensor
 
 @register_node
+class Buffer(NodeBase):
+    """Represent a Buffer in TVM."""
+    pass
+
+@register_node
 class Split(NodeBase):
     """Split operation on axis."""
     pass
