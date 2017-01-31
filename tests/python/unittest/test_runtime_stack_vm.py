@@ -37,8 +37,8 @@ def test_stack_vm_loop():
     stmt = tvm.make.For(
         i, 0, n - 1, 0, 0,
         tvm.make.Block(
-            tvm.make.Store(Ab.ptr,
-                           tvm.make.Load(dtype, Ab.ptr, i) + 1,
+            tvm.make.Store(Ab.data,
+                           tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1),
             tvm.make.Evaluate(tvm_call_global("tvm_stack_vm_print", i))))
     print(stmt)
@@ -59,10 +59,10 @@ def test_stack_vm_cond():
         i, 0, n - 1, 0, 0,
         tvm.make.IfThenElse(
             tvm.make.EQ(i, 4),
-            tvm.make.Store(Ab.ptr,
-                           tvm.make.Load(dtype, Ab.ptr, i) + 1, i + 1),
-            tvm.make.Store(Ab.ptr,
-                           tvm.make.Load(dtype, Ab.ptr, i) + 2, i + 1)))
+            tvm.make.Store(Ab.data,
+                           tvm.make.Load(dtype, Ab.data, i) + 1, i + 1),
+            tvm.make.Store(Ab.data,
+                           tvm.make.Load(dtype, Ab.data, i) + 2, i + 1)))
     print(stmt)
     fapi = tvm.codegen.MakeAPI(stmt, "test", [Ab], 1)
     f = tvm.codegen.BuildStackVM(fapi)

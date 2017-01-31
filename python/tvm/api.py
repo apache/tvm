@@ -145,7 +145,7 @@ def Buffer(shape, dtype=None,
            name="buffer",
            ptr=None,
            strides=None):
-    """Create a new buffer
+    """Create a new symbolic buffer
 
     Parameters
     ----------

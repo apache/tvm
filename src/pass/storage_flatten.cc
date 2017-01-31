@@ -138,7 +138,7 @@ class StorageFlattener : public IRMutator {
       buf_map_[key].released = true;
 
       return Allocate::make(
-          e.buffer->ptr, e.buffer->dtype, e.buffer->shape,
+          e.buffer->data, e.buffer->dtype, e.buffer->shape,
           make_const(Bool(e.buffer->dtype.lanes()), true), body);
     }
   }

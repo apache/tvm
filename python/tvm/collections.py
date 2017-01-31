@@ -59,12 +59,6 @@ class IterVar(NodeBase, _expr.ExprOp):
 
 
 @register_node
-class Buffer(NodeBase):
-    """Represent a Buffer in TVM."""
-    pass
-
-
-@register_node
 class LoweredFunc(NodeBase):
     """Represent a LoweredFunc in TVM."""
     pass

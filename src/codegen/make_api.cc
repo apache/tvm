@@ -138,9 +138,9 @@ LoweredFunc MakeAPI(Stmt body,
                    UIntImm::make(UInt(16), dtype.lanes()));
       seq_init.emplace_back(AssertStmt::make(cond, type_err_msg.str()));
       // Data Field
-      if (f_push(buf->ptr, TVMArrayGet(Handle(), v_arg, intrinsic::kData),
+      if (f_push(buf->data, TVMArrayGet(Handle(), v_arg, intrinsic::kData),
                  v_arg->name_hint + ".data")) {
-        Var vptr(buf->ptr);
+        Var vptr(buf->data);
         handle_data_type.Set(vptr, make_const(buf->dtype, 0));
       }
       // shape field

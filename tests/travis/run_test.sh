@@ -38,10 +38,10 @@ fi
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "all_test" ]; then
     make all || exit -1
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        python -m nose -v tests/python/ || exit -1
-        python3 -m nose -v tests/python/ || exit -1
+        python -m nose -v tests/python/unittest || exit -1
+        python3 -m nose -v tests/python/unittest || exit -1
     else
-        nosetests -v tests/python/ || exit -1
-        nosetests3 -v tests/python/ || exit -1
+        nosetests -v tests/python/unittest || exit -1
+        nosetests3 -v tests/python/unittest || exit -1
     fi
 fi

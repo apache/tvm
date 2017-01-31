@@ -7,7 +7,7 @@ def test_buffer():
     Ab = tvm.Buffer((m, n), tvm.float32)
     Bb = tvm.Buffer((n, l), tvm.float32)
 
-    assert isinstance(Ab, tvm.collections.Buffer)
+    assert isinstance(Ab, tvm.schedule.Buffer)
     assert Ab.dtype == tvm.float32
     assert tuple(Ab.shape) == (m, n)
 
