@@ -25,7 +25,15 @@ std::string CodeGenC::Compile(LoweredFunc f,
     Var v = f->args[i];
     std::string vid = AllocVarID(v.get());
     if (i != 0) stream << ", ";
-    PrintType(v.type(), stream);
+    if (v.type().is_handle()) {
+      stream << arg_addr_space_;
+    }
+    if (handle_data_type_.count(v.get())) {
+      PrintType(handle_data_type_.at(v.get()), stream);
+      stream << "*";
+    } else {
+      PrintType(v.type(), stream);
+    }
     stream << ' ' << vid;
   }
   stream << ") {\n";
@@ -510,6 +518,10 @@ TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_stmt)
 .set_dispatch<AttrStmt>([](const AttrStmt *op, CodeGenC* p) { p->PrintStmt(op); })
 .set_dispatch<AssertStmt>([](const AssertStmt *op, CodeGenC* p) { p->PrintStmt(op); });
 
+void CodeGenC::PrintThreadTagExpr(
+    std::string thread_tag, std::ostream& os) const { // NOLINT(*)
+  os << thread_tag;
+}
 
 void CodeGenC::PrintStmt(const LetStmt* op) {
   std::string value = PrintExpr(op->value);
@@ -585,7 +597,9 @@ void CodeGenC::PrintStmt(const AttrStmt* op) {
         PrintType(iv->var.type(), stream);
         stream << ' '
                << AllocVarID(iv->var.get())
-               << " = " << iv->thread_tag << ";\n";
+               << " = ";
+        PrintThreadTagExpr(iv->thread_tag, stream);
+        stream << ";\n";
       }
     }
   }

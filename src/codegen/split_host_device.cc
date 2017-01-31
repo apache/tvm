@@ -5,7 +5,7 @@
  */
 #include <tvm/codegen.h>
 #include <tvm/ir.h>
-#include <tvm/module.h>
+#include <tvm/lowered_func.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_map>
@@ -169,6 +169,7 @@ class HostDeviceSplitter : public IRMutator {
     n->body = m.Mutate(body);
     n->name = os.str();
     n->args = m.undefined_;
+    n->thread_axis = m.thread_axis_;
     CHECK_NE(m.thread_extent_.size(), 0U);
 
     // improve the handle data type

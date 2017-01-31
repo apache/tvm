@@ -13,7 +13,7 @@ from . import collections
 from . import schedule
 
 from . import ndarray as nd
-from .ndarray import cpu, gpu, opencl, init_opencl
+from .ndarray import cpu, gpu, opencl, init_opencl, cl
 
 from ._base import TVMError
 from .api import *

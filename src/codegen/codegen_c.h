@@ -7,7 +7,8 @@
 #define TVM_CODEGEN_CODEGEN_C_H_
 
 #include <tvm/ir.h>
-#include <tvm/module.h>
+#include <tvm/codegen.h>
+#include <tvm/lowered_func.h>
 #include <string>
 #include <unordered_map>
 
@@ -70,13 +71,20 @@ class CodeGenC {
    * \return the variable name.
    */
   std::string GetVarID(const Variable* v) const;
+  // The following parts are overloadable print operations.
   /*!
    * Print Type represetnation of type t.
    * \param t The type representation.
-   * \return os The stream to print the ctype into
+   * \param os The stream to print the ctype into
    */
   virtual void PrintType(Type t, std::ostream& os) const; // NOLINT(*)
-  // The following parts are overloadable print operations.
+  /*!
+   * \brief Print expr representing the thread tag
+   * \param thread_tag The tag in the thread.
+   * \param  os The strean to output to
+   */
+  virtual void PrintThreadTagExpr(
+      std::string thread_tag, std::ostream& os) const; // NOLINT(*)
   virtual void PrintStmt(const ir::LetStmt* op);
   virtual void PrintStmt(const ir::Store* op);
   virtual void PrintStmt(const ir::Allocate* op);
@@ -100,6 +108,10 @@ class CodeGenC {
   int indent{0};
   /*! \brief the stream to be printed */
   std::ostringstream stream;
+
+ protected:
+  // additional string for arg addr_space.
+  std::string arg_addr_space_;
 
  private:
   /*!

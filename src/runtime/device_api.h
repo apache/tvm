@@ -109,7 +109,7 @@ inline void StreamSync(TVMContext ctx, TVMStreamHandle stream);
 }  // namespace tvm
 
 #include "./device_api_cpu.h"
-#include "./device_api_gpu.h"
-#include "./device_api_opencl.h"
+#include "./cuda/device_api_cuda.h"
+#include "./opencl/device_api_opencl.h"
 
 #endif  // TVM_RUNTIME_DEVICE_API_H_
