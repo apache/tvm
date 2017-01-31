@@ -51,6 +51,12 @@ mxnet_source_group("Source\\pass"   GLOB "src/pass/*.cc")
 
 FILE(GLOB_RECURSE SOURCE "src/*.cc" "src/*.h" "include/*.h")
 
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/CMakeLists.txt)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include)
+elseif(DMLC_CORE_PATH)
+  include_directories(${DMLC_CORE_PATH}/include)
+endif()
+
 add_library(nnvm ${SOURCE})
 target_link_libraries(nnvm ${nnvm_LINKER_LIBS})
 
