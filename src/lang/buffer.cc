@@ -45,23 +45,23 @@ inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
 
 Expr Buffer::MakeLoad(Array<Expr> index) const {
   const BufferNode* n = operator->();
-  return ir::Load::make(n->dtype, n->ptr, BufferOffset(n, index));
+  return ir::Load::make(n->dtype, n->data, BufferOffset(n, index));
 }
 
 Stmt Buffer::MakeStore(Array<Expr> index, Expr value) const {
   const BufferNode* n = operator->();
   CHECK_EQ(value.type(), n->dtype);
-  return ir::Store::make(n->ptr, value, BufferOffset(n, index));
+  return ir::Store::make(n->data, value, BufferOffset(n, index));
 }
 
 Buffer BufferNode::make(std::string name,
-                        Var ptr,
+                        Var data,
                         Array<Expr> shape,
                         Array<Expr> strides,
                         Type dtype) {
   auto n = std::make_shared<BufferNode>();
   n->name = name;
-  n->ptr = ptr;
+  n->data = data;
   n->shape = shape;
   n->strides = strides;
   n->dtype = dtype;

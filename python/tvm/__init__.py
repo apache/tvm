@@ -17,3 +17,4 @@ from .ndarray import cpu, gpu, opencl, init_opencl, cl
 
 from ._base import TVMError
 from .api import *
+from .build import build
