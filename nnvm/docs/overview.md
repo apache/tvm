@@ -76,7 +76,7 @@ z = nn.conv2d(nn.add(x, y), w, filter_size=(2,2), name='conv1')
 The graph structure can be accessed in the backend. Currently python interface is supported.
 But as NNVM follows the same C bridge API design as [MXNet](https://github.com/dmlc/mxnet),
 which support many languages such as R/Julia/Scala/C++, more language support can be easily
-moved in in the future.
+moved in the future.
 
 ## Operator Attribute for More Extensions
 
