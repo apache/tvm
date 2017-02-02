@@ -26,7 +26,7 @@ def test_tensor_reduce():
     B = tvm.placeholder((n, l), name='B')
     T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
     rv = tvm.IterVar((0, A.shape[1]), name="k")
-    C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), rdom=rv))
+    C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), axis=rv))
     # json load save
     C_json = tvm.save_json(C)
     C_loaded = tvm.load_json(C_json)

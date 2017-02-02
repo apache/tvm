@@ -24,6 +24,15 @@ namespace schedule {
  */
 Map<IterVar, Range> InferBound(Schedule sch);
 
+/*!
+ * \brief Schedule s' dependent operations.
+ *
+ * \param s The schedule to be realized
+ * \param dom_map The domain of each iter vars.
+ * \return the result Stmt
+ */
+Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
+
 }  // namespace schedule
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_PASS_H_

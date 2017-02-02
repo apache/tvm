@@ -30,8 +30,8 @@ struct Reduce : public ExprNode<Reduce> {
   std::string op;
   /*! \brief The source operand */
   Expr source;
-  /*! \brief The reduction domains */
-  Array<IterVar> rdom;
+  /*! \brief The reduction axis */
+  Array<IterVar> axis;
 
   /*! \brief construct expr from op and rdom */
   static Expr make(std::string op, Expr src, Array<IterVar> rdom);
@@ -40,7 +40,7 @@ struct Reduce : public ExprNode<Reduce> {
     v->Visit("dtype", &type);
     v->Visit("op", &op);
     v->Visit("source", &source);
-    v->Visit("rdom", &rdom);
+    v->Visit("axis", &axis);
   }
   static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
   static constexpr const char* _type_key = "Reduce";

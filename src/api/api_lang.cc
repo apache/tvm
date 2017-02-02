@@ -253,4 +253,10 @@ TVM_REGISTER_API(_StageTile)
     *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
   });
 
+TVM_REGISTER_API(_ScheduleNormalize)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    args[0].operator Schedule()
+        .normalize();
+  });
+
 }  // namespace tvm

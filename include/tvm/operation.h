@@ -49,6 +49,8 @@ class ComputeOpNode : public OperationNode {
  public:
   /*! \brief IterVar on each axis */
   Array<IterVar> axis;
+  /*! \brief IterVar on each reduction axis, if the body is a Reduce */
+  Array<IterVar> reduce_axis;
   /*! \brief the compute expression */
   Expr body;
   /*! \brief constructor */
@@ -64,6 +66,7 @@ class ComputeOpNode : public OperationNode {
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
     v->Visit("axis", &axis);
+    v->Visit("reduce_axis", &reduce_axis);
     v->Visit("body", &body);
   }
   static Operation make(std::string name,

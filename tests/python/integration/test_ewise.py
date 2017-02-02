@@ -18,7 +18,8 @@ def test_add():
 
     # one line to build the function.
     codes = []
-    fadd = tvm.build(s, args=[A, B, C],
+    fadd = tvm.build(s,
+                     args=[A, B, C],
                      target="cuda", name="myadd",
                      record_codes=codes)
     for c in codes:

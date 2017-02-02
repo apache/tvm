@@ -62,9 +62,10 @@ def build(sch,
 
     # lowering
     bounds = schedule.InferBound(sch)
-    stmt = ir_pass.ScheduleOps(sch, bounds)
+    stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.Simplify(stmt)
+    print(stmt)
     fapi = codegen.MakeAPI(stmt, name, arg_list, len(arg_list))
     fsplits = codegen.SplitHostDevice(fapi)
 
@@ -73,7 +74,8 @@ def build(sch,
         for i, f in enumerate(fsplits):
             t = target if i >= 1 else "c"
             record_codes.append(codegen.CompileToC(f, output_ssa, t))
-
+    for c in record_codes:
+        print(c)
     if target == "cuda":
         ret = codegen.BuildNVRTC(fsplits, "stackvm")
     elif target == "opencl":

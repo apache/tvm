@@ -33,6 +33,14 @@ class Schedule(NodeBase):
             raise ValueError("Cannot find the operation %s in schedule" % (str(k)))
         return self.stage_map[k]
 
+    def normalize(self):
+        """Build a normalized schedule.
+
+        Insert necessary rebase to make certain iter var to start from 0.
+        This is needed before bound inference and followup step.
+        """
+        _api_internal._ScheduleNormalize(self)
+
 @register_node
 class Stage(NodeBase):
     """A Stage represents schedule for one operation."""

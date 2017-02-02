@@ -123,6 +123,8 @@ class Stage : public NodeRef {
               IterVar* p_x_outer, IterVar* p_y_outer,
               IterVar* p_x_inner, IterVar* p_y_inner,
               Expr x_factor, Expr y_factor);
+  // declare container type
+  using ContainerType = StageNode;
 };
 
 /*!
@@ -153,10 +155,21 @@ class Schedule : public NodeRef {
     return this->operator[](tensor->op);
   }
   /*!
+   * \brief Normalize the schedule.
+   *  This is needed before bound inference.
+   *  Insert necessary RebaseNode to make sure all leaf_iter_vars
+   *  are in form [0, extent)
+   *
+   * \return A normalized schedule, can be same as current one.
+   */
+  void normalize();
+  /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
   inline const ScheduleNode* operator->() const;
+  // declare container type
+  using ContainerType = ScheduleNode;
 };
 
 /*!
@@ -307,6 +320,30 @@ class FuseNode : public IterVarRelationNode {
   static constexpr const char* _type_key = "Fuse";
   TVM_DECLARE_NODE_TYPE_INFO(FuseNode);
 };
+
+/*!
+ * \brief Rebase the iteration to make min to be 0.
+ *  This is useful to normalize the Schedule
+ *  to make every leaf variable's min to be 0.
+ */
+class RebaseNode : public IterVarRelationNode {
+ public:
+  /*! \brief The parent domain */
+  IterVar parent;
+  /*! \brief The inner domain */
+  IterVar rebased;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("parent", &parent);
+    v->Visit("rebased", &rebased);
+  }
+
+  static IterVarRelation make(IterVar parent, IterVar rebased);
+
+  static constexpr const char* _type_key = "Rebase";
+  TVM_DECLARE_NODE_TYPE_INFO(RebaseNode);
+};
+
 
 // implementations
 inline const StageNode* Stage::operator->() const {

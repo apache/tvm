@@ -81,7 +81,7 @@ Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
     }
   }
   CHECK(found)
-      << "Cannot compute at a iteration variable that is not part of parent leaf vars";
+      << "Cannot find the specified axis in parent stage's leaf_iter_vars";
   return *this;
 }
 
@@ -165,7 +165,6 @@ Stage& Stage::tile(IterVar x_parent, IterVar y_parent,
   return *this;
 }
 
-
 Schedule::Schedule(Array<Operation> ops) {
   auto n = std::make_shared<ScheduleNode>();
   n->roots = ops;
@@ -203,9 +202,53 @@ IterVarRelation FuseNode::make(
   return IterVarRelation(n);
 }
 
+IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
+  auto n = std::make_shared<RebaseNode>();
+  n->parent = parent;
+  n->rebased = rebased;
+  return IterVarRelation(n);
+}
+
+void Schedule::normalize() {
+  std::unordered_map<IterVar, IterVar> rebase_map;
+  std::unordered_map<const Node*, int> attach_mark;
+
+
+  for (Stage s : (*this)->stages) {
+    if (s->attach_type == kScope) {
+      attach_mark[s->attach_stage.get()] = 1;
+    }
+  }
+
+  for (Stage s : (*this)->stages) {
+    if (!attach_mark.count(s.get())) continue;
+    auto root_iter_vars = s->op->root_iter_vars();
+    ArrayNode* leaf_vars = s->leaf_iter_vars.CopyOnWrite();
+
+    for (IterVar iv : root_iter_vars) {
+      size_t idx = FindIterVar(leaf_vars, iv);
+      if (idx < leaf_vars->data.size()) {
+        // insert rebase
+        IterVar rebased(Range(), iv->var->name_hint + ".rb");
+        s->relations.push_back(RebaseNode::make(iv, rebased));
+        leaf_vars->data[idx] = rebased.node_;
+        rebase_map[iv] = rebased;
+      }
+    }
+  }
+  // remap the parent relation
+  for (Stage s : (*this)->stages) {
+    if (s->attach_type != kScope) continue;
+    if (rebase_map.count(s->attach_ivar)) {
+      s->attach_ivar = rebase_map.at(s->attach_ivar);
+    }
+  }
+}
+
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
 TVM_REGISTER_NODE_TYPE(FuseNode);
+TVM_REGISTER_NODE_TYPE(RebaseNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
 }  // namespace tvm

@@ -212,51 +212,51 @@ def IterVar(dom=None, name=None, thread_tag=''):
     return _api_internal._IterVar(dom, name, thread_tag)
 
 
-def sum(expr, rdom):
-    """Create a sum expression over rdom
+def sum(expr, axis):
+    """Create a sum expression over axis
 
     Parameters
     ----------
     expr : Expr
         The source expression.
 
-    rdom : RDomain
-        The reduction domainx
+    axis : IterVar
+        The reduction IterVar axis
     """
-    rdom = rdom if isinstance(rdom, list) else [rdom]
-    x = _make.Reduce("Add", expr, rdom)
+    axis = axis if isinstance(axis, list) else [axis]
+    x = _make.Reduce("Add", expr, axis)
     return x
 
 
-def min(expr, rdom):
-    """Create a min expression over rdom
+def min(expr, axis):
+    """Create a min expression over axis
 
     Parameters
     ----------
     expr : Expr
         The source expression.
 
-    rdom : RDomain
-        The reduction domainx
+    axis : IterVar
+        The reduction IterVar axis
     """
-    rdom = rdom if isinstance(rdom, list) else [rdom]
-    x = _make.Reduce("Min", expr, rdom)
+    axis = axis if isinstance(axis, list) else [axis]
+    x = _make.Reduce("Min", expr, axis)
     return x
 
 
-def max(expr, rdom):
-    """Create a min expression over rdom
+def max(expr, axis):
+    """Create a min expression over axis
 
     Parameters
     ----------
     expr : Expr
         The source expression.
 
-    rdom : RDomain
-        The reduction domainx
+    axis : IterVar
+        The reduction IterVar axis
     """
-    rdom = rdom if isinstance(rdom, list) else [rdom]
-    x = _make.Reduce("Max", expr, rdom)
+    axis = axis if isinstance(axis, list) else [axis]
+    x = _make.Reduce("Max", expr, axis)
     return x
 
 

@@ -29,6 +29,7 @@ namespace schedule {
 REGISTER_SCHEDULE_PASS1(InferBound);
 REGISTER_SCHEDULE_PASS1(CreateReadGraph);
 REGISTER_SCHEDULE_PASS2(PostDFSOrder);
+REGISTER_SCHEDULE_PASS2(ScheduleOps);
 
 }  // namespace schedule
 }  // namespace tvm
