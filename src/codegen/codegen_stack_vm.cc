@@ -37,7 +37,7 @@ StackVM CodeGenStackVM::Compile(
   for (const auto& kv : device_funcs) {
     int fid = static_cast<int>(vm_.packed_func.size());
     vm_.packed_func.push_back(kv.second);
-    device_fun_idmap_[kv.first] = fid;
+    device_fun_idmap_[kv.first->name] = fid;
   }
   this->Push(f->body);
   return std::move(vm_);
@@ -228,20 +228,19 @@ void CodeGenStackVM::Push_(const ir::Call* op) {
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
     this->PushOp(StackVM::EQ_I64);
-  } else if (op->call_type == Call::Extern && op->func.defined()) {
-    CHECK(op->func->is_type<LoweredFuncNode>());
-    LoweredFunc f(op->func.node_);
-    auto it = device_fun_idmap_.find(f);
+  } else if (op->is_intrinsic(intrinsic::tvm_call_device)) {
+    std::string func_name = op->args[0].as<StringImm>()->value;
+    auto it = device_fun_idmap_.find(func_name);
     CHECK(it != device_fun_idmap_.end())
-        << "Cannot find device function " << f->name;
+        << "Cannot find device function " << func_name;
     const int fid = it->second;
-    std::vector<int> arg_type_codes(op->args.size());
-    for (size_t i = 0; i < op->args.size(); ++i) {
+    std::vector<int> arg_type_codes;
+    for (size_t i = 1; i < op->args.size(); ++i) {
       this->Push(op->args[i]);
       Type t = op->args[i].type();
       int lanes = t.lanes();
       CHECK_EQ(lanes, 1);
-      arg_type_codes[i] = t.code();
+      arg_type_codes.push_back(t.code());
     }
     this->PushCallPacked(fid, arg_type_codes);
   } else {

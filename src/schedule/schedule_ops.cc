@@ -11,6 +11,7 @@
 #include "../pass/ir_util.h"
 #include "./int_set.h"
 #include "./graph.h"
+#include "./compute_expr.h"
 
 namespace tvm {
 namespace schedule {
@@ -41,6 +42,49 @@ void PassDownFlag(const Stage& s,
       const RebaseNode* s = rel.as<RebaseNode>();
       int flag = state.at(s->parent);
       state[s->rebased] = flag;
+    } else {
+      LOG(FATAL) << "unknown relation type";
+    }
+  }
+}
+
+/*!
+ * \brief message passing to find if boundary checking on IterVar is needed.
+ * \param s The stage to be used.
+ * \param p_state The message passing state
+ *     IterVar->flag
+ */
+void PassUpBoundCheck(const Stage& s,
+                      const Map<IterVar, Range>& dom_map,
+                      std::unordered_map<IterVar, bool>* p_state) {
+  auto& state = *p_state;
+  using Halide::Internal::can_prove;
+  for (size_t i = s->relations.size(); i != 0; --i) {
+    IterVarRelation rel = s->relations[i - 1];
+    if (rel.as<SplitNode>()) {
+      const SplitNode* s = rel.as<SplitNode>();
+      bool outer = state.at(s->outer);
+      bool inner = state.at(s->inner);
+      Expr factor = dom_map.at(s->inner)->extent;
+      Expr step = dom_map.at(s->outer)->extent;
+
+      if (outer || inner) {
+        state[s->parent] = true;
+      } else {
+        if (can_prove(dom_map.at(s->parent)->extent == factor * step)) {
+          state[s->parent] = false;
+        } else {
+          state[s->parent] = true;
+        }
+      }
+    } else if (rel.as<FuseNode>()) {
+      const FuseNode* s = rel.as<FuseNode>();
+      bool fused = state.at(s->fused);
+      state[s->outer] = fused;
+      state[s->inner] = fused;
+    } else if (rel.as<RebaseNode>()) {
+      const RebaseNode* s = rel.as<RebaseNode>();
+      state[s->parent] = state.at(s->rebased);
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -107,8 +151,9 @@ MakeLoopNest(const Stage& sch,
              const Map<IterVar, Range>& dom_map,
              size_t begin_loop,
              bool reduce_init_loop,
-             std::unordered_map<IterVar, Expr>* p_value_map,
-             const std::unordered_map<IterVar, bool>& skip_iter) {
+             const std::unordered_map<IterVar, bool>& bound_state,
+             const std::unordered_map<IterVar, bool>& skip_iter,
+             std::unordered_map<IterVar, Expr>* p_value_map) {
   auto leaf_iter_vars = sch->leaf_iter_vars;
   Stmt no_op = Evaluate::make(0);
   // create the loop nest
@@ -167,6 +212,21 @@ MakeLoopNest(const Stage& sch,
   }
   // message passing to get offset of root iter vars.
   PassUpOffset(sch, dom_map, &value_map);
+
+  // insert conditions
+  for (IterVar iv : sch->op->root_iter_vars()) {
+    if (skip_iter.count(iv)) continue;
+    Range dom = dom_map.at(iv);
+    if (bound_state.at(iv)) {
+      Expr condition = ComputeExpr<Sub>(value_map.at(iv), dom->min) < dom->extent;
+      nest.back().emplace_back(IfThenElse::make(condition, no_op));
+    }
+    CHECK(iv->dom.defined());
+    if (!reduce_init_loop && !iv->dom.same_as(dom)) {
+      Expr condition = ComputeExpr<Sub>(value_map.at(iv), iv->dom->min) < iv->dom->extent;
+      nest.back().emplace_back(IfThenElse::make(condition, no_op));
+    }
+  }
   return nest;
 }
 
@@ -175,7 +235,16 @@ Stmt MakeLoop(const Stage& s,
               Stmt provide,
               Stmt init) {
   std::unordered_map<IterVar, Expr> value_map;
-  auto nest = MakeLoopNest(s, dom_map, 0, false, &value_map, {});
+  // bound check state.
+  std::unordered_map<IterVar, bool> bound_state;
+  for (IterVar iv : s->leaf_iter_vars) {
+    bound_state[iv] = false;
+  }
+  PassUpBoundCheck(s, dom_map, &bound_state);
+  auto nest = MakeLoopNest(s, dom_map, 0, false,
+                           bound_state, {}, &value_map);
+
+
   provide = Substitute(provide, value_map);
   if (init.defined()) {
     // try to find the location to insert the initialization.
@@ -204,13 +273,13 @@ Stmt MakeLoop(const Stage& s,
     }
     // skip loops that does not relates to axis.
     std::unordered_map<IterVar, bool> skip_iter;
-    for (size_t i = begin_loop; i < leaf_iter_vars.size(); ++i) {
-      auto iv = leaf_iter_vars[i];
-      int flag = reduce_state.at(iv);
-      if ((flag & 1) == 0) skip_iter[iv] = true;
+    for (auto kv : reduce_state) {
+      int flag = kv.second;
+      if ((flag & 1) == 0) skip_iter[kv.first] = true;
     }
     auto init_nest = MakeLoopNest(
-        s, dom_map, begin_loop, true, &init_value_map, skip_iter);
+        s, dom_map, begin_loop, true,
+        bound_state, skip_iter, &init_value_map);
     init = Substitute(init, init_value_map);
     init  = MergeNest(init_nest, init);
     // common nest
@@ -250,7 +319,6 @@ Stmt MakeRealize(const ComputeOpNode* op,
 
 void MakeReduction(const ComputeOpNode* op,
                    const std::vector<Tensor>& tensors,
-                   const Map<IterVar, Range>& dom_map,
                    Stmt* init,
                    Stmt* provide) {
   Stmt no_op = Evaluate::make(0);
@@ -279,43 +347,49 @@ void MakeReduction(const ComputeOpNode* op,
   *provide = Provide::make(t->op, t->value_index, update_value, args);
 }
 
-Stmt MakePipeline(const Stage& sch,
+Stmt MakePipeline(const Stage& s,
                   const Map<IterVar, Range>& dom_map,
                   Stmt consumer) {
   std::vector<Tensor> tensors;
-  for (int i = 0; i < sch->op->num_outputs(); ++i) {
-    tensors.emplace_back(sch->op.output(i));
+  for (int i = 0; i < s->op->num_outputs(); ++i) {
+    tensors.emplace_back(s->op.output(i));
   }
 
   Stmt init, provide;
 
-  const ComputeOpNode* compute = sch->op.as<ComputeOpNode>();
+  const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
   if (compute) {
     if (compute->reduce_axis.size() == 0) {
       provide = MakeProvide(compute, tensors);
     } else {
-      MakeReduction(compute, tensors, dom_map, &init, &provide);
+      MakeReduction(compute, tensors, &init, &provide);
     }
   } else {
-    LOG(FATAL) << "not supported op " << sch->op->type_key();
+    LOG(FATAL) << "not supported op " << s->op->type_key();
   }
 
-  Stmt producer = MakeLoop(sch, dom_map, provide, init);
-  producer = ProducerConsumer::make(sch->op, true, producer);
+  Stmt producer = MakeLoop(s, dom_map, provide, init);
+  producer = ProducerConsumer::make(s->op, true, producer);
 
   Stmt pipeline = producer;
   if (consumer.defined()) {
-    consumer = ProducerConsumer::make(sch->op, false, consumer);
+    consumer = ProducerConsumer::make(s->op, false, consumer);
     pipeline = Block::make(producer, consumer);
   }
 
-  if (sch->op.as<ComputeOpNode>()) {
-    return MakeRealize(sch->op.as<ComputeOpNode>(),
-                       dom_map, tensors, pipeline);
+  if (s->op.as<ComputeOpNode>()) {
+    pipeline = MakeRealize(s->op.as<ComputeOpNode>(),
+                           dom_map, tensors, pipeline);
   } else {
     LOG(FATAL) << "not supported op";
     return Stmt();
   }
+  // use attribute to mark scope of the operation.
+  pipeline = AttrStmt::make(
+      s->op, "realize_scope",
+      StringImm::make(s->scope),
+      pipeline);
+  return pipeline;
 }
 
 // inject the operator's realization on the stmt.

@@ -40,6 +40,7 @@ class IRVisitor {
   virtual void Visit_(const LetStmt* op);
   virtual void Visit_(const For* op);
   virtual void Visit_(const Allocate* op);
+  virtual void Visit_(const IfThenElse* op);
   virtual void Visit_(const Load* op);
   virtual void Visit_(const Store* op);
   virtual void Visit_(const Let* op);

@@ -26,8 +26,10 @@ class CodeGenOpenCL : public CodeGenC {
   std::string Compile(LoweredFunc f,
                       bool output_ssa);
   // override print thread tag.
-  void PrintThreadTagExpr(
-      std::string thread_tag, std::ostream& os) const final;  // NOLINT(*)
+  void PrintThreadIndexExpr(
+      std::string tag, std::ostream& os) final;  // NOLINT(*)
+  void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
+  void PrintStorageSync(const std::string& scope) final;  // NOLINT(*)
 };
 
 }  // namespace codegen

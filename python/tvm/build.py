@@ -65,17 +65,19 @@ def build(sch,
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.Simplify(stmt)
-    print(stmt)
-    fapi = codegen.MakeAPI(stmt, name, arg_list, len(arg_list))
-    fsplits = codegen.SplitHostDevice(fapi)
+    fapi = ir_pass.MakeAPI(stmt, name, arg_list, len(arg_list))
+    fsplits = ir_pass.SplitHostDevice(fapi)
+    fsplits = [x for x in fsplits]
+    for i in range(1, len(fsplits)):
+        fsplits[i] = ir_pass.StorageSync(fsplits[i], "shared")
+        fsplits[i] = ir_pass.StorageSync(fsplits[i], "global")
 
     if record_codes is not None:
         output_ssa = False
         for i, f in enumerate(fsplits):
             t = target if i >= 1 else "c"
             record_codes.append(codegen.CompileToC(f, output_ssa, t))
-    for c in record_codes:
-        print(c)
+
     if target == "cuda":
         ret = codegen.BuildNVRTC(fsplits, "stackvm")
     elif target == "opencl":

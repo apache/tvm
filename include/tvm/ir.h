@@ -88,6 +88,25 @@ constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
  *  }
  */
 constexpr const char* tvm_call_global = "tvm_call_global";
+/*!
+ * \brief See pesudo code
+ *
+ *  int tvm_call_device(name, TVMValue* args) {
+ *     PackedFunc df = CodeGenEnv->GetDevice(name);
+ *     f (args, type_code_of(args), len(args));
+ *     return 0;
+ *  }
+ */
+constexpr const char* tvm_call_device = "tvm_call_device";
+/*!
+ * \brief See pesudo code
+ *
+ *  int tvm_storage_sync(std::string storage_scope) {
+ *     __sync(storage_scope);
+ *     return 0;
+ *  }
+ */
+constexpr const char* tvm_storage_sync = "tvm_storage_sync";
 
 /*! \brief The field id of each field in array */
 enum TVMArrayFieldKind {

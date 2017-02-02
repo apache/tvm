@@ -16,9 +16,7 @@ def test_stack_vm_basic():
     n = tvm.Var('n')
     Ab = tvm.Buffer((n, ), tvm.float32)
     stmt = tvm.make.Evaluate(tvm_call_global("tvm_call_back_get_shape", Ab.shape[0]))
-    print(stmt)
-    fapi = tvm.codegen.MakeAPI(stmt, "print_shape", [Ab], 1)
-    print(fapi.body)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 1)
     f = tvm.codegen.BuildStackVM(fapi)
     f(a)
 
@@ -41,8 +39,7 @@ def test_stack_vm_loop():
                            tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1),
             tvm.make.Evaluate(tvm_call_global("tvm_stack_vm_print", i))))
-    print(stmt)
-    fapi = tvm.codegen.MakeAPI(stmt, "ramp", [Ab], 1)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 1)
     f = tvm.codegen.BuildStackVM(fapi)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
@@ -63,8 +60,7 @@ def test_stack_vm_cond():
                            tvm.make.Load(dtype, Ab.data, i) + 1, i + 1),
             tvm.make.Store(Ab.data,
                            tvm.make.Load(dtype, Ab.data, i) + 2, i + 1)))
-    print(stmt)
-    fapi = tvm.codegen.MakeAPI(stmt, "test", [Ab], 1)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "test", [Ab], 1)
     f = tvm.codegen.BuildStackVM(fapi)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)

@@ -24,8 +24,8 @@ def test_add_pipeline():
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
     stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.codegen.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 3)
-    fsplits = tvm.codegen.SplitHostDevice(fapi)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 3)
+    fsplits = tvm.ir_pass.SplitHostDevice(fapi)
 
     def check_cuda():
         output_ssa = False

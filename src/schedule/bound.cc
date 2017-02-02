@@ -9,6 +9,7 @@
 #include <tvm/schedule_pass.h>
 #include "./int_set.h"
 #include "./graph.h"
+#include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace schedule {
@@ -181,24 +182,13 @@ BoundProp(const Array<Operation>& post_order,
 
 
 // check if scope
-bool ScopeRelax(const IterVar& iv, const std::string& scope) {
+inline bool ScopeRelax(const IterVar& iv, const std::string& scope) {
+  using runtime::ThreadScope;
+  using runtime::StorageScope;
   if (iv->thread_tag.length() == 0) return false;
   if (scope.length() == 0) return false;
 
-  static std::unordered_map<std::string, int> scope_rank{
-    {"global", 0},
-    {"shared", 1},
-    {"local", 2}
-  };
-  static std::unordered_map<std::string, int> thread_tag_rank{
-    {"blockIdx.x", 0},
-    {"blockIdx.y", 0},
-    {"blockIdx.z", 0},
-    {"threadIdx.x", 1},
-    {"threadIdx.y", 1},
-    {"threadIdx.z", 1}
-  };
-  return scope_rank.at(scope) <= thread_tag_rank.at(iv->thread_tag);
+  return StorageScope::make(scope).rank <= ThreadScope::make(iv->thread_tag).rank;
 }
 
 void InferBound(const Stage& stage,
@@ -248,7 +238,7 @@ void InferBound(const Stage& stage,
     }
     auto result = BoundProp(post_order, &bp_state);
 
-    // Set relaxation
+    // Set relaxation for the threads in parent.
     Map<IterVar, IntSet> relax_set;
     Stage s = stage;
     while (s->attach_type == kScope) {
@@ -259,6 +249,7 @@ void InferBound(const Stage& stage,
         }
       }
     }
+
     for (auto iv : stage->op->root_iter_vars()) {
       CHECK(result.count(iv));
       CHECK(!rmap->count(iv));

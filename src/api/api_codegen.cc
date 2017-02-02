@@ -31,18 +31,6 @@ TVM_REGISTER_API(_codegen_CompileToC)
     }
   });
 
-
-TVM_REGISTER_API(_codegen_MakeAPI)
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = MakeAPI(
-        args[0], args[1], args[2], args[3]);
-  });
-
-TVM_REGISTER_API(_codegen_SplitHostDevice)
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = SplitHostDevice(args[0]);
-  });
-
 TVM_REGISTER_API(_codegen_BuildStackVM)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = BuildStackVM(args[0],

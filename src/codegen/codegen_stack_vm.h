@@ -110,7 +110,7 @@ class CodeGenStackVM {
   /*! \brief id of each global function */
   std::unordered_map<std::string, int> global_fun_idmap_;
   /*! \brief id of device function */
-  std::unordered_map<LoweredFunc, int> device_fun_idmap_;
+  std::unordered_map<std::string, int> device_fun_idmap_;
 };
 
 }  // namespace codegen
