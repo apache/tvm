@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file codegen_c.cc
  */
+#include <iomanip>
 #include "./codegen_c.h"
 
 namespace tvm {
@@ -216,7 +217,7 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // N
   switch (op->type.bits()) {
     case 64: case 32: {
       std::ostringstream temp;
-      temp << op->value;
+      temp << std::scientific << op->value;
       if (op->type.bits() == 32) temp << 'f';
       p->MarkConst(temp.str());
       os << temp.str();
@@ -225,7 +226,7 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // N
     case 16: {
       os << '(';
       p->PrintType(op->type, os);
-      os << ')' << op->value << 'f';
+      os << ')' << std::scientific <<op->value << 'f';
       break;
     }
     default: LOG(FATAL) << "Bad bit-width for float: " << op->type << "\n";

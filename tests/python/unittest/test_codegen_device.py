@@ -18,8 +18,7 @@ def test_add_pipeline():
 
     # compile to IR
     bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.ir_pass.ScheduleOps(s, bounds)
-
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
     Bb = tvm.Buffer(B.shape, B.dtype, name='B')
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')

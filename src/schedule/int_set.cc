@@ -1,212 +1,355 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file int_set.cc
+ * \file int_set_impl.cc
  * \brief The integer set functions
  */
 #include <tvm/ir.h>
+#include <tvm/ir_pass.h>
+#include <pass/Interval.h>
 #include "./int_set.h"
+#include "./compute_expr.h"
 
 namespace tvm {
 namespace schedule {
 
+using Halide::Internal::Interval;
+
 using namespace ir;
 
-/*!
- * \brief Internal node container of int set.
- */
-class IntSetNode : public Node {
- public:
-  /*! \brief The base range scope */
-  Range base;
-  /*! \brief additional strided domain */
-  Array<Range> domain;
-  /*! \brief The stride of each strided domain */
-  Array<Expr> stride;
-  /*!
-   * \brief The concrete set,
-   *  used when concrete execution is enabled.
-   */
-  std::vector<int32_t> concrete;
+/*! \brief Set of continuous interval */
+struct IntervalSet : public IntSetNode {
+  /*! \brief the internal interval*/
+  Interval i;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("base", &base);
-    v->Visit("domain", &domain);
-    v->Visit("stride", &stride);
+  static IntSet make(Interval i) {
+    std::shared_ptr<IntervalSet> n =
+        std::make_shared<IntervalSet>();
+    n->i = i;
+    return IntSet(n);
+  }
+  static IntSet make(Expr min, Expr max) {
+    std::shared_ptr<IntervalSet> n =
+        std::make_shared<IntervalSet>();
+    n->i.min = min;
+    n->i.max = max;
+    return IntSet(n);
   }
 
-  static constexpr const char* _type_key = "IntSet";
-  TVM_DECLARE_NODE_TYPE_INFO(IntSetNode);
+  static constexpr const char* _type_key = "IntervalSet";
+  TVM_DECLARE_NODE_TYPE_INFO(IntervalSet);
 };
 
-TVM_REGISTER_NODE_TYPE(IntSetNode);
+/*!
+ * \brief set represented by strided integers
+ *  Reserved for cases where strided access is supported.
+ */
+struct StrideSet : public IntSetNode {
+  /*! \brief the base inetrval */
+  Interval base;
+  /*! \brief additional extents in positive number */
+  Array<Expr> extents;
+  /*! \brief additional strides in positive number */
+  Array<Expr> strides;
 
-namespace {
+  static constexpr const char* _type_key = "StrideSet";
+  TVM_DECLARE_NODE_TYPE_INFO(StrideSet);
+};
 
-inline bool Match(const Expr& e, int64_t value) {
-  const ir::IntImm* v = e.as<ir::IntImm>();
-  return v != nullptr && v->value;
-}
-
-// whether a exactly matches b.
-inline bool Match(const IntSet& a,
-                  const Range& b) {
-  if (a->base == b &&
-      a->domain.size() == 0 &&
-      a->concrete.size() == 0) {
-    return true;
-  } else {
-    return false;
+inline IntSet IntSet::cover_interval() const {
+  if ((*this).as<IntervalSet>()) return *this;
+  const StrideSet* s =  (*this).as<StrideSet>();
+  if (s) {
+    CHECK_NE(s->extents.size(), 0U);
+    Expr max = s->base.max;
+    for (size_t i = 0; i < s->extents.size(); ++i) {
+      max = max + s->extents[i] * s->strides[i] - s->strides[i];
+    }
+    return IntervalSet::make(s->base.min, max);
   }
+  LOG(FATAL) << "cannot convert set " << (*this)->type_key() << " to interval";
+  return IntSet::everything();
 }
 
-// whether a exactly matches b.
-inline bool Match(const IntSet& a,
-                  const Expr& b) {
-  if (a->domain.size() == 0 &&
-      a->concrete.size() == 0) {
-    return Match(a->base->extent, 1) && a->base->min.same_as(b);
-  } else {
-    return false;
+Range IntSet::cover_range(Range max_range) const {
+  IntSet temp;
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  if (s_int == nullptr) {
+    temp = this->cover_interval();
+    s_int = temp.as<IntervalSet>();
   }
-}
-
-inline bool IsNumber(const IntSet& s) {
-  if (s->domain.size() != 0) return false;
-  if (s->concrete.size() != 0) {
-    return s->concrete.size() == 1;
+  if (s_int->i.is_bounded()) {
+    return Range::make_with_min_extent(
+        s_int->i.min, Simplify(s_int->i.max + 1 - s_int->i.min));
   }
-  return Match(s->base->extent, 1);
+  return max_range;
 }
 
-inline Expr AsNumber(const IntSet& s) {
-  return s->base->min;
+bool IntSet::is_everything() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && s_int->i.is_everything());
 }
 
-// set combination rule by operators
-template<typename T>
-inline IntSet BinaryCombine(IntSet a, IntSet b) {
-  LOG(WARNING) << "cannot evaluate binary op " << T::_type_key;
-  return IntSet::make_all_set();
+bool IntSet::is_single_point() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && s_int->i.is_single_point());
 }
 
-template<>
-inline IntSet BinaryCombine<Add>(IntSet a, IntSet b) {
-  auto n = std::make_shared<IntSetNode>(*(a.operator->()));
-  for (size_t i = 0; i < b->domain.size(); ++i) {
-    n->domain.push_back(b->domain[i]);
-    n->stride.push_back(b->stride[i]);
+IntSet IntSet::everything() {
+  return IntervalSet::make(Interval::everything());
+}
+
+IntSet IntSet::single_point(Expr x) {
+  return IntervalSet::make(Interval::single_point(x));
+}
+
+IntSet IntSet::range(Range r) {
+  // must make sure it can be matched back by MatchRange.
+  if (is_one(r->extent)) {
+    return IntSet::single_point(r->min);
   }
-
-  if (IsNumber(a)) {
-    n->base = Range::make_with_min_extent(
-        a->base->min + b->base->min,
-        b->base->extent);
-  } else if (IsNumber(b)) {
-    n->base = Range::make_with_min_extent(
-        a->base->min + b->base->min,
-        a->base->extent);
-  } else {
-    n->base = Range::make_with_min_extent(
-        a->base->min + b->base->min,
-        a->base->extent + b->base->extent - 1);
+  if (is_positive_const(r->extent) && is_const(r->min)) {
+    return IntervalSet::make(
+        r->min, ComputeExpr<Sub>(ComputeExpr<Add>(r->extent, r->min), 1));
   }
-  return IntSet(n);
+  return IntervalSet::make(r->min, (r->extent + r->min) - 1);
 }
 
-inline Range Negation(Range a) {
-  if (Match(a->extent, 1)) {
-    return Range::make_with_min_extent(-a->min, a->extent);
-  } else {
-    return Range::make_with_min_extent(-(a->min + a->extent - 1), a->extent);
+// Check if a is created from b.
+inline bool MatchRange(const IntSet& a,
+                       const Range& b) {
+  const IntervalSet* a_int = a.as<IntervalSet>();
+  if (!a_int) return false;
+  const Interval& i = a_int->i;
+  if (!i.min.same_as(b)) return false;
+  if (is_one(b->extent)) return i.is_single_point();
+  if (is_positive_const(b->extent) && is_const(b->min)) {
+    // deep equality
+    return Equal(
+        ComputeExpr<Sub>(ComputeExpr<Add>(b->extent, b->min), 1),
+        a_int->i.max);
   }
+  const Sub* sub = i.max.as<Sub>();
+  if (!sub) return false;
+  if (is_one(sub->b)) return false;
+  const Add* add = sub->a.as<Add>();
+  return add &&
+      add->a.same_as(b->min) &&
+      add->b.same_as(b->extent);
 }
 
-inline IntSet Negation(IntSet a) {
-  CHECK_EQ(a->concrete.size(), 0U);
-  auto n = std::make_shared<IntSetNode>();
-  n->base = Negation(a->base);
-  for (size_t i = 0; i < a->domain.size(); ++i) {
-    n->domain.push_back(Negation(a->domain[i]));
-    n->stride.push_back(a->stride[i]);
-  }
-  return IntSet(a);
-}
-
-template<>
-inline IntSet BinaryCombine<Sub>(IntSet a, IntSet b) {
-  return BinaryCombine<Add>(a, Negation(b));
-}
-
-inline IntSet BinaryMul(IntSet a, Expr b) {
-  // copy construct
-  if (Match(b, 1)) return a;
-  if (Match(b, -1)) return Negation(a);
-  auto n = std::make_shared<IntSetNode>();
-  n->base = Range::make_with_min_extent(0, 1);
-  n->domain.push_back(a->base);
-  n->stride.push_back(b);
-  for (size_t i = 0; i < a->domain.size(); ++i) {
-    n->domain.push_back(a->domain[i]);
-    n->stride.push_back(a->stride[i] * b);
-  }
-  return IntSet(a);
-}
-
-template<>
-inline IntSet BinaryCombine<Mul>(IntSet a, IntSet b) {
-  if (IsNumber(a)) {
-    return BinaryMul(a, AsNumber(b));
-  } else if (IsNumber(b)) {
-    return BinaryMul(b, AsNumber(a));
-  } else {
-    return IntSet::make_all_set();
-  }
-}
-
-}  // namespace
-
-inline const IntSetNode* IntSet::operator->() const {
-  return static_cast<const IntSetNode*>(node_.get());
-}
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntSetNode>([](const IntSetNode *op, IRPrinter *p) {
-    p->stream << "int-set(base=";
-    p->print(op->base);
-    p->stream << ')';
-  });
-
-IntSet IntSet::make_range(Range dom) {
-  auto n = std::make_shared<IntSetNode>();
-  n->base = dom;
-  return IntSet(n);
-}
-
-Range IntSet::GetCoverRange() const {
-  const IntSetNode* s = operator->();
-  CHECK(s != nullptr) << "empty set";
-  if (s->domain.size() == 0 && s->concrete.size() == 0) {
-    return s->base;
-  }
-  LOG(FATAL) << "not yet implemented";
-  return Range();
-}
-
-IntSet IntSet::make_point(Expr point) {
-  return IntSet::make_range(Range::make_with_min_extent(point, 1));
-}
-
-IntSet IntSet::make_all_set() {
-  LOG(FATAL) << "TODO";
-  return IntSet();
+inline bool MatchPoint(const IntSet& a,
+                       const Expr& b) {
+  const IntervalSet* a_int = a.as<IntervalSet>();
+  if (!a_int) return false;
+  const Interval& i = a_int->i;
+  return i.is_single_point() && i.min.same_as(b);
 }
 
 IntSet Union(const Array<IntSet>& set) {
   if (set.size() == 1) return set[0];
-  LOG(FATAL) << "TODO";
-  return IntSet();
+  Interval x = set[0].cover_interval().as<IntervalSet>()->i;
+  for (size_t i = 1; i < set.size(); ++i) {
+    x.include(set[i].cover_interval().as<IntervalSet>()->i);
+  }
+  return IntervalSet::make(x);
 }
 
+// type traits
+template<typename OP>
+struct is_logical_op {
+  static const bool value = false;
+};
+
+#define TVM_DECLARE_LOGICAL_OP(OP)              \
+  template<>                                    \
+  struct is_logical_op<ir::OP> {                \
+    static const bool value = true;             \
+  };
+
+// interval related.
+template<typename OP>
+inline IntSet CombineInterval(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<OP>(a.min, b.min));
+  }
+  LOG(WARNING) << "Return Everything in CombineInterval " << OP::_type_key;
+  return IntSet::everything();
+}
+
+template<>
+inline IntSet CombineInterval<Add>(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<Add>(a.min, b.min));
+  }
+  Interval r = Interval::everything();
+  if (a.has_lower_bound() && b.has_lower_bound()) {
+    r.min = ComputeExpr<Add>(a.min, b.min);
+  }
+  if (a.has_upper_bound() && b.has_upper_bound()) {
+    r.max = ComputeExpr<Add>(a.max, b.max);
+  }
+  return IntervalSet::make(r);
+}
+
+template<>
+inline IntSet CombineInterval<Sub>(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<Sub>(a.min, b.min));
+  }
+  Interval r = Interval::everything();
+  if (a.has_lower_bound() && b.has_upper_bound()) {
+    r.min = ComputeExpr<Sub>(a.min, b.max);
+  }
+  if (a.has_upper_bound() && b.has_lower_bound()) {
+    r.max = ComputeExpr<Sub>(a.max, b.min);
+  }
+  return IntervalSet::make(r);
+}
+
+template<>
+inline IntSet CombineInterval<Mul>(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<Mul>(a.min, b.min));
+  }
+  if (a.is_single_point() && !b.is_single_point()) {
+    std::swap(a, b);
+  }
+  if (b.is_single_point()) {
+    if (is_zero(b.min)) return IntSet::single_point(0);
+    if (is_one(b.min)) return IntervalSet::make(a);
+    Expr e1 = a.has_lower_bound() ? ComputeExpr<Mul>(a.min, b.min) : a.min;
+    Expr e2 = a.has_upper_bound() ? ComputeExpr<Mul>(a.max, b.min) : a.max;
+    // This is relaxiation
+    // TODO(tqchen): consider convert to StrideSet.
+    if (is_positive_const(b.min)) {
+      return IntervalSet::make(e1, e2);
+    } else if (is_negative_const(b.min)) {
+      return IntervalSet::make(e2, e1);
+    } else if (a.is_bounded()) {
+      Expr cmp = b.min >= make_zero(b.min.type().element_of());
+      return IntervalSet::make(select(cmp, e1, e2), select(cmp, e2, e1));
+    }
+  }
+  LOG(WARNING) << "Return Everything in CombineInterval Mul";
+  return IntSet::everything();
+}
+
+template<>
+inline IntSet CombineInterval<Max>(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<Max>(a.min, b.min));
+  }
+  return IntervalSet::make(Interval::make_max(a.min, b.min),
+                           Interval::make_max(a.max, b.max));
+}
+
+template<>
+inline IntSet CombineInterval<Min>(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<Min>(a.min, b.min));
+  }
+  return IntervalSet::make(Interval::make_min(a.min, b.min),
+                           Interval::make_min(a.max, b.max));
+}
+
+template<typename OP>
+inline IntSet CombineInterval_(IntSet a, IntSet b) {
+  return CombineInterval<OP>(
+      a.as<IntervalSet>()->i, b.as<IntervalSet>()->i);
+}
+
+// stride related
+inline IntSet AsStrideSet(IntSet a) {
+  if (a.as<StrideSet>()) return a;
+  const IntervalSet* s = a.as<IntervalSet>();
+  CHECK(s->i.is_bounded());
+  std::shared_ptr<StrideSet> n = std::make_shared<StrideSet>();
+  n->base = s->i;
+  return IntSet(n);
+}
+template<typename OP>
+inline IntSet CombineSets(IntSet a, IntSet b) {
+  return CombineInterval_<OP>(a.cover_interval(), b.cover_interval());
+}
+
+template<>
+inline IntSet CombineSets<Add>(IntSet a, IntSet b) {
+  const IntervalSet* a_int = a.as<IntervalSet>();
+  const IntervalSet* b_int = b.as<IntervalSet>();
+  if (a_int && is_zero(a_int->i.min)) return b;
+  if (b_int && is_zero(b_int->i.min)) return a;
+  a = AsStrideSet(a);
+  b = AsStrideSet(b);
+  const StrideSet* a_stride = a.as<StrideSet>();
+  const StrideSet* b_stride = b.as<StrideSet>();
+  auto n = std::make_shared<StrideSet>(*a_stride);
+  for (size_t i = 0; i < b_stride->extents.size(); ++i) {
+    n->extents.push_back(b_stride->extents[i]);
+    n->strides.push_back(b_stride->strides[i]);
+  }
+  n->base = CombineInterval<Add>(
+      a_stride->base, b_stride->base).as<IntervalSet>()->i;
+  return IntSet(n);
+}
+
+inline IntSet NegateSet(IntSet a) {
+  const IntervalSet* a_int = a.as<IntervalSet>();
+  if (a_int) {
+    if (a_int->i.is_single_point()) {
+      return IntSet::single_point(-a_int->i.min);
+    } else {
+      Interval r = Interval::everything();
+      if (a_int->i.has_upper_bound()) {
+        r.min = -(a_int->i.max);
+      }
+      if (a_int->i.has_lower_bound()) {
+        r.max = -(a_int->i.min);
+      }
+      return IntervalSet::make(r);
+    }
+  } else {
+    return NegateSet(a.cover_interval());
+  }
+}
+
+template<>
+inline IntSet CombineSets<Sub>(IntSet a, IntSet b) {
+  return CombineSets<Add>(a, NegateSet(b));
+}
+
+TVM_DECLARE_LOGICAL_OP(And);
+TVM_DECLARE_LOGICAL_OP(Or);
+TVM_DECLARE_LOGICAL_OP(EQ);
+TVM_DECLARE_LOGICAL_OP(NE);
+TVM_DECLARE_LOGICAL_OP(GE);
+TVM_DECLARE_LOGICAL_OP(GT);
+TVM_DECLARE_LOGICAL_OP(LE);
+TVM_DECLARE_LOGICAL_OP(LT);
+TVM_DECLARE_LOGICAL_OP(Not);
+
+// generic combine operations of two sets
+template<typename OP>
+inline IntSet Combine(const IntSet& a, const IntSet &b) {
+  if (is_logical_op<OP>::value) {
+    return IntervalSet::make(0, 1);
+  }
+  const IntervalSet* a_int = a.as<IntervalSet>();
+  const IntervalSet* b_int = b.as<IntervalSet>();
+  if (a_int && a_int->i.is_everything()) return a;
+  if (b_int && b_int->i.is_everything()) return b;
+  if (a_int && b_int) {
+    return CombineInterval<OP>(a_int->i, b_int->i);
+  }
+  if (a_int && !(a_int->i.is_bounded())) {
+    return CombineInterval_<OP>(a, b.cover_interval());
+  }
+  if (b_int && !(b_int->i.is_bounded())) {
+    return CombineInterval_<OP>(a.cover_interval(), b);
+  }
+  return CombineSets<OP>(a, b);
+}
+
+// Implementation of Evaluations and passing.
 void PassUp(const SplitNode* s,
             const std::unordered_map<IterVar, Range>& dom_map,
             const IntSet& outer,
@@ -215,33 +358,21 @@ void PassUp(const SplitNode* s,
   if (dom_map.count(s->outer) &&
       dom_map.count(s->inner) &&
       dom_map.count(s->parent) &&
-      Match(outer, dom_map.at(s->outer)) &&
-      Match(inner, dom_map.at(s->inner))) {
-    *parent = IntSet::make_range(dom_map.at(s->parent));
+      MatchRange(outer, dom_map.at(s->outer)) &&
+      MatchRange(inner, dom_map.at(s->inner))) {
+    *parent = IntSet::range(dom_map.at(s->parent));
     return;
   }
   Expr factor = dom_map.at(s->inner)->extent;
+  Expr parent_min = dom_map.at(s->parent)->min;
   CHECK(outer.defined());
   CHECK(inner.defined());
   CHECK(factor.defined());
-  // copy construct
-  auto n = std::make_shared<IntSetNode>(*(inner.operator->()));
 
-  if (IsNumber(outer)) {
-    // shift the base offset
-    n->base = Range::make_with_min_extent(
-        AsNumber(outer) * factor + inner->base->min,
-        inner->base->extent);
-  } else {
-    // default use all domains in the data.
-    n->domain.push_back(outer->base);
-    n->stride.push_back(factor);
-    for (size_t i = 0; i < outer->domain.size(); ++i) {
-      n->domain.push_back(outer->domain[i]);
-      n->stride.push_back(outer->stride[i] * factor);
-    }
-  }
-  *parent = IntSet(n);
+  *parent = Combine<Add>(
+      Combine<Add>(
+          Combine<Mul>(outer, IntSet::single_point(factor)), inner),
+      IntSet::single_point(parent_min));
 }
 
 void PassUp(const FuseNode* s,
@@ -253,29 +384,51 @@ void PassUp(const FuseNode* s,
   CHECK(dom_map.count(s->inner));
   CHECK(dom_map.count(s->fused));
 
-  if (Match(fused, dom_map.at(s->fused))) {
-    *outer = IntSet::make_range(dom_map.at(s->outer));
-    *inner = IntSet::make_range(dom_map.at(s->inner));
+  if (MatchRange(fused, dom_map.at(s->fused))) {
+    *outer = IntSet::range(dom_map.at(s->outer));
+    *inner = IntSet::range(dom_map.at(s->inner));
     return;
   }
 
-  if (IsNumber(fused)) {
-    Expr value = AsNumber(fused);
+  Expr outer_min = dom_map.at(s->outer)->min;
+  Expr inner_min = dom_map.at(s->inner)->min;
+
+  const IntervalSet* fused_int = fused.as<IntervalSet>();
+
+  if (fused_int && fused_int->i.is_single_point()) {
+    Expr value = fused_int->i.min;
     Expr factor = dom_map.at(s->inner)->extent;
-    *outer = IntSet::make_point(value / factor);
-    *inner = IntSet::make_point(value % factor);
+    Expr v_outer  = value / factor;
+    Expr v_inner  = value % factor;
+    if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
+    if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
+    *outer = IntSet::single_point(v_outer);
+    *inner = IntSet::single_point(v_inner);
   } else {
     LOG(WARNING) << "use fallback inference rule in fuse";
     // simply use the entire set, this rule can be enhanced.
-    *outer = IntSet::make_range(dom_map.at(s->outer));
-    *inner = IntSet::make_range(dom_map.at(s->inner));
+    *outer = IntSet::range(dom_map.at(s->outer));
+    *inner = IntSet::range(dom_map.at(s->inner));
     return;
   }
 }
 
-namespace {
-// evaluator to evaluate the int set
-class IRSetEvaluator {
+
+void PassUp(const RebaseNode* s,
+            const std::unordered_map<IterVar, Range>& dom_map,
+            const IntSet& rebased,
+            IntSet* parent) {
+  CHECK(dom_map.count(s->parent));
+  if (MatchRange(rebased, dom_map.at(s->rebased))) {
+    *parent = IntSet::range(dom_map.at(s->parent));
+    return;
+  }
+  Expr parent_min = dom_map.at(s->parent)->min;
+  *parent = Combine<Add>(rebased, IntSet::single_point(parent_min));
+}
+
+// Evaluator to evalute the epxression.
+class IntSetEvaluator {
  public:
   inline IntSet Eval(Expr expr) {
     static const FType& f = vtable();
@@ -283,11 +436,11 @@ class IRSetEvaluator {
       return f(expr, expr, this);
     } else {
       LOG(WARNING) << "cannot evaluate set type " << expr->type_key();
-      return IntSet::make_all_set();
+      return IntSet::everything();
     }
   }
 
-  using FType = tvm::IRFunctor<IntSet (const NodeRef&, const Expr&, IRSetEvaluator *)>;
+  using FType = tvm::IRFunctor<IntSet (const NodeRef&, const Expr&, IntSetEvaluator *)>;
   static FType& vtable() {  // NOLINT(*)
     static FType inst; return inst;
   }
@@ -295,76 +448,84 @@ class IRSetEvaluator {
   std::unordered_map<const Variable*, IntSet> dom_map;
 };
 
-inline IntSet ConstOp(const NodeRef&, const Expr& e, IRSetEvaluator*) {
-  return IntSet::make_point(e);
+inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator*) {
+  return IntSet::single_point(e);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
+TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<IntImm>(ConstOp)
 .set_dispatch<UIntImm>(ConstOp)
 .set_dispatch<FloatImm>(ConstOp);
 
-TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
-.set_dispatch<Variable>([](const Variable* op, const Expr& e, IRSetEvaluator* m) {
+TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
+.set_dispatch<Variable>([](const Variable* op, const Expr& e, IntSetEvaluator* m) {
     auto it = m->dom_map.find(op);
     if (it != m->dom_map.end()) {
       return it->second;
     } else {
-      return IntSet::make_point(e);
+      return IntSet::single_point(e);
     }
   });
 
 // binary operator
 template<typename T>
-inline IntSet Binary(const T* op, const Expr& e, IRSetEvaluator* m) {
+inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
   IntSet a = m->Eval(op->a);
   IntSet b = m->Eval(op->b);
-  if (IsNumber(a) && IsNumber(b)) {
-    if (Match(a, op->a) &&
-        Match(b, op->b)) {
-      return IntSet::make_point(e);
-    } else {
-      return IntSet::make_point(T::make(AsNumber(a), AsNumber(b)));
-    }
-  } else {
-    return BinaryCombine<T>(a, b);
+  if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
+    return IntSet::single_point(e);
   }
+  IntSet r = Combine<T>(a, b);
+  return r;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
+TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<Add>(Binary<Add>)
 .set_dispatch<Sub>(Binary<Sub>)
 .set_dispatch<Mul>(Binary<Mul>)
 .set_dispatch<Div>(Binary<Div>)
 .set_dispatch<Mod>(Binary<Mod>)
 .set_dispatch<Min>(Binary<Min>)
-.set_dispatch<Max>(Binary<Max>);
-
-// use simply bound for logical expressions for now.
-inline IntSet Logical(const NodeRef&, const Expr& e, IRSetEvaluator*) {
-  return IntSet::make_range(Range::make_with_min_extent(0, 2));
-}
-
-TVM_STATIC_IR_FUNCTOR(IRSetEvaluator, vtable)
-.set_dispatch<EQ>(Logical)
-.set_dispatch<NE>(Logical)
-.set_dispatch<LT>(Logical)
-.set_dispatch<LE>(Logical)
-.set_dispatch<GT>(Logical)
-.set_dispatch<GE>(Logical)
-.set_dispatch<And>(Logical)
-.set_dispatch<Or>(Logical);
-
-}  // namespace
+.set_dispatch<Max>(Binary<Max>)
+.set_dispatch<EQ>(Binary<EQ>)
+.set_dispatch<NE>(Binary<NE>)
+.set_dispatch<LT>(Binary<LT>)
+.set_dispatch<LE>(Binary<LE>)
+.set_dispatch<GT>(Binary<GT>)
+.set_dispatch<GE>(Binary<GE>)
+.set_dispatch<And>(Binary<And>)
+.set_dispatch<Or>(Binary<Or>);
 
 IntSet EvalSet(Expr e,
                const Map<IterVar, IntSet>& dom_map) {
-  IRSetEvaluator m;
+  IntSetEvaluator m;
   for (auto kv : dom_map) {
     m.dom_map[kv.first->var.as<Variable>()] = kv.second;
   }
   return m.Eval(e);
 }
+
+IntSet EvalSet(Range r,
+               const Map<IterVar, IntSet>& dom_map) {
+  IntSetEvaluator m;
+  for (auto kv : dom_map) {
+    m.dom_map[kv.first->var.as<Variable>()] = kv.second;
+  }
+  IntSet min_set = m.Eval(r->min);
+  IntSet ext_set = m.Eval(r->extent).cover_interval();
+  const Interval& ei = ext_set.as<IntervalSet>()->i;
+  if (!ei.has_upper_bound()) return IntSet::everything();
+  ext_set = IntervalSet::make(0, ComputeExpr<Sub>(ei.max, 1));
+  return Combine<Add>(min_set, ext_set);
+}
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<IntervalSet>([](const IntervalSet *op, IRPrinter *p) {
+    p->stream << "interval-set["
+              << "[" << op->i.min << ", "
+              << op->i.max << ']';
+  });
+
 
 }  // namespace schedule
 }  // namespace tvm
