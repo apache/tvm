@@ -10,6 +10,7 @@
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
 #include <string>
+#include <vector>
 #include <unordered_map>
 
 namespace tvm {
@@ -80,13 +81,18 @@ class CodeGenC {
   virtual void PrintType(Type t, std::ostream& os) const; // NOLINT(*)
   /*!
    * \brief Print expr representing the thread tag
-   * \param thread_tag The tag in the thread.
+   * \param tag The tag in the thread.
    * \param  os The strean to output to
    */
-  virtual void PrintThreadTagExpr(
-      std::string thread_tag, std::ostream& os) const; // NOLINT(*)
+  virtual void PrintThreadIndexExpr(
+      std::string tag, std::ostream& os); // NOLINT(*)
+  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*
+  virtual void PrintStorageSync(const std::string& scope);  // NOLINT(*)
+
   virtual void PrintStmt(const ir::LetStmt* op);
   virtual void PrintStmt(const ir::Store* op);
+  virtual void PrintStmt(const ir::For* op);
+  virtual void PrintStmt(const ir::IfThenElse* op);
   virtual void PrintStmt(const ir::Allocate* op);
   virtual void PrintStmt(const ir::AttrStmt* op);
   virtual void PrintStmt(const ir::AssertStmt* op);
@@ -114,6 +120,13 @@ class CodeGenC {
   std::string arg_addr_space_;
 
  private:
+  /*! \brief entry in ssa assign map */
+  struct SSAEntry {
+    /*! \brief The value id */
+    std::string vid;
+    /*! \brief The scope id */
+    int scope_id;
+  };
   /*!
    * \brief Get the SSA ID corresponds to src
    *  If necessary, generate new assignment
@@ -121,6 +134,16 @@ class CodeGenC {
    * \param t The type of the expression.
    */
   std::string SSAGetID(std::string src, Type t);
+  /*!
+   * \brief mark the beginning of a new scope
+   * \return The scope id.
+   */
+  int BeginScope();
+  /*!
+   * \brief mark the end of an old scope.
+   * \param scope_id The scope id to be ended.
+   */
+  void EndScope(int scope_id);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
@@ -145,10 +168,14 @@ class CodeGenC {
   std::unordered_map<const Variable*, std::string> var_idmap_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const Variable*, Type> handle_data_type_;
+  /*! \brief the storage scope of allocation */
+  std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief assignment map of ssa */
-  std::unordered_map<std::string, std::string> ssa_assign_map_;
+  std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
+  /*! \brief array to check whether we are inside certain scope */
+  std::vector<bool> scope_mark_;
 };
 
 }  // namespace codegen

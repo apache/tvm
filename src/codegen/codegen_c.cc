@@ -20,7 +20,6 @@ std::string CodeGenC::Compile(LoweredFunc f,
     HandleTypeRegister(kv.first.get(), kv.second.type());
   }
 
-  this->indent += 2;
   this->stream << "void " << f->name << "(";
   for (size_t i = 0; i < f->args.size(); ++i) {
     Var v = f->args[i];
@@ -38,8 +37,9 @@ std::string CodeGenC::Compile(LoweredFunc f,
     stream << ' ' << vid;
   }
   stream << ") {\n";
+  int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
-  this->indent -= 2;
+  this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n";
   return stream.str();
@@ -54,19 +54,23 @@ std::string CodeGenC::SSAGetID(std::string src, Type t) {
   if (name_alloc_map_.count(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {
-    return it->second;
-  } else {
-    this->PrintIndent();
-    std::string id = GetUniqueName("_");
-    ssa_assign_map_[src] = id;
-    if (src.length() > 3 &&
-        src[0] == '(' && src[src.length() - 1] == ')') {
-      src = src.substr(1, src.length() - 2);
+    if (scope_mark_.at(it->second.scope_id)) {
+      return it->second.vid;
     }
-    PrintType(t, stream);
-    stream << ' ' << id << " = " << src << ";\n";
-    return id;
   }
+
+  this->PrintIndent();
+  SSAEntry e;
+  e.vid = GetUniqueName("_");
+  e.scope_id = static_cast<int>(scope_mark_.size() - 1);
+  ssa_assign_map_[src] = e;
+  if (src.length() > 3 &&
+      src[0] == '(' && src[src.length() - 1] == ')') {
+    src = src.substr(1, src.length() - 2);
+  }
+  PrintType(t, stream);
+  stream << ' ' << e.vid << " = " << src << ";\n";
+  return e.vid;
 }
 
 void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
@@ -142,9 +146,12 @@ void CodeGenC::MarkConst(std::string vid) {
   if (print_ssa_form_) {
     auto it = ssa_assign_map_.find(vid);
     if (it == ssa_assign_map_.end()) {
-      ssa_assign_map_[vid] = vid;
+      SSAEntry e;
+      e.vid = vid;
+      e.scope_id = 0;
+      ssa_assign_map_[vid] = e;
     } else {
-      CHECK_EQ(it->second, vid);
+      CHECK_EQ(it->second.vid, vid);
     }
   }
 }
@@ -242,6 +249,9 @@ TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_expr)
   })
 .set_dispatch<FloatImm>([](const FloatImm *op, std::ostream& os, CodeGenC *p) { // NOLINT(*)
     PrintConst(op, os, p);
+  })
+.set_dispatch<StringImm>([](const StringImm *op, std::ostream& os, CodeGenC *p) { // NOLINT(*)
+    os << "\"" << op->value << "\"";
   });
 
 template<typename T>
@@ -340,49 +350,22 @@ TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_stmt)
 .set_dispatch<ProducerConsumer>([](const ProducerConsumer *op, CodeGenC* p) {
     p->PrintStmt(op->body);
   })
-.set_dispatch<For>([](const For *op, CodeGenC* p) {
-    std::string extent = p->PrintExpr(op->extent);
-    p->PrintIndent();
-    std::string vid = p->AllocVarID(op->loop_var.get());
-    CHECK(is_zero(op->min));
-    p->stream << "for (";
-    p->PrintType(op->loop_var.type(), p->stream);
-    p->stream << ' ' << vid << " = 0; "
-              << vid << " < " << extent
-              << "; ++" << vid << ") {\n";
-    p->indent += 2;
-    p->PrintStmt(op->body);
-    p->indent -= 2;
-    p->PrintIndent();
-    p->stream << "}\n";
-  })
 .set_dispatch<Block>([](const Block *op, CodeGenC* p) {
     p->PrintStmt(op->first);
     if (op->rest.defined()) p->PrintStmt(op->rest);
   })
 .set_dispatch<Evaluate>([](const Evaluate *op, CodeGenC* p) {
     if (is_const(op->value)) return;
-    std::string vid = p->PrintExpr(op->value);
-    p->PrintIndent();
-    p->stream << "(void)" << vid << ";\n";
-  })
-.set_dispatch<IfThenElse>([](const IfThenElse *op, CodeGenC* p) {
-    std::string cond = p->PrintExpr(op->condition);
-    p->PrintIndent();
-    p->stream << "if (" << cond << ") {\n";
-    p->indent += 2;
-    p->PrintStmt(op->then_case);
-    p->indent -= 2;
-    if (op->else_case.defined()) {
+    const Call* call = op->value.as<Call>();
+
+    if (call && call->is_intrinsic(intrinsic::tvm_storage_sync)) {
+      p->PrintStorageSync(call->args[0].as<StringImm>()->value);
+    } else {
+      std::string vid = p->PrintExpr(op->value);
       p->PrintIndent();
-      p->stream << "} else {\n";
-      p->indent += 2;
-      p->PrintStmt(op->else_case);
-      p->indent -= 2;
+      p->stream << "(void)" << vid << ";\n";
     }
-    p->PrintIndent();
-    p->stream << "}\n";
-});
+  });
 
 
 #define DISPATCH_EXPR(OP)                            \
@@ -517,11 +500,20 @@ TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_stmt)
 .set_dispatch<Store>([](const Store *op, CodeGenC* p) { p->PrintStmt(op); })
 .set_dispatch<Allocate>([](const Allocate *op, CodeGenC* p) { p->PrintStmt(op); })
 .set_dispatch<AttrStmt>([](const AttrStmt *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<AssertStmt>([](const AssertStmt *op, CodeGenC* p) { p->PrintStmt(op); });
+.set_dispatch<AssertStmt>([](const AssertStmt *op, CodeGenC* p) { p->PrintStmt(op); })
+.set_dispatch<For>([](const For *op, CodeGenC* p) { p->PrintStmt(op); })
+.set_dispatch<IfThenElse>([](const IfThenElse *op, CodeGenC* p) { p->PrintStmt(op); });
 
-void CodeGenC::PrintThreadTagExpr(
-    std::string thread_tag, std::ostream& os) const { // NOLINT(*)
+void CodeGenC::PrintThreadIndexExpr(
+    std::string thread_tag, std::ostream& os) { // NOLINT(*)
   os << thread_tag;
+}
+
+void CodeGenC::PrintStorageSync(const std::string& sync) { // NOLINT(*)
+}
+
+void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
+  CHECK_EQ(scope, "global");
 }
 
 void CodeGenC::PrintStmt(const LetStmt* op) {
@@ -581,9 +573,12 @@ void CodeGenC::PrintStmt(const Allocate* op) {
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
         << "Can only handle constant size stack allocation for now";
+    const Variable* buffer = op->buffer_var.as<Variable>();
+    std::string scope = alloc_storage_scope_.at(buffer);
+    PrintStorageScope(scope, stream);
     PrintType(op->type, stream);
     stream << ' '<< vid << '['
-           << constant_size << "]\n;";
+           << constant_size << "];\n";
   }
   HandleTypeRegister(op->buffer_var.get(), op->type);
   this->PrintStmt(op->body);
@@ -599,10 +594,14 @@ void CodeGenC::PrintStmt(const AttrStmt* op) {
         stream << ' '
                << AllocVarID(iv->var.get())
                << " = ";
-        PrintThreadTagExpr(iv->thread_tag, stream);
+        PrintThreadIndexExpr(iv->thread_tag, stream);
         stream << ";\n";
       }
     }
+  } else if (op->type_key == "storage_scope") {
+    const Variable* v = op->node.as<Variable>();
+    CHECK(v);
+    alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
   }
   this->PrintStmt(op->body);
 }
@@ -618,6 +617,55 @@ void CodeGenC::PrintStmt(const AssertStmt* op) {
     stream << "assert(" << cond << ");\n";
   }
 }
+
+int CodeGenC::BeginScope() {
+  int sid = static_cast<int>(scope_mark_.size());
+  scope_mark_.push_back(true);
+  indent += 2;
+  return sid;
+}
+
+void CodeGenC::EndScope(int scope_id) {
+  scope_mark_[scope_id] = false;
+  indent -= 2;
+}
+
+void CodeGenC::PrintStmt(const For* op) {
+  std::string extent = PrintExpr(op->extent);
+  PrintIndent();
+  std::string vid = AllocVarID(op->loop_var.get());
+  CHECK(is_zero(op->min));
+  stream << "for (";
+  PrintType(op->loop_var.type(), stream);
+  stream << ' ' << vid << " = 0; "
+            << vid << " < " << extent
+            << "; ++" << vid << ") {\n";
+  int for_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
+}
+
+void CodeGenC::PrintStmt(const IfThenElse* op) {
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (" << cond << ") {\n";
+  int then_scope = BeginScope();
+  PrintStmt(op->then_case);
+  this->EndScope(then_scope);
+
+  if (op->else_case.defined()) {
+    PrintIndent();
+    stream << "} else {\n";
+    int else_scope = BeginScope();
+    PrintStmt(op->else_case);
+    this->EndScope(else_scope);
+  }
+  PrintIndent();
+  stream << "}\n";
+}
+
 
 }  // namespace codegen
 }  // namespace tvm

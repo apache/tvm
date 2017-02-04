@@ -3,7 +3,6 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
-#include <tvm/codegen.h>
 #include <tvm/ir.h>
 #include <tvm/lowered_func.h>
 #include <tvm/ir_pass.h>
@@ -11,9 +10,7 @@
 #include <unordered_map>
 
 namespace tvm {
-namespace codegen {
-
-using namespace ir;
+namespace ir {
 
 // use/def analysis, also delete unreferenced lets
 class IRUseDefAnalysis : public IRMutator {
@@ -161,7 +158,7 @@ class HostDeviceSplitter : public IRMutator {
  private:
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
-    os << name_ << "_kernel" << device_funcs_.size();
+    os << name_ << "__kernel" << device_funcs_.size();
     std::shared_ptr<LoweredFuncNode> n = std::make_shared<LoweredFuncNode>();
     // isolate the device function.
     IRUseDefAnalysis m;
@@ -181,6 +178,7 @@ class HostDeviceSplitter : public IRMutator {
     }
     LoweredFunc f_device(n);
     Array<Expr> call_args;
+    call_args.push_back(StringImm::make(f_device->name));
     for (Var arg : n->args) {
       call_args.push_back(arg);
     }
@@ -190,7 +188,8 @@ class HostDeviceSplitter : public IRMutator {
     }
     device_funcs_.emplace_back(f_device);
     return Evaluate::make(Call::make(
-        Int(32), f_device->name, call_args, Call::Extern, f_device));
+        Int(32), intrinsic::tvm_call_device,
+        call_args, Call::Intrinsic));
   }
 
   // function name
@@ -214,5 +213,5 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func) {
   return HostDeviceSplitter().Split(func);
 }
 
-}  // namespace codegen
+}  // namespace ir
 }  // namespace tvm

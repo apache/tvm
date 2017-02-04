@@ -11,7 +11,7 @@
 #include <string>
 #include <unordered_map>
 #include "../void_addr_args.h"
-#include "../thread_axis_args.h"
+#include "../thread_storage_scope.h"
 
 namespace tvm {
 namespace runtime {
@@ -87,13 +87,13 @@ class OpenCLWrappedFunc {
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
-      wl.work_size[i + 3] *= wl.work_size[i];
+      wl.work_size[i] *= wl.work_size[i + 3];
     }
     // launch kernel
     OPENCL_CALL(clEnqueueNDRangeKernel(
         queue, kernel, work_dim, nullptr,
-        wl.work_size + 3,
         wl.work_size,
+        wl.work_size + 3,
         0, nullptr, nullptr));
   }
 

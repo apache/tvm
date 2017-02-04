@@ -25,6 +25,9 @@ class CodeGenCUDA : public CodeGenC {
    */
   std::string Compile(LoweredFunc f,
                       bool output_ssa);
+  // override behavior
+  void PrintStorageSync(const std::string& sync) final;
+  void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
 };
 
 }  // namespace codegen
