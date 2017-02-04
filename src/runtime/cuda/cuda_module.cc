@@ -13,7 +13,7 @@
 #include <mutex>
 #include "./cuda_common.h"
 #include "../void_addr_args.h"
-#include "../thread_axis_args.h"
+#include "../thread_storage_scope.h"
 
 namespace tvm {
 namespace runtime {

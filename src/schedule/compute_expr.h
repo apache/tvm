@@ -32,7 +32,7 @@ template<typename T>
 inline bool GetConst(Expr e, T* out);
 
 template<>
-bool GetConst<int64_t>(Expr e, int64_t *out) {
+inline bool GetConst<int64_t>(Expr e, int64_t *out) {
   if (e.type().is_vector()) return false;
   const int64_t *v = as_const_int(e);
   if (v) {
@@ -42,7 +42,7 @@ bool GetConst<int64_t>(Expr e, int64_t *out) {
   }
 }
 template<>
-bool GetConst<uint64_t>(Expr e, uint64_t *out) {
+inline bool GetConst<uint64_t>(Expr e, uint64_t *out) {
   if (e.type().is_vector()) return false;
   const uint64_t *v = as_const_uint(e);
   if (v) {
@@ -77,7 +77,7 @@ template<>
 inline Expr ComputeExpr<ir::Sub>(Expr a, Expr b) {
   if (is_zero(b)) return a;
   TVM_CONST_PROPAGATION(sub, -);
-  return ir::Add::make(a, b);
+  return ir::Sub::make(a, b);
 }
 
 template<>
@@ -91,7 +91,7 @@ inline Expr ComputeExpr<ir::Mul>(Expr a, Expr b) {
 template<>
 inline Expr ComputeExpr<ir::Div>(Expr a, Expr b) {
   if (is_one(b)) return a;
-  return ir::Mul::make(a, b);
+  return ir::Div::make(a, b);
 }
 
 template<>

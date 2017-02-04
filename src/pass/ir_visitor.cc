@@ -59,6 +59,8 @@ inline void VisitRDom(const Array<IterVar>& rdom, IRVisitor* v) {
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(Variable)
 .DISPATCH_TO_VISIT(LetStmt)
+.DISPATCH_TO_VISIT(AttrStmt)
+.DISPATCH_TO_VISIT(IfThenElse)
 .DISPATCH_TO_VISIT(For)
 .DISPATCH_TO_VISIT(Allocate)
 .DISPATCH_TO_VISIT(Load)
@@ -105,6 +107,14 @@ void IRVisitor::Visit_(const Load *op) {
 void IRVisitor::Visit_(const Store *op) {
   this->Visit(op->value);
   this->Visit(op->index);
+}
+
+void IRVisitor::Visit_(const IfThenElse *op) {
+  this->Visit(op->condition);
+  this->Visit(op->then_case);
+  if (op->else_case.defined()) {
+    this->Visit(op->else_case);
+  }
 }
 
 void IRVisitor::Visit_(const Let *op) {
@@ -199,11 +209,6 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Block>([](const Block *op, IRVisitor* v) {
     v->Visit(op->first);
     v->Visit(op->rest);
-  })
-.set_dispatch<IfThenElse>([](const IfThenElse *op, IRVisitor* v) {
-    v->Visit(op->condition);
-    v->Visit(op->then_case);
-    v->Visit(op->else_case);
   })
 .set_dispatch<Evaluate>([](const Evaluate *op, IRVisitor* v) {
     v->Visit(op->value);

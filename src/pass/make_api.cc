@@ -2,7 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file make_api.cc Build API function.
  */
-#include <tvm/codegen.h>
+#include <tvm/ir_pass.h>
 #include <tvm/ir.h>
 #include <tvm/buffer.h>
 
@@ -10,11 +10,10 @@
 #include <utility>
 #include <unordered_set>
 
-#include "../pass/ir_util.h"
+#include "./ir_util.h"
 
 namespace tvm {
-namespace codegen {
-using namespace ir;
+namespace ir {
 
 inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMArrayFieldKind kind) {
   return Call::make(
@@ -196,5 +195,5 @@ LoweredFunc MakeAPI(Stmt body,
   }
   return f;
 }
-}  // namespace codegen
+}  // namespace ir
 }  // namespace tvm

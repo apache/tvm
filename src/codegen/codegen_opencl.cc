@@ -10,6 +10,7 @@
 #include "./codegen_stack_vm.h"
 #include "../runtime/opencl/opencl_common.h"
 #include "../runtime/opencl/opencl_module.h"
+#include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace codegen {
@@ -22,22 +23,31 @@ std::string CodeGenOpenCL::Compile(
   return CodeGenC::Compile(f, output_ssa);
 }
 
-void CodeGenOpenCL::PrintThreadTagExpr(
-    std::string thread_tag, std::ostream& os) const { // NOLINT(*)
-  if (thread_tag == "threadIdx.x") {
-    os << "get_local_id(0)";
-  } else if (thread_tag == "threadIdx.y") {
-    os << "get_local_id(1)";
-  } else if (thread_tag == "threadIdx.z") {
-    os << "get_local_id(2)";
-  } else if (thread_tag == "blockIdx.x") {
-    os << "get_global_id(0) / get_local_size(0)";
-  } else if (thread_tag == "blockIdx.y") {
-    os << "get_global_id(1) / get_local_size(1)";
-  } else if (thread_tag == "blockIdx.z") {
-    os << "get_global_id(2) / get_local_size(2)";
+void CodeGenOpenCL::PrintThreadIndexExpr(
+    std::string tag, std::ostream& os) { // NOLINT(*)
+  runtime::ThreadScope ts = runtime::ThreadScope::make(tag);
+  if (ts.rank == 1) {
+    os << "get_local_id(" << ts.dim_index << ")";
   } else {
-    LOG(FATAL) << "unknown thread tag";
+    os << "get_global_id(" << ts.dim_index << ")"
+       << " / get_local_size(" << ts.dim_index << ")";
+  }
+}
+
+
+void CodeGenOpenCL::PrintStorageSync(const std::string& sync) {
+  if (sync == "shared") {
+    this->PrintIndent();
+    this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
+  } else if (sync == "global") {
+    LOG(FATAL) << "not supported";
+  }
+}
+
+void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
+  CHECK_NE(scope, "global");
+  if (scope == "shared") {
+    os << "__local ";
   }
 }
 

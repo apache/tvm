@@ -75,6 +75,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 .DISPATCH_TO_MUTATE_STMT(Realize)
 .DISPATCH_TO_MUTATE_STMT(Store)
 .DISPATCH_TO_MUTATE_STMT(For)
+.DISPATCH_TO_MUTATE_STMT(Allocate)
 .DISPATCH_TO_MUTATE_STMT(Free);
 
 Stmt IRMutator::Mutate_(const LetStmt *op, const Stmt& s) {

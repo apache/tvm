@@ -22,6 +22,23 @@ std::string CodeGenCUDA::Compile(
   return CodeGenC::Compile(f, output_ssa);
 }
 
+void CodeGenCUDA::PrintStorageSync(const std::string& sync) {
+  if (sync == "shared") {
+    this->PrintIndent();
+    this->stream << "__syncthreads();\n";
+  } else if (sync == "global") {
+    LOG(FATAL) << "not supported";
+  }
+}
+
+void CodeGenCUDA::PrintStorageScope(
+    const std::string& scope, std::ostream& os) { // NOLINT(*)
+  CHECK_NE(scope, "global");
+  if (scope == "shared") {
+    os << "__shared__ ";
+  }
+}
+
 #if TVM_CUDA_RUNTIME
 std::unordered_map<LoweredFunc, PackedFunc>
 MakeNVRTC(Array<LoweredFunc> funcs) {
@@ -56,7 +73,6 @@ MakeNVRTC(Array<LoweredFunc> funcs) {
 PackedFunc BuildNVRTC(Array<LoweredFunc> fsplits, std::string host_mode) {
   Array<LoweredFunc> device_list(fsplits.begin() + 1, fsplits.end());
   std::unordered_map<LoweredFunc, PackedFunc> device_funcs = MakeNVRTC(device_list);
-
   if (host_mode == "stackvm") {
     StackVM vm = codegen::CodeGenStackVM().Compile(fsplits[0], device_funcs);
     auto f = [vm](TVMArgs args, TVMRetValue* rv) {
