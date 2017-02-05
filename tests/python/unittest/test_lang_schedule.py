@@ -63,8 +63,23 @@ def test_tile():
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
     assert tuple(s[T].leaf_iter_vars) == (xo, yo, xi, yi)
 
+
+def test_fuse():
+    m = tvm.Var('m')
+    n = tvm.Var('n')
+    A = tvm.placeholder((m, n), name='A')
+    T = tvm.compute((m, n), lambda i, j: A[i, j])
+
+    s = tvm.Schedule(T.op)
+    xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
+    fused = s[T].fuse(yo, xo)
+    assert any(isinstance(x, tvm.schedule.Fuse) for x in s[T].relations)
+    assert tuple(s[T].leaf_iter_vars) == (fused, xi, yi)
+
+
 if __name__ == "__main__":
     test_schedule_create()
     test_reorder()
     test_tile()
     test_split()
+    test_fuse()

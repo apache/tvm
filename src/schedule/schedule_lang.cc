@@ -117,6 +117,7 @@ Stage& Stage::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor
 
 Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
   IterVar fused(Range(), outer->var->name_hint + "." + inner->var->name_hint + ".fused");
+  *p_target = fused;
   StageNode* self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -129,7 +130,7 @@ Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT
   CHECK_EQ(pos_inner, pos_outer + 1)
       << "Can only fuse iterations that are consecutive between each other";
   leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
-                        leaf_vars->data.begin() + pos_inner);
+                        leaf_vars->data.begin() + pos_inner + 1);
   leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,
                          fused.node_);
   return *this;
