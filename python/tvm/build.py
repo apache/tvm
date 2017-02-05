@@ -70,7 +70,6 @@ def build(sch,
     fsplits = [x for x in fsplits]
     for i in range(1, len(fsplits)):
         fsplits[i] = ir_pass.StorageSync(fsplits[i], "shared")
-        fsplits[i] = ir_pass.StorageSync(fsplits[i], "global")
 
     if record_codes is not None:
         output_ssa = False

@@ -562,7 +562,7 @@ inline TVMArgValue TVMArgs::operator[](int i) const {
   CHECK_LT(i, num_args)
       << "not enough argument passed, "
       << num_args << " passed"
-      << "but request arg" << i;
+      << " but request arg[" << i << "].";
   return TVMArgValue(values[i], type_codes[i]);
 }
 

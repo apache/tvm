@@ -7,12 +7,14 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <tvm/schedule_pass.h>
-#include "./int_set.h"
 #include "./graph.h"
+#include "../arithmetic/int_set.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace schedule {
+
+using namespace arith;
 
 // result = ceil((a / b)), both a and b are positive integer
 inline Expr DivCeil(Expr a, Expr b) {
@@ -70,6 +72,80 @@ void PassDown(const Stage& s,
 // pass the integer set on each leave loop up to the root
 // dom_map is the result of PassDown, it records the domain of each IterVar.
 // dom_map can be used to get cached result in reverse construction.
+// Implementation of Evaluations and passing.
+void PassUp(const SplitNode* s,
+            const std::unordered_map<IterVar, Range>& dom_map,
+            const IntSet& outer,
+            const IntSet& inner,
+            IntSet* parent) {
+  if (dom_map.count(s->outer) &&
+      dom_map.count(s->inner) &&
+      dom_map.count(s->parent) &&
+      outer.match_range(dom_map.at(s->outer)) &&
+      inner.match_range(dom_map.at(s->inner))) {
+    *parent = IntSet::range(dom_map.at(s->parent));
+    return;
+  }
+  Expr factor = dom_map.at(s->inner)->extent;
+  Expr parent_min = dom_map.at(s->parent)->min;
+  CHECK(outer.defined());
+  CHECK(inner.defined());
+  CHECK(factor.defined());
+  *parent = EvalSet(
+      s->outer->var * factor + s->inner->var + parent_min,
+      {{s->outer, outer}, {s->inner, inner}});
+}
+
+void PassUp(const FuseNode* s,
+            const std::unordered_map<IterVar, Range>& dom_map,
+            const IntSet& fused,
+            IntSet* outer,
+            IntSet* inner) {
+  CHECK(dom_map.count(s->outer));
+  CHECK(dom_map.count(s->inner));
+  CHECK(dom_map.count(s->fused));
+
+  if (fused.match_range(dom_map.at(s->fused))) {
+    *outer = IntSet::range(dom_map.at(s->outer));
+    *inner = IntSet::range(dom_map.at(s->inner));
+    return;
+  }
+  Expr outer_min = dom_map.at(s->outer)->min;
+  Expr inner_min = dom_map.at(s->inner)->min;
+
+  if (fused.is_single_point()) {
+    Expr value = fused.point_value();
+    Expr factor = dom_map.at(s->inner)->extent;
+    Expr v_outer  = value / factor;
+    Expr v_inner  = value % factor;
+    if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
+    if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
+    *outer = IntSet::single_point(v_outer);
+    *inner = IntSet::single_point(v_inner);
+  } else {
+    LOG(WARNING) << "use fallback inference rule in fuse";
+    // simply use the entire set, this rule can be enhanced.
+    *outer = IntSet::range(dom_map.at(s->outer));
+    *inner = IntSet::range(dom_map.at(s->inner));
+    return;
+  }
+}
+
+
+void PassUp(const RebaseNode* s,
+            const std::unordered_map<IterVar, Range>& dom_map,
+            const IntSet& rebased,
+            IntSet* parent) {
+  CHECK(dom_map.count(s->parent));
+  if (rebased.match_range(dom_map.at(s->rebased))) {
+    *parent = IntSet::range(dom_map.at(s->parent));
+    return;
+  }
+  Expr parent_min = dom_map.at(s->parent)->min;
+  *parent = EvalSet(s->rebased->var + parent_min,
+                    {{s->rebased, rebased}});
+}
+
 void PassUp(const Stage& s,
             const std::unordered_map<IterVar, Range>& dom_map,
             std::unordered_map<IterVar, IntSet>* p_state) {

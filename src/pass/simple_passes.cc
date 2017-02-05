@@ -47,10 +47,10 @@ class IRSubstitue : public IRMutator {
   std::unordered_map<const Variable*, Expr> smap;
 };
 
-Stmt Substitute(Stmt stmt, const Map<IterVar, Expr>& value_map) {
+Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
   IRSubstitue m;
   for (auto kv : value_map) {
-    m.smap[kv.first->var.get()] = kv.second;
+    m.smap[kv.first.get()] = kv.second;
   }
   return m.Mutate(stmt);
 }

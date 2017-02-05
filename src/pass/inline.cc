@@ -24,10 +24,24 @@ class IRInline : public IRMutator {
     if (op->func == f_) {
       CHECK_EQ(op->value_index, 0);
       Expr expr = body_;
-      CHECK_EQ(args_.size(), op->args.size())
-          << op->args.size() << " vs " << args_.size();
-      for (size_t i = 0; i < args_.size(); ++i) {
-        expr = Let::make(args_[i], op->args[i], expr);
+      CHECK_EQ(args_.size(), op->args.size());
+
+      bool has_side_effect = false;
+      for (size_t i = 0; i < op->args.size(); ++i) {
+        if (HasSideEffect(op->args[i])) has_side_effect = true;
+      }
+
+      if (has_side_effect) {
+        for (size_t i = 0; i < args_.size(); ++i) {
+          expr = Let::make(args_[i], op->args[i], expr);
+        }
+      } else {
+        Map<Var, Expr> vmap;
+        for (size_t i = 0; i < args_.size(); ++i) {
+          vmap.Set(args_[i], op->args[i]);
+        }
+        expr = Substitute(
+            Evaluate::make(expr), vmap).as<Evaluate>()->value;
       }
       return expr;
     } else {
