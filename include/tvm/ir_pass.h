@@ -68,7 +68,7 @@ Stmt ConvertSSA(Stmt stmt);
  * \param value_map The map of new values.
  * \return The converted form.
  */
-Stmt Substitute(Stmt stmt, const Map<IterVar, Expr>& value_map);
+Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map);
 
 /*!
  * \brief inline all calls of f in stmt.
@@ -96,6 +96,13 @@ Stmt Inline(Stmt stmt,
  */
 Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer);
+
+/*!
+ * \brief unroll the constant loops
+ * \param stmt The statment to be unrolled.
+ * \param max_auto_step The maximum step to stop performing automatic unrolling.
+ */
+Stmt UnrollLoop(Stmt stmt, int max_auto_step);
 
 /*!
  * \brief Make an user callable API LoweredFunc.
@@ -152,6 +159,7 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
  * \param storage_scope The storage scope considered.
  */
 LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
+
 
 }  // namespace ir
 }  // namespace tvm

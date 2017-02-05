@@ -6,6 +6,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
+#include <tvm/ir_visitor.h>
 #include <tvm/api_registry.h>
 
 namespace tvm {
@@ -27,6 +28,14 @@ TVM_REGISTER_API(_pass_Equal)
     } else {
       *ret = Equal(args[0].operator Expr(), args[1].operator Expr());
     }
+  });
+
+TVM_REGISTER_API(_pass_PostOrderVisit)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    PackedFunc f = args[1];
+    ir::PostOrderVisit(args[0], [f](const NodeRef& n) {
+        f(n);
+      });
   });
 
 // make from two arguments
@@ -52,6 +61,7 @@ REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
 REGISTER_PASS4(Inline);
 REGISTER_PASS2(StorageFlatten);
+REGISTER_PASS2(UnrollLoop);
 REGISTER_PASS2(StorageSync);
 REGISTER_PASS4(MakeAPI);
 REGISTER_PASS1(SplitHostDevice);

@@ -4,14 +4,14 @@
  * \brief Utility integer expression with quick eager simplification.
  *  This is weaker than Simplify but can be done Eagerly.
  */
-#ifndef TVM_SCHEDULE_COMPUTE_EXPR_H_
-#define TVM_SCHEDULE_COMPUTE_EXPR_H_
+#ifndef TVM_ARITHMETIC_COMPUTE_EXPR_H_
+#define TVM_ARITHMETIC_COMPUTE_EXPR_H_
 
 #include <tvm/ir.h>
 #include <pass/Interval.h>
 
 namespace tvm {
-namespace schedule {
+namespace arith {
 
 using Halide::Internal::add_would_overflow;
 using Halide::Internal::sub_would_overflow;
@@ -104,6 +104,6 @@ inline Expr ComputeExpr<ir::Min>(Expr a, Expr b) {
   return Halide::Internal::Interval::make_min(a, b);
 }
 
-}  // namespace schedule
+}  // namespace arith
 }  // namespace tvm
-#endif   // TVM_SCHEDULE_COMPUTE_EXPR_H_
+#endif   // TVM_ARITHMETIC_COMPUTE_EXPR_H_

@@ -1,6 +1,6 @@
 /*!
- *  Copyright (c) 2016 by Contributors
- * \file int_set_impl.cc
+ *  Copyright (c) 2017 by Contributors
+ * \file int_set.cc
  * \brief The integer set functions
  */
 #include <tvm/ir.h>
@@ -10,7 +10,7 @@
 #include "./compute_expr.h"
 
 namespace tvm {
-namespace schedule {
+namespace arith {
 
 using Halide::Internal::Interval;
 
@@ -94,6 +94,12 @@ bool IntSet::is_single_point() const {
   return (s_int && s_int->i.is_single_point());
 }
 
+Expr IntSet::point_value() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  CHECK(s_int && s_int->i.is_single_point());
+  return s_int->i.min;
+}
+
 IntSet IntSet::everything() {
   return IntervalSet::make(Interval::everything());
 }
@@ -115,8 +121,8 @@ IntSet IntSet::range(Range r) {
 }
 
 // Check if a is created from b.
-inline bool MatchRange(const IntSet& a,
-                       const Range& b) {
+bool IntSet::match_range(const Range& b) const {
+  const IntSet& a = *this;
   const IntervalSet* a_int = a.as<IntervalSet>();
   if (!a_int) return false;
   const Interval& i = a_int->i;
@@ -349,84 +355,6 @@ inline IntSet Combine(const IntSet& a, const IntSet &b) {
   return CombineSets<OP>(a, b);
 }
 
-// Implementation of Evaluations and passing.
-void PassUp(const SplitNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& outer,
-            const IntSet& inner,
-            IntSet* parent) {
-  if (dom_map.count(s->outer) &&
-      dom_map.count(s->inner) &&
-      dom_map.count(s->parent) &&
-      MatchRange(outer, dom_map.at(s->outer)) &&
-      MatchRange(inner, dom_map.at(s->inner))) {
-    *parent = IntSet::range(dom_map.at(s->parent));
-    return;
-  }
-  Expr factor = dom_map.at(s->inner)->extent;
-  Expr parent_min = dom_map.at(s->parent)->min;
-  CHECK(outer.defined());
-  CHECK(inner.defined());
-  CHECK(factor.defined());
-
-  *parent = Combine<Add>(
-      Combine<Add>(
-          Combine<Mul>(outer, IntSet::single_point(factor)), inner),
-      IntSet::single_point(parent_min));
-}
-
-void PassUp(const FuseNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& fused,
-            IntSet* outer,
-            IntSet* inner) {
-  CHECK(dom_map.count(s->outer));
-  CHECK(dom_map.count(s->inner));
-  CHECK(dom_map.count(s->fused));
-
-  if (MatchRange(fused, dom_map.at(s->fused))) {
-    *outer = IntSet::range(dom_map.at(s->outer));
-    *inner = IntSet::range(dom_map.at(s->inner));
-    return;
-  }
-
-  Expr outer_min = dom_map.at(s->outer)->min;
-  Expr inner_min = dom_map.at(s->inner)->min;
-
-  const IntervalSet* fused_int = fused.as<IntervalSet>();
-
-  if (fused_int && fused_int->i.is_single_point()) {
-    Expr value = fused_int->i.min;
-    Expr factor = dom_map.at(s->inner)->extent;
-    Expr v_outer  = value / factor;
-    Expr v_inner  = value % factor;
-    if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
-    if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
-    *outer = IntSet::single_point(v_outer);
-    *inner = IntSet::single_point(v_inner);
-  } else {
-    LOG(WARNING) << "use fallback inference rule in fuse";
-    // simply use the entire set, this rule can be enhanced.
-    *outer = IntSet::range(dom_map.at(s->outer));
-    *inner = IntSet::range(dom_map.at(s->inner));
-    return;
-  }
-}
-
-
-void PassUp(const RebaseNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& rebased,
-            IntSet* parent) {
-  CHECK(dom_map.count(s->parent));
-  if (MatchRange(rebased, dom_map.at(s->rebased))) {
-    *parent = IntSet::range(dom_map.at(s->parent));
-    return;
-  }
-  Expr parent_min = dom_map.at(s->parent)->min;
-  *parent = Combine<Add>(rebased, IntSet::single_point(parent_min));
-}
-
 // Evaluator to evalute the epxression.
 class IntSetEvaluator {
  public:
@@ -527,5 +455,5 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 
-}  // namespace schedule
+}  // namespace arith
 }  // namespace tvm

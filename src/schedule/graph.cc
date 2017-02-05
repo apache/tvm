@@ -6,7 +6,6 @@
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <unordered_set>
-#include "./int_set.h"
 #include "./graph.h"
 
 namespace tvm {

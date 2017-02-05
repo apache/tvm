@@ -3,14 +3,14 @@
  * \file int_set.h
  * \brief Abstraction for all integer set operations.
  */
-#ifndef TVM_SCHEDULE_INT_SET_H_
-#define TVM_SCHEDULE_INT_SET_H_
+#ifndef TVM_ARITHMETIC_INT_SET_H_
+#define TVM_ARITHMETIC_INT_SET_H_
 
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
 
 namespace tvm {
-namespace schedule {
+namespace arith {
 
 // internal node container of int set.
 class IntSetNode;
@@ -44,6 +44,18 @@ class IntSet : public NodeRef {
   bool is_everything() const;
   /*! \return Whether the set is a single point */
   bool is_single_point() const;
+  /*!
+   * \brief The single point value, call only if is_single_point is true
+   * \return The point value.
+   */
+  Expr point_value() const;
+  /*!
+   * \brief Try to match IntSet with range r.
+   *
+   * \note It is guanrateed that IntSet::range(r).match_range(r) == true
+   * \return true if we can prove they are the same.
+   */
+  bool match_range(const Range& r) const;
   /*! \return Whether the set contains everything */
   static IntSet everything();
   /*!
@@ -89,59 +101,6 @@ IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
 
 /*!
- * \brief Conditional upward message passing.
- *
- * Get domain of parent, condition on domain of children.
- * Domain is represented as IntSet.
- *
- * \param s The Split relation node.
- * \param dom_map The old domain result from downward message passing.
- *    Contains the domain set if all the children are full set.
- * \param outer domain of outer iteration.
- * \param inner domain of inner iteration.
- * \param parent The result domain of parent.
- */
-void PassUp(const SplitNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& outer,
-            const IntSet& inner,
-            IntSet* parent);
-/*!
- * \brief Conditional upward message passing.
- *
- * Get domain of parent, condition on domain of children.
- * Domain is represented as IntSet.
- *
- * \param s The Fuse relation node.
- * \param dom_map The old domain result from downward message passing.
- *    Contains the domain set if all the children are full set.
- * \param fused domain of fused iteration.
- * \param outer The result domain of outer iteration.
- * \param inner The result domain of inner iteration.
- */
-void PassUp(const FuseNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& fused,
-            IntSet* outer,
-            IntSet* inner);
-
-/*!
- * \brief Conditional upward message passing.
- *
- * Get domain of parent, condition on domain of children.
- * Domain is represented as IntSet.
- *
- * \param s The Fuse relation node.
- * \param dom_map The old domain result from downward message passing.
- *    Contains the domain set if all the children are full set.
- * \param rebased domain of rebased iteration.
- * \param parent The result domain of parent iteration.
- */
-void PassUp(const RebaseNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& fused,
-            IntSet* parent);
-/*!
  * \brief Create an union set of all sets
  * \param sets The sets to be unioned
  * \return the set after union
@@ -153,7 +112,7 @@ inline const IntSetNode* IntSet::operator->() const {
   return static_cast<const IntSetNode*>(node_.get());
 }
 
-}  // namespace schedule
+}  // namespace arith
 }  // namespace tvm
 
-#endif  // TVM_SCHEDULE_INT_SET_H_
+#endif  // TVM_ARITHMETIC_INT_SET_H_

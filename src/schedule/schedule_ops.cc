@@ -9,13 +9,13 @@
 #include <tvm/schedule_pass.h>
 
 #include "../pass/ir_util.h"
-#include "./int_set.h"
+#include "../arithmetic/compute_expr.h"
 #include "./graph.h"
-#include "./compute_expr.h"
 
 namespace tvm {
 namespace schedule {
 
+using namespace arith;
 using namespace ir;
 
 /*!
@@ -230,6 +230,15 @@ MakeLoopNest(const Stage& sch,
   return nest;
 }
 
+Stmt Substitute(Stmt s,
+                const std::unordered_map<IterVar, Expr>& value_map) {
+  Map<Var, Expr> temp;
+  for (const auto& kv : value_map) {
+    temp.Set(kv.first->var, kv.second);
+  }
+  return ir::Substitute(s, temp);
+}
+
 Stmt MakeLoop(const Stage& s,
               const Map<IterVar, Range>& dom_map,
               Stmt provide,
@@ -243,7 +252,6 @@ Stmt MakeLoop(const Stage& s,
   PassUpBoundCheck(s, dom_map, &bound_state);
   auto nest = MakeLoopNest(s, dom_map, 0, false,
                            bound_state, {}, &value_map);
-
 
   provide = Substitute(provide, value_map);
   if (init.defined()) {
