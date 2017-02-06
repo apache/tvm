@@ -44,6 +44,8 @@ class IntSet : public NodeRef {
   bool is_everything() const;
   /*! \return Whether the set is a single point */
   bool is_single_point() const;
+  /*! \return Whether the set is proved to be bigger than 0 */
+  bool can_prove_positive() const;
   /*!
    * \brief The single point value, call only if is_single_point is true
    * \return The point value.
@@ -88,6 +90,8 @@ struct IntSetNode : public Node {
  */
 IntSet EvalSet(Expr e,
                const Map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(Expr e,
+               const std::unordered_map<const Variable*, IntSet>& dom_map);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over

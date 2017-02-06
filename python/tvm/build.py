@@ -17,7 +17,8 @@ def build(sch,
           target,
           name="default_function",
           binds=None,
-          record_codes=None):
+          record_codes=None,
+          max_auto_unroll_step=8):
     """Build a function with arguments as signiture.
 
     Parameters
@@ -37,6 +38,9 @@ def build(sch,
     binds : dict, optional
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
+
+    max_auto_unroll_step: int
+        Maximum step to perform automatic unrolling
 
     Returns
     -------
@@ -64,6 +68,8 @@ def build(sch,
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.StorageFlatten(stmt, binds)
+    stmt = ir_pass.CanonicalSimplify(stmt)
+    stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
     fapi = ir_pass.MakeAPI(stmt, name, arg_list, len(arg_list))
     fsplits = ir_pass.SplitHostDevice(fapi)

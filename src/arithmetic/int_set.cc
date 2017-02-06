@@ -94,6 +94,11 @@ bool IntSet::is_single_point() const {
   return (s_int && s_int->i.is_single_point());
 }
 
+bool IntSet::can_prove_positive() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && is_positive_const(ir::Simplify(s_int->i.min)));
+}
+
 Expr IntSet::point_value() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   CHECK(s_int && s_int->i.is_single_point());
@@ -358,6 +363,9 @@ inline IntSet Combine(const IntSet& a, const IntSet &b) {
 // Evaluator to evalute the epxression.
 class IntSetEvaluator {
  public:
+  explicit IntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
+      : dom_map(dom_map) {}
+
   inline IntSet Eval(Expr expr) {
     static const FType& f = vtable();
     if (f.can_dispatch(expr)) {
@@ -373,7 +381,7 @@ class IntSetEvaluator {
     static FType inst; return inst;
   }
 
-  std::unordered_map<const Variable*, IntSet> dom_map;
+  const std::unordered_map<const Variable*, IntSet>& dom_map;
 };
 
 inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator*) {
@@ -424,21 +432,29 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<And>(Binary<And>)
 .set_dispatch<Or>(Binary<Or>);
 
+
+IntSet EvalSet(Expr e,
+               const std::unordered_map<const Variable*, IntSet>& dom_map) {
+  return IntSetEvaluator(dom_map).Eval(e);
+}
+
 IntSet EvalSet(Expr e,
                const Map<IterVar, IntSet>& dom_map) {
-  IntSetEvaluator m;
+  std::unordered_map<const Variable*, IntSet> dmap;
   for (auto kv : dom_map) {
-    m.dom_map[kv.first->var.as<Variable>()] = kv.second;
+    dmap[kv.first->var.as<Variable>()] = kv.second;
   }
+  IntSetEvaluator m(dmap);
   return m.Eval(e);
 }
 
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map) {
-  IntSetEvaluator m;
+  std::unordered_map<const Variable*, IntSet> dmap;
   for (auto kv : dom_map) {
-    m.dom_map[kv.first->var.as<Variable>()] = kv.second;
+    dmap[kv.first->var.as<Variable>()] = kv.second;
   }
+  IntSetEvaluator m(dmap);
   IntSet min_set = m.Eval(r->min);
   IntSet ext_set = m.Eval(r->extent).cover_interval();
   const Interval& ei = ext_set.as<IntervalSet>()->i;

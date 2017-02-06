@@ -3,9 +3,9 @@ import numpy as np
 
 def test_gemm():
     # graph
-    nn = 1235
+    nn = 1024
     n = tvm.Var('n')
-    #n = tvm.convert(nn)
+    n = tvm.convert(nn)
     m = n
     l = n
     A = tvm.placeholder((n, l), name='A')
@@ -52,12 +52,14 @@ def test_gemm():
     _, xi = s[BB].split(s[BB].op.axis[0], outer=thread_y)
     _, xi = s[BB].split(xi, outer=thread_x)
 
+    max_auto_unroll_step = 0
     # lowering test
     s.normalize()
 
     def check_device(target):
         codes = []
-        f = tvm.build(s, [A, B, C], target, record_codes=codes)
+        f = tvm.build(s, [A, B, C], target, record_codes=codes,
+                      max_auto_unroll_step=max_auto_unroll_step)
         for c in codes[1:]:
             print(c)
         if target == "cuda":
