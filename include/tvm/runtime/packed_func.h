@@ -112,6 +112,12 @@ class PackedFunc {
    */
   static const PackedFunc& GetGlobal(const std::string& name);
   /*!
+   * \brief Whether the global function exist
+   * \param name The name of the function.
+   * \return Whetehr the global function exist.
+   */
+  static bool GlobalExist(const std::string& name);
+  /*!
    * \brief Get the names of currently registered global function.
    */
   static std::vector<std::string> ListGlobalNames();
@@ -267,9 +273,13 @@ class TVMArgValue : public TVMPODValue_ {
   operator std::string() const {
     if (type_code_ == kTVMType) {
       return TVMType2String(operator TVMType());
+    } else if (type_code_ == kBytes) {
+      TVMByteArray* arr = static_cast<TVMByteArray*>(value_.v_handle);
+      return std::string(arr->data, arr->size);
+    } else {
+      TVM_CHECK_TYPE_CODE(type_code_, kStr);
+      return std::string(value_.v_str);
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kStr);
-    return std::string(value_.v_str);
   }
   operator TVMType() const {
     if (type_code_ == kStr) {
@@ -452,7 +462,8 @@ class TVMRetValue : public TVMPODValue_ {
   template<typename T>
   void Assign(const T& other) {
     switch (other.type_code()) {
-      case kStr: {
+      case kStr:
+      case kBytes: {
         SwitchToClass<std::string>(kStr, other);
         break;
       }

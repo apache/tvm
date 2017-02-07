@@ -35,9 +35,17 @@ def test_convert():
     assert isinstance(f, tvm.nd.Function)
     f(*targs)
 
+def test_byte_array():
+    s = "hello"
+    a = bytearray(s, encoding="ascii")
+
+    def myfunc(ss):
+        assert ss == a
+    f = tvm.convert(myfunc)
+    f(a)
 
 if __name__ == "__main__":
-    test_function()
     test_convert()
     test_get_global()
     test_return_func()
+    test_byte_array()

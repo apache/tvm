@@ -1,5 +1,17 @@
 import tvm
+from tvm.addon import nvcc_compiler
 import numpy as np
+
+@tvm.register_func
+def tvm_callback_cuda_compile(code):
+    ptx =  nvcc_compiler.compile_source(code, target="ptx")
+    print(ptx.decode("utf-8"))
+    return ptx
+
+@tvm.register_func
+def tvm_callback_cuda_postproc(code):
+    print(code)
+    return code
 
 def test_gemm():
     # graph
@@ -23,7 +35,6 @@ def test_gemm():
     s = tvm.Schedule(C.op)
     xtile, ytile = 32, 32
     s[AA].set_scope("shared")
-    #s[CC].set_scope("global")
     s[BB].set_scope("shared")
 
     scale = 8
@@ -60,8 +71,6 @@ def test_gemm():
         codes = []
         f = tvm.build(s, [A, B, C], target, record_codes=codes,
                       max_auto_unroll_step=max_auto_unroll_step)
-        for c in codes[1:]:
-            print(c)
         if target == "cuda":
             ctx = tvm.gpu(0)
         else:
@@ -77,13 +86,14 @@ def test_gemm():
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
-        f(a, b, c)
+        for i in range(4):
+            f(a, b, c)
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
-    tvm.init_opencl()
     check_device("cuda")
-    check_device("opencl")
+    #tvm.init_opencl()
+    #check_device("opencl")
 
 if __name__ == "__main__":
     test_gemm()

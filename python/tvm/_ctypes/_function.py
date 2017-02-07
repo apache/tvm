@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access
+# pylint: disable=invalid-name, protected-access, too-many-branches
 """Symbolic configuration API."""
 from __future__ import absolute_import
 
@@ -9,7 +9,7 @@ from numbers import Number, Integral
 
 from .._base import _LIB, check_call
 from .._base import c_str, py_str, string_types
-from ._types import TVMValue, TypeCode, TVMType
+from ._types import TVMValue, TypeCode, TVMType, TVMByteArray
 from ._types import TVMPackedCFunc, TVMCFuncFinalizer
 from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH
 from ._node import NodeBase, SliceBase, convert_to_node
@@ -92,6 +92,15 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, TVMType):
             values[i].v_str = c_str(str(arg))
             type_codes[i] = TypeCode.STR
+        elif isinstance(arg, bytearray):
+            arr = TVMByteArray()
+            arr.data = ctypes.cast(
+                (ctypes.c_byte * len(arg)).from_buffer(arg),
+                ctypes.POINTER(ctypes.c_byte))
+            arr.size = len(arg)
+            values[i].v_handle = ctypes.c_void_p(ctypes.addressof(arr))
+            temp_args.append(arr)
+            type_codes[i] = TypeCode.BYTES
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
             type_codes[i] = TypeCode.STR

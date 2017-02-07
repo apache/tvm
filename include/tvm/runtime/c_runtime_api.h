@@ -51,8 +51,9 @@ typedef enum {
   kArrayHandle = 5U,
   kTVMType = 6U,
   kNodeHandle = 7U,
-  kStr = 8U,
-  kFuncHandle = 9U
+  kFuncHandle = 8U,
+  kStr = 9U,
+  kBytes = 10U
 } TVMTypeCode;
 
 /*!
@@ -85,6 +86,15 @@ typedef union {
   const char* v_str;
   TVMType v_type;
 } TVMValue;
+
+/*!
+ * \brief Byte array type used to pass in byte array
+ *  When kBytes is used as data type.
+ */
+typedef struct {
+  const char* data;
+  size_t size;
+} TVMByteArray;
 
 /*!
  * \brief The device type
