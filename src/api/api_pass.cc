@@ -59,6 +59,7 @@ TVM_REGISTER_API(_pass_PostOrderVisit)
 
 REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
+REGISTER_PASS1(CanonicalSimplify);
 REGISTER_PASS4(Inline);
 REGISTER_PASS2(StorageFlatten);
 REGISTER_PASS2(UnrollLoop);

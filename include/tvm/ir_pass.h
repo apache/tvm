@@ -63,6 +63,13 @@ bool HasSideEffect(const Expr& e);
 Stmt ConvertSSA(Stmt stmt);
 
 /*!
+ * \brief Simplify by applying canonical form.
+ * \param stmt The statement to be canonically simplifed.
+ * \return Canonicalized statement.
+ */
+Stmt CanonicalSimplify(Stmt stmt);
+
+/*!
  * \brief Substitute the var specified in key->var to be value.
  * \param stmt The source statement to be substituted
  * \param value_map The map of new values.
