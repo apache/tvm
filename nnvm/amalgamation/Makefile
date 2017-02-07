@@ -1,6 +1,12 @@
 export NNVM_ROOT=`pwd`/..
 export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
 
+ifdef DMLC_CORE_PATH
+  CFLAGS += -I$(DMLC_CORE_PATH)/include
+else
+  CFLAGS += -I$(CURDIR)/../dmlc-core/include
+endif
+
 .PHONY: all clean
 
 all: libnnvm.a
