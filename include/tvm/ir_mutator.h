@@ -62,6 +62,7 @@ class IRMutator {
   virtual Stmt Mutate_(const Realize* op, const Stmt& s);
   virtual Stmt Mutate_(const Store* op, const Stmt& s);
   virtual Stmt Mutate_(const Free* op, const Stmt& s);
+  virtual Stmt Mutate_(const IfThenElse* op, const Stmt& s);
   virtual Expr Mutate_(const Call* op, const Expr& e);
   virtual Expr Mutate_(const Load* op, const Expr& s);
   virtual Expr Mutate_(const Variable* op, const Expr& e);

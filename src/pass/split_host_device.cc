@@ -101,9 +101,14 @@ class IRUseDefAnalysis : public IRMutator {
   }
 
   void HandleDef(const Variable* v) {
+    CHECK(!def_count_.count(v))
+        << "variable " << v->name_hint
+        << " has already been defined, the Stmt is not SSA";
     CHECK(!use_count_.count(v))
-        << "variable is already defined";
+        << "variable " << v->name_hint
+        << " has been used before definition!";
     use_count_[v] = 0;
+    def_count_[v] = 1;
   }
 
   void HandleUse(const Expr& v) {
@@ -127,6 +132,7 @@ class IRUseDefAnalysis : public IRMutator {
   Array<IterVar> thread_axis_;
   Array<Expr> thread_extent_;
   std::unordered_map<const Variable*, int> use_count_;
+  std::unordered_map<const Variable*, int> def_count_;
 };
 
 class HostDeviceSplitter : public IRMutator {

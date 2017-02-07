@@ -18,6 +18,8 @@ class StageNode;
 class ScheduleNode;
 // Node container for IterVarRelation
 class IterVarRelationNode;
+// Attribute of itervar.
+class IterVarAttrNode;
 
 /*! \brief the attachment type */
 enum AttachType : int {
@@ -25,6 +27,12 @@ enum AttachType : int {
   kRoot = 1,
   kInline = 2,
   kScope = 3
+};
+
+/*! \brief IterVar type */
+enum IterVarType : int {
+  kUnrolled = 1,
+  kVectorized = 2
 };
 
 /*! \brief Stage, contains scheduling for a stage of computation. */
@@ -124,11 +132,22 @@ class Stage : public NodeRef {
               IterVar* p_x_inner, IterVar* p_y_inner,
               Expr x_factor, Expr y_factor);
   /*!
+   * \brief Vectorize iteration.
+   * \param var The axis to be vectorized.
+   * \return reference to self.
+   */
+  Stage& vectorize(IterVar var);   // NOLINT(*)
+  /*!
+   * \brief Unroll iteration.
+   * \param var The axis to be vectorized.
+   * \return reference to self.
+   */
+  Stage& unroll(IterVar var);   // NOLINT(*)
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
   inline bool is_scheduled() const;
-
   // declare container type
   using ContainerType = StageNode;
 };
@@ -193,6 +212,21 @@ class IterVarRelation : public NodeRef {
   inline const IterVarRelationNode* operator->() const;
 };
 
+/*!
+ * \brief Additional scheduable attributes about IterVar.
+ */
+class IterVarAttr : public NodeRef {
+ public:
+  IterVarAttr() {}
+  explicit IterVarAttr(IterVarType t);
+  explicit IterVarAttr(std::shared_ptr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const IterVarAttrNode* operator->() const;
+};
+
 // defintion of node containers
 /*!
  * \brief represents the schedule of the tensor
@@ -223,6 +257,8 @@ class StageNode : public Node {
   Array<IterVar> leaf_iter_vars;
   /*! \brief The relation bwteen of IterVars */
   Array<IterVarRelation> relations;
+  /*! \brief additional attributes about iter var. */
+  Map<IterVar, IterVarAttr> iter_var_attrs;
   /*! \brief The attachment type of the schedule */
   AttachType attach_type{kNone};
   /*! \brief The attach point of this schedule. */
@@ -236,6 +272,7 @@ class StageNode : public Node {
     v->Visit("all_iter_vars", &all_iter_vars);
     v->Visit("leaf_iter_vars", &leaf_iter_vars);
     v->Visit("relations", &relations);
+    v->Visit("iter_var_attrs", &iter_var_attrs);
     v->Visit("attach_type", &attach_type);
     v->Visit("attach_ivar", &attach_ivar);
     v->Visit("attach_stage", &attach_stage);
@@ -266,6 +303,20 @@ class ScheduleNode : public Node {
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode);
+};
+
+/*! \brief node container for IterVar attr */
+class IterVarAttrNode : public Node {
+ public:
+  /*! \brief The iteration type. */
+  IterVarType iter_type;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("iter_type", &iter_type);
+  }
+
+  static constexpr const char* _type_key = "IterVarAttr";
+  TVM_DECLARE_NODE_TYPE_INFO(IterVarAttrNode);
 };
 
 /*! \brief base node of iteration var */
@@ -370,6 +421,10 @@ inline const ScheduleNode* Schedule::operator->() const {
 
 inline const IterVarRelationNode* IterVarRelation::operator->() const {
   return static_cast<const IterVarRelationNode*>(node_.get());
+}
+
+inline const IterVarAttrNode* IterVarAttr::operator->() const {
+  return static_cast<const IterVarAttrNode*>(node_.get());
 }
 
 }  // namespace tvm

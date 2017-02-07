@@ -102,6 +102,20 @@ class CodeGenC {
   virtual void PrintExpr(const ir::Ramp* op, std::ostream& os);  // NOLINT(*)
   virtual void PrintExpr(const ir::Broadcast* op, std::ostream& os);  // NOLINT(*)
   virtual void PrintExpr(const ir::Select* op, std::ostream& os);  // NOLINT(*)
+  // Binary vector op.
+  virtual void PrintVecBinaryOp(
+      const std::string&op, Type op_type,
+      Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
+  virtual void PrintVecLoad(const Variable* buffer,
+                            Type t, Expr base,
+                            std::ostream& os);  // NOLINT(*)
+  virtual void PrintVecStore(const Variable* buffer,
+                             Type t, Expr base,
+                             const std::string& value);  // NOLINT(*)
+  virtual void PrintVecElemLoad(
+      const std::string& vec, Type t, int i, std::ostream& os);  // NOLINT(*)
+  virtual void PrintVecElemStore(
+      const std::string& vec, Type t, int i, const std::string& value);
   /*! \brief function print into the ostream */
   using FPrintExpr = IRFunctor<void(const NodeRef&, std::ostream& os, CodeGenC *)>; // NOLINT(*)
   /*! \brief function to to print normal code */
@@ -116,17 +130,10 @@ class CodeGenC {
   std::ostringstream stream;
 
  protected:
-  // additional string for arg addr_space.
-  std::string arg_addr_space_;
-
- private:
-  /*! \brief entry in ssa assign map */
-  struct SSAEntry {
-    /*! \brief The value id */
-    std::string vid;
-    /*! \brief The scope id */
-    int scope_id;
-  };
+  // print reference to a buffer as type t in index.
+  void PrintBufferRef(const Variable* buffer,
+                      Type t, Expr index,
+                      std::ostream& os);  // NOLINT(*)
   /*!
    * \brief Get the SSA ID corresponds to src
    *  If necessary, generate new assignment
@@ -134,6 +141,19 @@ class CodeGenC {
    * \param t The type of the expression.
    */
   std::string SSAGetID(std::string src, Type t);
+  /*!
+   * \brief get a unique name with the corresponding prefix
+   * \param prefix The prefix of the name
+   * \return The returned name.
+   */
+  std::string GetUniqueName(std::string prefix);
+  /*! \brief entry in ssa assign map */
+  struct SSAEntry {
+    /*! \brief The value id */
+    std::string vid;
+    /*! \brief The scope id */
+    int scope_id;
+  };
   /*!
    * \brief mark the beginning of a new scope
    * \return The scope id.
@@ -155,25 +175,28 @@ class CodeGenC {
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  void HandleTypeRegister(const Variable* buf_var, Type t);
+  void RegisterHandleType(const Variable* buf_var, Type t);
   /*!
-   * \brief get a unique name with the corresponding prefix
-   * \param prefix The prefix of the name
-   * \return The returned name.
+   * \brief Get the storage scope of buf_var.
+   * \param buf_var The buf_var to be queryed.
+   * \return The storage scope.
    */
-  std::string GetUniqueName(std::string prefix);
-  /*! \brief whether to print in SSA form */
-  bool print_ssa_form_{true};
-  /*! \brief name of each variable */
-  std::unordered_map<const Variable*, std::string> var_idmap_;
-  /*! \brief the data type of allocated buffers */
-  std::unordered_map<const Variable*, Type> handle_data_type_;
+  std::string GetStorageScope(const Variable* buf_var) const;
+
   /*! \brief the storage scope of allocation */
   std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
+
+ private:
+  /*! \brief whether to print in SSA form */
+  bool print_ssa_form_{true};
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief assignment map of ssa */
   std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
+  /*! \brief name of each variable */
+  std::unordered_map<const Variable*, std::string> var_idmap_;
+  /*! \brief the data type of allocated buffers */
+  std::unordered_map<const Variable*, Type> handle_data_type_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
 };

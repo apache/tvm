@@ -69,6 +69,7 @@ def build(sch,
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.CanonicalSimplify(stmt)
+    stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
     fapi = ir_pass.MakeAPI(stmt, name, arg_list, len(arg_list))

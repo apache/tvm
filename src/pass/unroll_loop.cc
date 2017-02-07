@@ -1,7 +1,7 @@
 /*!
- *  Copyright (c) 2016 by Contributors
- *  SSA related checks and pass.
- * \file ssa.cc
+ *  Copyright (c) 2017 by Contributors
+ *  Loop unrolling.
+ * \file unroll_loop.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include "../arithmetic//compute_expr.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace ir {
@@ -33,7 +33,8 @@ class LoopUnroller : public IRMutator {
     if (v2 != nullptr) {
       value = static_cast<int>(v2->value);
     }
-    bool allow_unroll = value >= 0 && value <= max_auto_step_;
+    bool allow_unroll = (op->for_type == ForType::Serial &&
+                         value >= 0 && value <= max_auto_step_);
     if (op->for_type == ForType::Unrolled) {
       CHECK_GE(value, 0)
           << "Cannot unroll non-constant loop";

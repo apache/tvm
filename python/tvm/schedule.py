@@ -177,3 +177,23 @@ class Stage(NodeBase):
         x_outer, y_outer, x_inner, y_inner = _api_internal._StageTile(
             self, x_parent, y_parent, x_factor, y_factor)
         return x_outer, y_outer, x_inner, y_inner
+
+    def vectorize(self, var):
+        """Vectorize the iteration.
+
+        Parameters
+        ----------
+        var : IterVar
+            The iteration to be vectorize
+        """
+        _api_internal._StageVectorize(self, var)
+
+    def unroll(self, var):
+        """Unroll the iteration.
+
+        Parameters
+        ----------
+        var : IterVar
+            The iteration to be unrolled.
+        """
+        _api_internal._StageUnroll(self, var)
