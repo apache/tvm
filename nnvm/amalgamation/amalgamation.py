@@ -7,7 +7,7 @@ blacklist = [
     'malloc.h',
     'glog/logging.h', 'io/azure_filesys.h', 'io/hdfs_filesys.h', 'io/s3_filesys.h',
     'sys/stat.h', 'sys/types.h',
-    'omp.h'
+    'omp.h', 'execinfo.h', 'packet/sse-inl.h'
     ]
 
 
