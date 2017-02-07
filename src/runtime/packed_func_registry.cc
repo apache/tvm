@@ -46,6 +46,12 @@ const PackedFunc& PackedFunc::GetGlobal(const std::string& name) {
   return *(it->second);
 }
 
+bool PackedFunc::GlobalExist(const std::string& name) {
+  PackedFuncRegistry* r = PackedFuncRegistry::Global();
+  auto it = r->fmap.find(name);
+  return it != r->fmap.end();
+}
+
 std::vector<std::string> PackedFunc::ListGlobalNames() {
   PackedFuncRegistry* r = PackedFuncRegistry::Global();
   std::vector<std::string> keys;

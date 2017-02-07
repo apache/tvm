@@ -18,8 +18,9 @@ class TypeCode(object):
     ARRAY_HANDLE = 5
     TVM_TYPE = 6
     NODE_HANDLE = 7
-    STR = 8
-    FUNC_HANDLE = 9
+    FUNC_HANDLE = 8
+    STR = 9
+    BYTES = 10
 
 def _api_type(code):
     """create a type accepted by API"""
@@ -88,6 +89,11 @@ class TVMValue(ctypes.Union):
                 ("v_handle", ctypes.c_void_p),
                 ("v_str", ctypes.c_char_p)]
 
+class TVMByteArray(ctypes.Structure):
+    """TVM datatype structure"""
+    _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)),
+                ("size", ctypes.c_size_t)]
+
 
 TVMPackedCFunc = ctypes.CFUNCTYPE(
     None,
@@ -110,20 +116,34 @@ def _return_handle(x):
         handle = ctypes.c_void_p(handle)
     return handle
 
+def _return_bytes(x):
+    """return handle"""
+    handle = x.v_handle
+    if not isinstance(handle, ctypes.c_void_p):
+        handle = ctypes.c_void_p(handle)
+    arr = ctypes.cast(handle, ctypes.POINTER(TVMByteArray))[0]
+    size = arr.size
+    res = bytearray(size)
+    rptr = (ctypes.c_byte * size).from_buffer(res)
+    if not ctypes.memmove(rptr, arr.data, size):
+        raise RuntimeError('memmove failed')
+    return res
+
 
 RETURN_SWITCH = {
     TypeCode.INT: lambda x: x.v_int64,
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
-    TypeCode.STR: lambda x: py_str(x.v_str)
+    TypeCode.STR: lambda x: py_str(x.v_str),
+    TypeCode.BYTES: _return_bytes
 }
-
 
 C_TO_PY_ARG_SWITCH = {
     TypeCode.INT: lambda x: x.v_int64,
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
-    TypeCode.STR: lambda x: py_str(x.v_str)
+    TypeCode.STR: lambda x: py_str(x.v_str),
+    TypeCode.BYTES: _return_bytes
 }

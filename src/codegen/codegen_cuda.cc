@@ -50,7 +50,19 @@ MakeNVRTC(Array<LoweredFunc> funcs) {
     os << CodeGenCUDA().Compile(f, output_ssa);
     os << '\n';
   }
-  std::string ptx = runtime::NVRTCCompile(os.str());
+  std::string code = os.str();
+
+  if (PackedFunc::GlobalExist("tvm_callback_cuda_postproc")) {
+    const auto& f = PackedFunc::GetGlobal("tvm_callback_cuda_postproc");
+    code = f(code).operator std::string();
+  }
+  std::string ptx;
+  if (PackedFunc::GlobalExist("tvm_callback_cuda_compile")) {
+    const auto& f = PackedFunc::GetGlobal("tvm_callback_cuda_compile");
+    ptx = f(code).operator std::string();
+  } else {
+    ptx = runtime::NVRTCCompile(os.str());
+  }
   std::unordered_map<LoweredFunc, PackedFunc> ret;
 
   runtime::CUDAModule m = runtime::CUDAModule::Create(ptx);

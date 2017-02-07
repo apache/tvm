@@ -158,7 +158,8 @@ class Canonical::Internal : public IRMutator {
   }
   // functions
   Stmt Mutate(Stmt stmt) final {
-    return IRMutator::Mutate(stmt);
+    stmt = IRMutator::Mutate(stmt);
+    return stmt;
   }
   Expr MutateExpr_(Expr expr) {
     static const FMutateExpr& f = Internal::vtable_expr();
@@ -176,6 +177,7 @@ class Canonical::Internal : public IRMutator {
     ret_entry_.has_side_effect = stack_.back().has_side_effect;
     ret_entry_.max_level = stack_.back().max_level;
     stack_.pop_back();
+    CHECK(expr.defined());
     return expr;
   }
   // call produce to get a cache entry.
@@ -399,6 +401,7 @@ class Canonical::Internal : public IRMutator {
   // subroutine to do produce
   Expr SumAdd(CacheEntry a, CacheEntry b, int bscale) {
     ret_entry_.sum = SumAdd_(a.AsSum(), b.AsSum(), bscale);
+    CHECK_NE(stack_.size(), 0U);
     ret_entry_.max_level = stack_.back().max_level;
     ret_entry_.has_side_effect = stack_.back().has_side_effect;
     auto it = cache_sum_.find(ret_entry_.sum);
@@ -408,8 +411,6 @@ class Canonical::Internal : public IRMutator {
       ret_entry_.value = Sum2Expr(ret_entry_.sum, a.value.type());
       cache_sum_[ret_entry_.sum] = ret_entry_;
     }
-    ret_entry_.value = Sum2Expr(ret_entry_.sum, a.value.type());
-    cache_sum_[ret_entry_.sum] = ret_entry_;
     return ret_entry_.value;
   }
   // convert sum to expr
@@ -444,7 +445,11 @@ class Canonical::Internal : public IRMutator {
         }
       }
     }
-    return vsum;
+    if (vsum.defined()) {
+      return vsum;
+    } else {
+      return make_zero(t);
+    }
   }
 };
 
