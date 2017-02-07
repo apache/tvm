@@ -1,5 +1,5 @@
 export NNVM_ROOT=`pwd`/..
-export CFLAGS = -std=c++11 -Wall -O3 -msse2 -Wno-unknown-pragmas -funroll-loops -Iinclude -fPIC
+export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
 
 .PHONY: all clean
 
