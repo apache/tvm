@@ -100,6 +100,7 @@ Stmt Inline(Stmt stmt,
  * \param stmt The stmt to be trasnformed.
  * \param extern_buffer Map specifies external
  *    buffer assignment of input and outputs.
+ * \return Transformed stmt.
  */
 Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer);
@@ -108,14 +109,33 @@ Stmt StorageFlatten(Stmt stmt,
  * \brief unroll the constant loops
  * \param stmt The statment to be unrolled.
  * \param max_auto_step The maximum step to stop performing automatic unrolling.
+ * \return Transformed stmt.
  */
 Stmt UnrollLoop(Stmt stmt, int max_auto_step);
 
 /*!
  * \brief vectorize the constant loops
  * \param stmt The statment to be vectorized.
+ * \return Transformed stmt.
  */
 Stmt VectorizeLoop(Stmt stmt);
+
+/*!
+ * \brief Inject virtual thread loops into stmt.
+ * \param stmt The statment to be transformed.
+ * \return Transformed stmt.
+ */
+Stmt InjectVirtualThread(Stmt stmt);
+
+/*!
+ * \brief Lift storage allocation to relevant outpost location
+ *
+ *  Only do this after vectorization and virtual thread injection completes.
+ *
+ * \param stmt The stmt to be trasnformed
+ * \return Transformed stmt.
+ */
+Stmt LiftAllocate(Stmt stmt);
 
 /*!
  * \brief Make an user callable API LoweredFunc.

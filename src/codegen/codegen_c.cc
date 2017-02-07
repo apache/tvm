@@ -743,7 +743,7 @@ void CodeGenC::PrintStmt(const Allocate* op) {
 }
 
 void CodeGenC::PrintStmt(const AttrStmt* op) {
-  if (op->type_key == "scope") {
+  if (op->type_key == ir::attr::thread_extent) {
     IterVar iv(op->node.node_);
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
@@ -756,7 +756,7 @@ void CodeGenC::PrintStmt(const AttrStmt* op) {
         stream << ";\n";
       }
     }
-  } else if (op->type_key == "storage_scope") {
+  } else if (op->type_key == ir::attr::storage_scope) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
