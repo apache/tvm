@@ -57,7 +57,7 @@ MakeOpenCL(Array<LoweredFunc> funcs) {
   std::ostringstream os;
   os << "typedef int int32_t;\n"
      << "typedef unsigned unt32_t;\n";
-  bool output_ssa = true;
+  bool output_ssa = false;
   for (LoweredFunc f : funcs) {
     os << CodeGenOpenCL().Compile(f, output_ssa);
     os << '\n';
