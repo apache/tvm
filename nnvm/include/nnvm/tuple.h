@@ -31,9 +31,6 @@ typedef uint32_t index_t;
 template<typename ValueType>
 class Tuple {
  public:
-  // Tuple requires the content to be simple data type.
-  static_assert(std::is_pod<ValueType>::value,
-                "Tuple only support simple data type like int");
   /*! \brief default constructor */
   Tuple() = default;
   /*! \brief destructor */
