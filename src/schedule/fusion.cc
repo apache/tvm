@@ -56,7 +56,11 @@ bool IsEwise(Expr e, std::vector<Expr> axis) {
 
 namespace schedule {
 
-Schedule Fusion(Schedule sch) {
+static bool is_stage_scheduled(const Stage& s) {
+  return !(s->relations.empty() && s->attach_type == kNone);
+}
+
+void AutoFuseEwise(Schedule sch) {
   auto g = schedule::CreateReadGraph(sch->roots);
   Array<Operation> post_order = schedule::PostDFSOrder(sch->roots, g);
   for (Operation op : post_order) {
@@ -65,7 +69,7 @@ Schedule Fusion(Schedule sch) {
       for (const auto& iter : compute->axis) {
         axis.push_back(iter->var);
       }
-      if (ir::IsEwise(compute->body, axis)) {
+      if (!is_stage_scheduled(sch[op]) && ir::IsEwise(compute->body, axis)) {
         bool is_root = false;
         for (auto r : sch->roots) {
           if (r == op) {
@@ -78,7 +82,6 @@ Schedule Fusion(Schedule sch) {
       }
     }
   }
-  return sch;
 }
 
 }  // namespace schedule

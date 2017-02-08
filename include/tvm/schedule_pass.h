@@ -33,7 +33,7 @@ Map<IterVar, Range> InferBound(Schedule sch);
  */
 Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
 
-Schedule Fusion(Schedule sch);
+void AutoFuseEwise(Schedule sch);
 
 }  // namespace schedule
 }  // namespace tvm

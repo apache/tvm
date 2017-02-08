@@ -13,6 +13,11 @@
 namespace tvm {
 namespace schedule {
 
+TVM_REGISTER_API(_schedule_AutoFuseEwise)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    AutoFuseEwise(args[0]);
+  });
+
 #define REGISTER_SCHEDULE_PASS1(PassName)                         \
   TVM_REGISTER_API(_schedule_## PassName)                         \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
@@ -28,7 +33,6 @@ namespace schedule {
 
 REGISTER_SCHEDULE_PASS1(InferBound);
 REGISTER_SCHEDULE_PASS1(CreateReadGraph);
-REGISTER_SCHEDULE_PASS1(Fusion);
 REGISTER_SCHEDULE_PASS2(PostDFSOrder);
 REGISTER_SCHEDULE_PASS2(ScheduleOps);
 

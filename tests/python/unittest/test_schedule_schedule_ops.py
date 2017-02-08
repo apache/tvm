@@ -52,9 +52,9 @@ def test_fusion():
   T2 = tvm.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name='T2')
 
   s = tvm.Schedule(T2.op)
-  fs = tvm.schedule.Fusion(s)
-  bounds = tvm.schedule.InferBound(fs)
-  stmt = tvm.schedule.ScheduleOps(fs, bounds)
+  tvm.schedule.AutoFuseEwise(s)
+  bounds = tvm.schedule.InferBound(s)
+  stmt = tvm.schedule.ScheduleOps(s, bounds)
   print(stmt)
 
 
