@@ -167,7 +167,6 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
  */
 LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
 
-
 }  // namespace ir
 }  // namespace tvm
 

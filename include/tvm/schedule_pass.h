@@ -33,6 +33,13 @@ Map<IterVar, Range> InferBound(Schedule sch);
  */
 Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
 
+/*!
+ * \brief To automatically inline the element-wise operations.
+ *
+ * \param sch The schedule to be inlined.
+ */
+void AutoInlineElemWise(Schedule sch);
+
 }  // namespace schedule
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_PASS_H_

@@ -135,7 +135,7 @@ class Stage(NodeBase):
         parent : Stage
             The parent stage
         """
-        _api_internal._StageComputeInline(self)
+        _api_internal._StageComputeRoot(self)
 
     def reorder(self, *args):
         """reorder the arguments in the specified order.

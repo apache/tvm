@@ -123,6 +123,12 @@ class Stage : public NodeRef {
               IterVar* p_x_outer, IterVar* p_y_outer,
               IterVar* p_x_inner, IterVar* p_y_inner,
               Expr x_factor, Expr y_factor);
+  /*!
+   * \brief whether the stage has been scheduled.
+   * \return whether the stage has been scheduled.
+   */
+  inline bool is_scheduled() const;
+
   // declare container type
   using ContainerType = StageNode;
 };
@@ -351,6 +357,11 @@ inline const StageNode* Stage::operator->() const {
 }
 inline StageNode* Stage::operator->() {
   return static_cast<StageNode*>(node_.get());
+}
+
+inline bool Stage::is_scheduled() const {
+  const StageNode* n = operator->();
+  return !(n->relations.empty() && n->attach_type == kNone);
 }
 
 inline const ScheduleNode* Schedule::operator->() const {

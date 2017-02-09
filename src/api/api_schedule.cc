@@ -13,6 +13,11 @@
 namespace tvm {
 namespace schedule {
 
+TVM_REGISTER_API(_schedule_AutoInlineElemWise)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    AutoInlineElemWise(args[0]);
+  });
+
 #define REGISTER_SCHEDULE_PASS1(PassName)                         \
   TVM_REGISTER_API(_schedule_## PassName)                         \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \

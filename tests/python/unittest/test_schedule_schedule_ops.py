@@ -42,8 +42,24 @@ def test_schedule2():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     print(stmt)
 
+def test_auto_inline():
+  m = tvm.Var('m')
+  n = tvm.Var('n')
+  A = tvm.placeholder((m, n), name='A')
+  B = tvm.placeholder((m, n), name='B')
+  C = tvm.placeholder((m, n), name='C')
+  T1 = tvm.compute((m, n), lambda i, j:  A(i, j) * B(i, j), name='T1')
+  T2 = tvm.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name='T2')
+
+  s = tvm.Schedule(T2.op)
+  tvm.schedule.AutoInlineElemWise(s)
+  bounds = tvm.schedule.InferBound(s)
+  stmt = tvm.schedule.ScheduleOps(s, bounds)
+  print(stmt)
+
 
 if __name__ == "__main__":
     test_schedule0()
     test_schedule1()
     test_schedule2()
+    test_auto_inline()
