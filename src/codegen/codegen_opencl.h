@@ -30,6 +30,16 @@ class CodeGenOpenCL : public CodeGenC {
       std::string tag, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const std::string& scope) final;  // NOLINT(*)
+  void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
+  void PrintVecLoad(const Variable* buffer,
+                    Type t, Expr base,
+                    std::ostream& os) final;  // NOLINT(*)
+  void PrintVecStore(const Variable* buffer,
+                      Type t, Expr base,
+                      const std::string& value) final;  // NOLINT(*)
+  // the address of load/store
+  void PrintVecAddr(const Variable* buffer, Type t,
+                    Expr base, std::ostream& os);  // NOLINT(*)
 };
 
 }  // namespace codegen

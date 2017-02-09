@@ -19,7 +19,11 @@ std::string CodeGenOpenCL::Compile(
     LoweredFunc f,
     bool output_ssa) {
   this->stream << " __kernel ";
-  this->arg_addr_space_ = "__global ";
+  for (Var arg : f->args) {
+    if (arg.type().is_handle()) {
+      alloc_storage_scope_[arg.get()] = "global";
+    }
+  }
   return CodeGenC::Compile(f, output_ssa);
 }
 
@@ -34,6 +38,80 @@ void CodeGenOpenCL::PrintThreadIndexExpr(
   }
 }
 
+void CodeGenOpenCL::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+  int lanes = t.lanes();
+  if (t.is_handle()) {
+    CHECK_EQ(lanes, 1)
+        << "do not yet support vector types";
+    os << "void*"; return;
+  }
+  bool fail = false;
+  if (t.is_float()) {
+    switch (t.bits()) {
+      case 16: os << "half"; break;
+      case 32: os << "float"; break;
+      case 64: os << "double"; break;
+      default: fail = true; break;
+    }
+    if (!fail && lanes == 1) return;
+    if (!fail && (lanes >= 2 && lanes <= 16)) {
+      os << lanes; return;
+    }
+  } else if (t.is_uint() || t.is_int()) {
+    if (t.is_uint()) {
+      os << 'u';
+    }
+    if (t.bits() == 8 && t.lanes() == 4) {
+      // directly 4 8 bit int in integer.
+      os << "int"; return;
+    }
+    switch (t.bits()) {
+      case 8: os << "char"; break;
+      case 16: os << "short"; break;
+      case 32: os << "int"; break;
+      case 64: os << "long"; break;
+      case 1: os << "int"; break;
+      default: fail = true; break;
+    }
+    if (!fail && lanes == 1) return;
+    if (!fail && (lanes >= 2 && lanes <= 16)) {
+      os << lanes; return;
+    }
+  }
+  LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
+}
+
+void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, Type t,
+                                 Expr base, std::ostream& os) {  // NOLINT(*)
+  if (!HandleTypeMatch(buffer, t.element_of())) {
+    os << '(';
+    auto it = alloc_storage_scope_.find(buffer);
+    if (it != alloc_storage_scope_.end()) {
+      PrintStorageScope(it->second, os);
+    }
+    os << ' ';
+    PrintType(t.element_of(), os);
+    os << "*)";
+  }
+  os << GetVarID(buffer) << " + ";
+  PrintExpr(base, os);
+}
+void CodeGenOpenCL::PrintVecLoad(const Variable* buffer,
+                                 Type t, Expr base,
+                                 std::ostream& os) {
+  os << "vload" << t.lanes() << "(0, ";
+  PrintVecAddr(buffer, t, base, os);
+  os << ")";
+}
+
+void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
+                                  Type t, Expr base,
+                                  const std::string& value) {
+  this->PrintIndent();
+  stream << "vstore" << t.lanes() << "(" << value << ", 0, ";
+  PrintVecAddr(buffer, t, base, stream);
+  stream << ");\n";
+}
 
 void CodeGenOpenCL::PrintStorageSync(const std::string& sync) {
   if (sync == "shared") {
@@ -45,8 +123,9 @@ void CodeGenOpenCL::PrintStorageSync(const std::string& sync) {
 }
 
 void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
-  CHECK_NE(scope, "global");
-  if (scope == "shared") {
+  if (scope == "global") {
+    os << "__global";
+  } else if (scope == "shared") {
     os << "__local ";
   }
 }
@@ -55,8 +134,6 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
 std::unordered_map<LoweredFunc, PackedFunc>
 MakeOpenCL(Array<LoweredFunc> funcs) {
   std::ostringstream os;
-  os << "typedef int int32_t;\n"
-     << "typedef unsigned unt32_t;\n";
   bool output_ssa = false;
   for (LoweredFunc f : funcs) {
     os << CodeGenOpenCL().Compile(f, output_ssa);
