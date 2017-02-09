@@ -167,6 +167,12 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
  */
 LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
 
+/*!
+ * \brief Whether the node is element-wise.
+ * \return whether the node is element-wise.
+ */
+bool IsElemWise(const NodeRef& node);
+
 
 }  // namespace ir
 }  // namespace tvm

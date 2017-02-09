@@ -70,8 +70,6 @@ inline Stmt MergeNest(std::vector<std::vector<Stmt> > nest, Stmt body) {
   return body;
 }
 
-bool IsEwise(Expr e, std::vector<Expr> axis);
-
 }  // namespace ir
 }  // namespace tvm
 #endif  // TVM_PASS_IR_UTIL_H_
