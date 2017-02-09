@@ -57,6 +57,14 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
             << ")";
 });
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<IterVarAttrNode>([](const IterVarAttrNode *op, IRPrinter *p) {
+    switch (op->iter_type) {
+      case kUnrolled: p->stream << "unroll"; break;
+      case kVectorized: p->stream << "vectorize"; break;
+    }
+  });
+
 Stage::Stage(Operation op) {
   auto n = std::make_shared<StageNode>();
   n->op = op;
@@ -246,7 +254,38 @@ void Schedule::normalize() {
   }
 }
 
+IterVarAttr::IterVarAttr(IterVarType t) {
+  std::shared_ptr<IterVarAttrNode> n = std::make_shared<IterVarAttrNode>();
+  n->iter_type = t;
+  node_ = n;
+}
+
+inline void SetAttr(StageNode* self, IterVar var, IterVarAttr attr) {
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  FindLeafVar(all_vars, leaf_vars, var);
+  auto it = self->iter_var_attrs.find(var);
+  if (it != self->iter_var_attrs.end()) {
+    CHECK_EQ((*it).second->iter_type, attr->iter_type)
+        << "IterVar's is already set to "
+        << (*it).second << " instead of " << attr;
+  } else {
+    self->iter_var_attrs.Set(var, attr);
+  }
+}
+
+Stage& Stage::vectorize(IterVar var) {   // NOLINT(*)
+  SetAttr(operator->(), var, IterVarAttr(kVectorized));
+  return *this;
+}
+
+Stage& Stage::unroll(IterVar var) {   // NOLINT(*)
+  SetAttr(operator->(), var, IterVarAttr(kUnrolled));
+  return *this;
+}
+
 TVM_REGISTER_NODE_TYPE(StageNode);
+TVM_REGISTER_NODE_TYPE(IterVarAttrNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
 TVM_REGISTER_NODE_TYPE(FuseNode);
 TVM_REGISTER_NODE_TYPE(RebaseNode);

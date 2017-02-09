@@ -74,6 +74,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 .DISPATCH_TO_MUTATE_STMT(Provide)
 .DISPATCH_TO_MUTATE_STMT(Realize)
 .DISPATCH_TO_MUTATE_STMT(Store)
+.DISPATCH_TO_MUTATE_STMT(IfThenElse)
 .DISPATCH_TO_MUTATE_STMT(For)
 .DISPATCH_TO_MUTATE_STMT(Allocate)
 .DISPATCH_TO_MUTATE_STMT(Free);
@@ -193,6 +194,22 @@ Stmt IRMutator::Mutate_(const Store *op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Free *op, const Stmt& s) {
   return s;
+}
+
+Stmt IRMutator::Mutate_(const IfThenElse *op, const Stmt& s) {
+  Expr condition = this->Mutate(op->condition);
+  Stmt then_case = this->Mutate(op->then_case);
+  Stmt else_case;
+  if (else_case.defined()) {
+    else_case = this->Mutate(op->else_case);
+  }
+  if (condition.same_as(op->condition) &&
+      then_case.same_as(op->then_case) &&
+      else_case.same_as(op->else_case)) {
+    return s;
+  } else {
+    return IfThenElse::make(condition, then_case, else_case);
+  }
 }
 
 TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
@@ -361,21 +378,6 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
       return s;
     } else {
       return Block::make(first, rest);
-    }
-  })
-.set_dispatch<IfThenElse>([](const IfThenElse *op, const Stmt& s, IRMutator* m) {
-    Expr condition = m->Mutate(op->condition);
-    Stmt then_case = m->Mutate(op->then_case);
-    Stmt else_case;
-    if (else_case.defined()) {
-      else_case = m->Mutate(op->else_case);
-    }
-    if (condition.same_as(op->condition) &&
-        then_case.same_as(op->then_case) &&
-        else_case.same_as(op->else_case)) {
-      return s;
-    } else {
-      return IfThenElse::make(condition, then_case, else_case);
     }
   })
 .set_dispatch<Evaluate>([](const Evaluate *op, const Stmt& s, IRMutator* m) {

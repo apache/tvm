@@ -177,6 +177,13 @@ MakeLoopNest(const Stage& sch,
     }
     // Mark the iter var in the IR, to remember the point
     if (iv->thread_tag.length() == 0) {
+      ForType for_type = ForType::Serial;
+      if (sch->iter_var_attrs.count(iv)) {
+        switch (sch->iter_var_attrs[iv]->iter_type) {
+          case kUnrolled: for_type = ForType::Unrolled; break;
+          case kVectorized: for_type = ForType::Vectorized; break;
+        }
+      }
       if (is_one(dom->extent)) {
         nest[i + 1].emplace_back(
             LetStmt::make(var, dom->min, no_op));
@@ -184,13 +191,13 @@ MakeLoopNest(const Stage& sch,
       } else if (is_zero(dom->min)) {
         nest[i + 1].emplace_back(
             For::make(var, 0, dom->extent,
-                      ForType::Serial, DeviceAPI::None, no_op));
+                      for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
         Var idx(iv->var->name_hint + ".idx", iv->var.type());
         nest[i + 1].emplace_back(
             For::make(idx, 0, dom->extent,
-                      ForType::Serial, DeviceAPI::None, no_op));
+                      for_type, DeviceAPI::None, no_op));
         Expr new_value = dom->min + idx;
         value_map[iv] = new_value;
         nest[i + 1].emplace_back(

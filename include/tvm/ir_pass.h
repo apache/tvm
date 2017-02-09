@@ -112,6 +112,12 @@ Stmt StorageFlatten(Stmt stmt,
 Stmt UnrollLoop(Stmt stmt, int max_auto_step);
 
 /*!
+ * \brief vectorize the constant loops
+ * \param stmt The statment to be vectorized.
+ */
+Stmt VectorizeLoop(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :

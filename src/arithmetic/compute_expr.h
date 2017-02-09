@@ -9,6 +9,7 @@
 
 #include <tvm/ir.h>
 #include <pass/Interval.h>
+#include <limits>
 
 namespace tvm {
 namespace arith {
@@ -50,6 +51,23 @@ inline bool GetConst<uint64_t>(Expr e, uint64_t *out) {
   } else {
     return false;
   }
+}
+
+// get a small constant int
+inline bool GetConstInt(Expr e, int* out) {
+  int64_t v1 = 0;
+  uint64_t v2 = 0;
+  if (GetConst(e, &v1)) {
+    if (v1 > static_cast<int64_t>(
+            std::numeric_limits<int>::max())) return false;
+    *out = static_cast<int>(v1); return true;
+  }
+  if (GetConst(e, &v2)) {
+    if (v2 > static_cast<uint64_t>(
+            std::numeric_limits<int>::max())) return false;
+    *out = static_cast<int>(v2); return true;
+  }
+  return false;
 }
 
 #define TVM_CONST_PROPAGATION(OP_NAME, OP)                       \
