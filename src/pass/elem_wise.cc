@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file elem_wise_detector.cc
+ * \file elem_wise.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
@@ -44,8 +44,8 @@ class ElemWiseDetector : public IRVisitor {
 };
 
 
-bool IsElemWise(const NodeRef& node) {
-  if (const ComputeOpNode* compute = node.as<ComputeOpNode>()) {
+bool IsElemWise(const Operation& op) {
+  if (const ComputeOpNode* compute = op.as<ComputeOpNode>()) {
     ElemWiseDetector v = ElemWiseDetector(compute->axis);
     v.Visit(compute->body);
     return v.is_elem_wise_;

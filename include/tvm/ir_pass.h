@@ -171,7 +171,7 @@ LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
  * \brief Whether the node is element-wise.
  * \return whether the node is element-wise.
  */
-bool IsElemWise(const NodeRef& node);
+bool IsElemWise(const Operation& node);
 
 
 }  // namespace ir

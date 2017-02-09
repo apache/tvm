@@ -34,11 +34,11 @@ Map<IterVar, Range> InferBound(Schedule sch);
 Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
 
 /*!
- * \brief To automatically fuse the element-wise operations.
+ * \brief To automatically inline the element-wise operations.
  *
- * \param s The schedule to be fused.
+ * \param sch The schedule to be inlined.
  */
-void AutoFuseElemWise(Schedule sch);
+void AutoInlineElemWise(Schedule sch);
 
 }  // namespace schedule
 }  // namespace tvm

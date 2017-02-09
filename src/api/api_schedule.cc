@@ -13,9 +13,9 @@
 namespace tvm {
 namespace schedule {
 
-TVM_REGISTER_API(_schedule_AutoFuseElemWise)
+TVM_REGISTER_API(_schedule_AutoInlineElemWise)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    AutoFuseElemWise(args[0]);
+    AutoInlineElemWise(args[0]);
   });
 
 #define REGISTER_SCHEDULE_PASS1(PassName)                         \
