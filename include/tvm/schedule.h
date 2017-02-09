@@ -127,7 +127,7 @@ class Stage : public NodeRef {
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
-  inline bool is_scheduled();
+  inline bool is_scheduled() const;
 
   // declare container type
   using ContainerType = StageNode;
@@ -359,8 +359,8 @@ inline StageNode* Stage::operator->() {
   return static_cast<StageNode*>(node_.get());
 }
 
-inline bool Stage::is_scheduled() {
-  StageNode* n = operator->();
+inline bool Stage::is_scheduled() const {
+  const StageNode* n = operator->();
   return !(n->relations.empty() && n->attach_type == kNone);
 }
 
