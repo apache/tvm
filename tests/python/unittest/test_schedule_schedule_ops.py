@@ -42,7 +42,7 @@ def test_schedule2():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     print(stmt)
 
-def test_fusion():
+def test_auto_inline():
   m = tvm.Var('m')
   n = tvm.Var('n')
   A = tvm.placeholder((m, n), name='A')
@@ -62,4 +62,4 @@ if __name__ == "__main__":
     test_schedule0()
     test_schedule1()
     test_schedule2()
-    test_fusion()
+    test_auto_inline()
