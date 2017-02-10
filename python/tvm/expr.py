@@ -37,6 +37,24 @@ class ExprOp(object):
     def __neg__(self):
         return self.__mul__(-1)
 
+    def __lt__(self, other):
+        return _make.LT(self, other)
+
+    def __le__(self, other):
+        return _make.LE(self, other)
+
+    def __eq__(self, other):
+        return _make.EQ(self, other)
+
+    def __ne__(self, other):
+        return _make.NE(self, other)
+
+    def __gt__(self, other):
+        return _make.GT(self, other)
+
+    def __ge__(self, other):
+        return _make.GE(self, other)
+
 
 class Expr(NodeBase, ExprOp):
     pass
