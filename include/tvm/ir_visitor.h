@@ -46,6 +46,9 @@ class IRVisitor {
   virtual void Visit_(const Let* op);
   virtual void Visit_(const Free* op);
   virtual void Visit_(const Call* op);
+  virtual void Visit_(const Mul* op);
+  virtual void Visit_(const Add* op);
+  virtual void Visit_(const LT* op);
 };
 
 /*!

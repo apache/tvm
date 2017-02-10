@@ -12,6 +12,11 @@
 namespace tvm {
 namespace ir {
 
+TVM_REGISTER_API(_pass_Deduce)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = Deduce(args[0].operator Var(), args[1].operator Expr());
+  });
+
 TVM_REGISTER_API(_pass_Simplify)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {

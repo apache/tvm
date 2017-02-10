@@ -55,6 +55,8 @@ bool VerifySSA(const Stmt& ir);
  */
 bool HasSideEffect(const Expr& e);
 
+Expr Deduce(Var v, Expr e);
+
 /*!
  * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.

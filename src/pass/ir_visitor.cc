@@ -67,7 +67,10 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(Store)
 .DISPATCH_TO_VISIT(Let)
 .DISPATCH_TO_VISIT(Call)
-.DISPATCH_TO_VISIT(Free);
+.DISPATCH_TO_VISIT(Free)
+.DISPATCH_TO_VISIT(Add)
+.DISPATCH_TO_VISIT(Mul)
+.DISPATCH_TO_VISIT(LT);
 
 void IRVisitor::Visit_(const Variable* op) {}
 
@@ -128,6 +131,21 @@ void IRVisitor::Visit_(const Call *op) {
   VisitArray(op->args, this);
 }
 
+void IRVisitor::Visit_(const Add* op) {
+  this->Visit(op->a);
+  this->Visit(op->b);
+}
+
+void IRVisitor::Visit_(const Mul* op) {
+  this->Visit(op->a);
+  this->Visit(op->b);
+}
+
+void IRVisitor::Visit_(const LT* op) {
+  this->Visit(op->a);
+  this->Visit(op->b);
+}
+
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .set_dispatch<Reduce>([](const Reduce* op, IRVisitor* v) {
     VisitRDom(op->axis, v);
@@ -151,16 +169,16 @@ inline void Binary(const T* op, IRVisitor* v) {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
-.set_dispatch<Add>(Binary<Add>)
+// .set_dispatch<Add>(Binary<Add>)
 .set_dispatch<Sub>(Binary<Sub>)
-.set_dispatch<Mul>(Binary<Mul>)
+// .set_dispatch<Mul>(Binary<Mul>)
 .set_dispatch<Div>(Binary<Div>)
 .set_dispatch<Mod>(Binary<Mod>)
 .set_dispatch<Min>(Binary<Min>)
 .set_dispatch<Max>(Binary<Max>)
 .set_dispatch<EQ>(Binary<EQ>)
 .set_dispatch<NE>(Binary<NE>)
-.set_dispatch<LT>(Binary<LT>)
+// .set_dispatch<LT>(Binary<LT>)
 .set_dispatch<LE>(Binary<LE>)
 .set_dispatch<GT>(Binary<GT>)
 .set_dispatch<GE>(Binary<GE>)
