@@ -55,12 +55,6 @@ class ExprOp(object):
     def __ge__(self, other):
         return _make.GE(self, other)
 
-    def __and__(self, other):
-        return _make.And(self, other)
-
-    def __or__(self, other):
-        return _make.And(self, other)
-
 
 class Expr(NodeBase, ExprOp):
     pass
