@@ -9,6 +9,7 @@
 #include <string>
 #include "./codegen_cuda.h"
 #include "./codegen_stack_vm.h"
+#include "../arithmetic/compute_expr.h"
 #include "../runtime/cuda/cuda_common.h"
 #include "../runtime/cuda/cuda_module.h"
 
@@ -20,6 +21,17 @@ std::string CodeGenCUDA::Compile(
     bool output_ssa) {
   this->stream << "extern \"C\" __global__ ";
   return CodeGenC::Compile(f, output_ssa);
+}
+
+void CodeGenCUDA::PrintStmt(const ir::For* op) {
+  int ext;
+  CHECK(is_zero(op->min));
+  if (arith::GetConstInt(op->extent, &ext) &&
+      ext <= max_auto_unroll_) {
+    PrintIndent();
+    stream << "#pragma unroll\n";
+  }
+  CodeGenC::PrintStmt(op);
 }
 
 void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
