@@ -49,6 +49,30 @@ struct Reduce : public ExprNode<Reduce> {
   static constexpr const char* Min = "Min";
 };
 
+/*! \brief namespace of possible attribute sin AttrStmt.type_key */
+namespace attr {
+/*!
+ * \brief Mark scope of iteration variable, used by Schedule.
+ */
+constexpr const char* scope = "scope";
+/*!
+ * \brief Mark launching extent of thread, used by device API.
+ */
+constexpr const char* thread_extent = "thread_extent";
+/*!
+ * \brief Mark launching of a virtual thread.
+ */
+constexpr const char* virtual_thread = "virtual_thread";
+/*!
+ * \brief Mark storage scope of buffers
+ */
+constexpr const char* storage_scope = "storage_scope";
+/*!
+ * \brief Mark storage scope of realizations
+ */
+constexpr const char* realize_scope = "realize_scope";
+}  // namespace attr
+
 /*! \brief namespace of TVM Intrinsic functions */
 namespace intrinsic {
 // Most of the intrinsics is to enab

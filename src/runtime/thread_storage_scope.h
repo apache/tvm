@@ -62,7 +62,11 @@ struct ThreadScope {
    */
   static ThreadScope make(const std::string& s) {
     ThreadScope r;
-    if (s.compare(0, 9, "blockIdx.") == 0) {
+    if (s == "vthread") {
+      // virtual thread at the same level as local
+      r.rank = 1;
+      r.dim_index = -1;
+    } else if (s.compare(0, 9, "blockIdx.") == 0) {
       r.rank = 0;
       r.dim_index = static_cast<int>(s[9] - 'x');
     } else if (s.compare(0, 10, "threadIdx.") == 0) {

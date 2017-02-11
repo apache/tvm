@@ -77,6 +77,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 .DISPATCH_TO_MUTATE_STMT(IfThenElse)
 .DISPATCH_TO_MUTATE_STMT(For)
 .DISPATCH_TO_MUTATE_STMT(Allocate)
+.DISPATCH_TO_MUTATE_STMT(Block)
 .DISPATCH_TO_MUTATE_STMT(Free);
 
 Stmt IRMutator::Mutate_(const LetStmt *op, const Stmt& s) {
@@ -209,6 +210,17 @@ Stmt IRMutator::Mutate_(const IfThenElse *op, const Stmt& s) {
     return s;
   } else {
     return IfThenElse::make(condition, then_case, else_case);
+  }
+}
+
+Stmt IRMutator::Mutate_(const Block* op, const Stmt& s) {
+  Stmt first = this->Mutate(op->first);
+  Stmt rest = this->Mutate(op->rest);
+  if (first.same_as(op->first) &&
+      rest.same_as(op->rest)) {
+    return s;
+  } else {
+    return Block::make(first, rest);
   }
 }
 
@@ -368,16 +380,6 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
       return s;
     } else {
       return ProducerConsumer::make(op->func, op->is_producer, body);
-    }
-  })
-.set_dispatch<Block>([](const Block *op, const Stmt& s, IRMutator* m) {
-    Stmt first = m->Mutate(op->first);
-    Stmt rest = m->Mutate(op->rest);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return s;
-    } else {
-      return Block::make(first, rest);
     }
   })
 .set_dispatch<Evaluate>([](const Evaluate *op, const Stmt& s, IRMutator* m) {

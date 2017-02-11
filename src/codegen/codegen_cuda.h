@@ -27,6 +27,7 @@ class CodeGenCUDA : public CodeGenC {
                       bool output_ssa);
 
   // override behavior
+  void PrintStmt(const ir::For* op) final;
   void PrintStorageSync(const std::string& sync) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
@@ -37,6 +38,11 @@ class CodeGenCUDA : public CodeGenC {
       const std::string& vec, Type t, int i, std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value) final;
+
+ private:
+  // magic number to add pragma unroll to it.
+  // used to generate code that is compact but still unrolls.
+  int max_auto_unroll_{8};
 };
 
 }  // namespace codegen
