@@ -46,6 +46,37 @@ class IRVisitor {
   virtual void Visit_(const Let* op);
   virtual void Visit_(const Free* op);
   virtual void Visit_(const Call* op);
+  virtual void Visit_(const Add* op);
+  virtual void Visit_(const Sub* op);
+  virtual void Visit_(const Mul* op);
+  virtual void Visit_(const Div* op);
+  virtual void Visit_(const Mod* op);
+  virtual void Visit_(const Min* op);
+  virtual void Visit_(const Max* op);
+  virtual void Visit_(const EQ* op);
+  virtual void Visit_(const NE* op);
+  virtual void Visit_(const LT* op);
+  virtual void Visit_(const LE* op);
+  virtual void Visit_(const GT* op);
+  virtual void Visit_(const GE* op);
+  virtual void Visit_(const And* op);
+  virtual void Visit_(const Or* op);
+  virtual void Visit_(const Reduce* op);
+  virtual void Visit_(const Cast* op);
+  virtual void Visit_(const Not* op);
+  virtual void Visit_(const Select* op);
+  virtual void Visit_(const Ramp* op);
+  virtual void Visit_(const Broadcast* op);
+  virtual void Visit_(const AssertStmt* op);
+  virtual void Visit_(const ProducerConsumer* op);
+  virtual void Visit_(const Provide* op);
+  virtual void Visit_(const Realize* op);
+  virtual void Visit_(const Block* op);
+  virtual void Visit_(const Evaluate* op);
+  virtual void Visit_(const IntImm* op);
+  virtual void Visit_(const UIntImm* op);
+  virtual void Visit_(const FloatImm* op);
+  virtual void Visit_(const StringImm* op);
 };
 
 /*!
