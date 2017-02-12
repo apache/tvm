@@ -75,11 +75,16 @@ class Operation(NodeBase):
         return _api_internal._OpGetOutput(self, index)
 
 @register_node
+class PlaceholderOp(Operation):
+    """Placeholder operation."""
+    pass
+
+@register_node
 class ComputeOp(Operation):
     """Compute operation."""
     pass
 
 @register_node
-class PlaceholderOp(Operation):
-    """Placeholder operation."""
+class ScanOp(Operation):
+    """Scan operation."""
     pass

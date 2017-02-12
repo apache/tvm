@@ -146,6 +146,8 @@ Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT
 
 Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   StageNode* self = operator->();
+  CHECK(!self->op.as<ScanOpNode>())
+      << "Cannot reorder axis of scan";
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   std::vector<size_t> pos;

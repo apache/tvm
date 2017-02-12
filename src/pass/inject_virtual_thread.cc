@@ -191,20 +191,16 @@ class VTInjector : public IRMutator {
   }
   // Attribute
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == attr::scope) {
-      return Mutate(op->body);
+    Expr value = Mutate(op->value);
+    if (visit_touched_var_) {
+      return InjectVTLoop(s, true);
     } else {
-      Expr value = Mutate(op->value);
-      if (visit_touched_var_) {
-        return InjectVTLoop(s, true);
+      Stmt body = Mutate(op->body);
+      if (value.same_as(op->value) &&
+          body.same_as(op->body)) {
+        return s;
       } else {
-        Stmt body = Mutate(op->body);
-        if (value.same_as(op->value) &&
-            body.same_as(op->body)) {
-          return s;
-        } else {
-          return AttrStmt::make(op->node, op->type_key, value, body);
-        }
+        return AttrStmt::make(op->node, op->type_key, value, body);
       }
     }
   }

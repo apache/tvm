@@ -33,19 +33,27 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots) {
         if (call != nullptr && call->func.defined()) {
           Operation call_op(call->func.node_);
           deps.push_back(call_op.output(call->value_index));
-          if (call_op.defined() && visited.count(call_op.get()) == 0) {
-            visited.insert(call_op.get());
-            stack.push_back(call_op);
-          }
         }
       };
       ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
-      rmap.Set(op, deps);
+    } else if (op.as<ScanOpNode>()) {
+      const ScanOpNode* scan = op.as<ScanOpNode>();
+      for (Tensor t : scan->init) {
+        deps.push_back(t);
+      }
+      for (Tensor t : scan->update) {
+        deps.push_back(t);
+      }
     } else if (op.as<PlaceholderOpNode>()) {
-      // empty set of deps
-      rmap.Set(op, deps);
     } else {
       LOG(FATAL) << "unknown Operation" << op->type_key();
+    }
+    rmap.Set(op, deps);
+    for (Tensor t : deps) {
+      if (t->op.defined() && visited.count(t->op.get()) == 0) {
+        visited.insert(t->op.get());
+        stack.push_back(t->op);
+      }
     }
   }
   return rmap;

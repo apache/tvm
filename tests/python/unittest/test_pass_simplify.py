@@ -18,9 +18,15 @@ def test_simplify():
                                         tvm.make.Load(dtype, Ab.data, i + 4) + 1,
                                         (j + 1) * 4 - 4 * j + i),
                          None)))
-    print(stmt)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
-    print(stmt)
+
+
+def test_basic():
+    m = tvm.Var('m')
+    ret = tvm.ir_pass.CanonicalSimplify(tvm.make.Evaluate(m-1))
+    assert str(ret.value) == "(m - 1)"
+
 
 if __name__ == "__main__":
+    test_basic()
     test_simplify()
