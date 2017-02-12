@@ -103,6 +103,9 @@ IntSet EvalSet(Expr e,
  */
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(Range r,
+               const std::unordered_map<const Variable*, IntSet>& dom_map);
+
 
 /*!
  * \brief Create an union set of all sets

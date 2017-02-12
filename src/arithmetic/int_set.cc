@@ -432,7 +432,6 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<And>(Binary<And>)
 .set_dispatch<Or>(Binary<Or>);
 
-
 IntSet EvalSet(Expr e,
                const std::unordered_map<const Variable*, IntSet>& dom_map) {
   return IntSetEvaluator(dom_map).Eval(e);
@@ -444,17 +443,12 @@ IntSet EvalSet(Expr e,
   for (auto kv : dom_map) {
     dmap[kv.first->var.as<Variable>()] = kv.second;
   }
-  IntSetEvaluator m(dmap);
-  return m.Eval(e);
+  return EvalSet(e, dmap);
 }
 
 IntSet EvalSet(Range r,
-               const Map<IterVar, IntSet>& dom_map) {
-  std::unordered_map<const Variable*, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap[kv.first->var.as<Variable>()] = kv.second;
-  }
-  IntSetEvaluator m(dmap);
+               const std::unordered_map<const Variable*, IntSet>& dom_map) {
+  IntSetEvaluator m(dom_map);
   IntSet min_set = m.Eval(r->min);
   IntSet ext_set = m.Eval(r->extent).cover_interval();
   const Interval& ei = ext_set.as<IntervalSet>()->i;
@@ -463,13 +457,21 @@ IntSet EvalSet(Range r,
   return Combine<Add>(min_set, ext_set);
 }
 
+IntSet EvalSet(Range r,
+               const Map<IterVar, IntSet>& dom_map) {
+  std::unordered_map<const Variable*, IntSet> dmap;
+  for (auto kv : dom_map) {
+    dmap[kv.first->var.as<Variable>()] = kv.second;
+  }
+  return EvalSet(r, dmap);
+}
+
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IntervalSet>([](const IntervalSet *op, IRPrinter *p) {
     p->stream << "interval-set["
               << "[" << op->i.min << ", "
               << op->i.max << ']';
   });
-
 
 }  // namespace arith
 }  // namespace tvm
