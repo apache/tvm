@@ -16,7 +16,8 @@ namespace ir {
 /*!
  * \brief a base class for mutator to iterative mutate the IR
  *
- *  This IRMutator is implemented via IRFunctor instead of Visitor Pattern.
+ *  This IRMutator is implemented via Visitor Pattern.
+ *  Also you can implement via IRFunctor.
  *  This enables easy extensions of possible new Node.
  *  It also makes changing return types easier.
  *
@@ -54,20 +55,91 @@ class IRMutator {
   static FMutateStmt& vtable_stmt();  // NOLINT(*)
   // Set of overloadable functions
   // The underscore allows Mutate not to be shadowed by inheritance
+  virtual Stmt Mutate_(const Variable* op, const Stmt& s);
   virtual Stmt Mutate_(const LetStmt* op, const Stmt& s);
   virtual Stmt Mutate_(const AttrStmt* op, const Stmt& s);
-  virtual Stmt Mutate_(const For* op, const Stmt& s);
-  virtual Stmt Mutate_(const Provide* op, const Stmt& s);
-  virtual Stmt Mutate_(const Allocate* op, const Stmt& s);
-  virtual Stmt Mutate_(const Realize* op, const Stmt& s);
-  virtual Stmt Mutate_(const Store* op, const Stmt& s);
-  virtual Stmt Mutate_(const Free* op, const Stmt& s);
   virtual Stmt Mutate_(const IfThenElse* op, const Stmt& s);
+  virtual Stmt Mutate_(const For* op, const Stmt& s);
+  virtual Stmt Mutate_(const Allocate* op, const Stmt& s);
+  virtual Stmt Mutate_(const Load* op, const Stmt& s);
+  virtual Stmt Mutate_(const Store* op, const Stmt& s);
+  virtual Stmt Mutate_(const Let* op, const Stmt& s);
+  virtual Stmt Mutate_(const Free* op, const Stmt& s);
+  virtual Stmt Mutate_(const Call* op, const Stmt& s);
+  virtual Stmt Mutate_(const Add* op, const Stmt& e);
+  virtual Stmt Mutate_(const Sub* op, const Stmt& e);
+  virtual Stmt Mutate_(const Mul* op, const Stmt& e);
+  virtual Stmt Mutate_(const Div* op, const Stmt& e);
+  virtual Stmt Mutate_(const Mod* op, const Stmt& e);
+  virtual Stmt Mutate_(const Min* op, const Stmt& e);
+  virtual Stmt Mutate_(const Max* op, const Stmt& e);
+  virtual Stmt Mutate_(const EQ* op, const Stmt& e);
+  virtual Stmt Mutate_(const NE* op, const Stmt& e);
+  virtual Stmt Mutate_(const LT* op, const Stmt& e);
+  virtual Stmt Mutate_(const LE* op, const Stmt& e);
+  virtual Stmt Mutate_(const GT* op, const Stmt& e);
+  virtual Stmt Mutate_(const GE* op, const Stmt& e);
+  virtual Stmt Mutate_(const And* op, const Stmt& e);
+  virtual Stmt Mutate_(const Or* op, const Stmt& e);
+  virtual Stmt Mutate_(const Reduce* op, const Stmt& s);
+  virtual Stmt Mutate_(const Cast* op, const Stmt& s);
+  virtual Stmt Mutate_(const Not* op, const Stmt& s);
+  virtual Stmt Mutate_(const Select* op, const Stmt& s);
+  virtual Stmt Mutate_(const Ramp* op, const Stmt& s);
+  virtual Stmt Mutate_(const Broadcast* op, const Stmt& e);
+  virtual Stmt Mutate_(const AssertStmt* op, const Stmt& e);
+  virtual Stmt Mutate_(const ProducerConsumer* op, const Stmt& e);
+  virtual Stmt Mutate_(const Provide* op, const Stmt& e);
+  virtual Stmt Mutate_(const Realize* op, const Stmt& s);
   virtual Stmt Mutate_(const Block* op, const Stmt& s);
-  virtual Expr Mutate_(const Call* op, const Expr& e);
-  virtual Expr Mutate_(const Load* op, const Expr& s);
+  virtual Stmt Mutate_(const Evaluate* op, const Stmt& e);
+  virtual Stmt Mutate_(const IntImm* op, const Stmt& e);
+  virtual Stmt Mutate_(const UIntImm* op, const Stmt& e);
+  virtual Stmt Mutate_(const FloatImm* op, const Stmt& e);
+  virtual Stmt Mutate_(const StringImm* op, const Stmt& e);
+
   virtual Expr Mutate_(const Variable* op, const Expr& e);
+  virtual Expr Mutate_(const LetStmt* op, const Expr& e);
+  virtual Expr Mutate_(const AttrStmt* op, const Expr& e);
+  virtual Expr Mutate_(const IfThenElse* op, const Expr& e);
+  virtual Expr Mutate_(const For* op, const Expr& e);
+  virtual Expr Mutate_(const Allocate* op, const Expr& e);
+  virtual Expr Mutate_(const Load* op, const Expr& e);
+  virtual Expr Mutate_(const Store* op, const Expr& e);
   virtual Expr Mutate_(const Let* op, const Expr& e);
+  virtual Expr Mutate_(const Free* op, const Expr& e);
+  virtual Expr Mutate_(const Call* op, const Expr& e);
+  virtual Expr Mutate_(const Add* op, const Expr& e);
+  virtual Expr Mutate_(const Sub* op, const Expr& e);
+  virtual Expr Mutate_(const Mul* op, const Expr& e);
+  virtual Expr Mutate_(const Div* op, const Expr& e);
+  virtual Expr Mutate_(const Mod* op, const Expr& e);
+  virtual Expr Mutate_(const Min* op, const Expr& e);
+  virtual Expr Mutate_(const Max* op, const Expr& e);
+  virtual Expr Mutate_(const EQ* op, const Expr& e);
+  virtual Expr Mutate_(const NE* op, const Expr& e);
+  virtual Expr Mutate_(const LT* op, const Expr& e);
+  virtual Expr Mutate_(const LE* op, const Expr& e);
+  virtual Expr Mutate_(const GT* op, const Expr& e);
+  virtual Expr Mutate_(const GE* op, const Expr& e);
+  virtual Expr Mutate_(const And* op, const Expr& e);
+  virtual Expr Mutate_(const Or* op, const Expr& e);
+  virtual Expr Mutate_(const Reduce* op, const Expr& e);
+  virtual Expr Mutate_(const Cast* op, const Expr& e);
+  virtual Expr Mutate_(const Not* op, const Expr& e);
+  virtual Expr Mutate_(const Select* op, const Expr& e);
+  virtual Expr Mutate_(const Ramp* op, const Expr& e);
+  virtual Expr Mutate_(const Broadcast* op, const Expr& e);
+  virtual Expr Mutate_(const AssertStmt* op, const Expr& e);
+  virtual Expr Mutate_(const ProducerConsumer* op, const Expr& e);
+  virtual Expr Mutate_(const Provide* op, const Expr& e);
+  virtual Expr Mutate_(const Realize* op, const Expr& e);
+  virtual Expr Mutate_(const Block* op, const Expr& e);
+  virtual Expr Mutate_(const Evaluate* op, const Expr& e);
+  virtual Expr Mutate_(const IntImm* op, const Expr& e);
+  virtual Expr Mutate_(const UIntImm* op, const Expr& e);
+  virtual Expr Mutate_(const FloatImm* op, const Expr& e);
+  virtual Expr Mutate_(const StringImm* op, const Expr& e);
 };
 
 /*!
