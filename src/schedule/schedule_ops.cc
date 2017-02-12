@@ -203,18 +203,27 @@ MakeLoopNest(const Stage& sch,
         nest[i + 1].emplace_back(
             LetStmt::make(var, new_value, no_op));
       }
+    } else if (iv->thread_tag == "vthread") {
+      // virtual thread
+      // Always restrict threaded IterVar to starts from 0.
+      CHECK(is_zero(dom->min));
+      CHECK(is_positive_const(dom->extent));
+      // annotate the extent of the IterVar
+      nest[i + 1].emplace_back(
+          AttrStmt::make(iv, ir::attr::virtual_thread, dom->extent, no_op));
+      value_map[iv] = var;
     } else {
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(iv, "thread_extent", dom->extent, no_op));
+          AttrStmt::make(iv, ir::attr::thread_extent, dom->extent, no_op));
       value_map[iv] = var;
     }
     if (!reduce_init_loop) {
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(iv, "scope", iv->var, no_op));
+          AttrStmt::make(iv, ir::attr::scope, iv->var, no_op));
     }
   }
   // message passing to get offset of root iter vars.

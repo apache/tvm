@@ -6,7 +6,6 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <unordered_map>
-#include "./ir_util.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -61,46 +60,17 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-  Stmt Flatten(Stmt stmt) {
-    stmt = this->Mutate(stmt);
-    StorageScope key; key.rank = 0;
-    if (move_alloc_out_) {
-      StorageScope key; key.rank = 0;
-      stmt = MergeNest(allocs_[key], stmt);
-    }
-    return stmt;
-  }
-
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == "realize_scope") {
+    if (op->type_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
-    } else if (op->type_key == "scope") {
+    } else if (op->type_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
-      if (iv->thread_tag.length() != 0) {
-        ThreadScope ts = ThreadScope::make(iv->thread_tag);
-        curr_thread_scope_.push_back(ts);
-        Stmt stmt = IRMutator::Mutate_(op, s);
-        curr_thread_scope_.pop_back();
-        op = stmt.as<AttrStmt>();
-
-        bool first_scope = true;
-        for (const ThreadScope& t : curr_thread_scope_) {
-          if (t.rank == ts.rank) first_scope = false;
-        }
-        if (first_scope && move_alloc_out_) {
-          StorageScope key;
-          key.rank = ts.rank + 1;
-          std::vector<Stmt>& vec = allocs_[key];
-          if (vec.size() != 0) {
-            Stmt body = MergeNest(vec, op->body);
-            vec.clear();
-            return AttrStmt::make(
-                op->node, op->type_key, op->value, body);
-          }
-        }
-        return stmt;
-      }
+      ThreadScope ts = ThreadScope::make(iv->thread_tag);
+      curr_thread_scope_.push_back(ts);
+      Stmt stmt = IRMutator::Mutate_(op, s);
+      curr_thread_scope_.pop_back();
+      return stmt;
     }
     return IRMutator::Mutate_(op, s);
   }
@@ -140,37 +110,22 @@ class StorageFlattener : public IRMutator {
       // deduce current storage scope.
       auto it = storage_scope_.find(op->func.get());
       CHECK(it != storage_scope_.end());
-      StorageScope key; key.rank = 0;
-      const std::string& skey = it->second;
-      if (skey.length() == 0) {
+      StorageScope skey;
+      const std::string& strkey = it->second;
+      if (strkey.length() == 0) {
         if (curr_thread_scope_.size() != 0) {
-          key.rank = curr_thread_scope_.back().rank + 1;
+          skey.rank = curr_thread_scope_.back().rank + 1;
         }
       } else {
-        key = StorageScope::make(skey);
+        skey = StorageScope::make(strkey);
       }
-
-      if (move_alloc_out_) {
-        allocs_[key].push_back(
-            AttrStmt::make(
-                e.buffer->data, "storage_scope",
-                StringImm::make(key.to_string()),
-                Evaluate::make(0)));
-        allocs_[key].push_back(
-            Allocate::make(
-                e.buffer->data, e.buffer->dtype, e.buffer->shape,
-                make_const(Bool(e.buffer->dtype.lanes()), true),
-                Evaluate::make(0)));
-        return body;
-      } else {
-        Stmt ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype, e.buffer->shape,
-            make_const(Bool(e.buffer->dtype.lanes()), true), body);
-        ret = AttrStmt::make(
-            e.buffer->data, "storage_scope",
-            StringImm::make(key.to_string()), ret);
-        return ret;
-      }
+      Stmt ret = Allocate::make(
+          e.buffer->data, e.buffer->dtype, e.buffer->shape,
+          make_const(Bool(e.buffer->dtype.lanes()), true), body);
+      ret = AttrStmt::make(
+          e.buffer->data, attr::storage_scope,
+          StringImm::make(skey.to_string()), ret);
+      return ret;
     }
   }
 
@@ -217,20 +172,16 @@ class StorageFlattener : public IRMutator {
       }
     }
   };
-  // whether move allocation to the outmost scope as possible.
-  bool move_alloc_out_{true};
   // The buffer assignment map
   std::unordered_map<TensorKey, BufferEntry> buf_map_;
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
-  // The allocations by rank
-  std::unordered_map<StorageScope, std::vector<Stmt> > allocs_;
 };
 
 Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer) {
-  stmt = StorageFlattener(extern_buffer).Flatten(stmt);
+  stmt = StorageFlattener(extern_buffer).Mutate(stmt);
   return stmt;
 }
 
