@@ -8,6 +8,7 @@
 #include <tvm/api_registry.h>
 #include <unordered_set>
 #include "./int_set.h"
+#include "./int_set_internal.h"
 
 namespace tvm {
 namespace arith {
@@ -17,37 +18,37 @@ using Halide::Internal::Interval;
 
 // a visitor to find the path to the target variable
 // from a expression.
-class VariableFinder: public IRVisitor {
+// (TODO) look out for errors when a variable appears in
+// multiple locations in the expression
+class VariablePathFinder: public IRVisitor {
  public:
-  explicit VariableFinder(Var target) : target_(target) {}
+  explicit VariablePathFinder(Var target) : target_(target) {}
 
   void Visit(const NodeRef& node) final {
-    if (finded_) return;
+    if (found_) return;
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
     path_.push_back(node.get());
-    if (node.same_as(target_)) finded_ = true;
+    if (node.same_as(target_)) found_ = true;
     IRVisitor::Visit(node);
-    if (!finded_) path_.pop_back();
+    if (!found_) path_.pop_back();
   }
 
   std::vector<const Node*> path_;
 
  private:
-  bool finded_{false};
+  bool found_{false};
   Var target_;
   std::unordered_set<const Node*> visited_;
 };
 
-
 // get the path to the variable
 std::vector<const Node*> GetPath(Var target, Expr expr) {
-  VariableFinder v(target);
+  VariablePathFinder v(target);
   v.Visit(expr);
   return v.path_;
 }
-
 
 // a visitor to deduce the bound of a variable from a expression
 class BoundDeducer: public IRVisitor {
@@ -93,6 +94,10 @@ class BoundDeducer: public IRVisitor {
     Expr operand = left ? op->b : op->a;
     if (is_negative_const(operand)) is_greater = !is_greater;
     result /= operand;
+    // (TODO) There will be problem of rounding in here.
+    // if it is a lower bound and rounds toward 0, then
+    // it becomes problematic. Maybe we should consider
+    // find out the direction first, before doing deduction
     Visit(left ? op->a : op->b);
   }
 
@@ -119,8 +124,8 @@ IntSet DeduceBound(Var v, Expr e) {
     deducer.Deduce(v, e);
     Type t = deducer.result.type();
     return deducer.is_greater ?
-      IntSet::range(Range(deducer.result, Cast::make(t, Interval::pos_inf))) :
-      IntSet::range(Range(Cast::make(t, Interval::neg_inf), deducer.result));
+      IntervalSet::make(deducer.result, Interval::pos_inf) :
+      IntervalSet::make(Interval::neg_inf, deducer.result);
 }
 
 TVM_REGISTER_API(_pass_DeduceBound)
