@@ -18,24 +18,32 @@ using Halide::Internal::Interval;
 
 // a visitor to find the path to the target variable
 // from a expression.
-// (TODO) look out for errors when a variable appears in
-// multiple locations in the expression
 class VariablePathFinder: public IRVisitor {
  public:
   explicit VariablePathFinder(Var target) : target_(target) {}
 
   void Visit(const NodeRef& node) final {
+    if (!success) return;
     if (found_) return;
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
-    path_.push_back(node.get());
-    if (node.same_as(target_)) found_ = true;
+    if (!found_) path_.push_back(node.get());
+    if (node.same_as(target_)) {
+      if (!found_) {
+        found_ = true;
+      } else {
+        // target variable appears at multiple location
+        success = false;
+        return;
+      }
+    }
     IRVisitor::Visit(node);
     if (!found_) path_.pop_back();
   }
 
   std::vector<const Node*> path_;
+  bool success{true};
 
  private:
   bool found_{false};
@@ -93,11 +101,8 @@ class BoundDeducer: public IRVisitor {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
     if (is_negative_const(operand)) is_greater = !is_greater;
+    // (TODO) round
     result /= operand;
-    // (TODO) There will be problem of rounding in here.
-    // if it is a lower bound and rounds toward 0, then
-    // it becomes problematic. Maybe we should consider
-    // find out the direction first, before doing deduction
     Visit(left ? op->a : op->b);
   }
 
@@ -121,11 +126,10 @@ class BoundDeducer: public IRVisitor {
 // Assuming e >= 0, deduce the bound of variable from it.
 IntSet DeduceBound(Var v, Expr e) {
     BoundDeducer deducer;
-    deducer.Deduce(v, e);
-    Type t = deducer.result.type();
+    Expr res = deducer.Deduce(v, e);
     return deducer.is_greater ?
-      IntervalSet::make(deducer.result, Interval::pos_inf) :
-      IntervalSet::make(Interval::neg_inf, deducer.result);
+      IntervalSet::make(res, Interval::pos_inf) :
+      IntervalSet::make(Interval::neg_inf, res);
 }
 
 TVM_REGISTER_API(_pass_DeduceBound)

@@ -51,5 +51,5 @@ struct StrideSet : public IntSetNode {
   TVM_DECLARE_NODE_TYPE_INFO(StrideSet);
 };
 
-}
-}
+}  // namespace arith
+}  // namespace tvm

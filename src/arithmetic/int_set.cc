@@ -60,6 +60,11 @@ bool IntSet::can_prove_positive() const {
   return (s_int && is_positive_const(ir::Simplify(s_int->i.min)));
 }
 
+bool IntSet::can_prove_negative() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && is_negative_const(ir::Simplify(s_int->i.max)));
+}
+
 Expr IntSet::point_value() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   CHECK(s_int && s_int->i.is_single_point());
@@ -422,6 +427,18 @@ IntSet EvalSet(Range r,
   if (!ei.has_upper_bound()) return IntSet::everything();
   ext_set = IntervalSet::make(0, ComputeExpr<Sub>(ei.max, 1));
   return Combine<Add>(min_set, ext_set);
+}
+
+SignType EvalSign(Expr r,
+        const Map<IterVar, IntSet>& dom_map) {
+  IntSet set = EvalSet(r, dom_map);
+  if (set.can_prove_positive()) {
+    return kPositive;
+  } else if (set.can_prove_negative()) {
+    return kNegative;
+  } else {
+    return kUnknown;
+  }
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)

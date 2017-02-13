@@ -46,6 +46,8 @@ class IntSet : public NodeRef {
   bool is_single_point() const;
   /*! \return Whether the set is proved to be bigger than 0 */
   bool can_prove_positive() const;
+  /*! \return Whether the set is proved to be smaller than 0 */
+  bool can_prove_negative() const;
   /*!
    * \brief The single point value, call only if is_single_point is true
    * \return The point value.
@@ -103,6 +105,16 @@ IntSet EvalSet(Expr e,
  */
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
+
+
+enum SignType {
+  kPositive,
+  kNegative,
+  kUnknown
+};
+
+SignType EvalSign(Expr r,
+                  const Map<IterVar, IntSet>& dom_map);
 
 /*!
  * \brief Create an union set of all sets
