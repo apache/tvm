@@ -49,7 +49,8 @@ class VariablePathFinder: public IRVisitor {
   std::unordered_set<const Node*> visited_;
 };
 
-// get the path to the variable
+// get the path to the variable,
+// return empty vector to represent failure
 std::vector<const Node*> GetPath(Var target, Expr expr) {
   VariablePathFinder v(target);
   v.Visit(expr);
@@ -133,7 +134,8 @@ class BoundDeducer: public IRVisitor {
   size_t iter_;
 };
 
-// Assuming e >= 0, deduce the bound of variable from it.
+// assuming e >= 0, deduce the bound of variable from it.
+// return empty set to represent deduce failure.
 IntSet DeduceBound(Var v, Expr e,
                    const Map<IterVar, IntSet>& dom_map) {
     BoundDeducer deducer;

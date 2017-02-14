@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file int_set_internal.h
- * \brief (TODO)
+ * \brief Implementations of integer set
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
