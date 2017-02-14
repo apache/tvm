@@ -122,14 +122,6 @@ class BoundDeducer: public IRVisitor {
     Visit(left ? op->a : op->b);
   }
 
-  void Visit_(const Div* op) final {
-    bool left = op->a.get() == path_[iter_];
-    Expr operand = left ? op->b : op->a;
-    if (is_negative_const(operand)) is_greater = !is_greater;
-    result = left ? result * operand : operand / result;
-    Visit(left ? op->a : op->b);
-  }
-
   Expr result;
   bool is_greater{true};
   bool success{true};
