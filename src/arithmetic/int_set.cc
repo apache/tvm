@@ -436,6 +436,8 @@ SignType EvalSign(Expr r,
     return kPositive;
   } else if (set.can_prove_negative()) {
     return kNegative;
+  } else if (set.is_single_point() && is_zero(set.point_value())) {
+    return kZero;
   } else {
     return kUnknown;
   }

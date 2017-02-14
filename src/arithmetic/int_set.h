@@ -110,9 +110,18 @@ IntSet EvalSet(Range r,
 enum SignType {
   kPositive,
   kNegative,
+  kZero,
   kUnknown
 };
 
+/*!
+ * \brief Find the sign of the expr, given the domain of each
+ *  iteration variables.
+ *
+ * \param e The expression to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return the sign type of the expression.
+ */
 SignType EvalSign(Expr r,
                   const Map<IterVar, IntSet>& dom_map);
 
