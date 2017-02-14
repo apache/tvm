@@ -34,6 +34,20 @@ def test_tensor_reduce():
     assert(str(C_loaded) == str(C))
 
 
+def test_tensor_scan():
+    m = tvm.Var("m")
+    n = tvm.Var("n")
+    t = tvm.IterVar((1, m), "t")
+    x = tvm.placeholder((m, n))
+    s = tvm.placeholder((m, n))
+    res = tvm.scan(t,
+                   tvm.compute((1, n), lambda _, i: x[0, i]),
+                   tvm.compute((n,), lambda i: s[t-1, i] + x[t, i]),
+                   s)
+    assert tuple(res.shape) == (m, n)
+
+
 if __name__ == "__main__":
     test_tensor()
     test_tensor_reduce()
+    test_tensor_scan()

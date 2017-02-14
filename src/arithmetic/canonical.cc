@@ -365,7 +365,7 @@ class Canonical::Internal : public IRMutator {
                   const ComExpr& sumb,
                   int bscale) {
     std::shared_ptr<ComExprNode> n = std::make_shared<ComExprNode>();
-    n->base = suma->base + sumb->base;
+    n->base = suma->base + sumb->base * bscale;
     // merge of suma and sumb;
     size_t i = 0, j = 0;
     while (i < suma->elem.size() && j < sumb->elem.size()) {
@@ -417,7 +417,7 @@ class Canonical::Internal : public IRMutator {
   // convert sum to expr
   Expr Sum2Expr(const ComExpr& com, Type t) {
     Expr vsum;
-    if (com->base != 0) {
+    if (com->base > 0) {
       vsum = make_const(t, com->base);
     }
     for (const ComExprEntry& e : com->elem) {
@@ -431,6 +431,13 @@ class Canonical::Internal : public IRMutator {
         } else {
           vsum = v;
         }
+      }
+    }
+    if (com->base < 0) {
+      if (vsum.defined()) {
+        vsum = Sub::make(vsum, make_const(t, -com->base));
+      } else {
+        vsum = make_const(t, com->base);
       }
     }
     for (const ComExprEntry& e : com->elem) {

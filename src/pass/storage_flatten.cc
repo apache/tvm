@@ -11,40 +11,6 @@
 namespace tvm {
 namespace ir {
 
-// key of function buffer
-struct TensorKey {
-  FunctionRef f;
-  int value_index;
-
-  inline bool operator==(const TensorKey& other) const {
-    return f == other.f && value_index == other.value_index;
-  }
-  inline std::string GetName() const {
-    if (f->num_outputs() == 1) return f->func_name();
-    std::ostringstream os;
-    os << f->func_name() << ".v" << value_index;
-    return os.str();
-  }
-};
-
-}  // namespace ir
-}  // namespace tvm
-
-namespace std {
-template <>
-struct hash<::tvm::ir::TensorKey> {
-  std::size_t operator()(const ::tvm::ir::TensorKey& k) const {
-    size_t lhs = k.f.hash();
-    size_t rhs = static_cast<size_t>(k.value_index);
-    lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
-    return lhs;
-  }
-};
-}  // namespace std
-
-namespace tvm {
-namespace ir {
-
 using Halide::Internal::Region;
 using runtime::StorageScope;
 using runtime::ThreadScope;
