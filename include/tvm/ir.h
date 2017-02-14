@@ -49,12 +49,27 @@ struct Reduce : public ExprNode<Reduce> {
   static constexpr const char* Min = "Min";
 };
 
+/*!
+ * \brief Auxiliary data structure used in IR Pass to indicate a tensor.
+ */
+struct TensorKey {
+  FunctionRef f;
+  int value_index;
+
+  inline bool operator==(const TensorKey& other) const {
+    return f == other.f && value_index == other.value_index;
+  }
+  inline std::string GetName() const {
+    if (f->num_outputs() == 1) return f->func_name();
+    std::ostringstream os;
+    os << f->func_name() << ".v" << value_index;
+    return os.str();
+  }
+};
+
 /*! \brief namespace of possible attribute sin AttrStmt.type_key */
 namespace attr {
-/*!
- * \brief Mark scope of iteration variable, used by Schedule.
- */
-constexpr const char* scope = "scope";
+// The above attr does not pass to ir stage.
 /*!
  * \brief Mark launching extent of thread, used by device API.
  */
@@ -188,5 +203,17 @@ using Halide::Internal::Evaluate;
 
 }  // namespace ir
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<::tvm::ir::TensorKey> {
+  std::size_t operator()(const ::tvm::ir::TensorKey& k) const {
+    size_t lhs = k.f.hash();
+    size_t rhs = static_cast<size_t>(k.value_index);
+    lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
+    return lhs;
+  }
+};
+}  // namespace std
 
 #endif  // TVM_IR_H_

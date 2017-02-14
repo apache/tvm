@@ -42,7 +42,7 @@ class CodeGenCUDA : public CodeGenC {
  private:
   // magic number to add pragma unroll to it.
   // used to generate code that is compact but still unrolls.
-  int max_auto_unroll_{8};
+  int max_auto_unroll_{1025};
 };
 
 }  // namespace codegen

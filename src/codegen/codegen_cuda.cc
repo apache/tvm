@@ -168,7 +168,7 @@ MakeNVRTC(Array<LoweredFunc> funcs) {
     const auto& f = PackedFunc::GetGlobal("tvm_callback_cuda_postproc");
     code = f(code).operator std::string();
   }
-    LOG(INFO) << code;
+
   std::string ptx;
   if (PackedFunc::GlobalExist("tvm_callback_cuda_compile")) {
     const auto& f = PackedFunc::GetGlobal("tvm_callback_cuda_compile");
