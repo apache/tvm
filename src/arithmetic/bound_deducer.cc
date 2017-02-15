@@ -5,9 +5,12 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/api_registry.h>
 #include <unordered_set>
+#include <unordered_map>
 #include "./int_set.h"
 #include "./int_set_internal.h"
+
 
 namespace tvm {
 namespace arith {
@@ -61,9 +64,10 @@ std::vector<const Node*> GetPath(Var target, Expr expr) {
 class BoundDeducer: public IRVisitor {
  public:
   void Deduce(Var target, Expr expr,
-              const Map<IterVar, IntSet>& dom_map) {
+              const Map<Var, IntSet>& dom_map) {
     target_ = target;
     dom_map_ = dom_map;
+    // get the path
     path_ = GetPath(target, expr);
     if (path_.empty()) {
       success = false;
@@ -71,6 +75,9 @@ class BoundDeducer: public IRVisitor {
     }
     iter_ = 0;
     result = make_zero(expr.type());
+    // get the sign of every subexpr
+    sign_map_ = EvalSign(expr, dom_map);
+    LOG(INFO) << "get the sign map";
 
     Visit(expr);
   }
@@ -106,14 +113,14 @@ class BoundDeducer: public IRVisitor {
   void Visit_(const Mul* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
-    SignType sign = EvalSign(operand, dom_map_);
-    if (sign == SignType::kNegative) {
-      is_greater = !is_greater;
-    } else if (sign == SignType::kUnknown) {
-      // unable to get the sign of operand
-      success = false;
-      return;
-    }
+    // SignType sign = EvalSign(operand, dom_map_);
+    // if (sign == SignType::kNegative) {
+    //   is_greater = !is_greater;
+    // } else if (sign == SignType::kUnknown) {
+    //   // unable to get the sign of operand
+    //   success = false;
+    //   return;
+    // }
     // always use relax bound
     if (is_greater) {
       result = result / operand + 1;
@@ -129,7 +136,8 @@ class BoundDeducer: public IRVisitor {
 
  private:
   Var  target_;
-  Map<IterVar, IntSet> dom_map_;
+  Map<Var, IntSet> dom_map_;
+  std::unordered_map<Expr, SignType> sign_map_;
   std::vector<const Node*> path_;
   size_t iter_;
 };
@@ -137,7 +145,7 @@ class BoundDeducer: public IRVisitor {
 // assuming e >= 0, deduce the bound of variable from it.
 // return empty set to represent deduce failure.
 IntSet DeduceBound(Var v, Expr e,
-                   const Map<IterVar, IntSet>& dom_map) {
+                   const Map<Var, IntSet>& dom_map) {
     BoundDeducer deducer;
     deducer.Deduce(v, e, dom_map);
     if (!deducer.success) return IntSet();
@@ -145,6 +153,12 @@ IntSet DeduceBound(Var v, Expr e,
       IntervalSet::make(deducer.result, Interval::pos_inf) :
       IntervalSet::make(Interval::neg_inf, deducer.result);
 }
+
+
+TVM_REGISTER_API(_pass_DeduceBound)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = DeduceBound(args[0], args[1], args[2]);
+  });
 
 } // namespace arith
 } // namespace tvm

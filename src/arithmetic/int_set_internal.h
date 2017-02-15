@@ -3,6 +3,9 @@
  * \file int_set_internal.h
  * \brief Implementations of integer set
  */
+#ifndef TVM_ARITHMETIC_INT_SET_INTERNAL_H_
+#define TVM_ARITHMETIC_INT_SET_INTERNAL_H_
+
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include "./int_set.h"
@@ -53,3 +56,5 @@ struct StrideSet : public IntSetNode {
 
 }  // namespace arith
 }  // namespace tvm
+
+#endif  // TVM_ARITHMETIC_INT_SET_INTERNAL_H_

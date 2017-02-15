@@ -80,6 +80,8 @@ class IntSet : public NodeRef {
  * \brief Base class of all IntSet containers.
  */
 struct IntSetNode : public Node {
+  // static constexpr const char* _type_key = "IntSet";
+  // TVM_DECLARE_NODE_TYPE_INFO(IntSetNode);
 };
 
 /*!
@@ -122,8 +124,8 @@ enum SignType {
  * \param dom_map The domain of each variable.
  * \return the sign type of the expression.
  */
-SignType EvalSign(Expr r,
-                  const Map<IterVar, IntSet>& dom_map);
+std::unordered_map<Expr, SignType> EvalSign(Expr r,
+    const Map<Var, IntSet>& dom_map);
 
 /*!
  * \brief Create an union set of all sets

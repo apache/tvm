@@ -6,6 +6,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <pass/Interval.h>
+#include <unordered_map>
 #include "./int_set.h"
 #include "./compute_expr.h"
 #include "./int_set_internal.h"
@@ -351,6 +352,7 @@ class IntSetEvaluator {
 };
 
 inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator*) {
+  LOG(INFO) << e->type_key() << " " << e;
   return IntSet::single_point(e);
 }
 
@@ -361,6 +363,7 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<Variable>([](const Variable* op, const Expr& e, IntSetEvaluator* m) {
+    LOG(INFO) << e->type_key() << " " << e;
     auto it = m->dom_map.find(op);
     if (it != m->dom_map.end()) {
       return it->second;
@@ -372,12 +375,15 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 // binary operator
 template<typename T>
 inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
+  LOG(INFO) << e->type_key() << " " << e;
   IntSet a = m->Eval(op->a);
   IntSet b = m->Eval(op->b);
   if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
     return IntSet::single_point(e);
   }
+  LOG(INFO) << "Before Combine";
   IntSet r = Combine<T>(a, b);
+  LOG(INFO) << "After Combine";
   return r;
 }
 
@@ -429,23 +435,30 @@ IntSet EvalSet(Range r,
   return Combine<Add>(min_set, ext_set);
 }
 
-SignType EvalSign(Expr r,
-        const Map<IterVar, IntSet>& dom_map) {
-  IntSet set = EvalSet(r, dom_map);
-  if (set.can_prove_positive()) {
-    return kPositive;
-  } else if (set.can_prove_negative()) {
-    return kNegative;
-  } else if (set.is_single_point() && is_zero(set.point_value())) {
-    return kZero;
-  } else {
-    return kUnknown;
+std::unordered_map<Expr, IntSet> EvalSetForSubExpr(Expr e,
+        std::unordered_map<const Variable*, IntSet>& dom_map) {
+  IntSetEvaluator m(dom_map);
+  m.Eval(e);
+  LOG(INFO) << "Eval Finished";
+  return std::unordered_map<Expr, IntSet>();
+}
+
+std::unordered_map<Expr, SignType>  EvalSign(Expr e,
+        const Map<Var, IntSet>& dom_map) {
+  LOG(INFO) << e;
+  // LOG(INFO) << dom_map;
+  std::unordered_map<const Variable*, IntSet> dmap;
+  for (auto kv : dom_map) {
+    LOG(INFO) << kv.second->type_key();
+    dmap[kv.first.get()] = kv.second;
   }
+  auto m = EvalSetForSubExpr(e, dmap);
+  return std::unordered_map<Expr, SignType>();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IntervalSet>([](const IntervalSet *op, IRPrinter *p) {
-    p->stream << "interval-set["
+    p->stream << "interval-set"
               << "[" << op->i.min << ", "
               << op->i.max << ']';
   });
