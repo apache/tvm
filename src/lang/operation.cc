@@ -53,7 +53,7 @@ Operation PlaceholderOpNode::make(std::string name,
 
 
 
-Tensor Placeholder(Array<Expr> shape, Type dtype, std::string name) {
+Tensor placeholder(Array<Expr> shape, Type dtype, std::string name) {
   return PlaceholderOpNode::make(name, shape, dtype).output(0);
 }
 
@@ -82,7 +82,7 @@ Array<Expr> ComputeOpNode::output_shape(size_t i) const {
   return Array<Expr>(shape);
 }
 
-Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name) {
+Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -188,7 +188,7 @@ Operation ScanOpNode::make(std::string name,
   return Operation(n);
 }
 
-Array<Tensor> Scan(IterVar scan_axis,
+Array<Tensor> scan(IterVar scan_axis,
                    Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,

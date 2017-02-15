@@ -23,7 +23,8 @@ using namespace ir;
 // Two private scope marks
 namespace attr {
 constexpr const char* loop_scope = "loop_scope";
-constexpr const char* scan_scope = "scan_scope";
+constexpr const char* scan_update_scope = "scan_update_scope";
+constexpr const char* scan_init_scope = "scan_init_scope";
 }  // namespace attr
 
 /*!
@@ -280,23 +281,31 @@ Stmt MakeLoop(const Stage& s,
   if (init.defined()) {
     // try to find the location to insert the initialization.
     // Fuse the initialization and provide loop when possible.
-    std::unordered_map<IterVar, int> reduce_state;
+    std::unordered_map<IterVar, int> update_state;
     const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
-    for (IterVar iv : compute->reduce_axis) {
-      reduce_state[iv] = 2;
-    }
-    for (IterVar iv : compute->axis) {
-      reduce_state[iv] = 1;
+    const ScanOpNode* scan = s->op.as<ScanOpNode>();
+    if (compute) {
+      for (IterVar iv : compute->reduce_axis) {
+        update_state[iv] = 2;
+      }
+      for (IterVar iv : compute->axis) {
+        update_state[iv] = 1;
+      }
+    } else if (scan) {
+      update_state[scan->scan_axis] = 2;
+      for (IterVar iv : s->outermost_threads) {
+        update_state[iv] = 1;
+      }
     }
     // find which iter var is related to reduction and which is related to axis.
-    PassDownFlag(s, &reduce_state);
+    PassDownFlag(s, &update_state);
     auto leaf_iter_vars = s->leaf_iter_vars;
     std::unordered_map<IterVar, Expr> init_value_map;
     // first first loop that is related to reduction.
     size_t begin_loop = leaf_iter_vars.size();
     for (size_t i = 0; i < leaf_iter_vars.size(); ++i) {
       auto iv = leaf_iter_vars[i];
-      int flag = reduce_state.at(iv);
+      int flag = update_state.at(iv);
       if ((flag & 2) != 0) {
         begin_loop = i; break;
       }
@@ -304,7 +313,7 @@ Stmt MakeLoop(const Stage& s,
     }
     // skip loops that does not relates to axis.
     std::unordered_map<IterVar, bool> skip_iter;
-    for (auto kv : reduce_state) {
+    for (auto kv : update_state) {
       int flag = kv.second;
       if ((flag & 1) == 0) skip_iter[kv.first] = true;
     }
@@ -422,7 +431,10 @@ Stmt MakePipeline(const Stage& s,
   } else if (scan) {
     // Provide is done by the sub operations.
     provide = AttrStmt::make(
-        s->op, attr::scan_scope, scan->scan_axis->var,
+        s->op, attr::scan_update_scope, scan->scan_axis->var,
+        Evaluate::make(0));
+    init = AttrStmt::make(
+        s->op, attr::scan_init_scope, 0,
         Evaluate::make(0));
   } else {
     LOG(FATAL) << "not supported op " << s->op->type_key();
@@ -472,7 +484,9 @@ class InjectAttach : public IRMutator {
     const AttrStmt* op = stmt.as<AttrStmt>();
     if (op != nullptr &&
         op->type_key == attr::loop_scope) {
-      if (op->node == stage_->attach_ivar) {
+      CHECK_NE(producer_.size(), 0U);
+      if (op->node == stage_->attach_ivar &&
+          producer_.back() == stage_->attach_stage->op.get()) {
         CHECK(!found_attach);
         found_attach = true;
         stmt = AttrStmt::make(
@@ -482,6 +496,16 @@ class InjectAttach : public IRMutator {
     }
     return stmt;
   }
+  Stmt Mutate_(const ProducerConsumer* op, const Stmt& s) final {
+    if (op->is_producer) {
+      producer_.push_back(op->func.get());
+      Stmt ret = IRMutator::Mutate_(op, s);
+      producer_.pop_back();
+      return ret;
+    } else {
+      return IRMutator::Mutate_(op, s);
+    }
+  }
   // whether attach point is found
   bool found_attach{false};
 
@@ -490,6 +514,8 @@ class InjectAttach : public IRMutator {
   const Stage& stage_;
   // domain map
   const Map<IterVar, Range>& dom_map_;
+  // internal stack about realization scope.
+  std::vector<const Node*> producer_;
 };
 
 // inject the operator's realization on the stmt.
@@ -505,27 +531,16 @@ class InjectScanStep : public IRMutator {
   Stmt Mutate(Stmt stmt) final {
     CHECK(stmt.defined());
     stmt =  IRMutator::Mutate(stmt);
-    if (is_init_) {
-      const ProducerConsumer* op = stmt.as<ProducerConsumer>();
-      if (op != nullptr &&
-          op->is_producer &&
-          op->func.same_as(scan_op_)) {
-        stmt = ProducerConsumer::make(
-            op->func, true,
-            MakePipeline(stage_, dom_map_, op->body));
+    // update
+    const AttrStmt* op = stmt.as<AttrStmt>();
+    if (op != nullptr &&
+        ((op->type_key == attr::scan_update_scope && !is_init_) ||
+         (op->type_key == attr::scan_init_scope && is_init_))) {
+      if (op->node.same_as(scan_op_)) {
         found_attach = true;
-      }
-    } else {
-      // update
-      const AttrStmt* op = stmt.as<AttrStmt>();
-      if (op != nullptr &&
-          op->type_key == attr::scan_scope) {
-        if (op->node.same_as(scan_op_)) {
-          found_attach = true;
-          stmt = AttrStmt::make(
-              op->node, op->type_key, op->value,
-              MakePipeline(stage_, dom_map_, op->body));
-        }
+        stmt = AttrStmt::make(
+            op->node, op->type_key, op->value,
+            MakePipeline(stage_, dom_map_, op->body));
       }
     }
     return stmt;
@@ -561,8 +576,15 @@ Stmt InjectInline(const Operation op, Stmt body) {
 class SchedulePostProc : public IRMutator {
  public:
   Stmt Mutate_(const ProducerConsumer* op, const Stmt& s) final {
-    if (to_remove_.count(op->func.get())) {
-      return this->Mutate(op->body);
+    auto it = replace_op_.find(op->func.get());
+    if (it != replace_op_.end()) {
+      Stmt body = this->Mutate(op->body);
+      if (it->second.defined()) {
+        return ProducerConsumer::make(
+            it->second, op->is_producer, body);
+      } else {
+        return body;
+      }
     } else {
       return IRMutator::Mutate_(op, s);
     }
@@ -579,14 +601,23 @@ class SchedulePostProc : public IRMutator {
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->type_key == attr::loop_scope) {
       return this->Mutate(op->body);
-    } else if (op->type_key == attr::scan_scope) {
+    } else if (op->type_key == attr::scan_init_scope) {
+      return this->Mutate(op->body);
+    } else if (op->type_key == attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
       CHECK(scan);
       var_value_[scan->scan_axis->var.get()] = op->value;
       return this->Mutate(op->body);
     } else if (op->type_key == ir::attr::realize_scope) {
-      if (to_remove_.count(op->node.get())) {
-        return this->Mutate(op->body);
+      auto it = replace_op_.find(op->node.get());
+      if (it != replace_op_.end()) {
+        if (it->second.defined()) {
+          Stmt ret = AttrStmt::make(
+              it->second, op->type_key, op->value, op->body);
+          return this->Mutate_(ret.as<AttrStmt>(), ret);
+        } else {
+          return this->Mutate(op->body);
+        }
       }
     }
     return IRMutator::Mutate_(op, s);
@@ -594,8 +625,16 @@ class SchedulePostProc : public IRMutator {
 
   Stmt Mutate_(const Realize* op, const Stmt& s) final {
     TensorKey key{op->func, op->value_index};
-    if (replace_.count(key)) {
-      return this->Mutate(op->body);
+    auto it = replace_realize_.find(key);
+    if (it != replace_realize_.end()) {
+      if (it->second.defined()) {
+        Stmt ret = Realize::make(
+            it->second->op, it->second->value_index,
+            op->type, op->bounds, op->condition, op->body);
+        return this->Mutate_(ret.as<Realize>(), ret);
+      } else {
+        return this->Mutate(op->body);
+      }
     } else {
       return IRMutator::Mutate_(op, s);
     }
@@ -603,8 +642,8 @@ class SchedulePostProc : public IRMutator {
 
   Stmt Mutate_(const Provide* op, const Stmt& s) final {
     TensorKey key{op->func, op->value_index};
-    auto it = replace_.find(key);
-    if (it != replace_.end()) {
+    auto it = replace_buffer_.find(key);
+    if (it != replace_buffer_.end()) {
       const Tensor& dst = it->second.first;
       Stmt ret = Provide::make(
           dst->op, dst->value_index, op->value,
@@ -616,10 +655,10 @@ class SchedulePostProc : public IRMutator {
   }
 
   Expr Mutate_(const Call* op, const Expr& e) final {
-    if (op != nullptr && op->call_type == Call::Halide) {
+    if (op->call_type == Call::Halide) {
       TensorKey key{op->func, op->value_index};
-      auto it = replace_.find(key);
-      if (it != replace_.end()) {
+      auto it = replace_buffer_.find(key);
+      if (it != replace_buffer_.end()) {
         const Tensor& dst = it->second.first;
         Expr ret = Call::make(
             op->type, dst->op->name,
@@ -642,22 +681,32 @@ class SchedulePostProc : public IRMutator {
 
   void Init(const Schedule& sch) {
     for (Stage s : sch->stages) {
-      const ScanOpNode* scan = s->op.as<ScanOpNode>();
-      if (!scan) continue;
-      for (size_t i = 0; i < scan->update.size(); ++i) {
-        Tensor t = s->op.output(i);
-        AddReplace(scan->init[i], t, Expr());
-        AddReplace(scan->update[i], t, scan->scan_axis->var);
-        AddReplace(scan->state_placeholder[i], t, Expr());
+      if (s->op.as<ScanOpNode>()) {
+        const ScanOpNode* scan = s->op.as<ScanOpNode>();
+        for (size_t i = 0; i < scan->update.size(); ++i) {
+          Tensor t = s->origin_op.output(i);
+          AddReplace(scan->init[i], t, Expr());
+          AddReplace(scan->update[i], t, scan->scan_axis->var);
+          AddReplace(scan->state_placeholder[i], t, Expr());
+        }
+      } else if (!s->op.same_as(s->origin_op)) {
+        Tensor target = s->origin_op.output(0);
+        AddReplace(s->op.output(0), target,
+                   Expr(), target, s->origin_op);
       }
     }
   }
 
  private:
-  void AddReplace(Tensor src, Tensor dst, Expr head_idx) {
-    replace_[TensorKey{src->op, src->value_index}]
-        = std::make_pair(dst, head_idx);
-    to_remove_.insert(src->op.get());
+  void AddReplace(Tensor src,
+                  Tensor dst,
+                  Expr head_idx,
+                  Tensor repl_realize = Tensor(),
+                  Operation repl_op = Operation()) {
+    TensorKey key{src->op, src->value_index};
+    replace_buffer_[key] = std::make_pair(dst, head_idx);
+    replace_realize_[key] = repl_realize;
+    replace_op_[src->op.get()] = repl_op;
   }
   Array<Expr> RewriteArgs(Expr head, Array<Expr> args) {
     if (!head.defined()) return args;
@@ -670,9 +719,11 @@ class SchedulePostProc : public IRMutator {
   // The scan value
   std::unordered_map<const Variable*, Expr> var_value_;
   // buffer replacement
-  std::unordered_map<TensorKey, std::pair<Tensor, Expr> > replace_;
-  // replaced functions
-  std::unordered_set<const Node*> to_remove_;
+  std::unordered_map<TensorKey, std::pair<Tensor, Expr> > replace_buffer_;
+  // buffere realization to be replaced
+  std::unordered_map<TensorKey, Tensor> replace_realize_;
+  // replace producer consumer.
+  std::unordered_map<const Node*, Operation> replace_op_;
 };
 
 Stmt ScheduleOps(
@@ -724,7 +775,9 @@ Stmt ScheduleOps(
       InjectAttach mutator(s, dom_map);
       body = mutator.Mutate(body);
       CHECK(mutator.found_attach)
-          << "did not find attachment point";
+          << "did not find attachment point for " << s << " in"
+          << s->attach_stage->op << " x "
+          << body;
     }
   }
   SchedulePostProc post_proc;

@@ -22,13 +22,13 @@ def test_schedule_create():
     json_str = tvm.save_json(s)
     s_loaded = tvm.load_json(json_str)
     assert isinstance(s_loaded, tvm.schedule.Schedule)
-    assert(str(s_loaded.roots[0].body) == str(s.roots[0].body))
+    assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 
     # pickle unpickle
     dump = pkl.dumps(s)
     s_loaded = pkl.loads(dump)
     assert isinstance(s_loaded, tvm.schedule.Schedule)
-    assert(str(s_loaded.roots[0].body) == str(s.roots[0].body))
+    assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 
 def test_reorder():
     m = tvm.Var('m')
