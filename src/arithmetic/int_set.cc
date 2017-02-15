@@ -66,6 +66,17 @@ bool IntSet::can_prove_negative() const {
   return (s_int && is_negative_const(ir::Simplify(s_int->i.max)));
 }
 
+SignType IntSet::sign_type() const {
+  if (can_prove_positive()) {
+    return kPositive;
+  } else if (can_prove_negative()) {
+    return kNegative;
+  } else if (is_single_point() && is_zero(point_value())) {
+    return kZero;
+  } else {
+    return kUnknown;
+  }
+}
 Expr IntSet::point_value() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   CHECK(s_int && s_int->i.is_single_point());
@@ -90,6 +101,10 @@ IntSet IntSet::range(Range r) {
         r->min, ComputeExpr<Sub>(ComputeExpr<Add>(r->extent, r->min), 1));
   }
   return IntervalSet::make(r->min, (r->extent + r->min) - 1);
+}
+
+IntSet IntSet::range(Expr min, Expr max) {
+  return IntervalSet::make(min, max);
 }
 
 // Check if a is created from b.
@@ -349,11 +364,14 @@ class IntSetEvaluator {
   }
 
   const std::unordered_map<const Variable*, IntSet>& dom_map;
+  std::unordered_map<const Node*, IntSet> expr_map;
 };
 
-inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator*) {
+inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator* m) {
   LOG(INFO) << e->type_key() << " " << e;
-  return IntSet::single_point(e);
+  IntSet res = IntSet::single_point(e);
+  m->expr_map[e.get()] = res;
+  return res;
 }
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
@@ -364,12 +382,15 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<Variable>([](const Variable* op, const Expr& e, IntSetEvaluator* m) {
     LOG(INFO) << e->type_key() << " " << e;
+    IntSet res;
     auto it = m->dom_map.find(op);
     if (it != m->dom_map.end()) {
-      return it->second;
+      res = it->second;
     } else {
-      return IntSet::single_point(e);
+      res = IntSet::single_point(e);
     }
+    m->expr_map[e.get()] = res;
+    return res;
   });
 
 // binary operator
@@ -381,9 +402,8 @@ inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
   if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
     return IntSet::single_point(e);
   }
-  LOG(INFO) << "Before Combine";
   IntSet r = Combine<T>(a, b);
-  LOG(INFO) << "After Combine";
+  m->expr_map[e.get()] = r;
   return r;
 }
 
@@ -435,15 +455,14 @@ IntSet EvalSet(Range r,
   return Combine<Add>(min_set, ext_set);
 }
 
-std::unordered_map<Expr, IntSet> EvalSetForSubExpr(Expr e,
+std::unordered_map<const Node*, IntSet> EvalSetForSubExpr(Expr e,
         std::unordered_map<const Variable*, IntSet>& dom_map) {
   IntSetEvaluator m(dom_map);
   m.Eval(e);
-  LOG(INFO) << "Eval Finished";
-  return std::unordered_map<Expr, IntSet>();
+  return m.expr_map;
 }
 
-std::unordered_map<Expr, SignType>  EvalSign(Expr e,
+std::unordered_map<const Node*, SignType>  EvalSign(Expr e,
         const Map<Var, IntSet>& dom_map) {
   LOG(INFO) << e;
   // LOG(INFO) << dom_map;
@@ -452,8 +471,12 @@ std::unordered_map<Expr, SignType>  EvalSign(Expr e,
     LOG(INFO) << kv.second->type_key();
     dmap[kv.first.get()] = kv.second;
   }
-  auto m = EvalSetForSubExpr(e, dmap);
-  return std::unordered_map<Expr, SignType>();
+  auto expr_map = EvalSetForSubExpr(e, dmap);
+  std::unordered_map<const Node*, SignType> res;
+  for (auto kv : expr_map) {
+    res[kv.first] = kv.second.sign_type();
+  }
+  return res;
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)

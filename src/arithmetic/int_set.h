@@ -12,6 +12,13 @@
 namespace tvm {
 namespace arith {
 
+enum SignType {
+  kPositive,
+  kNegative,
+  kZero,
+  kUnknown
+};
+
 // internal node container of int set.
 class IntSetNode;
 
@@ -48,6 +55,7 @@ class IntSet : public NodeRef {
   bool can_prove_positive() const;
   /*! \return Whether the set is proved to be smaller than 0 */
   bool can_prove_negative() const;
+  SignType sign_type() const;
   /*!
    * \brief The single point value, call only if is_single_point is true
    * \return The point value.
@@ -74,6 +82,7 @@ class IntSet : public NodeRef {
    * \return constructed set.
    */
   static IntSet range(Range r);
+  static IntSet range(Expr min, Expr max);
 };
 
 /*!
@@ -109,13 +118,6 @@ IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
 
 
-enum SignType {
-  kPositive,
-  kNegative,
-  kZero,
-  kUnknown
-};
-
 /*!
  * \brief Find the sign of the expr, given the domain of each
  *  iteration variables.
@@ -124,7 +126,7 @@ enum SignType {
  * \param dom_map The domain of each variable.
  * \return the sign type of the expression.
  */
-std::unordered_map<Expr, SignType> EvalSign(Expr r,
+std::unordered_map<const Node*, SignType> EvalSign(Expr r,
     const Map<Var, IntSet>& dom_map);
 
 /*!

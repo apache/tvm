@@ -113,14 +113,14 @@ class BoundDeducer: public IRVisitor {
   void Visit_(const Mul* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
-    // SignType sign = EvalSign(operand, dom_map_);
-    // if (sign == SignType::kNegative) {
-    //   is_greater = !is_greater;
-    // } else if (sign == SignType::kUnknown) {
-    //   // unable to get the sign of operand
-    //   success = false;
-    //   return;
-    // }
+    SignType sign = sign_map_[operand.get()];
+    if (sign == SignType::kNegative) {
+      is_greater = !is_greater;
+    } else if (sign == SignType::kUnknown) {
+      // unable to get the sign of operand
+      success = false;
+      return;
+    }
     // always use relax bound
     if (is_greater) {
       result = result / operand + 1;
@@ -137,7 +137,7 @@ class BoundDeducer: public IRVisitor {
  private:
   Var  target_;
   Map<Var, IntSet> dom_map_;
-  std::unordered_map<Expr, SignType> sign_map_;
+  std::unordered_map<const Node*, SignType> sign_map_;
   std::vector<const Node*> path_;
   size_t iter_;
 };
