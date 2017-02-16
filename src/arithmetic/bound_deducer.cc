@@ -10,7 +10,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "./int_set.h"
-#include "./int_set_internal.h"
 
 namespace tvm {
 namespace arith {
@@ -93,6 +92,34 @@ class BoundDeducer: public IRVisitor {
     }
   }
 
+  void Visit_(const LT* op) final {
+    is_greater = false;
+    is_equal = false;
+    result = op->b;
+    Visit(op->a);
+  }
+
+  void Visit_(const LE* op) final {
+    is_greater = false;
+    is_equal = true;
+    result = op->b;
+    Visit(op->a);
+  }
+
+  void Visit_(const GT* op) final {
+    is_greater = true;
+    is_equal = false;
+    result = op->b;
+    Visit(op->a);
+  }
+
+  void Visit_(const GE* op) final {
+    is_greater = true;
+    is_equal = true;
+    result = op->b;
+    Visit(op->a);
+  }
+
   void Visit_(const Add* op) final {
     bool left = op->a.get() == path_[iter_];
     result -= left ? op->b : op->a;
@@ -141,6 +168,7 @@ class BoundDeducer: public IRVisitor {
 
   Expr result;
   bool is_greater{true};
+  bool is_equal{true};
   bool success{true};
 
  private:
@@ -160,11 +188,15 @@ IntSet DeduceBound(Var v, Expr e,
   for (auto kv : dom_map) {
     dmap[kv.first.get()] = kv.second;
   }
-  BoundDeducer deducer(v, e, dmap);
-  if (!deducer.success) return IntSet();
-  return deducer.is_greater ?
-    IntervalSet::make(deducer.result, Interval::pos_inf) :
-    IntervalSet::make(Interval::neg_inf, deducer.result);
+  BoundDeducer d(v, e, dmap);
+  if (!d.success) return IntSet();
+  Expr min = Interval::neg_inf, max = Interval::pos_inf;
+  if (d.is_greater) {
+    min = d.is_equal ? d.result : d.result+1;
+  } else {
+    max = d.is_equal ? d.result : d.result-1;
+  }
+  return IntSet::range(min, max);
 }
 
 } // namespace arith
