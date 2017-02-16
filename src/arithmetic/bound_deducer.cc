@@ -77,7 +77,6 @@ class BoundDeducer: public IRVisitor {
     result = make_zero(expr.type());
     // get the sign of every subexpr
     sign_map_ = EvalSign(expr, dom_map);
-    LOG(INFO) << "get the sign map";
 
     Visit(expr);
   }
@@ -113,7 +112,7 @@ class BoundDeducer: public IRVisitor {
   void Visit_(const Mul* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
-    SignType sign = sign_map_[operand.get()];
+    SignType sign = sign_map_[operand];
     if (sign == SignType::kNegative) {
       is_greater = !is_greater;
     } else if (sign == SignType::kUnknown) {
@@ -137,7 +136,7 @@ class BoundDeducer: public IRVisitor {
  private:
   Var  target_;
   Map<Var, IntSet> dom_map_;
-  std::unordered_map<const Node*, SignType> sign_map_;
+  ExprSignMap sign_map_;
   std::vector<const Node*> path_;
   size_t iter_;
 };

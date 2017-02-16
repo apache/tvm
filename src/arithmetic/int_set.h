@@ -19,6 +19,9 @@ enum SignType {
   kUnknown
 };
 
+using ExprSignMap = std::unordered_map<Expr, SignType,
+      Halide::ExprHash, Halide::ExprEqual>;
+
 // internal node container of int set.
 class IntSetNode;
 
@@ -126,8 +129,8 @@ IntSet EvalSet(Range r,
  * \param dom_map The domain of each variable.
  * \return the sign type of the expression.
  */
-std::unordered_map<const Node*, SignType> EvalSign(Expr r,
-    const Map<Var, IntSet>& dom_map);
+ExprSignMap EvalSign(Expr r,
+                     const Map<Var, IntSet>& dom_map);
 
 /*!
  * \brief Create an union set of all sets

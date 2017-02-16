@@ -17,6 +17,9 @@ namespace arith {
 using Halide::Internal::Interval;
 using namespace ir;
 
+using ExprIntSetMap = std::unordered_map<Expr, IntSet,
+      Halide::ExprHash, Halide::ExprEqual>;
+
 inline IntSet IntSet::cover_interval() const {
   if ((*this).as<IntervalSet>()) return *this;
   const StrideSet* s =  (*this).as<StrideSet>();
@@ -364,13 +367,12 @@ class IntSetEvaluator {
   }
 
   const std::unordered_map<const Variable*, IntSet>& dom_map;
-  std::unordered_map<const Node*, IntSet> expr_map;
+  ExprIntSetMap expr_map;
 };
 
 inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator* m) {
-  LOG(INFO) << e->type_key() << " " << e;
   IntSet res = IntSet::single_point(e);
-  m->expr_map[e.get()] = res;
+  m->expr_map[e] = res;
   return res;
 }
 
@@ -381,7 +383,6 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<Variable>([](const Variable* op, const Expr& e, IntSetEvaluator* m) {
-    LOG(INFO) << e->type_key() << " " << e;
     IntSet res;
     auto it = m->dom_map.find(op);
     if (it != m->dom_map.end()) {
@@ -389,21 +390,20 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
     } else {
       res = IntSet::single_point(e);
     }
-    m->expr_map[e.get()] = res;
+    m->expr_map[e] = res;
     return res;
   });
 
 // binary operator
 template<typename T>
 inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
-  LOG(INFO) << e->type_key() << " " << e;
   IntSet a = m->Eval(op->a);
   IntSet b = m->Eval(op->b);
   if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
     return IntSet::single_point(e);
   }
   IntSet r = Combine<T>(a, b);
-  m->expr_map[e.get()] = r;
+  m->expr_map[e] = r;
   return r;
 }
 
@@ -455,26 +455,23 @@ IntSet EvalSet(Range r,
   return Combine<Add>(min_set, ext_set);
 }
 
-std::unordered_map<const Node*, IntSet> EvalSetForSubExpr(Expr e,
-        std::unordered_map<const Variable*, IntSet>& dom_map) {
-  IntSetEvaluator m(dom_map);
-  m.Eval(e);
-  return m.expr_map;
-}
-
-std::unordered_map<const Node*, SignType>  EvalSign(Expr e,
+ExprSignMap  EvalSign(Expr e,
         const Map<Var, IntSet>& dom_map) {
-  LOG(INFO) << e;
-  // LOG(INFO) << dom_map;
   std::unordered_map<const Variable*, IntSet> dmap;
   for (auto kv : dom_map) {
-    LOG(INFO) << kv.second->type_key();
     dmap[kv.first.get()] = kv.second;
   }
-  auto expr_map = EvalSetForSubExpr(e, dmap);
-  std::unordered_map<const Node*, SignType> res;
-  for (auto kv : expr_map) {
-    res[kv.first] = kv.second.sign_type();
+
+  IntSetEvaluator m(dmap);
+  m.Eval(e);
+
+  ExprSignMap res;
+  for (auto kv : m.expr_map) {
+    if (kv.first.type().is_uint()) {
+      res[kv.first] = kPositive;
+    } else {
+      res[kv.first] = kv.second.sign_type();
+    }
   }
   return res;
 }
