@@ -77,6 +77,55 @@ class ComputeOpNode : public OperationNode {
   TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode);
 };
 
+/*!
+ * \brief Symbolic scan.
+ */
+class ScanOpNode : public OperationNode {
+ public:
+  /*! \brief IterVar to scan over */
+  IterVar scan_axis;
+  /*! \brief the initialization tensors */
+  Array<Tensor> init;
+  /*! \brief the update function represented by tensor */
+  Array<Tensor> update;
+  /*! \brief The placeholder to refer as states in update. */
+  Array<Tensor> state_placeholder;
+  /*!
+   * \brief Spatial axis to indicate spatial dimension of each output.
+   *  They corresponds to flattened spatial axis of the outputs.
+   *
+   *  [output[0].axis[1], output[0].axis[2]... output[k].axis[j]...]
+   *  These are auxiliary data structure for storing result of bound inference.
+   *  They do not corresponds to splittable iterations, thus the name comes
+   *  with underscore.
+   */
+  Array<IterVar> spatial_axis_;
+  /*! \brief constructor */
+  ScanOpNode() {}
+  // override behavior.
+  int num_outputs() const final;
+  Array<IterVar> root_iter_vars() const final;
+  Type output_dtype(size_t i) const final;
+  Array<Expr> output_shape(size_t i) const final;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("scan_axis", &scan_axis);
+    v->Visit("init", &init);
+    v->Visit("update", &update);
+    v->Visit("state_placeholder", &state_placeholder);
+    v->Visit("spatial_axis_", &spatial_axis_);
+  }
+  static Operation make(std::string name,
+                        IterVar axis,
+                        Array<Tensor> init,
+                        Array<Tensor> update,
+                        Array<Tensor> state_placeholder);
+
+  static constexpr const char* _type_key = "ScanOp";
+  TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode);
+};
+
 
 /*! \brief The compute function to specify the input source of a Tensor */
 using FCompute = std::function<Expr (const Array<Var>& i)>;
@@ -99,6 +148,21 @@ Tensor Placeholder(Array<Expr> shape,
  * \param name The optional name of the tensor.
  */
 Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
+
+/*!
+ * \brief Construct new tensors by scan over scan_axis.
+ *
+ * \param scan_axis The iteration representing the scan.
+ * \param init The intialize tensor of first K steps.
+ * \param update The update tensor indicated the updated result after each timestamp.
+ * \param state_placeholder The placeholder for the states.
+ * \param name The optional name of the tensor.
+ */
+Array<Tensor> Scan(IterVar scan_axis,
+                   Array<Tensor> init,
+                   Array<Tensor> update,
+                   Array<Tensor> state_placeholder,
+                   std::string name = "scan");
 
 // same as compute, specialized for different fcompute function
 inline Tensor Compute(Array<Expr> shape,

@@ -22,7 +22,7 @@ namespace schedule {
  * \param sch The root schedule to infer all the bounds.
  * \return the result bound of the iteration Variable
  */
-Map<IterVar, Range> InferBound(Schedule sch);
+Map<IterVar, Range> InferBound(const Schedule& sch);
 
 /*!
  * \brief Schedule s' dependent operations.

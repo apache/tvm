@@ -14,6 +14,7 @@ from ._ctypes._function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
+from . import tensor as _tensor
 from . import collections as _collections
 
 int32 = "int32"
@@ -111,7 +112,6 @@ def compute(shape, fcompute, name="compute"):
     shape: Tuple of Expr
         The shape of the tensor
 
-
     fcompute: lambda function of *indices-> value
         Specifies the input source expression
 
@@ -137,8 +137,57 @@ def compute(shape, fcompute, name="compute"):
     body = convert(body)
     op_node = _api_internal._ComputeOp(
         name, dim_var, body)
-    return _api_internal._Tensor(
-        shape, body.dtype, op_node, 0)
+    return op_node.output(0)
+
+
+def scan(axis, init, update, state_placeholder, name="scan"):
+    """Construct new tensors by scanning over axis.
+
+    Parameters
+    ----------
+    axis: IterVar
+        The scanning axis.
+
+    init: Tensor or list of Tensor
+        The initial condition of first init.shape[0] timestamps
+
+    update: Tensor or list of Tensor
+        The update rule of the scan given by symbolic tensor.
+
+    state_placeholder: Tensor or list of Tensor
+        The placeholder variables used by update.
+
+    name: str, optional
+        The name hint of the tensor
+
+    Returns
+    -------
+    tensor: tensor.Tensor
+        The created tensor
+
+    Example
+    -------
+    # The following code is equivalent to numpy.cumsum
+    m = tvm.Var("m")
+    n = tvm.Var("n")
+    t = tvm.IterVar((1, m), name="t")
+    X = tvm.placeholder((m, n), name="X")
+    s_state = tvm.placeholder((m, n))
+    s_init = tvm.compute((1, n), lambda _, i: X[0, i])
+    s_update = tvm.compute((n,), lambda i: s_state[t-1, i] + X[t, i])
+    res = tvm.scan(t, s_init, s_update, s_state)
+    """
+    if isinstance(init, _tensor.Tensor):
+        init = [init]
+    if isinstance(update, _tensor.Tensor):
+        update = [update]
+    if isinstance(state_placeholder, _tensor.Tensor):
+        state_placeholder = [state_placeholder]
+    if len(init) != len(update) or len(init) != len(state_placeholder):
+        raise ValueError("init, update, state_placeholder must have same length")
+    op = _api_internal._ScanOp(name, axis, init, update, state_placeholder)
+    res = [op.output(i) for i in range(len(update))]
+    return (res[0] if len(res) == 1 else res)
 
 
 def Buffer(shape, dtype=None,

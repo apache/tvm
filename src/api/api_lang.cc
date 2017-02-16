@@ -173,6 +173,15 @@ TVM_REGISTER_API(_ComputeOp)
                                args[2]);
   });
 
+TVM_REGISTER_API(_ScanOp)
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = ScanOpNode::make(args[0],
+                            args[1],
+                            args[2],
+                            args[3],
+                            args[4]);
+  });
+
 TVM_REGISTER_API(_OpGetOutput)
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Operation().output(
