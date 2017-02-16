@@ -7,6 +7,7 @@
 #include <tvm/ir.h>
 #include <tvm/api_registry.h>
 #include "../arithmetic/int_set.h"
+#include "../arithmetic/int_set_internal.h"
 
 namespace tvm {
 namespace arith {
@@ -26,6 +27,17 @@ TVM_REGISTER_API(_arith_DeduceBound)
     *ret = DeduceBound(args[0], args[1], args[2]);
   });
 
+TVM_REGISTER_API(_IntervalSetGetMin)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    IntSet s = args[0].operator IntSet();
+    *ret = s.as<IntervalSet>()->i.min;
+  });
+
+TVM_REGISTER_API(_IntervalSetGetMax)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    IntSet s = args[0].operator IntSet();
+    *ret = s.as<IntervalSet>()->i.max;
+  });
 
 }  // namespace arith
 }  // namespace tvm
