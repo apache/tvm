@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file schedule.cc
+ * \file schedule_lang.cc
  */
 #include <tvm/schedule.h>
 #include <tvm/ir_mutator.h>
@@ -37,6 +37,10 @@ size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) 
 
 void Split(StageNode* self, IterVar parent,
            IterVar outer, IterVar inner, Expr factor) {
+  if (self->attach_type == kScanUpdate) {
+    CHECK(!parent.same_as(self->all_iter_vars[0]))
+        << "Cannot split on axis[0] of scan update";
+  }
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
@@ -83,6 +87,8 @@ Stage& Stage::set_scope(std::string scope) {  // NOLINT(*)
 }
 
 Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
+  CHECK_NE((*this)->attach_type, kScanUpdate)
+      << "Cannot specify compute_at for scan updates";
   (*this)->attach_type = kScope;
   (*this)->attach_ivar = scope;
   (*this)->attach_stage = parent;
@@ -93,16 +99,22 @@ Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
     }
   }
   CHECK(found)
-      << "Cannot find the axis in parent's leaf_iter_vars or outermost_threads";
+      << "Cannot find the axis " << scope
+      << " in parent's leaf_iter_vars or outermost_threads:"
+      << " parent=" << parent;
   return *this;
 }
 
 Stage& Stage::compute_inline() {   // NOLINT(*)
+  CHECK_NE((*this)->attach_type, kScanUpdate)
+      << "Cannot specify compute_at for scan updates";
   (*this)->attach_type = kInline;
   return *this;
 }
 
 Stage& Stage::compute_root() {   // NOLINT(*)
+  CHECK_NE((*this)->attach_type, kScanUpdate)
+      << "Cannot specify compute_at for scan updates";
   (*this)->attach_type = kRoot;
   return *this;
 }
@@ -128,9 +140,15 @@ Stage& Stage::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor
 }
 
 Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
+  StageNode* self = operator->();
+  if (self->attach_type == kScanUpdate) {
+    CHECK(!inner.same_as(self->all_iter_vars[0]))
+        << "Cannot split on axis[0] of scan update";
+    CHECK(!outer.same_as(self->all_iter_vars[0]))
+        << "Cannot split on axis[0] of scan update";
+  }
   IterVar fused(Range(), outer->var->name_hint + "." + inner->var->name_hint + ".fused");
   *p_target = fused;
-  StageNode* self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
 
@@ -157,6 +175,10 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   std::vector<size_t> pos;
 
   for (size_t i = 0; i < order.size(); ++i) {
+    if ((*this)->attach_type == kScanUpdate) {
+      CHECK(!order[i].same_as(self->all_iter_vars[0]))
+          << "Cannot split on axis[0] of scan update";
+    }
     pos.push_back(FindLeafVar(all_vars, leaf_vars, order[i]));
   }
   std::vector<std::shared_ptr<Node> > temp;
@@ -239,12 +261,25 @@ Schedule::Schedule(Array<Operation> ops) {
     stage->is_output = output_set.count(op);
     n->stages.push_back(stage);
     n->stage_map.Set(op, stage);
+    // mark scan updates.
+    if (op.as<ScanOpNode>()) {
+      const ScanOpNode* scan = op.as<ScanOpNode>();
+      for (size_t i = 0; i < scan->update.size(); ++i) {
+        Stage s = n->stage_map[scan->update[i]->op];
+        s->attach_type = kScanUpdate;
+        s->attach_stage = stage;
+      }
+    }
   }
   node_ = std::move(n);
 }
 
 Stage Schedule::operator[](const Operation& op) {
-  return (*this)->stage_map.at(op);
+  auto it = (*this)->stage_map.find(op);
+  CHECK(it != (*this)->stage_map.end())
+      << "Cannot find Stage for operator " << op
+      << " in the schedule";
+  return (*it).second;
 }
 
 IterVarRelation SplitNode::make(
@@ -274,42 +309,6 @@ IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
   return IterVarRelation(n);
 }
 
-void Schedule::normalize() {
-  std::unordered_map<IterVar, IterVar> rebase_map;
-  std::unordered_map<const Node*, int> attach_mark;
-
-
-  for (Stage s : (*this)->stages) {
-    if (s->attach_type == kScope) {
-      attach_mark[s->attach_stage.get()] = 1;
-    }
-  }
-
-  for (Stage s : (*this)->stages) {
-    if (!attach_mark.count(s.get())) continue;
-    auto root_iter_vars = s->op->root_iter_vars();
-    ArrayNode* leaf_vars = s->leaf_iter_vars.CopyOnWrite();
-
-    for (IterVar iv : root_iter_vars) {
-      size_t idx = FindNodeRef(leaf_vars, iv);
-      if (idx < leaf_vars->data.size()) {
-        // insert rebase
-        IterVar rebased(Range(), iv->var->name_hint + ".rb");
-        s->relations.push_back(RebaseNode::make(iv, rebased));
-        leaf_vars->data[idx] = rebased.node_;
-        rebase_map[iv] = rebased;
-      }
-    }
-  }
-  // remap the parent relation
-  for (Stage s : (*this)->stages) {
-    if (s->attach_type != kScope) continue;
-    if (rebase_map.count(s->attach_ivar)) {
-      s->attach_ivar = rebase_map.at(s->attach_ivar);
-    }
-  }
-}
-
 IterVarAttr::IterVarAttr(IterVarType t) {
   std::shared_ptr<IterVarAttrNode> n = std::make_shared<IterVarAttrNode>();
   n->iter_type = t;
@@ -322,191 +321,5 @@ TVM_REGISTER_NODE_TYPE(SplitNode);
 TVM_REGISTER_NODE_TYPE(FuseNode);
 TVM_REGISTER_NODE_TYPE(RebaseNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
-
-using ir::TensorKey;
-
-// The replacer of cache.
-class TensorReplacer : public ir::IRMutator {
- public:
-  TensorReplacer(const std::unordered_map<TensorKey, Tensor>& vmap)
-      : vmap_(vmap) {}
-  Expr Mutate_(const ir::Call* op, const Expr& e) {
-    if (op->call_type == ir::Call::Halide) {
-      ir::TensorKey key{op->func, op->value_index};
-      auto it = vmap_.find(key);
-      if (it != vmap_.end()) {
-        Expr ret = ir::Call::make(
-            op->type, it->second->op->name, op->args,
-            op->call_type, it->second->op, it->second->value_index);
-        found = true;
-        return IRMutator::Mutate_(ret.as<ir::Call>(), ret);
-      }
-    }
-    return IRMutator::Mutate_(op, e);
-  }
-
-  // whether it is found.
-  bool found{false};
-
- private:
-  const std::unordered_map<TensorKey, Tensor>& vmap_;
-};
-
-class VarReplacer : public ir::IRMutator {
- public:
-  explicit VarReplacer(
-      const std::unordered_map<const Variable*, Expr>& vsub)
-      : vsub_(vsub) {}
-  Expr Mutate_(const Variable* op, const Expr& e) {
-    auto it = vsub_.find(op);
-    if (it != vsub_.end()) return it->second;
-    return e;
-  }
-
- private:
-  const std::unordered_map<const Variable*, Expr>& vsub_;
-};
-
-// Replace data flow appears in all stages given the tensor change.
-// Also update vmap if subsequent dataflow need to be replaced.
-void ReplaceDataFlow(const Array<Stage>& stages,
-                     std::unordered_map<TensorKey, Tensor>* vmap) {
-  for (Stage s : stages) {
-    if (s->op.as<ComputeOpNode>()) {
-      const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
-      TensorReplacer repl(*vmap);
-      Expr body = repl.Mutate(compute->body);
-      if (repl.found) {
-        Operation op = ComputeOpNode::make(
-            compute->name, compute->axis, body);
-        (*vmap)[TensorKey{s->op, 0}] = op.output(0);
-        s->op = op;
-      }
-    } else if (s->op.as<ScanOpNode>()) {
-      const ScanOpNode* scan = s->op.as<ScanOpNode>();
-      std::shared_ptr<ScanOpNode> n =
-          std::make_shared<ScanOpNode>(*scan);
-      // copy on write semantics ganrantees correctness
-      for (size_t i = 0; i < n->init.size(); ++i) {
-        TensorKey key{n->init[i]->op, n->init[i]->value_index};
-        if (vmap->count(key)) {
-          n->init.Set(i, vmap->at(key));
-        }
-      }
-      for (size_t i = 0; i < n->update.size(); ++i) {
-        TensorKey key{n->update[i]->op, n->update[i]->value_index};
-        if (vmap->count(key)) {
-          n->update.Set(i, vmap->at(key));
-        }
-      }
-      if (!n->init.same_as(scan->init) ||
-          !n->update.same_as(scan->update)) {
-        Operation op(n);
-        for (int i = 0; i < op->num_outputs(); ++i) {
-          (*vmap)[TensorKey{s->op, i}] = op.output(i);
-        }
-        s->op = op;
-      }
-    } else if (s->op.as<PlaceholderOpNode>()) {
-    } else {
-      LOG(FATAL) << "unhandled problem";
-    }
-  }
-}
-
-Tensor Schedule::cache_read(const Tensor& tensor,
-                            const std::string& scope,
-                            const Array<Operation>& readers) {
-  // create identity mapping.
-  std::ostringstream os;
-  os << tensor->op->name;
-  if (tensor->op->num_outputs() != 1) {
-    os << ".v" << tensor->value_index;
-  }
-  os << "." << scope;
-
-  Tensor cache = compute(tensor->shape, [&tensor](const Array<Var>& i) {
-      return tensor(Array<Expr>(i.begin(), i.end()));
-    }, os.str());
-  std::unordered_map<TensorKey, Tensor> vsub;
-  vsub[TensorKey{tensor->op, tensor->value_index}] = cache;
-
-  std::unordered_map<TensorKey, Tensor> vmap;
-  for (Operation op : readers) {
-    const ComputeOpNode* compute = op.as<ComputeOpNode>();
-    CHECK(compute)
-        << "cache read only take ComputeOp as readers";
-    Stage s = operator[](op);
-    compute = s->op.as<ComputeOpNode>();
-
-    TensorReplacer repl(vsub);
-    Expr body = repl.Mutate(compute->body);
-    CHECK(repl.found)
-        << "Cannot find " << tensor
-        << " in the body of specified reader" << op;
-    Operation repl_op = ComputeOpNode::make(
-        compute->name, compute->axis, body);
-    vmap[TensorKey{s->op, 0}] = repl_op.output(0);
-    s->op = repl_op;
-  }
-  ReplaceDataFlow((*this)->stages, &vmap);
-  ArrayNode* stages = (*this)->stages.CopyOnWrite();
-  size_t pos = FindNodeRef(stages, operator[](tensor->op));
-  Stage cache_stage = Stage(cache->op);
-  cache_stage.set_scope(scope);
-  CHECK_LT(pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + pos + 1,
-                      cache_stage.node_);
-  (*this)->stage_map.Set(cache->op, cache_stage);
-  return cache;
-}
-
-Tensor Schedule::cache_write(const Tensor& tensor,
-                             const std::string& scope) {
-  Stage orig_stage = operator[](tensor->op);
-  const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
-  CHECK(compute)
-      << "cache write only take ComputeOp as writers";
-  CHECK(!orig_stage.is_scheduled())
-      << "Create cache_write before doing split/fuse/reorder";
-  compute = orig_stage->op.as<ComputeOpNode>();
-  CHECK(compute);
-  Array<Expr> args;
-  Array<IterVar> new_axis;
-  std::unordered_map<const Variable*, Expr> vsub;
-  for (IterVar iv : compute->axis) {
-    args.push_back(iv->var);
-    IterVar new_iv(iv->dom, iv->var->name_hint + ".c");
-    new_axis.push_back(new_iv);
-    vsub[iv->var.get()] = new_iv->var;
-  }
-  VarReplacer repl(vsub);
-  Expr body = repl.Mutate(compute->body);
-  Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, new_axis, body);
-  Tensor cache_tensor = cache_op.output(0);
-  Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->axis,
-      cache_tensor(args));
-
-  std::unordered_map<TensorKey, Tensor> vmap;
-  vmap[TensorKey{orig_stage->op, 0}] = orig_new_op.output(0);
-  ReplaceDataFlow((*this)->stages, &vmap);
-
-  // mutate orig stage
-  orig_stage->op = orig_new_op;
-  orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
-  orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
-  // create schedule for new cached stage.
-  ArrayNode* stages = (*this)->stages.CopyOnWrite();
-  size_t pos = FindNodeRef(stages, orig_stage);
-  Stage cache_stage = Stage(cache_op);
-  cache_stage.set_scope(scope);
-  CHECK_LT(pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + pos,
-                      cache_stage.node_);
-  (*this)->stage_map.Set(cache_op, cache_stage);
-  return cache_tensor;
-}
 
 }  // namespace tvm

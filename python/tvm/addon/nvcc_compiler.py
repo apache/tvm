@@ -4,7 +4,7 @@ import sys
 import tempfile
 import subprocess
 
-def compile_source(code, target="cubin"):
+def compile_source(code, target="cubin", options=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -12,8 +12,11 @@ def compile_source(code, target="cubin"):
     code : str
         The cuda code.
 
-    target: str
+    target : str
         The target format
+
+    options : str
+        The additional options
 
     Return
     ------
@@ -32,6 +35,8 @@ def compile_source(code, target="cubin"):
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
     cmd += ["-o", path_target]
+    if options:
+        cmd += options
     cmd += [path_code]
     args = ' '.join(cmd)
 

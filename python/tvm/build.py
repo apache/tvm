@@ -63,7 +63,8 @@ def build(sch,
             arg_list.append(x)
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
-    # lowering
+    # normalize schedule first
+    sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.StorageFlatten(stmt, binds)

@@ -40,9 +40,8 @@ def test_tensor_scan():
     t = tvm.IterVar((1, m), "t")
     x = tvm.placeholder((m, n))
     s = tvm.placeholder((m, n))
-    res = tvm.scan(t,
-                   tvm.compute((1, n), lambda _, i: x[0, i]),
-                   tvm.compute((n,), lambda i: s[t-1, i] + x[t, i]),
+    res = tvm.scan(tvm.compute((1, n), lambda _, i: x[0, i]),
+                   tvm.compute((m, n), lambda t, i: s[t-1, i] + x[t, i]),
                    s)
     assert tuple(res.shape) == (m, n)
 

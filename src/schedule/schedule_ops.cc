@@ -369,7 +369,7 @@ Stmt MakeRealize(const ScanOpNode* op,
     CHECK_EQ(static_cast<size_t>(t->value_index), i);
     Halide::Internal::Region bounds;
     bounds.push_back(tdom);
-    for (size_t k = 0; k < op->update[i]->shape.size(); ++k, ++sp_idx) {
+    for (size_t k = 1; k < op->update[i]->shape.size(); ++k, ++sp_idx) {
       IterVar sp_ax = op->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
@@ -561,6 +561,7 @@ class InjectScanStep : public IRMutator {
 
 Stmt InjectInline(const Operation op, Stmt body) {
   CHECK(body.defined());
+
   const ComputeOpNode* compute = op.as<ComputeOpNode>();
   CHECK(compute != nullptr)
       << "can only inline compute op";
@@ -614,7 +615,7 @@ class SchedulePostProc : public IRMutator {
         if (it->second.defined()) {
           Stmt ret = AttrStmt::make(
               it->second, op->type_key, op->value, op->body);
-          return this->Mutate_(ret.as<AttrStmt>(), ret);
+          return this->Mutate(ret);
         } else {
           return this->Mutate(op->body);
         }
@@ -631,7 +632,7 @@ class SchedulePostProc : public IRMutator {
         Stmt ret = Realize::make(
             it->second->op, it->second->value_index,
             op->type, op->bounds, op->condition, op->body);
-        return this->Mutate_(ret.as<Realize>(), ret);
+        return this->Mutate(ret);
       } else {
         return this->Mutate(op->body);
       }
@@ -644,11 +645,10 @@ class SchedulePostProc : public IRMutator {
     TensorKey key{op->func, op->value_index};
     auto it = replace_buffer_.find(key);
     if (it != replace_buffer_.end()) {
-      const Tensor& dst = it->second.first;
+      const Tensor& dst = it->second;
       Stmt ret = Provide::make(
-          dst->op, dst->value_index, op->value,
-          RewriteArgs(it->second.second, op->args));
-      return IRMutator::Mutate_(ret.as<Provide>(), ret);
+          dst->op, dst->value_index, op->value, op->args);
+      return this->Mutate(ret);
     } else {
       return IRMutator::Mutate_(op, s);
     }
@@ -659,12 +659,11 @@ class SchedulePostProc : public IRMutator {
       TensorKey key{op->func, op->value_index};
       auto it = replace_buffer_.find(key);
       if (it != replace_buffer_.end()) {
-        const Tensor& dst = it->second.first;
+        const Tensor& dst = it->second;
         Expr ret = Call::make(
-            op->type, dst->op->name,
-            RewriteArgs(it->second.second, op->args),
+            op->type, dst->op->name, op->args,
             op->call_type, dst->op, dst->value_index);
-        return IRMutator::Mutate_(ret.as<Call>(), ret);
+        return this->Mutate(ret);
       }
     }
     return IRMutator::Mutate_(op, e);
@@ -685,14 +684,14 @@ class SchedulePostProc : public IRMutator {
         const ScanOpNode* scan = s->op.as<ScanOpNode>();
         for (size_t i = 0; i < scan->update.size(); ++i) {
           Tensor t = s->origin_op.output(i);
-          AddReplace(scan->init[i], t, Expr());
-          AddReplace(scan->update[i], t, scan->scan_axis->var);
-          AddReplace(scan->state_placeholder[i], t, Expr());
+          AddReplace(scan->init[i], t);
+          AddReplace(scan->update[i], t);
+          AddReplace(scan->state_placeholder[i], t);
         }
       } else if (!s->op.same_as(s->origin_op)) {
         Tensor target = s->origin_op.output(0);
         AddReplace(s->op.output(0), target,
-                   Expr(), target, s->origin_op);
+                   target, s->origin_op);
       }
     }
   }
@@ -700,26 +699,17 @@ class SchedulePostProc : public IRMutator {
  private:
   void AddReplace(Tensor src,
                   Tensor dst,
-                  Expr head_idx,
                   Tensor repl_realize = Tensor(),
                   Operation repl_op = Operation()) {
     TensorKey key{src->op, src->value_index};
-    replace_buffer_[key] = std::make_pair(dst, head_idx);
+    replace_buffer_[key] = dst;
     replace_realize_[key] = repl_realize;
     replace_op_[src->op.get()] = repl_op;
-  }
-  Array<Expr> RewriteArgs(Expr head, Array<Expr> args) {
-    if (!head.defined()) return args;
-    Array<Expr> new_args{head};
-    for (Expr e : args) {
-      new_args.push_back(e);
-    }
-    return new_args;
   }
   // The scan value
   std::unordered_map<const Variable*, Expr> var_value_;
   // buffer replacement
-  std::unordered_map<TensorKey, std::pair<Tensor, Expr> > replace_buffer_;
+  std::unordered_map<TensorKey, Tensor> replace_buffer_;
   // buffere realization to be replaced
   std::unordered_map<TensorKey, Tensor> replace_realize_;
   // replace producer consumer.
@@ -755,10 +745,13 @@ Stmt ScheduleOps(
   // reverse the post DFS order.
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage s = sch->stages[i - 1];
+    CHECK_NE(s->attach_type, kInline)
+        << "call schedule.normalize before scheduleops";
     // no need to specify place holder op.
     if (s->op.as<PlaceholderOpNode>()) continue;
     if (scan_attach.count(s->op)) {
-      CHECK(s->attach_type == kNone || s->attach_type == kInline)
+      CHECK(s->attach_type == kNone ||
+            s->attach_type == kScanUpdate)
           << "Cannot specify compute_at for scan's init/update";
       CHECK(body.defined());
       const auto& p = scan_attach.at(s->op);
@@ -766,8 +759,8 @@ Stmt ScheduleOps(
       body = mu.Mutate(body);
       CHECK(mu.found_attach)
           << "did not find attachment point for scan.init/update";
-    } else if (s->attach_type == kInline) {
-      body = InjectInline(s->op, body);
+    } else if (s->attach_type == kInlinedAlready) {
+      // do nothing
     } else if (s->attach_type == kRoot || s-> attach_type == kNone) {
       body = MakePipeline(s, dom_map, body);
     } else if (s->attach_type == kScope) {

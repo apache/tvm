@@ -175,6 +175,8 @@ class OperationNode : public FunctionBaseNode {
   virtual Type output_dtype(size_t i) const = 0;
   /*! \return shape of i-th output */
   virtual Array<Expr> output_shape(size_t i) const = 0;
+
+  static constexpr const char* _type_key = "Operation";
 };
 
 // Implementations of inline functions

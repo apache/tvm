@@ -26,7 +26,9 @@ enum AttachType : int {
   kNone = 0,
   kRoot = 1,
   kInline = 2,
-  kScope = 3
+  kInlinedAlready = 3,
+  kScope = 4,
+  kScanUpdate = 5
 };
 
 /*! \brief IterVar type */

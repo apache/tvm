@@ -61,7 +61,9 @@ Stmt Inline(Stmt stmt,
             Expr body) {
   CHECK_EQ(f->num_outputs(), 1)
       << "can only inline output single value operation";
-  return ConvertSSA(IRInline(f, args, body).Mutate(stmt));
+  Stmt ret = IRInline(f, args, body).Mutate(stmt);
+  if (ret.same_as(stmt)) return ret;
+  return ConvertSSA(ret);
 }
 }  // namespace ir
 }  // namespace tvm
