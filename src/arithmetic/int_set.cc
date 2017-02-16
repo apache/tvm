@@ -17,9 +17,6 @@ namespace arith {
 using Halide::Internal::Interval;
 using namespace ir;
 
-using ExprIntSetMap = std::unordered_map<Expr, IntSet,
-      Halide::ExprHash, Halide::ExprEqual>;
-
 inline IntSet IntSet::cover_interval() const {
   if ((*this).as<IntervalSet>()) return *this;
   const StrideSet* s =  (*this).as<StrideSet>();
@@ -107,6 +104,9 @@ IntSet IntSet::range(Range r) {
 }
 
 IntSet IntSet::range(Expr min, Expr max) {
+  if (min.same_as(max)) {
+    return IntSet::single_point(min);
+  }
   return IntervalSet::make(min, max);
 }
 
@@ -455,25 +455,11 @@ IntSet EvalSet(Range r,
   return Combine<Add>(min_set, ext_set);
 }
 
-ExprSignMap  EvalSign(Expr e,
-        const Map<Var, IntSet>& dom_map) {
-  std::unordered_map<const Variable*, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap[kv.first.get()] = kv.second;
-  }
-
-  IntSetEvaluator m(dmap);
+ExprIntSetMap EvalSetForEachSubExpr(Expr e,
+    const std::unordered_map<const Variable*, IntSet>& dom_map) {
+  IntSetEvaluator m(dom_map);
   m.Eval(e);
-
-  ExprSignMap res;
-  for (auto kv : m.expr_map) {
-    if (kv.first.type().is_uint()) {
-      res[kv.first] = kPositive;
-    } else {
-      res[kv.first] = kv.second.sign_type();
-    }
-  }
-  return res;
+  return m.expr_map;
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)

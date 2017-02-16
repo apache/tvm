@@ -1,5 +1,5 @@
 # pylint: disable=protected-access, no-member
-"""Arithmetic"""
+"""Arithmetic data structure and utility"""
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 

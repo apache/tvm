@@ -9,5 +9,5 @@ zs = tvm.arith.intset_range(2, 3)
 
 
 e0 = (-z)*x+y
-e1 = tvm.ir_pass.DeduceBound(x, e0, {y: ys, z: zs})
+e1 = tvm.arith.DeduceBound(x, e0, {y: ys, z: zs})
 print(e1)
