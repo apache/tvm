@@ -6,9 +6,11 @@
 #include <tvm/ir_visitor.h>
 
 namespace tvm {
-namespace ir {
+namespace schedule {
 
-class ElemWiseDetector : public IRVisitor {
+using namespace ir;
+
+class ElemWiseDetector : public ir::IRVisitor {
  public:
   explicit ElemWiseDetector(Array<IterVar> axis) : axis_(axis) {}
 
@@ -25,10 +27,7 @@ class ElemWiseDetector : public IRVisitor {
     }
 
     for (size_t i = 0; i < axis_.size(); ++i) {
-      // const Variable *v1 = axis_[i]->var.as<Variable>();
-      // const Variable *v2 = axis[i].as<Variable>();
       if (!axis[i].same_as(axis_[i]->var)) {
-      // if (!(v1 && v2) || (v1 != v2)) {
         is_elem_wise_ = false;
         return;
       }
@@ -52,22 +51,10 @@ bool IsElemWise(const Operation& op) {
   return false;
 }
 
-}  // namespace ir
-
-namespace schedule {
-
 void AutoInlineElemWise(Schedule sch) {
   for (Stage s : sch->stages) {
-    if (!s.is_scheduled() && ir::IsElemWise(s->op)) {
-      bool is_root = false;
-      for (auto r : sch->roots) {
-        if (r == s->op) {
-          is_root = true;
-          break;
-        }
-      }
-      if (!is_root)
-        s.compute_inline();
+    if (!s.is_scheduled() && IsElemWise(s->op) && !s->is_output) {
+      s.compute_inline();
     }
   }
 }

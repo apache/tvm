@@ -161,7 +161,7 @@ TVM_REGISTER_API(_TensorHash)
 
 TVM_REGISTER_API(_Placeholder)
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = Placeholder(args[0],
+    *ret = placeholder(args[0],
                        args[1],
                        args[2]);
   });
@@ -262,6 +262,12 @@ TVM_REGISTER_API(_StageTile)
     *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
   });
 
+TVM_REGISTER_API(_StageOutermostThreads)
+  .set_body([](TVMArgs args, TVMRetValue* ret) {
+    args[0].operator Stage()
+        .outermost_threads(args[1]);
+  });
+
 TVM_REGISTER_API(_StageUnroll)
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
@@ -278,6 +284,18 @@ TVM_REGISTER_API(_ScheduleNormalize)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Schedule()
         .normalize();
+  });
+
+TVM_REGISTER_API(_ScheduleCacheRead)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = args[0].operator Schedule()
+        .cache_read(args[1], args[2], args[3]);
+  });
+
+TVM_REGISTER_API(_ScheduleCacheWrite)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = args[0].operator Schedule()
+        .cache_write(args[1], args[2]);
   });
 
 }  // namespace tvm

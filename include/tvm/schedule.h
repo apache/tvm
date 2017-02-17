@@ -132,6 +132,13 @@ class Stage : public NodeRef {
               IterVar* p_x_inner, IterVar* p_y_inner,
               Expr x_factor, Expr y_factor);
   /*!
+   * \brief Specify thread launching group in
+   *  outer most scope of the stage.
+   *  This is only valid for composite operators.
+   * \param threads The threads to be launched.
+   */
+  Stage& outermost_threads(Array<IterVar> threads);
+  /*!
    * \brief Vectorize iteration.
    * \param var The axis to be vectorized.
    * \return reference to self.
@@ -180,6 +187,28 @@ class Schedule : public NodeRef {
     return this->operator[](tensor->op);
   }
   /*!
+   * \brief create a cache read of original tensor for readers.
+   *  This will mutate the body of the readers.
+   *  A new stage will be created for the tensor.
+   * \param tensor The tensor cached.
+   * \param scope The scope of the cache.
+   * \param readers The readers to redirect to the tensor.
+   * \return The created tensor.
+   */
+  Tensor cache_read(const Tensor& tensor,
+                    const std::string& scope,
+                    const Array<Operation>& readers);
+  /*!
+   * \brief Create a cache write tensor for producing tensor.
+   *  The the tensor will take over body of original tensor op.
+   *  The original tensor's body will be changed to an identity read
+   *  from the corresponding cache.
+   * \param tensor The tensor to be produced.
+   * \param scope The scope of the storage.
+   * \return The created tensor.
+   */
+  Tensor cache_write(const Tensor& tensor, const std::string& scope);
+  /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
    *  Insert necessary RebaseNode to make sure all leaf_iter_vars
@@ -193,6 +222,11 @@ class Schedule : public NodeRef {
    * \return the pointer to the internal node container
    */
   inline const ScheduleNode* operator->() const;
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline ScheduleNode* operator->();
   // declare container type
   using ContainerType = ScheduleNode;
 };
@@ -244,10 +278,16 @@ class IterVarAttr : public NodeRef {
  */
 class StageNode : public Node {
  public:
-  /*! \brief The operation to be scheduled */
-  Operation op;
   /*! \brief The thread scope level of the stage */
   std::string scope;
+  /*! \brief The operation of stage, can be different from original op. */
+  Operation op;
+  /*!
+   * \brief The original operator.
+   *  The op field can change during schedule to alternate the dataflow,
+   *  while origin_op remains fixed.
+   */
+  Operation origin_op;
   /*! \brief All the nodes in the iter var */
   Array<IterVar> all_iter_vars;
   /*!
@@ -255,6 +295,11 @@ class StageNode : public Node {
    *  Operations can only be performed in leaves.
    */
   Array<IterVar> leaf_iter_vars;
+  /*!
+   * \brief Specify threads to be launched at the stage.
+   *  This is only valid for composite ops such as Scan.
+   */
+  Array<IterVar> outermost_threads;
   /*! \brief The relation bwteen of IterVars */
   Array<IterVarRelation> relations;
   /*! \brief additional attributes about iter var. */
@@ -265,17 +310,22 @@ class StageNode : public Node {
   IterVar attach_ivar;
   /*! \brief The stage this node attaches to */
   Stage attach_stage;
+  /*! \brief Whether this is an output stage */
+  bool is_output{false};
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("scope", &scope);
     v->Visit("op", &op);
+    v->Visit("origin_op", &origin_op);
     v->Visit("all_iter_vars", &all_iter_vars);
     v->Visit("leaf_iter_vars", &leaf_iter_vars);
+    v->Visit("outermost_threads", &outermost_threads);
     v->Visit("relations", &relations);
     v->Visit("iter_var_attrs", &iter_var_attrs);
     v->Visit("attach_type", &attach_type);
     v->Visit("attach_ivar", &attach_ivar);
     v->Visit("attach_stage", &attach_stage);
+    v->Visit("is_output", &is_output);
   }
 
   static constexpr const char* _type_key = "Stage";
@@ -285,18 +335,18 @@ class StageNode : public Node {
 /*! \brief node container for schedule */
 class ScheduleNode : public Node {
  public:
-  /*! \brief The root operations */
-  Array<Operation> roots;
+  /*! \brief The output operations in original data flow graph */
+  Array<Operation> outputs;
   /*!
-   * \brief list of all stages for non-placeholder ops
-   *  The stage are ordered in PostDFS order of their op.
+   * \brief list of all stages for non-placeholder ops.
+   * The stages are sorted in dependency order.
    */
   Array<Stage> stages;
   /*! \brief map of operation to the stages */
   Map<Operation, Stage> stage_map;
 
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("roots", &roots);
+    v->Visit("outputs", &outputs);
     v->Visit("stages", &stages);
     v->Visit("stage_map", &stage_map);
   }
@@ -412,11 +462,15 @@ inline StageNode* Stage::operator->() {
 
 inline bool Stage::is_scheduled() const {
   const StageNode* n = operator->();
-  return !(n->relations.empty() && n->attach_type == kNone);
+  return !(n->relations.empty() && n->attach_type == kNone &&
+           n->all_iter_vars.same_as(n->leaf_iter_vars));
 }
 
 inline const ScheduleNode* Schedule::operator->() const {
   return static_cast<const ScheduleNode*>(node_.get());
+}
+inline ScheduleNode* Schedule::operator->() {
+  return static_cast<ScheduleNode*>(node_.get());
 }
 
 inline const IterVarRelationNode* IterVarRelation::operator->() const {

@@ -294,7 +294,6 @@ void GatherOpBound(const ScanOpNode* scan,
     const TensorDom& d = tmap.at(output[i]);
     time_dom.insert(time_dom.end(), d.data[0].begin(), d.data[0].end());
   }
-  LOG(INFO) << time_dom.size();
   CHECK(!rmap->count(scan->scan_axis));
   Range sdom = scan->scan_axis->dom;
   Range r = arith::Union(time_dom).cover_range(sdom);
@@ -321,7 +320,7 @@ void GatherOpBound(const Operation& op,
     const ComputeOpNode* compute = op.as<ComputeOpNode>();
     const TensorDom& tdom = tmap.at(op.output(0));
     for (size_t i = 0; i < compute->axis.size(); ++i) {
-      Range r = arith::Union(tdom.data[i]).cover_range(compute->axis[i]->dom);
+      Range r = arith::Union(tdom.data.at(i)).cover_range(compute->axis[i]->dom);
       CHECK(!rmap->count(compute->axis[i]));
       (*rmap)[compute->axis[i]] = r;
     }
@@ -392,6 +391,8 @@ void InferRootBound(const Stage& stage,
           direct_consume_by_parent = true;
         }
       }
+    } else {
+      LOG(INFO) << "not in feed graph consumer = " << stage->op;
     }
   }
   // The relax set
@@ -486,7 +487,11 @@ void InferRootBound(const Stage& stage,
 }
 
 FeedGraph CreateFeedGraph(const Schedule& sch) {
-  auto g = CreateReadGraph(sch->roots);
+  Array<Operation> roots;
+  for (Operation op : sch->outputs) {
+    roots.push_back(sch->stage_map[op]->op);
+  }
+  auto g = CreateReadGraph(roots);
   FeedGraph fg;
   for (auto kv : g) {
     for (Tensor t : kv.second) {
@@ -523,6 +528,7 @@ AttachPath CreateAttachPath(const Schedule& sch) {
 Map<IterVar, Range> InferBound(const Schedule& sch) {
   FeedGraph feed_graph = CreateFeedGraph(sch);
   AttachPath attach_path = CreateAttachPath(sch);
+
   std::unordered_map<IterVar, Range> ret;
   for (size_t i = sch->stages.size(); i != 0; --i) {
     const Stage& stage = sch->stages[i - 1];
