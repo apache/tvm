@@ -24,29 +24,16 @@ class VariablePathFinder: public IRVisitor {
   explicit VariablePathFinder(Var target) : target_(target) {}
 
   void Visit(const NodeRef& node) final {
-    if (!success) return;
-    if (visited_.count(node.get()) != 0 &&
-        !node.same_as(target_)) {
-      return;
-    }
+    if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
     if (!found_) path_.push_back(node.get());
-    if (node.same_as(target_)) {
-      if (!found_) {
-        found_ = true;
-      } else {
-        // target variable appears at multiple location
-        success = false;
-        return;
-      }
-    }
+    if (node.same_as(target_)) found_ = true;
     IRVisitor::Visit(node);
     if (!found_) path_.pop_back();
   }
 
   std::vector<const Node*> path_;
-  bool success{true};
 
  private:
   bool found_{false};
@@ -59,7 +46,7 @@ class VariablePathFinder: public IRVisitor {
 std::vector<const Node*> GetPath(Var target, Expr expr) {
   VariablePathFinder v(target);
   v.Visit(expr);
-  return v.success ? v.path_ : std::vector<const Node*>();
+  return v.path_;
 }
 
 class Checker;

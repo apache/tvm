@@ -372,7 +372,7 @@ class IntSetEvaluator {
   explicit IntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
       : dom_map(dom_map) {}
 
-  inline IntSet Eval(Expr expr) {
+  inline virtual IntSet Eval(Expr expr) {
     static const FType& f = vtable();
     if (f.can_dispatch(expr)) {
       return f(expr, expr, this);
@@ -467,72 +467,14 @@ class SubExprIntSetEvaluator : public IntSetEvaluator {
   explicit SubExprIntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
       : IntSetEvaluator(dom_map) {}
 
-  inline IntSet Eval(Expr expr) {
-    static const FType& f = vtable();
-    if (f.can_dispatch(expr)) {
-      IntSet res = f(expr, expr, this);
-      expr_map[expr] = res;
-      return res;
-    } else {
-      LOG(WARNING) << "cannot evaluate set type " << expr->type_key();
-      return IntSet::nothing();
-    }
-  }
-
-  using FType = tvm::IRFunctor<IntSet (const NodeRef&, const Expr&, SubExprIntSetEvaluator *)>;
-  static FType& vtable() {  // NOLINT(*)
-    static FType inst; return inst;
+  inline IntSet Eval(Expr expr) override {
+    IntSet ret = IntSetEvaluator::Eval(expr);
+    expr_map[expr] = ret;
+    return ret;
   }
 
   ExprIntSetMap expr_map;
 };
-
-inline IntSet SubExprConstOp(const NodeRef&, const Expr& e, SubExprIntSetEvaluator* m) {
-  return IntSet::single_point(e);
-}
-
-TVM_STATIC_IR_FUNCTOR(SubExprIntSetEvaluator, vtable)
-.set_dispatch<IntImm>(SubExprConstOp)
-.set_dispatch<UIntImm>(SubExprConstOp)
-.set_dispatch<FloatImm>(SubExprConstOp);
-
-TVM_STATIC_IR_FUNCTOR(SubExprIntSetEvaluator, vtable)
-.set_dispatch<Variable>([](const Variable* op, const Expr& e, SubExprIntSetEvaluator* m) {
-    auto it = m->dom_map.find(op);
-    if (it != m->dom_map.end()) {
-      return it->second;
-    } else {
-      return IntSet::single_point(e);
-    }
-  });
-
-// binary operator
-template<typename T>
-inline IntSet SubExprBinary(const T* op, const Expr& e, SubExprIntSetEvaluator* m) {
-  IntSet a = m->Eval(op->a);
-  IntSet b = m->Eval(op->b);
-  if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
-    return IntSet::single_point(e);
-  }
-  return Combine<T>(a, b);
-}
-
-TVM_STATIC_IR_FUNCTOR(SubExprIntSetEvaluator, vtable)
-.set_dispatch<Add>(SubExprBinary<Add>)
-.set_dispatch<Sub>(SubExprBinary<Sub>)
-.set_dispatch<Mul>(SubExprBinary<Mul>)
-.set_dispatch<Div>(SubExprBinary<Div>)
-.set_dispatch<Mod>(SubExprBinary<Mod>)
-.set_dispatch<Min>(SubExprBinary<Min>)
-.set_dispatch<Max>(SubExprBinary<Max>)
-.set_dispatch<EQ>(SubExprBinary<EQ>)
-.set_dispatch<NE>(SubExprBinary<NE>)
-.set_dispatch<LT>(SubExprBinary<LT>)
-.set_dispatch<LE>(SubExprBinary<LE>)
-.set_dispatch<GT>(SubExprBinary<GT>)
-.set_dispatch<GE>(SubExprBinary<GE>)
-.set_dispatch<And>(SubExprBinary<And>)
-.set_dispatch<Or>(SubExprBinary<Or>);
 
 ExprIntSetMap EvalSetForEachSubExpr(Expr e,
     const std::unordered_map<const Variable*, IntSet>& dom_map) {
