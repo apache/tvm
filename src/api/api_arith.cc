@@ -7,7 +7,6 @@
 #include <tvm/ir.h>
 #include <tvm/api_registry.h>
 #include "../arithmetic/int_set.h"
-#include "../arithmetic/int_set_internal.h"
 
 namespace tvm {
 namespace arith {
