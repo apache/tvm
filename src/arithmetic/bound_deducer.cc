@@ -49,18 +49,19 @@ std::vector<const Node*> GetPath(Var target, Expr expr) {
   return v.path_;
 }
 
-class Checker;
+class BoundDeduceIntputChecker;
 class Converter;
 
 // a visitor to deduce the bound of a variable from a expression
 class BoundDeducer: public IRVisitor {
  public:
-  friend class Checker;
+  friend class BoundDeduceInputChecker;
   friend class Converter;
   BoundDeducer(Var target, Expr expr,
                const std::unordered_map<const Variable*, IntSet>& dom_map)
   : target_(target), expr_(expr), dom_map_(dom_map) {}
 
+  bool Init();
   void Deduce();
 
   void Visit(const NodeRef& e) final {
@@ -145,7 +146,7 @@ class BoundDeducer: public IRVisitor {
   size_t iter_{0};
 };
 
-class Checker: public IRVisitor {
+class BoundDeduceInputChecker: public IRVisitor {
  public:
   bool Check(BoundDeducer* deducer) {
     deducer_ = deducer;
@@ -163,71 +164,46 @@ class Checker: public IRVisitor {
   size_t target_count{0};
 };
 
-class Converter: public IRVisitor {
- public:
-  void Convert(BoundDeducer* deducer) {
-    deducer_ = deducer;
-    Visit(deducer_->expr_);
+bool BoundDeducer::Init() {
+  BoundDeduceInputChecker checker;
+  if (!checker.Check(this)) success = false;
+
+  if (const LT* op = expr_.as<LT>()) {
+    is_greater = false;
+    is_equal   = false;
+    expr_      = op->a;
+    result     = op->b;
+  } else if (const LE* op = expr_.as<LE>()) {
+    is_greater = false;
+    is_equal   = true;
+    expr_      = op->a;
+    result     = op->b;
+  } else if (const GT* op = expr_.as<GT>()) {
+    is_greater = true;
+    is_equal   = false;
+    expr_      = op->a;
+    result     = op->b;
+  } else if (const GE* op = expr_.as<GE>()) {
+    is_greater = true;
+    is_equal   = true;
+    expr_      = op->a;
+    result     = op->b;
+  } else {
+    success = false;
   }
-
-  void Visit(const NodeRef& e) final {
-    IRVisitor::Visit(e);
-  }
-
-  void Visit_(const LT* op) final {
-    has_cmp = true;
-    deducer_->is_greater = false;
-    deducer_->is_equal   = false;
-    deducer_->expr_  = op->a;
-    deducer_->result = op->b;
-  }
-
-  void Visit_(const LE* op) final {
-    has_cmp = true;
-    deducer_->is_greater = false;
-    deducer_->is_equal   = true;
-    deducer_->expr_  = op->a;
-    deducer_->result = op->b;
-  }
-
-  void Visit_(const GT* op) final {
-    has_cmp = true;
-    deducer_->is_greater = true;
-    deducer_->is_equal   = false;
-    deducer_->expr_  = op->a;
-    deducer_->result = op->b;
-  }
-
-  void Visit_(const GE* op) final {
-    has_cmp = true;
-    deducer_->is_greater = true;
-    deducer_->is_equal   = true;
-    deducer_->expr_  = op->a;
-    deducer_->result = op->b;
-  }
-
-  bool has_cmp{false};
- private:
-  BoundDeducer* deducer_;
-};
-
+  return success;
+}
 
 void BoundDeducer::Deduce() {
-    result = make_zero(expr_.type());
-    Checker checker;
-    if (!checker.Check(this)) success = false;
-    Converter converter;
-    converter.Convert(this);
-    // no compare op
-    if (!converter.has_cmp) success = false;
-    if (!success) return;
+  Init();
+  if (!success) return;
 
-    // get the path
-    path_ = GetPath(target_, expr_);
-    // get the sign of every subexpr
-    expr_map_ = EvalSetForEachSubExpr(expr_, dom_map_);
+  // get the path
+  path_ = GetPath(target_, expr_);
+  // get the sign of every subexpr
+  expr_map_ = EvalSetForEachSubExpr(expr_, dom_map_);
 
-    Visit(expr_);
+  Visit(expr_);
 }
 
 // assuming e >= 0, deduce the bound of variable from it.
@@ -247,7 +223,7 @@ IntSet DeduceBound(Var v, Expr e,
   } else {
     max = d.is_equal ? d.result : d.result - 1;
   }
-  return IntSet::range(min, max);
+  return IntSet::interval(min, max);
 }
 
 }  // namespace arith

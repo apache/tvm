@@ -17,9 +17,9 @@ TVM_REGISTER_API(_arith_intset_single_point)
     *ret = IntSet::single_point(args[0]);
   });
 
-TVM_REGISTER_API(_arith_intset_range)
+TVM_REGISTER_API(_arith_intset_interval)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = IntSet::range(args[0], args[1]);
+    *ret = IntSet::interval(args[0], args[1]);
   });
 
 TVM_REGISTER_API(_arith_DeduceBound)

@@ -92,12 +92,12 @@ class IntSet : public NodeRef {
    */
   static IntSet range(Range r);
   /*!
-   * \brief Construct a set representing a range.
-   * \param min The minimum value of the range.
-   * \param max The maximum value of the range.
+   * \brief Construct a set representing a interval.
+   * \param min The minimum value of the interval.
+   * \param max The maximum value of the interval.
    * \return constructed set.
    */
-  static IntSet range(Expr min, Expr max);
+  static IntSet interval(Expr min, Expr max);
 };
 
 /*!
@@ -166,11 +166,11 @@ inline const IntSetNode* IntSet::operator->() const {
  *  represent failure.
  *
  * \param v The target variable to be deduced.
- * \param e The conditional expression.
+ * \param cond The conditional expression.
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-IntSet DeduceBound(Var v, Expr e,
+IntSet DeduceBound(Var v, Expr cond,
                    const Map<Var, IntSet>& dom_map);
 
 }  // namespace arith

@@ -124,7 +124,7 @@ IntSet IntSet::range(Range r) {
   return IntervalSet::make(r->min, (r->extent + r->min) - 1);
 }
 
-IntSet IntSet::range(Expr min, Expr max) {
+IntSet IntSet::interval(Expr min, Expr max) {
   if (min.same_as(max)) {
     return IntSet::single_point(min);
   }
