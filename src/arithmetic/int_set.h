@@ -12,6 +12,13 @@
 namespace tvm {
 namespace arith {
 
+enum SignType {
+  kPositive,
+  kNegative,
+  kZero,
+  kUnknown
+};
+
 // internal node container of int set.
 class IntSetNode;
 
@@ -40,12 +47,22 @@ class IntSet : public NodeRef {
    * \return The covering interval set.
    */
   IntSet cover_interval() const;
+  /*! \return Lower bound of the set */
+  Expr min() const;
+  /*! \return upper bound of the set */
+  Expr max() const;
+  /*! \return Whether the set represent nothing  */
+  bool is_nothing() const;
   /*! \return Whether the set represent everything  */
   bool is_everything() const;
   /*! \return Whether the set is a single point */
   bool is_single_point() const;
   /*! \return Whether the set is proved to be bigger than 0 */
   bool can_prove_positive() const;
+  /*! \return Whether the set is proved to be smaller than 0 */
+  bool can_prove_negative() const;
+  /*! \return The sign of the elements in the integer set */
+  SignType sign_type() const;
   /*!
    * \brief The single point value, call only if is_single_point is true
    * \return The point value.
@@ -58,7 +75,9 @@ class IntSet : public NodeRef {
    * \return true if we can prove they are the same.
    */
   bool match_range(const Range& r) const;
-  /*! \return Whether the set contains everything */
+  /*! \return The set contains nothing */
+  static IntSet nothing();
+  /*! \return The set contains everything */
   static IntSet everything();
   /*!
    * \brief construct a point set.
@@ -72,6 +91,13 @@ class IntSet : public NodeRef {
    * \return constructed set.
    */
   static IntSet range(Range r);
+  /*!
+   * \brief Construct a set representing a interval.
+   * \param min The minimum value of the interval.
+   * \param max The maximum value of the interval.
+   * \return constructed set.
+   */
+  static IntSet interval(Expr min, Expr max);
 };
 
 /*!
@@ -79,6 +105,9 @@ class IntSet : public NodeRef {
  */
 struct IntSetNode : public Node {
 };
+
+using ExprIntSetMap = std::unordered_map<Expr, IntSet,
+      Halide::ExprHash, Halide::ExprEqual>;
 
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
@@ -107,6 +136,18 @@ IntSet EvalSet(Range r,
                const std::unordered_map<const Variable*, IntSet>& dom_map);
 
 
+
+/*!
+ * \brief Find the integer set of every sub-expression, given the
+ *  domain of each iteration variables.
+ *
+ * \param e The expression to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return the map from the expression to its possible value.
+ */
+ExprIntSetMap EvalSetForEachSubExpr(Expr r,
+    const std::unordered_map<const Variable*, IntSet>& dom_map);
+
 /*!
  * \brief Create an union set of all sets
  * \param sets The sets to be unioned
@@ -118,6 +159,19 @@ IntSet Union(const Array<IntSet>& sets);
 inline const IntSetNode* IntSet::operator->() const {
   return static_cast<const IntSetNode*>(node_.get());
 }
+
+/*!
+ * \brief Deduce the bound of the target variable in a expression,
+ *  give the domain of each variables. Return undefined IntSet to
+ *  represent failure.
+ *
+ * \param v The target variable to be deduced.
+ * \param cond The conditional expression.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values.
+ */
+IntSet DeduceBound(Var v, Expr cond,
+                   const Map<Var, IntSet>& dom_map);
 
 }  // namespace arith
 }  // namespace tvm

@@ -6,54 +6,16 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <pass/Interval.h>
+#include <unordered_map>
 #include "./int_set.h"
 #include "./compute_expr.h"
+#include "./int_set_internal.h"
 
 namespace tvm {
 namespace arith {
 
 using Halide::Internal::Interval;
-
 using namespace ir;
-
-/*! \brief Set of continuous interval */
-struct IntervalSet : public IntSetNode {
-  /*! \brief the internal interval*/
-  Interval i;
-
-  static IntSet make(Interval i) {
-    std::shared_ptr<IntervalSet> n =
-        std::make_shared<IntervalSet>();
-    n->i = i;
-    return IntSet(n);
-  }
-  static IntSet make(Expr min, Expr max) {
-    std::shared_ptr<IntervalSet> n =
-        std::make_shared<IntervalSet>();
-    n->i.min = min;
-    n->i.max = max;
-    return IntSet(n);
-  }
-
-  static constexpr const char* _type_key = "IntervalSet";
-  TVM_DECLARE_NODE_TYPE_INFO(IntervalSet);
-};
-
-/*!
- * \brief set represented by strided integers
- *  Reserved for cases where strided access is supported.
- */
-struct StrideSet : public IntSetNode {
-  /*! \brief the base inetrval */
-  Interval base;
-  /*! \brief additional extents in positive number */
-  Array<Expr> extents;
-  /*! \brief additional strides in positive number */
-  Array<Expr> strides;
-
-  static constexpr const char* _type_key = "StrideSet";
-  TVM_DECLARE_NODE_TYPE_INFO(StrideSet);
-};
 
 inline IntSet IntSet::cover_interval() const {
   if ((*this).as<IntervalSet>()) return *this;
@@ -84,6 +46,23 @@ Range IntSet::cover_range(Range max_range) const {
   return max_range;
 }
 
+Expr IntSet::min() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  CHECK(s_int);
+  return s_int->i.min;
+}
+
+Expr IntSet::max() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  CHECK(s_int);
+  return s_int->i.max;
+}
+
+bool IntSet::is_nothing() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && s_int->i.is_empty());
+}
+
 bool IntSet::is_everything() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   return (s_int && s_int->i.is_everything());
@@ -99,10 +78,30 @@ bool IntSet::can_prove_positive() const {
   return (s_int && is_positive_const(ir::Simplify(s_int->i.min)));
 }
 
+bool IntSet::can_prove_negative() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && is_negative_const(ir::Simplify(s_int->i.max)));
+}
+
+SignType IntSet::sign_type() const {
+  if (can_prove_positive()) {
+    return kPositive;
+  } else if (can_prove_negative()) {
+    return kNegative;
+  } else if (is_single_point() && is_zero(point_value())) {
+    return kZero;
+  } else {
+    return kUnknown;
+  }
+}
 Expr IntSet::point_value() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   CHECK(s_int && s_int->i.is_single_point());
   return s_int->i.min;
+}
+
+IntSet IntSet::nothing() {
+  return IntervalSet::make(Interval::nothing());
 }
 
 IntSet IntSet::everything() {
@@ -123,6 +122,13 @@ IntSet IntSet::range(Range r) {
         r->min, ComputeExpr<Sub>(ComputeExpr<Add>(r->extent, r->min), 1));
   }
   return IntervalSet::make(r->min, (r->extent + r->min) - 1);
+}
+
+IntSet IntSet::interval(Expr min, Expr max) {
+  if (min.same_as(max)) {
+    return IntSet::single_point(min);
+  }
+  return IntervalSet::make(min, max);
 }
 
 // Check if a is created from b.
@@ -366,13 +372,13 @@ class IntSetEvaluator {
   explicit IntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
       : dom_map(dom_map) {}
 
-  inline IntSet Eval(Expr expr) {
+  inline virtual IntSet Eval(Expr expr) {
     static const FType& f = vtable();
     if (f.can_dispatch(expr)) {
       return f(expr, expr, this);
     } else {
       LOG(WARNING) << "cannot evaluate set type " << expr->type_key();
-      return IntSet::everything();
+      return IntSet::nothing();
     }
   }
 
@@ -384,7 +390,7 @@ class IntSetEvaluator {
   const std::unordered_map<const Variable*, IntSet>& dom_map;
 };
 
-inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator*) {
+inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator* m) {
   return IntSet::single_point(e);
 }
 
@@ -411,8 +417,7 @@ inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
   if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
     return IntSet::single_point(e);
   }
-  IntSet r = Combine<T>(a, b);
-  return r;
+  return Combine<T>(a, b);
 }
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
@@ -457,6 +462,27 @@ IntSet EvalSet(Range r,
   return Combine<Add>(min_set, ext_set);
 }
 
+class SubExprIntSetEvaluator : public IntSetEvaluator {
+ public:
+  explicit SubExprIntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
+      : IntSetEvaluator(dom_map) {}
+
+  inline IntSet Eval(Expr expr) override {
+    IntSet ret = IntSetEvaluator::Eval(expr);
+    expr_map[expr] = ret;
+    return ret;
+  }
+
+  ExprIntSetMap expr_map;
+};
+
+ExprIntSetMap EvalSetForEachSubExpr(Expr e,
+    const std::unordered_map<const Variable*, IntSet>& dom_map) {
+  SubExprIntSetEvaluator m(dom_map);
+  m.Eval(e);
+  return m.expr_map;
+}
+
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map) {
   std::unordered_map<const Variable*, IntSet> dmap;
@@ -468,7 +494,7 @@ IntSet EvalSet(Range r,
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IntervalSet>([](const IntervalSet *op, IRPrinter *p) {
-    p->stream << "interval-set["
+    p->stream << "interval-set"
               << "[" << op->i.min << ", "
               << op->i.max << ']';
   });
