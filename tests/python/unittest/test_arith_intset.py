@@ -15,13 +15,34 @@ def test_deduce():
     c_s = tvm.arith.intset_range(5, 7)
     d_s = tvm.arith.intset_range(-3, -1)
 
-    e0 = (-b)*a+c-d*b
-    res = tvm.arith.DeduceBound(a, e0, {b: b_s, c: c_s, d: d_s})
-    ans = ((0+d*b)-c)/(-b)-1
-    print(res)
-    print(ans)
-    # assert print(res.max() == ans) # will print False
+    e0 = (-b)*a+c-d
+    res = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s})
+    ans = (d-c)/(-b)+(-1)
+    assert str(tvm.ir_pass.Simplify(res.max())) == str(ans)
+
+def test_check():
+    a = tvm.Var('a')
+    b = tvm.Var('b')
+    c = tvm.Var('c')
+    d = tvm.Var('d')
+
+    b_s = tvm.arith.intset_range(2, 3)
+    c_s = tvm.arith.intset_range(5, 7)
+    d_s = tvm.arith.intset_range(-3, -1)
+
+    # no compare operator
+    res1 = tvm.arith.DeduceBound(a, a+b, {b: b_s})
+    assert res1.is_nothing()
+
+    # multiple compare operators
+    res2 = tvm.arith.DeduceBound(a, a+b>3>c , {b: b_s, c: c_s})
+    assert res1.is_nothing()
+
+    # multiple target variable
+    res2 = tvm.arith.DeduceBound(a, a*2-a>b, {b: b_s})
+    assert res1.is_nothing()
 
 if __name__ == "__main__":
     test_basic()
     test_deduce()
+    test_check()

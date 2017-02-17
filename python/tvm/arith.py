@@ -7,7 +7,13 @@ from . import _api_internal
 @register_node
 class IntSet(NodeBase):
     """Represent a set of integer in one dimension."""
-    pass
+    def is_nothing(self):
+        """Whether the set represent nothing"""
+        return _api_internal._IntSetIsNothing(self)
+
+    def is_everything(self):
+        """Whether the set represent everything"""
+        return _api_internal._IntSetIsEverything(self)
 
 @register_node
 class IntervalSet(IntSet):

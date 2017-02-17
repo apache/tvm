@@ -47,6 +47,8 @@ class IntSet : public NodeRef {
    * \return The covering interval set.
    */
   IntSet cover_interval() const;
+  /*! \return Whether the set represent nothing  */
+  bool is_nothing() const;
   /*! \return Whether the set represent everything  */
   bool is_everything() const;
   /*! \return Whether the set is a single point */
@@ -69,7 +71,9 @@ class IntSet : public NodeRef {
    * \return true if we can prove they are the same.
    */
   bool match_range(const Range& r) const;
-  /*! \return Whether the set contains everything */
+  /*! \return The set contains nothing */
+  static IntSet nothing();
+  /*! \return The set contains everything */
   static IntSet everything();
   /*!
    * \brief construct a point set.

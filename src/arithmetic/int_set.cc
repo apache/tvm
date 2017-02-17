@@ -46,6 +46,11 @@ Range IntSet::cover_range(Range max_range) const {
   return max_range;
 }
 
+bool IntSet::is_nothing() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  return (s_int && s_int->i.is_empty());
+}
+
 bool IntSet::is_everything() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   return (s_int && s_int->i.is_everything());
@@ -81,6 +86,10 @@ Expr IntSet::point_value() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   CHECK(s_int && s_int->i.is_single_point());
   return s_int->i.min;
+}
+
+IntSet IntSet::nothing() {
+  return IntervalSet::make(Interval::nothing());
 }
 
 IntSet IntSet::everything() {

@@ -39,5 +39,17 @@ TVM_REGISTER_API(_IntervalSetGetMax)
     *ret = s.as<IntervalSet>()->i.max;
   });
 
+TVM_REGISTER_API(_IntSetIsNothing)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    IntSet s = args[0].operator IntSet();
+    *ret = s.is_nothing();
+  });
+
+TVM_REGISTER_API(_IntSetIsEverything)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    IntSet s = args[0].operator IntSet();
+    *ret = s.is_everything();
+  });
+
 }  // namespace arith
 }  // namespace tvm

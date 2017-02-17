@@ -236,7 +236,7 @@ IntSet DeduceBound(Var v, Expr e,
   }
   BoundDeducer d(v, e, dmap);
   d.Deduce();
-  if (!d.success) return IntSet();
+  if (!d.success) return IntSet::nothing();
   Expr min = Interval::neg_inf, max = Interval::pos_inf;
   if (d.is_greater) {
     min = d.is_equal ? d.result : d.result + 1;
