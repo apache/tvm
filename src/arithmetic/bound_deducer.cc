@@ -50,7 +50,6 @@ std::vector<const Node*> GetPath(Var target, Expr expr) {
 }
 
 class BoundDeduceIntputChecker;
-class Converter;
 
 // a visitor to deduce the bound of a variable from a expression
 class BoundDeducer: public IRVisitor {
