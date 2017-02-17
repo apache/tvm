@@ -74,6 +74,20 @@ def test_auto_inline():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+def test_schedule_cache():
+    m = tvm.Var('m')
+    n = tvm.Var('n')
+    A = tvm.placeholder((m, n), name='A')
+    B = tvm.placeholder((m, n), name='B')
+    C = tvm.compute((m, n), lambda i, j:  A(i, j) * B(i, j), name='C')
+
+    s = tvm.Schedule(C.op)
+    AA = s.cache_read(A, "shared", readers=[C])
+    CC = s.cache_write(C, "shared")
+    s[AA].compute_at(s[CC], CC.op.axis[0])
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
 
 if __name__ == "__main__":
     test_schedule_scan()
@@ -81,3 +95,4 @@ if __name__ == "__main__":
     test_schedule1()
     test_schedule2()
     test_auto_inline()
+    test_schedule_cache()

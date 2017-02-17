@@ -4,6 +4,7 @@ from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 from . import _api_internal
 from . import tensor as _tensor
+from . import collections as _collections
 
 @register_node
 class Buffer(NodeBase):
@@ -40,6 +41,53 @@ class Schedule(NodeBase):
         This is needed before bound inference and followup step.
         """
         _api_internal._ScheduleNormalize(self)
+
+    def cache_read(self, tensor, scope, readers):
+        """Create a cache read of original tensor for readers.
+
+        This will mutate the body of the readers.
+        A new cache stage will be created for the tensor.
+        Call this before doing any split/fuse schedule.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            The tensor to be cached.
+        scope : str
+            The scope of cached
+        readers : list of Tensor or Operation
+            The readers to read the cache.
+
+        Returns
+        -------
+        cache : Tensor
+            The created cache tensor.
+        """
+        if isinstance(readers, (_tensor.Tensor, _tensor.Operation)):
+            readers = [readers]
+        readers = [t.op if isinstance(t, _tensor.Tensor) else t for t in readers]
+        return _api_internal._ScheduleCacheRead(self, tensor, scope, readers)
+
+    def cache_write(self, tensor, scope):
+        """Create a cache write of original tensor, before storing into tensor.
+
+        This will mutate the body of the tensor.
+        A new cache stage will created before feed into the tensor.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            The tensor to be feed to.
+        scope : str
+            The scope of cached
+
+        Returns
+        -------
+        cache : Tensor
+            The created cache tensor.
+        """
+        return _api_internal._ScheduleCacheWrite(self, tensor, scope)
+
 
 @register_node
 class Stage(NodeBase):
@@ -103,6 +151,18 @@ class Stage(NodeBase):
             The thread scope of this stage
         """
         return _api_internal._StageSetScope(self, scope)
+
+    def outermost_threads(self, threads):
+        """Force launch threads at outermost scope of the stage.
+
+        Parameters
+        ----------
+        threads : list of threads
+            The threads to be launched.
+        """
+        if isinstance(threads, _collections.IterVar):
+            threads = [threads]
+        _api_internal._StageOutermostThreads(self, threads)
 
     def compute_at(self, parent, scope):
         """Attach the stage at parent's scope

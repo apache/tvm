@@ -63,7 +63,6 @@ def build(sch,
             arg_list.append(x)
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
-
     # lowering
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)

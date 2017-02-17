@@ -2,17 +2,6 @@ import tvm
 from tvm.addon import nvcc_compiler
 import numpy as np
 
-@tvm.register_func
-def tvm_callback_cuda_compile(code):
-    ptx =  nvcc_compiler.compile_source(code, target="ptx")
-    print(ptx.decode("utf-8"))
-    return ptx
-
-@tvm.register_func
-def tvm_callback_cuda_postproc(code):
-    print(code)
-    return code
-
 def test_gemm():
     # graph
     nn = 1024
@@ -22,21 +11,14 @@ def test_gemm():
     l = n
     A = tvm.placeholder((n, l), name='A')
     B = tvm.placeholder((m, l), name='B')
-    AA = tvm.compute(A.shape, lambda *i : A(*i), name="AA")
-    BB = tvm.compute(B.shape, lambda *i : B(*i), name="BB")
     k = tvm.IterVar((0, l), name='k')
-    CC = tvm.compute(
+    C = tvm.compute(
         (n, m),
-        lambda ii, jj: tvm.sum(AA[ii, k] * BB[jj, k], axis=k),
+        lambda ii, jj: tvm.sum(A[ii, k] * B[jj, k], axis=k),
         name='CC')
-    C = tvm.compute(CC.shape, lambda *i: CC(*i), name="C")
-
     # schedule
     s = tvm.Schedule(C.op)
     xtile, ytile = 32, 32
-    s[AA].set_scope("shared")
-    s[BB].set_scope("shared")
-
     scale = 8
     num_thread = 8
     block_factor = scale * num_thread
@@ -45,6 +27,9 @@ def test_gemm():
     block_y = tvm.IterVar(thread_tag="blockIdx.y")
     thread_y = tvm.IterVar((0, num_thread), thread_tag="threadIdx.y")
 
+    CC = s.cache_write(C, "local")
+    AA = s.cache_read(A, "shared", [CC])
+    BB = s.cache_read(B, "shared", [CC])
     _, yi = s[C].split(C.op.axis[0], factor=block_factor, outer=block_y)
     _, xi = s[C].split(C.op.axis[1], factor=block_factor, outer=block_x)
     s[C].reorder(block_y, block_x, yi, xi)
@@ -92,8 +77,8 @@ def test_gemm():
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
     check_device("cuda")
-    #tvm.init_opencl()
-    #check_device("opencl")
+    tvm.init_opencl()
+    check_device("opencl")
 
 if __name__ == "__main__":
     test_gemm()

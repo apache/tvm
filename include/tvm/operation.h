@@ -136,7 +136,7 @@ using FCompute = std::function<Expr (const Array<Var>& i)>;
  * \param dtype the data type of the tensor.
  * \param name The name of the Tensor.
  */
-Tensor Placeholder(Array<Expr> shape,
+Tensor placeholder(Array<Expr> shape,
                    Type dtype = Float(32),
                    std::string name = "placeholder");
 
@@ -147,7 +147,7 @@ Tensor Placeholder(Array<Expr> shape,
  * \param fcompute The compute function to create the tensor.
  * \param name The optional name of the tensor.
  */
-Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
+Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
 
 /*!
  * \brief Construct new tensors by scan over scan_axis.
@@ -158,36 +158,36 @@ Tensor Compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor"
  * \param state_placeholder The placeholder for the states.
  * \param name The optional name of the tensor.
  */
-Array<Tensor> Scan(IterVar scan_axis,
+Array<Tensor> scan(IterVar scan_axis,
                    Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
                    std::string name = "scan");
 
 // same as compute, specialized for different fcompute function
-inline Tensor Compute(Array<Expr> shape,
+inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var)> f,
                       std::string name = "tensor") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0]); };
-  return Compute(shape, fc, name);
+  return compute(shape, fc, name);
 }
-inline Tensor Compute(Array<Expr> shape,
+inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var)> f,
                       std::string name = "tensor") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1]); };
-  return Compute(shape, fc, name);
+  return compute(shape, fc, name);
 }
-inline Tensor Compute(Array<Expr> shape,
+inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var, Var)> f,
                       std::string name = "tensor") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
-  return  Compute(shape, fc, name);
+  return  compute(shape, fc, name);
 }
-inline Tensor Compute(Array<Expr> shape,
+inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var, Var, Var)> f,
                       std::string name = "tensor") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
-  return Compute(shape, fc, name);
+  return compute(shape, fc, name);
 }
 
 }  // namespace tvm
