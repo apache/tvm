@@ -46,6 +46,18 @@ Range IntSet::cover_range(Range max_range) const {
   return max_range;
 }
 
+Expr IntSet::min() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  CHECK(s_int);
+  return s_int->i.min;
+}
+
+Expr IntSet::max() const {
+  const IntervalSet* s_int = (*this).as<IntervalSet>();
+  CHECK(s_int);
+  return s_int->i.max;
+}
+
 bool IntSet::is_nothing() const {
   const IntervalSet* s_int = (*this).as<IntervalSet>();
   return (s_int && s_int->i.is_empty());
@@ -366,7 +378,7 @@ class IntSetEvaluator {
       return f(expr, expr, this);
     } else {
       LOG(WARNING) << "cannot evaluate set type " << expr->type_key();
-      return IntSet::everything();
+      return IntSet::nothing();
     }
   }
 
@@ -376,13 +388,10 @@ class IntSetEvaluator {
   }
 
   const std::unordered_map<const Variable*, IntSet>& dom_map;
-  ExprIntSetMap expr_map;
 };
 
 inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator* m) {
-  IntSet res = IntSet::single_point(e);
-  m->expr_map[e] = res;
-  return res;
+  return IntSet::single_point(e);
 }
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
@@ -392,15 +401,12 @@ TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
 .set_dispatch<Variable>([](const Variable* op, const Expr& e, IntSetEvaluator* m) {
-    IntSet res;
     auto it = m->dom_map.find(op);
     if (it != m->dom_map.end()) {
-      res = it->second;
+      return it->second;
     } else {
-      res = IntSet::single_point(e);
+      return IntSet::single_point(e);
     }
-    m->expr_map[e] = res;
-    return res;
   });
 
 // binary operator
@@ -411,9 +417,7 @@ inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
   if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
     return IntSet::single_point(e);
   }
-  IntSet r = Combine<T>(a, b);
-  m->expr_map[e] = r;
-  return r;
+  return Combine<T>(a, b);
 }
 
 TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
@@ -447,13 +451,6 @@ IntSet EvalSet(Expr e,
   return EvalSet(e, dmap);
 }
 
-ExprIntSetMap EvalSetForEachSubExpr(Expr e,
-    const std::unordered_map<const Variable*, IntSet>& dom_map) {
-  IntSetEvaluator m(dom_map);
-  m.Eval(e);
-  return m.expr_map;
-}
-
 IntSet EvalSet(Range r,
                const std::unordered_map<const Variable*, IntSet>& dom_map) {
   IntSetEvaluator m(dom_map);
@@ -463,6 +460,85 @@ IntSet EvalSet(Range r,
   if (!ei.has_upper_bound()) return IntSet::everything();
   ext_set = IntervalSet::make(0, ComputeExpr<Sub>(ei.max, 1));
   return Combine<Add>(min_set, ext_set);
+}
+
+class SubExprIntSetEvaluator : public IntSetEvaluator {
+ public:
+  explicit SubExprIntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
+      : IntSetEvaluator(dom_map) {}
+
+  inline IntSet Eval(Expr expr) {
+    static const FType& f = vtable();
+    if (f.can_dispatch(expr)) {
+      IntSet res = f(expr, expr, this);
+      expr_map[expr] = res;
+      return res;
+    } else {
+      LOG(WARNING) << "cannot evaluate set type " << expr->type_key();
+      return IntSet::nothing();
+    }
+  }
+
+  using FType = tvm::IRFunctor<IntSet (const NodeRef&, const Expr&, SubExprIntSetEvaluator *)>;
+  static FType& vtable() {  // NOLINT(*)
+    static FType inst; return inst;
+  }
+
+  ExprIntSetMap expr_map;
+};
+
+inline IntSet SubExprConstOp(const NodeRef&, const Expr& e, SubExprIntSetEvaluator* m) {
+  return IntSet::single_point(e);
+}
+
+TVM_STATIC_IR_FUNCTOR(SubExprIntSetEvaluator, vtable)
+.set_dispatch<IntImm>(SubExprConstOp)
+.set_dispatch<UIntImm>(SubExprConstOp)
+.set_dispatch<FloatImm>(SubExprConstOp);
+
+TVM_STATIC_IR_FUNCTOR(SubExprIntSetEvaluator, vtable)
+.set_dispatch<Variable>([](const Variable* op, const Expr& e, SubExprIntSetEvaluator* m) {
+    auto it = m->dom_map.find(op);
+    if (it != m->dom_map.end()) {
+      return it->second;
+    } else {
+      return IntSet::single_point(e);
+    }
+  });
+
+// binary operator
+template<typename T>
+inline IntSet SubExprBinary(const T* op, const Expr& e, SubExprIntSetEvaluator* m) {
+  IntSet a = m->Eval(op->a);
+  IntSet b = m->Eval(op->b);
+  if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
+    return IntSet::single_point(e);
+  }
+  return Combine<T>(a, b);
+}
+
+TVM_STATIC_IR_FUNCTOR(SubExprIntSetEvaluator, vtable)
+.set_dispatch<Add>(SubExprBinary<Add>)
+.set_dispatch<Sub>(SubExprBinary<Sub>)
+.set_dispatch<Mul>(SubExprBinary<Mul>)
+.set_dispatch<Div>(SubExprBinary<Div>)
+.set_dispatch<Mod>(SubExprBinary<Mod>)
+.set_dispatch<Min>(SubExprBinary<Min>)
+.set_dispatch<Max>(SubExprBinary<Max>)
+.set_dispatch<EQ>(SubExprBinary<EQ>)
+.set_dispatch<NE>(SubExprBinary<NE>)
+.set_dispatch<LT>(SubExprBinary<LT>)
+.set_dispatch<LE>(SubExprBinary<LE>)
+.set_dispatch<GT>(SubExprBinary<GT>)
+.set_dispatch<GE>(SubExprBinary<GE>)
+.set_dispatch<And>(SubExprBinary<And>)
+.set_dispatch<Or>(SubExprBinary<Or>);
+
+ExprIntSetMap EvalSetForEachSubExpr(Expr e,
+    const std::unordered_map<const Variable*, IntSet>& dom_map) {
+  SubExprIntSetEvaluator m(dom_map);
+  m.Eval(e);
+  return m.expr_map;
 }
 
 IntSet EvalSet(Range r,

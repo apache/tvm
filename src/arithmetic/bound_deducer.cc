@@ -63,11 +63,13 @@ std::vector<const Node*> GetPath(Var target, Expr expr) {
 }
 
 class Checker;
+class Converter;
 
 // a visitor to deduce the bound of a variable from a expression
 class BoundDeducer: public IRVisitor {
  public:
   friend class Checker;
+  friend class Converter;
   BoundDeducer(Var target, Expr expr,
                const std::unordered_map<const Variable*, IntSet>& dom_map)
   : target_(target), expr_(expr), dom_map_(dom_map) {}
@@ -85,31 +87,19 @@ class BoundDeducer: public IRVisitor {
   }
 
   void Visit_(const LT* op) final {
-    is_greater = false;
-    is_equal = false;
-    result = op->b;
-    Visit(op->a);
+    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
   void Visit_(const LE* op) final {
-    is_greater = false;
-    is_equal = true;
-    result = op->b;
-    Visit(op->a);
+    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
   void Visit_(const GT* op) final {
-    is_greater = true;
-    is_equal = false;
-    result = op->b;
-    Visit(op->a);
+    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
   void Visit_(const GE* op) final {
-    is_greater = true;
-    is_equal = true;
-    result = op->b;
-    Visit(op->a);
+    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
   void Visit_(const Add* op) final {
@@ -173,7 +163,7 @@ class Checker: public IRVisitor {
   bool Check(BoundDeducer* deducer) {
     deducer_ = deducer;
     Visit(deducer_->expr_);
-    return target_count == 1 && cmp_count == 1;
+    return target_count == 1;
   }
 
   void Visit(const NodeRef& e) final {
@@ -181,45 +171,72 @@ class Checker: public IRVisitor {
     IRVisitor::Visit(e);
   }
 
-  void Visit_(const LT* op) final {
-    ++cmp_count;
-    Visit(op->a);
-    Visit(op->b);
-  }
-
-  void Visit_(const LE* op) final {
-    ++cmp_count;
-    Visit(op->a);
-    Visit(op->b);
-  }
-
-  void Visit_(const GT* op) final {
-    ++cmp_count;
-    Visit(op->a);
-    Visit(op->b);
-  }
-
-  void Visit_(const GE* op) final {
-    ++cmp_count;
-    Visit(op->a);
-    Visit(op->b);
-  }
-
  private:
   BoundDeducer* deducer_;
   size_t target_count{0};
-  size_t cmp_count{0};
 };
+
+class Converter: public IRVisitor {
+ public:
+  void Convert(BoundDeducer* deducer) {
+    deducer_ = deducer;
+    Visit(deducer_->expr_);
+  }
+
+  void Visit(const NodeRef& e) final {
+    IRVisitor::Visit(e);
+  }
+
+  void Visit_(const LT* op) final {
+    has_cmp = true;
+    deducer_->is_greater = false;
+    deducer_->is_equal   = false;
+    deducer_->expr_  = op->a;
+    deducer_->result = op->b;
+  }
+
+  void Visit_(const LE* op) final {
+    has_cmp = true;
+    deducer_->is_greater = false;
+    deducer_->is_equal   = true;
+    deducer_->expr_  = op->a;
+    deducer_->result = op->b;
+  }
+
+  void Visit_(const GT* op) final {
+    has_cmp = true;
+    deducer_->is_greater = true;
+    deducer_->is_equal   = false;
+    deducer_->expr_  = op->a;
+    deducer_->result = op->b;
+  }
+
+  void Visit_(const GE* op) final {
+    has_cmp = true;
+    deducer_->is_greater = true;
+    deducer_->is_equal   = true;
+    deducer_->expr_  = op->a;
+    deducer_->result = op->b;
+  }
+
+  bool has_cmp{false};
+ private:
+  BoundDeducer* deducer_;
+};
+
 
 void BoundDeducer::Deduce() {
     result = make_zero(expr_.type());
+    Checker checker;
+    if (!checker.Check(this)) success = false;
+    Converter converter;
+    converter.Convert(this);
+    // no compare op
+    if (!converter.has_cmp) success = false;
+    if (!success) return;
+
     // get the path
     path_ = GetPath(target_, expr_);
-    Checker checker;
-    if (!checker.Check(this) || path_.empty()) {
-      success = false;
-      return;
-    }
     // get the sign of every subexpr
     expr_map_ = EvalSetForEachSubExpr(expr_, dom_map_);
 

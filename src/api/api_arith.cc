@@ -29,26 +29,22 @@ TVM_REGISTER_API(_arith_DeduceBound)
 
 TVM_REGISTER_API(_IntervalSetGetMin)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    IntSet s = args[0].operator IntSet();
-    *ret = s.as<IntervalSet>()->i.min;
+    *ret = args[0].operator IntSet().min();
   });
 
 TVM_REGISTER_API(_IntervalSetGetMax)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    IntSet s = args[0].operator IntSet();
-    *ret = s.as<IntervalSet>()->i.max;
+    *ret = args[0].operator IntSet().max();
   });
 
 TVM_REGISTER_API(_IntSetIsNothing)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    IntSet s = args[0].operator IntSet();
-    *ret = s.is_nothing();
+    *ret = args[0].operator IntSet().is_nothing();
   });
 
 TVM_REGISTER_API(_IntSetIsEverything)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    IntSet s = args[0].operator IntSet();
-    *ret = s.is_everything();
+    *ret = args[0].operator IntSet().is_everything();
   });
 
 }  // namespace arith

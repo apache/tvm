@@ -47,6 +47,10 @@ class IntSet : public NodeRef {
    * \return The covering interval set.
    */
   IntSet cover_interval() const;
+  /*! \return Lower bound of the set */
+  Expr min() const;
+  /*! \return upper bound of the set */
+  Expr max() const;
   /*! \return Whether the set represent nothing  */
   bool is_nothing() const;
   /*! \return Whether the set represent everything  */
