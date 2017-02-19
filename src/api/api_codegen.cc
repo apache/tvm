@@ -37,6 +37,11 @@ TVM_REGISTER_API(_codegen_BuildStackVM)
                         std::unordered_map<LoweredFunc, PackedFunc>());
   });
 
+TVM_REGISTER_API(_codegen_BuildLLVM)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = BuildLLVM(args[0]);
+  });
+
 TVM_REGISTER_API(_codegen_BuildNVRTC)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = BuildNVRTC(args[0], args[1]);

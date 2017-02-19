@@ -272,9 +272,6 @@ inline void PushBinary(StackVM::OpCode op_int64,
   }
 }
 
-
-
-
 inline void PushCast(Type dst,
                      Type src,
                      CodeGenStackVM* p) {
@@ -496,7 +493,5 @@ TVM_STATIC_IR_FUNCTOR(CodeGenStackVM, vtable)
 .set_dispatch<Call>([](const Call *op, CodeGenStackVM* p) {
     p->Push_(op);
   });
-
-
 }  // namespace codegen
 }  // namespace tvm

@@ -36,7 +36,6 @@ using Halide::Internal::make_zero;
 using Halide::Internal::as_const_int;
 using Halide::Internal::as_const_uint;
 
-
 inline Type TVMType2Type(TVMType t) {
   return Type(static_cast<halide_type_code_t>(t.code), t.bits, t.lanes);
 }
@@ -182,7 +181,7 @@ class IterVarNode : public Node {
   static IterVar make(Range dom, Var var, std::string thread_tag);
 
   static constexpr const char* _type_key = "IterVar";
-  TVM_DECLARE_NODE_TYPE_INFO(IterVarNode);
+  TVM_DECLARE_NODE_TYPE_INFO(IterVarNode, Node);
 };
 
 // inline implementations

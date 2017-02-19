@@ -274,8 +274,9 @@ Stmt MakeLoop(const Stage& s,
     bound_state[iv] = false;
   }
   PassUpBoundCheck(s, dom_map, &bound_state);
-  auto nest = MakeLoopNest(s, dom_map, 0, false,
-                           bound_state, {}, &value_map);
+  auto nest = MakeLoopNest(
+      s, dom_map, 0, false,
+      bound_state, {{}}, &value_map);
 
   provide = Substitute(provide, value_map);
   if (init.defined()) {
