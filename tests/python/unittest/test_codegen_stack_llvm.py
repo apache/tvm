@@ -1,19 +1,18 @@
 import tvm
 import numpy as np
 
-def tvm_call_global(*args):
+def tvm_call_packed(*args):
     args = tvm.convert(args)
-    return tvm.make.Call("int32", "tvm_call_global", args, 4, None, 0)
+    return tvm.make.Call("int32", "tvm_call_packed", args, 4, None, 0)
 
 
 def run_jit(fapi, check):
-    for target in ["stackvm"]:
-        if target == "llvm":
-            f = tvm.codegen.BuildLLVM(fapi)
-        else:
-            f = tvm.codegen.BuildStackVM(fapi)
+    for target in ["llvm", "stackvm"]:
+        if not tvm.codegen.target_enabled(target):
+            continue
+        f = tvm.codegen.build(fapi, target)
+        s = f.get_source()
         check(f)
-
 
 
 def test_stack_vm_basic():
@@ -25,8 +24,8 @@ def test_stack_vm_basic():
 
     n = tvm.Var('n')
     Ab = tvm.Buffer((n, ), tvm.float32)
-    stmt = tvm.make.Evaluate(tvm_call_global("tvm_call_back_get_shape", Ab.shape[0]))
-    fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 1)
+    stmt = tvm.make.Evaluate(tvm_call_packed("tvm_call_back_get_shape", Ab.shape[0]))
+    fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0)
     run_jit(fapi, lambda f: f(a))
 
 
@@ -47,9 +46,8 @@ def test_stack_vm_loop():
             tvm.make.Store(Ab.data,
                            tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1),
-            tvm.make.Evaluate(tvm_call_global("tvm_stack_vm_print", i))))
-    fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 1)
-    f = tvm.codegen.BuildStackVM(fapi)
+            tvm.make.Evaluate(tvm_call_packed("tvm_stack_vm_print", i))))
+    fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     def check(f):
         f(a)
@@ -71,7 +69,7 @@ def test_stack_vm_cond():
                            tvm.make.Load(dtype, Ab.data, i) + 1, i + 1),
             tvm.make.Store(Ab.data,
                            tvm.make.Load(dtype, Ab.data, i) + 2, i + 1)))
-    fapi = tvm.ir_pass.MakeAPI(stmt, "test", [Ab], 1)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "test", [Ab], 0)
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)
@@ -94,11 +92,13 @@ def test_llvm_add_pipeline():
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
     stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 3)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)
 
     def check_llvm():
+        if not tvm.codegen.target_enabled("llvm"):
+            return
         # build and invoke the kernel.
-        f = tvm.codegen.BuildLLVM(fapi)
+        f = tvm.codegen.build(fapi, "llvm")
         ctx = tvm.cpu(0)
         # launch the kernel.
         n = 1027
@@ -108,10 +108,10 @@ def test_llvm_add_pipeline():
         f(a, b, c)
         np.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
-    #check_llvm()
+    check_llvm()
 
 if __name__ == "__main__":
-    test_stack_vm_cond()
     test_stack_vm_basic()
+    test_stack_vm_cond()
     test_stack_vm_loop()
     test_llvm_add_pipeline()

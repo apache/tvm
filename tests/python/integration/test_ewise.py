@@ -19,20 +19,15 @@ def test_add():
     s[C].vectorize(x)
 
     # one line to build the function.
-    def check_device(target):
-        codes = []
-        fadd = tvm.build(s, [A, B, C],
-                      target, record_codes=codes,
-                      name="myadd")
-        if target == "cuda":
-            ctx = tvm.gpu(0)
-        else:
-            ctx = tvm.cl(0)
-        if not ctx.enabled:
+    def check_device(device, host="stackvm"):
+        if not tvm.codegen.target_enabled(host):
             return
-
-        for c in codes[1:]:
-            print(c)
+        if not tvm.codegen.target_enabled(device):
+            return
+        fadd = tvm.build(s, [A, B, C],
+                         device, host,
+                         name="myadd")
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         # launch the kernel.
         n = 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
@@ -43,7 +38,7 @@ def test_add():
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     tvm.init_opencl()
-    check_device("cuda")
+    check_device("cuda", "llvm")
     check_device("opencl")
 
 

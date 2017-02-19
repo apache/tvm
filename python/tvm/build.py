@@ -15,9 +15,9 @@ from . import codegen
 def build(sch,
           args,
           target,
+          target_host="stackvm",
           name="default_function",
           binds=None,
-          record_codes=None,
           max_auto_unroll_step=8):
     """Build a function with arguments as signiture.
 
@@ -31,6 +31,9 @@ def build(sch,
 
     target : str
         The target of the compilation.
+
+    target_host :
+        Host compilation target, if target is device.
 
     name : str
         The name of result function.
@@ -74,22 +77,17 @@ def build(sch,
     stmt = ir_pass.LiftAllocate(stmt)
     stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
-    fapi = ir_pass.MakeAPI(stmt, name, arg_list, len(arg_list))
+    fapi = ir_pass.MakeAPI(stmt, name, arg_list, 0)
     fsplits = ir_pass.SplitHostDevice(fapi)
     fsplits = [x for x in fsplits]
     for i in range(1, len(fsplits)):
         fsplits[i] = ir_pass.StorageSync(fsplits[i], "shared")
 
-    if record_codes is not None:
-        output_ssa = False
-        for i, f in enumerate(fsplits):
-            t = target if i >= 1 else "c"
-            record_codes.append(codegen.CompileToC(f, output_ssa, t))
-
-    if target == "cuda":
-        ret = codegen.BuildNVRTC(fsplits, "stackvm")
-    elif target == "opencl":
-        ret = codegen.BuildOpenCL(fsplits, "stackvm")
+    if len(fsplits) > 1:
+        mhost = codegen.build(fsplits[0], target_host)
+        if target:
+            mdev = codegen.build(fsplits[1:], target)
+            mhost.import_module(mdev)
+        return mhost
     else:
-        raise ValueError("Unknown target %s" % target)
-    return ret
+        return codegen.build(fsplits[0], target)

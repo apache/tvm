@@ -3,8 +3,8 @@
  * \file codegen_stack_vm.h
  * \brief Codegen into Simple Stack VM.
  */
-#ifndef TVM_CODEGEN_CODEGEN_STACK_VM_H_
-#define TVM_CODEGEN_CODEGEN_STACK_VM_H_
+#ifndef TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_
+#define TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_
 
 #include <tvm/ir.h>
 #include <tvm/lowered_func.h>
@@ -13,12 +13,10 @@
 #include <vector>
 #include <unordered_map>
 
-#include "../runtime/stack_vm/stack_vm.h"
+#include "./stack_vm.h"
 
 namespace tvm {
 namespace codegen {
-
-using runtime::StackVM;
 
 /*!
  * \brief A base class to generate a stack VM.
@@ -34,9 +32,7 @@ class CodeGenStackVM {
    * \note Only call compile once,
    *  create a new codegen object each time.
    */
-  StackVM Compile(
-      LoweredFunc f,
-      const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs);
+  StackVM Compile(LoweredFunc f);
   /*! \brief Push stmt to generate new code */
   void Push(const Stmt& n);
     /*! \brief Push expr to generate new code */
@@ -108,11 +104,9 @@ class CodeGenStackVM {
   /*! \brief id of each string */
   std::unordered_map<std::string, int> str_idmap_;
   /*! \brief id of each global function */
-  std::unordered_map<std::string, int> global_fun_idmap_;
-  /*! \brief id of device function */
-  std::unordered_map<std::string, int> device_fun_idmap_;
+  std::unordered_map<std::string, int> extern_fun_idmap_;
 };
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_CODEGEN_STACK_VM_H_
+#endif  // TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_

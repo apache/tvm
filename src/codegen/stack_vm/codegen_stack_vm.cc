@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file codegen_stack_vm.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <limits>
 #include "./codegen_stack_vm.h"
@@ -11,33 +12,15 @@ namespace codegen {
 
 using namespace ir;
 
-PackedFunc BuildStackVM(
-    LoweredFunc func,
-    const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs) {
-  StackVM vm = codegen::CodeGenStackVM().Compile(func, device_funcs);
-  auto f = [vm](TVMArgs args, TVMRetValue* rv) {
-    vm(args);
-  };
-  return PackedFunc(f);
-}
-
 CodeGenStackVM::FType& CodeGenStackVM::vtable() {  // NOLINT(*)
   static FType inst; return inst;
 }
 
-StackVM CodeGenStackVM::Compile(
-    LoweredFunc f,
-    const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs) {
+StackVM CodeGenStackVM::Compile(LoweredFunc f) {
   for (size_t i = 0; i < f->args.size(); ++i) {
     Var v = f->args[i];
     int vid = AllocVarID(v.get());
     CHECK_EQ(static_cast<size_t>(vid), i);
-  }
-  // setup device function map
-  for (const auto& kv : device_funcs) {
-    int fid = static_cast<int>(vm_.packed_func.size());
-    vm_.packed_func.push_back(kv.second);
-    device_fun_idmap_[kv.first->name] = fid;
   }
   this->Push(f->body);
   return std::move(vm_);
@@ -194,7 +177,7 @@ void CodeGenStackVM::Push_(const ir::Call* op) {
       case intrinsic::kTypeLanes: PushOp(StackVM::TVM_ARRAY_GET_TYPE_LANES); break;
       default: LOG(FATAL) << "unknown field code";
     }
-  } else if (op->is_intrinsic(intrinsic::tvm_call_global)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
     CHECK_GE(op->args.size(), 1U);
     const StringImm* s = op->args[0].as<StringImm>();
     CHECK(s != nullptr) << "tvm_call_global expect first argument as function name";
@@ -203,15 +186,14 @@ void CodeGenStackVM::Push_(const ir::Call* op) {
     }
     // find the fuction id.
     const std::string& func_name = s->value;
-    auto it = global_fun_idmap_.find(func_name);
+    auto it = extern_fun_idmap_.find(func_name);
     int fid;
-    if (it != global_fun_idmap_.end()) {
+    if (it != extern_fun_idmap_.end()) {
       fid = it->second;
     } else {
-      fid = static_cast<int>(vm_.packed_func.size());
-      PackedFunc f = PackedFunc::GetGlobal(func_name);
-      vm_.packed_func.push_back(f);
-      global_fun_idmap_[func_name] = fid;
+      fid = static_cast<int>(vm_.extern_func_name.size());
+      vm_.extern_func_name.push_back(func_name);
+      extern_fun_idmap_[func_name] = fid;
     }
     // get the argument type code.
     std::vector<int> arg_type_codes;
@@ -228,21 +210,6 @@ void CodeGenStackVM::Push_(const ir::Call* op) {
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
     this->PushOp(StackVM::EQ_I64);
-  } else if (op->is_intrinsic(intrinsic::tvm_call_device)) {
-    std::string func_name = op->args[0].as<StringImm>()->value;
-    auto it = device_fun_idmap_.find(func_name);
-    CHECK(it != device_fun_idmap_.end())
-        << "Cannot find device function " << func_name;
-    const int fid = it->second;
-    std::vector<int> arg_type_codes;
-    for (size_t i = 1; i < op->args.size(); ++i) {
-      this->Push(op->args[i]);
-      Type t = op->args[i].type();
-      int lanes = t.lanes();
-      CHECK_EQ(lanes, 1);
-      arg_type_codes.push_back(t.code());
-    }
-    this->PushCallPacked(fid, arg_type_codes);
   } else {
     this->HandleUnknownCall(op);
   }

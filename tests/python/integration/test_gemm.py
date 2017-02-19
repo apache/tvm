@@ -52,16 +52,16 @@ def test_gemm():
     # lowering test
     s.normalize()
 
-    def check_device(target):
-        codes = []
-        f = tvm.build(s, [A, B, C], target, record_codes=codes,
-                      max_auto_unroll_step=max_auto_unroll_step)
-        if target == "cuda":
-            ctx = tvm.gpu(0)
-        else:
-            ctx = tvm.cl(0)
-        if not ctx.enabled:
+    # one line to build the function.
+    def check_device(device, host="stackvm"):
+        if not tvm.codegen.target_enabled(host):
             return
+        if not tvm.codegen.target_enabled(device):
+            return
+
+        f = tvm.build(s, [A, B, C], device, host,
+                      max_auto_unroll_step=max_auto_unroll_step)
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         # launch the kernel.
         n = nn
         m = n

@@ -7,6 +7,7 @@
 #include <tvm/lowered_func.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/runtime/module.h>
 #include <unordered_map>
 
 namespace tvm {
@@ -154,6 +155,19 @@ class HostDeviceSplitter : public IRMutator {
         std::make_shared<LoweredFuncNode>(*f.operator->());
     n->body = this->Mutate(f->body);
 
+    if (f->is_packed_func && device_funcs_.size() != 0) {
+      // insert auto set device from device function.
+      Array<Expr> args = {StringImm::make(runtime::symbol::tvm_entry_setdevice)};
+      for (Var arg : f->args) {
+        args.push_back(arg);
+      }
+      n->body = Block::make(
+          Evaluate::make(Call::make(
+              Int(32), intrinsic::tvm_call_packed,
+              args, Call::Intrinsic)),
+          n->body);
+    }
+
     Array<LoweredFunc> ret{LoweredFunc(n)};
     for (LoweredFunc x : device_funcs_) {
       ret.push_back(x);
@@ -194,7 +208,7 @@ class HostDeviceSplitter : public IRMutator {
     }
     device_funcs_.emplace_back(f_device);
     return Evaluate::make(Call::make(
-        Int(32), intrinsic::tvm_call_device,
+        Int(32), intrinsic::tvm_call_packed,
         call_args, Call::Intrinsic));
   }
 

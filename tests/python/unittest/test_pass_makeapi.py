@@ -17,8 +17,9 @@ def test_makeapi():
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
 
-    num_packed_args = 2
-    f = tvm.ir_pass.MakeAPI(stmt, "myadd", [n, Ab, Bb, Cb], num_packed_args)
+    num_unpacked_args = 2
+    f = tvm.ir_pass.MakeAPI(
+        stmt, "myadd", [n, Ab, Bb, Cb], num_unpacked_args)
     assert(f.handle_data_type[Ab.data].dtype == Ab.dtype)
     assert(len(f.args) == 5)
     output_ssa = False

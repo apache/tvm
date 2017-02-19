@@ -1,6 +1,6 @@
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access, too-many-branches
-"""Symbolic configuration API."""
+# pylint: disable=invalid-name, protected-access, too-many-branches, global-statement
+"""Function configuration API."""
 from __future__ import absolute_import
 
 import ctypes
@@ -16,6 +16,7 @@ from ._node import NodeBase, SliceBase, convert_to_node
 from ._ndarray import NDArrayBase
 
 FunctionHandle = ctypes.c_void_p
+ModuleHandle = ctypes.c_void_p
 TVMRetValueHandle = ctypes.c_void_p
 
 def _ctypes_free_resource(rhandle):
@@ -110,6 +111,9 @@ def _make_tvm_args(args, temp_args):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.NODE_HANDLE
             temp_args.append(arg)
+        elif isinstance(arg, ModuleBase):
+            values[i].v_handle = arg.handle
+            type_codes[i] = TypeCode.MODULE_HANDLE
         elif isinstance(arg, Function):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.FUNC_HANDLE
@@ -158,6 +162,102 @@ class Function(object):
         return RETURN_SWITCH[ret_tcode.value](ret_val)
 
 
+class ModuleBase(object):
+    """Base class for module"""
+    __slots__ = ["handle", "_entry"]
+    def __init__(self, handle):
+        self.handle = handle
+        self._entry = None
+
+    @property
+    def entry_func(self):
+        """Get the entry function
+
+        Returns
+        -------
+        f : Function
+            The entry function if exist
+        """
+        if self._entry:
+            return self._entry
+        else:
+            self._entry = self.get_function("__tvm_main__")
+            return self._entry
+
+    def get_function(self, name, query_imports=False):
+        """Get function from the module.
+
+        Parameters
+        ----------
+        name : str
+            The name of the function
+
+        query_imports : bool
+            Whether also query modules imported by this module.
+
+        Returns
+        -------
+        f : Function
+            The result function.
+        """
+        ret_handle = FunctionHandle()
+        check_call(_LIB.TVMModGetFunction(
+            self.handle, c_str(name),
+            ctypes.c_int(query_imports),
+            ctypes.byref(ret_handle)))
+        if not ret_handle.value:
+            raise AttributeError(
+                "Module has no function '%s'" %  name)
+        return Function(ret_handle)
+
+    def import_module(self, module):
+        """Add module to the import list of current one.
+
+        Parameters
+        ----------
+        module : Module
+            The other module.
+        """
+        check_call(_LIB.TVMModImport(self.handle, module.handle))
+
+    def precompile(self, func_name, ctx):
+        """Add module to the import list of current one.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of function to be precompiled.
+
+        ctx : Context
+            The context to be precompiled.
+        """
+        check_call(_LIB.TVMModPreCompile(
+            self.handle, c_str(func_name), ctx))
+
+    def __getitem__(self, name):
+        if not isinstance(name, string_types):
+            raise ValueError("Can only take string as function name")
+        return self.get_function(name)
+
+    def __del__(self):
+        check_call(_LIB.TVMModFree(self.handle))
+
+    def __call__(self, *args):
+        if self._entry:
+            return self._entry(*args)
+        else:
+            f = self.entry_func
+            return f(*args)
+
+_module_cls = None
+
+def _return_module(x):
+    """Return function"""
+    handle = x.v_handle
+    if not isinstance(handle, ModuleHandle):
+        handle = ModuleHandle(handle)
+    return _module_cls(handle)
+
 def _handle_return_func(x):
     """Return function"""
     handle = x.v_handle
@@ -167,6 +267,8 @@ def _handle_return_func(x):
 
 # setup return handle for function type
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
+RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
+
 
 def register_func(func_name, f=None):
     """Register global function
@@ -248,6 +350,7 @@ def _init_api_functions(root_namespace):
         "_arith_": sys.modules["%s.arith" % root_namespace],
         "_pass_": sys.modules["%s.ir_pass" % root_namespace],
         "_codegen_": sys.modules["%s.codegen" % root_namespace],
+        "_module_": sys.modules["%s.module" % root_namespace],
         "_schedule_": sys.modules["%s.schedule" % root_namespace]
     }
     for name in list_global_func_names():
@@ -259,3 +362,9 @@ def _init_api_functions(root_namespace):
                 target_module = v
         f = get_global_func(name)
         setattr(target_module, fname, f)
+
+
+def _init_module_module(module_class):
+    """Initialize the module."""
+    global _module_cls
+    _module_cls = module_class

@@ -23,59 +23,33 @@ def test_add_pipeline():
     Cb = tvm.Buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
     stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 3)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)
     fsplits = tvm.ir_pass.SplitHostDevice(fapi)
 
-    def check_cuda():
-        output_ssa = False
-        for f in fsplits[1:]:
-            print(tvm.codegen.CompileToC(f, output_ssa, "cuda"))
+    def check_target(device, host="stackvm"):
+        if not tvm.codegen.target_enabled(host):
+            return
+        if not tvm.codegen.target_enabled(device):
+            return
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        mhost = tvm.codegen.build(fsplits[0], host)
+        mdev = tvm.codegen.build(fsplits[1:], device)
+        mhost.import_module(mdev)
+        code = mdev.get_source()
+        f = mhost.entry_func
 
-        # build and invoke the kernel.
-        fcuda = tvm.codegen.BuildNVRTC(fsplits, "stackvm")
-        num_device = 1
-        for i in range(num_device):
-            ctx = tvm.gpu(i)
-            if not ctx.enabled:
-                continue
-            # launch the kernel.
-            n = 1027
-            a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-            b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
-            c = tvm.nd.array(np.zeros(n, dtype=Cb.dtype), ctx)
-            fcuda(a, b, c)
-            np.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + b.asnumpy())
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=Cb.dtype), ctx)
+        f(a, b, c)
+        np.testing.assert_allclose(
+            c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    def check_opencl():
-        output_ssa = False
-        for f in fsplits[1:]:
-            print(tvm.codegen.CompileToC(f, output_ssa, "opencl"))
+    check_target("cuda", host="stackvm")
+    check_target("cuda", host="llvm")
 
-        # build and invoke the kernel.
-        fcl = tvm.codegen.BuildOpenCL(fsplits, "stackvm")
-        # Disable OpenCL runtime test for now,
-        # since the local worksize on CPU might be too large.
-        num_device = 0
-        for i in range(num_device):
-            ctx = tvm.cl(i)
-            if not ctx.enabled:
-                continue
-            # launch the kernel.
-            n = 1027
-            a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-            b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
-            c = tvm.nd.array(np.zeros(n, dtype=Cb.dtype), ctx)
-            fcl(a, b, c)
-            np.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + b.asnumpy())
-
-    tvm.init_opencl()
-    if tvm.cl(0).enabled:
-        check_opencl()
-
-    if tvm.gpu(0).enabled:
-        check_cuda()
 
 if __name__ == "__main__":
     test_add_pipeline()

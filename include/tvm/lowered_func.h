@@ -72,6 +72,8 @@ class LoweredFuncNode : public FunctionBaseNode {
    *  constant Expr of given type is used.
    */
   Map<Var, Expr> handle_data_type;
+  /*! \brief Whether this function is packed function */
+  bool is_packed_func{true};
   /*! \brief The body statment of the function */
   Stmt body;
   /*! \return name of the operation */
@@ -88,6 +90,7 @@ class LoweredFuncNode : public FunctionBaseNode {
     v->Visit("args", &args);
     v->Visit("thread_axis", &thread_axis);
     v->Visit("handle_data_type", &handle_data_type);
+    v->Visit("is_packed_func", &is_packed_func);
     v->Visit("body", &body);
   }
 

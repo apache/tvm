@@ -41,29 +41,6 @@ namespace runtime {
  * \return The PTX code.
  */
 std::string NVRTCCompile(const std::string& code);
-
-/*!
- * \brief Automatically detect and set cuda device.
- * \param args The arguments.
- */
-inline void AutoSetCUDADevice(const TVMArgs& args) {
-  int dev_id = -1;
-  for (int i = 0; i < args.size(); ++i) {
-    if (args.type_codes[i] == kArrayHandle) {
-      TVMContext ctx = static_cast<TVMArray*>(
-          args.values[i].v_handle)->ctx;
-      CHECK_EQ(ctx.dev_mask, kGPU)
-          << "All operands need to be GPU";
-      if (dev_id == -1) {
-        dev_id = ctx.dev_id;
-      } else {
-        CHECK_EQ(dev_id, ctx.dev_id)
-            << "Operands comes from different devices ";
-      }
-    }
-  }
-  CUDA_CALL(cudaSetDevice(dev_id));
-}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_CUDA_RUNTIME

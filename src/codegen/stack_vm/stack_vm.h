@@ -7,17 +7,20 @@
  *  to setup calls into device functions
  *  when only Runtime compilation for device is available(via NVRTC or OpenCL).
  */
-#ifndef TVM_RUNTIME_STACK_VM_STACK_VM_H_
-#define TVM_RUNTIME_STACK_VM_STACK_VM_H_
+#ifndef TVM_CODEGEN_STACK_VM_STACK_VM_H_
+#define TVM_CODEGEN_STACK_VM_STACK_VM_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
+#include <tvm/packed_func_ext.h>
 #include <string>
 #include <vector>
 
 namespace tvm {
-namespace runtime {
+namespace codegen {
 
+using runtime::operator<<;
 /*!
  * \brief A simple stack-based virtual machine.
  */
@@ -209,11 +212,19 @@ class StackVM {
     std::vector<TVMValue> stack;
     /*! \brief The global heap space */
     std::vector<TVMValue> heap;
+    /*! \brief extern functions */
+    std::vector<PackedFunc> extern_func;
     /*! \brief stack pointer  */
     int64_t sp{0};
     /*! \brief program counter */
     int64_t pc{0};
   };
+  /*! \brief The external function entries. */
+  struct ExternFuncEntry {
+    std::string name;
+    runtime::PackedFunc func;
+  };
+
   /*! \brief execute the stack vm with given state */
   void Run(State* state) const;
   /*!
@@ -229,9 +240,11 @@ class StackVM {
   std::vector<Code> code;
   /*! \brief constant error messages */
   std::vector<std::string> str_data;
-  /*! \brief Extern functions in packed func format */
-  std::vector<runtime::PackedFunc> packed_func;
-  /*! \brief name of each heap id*/
+  /*! \brief The current module context of stackvm */
+  runtime::ModuleNode* mod_ctx{nullptr};
+  /*! \brief Extern functions */
+  std::vector<std::string> extern_func_name;
+  /*! \brief name of each heap id */
   std::vector<std::string> heap_id_name;
   /*! \brief The memory size needed */
   size_t heap_size{0};
@@ -296,8 +309,12 @@ class StackVM {
     return ADDR_LOAD_FP64;
   }
   friend std::ostream& operator<<(std::ostream& os, const StackVM& vm);  // NOLINT(*)
+
+ private:
+  // get extern function.
+  const PackedFunc& GetExtern(State* s, int fid) const;
 };
 
-}  // namespace runtime
+}  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_RUNTIME_STACK_VM_STACK_VM_H_
+#endif  // TVM_CODEGEN_STACK_VM_STACK_VM_H_

@@ -10,8 +10,8 @@
 #include "./base.h"
 #include "./expr.h"
 #include "./lowered_func.h"
+#include "./api_registry.h"
 #include "./runtime/packed_func.h"
-
 
 namespace tvm {
 /*! \brief namespace for lowlevel IR pass and codegen */
@@ -22,41 +22,21 @@ using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
 /*!
- * \brief Build a stack VM function.
- * \param func The LoweredFunc to be build
- * \param device_funcs The additional device functions
- * \return A packed function representing the func.
- */
-PackedFunc BuildStackVM(
-    LoweredFunc func,
-    const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs);
-
-/*!
- * \brief Build a LLVM VM function, this is still beta
- * \param func The LoweredFunc to be build
- * \return A packed function representing the func.
- */
-PackedFunc BuildLLVM(LoweredFunc func);
-
-/*!
- * \brief Build a CUDA function with NVRTC
+ * \brief Build a module from array of lowered function.
+ * \param funcs The functions to be built.
+ * \param target The target to be built.
+ * \return The builded module.
  *
- * \param fsplits The LoweredFuncs to be build (after SplitHostDevice)
- *  The first element is the host function, followed by device functions.
- * \param host_mode The host side compilation mode:
- *   - "stackvm": use stack vm to interpret host side code.
+ * \note Calls global API function  "_codegen_build_" + target
  */
-PackedFunc BuildNVRTC(Array<LoweredFunc> fsplits, std::string host_mode);
+runtime::Module Build(const Array<LoweredFunc>& funcs,
+                      const std::string& target);
 
 /*!
- * \brief Build a OpenCL function.
- *
- * \param fsplits The LoweredFuncs to be build (after SplitHostDevice)
- *  The first element is the host function, followed by device functions.
- * \param host_mode The host side compilation mode:
- *   - "stackvm": use stack vm to interpret host side code.
+ * \param target The target to be queried.
+ * \return Whether target is enabled.
  */
-PackedFunc BuildOpenCL(Array<LoweredFunc> fsplits, std::string host_mode);
+bool TargetEnabled(const std::string& target);
 
 }  // namespace codegen
 }  // namespace tvm

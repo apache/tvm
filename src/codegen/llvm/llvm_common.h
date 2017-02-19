@@ -9,6 +9,8 @@
 
 #include <llvm/ExecutionEngine/MCJIT.h>
 
+#include <llvm/Bitcode/BitcodeWriter.h>
+
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/BasicBlock.h>
@@ -27,15 +29,16 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/IPO.h>
 
+#include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
 
-extern "C" {
-// Function signature for LLVM generated packed function.
-typedef int (*LLVMPackedCFunc)(void* args,
-                               int* type_codes,
-                               int num_args);
-}  // extern "C"
+#include <utility>
+#include <string>
+
 
 namespace tvm {
 namespace codegen {
@@ -45,6 +48,14 @@ namespace codegen {
  *  can be called multiple times.
  */
 void InitializeLLVM();
+
+/*!
+ * \brief Get target machine from target_str string.
+ * \param target_str Target triple string, can have llvm- prefix, can be empty.
+ * \return Pair of target machine and target triple.
+ */
+std::pair<llvm::TargetMachine*, std::string>
+LLVMGetTarget(const std::string& target_str);
 
 }  // namespace codegen
 }  // namespace tvm

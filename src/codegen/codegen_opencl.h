@@ -16,16 +16,9 @@ namespace codegen {
 
 class CodeGenOpenCL : public CodeGenC {
  public:
-  /*!
-   * \brief Generate the OpenCL code of statement
-   * \param f The function to be compiled
-   * \param output_ssa Whether output ssa form.
-   * \note Only call compile once,
-   *  create a new codegen object each time.
-   */
-  std::string Compile(LoweredFunc f,
-                      bool output_ssa);
+  void AddFunction(LoweredFunc f);
   // override print thread tag.
+  void InitFuncState(LoweredFunc f) final;
   void PrintThreadIndexExpr(
       std::string tag, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
