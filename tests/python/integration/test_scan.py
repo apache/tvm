@@ -8,8 +8,8 @@ def test_scan():
     X = tvm.placeholder((m, n), name="X")
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-    s_update = tvm.compute((n,), lambda i: s_state[t-1, i] + X[t, i])
-    res = tvm.scan(t, s_init, s_update, s_state)
+    s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+    res = tvm.scan(s_init, s_update, s_state)
 
     # schedule
     s = tvm.Schedule(res.op)
@@ -18,7 +18,7 @@ def test_scan():
     thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
     _, x = s[s_init].split(s_init.op.axis[1], factor=num_thread, outer=block_x)
     _, x = s[s_init].split(x, outer=thread_x)
-    _, x = s[s_update].split(s_update.op.axis[0], factor=num_thread, outer=block_x)
+    _, x = s[s_update].split(s_update.op.axis[1], factor=num_thread, outer=block_x)
     _, x = s[s_update].split(x, outer=thread_x)
 
     # one line to build the function.

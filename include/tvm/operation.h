@@ -152,14 +152,12 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor"
 /*!
  * \brief Construct new tensors by scan over scan_axis.
  *
- * \param scan_axis The iteration representing the scan.
  * \param init The intialize tensor of first K steps.
  * \param update The update tensor indicated the updated result after each timestamp.
  * \param state_placeholder The placeholder for the states.
  * \param name The optional name of the tensor.
  */
-Array<Tensor> scan(IterVar scan_axis,
-                   Array<Tensor> init,
+Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
                    std::string name = "scan");

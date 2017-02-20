@@ -50,25 +50,30 @@ def test_bound3():
     assert(bounds[A1.op.axis[0]].extent.value==32)
     assert(bounds[A1.op.axis[1]].extent.value==16)
 
+def test_bound_scan():
+    m = tvm.Var("m")
+    n = tvm.Var("n")
+    X = tvm.compute((m, n), lambda i, j: tvm.const(1, "float32"), name="x")
+    s_state = tvm.placeholder((m, n))
+    s_init = tvm.compute((1, n), lambda _, i: X[0, i])
+    s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+    s_scan = tvm.scan(s_init, s_update, s_state)
 
-def test_create_read_graph():
-    m = tvm.Var('m')
-    l = tvm.Var('l')
-    A = tvm.placeholder((m, l), name='A')
-    A1 = tvm.compute((m, l), lambda i, j: A[i, j])
-    A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3)
+    assert tuple(s_scan.shape) == (m, n)
 
-    g = tvm.schedule.CreateReadGraph([A2.op])
+    s = tvm.Schedule(s_scan.op)
+    XX = s.cache_read(X, "local", s_update)
+    xo, xi = s[s_update].split(s_update.op.axis[1], factor=4)
+    s[XX].compute_at(s[s_update], xo)
 
-    assert g[A2.op][0] == A1
-    assert g[A1.op][0] == A
-    post_order = tvm.schedule.PostDFSOrder([A2.op], g)
-    assert(post_order[0] == A.op)
-    assert(post_order[1] == A1.op)
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    assert bounds[XX.op.axis[1]].extent.value == 4
 
 
 if __name__ == "__main__":
-    test_create_read_graph()
+    test_bound_scan()
     test_bound3()
     test_bound1()
     test_bound2()

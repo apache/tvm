@@ -43,13 +43,11 @@ def test_schedule2():
 def test_schedule_scan():
     m = tvm.Var("m")
     n = tvm.Var("n")
-    l = tvm.Var("l")
-    t = tvm.IterVar((1, m), name="t")
     x = tvm.compute((m, n), lambda i, j: tvm.const(1, "float32"), name="x")
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: x[0, i])
-    s_update = tvm.compute((n,), lambda i: s_state[t-1, i] + x[t, i])
-    res = tvm.scan(t, s_init, s_update, s_state)
+    s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + x[t, i])
+    res = tvm.scan(s_init, s_update, s_state)
 
     assert tuple(res.shape) == (m, n)
     s = tvm.Schedule(res.op)
@@ -58,7 +56,6 @@ def test_schedule_scan():
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     print(stmt)
-
 
 def test_auto_inline():
     m = tvm.Var('m')
@@ -71,8 +68,26 @@ def test_auto_inline():
 
     s = tvm.Schedule(T2.op)
     tvm.schedule.AutoInlineElemWise(s)
+    s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+def test_inline_mixed():
+    n = tvm.Var('n')
+    A = tvm.placeholder((n, ), name='A')
+    A1 = tvm.compute(A.shape, lambda *i: A(*i) + 1, name='A1')
+    A2 = tvm.compute(A.shape, lambda *i: A1(*i) + 2, name='A2')
+    C = tvm.compute((n,), lambda i: A2[i] + A1[i], name='C')
+
+    s = tvm.Schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], factor=8)
+    s[A1].compute_at(s[C], xo)
+    s[A2].compute_inline()
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    print(stmt)
+
 
 def test_schedule_cache():
     m = tvm.Var('m')
@@ -90,9 +105,10 @@ def test_schedule_cache():
 
 
 if __name__ == "__main__":
+    test_inline_mixed()
+    test_auto_inline()
     test_schedule_scan()
     test_schedule0()
     test_schedule1()
     test_schedule2()
-    test_auto_inline()
     test_schedule_cache()

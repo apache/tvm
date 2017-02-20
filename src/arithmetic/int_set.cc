@@ -166,7 +166,15 @@ IntSet Union(const Array<IntSet>& set) {
   if (set.size() == 1) return set[0];
   Interval x = set[0].cover_interval().as<IntervalSet>()->i;
   for (size_t i = 1; i < set.size(); ++i) {
-    x.include(set[i].cover_interval().as<IntervalSet>()->i);
+    IntSet s = set[i].cover_interval();
+    const Interval& y = s.as<IntervalSet>()->i;
+    if (can_prove(x.max + 1 >= y.min)) {
+      x.max = y.max;
+    } else if (can_prove(y.max + 1 >= x.min)) {
+      x.min = y.min;
+    } else {
+      x.include(y);
+    }
   }
   return IntervalSet::make(x);
 }

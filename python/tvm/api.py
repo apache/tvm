@@ -140,14 +140,11 @@ def compute(shape, fcompute, name="compute"):
     return op_node.output(0)
 
 
-def scan(axis, init, update, state_placeholder, name="scan"):
+def scan(init, update, state_placeholder, name="scan"):
     """Construct new tensors by scanning over axis.
 
     Parameters
     ----------
-    axis: IterVar
-        The scanning axis.
-
     init: Tensor or list of Tensor
         The initial condition of first init.shape[0] timestamps
 
@@ -170,12 +167,11 @@ def scan(axis, init, update, state_placeholder, name="scan"):
     # The following code is equivalent to numpy.cumsum
     m = tvm.Var("m")
     n = tvm.Var("n")
-    t = tvm.IterVar((1, m), name="t")
     X = tvm.placeholder((m, n), name="X")
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-    s_update = tvm.compute((n,), lambda i: s_state[t-1, i] + X[t, i])
-    res = tvm.scan(t, s_init, s_update, s_state)
+    s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+    res = tvm.scan(s_init, s_update, s_state)
     """
     if isinstance(init, _tensor.Tensor):
         init = [init]
@@ -185,6 +181,7 @@ def scan(axis, init, update, state_placeholder, name="scan"):
         state_placeholder = [state_placeholder]
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
+    axis = IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name)
     op = _api_internal._ScanOp(name, axis, init, update, state_placeholder)
     res = [op.output(i) for i in range(len(update))]
     return (res[0] if len(res) == 1 else res)

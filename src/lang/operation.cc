@@ -51,8 +51,6 @@ Operation PlaceholderOpNode::make(std::string name,
   return Operation(n);
 }
 
-
-
 Tensor placeholder(Array<Expr> shape, Type dtype, std::string name) {
   return PlaceholderOpNode::make(name, shape, dtype).output(0);
 }
@@ -162,24 +160,25 @@ Operation ScanOpNode::make(std::string name,
         << " scan_axis.dom.min + scan_axis.dom.extent";
     CHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
         << "The dimension of init need to match state_placeholder";
-    CHECK_EQ(update[i].ndim() + 1, state_placeholder[i].ndim())
+    CHECK_EQ(update[i].ndim(), state_placeholder[i].ndim())
         << "The update.ndim need to be state_placeholder.ndim - 1";
     for (size_t k = 0;  k < update[i].ndim(); ++k) {
       CHECK(prove_equal(
-          update[i]->shape[k], state_placeholder[i]->shape[k + 1]));
-      // setup spatial axis
-      std::ostringstream spatial_name;
-      spatial_name << name << ".out" << i << ".i" << k + 1;
-      n->spatial_axis_.push_back(
-          IterVar(Range::make_with_min_extent(0, update[i]->shape[k]),
-                  spatial_name.str()));
+          update[i]->shape[k], state_placeholder[i]->shape[k]));
+      if (k != 0) {
+        // setup spatial axis
+        std::ostringstream spatial_name;
+        spatial_name << name << ".out" << i << ".i" << k;
+        n->spatial_axis_.push_back(
+            IterVar(Range::make_with_min_extent(0, update[i]->shape[k]),
+                    spatial_name.str()));
+      }
     }
     for (size_t k = 1;  k < init[i].ndim(); ++k) {
       CHECK(prove_equal(
           init[i]->shape[k], state_placeholder[i]->shape[k]));
     }
   }
-
   n->name = name;
   n->scan_axis = axis;
   n->init = init;
@@ -188,11 +187,14 @@ Operation ScanOpNode::make(std::string name,
   return Operation(n);
 }
 
-Array<Tensor> scan(IterVar scan_axis,
-                   Array<Tensor> init,
+Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
                    std::string name) {
+  IterVar scan_axis(
+      Range::make_with_min_extent(
+          init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
+      name + ".idx");
   Operation op = ScanOpNode::make(
       name, scan_axis, init, update, state_placeholder);
   Array<Tensor> res;
