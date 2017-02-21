@@ -236,7 +236,7 @@ inline IntSet CombineInterval<Mul>(Interval a, Interval b) {
     if (is_one(b.min)) return IntervalSet::make(a);
     Expr e1 = a.has_lower_bound() ? ComputeExpr<Mul>(a.min, b.min) : a.min;
     Expr e2 = a.has_upper_bound() ? ComputeExpr<Mul>(a.max, b.min) : a.max;
-    // This is relaxiation
+    // no relaxation is needed in here due to set is inclusive
     // TODO(tqchen): consider convert to StrideSet.
     if (is_positive_const(b.min)) {
       return IntervalSet::make(e1, e2);
@@ -263,7 +263,7 @@ inline IntSet CombineInterval<Div>(Interval a, Interval b) {
     if (is_one(b.min)) return IntervalSet::make(a);
     Expr e1 = a.has_lower_bound() ? ComputeExpr<Div>(a.min, b.min) : a.min;
     Expr e2 = a.has_upper_bound() ? ComputeExpr<Div>(a.max, b.min) : a.max;
-    // This is relaxiation due to set is inclusive
+    // no relaxation is needed in here due to set is inclusive
     if (is_positive_const(b.min)) {
       return IntervalSet::make(e1, e2);
     } else if (is_negative_const(b.min)) {
