@@ -258,12 +258,12 @@ inline IntSet CombineInterval<Div>(Interval a, Interval b) {
   }
   if (b.is_single_point()) {
     if (is_zero(b.min)) {
-      LOG(WARNING) << "Return Everything in CombineInterval Div";
-      return IntSet::everything();
+      LOG(FATAL) << "Divide by zero in CombineInterval Div";
     }
     if (is_one(b.min)) return IntervalSet::make(a);
     Expr e1 = a.has_lower_bound() ? ComputeExpr<Div>(a.min, b.min) : a.min;
-    Expr e2 = a.has_upper_bound() ? ComputeExpr<Div>(a.max, b.min) : a.min;
+    Expr e2 = a.has_upper_bound() ? ComputeExpr<Div>(a.max, b.min) : a.max;
+    // This is relaxiation due to set is inclusive
     if (is_positive_const(b.min)) {
       return IntervalSet::make(e1, e2);
     } else if (is_negative_const(b.min)) {
