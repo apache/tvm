@@ -21,8 +21,6 @@
  */
 #define API_END_HANDLE_ERROR(Finalize) } catch(std::runtime_error &_except_) { Finalize; return TVMAPIHandleException(_except_); } return 0; // NOLINT(*)
 
-void TVMAPISetLastError(const char* msg);
-
 /*!
  * \brief handle exception throwed out
  * \param e the exception

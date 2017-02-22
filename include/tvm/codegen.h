@@ -32,6 +32,13 @@ PackedFunc BuildStackVM(
     const std::unordered_map<LoweredFunc, PackedFunc>& device_funcs);
 
 /*!
+ * \brief Build a LLVM VM function, this is still beta
+ * \param func The LoweredFunc to be build
+ * \return A packed function representing the func.
+ */
+PackedFunc BuildLLVM(LoweredFunc func);
+
+/*!
  * \brief Build a CUDA function with NVRTC
  *
  * \param fsplits The LoweredFuncs to be build (after SplitHostDevice)

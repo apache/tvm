@@ -153,7 +153,7 @@ class TensorNode : public Node {
                      int value_index);
 
   static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorNode);
+  TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
 };
 
 /*!
@@ -167,8 +167,6 @@ class OperationNode : public FunctionBaseNode {
   const std::string& func_name() const final {
     return name;
   }
-  /*! \return number of outputs of this op */
-  virtual int num_outputs() const = 0;
   /*! \return the list of iteration variable at root */
   virtual Array<IterVar> root_iter_vars() const = 0;
   /*! \return type of i-th output */
@@ -177,6 +175,8 @@ class OperationNode : public FunctionBaseNode {
   virtual Array<Expr> output_shape(size_t i) const = 0;
 
   static constexpr const char* _type_key = "Operation";
+
+  TVM_DECLARE_BASE_NODE_INFO(OperationNode, Node);
 };
 
 // Implementations of inline functions

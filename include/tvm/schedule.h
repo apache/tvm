@@ -331,7 +331,7 @@ class StageNode : public Node {
   }
 
   static constexpr const char* _type_key = "Stage";
-  TVM_DECLARE_NODE_TYPE_INFO(StageNode);
+  TVM_DECLARE_NODE_TYPE_INFO(StageNode, Node);
 };
 
 /*! \brief node container for schedule */
@@ -354,7 +354,7 @@ class ScheduleNode : public Node {
   }
 
   static constexpr const char* _type_key = "Schedule";
-  TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode);
+  TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
 };
 
 /*! \brief node container for IterVar attr */
@@ -368,11 +368,14 @@ class IterVarAttrNode : public Node {
   }
 
   static constexpr const char* _type_key = "IterVarAttr";
-  TVM_DECLARE_NODE_TYPE_INFO(IterVarAttrNode);
+  TVM_DECLARE_NODE_TYPE_INFO(IterVarAttrNode, Node);
 };
 
 /*! \brief base node of iteration var */
 class IterVarRelationNode : public Node {
+ public:
+  static constexpr const char* _type_key = "IterVarRelation";
+  TVM_DECLARE_BASE_NODE_INFO(IterVarRelationNode, Node);
 };
 
 /*!
@@ -402,7 +405,7 @@ class SplitNode : public IterVarRelationNode {
       IterVar inner, Expr factor);
 
   static constexpr const char* _type_key = "Split";
-  TVM_DECLARE_NODE_TYPE_INFO(SplitNode);
+  TVM_DECLARE_NODE_TYPE_INFO(SplitNode, IterVarRelationNode);
 };
 
 /*!
@@ -427,7 +430,7 @@ class FuseNode : public IterVarRelationNode {
       IterVar outer, IterVar inner, IterVar fused);
 
   static constexpr const char* _type_key = "Fuse";
-  TVM_DECLARE_NODE_TYPE_INFO(FuseNode);
+  TVM_DECLARE_NODE_TYPE_INFO(FuseNode, IterVarRelationNode);
 };
 
 /*!
@@ -450,7 +453,7 @@ class RebaseNode : public IterVarRelationNode {
   static IterVarRelation make(IterVar parent, IterVar rebased);
 
   static constexpr const char* _type_key = "Rebase";
-  TVM_DECLARE_NODE_TYPE_INFO(RebaseNode);
+  TVM_DECLARE_NODE_TYPE_INFO(RebaseNode, IterVarRelationNode);
 };
 
 

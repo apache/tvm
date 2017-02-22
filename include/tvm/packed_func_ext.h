@@ -33,7 +33,7 @@ struct NodeTypeChecker {
     // It can be turned off, but will make non strict checking.
     // TODO(tqchen) possibly find alternative to turn of RTTI
     using ContainerType = typename T::ContainerType;
-    return (dynamic_cast<ContainerType*>(sptr) != nullptr);
+    return sptr->derived_from<ContainerType>();
   }
   static inline void PrintName(std::ostringstream& os) { // NOLINT(*)
     using ContainerType = typename T::ContainerType;

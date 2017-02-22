@@ -153,6 +153,13 @@ typedef void* TVMRetValueHandle;
 typedef TVMArray* TVMArrayHandle;
 
 /*!
+ * \brief Used for implementing C API function.
+ *  Set last error message before return.
+ * \param msg The error message to be set.
+ */
+TVM_DLL void TVMAPISetLastError(const char* msg);
+
+/*!
  * \brief return str message of the last error
  *  all function in this file will return 0 when success
  *  and -1 when an error occured,
@@ -287,10 +294,10 @@ TVM_DLL int TVMCFuncSetReturn(TVMRetValueHandle ret,
  * \param num_args Number of arguments.
  * \param ret The return value handle.
  * \param resource_handle The handle additional resouce handle from fron-end.
- *
+ * \return 0 if success, -1 if failure happens, set error via TVMAPISetLastError.
  * \sa TVMCFuncSetReturn
  */
-typedef void (*TVMPackedCFunc)(
+typedef int (*TVMPackedCFunc)(
     TVMValue* args,
     int* type_codes,
     int num_args,

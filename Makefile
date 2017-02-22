@@ -1,8 +1,8 @@
 ifndef config
 ifneq ("$(wildcard ./config.mk)","")
-	config = config.mk
+	config ?= config.mk
 else
-	config = make/config.mk
+	config ?= make/config.mk
 endif
 endif
 
@@ -19,23 +19,15 @@ SRC = $(wildcard src/*.cc src/*/*.cc src/*/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
 ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
 
-ifneq ($(USE_CUDA_PATH), NONE)
-	NVCC=$(USE_CUDA_PATH)/bin/nvcc
-endif
-
 export LDFLAGS = -pthread -lm
-export CFLAGS =  -std=c++11 -Wall -O2\
-	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC
-export FRAMEWORKS=
+export CFLAGS =  -std=c++11 -Wall -O2 -fno-rtti\
+	 -Iinclude -Idmlc-core/include -IHalideIR/src  -fPIC -DDMLC_ENABLE_RTTI=0
 
-ifneq ($(ADD_CFLAGS), NONE)
-	CFLAGS += $(ADD_CFLAGS)
+ifdef CUDA_PATH
+	NVCC=$(CUDA_PATH)/bin/nvcc
+	CFLAGS += -I$(CUDA_PATH)/include
+	LDFLAGS += -L$(CUDA_PATH)/lib64
 endif
-
-ifneq ($(ADD_LDFLAGS), NONE)
-	LDFLAGS += $(ADD_LDFLAGS)
-endif
-
 
 ifeq ($(USE_CUDA), 1)
 	CFLAGS += -DTVM_CUDA_RUNTIME=1
@@ -44,6 +36,7 @@ else
 	CFLAGS += -DTVM_CUDA_RUNTIME=0
 endif
 
+FRAMEWORKS=
 
 ifeq ($(USE_OPENCL), 1)
 	CFLAGS += -DTVM_OPENCL_RUNTIME=1
@@ -57,6 +50,23 @@ else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
 endif
 
+# llvm configuration
+LLVM_CONFIG=llvm-config
+
+ifeq ($(USE_LLVM), 1)
+	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
+	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
+	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)
+	CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
+endif
+
+ifdef $(ADD_CFLAGS)
+	CFLAGS += $(ADD_CFLAGS)
+endif
+
+ifdef $(ADD_LDFLAGS)
+	LDFLAGS += $(ADD_LDFLAGS)
+endif
 
 include tests/cpp/unittest.mk
 

@@ -39,7 +39,7 @@ class PlaceholderOpNode : public OperationNode {
                         Type dtype);
 
   static constexpr const char* _type_key = "PlaceholderOp";
-  TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode);
+  TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode, OperationNode);
 };
 
 /*!
@@ -74,7 +74,7 @@ class ComputeOpNode : public OperationNode {
                         Expr body);
 
   static constexpr const char* _type_key = "ComputeOp";
-  TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode);
+  TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, OperationNode);
 };
 
 /*!
@@ -123,7 +123,7 @@ class ScanOpNode : public OperationNode {
                         Array<Tensor> state_placeholder);
 
   static constexpr const char* _type_key = "ScanOp";
-  TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode);
+  TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
 };
 
 

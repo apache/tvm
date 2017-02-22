@@ -96,7 +96,7 @@ class TVMByteArray(ctypes.Structure):
 
 
 TVMPackedCFunc = ctypes.CFUNCTYPE(
-    None,
+    ctypes.c_int,
     ctypes.POINTER(TVMValue),
     ctypes.POINTER(ctypes.c_int),
     ctypes.c_int,

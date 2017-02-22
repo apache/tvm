@@ -35,7 +35,7 @@ struct IntervalSet : public IntSetNode {
   }
 
   static constexpr const char* _type_key = "IntervalSet";
-  TVM_DECLARE_NODE_TYPE_INFO(IntervalSet);
+  TVM_DECLARE_NODE_TYPE_INFO(IntervalSet, IntSetNode);
 };
 
 /*!
@@ -51,7 +51,7 @@ struct StrideSet : public IntSetNode {
   Array<Expr> strides;
 
   static constexpr const char* _type_key = "StrideSet";
-  TVM_DECLARE_NODE_TYPE_INFO(StrideSet);
+  TVM_DECLARE_NODE_TYPE_INFO(StrideSet, IntSetNode);
 };
 
 }  // namespace arith

@@ -200,6 +200,8 @@ using Halide::Internal::Realize;
 using Halide::Internal::Block;
 using Halide::Internal::IfThenElse;
 using Halide::Internal::Evaluate;
+// ir functions
+using Halide::Internal::is_const_power_of_two_integer;
 
 }  // namespace ir
 }  // namespace tvm

@@ -56,6 +56,7 @@ def convert_to_tvm_func(pyfunc):
             check_call(_LIB.TVMCFuncSetReturn(ret, values[0], ctypes.c_int(tcodes[0])))
             _ = temp_args
             _ = rv
+        return 0
 
     handle = FunctionHandle()
     f = TVMPackedCFunc(cfun)

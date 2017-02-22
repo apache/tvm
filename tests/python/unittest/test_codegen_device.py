@@ -2,7 +2,6 @@ import tvm
 import numpy as np
 
 def test_add_pipeline():
-    """Not yet working, mock design"""
     n = tvm.Var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')

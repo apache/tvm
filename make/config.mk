@@ -40,10 +40,11 @@ USE_CUDA = 1
 # whether use OpenCL during compile
 USE_OPENCL = 0
 
-# add the path to CUDA library to link and compile flag
-# if you have already add them to environment variable, leave it as NONE
-# USE_CUDA_PATH = /usr/local/cuda
-USE_CUDA_PATH = NONE
+# whether build with LLVM support
+# This requires llvm-config to be in your PATH
+# Requires LLVM version >= 4.0
+USE_LLVM = 0
 
-# whether use cuda runtime compiling for writing kernels in native language (i.e. Python)
-USE_NVRTC = 0
+# add the path to CUDA library to link and compile flag
+# if you have already add them to environment variable.
+# CUDA_PATH = /usr/local/cuda

@@ -92,7 +92,7 @@ class LoweredFuncNode : public FunctionBaseNode {
   }
 
   static constexpr const char* _type_key = "LoweredFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(LoweredFuncNode);
+  TVM_DECLARE_NODE_TYPE_INFO(LoweredFuncNode, Node);
 };
 
 // Implementations of inline functions
