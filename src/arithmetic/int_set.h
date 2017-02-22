@@ -20,7 +20,7 @@ enum SignType {
 };
 
 // internal node container of int set.
-class IntSetNode;
+struct IntSetNode;
 
 /*!
  * \brief Integer set class, represent a set of integers in one dimension.
@@ -104,6 +104,8 @@ class IntSet : public NodeRef {
  * \brief Base class of all IntSet containers.
  */
 struct IntSetNode : public Node {
+  static constexpr const char* _type_key = "IntSet";
+  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
 };
 
 using ExprIntSetMap = std::unordered_map<Expr, IntSet,

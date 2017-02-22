@@ -90,7 +90,7 @@ class BufferNode : public Node {
                      Type dtype);
 
   static constexpr const char* _type_key = "Buffer";
-  TVM_DECLARE_NODE_TYPE_INFO(BufferNode);
+  TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);
 };
 
 inline const BufferNode* Buffer::operator->() const {
