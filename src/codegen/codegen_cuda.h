@@ -16,16 +16,7 @@ namespace codegen {
 
 class CodeGenCUDA : public CodeGenC {
  public:
-  /*!
-   * \brief Generate the C code of statement
-   * \param f The function to be compiled
-   * \param output_ssa Whether output ssa form.
-   * \note Only call compile once,
-   *  create a new codegen object each time.
-   */
-  std::string Compile(LoweredFunc f,
-                      bool output_ssa);
-
+  void AddFunction(LoweredFunc f);
   // override behavior
   void PrintStmt(const ir::For* op) final;
   void PrintStorageSync(const std::string& sync) final;

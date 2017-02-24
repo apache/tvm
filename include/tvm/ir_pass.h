@@ -147,11 +147,14 @@ Stmt LiftAllocate(Stmt stmt);
  * \param body The body of the function.
  * \param name The name of the function.
  * \param api_args Arguments to the function, can be either Var, or Buffer
- * \param num_packed_args Number of arguments that are processed in packed form.
+ * \param num_unpacked_args Number of arguments that
+ *         are processed in plain form instead of packed form.
  * \return a LoweredFunc with the specified signiture.
  *
  * \note
  *  The function signiture have two cases
+ *
+ *  let num_packed_args = len(api_args) - num_unpacked_args;
  *
  *  if num_packed_args is zero:
  *     f(api_arg_0, api_arg_1, .., api_arg_n) where n == len(api_args)
@@ -167,7 +170,7 @@ Stmt LiftAllocate(Stmt stmt);
 LoweredFunc MakeAPI(Stmt body,
                     std::string name,
                     Array<NodeRef> api_args,
-                    int num_packed_args);
+                    int num_unpacked_args);
 
 /*!
  * \brief Count number of undefined vars in f.

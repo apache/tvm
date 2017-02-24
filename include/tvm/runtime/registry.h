@@ -1,0 +1,108 @@
+/*!
+ *  Copyright (c) 2017 by Contributors
+ * \file registry.h
+ * \brief This file defines the TVM global function registry.
+ *
+ *  The registered functions will be made available to front-end
+ *  as well as backend users.
+ *
+ *  The registry stores type-erased functions.
+ *  Each registered function is automatically exposed
+ *  to front-end language(e.g. python).
+ *
+ *  Front-end can also pass callbacks as PackedFunc, or register
+ *  then into the same global registry in C++.
+ *  The goal is to mix the front-end language and the TVM back-end.
+ *
+ * \code
+ *   // register the function as MyAPIFuncName
+ *   TVM_REGISTER_GLOBAL(MyAPIFuncName)
+ *   .set_body([](TVMArgs args, TVMRetValue* rv) {
+ *     // my code.
+ *   });
+ * \endcode
+ */
+#ifndef TVM_RUNTIME_REGISTRY_H_
+#define TVM_RUNTIME_REGISTRY_H_
+
+#include <string>
+#include <vector>
+#include "./packed_func.h"
+
+namespace tvm {
+namespace runtime {
+
+/*! \brief Registry for global function */
+class Registry {
+ public:
+  /*!
+   * \brief set the body of the function to be f
+   * \param f The body of the function.
+   */
+  Registry& set_body(PackedFunc f);  // NOLINT(*)
+  /*!
+   * \brief set the body of the function to be f
+   * \param f The body of the function.
+   */
+  Registry& set_body(PackedFunc::FType f) {  // NOLINT(*)
+    return set_body(PackedFunc(f));
+  }
+  /*!
+   * \brief Register a function with given name
+   * \param name The name of the function.
+   */
+  static Registry& Register(const std::string& name);  // NOLINT(*)
+  /*!
+   * \brief Erase global function from registry, if exist.
+   * \param name The name of the function.
+   * \return Whether function exist.
+   */
+  static bool Remove(const std::string& name);
+  /*!
+   * \brief Get the global function by name.
+   * \param name The name of the function.
+   * \return pointer to the registered function,
+   *   nullptr if it does not exist.
+   */
+  static const PackedFunc* Get(const std::string& name);  // NOLINT(*)
+  /*!
+   * \brief Get the names of currently registered global function.
+   * \return The names
+   */
+  static std::vector<std::string> ListNames();
+
+ private:
+  /*! \brief name of the function */
+  std::string name_;
+  /*! \brief internal packed function */
+  PackedFunc func_;
+  // Internal class.
+  struct Manager;
+  friend struct Manager;
+};
+
+
+/*! \brief helper macro to supress unused warning */
+#if defined(__GNUC__)
+#define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+#define TVM_ATTRIBUTE_UNUSED
+#endif
+
+/*!
+ * \brief Register a function globally.
+ * \code
+ *   TVM_REGISTER_GLOBAL(MyPrint)
+ *   .set_body([](TVMArgs args, TVMRetValue* rv) {
+ *     // my code.
+ *   });
+ * \endcode
+ */
+#define TVM_REGISTER_GLOBAL(OpName)                              \
+  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry&          \
+  __make_TVMRegistry_ ## OpName =                                \
+      ::tvm::runtime::Registry::Register(#OpName)
+
+}  // namespace runtime
+}  // namespace tvm
+#endif  // TVM_RUNTIME_REGISTRY_H_

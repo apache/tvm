@@ -1,6 +1,7 @@
 # pylint: disable=protected-access, no-member
 """Arithmetic data structure and utility"""
 from __future__ import absolute_import as _abs
+
 from ._ctypes._node import NodeBase, register_node
 from . import _api_internal
 
@@ -15,6 +16,7 @@ class IntSet(NodeBase):
         """Whether the set represent everything"""
         return _api_internal._IntSetIsEverything(self)
 
+
 @register_node
 class IntervalSet(IntSet):
     """Represent set of continuous interval"""
@@ -26,8 +28,8 @@ class IntervalSet(IntSet):
         """get the maximum value"""
         return _api_internal._IntervalSetGetMax(self)
 
+
 @register_node
 class StrideSet(IntSet):
     """Represent set of strided integers"""
     pass
-

@@ -6,6 +6,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
 #include <algorithm>
 #include <string>
 #include "./runtime_base.h"
@@ -69,9 +70,135 @@ using namespace tvm::runtime;
 
 struct TVMRuntimeEntry {
   std::string ret_str;
+  std::string last_error;
 };
 
 typedef dmlc::ThreadLocalStore<TVMRuntimeEntry> TVMAPIRuntimeStore;
+
+const char *TVMGetLastError() {
+  return TVMAPIRuntimeStore::Get()->last_error.c_str();
+}
+
+void TVMAPISetLastError(const char* msg) {
+  TVMAPIRuntimeStore::Get()->last_error = msg;
+}
+
+int TVMModLoadFromFile(const char* file_name,
+                       const char* format,
+                       TVMModuleHandle* out) {
+  API_BEGIN();
+  Module m = Module::LoadFromFile(file_name, format);
+  *out = new Module(m);
+  API_END();
+}
+
+int TVMModImport(TVMModuleHandle mod,
+                 TVMModuleHandle dep) {
+  API_BEGIN();
+  static_cast<Module*>(mod)->Import(
+      *static_cast<Module*>(dep));
+  API_END();
+}
+
+int TVMModGetFunction(TVMModuleHandle mod,
+                      const char* func_name,
+                      int query_imports,
+                      TVMFunctionHandle *func) {
+  API_BEGIN();
+  PackedFunc pf = static_cast<Module*>(mod)->GetFunction(
+      func_name, query_imports);
+  if (pf != nullptr) {
+    *func = new PackedFunc(pf);
+  } else {
+    *func = nullptr;
+  }
+  API_END();
+}
+
+int TVMModPreCompile(TVMModuleHandle mod,
+                     const char* func_name,
+                     TVMContext ctx) {
+  API_BEGIN();
+  (*static_cast<Module*>(mod))->PreCompile(func_name, ctx);
+  API_END();
+}
+
+int TVMBackendGetFuncFromEnv(void* mod_node,
+                             const char* func_name,
+                             TVMFunctionHandle *func) {
+  API_BEGIN();
+  *func = (TVMFunctionHandle)(
+      static_cast<ModuleNode*>(mod_node)->GetFuncFromEnv(func_name));
+  API_END();
+}
+
+int TVMModFree(TVMModuleHandle mod) {
+  API_BEGIN();
+  delete static_cast<Module*>(mod);
+  API_END();
+}
+
+int TVMFuncFree(TVMFunctionHandle func) {
+  API_BEGIN();
+  delete static_cast<PackedFunc*>(func);
+  API_END();
+}
+
+int TVMFuncCall(TVMFunctionHandle func,
+                TVMValue* args,
+                int* arg_type_codes,
+                int num_args,
+                TVMValue* ret_val,
+                int* ret_type_code) {
+  API_BEGIN();
+  TVMRetValue rv;
+  (*static_cast<const PackedFunc*>(func)).CallPacked(
+      TVMArgs(args, arg_type_codes, num_args), &rv);
+  // handle return string.
+  if (rv.type_code() == kStr ||
+      rv.type_code() == kTVMType) {
+    TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
+    e->ret_str = rv.operator std::string();
+    *ret_type_code = kStr;
+    ret_val->v_str = e->ret_str.c_str();
+  } else {
+    rv.MoveToCHost(ret_val, ret_type_code);
+  }
+  API_END();
+}
+
+int TVMCFuncSetReturn(TVMRetValueHandle ret,
+                      TVMValue value,
+                      int type_code) {
+  API_BEGIN();
+  TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
+  *rv = TVMArgValue(value, type_code);
+  API_END();
+}
+
+int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
+                           void* resource_handle,
+                           TVMPackedCFuncFinalizer fin,
+                           TVMFunctionHandle *out) {
+  API_BEGIN();
+  if (fin == nullptr) {
+    *out = new PackedFunc(
+        [func, resource_handle](TVMArgs args, TVMRetValue* rv) {
+          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
+               args.num_args, rv, resource_handle);
+        });
+  } else {
+    // wrap it in a shared_ptr, with fin as deleter.
+    // so fin will be called when the lambda went out of scope.
+    std::shared_ptr<void> rpack(resource_handle, fin);
+    *out = new PackedFunc(
+        [func, rpack](TVMArgs args, TVMRetValue* rv) {
+          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
+               args.num_args, rv, rpack.get());
+      });
+  }
+  API_END();
+}
 
 int TVMDeviceInit(int dev_mask,
                   const char** option_keys,
@@ -173,67 +300,5 @@ int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
   TVM_DEVICE_SWITCH(ctx, {
       StreamSync<xpu>(ctx, stream);
     });
-  API_END();
-}
-
-int TVMFuncFree(TVMFunctionHandle func) {
-  API_BEGIN();
-  delete static_cast<PackedFunc*>(func);
-  API_END();
-}
-
-int TVMFuncCall(TVMFunctionHandle func,
-                TVMValue* args,
-                int* arg_type_codes,
-                int num_args,
-                TVMValue* ret_val,
-                int* ret_type_code) {
-  API_BEGIN();
-  TVMRetValue rv;
-  (*static_cast<const PackedFunc*>(func)).CallPacked(
-      TVMArgs(args, arg_type_codes, num_args), &rv);
-  // handle return string.
-  if (rv.type_code() == kStr ||
-      rv.type_code() == kTVMType) {
-    TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    e->ret_str = rv.operator std::string();
-    *ret_type_code = kStr;
-    ret_val->v_str = e->ret_str.c_str();
-  } else {
-    rv.MoveToCHost(ret_val, ret_type_code);
-  }
-  API_END();
-}
-
-int TVMCFuncSetReturn(TVMRetValueHandle ret,
-                      TVMValue value,
-                      int type_code) {
-  API_BEGIN();
-  TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
-  *rv = TVMArgValue(value, type_code);
-  API_END();
-}
-
-int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
-                           void* resource_handle,
-                           TVMPackedCFuncFinalizer fin,
-                           TVMFunctionHandle *out) {
-  API_BEGIN();
-  if (fin == nullptr) {
-    *out = new PackedFunc(
-        [func, resource_handle](TVMArgs args, TVMRetValue* rv) {
-          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
-               args.num_args, rv, resource_handle);
-        });
-  } else {
-    // wrap it in a shared_ptr, with fin as deleter.
-    // so fin will be called when the lambda went out of scope.
-    std::shared_ptr<void> rpack(resource_handle, fin);
-    *out = new PackedFunc(
-        [func, rpack](TVMArgs args, TVMRetValue* rv) {
-          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
-               args.num_args, rv, rpack.get());
-      });
-  }
   API_END();
 }

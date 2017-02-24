@@ -7,7 +7,7 @@
 #include "./stack_vm.h"
 
 namespace tvm {
-namespace runtime {
+namespace codegen {
 
 typedef dmlc::ThreadLocalStore<StackVM::State> StackVMStateStore;
 
@@ -182,6 +182,7 @@ void StackVM::operator()(const runtime::TVMArgs& args) const {
   if (s->heap.size() < this->heap_size) {
     s->heap.resize(this->heap_size);
   }
+
   s->heap[0].v_handle = (void*)args.values;  // NOLINT(*)
   s->heap[1].v_handle = (void*)args.type_codes;  // NOLINT(*)
   s->heap[2].v_int64 = args.num_args;
@@ -193,7 +194,8 @@ void StackVM::Run(State* s) const {
   int64_t pc = s->pc;
   std::vector<TVMValue>& stack = s->stack;
   std::vector<TVMValue>& heap = s->heap;
-
+  s->extern_func.clear();
+  s->extern_func.resize(extern_func_name.size());
   if (stack.size() < stack_size) {
     stack.resize(stack_size);
   }
@@ -287,7 +289,7 @@ void StackVM::Run(State* s) const {
                       alignof(Code) == alignof(int), "asusmption");
         const int* type_codes = &(code[pc].v_int) + 3;
         runtime::TVMRetValue rv;
-        packed_func[call_fid].CallPacked(
+        GetExtern(s, call_fid).CallPacked(
             runtime::TVMArgs(&stack[sp + 1 - num_args], type_codes, num_args), &rv);
         sp = sp + 1 - num_args;
         stack[sp] = rv.value();
@@ -364,5 +366,18 @@ void StackVM::Run(State* s) const {
   }
 }
 
-}  // namespace runtime
+const PackedFunc& StackVM::GetExtern(State* s, int fid) const {
+  PackedFunc& f = s->extern_func[fid];
+  if (f == nullptr) {
+    CHECK(mod_ctx != nullptr)
+        << "No local context is set in stackvm";
+    const PackedFunc* pf = mod_ctx->GetFuncFromEnv(extern_func_name[fid]);
+    CHECK(pf != nullptr);
+    f = *pf;
+    CHECK(f != nullptr);
+  }
+  return f;
+}
+
+}  // namespace codegen
 }  // namespace tvm

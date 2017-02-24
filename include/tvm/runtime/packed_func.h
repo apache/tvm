@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file packed_func.h
- * \brief Runtime related c++ class.
+ * \brief Type-erased function used across TVM API.
  */
 #ifndef TVM_RUNTIME_PACKED_FUNC_H_
 #define TVM_RUNTIME_PACKED_FUNC_H_
@@ -15,6 +15,7 @@
 #include <memory>
 #include <type_traits>
 #include "./c_runtime_api.h"
+#include "./module.h"
 
 namespace Halide {
 // Forward declare type for extensions
@@ -97,30 +98,14 @@ class PackedFunc {
   inline void CallPacked(TVMArgs args, TVMRetValue* rv) const;
   /*! \return the internal body function */
   inline FType body() const;
-  /*!
-   * \brief Register f as into global function table
-   * \param name The name of the function.
-   * \param f The function to be registered.
-   * \return Reference to the registered function.
-   * \note The returned reference is valid until the end of the program
-   */
-  static const PackedFunc& RegisterGlobal(const std::string& name, PackedFunc f);
-  /*!
-   * \brief Get the global function by name.
-   * \param name The name of the function.
-   * \return reference to the registered function.
-   */
-  static const PackedFunc& GetGlobal(const std::string& name);
-  /*!
-   * \brief Whether the global function exist
-   * \param name The name of the function.
-   * \return Whetehr the global function exist.
-   */
-  static bool GlobalExist(const std::string& name);
-  /*!
-   * \brief Get the names of currently registered global function.
-   */
-  static std::vector<std::string> ListGlobalNames();
+  /*! \return Whether the packed function is nullptr */
+  bool operator==(std::nullptr_t null) const {
+    return body_ == nullptr;
+  }
+  /*! \return Whether the packed function is not nullptr */
+  bool operator!=(std::nullptr_t null) const {
+    return body_ != nullptr;
+  }
 
  private:
   /*! \brief internal container of packed function */
@@ -292,6 +277,10 @@ class TVMArgValue : public TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
     return *ptr<PackedFunc>();
   }
+  operator Module() const {
+    TVM_CHECK_TYPE_CODE(type_code_, kModuleHandle);
+    return *ptr<Module>();
+  }
   const TVMValue& value() const {
     return value_;
   }
@@ -364,6 +353,10 @@ class TVMRetValue : public TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
     return *ptr<PackedFunc>();
   }
+  operator Module() const {
+    TVM_CHECK_TYPE_CODE(type_code_, kModuleHandle);
+    return *ptr<Module>();
+  }
   // Assign operators
   TVMRetValue& operator=(TVMRetValue&& other) {
     this->Clear();
@@ -415,6 +408,10 @@ class TVMRetValue : public TVMPODValue_ {
     this->SwitchToClass(kFuncHandle, f);
     return *this;
   }
+  TVMRetValue& operator=(Module m) {
+    this->SwitchToClass(kModuleHandle, m);
+    return *this;
+  }
   TVMRetValue& operator=(const TVMRetValue& other) {  // NOLINT(*0
     this->Assign(other);
     return *this;
@@ -444,6 +441,7 @@ class TVMRetValue : public TVMPODValue_ {
   const TVMValue& value() const {
     CHECK(type_code_ != kNodeHandle &&
           type_code_ != kFuncHandle &&
+          type_code_ != kModuleHandle &&
           type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
@@ -469,6 +467,10 @@ class TVMRetValue : public TVMPODValue_ {
       }
       case kFuncHandle: {
         SwitchToClass<PackedFunc>(kFuncHandle, other);
+        break;
+      }
+      case kModuleHandle: {
+        SwitchToClass<PackedFunc>(kModuleHandle, other);
         break;
       }
       case kNodeHandle: {
@@ -506,6 +508,7 @@ class TVMRetValue : public TVMPODValue_ {
     switch (type_code_) {
       case kStr: delete ptr<std::string>(); break;
       case kFuncHandle: delete ptr<PackedFunc>(); break;
+      case kModuleHandle: delete ptr<Module>(); break;
       case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
     }
     type_code_ = kNull;
@@ -518,12 +521,14 @@ inline const char* TypeCode2Str(int type_code) {
     case kInt: return "int";
     case kFloat: return "float";
     case kStr: return "str";
+    case kBytes: return "bytes";
     case kHandle: return "handle";
     case kNull: return "NULL";
     case kNodeHandle: return "NodeHandle";
     case kArrayHandle: return "ArrayHandle";
     case kTVMType: return "TVMType";
     case kFuncHandle: return "FunctionHandle";
+    case kModuleHandle: return "ModuleHandle";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }
@@ -666,6 +671,10 @@ class TVMArgsSetter {
   void operator()(size_t i, PackedFunc& value) const {  // NOLINT(*)
     values_[i].v_handle = &value;
     type_codes_[i] = kFuncHandle;
+  }
+  void operator()(size_t i, Module& value) const {  // NOLINT(*)
+    values_[i].v_handle = &value;
+    type_codes_[i] = kModuleHandle;
   }
   void operator()(size_t i, TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {

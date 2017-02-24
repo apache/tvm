@@ -6,51 +6,24 @@
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/codegen.h>
+#include <tvm/lowered_func.h>
 #include <tvm/api_registry.h>
-#include "../codegen/codegen_c.h"
-#include "../codegen/codegen_cuda.h"
-#include "../codegen/codegen_opencl.h"
 
 namespace tvm {
 namespace codegen {
 
-TVM_REGISTER_API(_codegen_CompileToC)
+TVM_REGISTER_API(_codegen_build)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    std::string mode = "c";
-    if (args.size() > 2) {
-      mode = args[2].operator std::string();
-    }
-    if (mode == "c") {
-      *ret = CodeGenC().Compile(args[0], args[1]);
-    } else if (mode == "cuda") {
-      *ret = CodeGenCUDA().Compile(args[0], args[1]);
-    } else if (mode == "opencl") {
-      *ret = CodeGenOpenCL().Compile(args[0], args[1]);
+    if (args[0].IsNodeType<LoweredFunc>()) {
+      *ret = Build({args[0]}, args[1]);
     } else {
-      LOG(FATAL) << "cannot recognize mode";
+      *ret = Build(args[0], args[1]);
     }
   });
 
-TVM_REGISTER_API(_codegen_BuildStackVM)
+TVM_REGISTER_API(_codegen_target_enabled)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = BuildStackVM(args[0],
-                        std::unordered_map<LoweredFunc, PackedFunc>());
+    *ret = TargetEnabled(args[0]);
   });
-
-TVM_REGISTER_API(_codegen_BuildLLVM)
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = BuildLLVM(args[0]);
-  });
-
-TVM_REGISTER_API(_codegen_BuildNVRTC)
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = BuildNVRTC(args[0], args[1]);
-  });
-
-TVM_REGISTER_API(_codegen_BuildOpenCL)
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = BuildOpenCL(args[0], args[1]);
-  });
-
 }  // namespace codegen
 }  // namespace tvm

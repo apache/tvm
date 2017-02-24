@@ -13,7 +13,7 @@ namespace codegen {
 
 struct LLVMEnv {
   std::mutex mu;
-  bool native_initialized{false};
+  bool all_initialized{false};
 
   static LLVMEnv* Global() {
     static LLVMEnv inst;
@@ -23,15 +23,45 @@ struct LLVMEnv {
 
 void InitializeLLVM() {
   LLVMEnv* e = LLVMEnv::Global();
-  if (!e->native_initialized) {
+  if (!e->all_initialized) {
     std::lock_guard<std::mutex>(e->mu);
-    if (!e->native_initialized) {
-      e->native_initialized = true;
-      llvm::InitializeNativeTarget();
-      llvm::InitializeNativeTargetAsmPrinter();
-      llvm::InitializeNativeTargetAsmParser();
+    if (!e->all_initialized) {
+      e->all_initialized = true;
+      llvm::InitializeAllTargetInfos();
+      llvm::InitializeAllTargets();
+      llvm::InitializeAllTargetMCs();
+      llvm::InitializeAllAsmParsers();
+      llvm::InitializeAllAsmPrinters();
     }
   }
+}
+
+std::pair<llvm::TargetMachine*, std::string>
+LLVMGetTarget(const std::string& target_str) {
+  // setup target triple
+  std::string target_triple;
+  CHECK_EQ(target_str.substr(0, 4), "llvm");
+  if (target_str.length() > 4) {
+    target_triple = target_str.substr(5, target_str.length() - 5);
+  } else {
+    target_triple = "";
+  }
+  if (target_triple.length() == 0 ||
+      target_triple == "default") {
+    target_triple = llvm::sys::getDefaultTargetTriple();
+  }
+
+  std::string err;
+  const llvm::Target* target =
+      llvm::TargetRegistry::lookupTarget(target_triple, err);
+  CHECK(target) << err << " target_triple=" << target_triple;
+  std::string cpu = "generic";
+  std::string features = "";
+  llvm::TargetOptions opt;
+  auto rmodel = llvm::Reloc::PIC_;
+  llvm::TargetMachine* tm =
+      target->createTargetMachine(target_triple, cpu, features, opt, rmodel);
+  return {tm, target_triple};
 }
 
 }  // namespace codegen

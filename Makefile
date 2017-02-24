@@ -11,12 +11,17 @@ include $(config)
 # specify tensor path
 .PHONY: clean all test doc
 
-all: lib/libtvm.a lib/libtvm.so
+all: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
 
 LIB_HALIDE_IR = HalideIR/lib/libHalideIR.a
 
 SRC = $(wildcard src/*.cc src/*/*.cc src/*/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
+ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
+
+RUNTIME_SRC = $(wildcard src/runtime/*.cc src/runtime/*/*.cc)
+RUNTIME_DEP = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
+
 ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
 
 export LDFLAGS = -pthread -lm
@@ -77,14 +82,17 @@ build/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
+lib/libtvm.so: $(ALL_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+lib/libtvm_runtime.so: $(RUNTIME_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libtvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
-
-lib/libtvm.so: $(ALL_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 $(LIB_HALIDE_IR): LIBHALIDEIR
 

@@ -120,23 +120,14 @@ constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
 /*!
  * \brief See pesudo code
  *
- *  int tvm_call_global(name, TVMValue* args) {
- *     PackedFunc f = PackedFunc::GetGlobal(name);
- *     f (args, type_code_of(args), len(args));
+ *  int tvm_call_packed(name, TVMValue* args) {
+ *     ModuleNode* env = GetCurrentEnv();
+ *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     (*f)(args, type_code_of(args), len(args));
  *     return 0;
  *  }
  */
-constexpr const char* tvm_call_global = "tvm_call_global";
-/*!
- * \brief See pesudo code
- *
- *  int tvm_call_device(name, TVMValue* args) {
- *     PackedFunc df = CodeGenEnv->GetDevice(name);
- *     f (args, type_code_of(args), len(args));
- *     return 0;
- *  }
- */
-constexpr const char* tvm_call_device = "tvm_call_device";
+constexpr const char* tvm_call_packed = "tvm_call_packed";
 /*!
  * \brief See pesudo code
  *

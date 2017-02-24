@@ -51,9 +51,10 @@ typedef enum {
   kArrayHandle = 5U,
   kTVMType = 6U,
   kNodeHandle = 7U,
-  kFuncHandle = 8U,
-  kStr = 9U,
-  kBytes = 10U
+  kModuleHandle = 8U,
+  kFuncHandle = 9U,
+  kStr = 10U,
+  kBytes = 11U
 } TVMTypeCode;
 
 /*!
@@ -140,17 +141,19 @@ typedef struct {
   TVMContext ctx;
 } TVMArray;
 
-/*!
- * \brief The stream that is specific to device
- * can be NULL, which indicates the default one.
- */
-typedef void* TVMStreamHandle;
+/*! \brief Handle to TVM runtime modules. */
+typedef void* TVMModuleHandle;
 /*! \brief Handle to packed function handle. */
 typedef void* TVMFunctionHandle;
 /*! \brief Handle to hold return value. */
 typedef void* TVMRetValueHandle;
 /*! \brief the array handle */
 typedef TVMArray* TVMArrayHandle;
+/*!
+ * \brief The stream that is specific to device
+ * can be NULL, which indicates the default one.
+ */
+typedef void* TVMStreamHandle;
 
 /*!
  * \brief Used for implementing C API function.
@@ -169,74 +172,87 @@ TVM_DLL void TVMAPISetLastError(const char* msg);
  *  \return error info
  */
 TVM_DLL const char *TVMGetLastError(void);
-
 /*!
- * \brief Initialize certain type of devices, this may
- *  not be necessary for all device types. But is needed for OpenCL.
+ * \brief Load module from file.
+ * \param file_name The file name to load the module from.
+ * \param format The format of the module.
+ * \param out The result module
  *
- * \param dev_mask The device mask of device type to be initialized
- * \param option_keys Additional option  keys to pass.
- * \param option_vals Additional option values to pass
- * \param num_options Number of options to be passed into it.
- * \param out_code 1: success, 0: already initialized
  * \return 0 when success, -1 when failure happens
+ * \note The resulting module do not contain import relation.
+ *  It can be reconstructed by TVMModImport.
  */
-TVM_DLL int TVMDeviceInit(int dev_mask,
-                          const char** option_keys,
-                          const char** option_vals,
-                          int num_options,
-                          int *out_code);
+TVM_DLL int TVMModLoadFromFile(const char* file_name,
+                               const char* format,
+                               TVMModuleHandle* out);
 
 /*!
- * \brief Whether the specified context is enabled.
+ * \brief Add dep to mod's dependency.
+ *  This allows functions in this module to use modules.
  *
- * \param ctx The context to be checked.
- * \param out_enabled whether the ctx is enabled.
- * \return Whether the function is successful.
+ * \param mod The module handle.
+ * \param dep The dependent module to be imported.
+ * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMContextEnabled(TVMContext ctx,
-                              int* out_enabled);
+TVM_DLL int TVMModImport(TVMModuleHandle mod,
+                         TVMModuleHandle dep);
 
 /*!
- * \brief Allocate a nd-array's memory,
- *  including space of shape, of given spec.
+ * \brief Get function from the module.
+ * \param mod The module handle.
+ * \param func_name The name of the function.
+ * \param query_imports Whether to query imported modules
+ * \param out The result function, can be NULL if it is not available.
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
+                              const char* func_name,
+                              int query_imports,
+                              TVMFunctionHandle *out);
+
+/*!
+ * \brief Precompile the function under given context.
+ *  Many TVMFunctionHandle is initialized lazily,
+ *  This call eagerly prepares the resources under given context.
+ *  Useful for benchmarking purposes.
  *
- * \param shape The shape of the array, the data content will be copied to out
- * \param ndim The number of dimension of the array.
- * \param dtype The array data type.
- * \param ctx The ctx this array sits on.
- * \param out The output handle.
- * \return 0 when success, -1 when failure happens
+ * \param mod The module handle.
+ * \param func_name The name of the function.
+ * \param ctx The context to be precompiled on.
+ * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
-                          tvm_index_t ndim,
-                          TVMType dtype,
-                          TVMContext ctx,
-                          TVMArrayHandle* out);
-/*!
- * \brief Free the TVM Array.
- * \param handle The array handle to be freed.
- * \return 0 when success, -1 when failure happens
- */
-TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
+TVM_DLL int TVMModPreCompile(TVMModuleHandle mod,
+                             const char* func_name,
+                             TVMContext ctx);
 
 /*!
- * \brief Copy the array, both from and to must be valid during the copy.
- * \param from The array to be copied from.
- * \param to The target space.
- * \param stream The stream where the copy happens, can be NULL.
- * \return 0 when success, -1 when failure happens
+ * \brief Backend function for modules to get function
+ *  from its environment mod_node (its imports and global function).
+ *
+ *  The user do should not call TVMFuncFree on func.
+ *
+ * \note This API is supposed to be used by backend,
+ *  it is not supposed to be used by user.
+ *
+ * \param mod_node The module handle.
+ * \param func_name The name of the function.
+ * \param out The result function.
+ * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
-                               TVMArrayHandle to,
-                               TVMStreamHandle stream);
+TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node,
+                                     const char* func_name,
+                                     TVMFunctionHandle *out);
 /*!
- * \brief Wait until all computations on stream completes.
- * \param ctx The ctx to be synchronized.
- * \param stream The stream to be synchronized.
- * \return 0 when success, -1 when failure happens
+ * \brief Free the Module
+ * \param mod The module to be freed.
+ *
+ * \note This may not free up the module's resources.
+ *  If there is active TVMFunctionHandle uses the module
+ *  Or if this module is imported by another active module.
+ *
+ *  The all functions remains valid until TVMFuncFree is called.
  */
-TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
+TVM_DLL int TVMModFree(TVMModuleHandle mod);
 
 /*!
  * \brief Free the function when it is no longer needed.
@@ -355,6 +371,76 @@ TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
  */
 TVM_DLL int TVMFuncListGlobalNames(int *out_size,
                                    const char*** out_array);
+
+// Array related apis for quick proptying
+/*!
+ * \brief Initialize certain type of devices, this may
+ *  not be necessary for all device types. But is needed for OpenCL.
+ *
+ * \param dev_mask The device mask of device type to be initialized
+ * \param option_keys Additional option  keys to pass.
+ * \param option_vals Additional option values to pass
+ * \param num_options Number of options to be passed into it.
+ * \param out_code 1: success, 0: already initialized
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMDeviceInit(int dev_mask,
+                          const char** option_keys,
+                          const char** option_vals,
+                          int num_options,
+                          int *out_code);
+
+
+/*!
+ * \brief Whether the specified context is enabled.
+ *
+ * \param ctx The context to be checked.
+ * \param out_enabled whether the ctx is enabled.
+ * \return Whether the function is successful.
+ */
+TVM_DLL int TVMContextEnabled(TVMContext ctx,
+                              int* out_enabled);
+
+/*!
+ * \brief Allocate a nd-array's memory,
+ *  including space of shape, of given spec.
+ *
+ * \param shape The shape of the array, the data content will be copied to out
+ * \param ndim The number of dimension of the array.
+ * \param dtype The array data type.
+ * \param ctx The ctx this array sits on.
+ * \param out The output handle.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
+                          tvm_index_t ndim,
+                          TVMType dtype,
+                          TVMContext ctx,
+                          TVMArrayHandle* out);
+/*!
+ * \brief Free the TVM Array.
+ * \param handle The array handle to be freed.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
+
+/*!
+ * \brief Copy the array, both from and to must be valid during the copy.
+ * \param from The array to be copied from.
+ * \param to The target space.
+ * \param stream The stream where the copy happens, can be NULL.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
+                               TVMArrayHandle to,
+                               TVMStreamHandle stream);
+/*!
+ * \brief Wait until all computations on stream completes.
+ * \param ctx The ctx to be synchronized.
+ * \param stream The stream to be synchronized.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
 }  // TVM_EXTERN_C
 
 #endif  // TVM_RUNTIME_C_RUNTIME_API_H_

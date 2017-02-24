@@ -18,9 +18,10 @@ class TypeCode(object):
     ARRAY_HANDLE = 5
     TVM_TYPE = 6
     NODE_HANDLE = 7
-    FUNC_HANDLE = 8
-    STR = 9
-    BYTES = 10
+    MODULE_HANDLE = 8
+    FUNC_HANDLE = 9
+    STR = 10
+    BYTES = 11
 
 def _api_type(code):
     """create a type accepted by API"""

@@ -35,9 +35,12 @@ inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
 LoweredFunc MakeAPI(Stmt body,
                     std::string name,
                     Array<NodeRef> api_args,
-                    int num_packed_args) {
+                    int num_unpacked_args) {
   const Type tvm_index_type = UInt(32);
   const Stmt nop = Evaluate::make(0);
+  int num_args = static_cast<int>(api_args.size());
+  CHECK_LE(num_unpacked_args, num_args);
+  int num_packed_args = num_args - num_unpacked_args;
   // Data field definitions
   // The packed fields
   Var v_packed_args("args", Handle());
@@ -182,6 +185,7 @@ LoweredFunc MakeAPI(Stmt body,
   n->name = name;
   n->args = args;
   n->handle_data_type = handle_data_type;
+  n->is_packed_func = num_unpacked_args == 0;
   n->body = MergeNest({seq_init, seq_check}, body);
   LoweredFunc f(n);
   Array<Var> undefined = UndefinedVars(f);

@@ -21,7 +21,7 @@ def test_storage_sync():
     Ab = tvm.Buffer(A.shape, A.dtype, name='A')
     A2b = tvm.Buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})
-    f = tvm.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 2)
+    f = tvm.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 0)
     flist = tvm.ir_pass.SplitHostDevice(f)
     f = flist[1]
     f = tvm.ir_pass.StorageSync(f, "shared")

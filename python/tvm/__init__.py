@@ -12,6 +12,7 @@ from . import ir_pass
 from . import codegen
 from . import collections
 from . import schedule
+from . import module
 
 from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, init_opencl, cl
