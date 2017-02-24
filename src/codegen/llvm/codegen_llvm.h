@@ -28,14 +28,22 @@ class CodeGenLLVM : public IRVisitor {
   /*!
    * \brief Initialize the code generator with given context
    * \param module_name The name of the module.
+   * \param target_triple The target triple, can be empty.
    * \param ctx The context.
    */
-  void Init(const std::string& module_name, llvm::LLVMContext* ctx);
+  void Init(const std::string& module_name,
+            const std::string& target_triple,
+            llvm::LLVMContext* ctx);
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
    */
   void AddFunction(const LoweredFunc& f);
+  /*!
+   * \brief Add main function as the entry name
+   * \param entry_func_name The name of entry function to be added.
+   */
+  void AddMainFunction(const std::string& entry_func_name);
   /*!
    * \brief Finish current pass of codegen, get the module.
    * \return the created module.
@@ -119,6 +127,7 @@ class CodeGenLLVM : public IRVisitor {
   std::unique_ptr<IRBuilder> builder_;
   // The module to be returned;
   std::unique_ptr<llvm::Module> module_;
+  std::unique_ptr<llvm::DataLayout> data_layout_;
   // Internal metabuilder
   std::unique_ptr<llvm::MDBuilder> md_builder_;
   // llvm context
@@ -145,7 +154,7 @@ class CodeGenLLVM : public IRVisitor {
   llvm::StructType* t_tvm_value_{nullptr};
   // tvm api functions
   llvm::Function* f_tvm_func_call_{nullptr};
-  llvm::Function* f_tvm_func_get_global_{nullptr};
+  llvm::Function* f_tvm_get_func_from_env_{nullptr};
   llvm::Function* f_tvm_api_set_last_error_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
@@ -166,17 +175,23 @@ class CodeGenLLVM : public IRVisitor {
   llvm::Value* GetConstString(const std::string& str);
   llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
   llvm::Value* CreateCast(Type from, Type to, llvm::Value* value);
-  llvm::Value* GetPackedFuncHandle(const std::string& str, bool global);
+  llvm::Value* GetPackedFuncHandle(const std::string& str);
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
   // return the end block after the check
   llvm::BasicBlock* CheckPackedCallSuccess(llvm::Value* retcode);
+  // Initialize target
+  void InitTarget(const std::string& target);
+  // Add a function to set global module context
+  void InitGlobalContext();
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index);
   // The definition of local variable.
   std::unordered_map<const Variable*, llvm::Value*> var_map_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
+  // The local module_context
+  llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
 };

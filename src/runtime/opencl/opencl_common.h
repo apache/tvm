@@ -114,6 +114,10 @@ class OpenCLWorkspace {
   // Number of registered kernels
   // Used to register kernel into the workspace.
   size_t num_registered_kernels{0};
+  // The version counter, used
+  size_t timestamp{0};
+  // Ids that are freed by kernels.
+  std::vector<size_t> free_kernel_ids;
   // the mutex for initialization
   std::mutex mu;
   // destructor
@@ -139,13 +143,21 @@ class OpenCLWorkspace {
   static OpenCLWorkspace* Global();
 };
 
+
 /*! \brief Thread local workspace */
 class OpenCLThreadEntry {
  public:
+  // The kernel entry and version.
+  struct KTEntry {
+    // The kernel handle.
+    cl_kernel kernel{nullptr};
+    // timestamp used to recognize stale kernel
+    size_t version{0};
+  };
   /*! \brief The current context */
   TVMContext context;
   /*! \brief The thread-local kernel table */
-  std::vector<cl_kernel> kernel_table;
+  std::vector<KTEntry> kernel_table;
 
   OpenCLThreadEntry() {
     context.dev_id = 0;
@@ -155,29 +167,6 @@ class OpenCLThreadEntry {
   static OpenCLThreadEntry* ThreadLocal();
 };
 }  // namespace cl
-/*!
- * \brief Automatically detect and set cuda device.
- * \param args The arguments.
- */
-inline void AutoSetOpenCLContext(const TVMArgs& args) {
-  // TODO(tqchen): merge this with CUDA logic.
-  int dev_id = -1;
-  for (int i = 0; i < args.size(); ++i) {
-    if (args.type_codes[i] == kArrayHandle) {
-      TVMContext ctx = static_cast<TVMArray*>(
-          args.values[i].v_handle)->ctx;
-      CHECK_EQ(ctx.dev_mask, kOpenCL)
-          << "All operands need to be GPU";
-      if (dev_id == -1) {
-        dev_id = ctx.dev_id;
-      } else {
-        CHECK_EQ(dev_id, ctx.dev_id)
-            << "Operands comes from different devices ";
-      }
-    }
-  }
-  cl::OpenCLThreadEntry::ThreadLocal()->context.dev_id = dev_id;
-}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_OPENCL_RUNTIME

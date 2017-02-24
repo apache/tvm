@@ -12,9 +12,22 @@ namespace codegen {
 
 using namespace ir;
 
-std::string CodeGenC::Compile(LoweredFunc f,
-                              bool output_ssa) {
+void CodeGenC::Init(bool output_ssa) {
   print_ssa_form_ = output_ssa;
+}
+
+void CodeGenC::InitFuncState(LoweredFunc f) {
+  alloc_storage_scope_.clear();
+  name_alloc_map_.clear();
+  ssa_assign_map_.clear();
+  var_idmap_.clear();
+  handle_data_type_.clear();
+  scope_mark_.clear();
+}
+void CodeGenC::AddFunction(LoweredFunc f) {
+  // clear previous generated state.
+  this->InitFuncState(f);
+
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
   // add to alloc buffer type.
@@ -47,7 +60,10 @@ std::string CodeGenC::Compile(LoweredFunc f,
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
   this->PrintIndent();
-  this->stream << "}\n";
+  this->stream << "}\n\n";
+}
+
+std::string CodeGenC::Finish() {
   return stream.str();
 }
 

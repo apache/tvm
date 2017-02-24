@@ -12,6 +12,7 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenLLVM::Init(const std::string& module_name,
+                       const std::string& target_triple,
                        llvm::LLVMContext* ctx) {
   InitializeLLVM();
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
@@ -60,16 +61,37 @@ void CodeGenLLVM::Init(const std::string& module_name,
           t_tvm_value_->getPointerTo(),
           t_int_->getPointerTo()}, false),
       llvm::Function::ExternalLinkage, "TVMFuncCall", module_.get());
-  f_tvm_func_get_global_ = llvm::Function::Create(
+  f_tvm_get_func_from_env_ = llvm::Function::Create(
       llvm::FunctionType::get(t_int_, {
+          t_void_p_,
           t_char_->getPointerTo(),
           t_tvm_func_handle_->getPointerTo()}, false),
-      llvm::Function::ExternalLinkage, "TVMFuncGetGlobal", module_.get());
+      llvm::Function::ExternalLinkage, "TVMBackendGetFuncFromEnv", module_.get());
   f_tvm_api_set_last_error_ = llvm::Function::Create(
       llvm::FunctionType::get(t_void_, {t_char_->getPointerTo()}, false),
       llvm::Function::ExternalLinkage, "TVMAPISetLastError", module_.get());
+
+  this->InitTarget(target_triple);
   // initialize builder
   builder_.reset(new IRBuilder(*ctx));
+  this->InitGlobalContext();
+}
+
+void CodeGenLLVM::InitTarget(const std::string& target) {
+  llvm::TargetMachine* tm;
+  std::string target_triple;
+  std::tie(tm, target_triple) = LLVMGetTarget(target);
+  module_->setTargetTriple(target_triple);
+  module_->setDataLayout(tm->createDataLayout());
+  data_layout_.reset(new llvm::DataLayout(module_.get()));
+}
+
+void CodeGenLLVM::InitGlobalContext() {
+  gv_mod_ctx_ = new llvm::GlobalVariable(
+      *module_, t_void_p_, false,
+      llvm::GlobalValue::LinkOnceODRLinkage, 0, "__tvm_module_ctx");
+  gv_mod_ctx_->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
+  gv_mod_ctx_->setInitializer(llvm::Constant::getNullValue(t_void_p_));
 }
 
 void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
@@ -102,6 +124,24 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
   builder_->SetInsertPoint(block);
   this->Visit(f->body);
   builder_->CreateRet(ConstInt32(0));
+}
+
+void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
+  llvm::Function* f = module_->getFunction(entry_func_name);
+  CHECK(f) << "Function " << entry_func_name << "does not in module";
+  CHECK(!module_->getFunction(runtime::symbol::tvm_module_main));
+  llvm::FunctionType* ftype = f->getFunctionType();
+  function_ = llvm::cast<llvm::Function>(
+      module_->getOrInsertFunction(runtime::symbol::tvm_module_main, ftype));
+  function_->setCallingConv(llvm::CallingConv::C);
+  std::vector<llvm::Value*> args;
+  for (auto it = function_->arg_begin();
+       it != function_->arg_end(); ++it) {
+    args.push_back(&(*it));
+  }
+  llvm::BasicBlock* block = llvm::BasicBlock::Create(*ctx_, "entry", function_);
+  builder_->SetInsertPoint(block);
+  builder_->CreateRet(builder_->CreateCall(f, args));
 }
 
 class FPassManager : public llvm::legacy::FunctionPassManager {
@@ -364,14 +404,12 @@ void CodeGenLLVM::Visit_(const Load* op) {
   CHECK(!t.is_vector());
 
   if (t.is_scalar()) {
-    llvm::DataLayout layout(module_.get());
-    uint64_t valign = layout.getTypeAllocSize(LLVMType(t));
     llvm::LoadInst* inst = builder_->CreateAlignedLoad(
         CreateBufferPtr(
             t,
             GetVarValue(op->buffer_var.get()),
             MakeValue(op->index)),
-        valign);
+        data_layout_->getTypeAllocSize(LLVMType(t)));
     AddAliasInfo(inst, op->buffer_var.get(), op->index);
     value_ = inst;
   } else {
@@ -384,15 +422,13 @@ void CodeGenLLVM::Visit_(const Store* op) {
   Type t = op->value.type();
   CHECK(!t.is_vector());
   if (t.is_scalar()) {
-    llvm::DataLayout layout(module_.get());
-    uint64_t valign = layout.getTypeAllocSize(value->getType());
     llvm::StoreInst* inst = builder_->CreateAlignedStore(
         value,
         CreateBufferPtr(
             t,
             GetVarValue(op->buffer_var.get()),
             MakeValue(op->index)),
-        valign);
+        data_layout_->getTypeAllocSize(value->getType()));
     AddAliasInfo(inst, op->buffer_var.get(), op->index);
   } else {
     LOG(FATAL) << "not yet supported";
@@ -400,8 +436,7 @@ void CodeGenLLVM::Visit_(const Store* op) {
 }
 
 void CodeGenLLVM::Visit_(const Call* op) {
-  if (op->is_intrinsic(intrinsic::tvm_call_global) ||
-      op->is_intrinsic(intrinsic::tvm_call_device)) {
+  if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
     value_ = CreateCallPacked(op);
   } else if (op->call_type == Call::Intrinsic ||
              op->call_type == Call::PureIntrinsic) {
@@ -734,14 +769,14 @@ llvm::Value* CodeGenLLVM::CreateCast(Type from, Type to, llvm::Value* value) {
   }
 }
 
-llvm::Value* CodeGenLLVM::GetPackedFuncHandle(
-    const std::string& fname, bool global) {
+llvm::Value* CodeGenLLVM::GetPackedFuncHandle(const std::string& fname) {
   using llvm::BasicBlock;
   // We will store the packed function handle in global space.
   // Initialize it during the first call.
   llvm::DataLayout layout(module_.get());
-  uint64_t halign = layout.getTypeAllocSize(t_tvm_func_handle_);
+  uint64_t align = layout.getTypeAllocSize(t_tvm_func_handle_);
   auto it = func_handle_map_.find(fname);
+
   llvm::GlobalVariable* hptr;
   if (it == func_handle_map_.end()) {
     // create global location for the handle
@@ -749,7 +784,7 @@ llvm::Value* CodeGenLLVM::GetPackedFuncHandle(
     hptr = new llvm::GlobalVariable(
         *module_, t_tvm_func_handle_, false,
         llvm::GlobalValue::PrivateLinkage, 0, ".tvm_func");
-    hptr->setAlignment(halign);
+    hptr->setAlignment(align);
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;
   } else {
@@ -761,26 +796,19 @@ llvm::Value* CodeGenLLVM::GetPackedFuncHandle(
       *ctx_, "handle_init", function_);
   BasicBlock* end_block = BasicBlock::Create(
       *ctx_, "handle_init_end", function_);
-  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, halign);
+  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, align);
   llvm::Value* handle_not_null =  builder_->CreateICmpNE(
       handle, llvm::Constant::getNullValue(t_tvm_func_handle_));
   builder_->CreateCondBr(
       handle_not_null, end_block, init_block, md_very_likely_branch_);
-  // loaded handle, if created by call.
-  llvm::Value* loaded_handle = nullptr;
-  // Then block.
-  // We do not do lock here, so unlike static variable initialization
-  // This clause might be executed multiple times, but it is safe to do so.
+  // Initialize the handle if needed.
   builder_->SetInsertPoint(init_block);
-  if (global) {
-    llvm::Value* out = builder_->CreateAlloca(t_tvm_func_handle_);
-    llvm::Value* retcode = builder_->CreateCall(
-        f_tvm_func_get_global_, {GetConstString(fname), out});
-    init_block = CheckPackedCallSuccess(retcode);
-    loaded_handle = builder_->CreateAlignedLoad(out, halign);
-  } else {
-    LOG(FATAL) << "not yet supported";
-  }
+  llvm::Value* out = builder_->CreateAlloca(t_tvm_func_handle_);
+  llvm::Value* ctx = builder_->CreateLoad(gv_mod_ctx_);
+  llvm::Value* retcode = builder_->CreateCall(
+      f_tvm_get_func_from_env_, {ctx, GetConstString(fname), out});
+  init_block = CheckPackedCallSuccess(retcode);
+  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
   builder_->CreateBr(end_block);
   // end block
   builder_->SetInsertPoint(end_block);
@@ -793,11 +821,7 @@ llvm::Value* CodeGenLLVM::GetPackedFuncHandle(
 llvm::Value* CodeGenLLVM::CreateCallPacked(const Call* op) {
   CHECK_GE(op->args.size(), 1U);
   std::string func_name = op->args[0].as<StringImm>()->value;
-  CHECK(!op->is_intrinsic(intrinsic::tvm_call_device))
-      << "not implemented for now";
-  llvm::Value* handle = GetPackedFuncHandle(
-      func_name, op->is_intrinsic(intrinsic::tvm_call_global));
-
+  llvm::Value* handle = GetPackedFuncHandle(func_name);
   // call the function
   unsigned nargs = static_cast<unsigned>(op->args.size() - 1);
   llvm::Value* targs = builder_->CreateAlloca(

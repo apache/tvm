@@ -24,14 +24,20 @@ namespace codegen {
 class CodeGenC {
  public:
   /*!
-   * \brief Generate the C code of statement
-   * \param f The function to be compiled
-   * \param output_ssa Whether output ssa form.
-   * \note Only call compile once,
-   *  create a new codegen object each time.
+   * \brief Initialize the code generator.
+   * \param output_ssa Whether output SSA.
    */
-  std::string Compile(LoweredFunc f,
-                      bool output_ssa);
+  void Init(bool output_ssa);
+  /*!
+   * \brief Add the function to the generated module.
+   * \param f The function to be compiled.
+   */
+  void AddFunction(LoweredFunc f);
+  /*!
+   * \brief Finalize the compilation and return the code.
+   * \return The code.
+   */
+  std::string Finish();
   /*!
    * \brief Print the Stmt n to CodeGenC->stream
    * \param n The statement to be printed.
@@ -73,6 +79,11 @@ class CodeGenC {
    */
   std::string GetVarID(const Variable* v) const;
   // The following parts are overloadable print operations.
+  /*!
+   * \brief Initialize codegen state for generating f.
+   * \param f The function to be compiled.
+   */
+  virtual void InitFuncState(LoweredFunc f);
   /*!
    * Print Type represetnation of type t.
    * \param t The type representation.
@@ -182,7 +193,6 @@ class CodeGenC {
    * \return The storage scope.
    */
   std::string GetStorageScope(const Variable* buf_var) const;
-
   /*! \brief the storage scope of allocation */
   std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
 
