@@ -88,7 +88,6 @@ def test_infer_shape_known_partial():
     assert g.json_attr('shape')[jnode_row_ptr[nindex["reshape1"]]] == [2, 4]
     assert g.json_attr('shape')[jnode_row_ptr[nindex["add1"]]] == [4, 2]
 
-
 def test_infer_type():
     x = sym.Variable('x', dtype=0)
     y = sym.add(x, x, name='add1')
