@@ -137,6 +137,12 @@ class Symbol {
    *                including input variables and intermediate outputs.
    */
   Symbol GetInternals() const;
+  /*
+   * \brief Get the direct inputs of the head node(s) of this symbol.
+   * \return symbol A new symbol whose output contains all the inputs of the head
+   *                node(s).
+   */
+  Symbol GetChildren() const;
   /*!
    * \brief Set additional attributes to current node.
    *

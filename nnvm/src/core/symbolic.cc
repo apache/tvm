@@ -435,6 +435,19 @@ Symbol Symbol::GetInternals() const {
   return ret;
 }
 
+Symbol Symbol::GetChildren() const {
+  static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
+  Symbol ret;
+  std::unordered_set<Node*> visited;
+  for (const auto& p : this->outputs) {
+    Node* node = p.node.get();
+    if (visited.count(node)) continue;
+    visited.insert(node);
+    ret.outputs.insert(ret.outputs.end(), node->inputs.begin(), node->inputs.end());
+  }
+  return ret;
+}
+
 void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs) {
   Node* node = outputs[0].node.get();
   for (const NodeEntry& e : outputs) {
