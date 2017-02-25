@@ -9,7 +9,6 @@ import numpy as _np
 from ._ctypes._ndarray import TVMContext, TVMType, NDArrayBase
 from ._ctypes._ndarray import cpu, gpu, opencl, empty, sync
 from ._ctypes._ndarray import _init_ndarray_module
-from ._ctypes._ndarray import init_opencl
 from ._ctypes._function import Function
 
 cl = opencl

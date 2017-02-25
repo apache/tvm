@@ -23,9 +23,9 @@ def test_scan():
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.codegen.target_enabled(host):
+        if not tvm.codegen.enabled(host):
             return
-        if not tvm.codegen.target_enabled(device):
+        if not tvm.codegen.enabled(device):
             return
         fscan = tvm.build(s, [X, res],
                           device, host,
@@ -41,7 +41,9 @@ def test_scan():
         np.testing.assert_allclose(
             b.asnumpy(), np.cumsum(a_np, axis=0))
 
-    tvm.init_opencl()
+    if tvm.module.enabled("opencl"):
+        tvm.module.init_opencl()
+
     check_device("cuda")
     check_device("opencl")
 

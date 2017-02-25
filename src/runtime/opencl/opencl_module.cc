@@ -7,11 +7,14 @@
 
 #if TVM_OPENCL_RUNTIME
 
+#include <tvm/runtime/registry.h>
 #include <vector>
 #include <string>
 #include <unordered_map>
 #include "../void_addr_args.h"
 #include "../thread_storage_scope.h"
+#include "../meta_data.h"
+#include "../file_util.h"
 
 namespace tvm {
 namespace runtime {
@@ -67,7 +70,12 @@ class OpenCLModuleNode : public ModuleNode {
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
-    LOG(FATAL) << "Not implemented";
+    std::string fmt = GetFileFormat(file_name, format);
+    CHECK_EQ(fmt, fmt_)
+        << "Can only save to format=" << fmt_;
+    std::string meta_file = GetMetaFilePath(file_name);
+    SaveMetaDataToFile(meta_file, fmap_);
+    SaveBinaryToFile(file_name, data_);
   }
 
   std::string GetSource(const std::string& format) final {
@@ -294,6 +302,27 @@ Module OpenCLModuleCreate(
   return Module(n);
 }
 
+// Load module from module.
+Module OpenCLModuleLoad(const std::string& file_name,
+                        const std::string& format) {
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt = GetFileFormat(file_name, format);
+  std::string meta_file = GetMetaFilePath(file_name);
+  LoadBinaryFromFile(file_name, &data);
+  LoadMetaDataFromFile(meta_file, &fmap);
+  return OpenCLModuleCreate(data, fmt, fmap);
+}
+
+TVM_REGISTER_GLOBAL(_module_loadfile_cl)
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenCLModuleLoad(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL(_module_loadfile_clbin)
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenCLModuleLoad(args[0], args[1]);
+  });
 }  // namespace runtime
 }  // namespace tvm
 

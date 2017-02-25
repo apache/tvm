@@ -61,10 +61,13 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
   if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
     code = (*f)(code).operator std::string();
   }
-
+  std::string fmt = "ptx";
   std::string ptx;
   if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
     ptx = (*f)(code).operator std::string();
+    // Dirty matching to check PTX vs cubin.
+    // TODO(tqchen) more reliable checks
+    if (ptx[0] != '/') fmt = "cubin";
   } else {
     ptx = NVRTCCompile(code);
   }
@@ -80,7 +83,7 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
     }
     fmap[f->name] = info;
   }
-  return CUDAModuleCreate(ptx, "ptx", fmap, code);
+  return CUDAModuleCreate(ptx, fmt, fmap, code);
 }
 
 TVM_REGISTER_API(_codegen_build_cuda)

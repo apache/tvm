@@ -200,38 +200,6 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
   API_END();
 }
 
-int TVMDeviceInit(int dev_mask,
-                  const char** option_keys,
-                  const char** option_vals,
-                  int num_options,
-                  int* out_code) {
-  API_BEGIN();
-  *out_code = 1;
-  switch (dev_mask) {
-    case kOpenCL: {
-      *out_code = DeviceInit<kOpenCL>(option_keys, option_vals, num_options);
-      break;
-    }
-    default: break;
-  }
-  API_END();
-}
-
-int TVMContextEnabled(TVMContext ctx,
-                      int* out_enabled) {
-  API_BEGIN();
-  if (ctx.dev_mask == kGPU && TVM_CUDA_RUNTIME == 0) {
-    *out_enabled = 0;
-  } else if (ctx.dev_mask == kOpenCL && TVM_OPENCL_RUNTIME == 0) {
-    *out_enabled = 0;
-  } else {
-    TVM_DEVICE_SWITCH(ctx, {
-        *out_enabled = CheckEnabled<xpu>(ctx);
-      });
-  }
-  API_END();
-}
-
 int TVMArrayAlloc(const tvm_index_t* shape,
                   tvm_index_t ndim,
                   TVMType dtype,

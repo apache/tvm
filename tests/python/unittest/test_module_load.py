@@ -1,14 +1,29 @@
 import tvm
-from tvm.addon import cc_compiler as cc
+from tvm.addon import cc_compiler as cc, testing
 import os
-import tempfile
 import numpy as np
+import subprocess
+
+runtime_py = """
+import os
+import sys
+os.environ["TVM_USE_RUNTIME_LIB"] = "1"
+import tvm
+import numpy as np
+path_dso = sys.argv[1]
+dtype = sys.argv[2]
+ff = tvm.module.load(path_dso)
+a = tvm.nd.array(np.zeros(10, dtype=dtype))
+ff(a)
+np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
+print("Finish runtime checking...")
+"""
 
 def test_dso_module_load():
-    if not tvm.codegen.target_enabled("llvm"):
+    if not tvm.codegen.enabled("llvm"):
         return
     dtype = 'int64'
-    temp_dir = tempfile.mkdtemp()
+    temp = testing.tempdir()
 
     def save_object(names):
         n = tvm.Var('n')
@@ -25,10 +40,10 @@ def test_dso_module_load():
         for name in names:
             m.save(name)
 
-    path_obj = "%s/test.o" % temp_dir
-    path_ll = "%s/test.ll" % temp_dir
-    path_bc = "%s/test.bc" % temp_dir
-    path_dso = "%s/test.so" % temp_dir
+    path_obj = temp.relpath("test.o")
+    path_ll = temp.relpath("test.ll")
+    path_bc = temp.relpath("test.bc")
+    path_dso = temp.relpath("test.so")
     save_object([path_obj, path_ll, path_bc])
     cc.create_shared(path_dso, [path_obj])
 
@@ -41,14 +56,14 @@ def test_dso_module_load():
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f2(a)
     np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
-    files = [path_obj, path_ll, path_bc, path_dso]
-    for f in files:
-        os.remove(f)
-    os.rmdir(temp_dir)
 
+    path_runtime_py = temp.relpath("runtime.py")
+    with open(path_runtime_py, "w") as fo:
+        fo.write(runtime_py)
 
-def test_cuda_module_load():
-    pass
+    subprocess.check_call(
+        "python %s %s %s" % (path_runtime_py, path_dso, dtype),
+        shell=True)
 
 if __name__ == "__main__":
     test_dso_module_load()

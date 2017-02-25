@@ -2,9 +2,11 @@ import tvm
 import numpy as np
 
 def enabled_ctx_list():
-    tvm.init_opencl()
-    ctx_list = [tvm.cpu(0), tvm.gpu(0), tvm.opencl(0)]
-    ctx_list = [ctx for ctx in ctx_list if ctx.enabled]
+    if tvm.module.enabled("opencl"):
+        tvm.module.init_opencl()
+
+    ctx_list = [('cpu', tvm.cpu(0)), ('gpu', tvm.gpu(0)), ('cl', tvm.opencl(0))]
+    ctx_list = [x[1] for x in ctx_list if tvm.module.enabled(x[0])]
     return ctx_list
 
 ENABLED_CTX_LIST = enabled_ctx_list()
