@@ -257,3 +257,13 @@ class Stage(NodeBase):
             The iteration to be unrolled.
         """
         _api_internal._StageUnroll(self, var)
+
+    def parallel(self, var):
+        """Parallelize the iteration.
+
+        Parameters
+        ----------
+        var : IterVar
+            The iteration to be parallelized.
+        """
+        _api_internal._StageParallel(self, var)

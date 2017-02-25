@@ -220,12 +220,12 @@ class HostDeviceSplitter : public IRMutator {
 };
 
 
-Array<Var> UndefinedVars(const LoweredFunc& f) {
+Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   IRUseDefAnalysis m;
-  for (Var arg : f->args) {
+  for (Var arg : args) {
     m.use_count_[arg.get()] = 0;
   }
-  m.Mutate(f->body);
+  m.Mutate(stmt);
   return m.undefined_;
 }
 

@@ -69,6 +69,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     switch (op->iter_type) {
       case kUnrolled: p->stream << "unroll"; break;
       case kVectorized: p->stream << "vectorize"; break;
+      case kParallel: p->stream << "parallel"; break;
     }
   });
 
@@ -243,6 +244,11 @@ Stage& Stage::vectorize(IterVar var) {   // NOLINT(*)
 
 Stage& Stage::unroll(IterVar var) {   // NOLINT(*)
   SetAttr(operator->(), var, IterVarAttr(kUnrolled));
+  return *this;
+}
+
+Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
+  SetAttr(operator->(), var, IterVarAttr(kParallel));
   return *this;
 }
 

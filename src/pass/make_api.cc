@@ -188,7 +188,7 @@ LoweredFunc MakeAPI(Stmt body,
   n->is_packed_func = num_unpacked_args == 0;
   n->body = MergeNest({seq_init, seq_check}, body);
   LoweredFunc f(n);
-  Array<Var> undefined = UndefinedVars(f);
+  Array<Var> undefined = UndefinedVars(f->body, f->args);
   if (undefined.size() != 0) {
     std::ostringstream os;
     for (Var v : undefined) {

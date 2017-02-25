@@ -226,6 +226,18 @@ TVM_DLL int TVMModPreCompile(TVMModuleHandle mod,
                              TVMContext ctx);
 
 /*!
+ * \brief Free the Module
+ * \param mod The module to be freed.
+ *
+ * \note This may not free up the module's resources.
+ *  If there is active TVMFunctionHandle uses the module
+ *  Or if this module is imported by another active module.
+ *
+ *  The all functions remains valid until TVMFuncFree is called.
+ */
+TVM_DLL int TVMModFree(TVMModuleHandle mod);
+
+/*!
  * \brief Backend function for modules to get function
  *  from its environment mod_node (its imports and global function).
  *
@@ -242,17 +254,25 @@ TVM_DLL int TVMModPreCompile(TVMModuleHandle mod,
 TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node,
                                      const char* func_name,
                                      TVMFunctionHandle *out);
+
 /*!
- * \brief Free the Module
- * \param mod The module to be freed.
+ * \brief Backend function for running parallel for loop.
  *
- * \note This may not free up the module's resources.
- *  If there is active TVMFunctionHandle uses the module
- *  Or if this module is imported by another active module.
+ * \note This API is supposed to be used by backend,
+ *  it is not supposed to be used by user.
  *
- *  The all functions remains valid until TVMFuncFree is called.
+ * \param begin The start of iteration.
+ * \param end The end of iteration.
+ * \param lambda The lambda function to be executed.
+ * \param env The environment of lambda function.
+ *
+ * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMModFree(TVMModuleHandle mod);
+TVM_DLL int TVMBackendParallelFor(
+    int64_t begin,
+    int64_t end,
+    int (*lambda)(int64_t begin, int64_t end, void* env),
+    void* env);
 
 /*!
  * \brief Free the function when it is no longer needed.
