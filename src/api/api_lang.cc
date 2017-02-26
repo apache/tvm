@@ -49,7 +49,7 @@ TVM_REGISTER_API(_ArrayGetItem)
     auto* n = static_cast<const ArrayNode*>(sptr.get());
     CHECK_LT(static_cast<size_t>(i), n->data.size())
         << "out of bound of array";
-    *ret = n->data[i];
+    *ret = n->data[static_cast<size_t>(i)];
   });
 
 TVM_REGISTER_API(_ArraySize)
@@ -185,7 +185,7 @@ TVM_REGISTER_API(_ScanOp)
 TVM_REGISTER_API(_OpGetOutput)
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Operation().output(
-        args[1].operator int64_t());
+        static_cast<size_t>(args[1].operator int64_t()));
   });
 
 
