@@ -5,6 +5,7 @@
 #include "./cuda_module.h"
 
 #if TVM_CUDA_RUNTIME
+
 #include <tvm/runtime/registry.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -60,7 +61,12 @@ class CUDAModuleNode : public runtime::ModuleNode {
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
-    LOG(FATAL) << "Not implemented";
+    std::string fmt = GetFileFormat(file_name, format);
+    CHECK_EQ(fmt, fmt_)
+        << "Can only save to format=" << fmt_;
+    std::string meta_file = GetMetaFilePath(file_name);
+    SaveMetaDataToFile(meta_file, fmap_);
+    SaveBinaryToFile(file_name, data_);
   }
 
   std::string GetSource(const std::string& format) final {
@@ -212,9 +218,13 @@ Module CUDAModuleCreate(
 // Load module from module.
 Module CUDAModuleLoad(const std::string& file_name,
                       const std::string& format) {
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
-  std::string data = LoadBinaryFile(file_name);
-  return CUDAModuleCreate(data, fmt, {{}}, std::string());
+  std::string meta_file = GetMetaFilePath(file_name);
+  LoadBinaryFromFile(file_name, &data);
+  LoadMetaDataFromFile(meta_file, &fmap);
+  return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
 TVM_REGISTER_GLOBAL(_module_loadfile_cubin)

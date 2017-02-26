@@ -12,31 +12,6 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief Initialize the device.
- * \param option_keys Additional option  keys to pass.
- * \param option_vals Additional option values to pass
- * \param num_options Number of options to be passed into it.
- * \return 0 if success, 1: if already initialized
- * \tparam xpu The device mask.
- */
-template<TVMDeviceMask xpu>
-inline bool DeviceInit(const char** option_keys,
-                       const char** option_vals,
-                       int num_options) {
-  return true;
-}
-
-/*!
- * \brief Whether ctx is enabled.
- * \param ctx The device context to perform operation.
- * \tparam xpu The device mask.
- */
-template<TVMDeviceMask xpu>
-inline bool CheckEnabled(TVMContext ctx) {
-  return true;
-}
-
-/*!
  * \brief Allocate a data space on device.
  * \param ctx The device context to perform operation.
  * \param size The size of the memory

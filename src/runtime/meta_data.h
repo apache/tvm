@@ -27,30 +27,8 @@ struct FunctionInfo {
   std::vector<TVMType> arg_types;
   std::vector<std::string> thread_axis_tags;
 
-  void Save(dmlc::JSONWriter *writer) const {
-    std::vector<std::string> sarg_types(arg_types.size());
-    for (size_t i = 0; i < arg_types.size(); ++i) {
-      sarg_types[i] = TVMType2String(arg_types[i]);
-    }
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("arg_types", sarg_types);
-    writer->WriteObjectKeyValue("thread_axis_tags", thread_axis_tags);
-    writer->EndObject();
-  }
-
-  void Load(dmlc::JSONReader *reader) {
-    dmlc::JSONObjectReadHelper helper;
-    std::vector<std::string> sarg_types;
-    helper.DeclareField("name", &name);
-    helper.DeclareField("arg_types", &sarg_types);
-    helper.DeclareField("thread_axis_tags", &thread_axis_tags);
-    helper.ReadAllFields(reader);
-    arg_types.resize(sarg_types.size());
-    for (size_t i = 0; i < arg_types.size(); ++i) {
-      arg_types[i] = String2TVMType(sarg_types[i]);
-    }
-  }
+  void Save(dmlc::JSONWriter *writer) const;
+  void Load(dmlc::JSONReader *reader);
 };
 
 }  // namespace runtime

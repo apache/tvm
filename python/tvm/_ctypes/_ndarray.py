@@ -7,9 +7,8 @@ import ctypes
 import numpy as np
 
 from .._base import _LIB, check_call
-from .._base import c_array, c_str
+from .._base import c_array
 from ._types import TVMType, tvm_index_t
-
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
@@ -28,12 +27,6 @@ class TVMContext(ctypes.Structure):
     def __repr__(self):
         return "%s(%d)" % (
             TVMContext.MASK2STR[self.dev_mask], self.dev_id)
-
-    @property
-    def enabled(self):
-        ret = ctypes.c_int()
-        check_call(_LIB.TVMContextEnabled(self, ctypes.byref(ret)))
-        return ret.value != 0
 
 
 class TVMArray(ctypes.Structure):
@@ -139,30 +132,6 @@ def sync(ctx):
         The context to be synced
     """
     check_call(_LIB.TVMSynchronize(ctx, None))
-
-
-def init_opencl(**kwargs):
-    """Initialize the opencl with the options.
-
-    Parameters
-    ----------
-    kwargs : dict
-        The options
-    """
-    keys = []
-    vals = []
-    for k, v in kwargs.items():
-        keys.append(c_str(k))
-        vals.append(c_str(v))
-    dev_mask = ctypes.c_int(4)
-    out_code = ctypes.c_int()
-    check_call(_LIB.TVMDeviceInit(
-        dev_mask,
-        c_array(ctypes.c_char_p, keys),
-        c_array(ctypes.c_char_p, vals),
-        ctypes.c_int(len(keys)),
-        ctypes.byref(out_code)))
-    return out_code.value != 0
 
 
 class NDArrayBase(object):
