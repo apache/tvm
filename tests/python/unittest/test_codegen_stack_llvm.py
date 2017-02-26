@@ -8,7 +8,7 @@ def tvm_call_packed(*args):
 
 def run_jit(fapi, check):
     for target in ["llvm", "stackvm"]:
-        if not tvm.codegen.target_enabled(target):
+        if not tvm.codegen.enabled(target):
             continue
         f = tvm.codegen.build(fapi, target)
         s = f.get_source()
@@ -95,7 +95,7 @@ def test_llvm_add_pipeline():
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)
 
     def check_llvm():
-        if not tvm.codegen.target_enabled("llvm"):
+        if not tvm.codegen.enabled("llvm"):
             return
         # build and invoke the kernel.
         f = tvm.codegen.build(fapi, "llvm")

@@ -20,9 +20,9 @@ def test_add():
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.codegen.target_enabled(host):
+        if not tvm.codegen.enabled(host):
             return
-        if not tvm.codegen.target_enabled(device):
+        if not tvm.codegen.enabled(device):
             return
         fadd = tvm.build(s, [A, B, C],
                          device, host,
@@ -37,7 +37,8 @@ def test_add():
         np.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    tvm.init_opencl()
+    if tvm.module.enabled("opencl"):
+        tvm.module.init_opencl()
     check_device("cuda", "llvm")
     check_device("opencl")
 

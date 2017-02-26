@@ -6,9 +6,8 @@
 #ifndef TVM_RUNTIME_FILE_UTIL_H_
 #define TVM_RUNTIME_FILE_UTIL_H_
 
-#include <dmlc/logging.h>
-#include <fstream>
 #include <string>
+#include "./meta_data.h"
 
 namespace tvm {
 namespace runtime {
@@ -17,39 +16,48 @@ namespace runtime {
  * \param file_name The name of the file.
  * \param format The format of the file.
  */
-inline std::string GetFileFormat(const std::string& file_name,
-                                 const std::string& format) {
-  std::string fmt = format;
-  if (fmt.length() == 0) {
-    size_t pos = file_name.find_last_of(".");
-    if (pos != std::string::npos) {
-      return file_name.substr(pos + 1, file_name.length() - pos - 1);
-    } else {
-      return "";
-    }
-  } else {
-    return format;
-  }
-}
+std::string GetFileFormat(const std::string& file_name,
+                          const std::string& format);
+
+/*!
+ * \brief Get meta file path given file name and format.
+ * \param file_name The name of the file.
+ */
+std::string GetMetaFilePath(const std::string& file_name);
 
 /*!
  * \brief Load binary file into a in-memory buffer.
  * \param file_name The name of the file.
+ * \param data The data to be loaded.
  */
-inline std::string LoadBinaryFile(const std::string& file_name) {
-  std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-  CHECK(!fs.fail())
-      << "Cannot open " << file_name;
-  // get its size:
-  fs.seekg(0, std::ios::end);
-  size_t size = fs.tellg();
-  fs.seekg(0, std::ios::beg);
-  std::string data;
-  data.resize(size);
-  fs.read(&data[0], size);
-  return data;
-}
+void LoadBinaryFromFile(const std::string& file_name,
+                        std::string* data);
 
+/*!
+ * \brief Load binary file into a in-memory buffer.
+ * \param file_name The name of the file.
+ * \param The binary
+ */
+void SaveBinaryToFile(const std::string& file_name,
+                      const std::string& data);
+
+/*!
+ * \brief Save meta data to file.
+ * \param file_name The name of the file.
+ * \param fmap The function info map.
+ */
+void SaveMetaDataToFile(
+    const std::string& file_name,
+    const std::unordered_map<std::string, FunctionInfo>& fmap);
+
+/*!
+ * \brief Load meta data to file.
+ * \param file_name The name of the file.
+ * \param fmap The function info map.
+ */
+void LoadMetaDataFromFile(
+    const std::string& file_name,
+    std::unordered_map<std::string, FunctionInfo>* fmap);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_FILE_UTIL_H_

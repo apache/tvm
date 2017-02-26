@@ -19,9 +19,9 @@ def test_sum():
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.codegen.target_enabled(host):
+        if not tvm.codegen.enabled(host):
             return
-        if not tvm.codegen.target_enabled(device):
+        if not tvm.codegen.enabled(device):
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         fsum = tvm.build(s,
@@ -37,7 +37,9 @@ def test_sum():
         np.testing.assert_allclose(
             b.asnumpy(), np.sum(a.asnumpy(), axis=1), rtol=1e-4)
 
-    tvm.init_opencl()
+    if tvm.module.enabled("opencl"):
+        tvm.module.init_opencl()
+
     check_device("cuda")
     check_device("opencl")
 

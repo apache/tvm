@@ -535,8 +535,9 @@ inline const char* TypeCode2Str(int type_code) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
-  os << TypeCode2Str(t.code)
-     << static_cast<int>(t.bits);
+  os << TypeCode2Str(t.code);
+  if (t.code == kHandle) return os;
+  os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
     os << 'x' << static_cast<int>(t.lanes);
   }
@@ -559,7 +560,7 @@ inline TVMType String2TVMType(std::string s) {
     t.code = kUInt; scan = s.c_str() + 4;
   } else if (s.substr(0, 5) == "float") {
     t.code = kFloat; scan = s.c_str() + 5;
-  } else if (s == "handle") {
+  } else if (s.substr(0, 6) == "handle") {
     t.code = kHandle;
     t.bits = 64;  // handle uses 64 bit by default.
     scan = s.c_str() + 6;

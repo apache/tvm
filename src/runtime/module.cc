@@ -83,6 +83,25 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   }
 }
 
+bool RuntimeEnabled(const std::string& target) {
+  std::string load_f_name;
+  if (target == "cpu") {
+    return true;
+  } else if (target == "cuda" || target == "gpu") {
+    load_f_name = "_module_loadfile_ptx";
+  } else if (target == "cl" || target == "opencl") {
+    load_f_name = "_module_loadfile_cl";
+  } else {
+    LOG(FATAL) << "Unknown optional runtime " << target;
+  }
+  return runtime::Registry::Get(load_f_name) != nullptr;
+}
+
+TVM_REGISTER_GLOBAL(_module_enabled)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = RuntimeEnabled(args[0]);
+    });
+
 TVM_REGISTER_GLOBAL(_module__GetSource)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator Module()->GetSource(args[1]);

@@ -54,9 +54,9 @@ def test_gemm():
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.codegen.target_enabled(host):
+        if not tvm.codegen.enabled(host):
             return
-        if not tvm.codegen.target_enabled(device):
+        if not tvm.codegen.enabled(device):
             return
 
         f = tvm.build(s, [A, B, C], device, host,
@@ -76,8 +76,9 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
+    if tvm.module.enabled("opencl"):
+        tvm.module.init_opencl()
     check_device("cuda")
-    tvm.init_opencl()
     check_device("opencl")
 
 if __name__ == "__main__":

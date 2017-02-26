@@ -21,7 +21,7 @@ TVM_REGISTER_API(_codegen_build)
     }
   });
 
-TVM_REGISTER_API(_codegen_target_enabled)
+TVM_REGISTER_API(_codegen_enabled)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = TargetEnabled(args[0]);
   });
