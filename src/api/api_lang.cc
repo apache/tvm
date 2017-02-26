@@ -280,6 +280,12 @@ TVM_REGISTER_API(_StageVectorize)
         .vectorize(args[1]);
   });
 
+TVM_REGISTER_API(_StageParallel)
+  .set_body([](TVMArgs args, TVMRetValue* ret) {
+    args[0].operator Stage()
+        .parallel(args[1]);
+  });
+
 TVM_REGISTER_API(_ScheduleNormalize)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Schedule()

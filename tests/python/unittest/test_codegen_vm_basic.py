@@ -78,40 +78,7 @@ def test_stack_vm_cond():
         np.testing.assert_equal(a.asnumpy(), y)
     run_jit(fapi, check)
 
-
-def test_llvm_add_pipeline():
-    n = tvm.Var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.Schedule(C.op)
-    bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.Buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.Buffer(B.shape, B.dtype, name='B')
-    Cb = tvm.Buffer(C.shape, C.dtype, name='C')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
-    stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)
-
-    def check_llvm():
-        if not tvm.codegen.enabled("llvm"):
-            return
-        # build and invoke the kernel.
-        f = tvm.codegen.build(fapi, "llvm")
-        ctx = tvm.cpu(0)
-        # launch the kernel.
-        n = 1027
-        a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=Cb.dtype), ctx)
-        f(a, b, c)
-        np.testing.assert_allclose(
-            c.asnumpy(), a.asnumpy() + b.asnumpy())
-    check_llvm()
-
 if __name__ == "__main__":
     test_stack_vm_basic()
     test_stack_vm_cond()
     test_stack_vm_loop()
-    test_llvm_add_pipeline()

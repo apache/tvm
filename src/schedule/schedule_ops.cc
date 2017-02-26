@@ -189,6 +189,7 @@ MakeLoopNest(const Stage& sch,
       if (sch->iter_var_attrs.count(iv)) {
         switch (sch->iter_var_attrs[iv]->iter_type) {
           case kUnrolled: for_type = ForType::Unrolled; break;
+          case kParallel: for_type = ForType::Parallel; break;
           case kVectorized: for_type = ForType::Vectorized; break;
         }
       }

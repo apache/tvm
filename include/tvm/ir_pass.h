@@ -173,11 +173,12 @@ LoweredFunc MakeAPI(Stmt body,
                     int num_unpacked_args);
 
 /*!
- * \brief Count number of undefined vars in f.
- * \param f The function to be checked.
- * \return Number of undefined vars.
+ * \brief Find undefined vars in the statment.
+ * \param stmt The function to be checked.
+ * \param defs The vars that is defined.
+ * \return Array of undefined vars.
  */
-Array<Var> UndefinedVars(const LoweredFunc& f);
+Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
 
 /*!
  * \brief Split the function into a host function and device functions.

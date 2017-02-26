@@ -5,6 +5,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ir_pass.h>
 #include "./codegen_llvm.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -30,6 +31,7 @@ void CodeGenLLVM::Init(const std::string& module_name,
     t_int8_ = llvm::Type::getInt8Ty(*ctx);
     t_int16_ = llvm::Type::getInt16Ty(*ctx);
     t_int32_ = llvm::Type::getInt32Ty(*ctx);
+    t_int64_ = llvm::Type::getInt64Ty(*ctx);
     t_float64_ = llvm::Type::getDoubleTy(*ctx);
     t_tvm_index_ = llvm::Type::getIntNTy(*ctx, sizeof(tvm_index_t) * 8);
     t_tvm_context_ = llvm::StructType::create({t_int_, t_int_});
@@ -43,6 +45,8 @@ void CodeGenLLVM::Init(const std::string& module_name,
          t_tvm_type_,
          t_tvm_context_});
     t_tvm_value_ = llvm::StructType::create({t_float64_});
+    t_f_tvm_par_for_lambda_ = llvm::FunctionType::get(
+        t_int_, {t_int64_, t_int64_, t_void_p_}, false);
     md_builder_.reset(new llvm::MDBuilder(*ctx));
     md_very_likely_branch_ =
         md_builder_->createBranchWeights(1 << 30, 0);
@@ -70,7 +74,11 @@ void CodeGenLLVM::Init(const std::string& module_name,
   f_tvm_api_set_last_error_ = llvm::Function::Create(
       llvm::FunctionType::get(t_void_, {t_char_->getPointerTo()}, false),
       llvm::Function::ExternalLinkage, "TVMAPISetLastError", module_.get());
-
+  f_tvm_parallel_for_ = llvm::Function::Create(
+      llvm::FunctionType::get(t_int_, {
+          t_int64_, t_int64_, t_f_tvm_par_for_lambda_->getPointerTo(), t_void_p_}
+        , false),
+      llvm::Function::ExternalLinkage, "TVMBackendParallelFor", module_.get());
   this->InitTarget(target_triple);
   // initialize builder
   builder_.reset(new IRBuilder(*ctx));
@@ -141,7 +149,9 @@ void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
   }
   llvm::BasicBlock* block = llvm::BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(block);
-  builder_->CreateRet(builder_->CreateCall(f, args));
+  llvm::CallInst* call = builder_->CreateCall(f, args);
+  call->setTailCall(true);
+  builder_->CreateRet(call);
 }
 
 class FPassManager : public llvm::legacy::FunctionPassManager {
@@ -545,7 +555,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
   return nullptr;
 }
 
-llvm::BasicBlock* CodeGenLLVM::CheckPackedCallSuccess(llvm::Value* retcode) {
+llvm::BasicBlock* CodeGenLLVM::CheckCallSuccess(llvm::Value* retcode) {
   // create emit codes that checks and load the function.
   using llvm::BasicBlock;
   BasicBlock* fail_block = BasicBlock::Create(
@@ -563,34 +573,15 @@ llvm::BasicBlock* CodeGenLLVM::CheckPackedCallSuccess(llvm::Value* retcode) {
   return end_block;
 }
 void CodeGenLLVM::Visit_(const For* op) {
-  using llvm::BasicBlock;
-  BasicBlock* for_head = BasicBlock::Create(
-      *ctx_, "for_head", function_);
-  BasicBlock* for_body = BasicBlock::Create(
-      *ctx_, "for_body", function_);
-  BasicBlock* for_end = BasicBlock::Create(
-      *ctx_, "for_end", function_);
-  BasicBlock* pre_block = builder_->GetInsertBlock();
   CHECK(is_zero(op->min));
-  Type t = op->min.type();
-  llvm::Value* init = ConstInt32(0);
-  llvm::Value* extent = MakeValue(op->extent);
-  builder_->CreateBr(for_head);
-
-  builder_->SetInsertPoint(for_head);
-  llvm::PHINode* index = builder_->CreatePHI(LLVMType(t), 2);
-  index->addIncoming(init, pre_block);
-  llvm::Value* cond = CreateLT(t, index, extent);
-  builder_->CreateCondBr(cond, for_body, for_end, md_very_likely_branch_);
-  // body of for
-  builder_->SetInsertPoint(for_body);
-  var_map_[op->loop_var.get()] = index;
-  this->Visit(op->body);
-  llvm::Value* next_index = CreateAdd(t, index, ConstInt32(1));
-  index->addIncoming(next_index, builder_->GetInsertBlock());
-  builder_->CreateBr(for_head);
-  // end of for
-  builder_->SetInsertPoint(for_end);
+  if (op->for_type == ForType::Serial) {
+    CreateSerialFor(ConstInt32(0), MakeValue(op->extent),
+                    op->loop_var, op->body);
+  } else if (op->for_type == ForType::Parallel) {
+    CreateParallelFor(op);
+  } else {
+    LOG(FATAL) << "cannot handle for type " << op->for_type;
+  }
 }
 
 void CodeGenLLVM::Visit_(const IfThenElse* op) {
@@ -807,7 +798,7 @@ llvm::Value* CodeGenLLVM::GetPackedFuncHandle(const std::string& fname) {
   llvm::Value* ctx = builder_->CreateLoad(gv_mod_ctx_);
   llvm::Value* retcode = builder_->CreateCall(
       f_tvm_get_func_from_env_, {ctx, GetConstString(fname), out});
-  init_block = CheckPackedCallSuccess(retcode);
+  init_block = CheckCallSuccess(retcode);
   llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
   builder_->CreateBr(end_block);
   // end block
@@ -846,7 +837,7 @@ llvm::Value* CodeGenLLVM::CreateCallPacked(const Call* op) {
   }
   llvm::Value* ret_value = builder_->CreateAlloca(t_tvm_value_);
   llvm::Value* ret_tcode = builder_->CreateAlloca(t_int_);
-  CheckPackedCallSuccess(
+  CheckCallSuccess(
       builder_->CreateCall(
           f_tvm_func_call_,
           {handle, targs, tcodes, ConstInt32(nargs), ret_value, ret_tcode}));
@@ -934,6 +925,94 @@ llvm::Value* CodeGenLLVM::GetConstString(const std::string& str) {
   }
 }
 
+void CodeGenLLVM::CreateParallelFor(const For* op) {
+  using llvm::BasicBlock;
+  llvm::Value* min = MakeValue(op->min);
+  llvm::Value* extent = MakeValue(op->extent);
+  min = builder_->CreateIntCast(min, t_int64_, op->min.type().is_int());
+  extent = builder_->CreateIntCast(extent, t_int64_, op->min.type().is_int());
+  // fields to be packed into closure.
+  Var loop_var(op->loop_var.node_);
+  Array<Var> vfields = ir::UndefinedVars(op->body, {loop_var});
+  std::vector<llvm::Type*> fields;
+  for (Var v : vfields) {
+    auto it = var_map_.find(v.get());
+    CHECK(it != var_map_.end());
+    fields.push_back(it->second->getType());
+  }
+  // closure data
+  llvm::StructType* tcdata = llvm::StructType::create(fields);
+  llvm::Function* f = llvm::Function::Create(
+      t_f_tvm_par_for_lambda_,
+      llvm::Function::PrivateLinkage,
+      "__tvm_par_for_lambda", module_.get());
+  // allocate and setup the closure, call the closure.
+  llvm::Value* cdata = builder_->CreateAlloca(tcdata, ConstInt32(1));
+  llvm::Value* zero = ConstInt32(0);
+
+  for (size_t i = 0; i < vfields.size(); ++i) {
+    builder_->CreateStore(
+        var_map_.at(vfields[i].get()),
+        builder_->CreateInBoundsGEP(cdata, {zero, ConstInt32(i)}));
+  }
+  BasicBlock* par_for_end = CheckCallSuccess(
+      builder_->CreateCall(
+          f_tvm_parallel_for_,
+          {min, extent,  f, builder_->CreatePointerCast(cdata, t_void_p_)}));
+  // Setup the closure function.
+  BasicBlock *lambda_entry = BasicBlock::Create(*ctx_, "entry", f);
+  builder_->SetInsertPoint(lambda_entry);
+  auto it = f->arg_begin();
+  llvm::Value* begin = &(*it++);
+  llvm::Value* end = &(*it++);
+  cdata = &(*it++);
+  begin = CreateCast(Int(64), op->loop_var.type(), begin);
+  end = CreateCast(Int(64), op->loop_var.type(), end);
+  cdata = builder_->CreatePointerCast(cdata, tcdata->getPointerTo());
+  // setup new variable map, swap it with current var context.
+  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  for (size_t i = 0; i < vfields.size(); ++i) {
+    new_vmap[vfields[i].get()] =
+        builder_->CreateLoad(builder_->CreateInBoundsGEP(
+            cdata, {zero, ConstInt32(i)}));
+  }
+  std::swap(function_, f);
+  std::swap(new_vmap, var_map_);
+  CreateSerialFor(begin, end, op->loop_var, op->body);
+  builder_->CreateRet(ConstInt32(0));
+  // swap the var map back, now we are back on track.
+  std::swap(new_vmap, var_map_);
+  std::swap(function_, f);
+  builder_->SetInsertPoint(par_for_end);
+}
+
+void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end,
+                                  const VarExpr& loop_var, const Stmt& body) {
+  using llvm::BasicBlock;
+  Type t = loop_var.type();
+  BasicBlock* for_head = BasicBlock::Create(
+      *ctx_, "for_head", function_);
+  BasicBlock* for_body = BasicBlock::Create(
+      *ctx_, "for_body", function_);
+  BasicBlock* for_end = BasicBlock::Create(
+      *ctx_, "for_end", function_);
+  BasicBlock* pre_block = builder_->GetInsertBlock();
+  builder_->CreateBr(for_head);
+  builder_->SetInsertPoint(for_head);
+  llvm::PHINode* index = builder_->CreatePHI(begin->getType(), 2);
+  index->addIncoming(begin, pre_block);
+  llvm::Value* cond = CreateLT(t, index, end);
+  builder_->CreateCondBr(cond, for_body, for_end, md_very_likely_branch_);
+  // body of for
+  builder_->SetInsertPoint(for_body);
+  var_map_[loop_var.get()] = index;
+  this->Visit(body);
+  llvm::Value* next_index = CreateAdd(t, index, ConstInt32(1));
+  index->addIncoming(next_index, builder_->GetInsertBlock());
+  builder_->CreateBr(for_head);
+  // end of for
+  builder_->SetInsertPoint(for_end);
+}
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION

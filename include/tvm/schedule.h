@@ -34,7 +34,8 @@ enum AttachType : int {
 /*! \brief IterVar type */
 enum IterVarType : int {
   kUnrolled = 1,
-  kVectorized = 2
+  kVectorized = 2,
+  kParallel = 3
 };
 
 /*! \brief Stage, contains scheduling for a stage of computation. */
@@ -152,6 +153,12 @@ class Stage : public NodeRef {
    * \return reference to self.
    */
   Stage& unroll(IterVar var);   // NOLINT(*)
+  /*!
+   * \brief Parallelize iteration.
+   * \param var The axis to be parallelized.
+   * \return reference to self.
+   */
+  Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
