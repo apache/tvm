@@ -152,10 +152,12 @@ class CodeGenLLVM : public IRVisitor {
   llvm::StructType* t_tvm_type_{nullptr};
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
+  llvm::FunctionType* t_f_tvm_par_for_lambda_{nullptr};
   // tvm api functions
   llvm::Function* f_tvm_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
   llvm::Function* f_tvm_api_set_last_error_{nullptr};
+  llvm::Function* f_tvm_parallel_for_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
   // Last value returned codegen call.
@@ -176,10 +178,15 @@ class CodeGenLLVM : public IRVisitor {
   llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
   llvm::Value* CreateCast(Type from, Type to, llvm::Value* value);
   llvm::Value* GetPackedFuncHandle(const std::string& str);
+  // Create parallel for.
+  void CreateParallelFor(const For* op);
+  // Create serial for
+  void CreateSerialFor(llvm::Value* begin, llvm::Value* end,
+                       const VarExpr& loop_var, const Stmt& body);
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
   // return the end block after the check
-  llvm::BasicBlock* CheckPackedCallSuccess(llvm::Value* retcode);
+  llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
   // Initialize target
   void InitTarget(const std::string& target);
   // Add a function to set global module context
