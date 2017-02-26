@@ -92,3 +92,6 @@ ENV/
 *~
 build
 config.mk
+build_win
+Win32
+*.dir

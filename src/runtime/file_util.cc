@@ -66,7 +66,7 @@ void LoadBinaryFromFile(const std::string& file_name,
   CHECK(!fs.fail()) << "Cannot open " << file_name;
   // get its size:
   fs.seekg(0, std::ios::end);
-  size_t size = fs.tellg();
+  size_t size = static_cast<size_t>(fs.tellg());
   fs.seekg(0, std::ios::beg);
   data->resize(size);
   fs.read(&(*data)[0], size);
