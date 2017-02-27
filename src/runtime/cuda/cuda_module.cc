@@ -39,7 +39,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
   ~CUDAModuleNode() {
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
-        CUDA_CALL(cudaSetDevice(i));
+        CUDA_CALL(cudaSetDevice(static_cast<int>(i)));
         CUDA_DRIVER_CALL(cuModuleUnload(module_[i]));
       }
     }

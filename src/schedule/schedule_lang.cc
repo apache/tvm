@@ -264,7 +264,7 @@ Schedule::Schedule(Array<Operation> ops) {
   }
   for (Operation op : post_order) {
     Stage stage(op);
-    stage->is_output = output_set.count(op);
+    stage->is_output = output_set.count(op) != 0;
     n->stages.push_back(stage);
     n->stage_map.Set(op, stage);
     // mark scan updates.

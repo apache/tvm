@@ -22,6 +22,9 @@ struct TensorDimKey {
   TensorDimKey(const Tensor& t, int dim)
       : f(t->op), value_index(t->value_index), dim(dim) {
   }
+  TensorDimKey(const Tensor& t, size_t dim)
+      : f(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {
+  }
   inline bool operator==(const TensorDimKey& other) const {
     return f == other.f &&
         value_index == other.value_index &&
@@ -183,7 +186,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
       const auto& init = op.as<ScanOpNode>()->init;
       for (size_t i = 0; i < update.size(); ++i) {
         Tensor t = op.output(i);
-        for (size_t k = 1; k < update[i]->shape.size(); ++k) {
+        for (int k = 1; k < static_cast<int>(update[i]->shape.size()); ++k) {
           reach[TensorDimKey(t, k)].emplace_back(
               TensorDimKey(update[i], k));
           reach[TensorDimKey(t, k)].emplace_back(
@@ -203,7 +206,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         if (call != nullptr && call->func.defined()) {
           if (!bset.count(call->func.get())) return;
           for (size_t i = 0; i < call->args.size(); ++i) {
-            TensorDimKey dkey(call, i);
+            TensorDimKey dkey(call, static_cast<int>(i));
             auto fpush = [&dkey, &vmap, &reach](const NodeRef& node) {
               const Variable *v = node.as<Variable>();
               auto it = vmap.find(v);
@@ -319,7 +322,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(
         if (call != nullptr && call->func.defined()) {
           for (size_t i = 0; i < call->args.size(); ++i) {
             auto it = vmap.find(call->args[i].get());
-            TensorDimKey src(call, i);
+            TensorDimKey src(call, static_cast<int>(i));
             if (it != vmap.end()) {
               f_merge_key(it->second, src);
             } else {

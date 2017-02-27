@@ -389,7 +389,7 @@ void InferRootBound(const Stage& stage,
   bool direct_consume_by_parent = false;
   for (int i = 0; i < stage->op->num_outputs(); ++i) {
     Tensor t = stage->op.output(i);
-    tmap.emplace(t, TensorDom(t.ndim()));
+    tmap.emplace(t, TensorDom(static_cast<int>(t.ndim())));
     auto it = feed_graph.find(t);
     if (it != feed_graph.end()) {
       for (const Operation& op : it->second) {

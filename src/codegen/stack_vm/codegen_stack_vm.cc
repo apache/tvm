@@ -417,7 +417,7 @@ TVM_STATIC_IR_FUNCTOR(CodeGenStackVM, vtable)
 .set_dispatch<LetStmt>([](const LetStmt *op, CodeGenStackVM* p) {
     p->Push(op->value);
     int64_t vid = p->AllocVarID(op->var.get());
-    p->PushOp(StackVM::STORE_HEAP, vid);
+    p->PushOp(StackVM::STORE_HEAP, static_cast<int>(vid));
     p->Push(op->body);
   })
 .set_dispatch<Ramp>([](const Ramp *op, CodeGenStackVM* p) {
@@ -445,7 +445,7 @@ TVM_STATIC_IR_FUNCTOR(CodeGenStackVM, vtable)
 .set_dispatch<Let>([](const Let *op, CodeGenStackVM* p) {
     p->Push(op->value);
     int64_t vid = p->AllocVarID(op->var.get());
-    p->PushOp(StackVM::STORE_HEAP, vid);
+    p->PushOp(StackVM::STORE_HEAP, static_cast<int>(vid));
     p->Push(op->body);
   })
 .set_dispatch<Load>([](const Load *op, CodeGenStackVM* p) {

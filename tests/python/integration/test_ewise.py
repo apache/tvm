@@ -21,8 +21,10 @@ def test_add():
     # one line to build the function.
     def check_device(device, host="stackvm"):
         if not tvm.codegen.enabled(host):
+            print("skip because %s is not enabled.." % host)
             return
         if not tvm.codegen.enabled(device):
+            print("skip because %s is not enabled.." % device)
             return
         fadd = tvm.build(s, [A, B, C],
                          device, host,
