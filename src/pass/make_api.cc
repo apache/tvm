@@ -103,7 +103,7 @@ LoweredFunc MakeAPI(Stmt body,
         MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
 
-  for (size_t i = 0; i < api_args.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(api_args.size()); ++i) {
     Var v_arg = f_arg_decl(i);
     if (i < static_cast<size_t>(num_packed_args)) {
       seq_init.emplace_back(LetStmt::make(

@@ -44,7 +44,7 @@ def find_lib_path():
         raise RuntimeError('Cannot find the files.\n' +
                            'List of candidates:\n' + str('\n'.join(dll_path)))
     if use_runtime:
-        sys.stderr.write("Loading runtime library... this is execution only\n")
+        sys.stderr.write("Loading runtime library %s... exec only\n" % lib_found[0])
         sys.stderr.flush()
     return lib_found
 

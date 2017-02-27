@@ -6,6 +6,7 @@
 #ifdef TVM_LLVM_VERSION
 #include <tvm/runtime/packed_func.h>
 #include <tvm/codegen.h>
+#include <mutex>
 #include "./llvm_common.h"
 #include "./codegen_llvm.h"
 #include "../../runtime/file_util.h"

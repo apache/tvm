@@ -46,7 +46,8 @@ def compile_source(code, target="ptx", arch=None,
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
-    cmd += ["-arch", arch]
+    if arch:
+        cmd += ["-arch", arch]
     cmd += ["-o", file_target]
 
     if options:
