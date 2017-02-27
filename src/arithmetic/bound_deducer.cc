@@ -21,7 +21,7 @@ using Halide::Internal::Interval;
 // from a expression.
 class VariablePathFinder: public IRVisitor {
  public:
-  explicit VariablePathFinder(Var target) : target_(target) {}
+  explicit VariablePathFinder(Expr target) : target_(target) {}
 
   void Visit(const NodeRef& node) final {
     if (visited_.count(node.get()) != 0) return;
@@ -37,13 +37,13 @@ class VariablePathFinder: public IRVisitor {
 
  private:
   bool found_{false};
-  Var target_;
+  Expr target_;
   std::unordered_set<const Node*> visited_;
 };
 
 // get the path to the variable,
 // return empty vector to represent failure
-std::vector<const Node*> GetPath(Var target, Expr expr) {
+std::vector<const Node*> GetPath(Expr target, Expr expr) {
   VariablePathFinder v(target);
   v.Visit(expr);
   return v.path_;
@@ -56,7 +56,7 @@ class BoundDeducer: public IRVisitor {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
-  BoundDeducer(Var target, Expr expr,
+  BoundDeducer(Expr target, Expr expr,
                const std::unordered_map<const Variable*, IntSet>& dom_map)
   : target_(target), expr_(expr), dom_map_(dom_map) {}
 
@@ -137,7 +137,7 @@ class BoundDeducer: public IRVisitor {
   bool success{true};
 
  private:
-  Var  target_;
+  Expr target_;
   Expr expr_;
   const std::unordered_map<const Variable*, IntSet>& dom_map_;
   ExprIntSetMap expr_map_;
@@ -205,15 +205,9 @@ void BoundDeducer::Deduce() {
   Visit(expr_);
 }
 
-// assuming e >= 0, deduce the bound of variable from it.
-// return empty set to represent deduce failure.
-IntSet DeduceBound(Var v, Expr e,
-                   const Map<Var, IntSet>& dom_map) {
-  std::unordered_map<const Variable*, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap[kv.first.get()] = kv.second;
-  }
-  BoundDeducer d(v, e, dmap);
+IntSet DeduceBound(Expr v, Expr e,
+  const std::unordered_map<const Variable*, IntSet> dom_map) {
+  BoundDeducer d(v, e, dom_map);
   d.Deduce();
   if (!d.success) return IntSet::nothing();
   Expr min = Interval::neg_inf, max = Interval::pos_inf;
@@ -223,6 +217,17 @@ IntSet DeduceBound(Var v, Expr e,
     max = d.is_equal ? d.result : d.result - 1;
   }
   return IntSet::interval(min, max);
+}
+
+// assuming e >= 0, deduce the bound of variable from it.
+// return empty set to represent deduce failure.
+IntSet DeduceBound(Expr v, Expr e,
+                   const Map<Var, IntSet>& dom_map) {
+  std::unordered_map<const Variable*, IntSet> dmap;
+  for (auto kv : dom_map) {
+    dmap[kv.first.get()] = kv.second;
+  }
+  return DeduceBound(v, e, dmap);
 }
 
 }  // namespace arith

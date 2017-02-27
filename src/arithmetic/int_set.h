@@ -172,8 +172,11 @@ inline const IntSetNode* IntSet::operator->() const {
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-IntSet DeduceBound(Var v, Expr cond,
+IntSet DeduceBound(Expr v, Expr cond,
                    const Map<Var, IntSet>& dom_map);
+IntSet DeduceBound(Expr v, Expr e,
+  const std::unordered_map<const Variable*, IntSet> dom_map);
+
 
 }  // namespace arith
 }  // namespace tvm

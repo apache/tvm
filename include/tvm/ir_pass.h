@@ -137,6 +137,8 @@ Stmt InjectVirtualThread(Stmt stmt);
  */
 Stmt LiftAllocate(Stmt stmt);
 
+Stmt LoopPartition(Stmt stmt);
+
 /*!
  * \brief Make an user callable API LoweredFunc.
  *
