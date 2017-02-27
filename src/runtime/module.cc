@@ -119,9 +119,9 @@ TVM_REGISTER_GLOBAL(_module__GetImport)
         imports().at(args[1].operator int());
     });
 
-TVM_REGISTER_GLOBAL(_module__GetTyeKey)
+TVM_REGISTER_GLOBAL(_module__GetTypeKey)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator Module()->type_key();
+    *ret = std::string(args[0].operator Module()->type_key());
     });
 
 TVM_REGISTER_GLOBAL(_module__LoadFromFile)

@@ -125,7 +125,7 @@ inline bool prove_equal(Expr lhs, Expr rhs) {
 }
 
 int ScanOpNode::num_outputs() const {
-  return update.size();
+  return static_cast<int>(update.size());
 }
 Array<IterVar> ScanOpNode::root_iter_vars() const {
   return Array<IterVar>{scan_axis};

@@ -89,7 +89,7 @@ struct TVMRuntimeEntry {
     if (val != nullptr) {
       num_par_threads = atoi(val);
     } else {
-      num_par_threads = std::thread::hardware_concurrency();
+      num_par_threads = std::thread::hardware_concurrency() / 2;
     }
   }
 };
@@ -127,7 +127,7 @@ int TVMModGetFunction(TVMModuleHandle mod,
                       TVMFunctionHandle *func) {
   API_BEGIN();
   PackedFunc pf = static_cast<Module*>(mod)->GetFunction(
-      func_name, query_imports);
+      func_name, query_imports != 0);
   if (pf != nullptr) {
     *func = new PackedFunc(pf);
   } else {

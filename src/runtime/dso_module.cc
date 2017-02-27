@@ -75,11 +75,13 @@ class DSOModuleNode : public ModuleNode {
   HMODULE lib_handle_{nullptr};
   // Load the library
   void Load(const std::string& name) {
-    lib_handle_ = LoadLibrary(name.c_str());
+    // use wstring version that is needed by LLVM.
+    std::wstring wname(name.begin(), name.end());
+    lib_handle_ = LoadLibraryW(wname.c_str());
   }
   BackendPackedCFunc GetFuncPtr(const std::string& name) {
     return reinterpret_cast<BackendPackedCFunc>(
-        GetProcAddress(lib_handle_, name.c_str()));  // NOLINT(*)
+        GetProcAddress(lib_handle_, (LPCSTR)name.c_str()));  // NOLINT(*)
   }
   void* GetGlobalVPtr(const std::string& name) {
     return reinterpret_cast<void*>(
