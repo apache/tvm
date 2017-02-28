@@ -59,7 +59,6 @@ after_failure:
   - tests/travis/travis_after_failure.sh
 
 notifications:
-# Emails are sent to the committer's git-configured email address by default,
   email:
     on_success: change
     on_failure: always
