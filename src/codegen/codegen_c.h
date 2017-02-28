@@ -24,8 +24,8 @@ using namespace ir;
  *  CodeGenC have two modes: generate SSA formed C code or normal form.
  */
 class CodeGenC :
-      public StmtFunctor<void(const Stmt&)>,
-      public ExprFunctor<void(const Expr&, std::ostream&)> {
+      public ExprFunctor<void(const Expr&, std::ostream&)>,
+      public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
    * \brief Initialize the code generator.
