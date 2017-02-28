@@ -162,10 +162,8 @@ class Canonical::Internal : public IRMutator {
     return stmt;
   }
   Expr MutateExpr_(Expr expr) {
-    static const FMutateExpr& f = Internal::vtable_expr();
     stack_.push_back(StackEntry());
-    expr =  (f.can_dispatch(expr) ?
-            f(expr, expr, this) : IRMutator::Mutate(expr));
+    expr = IRMutator::Mutate(expr);
     // update result of parent automatically during pop
     if (stack_.size() > 1) {
       StackEntry& back = stack_[stack_.size() - 1];
@@ -200,7 +198,7 @@ class Canonical::Internal : public IRMutator {
     return (t.lanes() == 1 && (t.is_int() || t.is_uint()));
   }
   // Add
-  Expr Mutate_(const Add* op, const Expr& e) {
+  Expr Mutate_(const Add* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
       return Binary(op, e, this);
     }
@@ -212,7 +210,7 @@ class Canonical::Internal : public IRMutator {
     return SumAdd(a, b, +1);
   }
   // Sub
-  Expr Mutate_(const Sub* op, const Expr& e) {
+  Expr Mutate_(const Sub* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
       return Binary(op, e, this);
     }
@@ -224,7 +222,7 @@ class Canonical::Internal : public IRMutator {
     return SumAdd(a, b, -1);
   }
   // Mul
-  Expr Mutate_(const Mul* op, const Expr& e) {
+  Expr Mutate_(const Mul* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
       return Binary(op, e, this);
     }
@@ -462,17 +460,6 @@ class Canonical::Internal : public IRMutator {
 };
 
 using CInternal = Canonical::Internal;
-
-#define DISPATCH_EXPR(OP)                                          \
-  set_dispatch<OP>([](const OP *op, const Expr& e, IRMutator* p) { \
-    return static_cast<CInternal*>(p)->Mutate_(op, e); })
-
-TVM_STATIC_IR_FUNCTOR(CInternal, vtable_expr)
-.DISPATCH_EXPR(Add)
-.DISPATCH_EXPR(Sub)
-.DISPATCH_EXPR(Mul)
-.DISPATCH_EXPR(LT);
-
 
 Canonical::Canonical()
     : ptr_(std::make_shared<Internal>()) {}
