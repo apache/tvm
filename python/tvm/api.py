@@ -274,33 +274,51 @@ def sum(expr, axis):
     return x
 
 
-def min(expr, axis):
-    """Create a min expression over axis
+def min(lhs, rhs=None, axis=None):
+    """Create a min expression.
 
     Parameters
     ----------
-    expr : Expr
-        The source expression.
+    lhs : Expr
+        The left hand expression.
 
-    axis : IterVar
+    rhs : Expr, optional
+        The right hand expression.
+
+    axis : IterVar, optional
         The reduction IterVar axis
     """
+    if rhs and axis:
+        raise ValueError("Can only take one argument, rhs or axis")
+    if isinstance(rhs, (_collections.IterVar, list)):
+        axis, rhs = rhs, axis
+    if rhs:
+        return _make.Min(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
     x = _make.Reduce("Min", expr, axis)
     return x
 
 
-def max(expr, axis):
-    """Create a min expression over axis
+def max(lhs, rhs=None, axis=None):
+    """Create a max expression.
 
     Parameters
     ----------
-    expr : Expr
-        The source expression.
+    lhs : Expr
+        The left hand expression.
 
-    axis : IterVar
+    rhs : Expr, optional
+        The right hand expression.
+
+    axis : IterVar, optional
         The reduction IterVar axis
     """
+    if rhs and axis:
+        raise ValueError("Can only take one argument, rhs or axis")
+    if isinstance(rhs, (_collections.IterVar, list)):
+        axis, rhs = rhs, axis
+    if rhs:
+        return _make.Max(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
     x = _make.Reduce("Max", expr, axis)
     return x

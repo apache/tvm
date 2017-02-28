@@ -6,6 +6,7 @@
 #ifndef TVM_IR_VISITOR_H_
 #define TVM_IR_VISITOR_H_
 
+#include <tvm/ir_functor.h>
 #include "./ir.h"
 
 namespace tvm {
@@ -17,7 +18,51 @@ namespace ir {
  *  This IRVisitor is implemented via IRFunctor
  *  This enables extensions of possible new Node.
  *
- * \sa IRFunctor, PostOrderVisit
+ * \sa ExprFunctor, StmtFunctor, PostOrderVisit
+ *
+ * \note If you need to return values during Visit:
+ *  - If it is mutaion of the IR, use IRMutator
+ *  - If you want to return other things, consider use ExprFunctor/StmtFunctor
+ *  - Watch out for possible bug pattern if you use IRVisitor to simulate returns.
+ *
+ * \code
+ *
+ * // This is an example code to show cases for traps in IRVisitor
+ * // The use case is to count number of Variables in the ir tree.
+ * class MyCounter : public IRVisitor {
+ *  public:
+ *   int Count(const NodeRef& n) {
+ *     ret_ = 0;
+ *     this->Visit(n);
+ *     return ret_;
+ *   }
+ *   void Visit_(const Variable* op) final {
+ *     ret_ = 1;
+ *   }
+ *   void Visit_(const Add* op) final {
+ *     ret_ = count(op->a) + count(op->b);
+ *   }
+
+ *  private:
+ *   int ret_;
+ * };
+ * MyCounter counter;
+ * Var x("x");
+ * // this returns 2
+ * CHECK_EQ(counter.Count(x + x), 2);
+ * // Think what is the result of the following count
+ * counter.count(Max::make(x, x));
+ * // The result is actually 1
+ * // This is because Visit is not overriden for Max
+ * // so it simply calls Visit for the left and right children
+ * // and because Count is not called, ret_ is not cleared.
+ * // There can also be cases where ret_ is forgetten to be set.
+ *
+ * // These traps may not happen if we program carefully
+ * // But it is recommended to use ExprFunctor, which allows direct
+ * // return the value, this helps us to avoid such problems.
+ * \encode
+ *
  */
 class IRVisitor {
  public:

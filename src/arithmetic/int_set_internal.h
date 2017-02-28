@@ -9,6 +9,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include "./int_set.h"
+#include "./modular.h"
 
 namespace tvm {
 namespace arith {
@@ -53,6 +54,23 @@ struct StrideSet : public IntSetNode {
   static constexpr const char* _type_key = "StrideSet";
   TVM_DECLARE_NODE_TYPE_INFO(StrideSet, IntSetNode);
 };
+
+/*!
+ * \brief Set represented by range of ModularEntry.
+ *  Used for front-end modular analysis.
+ */
+struct ModularSet : public IntSetNode {
+  /*! \brief Internal modular entry */
+  ModularEntry e;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("base", &(e.base));
+    v->Visit("coeff", &(e.coeff));
+  }
+  static constexpr const char* _type_key = "ModularSet";
+  TVM_DECLARE_NODE_TYPE_INFO(ModularSet, IntSetNode);
+};
+
 
 }  // namespace arith
 }  // namespace tvm
