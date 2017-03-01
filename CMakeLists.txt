@@ -1,14 +1,17 @@
 cmake_minimum_required(VERSION 3.5)
-project(tvm)
+project(tvm C CXX)
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
+endif()
 
 include(cmake/Util.cmake)
+tvm_option(USE_CUDA "Build with CUDA" ON)
+tvm_option(USE_OPENCL "Build with OpenCL" ON)
+tvm_option(USE_LLVM "Build with LLVM" OFF)
+tvm_option(USE_RTTI "Build with RTTI" OFF)
+tvm_option(USE_MSVC_MT "Build with MT" OFF)
 
-option(USE_OPENCL "Build with OpenCL" OFF)
-option(USE_CUDA "Build with CUDA" OFF)
-option(USE_LLVM "Build with LLVM" OFF)
-option(USE_RTTI "Build with RTTI" OFF)
-
-# include path
 include_directories("include")
 include_directories("HalideIR/src")
 set(TVM_LINKER_LIBS "")
@@ -20,24 +23,22 @@ if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
   add_definitions(-DTVM_EXPORTS)
-  foreach(flag_var
-        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    if(${flag_var} MATCHES "/MD")
-      string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-    endif(${flag_var} MATCHES "/MD")
-  endforeach(flag_var)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+  if(USE_MSVC_MT)
+    foreach(flag_var
+        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+      if(${flag_var} MATCHES "/MD")
+        string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+      endif(${flag_var} MATCHES "/MD")
+    endforeach(flag_var)
+  endif()
 else(MSVC)
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
-  check_cxx_compiler_flag("-msse2"        SUPPORT_MSSE2)
   set(CMAKE_C_FLAGS "-O3 -fno-rtti -Wall -std=c++11 -fPIC")
-  if(SUPPORT_OPENMP)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
-  endif()
   set(CMAKE_CXX_FLAGS ${CMAKE_C_FLAGS})
 endif(MSVC)
 
@@ -49,6 +50,7 @@ tvm_source_group("Source\\arithmetic"   GLOB "src/arithmetic/*.cc")
 tvm_source_group("Source\\schedule"   GLOB "src/schedule/*.cc")
 tvm_source_group("Source\\codegen"   GLOB "src/codegen/*.cc")
 tvm_source_group("Source\\codegen\\llvm"   GLOB "src/codegen/llvm/*.cc")
+tvm_source_group("Source\\codegen\\stack_vm"   GLOB "src/codegen/stack_vm/*.cc")
 tvm_source_group("Source\\pass"   GLOB "src/pass/*.cc")
 tvm_source_group("Source\\runtime"   GLOB "src/runtime/*.cc")
 tvm_source_group("Source\\runtime\\cuda"   GLOB "src/runtime/cuda/*.cc")
@@ -58,7 +60,7 @@ file(GLOB COMPILER_SRCS
     src/api/*.cc
     src/arithmetic/*.cc
     src/codegen/*.cc
-    src/stack_vm/*.cc
+    src/codegen/stack_vm/*.cc
     src/lang/*.cc
     src/pass/*.cc
     src/schedule/*.cc
@@ -71,19 +73,44 @@ file(GLOB RUNTIME_CUDA_SRCS src/runtime/cuda/*.cc)
 file(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
 
 if(USE_CUDA)
+find_package(CUDA)
+  find_package(CUDA QUIET REQUIRED)
+  message(STATUS "Build with CUDA support...")
+	include_directories(${CUDA_INCLUDE_DIRS})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDART_LIBRARY})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDA_LIBRARY})
   list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_SRCS})
+  if(MSVC)
+    find_library(CUDA_NVRTC_LIB nvrtc
+      ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
+      ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
+    list(APPEND TVM_LINKER_LIBS ${CUDA_NVRTC_LIB})
+  endif()
+  add_definitions(-DTVM_CUDA_RUNTIME=1)
 else(USE_CUDA)
   add_definitions(-DTVM_CUDA_RUNTIME=0)
 endif(USE_CUDA)
 
 if(USE_OPENCL)
+  find_package(OPENCL QUIET REQUIRED)
+  message(STATUS "Build with OpenCL support...")
+  include_directories(${OPENCL_INCLUDE_DIRS})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
   list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
+  add_definitions(-DTVM_OPENCL_RUNTIME=1)
 else(USE_OPENCL)
   add_definitions(-DTVM_OPENCL_RUNTIME=0)
 endif(USE_OPENCL)
 
 if(USE_LLVM)
-  add_definitions(-DTVM_LLVM_VERSION=40)
+  find_package(LLVM REQUIRED CONFIG)
+  message(STATUS "Build with LLVM support...")
+  include_directories(${LLVM_INCLUDE_DIRS})
+  add_definitions(${LLVM_DEFINITIONS})
+  llvm_map_components_to_libnames(LLVM_LIBS all)
+  list(REMOVE_ITEM LLVM_LIBS LTO)
+  list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
+  add_definitions(-DTVM_LLVM_VERSION=${LLVM_PACKAGE_VERSION})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
 endif(USE_LLVM)
 
@@ -109,9 +136,7 @@ else()
     set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
-
 add_library(libtvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(libtvm_runtime SHARED ${RUNTIME_SRCS})
-
-target_link_libraries(libtvm ${TVM_LINKER_LIBS})
+target_link_libraries(libtvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(libtvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})

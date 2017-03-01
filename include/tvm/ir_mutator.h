@@ -55,59 +55,23 @@ class IRMutator {
   static FMutateStmt& vtable_stmt();  // NOLINT(*)
   // Set of overloadable functions
   // The underscore allows Mutate not to be shadowed by inheritance
-  virtual Stmt Mutate_(const Variable* op, const Stmt& s);
   virtual Stmt Mutate_(const LetStmt* op, const Stmt& s);
   virtual Stmt Mutate_(const AttrStmt* op, const Stmt& s);
   virtual Stmt Mutate_(const IfThenElse* op, const Stmt& s);
   virtual Stmt Mutate_(const For* op, const Stmt& s);
   virtual Stmt Mutate_(const Allocate* op, const Stmt& s);
-  virtual Stmt Mutate_(const Load* op, const Stmt& s);
   virtual Stmt Mutate_(const Store* op, const Stmt& s);
-  virtual Stmt Mutate_(const Let* op, const Stmt& s);
   virtual Stmt Mutate_(const Free* op, const Stmt& s);
-  virtual Stmt Mutate_(const Call* op, const Stmt& s);
-  virtual Stmt Mutate_(const Add* op, const Stmt& s);
-  virtual Stmt Mutate_(const Sub* op, const Stmt& s);
-  virtual Stmt Mutate_(const Mul* op, const Stmt& s);
-  virtual Stmt Mutate_(const Div* op, const Stmt& s);
-  virtual Stmt Mutate_(const Mod* op, const Stmt& s);
-  virtual Stmt Mutate_(const Min* op, const Stmt& s);
-  virtual Stmt Mutate_(const Max* op, const Stmt& s);
-  virtual Stmt Mutate_(const EQ* op, const Stmt& s);
-  virtual Stmt Mutate_(const NE* op, const Stmt& s);
-  virtual Stmt Mutate_(const LT* op, const Stmt& s);
-  virtual Stmt Mutate_(const LE* op, const Stmt& s);
-  virtual Stmt Mutate_(const GT* op, const Stmt& s);
-  virtual Stmt Mutate_(const GE* op, const Stmt& s);
-  virtual Stmt Mutate_(const And* op, const Stmt& s);
-  virtual Stmt Mutate_(const Or* op, const Stmt& s);
-  virtual Stmt Mutate_(const Reduce* op, const Stmt& s);
-  virtual Stmt Mutate_(const Cast* op, const Stmt& s);
-  virtual Stmt Mutate_(const Not* op, const Stmt& s);
-  virtual Stmt Mutate_(const Select* op, const Stmt& s);
-  virtual Stmt Mutate_(const Ramp* op, const Stmt& s);
-  virtual Stmt Mutate_(const Broadcast* op, const Stmt& s);
   virtual Stmt Mutate_(const AssertStmt* op, const Stmt& s);
   virtual Stmt Mutate_(const ProducerConsumer* op, const Stmt& s);
   virtual Stmt Mutate_(const Provide* op, const Stmt& s);
   virtual Stmt Mutate_(const Realize* op, const Stmt& s);
   virtual Stmt Mutate_(const Block* op, const Stmt& s);
   virtual Stmt Mutate_(const Evaluate* op, const Stmt& s);
-  virtual Stmt Mutate_(const IntImm* op, const Stmt& s);
-  virtual Stmt Mutate_(const UIntImm* op, const Stmt& s);
-  virtual Stmt Mutate_(const FloatImm* op, const Stmt& s);
-  virtual Stmt Mutate_(const StringImm* op, const Stmt& s);
 
   virtual Expr Mutate_(const Variable* op, const Expr& e);
-  virtual Expr Mutate_(const LetStmt* op, const Expr& e);
-  virtual Expr Mutate_(const AttrStmt* op, const Expr& e);
-  virtual Expr Mutate_(const IfThenElse* op, const Expr& e);
-  virtual Expr Mutate_(const For* op, const Expr& e);
-  virtual Expr Mutate_(const Allocate* op, const Expr& e);
   virtual Expr Mutate_(const Load* op, const Expr& e);
-  virtual Expr Mutate_(const Store* op, const Expr& e);
   virtual Expr Mutate_(const Let* op, const Expr& e);
-  virtual Expr Mutate_(const Free* op, const Expr& e);
   virtual Expr Mutate_(const Call* op, const Expr& e);
   virtual Expr Mutate_(const Add* op, const Expr& e);
   virtual Expr Mutate_(const Sub* op, const Expr& e);
@@ -130,36 +94,10 @@ class IRMutator {
   virtual Expr Mutate_(const Select* op, const Expr& e);
   virtual Expr Mutate_(const Ramp* op, const Expr& e);
   virtual Expr Mutate_(const Broadcast* op, const Expr& e);
-  virtual Expr Mutate_(const AssertStmt* op, const Expr& e);
-  virtual Expr Mutate_(const ProducerConsumer* op, const Expr& e);
-  virtual Expr Mutate_(const Provide* op, const Expr& e);
-  virtual Expr Mutate_(const Realize* op, const Expr& e);
-  virtual Expr Mutate_(const Block* op, const Expr& e);
-  virtual Expr Mutate_(const Evaluate* op, const Expr& e);
   virtual Expr Mutate_(const IntImm* op, const Expr& e);
   virtual Expr Mutate_(const UIntImm* op, const Expr& e);
   virtual Expr Mutate_(const FloatImm* op, const Expr& e);
   virtual Expr Mutate_(const StringImm* op, const Expr& e);
-};
-
-/*!
- * \brief Example on how to subclass and override behavior of IRMutator
- */
-class IRMutatorExample : public IRMutator {
- public:
-  Expr Mutate(Expr expr) final {
-    static const FMutateExpr& f = IRMutatorExample::vtable_expr();
-    return (f.can_dispatch(expr) ?
-            f(expr, expr, this) : IRMutator::Mutate(expr));
-  }
-  Stmt Mutate(Stmt stmt) final {
-    static const FMutateStmt& f = IRMutatorExample::vtable_stmt();
-    return (f.can_dispatch(stmt) ?
-            f(stmt, stmt, this) : IRMutator::Mutate(stmt));
-  }
-  // to be implemented by child class
-  static FMutateExpr& vtable_expr();  // NOLINT(*)
-  static FMutateStmt& vtable_stmt();  // NOLINT(*)
 };
 
 }  // namespace ir

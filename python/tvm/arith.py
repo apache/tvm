@@ -5,7 +5,6 @@ from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 from . import _api_internal
 
-@register_node
 class IntSet(NodeBase):
     """Represent a set of integer in one dimension."""
     def is_nothing(self):
@@ -32,4 +31,9 @@ class IntervalSet(IntSet):
 @register_node
 class StrideSet(IntSet):
     """Represent set of strided integers"""
+    pass
+
+@register_node
+class ModularSet(IntSet):
+    """Represent range of (coeff * x + base) for x in Z """
     pass

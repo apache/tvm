@@ -7,6 +7,7 @@
 #include <tvm/ir.h>
 #include <tvm/api_registry.h>
 #include "../arithmetic/int_set.h"
+#include "../arithmetic/modular.h"
 
 namespace tvm {
 namespace arith {
@@ -19,6 +20,11 @@ TVM_REGISTER_API(_arith_intset_single_point)
 TVM_REGISTER_API(_arith_intset_interval)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = IntSet::interval(args[0], args[1]);
+  });
+
+TVM_REGISTER_API(_arith_EvalModular)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = EvalModular(args[0], Map<Var, IntSet>());
   });
 
 TVM_REGISTER_API(_arith_DeduceBound)

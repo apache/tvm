@@ -32,7 +32,7 @@ class Module(ModuleBase):
         modules : list of Modules
             The module
         """
-        nmod = ImportsSize(self)
+        nmod = _ImportsSize(self)
         return [_GetImport(self, i) for i in range(nmod)]
 
     def save(self, file_name, fmt=""):
