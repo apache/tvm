@@ -130,7 +130,7 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
 
   llvm::BasicBlock* block = llvm::BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(block);
-  this->Visit(f->body);
+  this->VisitStmt(f->body);
   builder_->CreateRet(ConstInt32(0));
 }
 
@@ -222,339 +222,6 @@ llvm::Type* CodeGenLLVM::LLVMType(const Type& t) const {
   return ret;
 }
 
-void CodeGenLLVM::Visit_(const Variable* op) {
-  value_ = GetVarValue(op);
-}
-
-void CodeGenLLVM::Visit_(const Cast* op) {
-  value_ = CreateCast(op->value.type(), op->type, MakeValue(op->value));
-}
-
-void CodeGenLLVM::Visit_(const IntImm* op) {
-  value_ = llvm::ConstantInt::getSigned(LLVMType(op->type), op->value);
-}
-
-void CodeGenLLVM::Visit_(const UIntImm* op) {
-  value_ = llvm::ConstantInt::get(LLVMType(op->type), op->value);
-}
-
-void CodeGenLLVM::Visit_(const FloatImm* op) {
-  value_ = llvm::ConstantFP::get(LLVMType(op->type), op->value);
-}
-
-void CodeGenLLVM::Visit_(const StringImm* op) {
-  value_ = GetConstString(op->value);
-}
-
-#define DEFINE_CODEGEN_BINARY_OP(OP)                                    \
-  llvm::Value* CodeGenLLVM::Create ## OP(                               \
-      Type t, llvm::Value* a, llvm::Value *b) {                         \
-    if (t.is_float()) {                                                 \
-      return builder_->CreateF ## OP (a, b);                            \
-    } else if (t.is_int() && t.bits() >= 32) {                          \
-      return builder_->CreateNSW ## OP (a, b);                          \
-    } else {                                                            \
-      return builder_->Create ## OP (a, b);                             \
-    }                                                                   \
-  }                                                                     \
-
-DEFINE_CODEGEN_BINARY_OP(Add);
-DEFINE_CODEGEN_BINARY_OP(Sub);
-DEFINE_CODEGEN_BINARY_OP(Mul);
-
-void CodeGenLLVM::Visit_(const Add* op) {
-  value_ = CreateAdd(op->type, MakeValue(op->a), MakeValue(op->b));
-}
-
-void CodeGenLLVM::Visit_(const Sub* op) {
-  value_ = CreateSub(op->type, MakeValue(op->a), MakeValue(op->b));
-}
-
-void CodeGenLLVM::Visit_(const Mul* op) {
-  value_ = CreateMul(op->type, MakeValue(op->a), MakeValue(op->b));
-}
-
-void CodeGenLLVM::Visit_(const Div* op) {
-  llvm::Value* a = MakeValue(op->a);
-  int shift;
-  if (op->type.is_float()) {
-    value_ = builder_->CreateFDiv(a, MakeValue(op->b));
-  } else if ((op->type.is_int() || op->type.is_uint()) &&
-             is_const_power_of_two_integer(op->b, &shift)) {
-    value_ = builder_->CreateAShr(a, shift);
-  } else {
-    llvm::Value* b = MakeValue(op->b);
-    if (op->type.is_int()) {
-      value_ = builder_->CreateSDiv(a, b);
-    } else {
-      CHECK(op->type.is_uint());
-      value_ = builder_->CreateUDiv(a, b);
-    }
-  }
-}
-
-void CodeGenLLVM::Visit_(const Mod* op) {
-  CHECK(!op->type.is_float())
-      << "Cannot do mod for float";
-  if (op->type.is_int()) {
-    value_ = builder_->CreateSRem(MakeValue(op->a), MakeValue(op->b));
-  } else {
-    CHECK(op->type.is_uint());
-    value_ = builder_->CreateURem(MakeValue(op->a), MakeValue(op->b));
-  }
-}
-
-void CodeGenLLVM::Visit_(const Min* op) {
-  llvm::Value* a = MakeValue(op->a);
-  llvm::Value* b = MakeValue(op->b);
-  llvm::Value* cond = CreateLT(op->a.type(), a, b);
-  value_ = builder_->CreateSelect(cond, a, b);
-}
-
-void CodeGenLLVM::Visit_(const Max* op) {
-  llvm::Value* a = MakeValue(op->a);
-  llvm::Value* b = MakeValue(op->b);
-  llvm::Value* cond = CreateGT(op->a.type(), a, b);
-  value_ = builder_->CreateSelect(cond, a, b);
-}
-
-#define DEFINE_CODEGEN_CMP_OP(OP)                                       \
-  llvm::Value* CodeGenLLVM::Create ## OP(                               \
-      Type t, llvm::Value* a, llvm::Value* b) {                         \
-    if (t.is_float()) {                                                 \
-      return builder_->CreateFCmpO ## OP (a, b);                        \
-    } else if (t.is_int()) {                                            \
-      return  builder_->CreateICmpS ## OP (a, b);                       \
-    } else {                                                            \
-      return builder_->CreateICmpU ## OP (a, b);                        \
-    }                                                                   \
-  }                                                                     \
-
-DEFINE_CODEGEN_CMP_OP(LT);
-DEFINE_CODEGEN_CMP_OP(LE);
-DEFINE_CODEGEN_CMP_OP(GT);
-DEFINE_CODEGEN_CMP_OP(GE);
-
-void CodeGenLLVM::Visit_(const LT* op) {
-  value_ = CreateLT(op->a.type(), MakeValue(op->a), MakeValue(op->b));
-}
-void CodeGenLLVM::Visit_(const LE* op) {
-  value_ = CreateLE(op->a.type(), MakeValue(op->a), MakeValue(op->b));
-}
-void CodeGenLLVM::Visit_(const GT* op) {
-  value_ = CreateGT(op->a.type(), MakeValue(op->a), MakeValue(op->b));
-}
-void CodeGenLLVM::Visit_(const GE* op) {
-  value_ = CreateGE(op->a.type(), MakeValue(op->a), MakeValue(op->b));
-}
-
-void CodeGenLLVM::Visit_(const EQ* op) {
-  if (op->a.type().is_float()) {
-    value_ = builder_->CreateFCmpOEQ(MakeValue(op->a), MakeValue(op->b));
-  } else {
-    value_ = builder_->CreateICmpEQ(MakeValue(op->a), MakeValue(op->b));
-  }
-}
-
-void CodeGenLLVM::Visit_(const NE* op) {
-  if (op->a.type().is_float()) {
-    value_ = builder_->CreateFCmpONE(MakeValue(op->a), MakeValue(op->b));
-  } else {
-    value_ = builder_->CreateICmpNE(MakeValue(op->a), MakeValue(op->b));
-  }
-}
-
-void CodeGenLLVM::Visit_(const And* op) {
-  value_ = builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
-}
-
-void CodeGenLLVM::Visit_(const Or* op) {
-  value_ = builder_->CreateOr(MakeValue(op->a), MakeValue(op->b));
-}
-
-void CodeGenLLVM::Visit_(const Not* op) {
-  value_ = builder_->CreateNot(MakeValue(op->a));
-}
-
-void CodeGenLLVM::Visit_(const Select* op) {
-  value_ = builder_->CreateSelect(
-      MakeValue(op->condition),
-      MakeValue(op->true_value),
-      MakeValue(op->false_value));
-}
-
-void CodeGenLLVM::Visit_(const Let* op) {
-  llvm::Value* v = MakeValue(op->value);
-  CHECK(!var_map_.count(op->var.get()));
-  var_map_[op->var.get()] = v;
-  value_ = MakeValue(op->body);
-}
-
-void CodeGenLLVM::Visit_(const Broadcast* op) {
-  value_ = CreateBroadcast(MakeValue(op->value), op->lanes);
-}
-
-void CodeGenLLVM::Visit_(const Ramp* op) {
-  Type t = op->type;
-  llvm::Value* base = MakeValue(op->base);
-  llvm::Value* stride = MakeValue(op->stride);
-  llvm::Value* value = llvm::UndefValue::get(LLVMType(t));
-  for (int i = 0; i < t.lanes(); ++i) {
-    if (i != 0) {
-      base = CreateAdd(t, base, stride);
-    }
-    value = builder_->CreateInsertElement(
-        value, base, llvm::ConstantInt::get(t_int32_, i));
-  }
-  value_ = value;
-}
-
-void CodeGenLLVM::Visit_(const Load* op) {
-  Type t = op->type;
-  CHECK(!t.is_vector());
-
-  if (t.is_scalar()) {
-    llvm::LoadInst* inst = builder_->CreateAlignedLoad(
-        CreateBufferPtr(
-            t,
-            GetVarValue(op->buffer_var.get()),
-            MakeValue(op->index)),
-        data_layout_->getTypeAllocSize(LLVMType(t)));
-    AddAliasInfo(inst, op->buffer_var.get(), op->index);
-    value_ = inst;
-  } else {
-    LOG(FATAL) << "not yet supported";
-  }
-}
-
-void CodeGenLLVM::Visit_(const Store* op) {
-  llvm::Value* value = MakeValue(op->value);
-  Type t = op->value.type();
-  CHECK(!t.is_vector());
-  if (t.is_scalar()) {
-    llvm::StoreInst* inst = builder_->CreateAlignedStore(
-        value,
-        CreateBufferPtr(
-            t,
-            GetVarValue(op->buffer_var.get()),
-            MakeValue(op->index)),
-        data_layout_->getTypeAllocSize(value->getType()));
-    AddAliasInfo(inst, op->buffer_var.get(), op->index);
-  } else {
-    LOG(FATAL) << "not yet supported";
-  }
-}
-
-void CodeGenLLVM::Visit_(const Call* op) {
-  if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
-    value_ = CreateCallPacked(op);
-  } else if (op->call_type == Call::Intrinsic ||
-             op->call_type == Call::PureIntrinsic) {
-    value_ = CreateIntrinstic(op);
-  } else {
-    CHECK(op->call_type == Call::Extern ||
-          op->call_type == Call::PureExtern);
-    value_ = CreateCallExtern(op);
-  }
-}
-
-llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
-  if (op->is_intrinsic(Call::bitwise_and)) {
-    CHECK_EQ(op->args.size(), 2U);
-    return builder_->CreateAnd(
-        MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::bitwise_xor)) {
-    CHECK_EQ(op->args.size(), 2U);
-    return builder_->CreateXor(
-        MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::bitwise_or)) {
-    CHECK_EQ(op->args.size(), 2U);
-    return builder_->CreateOr(
-        MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::bitwise_not)) {
-    CHECK_EQ(op->args.size(), 1U);
-    return builder_->CreateNot(MakeValue(op->args[0]));
-  } else if (op->is_intrinsic(Call::shift_left)) {
-    CHECK_EQ(op->args.size(), 2U);
-    return builder_->CreateShl(
-        MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::shift_right)) {
-    CHECK_EQ(op->args.size(), 2U);
-    if (op->type.is_int()) {
-      return builder_->CreateAShr(
-          MakeValue(op->args[0]), MakeValue(op->args[1]));
-    } else {
-      return builder_->CreateLShr(
-          MakeValue(op->args[0]), MakeValue(op->args[1]));
-    }
-  } else if (op->is_intrinsic(Call::address_of)) {
-    const Load *l = op->args[0].as<Load>();
-    CHECK(op->args.size() == 1 && l);
-    return CreateBufferPtr(
-        l->type, GetVarValue(l->buffer_var.get()), MakeValue(l->index));
-  } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
-    CHECK_EQ(op->args.size(), 1U);
-    llvm::Value* ptr = MakeValue(op->args[0]);
-    return builder_->CreateICmpEQ(
-        ptr, llvm::Constant::getNullValue(ptr->getType()));
-  } else if (op->is_intrinsic(intrinsic::tvm_api_load_arg)) {
-    CHECK_EQ(op->args.size(), 3U);
-    CHECK_EQ(op->type.lanes(), 1);
-    llvm::Value* args = builder_->CreatePointerCast(
-        MakeValue(op->args[0]), t_tvm_value_->getPointerTo());
-    llvm::Value* ptr = builder_->CreateInBoundsGEP(
-        args, MakeValue(op->args[2]));
-    // always pass via 64 bit pointers
-    // For handle type, Handle(64) will simply become 32 bit void*
-    Type value_type = op->type.with_bits(64);
-    ptr = builder_->CreatePointerCast(
-        ptr, LLVMType(value_type)->getPointerTo());
-    llvm::Value* value = builder_->CreateAlignedLoad(ptr, 8);
-    // cast to the desired type
-    if (value_type != op->type) {
-      value = CreateCast(value_type, op->type, value);
-    }
-    return value;
-  } else if (op->is_intrinsic(intrinsic::tvm_array_get_field)) {
-    CHECK_EQ(op->args.size(), 2U);
-    llvm::Value* arr = builder_->CreatePointerCast(
-        MakeValue(op->args[0]), t_tvm_array_->getPointerTo());
-    llvm::Constant* zero = ConstInt32(0);
-    llvm::Value* ret = nullptr;
-    switch (op->args[1].as<IntImm>()->value) {
-      case intrinsic::kData: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(0)}); break;
-      }
-      case intrinsic::kShape: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(1)}); break;
-      }
-      case intrinsic::kStrides: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(2)}); break;
-      }
-      case intrinsic::kNDim: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(3)}); break;
-      }
-      case intrinsic::kTypeCode: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(4), ConstInt32(0)}); break;
-      }
-      case intrinsic::kTypeBits: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(4), ConstInt32(1)}); break;
-      }
-      case intrinsic::kTypeLanes: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(4), ConstInt32(2)}); break;
-      }
-      default: LOG(FATAL) << "unknown field code";
-    }
-    return builder_->CreateLoad(ret);
-  } else {
-    LOG(FATAL) << "Unknown intrinstic " << op->name;
-  }
-  return nullptr;
-}
-
 llvm::BasicBlock* CodeGenLLVM::CheckCallSuccess(llvm::Value* retcode) {
   // create emit codes that checks and load the function.
   using llvm::BasicBlock;
@@ -571,100 +238,6 @@ llvm::BasicBlock* CodeGenLLVM::CheckCallSuccess(llvm::Value* retcode) {
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);
   return end_block;
-}
-void CodeGenLLVM::Visit_(const For* op) {
-  CHECK(is_zero(op->min));
-  if (op->for_type == ForType::Serial) {
-    CreateSerialFor(ConstInt32(0), MakeValue(op->extent),
-                    op->loop_var, op->body);
-  } else if (op->for_type == ForType::Parallel) {
-    CreateParallelFor(op);
-  } else {
-    LOG(FATAL) << "cannot handle for type " << op->for_type;
-  }
-}
-
-void CodeGenLLVM::Visit_(const IfThenElse* op) {
-  using llvm::BasicBlock;
-  BasicBlock* then_block = BasicBlock::Create(
-      *ctx_, "if_then", function_);
-  BasicBlock* else_block = BasicBlock::Create(
-      *ctx_, "if_else", function_);
-  BasicBlock* end_block = BasicBlock::Create(
-      *ctx_, "if_end", function_);
-  if (!op->else_case.defined()) {
-    else_block  = end_block;
-  }
-  // condition.
-  llvm::Value* cond = MakeValue(op->condition);
-  bool likely = true;
-  if (likely) {
-    builder_->CreateCondBr(cond, then_block, else_block, md_very_likely_branch_);
-  } else {
-    builder_->CreateCondBr(cond, then_block, else_block);
-  }
-  // then case.
-  builder_->SetInsertPoint(then_block);
-  this->Visit(op->then_case);
-  builder_->CreateBr(end_block);
-  // else case.
-  if (op->else_case.defined()) {
-    builder_->SetInsertPoint(else_block);
-    this->Visit(op->else_case);
-    builder_->CreateBr(end_block);
-  }
-  builder_->SetInsertPoint(end_block);
-}
-
-void CodeGenLLVM::Visit_(const Allocate* op) {
-  CHECK(!is_zero(op->condition));
-  llvm::Value* buf = nullptr;
-  if (op->new_expr.defined()) {
-    CHECK_EQ(op->free_function, "nop");
-    buf = MakeValue(op->new_expr);
-  } else {
-    int32_t constant_size = op->constant_allocation_size();
-    CHECK_GT(constant_size, 0)
-        << "Can only handle constant size stack allocation for now";
-    buf = builder_->CreateAlloca(
-        LLVMType(op->type), ConstInt32(constant_size));
-  }
-  buf = builder_->CreatePointerCast(buf, LLVMType(op->type)->getPointerTo());
-  CHECK(!var_map_.count(op->buffer_var.get()));
-  var_map_[op->buffer_var.get()] = buf;
-}
-
-void CodeGenLLVM::Visit_(const AttrStmt* op) {
-  this->Visit(op->body);
-}
-
-void CodeGenLLVM::Visit_(const AssertStmt* op) {
-  using llvm::BasicBlock;
-  llvm::Value* cond = MakeValue(op->condition);
-  std::ostringstream os;
-  os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImm>()) {
-    os << ", " << op->message.as<StringImm>()->value;
-  }
-  llvm::Value* msg = GetConstString(os.str());
-  BasicBlock* fail_block = BasicBlock::Create(
-      *ctx_, "assert_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(
-      *ctx_, "assert_end", function_);
-  builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
-  // fail condition.
-  builder_->SetInsertPoint(fail_block);
-  builder_->CreateCall(f_tvm_api_set_last_error_, {msg});
-  builder_->CreateRet(llvm::ConstantInt::getSigned(t_int32_, -1));
-  // otherwise set it to be new end.
-  builder_->SetInsertPoint(end_block);
-}
-
-void CodeGenLLVM::Visit_(const LetStmt* op) {
-  llvm::Value* v = MakeValue(op->value);
-  CHECK(!var_map_.count(op->var.get()));
-  var_map_[op->var.get()] = v;
-  this->Visit(op->body);
 }
 
 void CodeGenLLVM::AddAliasInfo(
@@ -1006,13 +579,455 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end,
   // body of for
   builder_->SetInsertPoint(for_body);
   var_map_[loop_var.get()] = index;
-  this->Visit(body);
+  this->VisitStmt(body);
   llvm::Value* next_index = CreateAdd(t, index, ConstInt32(1));
   index->addIncoming(next_index, builder_->GetInsertBlock());
   builder_->CreateBr(for_head);
   // end of for
   builder_->SetInsertPoint(for_end);
 }
+
+llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
+  if (op->is_intrinsic(Call::bitwise_and)) {
+    CHECK_EQ(op->args.size(), 2U);
+    return builder_->CreateAnd(
+        MakeValue(op->args[0]), MakeValue(op->args[1]));
+  } else if (op->is_intrinsic(Call::bitwise_xor)) {
+    CHECK_EQ(op->args.size(), 2U);
+    return builder_->CreateXor(
+        MakeValue(op->args[0]), MakeValue(op->args[1]));
+  } else if (op->is_intrinsic(Call::bitwise_or)) {
+    CHECK_EQ(op->args.size(), 2U);
+    return builder_->CreateOr(
+        MakeValue(op->args[0]), MakeValue(op->args[1]));
+  } else if (op->is_intrinsic(Call::bitwise_not)) {
+    CHECK_EQ(op->args.size(), 1U);
+    return builder_->CreateNot(MakeValue(op->args[0]));
+  } else if (op->is_intrinsic(Call::shift_left)) {
+    CHECK_EQ(op->args.size(), 2U);
+    return builder_->CreateShl(
+        MakeValue(op->args[0]), MakeValue(op->args[1]));
+  } else if (op->is_intrinsic(Call::shift_right)) {
+    CHECK_EQ(op->args.size(), 2U);
+    if (op->type.is_int()) {
+      return builder_->CreateAShr(
+          MakeValue(op->args[0]), MakeValue(op->args[1]));
+    } else {
+      return builder_->CreateLShr(
+          MakeValue(op->args[0]), MakeValue(op->args[1]));
+    }
+  } else if (op->is_intrinsic(Call::address_of)) {
+    const Load *l = op->args[0].as<Load>();
+    CHECK(op->args.size() == 1 && l);
+    return CreateBufferPtr(
+        l->type, GetVarValue(l->buffer_var.get()), MakeValue(l->index));
+  } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
+    CHECK_EQ(op->args.size(), 1U);
+    llvm::Value* ptr = MakeValue(op->args[0]);
+    return builder_->CreateICmpEQ(
+        ptr, llvm::Constant::getNullValue(ptr->getType()));
+  } else if (op->is_intrinsic(intrinsic::tvm_api_load_arg)) {
+    CHECK_EQ(op->args.size(), 3U);
+    CHECK_EQ(op->type.lanes(), 1);
+    llvm::Value* args = builder_->CreatePointerCast(
+        MakeValue(op->args[0]), t_tvm_value_->getPointerTo());
+    llvm::Value* ptr = builder_->CreateInBoundsGEP(
+        args, MakeValue(op->args[2]));
+    // always pass via 64 bit pointers
+    // For handle type, Handle(64) will simply become 32 bit void*
+    Type value_type = op->type.with_bits(64);
+    ptr = builder_->CreatePointerCast(
+        ptr, LLVMType(value_type)->getPointerTo());
+    llvm::Value* value = builder_->CreateAlignedLoad(ptr, 8);
+    // cast to the desired type
+    if (value_type != op->type) {
+      value = CreateCast(value_type, op->type, value);
+    }
+    return value;
+  } else if (op->is_intrinsic(intrinsic::tvm_array_get_field)) {
+    CHECK_EQ(op->args.size(), 2U);
+    llvm::Value* arr = builder_->CreatePointerCast(
+        MakeValue(op->args[0]), t_tvm_array_->getPointerTo());
+    llvm::Constant* zero = ConstInt32(0);
+    llvm::Value* ret = nullptr;
+    switch (op->args[1].as<IntImm>()->value) {
+      case intrinsic::kData: {
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(0)}); break;
+      }
+      case intrinsic::kShape: {
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(1)}); break;
+      }
+      case intrinsic::kStrides: {
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(2)}); break;
+      }
+      case intrinsic::kNDim: {
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(3)}); break;
+      }
+      case intrinsic::kTypeCode: {
+        ret = builder_->CreateInBoundsGEP(
+            arr, {zero, ConstInt32(4), ConstInt32(0)}); break;
+      }
+      case intrinsic::kTypeBits: {
+        ret = builder_->CreateInBoundsGEP(
+            arr, {zero, ConstInt32(4), ConstInt32(1)}); break;
+      }
+      case intrinsic::kTypeLanes: {
+        ret = builder_->CreateInBoundsGEP(
+            arr, {zero, ConstInt32(4), ConstInt32(2)}); break;
+      }
+      default: LOG(FATAL) << "unknown field code";
+    }
+    return builder_->CreateLoad(ret);
+  } else {
+    LOG(FATAL) << "Unknown intrinstic " << op->name;
+  }
+  return nullptr;
+}
+
+// visitor overrides
+llvm::Value* CodeGenLLVM::VisitExpr_(const Variable* op) {
+  return GetVarValue(op);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Cast* op) {
+  return CreateCast(op->value.type(), op->type, MakeValue(op->value));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const IntImm* op) {
+  return llvm::ConstantInt::getSigned(LLVMType(op->type), op->value);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const UIntImm* op) {
+  return llvm::ConstantInt::get(LLVMType(op->type), op->value);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImm* op) {
+  return llvm::ConstantFP::get(LLVMType(op->type), op->value);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const StringImm* op) {
+  return GetConstString(op->value);
+}
+
+#define DEFINE_CODEGEN_BINARY_OP(OP)                                    \
+  llvm::Value* CodeGenLLVM::Create ## OP(                               \
+      Type t, llvm::Value* a, llvm::Value *b) {                         \
+    if (t.is_float()) {                                                 \
+      return builder_->CreateF ## OP (a, b);                            \
+    } else if (t.is_int() && t.bits() >= 32) {                          \
+      return builder_->CreateNSW ## OP (a, b);                          \
+    } else {                                                            \
+      return builder_->Create ## OP (a, b);                             \
+    }                                                                   \
+  }                                                                     \
+
+DEFINE_CODEGEN_BINARY_OP(Add);
+DEFINE_CODEGEN_BINARY_OP(Sub);
+DEFINE_CODEGEN_BINARY_OP(Mul);
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Add* op) {
+  return CreateAdd(op->type, MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Sub* op) {
+  return CreateSub(op->type, MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Mul* op) {
+  return CreateMul(op->type, MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Div* op) {
+  llvm::Value* a = MakeValue(op->a);
+  int shift;
+  if (op->type.is_float()) {
+    return builder_->CreateFDiv(a, MakeValue(op->b));
+  } else if ((op->type.is_int() || op->type.is_uint()) &&
+             is_const_power_of_two_integer(op->b, &shift)) {
+    return builder_->CreateAShr(a, shift);
+  } else {
+    llvm::Value* b = MakeValue(op->b);
+    if (op->type.is_int()) {
+      return builder_->CreateSDiv(a, b);
+    } else {
+      CHECK(op->type.is_uint());
+      return builder_->CreateUDiv(a, b);
+    }
+  }
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Mod* op) {
+  CHECK(!op->type.is_float())
+      << "Cannot do mod for float";
+  if (op->type.is_int()) {
+    return builder_->CreateSRem(MakeValue(op->a), MakeValue(op->b));
+  } else {
+    CHECK(op->type.is_uint());
+    return builder_->CreateURem(MakeValue(op->a), MakeValue(op->b));
+  }
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Min* op) {
+  llvm::Value* a = MakeValue(op->a);
+  llvm::Value* b = MakeValue(op->b);
+  llvm::Value* cond = CreateLT(op->a.type(), a, b);
+  return builder_->CreateSelect(cond, a, b);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Max* op) {
+  llvm::Value* a = MakeValue(op->a);
+  llvm::Value* b = MakeValue(op->b);
+  llvm::Value* cond = CreateGT(op->a.type(), a, b);
+  return builder_->CreateSelect(cond, a, b);
+}
+
+#define DEFINE_CODEGEN_CMP_OP(OP)                                       \
+  llvm::Value* CodeGenLLVM::Create ## OP(                               \
+      Type t, llvm::Value* a, llvm::Value* b) {                         \
+    if (t.is_float()) {                                                 \
+      return builder_->CreateFCmpO ## OP (a, b);                        \
+    } else if (t.is_int()) {                                            \
+      return  builder_->CreateICmpS ## OP (a, b);                       \
+    } else {                                                            \
+      return builder_->CreateICmpU ## OP (a, b);                        \
+    }                                                                   \
+  }                                                                     \
+
+DEFINE_CODEGEN_CMP_OP(LT);
+DEFINE_CODEGEN_CMP_OP(LE);
+DEFINE_CODEGEN_CMP_OP(GT);
+DEFINE_CODEGEN_CMP_OP(GE);
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const LT* op) {
+  return CreateLT(op->a.type(), MakeValue(op->a), MakeValue(op->b));
+}
+llvm::Value* CodeGenLLVM::VisitExpr_(const LE* op) {
+  return CreateLE(op->a.type(), MakeValue(op->a), MakeValue(op->b));
+}
+llvm::Value* CodeGenLLVM::VisitExpr_(const GT* op) {
+  return CreateGT(op->a.type(), MakeValue(op->a), MakeValue(op->b));
+}
+llvm::Value* CodeGenLLVM::VisitExpr_(const GE* op) {
+  return CreateGE(op->a.type(), MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const EQ* op) {
+  if (op->a.type().is_float()) {
+    return builder_->CreateFCmpOEQ(MakeValue(op->a), MakeValue(op->b));
+  } else {
+    return builder_->CreateICmpEQ(MakeValue(op->a), MakeValue(op->b));
+  }
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const NE* op) {
+  if (op->a.type().is_float()) {
+    return builder_->CreateFCmpONE(MakeValue(op->a), MakeValue(op->b));
+  } else {
+    return builder_->CreateICmpNE(MakeValue(op->a), MakeValue(op->b));
+  }
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const And* op) {
+  return builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Or* op) {
+  return builder_->CreateOr(MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Not* op) {
+  return builder_->CreateNot(MakeValue(op->a));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Select* op) {
+  return builder_->CreateSelect(
+      MakeValue(op->condition),
+      MakeValue(op->true_value),
+      MakeValue(op->false_value));
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Let* op) {
+  llvm::Value* v = MakeValue(op->value);
+  CHECK(!var_map_.count(op->var.get()));
+  var_map_[op->var.get()] = v;
+  return MakeValue(op->body);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {
+  return CreateBroadcast(MakeValue(op->value), op->lanes);
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Ramp* op) {
+  Type t = op->type;
+  llvm::Value* base = MakeValue(op->base);
+  llvm::Value* stride = MakeValue(op->stride);
+  llvm::Value* value = llvm::UndefValue::get(LLVMType(t));
+  for (int i = 0; i < t.lanes(); ++i) {
+    if (i != 0) {
+      base = CreateAdd(t, base, stride);
+    }
+    value = builder_->CreateInsertElement(
+        value, base, llvm::ConstantInt::get(t_int32_, i));
+  }
+  return value;
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
+  Type t = op->type;
+  CHECK(!t.is_vector());
+
+  if (t.is_scalar()) {
+    llvm::LoadInst* inst = builder_->CreateAlignedLoad(
+        CreateBufferPtr(
+            t,
+            GetVarValue(op->buffer_var.get()),
+            MakeValue(op->index)),
+        data_layout_->getTypeAllocSize(LLVMType(t)));
+    AddAliasInfo(inst, op->buffer_var.get(), op->index);
+    return inst;
+  } else {
+    LOG(FATAL) << "not yet supported";
+    return nullptr;
+  }
+}
+
+llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
+  if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
+    return CreateCallPacked(op);
+  } else if (op->call_type == Call::Intrinsic ||
+             op->call_type == Call::PureIntrinsic) {
+    return CreateIntrinstic(op);
+  } else {
+    CHECK(op->call_type == Call::Extern ||
+          op->call_type == Call::PureExtern);
+    return CreateCallExtern(op);
+  }
+}
+
+// stmts
+void CodeGenLLVM::VisitStmt_(const Store* op) {
+  llvm::Value* value = MakeValue(op->value);
+  Type t = op->value.type();
+  CHECK(!t.is_vector());
+  if (t.is_scalar()) {
+    llvm::StoreInst* inst = builder_->CreateAlignedStore(
+        value,
+        CreateBufferPtr(
+            t,
+            GetVarValue(op->buffer_var.get()),
+            MakeValue(op->index)),
+        data_layout_->getTypeAllocSize(value->getType()));
+    AddAliasInfo(inst, op->buffer_var.get(), op->index);
+  } else {
+    LOG(FATAL) << "not yet supported";
+  }
+}
+
+void CodeGenLLVM::VisitStmt_(const For* op) {
+  CHECK(is_zero(op->min));
+  if (op->for_type == ForType::Serial) {
+    CreateSerialFor(ConstInt32(0), MakeValue(op->extent),
+                    op->loop_var, op->body);
+  } else if (op->for_type == ForType::Parallel) {
+    CreateParallelFor(op);
+  } else {
+    LOG(FATAL) << "cannot handle for type " << op->for_type;
+  }
+}
+
+void CodeGenLLVM::VisitStmt_(const IfThenElse* op) {
+  using llvm::BasicBlock;
+  BasicBlock* then_block = BasicBlock::Create(
+      *ctx_, "if_then", function_);
+  BasicBlock* else_block = BasicBlock::Create(
+      *ctx_, "if_else", function_);
+  BasicBlock* end_block = BasicBlock::Create(
+      *ctx_, "if_end", function_);
+  if (!op->else_case.defined()) {
+    else_block  = end_block;
+  }
+  // condition.
+  llvm::Value* cond = MakeValue(op->condition);
+  bool likely = true;
+  if (likely) {
+    builder_->CreateCondBr(cond, then_block, else_block, md_very_likely_branch_);
+  } else {
+    builder_->CreateCondBr(cond, then_block, else_block);
+  }
+  // then case.
+  builder_->SetInsertPoint(then_block);
+  this->VisitStmt(op->then_case);
+  builder_->CreateBr(end_block);
+  // else case.
+  if (op->else_case.defined()) {
+    builder_->SetInsertPoint(else_block);
+    this->VisitStmt(op->else_case);
+    builder_->CreateBr(end_block);
+  }
+  builder_->SetInsertPoint(end_block);
+}
+
+void CodeGenLLVM::VisitStmt_(const Allocate* op) {
+  CHECK(!is_zero(op->condition));
+  llvm::Value* buf = nullptr;
+  if (op->new_expr.defined()) {
+    CHECK_EQ(op->free_function, "nop");
+    buf = MakeValue(op->new_expr);
+  } else {
+    int32_t constant_size = op->constant_allocation_size();
+    CHECK_GT(constant_size, 0)
+        << "Can only handle constant size stack allocation for now";
+    buf = builder_->CreateAlloca(
+        LLVMType(op->type), ConstInt32(constant_size));
+  }
+  buf = builder_->CreatePointerCast(buf, LLVMType(op->type)->getPointerTo());
+  CHECK(!var_map_.count(op->buffer_var.get()));
+  var_map_[op->buffer_var.get()] = buf;
+}
+
+void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
+  this->VisitStmt(op->body);
+}
+
+void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
+  using llvm::BasicBlock;
+  llvm::Value* cond = MakeValue(op->condition);
+  std::ostringstream os;
+  os << "Assert fail: " << op->condition;
+  if (op->message.as<StringImm>()) {
+    os << ", " << op->message.as<StringImm>()->value;
+  }
+  llvm::Value* msg = GetConstString(os.str());
+  BasicBlock* fail_block = BasicBlock::Create(
+      *ctx_, "assert_fail", function_);
+  BasicBlock* end_block = BasicBlock::Create(
+      *ctx_, "assert_end", function_);
+  builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
+  // fail condition.
+  builder_->SetInsertPoint(fail_block);
+  builder_->CreateCall(f_tvm_api_set_last_error_, {msg});
+  builder_->CreateRet(llvm::ConstantInt::getSigned(t_int32_, -1));
+  // otherwise set it to be new end.
+  builder_->SetInsertPoint(end_block);
+}
+
+void CodeGenLLVM::VisitStmt_(const LetStmt* op) {
+  llvm::Value* v = MakeValue(op->value);
+  CHECK(!var_map_.count(op->var.get()));
+  var_map_[op->var.get()] = v;
+  this->VisitStmt(op->body);
+}
+void CodeGenLLVM::VisitStmt_(const Block* op) {
+  VisitStmt(op->first);
+  if (op->rest.defined()) VisitStmt(op->rest);
+}
+void CodeGenLLVM::VisitStmt_(const Evaluate *op) {
+  MakeValue(op->value);
+}
+void CodeGenLLVM::VisitStmt_(const ProducerConsumer* op) {
+  VisitStmt(op->body);
+}
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION

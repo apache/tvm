@@ -67,10 +67,6 @@ std::string CodeGenC::Finish() {
   return stream.str();
 }
 
-void CodeGenC::PrintStmt(const Stmt& n) {
-  static const FPrintStmt& f = vtable_print_stmt();
-  f(n, this);
-}
 
 std::string CodeGenC::SSAGetID(std::string src, Type t) {
   if (name_alloc_map_.count(src)) return src;
@@ -96,13 +92,12 @@ std::string CodeGenC::SSAGetID(std::string src, Type t) {
 }
 
 void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
-  static const FPrintExpr& f = vtable_print_expr();
   if (print_ssa_form_) {
     std::ostringstream temp;
-    f(n, temp, this);
+    VisitExpr(n, temp);
     os << SSAGetID(temp.str(), n.type());
   } else {
-    f(n, os, this);
+    VisitExpr(n, os);
   }
 }
 
@@ -178,6 +173,102 @@ void CodeGenC::MarkConst(std::string vid) {
   }
 }
 
+int CodeGenC::BeginScope() {
+  int sid = static_cast<int>(scope_mark_.size());
+  scope_mark_.push_back(true);
+  indent += 2;
+  return sid;
+}
+
+void CodeGenC::EndScope(int scope_id) {
+  scope_mark_[scope_id] = false;
+  indent -= 2;
+}
+
+// Print a reference expression to a buffer.
+void CodeGenC::PrintBufferRef(
+    const Variable* buffer,
+    Type t, Expr index,
+    std::ostream& os) {  // NOLINT(*)
+  std::string vid = GetVarID(buffer);
+  if (t.lanes() == 1) {
+    if (!HandleTypeMatch(buffer, t)) {
+      os << "((";
+      PrintType(t, os);
+      os << "*)" << vid << ')';
+    } else {
+      os << vid;
+    }
+    os << '[';
+    PrintExpr(index, os);
+    os << ']';
+  } else {
+    // Buffer declared as vector type.
+    // optimize for case where it is in register,
+    if (HandleTypeMatch(buffer, t)) {
+      // optimize for constant access
+      int offset;
+      if (arith::GetConstInt(index, &offset)) {
+        CHECK_EQ(offset % t.lanes(), 0)
+            << "Find unaligned vector load to a vector type";
+        os << vid << '[' << (offset / t.lanes()) << ']';
+        return;
+      }
+    }
+    os << "((";
+    PrintType(t, os);
+    os << "*)(";
+    if (!HandleTypeMatch(buffer, t.element_of())) {
+      os << '(';
+      PrintType(t.element_of(), os);
+      os << "*)";
+    }
+    os << vid << " + ";
+    PrintExpr(index, os);
+    os << "))[0]";
+  }
+}
+
+void CodeGenC::PrintVecElemLoad(const std::string& vec,
+                                Type t, int i,
+                                std::ostream& os) {  // NOLINT(*)
+  os << vec << ".s" << std::hex << i;
+}
+
+void CodeGenC::PrintVecElemStore(const std::string& vec,
+                                 Type t, int i,
+                                 const std::string& value) {
+  this->PrintIndent();
+  stream << vec << ".s" << std::hex << i
+         << " = " << value << ";\n";
+}
+
+void CodeGenC::PrintVecLoad(const Variable* buffer,
+                            Type t, Expr base,
+                            std::ostream& os) {
+  PrintBufferRef(buffer, t, base, os);
+}
+
+void CodeGenC::PrintVecStore(const Variable* buffer,
+                             Type t, Expr base,
+                             const std::string& value) {
+  this->PrintIndent();
+  PrintBufferRef(buffer, t, base, stream);
+  stream << " = " << value << ";\n";
+}
+
+void CodeGenC::PrintThreadIndexExpr(
+    std::string thread_tag, std::ostream& os) { // NOLINT(*)
+  os << thread_tag;
+}
+
+void CodeGenC::PrintStorageSync(const std::string& sync) { // NOLINT(*)
+}
+
+void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
+  CHECK_EQ(scope, "global");
+}
+
 void CodeGenC::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
   CHECK_EQ(t.lanes(), 1)
       << "do not yet support vector types";
@@ -208,13 +299,6 @@ void CodeGenC::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to C type";
 }
 
-CodeGenC::FPrintStmt& CodeGenC::vtable_print_stmt() {  // NOLINT(*)
-  static FPrintStmt inst; return inst;
-}
-
-CodeGenC::FPrintExpr& CodeGenC::vtable_print_expr() {  // NOLINT(*)
-  static FPrintExpr inst; return inst;
-}
 
 inline void PrintConst(const IntImm* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
   if (op->type == Int(32)) {
@@ -262,19 +346,18 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // N
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_expr)
-.set_dispatch<IntImm>([](const IntImm *op, std::ostream& os, CodeGenC *p) {  // NOLINT(*)
-    PrintConst(op, os, p);
-  })
-.set_dispatch<UIntImm>([](const UIntImm *op, std::ostream& os, CodeGenC *p) {  // NOLINT(*)
-    PrintConst(op, os, p);
-  })
-.set_dispatch<FloatImm>([](const FloatImm *op, std::ostream& os, CodeGenC *p) { // NOLINT(*)
-    PrintConst(op, os, p);
-  })
-.set_dispatch<StringImm>([](const StringImm *op, std::ostream& os, CodeGenC *p) { // NOLINT(*)
-    os << "\"" << op->value << "\"";
-  });
+void CodeGenC::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
+  PrintConst(op, os, this);
+}
+void CodeGenC::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
+  PrintConst(op, os, this);
+}
+void CodeGenC::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+  PrintConst(op, os, this);
+}
+void CodeGenC::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
+  os << "\"" << op->value << "\"";
+}
 
 template<typename T>
 inline void PrintBinaryExpr(const T* op,
@@ -315,137 +398,99 @@ inline void PrintBinaryIntrinsitc(const Call* op,
     p->PrintVecBinaryOp(opstr, op->type, op->args[0], op->args[1], os);
   }
 }
+void CodeGenC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
+  this->PrintType(op->type, os);
+  os << '(';
+  this->PrintExpr(op->value, os);
+  os << ')';
+}
+void CodeGenC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
+  os << GetVarID(op);
+}
+void CodeGenC::VisitExpr_(const Add *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "+", os, this);
+}
+void CodeGenC::VisitExpr_(const Sub *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "-", os, this);
+}
+void CodeGenC::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "*", os, this);
+}
+void CodeGenC::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "/", os, this);
+}
+void CodeGenC::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "%", os, this);
+}
+void CodeGenC::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "min", os, this);
+}
+void CodeGenC::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "max", os, this);
+}
+void CodeGenC::VisitExpr_(const EQ *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "==", os, this);
+}
+void CodeGenC::VisitExpr_(const NE *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "!=", os, this);
+}
+void CodeGenC::VisitExpr_(const LT *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "<", os, this);
+}
+void CodeGenC::VisitExpr_(const LE *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "<=", os, this);
+}
+void CodeGenC::VisitExpr_(const GT *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, ">", os, this);
+}
+void CodeGenC::VisitExpr_(const GE *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, ">=", os, this);
+}
+void CodeGenC::VisitExpr_(const And *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "&&", os, this);
+}
+void CodeGenC::VisitExpr_(const Or *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "||", os, this);
+}
+void CodeGenC::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
+  os << '!';
+  PrintExpr(op->a, os);
+}
 
-TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_expr)
-.set_dispatch<Cast>([](const Cast *op, std::ostream& os, CodeGenC *p) {  // NOLINT(*)
-    p->PrintType(op->type, os);
-    os << '(';
-    p->PrintExpr(op->value, os);
-    os << ')';
-  })
-.set_dispatch<Variable>([](const Variable *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    os << p->GetVarID(op);
-  })
-.set_dispatch<Add>([](const Add *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "+", os, p);
-  })
-.set_dispatch<Sub>([](const Sub *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "-", os, p);
-  })
-.set_dispatch<Mul>([](const Mul *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "*", os, p);
-  })
-.set_dispatch<Div>([](const Div *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "/", os, p);
-  })
-.set_dispatch<Mod>([](const Mod *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "%", os, p);
-})
-.set_dispatch<Min>([](const Min *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "min", os, p);
-})
-.set_dispatch<Max>([](const Max *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "max", os, p);
-})
-.set_dispatch<EQ>([](const EQ *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "==", os, p);
-})
-.set_dispatch<NE>([](const NE *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "!=", os, p);
-})
-.set_dispatch<LT>([](const LT *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "<", os, p);
-})
-.set_dispatch<LE>([](const LE *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "<=", os, p);
-})
-.set_dispatch<GT>([](const GT *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, ">", os, p);
-})
-.set_dispatch<GE>([](const GE *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, ">=", os, p);
-})
-.set_dispatch<And>([](const And *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "&&", os, p);
-})
-.set_dispatch<Or>([](const Or *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    PrintBinaryExpr(op, "||", os, p);
-})
-.set_dispatch<Not>([](const Not *op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-    os << '!';
-    p->PrintExpr(op->a, os);
-  });
-
-TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_stmt)
-.set_dispatch<ProducerConsumer>([](const ProducerConsumer *op, CodeGenC* p) {
-    p->PrintStmt(op->body);
-  })
-.set_dispatch<Block>([](const Block *op, CodeGenC* p) {
-    p->PrintStmt(op->first);
-    if (op->rest.defined()) p->PrintStmt(op->rest);
-  })
-.set_dispatch<Evaluate>([](const Evaluate *op, CodeGenC* p) {
-    if (is_const(op->value)) return;
-    const Call* call = op->value.as<Call>();
-
-    if (call && call->is_intrinsic(intrinsic::tvm_storage_sync)) {
-      p->PrintStorageSync(call->args[0].as<StringImm>()->value);
-    } else {
-      std::string vid = p->PrintExpr(op->value);
-      p->PrintIndent();
-      p->stream << "(void)" << vid << ";\n";
-    }
-  });
-
-
-#define DISPATCH_EXPR(OP)                            \
-  set_dispatch<OP>([](const OP *op, std::ostream&os, CodeGenC* p) { \
-      p->PrintExpr(op, os); })
-
-TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_expr)
-.DISPATCH_EXPR(Load)
-.DISPATCH_EXPR(Call)
-.DISPATCH_EXPR(Let)
-.DISPATCH_EXPR(Ramp)
-.DISPATCH_EXPR(Broadcast)
-.DISPATCH_EXPR(Select);
-
-
-void CodeGenC::PrintExpr(const Call *op, std::ostream& os) {  // NOLINT(*)
-  CodeGenC* p = this;
+void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
   if (op->is_intrinsic(Call::bitwise_and)) {
-    PrintBinaryIntrinsitc(op, " & ", os, p);
+    PrintBinaryIntrinsitc(op, " & ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {
-    PrintBinaryIntrinsitc(op, " ^ ", os, p);
+    PrintBinaryIntrinsitc(op, " ^ ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_or)) {
-    PrintBinaryIntrinsitc(op, " | ", os, p);
+    PrintBinaryIntrinsitc(op, " | ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
-    p->PrintExpr(op->args[0], os);
+    this->PrintExpr(op->args[0], os);
     os << ')';
   } else if (op->is_intrinsic(Call::shift_left)) {
-    PrintBinaryIntrinsitc(op, " << ", os, p);
+    PrintBinaryIntrinsitc(op, " << ", os, this);
   } else if (op->is_intrinsic(Call::shift_right)) {
-    PrintBinaryIntrinsitc(op, " >> ", os, p);
+    PrintBinaryIntrinsitc(op, " >> ", os, this);
   } else if (op->is_intrinsic(Call::address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);
     os << "((";
-    p->PrintType(l->type.element_of(), os);
-    os << " *)" << p->GetVarID(l->buffer_var.get())
+    this->PrintType(l->type.element_of(), os);
+    os << " *)" << this->GetVarID(l->buffer_var.get())
        << " + ";
-    p->PrintExpr(l->index, os);
+    this->PrintExpr(l->index, os);
     os << ')';
   } else if (op->is_intrinsic(intrinsic::tvm_api_load_arg)) {
     CHECK_EQ(op->args.size(), 3U);
     if (!op->type.is_handle()) {
       os << '(';
-      p->PrintType(op->type, os);
+      this->PrintType(op->type, os);
       os << ')';
     }
     os << "(((TVMArg*)";
-    p->PrintExpr(op->args[0], os);
+    this->PrintExpr(op->args[0], os);
     os << ")[" << op->args[2] << "].";
     if (op->type.is_handle()) {
       os << "v_handle";
@@ -460,7 +505,7 @@ void CodeGenC::PrintExpr(const Call *op, std::ostream& os) {  // NOLINT(*)
   } else if (op->is_intrinsic(intrinsic::tvm_array_get_field)) {
     CHECK_EQ(op->args.size(), 2U);
     os << "(((TVMArray*)";
-    p->PrintExpr(op->args[0], os);
+    this->PrintExpr(op->args[0], os);
     os << ")->";
     switch (op->args[1].as<IntImm>()->value) {
       case intrinsic::kData: os << "data"; break;
@@ -476,12 +521,12 @@ void CodeGenC::PrintExpr(const Call *op, std::ostream& os) {  // NOLINT(*)
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(";
-    p->PrintExpr(op->args[0], os);
+    this->PrintExpr(op->args[0], os);
     os << " == NULL)";
   } else {
     os << op->name << "(";
     for (size_t i = 0; i < op->args.size(); i++) {
-      p->PrintExpr(op->args[i], os);
+      this->PrintExpr(op->args[i], os);
       if (i < op->args.size() - 1) {
         os << ", ";
       }
@@ -517,51 +562,7 @@ inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
   return true;
 }
 
-// Print a reference expression to a buffer.
-void CodeGenC::PrintBufferRef(
-    const Variable* buffer,
-    Type t, Expr index,
-    std::ostream& os) {  // NOLINT(*)
-  std::string vid = GetVarID(buffer);
-  if (t.lanes() == 1) {
-    if (!HandleTypeMatch(buffer, t)) {
-      os << "((";
-      PrintType(t, os);
-      os << "*)" << vid << ')';
-    } else {
-      os << vid;
-    }
-    os << '[';
-    PrintExpr(index, os);
-    os << ']';
-  } else {
-    // Buffer declared as vector type.
-    // optimize for case where it is in register,
-    if (HandleTypeMatch(buffer, t)) {
-      // optimize for constant access
-      int offset;
-      if (arith::GetConstInt(index, &offset)) {
-        CHECK_EQ(offset % t.lanes(), 0)
-            << "Find unaligned vector load to a vector type";
-        os << vid << '[' << (offset / t.lanes()) << ']';
-        return;
-      }
-    }
-    os << "((";
-    PrintType(t, os);
-    os << "*)(";
-    if (!HandleTypeMatch(buffer, t.element_of())) {
-      os << '(';
-      PrintType(t.element_of(), os);
-      os << "*)";
-    }
-    os << vid << " + ";
-    PrintExpr(index, os);
-    os << "))[0]";
-  }
-}
-
-void CodeGenC::PrintExpr(const Load* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
   if (op->type.lanes() == 1) {
     this->PrintBufferRef(op->buffer_var.get(), op->type, op->index, os);
@@ -600,7 +601,7 @@ void CodeGenC::PrintExpr(const Load* op, std::ostream& os) {  // NOLINT(*)
   }
 }
 
-void CodeGenC::PrintStmt(const Store* op) {
+void CodeGenC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
     this->PrintIndent();
@@ -637,35 +638,7 @@ void CodeGenC::PrintStmt(const Store* op) {
   }
 }
 
-void CodeGenC::PrintVecElemLoad(const std::string& vec,
-                                Type t, int i,
-                                std::ostream& os) {  // NOLINT(*)
-  os << vec << ".s" << std::hex << i;
-}
-
-void CodeGenC::PrintVecElemStore(const std::string& vec,
-                                 Type t, int i,
-                                 const std::string& value) {
-  this->PrintIndent();
-  stream << vec << ".s" << std::hex << i
-         << " = " << value << ";\n";
-}
-
-void CodeGenC::PrintVecLoad(const Variable* buffer,
-                            Type t, Expr base,
-                            std::ostream& os) {
-  PrintBufferRef(buffer, t, base, os);
-}
-
-void CodeGenC::PrintVecStore(const Variable* buffer,
-                             Type t, Expr base,
-                             const std::string& value) {
-  this->PrintIndent();
-  PrintBufferRef(buffer, t, base, stream);
-  stream << " = " << value << ";\n";
-}
-
-void CodeGenC::PrintExpr(const Let* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
   CHECK(print_ssa_form_)
       << "LetExpr is only supported by print SSA form";
   std::string value = PrintExpr(op->value);
@@ -673,41 +646,19 @@ void CodeGenC::PrintExpr(const Let* op, std::ostream& os) {  // NOLINT(*)
   var_idmap_[op->var.get()] = value;
 }
 
-void CodeGenC::PrintExpr(const Ramp* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Ramp: not supported ";
 }
 
-void CodeGenC::PrintExpr(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   LOG(FATAL) << "Broadcast: not supported ";
 }
 
-void CodeGenC::PrintExpr(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Select: not supported ";
 }
 
-// Disoatch back to member functions
-TVM_STATIC_IR_FUNCTOR(CodeGenC, vtable_print_stmt)
-.set_dispatch<LetStmt>([](const LetStmt *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<Store>([](const Store *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<Allocate>([](const Allocate *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<AttrStmt>([](const AttrStmt *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<AssertStmt>([](const AssertStmt *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<For>([](const For *op, CodeGenC* p) { p->PrintStmt(op); })
-.set_dispatch<IfThenElse>([](const IfThenElse *op, CodeGenC* p) { p->PrintStmt(op); });
-
-void CodeGenC::PrintThreadIndexExpr(
-    std::string thread_tag, std::ostream& os) { // NOLINT(*)
-  os << thread_tag;
-}
-
-void CodeGenC::PrintStorageSync(const std::string& sync) { // NOLINT(*)
-}
-
-void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
-  CHECK_EQ(scope, "global");
-}
-
-void CodeGenC::PrintStmt(const LetStmt* op) {
+void CodeGenC::VisitStmt_(const LetStmt* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     CHECK(!var_idmap_.count(op->var.get()));
@@ -732,7 +683,7 @@ void CodeGenC::PrintStmt(const LetStmt* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenC::PrintStmt(const Allocate* op) {
+void CodeGenC::VisitStmt_(const Allocate* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {
@@ -758,7 +709,7 @@ void CodeGenC::PrintStmt(const Allocate* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenC::PrintStmt(const AttrStmt* op) {
+void CodeGenC::VisitStmt_(const AttrStmt* op) {
   if (op->type_key == ir::attr::thread_extent) {
     IterVar iv(op->node.node_);
     if (iv->thread_tag.length() != 0) {
@@ -780,7 +731,7 @@ void CodeGenC::PrintStmt(const AttrStmt* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenC::PrintStmt(const AssertStmt* op) {
+void CodeGenC::VisitStmt_(const AssertStmt* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (op->message.as<StringImm>()) {
@@ -792,19 +743,7 @@ void CodeGenC::PrintStmt(const AssertStmt* op) {
   }
 }
 
-int CodeGenC::BeginScope() {
-  int sid = static_cast<int>(scope_mark_.size());
-  scope_mark_.push_back(true);
-  indent += 2;
-  return sid;
-}
-
-void CodeGenC::EndScope(int scope_id) {
-  scope_mark_[scope_id] = false;
-  indent -= 2;
-}
-
-void CodeGenC::PrintStmt(const For* op) {
+void CodeGenC::VisitStmt_(const For* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
@@ -821,7 +760,7 @@ void CodeGenC::PrintStmt(const For* op) {
   stream << "}\n";
 }
 
-void CodeGenC::PrintStmt(const IfThenElse* op) {
+void CodeGenC::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   stream << "if (" << cond << ") {\n";
@@ -840,6 +779,27 @@ void CodeGenC::PrintStmt(const IfThenElse* op) {
   stream << "}\n";
 }
 
+void CodeGenC::VisitStmt_(const Block *op) {
+  PrintStmt(op->first);
+  if (op->rest.defined()) PrintStmt(op->rest);
+}
+
+void CodeGenC::VisitStmt_(const Evaluate *op) {
+  if (is_const(op->value)) return;
+  const Call* call = op->value.as<Call>();
+
+  if (call && call->is_intrinsic(intrinsic::tvm_storage_sync)) {
+    this->PrintStorageSync(call->args[0].as<StringImm>()->value);
+  } else {
+    std::string vid = this->PrintExpr(op->value);
+    this->PrintIndent();
+    this->stream << "(void)" << vid << ";\n";
+  }
+}
+
+void CodeGenC::VisitStmt_(const ProducerConsumer *op) {
+  PrintStmt(op->body);
+}
 
 }  // namespace codegen
 }  // namespace tvm
