@@ -113,7 +113,7 @@ class ModularEvaluator
  private:
   const std::unordered_map<
     const Variable*, ModularEntry>& mod_map_;
-
+  friend struct ModularEntry;
   // simplify the base by putting it in range.
   static int BaseSimplify(int base, int coeff) {
     if (coeff == 0) return base;
@@ -135,6 +135,15 @@ class ModularEvaluator
     return b;
   }
 };
+
+ModularEntry ModularEntry::Add(const ModularEntry& a,
+                               const ModularEntry& b) {
+  ModularEntry ret;
+  ret.coeff = ModularEvaluator::ZeroAwareGCD(a.coeff, b.coeff);
+  ret.base = ModularEvaluator::BaseSimplify(a.base + b.base, ret.coeff);
+  return ret;
+}
+
 
 ModularEntry EvalModular(
     const Expr& e,
