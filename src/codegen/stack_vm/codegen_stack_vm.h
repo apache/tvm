@@ -7,6 +7,7 @@
 #define TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_
 
 #include <tvm/ir.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/lowered_func.h>
 #include <tvm/codegen.h>
 #include <string>
@@ -18,12 +19,15 @@
 namespace tvm {
 namespace codegen {
 
+using namespace ir;
 /*!
  * \brief A base class to generate a stack VM.
  *  This module is used to generate host wrapper
  *  into device function when only device JIT is available.
  */
-class CodeGenStackVM {
+class CodeGenStackVM
+    : public ExprFunctor<void(const Expr&)>,
+      public StmtFunctor<void(const Stmt&)> {
  public:
  /*!
    * \brief Generate a stack VM representing
@@ -35,8 +39,10 @@ class CodeGenStackVM {
   StackVM Compile(LoweredFunc f);
   /*! \brief Push stmt to generate new code */
   void Push(const Stmt& n);
-    /*! \brief Push expr to generate new code */
-  void Push(const Expr& n);
+  /*! \brief Push expr to generate new code */
+  void Push(const Expr& n) {
+    VisitExpr(n);
+  }
   /*!
    * \brief Push the opcode to the code.
    * \param opcode The code to be pushed.
@@ -84,16 +90,53 @@ class CodeGenStackVM {
    * \return the heap index of the var.
    */
   int GetVarID(const Variable* v) const;
+  // Push binary operator
+  void PushBinary(StackVM::OpCode op_int64,
+                  const Expr& a,
+                  const Expr& b);
+  // push cast;
+  void PushCast(Type dst, Type src);
   // overloadable functions
-  virtual void Push_(const ir::Load* op);
-  virtual void Push_(const ir::Store* op);
-  virtual void Push_(const ir::Allocate* op);
-  virtual void Push_(const ir::Call* op);
-  virtual void HandleUnknownCall(const ir::Call* op);
-  /*! \brief function to to print normal code */
-  using FType = IRFunctor<void(const NodeRef&, CodeGenStackVM *)>;
-  // vtable to print code
-  static FType& vtable();  // NOLINT(*)
+  // expression
+  void VisitExpr_(const Variable* op) final;
+  void VisitExpr_(const Load* op) final;
+  void VisitExpr_(const Let* op) final;
+  void VisitExpr_(const Call* op) final;
+  void VisitExpr_(const Add* op) final;
+  void VisitExpr_(const Sub* op) final;
+  void VisitExpr_(const Mul* op) final;
+  void VisitExpr_(const Div* op) final;
+  void VisitExpr_(const Mod* op) final;
+  void VisitExpr_(const Min* op) final;
+  void VisitExpr_(const Max* op) final;
+  void VisitExpr_(const EQ* op) final;
+  void VisitExpr_(const NE* op) final;
+  void VisitExpr_(const LT* op) final;
+  void VisitExpr_(const LE* op) final;
+  void VisitExpr_(const GT* op) final;
+  void VisitExpr_(const GE* op) final;
+  void VisitExpr_(const And* op) final;
+  void VisitExpr_(const Or* op) final;
+  void VisitExpr_(const Cast* op) final;
+  void VisitExpr_(const Not* op) final;
+  void VisitExpr_(const Select* op) final;
+  void VisitExpr_(const Ramp* op) final;
+  void VisitExpr_(const Broadcast* op) final;
+  void VisitExpr_(const IntImm* op) final;
+  void VisitExpr_(const UIntImm* op) final;
+  void VisitExpr_(const FloatImm* op) final;
+  void VisitExpr_(const StringImm* op) final;
+  // statment
+  void VisitStmt_(const LetStmt* op) final;
+  void VisitStmt_(const Store* op) final;
+  void VisitStmt_(const For* op) final;
+  void VisitStmt_(const IfThenElse* op) final;
+  void VisitStmt_(const Allocate* op) final;
+  void VisitStmt_(const AttrStmt* op) final;
+  void VisitStmt_(const AssertStmt* op) final;
+  void VisitStmt_(const Evaluate* op) final;
+  void VisitStmt_(const Block* op) final;
+  void VisitStmt_(const ProducerConsumer* op) final;
 
  private:
   bool debug_{false};
