@@ -69,11 +69,71 @@ class Vectorizer : public IRMutator {
   }
   // user mutate from parent.
   using IRMutator::Mutate;
-  // override mutate
-  Expr Mutate(Expr expr) final {
-    static const FMutateExpr& f = Vectorizer::vtable_expr();
-    return  (f.can_dispatch(expr) ?
-             f(expr, expr, this) : IRMutator::Mutate(expr));
+
+  Expr Mutate_(const Add* op, const Expr &e) final {
+    return AddSubVec(op, e);
+  }
+  Expr Mutate_(const Sub* op, const Expr &e) final {
+    return AddSubVec(op, e);
+  }
+  Expr Mutate_(const Mul* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Div* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Mod* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Min* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Max* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const EQ* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const NE* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const LT* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const GT* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const GE* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const And* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Or* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Select *op, const Expr& e) final {
+    Expr cond = this->Mutate(op->condition);
+    Expr t = this->Mutate(op->true_value);
+    Expr f = this->Mutate(op->false_value);
+    if (cond.same_as(op->condition) &&
+        t.same_as(op->true_value) &&
+        f.same_as(op->false_value)) {
+      return e;
+    } else {
+      int lanes = std::max(std::max(
+          cond.type().lanes(),
+          t.type().lanes()), f.type().lanes());
+      return Select::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
+    }
+  }
+  Expr Mutate_(const Cast *op, const Expr& e) final {
+    Expr value = this->Mutate(op->value);
+    if (value.same_as(op->value)) {
+      return e;
+    } else {
+      return Cast::make(op->type.with_lanes(value.type().lanes()), value);
+    }
   }
   // Variable
   Expr Mutate_(const Variable* v, const Expr& e) final {
@@ -235,10 +295,6 @@ class Vectorizer : public IRMutator {
     stmt = Substitute(stmt, {{var_, idx}});
     return For::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
   }
-  // The overloads for vectorize.
-  static FMutateExpr& vtable_expr() {  // NOLINT(*)
-    static FMutateExpr inst; return inst;
-  }
 
  private:
   // variable to be replaced
@@ -273,90 +329,43 @@ class Vectorizer : public IRMutator {
     if (!changed) return arr;
     return Array<Expr>(new_arr);
   }
-};
-
-// binary vectorize
-template<typename T>
-inline Expr BinaryVec(const T* op, const Expr& e, IRMutator* m) {
-  Expr a = m->Mutate(op->a);
-  Expr b = m->Mutate(op->b);
-  if (a.same_as(op->a) &&
-      b.same_as(op->b)) {
-    return e;
-  } else {
-    int lanes = std::max(a.type().lanes(), b.type().lanes());
-    return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+  template<typename T>
+  Expr BinaryVec(const T* op, const Expr& e) {
+    Expr a = this->Mutate(op->a);
+    Expr b = this->Mutate(op->b);
+    if (a.same_as(op->a) &&
+        b.same_as(op->b)) {
+      return e;
+    } else {
+      int lanes = std::max(a.type().lanes(), b.type().lanes());
+      return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+    }
   }
-}
-
-template<typename T>
-inline Expr AddSubVec(const T* op, const Expr& e, IRMutator* m) {
-  Expr a = m->Mutate(op->a);
-  Expr b = m->Mutate(op->b);
-  if (a.same_as(op->a) &&
-      b.same_as(op->b)) {
-    return e;
-  } else {
-    int lanes = std::max(a.type().lanes(), b.type().lanes());
-    if (lanes != 1) {
-      const Ramp* b_ramp = b.as<Ramp>();
-      const Ramp* a_ramp = a.as<Ramp>();
-      if (a.type().lanes() == 1 && b_ramp) {
-        return Ramp::make(
+  template<typename T>
+  Expr AddSubVec(const T* op, const Expr& e) {
+    Expr a = this->Mutate(op->a);
+    Expr b = this->Mutate(op->b);
+    if (a.same_as(op->a) &&
+        b.same_as(op->b)) {
+      return e;
+    } else {
+      int lanes = std::max(a.type().lanes(), b.type().lanes());
+      if (lanes != 1) {
+        const Ramp* b_ramp = b.as<Ramp>();
+        const Ramp* a_ramp = a.as<Ramp>();
+        if (a.type().lanes() == 1 && b_ramp) {
+          return Ramp::make(
             arith::ComputeExpr<T>(a, b_ramp->base), b_ramp->stride, b_ramp->lanes);
+        }
+        if (b.type().lanes() == 1 && a_ramp) {
+          return Ramp::make(
+              arith::ComputeExpr<T>(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
+        }
       }
-      if (b.type().lanes() == 1 && a_ramp) {
-        return Ramp::make(
-            arith::ComputeExpr<T>(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
-      }
+      return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
     }
-    return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
   }
-}
-
-TVM_STATIC_IR_FUNCTOR(Vectorizer, vtable_expr)
-.set_dispatch<Add>(AddSubVec<Add>)
-.set_dispatch<Sub>(AddSubVec<Sub>)
-.set_dispatch<Mul>(BinaryVec<Mul>)
-.set_dispatch<Div>(BinaryVec<Div>)
-.set_dispatch<Mod>(BinaryVec<Mod>)
-.set_dispatch<Min>(BinaryVec<Min>)
-.set_dispatch<Max>(BinaryVec<Max>)
-.set_dispatch<EQ>(BinaryVec<EQ>)
-.set_dispatch<NE>(BinaryVec<NE>)
-.set_dispatch<LT>(BinaryVec<LT>)
-.set_dispatch<LE>(BinaryVec<LE>)
-.set_dispatch<GT>(BinaryVec<GT>)
-.set_dispatch<GE>(BinaryVec<GE>)
-.set_dispatch<And>(BinaryVec<And>)
-.set_dispatch<Or>(BinaryVec<Or>);
-
-
-TVM_STATIC_IR_FUNCTOR(Vectorizer, vtable_expr)
-.set_dispatch<Select>([](const Select *op, const Expr& e, IRMutator* m) {
-    Expr cond = m->Mutate(op->condition);
-    Expr t = m->Mutate(op->true_value);
-    Expr f = m->Mutate(op->false_value);
-    if (cond.same_as(op->condition) &&
-        t.same_as(op->true_value) &&
-        f.same_as(op->false_value)) {
-      return e;
-    } else {
-      int lanes = std::max(std::max(
-          cond.type().lanes(),
-          t.type().lanes()), f.type().lanes());
-      return Select::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
-    }
-  })
-.set_dispatch<Cast>([](const Cast *op, const Expr& e, IRMutator* m) {
-    Expr value = m->Mutate(op->value);
-    if (value.same_as(op->value)) {
-      return e;
-    } else {
-      return Cast::make(op->type.with_lanes(value.type().lanes()), value);
-    }
-  });
-
+};
 
 class LoopVectorizer : public IRMutator {
  public:

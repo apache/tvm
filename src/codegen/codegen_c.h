@@ -7,6 +7,7 @@
 #define TVM_CODEGEN_CODEGEN_C_H_
 
 #include <tvm/ir.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
 #include <string>
@@ -16,12 +17,15 @@
 namespace tvm {
 namespace codegen {
 
+using namespace ir;
 /*!
  * \brief A base class to generate C code.
  *
  *  CodeGenC have two modes: generate SSA formed C code or normal form.
  */
-class CodeGenC {
+class CodeGenC :
+      public ExprFunctor<void(const Expr&, std::ostream&)>,
+      public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
    * \brief Initialize the code generator.
@@ -42,13 +46,15 @@ class CodeGenC {
    * \brief Print the Stmt n to CodeGenC->stream
    * \param n The statement to be printed.
    */
-  void PrintStmt(const Stmt& n);
+  void PrintStmt(const Stmt& n) {
+    VisitStmt(n);
+  }
   /*!
    * \brief Print the expression n(or its ssa id if in ssa mode) into os
    * \param n The expression to be printed.
    * \param os The output stream
    */
-  void PrintExpr(const Expr& n, std::ostream& os);  // NOLINT(*)
+  void PrintExpr(const Expr& n, std::ostream& os);
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
@@ -84,6 +90,46 @@ class CodeGenC {
    * \param f The function to be compiled.
    */
   virtual void InitFuncState(LoweredFunc f);
+  // expression
+  void VisitExpr_(const Variable* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Add* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Sub* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Mul* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Div* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Mod* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Min* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Max* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const EQ* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const NE* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LT* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LE* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const GT* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const GE* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const And* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Or* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Cast* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Not* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Select* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloatImm* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const StringImm* op, std::ostream& os) override;  // NOLINT(*)
+  // statment
+  void VisitStmt_(const LetStmt* op) override;
+  void VisitStmt_(const Store* op) override;
+  void VisitStmt_(const For* op) override;
+  void VisitStmt_(const IfThenElse* op) override;
+  void VisitStmt_(const Allocate* op) override;
+  void VisitStmt_(const AttrStmt* op) override;
+  void VisitStmt_(const AssertStmt* op) override;
+  void VisitStmt_(const Evaluate* op) override;
+  void VisitStmt_(const Block* op) override;
+  void VisitStmt_(const ProducerConsumer* op) override;
   /*!
    * Print Type represetnation of type t.
    * \param t The type representation.
@@ -97,50 +143,37 @@ class CodeGenC {
    */
   virtual void PrintThreadIndexExpr(
       std::string tag, std::ostream& os); // NOLINT(*)
-  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*
+  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
   virtual void PrintStorageSync(const std::string& scope);  // NOLINT(*)
-
-  virtual void PrintStmt(const ir::LetStmt* op);
-  virtual void PrintStmt(const ir::Store* op);
-  virtual void PrintStmt(const ir::For* op);
-  virtual void PrintStmt(const ir::IfThenElse* op);
-  virtual void PrintStmt(const ir::Allocate* op);
-  virtual void PrintStmt(const ir::AttrStmt* op);
-  virtual void PrintStmt(const ir::AssertStmt* op);
-  virtual void PrintExpr(const ir::Load* op, std::ostream& os);  // NOLINT(*)
-  virtual void PrintExpr(const ir::Call* op, std::ostream& os);  // NOLINT(*)
-  virtual void PrintExpr(const ir::Let* op, std::ostream& os);  // NOLINT(*)
-  virtual void PrintExpr(const ir::Ramp* op, std::ostream& os);  // NOLINT(*)
-  virtual void PrintExpr(const ir::Broadcast* op, std::ostream& os);  // NOLINT(*)
-  virtual void PrintExpr(const ir::Select* op, std::ostream& os);  // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(
       const std::string&op, Type op_type,
       Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
+  // print vector load
   virtual void PrintVecLoad(const Variable* buffer,
                             Type t, Expr base,
                             std::ostream& os);  // NOLINT(*)
+  // print vector store
   virtual void PrintVecStore(const Variable* buffer,
                              Type t, Expr base,
                              const std::string& value);  // NOLINT(*)
+  // print load of single element
   virtual void PrintVecElemLoad(
       const std::string& vec, Type t, int i, std::ostream& os);  // NOLINT(*)
+  // print store of single element.
   virtual void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value);
-  /*! \brief function print into the ostream */
-  using FPrintExpr = IRFunctor<void(const NodeRef&, std::ostream& os, CodeGenC *)>; // NOLINT(*)
-  /*! \brief function to to print normal code */
-  using FPrintStmt = IRFunctor<void(const NodeRef&, CodeGenC *)>;
-  // vtable to print code
-  static FPrintStmt& vtable_print_stmt();
-  // vtable to print code
-  static FPrintExpr& vtable_print_expr();
-  /*! \brief The current indentation value */
-  int indent{0};
-  /*! \brief the stream to be printed */
-  std::ostringstream stream;
 
  protected:
+  /*! \brief the stream to be printed */
+  std::ostringstream stream;
+  /*! \brief entry in ssa assign map */
+  struct SSAEntry {
+    /*! \brief The value id */
+    std::string vid;
+    /*! \brief The scope id */
+    int scope_id;
+  };
   // print reference to a buffer as type t in index.
   void PrintBufferRef(const Variable* buffer,
                       Type t, Expr index,
@@ -158,13 +191,6 @@ class CodeGenC {
    * \return The returned name.
    */
   std::string GetUniqueName(std::string prefix);
-  /*! \brief entry in ssa assign map */
-  struct SSAEntry {
-    /*! \brief The value id */
-    std::string vid;
-    /*! \brief The scope id */
-    int scope_id;
-  };
   /*!
    * \brief mark the beginning of a new scope
    * \return The scope id.
@@ -209,6 +235,8 @@ class CodeGenC {
   std::unordered_map<const Variable*, Type> handle_data_type_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
+  /*! \brief The current indentation value */
+  int indent{0};
 };
 
 }  // namespace codegen

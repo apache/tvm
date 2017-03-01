@@ -25,6 +25,11 @@ def test_deduce():
     ans1 = (c-b)/4+(-2)
     assert str(tvm.ir_pass.Simplify(res1.max())) == str(ans1)
 
+    e2 = (tvm.max(5, a * 4) < 0)
+    res2 = tvm.arith.DeduceBound(a, e2, {b: b_s, c: c_s, d: d_s})
+    assert str(res2.max()) == "neg_inf"
+    assert str(res2.min()) == "pos_inf"
+
 def test_check():
     a = tvm.Var('a')
     b = tvm.Var('b')

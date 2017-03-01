@@ -8,7 +8,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
 #include <memory>
 #include <vector>
@@ -23,7 +23,9 @@ using namespace ir;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM : public IRVisitor {
+class CodeGenLLVM :
+      public ExprFunctor<llvm::Value* (const Expr&)>,
+      public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
    * \brief Initialize the code generator with given context
@@ -55,52 +57,52 @@ class CodeGenLLVM : public IRVisitor {
    * \return created value.
    */
   llvm::Value* MakeValue(const Expr& e) {
-    value_ = nullptr;
-    this->Visit(e);
-    CHECK(value_ != nullptr);
-    return value_;
+    return VisitExpr(e);
   }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(unsigned value) const {
     return llvm::ConstantInt::get(t_int32_, value);
   }
   // override codegen
-  void Visit_(const Variable* op) final;
-  void Visit_(const Cast* op) final;
-  void Visit_(const IntImm* op) final;
-  void Visit_(const UIntImm* op) final;
-  void Visit_(const FloatImm* op) final;
-  void Visit_(const StringImm* op) final;
-  void Visit_(const Add* op) final;
-  void Visit_(const Sub* op) final;
-  void Visit_(const Mul* op) final;
-  void Visit_(const Div* op) final;
-  void Visit_(const Mod* op) final;
-  void Visit_(const Min* op) final;
-  void Visit_(const Max* op) final;
-  void Visit_(const LT* op) final;
-  void Visit_(const LE* op) final;
-  void Visit_(const GT* op) final;
-  void Visit_(const GE* op) final;
-  void Visit_(const EQ* op) final;
-  void Visit_(const NE* op) final;
-  void Visit_(const And* op) final;
-  void Visit_(const Or* op) final;
-  void Visit_(const Not* op) final;
-  void Visit_(const Select* op) final;
-  void Visit_(const Let* op) final;
-  void Visit_(const Load* op) final;
-  void Visit_(const Call* op) final;
-  void Visit_(const Ramp* op) final;
-  void Visit_(const Broadcast* op) final;
+  llvm::Value* VisitExpr_(const Variable* op) override;
+  llvm::Value* VisitExpr_(const Cast* op) override;
+  llvm::Value* VisitExpr_(const IntImm* op) override;
+  llvm::Value* VisitExpr_(const UIntImm* op) override;
+  llvm::Value* VisitExpr_(const FloatImm* op) override;
+  llvm::Value* VisitExpr_(const StringImm* op) override;
+  llvm::Value* VisitExpr_(const Add* op) override;
+  llvm::Value* VisitExpr_(const Sub* op) override;
+  llvm::Value* VisitExpr_(const Mul* op) override;
+  llvm::Value* VisitExpr_(const Div* op) override;
+  llvm::Value* VisitExpr_(const Mod* op) override;
+  llvm::Value* VisitExpr_(const Min* op) override;
+  llvm::Value* VisitExpr_(const Max* op) override;
+  llvm::Value* VisitExpr_(const LT* op) override;
+  llvm::Value* VisitExpr_(const LE* op) override;
+  llvm::Value* VisitExpr_(const GT* op) override;
+  llvm::Value* VisitExpr_(const GE* op) override;
+  llvm::Value* VisitExpr_(const EQ* op) override;
+  llvm::Value* VisitExpr_(const NE* op) override;
+  llvm::Value* VisitExpr_(const And* op) override;
+  llvm::Value* VisitExpr_(const Or* op) override;
+  llvm::Value* VisitExpr_(const Not* op) override;
+  llvm::Value* VisitExpr_(const Select* op) override;
+  llvm::Value* VisitExpr_(const Let* op) override;
+  llvm::Value* VisitExpr_(const Load* op) override;
+  llvm::Value* VisitExpr_(const Call* op) override;
+  llvm::Value* VisitExpr_(const Ramp* op) override;
+  llvm::Value* VisitExpr_(const Broadcast* op) override;
   // stmt
-  void Visit_(const Store* op) final;
-  void Visit_(const For* op) final;
-  void Visit_(const IfThenElse* op) final;
-  void Visit_(const Allocate* op) final;
-  void Visit_(const AttrStmt* op) override;
-  void Visit_(const AssertStmt* op) final;
-  void Visit_(const LetStmt* op) final;
+  void VisitStmt_(const Store* op) override;
+  void VisitStmt_(const For* op) override;
+  void VisitStmt_(const IfThenElse* op) override;
+  void VisitStmt_(const Allocate* op) override;
+  void VisitStmt_(const AttrStmt* op) override;
+  void VisitStmt_(const AssertStmt* op) override;
+  void VisitStmt_(const LetStmt* op) override;
+  void VisitStmt_(const Block* op) override;
+  void VisitStmt_(const Evaluate* op) override;
+  void VisitStmt_(const ProducerConsumer* op) override;
   // create intrinstic given call
   virtual llvm::Value* CreateIntrinstic(const Call* op);
   // create extern function call
@@ -160,8 +162,6 @@ class CodeGenLLVM : public IRVisitor {
   llvm::Function* f_tvm_parallel_for_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
-  // Last value returned codegen call.
-  llvm::Value* value_{nullptr};
 
  private:
   // comparison op

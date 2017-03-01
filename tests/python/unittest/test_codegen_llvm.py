@@ -16,7 +16,7 @@ def test_llvm_add_pipeline():
         f = tvm.build(s, [A, B, C], "llvm")
         ctx = tvm.cpu(0)
         # launch the kernel.
-        n = 10270 * 2460
+        n = 1027 * 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)

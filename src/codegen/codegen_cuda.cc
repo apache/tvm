@@ -19,7 +19,7 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
   CodeGenC::AddFunction(f);
 }
 
-void CodeGenCUDA::PrintStmt(const ir::For* op) {
+void CodeGenCUDA::VisitStmt_(const ir::For* op) {
   int ext;
   CHECK(is_zero(op->min));
   if (arith::GetConstInt(op->extent, &ext) &&
@@ -27,7 +27,7 @@ void CodeGenCUDA::PrintStmt(const ir::For* op) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
-  CodeGenC::PrintStmt(op);
+  CodeGenC::VisitStmt_(op);
 }
 
 void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)

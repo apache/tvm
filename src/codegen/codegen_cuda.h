@@ -18,7 +18,7 @@ class CodeGenCUDA : public CodeGenC {
  public:
   void AddFunction(LoweredFunc f);
   // override behavior
-  void PrintStmt(const ir::For* op) final;
+  void VisitStmt_(const ir::For* op) final;
   void PrintStorageSync(const std::string& sync) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
