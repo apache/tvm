@@ -6,6 +6,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include <unordered_set>
 #include "../arithmetic/int_set.h"
 
 namespace tvm {
@@ -24,10 +25,10 @@ struct Partition {
   IntSet interval;
 };
 
-bool expr_use_var(Expr expr, Expr target) {
+bool ExprUseVar(Expr expr, const Variable* var) {
   bool success = false;
-  PostOrderVisit(expr, [&target, &success](const NodeRef& node) {
-    if (node.same_as(target)) {
+  PostOrderVisit(expr, [&var, &success](const NodeRef& node) {
+    if (node.get() == var) {
       success = true;
       return;
     }
@@ -35,18 +36,36 @@ bool expr_use_var(Expr expr, Expr target) {
   return success;
 }
 
+inline bool IsConstDomain(Expr min, Expr extent) {
+  return is_const(min) && is_const(extent);
+}
+
 class PartitionFinder : public IRVisitor {
  public:
-  explicit PartitionFinder(VarExpr loop_var)
-    : loop_var_(loop_var) {}
+  explicit PartitionFinder(VarExpr loop_var,
+    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_set<const Variable*>& variables)
+    : loop_var_(loop_var), dom_map_(dom_map), variables_(variables) {}
 
   void Visit_(const For* op) {
-    dom_map_[op->loop_var.get()] = IntSet::interval(op->min, op->min + op->extent - 1);
-    IRVisitor::Visit_(op);
+    if (IsConstDomain(op->min, op->extent)) {
+      dom_map_.insert({op->loop_var.get(),
+          IntSet::interval(op->min, op->min + op->extent - 1)});
+      IRVisitor::Visit_(op);
+      dom_map_.erase(op->loop_var.get());
+    } else {
+      variables_.insert(op->loop_var.get());
+      IRVisitor::Visit_(op);
+      variables_.erase(op->loop_var.get());
+    }
   }
 
   void Visit_(const IfThenElse* op) {
-    if (expr_use_var(op->condition, loop_var_)) {
+    if (ExprUseVar(op->condition, loop_var_.get())) {
+      for (auto var : variables_) {
+        if (ExprUseVar(op->condition, var)) IRVisitor::Visit_(op);
+      }
+
       IntSet interval = DeduceBound(loop_var_, op->condition, dom_map_);
       if (interval.min().same_as(Interval::neg_inf)) {
         IntSet upper_bound = EvalSet(interval.max(), dom_map_);
@@ -67,6 +86,7 @@ class PartitionFinder : public IRVisitor {
  private:
   VarExpr loop_var_;
   std::unordered_map<const Variable*, IntSet> dom_map_;
+  std::unordered_set<const Variable*> variables_;
 };
 
 class PartitionReplacer : public IRMutator {
@@ -89,15 +109,22 @@ class PartitionReplacer : public IRMutator {
   const Partition& p_;
 };
 
-IntSet intersect(IntSet a, IntSet b) { // need move into IntSet
-  // (TODO) temp solution
-  return IntSet::interval(b.min(), a.max());
-}
-
-IntSet complement(IntSet s, IntSet u) { // need move into IntSet
-  // (TODO) temp solution
-  return IntSet::interval(s.max() + 1, u.max());
-}
+// LoopPartitioner will try to partition the loop variable in the IR.
+// The loop variable can be divided into two categories:
+//
+// - whose range is fixed, the min and the extent both are constant.
+//
+//   For now, we will not do partition on this kind loop variable, we
+//   add them into dom_map in order to do deduce for follow-up
+//   partitions.
+//
+// - whose range is variable
+//
+//   We will try to do partition on this kind loop variable. If success,
+//   we will mutate the stmt then return. (only consider the partition
+//   on the outmost loop yet). If failed, we will mark them as variable
+//   (add them into variables_), then in the follow-up procedure, we know
+//   a condition is not able to be deduced if it use this variable.
 
 class LoopPartitioner : public IRMutator {
  public:
@@ -109,37 +136,53 @@ class LoopPartitioner : public IRMutator {
     return IRMutator::Mutate(s);
   }
 
-  Stmt Mutate_(const For* op, const Stmt& stmt) { // Simplify for this for loop
-    // (TODO) recursive
+  Stmt Mutate_(const For* op, const Stmt& stmt) {
+    if (IsConstDomain(op->min, op->extent)) {
+      // if the range of loop_var is constant, we will not partition it,
+      // instead, we will use the fixed domain to deduce.
+      dom_map_.insert({op->loop_var.get(),
+          IntSet::interval(op->min, op->min + op->extent - 1)});
+      Stmt res = IRMutator::Mutate_(op, stmt);
+      dom_map_.erase(op->loop_var.get());
+      return res;
+    }
 
-    PartitionFinder finder(op->loop_var);
+    PartitionFinder finder(op->loop_var, dom_map_, variables_);
     finder.Visit(op->body);
 
     if (finder.partitions.empty()) {
-      // no available partition, return directly
+      variables_.insert(op->loop_var.get());
+      IRMutator::Mutate_(op, stmt);
+      variables_.erase(op->loop_var.get());
       return stmt;
     }
 
     IntSet universe = IntSet::interval(op->min, op->min + op->extent - 1);
-    Stmt s;
-    // (TODO) in fact, we need to consider all partitions, then split
-    // the universe into multiple ranges
+    std::vector<IntSet> sets{universe};
+    // merge partitions (take their intersect)
     for (auto p : finder.partitions) {
-      IntSet true_itrv  = intersect(p.interval, universe);
-      IntSet doubt_itrv = complement(true_itrv, universe);
-
-      Stmt simplified_body = PartitionReplacer(p).Mutate(op->body);
-      Stmt simplified_stmt = For::make(op->loop_var, true_itrv.min(),
-        true_itrv.max() - true_itrv.min() + 1, op->for_type, op->device_api, simplified_body);
-      Stmt remaining_stmt = For::make(op->loop_var, doubt_itrv.min(),
-        doubt_itrv.max() - doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
-      s = Block::make(simplified_stmt, remaining_stmt);
+      sets.push_back(p.interval);
     }
-    return s;
+
+    IntSet true_itrv  = Intersect(sets);
+    IntSet doubt_itrv = Complement(true_itrv, universe);
+
+    Stmt simplified_body = op->body;
+    for (auto p : finder.partitions) {
+      p.interval = true_itrv;
+      simplified_body = PartitionReplacer(p).Mutate(simplified_body);
+    }
+
+    Stmt simplified_stmt = For::make(op->loop_var, true_itrv.min(),
+      true_itrv.max() - true_itrv.min() + 1, op->for_type, op->device_api, simplified_body);
+    Stmt remaining_stmt = For::make(op->loop_var, doubt_itrv.min(),
+      doubt_itrv.max() - doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
+    return Block::make(simplified_stmt, remaining_stmt);
   }
 
  private:
-
+  std::unordered_set<const Variable*> variables_;
+  std::unordered_map<const Variable*, IntSet> dom_map_;
 };
 
 Stmt LoopPartition(Stmt stmt) {

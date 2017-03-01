@@ -179,6 +179,16 @@ IntSet Union(const Array<IntSet>& set) {
   return IntervalSet::make(x);
 }
 
+IntSet Intersect(const std::vector<IntSet>& sets) {
+  // (TODO) temp solution
+  return IntSet::interval(sets[0].min(), sets[1].max());
+}
+
+IntSet Complement(IntSet s, IntSet u) {
+  // (TODO) temp solution
+  return IntSet::interval(s.max() + 1, u.max());
+}
+
 // type traits
 template<typename OP>
 struct is_logical_op {
