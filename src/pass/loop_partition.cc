@@ -75,7 +75,7 @@ class PartitionFinder : public IRVisitor {
         interval = IntSet::interval(lower_bound.max(), interval.max());
       } else {
         // Assume the partition is always a infinite set
-        LOG(WARNING) << "interval wrong?";
+        LOG(WARNING) << "interval wrong";
       }
       partitions.push_back(Partition{op->condition, op->condition, const_true(), interval});
     }
@@ -163,9 +163,7 @@ class LoopPartitioner : public IRMutator {
     for (auto p : finder.partitions) {
       sets.push_back(p.interval);
     }
-
     IntSet true_itrv  = Intersect(sets);
-    IntSet doubt_itrv = Complement(true_itrv, universe);
 
     Stmt simplified_body = op->body;
     for (auto p : finder.partitions) {
@@ -175,14 +173,25 @@ class LoopPartitioner : public IRMutator {
 
     Stmt simplified_stmt = For::make(op->loop_var, true_itrv.min(),
       true_itrv.max() - true_itrv.min() + 1, op->for_type, op->device_api, simplified_body);
-    Stmt remaining_stmt = For::make(op->loop_var, doubt_itrv.min(),
-      doubt_itrv.max() - doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
-    return Block::make(simplified_stmt, remaining_stmt);
+    Stmt s = simplified_stmt;
+
+    Expr pre_doubt_cond = (true_itrv.min() != universe.min());
+    IntSet pre_doubt_itrv = IntSet::interval(universe.min(), true_itrv.min());
+    Stmt pre_stmt = For::make(op->loop_var, pre_doubt_itrv.min(),
+      pre_doubt_itrv.max() - pre_doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
+    s = Block::make(IfThenElse::make(pre_doubt_cond, pre_stmt), s);
+
+    Expr post_doubt_cond = (true_itrv.max() != universe.max());
+    IntSet post_doubt_itrv = IntSet::interval(true_itrv.max(), universe.max());
+    Stmt post_stmt = For::make(op->loop_var, post_doubt_itrv.min(),
+      post_doubt_itrv.max() - post_doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
+    s = Block::make(s, IfThenElse::make(post_doubt_cond, post_stmt));
+    return s;
   }
 
  private:
-  std::unordered_set<const Variable*> variables_;
   std::unordered_map<const Variable*, IntSet> dom_map_;
+  std::unordered_set<const Variable*> variables_;
 };
 
 Stmt LoopPartition(Stmt stmt) {

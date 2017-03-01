@@ -156,10 +156,10 @@ ExprIntSetMap EvalSetForEachSubExpr(Expr r,
  * \return the set after union
  */
 IntSet Union(const Array<IntSet>& sets);
+IntSet Union(const std::vector<IntSet>& sets);
 
+IntSet Intersect(const Array<IntSet>& sets);
 IntSet Intersect(const std::vector<IntSet>& sets);
-
-IntSet Complement(const IntSet s, const IntSet u);
 
 // implementation
 inline const IntSetNode* IntSet::operator->() const {
