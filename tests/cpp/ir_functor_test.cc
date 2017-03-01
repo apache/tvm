@@ -77,7 +77,7 @@ TEST(IRF, ExprVisit) {
     }
   };
   MyVisitor v;
-  v(Evaluate::make(z));
+  v.VisitStmt(Evaluate::make(z));
   CHECK_EQ(v.count, 1);
 }
 
