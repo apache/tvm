@@ -37,6 +37,14 @@ struct ModularEntry {
     e.base = 0; e.coeff = 1;
     return e;
   }
+  /*!
+   * \brief Add two modular entries together to get a new modular entry.
+   * \param a The left operand.
+   * \param b The right operand.
+   * \return The combined modular entry.
+   */
+  static ModularEntry Add(const ModularEntry& a,
+                          const ModularEntry& b);
 };
 
 /*!

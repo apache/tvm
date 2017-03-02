@@ -355,7 +355,9 @@ class Vectorizer : public IRMutator {
         const Ramp* a_ramp = a.as<Ramp>();
         if (a.type().lanes() == 1 && b_ramp) {
           return Ramp::make(
-            arith::ComputeExpr<T>(a, b_ramp->base), b_ramp->stride, b_ramp->lanes);
+              arith::ComputeExpr<T>(a, b_ramp->base),
+              arith::ComputeExpr<T>(make_zero(b_ramp->stride.type()), b_ramp->stride),
+              b_ramp->lanes);
         }
         if (b.type().lanes() == 1 && a_ramp) {
           return Ramp::make(
