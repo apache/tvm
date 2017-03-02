@@ -177,9 +177,11 @@ inline const IntSetNode* IntSet::operator->() const {
  * \return An integer set that can cover all the possible values.
  */
 IntSet DeduceBound(Expr v, Expr cond,
-                   const Map<Var, IntSet>& dom_map);
+                   const Map<Var, IntSet>& hint_map,
+                   const Map<Var, IntSet>& relax_map);
 IntSet DeduceBound(Expr v, Expr e,
-  const std::unordered_map<const Variable*, IntSet> dom_map);
+  const std::unordered_map<const Variable*, IntSet>& hint_map,
+  const std::unordered_map<const Variable*, IntSet>& relax_map);
 
 
 }  // namespace arith

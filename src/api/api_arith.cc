@@ -30,7 +30,8 @@ TVM_REGISTER_API(_arith_EvalModular)
 TVM_REGISTER_API(_arith_DeduceBound)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DeduceBound(args[0], args[1],
-        args[2].operator Map<Var, IntSet>());
+        args[2].operator Map<Var, IntSet>(),
+        args[3].operator Map<Var, IntSet>());
   });
 
 TVM_REGISTER_API(_IntervalSetGetMin)
