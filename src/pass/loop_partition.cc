@@ -68,6 +68,7 @@ class PartitionFinder : public IRVisitor {
   }
 
   std::vector<Partition> partitions;
+
  private:
   VarExpr target_var_;
   const std::unordered_map<const Variable*, IntSet>& out_vars_;
@@ -77,7 +78,7 @@ class PartitionFinder : public IRVisitor {
 
 class PartitionReplacer : public IRMutator {
  public:
-  PartitionReplacer(const std::vector<Partition>& ps)
+  explicit PartitionReplacer(const std::vector<Partition>& ps)
     : ps_(ps) {}
 
   Expr Mutate(Expr e) final {
@@ -113,7 +114,7 @@ class PartitionReplacer : public IRMutator {
 
 class LoopPartitioner : public IRMutator {
  public:
-  explicit LoopPartitioner() {}
+  LoopPartitioner() {}
 
   Stmt Mutate_(const For* op, const Stmt& stmt) {
     if (IsConstDomain(op->min, op->extent)) {

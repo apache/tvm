@@ -137,6 +137,11 @@ Stmt InjectVirtualThread(Stmt stmt);
  */
 Stmt LiftAllocate(Stmt stmt);
 
+/*!
+ * \brief partition loops in the stmt
+ * \param stmt The stmt to do loop partition
+ * \return Transformed stmt.
+ */
 Stmt LoopPartition(Stmt stmt);
 
 /*!

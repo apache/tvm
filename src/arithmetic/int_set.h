@@ -8,6 +8,7 @@
 
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
+#include <vector>
 
 namespace tvm {
 namespace arith {
@@ -158,6 +159,11 @@ ExprIntSetMap EvalSetForEachSubExpr(Expr r,
 IntSet Union(const Array<IntSet>& sets);
 IntSet Union(const std::vector<IntSet>& sets);
 
+/*!
+ * \brief Create an union set of all sets
+ * \param sets The sets to be intersected
+ * \return the set after intersected
+ */
 IntSet Intersect(const Array<IntSet>& sets);
 IntSet Intersect(const std::vector<IntSet>& sets);
 
@@ -173,7 +179,8 @@ inline const IntSetNode* IntSet::operator->() const {
  *
  * \param v The target variable to be deduced.
  * \param cond The conditional expression.
- * \param dom_map The domain of each variable.
+ * \param hint_map The domain of variable, used to help deduce.
+ * \param relax The domain of each variable, used to relax the domain.
  * \return An integer set that can cover all the possible values.
  */
 IntSet DeduceBound(Expr v, Expr cond,
