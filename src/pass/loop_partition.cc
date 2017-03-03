@@ -13,6 +13,7 @@ namespace tvm {
 namespace ir {
 
 using arith::IntSet;
+using Halide::Internal::Interval; // for pos_inf & neg_inf
 
 // a partition means the expr is equal to true in the interval
 struct Partition {
@@ -81,7 +82,7 @@ class PartitionReplacer : public IRMutator {
   explicit PartitionReplacer(const std::vector<Partition>& ps)
     : ps_(ps) {}
 
-  Expr Mutate(Expr e) final {
+  Expr Mutate(Expr e) override {
     for (auto p : ps_) {
       if (e.same_as(p.expr)) {
         return Mutate(const_true());
@@ -95,31 +96,12 @@ class PartitionReplacer : public IRMutator {
   const std::vector<Partition>& ps_;
 };
 
-// LoopPartitioner will try to partition the loop variable in the IR.
-// The loop variable can be divided into two categories:
-//
-// - whose range is fixed, the min and the extent both are constant.
-//
-//   For now, we will not do partition on this kind loop variable, we
-//   add them into dom_map in order to do deduce for follow-up
-//   partitions.
-//
-// - whose range is variable
-//
-//   We will try to do partition on this kind loop variable. If success,
-//   we will mutate the stmt then return. (only consider the partition
-//   on the outmost loop yet). If failed, we will mark them as variable
-//   (add them into variables_), then in the follow-up procedure, we know
-//   a condition is not able to be deduced if it use this variable.
-
 class LoopPartitioner : public IRMutator {
  public:
   LoopPartitioner() {}
 
   Stmt Mutate_(const For* op, const Stmt& stmt) {
     if (IsConstDomain(op->min, op->extent)) {
-      // if the range of loop_var is constant, we will not partition it,
-      // instead, we will use the fixed domain to deduce.
       vars_.insert({op->loop_var.get(),
         IntSet::interval(op->min, op->min + op->extent - 1)});
       Stmt res = IRMutator::Mutate_(op, stmt);
@@ -147,26 +129,30 @@ class LoopPartitioner : public IRMutator {
     IntSet true_itrv  = Intersect(sets);
 
     Stmt simplified_body = PartitionReplacer(finder.partitions).Mutate(op->body);
-    Stmt simplified_stmt = For::make(op->loop_var, true_itrv.min(),
-      true_itrv.max() - true_itrv.min() + 1, op->for_type, op->device_api, simplified_body);
+    // rebase to zero
+    Stmt body = Substitute(simplified_body, {{Var{op->loop_var}, op->loop_var + true_itrv.min()}});
+    Stmt simplified_stmt = For::make(op->loop_var, 0,
+      true_itrv.max() - true_itrv.min() + 1, op->for_type, op->device_api, body);
     Stmt s = simplified_stmt;
 
     if (!can_prove(true_itrv.min() == universe.min())) {
       Expr pre_doubt_cond = (true_itrv.min() != universe.min());
-      IntSet pre_doubt_itrv = IntSet::interval(universe.min(), true_itrv.min());
-      Stmt pre_stmt = For::make(op->loop_var, pre_doubt_itrv.min(),
-        pre_doubt_itrv.max() - pre_doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
+      IntSet pre_doubt_itrv = IntSet::interval(universe.min(), true_itrv.min() - 1);
+      Stmt body = Substitute(op->body, {{Var{op->loop_var}, op->loop_var + pre_doubt_itrv.min()}});
+      Stmt pre_stmt = For::make(op->loop_var, 0,
+        pre_doubt_itrv.max() - pre_doubt_itrv.min() + 1, op->for_type, op->device_api, body);
       s = Block::make(IfThenElse::make(pre_doubt_cond, pre_stmt), s);
     }
 
     if (!can_prove(true_itrv.max() == universe.max())) {
       Expr post_doubt_cond = (true_itrv.max() != universe.max());
-      IntSet post_doubt_itrv = IntSet::interval(true_itrv.max(), universe.max());
-      Stmt post_stmt = For::make(op->loop_var, post_doubt_itrv.min(),
-        post_doubt_itrv.max() - post_doubt_itrv.min() + 1, op->for_type, op->device_api, op->body);
+      IntSet post_doubt_itrv = IntSet::interval(true_itrv.max() + 1, universe.max());
+      Stmt body = Substitute(op->body, {{Var{op->loop_var}, op->loop_var + post_doubt_itrv.min()}});
+      Stmt post_stmt = For::make(op->loop_var, 0,
+        post_doubt_itrv.max() - post_doubt_itrv.min() + 1, op->for_type, op->device_api, body);
       s = Block::make(s, IfThenElse::make(post_doubt_cond, post_stmt));
     }
-    return s;
+    return Simplify(ConvertSSA(s));
   }
 
  private:
