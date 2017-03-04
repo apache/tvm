@@ -162,11 +162,11 @@ inline bool MatchPoint(const IntSet& a,
   return i.is_single_point() && i.min.same_as(b);
 }
 
-IntSet Union(const Array<IntSet>& set) {
-  if (set.size() == 1) return set[0];
-  Interval x = set[0].cover_interval().as<IntervalSet>()->i;
-  for (size_t i = 1; i < set.size(); ++i) {
-    IntSet s = set[i].cover_interval();
+IntSet Union(const Array<IntSet>& sets) {
+  if (sets.size() == 1) return sets[0];
+  Interval x = sets[0].cover_interval().as<IntervalSet>()->i;
+  for (size_t i = 1; i < sets.size(); ++i) {
+    IntSet s = sets[i].cover_interval();
     const Interval& y = s.as<IntervalSet>()->i;
     if (can_prove(x.max + 1 >= y.min)) {
       x.max = y.max;
@@ -175,6 +175,15 @@ IntSet Union(const Array<IntSet>& set) {
     } else {
       x.include(y);
     }
+  }
+  return IntervalSet::make(x);
+}
+
+IntSet Intersect(const Array<IntSet>& sets) {
+  Interval x = sets[0].cover_interval().as<IntervalSet>()->i;
+  for (size_t i = 1; i < sets.size(); ++i) {
+    Interval y = sets[i].cover_interval().as<IntervalSet>()->i;
+    x = Interval::make_intersection(x, y);
   }
   return IntervalSet::make(x);
 }
