@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include "./llvm_common.h"
+#include "../../arithmetic/modular.h"
 
 namespace tvm {
 namespace codegen {
@@ -109,18 +110,29 @@ class CodeGenLLVM :
   virtual llvm::Value* CreateCallExtern(const Call* op);
   // create call into tvm packed function.
   virtual llvm::Value* CreateCallPacked(const Call* op);
-
+  // Scalarize e by iterating elements of e.
+  // f is a callback that takes index and v.
+  virtual void Scalarize(const Expr& e,
+                         std::function<void(int i, llvm::Value* v)> f);
  protected:
   /*!
    * \param t The original type.
    * \return LLVM type of t
    */
   llvm::Type* LLVMType(const Type& t) const;
+  // initialize the function state.
+  void InitFuncState();
+  // Get alignment given index.
+  void GetAlignment(
+      Type t, const Variable* buf_var, const Expr& index,
+      int* p_alignment, int* p_native_bits);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(
       const Call* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
   // apply optimization on the module.
   virtual void Optimize();
+  // Get the maximim storage align bits of buffer pointer given storage scope.
+  virtual int NativeVectorBits(const std::string& storage_scope) const;
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function
@@ -162,6 +174,8 @@ class CodeGenLLVM :
   llvm::Function* f_tvm_parallel_for_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
+  /*! \brief the storage scope of allocation */
+  std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
 
  private:
   // comparison op
@@ -178,6 +192,11 @@ class CodeGenLLVM :
   llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
   llvm::Value* CreateCast(Type from, Type to, llvm::Value* value);
   llvm::Value* GetPackedFuncHandle(const std::string& str);
+  // Vector concatenation.
+  llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
+  llvm::Value* CreateVecFlip(llvm::Value* vec);
+  llvm::Value* CreateVecConcat(std::vector<llvm::Value*> vecs);
+  llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create parallel for.
   void CreateParallelFor(const For* op);
   // Create serial for
@@ -197,6 +216,8 @@ class CodeGenLLVM :
   std::unordered_map<const Variable*, llvm::Value*> var_map_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
+  // The alignment information
+  std::unordered_map<const Variable*, arith::ModularEntry> align_map_;
   // The local module_context
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   // global to packed function handle

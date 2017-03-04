@@ -80,7 +80,7 @@ inline bool GetConstInt(Expr e, int* out) {
   }                                                              \
   uint64_t ua = 0, ub = 0;                                       \
   if (GetConst(a, &ua) && GetConst(b, &ub)) {                    \
-    return ir::UIntImm::make(a.type(), ua + ub);                 \
+    return ir::UIntImm::make(a.type(), ua OP ub);                \
   }                                                              \
 
 template<>
