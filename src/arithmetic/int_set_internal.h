@@ -8,8 +8,7 @@
 
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include "./int_set.h"
-#include "./modular.h"
+#include <tvm/arithmetic.h>
 
 namespace tvm {
 namespace arith {

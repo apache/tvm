@@ -4,7 +4,7 @@
  * \brief Canonicalize simplification.
  */
 #include <tvm/ir_mutator.h>
-#include "./int_set.h"
+#include <tvm/arithmetic.h>
 #include "./canonical.h"
 #include "./compute_expr.h"
 

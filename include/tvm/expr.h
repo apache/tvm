@@ -22,6 +22,8 @@ using Halide::Bool;
 using Halide::Int;
 using Halide::UInt;
 using Halide::Handle;
+using Halide::ExprHash;
+using Halide::ExprEqual;
 
 using Halide::Expr;
 using Halide::VarExpr;
@@ -138,11 +140,15 @@ enum IterVarType : int {
    */
   kOrdered = 3,
   /*!
-   * \brief IterVar only corresponds to
-   *  dimension information of output.
-   * Disallow all IterVar manipulations.
+   * \brief IterVar is opaque,
+   *
+   *  May not corresponds to any generated loop
+   *  Disallow all IterVar manipulations and compute_at
+   *
+   * \note This is usually used to implement composite op
+   *  or external op, where the
    */
-  kDimInfo = 4,
+  kOpaque = 4,
   // The following are possible additional
   // types that are provided during schedule
   /*!
@@ -284,7 +290,7 @@ inline const char* IterVarType2String(IterVarType t) {
     case kThreadIndex: return "ThreadIndex";
     case kCommReduce: return "CommRedude";
     case kOrdered: return "Ordered";
-    case kDimInfo: return "DimInfo";
+    case kOpaque: return "Opaque";
     case kUnrolled: return "Unrolled";
     case kVectorized: return "Vectorized";
     case kParallelized: return "Parallelized";

@@ -1,4 +1,3 @@
-
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file bound.cc
@@ -8,10 +7,10 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <tvm/schedule_pass.h>
+#include <tvm/arithmetic.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "./graph.h"
-#include "../arithmetic/int_set.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

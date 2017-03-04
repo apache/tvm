@@ -5,9 +5,9 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
+#include <tvm/arithmetic.h>
 #include <pass/Interval.h>
 #include <unordered_map>
-#include "./int_set.h"
 #include "./compute_expr.h"
 #include "./int_set_internal.h"
 

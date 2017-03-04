@@ -6,9 +6,9 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include <tvm/arithmetic.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "../arithmetic/int_set.h"
 #include "../arithmetic/int_set_internal.h"
 
 namespace tvm {

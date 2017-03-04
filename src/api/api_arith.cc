@@ -6,8 +6,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/api_registry.h>
-#include "../arithmetic/int_set.h"
-#include "../arithmetic/modular.h"
+#include <tvm/arithmetic.h>
 
 namespace tvm {
 namespace arith {

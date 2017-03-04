@@ -6,8 +6,8 @@
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/arithmetic.h>
 #include <limits>
-#include "./modular.h"
 #include "./int_set_internal.h"
 
 namespace tvm {

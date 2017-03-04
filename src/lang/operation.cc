@@ -173,7 +173,7 @@ Operation ScanOpNode::make(std::string name,
         n->spatial_axis_.push_back(
             IterVarNode::make(
                 Range::make_with_min_extent(0, update[i]->shape[k]),
-                Var(spatial_name.str()), kDimInfo));
+                Var(spatial_name.str()), kOpaque));
       }
     }
     for (size_t k = 1;  k < init[i].ndim(); ++k) {
