@@ -89,7 +89,8 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVar(Range(0, shape[i]), os.str()));
+    axis.emplace_back(IterVarNode::make(
+        Range(0, shape[i]), Var(os.str(), shape[i].type()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -170,8 +171,9 @@ Operation ScanOpNode::make(std::string name,
         std::ostringstream spatial_name;
         spatial_name << name << ".out" << i << ".i" << k;
         n->spatial_axis_.push_back(
-            IterVar(Range::make_with_min_extent(0, update[i]->shape[k]),
-                    spatial_name.str()));
+            IterVarNode::make(
+                Range::make_with_min_extent(0, update[i]->shape[k]),
+                Var(spatial_name.str()), kDimInfo));
       }
     }
     for (size_t k = 1;  k < init[i].ndim(); ++k) {
@@ -191,10 +193,11 @@ Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
                    std::string name) {
-  IterVar scan_axis(
-      Range::make_with_min_extent(
-          init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
-      name + ".idx");
+  IterVar scan_axis =
+      IterVarNode::make(
+          Range::make_with_min_extent(
+              init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
+          Var(name + ".idx"), kOrdered);
   Operation op = ScanOpNode::make(
       name, scan_axis, init, update, state_placeholder);
   Array<Tensor> res;

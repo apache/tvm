@@ -29,7 +29,7 @@ def test_dot():
     n = tvm.Var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
-    k = tvm.IterVar((0, n), name='k')
+    k = tvm.reduce_axis((0, n), 'k')
     C = tvm.compute((1,), lambda _: tvm.sum(A[k] * B[k], axis=k), name='C')
     s = tvm.Schedule(C.op)
     fapi = lower(s, [A, B, C])

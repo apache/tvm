@@ -31,13 +31,6 @@ enum AttachType : int {
   kScanUpdate = 5
 };
 
-/*! \brief IterVar type */
-enum IterVarType : int {
-  kUnrolled = 1,
-  kVectorized = 2,
-  kParallel = 3
-};
-
 /*! \brief Stage, contains scheduling for a stage of computation. */
 class Stage : public NodeRef {
  public:

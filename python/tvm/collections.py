@@ -55,7 +55,14 @@ class Range(NodeBase):
 @register_node
 class IterVar(NodeBase, _expr.ExprOp):
     """Represent iteration variable."""
-    pass
+    DataPar = 0
+    ThreadIndex = 1
+    CommReduce = 2
+    Ordered = 3
+    DimInfo = 4
+    Unrolled = 5
+    Vectorized = 6
+    Parallelized = 7
 
 
 @register_node

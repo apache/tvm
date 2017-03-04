@@ -38,7 +38,7 @@ def test_bound3():
     s = tvm.Schedule(A2.op)
 
     s[A1].set_scope("shared")
-    thread_x = tvm.IterVar((0, 16), thread_tag="threadIdx.x")
+    thread_x = tvm.thread_axis((0, 16), "threadIdx.x")
     xo, xi = s[A2].split(A2.op.axis[0], 32)
     xi0, xi1 = s[A2].split(xi, outer=thread_x)
     yo, yi = s[A2].split(A2.op.axis[1], 16)

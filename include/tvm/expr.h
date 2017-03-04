@@ -57,7 +57,14 @@ class Var : public Halide::VarExpr {
                Type t = Int(32)) : VarExpr(name_hint, t) {}
   explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
   explicit Var(VarExpr v) : VarExpr(v) {}
-
+  /*!
+   * \brief Make a new copy of var with same type, append suffix
+   * \param suffix The suffix to be appended.
+   * \return the new Var copy
+   */
+  Var copy_with_suffix(const std::string& suffix) const {
+    return Var((*this)->name_hint + suffix, (*this)->type);
+  }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
 };
@@ -91,6 +98,68 @@ class Range : public Halide::IR::Range {
 };
 
 /*!
+ * \brief Type of iteration variable.
+ *  Each IterVar have a specific type.
+ *
+ *  The type of iter var can be overriden via
+ *  stage.iter_var_attrs given they are compatible.
+ */
+enum IterVarType : int {
+  /*!
+   * \brief Data parallel iteration.
+   *  This normally corresponds to axis of Tensor.
+   *  Allow all IterVar manipulations.
+   *
+   * \note This does not mean the loop
+   *  have to be executed in parallel fashion.
+   */
+  kDataPar = 0,
+  /*!
+   * \brief The IterVar itself is a thread-index
+   *  of a fixed thread launching group.
+   *  Note that this is already assumed to be paralellized.
+   *
+   *  Disallow: split/fuse/vectorize/parallel
+   */
+  kThreadIndex = 1,
+  /*!
+   * \brief Communicative reduction.
+   *  Cannot be directly parallelized.
+   *
+   *  Disallow: parallel/vectorize
+   */
+  kCommReduce = 2,
+  /*!
+   * \brief Serial loops with loop carry dependency,
+   *  the iteration must execute in order.
+   *  Cannot be re-ordered.
+   *
+   *  Disallow: reorder/parallel/vectorize
+   */
+  kOrdered = 3,
+  /*!
+   * \brief IterVar only corresponds to
+   *  dimension information of output.
+   * Disallow all IterVar manipulations.
+   */
+  kDimInfo = 4,
+  // The following are possible additional
+  // types that are provided during schedule
+  /*!
+   * \brief The execution is unrolled.
+   */
+  kUnrolled = 5,
+  /*!
+   * \brief The loop is vectorized.
+   */
+  kVectorized = 6,
+  /*!
+   * \brief The loop is parallelized.
+   */
+  kParallelized = 7
+};
+
+/*!
  * \brief Iteration Variable,
  *  represents an iteration over an integer interval.
  */
@@ -100,13 +169,6 @@ class IterVar : public NodeRef {
   IterVar() {}
   // construct from shared ptr.
   explicit IterVar(std::shared_ptr<Node> n) : NodeRef(n) {}
-  /*!
-   * \brief construction of iteration variable.
-   * \param dom The iteration domain.
-   * \param var_name The name of iteration variable.
-   * \param thread_tag The additional tag to indicate whether the var is binded to fixed-thread.
-   */
-  explicit IterVar(Range dom, std::string var_name = "i", std::string thread_tag = "");
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -119,6 +181,22 @@ class IterVar : public NodeRef {
   /*! \brief specify container node */
   using ContainerType = IterVarNode;
 };
+
+/*!
+ * \brief Create a new IterVar that represents an axis in thread.
+ *
+ * \param dom Optional, domain of the thread axis.
+ * \param tag The thread tag of the axis.
+ */
+IterVar thread_axis(Range dom, std::string tag);
+
+/*!
+ * \brief Create a new IterVar for reduction operations.
+ *
+ * \param dom The domain of the reduction axis.
+ * \param name The name of the reduction axis.
+ */
+IterVar reduce_axis(Range dom, std::string name = "rv");
 
 using Domain = Array<Range>;
 
@@ -168,6 +246,8 @@ class IterVarNode : public Node {
   Range dom;
   /*! \brief The looping variable */
   Var var;
+  /*! \brief The type of the IterVar */
+  IterVarType iter_type;
   /*!
    * \brief additional tag on the iteration variable,
    *  set this if this is binded already to a known thread tag.
@@ -177,10 +257,13 @@ class IterVarNode : public Node {
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dom", &dom);
     v->Visit("var", &var);
+    v->Visit("iter_type", &iter_type);
     v->Visit("thread_tag", &thread_tag);
   }
 
-  static IterVar make(Range dom, Var var, std::string thread_tag);
+  static IterVar make(Range dom, Var var,
+                      IterVarType iter_type,
+                      std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
   TVM_DECLARE_NODE_TYPE_INFO(IterVarNode, Node);
@@ -193,6 +276,20 @@ inline const IterVarNode* IterVar::operator->() const {
 
 inline IterVar::operator Expr() const {
   return (*this)->var;
+}
+
+inline const char* IterVarType2String(IterVarType t) {
+  switch (t) {
+    case kDataPar: return "DataPar";
+    case kThreadIndex: return "ThreadIndex";
+    case kCommReduce: return "CommRedude";
+    case kOrdered: return "Ordered";
+    case kDimInfo: return "DimInfo";
+    case kUnrolled: return "Unrolled";
+    case kVectorized: return "Vectorized";
+    case kParallelized: return "Parallelized";
+  }
+  return "Unknown";
 }
 
 }  // namespace tvm

@@ -26,27 +26,36 @@ Range Range::make_with_min_extent(Expr min, Expr extent) {
   return Range(std::make_shared<Halide::IR::RangeNode>(min, extent));
 }
 
-IterVar::IterVar(Range dom, std::string var_name, std::string thread_tag)
-    : IterVar(IterVarNode::make(dom, Var(var_name, Int(32)), thread_tag)) {}
-
-IterVar IterVarNode::make(Range dom, Var var, std::string thread_tag) {
+IterVar IterVarNode::make(Range dom, Var var,
+                          IterVarType t, std::string thread_tag) {
   std::shared_ptr<IterVarNode> n = std::make_shared<IterVarNode>();
   n->dom = dom;
   n->var = var;
+  n->iter_type = t;
   n->thread_tag = thread_tag;
   return IterVar(n);
 }
 
+IterVar thread_axis(Range dom, std::string tag) {
+  return IterVarNode::make(
+      dom, Var(tag), kThreadIndex, tag);
+}
+
+IterVar reduce_axis(Range dom, std::string name) {
+  return IterVarNode::make(
+      dom, Var(name), kCommReduce);
+}
+
 Expr sum(Expr source, Array<IterVar> rdom) {
-  return ir::Reduce::make("Add", source, rdom);
+  return ir::Reduce::make("Add", source, rdom, make_const(Bool(1), true));
 }
 
 Expr max(Expr source, Array<IterVar> rdom) {
-  return ir::Reduce::make("Max", source, rdom);
+  return ir::Reduce::make("Max", source, rdom, make_const(Bool(1), true));
 }
 
 Expr min(Expr source, Array<IterVar> rdom) {
-  return ir::Reduce::make("Min", source, rdom);
+  return ir::Reduce::make("Min", source, rdom, make_const(Bool(1), true));
 }
 
 std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)

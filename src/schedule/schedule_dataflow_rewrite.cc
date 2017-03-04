@@ -172,7 +172,8 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   std::unordered_map<const Variable*, Expr> vsub;
   for (IterVar iv : compute->axis) {
     args.push_back(iv->var);
-    IterVar new_iv(iv->dom, iv->var->name_hint + ".c");
+    IterVar new_iv = IterVarNode::make(
+        iv->dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
     new_axis.push_back(new_iv);
     vsub[iv->var.get()] = new_iv->var;
   }
@@ -227,7 +228,8 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       size_t idx = FindNodeRef(leaf_vars, iv);
       if (idx < leaf_vars->data.size()) {
         // insert rebase
-        IterVar rebased(Range(), iv->var->name_hint + ".rb");
+        IterVar rebased = IterVarNode::make(
+            Range(), iv->var.copy_with_suffix(".rb"), iv->iter_type);
         s->relations.push_back(RebaseNode::make(iv, rebased));
         leaf_vars->data[idx] = rebased.node_;
         rebase_map[iv] = rebased;

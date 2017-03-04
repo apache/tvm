@@ -9,7 +9,7 @@ def test_storage_sync():
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
 
     s = tvm.Schedule(A2.op)
-    block_x = tvm.IterVar(thread_tag="blockIdx.x")
+    block_x = tvm.thread_axis(None, "blockIdx.x")
     xo, xi = s[A2].split(A2.op.axis[0], factor=8, outer=block_x)
     s[A1].compute_at(s[A2], xo)
     s[A1].set_scope("shared")

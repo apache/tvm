@@ -6,14 +6,14 @@ def test_sum():
     n = tvm.Var('n')
     m = tvm.Var('m')
     A = tvm.placeholder((n, m), name='A')
-    k = tvm.IterVar((0, m))
+    k = tvm.reduce_axis((0, m))
     B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name='B')
     # schedule
     s = tvm.Schedule(B.op)
     # create iter var and assign them tags.
     num_thread = 1
-    block_x = tvm.IterVar(thread_tag="blockIdx.x")
-    thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
+    block_x = tvm.thread_axis(None, "blockIdx.x")
+    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
     _, x = s[B].split(B.op.axis[0], factor=num_thread, outer=block_x)
     _, x = s[B].split(x, outer=thread_x)
 

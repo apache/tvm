@@ -189,8 +189,11 @@ MakeLoopNest(const Stage& sch,
       if (sch->iter_var_attrs.count(iv)) {
         switch (sch->iter_var_attrs[iv]->iter_type) {
           case kUnrolled: for_type = ForType::Unrolled; break;
-          case kParallel: for_type = ForType::Parallel; break;
           case kVectorized: for_type = ForType::Vectorized; break;
+          case kParallelized: for_type = ForType::Parallel; break;
+          default: LOG(FATAL) << "Unknown iter type"
+                              << sch->iter_var_attrs[iv]->iter_type
+                              << " in the iter_var_attrs";
         }
       }
       if (is_one(dom->extent)) {
@@ -561,18 +564,6 @@ class InjectScanStep : public IRMutator {
   bool is_init_;
 };
 
-Stmt InjectInline(const Operation op, Stmt body) {
-  CHECK(body.defined());
-
-  const ComputeOpNode* compute = op.as<ComputeOpNode>();
-  CHECK(compute != nullptr)
-      << "can only inline compute op";
-  Array<Var> args;
-  for (auto iv : compute->axis) {
-    args.push_back(iv->var);
-  }
-  return Inline(body, op, args, compute->body);
-}
 
 // Postprocessing of schedule op
 // Replace the init and update's expression by scan's buffer.

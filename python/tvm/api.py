@@ -132,7 +132,7 @@ def compute(shape, fcompute, name="compute"):
     if ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
-    dim_var = [IterVar((0, s), x) for x, s in zip(arg_names, shape)]
+    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape)]
     body = fcompute(*[v.var for v in dim_var])
     body = convert(body)
     op_node = _api_internal._ComputeOp(
@@ -181,7 +181,7 @@ def scan(init, update, state_placeholder, name="scan"):
         state_placeholder = [state_placeholder]
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
-    axis = IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name)
+    axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
     op = _api_internal._ScanOp(name, axis, init, update, state_placeholder)
     res = [op.output(i) for i in range(len(update))]
     return (res[0] if len(res) == 1 else res)
@@ -225,16 +225,19 @@ def Buffer(shape, dtype=None,
         name, ptr, shape, strides, dtype)
 
 
-def IterVar(dom=None, name=None, thread_tag=''):
-    """Create a iteration variable
+def _IterVar(dom, name, iter_type, thread_tag=''):
+    """Internal function to create IterVar
 
     Parameters
     ----------
     dom : Range
-       The domain of iteration.
+        The domain of iteration.
 
     name : str
-       The name of iteration variable.
+        The name of iteration variable.
+
+    iter_type : int
+        The type of iteration.
 
     thread_tag : str
         The thread tag of the iteration variable.
@@ -252,10 +255,41 @@ def IterVar(dom=None, name=None, thread_tag=''):
 
         if not isinstance(dom, _collections.Range):
             raise ValueError("dom need to be Range")
-    if name is None:
-        name = thread_tag if thread_tag else name
     name = name if name else 'iter'
-    return _api_internal._IterVar(dom, name, thread_tag)
+    var = Var(name)
+    return _api_internal._IterVar(dom, var, iter_type, thread_tag)
+
+
+def thread_axis(dom, tag, name=''):
+    """Create a new IterVar to represent thread index.
+
+    Parameters
+    ----------
+    dom : Range
+        The domain of iteration.
+
+    tag : str
+        The thread tag
+
+    name : str, optional
+        The name of the var.
+    """
+    name = name if name else tag
+    return _IterVar(dom, name, 1, tag)
+
+
+def reduce_axis(dom, name="rv"):
+    """Create a new IterVar for reduction.
+
+    Parameters
+    ----------
+    dom : Range
+        The domain of iteration.
+
+    name : str
+        The name of the variable.
+    """
+    return _IterVar(dom, name, 2)
 
 
 def sum(expr, axis):

@@ -11,8 +11,8 @@ def test_add_pipeline():
 
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
-    grid_x = tvm.IterVar(thread_tag="blockIdx.x")
-    thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
+    grid_x = tvm.thread_axis(None, "blockIdx.x")
+    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
     _, x = s[C].split(C.op.axis[0], factor=num_thread, outer=grid_x)
     _, x = s[C].split(x, outer=thread_x)
 

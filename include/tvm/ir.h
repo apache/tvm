@@ -32,15 +32,23 @@ struct Reduce : public ExprNode<Reduce> {
   Expr source;
   /*! \brief The reduction axis */
   Array<IterVar> axis;
+  /*!
+   * \brief Predicate on the reduction
+   *  Only add the body to reduction if condition is true.
+   */
+  Expr condition;
 
   /*! \brief construct expr from op and rdom */
-  static Expr make(std::string op, Expr src, Array<IterVar> rdom);
+  static Expr make(std::string op, Expr src,
+                   Array<IterVar> rdom,
+                   Expr condition = make_const(Bool(1), true));
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
     v->Visit("op", &op);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
+    v->Visit("condition", &condition);
   }
   static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
   static constexpr const char* _type_key = "Reduce";
