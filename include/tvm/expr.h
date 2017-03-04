@@ -35,6 +35,8 @@ using Halide::Internal::make_const;
 using Halide::Internal::make_zero;
 using Halide::Internal::as_const_int;
 using Halide::Internal::as_const_uint;
+using Halide::Internal::const_true;
+using Halide::Internal::const_false;
 
 inline Type TVMType2Type(TVMType t) {
   return Type(static_cast<halide_type_code_t>(t.code), t.bits, t.lanes);
@@ -53,8 +55,8 @@ class Var : public Halide::VarExpr {
  public:
   explicit Var(const std::string& name_hint = "v",
                Type t = Int(32)) : VarExpr(name_hint, t) {}
-
   explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
+  explicit Var(VarExpr v) : VarExpr(v) {}
 
   /*! \brief type indicate the container type */
   using ContainerType = Variable;

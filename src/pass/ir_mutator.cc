@@ -128,7 +128,7 @@ Stmt IRMutator::Mutate_(const IfThenElse *op, const Stmt& s) {
   Expr condition = this->Mutate(op->condition);
   Stmt then_case = this->Mutate(op->then_case);
   Stmt else_case;
-  if (else_case.defined()) {
+  if (op->else_case.defined()) {
     else_case = this->Mutate(op->else_case);
   }
   if (condition.same_as(op->condition) &&

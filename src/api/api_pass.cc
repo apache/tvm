@@ -69,6 +69,7 @@ REGISTER_PASS4(MakeAPI);
 REGISTER_PASS1(SplitHostDevice);
 REGISTER_PASS1(LiftAllocate);
 REGISTER_PASS1(InjectVirtualThread);
+REGISTER_PASS1(LoopPartition);
 
 }  // namespace ir
 }  // namespace tvm

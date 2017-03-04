@@ -21,7 +21,7 @@ using Halide::Internal::Interval;
 // from a expression.
 class VariablePathFinder: public IRVisitor {
  public:
-  explicit VariablePathFinder(Var target) : target_(target) {}
+  explicit VariablePathFinder(Expr target) : target_(target) {}
 
   void Visit(const NodeRef& node) final {
     if (visited_.count(node.get()) != 0) return;
@@ -37,13 +37,13 @@ class VariablePathFinder: public IRVisitor {
 
  private:
   bool found_{false};
-  Var target_;
+  Expr target_;
   std::unordered_set<const Node*> visited_;
 };
 
 // get the path to the variable,
 // return empty vector to represent failure
-std::vector<const Node*> GetPath(Var target, Expr expr) {
+std::vector<const Node*> GetPath(Expr target, Expr expr) {
   VariablePathFinder v(target);
   v.Visit(expr);
   return v.path_;
@@ -56,11 +56,11 @@ class BoundDeducer: public IRVisitor {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
-  BoundDeducer(Var target, Expr expr,
-               const std::unordered_map<const Variable*, IntSet>& dom_map)
-  : target_(target), expr_(expr), dom_map_(dom_map) {}
+  BoundDeducer(Expr target, Expr expr,
+               const std::unordered_map<const Variable*, IntSet>& hint_map,
+               const std::unordered_map<const Variable*, IntSet>& relax_map)
+  : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
 
-  bool Init();
   void Deduce();
 
   void Visit(const NodeRef& e) final {
@@ -137,9 +137,14 @@ class BoundDeducer: public IRVisitor {
   bool success{true};
 
  private:
-  Var  target_;
+  void Init();
+  void Transform();
+  void Relax();
+
+  Expr target_;
   Expr expr_;
-  const std::unordered_map<const Variable*, IntSet>& dom_map_;
+  const std::unordered_map<const Variable*, IntSet>& hint_map_;
+  const std::unordered_map<const Variable*, IntSet>& relax_map_;
   ExprIntSetMap expr_map_;
   std::vector<const Node*> path_;
   size_t iter_{0};
@@ -163,10 +168,13 @@ class BoundDeduceInputChecker: public IRVisitor {
   size_t target_count{0};
 };
 
-bool BoundDeducer::Init() {
+void BoundDeducer::Init() {
   BoundDeduceInputChecker checker;
   if (!checker.Check(this)) success = false;
+  Transform();
+}
 
+void BoundDeducer::Transform() {
   if (const LT* op = expr_.as<LT>()) {
     is_greater = false;
     is_equal   = false;
@@ -190,30 +198,35 @@ bool BoundDeducer::Init() {
   } else {
     success = false;
   }
-  return success;
 }
 
 void BoundDeducer::Deduce() {
   Init();
   if (!success) return;
 
+  Relax();
   // get the path
   path_ = GetPath(target_, expr_);
   // get the sign of every subexpr
-  expr_map_ = EvalSetForEachSubExpr(expr_, dom_map_);
+  expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
   Visit(expr_);
 }
 
-// assuming e >= 0, deduce the bound of variable from it.
-// return empty set to represent deduce failure.
-IntSet DeduceBound(Var v, Expr e,
-                   const Map<Var, IntSet>& dom_map) {
-  std::unordered_map<const Variable*, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap[kv.first.get()] = kv.second;
+void BoundDeducer::Relax() {
+  if (is_greater) {
+    expr_  = EvalSet(expr_ , relax_map_).min();
+    result = EvalSet(result, relax_map_).max();
+  } else {
+    expr_  = EvalSet(expr_ , relax_map_).max();
+    result = EvalSet(result, relax_map_).min();
   }
-  BoundDeducer d(v, e, dmap);
+}
+
+IntSet DeduceBound(Expr v, Expr e,
+  const std::unordered_map<const Variable*, IntSet>& hint_map,
+  const std::unordered_map<const Variable*, IntSet>& relax_map) {
+  BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
   if (!d.success) return IntSet::nothing();
   Expr min = Interval::neg_inf, max = Interval::pos_inf;
@@ -223,6 +236,22 @@ IntSet DeduceBound(Var v, Expr e,
     max = d.is_equal ? d.result : d.result - 1;
   }
   return IntSet::interval(min, max);
+}
+
+// assuming e >= 0, deduce the bound of variable from it.
+// return empty set to represent deduce failure.
+IntSet DeduceBound(Expr v, Expr e,
+                   const Map<Var, IntSet>& hint_map,
+                   const Map<Var, IntSet>& relax_map) {
+  std::unordered_map<const Variable*, IntSet> hmap;
+  for (auto kv : hint_map) {
+    hmap[kv.first.get()] = kv.second;
+  }
+  std::unordered_map<const Variable*, IntSet> rmap;
+  for (auto kv : relax_map) {
+    rmap[kv.first.get()] = kv.second;
+  }
+  return DeduceBound(v, e, hmap, rmap);
 }
 
 }  // namespace arith

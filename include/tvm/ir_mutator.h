@@ -62,12 +62,12 @@ class IRMutator {
   virtual Stmt Mutate_(const Allocate* op, const Stmt& s);
   virtual Stmt Mutate_(const Store* op, const Stmt& s);
   virtual Stmt Mutate_(const Free* op, const Stmt& s);
-  virtual Stmt Mutate_(const AssertStmt* op, const Stmt& e);
-  virtual Stmt Mutate_(const ProducerConsumer* op, const Stmt& e);
-  virtual Stmt Mutate_(const Provide* op, const Stmt& e);
+  virtual Stmt Mutate_(const AssertStmt* op, const Stmt& s);
+  virtual Stmt Mutate_(const ProducerConsumer* op, const Stmt& s);
+  virtual Stmt Mutate_(const Provide* op, const Stmt& s);
   virtual Stmt Mutate_(const Realize* op, const Stmt& s);
   virtual Stmt Mutate_(const Block* op, const Stmt& s);
-  virtual Stmt Mutate_(const Evaluate* op, const Stmt& e);
+  virtual Stmt Mutate_(const Evaluate* op, const Stmt& s);
 
   virtual Expr Mutate_(const Variable* op, const Expr& e);
   virtual Expr Mutate_(const Load* op, const Expr& e);
