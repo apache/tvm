@@ -12,7 +12,7 @@ def test_basic():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt)
-    # assert(stmt.body.body.body.first.body.body.condition.value == 1)
+    assert('if' not in str(stmt.body.body.body.first))
     print(stmt)
 
 def test_multi_loop():
@@ -30,11 +30,10 @@ def test_multi_loop():
                 tvm.make.IfThenElse(
                     (i*m+j+k < n), tvm.make.Evaluate(m), tvm.make.Evaluate(n)))))
     stmt = tvm.ir_pass.LoopPartition(stmt)
-    # assert(stmt.body.first.body.body.condition.value == 1)
+    assert('if' not in str(stmt.body.first))
     print(stmt)
-    return stmt
 
 
 if __name__ == "__main__":
-    s1 = test_basic()
-    s2 = test_multi_loop()
+    test_basic()
+    test_multi_loop()

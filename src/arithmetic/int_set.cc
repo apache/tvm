@@ -163,14 +163,6 @@ inline bool MatchPoint(const IntSet& a,
 }
 
 IntSet Union(const Array<IntSet>& sets) {
-  std::vector<IntSet> v_sets;
-  for (auto s : sets) {
-    v_sets.push_back(s);
-  }
-  return Union(v_sets);
-}
-
-IntSet Union(const std::vector<IntSet>& sets) {
   if (sets.size() == 1) return sets[0];
   Interval x = sets[0].cover_interval().as<IntervalSet>()->i;
   for (size_t i = 1; i < sets.size(); ++i) {
@@ -188,14 +180,6 @@ IntSet Union(const std::vector<IntSet>& sets) {
 }
 
 IntSet Intersect(const Array<IntSet>& sets) {
-  std::vector<IntSet> v_sets;
-  for (auto s : sets) {
-    v_sets.push_back(s);
-  }
-  return Intersect(v_sets);
-}
-
-IntSet Intersect(const std::vector<IntSet>& sets) {
   Interval x = sets[0].cover_interval().as<IntervalSet>()->i;
   for (size_t i = 1; i < sets.size(); ++i) {
     Interval y = sets[i].cover_interval().as<IntervalSet>()->i;
