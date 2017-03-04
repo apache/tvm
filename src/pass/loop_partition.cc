@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2016 by Contributors
+ *  Copyright (c) 2017 by Contributors
  * \file loop_partition.cc
  */
 #include <tvm/ir.h>
@@ -38,9 +38,9 @@ bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
 class PartitionFinder : public IRVisitor {
  public:
   explicit PartitionFinder(VarExpr loop_var,
-    const std::unordered_map<const Variable*, IntSet>& vars)
-      : target_var_(loop_var), out_vars_(vars.size()), hint_map_(vars), relax_map_() {
-        for (auto kv : vars) out_vars_.insert(kv.first);
+    const std::unordered_map<const Variable*, IntSet>& dom_map)
+      : target_var_(loop_var), out_vars_(dom_map.size()), hint_map_(dom_map) {
+        for (const auto& kv : dom_map) out_vars_.insert(kv.first);
       }
 
   void Visit_(const For* op) {
@@ -95,35 +95,25 @@ class LoopPartitioner : public IRMutator {
   LoopPartitioner() {}
 
   Stmt Mutate_(const For* op, const Stmt& stmt) {
-    if (is_const(op->min) && is_const(op->extent)) {
-      vars_.insert({op->loop_var.get(),
-        IntSet::interval(op->min, op->min + op->extent - 1)});
-      Stmt res = IRMutator::Mutate_(op, stmt);
-      vars_.erase(op->loop_var.get());
-      return res;
+    if (!is_const(op->min) || !is_const(op->extent)) {
+      Stmt s = DoPartition(op, stmt);
+      if (s.defined()) return s;
     }
-
-    Stmt s = DoPartition(op, stmt);
-
-    if (s.defined()) {
-      return s;
-    } else {
-      vars_.insert({op->loop_var.get(),
-          IntSet::interval(op->min, op->min + op->extent - 1)});
-      Stmt res = IRMutator::Mutate_(op, stmt);
-      vars_.erase(op->loop_var.get());
-      return res;
-    }
+    dom_map_.insert({op->loop_var.get(),
+      IntSet::interval(op->min, op->min + op->extent - 1)});
+    Stmt res = IRMutator::Mutate_(op, stmt);
+    dom_map_.erase(op->loop_var.get());
+    return res;
   }
 
  private:
   Stmt DoPartition(const For* op, const Stmt& stmt);
 
-  std::unordered_map<const Variable*, IntSet> vars_;
+  std::unordered_map<const Variable*, IntSet> dom_map_;
 };
 
 Stmt LoopPartitioner::DoPartition(const For* op, const Stmt& stmt) {
-  PartitionFinder finder(op->loop_var, vars_);
+  PartitionFinder finder(op->loop_var, dom_map_);
   finder.Visit(op->body);
   const auto& partitions = finder.partitions;
 
