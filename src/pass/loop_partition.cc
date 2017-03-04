@@ -123,7 +123,7 @@ Stmt LoopPartitioner::DoPartition(const For* op, const Stmt& stmt) {
   Expr max = op->min + op->extent - 1;
   Array<IntSet> sets;
   // merge partitions (take their intersect)
-  for (auto kv : partitions) {
+  for (const auto& kv : partitions) {
     sets.push_back(kv.second.interval);
   }
   IntSet true_itrv  = Intersect(sets);
