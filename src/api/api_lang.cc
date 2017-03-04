@@ -6,6 +6,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/tensor.h>
+#include <tvm/operation.h>
 #include <tvm/buffer.h>
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>

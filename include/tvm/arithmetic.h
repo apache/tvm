@@ -12,6 +12,7 @@
 #include "./expr.h"
 
 namespace tvm {
+/*! \brief namespace of arithmetic */
 namespace arith {
 /*!
  * \brief Sign of an expression or set.
@@ -108,7 +109,7 @@ class IntSet : public NodeRef {
  * \brief Range of a linear integer function.
  *  Use to do specify the possible index values.
  *
- *  set = { base + coeff * x | x \in Z }
+ *  set = { base + coeff * x | x in Z }
  *
  *  When coeff != 0, it can also be written as
  *  set = { n | n % coeff == base }
@@ -180,7 +181,7 @@ IntSet EvalSet(Range r,
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
- * \param e The expression to be evaluated.
+ * \param r The range to be evaluated.
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
@@ -198,7 +199,7 @@ using ExprIntSetMap = std::unordered_map<Expr, IntSet, ExprHash, ExprEqual>;
  * \return the map from the expression to its possible value.
  */
 ExprIntSetMap EvalSetForEachSubExpr(
-    Expr r,
+    Expr e,
     const std::unordered_map<const Variable*, IntSet>& dom_map);
 
 /*!
@@ -240,7 +241,7 @@ IntSet DeduceBound(Expr v, Expr cond,
  *        The deduce bound mush implies e for all value in relax_map
  * \return An integer set that can cover all the possible values.
  */
-IntSet DeduceBound(Expr v, Expr e,
+IntSet DeduceBound(Expr v, Expr cond,
                    const std::unordered_map<const Variable*, IntSet>& hint_map,
                    const std::unordered_map<const Variable*, IntSet>& relax_map);
 
@@ -262,12 +263,10 @@ ModularEntry EvalModular(
  */
 IntSet EvalModular(const Expr& e,
                    const Map<Var, IntSet>& mod_map);
-
 // implementation
 inline const IntSetNode* IntSet::operator->() const {
   return static_cast<const IntSetNode*>(node_.get());
 }
-
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITHMETIC_H_

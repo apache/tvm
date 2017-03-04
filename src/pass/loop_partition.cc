@@ -15,6 +15,8 @@ namespace tvm {
 namespace ir {
 
 using arith::IntSet;
+using arith::DeduceBound;
+using arith::Intersect;
 
 // a partition means the expr is equal to true in the interval
 struct Partition {

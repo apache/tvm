@@ -3,6 +3,7 @@
  * \file schedule_dataflow_rewrite.cc
  */
 #include <tvm/schedule.h>
+#include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
@@ -19,35 +20,7 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
   return array_node->data.size();
 }
 
-using ir::TensorKey;
-
 // The replacer of cache.
-class TensorReplacer : public ir::IRMutator {
- public:
-  explicit TensorReplacer(const std::unordered_map<TensorKey, Tensor>& vmap)
-      : vmap_(vmap) {}
-  Expr Mutate_(const ir::Call* op, const Expr& e) {
-    if (op->call_type == ir::Call::Halide) {
-      ir::TensorKey key{op->func, op->value_index};
-      auto it = vmap_.find(key);
-      if (it != vmap_.end()) {
-        Expr ret = ir::Call::make(
-            op->type, it->second->op->name, op->args,
-            op->call_type, it->second->op, it->second->value_index);
-        found = true;
-        return IRMutator::Mutate_(ret.as<ir::Call>(), ret);
-      }
-    }
-    return IRMutator::Mutate_(op, e);
-  }
-
-  // whether it is found.
-  bool found{false};
-
- private:
-  const std::unordered_map<TensorKey, Tensor>& vmap_;
-};
-
 class VarReplacer : public ir::IRMutator {
  public:
   explicit VarReplacer(
@@ -66,46 +39,14 @@ class VarReplacer : public ir::IRMutator {
 // Replace data flow appears in all stages given the tensor change.
 // Also update vmap if subsequent dataflow need to be replaced.
 void ReplaceDataFlow(const Array<Stage>& stages,
-                     std::unordered_map<TensorKey, Tensor>* vmap) {
+                     std::unordered_map<Tensor, Tensor>* vmap) {
   for (Stage s : stages) {
-    if (s->op.as<ComputeOpNode>()) {
-      const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
-      TensorReplacer repl(*vmap);
-      Expr body = repl.Mutate(compute->body);
-      if (repl.found) {
-        Operation op = ComputeOpNode::make(
-            compute->name, compute->axis, body);
-        (*vmap)[TensorKey{s->op, 0}] = op.output(0);
-        s->op = op;
+    Operation op = s->op->ReplaceInputs(s->op, *vmap);
+    if (!op.same_as(s->op)) {
+      for (int i = 0; i < op->num_outputs(); ++i) {
+        (*vmap)[s->op.output(i)] = op.output(i);
       }
-    } else if (s->op.as<ScanOpNode>()) {
-      const ScanOpNode* scan = s->op.as<ScanOpNode>();
-      std::shared_ptr<ScanOpNode> n =
-          std::make_shared<ScanOpNode>(*scan);
-      // copy on write semantics ganrantees correctness
-      for (size_t i = 0; i < n->init.size(); ++i) {
-        TensorKey key{n->init[i]->op, n->init[i]->value_index};
-        if (vmap->count(key)) {
-          n->init.Set(i, vmap->at(key));
-        }
-      }
-      for (size_t i = 0; i < n->update.size(); ++i) {
-        TensorKey key{n->update[i]->op, n->update[i]->value_index};
-        if (vmap->count(key)) {
-          n->update.Set(i, vmap->at(key));
-        }
-      }
-      if (!n->init.same_as(scan->init) ||
-          !n->update.same_as(scan->update)) {
-        Operation op(n);
-        for (int i = 0; i < op->num_outputs(); ++i) {
-          (*vmap)[TensorKey{s->op, i}] = op.output(i);
-        }
-        s->op = op;
-      }
-    } else if (s->op.as<PlaceholderOpNode>()) {
-    } else {
-      LOG(FATAL) << "unhandled problem";
+      s->op = op;
     }
   }
 }
@@ -124,25 +65,17 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   Tensor cache = compute(tensor->shape, [&tensor](const Array<Var>& i) {
       return tensor(Array<Expr>(i.begin(), i.end()));
     }, os.str());
-  std::unordered_map<TensorKey, Tensor> vsub;
-  vsub[TensorKey{tensor->op, tensor->value_index}] = cache;
+  std::unordered_map<Tensor, Tensor> vsub;
+  vsub[tensor] = cache;
 
-  std::unordered_map<TensorKey, Tensor> vmap;
+  std::unordered_map<Tensor, Tensor> vmap;
   for (Operation op : readers) {
-    const ComputeOpNode* compute = op.as<ComputeOpNode>();
-    CHECK(compute)
-        << "cache read only take ComputeOp as readers";
     Stage s = operator[](op);
-    compute = s->op.as<ComputeOpNode>();
-
-    TensorReplacer repl(vsub);
-    Expr body = repl.Mutate(compute->body);
-    CHECK(repl.found)
+    Operation repl_op = s->op->ReplaceInputs(s->op, vsub);
+    CHECK(!repl_op.same_as(s->op))
         << "Cannot find " << tensor
-        << " in the body of specified reader " << op;
-    Operation repl_op = ComputeOpNode::make(
-        compute->name, compute->axis, body);
-    vmap[TensorKey{s->op, 0}] = repl_op.output(0);
+        << " in the inputs of " << s->op;
+    vmap[s->op.output(0)] = repl_op.output(0);
     s->op = repl_op;
   }
   ReplaceDataFlow((*this)->stages, &vmap);
@@ -186,8 +119,8 @@ Tensor Schedule::cache_write(const Tensor& tensor,
       compute->name, compute->axis,
       cache_tensor(args));
 
-  std::unordered_map<TensorKey, Tensor> vmap;
-  vmap[TensorKey{orig_stage->op, 0}] = orig_new_op.output(0);
+  std::unordered_map<Tensor, Tensor> vmap;
+  vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
   ReplaceDataFlow((*this)->stages, &vmap);
 
   // mutate orig stage
@@ -288,7 +221,7 @@ void InjectInline(const Schedule& sch) {
       }
     }
   }
-  std::unordered_map<TensorKey, Tensor> repl;
+  std::unordered_map<Tensor, Tensor> repl;
   // rewrite dataflow
   for (size_t i = 0; i < sch->stages.size(); ++i) {
     if (new_body[i].defined() &&
@@ -297,7 +230,7 @@ void InjectInline(const Schedule& sch) {
       CHECK(compute);
       Operation op = ComputeOpNode::make(
           compute->name, compute->axis, new_body[i]);
-      repl[TensorKey{sch->stages[i]->op, 0}] = op.output(0);
+      repl[sch->stages[i]->op.output(0)] = op.output(0);
       Stage s = sch->stages[i];
       s->op = op;
     }

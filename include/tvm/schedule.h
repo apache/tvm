@@ -8,7 +8,7 @@
 
 #include <string>
 #include "./base.h"
-#include "./operation.h"
+#include "./tensor.h"
 
 namespace tvm {
 

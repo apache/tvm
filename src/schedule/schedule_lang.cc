@@ -3,6 +3,7 @@
  * \file schedule_lang.cc
  */
 #include <tvm/schedule.h>
+#include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_set>
 #include "./graph.h"
@@ -89,7 +90,16 @@ Stage::Stage(Operation op) {
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
-  n->leaf_iter_vars = n->all_iter_vars;
+  // remove opaque var from leaf.
+  Array<IterVar> clean;
+  for (IterVar iv : n->all_iter_vars) {
+    if (iv->iter_type != kOpaque) clean.push_back(iv);
+  }
+  if (clean.size() == n->all_iter_vars.size()) {
+    n->leaf_iter_vars = n->all_iter_vars;
+  } else {
+    n->leaf_iter_vars = clean;
+  }
   node_ = n;
 }
 

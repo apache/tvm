@@ -14,6 +14,7 @@
 
 #include "./base.h"
 #include "./expr.h"
+#include "./arithmetic.h"
 
 namespace tvm {
 
@@ -156,34 +157,8 @@ class TensorNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
 };
 
-/*!
- * \brief base class of operation node.
- */
-class OperationNode : public FunctionBaseNode {
- public:
-  /*! \brief optional name of the operation */
-  std::string name;
-  /*! \return name of the operation */
-  const std::string& func_name() const final {
-    return name;
-  }
-  /*! \return the list of iteration variable at root */
-  virtual Array<IterVar> root_iter_vars() const = 0;
-  /*! \return type of i-th output */
-  virtual Type output_dtype(size_t i) const = 0;
-  /*! \return shape of i-th output */
-  virtual Array<Expr> output_shape(size_t i) const = 0;
-
-  static constexpr const char* _type_key = "Operation";
-
-  TVM_DECLARE_BASE_NODE_INFO(OperationNode, Node);
-};
 
 // Implementations of inline functions
-inline const OperationNode* Operation::operator->() const {
-  return static_cast<const OperationNode*>(node_.get());
-}
-
 inline const TensorNode* Tensor::operator->() const {
   return static_cast<const TensorNode*>(node_.get());
 }
@@ -249,5 +224,16 @@ struct hash<::tvm::Operation> {
     return k.hash();
   }
 };
-}
+
+template <>
+struct hash<::tvm::Tensor> {
+  std::size_t operator()(const ::tvm::Tensor& k) const {
+    if (k.defined() && k->op.defined()) {
+      return k->op.hash();
+    } else{
+      return k.hash();
+    }
+  }
+};
+}  // namespace std
 #endif  // TVM_TENSOR_H_

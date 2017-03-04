@@ -94,6 +94,12 @@ constexpr const char* storage_scope = "storage_scope";
  * \brief Mark storage scope of realizations
  */
 constexpr const char* realize_scope = "realize_scope";
+/*! \brief Mark of loop scope */
+constexpr const char* loop_scope = "loop_scope";
+/*! \brief Mark of scan update scope */
+constexpr const char* scan_update_scope = "scan_update_scope";
+/*! \brief Mark of scan init scope */
+constexpr const char* scan_init_scope = "scan_init_scope";
 }  // namespace attr
 
 /*! \brief namespace of TVM Intrinsic functions */
