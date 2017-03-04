@@ -30,6 +30,11 @@ def test_deduce():
     assert str(res2.max()) == "neg_inf"
     assert str(res2.min()) == "pos_inf"
 
+    e3 = (-b)+a*c-d
+    res3 = tvm.arith.DeduceBound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
+    ans3 = 2/c+1
+    assert str(tvm.ir_pass.Simplify(res3.min())) == str(ans3)
+
 def test_check():
     a = tvm.Var('a')
     b = tvm.Var('b')
