@@ -5,6 +5,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/operation.h>
 #include <unordered_set>
 #include "./graph.h"
 
@@ -69,28 +70,7 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots) {
   while (!stack.empty()) {
     Operation op = stack.back();
     stack.pop_back();
-    Array<Tensor> deps;
-    if (op.as<ComputeOpNode>()) {
-      auto fvisit = [&deps](const NodeRef& n) {
-        auto *call = n.as<ir::Call>();
-        if (call != nullptr && call->func.defined()) {
-          Operation call_op(call->func.node_);
-          deps.push_back(call_op.output(call->value_index));
-        }
-      };
-      ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
-    } else if (op.as<ScanOpNode>()) {
-      const ScanOpNode* scan = op.as<ScanOpNode>();
-      for (Tensor t : scan->init) {
-        deps.push_back(t);
-      }
-      for (Tensor t : scan->update) {
-        deps.push_back(t);
-      }
-    } else if (op.as<PlaceholderOpNode>()) {
-    } else {
-      LOG(FATAL) << "unknown Operation" << op->type_key();
-    }
+    Array<Tensor> deps = op->InputTensors();
     rmap.Set(op, deps);
     for (Tensor t : deps) {
       if (t->op.defined() && visited.count(t->op.get()) == 0) {
@@ -137,7 +117,6 @@ FeedGraph CreateFeedGraph(const ReadGraph& g) {
 
 AttachPath CreateAttachPath(Schedule sch) {
   AttachPath ret;
-
   for (Stage stage : sch->stages) {
     if (stage->attach_type == kScanUpdate) {
       const Stage& parent = stage->attach_stage;

@@ -6,10 +6,11 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/arithmetic.h>
 #include <tvm/api_registry.h>
+
 #include <unordered_set>
 #include <unordered_map>
-#include "./int_set.h"
 
 namespace tvm {
 namespace arith {

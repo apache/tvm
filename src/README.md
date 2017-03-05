@@ -1,9 +1,14 @@
-# Code organization
+# Code Organization
 
-- api API functionr registration
+Header files in include are public APIs that share across modules.
+There can be internal header files within each module that sit in src.
+
+The current code modules in src.
+- api API function registration
 - lang The definition of DSL related data structure
-- schedule The operations on the schedule graph before converting to IR.
 - arithmetic Arithmetic expression and set simplification
+- op The detail implementations about each operation(compute, scan, placeholder)
+- schedule The operations on the schedule graph before converting to IR.
 - pass The optimization pass on the IR structure
-- runtime Minimum runtime related codes.
-- codegen The code generator
+- codegen The code generator.
+- runtime Minimum runtime related codes

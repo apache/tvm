@@ -11,7 +11,7 @@ def test_gemm():
     l = n
     A = tvm.placeholder((n, l), name='A')
     B = tvm.placeholder((m, l), name='B')
-    k = tvm.IterVar((0, l), name='k')
+    k = tvm.reduce_axis((0, l), name='k')
     C = tvm.compute(
         (n, m),
         lambda ii, jj: tvm.sum(A[ii, k] * B[jj, k], axis=k),
@@ -22,10 +22,10 @@ def test_gemm():
     scale = 8
     num_thread = 8
     block_factor = scale * num_thread
-    block_x = tvm.IterVar(thread_tag="blockIdx.x")
-    thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
-    block_y = tvm.IterVar(thread_tag="blockIdx.y")
-    thread_y = tvm.IterVar((0, num_thread), thread_tag="threadIdx.y")
+    block_x = tvm.thread_axis(None, "blockIdx.x")
+    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
+    block_y = tvm.thread_axis(None, "blockIdx.y")
+    thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
 
     CC = s.cache_write(C, "local")
     AA = s.cache_read(A, "shared", [CC])

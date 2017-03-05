@@ -3,6 +3,7 @@
  * \file auto_inline_elem_wise.cc
  */
 #include <tvm/schedule_pass.h>
+#include <tvm/operation.h>
 #include <tvm/ir_visitor.h>
 
 namespace tvm {

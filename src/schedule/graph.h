@@ -8,6 +8,7 @@
 
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
+#include <tvm/operation.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -19,11 +20,6 @@ namespace schedule {
  * \brief data structure of Operation->Tensors it reads
  */
 using ReadGraph = Map<Operation, Array<Tensor> >;
-
-/*!
- * \brief The map beteen tensor and operation it feeds to
- */
-using FeedGraph = std::unordered_map<Tensor, std::vector<Operation> >;
 
 /*!
  * \brief AttachPath maps op-> a list of IterVar

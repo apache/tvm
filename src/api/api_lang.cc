@@ -6,6 +6,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/tensor.h>
+#include <tvm/operation.h>
 #include <tvm/buffer.h>
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
@@ -188,10 +189,12 @@ TVM_REGISTER_API(_OpGetOutput)
         static_cast<size_t>(args[1].operator int64_t()));
   });
 
-
 TVM_REGISTER_API(_IterVar)
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = IterVar(args[0], args[1], args[2]);
+    *ret = IterVarNode::make(
+        args[0], args[1],
+        static_cast<IterVarType>(args[2].operator int()),
+        args[3]);
   });
 
 TVM_REGISTER_API(_Schedule)

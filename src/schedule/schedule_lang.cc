@@ -3,6 +3,7 @@
  * \file schedule_lang.cc
  */
 #include <tvm/schedule.h>
+#include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_set>
 #include "./graph.h"
@@ -35,16 +36,31 @@ size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) 
   return 0;
 }
 
-void Split(StageNode* self, IterVar parent,
-           IterVar outer, IterVar inner, Expr factor) {
+void CheckSplit(StageNode* self, IterVar parent, IterVar outer) {
+  // Check if split is valid.
   if (self->attach_type == kScanUpdate) {
     CHECK(!parent.same_as(self->all_iter_vars[0]))
         << "Cannot split on axis[0] of scan update";
   }
+  if (outer.defined()) {
+    CHECK_EQ(outer->iter_type, kThreadIndex)
+        << "outer in split have to be ThreadIndex";
+    CHECK_EQ(parent->iter_type, kDataPar)
+        << "Split by by kThreadIndex requires kDataPar IterVar "
+        << " given " << IterVarType2String(parent->iter_type);
+  } else {
+    CHECK(parent->iter_type == kDataPar ||
+          parent->iter_type == kCommReduce ||
+          parent->iter_type == kOrdered)
+        << "Cannot split on " << IterVarType2String(parent->iter_type);
+  }
+}
+
+void Split(StageNode* self, IterVar parent,
+           IterVar outer, IterVar inner, Expr factor) {
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
-
   self->relations.push_back(SplitNode::make(parent, outer, inner, factor));
   // add vars to all vars
   all_vars->data.push_back(outer.node_);
@@ -66,11 +82,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IterVarAttrNode>([](const IterVarAttrNode *op, IRPrinter *p) {
-    switch (op->iter_type) {
-      case kUnrolled: p->stream << "unroll"; break;
-      case kVectorized: p->stream << "vectorize"; break;
-      case kParallel: p->stream << "parallel"; break;
-    }
+    p->stream << IterVarType2String(op->iter_type);
   });
 
 Stage::Stage(Operation op) {
@@ -78,7 +90,16 @@ Stage::Stage(Operation op) {
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
-  n->leaf_iter_vars = n->all_iter_vars;
+  // remove opaque var from leaf.
+  Array<IterVar> clean;
+  for (IterVar iv : n->all_iter_vars) {
+    if (iv->iter_type != kOpaque) clean.push_back(iv);
+  }
+  if (clean.size() == n->all_iter_vars.size()) {
+    n->leaf_iter_vars = n->all_iter_vars;
+  } else {
+    n->leaf_iter_vars = clean;
+  }
   node_ = n;
 }
 
@@ -122,18 +143,22 @@ Stage& Stage::compute_root() {   // NOLINT(*)
 
 Stage& Stage::split(
     IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor) {  // NOLINT(*)
-  // place holder for the splitted results.
-  IterVar outer(Range(), parent->var->name_hint + ".outer");
-  IterVar inner(Range(), parent->var->name_hint + ".inner");
-  *p_outer = outer; *p_inner = inner;
-
+  CheckSplit(operator->(), parent, IterVar());
+  IterVar outer = IterVarNode::make(
+      Range(), parent->var.copy_with_suffix(".outer"), parent->iter_type);
+  IterVar inner = IterVarNode::make(
+      Range(), parent->var.copy_with_suffix(".inner"), parent->iter_type);
+  *p_outer = outer;
+  *p_inner = inner;
   Split(operator->(), parent, outer, inner, factor);
   return *this;
 }
 
 Stage& Stage::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor) { // NOLINT(*)
-  // place holder for the splitted results.
-  IterVar inner(Range(), parent->var->name_hint + ".inner");
+  CheckSplit(operator->(), parent, outer);
+  std::string name_inner = parent->var->name_hint + ".inner";
+  IterVar inner = IterVarNode::make(
+      Range(), Var(name_inner, parent->var.type()), parent->iter_type);
   *p_inner = inner;
   Split(operator->(), parent, outer, inner, factor);
 
@@ -144,11 +169,27 @@ Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT
   StageNode* self = operator->();
   if (self->attach_type == kScanUpdate) {
     CHECK(!inner.same_as(self->all_iter_vars[0]))
-        << "Cannot split on axis[0] of scan update";
+        << "Cannot fuse on axis[0] of scan update";
     CHECK(!outer.same_as(self->all_iter_vars[0]))
-        << "Cannot split on axis[0] of scan update";
+        << "Cannot fuse on axis[0] of scan update";
   }
-  IterVar fused(Range(), outer->var->name_hint + "." + inner->var->name_hint + ".fused");
+  CHECK(outer->iter_type == kDataPar ||
+        outer->iter_type == kCommReduce ||
+        outer->iter_type == kOrdered)
+      << "Cannot fuse " << IterVarType2String(outer->iter_type);
+  CHECK(inner->iter_type == kDataPar ||
+        inner->iter_type == kCommReduce ||
+        inner->iter_type == kOrdered)
+      << "Cannot fuse " << IterVarType2String(outer->iter_type);
+
+  IterVarType iter_type = outer->iter_type;
+  if (inner->iter_type > iter_type) iter_type = inner->iter_type;
+  std::string fused_name =
+      outer->var->name_hint + "." + inner->var->name_hint + ".fused";
+
+  IterVar fused = IterVarNode::make(
+      Range(), Var(fused_name, outer->var.type()), iter_type);
+
   *p_target = fused;
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -169,8 +210,13 @@ Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT
 
 Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   StageNode* self = operator->();
-  CHECK(!self->op.as<ScanOpNode>())
-      << "Cannot reorder axis of scan";
+  for (IterVar iv : order) {
+    CHECK(iv->iter_type == kDataPar ||
+          iv->iter_type == kCommReduce ||
+          iv->iter_type == kThreadIndex)
+        << "Cannot reorder IterVar("
+        << IterVarType2String(iv->iter_type) << ")";
+  }
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   std::vector<size_t> pos;
@@ -248,7 +294,7 @@ Stage& Stage::unroll(IterVar var) {   // NOLINT(*)
 }
 
 Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
-  SetAttr(operator->(), var, IterVarAttr(kParallel));
+  SetAttr(operator->(), var, IterVarAttr(kParallelized));
   return *this;
 }
 

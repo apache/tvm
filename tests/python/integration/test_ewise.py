@@ -11,8 +11,8 @@ def test_add():
     s = tvm.Schedule(C.op)
     # create iter var and assign them tags.
     num_thread = 256
-    block_x = tvm.IterVar(thread_tag="blockIdx.x")
-    thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
+    block_x = tvm.thread_axis(None, "blockIdx.x")
+    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
     _, x = s[C].split(C.op.axis[0], factor=num_thread*4, outer=block_x)
     _, x = s[C].split(x, outer=thread_x)
     _, x = s[C].split(x, factor=4)

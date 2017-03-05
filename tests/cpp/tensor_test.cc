@@ -22,7 +22,7 @@ TEST(Tensor, Reduce) {
   Var m("m"), n("n"), l("l");
   Tensor A = placeholder({m, l}, Float(32), "A");
   Tensor B = placeholder({n, l}, Float(32), "B");
-  IterVar rv(Range{0, l}, "k");
+  IterVar rv = reduce_axis(Range{0, l}, "k");
 
   auto C = compute({m, n}, [&](Var i, Var j) {
       return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv});

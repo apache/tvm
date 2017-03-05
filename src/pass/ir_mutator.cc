@@ -44,7 +44,7 @@ inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {
     if (!r->extent.same_as(new_extent)) changed = true;
     new_dom[i] = IterVarNode::make(
         Range::make_with_min_extent(new_min, new_extent),
-        v->var, v->thread_tag);
+        v->var, v->iter_type, v->thread_tag);
   }
   if (!changed) {
     return rdom;
@@ -322,11 +322,13 @@ DEFINE_BIOP_EXPR_MUTATE_(Or)
 Expr IRMutator::Mutate_(const Reduce *op, const Expr& e) {
   Array<IterVar> new_axis  = MutateIterVarArr(op->axis, this);
   Expr new_source = this->Mutate(op->source);
+  Expr new_cond = this->Mutate(op->condition);
   if (op->axis.same_as(new_axis) &&
-      op->source.same_as(new_source)) {
+      op->source.same_as(new_source) &&
+      op->condition.same_as(new_cond)) {
     return e;
   } else {
-    return Reduce::make(op->op, new_source, new_axis);
+    return Reduce::make(op->op, new_source, new_axis, new_cond);
   }
 }
 

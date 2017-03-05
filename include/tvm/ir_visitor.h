@@ -61,8 +61,8 @@ namespace ir {
  * // These traps may not happen if we program carefully
  * // But it is recommended to use ExprFunctor, which allows direct
  * // return the value, this helps us to avoid such problems.
- * \encode
  *
+ * \endcode
  */
 class IRVisitor {
  public:

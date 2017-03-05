@@ -3,6 +3,7 @@
  * \file tensor.cc
  */
 #include <tvm/tensor.h>
+#include <tvm/operation.h>
 #include <ir/IR.h>
 #include <memory>
 
@@ -39,5 +40,14 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_REGISTER_NODE_TYPE(TensorNode);
+
+Tensor Operation::output(size_t i) const {
+  auto node = std::make_shared<TensorNode>();
+  node->op = *this;
+  node->value_index = i;
+  node->dtype = (*this)->output_dtype(i);
+  node->shape = (*this)->output_shape(i);
+  return Tensor(node);
+}
 
 }  // namespace tvm

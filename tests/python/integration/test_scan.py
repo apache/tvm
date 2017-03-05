@@ -4,7 +4,6 @@ import numpy as np
 def test_scan():
     m = tvm.Var("m")
     n = tvm.Var("n")
-    t = tvm.IterVar((1, m), name="t")
     X = tvm.placeholder((m, n), name="X")
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: X[0, i])
@@ -14,8 +13,8 @@ def test_scan():
     # schedule
     s = tvm.Schedule(res.op)
     num_thread = 256
-    block_x = tvm.IterVar(thread_tag="blockIdx.x")
-    thread_x = tvm.IterVar((0, num_thread), thread_tag="threadIdx.x")
+    block_x = tvm.thread_axis(None, "blockIdx.x")
+    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
     _, x = s[s_init].split(s_init.op.axis[1], factor=num_thread, outer=block_x)
     _, x = s[s_init].split(x, outer=thread_x)
     _, x = s[s_update].split(s_update.op.axis[1], factor=num_thread, outer=block_x)

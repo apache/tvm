@@ -8,7 +8,7 @@
 
 #include <string>
 #include "./base.h"
-#include "./operation.h"
+#include "./tensor.h"
 
 namespace tvm {
 
@@ -29,13 +29,6 @@ enum AttachType : int {
   kInlinedAlready = 3,
   kScope = 4,
   kScanUpdate = 5
-};
-
-/*! \brief IterVar type */
-enum IterVarType : int {
-  kUnrolled = 1,
-  kVectorized = 2,
-  kParallel = 3
 };
 
 /*! \brief Stage, contains scheduling for a stage of computation. */

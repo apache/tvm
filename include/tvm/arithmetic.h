@@ -1,18 +1,22 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file int_set.h
- * \brief Abstraction for all integer set operations.
+ * \file arithmetic.h
+ * \brief Algebra and set operations.
  */
-#ifndef TVM_ARITHMETIC_INT_SET_H_
-#define TVM_ARITHMETIC_INT_SET_H_
+#ifndef TVM_ARITHMETIC_H_
+#define TVM_ARITHMETIC_H_
 
-#include <tvm/expr.h>
-#include <tvm/schedule.h>
 #include <vector>
+#include <unordered_map>
+#include <memory>
+#include "./expr.h"
 
 namespace tvm {
+/*! \brief namespace of arithmetic */
 namespace arith {
-
+/*!
+ * \brief Sign of an expression or set.
+ */
 enum SignType {
   kPositive,
   kNegative,
@@ -102,15 +106,47 @@ class IntSet : public NodeRef {
 };
 
 /*!
+ * \brief Range of a linear integer function.
+ *  Use to do specify the possible index values.
+ *
+ *  set = { base + coeff * x | x in Z }
+ *
+ *  When coeff != 0, it can also be written as
+ *  set = { n | n % coeff == base }
+ *
+ *  This is useful to decide if the index is dividable by certain value.
+ *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
+ */
+struct ModularEntry {
+  /*! \brief The base */
+  int base;
+  /*! \brief linear co-efficient */
+  int coeff;
+
+  /*! \return entry represent everything */
+  static ModularEntry everything() {
+    // always safe to set 0 + x, so it can be everything.
+    ModularEntry e;
+    e.base = 0; e.coeff = 1;
+    return e;
+  }
+  /*!
+   * \brief Add two modular entries together to get a new modular entry.
+   * \param a The left operand.
+   * \param b The right operand.
+   * \return The combined modular entry.
+   */
+  static ModularEntry Add(const ModularEntry& a,
+                          const ModularEntry& b);
+};
+
+/*!
  * \brief Base class of all IntSet containers.
  */
 struct IntSetNode : public Node {
   static constexpr const char* _type_key = "IntSet";
   TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
 };
-
-using ExprIntSetMap = std::unordered_map<Expr, IntSet,
-      Halide::ExprHash, Halide::ExprEqual>;
 
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
@@ -122,6 +158,13 @@ using ExprIntSetMap = std::unordered_map<Expr, IntSet,
  */
 IntSet EvalSet(Expr e,
                const Map<IterVar, IntSet>& dom_map);
+/*!
+ * \brief Same as EvalSet, but takes unordered_map
+ *
+ * \param e The expression to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values of e.
+ */
 IntSet EvalSet(Expr e,
                const std::unordered_map<const Variable*, IntSet>& dom_map);
 
@@ -135,11 +178,18 @@ IntSet EvalSet(Expr e,
  */
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
+/*!
+ * \brief Same as EvalSet, but takes unordered_map
+ *
+ * \param r The range to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values of e.
+ */
 IntSet EvalSet(Range r,
                const std::unordered_map<const Variable*, IntSet>& dom_map);
 
-
-
+/*! \brief Map from Expr to IntSet */
+using ExprIntSetMap = std::unordered_map<Expr, IntSet, ExprHash, ExprEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.
@@ -148,7 +198,8 @@ IntSet EvalSet(Range r,
  * \param dom_map The domain of each variable.
  * \return the map from the expression to its possible value.
  */
-ExprIntSetMap EvalSetForEachSubExpr(Expr r,
+ExprIntSetMap EvalSetForEachSubExpr(
+    Expr e,
     const std::unordered_map<const Variable*, IntSet>& dom_map);
 
 /*!
@@ -165,11 +216,6 @@ IntSet Union(const Array<IntSet>& sets);
  */
 IntSet Intersect(const Array<IntSet>& sets);
 
-// implementation
-inline const IntSetNode* IntSet::operator->() const {
-  return static_cast<const IntSetNode*>(node_.get());
-}
-
 /*!
  * \brief Deduce the bound of the target variable in a expression,
  *  give the domain of each variables. Return undefined IntSet to
@@ -178,18 +224,49 @@ inline const IntSetNode* IntSet::operator->() const {
  * \param v The target variable to be deduced.
  * \param cond The conditional expression.
  * \param hint_map The domain of variable, used to help deduce.
- * \param relax The domain of each variable, used to relax the domain.
+ * \param relax_map The domain of each variable, used to relax the domain,
+ *        The deduce bound mush implies e for all value in relax_map
  * \return An integer set that can cover all the possible values.
  */
 IntSet DeduceBound(Expr v, Expr cond,
                    const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map);
-IntSet DeduceBound(Expr v, Expr e,
-  const std::unordered_map<const Variable*, IntSet>& hint_map,
-  const std::unordered_map<const Variable*, IntSet>& relax_map);
+/*!
+ * \brief Same as DeduceBound with  unordered_map signature.
+ *
+ * \param v The target variable to be deduced.
+ * \param cond The conditional expression.
+ * \param hint_map The domain of variable, used to help deduce.
+ * \param relax_map The domain of each variable, used to relax the domain,
+ *        The deduce bound mush implies e for all value in relax_map
+ * \return An integer set that can cover all the possible values.
+ */
+IntSet DeduceBound(Expr v, Expr cond,
+                   const std::unordered_map<const Variable*, IntSet>& hint_map,
+                   const std::unordered_map<const Variable*, IntSet>& relax_map);
 
+/*!
+ * \brief Evaluate the expression with modular analysis
+ * \param e The expression to be evaluated.
+ * \param mod_map Map of modular statistics of known variables.
+ * \return The ModularEntry covering all possible value of e.
+ */
+ModularEntry EvalModular(
+    const Expr& e,
+    const std::unordered_map<const Variable*, ModularEntry>& mod_map);
 
+/*!
+ * \brief Same as EvalModular, used by front-end.
+ * \param e The expression to be evaluated.
+ * \param mod_map Map of modular statistics of known variables.
+ * \return A ModularSet covering all possible value of e.
+ */
+IntSet EvalModular(const Expr& e,
+                   const Map<Var, IntSet>& mod_map);
+// implementation
+inline const IntSetNode* IntSet::operator->() const {
+  return static_cast<const IntSetNode*>(node_.get());
+}
 }  // namespace arith
 }  // namespace tvm
-
-#endif  // TVM_ARITHMETIC_INT_SET_H_
+#endif  // TVM_ARITHMETIC_H_

@@ -86,8 +86,8 @@ def test_vectorize():
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
     s[T].vectorize(yi)
     s[T].unroll(xi)
-    UNROLL = 1
-    VECTORIZE = 2
+    UNROLL = tvm.collections.IterVar.Unrolled
+    VECTORIZE = tvm.collections.IterVar.Vectorized
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 

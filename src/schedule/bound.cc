@@ -1,4 +1,3 @@
-
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file bound.cc
@@ -8,10 +7,11 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <tvm/schedule_pass.h>
+#include <tvm/arithmetic.h>
+#include <tvm/operation.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "./graph.h"
-#include "../arithmetic/int_set.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -55,8 +55,10 @@ void PassDown(const Stage& s,
             bool match = is_zero(outer_rng->min);
             if (!prove_equal(outer_ext, outer_rng->extent)) match = false;
             CHECK(match)
+                << r->outer
                 << "IterVar is used in two places as outer scope,"
-                << " cannot prove their extents are the same";
+                << " cannot prove their extents are the same "
+                << outer_ext << " vs " << outer_rng->extent;
           }
         }
       } else {
@@ -195,162 +197,6 @@ void PassUp(const Stage& s,
   }
 }
 
-// All the itervars that are needed to output bound of op.
-// For most op, it is root_iter_vars
-// For Scan, it also contains the additional spatial axis.
-Array<IterVar> OutputRelatedIterVars(const Operation& op) {
-  if (op.as<ScanOpNode>()) {
-    const ScanOpNode* scan = op.as<ScanOpNode>();
-    Array<IterVar> ret{scan->scan_axis};
-    for (IterVar iv : scan->spatial_axis_) {
-      ret.push_back(iv);
-    }
-    return ret;
-  } else {
-    return op->root_iter_vars();
-  }
-}
-
-/*! \brief temporary data structure to store Tensor domain */
-struct TensorDom {
-  // constructor
-  explicit TensorDom(int ndim)
-      : data(ndim) {}
-  /*! \brief The domain data*/
-  std::vector<std::vector<IntSet> > data;
-};
-
-/*!
- * \brief Propagate bound to target
- * \param dom_map The domain map to be propagated
- * \param out The tensor set to be passed
- * \return The result bound
- */
-void BoundProp(const Operation& op,
-               const std::unordered_map<const Variable*, IntSet>& dom_map,
-               std::unordered_map<Tensor, TensorDom> *out) {
-  if (op.as<ComputeOpNode>()) {
-    auto fvisit = [&dom_map, out](const NodeRef& n) {
-      auto *call = n.as<ir::Call>();
-      if (call != nullptr && call->func.defined()) {
-        Tensor t = Operation(call->func.node_).output(call->value_index);
-        if (t->op.defined() && out->count(t)) {
-          TensorDom& dom = out->at(t);
-          for (size_t i = 0; i < t.ndim(); ++i) {
-            dom.data[i].push_back(EvalSet(call->args[i], dom_map));
-          }
-        }
-      }
-    };
-    ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
-  } else if (op.as<ScanOpNode>()) {
-    const ScanOpNode* scan = op.as<ScanOpNode>();
-    size_t sp_idx = 0;
-    for (size_t i = 0; i < scan->init.size(); ++i) {
-      TensorDom* init_dom = nullptr;
-      TensorDom* update_dom = nullptr;
-      if (out->count(scan->init[i])) {
-        init_dom = &out->at(scan->init[i]);
-      }
-      if (out->count(scan->update[i])) {
-        update_dom = &out->at(scan->update[i]);
-      }
-      // first dimension, always needed.
-      if (init_dom) {
-        init_dom->data[0].push_back(IntSet::range(
-            Range::make_with_min_extent(0, scan->init[i]->shape[0])));
-      }
-      if (update_dom) {
-        update_dom->data[0].push_back(dom_map.at(scan->scan_axis->var.get()));
-      }
-      // The update dimensions
-      for (size_t k = 1; k < scan->update[i]->shape.size(); ++k, ++sp_idx) {
-        IterVar sp_ax = scan->spatial_axis_[sp_idx];
-        if (init_dom) {
-          init_dom->data[k].push_back(dom_map.at(sp_ax->var.get()));
-        }
-        if (update_dom) {
-          update_dom->data[k].push_back(dom_map.at(sp_ax->var.get()));
-        }
-      }
-    }
-  } else if (op.as<PlaceholderOpNode>()) {
-    // do nothing
-  } else {
-    LOG(FATAL) << "unknown operation mode " << op->type_key();
-  }
-}
-
-
-// Given the bound of output of op
-// Pass the bound to the related axis in op.
-void GatherOpBound(const ScanOpNode* scan,
-                   const Operation& op,
-                   const FeedGraph& fg,
-                   const std::unordered_map<Tensor, TensorDom>& tmap,
-                   std::unordered_map<IterVar, Range>* rmap) {
-  CHECK(!rmap->count(scan->scan_axis));
-  std::vector<Tensor> output(op->num_outputs());
-  for (size_t i = 0; i < output.size(); ++i) {
-    output[i] = op.output(i);
-  }
-  // Update for time axis.
-  std::vector<IntSet> time_dom;
-  for (size_t i = 0; i < output.size(); ++i) {
-    const TensorDom& d = tmap.at(output[i]);
-    time_dom.insert(time_dom.end(), d.data[0].begin(), d.data[0].end());
-  }
-  CHECK(!rmap->count(scan->scan_axis));
-  Range sdom = scan->scan_axis->dom;
-  Range r = arith::Union(time_dom).cover_range(sdom);
-  (*rmap)[scan->scan_axis] = Range::make_with_min_extent(
-      sdom->min, ir::Simplify(r->extent + r->min - sdom->min));
-  Array<Operation> body = ScanGetBody_(scan, fg);
-  Map<IterVar, Expr> fix_pt = ScanFixPointAnalysis(op, body);
-  // Update for spatial axis.
-  size_t sp_idx = 0;
-  for (size_t i = 0; i < output.size(); ++i) {
-    const TensorDom& d = tmap.at(output[i]);
-    for (size_t k = 1; k < scan->update[i]->shape.size(); ++k, ++sp_idx) {
-      IterVar sp_ax = scan->spatial_axis_[sp_idx];
-      CHECK(!rmap->count(sp_ax));
-      CHECK(fix_pt.count(sp_ax));
-      if (fix_pt[sp_ax].as<ir::IntImm>()->value) {
-        // fix point, we can slice it.
-        (*rmap)[sp_ax] = arith::Union(d.data[k + 1]).cover_range(sp_ax->dom);
-      } else {
-        // not a fix point, need to include everything.
-        (*rmap)[sp_ax] = sp_ax->dom;
-      }
-    }
-  }
-}
-
-void GatherOpBound(const Operation& op,
-                   const FeedGraph& fg,
-                   const std::unordered_map<Tensor, TensorDom>& tmap,
-                   std::unordered_map<IterVar, Range>* rmap) {
-  if (op.as<ComputeOpNode>()) {
-    const ComputeOpNode* compute = op.as<ComputeOpNode>();
-    const TensorDom& tdom = tmap.at(op.output(0));
-    for (size_t i = 0; i < compute->axis.size(); ++i) {
-      Range r = arith::Union(tdom.data.at(i)).cover_range(compute->axis[i]->dom);
-      CHECK(!rmap->count(compute->axis[i]));
-      (*rmap)[compute->axis[i]] = r;
-    }
-    for (size_t i = 0; i < compute->reduce_axis.size(); ++i) {
-      CHECK(!rmap->count(compute->reduce_axis[i]));
-      (*rmap)[compute->reduce_axis[i]] = compute->reduce_axis[i]->dom;
-    }
-  } else if (op.as<ScanOpNode>()) {
-    GatherOpBound(op.as<ScanOpNode>(), op, fg, tmap, rmap);
-  } else if (op.as<PlaceholderOpNode>()) {
-    // dp nothing
-  } else {
-    LOG(FATAL) << "unknown operation mode " << op->type_key();
-  }
-}
-
 // check if scope
 inline bool ScopeRelax(const IterVar& iv, const std::string& scope) {
   using runtime::ThreadScope;
@@ -362,14 +208,14 @@ inline bool ScopeRelax(const IterVar& iv, const std::string& scope) {
 }
 
 void InferRootBound(const Stage& stage,
-                    const FeedGraph& feed_graph,
+                    const GraphContext& ctx,
                     const AttachPath& attach_path,
                     std::unordered_map<IterVar, Range>* rmap) {
   CHECK_NE(stage->attach_type, kInline)
       << "call schedule.normalize before scheduleops";
   if (stage->attach_type == kInlinedAlready) return;
   if (stage->is_output || stage->op.as<PlaceholderOpNode>()) {
-    for (auto iv :  OutputRelatedIterVars(stage->op)) {
+    for (auto iv :  stage->op->root_iter_vars()) {
       CHECK(iv->dom.defined());
       CHECK(!rmap->count(iv));
       (*rmap)[iv] = iv->dom;
@@ -390,8 +236,8 @@ void InferRootBound(const Stage& stage,
   for (int i = 0; i < stage->op->num_outputs(); ++i) {
     Tensor t = stage->op.output(i);
     tmap.emplace(t, TensorDom(static_cast<int>(t.ndim())));
-    auto it = feed_graph.find(t);
-    if (it != feed_graph.end()) {
+    auto it = ctx.feed_graph.find(t);
+    if (it != ctx.feed_graph.end()) {
       for (const Operation& op : it->second) {
         if (!parent.defined() || op != parent->op) {
           consumers.insert(op);
@@ -443,7 +289,7 @@ void InferRootBound(const Stage& stage,
     PassUp(parent, *rmap, &up_state);
 
     std::unordered_map<const Variable*, IntSet> dom_map;
-    for (auto iv : OutputRelatedIterVars(parent->op)) {
+    for (auto iv : parent->op->root_iter_vars()) {
       Range r;
       if (up_state.count(iv)) {
         r = up_state.at(iv).cover_range(iv->dom);
@@ -457,7 +303,7 @@ void InferRootBound(const Stage& stage,
       }
     }
     // prop from parent.
-    BoundProp(parent->op, dom_map, &tmap);
+    parent->op->PropBoundToInputs(parent->op, dom_map, &tmap);
   }
   // Bound prop by other consumers.
   // To explain the the general logic, consider the example:
@@ -490,13 +336,13 @@ void InferRootBound(const Stage& stage,
     CHECK(found || attach.size() == 0)
         << "Invalid Schedule, cannot find the producer " << stage->op
         << " along the loop nest specified by compute_at of consumer " << op;
-    for (auto iv : OutputRelatedIterVars(op)) {
+    for (auto iv : op->root_iter_vars()) {
       Range r = rmap->at(iv);
       dom_map[iv->var.get()] = EvalSet(r, relax_set);
     }
-    BoundProp(op, dom_map, &tmap);
+    op->PropBoundToInputs(op, dom_map, &tmap);
   }
-  GatherOpBound(stage->op, feed_graph, tmap, rmap);
+  stage->op->GatherBound(stage->op, ctx, tmap, rmap);
 }
 
 Map<IterVar, Range> InferBound(const Schedule& sch) {
@@ -504,13 +350,14 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   for (Operation op : sch->outputs) {
     roots.push_back(sch->stage_map[op]->op);
   }
-  FeedGraph feed_graph = CreateFeedGraph(CreateReadGraph(roots));
+  GraphContext ctx;
+  ctx.feed_graph = CreateFeedGraph(CreateReadGraph(roots));
   AttachPath attach_path = CreateAttachPath(sch);
 
   std::unordered_map<IterVar, Range> ret;
   for (size_t i = sch->stages.size(); i != 0; --i) {
     const Stage& stage = sch->stages[i - 1];
-    InferRootBound(stage, feed_graph, attach_path, &ret);
+    InferRootBound(stage, ctx, attach_path, &ret);
     // pass down to get bound of all iter vars.
     PassDown(stage, &ret);
     // setup outer most threads.
