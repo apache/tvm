@@ -8,7 +8,10 @@ def test_llvm_add_pipeline():
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
     s = tvm.Schedule(C.op)
+    print(s[C])
+    print("a?")
     xo, xi = s[C].split(C.op.axis[0], factor=4)
+    print("a?")
     s[C].parallel(xo)
     s[C].vectorize(xi)
     def check_llvm():
@@ -83,6 +86,9 @@ def test_llvm_madd_pipeline():
 
 
 if __name__ == "__main__":
+    print("a")
     test_llvm_add_pipeline()
+    print("a")
     test_llvm_flip_pipeline()
+    print("a")
     test_llvm_madd_pipeline()

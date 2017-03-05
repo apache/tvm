@@ -10,11 +10,11 @@
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
+#include <tvm/arithmetic.h>
 #include <memory>
 #include <vector>
 #include <string>
 #include "./llvm_common.h"
-#include "../../arithmetic/modular.h"
 
 namespace tvm {
 namespace codegen {
