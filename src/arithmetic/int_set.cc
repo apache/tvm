@@ -168,14 +168,10 @@ IntSet Union(const Array<IntSet>& sets) {
   for (size_t i = 1; i < sets.size(); ++i) {
     IntSet s = sets[i].cover_interval();
     const Interval& y = s.as<IntervalSet>()->i;
-    if (can_prove(x.max + 1 >= y.min)) {
-      x.max = y.max;
-    } else if (can_prove(y.max + 1 >= x.min)) {
-      x.min = y.min;
-    } else {
-      x.include(y);
-    }
+    x.include(y);
   }
+  x.max = ir::Simplify(x.max);
+  x.min = ir::Simplify(x.min);
   return IntervalSet::make(x);
 }
 
