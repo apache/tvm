@@ -71,8 +71,38 @@ def test_bound_scan():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     assert bounds[XX.op.axis[1]].extent.value == 4
 
+def test_bound_conv1d():
+    n = tvm.Var('n')
+    A = tvm.compute((n+2), lambda i: 1,  name='A')
+    def computeB(ii):
+        i = ii + 1
+        return A[i-1] + A[i] + A[i+1]
+    B = tvm.compute(n, computeB, name='B')
+    s = tvm.Schedule(B.op)
+    s[A].compute_at(s[B], B.op.axis[0])
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    assert(bounds[A.op.axis[0]].extent.value == 3)
+
+def test_bound_blur():
+    n = tvm.convert(12)
+    A = tvm.compute((n, n), lambda i, j: 1, name='A')
+    def computeB(ii, jj):
+        # set the correct center
+        i = ii + 1
+        j = jj + 1
+        return A[i][j] + A[i-1][j] + A[i+1][j] + A[i][j+1] + A[i][j-1]
+    B = tvm.compute((n-2, n-2), computeB, name='B')
+    s = tvm.Schedule(B.op)
+    s[A].compute_at(s[B], B.op.axis[1])
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    assert(bounds[A.op.axis[0]].extent.value == 3)
+    assert(bounds[A.op.axis[1]].extent.value == 3)
 
 if __name__ == "__main__":
+    test_bound_blur()
+    test_bound_conv1d()
     test_bound_scan()
     test_bound3()
     test_bound1()

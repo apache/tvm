@@ -16,6 +16,8 @@ class TensorSlice(SliceBase, _expr.ExprOp):
         self.indices = indices
 
     def __getitem__(self, indices):
+        if not isinstance(indices, tuple):
+            indices = (indices,)
         return TensorSlice(self.tensor, self.indices + indices)
 
 

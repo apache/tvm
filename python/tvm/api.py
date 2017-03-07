@@ -125,10 +125,13 @@ def compute(shape, fcompute, name="compute"):
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     ndim = len(shape)
-    arg_names = fcompute.__code__.co_varnames
+    code = fcompute.__code__
 
-    if fcompute.__code__.co_argcount == 0 and len(arg_names) == 1:
+    if fcompute.__code__.co_argcount == 0:
         arg_names = ["i%d" % i for i in range(ndim)]
+    else:
+        arg_names = code.co_varnames[:code.co_argcount]
+
     if ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
