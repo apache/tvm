@@ -18,6 +18,21 @@ def test_tensor():
     assert(d[T] == 1)
 
 
+def test_conv1d():
+    n = tvm.Var('n')
+    A = tvm.placeholder((n+2), name='A')
+    def computeB(ii):
+        i = ii + 1
+        return A[i-1] + A[i] + A[i+1]
+    B = tvm.compute(n, computeB)
+
+
+def test_tensor_slice():
+    n = tvm.Var('n')
+    A = tvm.compute((n, n), lambda i, j: 1)
+    B = tvm.compute((n,), lambda i: A[0][i] + A[0][i])
+
+
 def test_tensor_reduce():
     m = tvm.Var('m')
     n = tvm.Var('n')
@@ -44,8 +59,32 @@ def test_tensor_scan():
                    s)
     assert tuple(res.shape) == (m, n)
 
+def test_scan_multi_out():
+    m = tvm.Var("m")
+    n = tvm.Var("n")
+    x1 = tvm.placeholder((m, n))
+    s1 = tvm.placeholder((m, n))
+    x2 = tvm.placeholder((m, n))
+    s2 = tvm.placeholder((m, n))
+    s1_init = tvm.compute((1, n), lambda _, i: x1[0, i])
+    s2_init = tvm.compute((1, n), lambda _, i: x2[0, i])
+    s1_update = tvm.compute((m, n), lambda t, i: s1[t-1, i] + s2[t-1, i] + x1[t, i])
+    s2_update = tvm.compute((m, n), lambda t, i: x2[t, i] + s2[t-1,i])
+
+    r0, r1 = tvm.scan([s1_init, s2_init],
+                      [s1_update, s2_update],
+                      [s1, s2])
+    assert(r0.value_index == 0)
+    assert(r1.value_index == 1)
+    json_str = tvm.save_json(r0.op)
+    zz = tvm.load_json(json_str)
+    assert isinstance(zz, tvm.tensor.ScanOp)
+
 
 if __name__ == "__main__":
+    test_conv1d()
+    test_tensor_slice()
     test_tensor()
     test_tensor_reduce()
     test_tensor_scan()
+    test_scan_multi_out()
