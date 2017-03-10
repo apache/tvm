@@ -49,6 +49,19 @@ Graph InferAttr(Graph &&ret,
     ret.attrs.erase(input_name);
   }
 
+  // get the shape hints
+  std::string shape_hints_key = std::string(attr_name) + "_hints";
+  if (ret.attrs.count(shape_hints_key)) {
+    NodeEntryMap<AttrType> shape_hints =
+      ret.GetAttr<NodeEntryMap<AttrType>>(shape_hints_key);
+    for (const auto& kv : shape_hints) {
+      NodeEntry e = kv.first;
+      if (idx.exist(e.node.get())) {
+        rshape[idx.entry_id(kv.first)] = kv.second;
+      }
+    }
+  }
+
   std::string shape_attr_key;
   if (ret.attrs.count(attr_key_name) != 0) {
     shape_attr_key = ret.GetAttr<std::string>(attr_key_name);
@@ -75,7 +88,7 @@ Graph InferAttr(Graph &&ret,
           CHECK(is >> rshape[out_ent_id]) << "Invalid attribute";
         }
       }
-    } else if (is_backward.get(inode.source->op(), false)) {
+    } else if (is_backward.get(inode.source->op(), false) && inode.control_deps.size()) {
       CHECK_GE(inode.control_deps.size(), 1U)
         << "BackwardOp need to have control_deps to its forward op";
       const IndexedGraph::Node& fnode = idx[inode.control_deps[0]];
