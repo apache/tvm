@@ -171,6 +171,12 @@ class IndexedGraph {
   inline const std::vector<NodeEntry>& outputs() const {
     return outputs_;
   }
+
+  /*! \return whether a node is existed in the indexed graph */
+  inline bool exist(const nnvm::Node* node) const {
+    return node2index_.count(node);
+  }
+
   // disalllow copy assign
   IndexedGraph(const IndexedGraph&) = delete;
 
