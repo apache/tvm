@@ -26,12 +26,8 @@ Stmt MakePipeline(const Stage& s,
     producer = ProducerConsumer::make(s->op, true, producer);
   }
   Stmt pipeline = producer;
-  // check if consumer is nop.
-  bool is_no_op{false};
-  const Evaluate* ev = consumer.as<Evaluate>();
-  if (ev && ev->value.as<IntImm>()) is_no_op = true;
 
-  if (consumer.defined() && !is_no_op) {
+  if (consumer.defined() && !is_no_op(consumer)) {
     consumer = ProducerConsumer::make(s->op, false, consumer);
     pipeline = Block::make(producer, consumer);
   }
