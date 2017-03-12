@@ -1,5 +1,5 @@
-# pylint: disable=invalid-name
 """Util to compile with C++ code"""
+# pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 import sys
 import subprocess

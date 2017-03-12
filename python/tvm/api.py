@@ -1,6 +1,5 @@
-# pylint: disable=protected-access, no-member, invalid-name
-# pylint: disable=redefined-builtin, undefined-variable, unused-import
 """Functions defined in TVM."""
+# pylint: disable=invalid-name,unused-import,redefined-builtin
 from __future__ import absolute_import as _abs
 
 from numbers import Integral as _Integral
@@ -162,8 +161,8 @@ def scan(init, update, state_placeholder, name="scan"):
 
     Returns
     -------
-    tensor: tensor.Tensor
-        The created tensor
+    tensor: Tensor or list of Tensors
+        The created tensor or tuple of tensors it it contains multiple outputs.
 
     Example
     -------
@@ -187,7 +186,77 @@ def scan(init, update, state_placeholder, name="scan"):
     axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
     op = _api_internal._ScanOp(name, axis, init, update, state_placeholder)
     res = [op.output(i) for i in range(len(update))]
-    return (res[0] if len(res) == 1 else res)
+    return res[0] if len(res) == 1 else res
+
+
+def extern(shape, inputs, fcompute,
+           name="extern", dtype=None):
+    """Compute several tensor via extern function.
+
+    Parameters
+    ----------
+    shape: Shape tuple or list of shapes.
+        The shape of the outputs.
+
+    inputs: list of Tensor
+        The inputs
+
+    fcompute: lambda function of inputs, outputs-> stmt
+        Specifies the IR statement to do the computation.
+
+    name: str, optional
+        The name hint of the tensor
+
+    dtype: str or list of str, optional
+        The data types of outputs,
+        by default dtype will be same as inputs.
+
+    Returns
+    -------
+    tensor: Tensor or list of Tensors
+        The created tensor or tuple of tensors it it contains multiple outputs.
+    """
+    if isinstance(shape[0], _expr.Expr):
+        shape = [shape]
+    input_placeholders = []
+    output_placeholders = []
+    types = set()
+    for t in inputs:
+        if not isinstance(t, _tensor.Tensor):
+            raise ValueError("expect inputs to be tensor")
+        input_placeholders.append(
+            Buffer(t.shape, t.dtype, t.op.name))
+        types.add(t.dtype)
+
+    if dtype is None:
+        if len(types) != 1:
+            raise ValueError("Cannot infer output type, please provide dtype argument")
+        infered_type = types.pop()
+        dtype = [infered_type for _ in shape]
+
+    for shp, dt in zip(shape, dtype):
+        output_placeholders.append(Buffer(shp, dt, name))
+    body = fcompute(input_placeholders, output_placeholders)
+    if isinstance(body, _expr.Expr):
+        body = _make.Evaluate(body)
+
+    op = _api_internal._ExternOp(
+        name, inputs, input_placeholders, output_placeholders, body)
+    res = [op.output(i) for i in range(len(output_placeholders))]
+    return res[0] if len(res) == 1 else res
+
+
+def call_packed(*args):
+    """Build expression by call an external packed function
+
+    Parameters
+    ----------
+    args : list
+        Positional arguments.
+    """
+    args = convert(args)
+    return _make.Call(
+        int32, "tvm_call_packed", args, 4, None, 0)
 
 
 def Buffer(shape, dtype=None,

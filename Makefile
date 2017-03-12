@@ -1,3 +1,5 @@
+ROOTDIR = $(CURDIR)
+
 ifndef config
 ifneq ("$(wildcard ./config.mk)","")
 	config ?= config.mk
@@ -9,7 +11,7 @@ endif
 include $(config)
 
 # specify tensor path
-.PHONY: clean all test doc
+.PHONY: clean all test doc pylint cpplint lint
 
 all: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
 
@@ -99,8 +101,13 @@ $(LIB_HALIDE_IR): LIBHALIDEIR
 LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
-lint:
-	python2 dmlc-core/scripts/lint.py tvm all include src python
+cpplint:
+	python2 dmlc-core/scripts/lint.py tvm cpp include src
+
+pylint:
+	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+
+lint: cpplint pylint
 
 doc:
 	doxygen docs/Doxyfile

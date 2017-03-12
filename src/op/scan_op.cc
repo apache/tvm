@@ -6,7 +6,7 @@
 #include <tvm/operation.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include "./make_loop.h"
+#include "./op_util.h"
 #include "../schedule/graph.h"
 
 namespace tvm {

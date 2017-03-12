@@ -13,6 +13,7 @@
 #include "./tensor.h"
 #include "./schedule.h"
 #include "./arithmetic.h"
+#include "./buffer.h"
 
 namespace tvm {
 
@@ -307,6 +308,62 @@ class ScanOpNode : public OperationNode {
   TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
 };
 
+/*!
+ * \brief External computation that cannot be splitted.
+ */
+class ExternOpNode : public OperationNode {
+ public:
+  /*! \brief The input tensors */
+  Array<Tensor> inputs;
+  /*! \brief Symbolic placeholder representationinputs */
+  Array<Buffer> input_placeholders;
+  /*! \brief Symbolic placeholder representation of outputs */
+  Array<Buffer> output_placeholders;
+  /*! \brief the statement that generates the computation. */
+  Stmt body;
+
+  /*! \brief constructor */
+  ExternOpNode() {}
+  // override functions
+  int num_outputs() const final;
+  Array<IterVar> root_iter_vars() const final;
+  Type output_dtype(size_t i) const final;
+  Array<Expr> output_shape(size_t i) const final;
+  Array<Tensor> InputTensors() const final;
+  Operation ReplaceInputs(
+      const Operation& self,
+      const std::unordered_map<Tensor, Tensor>& rmap) const final;
+  void PropBoundToInputs(
+      const Operation& self,
+      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
+  void GatherBound(
+      const Operation& self,
+      const GraphContext& graph_ctx,
+      const std::unordered_map<Tensor, TensorDom>& tensor_dom,
+      std::unordered_map<IterVar, Range>* out_dom_map) const final;
+  Stmt BuildRealize(
+      const Operation& self,
+      const std::unordered_map<IterVar, Range>& realize_map,
+      const Stmt& body) const final;
+  Stmt BuildProvide(
+      const Stage& stage,
+      const std::unordered_map<IterVar, Range>& dom_map) const final;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("inputs", &inputs);
+    v->Visit("body", &body);
+  }
+  static Operation make(std::string name,
+                        Array<Tensor> inputs,
+                        Array<Buffer> input_placeholders,
+                        Array<Buffer> output_placeholders,
+                        Stmt body);
+
+  static constexpr const char* _type_key = "ExternOp";
+  TVM_DECLARE_NODE_TYPE_INFO(ExternOpNode, OperationNode);
+};
 
 /*! \brief The compute function to specify the input source of a Tensor */
 using FCompute = std::function<Expr (const Array<Var>& i)>;

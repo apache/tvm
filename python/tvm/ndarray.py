@@ -2,7 +2,7 @@
 
 This is a simplified runtime API for quick testing and proptyping.
 """
-# pylint: disable=unused-import, invalid-name
+# pylint: disable=invalid-name,unused-import
 from __future__ import absolute_import as _abs
 import numpy as _np
 

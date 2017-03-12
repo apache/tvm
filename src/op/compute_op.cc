@@ -8,9 +8,8 @@
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
 #include <unordered_set>
-#include "./make_loop.h"
+#include "./op_util.h"
 
 namespace tvm {
 
@@ -101,40 +100,12 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   return ret;
 }
 
-// replacer to replace tensors
-class TensorReplacer : public ir::IRMutator {
- public:
-  explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
-      : vmap_(vmap) {}
-  Expr Mutate_(const ir::Call* op, const Expr& e) {
-    if (op->call_type == ir::Call::Halide) {
-      Tensor t = Operation(op->func.node_).output(op->value_index);
-      auto it = vmap_.find(t);
-      if (it != vmap_.end()) {
-        Expr ret = ir::Call::make(
-            op->type, it->second->op->name, op->args,
-            op->call_type, it->second->op, it->second->value_index);
-        found = true;
-        return IRMutator::Mutate_(ret.as<ir::Call>(), ret);
-      }
-    }
-    return IRMutator::Mutate_(op, e);
-  }
-
-  // whether it is found.
-  bool found{false};
-
- private:
-  const std::unordered_map<Tensor, Tensor>& vmap_;
-};
-
 Operation ComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  TensorReplacer repl(rmap);
-  Expr new_body = repl.Mutate(this->body);
-  if (repl.found) {
+  Expr new_body = op::ReplaceTensor(this->body, rmap);
+  if (!new_body.same_as(this->body)) {
     return ComputeOpNode::make(name, axis, new_body);
   } else {
     return self;

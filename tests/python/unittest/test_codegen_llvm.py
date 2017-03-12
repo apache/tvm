@@ -8,10 +8,7 @@ def test_llvm_add_pipeline():
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
     s = tvm.Schedule(C.op)
-    print(s[C])
-    print("a?")
     xo, xi = s[C].split(C.op.axis[0], factor=4)
-    print("a?")
     s[C].parallel(xo)
     s[C].vectorize(xi)
     def check_llvm():
@@ -83,12 +80,31 @@ def test_llvm_madd_pipeline():
     check_llvm(4, 0, 1)
     check_llvm(4, 0, 3)
 
+def test_llvm_temp_space():
+    nn = 1024
+    n = tvm.convert(nn)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda i: A(i) + 1, name='B')
+    C = tvm.compute(A.shape, lambda i: B(i) + 1, name='C')
+    s = tvm.Schedule(C.op)
 
+    def check_llvm():
+        if not tvm.codegen.enabled("llvm"):
+            return
+        # build and invoke the kernel.
+        f = tvm.build(s, [A, C], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        n = nn
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        f(a, c)
+        np.testing.assert_allclose(
+            c.asnumpy(), a.asnumpy() + 1 + 1)
+    check_llvm()
 
 if __name__ == "__main__":
-    print("a")
     test_llvm_add_pipeline()
-    print("a")
     test_llvm_flip_pipeline()
-    print("a")
     test_llvm_madd_pipeline()
+    test_llvm_temp_space()

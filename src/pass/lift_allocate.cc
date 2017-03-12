@@ -89,7 +89,7 @@ class AllocateLifter : public IRMutator {
 };
 
 Stmt LiftAllocate(Stmt stmt) {
-  return AllocateLifter().Mutate(stmt);
+  return AllocateLifter().Lift(stmt);
 }
 
 }  // namespace ir

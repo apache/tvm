@@ -3,8 +3,11 @@
  * \file storage_flatten.cc
  */
 #include <tvm/ir.h>
+#include <tvm/expr.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include <tvm/buffer.h>
+#include <tvm/operation.h>
 #include <unordered_map>
 #include "../runtime/thread_storage_scope.h"
 
@@ -25,6 +28,16 @@ class StorageFlattener : public IRMutator {
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = e;
     }
   }
+  Stmt Mutate_(const Store* op, const Stmt& s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Store>();
+    auto it = extern_buf_remap_.find(op->buffer_var.get());
+    if (it != extern_buf_remap_.end()) {
+      return Store::make(it->second, op->value, op->index);
+    } else {
+      return stmt;
+    }
+  }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->type_key == attr::realize_scope) {
@@ -37,6 +50,8 @@ class StorageFlattener : public IRMutator {
       Stmt stmt = IRMutator::Mutate_(op, s);
       curr_thread_scope_.pop_back();
       return stmt;
+    } else if (op->type_key == attr::extern_op_scope) {
+      return HandleExternOp(op);
     }
     return IRMutator::Mutate_(op, s);
   }
@@ -95,6 +110,26 @@ class StorageFlattener : public IRMutator {
     }
   }
 
+  Expr Mutate_(const Load* op, const Expr& e) final {
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Load>();
+    auto it = extern_buf_remap_.find(op->buffer_var.get());
+    if (it != extern_buf_remap_.end()) {
+      return Load::make(op->type, it->second, op->index);
+    } else {
+      return expr;
+    }
+  }
+
+  Expr Mutate_(const Variable* op, const Expr& e) final {
+    auto it = extern_buf_remap_.find(op);
+    if (it != extern_buf_remap_.end()) {
+      return it->second;
+    } else {
+      return e;
+    }
+  }
+
   Expr Mutate_(const Call* op, const Expr& olde) final {
     Expr expr = IRMutator::Mutate_(op, olde);
     op = expr.as<Call>();
@@ -113,6 +148,28 @@ class StorageFlattener : public IRMutator {
   }
 
  private:
+  Stmt HandleExternOp(const AttrStmt* op) {
+    const ExternOpNode* ext_op = op->node.as<ExternOpNode>();
+    CHECK(ext_op);
+    Operation func(op->node.node_);
+    CHECK_EQ(extern_buf_remap_.size(), 0U);
+    for (size_t i = 0; i < ext_op->output_placeholders.size(); ++i) {
+      TensorKey key{func, static_cast<int>(i)};
+      CHECK(buf_map_.count(key));
+      extern_buf_remap_[ext_op->output_placeholders[i]->data.get()] =
+          buf_map_.at(key).buffer->data;
+    }
+    for (size_t i = 0; i < ext_op->inputs.size(); ++i) {
+      TensorKey key{ext_op->inputs[i]->op, ext_op->inputs[i]->value_index};
+      CHECK(buf_map_.count(key));
+      extern_buf_remap_[ext_op->input_placeholders[i]->data.get()] =
+          buf_map_.at(key).buffer->data;
+    }
+    Stmt ret = Mutate(op->body);
+    extern_buf_remap_.clear();
+    return ret;
+  }
+
   // The buffer entry in the flatten map
   struct BufferEntry {
     // the buffer of storage
@@ -139,6 +196,7 @@ class StorageFlattener : public IRMutator {
     }
   };
   // The buffer assignment map
+  std::unordered_map<const Variable*, Var> extern_buf_remap_;
   std::unordered_map<TensorKey, BufferEntry> buf_map_;
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.

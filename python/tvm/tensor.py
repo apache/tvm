@@ -1,4 +1,3 @@
-# pylint: disable=protected-access, no-member, invalid-name
 """Tensor related abstractions"""
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, SliceBase, register_node, convert_to_node
@@ -89,4 +88,9 @@ class ComputeOp(Operation):
 @register_node
 class ScanOp(Operation):
     """Scan operation."""
+    pass
+
+@register_node
+class ExternOp(Operation):
+    """Extern operation."""
     pass

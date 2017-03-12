@@ -1,11 +1,6 @@
 import tvm
 import numpy as np
 
-def tvm_call_packed(*args):
-    args = tvm.convert(args)
-    return tvm.make.Call("int32", "tvm_call_packed", args, 4, None, 0)
-
-
 def run_jit(fapi, check):
     for target in ["llvm", "stackvm"]:
         if not tvm.codegen.enabled(target):
@@ -24,7 +19,7 @@ def test_stack_vm_basic():
 
     n = tvm.Var('n')
     Ab = tvm.Buffer((n, ), tvm.float32)
-    stmt = tvm.make.Evaluate(tvm_call_packed("tvm_call_back_get_shape", Ab.shape[0]))
+    stmt = tvm.make.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0)
     run_jit(fapi, lambda f: f(a))
 
@@ -46,7 +41,7 @@ def test_stack_vm_loop():
             tvm.make.Store(Ab.data,
                            tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1),
-            tvm.make.Evaluate(tvm_call_packed("tvm_stack_vm_print", i))))
+            tvm.make.Evaluate(tvm.call_packed("tvm_stack_vm_print", i))))
     fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     def check(f):
