@@ -48,6 +48,7 @@ class IRSubstitue : public IRMutator {
 };
 
 Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
+  if (value_map.size() == 0) return stmt;
   IRSubstitue m;
   for (auto kv : value_map) {
     m.smap[kv.first.get()] = kv.second;

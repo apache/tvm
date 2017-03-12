@@ -106,6 +106,20 @@ Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer);
 
 /*!
+ * \brief Remove No Op from the Stmt.
+ * \param stmt The stmt to be trasnformed
+ * \return Transformed stmt.
+ */
+Stmt RemoveNoOp(Stmt stmt);
+
+/*!
+ * \brief Split statement into pipeine stages.
+ * \param stmt The stmt to be splitted
+ * \return Transformed stmt.
+ */
+Stmt SplitPipeline(Stmt stmt);
+
+/*!
  * \brief unroll the constant loops
  * \param stmt The statment to be unrolled.
  * \param max_auto_step The maximum step to stop performing automatic unrolling.

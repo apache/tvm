@@ -70,6 +70,8 @@ REGISTER_PASS1(SplitHostDevice);
 REGISTER_PASS1(LiftAllocate);
 REGISTER_PASS1(InjectVirtualThread);
 REGISTER_PASS1(LoopPartition);
+REGISTER_PASS1(RemoveNoOp);
+REGISTER_PASS1(SplitPipeline);
 
 }  // namespace ir
 }  // namespace tvm

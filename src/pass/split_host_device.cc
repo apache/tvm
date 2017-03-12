@@ -5,6 +5,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/lowered_func.h>
+#include <tvm/channel.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/runtime/module.h>
@@ -17,7 +18,7 @@ namespace ir {
 class IRUseDefAnalysis : public IRMutator {
  public:
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
-    if (op->type_key == "thread_extent") {
+    if (op->type_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
       CHECK_NE(iv->thread_tag.length(), 0U);
       // thread_extent can appear multiple times
@@ -35,6 +36,13 @@ class IRUseDefAnalysis : public IRMutator {
       Stmt body = this->Mutate(op->body);
       if (value.same_as(value) && body.same_as(body)) return s;
       return AttrStmt::make(op->node, op->type_key, value, body);
+    } else if (op->type_key == attr::channel_write_scope ||
+               op->type_key == attr::channel_read_scope) {
+      Channel ch(op->node.node_);
+      if (!use_count_.count(ch->handle_var.get())) {
+        this->HandleDef(ch->handle_var.get());
+      }
+      return IRMutator::Mutate_(op, s);
     } else {
       return IRMutator::Mutate_(op, s);
     }
