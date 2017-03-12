@@ -1,5 +1,4 @@
 """Runtime module related stuffs"""
-# pylint: disable=unused-import, invalid-name, undefined-variable
 from __future__ import absolute_import as _abs
 from ._ctypes._function import ModuleBase, _init_module_module
 

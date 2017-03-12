@@ -3,7 +3,6 @@
 Eventually some of these pipelines will be moved to C++.
 But the first pipeline will be kept in python for ease of change and evolving.
 """
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments
 
 from . import api
 from . import tensor

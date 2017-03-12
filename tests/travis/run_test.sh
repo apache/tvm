@@ -2,7 +2,10 @@
 
 if [ ${TASK} == "lint" ] || [ ${TASK} == "all_test" ]; then
     if [ ! ${TRAVIS_OS_NAME} == "osx" ]; then
-        make lint || exit -1
+        echo "Check codestyle of c++ code..."
+        make cpplint || exit -1
+        echo "Check codestyle of python code..."
+        make pylint || exit -1
         echo "Check documentations of c++ code..."
         make doc 2>log.txt
         (cat log.txt| grep -v ENABLE_PREPROCESSING |grep -v "unsupported tag") > logclean.txt

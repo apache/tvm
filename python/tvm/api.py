@@ -1,6 +1,5 @@
-# pylint: disable=protected-access, no-member, invalid-name, too-many-locals
-# pylint: disable=redefined-builtin, undefined-variable, unused-import
 """Functions defined in TVM."""
+# pylint: disable=invalid-name,unused-import,redefined-builtin
 from __future__ import absolute_import as _abs
 
 from numbers import Integral as _Integral
@@ -187,7 +186,7 @@ def scan(init, update, state_placeholder, name="scan"):
     axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
     op = _api_internal._ScanOp(name, axis, init, update, state_placeholder)
     res = [op.output(i) for i in range(len(update))]
-    return (res[0] if len(res) == 1 else res)
+    return res[0] if len(res) == 1 else res
 
 
 def extern(shape, inputs, fcompute,
@@ -244,7 +243,7 @@ def extern(shape, inputs, fcompute,
     op = _api_internal._ExternOp(
         name, inputs, input_placeholders, output_placeholders, body)
     res = [op.output(i) for i in range(len(output_placeholders))]
-    return (res[0] if len(res) == 1 else res)
+    return res[0] if len(res) == 1 else res
 
 
 def call_packed(*args):
