@@ -80,6 +80,30 @@ def test_scan_multi_out():
     zz = tvm.load_json(json_str)
     assert isinstance(zz, tvm.tensor.ScanOp)
 
+def test_extern():
+    m = tvm.Var('m')
+    A = tvm.placeholder((m,), name='A')
+
+    def extern_func(ins, outs):
+        assert(isinstance(ins[0], tvm.schedule.Buffer))
+        return tvm.call_packed("myadd", ins[0].data, outs[0].data, m)
+    B = tvm.extern((m,), [A], extern_func)
+    assert(tuple(B.shape) == (m,))
+
+
+def test_extern_multi_out():
+    m = tvm.Var('m')
+    A = tvm.placeholder((m,), name='A')
+    B = tvm.compute((m,), lambda i: A[i] * 10)
+
+    def extern_func(ins, outs):
+        assert(isinstance(ins[0], tvm.schedule.Buffer))
+        return tvm.call_packed(
+            "myadd", ins[0].data, outs[0].data, outs[1].data, m)
+    res = tvm.extern([A.shape, A.shape], [A, B], extern_func)
+    assert(len(res) == 2)
+    assert(res[1].value_index == 1)
+
 
 if __name__ == "__main__":
     test_conv1d()
@@ -88,3 +112,5 @@ if __name__ == "__main__":
     test_tensor_reduce()
     test_tensor_scan()
     test_scan_multi_out()
+    test_extern()
+    test_extern_multi_out()

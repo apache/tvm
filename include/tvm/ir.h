@@ -98,6 +98,8 @@ constexpr const char* loop_scope = "loop_scope";
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
 constexpr const char* scan_init_scope = "scan_init_scope";
+/*! \brief extern operator scope */
+constexpr const char* extern_op_scope = "extern_op_scope";
 // Pipeline related attributes
 /*! \brief channel read scope */
 constexpr const char* channel_read_scope = "channel_read_scope";

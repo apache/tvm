@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file make_loop.h
- * \brief Utility to make loop nest from schedule stage info.
+ * \file op_util.h
+ * \brief Common utility used in operator construction.
  */
-#ifndef TVM_OP_MAKE_LOOP_H_
-#define TVM_OP_MAKE_LOOP_H_
+#ifndef TVM_OP_OP_UTIL_H_
+#define TVM_OP_OP_UTIL_H_
 
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
@@ -50,6 +50,22 @@ MakeBoundCheck(const Stage& stage,
                bool skip_ivar_domain,
                const std::unordered_set<IterVar>& skip_iter,
                const std::unordered_map<IterVar, Expr>& value_map);
+
+/*!
+ * \brief Replace the tensor reference in stmt by the replace map.
+ * \param stmt The statement to be processed.
+ * \param replace The replacement rule.
+ */
+Stmt ReplaceTensor(Stmt stmt,
+                   const std::unordered_map<Tensor, Tensor>& replace);
+/*!
+ * \brief Replace the tensor reference in expr by the replace map.
+ * \param expr The expression to be processed.
+ * \param replace The replacement rule.
+ */
+Expr ReplaceTensor(Expr expr,
+                   const std::unordered_map<Tensor, Tensor>& replace);
+
 }  // namespace op
 }  // namespace tvm
-#endif  // TVM_OP_MAKE_LOOP_H_
+#endif  // TVM_OP_OP_UTIL_H_

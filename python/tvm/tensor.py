@@ -90,3 +90,8 @@ class ComputeOp(Operation):
 class ScanOp(Operation):
     """Scan operation."""
     pass
+
+@register_node
+class ExternOp(Operation):
+    """Extern operation."""
+    pass
