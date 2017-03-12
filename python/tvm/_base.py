@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=invalid-name, no-member
+# pylint: disable=invalid-name
 """ ctypes library of nnvm and helper functions """
 from __future__ import absolute_import
 

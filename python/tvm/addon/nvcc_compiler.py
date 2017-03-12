@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, too-many-locals
+# pylint: disable=invalid-name
 """Util to compile with NVCC"""
 from __future__ import absolute_import as _abs
 import os

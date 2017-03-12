@@ -1236,6 +1236,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
   buf = builder_->CreatePointerCast(buf, LLVMType(op->type)->getPointerTo());
   CHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
+  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {

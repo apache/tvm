@@ -1,4 +1,4 @@
-# pylint: disable=protected-access, no-member, missing-docstring
+"""Statement classes"""
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 
