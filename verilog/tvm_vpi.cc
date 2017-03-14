@@ -1,8 +1,13 @@
+/*!
+ *  Copyright (c) 2017 by Contributors
+ * \file tvm_vpi.cc
+ * \brief Messages passed around VPI used for simulation.
+ */
 #include <dmlc/logging.h>
+#include <vpi_user.h>
 #include <cstdlib>
 #include <memory>
 #include <queue>
-#include <vpi_user.h>
 #include "./tvm_vpi.h"
 #include "../src/common/pipe.h"
 
@@ -199,7 +204,7 @@ static PLI_INT32 tvm_host_clock_cb(p_cb_data cb_data) {
       cb_data->user_data)->Callback();
 }
 
-static PLI_INT32 tvm_init(char*) {
+static PLI_INT32 tvm_init(char* cb) {
   s_vpi_value  value_s;
   s_vpi_time  time_s;
   s_cb_data  cb_data_s;
