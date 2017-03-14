@@ -138,7 +138,9 @@ TVM_REGISTER_API(_Buffer)
                             args[1],
                             args[2],
                             args[3],
-                            args[4]);
+                            args[4],
+                            args[5],
+                            args[6]);
   });
 
 TVM_REGISTER_API(_Tensor)

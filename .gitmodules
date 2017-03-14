@@ -4,3 +4,6 @@
 [submodule "HalideIR"]
 	path = HalideIR
 	url = ssh://git@github.com/tqchen/HalideIR
+[submodule "dlpack"]
+	path = dlpack
+	url = https://github.com/dmlc/dlpack

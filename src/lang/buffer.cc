@@ -22,7 +22,8 @@ Buffer::Buffer(Array<Expr> shape,
     : Buffer(BufferNode::make(
           name,
           Var(name, Type(Type::Handle, 0, 0)),
-          shape, Array<Expr>(), dtype)) {
+          shape, Array<Expr>(), dtype,
+          Expr(), 0)) {
 }
 
 inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
@@ -39,6 +40,9 @@ inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
     for (size_t i = 1; i < index.size(); ++i) {
       base = base + index[i] * n->strides[i];
     }
+  }
+  if (!is_zero(n->byte_offset)) {
+    base = base + (n->byte_offset / n->dtype.bytes());
   }
   return base;
 }
@@ -58,13 +62,27 @@ Buffer BufferNode::make(std::string name,
                         Var data,
                         Array<Expr> shape,
                         Array<Expr> strides,
-                        Type dtype) {
+                        Type dtype,
+                        Expr byte_offset,
+                        int offset_alignment) {
   auto n = std::make_shared<BufferNode>();
   n->name = name;
   n->data = data;
   n->shape = shape;
   n->strides = strides;
   n->dtype = dtype;
+
+  if (!byte_offset.defined()) {
+    byte_offset = make_const(shape[0].type(), 0);
+  }
+  if (offset_alignment != 0) {
+    CHECK_EQ(offset_alignment % dtype.bytes(), 0)
+        << "Offset alignments must be at least " << dtype.bytes();
+  } else {
+    offset_alignment = dtype.bytes();
+  }
+  n->byte_offset = byte_offset;
+  n->offset_alignment = offset_alignment;
   return Buffer(n);
 }
 

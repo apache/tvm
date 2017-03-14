@@ -261,8 +261,10 @@ def call_packed(*args):
 
 def Buffer(shape, dtype=None,
            name="buffer",
-           ptr=None,
-           strides=None):
+           data=None,
+           strides=None,
+           byte_offset=None,
+           offset_alignment=0):
     """Create a new symbolic buffer
 
     Parameters
@@ -276,11 +278,17 @@ def Buffer(shape, dtype=None,
     name : str, optional
         The name of the buffer.
 
-    ptr : Var, optional
+    data : Var, optional
         The data pointer in the buffer.
 
     strides: array of Expr
         The stride of the buffer.
+
+    byte_offset: Expr, optional
+        The offset in bytes to data pointer.
+
+    offset_alignment: int, optional
+        The alignment of offset
 
     Returns
     -------
@@ -290,11 +298,11 @@ def Buffer(shape, dtype=None,
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
-    if ptr is None:
-        ptr = Var(name, "handle")
+    if data is None:
+        data = Var(name, "handle")
 
     return _api_internal._Buffer(
-        name, ptr, shape, strides, dtype)
+        name, data, shape, strides, dtype, byte_offset, offset_alignment)
 
 
 def _IterVar(dom, name, iter_type, thread_tag=''):

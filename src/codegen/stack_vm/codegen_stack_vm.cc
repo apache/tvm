@@ -166,6 +166,7 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
       case intrinsic::kTypeCode: PushOp(StackVM::TVM_ARRAY_GET_TYPE_CODE); break;
       case intrinsic::kTypeBits: PushOp(StackVM::TVM_ARRAY_GET_TYPE_BITS); break;
       case intrinsic::kTypeLanes: PushOp(StackVM::TVM_ARRAY_GET_TYPE_LANES); break;
+      case intrinsic::kByteOffset: PushOp(StackVM::TVM_ARRAY_GET_BYTE_OFFSET); break;
       default: LOG(FATAL) << "unknown field code";
     }
   } else if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
@@ -227,15 +228,12 @@ void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64,
 
 void CodeGenStackVM::PushCast(Type dst, Type src) {
   if (dst.is_int()) {
-    if (src.is_int()) return;
-    if (src.is_uint() && src.bits() <= 32) return;
-  } else if (dst.is_uint() && dst.bits() <= 32) {
-    if (src.is_int()) return;
-    if (src.is_uint() && src.bits() <= 32) return;
+    if (src.is_int() || src.is_uint()) return;
+  } else if (dst.is_uint()) {
+    if (src.is_int() || src.is_uint()) return;
   } else if (dst.is_float()) {
     if (src.is_float()) return;
   }
-  LOG(FATAL) << "Cannot handle cast " << src << " to " << dst;
 }
 
 void CodeGenStackVM::VisitExpr_(const StringImm *op) {

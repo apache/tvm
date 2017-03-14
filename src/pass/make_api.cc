@@ -36,7 +36,8 @@ LoweredFunc MakeAPI(Stmt body,
                     std::string name,
                     Array<NodeRef> api_args,
                     int num_unpacked_args) {
-  const Type tvm_index_type = UInt(32);
+  const Type tvm_shape_type = TVMShapeIndexType();
+  const Type tvm_ndim_type = Int(32);
   const Stmt nop = Evaluate::make(0);
   int num_args = static_cast<int>(api_args.size());
   CHECK_LE(num_unpacked_args, num_args);
@@ -120,13 +121,15 @@ LoweredFunc MakeAPI(Stmt body,
           << "api_args can only be Buffer or Var";
       Buffer buf(api_args[i].node_);
       // dimension checks
-      Expr v_ndim = TVMArrayGet(tvm_index_type, v_arg, intrinsic::kNDim);
+      Expr v_ndim = TVMArrayGet(tvm_ndim_type, v_arg, intrinsic::kNDim);
       std::ostringstream ndim_err_msg;
       ndim_err_msg << "arg_" << i
                    << ".ndim is expected to equal "
                    << buf->shape.size();
       seq_init.emplace_back(
-          MakeAssertEQ(v_ndim, UIntImm::make(tvm_index_type, buf->shape.size()),
+          MakeAssertEQ(v_ndim,
+                       make_const(tvm_ndim_type,
+                                  static_cast<int64_t>(buf->shape.size())),
                        ndim_err_msg.str()));
       // type checks
       Type dtype = buf->dtype;
@@ -147,7 +150,7 @@ LoweredFunc MakeAPI(Stmt body,
       }
       // shape field
       Var v_shape(v_arg->name_hint + ".shape", Handle());
-      handle_data_type.Set(v_shape, UIntImm::make(tvm_index_type, 0));
+      handle_data_type.Set(v_shape, make_const(tvm_shape_type, 0));
       seq_init.emplace_back(LetStmt::make(
           v_shape, TVMArrayGet(Handle(), v_arg, intrinsic::kShape), nop));
       for (size_t k = 0; k < buf->shape.size(); ++k) {
@@ -155,12 +158,12 @@ LoweredFunc MakeAPI(Stmt body,
         field_name << v_shape->name_hint << '[' << k << ']';
         f_push(buf->shape[k],
                cast(buf->shape[k].type(),
-                    Load::make(tvm_index_type, v_shape, IntImm::make(Int(32), k))),
+                    Load::make(tvm_shape_type, v_shape, IntImm::make(Int(32), k))),
                field_name.str());
       }
       // strides field
       Var v_strides(v_arg->name_hint + ".strides", Handle());
-      handle_data_type.Set(v_strides, UIntImm::make(tvm_index_type, 0));
+      handle_data_type.Set(v_strides, make_const(tvm_shape_type, 0));
       seq_init.emplace_back(LetStmt::make(
           v_strides, TVMArrayGet(Handle(), v_arg, intrinsic::kStrides), nop));
       if (buf->strides.size() == 0) {
@@ -174,10 +177,13 @@ LoweredFunc MakeAPI(Stmt body,
           field_name << v_strides->name_hint << '[' << k << ']';
           f_push(buf->strides[k],
                  cast(buf->shape[k].type(),
-                      Load::make(tvm_index_type, v_strides, IntImm::make(Int(32), k))),
+                      Load::make(tvm_shape_type, v_strides, IntImm::make(Int(32), k))),
                  field_name.str());
         }
       }
+      // Byte_offset field.
+      f_push(buf->byte_offset, TVMArrayGet(UInt(64), v_arg, intrinsic::kByteOffset),
+             v_arg->name_hint + ".byte_offset");
     }
   }
 

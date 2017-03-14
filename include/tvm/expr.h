@@ -41,6 +41,14 @@ using Halide::Internal::const_true;
 using Halide::Internal::const_false;
 using Halide::Internal::is_no_op;
 
+inline Type TVMShapeIndexType() {
+  if (std::is_signed<tvm_index_t>::value) {
+    return Int(sizeof(tvm_index_t) * 8);
+  } else {
+    return UInt(sizeof(tvm_index_t) * 8);
+  }
+}
+
 inline Type TVMType2Type(TVMType t) {
   return Type(static_cast<halide_type_code_t>(t.code), t.bits, t.lanes);
 }
