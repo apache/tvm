@@ -127,7 +127,9 @@ LoweredFunc MakeAPI(Stmt body,
                    << ".ndim is expected to equal "
                    << buf->shape.size();
       seq_init.emplace_back(
-          MakeAssertEQ(v_ndim, make_const(tvm_ndim_type, buf->shape.size()),
+          MakeAssertEQ(v_ndim,
+                       make_const(tvm_ndim_type,
+                                  static_cast<int64_t>(buf->shape.size())),
                        ndim_err_msg.str()));
       // type checks
       Type dtype = buf->dtype;
