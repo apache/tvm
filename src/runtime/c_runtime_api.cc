@@ -9,6 +9,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <dmlc/timer.h>
+#include <array>
 #include <algorithm>
 #include <string>
 #include <cstdlib>
