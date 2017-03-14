@@ -11,7 +11,7 @@ endif
 include $(config)
 
 # specify tensor path
-.PHONY: clean all test doc pylint cpplint lint
+.PHONY: clean all test doc pylint cpplint lint verilog
 
 all: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
 
@@ -79,6 +79,9 @@ include tests/cpp/unittest.mk
 
 test: $(TEST)
 
+include verilog/verilog.mk
+verilog: $(VER_LIBS)
+
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
@@ -92,6 +95,8 @@ lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
+
+
 lib/libtvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
@@ -102,7 +107,7 @@ LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
 cpplint:
-	python2 dmlc-core/scripts/lint.py tvm cpp include src
+	python2 dmlc-core/scripts/lint.py tvm cpp include src verilog
 
 pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc

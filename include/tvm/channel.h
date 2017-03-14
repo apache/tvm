@@ -23,6 +23,8 @@ class Channel : public NodeRef {
    * \return the pointer to the internal node container
    */
   inline const ChannelNode* operator->() const;
+  // The container type
+  using ContainerType = ChannelNode;
 };
 
 /*!
