@@ -8,35 +8,37 @@ import numpy as np
 
 from .._base import _LIB, check_call
 from .._base import c_array
-from ._types import TVMType, tvm_index_t
+from ._types import TVMType, tvm_shape_index_t
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
-    _fields_ = [("dev_mask", ctypes.c_int),
-                ("dev_id", ctypes.c_int)]
+    _fields_ = [("device_id", ctypes.c_int),
+                ("device_type", ctypes.c_int)]
+
     MASK2STR = {
         1 : 'cpu',
         2 : 'gpu',
         4 : 'opencl'
     }
-    def __init__(self, dev_mask, dev_id):
+    def __init__(self, device_id, device_type):
         super(TVMContext, self).__init__()
-        self.dev_mask = dev_mask
-        self.dev_id = dev_id
+        self.device_id = device_id
+        self.device_type = device_type
 
     def __repr__(self):
         return "%s(%d)" % (
-            TVMContext.MASK2STR[self.dev_mask], self.dev_id)
+            TVMContext.MASK2STR[self.device_type], self.device_id)
 
 
 class TVMArray(ctypes.Structure):
     """TVMValue in C API"""
     _fields_ = [("data", ctypes.c_void_p),
-                ("shape", ctypes.POINTER(tvm_index_t)),
-                ("strides", ctypes.POINTER(tvm_index_t)),
-                ("ndim", tvm_index_t),
+                ("ctx", TVMContext),
+                ("ndim", ctypes.c_int),
                 ("dtype", TVMType),
-                ("ctx", TVMContext)]
+                ("shape", ctypes.POINTER(tvm_shape_index_t)),
+                ("strides", ctypes.POINTER(tvm_shape_index_t)),
+                ("byte_offset", ctypes.c_size_t)]
 
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)
@@ -50,7 +52,7 @@ def cpu(dev_id=0):
     dev_id : int, optional
         The integer device id
     """
-    return TVMContext(1, dev_id)
+    return TVMContext(dev_id, 1)
 
 
 def gpu(dev_id=0):
@@ -61,7 +63,7 @@ def gpu(dev_id=0):
     dev_id : int, optional
         The integer device id
     """
-    return TVMContext(2, dev_id)
+    return TVMContext(dev_id, 2)
 
 
 def opencl(dev_id=0):
@@ -72,7 +74,7 @@ def opencl(dev_id=0):
     dev_id : int, optional
         The integer device id
     """
-    return TVMContext(4, dev_id)
+    return TVMContext(dev_id, 4)
 
 
 def numpyasarray(np_data):
@@ -81,7 +83,7 @@ def numpyasarray(np_data):
     data = np_data
     assert data.flags['C_CONTIGUOUS']
     arr = TVMArray()
-    shape = c_array(tvm_index_t, data.shape)
+    shape = c_array(tvm_shape_index_t, data.shape)
     arr.data = data.ctypes.data_as(ctypes.c_void_p)
     arr.shape = shape
     arr.strides = None
@@ -114,8 +116,8 @@ def empty(shape, dtype="float32", ctx=cpu(0)):
     arr : tvm.nd.NDArray
         The array tvm supported.
     """
-    shape = c_array(tvm_index_t, shape)
-    ndim = tvm_index_t(len(shape))
+    shape = c_array(tvm_shape_index_t, shape)
+    ndim = ctypes.c_int(len(shape))
     handle = TVMArrayHandle()
     dtype = TVMType(dtype)
     check_call(_LIB.TVMArrayAlloc(

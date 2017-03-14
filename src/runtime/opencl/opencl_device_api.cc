@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file opencl_workspace.cc
+ * \file opencl_device_api.cc
  */
 #include "./opencl_common.h"
 
@@ -16,6 +16,57 @@ namespace cl {
 OpenCLWorkspace* OpenCLWorkspace::Global() {
   static OpenCLWorkspace inst;
   return &inst;
+}
+
+void* OpenCLWorkspace::AllocDataSpace(
+    TVMContext ctx, size_t size, size_t alignment) {
+  cl_int err_code;
+  cl_mem mptr = clCreateBuffer(
+      this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+  OPENCL_CHECK_ERROR(err_code);
+  return mptr;
+}
+
+void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
+  cl_mem mptr = static_cast<cl_mem>(ptr);
+  OPENCL_CALL(clReleaseMemObject(mptr));
+}
+
+void OpenCLWorkspace::CopyDataFromTo(const void* from,
+                                     void* to,
+                                     size_t size,
+                                     TVMContext ctx_from,
+                                     TVMContext ctx_to,
+                                     TVMStreamHandle stream) {
+  CHECK(stream == nullptr);
+  if (ctx_from.device_type == kOpenCL && ctx_to.device_type == kOpenCL) {
+    OPENCL_CALL(clEnqueueCopyBuffer(
+        this->GetQueue(ctx_to),
+        static_cast<cl_mem>((void*)from),  // NOLINT(*)
+        static_cast<cl_mem>(to),
+        0, 0, size, 0, nullptr, nullptr));
+  } else if (ctx_from.device_type == kOpenCL && ctx_to.device_type == kCPU) {
+    OPENCL_CALL(clEnqueueReadBuffer(
+        this->GetQueue(ctx_from),
+        static_cast<cl_mem>((void*)from),  // NOLINT(*)
+        CL_FALSE, 0, size, to,
+        0, nullptr, nullptr));
+    OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
+  } else if (ctx_from.device_type == kCPU && ctx_to.device_type == kOpenCL) {
+    OPENCL_CALL(clEnqueueWriteBuffer(
+        this->GetQueue(ctx_to),
+        static_cast<cl_mem>(to),
+        CL_FALSE, 0, size, from,
+        0, nullptr, nullptr));
+    OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
+  } else {
+    LOG(FATAL) << "Expect copy from/to OpenCL or between OpenCL";
+  }
+}
+
+void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
+  CHECK(stream == nullptr);
+  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
 }
 
 typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;
@@ -140,6 +191,12 @@ bool InitOpenCL(TVMArgs args, TVMRetValue* rv) {
 
 TVM_REGISTER_GLOBAL(_module_init_opencl)
 .set_body(InitOpenCL);
+
+TVM_REGISTER_GLOBAL(_device_api_opencl)
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    DeviceAPI* ptr = OpenCLWorkspace::Global();
+    *rv = static_cast<void*>(ptr);
+  });
 
 }  // namespace cl
 }  // namespace runtime

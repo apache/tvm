@@ -70,7 +70,13 @@ class BufferNode : public Node {
   Array<Expr> strides;
   /*! \brief data type in the content of the tensor */
   Type dtype;
-  // Maybe need more information(alignment) later
+  /*!
+   * \brief The offset in bytes to the beginning pointer to data
+   *  Can be undefined, indicating this must be zero.
+   */
+  Expr byte_offset;
+  /*! \brief Alignment bytes size of byte_offset */
+  int offset_alignment;
   /*! \brief constructor */
   BufferNode() {}
 
@@ -80,13 +86,17 @@ class BufferNode : public Node {
     v->Visit("shape", &shape);
     v->Visit("strides", &strides);
     v->Visit("dtype", &dtype);
+    v->Visit("byte_offset", &byte_offset);
+    v->Visit("offset_alignment", &offset_alignment);
   }
 
   static Buffer make(std::string name,
                      Var ptr,
                      Array<Expr> shape,
                      Array<Expr> strides,
-                     Type dtype);
+                     Type dtype,
+                     Expr byte_offset,
+                     int offset_alignment);
 
   static constexpr const char* _type_key = "Buffer";
   TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);

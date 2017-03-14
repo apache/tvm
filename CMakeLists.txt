@@ -14,6 +14,9 @@ tvm_option(USE_MSVC_MT "Build with MT" OFF)
 
 include_directories("include")
 include_directories("HalideIR/src")
+include_directories("dlpack/include")
+
+
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
 

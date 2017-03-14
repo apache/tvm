@@ -33,17 +33,18 @@ void CodeGenLLVM::Init(const std::string& module_name,
     t_int32_ = llvm::Type::getInt32Ty(*ctx);
     t_int64_ = llvm::Type::getInt64Ty(*ctx);
     t_float64_ = llvm::Type::getDoubleTy(*ctx);
-    t_tvm_index_ = llvm::Type::getIntNTy(*ctx, sizeof(tvm_index_t) * 8);
+    t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, TVMShapeIndexType().bits());
     t_tvm_context_ = llvm::StructType::create({t_int_, t_int_});
     t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
     t_tvm_func_handle_ = t_void_p_;
     t_tvm_array_ = llvm::StructType::create(
         {t_void_p_,
-         t_tvm_index_->getPointerTo(),
-         t_tvm_index_->getPointerTo(),
-         t_tvm_index_,
+         t_tvm_context_,
+         t_int_,
          t_tvm_type_,
-         t_tvm_context_});
+         t_tvm_shape_index_->getPointerTo(),
+         t_tvm_shape_index_->getPointerTo(),
+         t_int64_});
     t_tvm_value_ = llvm::StructType::create({t_float64_});
     t_f_tvm_par_for_lambda_ = llvm::FunctionType::get(
         t_int_, {t_int64_, t_int64_, t_void_p_}, false);
@@ -663,25 +664,29 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
         ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(0)}); break;
       }
       case intrinsic::kShape: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(1)}); break;
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(4)}); break;
       }
       case intrinsic::kStrides: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(2)}); break;
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(5)}); break;
       }
       case intrinsic::kNDim: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(3)}); break;
+        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(2)}); break;
       }
       case intrinsic::kTypeCode: {
         ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(4), ConstInt32(0)}); break;
+            arr, {zero, ConstInt32(3), ConstInt32(0)}); break;
       }
       case intrinsic::kTypeBits: {
         ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(4), ConstInt32(1)}); break;
+            arr, {zero, ConstInt32(3), ConstInt32(1)}); break;
       }
       case intrinsic::kTypeLanes: {
         ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(4), ConstInt32(2)}); break;
+            arr, {zero, ConstInt32(3), ConstInt32(2)}); break;
+      }
+      case intrinsic::kByteOffset: {
+        ret = builder_->CreateInBoundsGEP(
+            arr, {zero, ConstInt32(6)}); break;
       }
       default: LOG(FATAL) << "unknown field code";
     }

@@ -123,11 +123,11 @@ class OpenCLModuleNode : public ModuleNode {
                           const std::string& func_name,
                           const KTRefEntry& e) {
     std::lock_guard<std::mutex> lock(build_lock_);
-    int dev_id = t->context.dev_id;
-    if (!device_built_flag_[dev_id]) {
+    int device_id = t->context.device_id;
+    if (!device_built_flag_[device_id]) {
       // build program
       cl_int err;
-      cl_device_id dev = w->devices[dev_id];
+      cl_device_id dev = w->devices[device_id];
       err = clBuildProgram(program_, 1, &dev, nullptr, nullptr, nullptr);
       if (err != CL_SUCCESS) {
         size_t len;
@@ -139,7 +139,7 @@ class OpenCLModuleNode : public ModuleNode {
             program_, dev, CL_PROGRAM_BUILD_LOG, len, &log[0], nullptr);
         LOG(FATAL) << "OpenCL build error for device=" << dev << log;
       }
-      device_built_flag_[dev_id] = true;
+      device_built_flag_[device_id] = true;
     }
     // build kernel
     cl_int err;
@@ -246,23 +246,23 @@ void AutoSetOpenCLDevice(const TVMArgs& args, TVMRetValue* rv) {
   int num_args = args[2].operator int();
 
   // TODO(tqchen): merge this with CUDA logic.
-  int dev_id = -1;
+  int device_id = -1;
   for (int i = 0; i < num_args; ++i) {
     if (type_codes[i] == kArrayHandle) {
       TVMContext ctx = static_cast<TVMArray*>(values[i].v_handle)->ctx;
-      CHECK_EQ(ctx.dev_mask, kOpenCL)
+      CHECK_EQ(ctx.device_type, kOpenCL)
           << "All operands need to be OpenCL";
-      if (dev_id == -1) {
-        dev_id = ctx.dev_id;
+      if (device_id == -1) {
+        device_id = ctx.device_id;
       } else {
-        CHECK_EQ(dev_id, ctx.dev_id)
+        CHECK_EQ(device_id, ctx.device_id)
             << "Operands comes from different devices ";
       }
     }
   }
-  CHECK_NE(dev_id, -1)
+  CHECK_NE(device_id, -1)
       << "Cannot detect device id from list";
-  cl::OpenCLThreadEntry::ThreadLocal()->context.dev_id = dev_id;
+  cl::OpenCLThreadEntry::ThreadLocal()->context.device_id = device_id;
 }
 
 PackedFunc OpenCLModuleNode::GetFunction(
