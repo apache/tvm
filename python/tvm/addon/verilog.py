@@ -144,7 +144,7 @@ def find_file(file_name):
 
 
 def compile_file(file_name, file_target, options=None):
-    """Compile cuda code with NVCC from env.
+    """Compile verilog via iverilog
 
     Parameters
     ----------
