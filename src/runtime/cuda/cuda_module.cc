@@ -50,9 +50,9 @@ class CUDAModuleNode : public runtime::ModuleNode {
   }
 
   void PreCompile(const std::string& name, TVMContext ctx) final {
-    CUDA_CALL(cudaSetDevice(ctx.dev_id));
+    CUDA_CALL(cudaSetDevice(ctx.device_id));
     cudaFree(nullptr);
-    this->GetFunc(ctx.dev_id, name);
+    this->GetFunc(ctx.device_id, name);
   }
 
   PackedFunc GetFunction(
@@ -79,15 +79,15 @@ class CUDAModuleNode : public runtime::ModuleNode {
     }
   }
 
-  // get a CUfunction from primary context in dev_id
-  CUfunction GetFunc(int dev_id, const std::string& func_name) {
+  // get a CUfunction from primary context in device_id
+  CUfunction GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
-    if (module_[dev_id] == nullptr) {
-      CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[dev_id]), data_.c_str()));
+    if (module_[device_id] == nullptr) {
+      CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
     }
     CUfunction func;
-    CUresult result = cuModuleGetFunction(&func, module_[dev_id], func_name.c_str());
+    CUresult result = cuModuleGetFunction(&func, module_[device_id], func_name.c_str());
     if (result != CUDA_SUCCESS) {
       const char *msg;
       cuGetErrorName(result, &msg);
@@ -132,14 +132,14 @@ class CUDAWrappedFunc {
   void operator()(TVMArgs args,
                   TVMRetValue* rv,
                   void** void_args) const {
-    int dev_id;
-    CUDA_CALL(cudaGetDevice(&dev_id));
-    if (fcache_[dev_id] == nullptr) {
-      fcache_[dev_id] = m_->GetFunc(dev_id, func_name_);
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    if (fcache_[device_id] == nullptr) {
+      fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     CUDA_DRIVER_CALL(cuLaunchKernel(
-        fcache_[dev_id],
+        fcache_[device_id],
         wl.grid_dim(0),
         wl.grid_dim(1),
         wl.grid_dim(2),
@@ -169,23 +169,23 @@ void AutoSetCUDADevice(const TVMArgs& args, TVMRetValue* rv) {
   int* type_codes = static_cast<int*>(args[1].operator void*());
   int num_args = args[2].operator int();
 
-  int dev_id = -1;
+  int device_id = -1;
   for (int i = 0; i < num_args; ++i) {
     if (type_codes[i] == kArrayHandle) {
       TVMContext ctx = static_cast<TVMArray*>(values[i].v_handle)->ctx;
-      CHECK_EQ(ctx.dev_mask, kGPU)
+      CHECK_EQ(ctx.device_type, kGPU)
           << "All operands need to be GPU";
-      if (dev_id == -1) {
-        dev_id = ctx.dev_id;
+      if (device_id == -1) {
+        device_id = ctx.device_id;
       } else {
-        CHECK_EQ(dev_id, ctx.dev_id)
+        CHECK_EQ(device_id, ctx.device_id)
             << "Operands comes from different devices ";
       }
     }
   }
-  CHECK_NE(dev_id, -1)
+  CHECK_NE(device_id, -1)
       << "Cannot detect device id from list";
-  CUDA_CALL(cudaSetDevice(dev_id));
+  CUDA_CALL(cudaSetDevice(device_id));
 }
 
 PackedFunc CUDAModuleNode::GetFunction(

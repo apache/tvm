@@ -199,7 +199,8 @@ class StackVM {
     TVM_ARRAY_GET_NDIM,
     TVM_ARRAY_GET_TYPE_CODE,
     TVM_ARRAY_GET_TYPE_BITS,
-    TVM_ARRAY_GET_TYPE_LANES
+    TVM_ARRAY_GET_TYPE_LANES,
+    TVM_ARRAY_GET_BYTE_OFFSET
   };
   /*! \brief The code structure */
   union Code {

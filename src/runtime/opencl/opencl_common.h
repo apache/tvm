@@ -10,8 +10,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <dmlc/logging.h>
-
 #if TVM_OPENCL_RUNTIME
+#include "../device_api.h"
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -101,7 +101,7 @@ inline const char* CLGetErrorString(cl_int error) {
 /*!
  * \brief Process global OpenCL workspace.
  */
-class OpenCLWorkspace {
+class OpenCLWorkspace : public DeviceAPI {
  public:
   // global platform id
   cl_platform_id platform_id;
@@ -132,13 +132,23 @@ class OpenCLWorkspace {
   }
   // get the queue of the context
   cl_command_queue GetQueue(TVMContext ctx) const {
-    CHECK_EQ(ctx.dev_mask, kOpenCL);
+    CHECK_EQ(ctx.device_type, kOpenCL);
     CHECK(initialized())
         << "The OpenCL is not initialized";
-    CHECK(ctx.dev_id >= 0  && static_cast<size_t>(ctx.dev_id) < queues.size())
-        << "Invalid OpenCL dev_id=" << ctx.dev_id;
-    return queues[ctx.dev_id];
+    CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << ctx.device_id;
+    return queues[ctx.device_id];
   }
+  // override device API
+  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final;
+  void FreeDataSpace(TVMContext ctx, void* ptr) final;
+  void CopyDataFromTo(const void* from,
+                      void* to,
+                      size_t size,
+                      TVMContext ctx_from,
+                      TVMContext ctx_to,
+                      TVMStreamHandle stream) final;
+  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   // get the global workspace
   static OpenCLWorkspace* Global();
 };
@@ -160,8 +170,8 @@ class OpenCLThreadEntry {
   std::vector<KTEntry> kernel_table;
 
   OpenCLThreadEntry() {
-    context.dev_id = 0;
-    context.dev_mask = kOpenCL;
+    context.device_id = 0;
+    context.device_type = kOpenCL;
   }
   // get the global workspace
   static OpenCLThreadEntry* ThreadLocal();

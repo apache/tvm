@@ -7,16 +7,54 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/registry.h>
 #include <dmlc/timer.h>
 #include <algorithm>
 #include <string>
 #include <cstdlib>
 #include <thread>
+#include <mutex>
 #include "./runtime_base.h"
 #include "./device_api.h"
 
 namespace tvm {
 namespace runtime {
+
+class DeviceAPIManager {
+ public:
+  static const int kMaxDeviceAPI = 16;
+  // Get API
+  static DeviceAPI* Get(TVMContext ctx) {
+    return Global()->GetAPI(ctx.device_type);
+  }
+
+ private:
+  std::array<DeviceAPI*, kMaxDeviceAPI> api_;
+  std::mutex mutex_;
+  // constructor
+  DeviceAPIManager() {
+    std::fill(api_.begin(), api_.end(), nullptr);
+  }
+  // Global static variable.
+  static DeviceAPIManager* Global() {
+    static DeviceAPIManager inst;
+    return &inst;
+  }
+  // Get or initialize API.
+  DeviceAPI* GetAPI(DLDeviceType type) {
+    if (api_[type] != nullptr) return api_[type];
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (api_[type] != nullptr) return api_[type];
+    std::string factory = "_device_api_" + DeviceName(type);
+    auto* f = Registry::Get(factory);
+    CHECK(f != nullptr)
+        << "Device API " << DeviceName(type) << " is not enabled.";
+    void* ptr = (*f)();
+    api_[type] = static_cast<DeviceAPI*>(ptr);
+    return api_[type];
+  }
+};
+
 
 inline TVMArray* TVMArrayCreate_() {
   TVMArray* arr = new TVMArray();
@@ -33,9 +71,8 @@ inline void TVMArrayFree_(TVMArray* arr) {
     delete[] arr->shape;
     delete[] arr->strides;
     if (arr->data != nullptr) {
-      TVM_DEVICE_SWITCH(arr->ctx, {
-          FreeDataSpace<xpu>(arr->ctx, arr->data);
-        });
+      DeviceAPIManager::Get(arr->ctx)->FreeDataSpace(
+          arr->ctx, arr->data);
     }
   }
   delete arr;
@@ -282,10 +319,8 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   arr->ctx = ctx;
   size_t size = GetDataSize(arr);
   size_t alignment = GetDataAlignment(arr);
-  // ctx data pointer
-  TVM_DEVICE_SWITCH(ctx, {
-      arr->data = AllocDataSpace<xpu>(ctx, size, alignment);
-    });
+  arr->data = DeviceAPIManager::Get(ctx)->AllocDataSpace(
+      ctx, size, alignment);
   *out = arr;
   API_END_HANDLE_ERROR(TVMArrayFree_(arr));
 }
@@ -306,28 +341,21 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
   CHECK_EQ(from_size, to_size)
       << "TVMArrayCopyFromTo: The size must exactly match";
   TVMContext ctx = from->ctx;
-  if (ctx.dev_mask == kCPU) {
+  if (ctx.device_type == kCPU) {
     ctx = to->ctx;
   } else {
-    CHECK(to->ctx.dev_mask == kCPU ||
-          to->ctx.dev_mask == from->ctx.dev_mask)
+    CHECK(to->ctx.device_type == kCPU ||
+          to->ctx.device_type == from->ctx.device_type)
         << "Can not copy across different ctx types directly";
   }
-
-  TVM_DEVICE_SWITCH(ctx, {
-      CopyDataFromTo<xpu>(from->data, to->data,
-                          from_size,
-                          from->ctx,
-                          to->ctx,
-                          stream);
-    });
+  DeviceAPIManager::Get(ctx)->CopyDataFromTo(
+      from->data, to->data, from_size,
+      from->ctx, to->ctx, stream);
   API_END();
 }
 
 int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
   API_BEGIN();
-  TVM_DEVICE_SWITCH(ctx, {
-      StreamSync<xpu>(ctx, stream);
-    });
+  DeviceAPIManager::Get(ctx)->StreamSync(ctx, stream);
   API_END();
 }

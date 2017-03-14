@@ -139,6 +139,7 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_SHAPE);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_STRIDES);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_NDIM);
+    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_BYTE_OFFSET);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_CODE);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_BITS);
     STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_LANES);
@@ -351,6 +352,9 @@ void StackVM::Run(State* s) const {
       }
       case TVM_ARRAY_GET_NDIM: {
         STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, ndim); break;
+      }
+      case TVM_ARRAY_GET_BYTE_OFFSET: {
+        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, byte_offset); break;
       }
       case TVM_ARRAY_GET_TYPE_CODE: {
         STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.code); break;

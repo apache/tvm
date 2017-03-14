@@ -160,7 +160,7 @@ class CodeGenLLVM :
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
   // TVM related data types
-  llvm::Type* t_tvm_index_{nullptr};
+  llvm::Type* t_tvm_shape_index_{nullptr};
   llvm::Type* t_tvm_func_handle_{nullptr};
   llvm::StructType* t_tvm_context_{nullptr};
   llvm::StructType* t_tvm_type_{nullptr};

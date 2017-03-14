@@ -31,22 +31,22 @@
 
 #include <stdint.h>
 #include <stddef.h>
+// TVM Runtime is DLPack compatible.
+#include <dlpack/dlpack.h>
 
 
 TVM_EXTERN_C {
 /*! \brief type of array index. */
-typedef uint32_t tvm_index_t;
+typedef int64_t tvm_index_t;
 /*!
  * \brief The type code in TVMType
  * \note TVMType is used in two places.
  */
 typedef enum {
-  kInt = 0U,
-  kUInt = 1U,
-  kFloat = 2U,
-  kHandle = 3U,
+  // The type code of other types are compatible with DLPack.
   // The next few fields are extension types
   // that is used by TVM API calls.
+  kHandle = 3U,
   kNull = 4U,
   kArrayHandle = 5U,
   kTVMType = 6U,
@@ -67,14 +67,17 @@ typedef enum {
  *
  * \note Arguments TVM API function always takes bits=64 and lanes=1
  */
-typedef struct {
-  /*! \brief type code, in TVMTypeCode */
-  uint8_t code;
-  /*! \brief number of bits of the type */
-  uint8_t bits;
-  /*! \brief number of lanes, */
-  uint16_t lanes;
-} TVMType;
+typedef DLDataType TVMType;
+
+/*!
+ * \brief The Device information, abstract away common device types.
+ */
+typedef DLContext TVMContext;
+
+/*!
+ * \brief The tensor array stucture to TVM API.
+ */
+typedef DLTensor TVMArray;
 
 /*!
  * \brief Union type of values
@@ -96,50 +99,6 @@ typedef struct {
   const char* data;
   size_t size;
 } TVMByteArray;
-
-/*!
- * \brief The device type
- */
-typedef enum {
-  /*! \brief CPU device */
-  kCPU = 1,
-  /*! \brief NVidia GPU device(CUDA) */
-  kGPU = 2,
-  /*! \brief opencl device */
-  kOpenCL = 4
-} TVMDeviceMask;
-
-/*!
- * \brief The Device information, abstract away common device types.
- */
-typedef struct {
-  /*! \brief The device type mask */
-  int dev_mask;
-  /*! \brief the device id */
-  int dev_id;
-} TVMContext;
-
-/*!
- * \brief Data structure representing a n-dimensional array(tensor).
- *  This is used to pass data specification into TVM.
- */
-typedef struct {
-  /*! \brief The data field pointer on specified device */
-  void* data;
-  /*! \brief The shape pointers of the array */
-  const tvm_index_t* shape;
-  /*!
-   * \brief The stride data about each dimension of the array, can be NULL
-   *  When strides is NULL, it indicates that the array is empty.
-   */
-  const tvm_index_t* strides;
-  /*! \brief number of dimensions of the array */
-  tvm_index_t ndim;
-  /*! \brief The data type flag */
-  TVMType dtype;
-  /*! \brief The device context this array sits on */
-  TVMContext ctx;
-} TVMArray;
 
 /*! \brief Handle to TVM runtime modules. */
 typedef void* TVMModuleHandle;

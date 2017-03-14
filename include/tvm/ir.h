@@ -167,7 +167,8 @@ enum TVMArrayFieldKind {
   kStrides = 3,
   kTypeCode = 4,
   kTypeBits = 5,
-  kTypeLanes = 6
+  kTypeLanes = 6,
+  kByteOffset = 7
 };
 }   // namespace intrinsic
 

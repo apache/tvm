@@ -6,7 +6,7 @@ import ctypes
 import numpy as np
 from .._base import py_str
 
-tvm_index_t = ctypes.c_uint32
+tvm_shape_index_t = ctypes.c_int64
 
 class TypeCode(object):
     """Type code used in API calls"""
