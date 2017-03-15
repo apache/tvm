@@ -11,20 +11,19 @@ namespace codegen {
 
 using namespace vpi;
 
-/*! \brief Container for session. */
-class VPISessionNode : public Node {
+// helper class to get the node.
+class VPISessionEntry {
  public:
   // Whether in control.
   bool in_control{false};
   // Internal reader and writer.
   common::Pipe reader;
   common::Pipe writer;
-
   // internal constructor
-  VPISessionNode(int h_pipe_read, int h_pipe_write)
+  VPISessionEntry(int h_pipe_read, int h_pipe_write)
       : reader(h_pipe_read), writer(h_pipe_write) {
   }
-  ~VPISessionNode() {
+  ~VPISessionEntry() {
     if (in_control) {
       VPIReturnCode cd;
       writer.Write(kShutDown);
@@ -33,40 +32,11 @@ class VPISessionNode : public Node {
     reader.Close();
     writer.Close();
   }
-  // visit all attributes
-  void VisitAttrs(AttrVisitor* v) final {
-  }
   void ReadExpect(VPIReturnCode rcode) {
     VPIReturnCode code;
     CHECK(reader.Read(&code));
     CHECK_EQ(code, rcode) << "Error in simulation";
   }
-
-  static constexpr const char* _type_key = "VPISession";
-  TVM_DECLARE_NODE_TYPE_INFO(VPISessionNode, Node);
-};
-
-/*! \brief Container for handle */
-class VPIHandleNode : public Node {
- public:
-  // The internal session.
-  VPISession sess;
-  // Internal handle
-  VPIRawHandle handle;
-
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("sess", &sess);
-  }
-  static VPIHandle make(const VPISession& sess, VPIRawHandle handle) {
-    std::shared_ptr<VPIHandleNode> n =
-        std::make_shared<VPIHandleNode>();
-    n->sess = sess;
-    n->handle = handle;
-    return VPIHandle(n);
-  }
-
-  static constexpr const char* _type_key = "VPIHandle";
-  TVM_DECLARE_NODE_TYPE_INFO(VPIHandleNode, Node);
 };
 
 // Inline implementations
@@ -77,34 +47,99 @@ inline VPIHandleNode* VPIHandle::get() const {
   return static_cast<VPIHandleNode*>(node_.get());
 }
 
-VPISession VPISession::make(int h_pipe_read, int h_pipe_write) {
-  std::shared_ptr<VPISessionNode> n = std::make_shared<VPISessionNode>(
-      h_pipe_read, h_pipe_write);
-  n->ReadExpect(kPosEdgeTrigger);
-  n->in_control = true;
-  return VPISession(n);
+VPIHandle VPIHandleCreate(
+    const std::shared_ptr<VPISessionEntry>& sess,
+    VPIRawHandle handle) {
+  std::shared_ptr<VPIHandleNode> n = std::make_shared<VPIHandleNode>();
+  n->sess = sess;
+  n->handle = handle;
+  return VPIHandle(n);
 }
 
-VPIHandle VPISession::operator[](const std::string& name) const {
-  return GetByName(name, nullptr);
-}
-
-VPIHandle VPISession::GetByName(const std::string& name, VPIRawHandle handle) const {
-  VPISessionNode* n = get();
+VPIHandle GetHandleByName(
+    const std::shared_ptr<VPISessionEntry>& sess,
+    const std::string& name,
+    VPIRawHandle handle,
+    bool allow_undefined) {
+  VPISessionEntry* n = sess.get();
   CHECK(n->in_control);
   n->writer.Write(kGetHandleByName);
   n->writer.Write(name);
   n->writer.Write(handle);
   n->ReadExpect(kSuccess);
   CHECK(n->reader.Read(&handle));
-  CHECK(handle != nullptr)
-      << "Cannot find handle with name=" << name;
-  return VPIHandleNode::make(*this, handle);
+  if (handle != nullptr) {
+    return VPIHandleCreate(sess, handle);
+  } else {
+    CHECK(allow_undefined)
+        << "Cannot find handle with name=" << name;
+    return VPIHandle();
+  }
+}
+
+std::string VPIGetStrProp(VPIHandleNode* h, int code) {
+  VPISessionEntry* n = h->sess.get();
+  CHECK(n->in_control);
+  n->writer.Write(kGetStrProp);
+  n->writer.Write(code);
+  n->writer.Write(h->handle);
+  n->ReadExpect(kSuccess);
+  std::string str;
+  CHECK(n->reader.Read(&str));
+  return str;
+}
+
+int VPIGetIntProp(VPIHandleNode* h, int code) {
+  VPISessionEntry* n = h->sess.get();
+  CHECK(n->in_control);
+  n->writer.Write(kGetIntProp);
+  n->writer.Write(code);
+  n->writer.Write(h->handle);
+  n->ReadExpect(kSuccess);
+  int value;
+  CHECK(n->reader.Read(&value));
+  return value;
+}
+
+VPISession VPISession::make(int h_pipe_read, int h_pipe_write) {
+  std::shared_ptr<VPISessionNode> n = std::make_shared<VPISessionNode>();
+  n->sess = std::make_shared<VPISessionEntry>(h_pipe_read, h_pipe_write);
+  n->sess->in_control = true;
+  VPISession sess(n);
+  // The custom module handles
+  std::vector<VPIRawHandle> mod_handles;
+  n->sess->reader.Read(&mod_handles);
+  n->sess->ReadExpect(kPosEdgeTrigger);
+  // start Initialize the callbacks
+  for (VPIRawHandle raw_h : mod_handles) {
+    VPIHandle h = VPIHandleCreate(n->sess, raw_h);
+    CHECK_EQ(VPIGetIntProp(h.get(), kVPIType), kVPIModule)
+        << "Expect pass modules to $tvm_session after clk";
+    std::string def = VPIGetStrProp(h.get(), kVPIDefName);
+    std::string callback_name = "_vpi_module_" + def;
+    const PackedFunc* f = runtime::Registry::Get(callback_name);
+    CHECK(f != nullptr)
+        << "Cannot find definition for tvm vpi module " << def;
+    PackedFunc cb = (*f)(h);
+    n->posedge_end_callbacks.push_back(cb);
+  }
+  return sess;
+}
+
+VPIHandle VPISession::operator[](const std::string& name) const {
+  return GetHandleByName(get()->sess, name, nullptr, false);
+}
+VPIHandle VPISession::GetByName(const std::string& name,
+                                bool allow_undefined) const {
+  return GetHandleByName(get()->sess, name, nullptr, true);
 }
 
 void VPISession::yield() {
-  VPISessionNode* n = get();
+  VPISessionEntry* n = get()->sess.get();
   CHECK(n->in_control);
+  for (const PackedFunc& f : get()->posedge_end_callbacks) {
+    f();
+  }
   n->writer.Write(kYield);
   n->ReadExpect(kSuccess);
   n->in_control = false;
@@ -113,7 +148,7 @@ void VPISession::yield() {
 }
 
 void VPISession::shutdown() {
-  VPISessionNode* n = get();
+  VPISessionEntry* n = get()->sess.get();
   if (n->in_control) {
     n->writer.Write(kShutDown);
     n->ReadExpect(kSuccess);
@@ -122,20 +157,12 @@ void VPISession::shutdown() {
 }
 
 int VPIHandle::size() const {
-  VPIHandleNode* h = get();
-  VPISessionNode* n = h->sess.get();
-  CHECK(n->in_control);
-  n->writer.Write(kGetSize);
-  n->writer.Write(h->handle);
-  n->ReadExpect(kSuccess);
-  int value;
-  CHECK(n->reader.Read(&value));
-  return value;
+  return VPIGetIntProp(get(), kVPISize);
 }
 
 void VPIHandle::put_int(int value) {
   VPIHandleNode* h = get();
-  VPISessionNode* n = h->sess.get();
+  VPISessionEntry* n = h->sess.get();
   CHECK(n->in_control);
   n->writer.Write(kPutInt32);
   n->writer.Write(h->handle);
@@ -145,7 +172,7 @@ void VPIHandle::put_int(int value) {
 
 int VPIHandle::get_int() const {
   VPIHandleNode* h = get();
-  VPISessionNode* n = h->sess.get();
+  VPISessionEntry* n = h->sess.get();
   CHECK(n->in_control);
   n->writer.Write(kGetInt32);
   n->writer.Write(h->handle);
@@ -156,20 +183,12 @@ int VPIHandle::get_int() const {
 }
 
 std::string VPIHandle::name() const {
-  VPIHandleNode* h = get();
-  VPISessionNode* n = h->sess.get();
-  CHECK(n->in_control);
-  n->writer.Write(kGetName);
-  n->writer.Write(h->handle);
-  n->ReadExpect(kSuccess);
-  std::string str;
-  CHECK(n->reader.Read(&str));
-  return str;
+  return VPIGetStrProp(get(), kVPIFullName);
 }
 
 void VPIHandle::put_vec(const std::vector<VPIVecVal>& vec) const {
   VPIHandleNode* h = get();
-  VPISessionNode* n = h->sess.get();
+  VPISessionEntry* n = h->sess.get();
   CHECK(n->in_control);
   n->writer.Write(kPutVec);
   n->writer.Write(h->handle);
@@ -179,17 +198,17 @@ void VPIHandle::put_vec(const std::vector<VPIVecVal>& vec) const {
 
 void VPIHandle::get_vec(std::vector<VPIVecVal>* vec) const {
   VPIHandleNode* h = get();
-  VPISessionNode* n = h->sess.get();
+  VPISessionEntry* n = h->sess.get();
   CHECK(n->in_control);
-  n->writer.Write(kPutVec);
+  n->writer.Write(kGetVec);
   n->writer.Write(h->handle);
   n->ReadExpect(kSuccess);
-  CHECK(n->reader.Read(&vec));
+  CHECK(n->reader.Read(vec));
 }
 
 VPIHandle VPIHandle::operator[](const std::string& name) const {
   VPIHandleNode* h = get();
-  return h->sess.GetByName(name, h->handle);
+  return GetHandleByName(h->sess, name, h->handle, false);
 }
 
 // API registration

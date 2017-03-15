@@ -274,6 +274,7 @@ class TVMArgValue : public TVMPODValue_ {
     return value_.v_type;
   }
   operator PackedFunc() const {
+    if (type_code_ == kNull) return PackedFunc();
     TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
     return *ptr<PackedFunc>();
   }
@@ -350,6 +351,7 @@ class TVMRetValue : public TVMPODValue_ {
     return value_.v_type;
   }
   operator PackedFunc() const {
+    if (type_code_ == kNull) return PackedFunc();
     TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
     return *ptr<PackedFunc>();
   }
