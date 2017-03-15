@@ -38,6 +38,13 @@
 TVM_EXTERN_C {
 /*! \brief type of array index. */
 typedef int64_t tvm_index_t;
+
+/*! \brief Extension device types in TVM */
+typedef enum {
+  /*! \brief Simulated on board RAM */
+  kVPI = 9
+} TVMDeviceExtType;
+
 /*!
  * \brief The type code in TVMType
  * \note TVMType is used in two places.

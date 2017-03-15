@@ -17,6 +17,7 @@ class VPISession(NodeBase):
         super(VPISession, self).__init__(handle)
         self.proc = None
         self.execpath = None
+        self.yield_callbacks = []
 
     def __del__(self):
         self.proc.kill()
@@ -47,6 +48,8 @@ class VPISession(NodeBase):
 
     def yield_until_posedge(self):
         """Yield until next posedge"""
+        for f in self.yield_callbacks:
+            f()
         return _api_internal._vpi_SessYield(self)
 
     def shutdown(self):
@@ -222,7 +225,16 @@ def session(file_name):
     env['TVM_HREAD_PIPE'] = str(read_host)
     env['TVM_HWRITE_PIPE'] = str(write_host)
 
-    proc = subprocess.Popen(cmd, env=env, close_fds=False)
+    try:
+        # close_fds does not work well for all python3
+        # Use pass_fds instead.
+        # pylint: disable=unexpected-keyword-arg
+        pass_fds = (read_device, write_device, read_host, write_host)
+        proc = subprocess.Popen(cmd, pass_fds=pass_fds, env=env)
+    except TypeError:
+        # This is effective for python2
+        proc = subprocess.Popen(cmd, close_fds=False, env=env)
+
     # close device side pipe
     os.close(read_device)
     os.close(write_device)

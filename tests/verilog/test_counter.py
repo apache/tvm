@@ -1,5 +1,4 @@
 import tvm
-import os
 from tvm.addon import verilog
 
 def test_counter():

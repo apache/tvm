@@ -1,11 +1,7 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file device_api_gpu.h
- * \brief GPU specific API
+ * \file cpu_device_api.cc
  */
-#ifndef TVM_RUNTIME_DEVICE_API_CPU_H_
-#define TVM_RUNTIME_DEVICE_API_CPU_H_
-
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
 #include <cstdlib>
@@ -58,4 +54,3 @@ TVM_REGISTER_GLOBAL(_device_api_cpu)
   });
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_DEVICE_API_CPU_H_

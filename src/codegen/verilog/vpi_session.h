@@ -14,10 +14,14 @@
 
 namespace tvm {
 namespace codegen {
+
 // node containers
 class VPISessionNode;
 class VPIHandleNode;
 class VPIHandle;
+class VPISessionEntry;
+
+using runtime::PackedFunc;
 
 /*! \brief Environment */
 class VPISession : public NodeRef {
@@ -29,6 +33,12 @@ class VPISession : public NodeRef {
    * \param name The name of the handle.
    */
   VPIHandle operator[](const std::string& name) const;
+  /*!
+   * \brief Get handle by name.
+   * \param name The name of the handle.
+   * \param allow_undefined whether allow undefined
+   */
+  VPIHandle GetByName(const std::string& name, bool allow_undefined) const;
   /*!
    * \brief Yield control back to the simulator
    *  Block until next cycle.
@@ -46,12 +56,7 @@ class VPISession : public NodeRef {
   static VPISession make(int h_pipe_read, int h_pipe_write);
   // Internal methods.
   using ContainerType = VPISessionNode;
-
- private:
-  friend class VPIHandle;
   inline VPISessionNode* get() const;
-  // Get handle by name
-  VPIHandle GetByName(const std::string& name, vpi::VPIRawHandle handle) const;
 };
 
 /*! \brief VPI Handle */
@@ -91,10 +96,39 @@ class VPIHandle : public NodeRef {
   void get_vec(std::vector<vpi::VPIVecVal>* vec) const;
   // Internal methods
   using ContainerType = VPIHandleNode;
-
- private:
   inline VPIHandleNode* get() const;
 };
+
+/*! \brief Container for session. */
+class VPISessionNode : public Node {
+ public:
+  // internal session.
+  std::shared_ptr<VPISessionEntry> sess;
+  // callbacks at pos edge end.
+  std::vector<PackedFunc> posedge_end_callbacks;
+
+  // visit all attributes
+  void VisitAttrs(AttrVisitor* v) final {
+  }
+  static constexpr const char* _type_key = "VPISession";
+  TVM_DECLARE_NODE_TYPE_INFO(VPISessionNode, Node);
+};
+
+/*! \brief Container for handle */
+class VPIHandleNode : public Node {
+ public:
+  // internal session.
+  std::shared_ptr<VPISessionEntry> sess;
+  // Internal handle
+  vpi::VPIRawHandle handle;
+
+  void VisitAttrs(AttrVisitor* v) final {
+  }
+
+  static constexpr const char* _type_key = "VPIHandle";
+  TVM_DECLARE_NODE_TYPE_INFO(VPIHandleNode, Node);
+};
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_CODEGEN_VERILOG_VPI_SESSION_H_

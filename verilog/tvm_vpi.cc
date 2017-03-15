@@ -13,8 +13,17 @@
 
 namespace tvm {
 namespace vpi {
+// standard consistency checks
 static_assert(sizeof(vpiHandle) == sizeof(VPIRawHandle),
-              "VPI handle condition");
+              "VPI standard");
+// type codes
+static_assert(vpiModule == kVPIModule, "VPI standard");
+// Property code
+static_assert(vpiType == kVPIType, "VPI standard");
+static_assert(vpiFullName == kVPIFullName, "VPI standard");
+static_assert(vpiSize == kVPISize, "VPI standard");
+static_assert(vpiDefName == kVPIDefName, "VPI standard");
+
 // IPC client for VPI
 class IPCClient {
  public:
@@ -26,8 +35,11 @@ class IPCClient {
     vpiHandle argv = vpi_handle(vpiSysTfCall, 0);
     vpiHandle arg_iter = vpi_iterate(vpiArgument, argv);
     clock_ = vpi_scan(arg_iter);
-    CHECK(vpi_scan(arg_iter) == nullptr)
-        << "tvm_session can only take in one clock";
+    std::vector<VPIRawHandle> handles;
+    while (vpiHandle h = vpi_scan(arg_iter)) {
+      handles.push_back(h);
+    }
+    writer_.Write(handles);
     PutInt(clock_, 0);
   }
   int Callback() {
@@ -74,12 +86,21 @@ class IPCClient {
           writer_.Write(handle);
           break;
         }
-        case kGetName: {
+        case kGetStrProp: {
+          CHECK(reader_.Read(&value));
           CHECK(reader_.Read(&handle));
-          std::string name = vpi_get_str(
-              vpiFullName, static_cast<vpiHandle>(handle));
+          std::string prop = vpi_get_str(
+              value, static_cast<vpiHandle>(handle));
           writer_.Write(kSuccess);
-          writer_.Write(name);
+          writer_.Write(prop);
+          break;
+        }
+        case kGetIntProp: {
+          CHECK(reader_.Read(&value));
+          CHECK(reader_.Read(&handle));
+          value = vpi_get(value, static_cast<vpiHandle>(handle));
+          writer_.Write(kSuccess);
+          writer_.Write(value);
           break;
         }
         case kGetInt32: {
@@ -95,13 +116,6 @@ class IPCClient {
           CHECK(handle != clock_) << "Cannot write to clock";
           PutInt(static_cast<vpiHandle>(handle), value);
           writer_.Write(kSuccess);
-          break;
-        }
-        case kGetSize: {
-          CHECK(reader_.Read(&handle));
-          value = vpi_get(vpiSize, static_cast<vpiHandle>(handle));
-          writer_.Write(kSuccess);
-          writer_.Write(value);
           break;
         }
         case kGetVec: {
@@ -126,17 +140,19 @@ class IPCClient {
           CHECK(reader_.Read(&vec_buf_));
           CHECK(handle != clock_) << "Cannot write to clock";
           vpiHandle h = static_cast<vpiHandle>(handle);
-          size_t nwords = vec_buf_.size();
-          svec_buf_.resize(nwords);
-          reader_.Read(&vec_buf_[0], nwords * sizeof(s_vpi_vecval));
+          svec_buf_.resize(vec_buf_.size());
           for (size_t i = 0; i < vec_buf_.size(); ++i) {
             svec_buf_[i].aval = vec_buf_[i].aval;
             svec_buf_[i].bval = vec_buf_[i].bval;
           }
           s_vpi_value  value_s;
+          s_vpi_time time_s;
+          time_s.type = vpiSimTime;
+          time_s.high = 0;
+          time_s.low  = 0;
           value_s.format = vpiVectorVal;
           value_s.value.vector = &svec_buf_[0];
-          vpi_put_value(h, &value_s, 0, vpiNoDelay);
+          vpi_put_value(h, &value_s, &time_s, vpiInertialDelay);
           writer_.Write(kSuccess);
           break;
         }
@@ -183,9 +199,13 @@ class IPCClient {
   // Put integer into handle.
   static void PutInt(vpiHandle h, int value) {
     s_vpi_value  value_s;
+    s_vpi_time time_s;
+    time_s.type = vpiSimTime;
+    time_s.high = 0;
+    time_s.low  = 0;
     value_s.format = vpiIntVal;
     value_s.value.integer = value;
-    vpi_put_value(h, &value_s, 0, vpiNoDelay);
+    vpi_put_value(h, &value_s, &time_s, vpiInertialDelay);
   }
   // Handles
   vpiHandle clock_;
