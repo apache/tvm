@@ -12,10 +12,10 @@ namespace vpi {
 enum VPICallCode : int {
   kGetHandleByName,
   kGetHandleByIndex,
-  kGetName,
+  kGetStrProp,
+  kGetIntProp,
   kGetInt32,
   kPutInt32,
-  kGetSize,
   kGetVec,
   kPutVec,
   kYield,
@@ -26,6 +26,19 @@ enum VPIReturnCode : int {
   kPosEdgeTrigger = 0,
   kSuccess = 1,
   kFail = 2
+};
+
+// VPI type code as in IEEE standard.
+enum VPITypeCode {
+  kVPIModule = 32
+};
+
+// VPI property code as in IEEE standard.
+enum VPIPropCode {
+  kVPIType = 1,
+  kVPIFullName = 3,
+  kVPISize = 4,
+  kVPIDefName = 9
 };
 
 /*! \brief The vector value used in trasmission */

@@ -23,7 +23,7 @@ namespace runtime {
 
 class DeviceAPIManager {
  public:
-  static const int kMaxDeviceAPI = 16;
+  static const int kMaxDeviceAPI = 32;
   // Get API
   static DeviceAPI* Get(TVMContext ctx) {
     return Global()->GetAPI(ctx.device_type);
