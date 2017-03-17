@@ -18,7 +18,8 @@ class TVMContext(ctypes.Structure):
     MASK2STR = {
         1 : 'cpu',
         2 : 'gpu',
-        4 : 'opencl'
+        4 : 'opencl',
+        9 : 'vpi'
     }
     def __init__(self, device_id, device_type):
         super(TVMContext, self).__init__()
@@ -75,6 +76,16 @@ def opencl(dev_id=0):
         The integer device id
     """
     return TVMContext(dev_id, 4)
+
+def vpi(dev_id=0):
+    """Construct a VPI simulated device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+    """
+    return TVMContext(dev_id, 9)
 
 
 def numpyasarray(np_data):

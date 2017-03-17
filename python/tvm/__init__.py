@@ -15,7 +15,7 @@ from . import schedule
 from . import module
 
 from . import ndarray as nd
-from .ndarray import cpu, gpu, opencl, cl
+from .ndarray import cpu, gpu, opencl, cl, vpi
 
 from ._base import TVMError
 from .api import *

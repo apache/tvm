@@ -64,6 +64,7 @@ inline std::string DeviceName(DLDeviceType type) {
     case kCPU: return "cpu";
     case kGPU: return "gpu";
     case kOpenCL: return "opencl";
+    case kVPI: return "vpi";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
 }

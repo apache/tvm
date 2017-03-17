@@ -106,7 +106,7 @@ LoweredFunc MakeAPI(Stmt body,
 
   for (int i = 0; i < static_cast<int>(api_args.size()); ++i) {
     Var v_arg = f_arg_decl(i);
-    if (i < static_cast<size_t>(num_packed_args)) {
+    if (i < num_packed_args) {
       seq_init.emplace_back(LetStmt::make(
           v_arg, f_arg_value(v_arg.type(), i), nop));
     } else {

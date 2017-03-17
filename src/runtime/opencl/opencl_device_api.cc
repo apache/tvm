@@ -134,7 +134,7 @@ bool InitOpenCL(TVMArgs args, TVMRetValue* rv) {
   // matching conditions
   std::string platform_name, device_type;
 
-  for (size_t i = 0; i < args.num_args; ++i) {
+  for (int i = 0; i < args.num_args; ++i) {
     std::string arg = args[i];
     size_t pos = arg.find_first_of('=');
     CHECK_EQ(pos, std::string::npos)
