@@ -213,14 +213,14 @@ class VPIMemoryInterface {
       out_reg_write_ready_.put_int(0);
     }
     // Control tasks
-    if (ctrl_read_addr_.get_int() != 0) {
+    if (ctrl_read_req_.get_int()) {
       FIFOTask tsk;
       tsk.addr = reinterpret_cast<char*>(ctrl_read_addr_.get_int());
       tsk.size = static_cast<size_t>(ctrl_read_size_.get_int());
       read_tasks_.push(tsk);
     }
     // Control tasks
-    if (ctrl_write_addr_.get_int() != 0) {
+    if (ctrl_write_req_.get_int()) {
       FIFOTask tsk;
       tsk.addr = reinterpret_cast<char*>(ctrl_write_addr_.get_int());
       tsk.size = static_cast<size_t>(ctrl_write_size_.get_int());

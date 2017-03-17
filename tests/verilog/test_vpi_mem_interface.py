@@ -68,10 +68,10 @@ def test_ram_read():
 
     sess.yield_until_posedge()
     host_read_req.put_int(0)
-    read_deq.put_int(1)
+    read_en.put_int(1)
 
     # yield until read is done
-    for i in range(a.shape[0] * 2):
+    for i in range(a.shape[0] * 3):
         sess.yield_until_posedge()
     # check if result matches
     r = np.concatenate((a_np, a_np[2:]))
@@ -86,7 +86,7 @@ def test_ram_write():
     ctx = tvm.vpi(0)
     a_np = np.zeros(n).astype('int8')
     a = tvm.nd.array(a_np, ctx)
-    w_data = range(2, n)
+    w_data = list(range(2, n))
     r_data = np.array(w_data, dtype='int8')
 
     # head ptr of a
@@ -128,4 +128,5 @@ def test_ram_write():
 
 
 if __name__ == "__main__":
+    test_ram_read()
     test_ram_write()
