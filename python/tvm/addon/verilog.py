@@ -4,10 +4,12 @@ from __future__ import absolute_import
 import subprocess
 import sys
 import os
+import ctypes
 
 from .. import _api_internal
 from .._base import string_types
 from .._ctypes._node import NodeBase, register_node
+from .._ctypes._function import register_func
 from . import testing
 
 @register_node
@@ -46,7 +48,7 @@ class VPISession(NodeBase):
     def __getattr__(self, name):
         return _api_internal._vpi_SessGetHandleByName(self, name)
 
-    def yield_until_posedge(self):
+    def yield_until_next_cycle(self):
         """Yield until next posedge"""
         for f in self.yield_callbacks:
             f()
@@ -178,29 +180,41 @@ def compile_file(file_name, file_target, options=None):
         raise ValueError("Compilation error:\n%s" % out)
 
 
-def session(file_name):
+def session(file_names, codes=None):
     """Create a new iverilog session by compile the file.
 
     Parameters
     ----------
-    file_name : str or list of str
+    file_names : str or list of str
         The name of the file
+
+    codes : str or list of str
+        The code in str.
 
     Returns
     -------
     sess : VPISession
         The created session.
     """
-    if isinstance(file_name, string_types):
-        file_name = [file_name]
+    if isinstance(file_names, string_types):
+        file_names = [file_names]
 
-    for name in file_name:
+    path = testing.tempdir()
+
+    if codes:
+        if isinstance(codes, (list, tuple)):
+            codes = '\n'.join(codes)
+        fcode = path.relpath("temp_code.v")
+        with open(fcode, "w") as out_file:
+            out_file.write(codes)
+        file_names.append(fcode)
+
+    for name in file_names:
         if not os.path.exists(name):
             raise ValueError("Cannot find file %s" % name)
 
-    path = testing.tempdir()
-    target = path.relpath(os.path.basename(file_name[0].rsplit(".", 1)[0]))
-    compile_file(file_name, target)
+    target = path.relpath(os.path.basename(file_names[0].rsplit(".", 1)[0]))
+    compile_file(file_names, target)
     vpi_path = _find_vpi_path()
 
     cmd = ["vvp"]
@@ -243,3 +257,43 @@ def session(file_name):
     sess.proc = proc
     sess.execpath = path
     return sess
+
+
+@register_func
+def tvm_callback_verilog_simulator(code, *args):
+    """Callback by TVM runtime to invoke verilog simulator
+
+    Parameters
+    ----------
+    code : str
+        The verilog code to be simulated
+
+    args : list
+        Additional arguments to be set.
+    """
+    libs = [
+        find_file("tvm_vpi_mmap.v")
+    ]
+    sess = session(libs, code)
+    for i, value in enumerate(args):
+        vpi_h = sess.main["tvm_arg%d" % i]
+        if isinstance(value, ctypes.c_void_p):
+            int_value = int(value.value)
+        elif isinstance(value, int):
+            int_value = value
+        else:
+            raise ValueError(
+                "Do not know how to handle value type %s" % type(value))
+        vpi_h.put_int(int_value)
+
+    rst = sess.main.rst
+    done = sess.main.done
+    # start driving
+    rst.put_int(1)
+    sess.yield_until_next_cycle()
+    rst.put_int(0)
+    sess.yield_until_next_cycle()
+    while not done.get_int():
+        sess.yield_until_next_cycle()
+    sess.yield_until_next_cycle()
+    sess.shutdown()

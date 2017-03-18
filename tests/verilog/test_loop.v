@@ -1,21 +1,16 @@
 `include "tvm_marcos.v"
 
 module main();
-   parameter PER = 10;
-   reg clk;
-   reg rst;
-   wire init;
-   wire done;
-   wire enable;
+   `TVM_DEFINE_TEST_SIGNAL(clk, rst)
 
-   `NORMAL_LOOP_LEAF(iter0, 4, init0, enable, iter0_done, 0, 4, 1)
-   `NORMAL_LOOP_NEST(iter1, 4, init, iter0_done, iter1_done, 0, 3, 1, init0)
+   reg ready;
+   wire lp_ready;
 
-   assign done = iter0_done;
+   `NONSTOP_LOOP(iter0, 4, 0, lp_ready, iter0_finish, 0, 4)
+   `NONSTOP_LOOP(iter1, 4, 0, iter0_finish, iter1_finish, 0, 3)
+   `WRAP_LOOP_ONCE(0, valid, ready, iter1_finish, loop_ready)
+   assign lp_ready = loop_ready;
 
-   always begin
-      #(PER/2) clk =~ clk;
-   end
 
    initial begin
       // This will allow tvm session to be called every cycle.

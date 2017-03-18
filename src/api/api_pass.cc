@@ -63,6 +63,7 @@ REGISTER_PASS1(CanonicalSimplify);
 REGISTER_PASS4(Inline);
 REGISTER_PASS2(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
+REGISTER_PASS2(ExprUseVar);
 REGISTER_PASS2(UnrollLoop);
 REGISTER_PASS2(StorageSync);
 REGISTER_PASS4(MakeAPI);
@@ -71,7 +72,7 @@ REGISTER_PASS1(LiftAllocate);
 REGISTER_PASS1(InjectVirtualThread);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
-REGISTER_PASS1(SplitPipeline);
-
+REGISTER_PASS2(SplitPipeline);
+REGISTER_PASS1(NarrowChannelAccess);
 }  // namespace ir
 }  // namespace tvm

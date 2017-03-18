@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import ctypes
 import sys
+import traceback
 from numbers import Number, Integral
 
 from .._base import _LIB, check_call
@@ -46,7 +47,14 @@ def convert_to_tvm_func(pyfunc):
         """ ctypes function """
         num_args = num_args.value if isinstance(num_args, ctypes.c_int) else num_args
         pyargs = [C_TO_PY_ARG_SWITCH[type_codes[i]](args[i]) for i in range(num_args)]
-        rv = local_pyfunc(*pyargs)
+        # pylint: disable=broad-except
+        try:
+            rv = local_pyfunc(*pyargs)
+        except Exception:
+            msg = traceback.format_exc()
+            _LIB.TVMAPISetLastError(c_str(msg))
+            return -1
+
         if rv is not None:
             if isinstance(rv, tuple):
                 raise ValueError("PackedFunction can only support one reurn value")

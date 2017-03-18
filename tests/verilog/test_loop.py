@@ -7,28 +7,23 @@ def test_loop():
     ])
     # Get the handles by their names
     rst = sess.main.rst
-    init = sess.main.init
     iter0 = sess.main.iter0
     iter1 = sess.main.iter1
-    enable = sess.main.enable
-    invalid = sess.main.done
+    ready = sess.main.ready
 
     rst.put_int(1)
+    ready.put_int(1)
     # This will advance the cycle to next pos-edge of clk.
-    sess.yield_until_posedge()
+    sess.yield_until_next_cycle()
     rst.put_int(0)
-    init.put_int(1)
-    sess.yield_until_posedge()
-    enable.put_int(1)
-    init.put_int(0)
+    sess.yield_until_next_cycle()
 
-    for i in range(0, 3):
-        for j in range(0, 4):
-            while invalid.get_int():
-                sess.yield_until_posedge()
-            assert(iter1.get_int() == i)
-            assert(iter0.get_int() == j)
-            sess.yield_until_posedge()
+    for k in range(0, 1):
+        for i in range(0, 3):
+            for j in range(0, 4):
+                assert(iter1.get_int() == i)
+                assert(iter0.get_int() == j)
+                sess.yield_until_next_cycle()
 
 
 if __name__ == "__main__":

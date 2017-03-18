@@ -148,6 +148,15 @@ struct IntSetNode : public Node {
   TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
 };
 
+
+/*!
+ * \brief Detect if e can be rewritten as e = base + var * coeff
+ *  Where coeff and base are invariant of var.
+ *
+ * \return [base, coeff] if it is possible, empty array if it is not.
+ */
+Array<Expr> DetectLinearEquation(Expr e, Var var);
+
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each iteration variables.

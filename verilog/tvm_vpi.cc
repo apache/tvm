@@ -43,7 +43,7 @@ class IPCClient {
     PutInt(clock_, 0);
   }
   int Callback() {
-    if (GetInt(clock_)) {
+    if (!GetInt(clock_)) {
       try {
         return AtPosEedge();
       } catch (const std::runtime_error& e) {
@@ -57,8 +57,11 @@ class IPCClient {
       return 0;
     }
   }
-  // called at positive edge.
+  // called at neg edge.
   int AtPosEedge() {
+    // This is actually called at neg-edge
+    // The put values won't take effect until next neg-edge.
+    // This allow us to see the registers before snc
     writer_.Write(kPosEdgeTrigger);
     VPICallCode rcode;
     VPIRawHandle handle;
@@ -149,10 +152,10 @@ class IPCClient {
           s_vpi_time time_s;
           time_s.type = vpiSimTime;
           time_s.high = 0;
-          time_s.low  = 0;
+          time_s.low  = 10;
           value_s.format = vpiVectorVal;
           value_s.value.vector = &svec_buf_[0];
-          vpi_put_value(h, &value_s, &time_s, vpiInertialDelay);
+          vpi_put_value(h, &value_s, &time_s, vpiTransportDelay);
           writer_.Write(kSuccess);
           break;
         }
@@ -202,10 +205,10 @@ class IPCClient {
     s_vpi_time time_s;
     time_s.type = vpiSimTime;
     time_s.high = 0;
-    time_s.low  = 0;
+    time_s.low  = 10;
     value_s.format = vpiIntVal;
     value_s.value.integer = value;
-    vpi_put_value(h, &value_s, &time_s, vpiInertialDelay);
+    vpi_put_value(h, &value_s, &time_s, vpiTransportDelay);
   }
   // Handles
   vpiHandle clock_;
