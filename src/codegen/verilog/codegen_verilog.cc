@@ -34,7 +34,7 @@ void CodeGenVerilog::AddFunction(LoweredFunc f) {
   GetUniqueName("rst");
   GetUniqueName("clk");
   GetUniqueName("done");
-  GetUniqueName("not_stall");
+  GetUniqueName("enable");
   GetUniqueName("all_input_valid");
   // print out function body.
   int func_scope = this->BeginScope();
@@ -402,7 +402,7 @@ CodeGenVerilog::MakeLoop(const Array<Stmt>& loop) {
 
 void CodeGenVerilog::MakeStageInputs(
     const ComputeBlock& block,
-    const std::string& not_stall,
+    const std::string& enable,
     std::string* out_all_input_valid) {
   std::vector<SignalEntry> sigs;
   sigs.push_back(MakeLoop(block->loop));
@@ -447,7 +447,7 @@ void CodeGenVerilog::MakeStageInputs(
   // input ready signal
   for (size_t i = 0; i < sigs.size(); ++i) {
     if (sigs[i].ready.length() == 0) continue;
-    std::vector<std::string> conds = {not_stall};
+    std::vector<std::string> conds = {enable};
     for (size_t j = 0; j < sigs.size(); ++j) {
       if (j != i && sigs[j].valid.length() != 0) {
         conds.push_back(sigs[j].valid);
@@ -462,18 +462,18 @@ void CodeGenVerilog::MakeDelay(const std::string& dst,
                                const std::string& src,
                                Type dtype,
                                int delay,
-                               const std::string& not_stall) {
+                               const std::string& enable) {
   PrintIndent();
   stream << "`DELAY(" << dst << ", " << src << ", "
-         << dtype.bits() << ", " << delay << ", " << not_stall << ")\n";
+         << dtype.bits() << ", " << delay << ", " << enable << ")\n";
 }
 
 void CodeGenVerilog::MakeStore(const ComputeBlock& block,
                                const Store* store) {
   std::string all_input_valid;
-  std::string not_stall = GetUniqueName("not_stall");
-  this->PrintDecl(not_stall, kWire, Bool(1));
-  MakeStageInputs(block, not_stall, &all_input_valid);
+  std::string enable = GetUniqueName("enable");
+  this->PrintDecl(enable, kWire, Bool(1));
+  MakeStageInputs(block, enable, &all_input_valid);
   // Data path
   PrintLine("// data path");
   VerilogValue value = MakeValue(store->value);
@@ -491,10 +491,11 @@ void CodeGenVerilog::MakeStore(const ComputeBlock& block,
   PrintDecl(write_ready, kWire, Bool(1));
   PrintDecl(write_valid, kWire, Bool(1));
   PrintDecl(write_data, kWire, store->value.type());
-  MakeDelay(write_addr, index.vid, store->index.type(), delay, not_stall);
-  MakeDelay(write_data, value.vid, store->value.type(), delay, not_stall);
-  MakeDelay(write_valid, all_input_valid, Bool(1), delay, not_stall);
-  PrintAssign(not_stall, "!" + write_valid + " || " + write_ready);
+
+  MakeDelay(write_addr, index.vid, store->index.type(), delay, enable);
+  MakeDelay(write_data, value.vid, store->value.type(), delay, enable);
+  MakeDelay(write_valid, all_input_valid, Bool(1), delay, enable);
+  PrintAssign(enable, "!" + write_valid + " || " + write_ready);
   write_entry->AssignPort("write_addr", write_addr, store->index.type());
   write_entry->AssignPort("write_ready", write_ready, Bool(1));
   write_entry->AssignPort("write_valid", write_valid, Bool(1));
@@ -514,7 +515,7 @@ void CodeGenVerilog::MakeStore(const ComputeBlock& block,
       CHECK_EQ(trigger_ch, write_entry)
           << "Can only triggger conditional event at write channel";
       std::string v_trigger = GetUniqueName(ch_name + "." + port);
-      MakeDelay(v_trigger, v.vid, Bool(1), delay, not_stall);
+      MakeDelay(v_trigger, v.vid, Bool(1), delay, enable);
       write_entry->AssignPort(port, v_trigger, Bool(1));
     }
   }
@@ -527,9 +528,9 @@ void CodeGenVerilog::MakeLoadToFIFO(const ComputeBlock& block,
   ChannelEntry* write_entry = GetChannelInfo(store->buffer_var.get());
   ChannelEntry* load_entry = GetChannelInfo(load->buffer_var.get());
   std::string all_input_valid;
-  std::string not_stall = GetUniqueName("not_stall");
-  this->PrintDecl(not_stall, kWire, Bool(1));
-  MakeStageInputs(block, not_stall, &all_input_valid);
+  std::string enable = GetUniqueName("enable");
+  this->PrintDecl(enable, kWire, Bool(1));
+  MakeStageInputs(block, enable, &all_input_valid);
   // data path
   PrintLine("// data path");
   VerilogValue index = MakeValue(load->index);
@@ -551,8 +552,8 @@ void CodeGenVerilog::MakeLoadToFIFO(const ComputeBlock& block,
   PrintDecl(read_valid, kWire, Bool(1));
   PrintDecl(index_valid, kWire, Bool(1));
   PrintDecl(data_valid, kWire, Bool(1));
-  MakeDelay(read_addr, index.vid, load->index.type(), delay, not_stall);
-  MakeDelay(index_valid, all_input_valid, Bool(1), delay, not_stall);
+  MakeDelay(read_addr, index.vid, load->index.type(), delay, enable);
+  MakeDelay(index_valid, all_input_valid, Bool(1), delay, enable);
   PrintAssignAnd(data_valid, {read_valid, index_valid});
   // The read ports.
   load_entry->AssignPort("read_addr", read_addr, load->index.type());
@@ -564,7 +565,7 @@ void CodeGenVerilog::MakeLoadToFIFO(const ComputeBlock& block,
   write_entry->AssignPort("write_valid", valid_delay, Bool(1));
   write_entry->AssignPort("write_addr", "0", Int(1));
   // The not stall condition.
-  PrintAssignAnd(not_stall, {write_ready, read_valid});
+  PrintAssignAnd(enable, {write_ready, read_valid});
   // The ready signal
   PrintIndent();
   stream << "`BUFFER_READ_VALID_DELAY(" << valid_delay << ", " << data_valid
@@ -584,7 +585,7 @@ void CodeGenVerilog::MakeLoadToFIFO(const ComputeBlock& block,
       CHECK_EQ(trigger_ch, load_entry)
           << "Can only triggger conditional event at load channel";
       std::string v_trigger = GetUniqueName(read_ch_name + "." + port);
-      MakeDelay(v_trigger, v.vid, Bool(1), delay, not_stall);
+      MakeDelay(v_trigger, v.vid, Bool(1), delay, enable);
       load_entry->AssignPort(port, v_trigger, Bool(1));
     }
   }
