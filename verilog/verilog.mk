@@ -1,5 +1,5 @@
 VPI_CFLAGS=`iverilog-vpi --cflags`
-VPI_LDLAGS=`iverilog-vpi --ldlags`
+VPI_LDLAGS=`iverilog-vpi --ldflags`
 
 VER_SRCS = $(wildcard verilog/*.v)
 
