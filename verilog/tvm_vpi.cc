@@ -45,7 +45,7 @@ class IPCClient {
   int Callback() {
     if (!GetInt(clock_)) {
       try {
-        return AtPosEedge();
+        return AtNegEdge();
       } catch (const std::runtime_error& e) {
         reader_.Close();
         writer_.Close();
@@ -58,7 +58,7 @@ class IPCClient {
     }
   }
   // called at neg edge.
-  int AtPosEedge() {
+  int AtNegEdge() {
     // This is actually called at neg-edge
     // The put values won't take effect until next neg-edge.
     // This allow us to see the registers before snc

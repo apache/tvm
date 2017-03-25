@@ -186,8 +186,8 @@ class VPIMemoryInterface {
     read_unit_bytes_ = read_bits / 8U;
     write_unit_bytes_ = write_bits / 8U;
   }
-  // Callback at post-edge.
-  void AtPosEedge() {
+  // Callback at neg-edge.
+  void AtNegEdge() {
     // reset
     if (in_rst_.get_int()) {
       CHECK_EQ(pending_read_.size, 0U);
@@ -358,7 +358,7 @@ class VPIReadMemMap : public VPIMemMapBase {
   void Init(VPIHandle module) {
     VPIMemMapBase::Init(module, "reg_data");
   }
-  void AtPosEedge() {
+  void AtNegEdge() {
     void* ptr = RealAddr();
     if (ptr == nullptr) return;
     size_t nwords = (unit_bytes_ + 3) / 4;
@@ -373,7 +373,7 @@ class VPIWriteMemMap : public VPIMemMapBase {
     VPIMemMapBase::Init(module, "data_in");
     enable_ = module["en"];
   }
-  void AtPosEedge() {
+  void AtNegEdge() {
     if (!enable_.get_int() || rst_.get_int()) return;
     void* ptr = RealAddr();
     CHECK(ptr != nullptr)
@@ -398,7 +398,7 @@ void TVMVPIHook(runtime::TVMArgs args, runtime::TVMRetValue* rv) {
   p->Init(m);
   LOG(INFO) << "Hook " << m.name() << " to tvm vpi simulation...";
   PackedFunc pf([p](const runtime::TVMArgs&, runtime::TVMRetValue*) {
-      p->AtPosEedge();
+      p->AtNegEdge();
     });
   *rv = pf;
 }
