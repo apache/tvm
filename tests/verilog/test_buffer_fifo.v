@@ -3,10 +3,10 @@ module main();
     // Parameters
     parameter PER=10;
 
-    // FIFO parameter:
+    // FIFO parameters
     parameter DATA_WIDTH = 8;
     parameter DEPTH = 32;
-    parameter CNTR_WIDTH = 6;
+    parameter CNTR_WIDTH = 6; // floor(log(32)) + 1
     parameter RD_WINDOW = 1;
     parameter RD_ADVANCE = 1;
     parameter RD_ADDR_WIDTH = 1;
@@ -14,7 +14,7 @@ module main();
     parameter WR_ADVANCE = 1;
     parameter WR_ADDR_WIDTH = 1;
 
-    // Inputs
+    // Clock & reset
     reg clk;
     reg rst;
 
@@ -26,9 +26,6 @@ module main();
     // Set read_addr and write_addr to 0
     reg deq;
     reg enq;
-    // Indicates that the read data is valid
-    // After it's come out of the FIFO
-    reg read_data_valid;
 
     // Module outputs
     wire [DATA_WIDTH-1:0] read_data;
@@ -70,13 +67,18 @@ module main();
 
     // fifo read logic
     always @(posedge clk) begin
-        if (rst) begin
+        if (rst)
             deq <= 0;
-            read_data_valid <= 0;
-        end else
-            // Dequeue logic
+        else
             deq <= read_valid;
-            // Read data valid logic
+    end
+
+    // read_data_valid logic
+    reg read_data_valid;
+    always @(posedge clk) begin
+        if (rst)
+            read_data_valid <= 0;
+        else
             read_data_valid <= deq;
     end
 

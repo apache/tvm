@@ -14,9 +14,9 @@ def test_buffer_fifo():
     # Get the handles by their names
     rst = sess.main.rst
     enq = sess.main.enq
-    valid = sess.main.read_data_valid
     dataIn = sess.main.write_data
     dataOut = sess.main.read_data
+    dataOutValid = sess.main.read_data_valid
 
     # Simulation input data
     test_data = np.arange(16).astype('int8')
@@ -42,9 +42,10 @@ def test_buffer_fifo():
         else:
             enq.put_int(0)
         # read logic
-        if (valid.get_int()):
+        if (dataOutValid.get_int()):
             assert(dataOut.get_int()==test_data[readIdx])
             readIdx += 1
+        # step
         sess.yield_until_posedge()
 
 
