@@ -103,10 +103,16 @@ constexpr const char* extern_op_scope = "extern_op_scope";
 // Pipeline related attributes
 /*! \brief channel read scope */
 constexpr const char* channel_read_scope = "channel_read_scope";
+/*! \brief Advance step of channel after end of scope */
+constexpr const char* channel_read_advance = "channel_read_advance";
 /*! \brief channel write scope */
 constexpr const char* channel_write_scope = "channel_write_scope";
-/*! \brief pipeline module scope */
+/*! \brief Advance step of channel after end of scope */
+constexpr const char* channel_write_advance = "channel_write_advance";
+/*! \brief pipeline stage scope, implies always execution */
 constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
+/*! \brief pipeline execution scope, implies the scope can be pipelined. */
+constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 }  // namespace attr
 
 /*! \brief namespace of TVM Intrinsic functions */

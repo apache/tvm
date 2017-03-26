@@ -19,6 +19,19 @@ using ::tvm::Node;
 using ::tvm::NodeRef;
 using ::tvm::AttrVisitor;
 
+/*! \brief Macro to make it easy to define node ref type given node */
+#define TVM_DEFINE_NODE_REF(TypeName, NodeName)                  \
+  class TypeName : public NodeRef {                              \
+   public:                                                       \
+    TypeName() {}                                                 \
+    explicit TypeName(std::shared_ptr<Node> n) : NodeRef(n) {}    \
+    const NodeName* operator->() const {                          \
+      return static_cast<const NodeName*>(node_.get());           \
+    }                                                             \
+    using ContainerType = NodeName;                               \
+  };                                                              \
+
+
 /*!
  * \brief save the node as well as all the node it depends on as json.
  *  This can be used to serialize any TVM object

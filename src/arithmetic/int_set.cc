@@ -163,6 +163,7 @@ inline bool MatchPoint(const IntSet& a,
 }
 
 IntSet Union(const Array<IntSet>& sets) {
+  if (sets.size() == 0) return IntSet::nothing();
   if (sets.size() == 1) return sets[0];
   Interval x = sets[0].cover_interval().as<IntervalSet>()->i;
   for (size_t i = 1; i < sets.size(); ++i) {

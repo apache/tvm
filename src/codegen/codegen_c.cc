@@ -18,11 +18,8 @@ void CodeGenC::Init(bool output_ssa) {
 
 void CodeGenC::InitFuncState(LoweredFunc f) {
   alloc_storage_scope_.clear();
-  name_alloc_map_.clear();
-  ssa_assign_map_.clear();
-  var_idmap_.clear();
   handle_data_type_.clear();
-  scope_mark_.clear();
+  CodeGenSourceBase::ClearFuncState();
 }
 void CodeGenC::AddFunction(LoweredFunc f) {
   // clear previous generated state.
@@ -67,30 +64,6 @@ std::string CodeGenC::Finish() {
   return stream.str();
 }
 
-
-std::string CodeGenC::SSAGetID(std::string src, Type t) {
-  if (name_alloc_map_.count(src)) return src;
-  auto it = ssa_assign_map_.find(src);
-  if (it != ssa_assign_map_.end()) {
-    if (scope_mark_.at(it->second.scope_id)) {
-      return it->second.vid;
-    }
-  }
-
-  this->PrintIndent();
-  SSAEntry e;
-  e.vid = GetUniqueName("_");
-  e.scope_id = static_cast<int>(scope_mark_.size() - 1);
-  ssa_assign_map_[src] = e;
-  if (src.length() > 3 &&
-      src[0] == '(' && src[src.length() - 1] == ')') {
-    src = src.substr(1, src.length() - 2);
-  }
-  PrintType(t, stream);
-  stream << ' ' << e.vid << " = " << src << ";\n";
-  return e.vid;
-}
-
 void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
   if (print_ssa_form_) {
     std::ostringstream temp;
@@ -101,88 +74,17 @@ void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
   }
 }
 
-std::string CodeGenC::GetUniqueName(std::string prefix) {
-  auto it = name_alloc_map_.find(prefix);
-  if (it != name_alloc_map_.end()) {
-    while (true) {
-      std::ostringstream os;
-      os << prefix << (++it->second);
-      std::string name = os.str();
-      if (name_alloc_map_.count(name) == 0) {
-        prefix = name;
-        break;
-      }
-    }
-  }
-  name_alloc_map_[prefix] = 0;
-  return prefix;
-}
-
-std::string CodeGenC::AllocVarID(const Variable* v) {
-  CHECK(!var_idmap_.count(v))
-      << "Need input to be in SSA form dup " << v->name_hint;
-  std::string key = v->name_hint;
-  for (size_t i = 0; i < key.size(); ++i) {
-    if (key[i] == '.') key[i] = '_';
-  }
-  std::string vid = GetUniqueName(key);
-  var_idmap_[v] = vid;
-  return vid;
-}
-
-std::string CodeGenC::GetVarID(const Variable* v) const {
-  auto it = var_idmap_.find(v);
-  CHECK(it != var_idmap_.end())
-      << "Find undefined Variable " << v->name_hint;
-  return it->second;
-}
-
-bool CodeGenC::HandleTypeMatch(const Variable* buf_var, Type t) const {
-  auto it = handle_data_type_.find(buf_var);
-  if (it == handle_data_type_.end()) return false;
-  return it->second == t;
-}
-
-void CodeGenC::RegisterHandleType(const Variable* buf_var, Type t) {
-  auto it = handle_data_type_.find(buf_var);
-  if (it == handle_data_type_.end()) {
-    handle_data_type_[buf_var] = t;
+void CodeGenC::PrintSSAAssign(
+    const std::string& target, const std::string& src, Type t) {
+  PrintType(t, stream);
+  stream << ' ' << target << " = ";
+  if (src.length() > 3 &&
+      src[0] == '(' && src[src.length() - 1] == ')') {
+    stream << src.substr(1, src.length() - 2);
   } else {
-    CHECK(it->second == t)
-        << "conflicting buf var type";
+    stream << src;
   }
-}
-
-void CodeGenC::PrintIndent() {
-  for (int i = 0; i < this->indent; ++i) {
-    this->stream << ' ';
-  }
-}
-
-void CodeGenC::MarkConst(std::string vid) {
-  if (print_ssa_form_) {
-    auto it = ssa_assign_map_.find(vid);
-    if (it == ssa_assign_map_.end()) {
-      SSAEntry e;
-      e.vid = vid;
-      e.scope_id = 0;
-      ssa_assign_map_[vid] = e;
-    } else {
-      CHECK_EQ(it->second.vid, vid);
-    }
-  }
-}
-
-int CodeGenC::BeginScope() {
-  int sid = static_cast<int>(scope_mark_.size());
-  scope_mark_.push_back(true);
-  indent += 2;
-  return sid;
-}
-
-void CodeGenC::EndScope(int scope_id) {
-  scope_mark_[scope_id] = false;
-  indent -= 2;
+  stream << ";\n";
 }
 
 // Print a reference expression to a buffer.
@@ -226,6 +128,23 @@ void CodeGenC::PrintBufferRef(
     os << vid << " + ";
     PrintExpr(index, os);
     os << "))[0]";
+  }
+}
+
+
+bool CodeGenC::HandleTypeMatch(const Variable* buf_var, Type t) const {
+  auto it = handle_data_type_.find(buf_var);
+  if (it == handle_data_type_.end()) return false;
+  return it->second == t;
+}
+
+void CodeGenC::RegisterHandleType(const Variable* buf_var, Type t) {
+  auto it = handle_data_type_.find(buf_var);
+  if (it == handle_data_type_.end()) {
+    handle_data_type_[buf_var] = t;
+  } else {
+    CHECK(it->second == t)
+        << "conflicting buf var type";
   }
 }
 
@@ -564,29 +483,32 @@ inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
 
 void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
+  std::string svalue = GetUniqueName("_");
+  // delcare type.
+  this->PrintIndent();
+  this->PrintType(op->type, stream);
+  stream << ' ' << svalue;
   if (op->type.lanes() == 1) {
-    this->PrintBufferRef(op->buffer_var.get(), op->type, op->index, os);
+    stream << " = ";
+    this->PrintBufferRef(op->buffer_var.get(), op->type, op->index, stream);
+    stream << ";\n";
   } else {
     Expr base;
     if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
-      this->PrintVecLoad(op->buffer_var.get(), op->type, base, os);
+      stream << " = ";
+      this->PrintVecLoad(op->buffer_var.get(), op->type, base, stream);
+      stream << ";\n";
     } else {
       // Load elements seperately
+      stream << ";\n";
       std::string sindex = SSAGetID(PrintExpr(op->index), op->index.type());
-      std::string svalue = GetUniqueName("_");
-      {
-        // delcare type.
-        this->PrintIndent();
-        this->PrintType(op->type, stream);
-        stream << ' ' << svalue << ";\n";
-      }
       std::string vid = GetVarID(op->buffer_var.get());
       Type elem_type = op->type.element_of();
       for (int i = 0; i < lanes; ++i) {
         std::ostringstream value_temp;
         if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
           value_temp << "((";
-          PrintType(elem_type, os);
+          PrintType(elem_type, value_temp);
           value_temp << "*)" << vid << ')';
         } else {
           value_temp << vid;
@@ -596,9 +518,9 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
         value_temp << ']';
         PrintVecElemStore(svalue, op->type, i, value_temp.str());
       }
-      os << svalue;
     }
   }
+  os << svalue;
 }
 
 void CodeGenC::VisitStmt_(const Store* op) {
