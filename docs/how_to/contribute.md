@@ -89,7 +89,7 @@ It is fine to force push to your own fork, as long as the commits changed are on
 - All the testcases are in [tests](../tests)
 - We use python nose for python test cases.
 
-## C++ Library
+## Core Library
 - Follow Google C style for C++.
 - We use doxygen to document all the interface code.
 - You can reproduce the linter checks by typing ```make lint```
