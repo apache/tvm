@@ -16,21 +16,21 @@ def test_buffer_linebuff():
 
     # Get the handles by their names
     rst = sess.main.rst
-    wrAdvance = sess.main.write_advance
-    wrValid = sess.main.write_valid
-    wrReady = sess.main.write_ready
-    wrData = sess.main.write_data
-    rdData = sess.main.read_data
-    rdDataValid = sess.main.read_data_valid
+    write_advance = sess.main.write_advance
+    write_valid = sess.main.write_valid
+    write_ready = sess.main.write_ready
+    write_data = sess.main.write_data
+    read_data = sess.main.read_data
+    read_data_valid = sess.main.read_data_valid
 
     # Simulation input data
     test_data = np.arange(window_width*window_width).astype('int8')
 
     # Initial state
     rst.put_int(1)
-    wrAdvance.put_int(0)
-    wrValid.put_int(0)
-    wrData.put_int(0)
+    write_advance.put_int(0)
+    write_valid.put_int(0)
+    write_data.put_int(0)
 
     # De-assert reset
     sess.yield_until_posedge()
@@ -38,33 +38,33 @@ def test_buffer_linebuff():
 
     # Leave the following signals set to true
     sess.yield_until_posedge()
-    wrAdvance.put_int(1)
-    wrValid.put_int(1)
+    write_advance.put_int(1)
+    write_valid.put_int(1)
 
     # Main simulation loop
-    writeIdx = 0
-    readIdx = 0
-    while readIdx < (window_width-kernel_width+1)*(window_width-kernel_width+1)*kernel_width*kernel_width:
+    write_idx = 0
+    read_idx = 0
+    while read_idx < (window_width-kernel_width+1)*(window_width-kernel_width+1)*kernel_width*kernel_width:
         # write logic
-        if (writeIdx < len(test_data)):
-            if (wrReady.get_int()):
-                wrData.put_int(test_data[writeIdx])
-                writeIdx += 1
+        if (write_idx < len(test_data)):
+            if (write_ready.get_int()):
+                write_data.put_int(test_data[write_idx])
+                write_idx += 1
         else:
-            wrAdvance.put_int(0)
-            wrValid.put_int(0)
+            write_advance.put_int(0)
+            write_valid.put_int(0)
             
         # correctness checks
-        if (rdDataValid.get_int()):
+        if (read_data_valid.get_int()):
             # Derive convolution window indices
-            baseIdx = readIdx/(kernel_width*kernel_width)
-            offsetIdx = readIdx%(kernel_width*kernel_width)
+            baseIdx = read_idx/(kernel_width*kernel_width)
+            offsetIdx = read_idx%(kernel_width*kernel_width)
             yOffset = offsetIdx/kernel_width
             xOffset = offsetIdx%kernel_width
             pixIndex = baseIdx + yOffset * window_width + xOffset
-            assert(rdData.get_int()==test_data[pixIndex])
-            # print "{} {}".format(rdData.get_int(), test_data[pixIndex])
-            readIdx += 1
+            assert(read_data.get_int()==test_data[pixIndex])
+            # print "{} {}".format(read_data.get_int(), test_data[pixIndex])
+            read_idx += 1
 
         # step
         sess.yield_until_posedge()

@@ -14,9 +14,9 @@ def test_buffer_fifo():
     # Get the handles by their names
     rst = sess.main.rst
     enq = sess.main.enq
-    dataIn = sess.main.write_data
-    dataOut = sess.main.read_data
-    dataOutValid = sess.main.read_data_valid
+    write_data = sess.main.write_data
+    read_data = sess.main.read_data
+    read_data_valid = sess.main.read_data_valid
 
     # Simulation input data
     test_data = np.arange(16).astype('int8')
@@ -24,27 +24,27 @@ def test_buffer_fifo():
     # Initial state
     rst.put_int(1)
     enq.put_int(0)
-    dataIn.put_int(0)
+    write_data.put_int(0)
 
     # De-assert reset
     sess.yield_until_posedge()
     rst.put_int(0)
 
     # Main simulation loop
-    readIdx = 0
-    writeIdx = 0
-    while readIdx < len(test_data):
+    read_idx = 0
+    write_idx = 0
+    while read_idx < len(test_data):
         # write logic
-        if (writeIdx < len(test_data)):
+        if (write_idx < len(test_data)):
             enq.put_int(1)
-            dataIn.put_int(writeIdx)
-            writeIdx += 1
+            write_data.put_int(write_idx)
+            write_idx += 1
         else:
             enq.put_int(0)
         # read logic
-        if (dataOutValid.get_int()):
-            assert(dataOut.get_int()==test_data[readIdx])
-            readIdx += 1
+        if (read_data_valid.get_int()):
+            assert(read_data.get_int()==test_data[read_idx])
+            read_idx += 1
         # step
         sess.yield_until_posedge()
 
