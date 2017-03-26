@@ -3,20 +3,16 @@ module main();
     // Parameters
     parameter PER=10;
 
-    // In this example we perform a 3x3 convolution of an 8x8 input image
-    // Therefore the window size here is (3-1)*8+3 = 19
-    parameter IMAGE_WIDTH = 8;
-    parameter KERNEL_WIDTH = 3;
-    // Line buffer parameters
+    // Double buffer parameters
     parameter DATA_WIDTH = 8;
-    parameter DEPTH = 20; // (3-1)*8+3+1
-    parameter CNTR_WIDTH = 5; // floor(log(20)) + 1
-    parameter RD_WINDOW = 19; // (3-1)*8+3
-    parameter RD_ADVANCE = 1;
-    parameter RD_ADDR_WIDTH = 5; // floor(log(19)) + 1
-    parameter WR_WINDOW = 1;
-    parameter WR_ADVANCE = 1;
-    parameter WR_ADDR_WIDTH = 1;
+    parameter DEPTH = 32;
+    parameter CNTR_WIDTH = 6; // floor(log(32)) + 1
+    parameter RD_WINDOW = 16;
+    parameter RD_ADVANCE = 16;
+    parameter RD_ADDR_WIDTH = 5; // floor(log(16)) + 1
+    parameter WR_WINDOW = 16;
+    parameter WR_ADVANCE = 16;
+    parameter WR_ADDR_WIDTH = 5; // floor(log(16)) + 1
 
     // Clock & reset
     reg clk;
@@ -29,6 +25,7 @@ module main();
     // Write port outputs
     reg write_advance;
     reg [DATA_WIDTH-1:0] write_data;
+    reg [WR_ADDR_WIDTH-1:0] write_addr;
     reg write_valid;
 
     // Outputs
@@ -58,7 +55,7 @@ module main();
         .read_valid(read_valid),
         .write_advance(write_advance),
         .write_data(write_data),
-        .write_addr({WR_ADDR_WIDTH{1'b0}}),
+        .write_addr(write_addr),
         .write_ready(write_ready),
         .write_valid(write_valid),
         .status_counter(status_counter)
@@ -70,37 +67,26 @@ module main();
     end
 
     // read logic
-    localparam KERNEL_SIZE = KERNEL_WIDTH*KERNEL_WIDTH;
-    reg [3:0] read_counter;
     always @(posedge clk) begin
         if (rst) begin
-            read_counter <= KERNEL_SIZE-1;
             read_advance <= 0;
-            read_addr <= -1;
+            read_addr <= 0;
             read_ready <= 0;
         end else begin
             if (read_valid) begin
-                read_counter <= (read_counter+1)%KERNEL_SIZE;
                 read_ready <= 1;
-                // Only advance at the last inner loop iteration
-                if (read_counter==KERNEL_SIZE-2) begin
-                    read_advance <= 1;
-                end else begin
-                    read_advance <= 0;
-                end
-                // Read address should describe a loop
-                if (read_counter==KERNEL_SIZE-1) begin
-                    read_addr <= 0;
-                end else if (read_counter%KERNEL_WIDTH==KERNEL_WIDTH-1) begin
-                    read_addr <= read_addr+IMAGE_WIDTH-KERNEL_WIDTH+1;
-                end else begin
-                    read_addr <= read_addr+1;
-                end
             end else begin
-                read_counter <= read_counter;
-                read_advance <= 0;
-                read_addr <= read_addr;
                 read_ready <= 0;
+            end
+            if (read_addr%RD_WINDOW==RD_WINDOW-2) begin
+                read_advance <= 1;
+            end else begin
+                read_advance <= 0;
+            end
+            if (read_ready) begin
+                read_addr <= (read_addr+1) % WR_WINDOW;
+            end else begin
+                read_addr <= read_addr % WR_WINDOW;
             end
         end
     end
