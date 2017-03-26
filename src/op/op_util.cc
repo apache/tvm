@@ -139,13 +139,25 @@ MakeLoopNest(const Stage& stage,
       nest[i + 1].emplace_back(
           AttrStmt::make(iv, ir::attr::virtual_thread, dom->extent, no_op));
       value_map[iv] = var;
+    } else if (iv->thread_tag == "pipeline") {
+      // pipeline marker.
+      CHECK(is_zero(dom->min));
+      CHECK(is_one(dom->extent));
+      // annotate the extent of the IterVar
+      nest[i + 1].emplace_back(
+          AttrStmt::make(iv, ir::attr::pipeline_exec_scope, dom->extent, no_op));
+      value_map[iv] = dom->min;
     } else {
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
           AttrStmt::make(iv, ir::attr::thread_extent, dom->extent, no_op));
-      value_map[iv] = var;
+      if (is_one(dom->extent)) {
+        value_map[iv] = dom->min;
+      } else {
+        value_map[iv] = var;
+      }
     }
     // annotate the extent of the IterVar
     if (!new_loop_var) {

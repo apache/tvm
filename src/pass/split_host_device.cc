@@ -147,8 +147,8 @@ class IRUseDefAnalysis : public IRMutator {
 class HostDeviceSplitter : public IRMutator {
  public:
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
-    if (op->type_key == "thread_extent") {
-      IterVar iv(op->node.node_);
+    if (op->type_key == attr::thread_extent ||
+        op->type_key == attr::pipeline_exec_scope) {
       return SplitDeviceFunc(s);
     }
     return IRMutator::Mutate_(op, s);
@@ -195,7 +195,6 @@ class HostDeviceSplitter : public IRMutator {
     n->name = os.str();
     n->args = m.undefined_;
     n->thread_axis = m.thread_axis_;
-    CHECK_NE(m.thread_extent_.size(), 0U);
 
     // improve the handle data type
     for (Var arg : n->args) {

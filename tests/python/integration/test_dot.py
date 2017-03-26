@@ -26,7 +26,7 @@ def mybuild(fapi, target="llvm"):
 
 def test_dot():
     nn = 12
-    n = tvm.Var('n')
+    n = tvm.convert(nn)
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     k = tvm.reduce_axis((0, n), 'k')

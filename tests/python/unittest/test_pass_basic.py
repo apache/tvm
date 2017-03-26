@@ -29,3 +29,13 @@ def test_convert_ssa():
     assert(not tvm.ir_pass.VerifySSA(z))
     z_ssa = tvm.ir_pass.ConvertSSA(z)
     assert(tvm.ir_pass.VerifySSA(z_ssa))
+
+
+def test_expr_use_var():
+    x = tvm.Var('x')
+    assert(tvm.ir_pass.ExprUseVar(x+1, x))
+    assert(not tvm.ir_pass.ExprUseVar(1+10, x))
+
+
+if __name__ == "__main__":
+    test_expr_use_var()

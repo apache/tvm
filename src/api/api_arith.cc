@@ -26,6 +26,11 @@ TVM_REGISTER_API(_arith_EvalModular)
     *ret = EvalModular(args[0], Map<Var, IntSet>());
   });
 
+TVM_REGISTER_API(_arith_DetectLinearEquation)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = DetectLinearEquation(args[0], args[1]);
+  });
+
 TVM_REGISTER_API(_arith_DeduceBound)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DeduceBound(args[0], args[1],

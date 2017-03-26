@@ -56,6 +56,14 @@ bool VerifySSA(const Stmt& ir);
 bool HasSideEffect(const Expr& e);
 
 /*!
+ * \brief Whether e expression used var.
+ * \param e The expression to be checked.
+ * \param v The variable.
+ * \return Whether e uses v.
+ */
+bool ExprUseVar(const Expr& e, const Var& v);
+
+/*!
  * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.
  * \return The converted form.
@@ -115,9 +123,17 @@ Stmt RemoveNoOp(Stmt stmt);
 /*!
  * \brief Split statement into pipeine stages.
  * \param stmt The stmt to be splitted
+ * \param split_load Whether split load into its own stage.
  * \return Transformed stmt.
  */
-Stmt SplitPipeline(Stmt stmt);
+Stmt SplitPipeline(Stmt stmt, bool split_load);
+
+/*!
+ * \brief Narrow channel access to smaller range.
+ * \param stmt The stmt to do access rewriting.
+ * \return Transformed stmt.
+ */
+Stmt NarrowChannelAccess(Stmt stmt);
 
 /*!
  * \brief unroll the constant loops

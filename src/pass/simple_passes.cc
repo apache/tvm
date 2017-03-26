@@ -15,6 +15,7 @@ class IRSideEffect : public IRVisitor {
  public:
   void Visit(const NodeRef& e) final {
     if (has_side_effect_) return;
+    IRVisitor::Visit(e);
   }
 
   void Visit_(const Call* op) final {
@@ -55,5 +56,39 @@ Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
   }
   return m.Mutate(stmt);
 }
+
+class ExprUseVarVisitor : public IRVisitor {
+ public:
+  explicit ExprUseVarVisitor(const Variable* var)
+      : var_(var) {}
+
+  void Visit(const NodeRef& e) final {
+    if (use_var_) return;
+    IRVisitor::Visit(e);
+  }
+
+  void Visit_(const Variable* op) final {
+    if (op == var_) {
+      use_var_ = true;
+    }
+  }
+
+  void Visit_(const Load* op) final {
+    if (op->buffer_var.get() == var_) {
+      use_var_ = true;
+    }
+    IRVisitor::Visit_(op);
+  }
+
+  const Variable* var_;
+  bool use_var_{false};
+};
+
+bool ExprUseVar(const Expr& e, const Var& v) {
+  ExprUseVarVisitor visitor(v.get());
+  visitor.Visit(e);
+  return visitor.use_var_;
+}
+
 }  // namespace ir
 }  // namespace tvm
