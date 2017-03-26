@@ -36,7 +36,8 @@ if [ ${TASK} == "verilog_test" ] || [ ${TASK} == "all_test" ]; then
         make -f tests/travis/packages.mk iverilog
         make verilog || exit -1
         make all || exit -1
-        nosetests -v tests/verilog || exit -1
+        nosetests -v tests/verilog/unittest || exit -1
+        nosetests -v tests/verilog/integration || exit -1
     fi
 fi
 

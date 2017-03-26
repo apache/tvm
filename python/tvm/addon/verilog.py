@@ -122,7 +122,8 @@ def search_path():
     """Get the search directory."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     ver_path = [os.path.join(curr_path, '../../../verilog/')]
-    ver_path += [os.path.join(curr_path, '../../../tests/verilog/')]
+    ver_path += [os.path.join(curr_path, '../../../tests/verilog/unittest/')]
+    ver_path += [os.path.join(curr_path, '../../../tests/verilog/integration/')]
     return ver_path
 
 
