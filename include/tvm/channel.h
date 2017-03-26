@@ -35,7 +35,6 @@ struct ChannelNode : public Node {
   Var handle_var;
   /*! \brief default data type in read/write */
   Type dtype;
-
   // visit all attributes
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("handle_var", &handle_var);

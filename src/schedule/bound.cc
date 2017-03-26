@@ -275,8 +275,7 @@ void InferRootBound(const Stage& stage,
       // special optimization to remove trivial loop
       if (is_one(vrange->extent)) {
         up_state[iv] = IntSet::single_point(vrange->min);
-      }
-      if (fix_value && !ScopeRelax(iv, stage->scope)) {
+      } else if (fix_value && !ScopeRelax(iv, stage->scope)) {
         up_state[iv] = IntSet::single_point(iv->var);
       } else {
         up_state[iv] = IntSet::range(vrange);

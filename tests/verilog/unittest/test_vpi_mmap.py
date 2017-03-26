@@ -25,18 +25,18 @@ def test_mmap():
 
     # setup memory map.
     rst.put_int(1)
-    sess.yield_until_posedge()
+    sess.yield_until_next_cycle()
     rst.put_int(0)
     write_en.put_int(0)
     mmap_addr.put_int(a_ptr)
-    sess.yield_until_posedge()
+    sess.yield_until_next_cycle()
 
     # read test
     for i in range(n):
         read_addr.put_int(i)
-        sess.yield_until_posedge()
+        sess.yield_until_next_cycle()
         # read addr get set this cycle
-        sess.yield_until_posedge()
+        sess.yield_until_next_cycle()
         # get the data out
         assert(read_data.get_int() == i)
 
@@ -45,9 +45,9 @@ def test_mmap():
         write_addr.put_int(i)
         write_en.put_int(1)
         write_data.put_int(i + 1)
-        sess.yield_until_posedge()
+        sess.yield_until_next_cycle()
         write_en.put_int(0)
-        sess.yield_until_posedge()
+        sess.yield_until_next_cycle()
 
     np.testing.assert_equal(a.asnumpy(), a_np + 1)
 

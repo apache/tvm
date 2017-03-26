@@ -283,8 +283,9 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
   if (fin == nullptr) {
     *out = new PackedFunc(
         [func, resource_handle](TVMArgs args, TVMRetValue* rv) {
-          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
-               args.num_args, rv, resource_handle);
+          int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
+                         args.num_args, rv, resource_handle);
+          CHECK_EQ(ret, 0) << "TVMCall CFunc Error:\n" << TVMGetLastError();
         });
   } else {
     // wrap it in a shared_ptr, with fin as deleter.
@@ -292,8 +293,9 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
     std::shared_ptr<void> rpack(resource_handle, fin);
     *out = new PackedFunc(
         [func, rpack](TVMArgs args, TVMRetValue* rv) {
-          func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
-               args.num_args, rv, rpack.get());
+          int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
+                         args.num_args, rv, rpack.get());
+          CHECK_EQ(ret, 0) << "TVMCall CFunc Error:\n" << TVMGetLastError();
       });
   }
   API_END();
