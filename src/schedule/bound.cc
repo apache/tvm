@@ -3,199 +3,17 @@
  * \file bound.cc
  * \brief The bound inference logic.
  */
-#include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
-#include <tvm/ir_pass.h>
 #include <tvm/schedule_pass.h>
-#include <tvm/arithmetic.h>
 #include <tvm/operation.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "./graph.h"
+#include "./message_passing.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace schedule {
-
-using namespace arith;
-
-// result = ceil((a / b)), both a and b are positive integer
-inline Expr DivCeil(Expr a, Expr b) {
-  return ir::Simplify((a + b - 1) / b);
-}
-
-inline bool prove_equal(Expr lhs, Expr rhs) {
-  return is_zero(ir::Simplify(lhs - rhs));
-}
-
-// Downward message passing algorithm on stage schedule s,
-// pass the range state down from the root to the leaves
-// after this pass, every IterVar in the stage hyper graph will have a range(domain)
-void PassDown(const Stage& s,
-              std::unordered_map<IterVar, Range>* p_state) {
-  auto& state = *p_state;
-  // forwar iteration on relations
-  for (IterVarRelation rel : s->relations) {
-    if (rel.as<SplitNode>()) {
-      const SplitNode* r = rel.as<SplitNode>();
-      CHECK(state.count(r->parent));
-      CHECK(!state.count(r->inner));
-      const Range& range_parent = state.at(r->parent);
-      if (r->factor.defined()) {
-        state[r->inner] = Range::make_with_min_extent(0, r->factor);
-        if (r->outer->dom.defined()) {
-          state[r->outer] = r->outer->dom;
-        } else {
-          if (!state.count(r->outer)) {
-            state[r->outer] = Range::make_with_min_extent(
-                0, DivCeil(range_parent->extent, r->factor));
-          } else {
-            Expr outer_ext = DivCeil(range_parent->extent, r->factor);
-            Range outer_rng = state.at(r->outer);
-            bool match = is_zero(outer_rng->min);
-            if (!prove_equal(outer_ext, outer_rng->extent)) match = false;
-            CHECK(match)
-                << r->outer
-                << "IterVar is used in two places as outer scope,"
-                << " cannot prove their extents are the same "
-                << outer_ext << " vs " << outer_rng->extent;
-          }
-        }
-      } else {
-        CHECK(r->outer->dom.defined());
-        state[r->outer] = r->outer->dom;
-        state[r->inner] = Range::make_with_min_extent(
-            0, DivCeil(range_parent->extent, r->outer->dom->extent));
-      }
-    } else if (rel.as<FuseNode>()) {
-      const FuseNode* r = rel.as<FuseNode>();
-      CHECK(state.count(r->outer));
-      CHECK(state.count(r->inner));
-      const Range& range_outer = state.at(r->outer);
-      const Range& range_inner = state.at(r->inner);
-      state[r->fused] = Range::make_with_min_extent(
-          0, range_outer->extent * range_inner->extent);
-    } else if (rel.as<RebaseNode>()) {
-      const RebaseNode* r = rel.as<RebaseNode>();
-      CHECK(state.count(r->parent));
-      state[r->rebased] = Range::make_with_min_extent(
-          0, state.at(r->parent)->extent);
-    } else {
-      LOG(FATAL) << "unknown relation type";
-    }
-  }
-}
-
-// upward message passing algorithm
-// pass the integer set on each leave loop up to the root
-// dom_map is the result of PassDown, it records the domain of each IterVar.
-// dom_map can be used to get cached result in reverse construction.
-// Implementation of Evaluations and passing.
-void PassUp(const SplitNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& outer,
-            const IntSet& inner,
-            IntSet* parent) {
-  if (dom_map.count(s->outer) &&
-      dom_map.count(s->inner) &&
-      dom_map.count(s->parent) &&
-      outer.match_range(dom_map.at(s->outer)) &&
-      inner.match_range(dom_map.at(s->inner))) {
-    *parent = IntSet::range(dom_map.at(s->parent));
-    return;
-  }
-  Expr factor = dom_map.at(s->inner)->extent;
-  Expr parent_min = dom_map.at(s->parent)->min;
-  CHECK(outer.defined());
-  CHECK(inner.defined());
-  CHECK(factor.defined());
-  *parent = EvalSet(
-      s->outer->var * factor + s->inner->var + parent_min,
-      {{s->outer, outer}, {s->inner, inner}});
-}
-
-void PassUp(const FuseNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& fused,
-            IntSet* outer,
-            IntSet* inner) {
-  CHECK(dom_map.count(s->outer));
-  CHECK(dom_map.count(s->inner));
-  CHECK(dom_map.count(s->fused));
-
-  if (fused.match_range(dom_map.at(s->fused))) {
-    *outer = IntSet::range(dom_map.at(s->outer));
-    *inner = IntSet::range(dom_map.at(s->inner));
-    return;
-  }
-  Expr outer_min = dom_map.at(s->outer)->min;
-  Expr inner_min = dom_map.at(s->inner)->min;
-
-  if (fused.is_single_point()) {
-    Expr value = fused.point_value();
-    Expr factor = dom_map.at(s->inner)->extent;
-    Expr v_outer  = value / factor;
-    Expr v_inner  = value % factor;
-    if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
-    if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
-    *outer = IntSet::single_point(v_outer);
-    *inner = IntSet::single_point(v_inner);
-  } else {
-    LOG(WARNING) << "use fallback inference rule in fuse";
-    // simply use the entire set, this rule can be enhanced.
-    *outer = IntSet::range(dom_map.at(s->outer));
-    *inner = IntSet::range(dom_map.at(s->inner));
-    return;
-  }
-}
-
-void PassUp(const RebaseNode* s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const IntSet& rebased,
-            IntSet* parent) {
-  CHECK(dom_map.count(s->parent));
-  if (rebased.match_range(dom_map.at(s->rebased))) {
-    *parent = IntSet::range(dom_map.at(s->parent));
-    return;
-  }
-  Expr parent_min = dom_map.at(s->parent)->min;
-  *parent = EvalSet(s->rebased->var + parent_min,
-                    {{s->rebased, rebased}});
-}
-
-void PassUp(const Stage& s,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            std::unordered_map<IterVar, IntSet>* p_state) {
-  auto& state = *p_state;
-  for (size_t i = s->relations.size(); i != 0; --i) {
-    IterVarRelation rel = s->relations[i - 1];
-    if (rel.as<SplitNode>()) {
-      IntSet parent;
-      const SplitNode* r = rel.as<SplitNode>();
-      PassUp(r, dom_map,
-             state.at(r->outer), state.at(r->inner),
-             &parent);
-      state[r->parent] = parent;
-    } else if (rel.as<FuseNode>()) {
-      IntSet outer, inner;
-      const FuseNode* r = rel.as<FuseNode>();
-      PassUp(r, dom_map,
-             state.at(r->fused),
-             &outer, &inner);
-      state[r->outer] = outer;
-      state[r->inner] = inner;
-    } else if (rel.as<RebaseNode>()) {
-      IntSet parent;
-      const RebaseNode* r = rel.as<RebaseNode>();
-      PassUp(r, dom_map,
-             state.at(r->rebased),
-             &parent);
-      state[r->parent] = parent;
-    } else {
-      LOG(FATAL) << "unknown relation type";
-    }
-  }
-}
 
 // check if scope
 inline bool ScopeRelax(const IterVar& iv, const std::string& scope) {
@@ -285,7 +103,7 @@ void InferRootBound(const Stage& stage,
       }
     }
     // get the bound of the root IterVars given current location.
-    PassUp(parent, *rmap, &up_state);
+    PassUpDomain(parent, *rmap, &up_state);
 
     std::unordered_map<const Variable*, IntSet> dom_map;
     for (auto iv : parent->op->root_iter_vars()) {
@@ -358,7 +176,7 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
     const Stage& stage = sch->stages[i - 1];
     InferRootBound(stage, ctx, attach_path, &ret);
     // pass down to get bound of all iter vars.
-    PassDown(stage, &ret);
+    PassDownDomain(stage, &ret);
     // setup outer most threads.
     for (IterVar iv : stage->outermost_threads) {
       CHECK(iv->dom.defined());

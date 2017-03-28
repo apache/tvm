@@ -87,6 +87,27 @@ class Schedule(NodeBase):
         """
         return _api_internal._ScheduleCacheWrite(self, tensor, scope)
 
+    def rfactor(self, tensor, axis):
+        """ Factor a reduction axis in tensor's schedule to be an explicit axis.
+
+        This will create a new stage that generated the new tensor with axis
+        as the first dimension. The tensor's body wil be rewriten as a reduction
+        over the factored tensor.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            The tensor to be factored.
+        axis : IterVar
+            The reduction axis in the schedule to be factored.
+
+        Returns
+        -------
+        tfactor : Tensor
+            The created factored tensor.
+        """
+        return _api_internal._ScheduleRFactor(self, tensor, axis)
+
 
 @register_node
 class Stage(NodeBase):
@@ -114,8 +135,6 @@ class Stage(NodeBase):
             The inner variable of iteration.
         """
         if outer is not None:
-            if outer.thread_tag == '':
-                raise ValueError("split by outer must have special thread_tag")
             inner = _api_internal._StageSplitByOuter(self, parent, outer, factor)
         else:
             if factor is None:

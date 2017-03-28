@@ -8,6 +8,7 @@
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include "./op_util.h"
+#include "../schedule/message_passing.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
@@ -15,61 +16,6 @@ namespace op {
 
 using namespace arith;
 using namespace ir;
-
-/*!
- * \brief use message passing to calculate the assignment of each Var inside the loop body.
- * \param s The schedule to be used.
- * \param dom_map The domain map of each iteration variable's domain
- * \param p_state The message passing state
- *     IterVar->The assignment.
- */
-void PassUpOffset(const Stage& s,
-                  const Map<IterVar, Range>& dom_map,
-                  std::unordered_map<IterVar, Expr>* p_state) {
-  auto& state = *p_state;
-  for (size_t i = s->relations.size(); i != 0; --i) {
-    IterVarRelation rel = s->relations[i - 1];
-    if (rel.as<SplitNode>()) {
-      const SplitNode* s = rel.as<SplitNode>();
-      Expr outer = state.at(s->outer);
-      Expr inner = state.at(s->inner);
-      Expr factor = dom_map.at(s->inner)->extent;
-      Expr parent_min = dom_map.at(s->parent)->min;
-      state[s->parent] = inner + outer * factor;
-      // add min if they exist
-      if (!is_zero(parent_min)) {
-        state[s->parent] = state[s->parent] + parent_min;
-      }
-    } else if (rel.as<FuseNode>()) {
-      const FuseNode* s = rel.as<FuseNode>();
-      Expr value = state.at(s->fused);
-      Expr factor = dom_map.at(s->inner)->extent;
-      Expr outer_min = dom_map.at(s->outer)->min;
-      Expr inner_min = dom_map.at(s->inner)->min;
-      state[s->outer] = value / factor;
-      state[s->inner] = value % factor;
-      // add min if they exist
-      if (!is_zero(outer_min)) {
-        state[s->outer] = state[s->outer] + outer_min;
-      }
-      if (!is_zero(inner_min)) {
-        state[s->inner] = state[s->inner] + inner_min;
-      }
-    } else if (rel.as<RebaseNode>()) {
-      const RebaseNode* s = rel.as<RebaseNode>();
-      Expr value = state.at(s->rebased);
-      Expr parent_min = dom_map.at(s->parent)->min;
-      // add min if they exist
-      if (!is_zero(parent_min)) {
-        state[s->parent] = value + parent_min;
-      } else {
-        state[s->parent] = value;
-      }
-    } else {
-      LOG(FATAL) << "unknown relation type";
-    }
-  }
-}
 
 std::vector<std::vector<Stmt> >
 MakeLoopNest(const Stage& stage,
@@ -166,7 +112,7 @@ MakeLoopNest(const Stage& stage,
     }
   }
   // message passing to get offset of root iter vars.
-  PassUpOffset(stage, dom_map, &value_map);
+  schedule::PassUpIndex(stage, dom_map, &value_map);
   return nest;
 }
 

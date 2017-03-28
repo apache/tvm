@@ -91,8 +91,33 @@ def test_vectorize():
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
+def test_rfactor():
+    n = tvm.Var('n')
+    k1 = tvm.reduce_axis((0, n), name="k1")
+    k2 = tvm.reduce_axis((0, n), name="k2")
+    A = tvm.placeholder((n, n, n), name='A')
+    B = tvm.compute((n, ), lambda i: tvm.sum(A[i, k1, k2], axis=[k1, k2]))
+    # normal schedule
+    s = tvm.Schedule(B.op)
+    BF = s.rfactor(B, k1)
+    assert(tuple(BF.shape) == (n, n))
+    assert(set(BF.op.body.axis) == set([k2]))
+    assert(s[B].op.body.axis[0].dom.extent == n)
+    assert(len(s[B].all_iter_vars) == 2)
+    # schedule with splot
+    s = tvm.Schedule(B.op)
+    ko, ki = s[B].split(k1, factor=4)
+    xo, xi = s[B].split(B.op.axis[0], factor=8)
+    BF = s.rfactor(B, ki)
+    assert(BF.shape[0].value == 4)
+    assert(BF.shape[1] == n)
+    assert(BF.op.body.axis[0] ==  k2)
+    assert(BF.op.body.axis[1].var ==  ko.var)
+    assert(s[B].op.body.axis[0].dom.extent.value == 4)
+
 
 if __name__ == "__main__":
+    test_rfactor()
     test_schedule_create()
     test_reorder()
     test_tile()

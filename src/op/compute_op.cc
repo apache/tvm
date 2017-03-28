@@ -10,6 +10,7 @@
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"
+#include "../schedule/message_passing.h"
 
 namespace tvm {
 
@@ -64,10 +65,7 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
     args.push_back(axis.back()->var);
   }
 
-  op_node->axis = Array<IterVar>(axis);
-  op_node->body = fcompute(args);
-  op_node->name = name;
-  return Operation(op_node).output(0);
+  return ComputeOpNode::make(name, axis, fcompute(args)).output(0);
 }
 
 Operation ComputeOpNode::make(std::string name,
@@ -191,6 +189,9 @@ void MakeReduction(const ComputeOpNode* op,
   }
   *init = Provide::make(t->op, t->value_index, init_value, args);
   *provide = Provide::make(t->op, t->value_index, update_value, args);
+  if (!is_one(reduce->condition)) {
+    *provide = IfThenElse::make(reduce->condition, *provide);
+  }
 }
 
 Stmt MakeProvide(const ComputeOpNode* op,
@@ -200,31 +201,6 @@ Stmt MakeProvide(const ComputeOpNode* op,
     args.push_back(iv->var);
   }
   return Provide::make(t->op, t->value_index, op->body, args);
-}
-
-// message passing to find if IterVar is related to reduction.
-void PassDownReduceFlag(const Stage& s,
-                        std::unordered_map<IterVar, int>* p_state) {
-  auto& state = *p_state;
-  for (IterVarRelation rel : s->relations) {
-    if (rel.as<SplitNode>()) {
-      const SplitNode* s = rel.as<SplitNode>();
-      int flag = state.at(s->parent);
-      state[s->outer] = flag;
-      state[s->inner] = flag;
-    } else if (rel.as<FuseNode>()) {
-      const FuseNode* s = rel.as<FuseNode>();
-      int flag_outer = state.at(s->outer);
-      int flag_inner = state.at(s->inner);
-      state[s->fused] = flag_outer | flag_inner;
-    } else if (rel.as<RebaseNode>()) {
-      const RebaseNode* s = rel.as<RebaseNode>();
-      int flag = state.at(s->parent);
-      state[s->rebased] = flag;
-    } else {
-      LOG(FATAL) << "unknown relation type";
-    }
-  }
 }
 
 Stmt Substitute(Stmt s,
@@ -267,7 +243,7 @@ Stmt ComputeOpNode::BuildProvide(
       update_state[iv] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
-    PassDownReduceFlag(stage, &update_state);
+    schedule::PassDownBitMaskOr(stage, &update_state);
     auto leaf_iter_vars = stage->leaf_iter_vars;
     std::unordered_map<IterVar, Expr> init_value_map;
     // first first loop that is related to reduction.

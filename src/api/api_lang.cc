@@ -318,4 +318,10 @@ TVM_REGISTER_API(_ScheduleCacheWrite)
         .cache_write(args[1], args[2]);
   });
 
+TVM_REGISTER_API(_ScheduleRFactor)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = args[0].operator Schedule()
+        .rfactor(args[1], args[2]);
+  });
+
 }  // namespace tvm

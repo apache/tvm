@@ -100,7 +100,24 @@ def test_bound_blur():
     assert(bounds[A.op.axis[0]].extent.value == 3)
     assert(bounds[A.op.axis[1]].extent.value == 3)
 
+def test_bound_rfactor():
+    n = tvm.Var('n')
+    A = tvm.placeholder((n,), name='A')
+    k = tvm.reduce_axis((0, n))
+    B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k, where=(i>1)), name='B')
+    kf = tvm.reduce_axis((0, 4))
+    # schedule
+    s = tvm.Schedule(B.op)
+    _, ki = s[B].split(k, outer=kf)
+    BF = s.rfactor(B, kf)
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    assert(bounds[BF.op.axis[0]].extent.value == 4)
+    assert(bounds[BF.op.axis[1]].extent.value == 1)
+
+
 if __name__ == "__main__":
+    test_bound_rfactor()
     test_bound_blur()
     test_bound_conv1d()
     test_bound_scan()

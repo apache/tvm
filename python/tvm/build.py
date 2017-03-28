@@ -9,16 +9,15 @@ from . import tensor
 from . import schedule
 from . import expr
 from . import ir_pass
+from . import collections
 from . import codegen
 
-def build(sch,
+def lower(sch,
           args,
-          target,
-          target_host="stackvm",
           name="default_function",
           binds=None,
           max_auto_unroll_step=8):
-    """Build a function with arguments as signiture.
+    """Lowering step before build into target.
 
     Parameters
     ----------
@@ -27,12 +26,6 @@ def build(sch,
 
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
-
-    target : str
-        The target of the compilation.
-
-    target_host :
-        Host compilation target, if target is device.
 
     name : str
         The name of result function.
@@ -46,10 +39,8 @@ def build(sch,
 
     Returns
     -------
-    f : Function, or pair of functions
+    f : LoweredFunc
        The result function.
-       If the function requires host space allocation,
-       a pair of functions will be returned.
     """
     binds = {} if binds is None else binds.copy()
     arg_list = []
@@ -77,6 +68,62 @@ def build(sch,
     stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
     fapi = ir_pass.MakeAPI(stmt, name, arg_list, 0)
+    return fapi
+
+
+
+def build(sch,
+          args=None,
+          target="llvm",
+          target_host="stackvm",
+          name="default_function",
+          binds=None,
+          max_auto_unroll_step=8):
+    """Build a function with arguments as signiture.
+
+    Parameters
+    ----------
+    sch : tvm.Schedule, or LoweredFunc
+        The schedule to be builded
+
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+
+    target : str
+        The target of the compilation.
+
+    target_host :
+        Host compilation target, if target is device.
+
+    name : str
+        The name of result function.
+
+    binds : dict, optional
+        Dictionary that maps the binding of symbolic buffer to Tensor.
+        By default, a new buffer is created for each tensor in the argument.
+
+    max_auto_unroll_step: int
+        Maximum step to perform automatic unrolling
+
+    Returns
+    -------
+    f : Function, or pair of functions
+       The result function.
+    """
+    if isinstance(sch, schedule.Schedule):
+        if args is None:
+            raise ValueError("args must be given for build from schedule")
+        fapi = lower(sch, args,
+                     name=name,
+                     binds=binds,
+                     max_auto_unroll_step=max_auto_unroll_step)
+    elif isinstance(sch, collections.LoweredFunc):
+        if args:
+            raise ValueError("args must be done when build from LoweredFunc")
+        fapi = sch
+    else:
+        raise ValueError("sch have to be Schedule or LoweredFunc")
+
     fsplits = ir_pass.SplitHostDevice(fapi)
     fsplits = [x for x in fsplits]
     for i in range(1, len(fsplits)):

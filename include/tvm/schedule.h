@@ -211,6 +211,18 @@ class Schedule : public NodeRef {
    */
   Tensor cache_write(const Tensor& tensor, const std::string& scope);
   /*!
+   * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
+   * This will create a new stage that generated the new tensor with axis
+   * as the first dimension. The tensor's body wil be rewriten as a reduction
+   * over the factored tensor.
+   *
+   * \param tensor The tensor to be factored.
+   * \param axis The reduction axis in tensor's schedule to be factored.
+   * \return The created factored tensor.
+   */
+  Tensor rfactor(const Tensor& tensor,
+                 const IterVar& axis);
+  /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
    *  Insert necessary RebaseNode to make sure all leaf_iter_vars
