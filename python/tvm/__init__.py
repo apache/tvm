@@ -19,4 +19,4 @@ from .ndarray import cpu, gpu, opencl, cl, vpi
 
 from ._base import TVMError
 from .api import *
-from .build import build
+from .build import build, lower

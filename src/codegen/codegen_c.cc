@@ -526,8 +526,8 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
-    this->PrintIndent();
     std::string value = this->PrintExpr(op->value);
+    this->PrintIndent();
     this->PrintBufferRef(op->buffer_var.get(), t, op->index, stream);
     stream << " = " << value << ";\n";
   } else {
