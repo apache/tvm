@@ -41,7 +41,7 @@ struct Reduce : public ExprNode<Reduce> {
   /*! \brief construct expr from op and rdom */
   static Expr make(std::string op, Expr src,
                    Array<IterVar> rdom,
-                   Expr condition = make_const(Bool(1), true));
+                   Expr condition = const_true());
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);

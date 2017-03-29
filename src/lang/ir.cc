@@ -28,7 +28,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->print(op->source);
   p->stream << ", axis=" << op->axis;
   if (!is_const(op->condition, 1)) {
-    p->stream << ", condition=" << op->condition;
+    p->stream << ", where=" << op->condition;
   }
   p->stream << ")";
 });
@@ -44,6 +44,9 @@ Expr Reduce::make(std::string op, Expr source,
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
+  }
+  if (!condition.defined()) {
+    condition = const_true();
   }
   auto n = std::make_shared<Reduce>();
   CHECK(source.defined());

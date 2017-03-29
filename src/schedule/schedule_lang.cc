@@ -43,11 +43,18 @@ void CheckSplit(StageNode* self, IterVar parent, IterVar outer) {
         << "Cannot split on axis[0] of scan update";
   }
   if (outer.defined()) {
-    CHECK_EQ(outer->iter_type, kThreadIndex)
-        << "outer in split have to be ThreadIndex";
-    CHECK_EQ(parent->iter_type, kDataPar)
-        << "Split by by kThreadIndex requires kDataPar IterVar "
-        << " given " << IterVarType2String(parent->iter_type);
+    if (outer->iter_type == kThreadIndex) {
+      CHECK_EQ(parent->iter_type, kDataPar)
+          << "Split by by kThreadIndex requires kDataPar IterVar "
+          << " given " << IterVarType2String(parent->iter_type);
+    } else if (outer->iter_type == kCommReduce) {
+      CHECK_EQ(parent->iter_type, kCommReduce)
+          << "Split by by kCommReduce requires kCommReduce IterVar "
+          << " given " << IterVarType2String(parent->iter_type);
+    } else {
+      LOG(FATAL) << "Cannot take " << IterVarType2String(parent->iter_type)
+                 << " as outer IterVar";
+    }
   } else {
     CHECK(parent->iter_type == kDataPar ||
           parent->iter_type == kCommReduce ||
@@ -72,18 +79,6 @@ void Split(StageNode* self, IterVar parent,
 }
 
 }  // namespace
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<StageNode>([](const StageNode *op, IRPrinter *p) {
-  p->stream << "stage("
-            << op->op
-            << ")";
-});
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IterVarAttrNode>([](const IterVarAttrNode *op, IRPrinter *p) {
-    p->stream << IterVarType2String(op->iter_type);
-  });
 
 Stage::Stage(Operation op) {
   auto n = std::make_shared<StageNode>();
@@ -374,4 +369,42 @@ TVM_REGISTER_NODE_TYPE(FuseNode);
 TVM_REGISTER_NODE_TYPE(RebaseNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
+// Printer
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<StageNode>([](const StageNode *op, IRPrinter *p) {
+    p->stream << "stage(" << op->origin_op->name << ", " << op << ")";
+})
+.set_dispatch<IterVarAttrNode>([](const IterVarAttrNode *op, IRPrinter *p) {
+    p->stream << IterVarType2String(op->iter_type);
+})
+.set_dispatch<SplitNode>([](const SplitNode *op, IRPrinter *p) {
+    p->stream << "split(parent=";
+    p->print(op->parent);
+    p->stream << ", outer=";
+    p->print(op->outer);
+    p->stream << ", inner=";
+    p->print(op->inner);
+    p->stream << ')';
+})
+.set_dispatch<FuseNode>([](const FuseNode *op, IRPrinter *p) {
+    p->stream << "split(";
+    p->stream << "outer=";
+    p->print(op->outer);
+    p->stream << ", inner=";
+    p->print(op->inner);
+    p->stream << ", fused=";
+    p->print(op->fused);
+    p->stream << ')';
+})
+.set_dispatch<RebaseNode>([](const RebaseNode *op, IRPrinter *p) {
+    p->stream << "rebase(";
+    p->stream << "parent=";
+    p->print(op->parent);
+    p->stream << ", rebased=";
+    p->print(op->rebased);
+    p->stream << ')';
+})
+.set_dispatch<ScheduleNode>([](const ScheduleNode *op, IRPrinter *p) {
+    p->stream << "schedule(" << op << ")";
+  });
 }  // namespace tvm

@@ -7,6 +7,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
+#include "./message_passing.h"
 
 namespace tvm {
 
@@ -139,7 +140,6 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   return cache_tensor;
 }
 
-
 void RebaseNonZeroMinLoop(const Schedule& sch) {
   std::unordered_map<IterVar, IterVar> rebase_map;
   std::unordered_map<const Node*, int> attach_mark;
@@ -244,4 +244,151 @@ void Schedule::normalize() {
   InjectInline(*this);
 }
 
+// Handle reduction factor.
+Tensor Schedule::rfactor(const Tensor& tensor,
+                         const IterVar& axis) {
+  using ir::Reduce;
+  CHECK_EQ(axis->iter_type, kCommReduce)
+      << "Can only factor reduction axis";
+  Stage reduce_stage = operator[](tensor->op);
+  const ComputeOpNode* compute_op = reduce_stage->op.as<ComputeOpNode>();
+  CHECK(compute_op) << "Can only factor  ComputeOp";
+  ArrayNode* leaf_vars = reduce_stage->leaf_iter_vars.CopyOnWrite();
+  {
+    size_t axis_pos = FindNodeRef(leaf_vars, axis);
+    CHECK_NE(axis_pos, leaf_vars->data.size())
+        << "Cannot find IterVar " << axis << " in leaf iter vars";
+  }
+  // Find touched reduction axis.
+  std::unordered_map<IterVar, int> touch_map;
+  touch_map[axis] = 1;
+  schedule::PassUpBitMaskOr(reduce_stage, &touch_map, true);
+  schedule::PassDownBitMaskOr(reduce_stage, &touch_map, true);
+  // Verify normal axis are not touched.
+  for (IterVar iv : compute_op->axis) {
+    CHECK(!touch_map.count(iv))
+        << "Factor axis touches normal axis.";
+  }
+  // Get the replace index
+  std::unordered_map<IterVar, Range> dom_map;
+  std::unordered_map<IterVar, Expr> value_map;
+  for (IterVar iv : compute_op->reduce_axis) {
+    if (touch_map.count(iv)) dom_map[iv] = iv->dom;
+  }
+  schedule::PassDownDomain(reduce_stage, &dom_map, true);
+  for (IterVar iv : reduce_stage->leaf_iter_vars) {
+    if (touch_map.count(iv)) {
+      Range dom = dom_map.at(iv);
+      if (is_one(dom->extent)) {
+        value_map[iv] = dom->min;
+      } else {
+        value_map[iv] = iv->var;
+      }
+    }
+  }
+  schedule::PassUpIndex(reduce_stage, dom_map, &value_map, true);
+  // Get the factored op node.
+  auto n = std::make_shared<ComputeOpNode>();
+  n->name = compute_op->name + ".rf";
+  {
+    // axis relacement.
+    auto iv_node = std::make_shared<IterVarNode>();
+    iv_node->dom = dom_map.at(axis);
+    CHECK(is_zero(iv_node->dom->min))
+        << "Can only factor reduction domain starting from 0";
+    iv_node->var = axis->var;
+    iv_node->iter_type = kDataPar;
+    n->axis.push_back(IterVar(iv_node));
+
+    for (IterVar iv : compute_op->axis) {
+      n->axis.push_back(iv);
+    }
+  }
+  // predicate generation, copy not touched axis.
+  std::unordered_map<const Variable*, Expr> vsub;
+  Expr predicate;
+  for (IterVar iv : compute_op->reduce_axis) {
+    if (!touch_map.count(iv)) {
+      n->reduce_axis.push_back(iv);
+    } else {
+      CHECK(value_map.count(iv));
+      Expr index = value_map.at(iv);
+      vsub[iv->var.get()] = index;
+      if (!index.same_as(iv->var)) {
+        Expr cond = (index < dom_map.at(iv)->extent);
+        if (predicate.defined()) {
+          predicate = predicate && cond;
+        } else {
+          predicate = cond;
+        }
+      }
+    }
+  }
+  // Copy touched axis.
+  for (IterVar iv : reduce_stage->leaf_iter_vars) {
+    if (touch_map.count(iv) && !iv.same_as(axis)) {
+      CHECK_EQ(iv->iter_type, kCommReduce);
+      auto ncpy = std::make_shared<IterVarNode>(*iv.operator->());
+      ncpy->dom = dom_map.at(iv);
+      n->reduce_axis.push_back(IterVar(ncpy));
+    }
+  }
+  const Reduce* reduce = compute_op->body.as<Reduce>();
+  CHECK(reduce) << "Can only rfactor non-inline reductions";
+  n->body = Reduce::make(reduce->op,
+                         VarReplacer(vsub).Mutate(reduce->source),
+                         n->reduce_axis,
+                         predicate);
+  // refresh relations, keep the un-touched relations.
+  Array<IterVarRelation> rels;
+  for (IterVarRelation rel : reduce_stage->relations) {
+    bool touched = false;
+    if (const SplitNode* r = rel.as<SplitNode>()) {
+      if (touch_map.count(r->parent)) touched = true;
+    } else if (const FuseNode* r = rel.as<FuseNode>()) {
+      if (touch_map.count(r->fused)) touched = true;
+    } else if (const RebaseNode* r = rel.as<RebaseNode>()) {
+      if (touch_map.count(r->parent)) touched = true;
+    } else {
+      LOG(FATAL) << "unknown relation type";
+    }
+    if (!touched) {
+      rels.push_back(rel);
+    }
+  }
+  // initialize the factored stage.
+  Operation factor_op(n);
+  ArrayNode* stages = (*this)->stages.CopyOnWrite();
+  size_t stage_pos = FindNodeRef(stages, reduce_stage);
+  Stage factor_stage = Stage(factor_op);
+  factor_stage->relations = rels;
+  CHECK_LT(stage_pos, stages->data.size());
+  stages->data.insert(stages->data.begin() + stage_pos,
+                      factor_stage.node_);
+  (*this)->stage_map.Set(factor_op, factor_stage);
+  // Replace the old reduction.
+  IterVar repl_red_axis = reduce_axis(
+      dom_map.at(axis), axis->var->name_hint + ".v");
+  Tensor factor_tensor = factor_op.output(0);
+  Tensor old_tensor = reduce_stage->op.output(0);
+  Tensor repl_tensor = compute(old_tensor->shape, [&](const Array<Var>& i) {
+      Array<Expr> indices;
+      indices.push_back(repl_red_axis->var);
+      for (Var v : i) {
+        indices.push_back(v);
+      }
+      return Reduce::make(
+          reduce->op, factor_tensor(indices), {repl_red_axis}, const_true());
+    }, old_tensor->op->name + ".repl");
+
+  std::unordered_map<Tensor, Tensor> vmap;
+  vmap[old_tensor] = repl_tensor;
+  ReplaceDataFlow((*this)->stages, &vmap);
+  // revamp the reduction stage.
+  reduce_stage->op = repl_tensor->op;
+  reduce_stage->all_iter_vars = repl_tensor->op->root_iter_vars();
+  reduce_stage->leaf_iter_vars = reduce_stage->all_iter_vars;
+  reduce_stage->relations = Array<IterVarRelation>();
+  return factor_tensor;
+}
 }  // namespace tvm

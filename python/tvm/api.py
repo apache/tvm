@@ -372,7 +372,7 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
-def sum(expr, axis):
+def sum(expr, axis, where=None):
     """Create a sum expression over axis
 
     Parameters
@@ -382,13 +382,16 @@ def sum(expr, axis):
 
     axis : IterVar
         The reduction IterVar axis
+
+    where : optional, Expr
+        Filtering predicate of the reduction.
     """
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Add", expr, axis)
+    x = _make.Reduce("Add", expr, axis, where)
     return x
 
 
-def min(lhs, rhs=None, axis=None):
+def min(lhs, rhs=None, axis=None, where=None):
     """Create a min expression.
 
     Parameters
@@ -401,6 +404,9 @@ def min(lhs, rhs=None, axis=None):
 
     axis : IterVar, optional
         The reduction IterVar axis
+
+    where : optional, Expr
+        Filtering predicate of the reduction.
     """
     if rhs and axis:
         raise ValueError("Can only take one argument, rhs or axis")
@@ -409,11 +415,11 @@ def min(lhs, rhs=None, axis=None):
     if rhs:
         return _make.Min(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Min", expr, axis)
+    x = _make.Reduce("Min", expr, axis, where)
     return x
 
 
-def max(lhs, rhs=None, axis=None):
+def max(lhs, rhs=None, axis=None, where=None):
     """Create a max expression.
 
     Parameters
@@ -426,6 +432,9 @@ def max(lhs, rhs=None, axis=None):
 
     axis : IterVar, optional
         The reduction IterVar axis
+
+    where : optional, Expr
+        Filtering predicate of the reduction.
     """
     if rhs and axis:
         raise ValueError("Can only take one argument, rhs or axis")
@@ -434,7 +443,7 @@ def max(lhs, rhs=None, axis=None):
     if rhs:
         return _make.Max(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Max", expr, axis)
+    x = _make.Reduce("Max", expr, axis, where)
     return x
 
 

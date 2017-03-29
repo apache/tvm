@@ -40,6 +40,8 @@ using Halide::Internal::as_const_uint;
 using Halide::Internal::const_true;
 using Halide::Internal::const_false;
 using Halide::Internal::is_no_op;
+using Halide::likely;
+using Halide::likely_if_innermost;
 
 inline Type TVMShapeIndexType() {
   if (std::is_signed<tvm_index_t>::value) {

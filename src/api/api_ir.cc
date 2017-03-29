@@ -89,7 +89,7 @@ TVM_REGISTER_API(_make_Allocate)
       *ret = Node::make(a, b);                               \
     })
 
-REGISTER_MAKE3(Reduce);
+REGISTER_MAKE4(Reduce);
 REGISTER_MAKE4(AttrStmt);
 
 REGISTER_MAKE2(IntImm);
