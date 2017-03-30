@@ -299,7 +299,7 @@ inline const char* IterVarType2String(IterVarType t) {
   switch (t) {
     case kDataPar: return "DataPar";
     case kThreadIndex: return "ThreadIndex";
-    case kCommReduce: return "CommRedude";
+    case kCommReduce: return "CommReduce";
     case kOrdered: return "Ordered";
     case kOpaque: return "Opaque";
     case kUnrolled: return "Unrolled";

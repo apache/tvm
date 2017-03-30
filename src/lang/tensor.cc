@@ -20,7 +20,6 @@ Expr Tensor::operator()(Array<Expr> indices) const {
   return n;
 }
 
-
 Tensor TensorNode::make(Array<Expr> shape,
                         Type dtype,
                         Operation op,

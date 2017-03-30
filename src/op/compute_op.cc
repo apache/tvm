@@ -174,33 +174,13 @@ void MakeReduction(const ComputeOpNode* op,
   }
   const Reduce* reduce = op->body.as<Reduce>();
   CHECK(reduce);
-  Expr init_value, update_value;
-  if (reduce->op == "Add") {
-    init_value = make_zero(reduce->type);
-    update_value = Add::make(t(args), reduce->source);
-  } else if (reduce->op == "Max") {
-    init_value = reduce->type.min();
-    update_value = Max::make(t(args), reduce->source);
-  } else if (reduce->op == "Min") {
-    init_value = reduce->type.max();
-    update_value = Min::make(t(args), reduce->source);
-  } else {
-    LOG(FATAL) << "Unsupported reduction " << reduce->op;
-  }
+  Expr init_value = Reduce::InitValue(reduce->op, reduce->type);
+  Expr update_value = Reduce::Combine(reduce->op, t(args), reduce->source);
   *init = Provide::make(t->op, t->value_index, init_value, args);
   *provide = Provide::make(t->op, t->value_index, update_value, args);
   if (!is_one(reduce->condition)) {
     *provide = IfThenElse::make(reduce->condition, *provide);
   }
-}
-
-Stmt MakeProvide(const ComputeOpNode* op,
-                 const Tensor& t) {
-  Array<Expr> args;
-  for (IterVar iv : op->axis) {
-    args.push_back(iv->var);
-  }
-  return Provide::make(t->op, t->value_index, op->body, args);
 }
 
 Stmt Substitute(Stmt s,
@@ -212,11 +192,107 @@ Stmt Substitute(Stmt s,
   return ir::Substitute(s, temp);
 }
 
+// Cross Thread reduction marker.
+bool IsCrossThreadReduction(const ComputeOpNode* self,
+                            const Stage& stage) {
+  std::unordered_set<IterVar> rebase_thread;
+  for (IterVarRelation rel : stage->relations) {
+    if (const RebaseNode* s = rel.as<RebaseNode>()) {
+      if (s->parent->iter_type == kCommReduce &&
+          s->rebased->iter_type == kThreadIndex) {
+        rebase_thread.insert(s->rebased);
+      }
+    }
+  }
+  if (rebase_thread.size() == 0) return false;
+  // Verify correctness of leaf nest.
+  bool reduce_start =  false;
+  for (IterVar iv : stage->leaf_iter_vars) {
+    if (iv->iter_type == kCommReduce) {
+      LOG(FATAL) << "Cannot mix cross thread reduce with normal reduce";
+    } else if (rebase_thread.count(iv)) {
+      reduce_start = true;
+    } else {
+      CHECK(!reduce_start)
+          << "Cross thread reduce cannot swap with normal data axis";
+    }
+  }
+  return true;
+}
+
+Stmt MakeCrossThreadReduction(
+    const ComputeOpNode* self,
+    const Stage& stage,
+    const std::unordered_map<IterVar, Range>& dom_map) {
+  Array<Expr>  args;
+  for (IterVar iv : self->axis) {
+    args.push_back(iv->var);
+  }
+  const Reduce* reduce = self->body.as<Reduce>();
+  CHECK(reduce);
+  std::unordered_map<IterVar, Expr> value_map;
+  auto nest = op::MakeLoopNest(
+      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map);
+  auto conds = op::MakeBoundCheck(
+      stage, dom_map, false,
+      std::unordered_set<IterVar>(), value_map);
+  Expr cond = reduce->condition;
+  for (Expr v : conds) {
+    cond = cond && v;
+  }
+  Var res_handle("reduce_temp", Handle());
+  Array<Expr> freduce_args;
+  freduce_args.push_back(StringImm::make(reduce->op));
+  freduce_args.push_back(reduce->source);
+  freduce_args.push_back(cond);
+
+  std::vector<Expr> thread_head_check;
+  for (IterVarRelation rel : stage->relations) {
+    if (const RebaseNode* s = rel.as<RebaseNode>()) {
+      if (s->parent->iter_type == kCommReduce &&
+          s->rebased->iter_type == kThreadIndex) {
+        freduce_args.push_back(s->rebased->var);
+        thread_head_check.push_back(s->rebased->var == 0);
+      }
+    }
+  }
+  Stmt reduce_body = Store::make(
+      res_handle, Call::make(
+          reduce->type,
+          ir::intrinsic::tvm_thread_allreduce,
+          freduce_args, Call::Intrinsic),
+      0);
+  Stmt assign_body = Provide::make(
+      stage->op, 0, Load::make(reduce->type, res_handle, 0), args);
+  assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
+  assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
+  Stmt body = Allocate::make(
+      res_handle, reduce->type, {1}, const_true(),
+      Block::make(reduce_body, assign_body));
+  body = AttrStmt::make(
+      res_handle, attr::storage_scope, StringImm::make("local"), body);
+  body = Substitute(body, value_map);
+  return MergeNest(nest, body);
+}
+
+Stmt MakeProvide(const ComputeOpNode* op,
+                 const Tensor& t) {
+  Array<Expr> args;
+  for (IterVar iv : op->axis) {
+    args.push_back(iv->var);
+  }
+  return Provide::make(t->op, t->value_index, op->body, args);
+}
+
 Stmt ComputeOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map) const {
   CHECK_EQ(stage->op.operator->(), this);
 
+  if (IsCrossThreadReduction(this, stage)) {
+    // specially handle cross thread reduction.
+    return MakeCrossThreadReduction(this, stage, dom_map);
+  }
   Stmt init, provide;
   if (this->reduce_axis.size() == 0) {
     provide = MakeProvide(this, stage->op.output(0));
@@ -227,9 +303,9 @@ Stmt ComputeOpNode::BuildProvide(
   std::unordered_map<IterVar, Expr> value_map;
   auto nest = op::MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map);
-  nest.push_back(op::MakeBoundCheck(
+  nest.push_back(op::MakeIfNest(op::MakeBoundCheck(
       stage, dom_map, false,
-      std::unordered_set<IterVar>(), value_map));
+      std::unordered_set<IterVar>(), value_map)));
   provide = Substitute(provide, value_map);
 
   if (init.defined()) {
@@ -266,7 +342,8 @@ Stmt ComputeOpNode::BuildProvide(
         stage, dom_map, begin_loop, true,
         skip_iter, &init_value_map);
     init_nest.push_back(
-        op::MakeBoundCheck(stage, dom_map, true, skip_iter, init_value_map));
+        op::MakeIfNest(
+            op::MakeBoundCheck(stage, dom_map, true, skip_iter, init_value_map)));
     init = Substitute(init, init_value_map);
     init  = MergeNest(init_nest, init);
     // common nest

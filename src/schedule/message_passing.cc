@@ -75,8 +75,16 @@ void PassDownDomain(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      state[r->rebased] = Range::make_with_min_extent(
-          0, state.at(r->parent)->extent);
+      Range res = Range::make_with_min_extent(
+            0, state.at(r->parent)->extent);
+      if (r->rebased->dom.defined()) {
+        Range rebase_rng = r->rebased->dom;
+        bool match = is_zero(rebase_rng->min);
+        if (!prove_equal(rebase_rng->extent, res->extent)) match = false;
+        CHECK(match) << r->rebased
+                     << " does not match parent scope's range";
+      }
+      state[r->rebased] = res;
     } else {
       LOG(FATAL) << "unknown relation type";
     }

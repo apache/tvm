@@ -219,6 +219,13 @@ TVM_REGISTER_API(_StageSetScope)
         .set_scope(args[1]);
   });
 
+TVM_REGISTER_API(_StageRebase)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    IterVar outer, inner;
+    args[0].operator Stage()
+        .rebase(args[1], args[2]);
+  });
+
 TVM_REGISTER_API(_StageSplitByFactor)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar outer, inner;

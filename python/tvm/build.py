@@ -71,7 +71,6 @@ def lower(sch,
     return fapi
 
 
-
 def build(sch,
           args=None,
           target="llvm",
@@ -128,6 +127,8 @@ def build(sch,
     fsplits = [x for x in fsplits]
     for i in range(1, len(fsplits)):
         fsplits[i] = ir_pass.StorageSync(fsplits[i], "shared")
+        warp_size = 32 if target == "cuda" else 1
+        fsplits[i] = ir_pass.LowerThreadAllreduce(fsplits[i], warp_size)
 
     if len(fsplits) > 1:
         mhost = codegen.build(fsplits[0], target_host)

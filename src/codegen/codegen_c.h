@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include "./codegen_source_base.h"
 
 namespace tvm {
@@ -132,9 +133,8 @@ class CodeGenC :
       const std::string&op, Type op_type,
       Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual void PrintVecLoad(const Variable* buffer,
-                            Type t, Expr base,
-                            std::ostream& os);  // NOLINT(*)
+  virtual std::string GetVecLoad(const Variable* buffer,
+                                 Type t, Expr base);
   // print vector store
   virtual void PrintVecStore(const Variable* buffer,
                              Type t, Expr base,
@@ -149,9 +149,8 @@ class CodeGenC :
 
  protected:
   // print reference to a buffer as type t in index.
-  void PrintBufferRef(const Variable* buffer,
-                      Type t, Expr index,
-                      std::ostream& os);  // NOLINT(*)
+  std::string GetBufferRef(const Variable* buffer,
+                           Type t, Expr index);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
@@ -172,9 +171,11 @@ class CodeGenC :
 
  private:
   /*! \brief whether to print in SSA form */
-  bool print_ssa_form_{true};
+  bool print_ssa_form_{false};
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const Variable*, Type> handle_data_type_;
+  /*! \brief set of volatile buf access */
+  std::unordered_set<const Variable*> volatile_buf_;
 };
 
 }  // namespace codegen

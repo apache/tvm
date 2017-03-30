@@ -43,13 +43,21 @@ MakeLoopNest(const Stage& stage,
  * \param skip_ivar_domain Whether we can skip check for IterVar's original domain.
  * \param skip_iter Whether skip certain iteration.
  * \param value_map The result value of each IterVar.
+ * \return List of predicates that we need to check.
  */
-std::vector<Stmt>
+std::vector<Expr>
 MakeBoundCheck(const Stage& stage,
                const Map<IterVar, Range>& dom_map,
                bool skip_ivar_domain,
                const std::unordered_set<IterVar>& skip_iter,
                const std::unordered_map<IterVar, Expr>& value_map);
+/*!
+ * \brief Create a nest of if checking the predicates.
+ *
+ * \param predicates The predicates to be checked.
+ * \return List of If nest that checks the predicates.
+ */
+std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates);
 
 /*!
  * \brief Replace the tensor reference in stmt by the replace map.
