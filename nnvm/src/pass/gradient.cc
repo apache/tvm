@@ -30,6 +30,22 @@ NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
   }
 }
 
+bool CheckGradAllZero(const std::vector<NodeEntry>& grads,
+                      const std::vector<const Op*>& zero_ops) {
+  if (!grads.size() || !zero_ops.size()) return false;
+  for (const auto& g : grads) {
+    bool found = false;
+    for (const auto& op : zero_ops) {
+      if (g.node->op() == op) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
 // helper entry
 struct GradEntry {
 #ifdef _MSC_VER
@@ -70,6 +86,10 @@ Graph Gradient(Graph src) {
   AttrHintFun attr_hint_fun = nullptr;
   if (src.attrs.count("attr_hint_fun") != 0) {
     attr_hint_fun = src.GetAttr<AttrHintFun>("attr_hint_fun");
+  }
+  std::vector<const Op*> zero_ops;
+  if (src.attrs.count("zero_ops") != 0) {
+    zero_ops = src.GetAttr<std::vector<const Op*> >("zero_ops");
   }
 
   // topo sort
@@ -130,10 +150,33 @@ Graph Gradient(Graph src) {
     }
     if ((*rit)->inputs.size() != 0) {
       NodePtr fwd_node = (mirror_map.size() == 0 ? ptr : mirror_map.at(ptr.get()));
-      std::vector<NodeEntry> input_grads = grad_fun_map[ptr->op()](
-          fwd_node, out_agg_grads);
-      CHECK_EQ((*rit)->inputs.size(), input_grads.size())
-          << "Gradient function not returning enough gradient";
+      std::vector<NodeEntry> input_grads;
+      if (grad_fun_map.count(ptr->op())) {
+        input_grads = grad_fun_map[ptr->op()](fwd_node, out_agg_grads);
+        CHECK_EQ((*rit)->inputs.size(), input_grads.size())
+            << "Gradient function not returning enough gradient";
+      } else if (CheckGradAllZero(out_agg_grads, zero_ops)) {
+        for (index_t i = 0; i < fwd_node->num_inputs(); ++i) {
+          std::ostringstream os;
+          if (1 == fwd_node->num_inputs()) {
+            os << fwd_node->attrs.name << "_backward";
+          } else {
+            os << fwd_node->attrs.name << "_in" << i << "_backward";
+          }
+          auto p = Node::Create();
+          p->attrs.op = zero_ops[0];
+          p->attrs.name = os.str();
+          p->inputs.push_back(fwd_node->inputs[i]);
+          p->control_deps.emplace_back(fwd_node);
+          if (p->op()->attr_parser != nullptr) {
+            p->op()->attr_parser(&(p->attrs));
+          }
+          input_grads.emplace_back(nnvm::NodeEntry{p, 0, 0});
+        }
+      } else {
+        LOG(FATAL) << "Operator " << fwd_node->op()->name << " is non-differentiable "
+                   << "because it didn't register FGradient attribute.";
+      }
       auto git = input_grads.begin();
       for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {
         auto& ge = output_grads[it->node.get()][it->index];
