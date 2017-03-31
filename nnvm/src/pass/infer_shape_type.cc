@@ -93,6 +93,7 @@ Graph InferAttr(Graph &&ret,
         << "BackwardOp need to have control_deps to its forward op";
       const IndexedGraph::Node& fnode = idx[inode.control_deps[0]];
       NodePtr fwd_ptr = inode.source->control_deps[0];
+      CHECK(fwd_ptr->op() != nullptr) << "Forward op cannot be a variable";
       // use gradient function to find out the correspondence.
       std::vector<NodeEntry> ograd(fwd_ptr->num_outputs());
       for (size_t i = 0; i < ograd.size(); ++i) {
@@ -100,11 +101,10 @@ Graph InferAttr(Graph &&ret,
       }
       // input gradient list
       auto igrad = fgrad[fwd_ptr->op()](fwd_ptr, ograd);
-      const Op* backward_op = inode.source->op();
       const Node* igrad_node = nullptr;
       // Input gradient assignement
       for (size_t i = 0; i < igrad.size(); ++i) {
-        if (igrad[i].node->op() == backward_op) {
+        if (igrad[i].node->op() == inode.source->op()) {
           uint32_t eid = idx.entry_id(nid, igrad[i].index);
           if (fis_none(rshape[eid])) {
             rshape[eid] = rshape[idx.entry_id(fnode.inputs[i])];
@@ -120,6 +120,8 @@ Graph InferAttr(Graph &&ret,
         }
       }
       // out grad entries
+      CHECK(igrad_node != nullptr)
+        << "Cannot find matching backward op for " << inode.source->attrs.name;
       for (size_t i = 0; i < igrad_node->inputs.size(); ++i) {
         const NodeEntry& e = igrad_node->inputs[i];
         if (e.node == nullptr) {
