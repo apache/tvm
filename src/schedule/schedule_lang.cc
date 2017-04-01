@@ -136,6 +136,25 @@ Stage& Stage::compute_root() {   // NOLINT(*)
   return *this;
 }
 
+Stage& Stage::rebase(IterVar parent, IterVar rebased) {  // NOLINT(*)
+  CHECK(parent->iter_type == kDataPar ||
+        parent->iter_type == kCommReduce)
+      << "Cannot rebase " << IterVarType2String(parent->iter_type);
+  CHECK(rebased->iter_type == kThreadIndex)
+      << "Cannot rebase by " << IterVarType2String(rebased->iter_type)
+      << ", only thread axis is allowed so far";
+  ArrayNode* all_vars = (*this)->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = (*this)->leaf_iter_vars.CopyOnWrite();
+  size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
+  (*this)->relations.push_back(RebaseNode::make(parent, rebased));
+  // add vars to all vars
+  all_vars->data.push_back(rebased.node_);
+  // replace the position.
+  leaf_vars->data.erase(leaf_vars->data.begin() + pos);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, rebased.node_);
+  return *this;
+}
+
 Stage& Stage::split(
     IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor) {  // NOLINT(*)
   CheckSplit(operator->(), parent, IterVar());

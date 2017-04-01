@@ -74,6 +74,14 @@ class Stage : public NodeRef {
    */
   Stage& compute_root();  // NOLINT(*)
   /*!
+   * \brief Rebase the parent iter var as rebased variable.
+   *
+   * \param parent The parent iteration domain.
+   * \param rebased The variable to be used in rebase.
+   * \return reference to self.
+   */
+  Stage& rebase(IterVar parent, IterVar rebased);
+  /*!
    * \brief Split the parent by factor, generate
    * \param parent The parent iteration domain.
    * \param p_outer The result outer domain

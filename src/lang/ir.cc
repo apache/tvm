@@ -61,6 +61,32 @@ Expr Reduce::make(std::string op, Expr source,
   return Expr(n);
 }
 
+Expr Reduce::InitValue(const std::string& op, Type type) {
+  if (op == "Add") {
+    return make_zero(type);
+  } else if (op == "Max") {
+    return type.min();
+  } else if (op == "Min") {
+    return type.max();
+  } else {
+    LOG(FATAL) << "Unsupported reduction " << op;
+    return Expr();
+  }
+}
+
+Expr Reduce::Combine(const std::string& op, Expr a, Expr b) {
+  if (op == "Add") {
+    return Add::make(a, b);
+  } else if (op == "Max") {
+    return Max::make(a, b);
+  } else if (op == "Min") {
+    return Min::make(a, b);
+  } else {
+    LOG(FATAL) << "Unsupported reduction " << op;
+    return Expr();
+  }
+}
+
 TVM_REGISTER_NODE_TYPE(Reduce);
 TVM_REGISTER_NODE_TYPE(AttrStmt);
 

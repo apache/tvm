@@ -27,7 +27,7 @@ def test_buffer_fifo():
     write_data.put_int(0)
 
     # De-assert reset
-    sess.yield_until_posedge()
+    sess.yield_until_next_cycle()
     rst.put_int(0)
 
     # Main simulation loop
@@ -46,7 +46,7 @@ def test_buffer_fifo():
             assert(read_data.get_int()==test_data[read_idx])
             read_idx += 1
         # step
-        sess.yield_until_posedge()
+        sess.yield_until_next_cycle()
 
 
 if __name__ == "__main__":

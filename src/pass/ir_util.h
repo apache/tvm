@@ -70,6 +70,21 @@ inline Stmt MergeNest(std::vector<std::vector<Stmt> > nest, Stmt body) {
   return body;
 }
 
+
+/*!
+ * \brief combine sequence of operations.
+ * \param seq The sequence.
+ * \return The combined Stmt
+ */
+inline Stmt MergeSeq(const std::vector<Stmt>& seq) {
+  if (seq.size() == 0) return Evaluate::make(0);
+  Stmt body = seq[0];
+  for (size_t i = 1; i < seq.size(); ++i) {
+    body = Block::make(body, seq[i]);
+  }
+  return body;
+}
+
 }  // namespace ir
 }  // namespace tvm
 #endif  // TVM_PASS_IR_UTIL_H_

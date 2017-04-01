@@ -112,6 +112,24 @@ class Schedule(NodeBase):
 @register_node
 class Stage(NodeBase):
     """A Stage represents schedule for one operation."""
+    def rebase(self, parent, rebased):
+        """Rebase parent  by an existing thread axis.
+
+        Parameters
+        ----------
+        parent : IterVar
+             The parent iter var.
+
+        rebased : IterVar
+             The rebased iter var.
+        Returns
+        -------
+        rebased : IterVar
+            The rebased itervar.
+        """
+        _api_internal._StageRebase(self, parent, rebased)
+        return rebased
+
     def split(self, parent, factor=None, outer=None):
         """Split the stage either by factor providing outer scope, or both
 

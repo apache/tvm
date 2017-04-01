@@ -112,18 +112,10 @@ class ThreadAxisConfig {
       arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
       filled[ts.rank * 3 + ts.dim_index] = true;
     }
-    work_dim_ = 3;
+    work_dim_ = 1;
     for (int i = 0; i < 3; ++i) {
-      if (!filled[i]) {
-        for (int j = i; j < 3; ++j) {
-          CHECK(!filled[j] && !filled[j + 3])
-              << "Invalid thread group configuration";
-        }
-        work_dim_ = i;
-        break;
-      } else {
-        CHECK(filled[i])
-            << "Must have both threadIdx and blockIdx";
+      if (filled[i] || filled[i + 3]) {
+        work_dim_ = i + 1;
       }
     }
   }

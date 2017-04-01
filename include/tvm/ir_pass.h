@@ -234,6 +234,13 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
  */
 LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
 
+/*!
+ * \brief Lower cross thread alleduce in the stmt.
+ * \param f The device function to be lowered.
+ * \param warp_size the size of warp where no sync is needed.
+ * \return Transformed function.
+ */
+LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
 }  // namespace ir
 }  // namespace tvm
 

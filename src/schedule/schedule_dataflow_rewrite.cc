@@ -305,8 +305,10 @@ Tensor Schedule::rfactor(const Tensor& tensor,
     }
   }
   // predicate generation, copy not touched axis.
+  const Reduce* reduce = compute_op->body.as<Reduce>();
+  CHECK(reduce) << "Can only rfactor non-inline reductions";
+  Expr predicate = reduce->condition;
   std::unordered_map<const Variable*, Expr> vsub;
-  Expr predicate;
   for (IterVar iv : compute_op->reduce_axis) {
     if (!touch_map.count(iv)) {
       n->reduce_axis.push_back(iv);
@@ -316,10 +318,10 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       vsub[iv->var.get()] = index;
       if (!index.same_as(iv->var)) {
         Expr cond = (index < dom_map.at(iv)->extent);
-        if (predicate.defined()) {
-          predicate = predicate && cond;
-        } else {
+        if (is_one(predicate)) {
           predicate = cond;
+        } else {
+          predicate = predicate && cond;
         }
       }
     }
@@ -333,8 +335,6 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       n->reduce_axis.push_back(IterVar(ncpy));
     }
   }
-  const Reduce* reduce = compute_op->body.as<Reduce>();
-  CHECK(reduce) << "Can only rfactor non-inline reductions";
   n->body = Reduce::make(reduce->op,
                          VarReplacer(vsub).Mutate(reduce->source),
                          n->reduce_axis,

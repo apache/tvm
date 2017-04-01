@@ -160,35 +160,43 @@ void PassUpBoundCheck(const Stage& s,
   }
 }
 
-std::vector<Stmt> MakeBoundCheck(
+std::vector<Expr> MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
     bool skip_ivar_domain,
     const std::unordered_set<IterVar>& skip_iter,
     const std::unordered_map<IterVar, Expr>& value_map) {
-  Stmt no_op = Evaluate::make(0);
   std::unordered_map<IterVar, bool> bound_state;
   for (IterVar iv : stage->leaf_iter_vars) {
     bound_state[iv] = false;
   }
   PassUpBoundCheck(stage, dom_map, &bound_state);
-  // insert conditions
-  std::vector<Stmt> nest;
+  std::vector<Expr> preds;
   for (IterVar iv : stage->op->root_iter_vars()) {
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
     Range dom = dom_map.at(iv);
     if (bound_state.at(iv)) {
-      Expr condition = ComputeExpr<Sub>(value_map.at(iv), dom->min) < dom->extent;
-      nest.emplace_back(IfThenElse::make(condition, no_op));
+      preds.emplace_back(
+          ComputeExpr<Sub>(value_map.at(iv), dom->min) < dom->extent);
     }
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
-      Expr condition = ComputeExpr<Sub>(value_map.at(iv), iv->dom->min) < iv->dom->extent;
-      nest.emplace_back(IfThenElse::make(condition, no_op));
+      preds.emplace_back(
+          ComputeExpr<Sub>(value_map.at(iv), iv->dom->min) < iv->dom->extent);
     }
+  }
+  return preds;
+}
+
+std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
+  Stmt no_op = Evaluate::make(0);
+  std::vector<Stmt> nest;
+  for (const Expr& cond : predicates) {
+    nest.emplace_back(IfThenElse::make(cond, no_op));
   }
   return nest;
 }
+
 
 
 // replacer to replace tensors

@@ -95,12 +95,13 @@ void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, Type t,
   os << GetVarID(buffer) << " + ";
   PrintExpr(base, os);
 }
-void CodeGenOpenCL::PrintVecLoad(const Variable* buffer,
-                                 Type t, Expr base,
-                                 std::ostream& os) {
+std::string CodeGenOpenCL::GetVecLoad(const Variable* buffer,
+                                      Type t, Expr base) {
+  std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
   os << ")";
+  return os.str();
 }
 
 void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
@@ -121,7 +122,8 @@ void CodeGenOpenCL::PrintStorageSync(const std::string& sync) {
   }
 }
 
-void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
+void CodeGenOpenCL::PrintStorageScope(
+    const std::string& scope, std::ostream& os) { // NOLINT(*)
   if (scope == "global") {
     os << "__global";
   } else if (scope == "shared") {

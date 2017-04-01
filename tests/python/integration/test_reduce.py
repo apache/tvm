@@ -51,7 +51,7 @@ def test_rfactor():
     n = tvm.convert(1027)
     A = tvm.placeholder((n,), name='A')
     k = tvm.reduce_axis((0, n))
-    B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k, where=(i>1)), name='B')
+    B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k), name='B')
     kf = tvm.reduce_axis((0, 4))
     # schedule
     s = tvm.Schedule(B.op)
@@ -78,6 +78,56 @@ def test_rfactor():
 
     check_target()
 
+
+def test_rfactor_threads():
+    nn = 1027
+    mm = 10
+    n = tvm.convert(nn)
+    m = tvm.convert(mm)
+    A = tvm.placeholder((m, n), name='A')
+    k = tvm.reduce_axis((0, n))
+    nthread = 16
+    B = tvm.compute((m,), lambda i: tvm.sum(A[i, k], axis=k, where=(i>1)), name='B')
+    tx = tvm.thread_axis((0, nthread), "threadIdx.x")
+    ty = tvm.thread_axis((0, nthread), "threadIdx.y")
+    bx = tvm.thread_axis(None, "blockIdx.x")
+    # schedule
+    s = tvm.Schedule(B.op)
+    ko, kf = s[B].split(k, factor=nthread)
+    BF = s.rfactor(B, kf)
+    xo, xi = s[B].split(s[B].op.axis[0], factor=nthread, outer=bx)
+    s[B].rebase(xi, ty)
+    s[B].rebase(s[B].op.reduce_axis[0], tx)
+    s[BF].compute_at(s[B], tx)
+
+    # one line to build the function.
+    def check_target(device, host="stackvm"):
+        if not tvm.codegen.enabled(device):
+            return
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        fapi = tvm.lower(s, args=[A, B])
+        fapi2 = tvm.ir_pass.LowerThreadAllreduce(fapi, 32)
+        fsum = tvm.build(fapi,
+                         target=device,
+                         name="mysum")
+        print(fsum.imported_modules[0].get_source())
+        # launch the kernel.
+        n = nn
+        m = mm
+        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
+        b  = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        fsum(a, b)
+        res = np.sum(a.asnumpy(), axis=1)
+        res[:2] = 0
+        np.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    if tvm.module.enabled("opencl"):
+        tvm.module.init_opencl()
+    check_target("cuda")
+    check_target("opencl")
+
 if __name__ == "__main__":
+    test_rfactor_threads()
     test_rfactor()
     test_sum()
