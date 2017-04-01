@@ -24,9 +24,8 @@ class CodeGenOpenCL : public CodeGenC {
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const std::string& scope) final;  // NOLINT(*)
   void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
-  void PrintVecLoad(const Variable* buffer,
-                    Type t, Expr base,
-                    std::ostream& os) final;  // NOLINT(*)
+  std::string GetVecLoad(const Variable* buffer,
+                         Type t, Expr base) final;
   void PrintVecStore(const Variable* buffer,
                       Type t, Expr base,
                       const std::string& value) final;  // NOLINT(*)

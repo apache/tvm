@@ -35,6 +35,7 @@ std::string CodeGenSourceBase::GetUniqueName(std::string prefix) {
 }
 
 std::string CodeGenSourceBase::SSAGetID(std::string src, Type t) {
+  LOG(INFO) << "ssa get id";
   if (name_alloc_map_.count(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {

@@ -42,6 +42,21 @@ struct Reduce : public ExprNode<Reduce> {
   static Expr make(std::string op, Expr src,
                    Array<IterVar> rdom,
                    Expr condition = const_true());
+  /*!
+   * \brief Get initial value for reduction.
+   * \param op The operator
+   * \param type The data type.
+   * \return The initial value that can be assigned to reduction.
+   */
+  static Expr InitValue(const std::string& op, Type type);
+  /*!
+   * \brief Combine two values with given reduction.
+   * \param op The operator
+   * \param a The left operand.
+   * \param b The left operand.
+   * \return The combined reduction result.
+   */
+  static Expr Combine(const std::string& op, Expr a, Expr b);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
@@ -86,6 +101,10 @@ constexpr const char* thread_extent = "thread_extent";
  * \brief Mark launching of a virtual thread.
  */
 constexpr const char* virtual_thread = "virtual_thread";
+/*!
+ * \brief Mark the scope as volatile access for certain handle.
+ */
+constexpr const char* volatile_scope = "volatile_scope";
 /*!
  * \brief Mark storage scope of buffers
  */
@@ -164,6 +183,17 @@ constexpr const char* tvm_call_packed = "tvm_call_packed";
  *  }
  */
 constexpr const char* tvm_storage_sync = "tvm_storage_sync";
+/*!
+ * \brief See pesudo code
+ *
+ *  Expr tvm_thread_allreduce(std::string op, Expr value, Expr cond,
+ *                             Var thread_idx1, thread_idx2...) {
+ *     // constraint by the other thread_idx remain the same.
+ *     return reduce(op, value, cond,
+ *                   over [thread_idx1, thread_idx2] passed by any caller)
+ *  }
+ */
+constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
 
 /*! \brief The field id of each field in array */
 enum TVMArrayFieldKind {

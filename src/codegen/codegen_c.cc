@@ -88,14 +88,26 @@ void CodeGenC::PrintSSAAssign(
 }
 
 // Print a reference expression to a buffer.
-void CodeGenC::PrintBufferRef(
+std::string CodeGenC::GetBufferRef(
     const Variable* buffer,
-    Type t, Expr index,
-    std::ostream& os) {  // NOLINT(*)
+    Type t, Expr index) {
+  std::ostringstream os;
   std::string vid = GetVarID(buffer);
+  std::string scope;
+  if (alloc_storage_scope_.count(buffer)) {
+    scope = alloc_storage_scope_.at(buffer);
+  }
+  bool is_vol = volatile_buf_.count(buffer);
   if (t.lanes() == 1) {
-    if (!HandleTypeMatch(buffer, t)) {
+    if (!HandleTypeMatch(buffer, t) || is_vol) {
       os << "((";
+      if (is_vol) {
+        os << "volatile ";
+      }
+      if (scope.length() != 0) {
+        PrintStorageScope(scope, os);
+      }
+      os << ' ';
       PrintType(t, os);
       os << "*)" << vid << ')';
     } else {
@@ -107,17 +119,24 @@ void CodeGenC::PrintBufferRef(
   } else {
     // Buffer declared as vector type.
     // optimize for case where it is in register,
-    if (HandleTypeMatch(buffer, t)) {
+    if (HandleTypeMatch(buffer, t) && !is_vol) {
       // optimize for constant access
       int offset;
       if (arith::GetConstInt(index, &offset)) {
         CHECK_EQ(offset % t.lanes(), 0)
             << "Find unaligned vector load to a vector type";
         os << vid << '[' << (offset / t.lanes()) << ']';
-        return;
+        return os.str();
       }
     }
     os << "((";
+    if (is_vol) {
+      os << "volatile ";
+    }
+    if (scope.length() != 0) {
+      PrintStorageScope(scope, os);
+    }
+    os << ' ';
     PrintType(t, os);
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
@@ -129,6 +148,7 @@ void CodeGenC::PrintBufferRef(
     PrintExpr(index, os);
     os << "))[0]";
   }
+  return os.str();
 }
 
 
@@ -162,18 +182,17 @@ void CodeGenC::PrintVecElemStore(const std::string& vec,
          << " = " << value << ";\n";
 }
 
-void CodeGenC::PrintVecLoad(const Variable* buffer,
-                            Type t, Expr base,
-                            std::ostream& os) {
-  PrintBufferRef(buffer, t, base, os);
+std::string CodeGenC::GetVecLoad(const Variable* buffer,
+                                   Type t, Expr base) {
+  return GetBufferRef(buffer, t, base);
 }
 
 void CodeGenC::PrintVecStore(const Variable* buffer,
                              Type t, Expr base,
                              const std::string& value) {
+  std::string ref = GetBufferRef(buffer, t, base);
   this->PrintIndent();
-  PrintBufferRef(buffer, t, base, stream);
-  stream << " = " << value << ";\n";
+  stream << ref << " = " << value << ";\n";
 }
 
 void CodeGenC::PrintThreadIndexExpr(
@@ -483,24 +502,21 @@ inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
 
 void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
-  std::string svalue = GetUniqueName("_");
   // delcare type.
-  this->PrintIndent();
-  this->PrintType(op->type, stream);
-  stream << ' ' << svalue;
   if (op->type.lanes() == 1) {
-    stream << " = ";
-    this->PrintBufferRef(op->buffer_var.get(), op->type, op->index, stream);
-    stream << ";\n";
+    std::string ref = GetBufferRef(op->buffer_var.get(), op->type, op->index);
+    os << ref;
   } else {
     Expr base;
     if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
-      stream << " = ";
-      this->PrintVecLoad(op->buffer_var.get(), op->type, base, stream);
-      stream << ";\n";
+      std::string ref = GetVecLoad(op->buffer_var.get(), op->type, base);
+      os << ref;
     } else {
-      // Load elements seperately
-      stream << ";\n";
+      // load seperately.
+      std::string svalue = GetUniqueName("_");
+      this->PrintIndent();
+      this->PrintType(op->type, stream);
+      stream << ' ' << svalue << ";\n";
       std::string sindex = SSAGetID(PrintExpr(op->index), op->index.type());
       std::string vid = GetVarID(op->buffer_var.get());
       Type elem_type = op->type.element_of();
@@ -518,18 +534,18 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
         value_temp << ']';
         PrintVecElemStore(svalue, op->type, i, value_temp.str());
       }
+      os << svalue;
     }
   }
-  os << svalue;
 }
 
 void CodeGenC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
     std::string value = this->PrintExpr(op->value);
+    std::string ref  = this->GetBufferRef(op->buffer_var.get(), t, op->index);
     this->PrintIndent();
-    this->PrintBufferRef(op->buffer_var.get(), t, op->index, stream);
-    stream << " = " << value << ";\n";
+    stream << ref << " = " << value << ";\n";
   } else {
     Expr base;
     if (TryGetRamp1Base(op->index, t.lanes(), &base)) {
@@ -577,7 +593,13 @@ void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*
 }
 
 void CodeGenC::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Select: not supported ";
+  os << "(";
+  PrintExpr(op->condition, os);
+  os << " ? ";
+  PrintExpr(op->true_value, os);
+  os << " : ";
+  PrintExpr(op->false_value, os);
+  os << ")";
 }
 
 void CodeGenC::VisitStmt_(const LetStmt* op) {
@@ -649,6 +671,10 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
+  } else if (op->type_key == ir::attr::volatile_scope) {
+    const Variable* v = op->node.as<Variable>();
+    CHECK(v);
+    volatile_buf_.insert(v);
   }
   this->PrintStmt(op->body);
 }
