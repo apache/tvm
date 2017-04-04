@@ -443,7 +443,7 @@ class TShape : public Tuple<index_t> {
    */
   template<int dim>
   inline mshadow::Shape<dim> get() const {
-    CHECK_EQ(dim, ndim())
+    CHECK_EQ(dim, static_cast<int>(ndim()))
         << "dimension do not match target dimension " << dim << " vs " << ndim();
     const index_t *d = this->data();
     mshadow::Shape<dim> s;

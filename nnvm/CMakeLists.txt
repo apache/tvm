@@ -4,6 +4,10 @@ project(nnvm C CXX)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
 
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
+endif()
+
 include(cmake/Utils.cmake)
 
 # include path
@@ -57,8 +61,15 @@ elseif(DMLC_CORE_PATH)
   include_directories(${DMLC_CORE_PATH}/include)
 endif()
 
-add_library(nnvm ${SOURCE})
+add_library(nnvm SHARED ${SOURCE})
 target_link_libraries(nnvm ${nnvm_LINKER_LIBS})
+
+if(INSTALL_INCLUDE_DIR)
+  add_custom_command(TARGET nnvm POST_BUILD
+    COMMAND COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/include ${INSTALL_INCLUDE_DIR}/
+    )
+endif()
 
 # ---[ Linter target
 if(MSVC)
