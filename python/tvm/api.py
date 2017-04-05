@@ -11,6 +11,7 @@ from ._ctypes._function import Function
 from ._ctypes._function import _init_api_functions, register_func, get_global_func
 from ._ctypes._function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
+from . import _base
 from . import make as _make
 from . import expr as _expr
 from . import tensor as _tensor
@@ -142,7 +143,7 @@ def compute(shape, fcompute, name="compute"):
     return op_node.output(0)
 
 
-def scan(init, update, state_placeholder, name="scan"):
+def scan(init, update, state_placeholder, inputs=None, name="scan"):
     """Construct new tensors by scanning over axis.
 
     Parameters
@@ -155,6 +156,10 @@ def scan(init, update, state_placeholder, name="scan"):
 
     state_placeholder: Tensor or list of Tensor
         The placeholder variables used by update.
+
+    inputs: Tensor or list of Tensor, optional
+        The list of inputs to the scan. This is not required, but can
+        be useful for the compiler to detect scan body faster.
 
     name: str, optional
         The name hint of the tensor
@@ -173,7 +178,7 @@ def scan(init, update, state_placeholder, name="scan"):
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: X[0, i])
     s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
-    res = tvm.scan(s_init, s_update, s_state)
+    res = tvm.scan(s_init, s_update, s_state, X)
     """
     if isinstance(init, _tensor.Tensor):
         init = [init]
@@ -181,10 +186,14 @@ def scan(init, update, state_placeholder, name="scan"):
         update = [update]
     if isinstance(state_placeholder, _tensor.Tensor):
         state_placeholder = [state_placeholder]
+    if isinstance(inputs, _tensor.Tensor):
+        inputs = [inputs]
+    if inputs is None:
+        inputs = []
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
     axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
-    op = _api_internal._ScanOp(name, axis, init, update, state_placeholder)
+    op = _api_internal._ScanOp(name, axis, init, update, state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
 
@@ -340,20 +349,25 @@ def _IterVar(dom, name, iter_type, thread_tag=''):
     return _api_internal._IterVar(dom, var, iter_type, thread_tag)
 
 
-def thread_axis(dom, tag, name=''):
+def thread_axis(dom=None, tag='', name=''):
     """Create a new IterVar to represent thread index.
 
     Parameters
     ----------
-    dom : Range
-        The domain of iteration.
+    dom : Range or str
+        The domain of iteration
+        When str is passed, dom is set to None and str is used as tag
 
-    tag : str
+    tag : str, optional
         The thread tag
 
     name : str, optional
         The name of the var.
     """
+    if isinstance(dom, _base.string_types):
+        tag, dom = dom, None
+    if len(tag) == 0:
+        raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
     return _IterVar(dom, name, 1, tag)
 

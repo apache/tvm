@@ -57,9 +57,9 @@ def test_buffer_linebuff():
         # correctness checks
         if (read_data_valid.get_int()):
             # Derive convolution window indices
-            baseIdx = read_idx/(kernel_width*kernel_width)
-            offsetIdx = read_idx%(kernel_width*kernel_width)
-            yOffset = offsetIdx/kernel_width
+            baseIdx = read_idx // (kernel_width*kernel_width)
+            offsetIdx = read_idx % (kernel_width*kernel_width)
+            yOffset = offsetIdx // kernel_width
             xOffset = offsetIdx%kernel_width
             pixIndex = baseIdx + yOffset * window_width + xOffset
             assert(read_data.get_int()==test_data[pixIndex])

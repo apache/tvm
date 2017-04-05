@@ -12,10 +12,9 @@ def test_sum():
     s = tvm.Schedule(B.op)
     # create iter var and assign them tags.
     num_thread = 1
-    block_x = tvm.thread_axis(None, "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    _, x = s[B].split(B.op.axis[0], factor=num_thread, outer=block_x)
-    _, x = s[B].split(x, outer=thread_x)
+    xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
+    s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
@@ -52,10 +51,9 @@ def test_rfactor():
     A = tvm.placeholder((n,), name='A')
     k = tvm.reduce_axis((0, n))
     B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k), name='B')
-    kf = tvm.reduce_axis((0, 4))
     # schedule
     s = tvm.Schedule(B.op)
-    _, ki = s[B].split(k, outer=kf)
+    kf, ki = s[B].split(k, nparts=4)
     BF = s.rfactor(B, kf)
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
@@ -88,16 +86,14 @@ def test_rfactor_threads():
     k = tvm.reduce_axis((0, n))
     nthread = 16
     B = tvm.compute((m,), lambda i: tvm.sum(A[i, k], axis=k, where=(i>1)), name='B')
-    tx = tvm.thread_axis((0, nthread), "threadIdx.x")
-    ty = tvm.thread_axis((0, nthread), "threadIdx.y")
-    bx = tvm.thread_axis(None, "blockIdx.x")
     # schedule
     s = tvm.Schedule(B.op)
     ko, kf = s[B].split(k, factor=nthread)
     BF = s.rfactor(B, kf)
-    xo, xi = s[B].split(s[B].op.axis[0], factor=nthread, outer=bx)
-    s[B].rebase(xi, ty)
-    s[B].rebase(s[B].op.reduce_axis[0], tx)
+    bx, tx = s[B].split(s[B].op.axis[0], factor=nthread)
+    s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(tx, tvm.thread_axis("threadIdx.y"))
+    s[B].bind(s[B].op.reduce_axis[0], tvm.thread_axis("threadIdx.x"))
     s[BF].compute_at(s[B], tx)
 
     # one line to build the function.
@@ -128,6 +124,6 @@ def test_rfactor_threads():
     check_target("opencl")
 
 if __name__ == "__main__":
-    test_rfactor_threads()
     test_rfactor()
+    test_rfactor_threads()
     test_sum()

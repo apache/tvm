@@ -38,20 +38,29 @@ MakeLoopNest(const Stage& stage,
       value_map[iv] = iv->var;
       continue;
     }
+    // Bind iv could be another thread.
+    IterVar bind_iv = iv;
+    if (stage->iter_var_attrs.count(iv)) {
+      IterVar bind_thread = stage->iter_var_attrs[iv]->bind_thread;
+      if (bind_thread.defined()) bind_iv = bind_thread;
+    }
+
     Range dom = dom_map.at(iv);
+
     // initialize the offset and loop_level
-    Var var = iv->var;
+    Var var = bind_iv->var;
     if (new_loop_var) {
-      var = Var(iv->var->name_hint + ".init", iv->var.type());
+      var = Var(iv->var->name_hint + ".init", bind_iv->var.type());
     }
     // Mark the iter var in the IR, to remember the point
-    if (iv->thread_tag.length() == 0) {
+    if (bind_iv->thread_tag.length() == 0) {
       ForType for_type = ForType::Serial;
       if (stage->iter_var_attrs.count(iv)) {
         switch (stage->iter_var_attrs[iv]->iter_type) {
           case kUnrolled: for_type = ForType::Unrolled; break;
           case kVectorized: for_type = ForType::Vectorized; break;
           case kParallelized: for_type = ForType::Parallel; break;
+          case kDataPar: break;
           default: LOG(FATAL) << "Unknown iter type"
                               << stage->iter_var_attrs[iv]->iter_type
                               << " in the iter_var_attrs";
@@ -67,7 +76,7 @@ MakeLoopNest(const Stage& stage,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
-        Var idx(iv->var->name_hint + ".idx", iv->var.type());
+        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.type());
         nest[i + 1].emplace_back(
             For::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
@@ -76,29 +85,29 @@ MakeLoopNest(const Stage& stage,
         nest[i + 1].emplace_back(
             LetStmt::make(var, new_value, no_op));
       }
-    } else if (iv->thread_tag == "vthread") {
+    } else if (bind_iv->thread_tag == "vthread") {
       // virtual thread
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       CHECK(is_positive_const(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(iv, ir::attr::virtual_thread, dom->extent, no_op));
+          AttrStmt::make(bind_iv, ir::attr::virtual_thread, dom->extent, no_op));
       value_map[iv] = var;
-    } else if (iv->thread_tag == "pipeline") {
+    } else if (bind_iv->thread_tag == "pipeline") {
       // pipeline marker.
       CHECK(is_zero(dom->min));
       CHECK(is_one(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(iv, ir::attr::pipeline_exec_scope, dom->extent, no_op));
+          AttrStmt::make(bind_iv, ir::attr::pipeline_exec_scope, dom->extent, no_op));
       value_map[iv] = dom->min;
     } else {
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(iv, ir::attr::thread_extent, dom->extent, no_op));
+          AttrStmt::make(bind_iv, ir::attr::thread_extent, dom->extent, no_op));
       if (is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {

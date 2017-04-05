@@ -8,6 +8,7 @@
 
 #include <string>
 #include "./base.h"
+#include "./expr.h"
 #include "./tensor.h"
 
 namespace tvm {
@@ -23,8 +24,7 @@ class IterVarAttrNode;
 
 /*! \brief the attachment type */
 enum AttachType : int {
-  kNone = 0,
-  kRoot = 1,
+  kGroupRoot = 1,
   kInline = 2,
   kInlinedAlready = 3,
   kScope = 4,
@@ -64,44 +64,50 @@ class Stage : public NodeRef {
    */
   Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
   /*!
-   * \brief Compute the function inline, attach it at parent.
+   * \brief Compute the function inline.
    * \return reference to self.
    */
   Stage& compute_inline();   // NOLINT(*)
   /*!
-   * \brief Compute the function at root, attach it to its parent.
+   * \brief Compute the function at group root.
    * \return reference to self.
    */
   Stage& compute_root();  // NOLINT(*)
   /*!
-   * \brief Rebase the parent iter var as rebased variable.
+   * \brief Bind the ivar to thread index.
    *
-   * \param parent The parent iteration domain.
-   * \param rebased The variable to be used in rebase.
+   * \param ivar The IterVar to be binded.
+   * \param thread_ivar The thread axis to be binded.
    * \return reference to self.
    */
-  Stage& rebase(IterVar parent, IterVar rebased);
+  Stage& bind(IterVar ivar, IterVar thread_ivar);
+  /*!
+   * \brief Specify environment threads that launched around the group's scope.
+   *  This can only be used in group stage.
+   * \param threads The threads to be launched around the scope.
+   * \note Each thread can only appear in one env_threads.
+   * \return reference to self.
+   */
+  Stage& env_threads(Array<IterVar> threads);
   /*!
    * \brief Split the parent by factor, generate
    * \param parent The parent iteration domain.
+   * \param factor The split factor of the loop.
    * \param p_outer The result outer domain
    * \param p_inner The result inner domain.
-   * \param factor The split factor of the loop.
    * \return reference to self.
    */
-  Stage& split(IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor);  // NOLINT(*)
+  Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
-   * \brief Split the iteration with a given outer domain,
-   *  the outer domain must have a thread-tag.
+   * \brief Split the iteration with given number of parts.
    *
    * \param parent The parent domain.
-   * \param outer The outer domain to be spliited, must have a thread_tag.
+   * \param nparts The number of parts in the outer domain.
+   * \param p_outer The result outer domain.
    * \param p_inner The result inner domain.
-   * \param factor Optional, the factor of the split,
-   *  factor must be provided such that factor * outer.extent >= parent.extent.
    * \return reference to self.
    */
-  Stage& split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor = Expr());   // NOLINT(*)
+  Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
    * \param inner The inner domain to be fused
@@ -123,25 +129,18 @@ class Stage : public NodeRef {
    *
    * \param x_parent The original x dimension
    * \param y_parent The original y dimension
+   * \param x_factor The stride factor on x axis
+   * \param y_factor The stride factor on y axis
    * \param p_x_outer Outer axis of x dimension
    * \param p_y_outer Outer axis of y dimension
    * \param p_x_inner Inner axis of x dimension
    * \param p_y_inner Inner axis of y dimension
-   * \param x_factor The stride factor on x axis
-   * \param y_factor The stride factor on y axis
    * \return reference to self.
    */
   Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
+              Expr x_factor, Expr y_factor,
               IterVar* p_x_outer, IterVar* p_y_outer,
-              IterVar* p_x_inner, IterVar* p_y_inner,
-              Expr x_factor, Expr y_factor);
-  /*!
-   * \brief Specify thread launching group in
-   *  outer most scope of the stage.
-   *  This is only valid for composite operators.
-   * \param threads The threads to be launched.
-   */
-  Stage& outermost_threads(Array<IterVar> threads);
+              IterVar* p_x_inner, IterVar* p_y_inner);
   /*!
    * \brief Vectorize iteration.
    * \param var The axis to be vectorized.
@@ -164,7 +163,15 @@ class Stage : public NodeRef {
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
-  inline bool is_scheduled() const;
+  bool is_scheduled() const;
+  /*!
+   * \brief Get attachment spec of current stage.
+   *  If the stage compute at Group root, this function
+   *  will traverse the group function to get the
+   *  final spec from the group.
+   * \return A stage representing the attach spec of the group.
+   */
+  Stage GetAttachSpec() const;
   // declare container type
   using ContainerType = StageNode;
 };
@@ -196,6 +203,18 @@ class Schedule : public NodeRef {
   Stage operator[](const Tensor& tensor) {
     return this->operator[](tensor->op);
   }
+  /*!
+   * \brief Create a new stage group for all intermediate
+   *  operations between inputs and outputs.
+   *
+   * \param outputs The output boundary of the group.
+   * \param inputs The input boundary of the group.
+   * \param include_inputs Whether include inputs if they are reachable from outputs.
+   * \return The new grouped stage.
+   */
+  Stage create_group(const Array<Tensor>& outputs,
+                     const Array<Tensor>& inputs,
+                     bool include_inputs = false);
   /*!
    * \brief create a cache read of original tensor for readers.
    *  This will mutate the body of the readers.
@@ -274,7 +293,6 @@ class IterVarRelation : public NodeRef {
 class IterVarAttr : public NodeRef {
  public:
   IterVarAttr() {}
-  explicit IterVarAttr(IterVarType t);
   explicit IterVarAttr(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
@@ -283,26 +301,27 @@ class IterVarAttr : public NodeRef {
   inline const IterVarAttrNode* operator->() const;
 };
 
-// defintion of node containers
 /*!
- * \brief represents the schedule of the tensor
+ * \brief represents a stage.
  *
- *  A schedule is a Directed acylic hypergraph.
+ *  relations form a Directed acylic hypergraph in bipartite manner.
  *  With each node is represented by a IterVar,
  *  and each hyper-edge is represented by a IterVarRelation.
- *
- *  The relations can be Split/Fuse.
- *
- *  The current data structure stores the hyper graph in its
- *  bipartite representation.
- *
  *  The relations connects the IterVars in the graph.
+ *
+ *  Besides typical stage that corresponds to operations.
+ *  There is also group stage, which groups stages together.
+ *  Each stage's group(given by group) represent an constraint,
+ *  the stage can only be attached to stages within the group.
+ *
+ *  The group stage node can be attached to IterVars as in normal stage.
  */
 class StageNode : public Node {
  public:
-  /*! \brief The thread scope level of the stage */
-  std::string scope;
-  /*! \brief The operation of stage, can be different from original op. */
+  /*!
+   * \brief The operation of stage, can be different from original op.
+   *  If it is null, then this stage is a group stage.
+   */
   Operation op;
   /*!
    * \brief The original operator.
@@ -312,42 +331,50 @@ class StageNode : public Node {
   Operation origin_op;
   /*! \brief All the nodes in the iter var */
   Array<IterVar> all_iter_vars;
-  /*!
-   * \brief The current leafs in the schedule.
-   *  Operations can only be performed in leaves.
-   */
+  /*! \brief The current active leaf iter vars in the stage. */
   Array<IterVar> leaf_iter_vars;
   /*!
    * \brief Specify threads to be launched at the stage.
    *  This is only valid for composite ops such as Scan.
    */
-  Array<IterVar> outermost_threads;
+  Array<IterVar> env_threads;
   /*! \brief The relation bwteen of IterVars */
   Array<IterVarRelation> relations;
   /*! \brief additional attributes about iter var. */
   Map<IterVar, IterVarAttr> iter_var_attrs;
   /*! \brief The attachment type of the schedule */
-  AttachType attach_type{kNone};
+  AttachType attach_type{kGroupRoot};
   /*! \brief The attach point of this schedule. */
   IterVar attach_ivar;
   /*! \brief The stage this node attaches to */
   Stage attach_stage;
+  /*! \brief The thread storage scope level of the stage */
+  std::string scope;
   /*! \brief Whether this is an output stage */
   bool is_output{false};
+  /*!
+   * \brief The parent group of the current stage.
+   *  The stage cannot be assigned to stages outside the group.
+   */
+  Stage group;
+  /*! \brief Number of direct child stages, only used for group stage.*/
+  int num_child_stages{0};
 
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("scope", &scope);
     v->Visit("op", &op);
     v->Visit("origin_op", &origin_op);
     v->Visit("all_iter_vars", &all_iter_vars);
     v->Visit("leaf_iter_vars", &leaf_iter_vars);
-    v->Visit("outermost_threads", &outermost_threads);
+    v->Visit("env_threads", &env_threads);
     v->Visit("relations", &relations);
     v->Visit("iter_var_attrs", &iter_var_attrs);
     v->Visit("attach_type", &attach_type);
     v->Visit("attach_ivar", &attach_ivar);
     v->Visit("attach_stage", &attach_stage);
+    v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
+    v->Visit("group", &group);
+    v->Visit("num_child_stages", &num_child_stages);
   }
 
   static constexpr const char* _type_key = "Stage";
@@ -360,18 +387,33 @@ class ScheduleNode : public Node {
   /*! \brief The output operations in original data flow graph */
   Array<Operation> outputs;
   /*!
-   * \brief list of all stages for non-placeholder ops.
+   * \brief list of all stages for ops.
    * The stages are sorted in dependency order.
    */
   Array<Stage> stages;
-  /*! \brief map of operation to the stages */
+  /*!
+   * \brief List of all stage groups.
+   */
+  Array<Stage> groups;
+  /*! \brief map of original operation to the stages */
   Map<Operation, Stage> stage_map;
+  /*!
+   * \brief Internal stage map to map internal ops to stages.
+   *  This is created on demand and can be invalidated.
+   */
+  std::unordered_map<const Node*, Stage> op2stage_cache_;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("outputs", &outputs);
     v->Visit("stages", &stages);
+    v->Visit("groups", &groups);
     v->Visit("stage_map", &stage_map);
   }
+
+  /*! \brief Initialize temp cache. */
+  void InitCache();
+  /*! \brief Invalidate temp cache. */
+  void InvalidateCache();
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
@@ -381,10 +423,13 @@ class ScheduleNode : public Node {
 class IterVarAttrNode : public Node {
  public:
   /*! \brief The iteration type. */
-  IterVarType iter_type;
+  IterVarType iter_type{kDataPar};
+  /*! \brief The thread this iter Var binds, can be null */
+  IterVar bind_thread;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("iter_type", &iter_type);
+    v->Visit("bind_thread", &bind_thread);
   }
 
   static constexpr const char* _type_key = "IterVarAttr";
@@ -412,17 +457,22 @@ class SplitNode : public IterVarRelationNode {
   IterVar inner;
   /*! \brief The split factor */
   Expr factor;
+  /*! \brief Number of parts, only factor or nparts can be given */
+  Expr nparts;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("parent", &parent);
     v->Visit("outer", &outer);
     v->Visit("inner", &inner);
     v->Visit("factor", &factor);
+    v->Visit("nparts", &nparts);
   }
 
-  static IterVarRelation make(
-      IterVar parent, IterVar outer,
-      IterVar inner, Expr factor);
+  static IterVarRelation make(IterVar parent,
+                              IterVar outer,
+                              IterVar inner,
+                              Expr factor,
+                              Expr nparts);
 
   static constexpr const char* _type_key = "Split";
   TVM_DECLARE_NODE_TYPE_INFO(SplitNode, IterVarRelationNode);
@@ -485,12 +535,6 @@ inline StageNode* Stage::operator->() {
   return static_cast<StageNode*>(node_.get());
 }
 
-inline bool Stage::is_scheduled() const {
-  const StageNode* n = operator->();
-  return !(n->relations.empty() && n->attach_type == kNone &&
-           n->all_iter_vars.same_as(n->leaf_iter_vars));
-}
-
 inline const ScheduleNode* Schedule::operator->() const {
   return static_cast<const ScheduleNode*>(node_.get());
 }
@@ -505,6 +549,5 @@ inline const IterVarRelationNode* IterVarRelation::operator->() const {
 inline const IterVarAttrNode* IterVarAttr::operator->() const {
   return static_cast<const IterVarAttrNode*>(node_.get());
 }
-
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_H_

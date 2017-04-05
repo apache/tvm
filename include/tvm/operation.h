@@ -253,6 +253,11 @@ class ScanOpNode : public OperationNode {
   /*! \brief The placeholder to refer as states in update. */
   Array<Tensor> state_placeholder;
   /*!
+   * \brief the inputs to the scan, these are optionally provided
+   *  But they can be helpful to provide hints to speedup get of scan body.
+   */
+  Array<Tensor> inputs;
+  /*!
    * \brief Spatial axis to indicate spatial dimension of each output.
    *  They corresponds to flattened spatial axis of the outputs.
    *
@@ -296,13 +301,15 @@ class ScanOpNode : public OperationNode {
     v->Visit("init", &init);
     v->Visit("update", &update);
     v->Visit("state_placeholder", &state_placeholder);
+    v->Visit("inputs", &inputs);
     v->Visit("spatial_axis_", &spatial_axis_);
   }
   static Operation make(std::string name,
                         IterVar axis,
                         Array<Tensor> init,
                         Array<Tensor> update,
-                        Array<Tensor> state_placeholder);
+                        Array<Tensor> state_placeholder,
+                        Array<Tensor> input);
 
   static constexpr const char* _type_key = "ScanOp";
   TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
@@ -388,16 +395,19 @@ Tensor placeholder(Array<Expr> shape,
 Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
 
 /*!
- * \brief Construct new tensors by scan over scan_axis.
+ * \brief Construct new tensors by scan.
  *
  * \param init The intialize tensor of first K steps.
  * \param update The update tensor indicated the updated result after each timestamp.
  * \param state_placeholder The placeholder for the states.
+ * \param inputs The inputs to the scan body, this is optional,
+ *    but recommended to provide concrete information about scan body.
  * \param name The optional name of the tensor.
  */
 Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
+                   Array<Tensor> inputs = {},
                    std::string name = "scan");
 
 // same as compute, specialized for different fcompute function

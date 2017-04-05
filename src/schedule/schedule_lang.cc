@@ -36,39 +36,28 @@ size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) 
   return 0;
 }
 
-void CheckSplit(StageNode* self, IterVar parent, IterVar outer) {
+void Split(StageNode* self,
+           IterVar parent,
+           Expr factor,
+           Expr nparts,
+           IterVar* p_outer,
+           IterVar* p_inner) {
   // Check if split is valid.
-  if (self->attach_type == kScanUpdate) {
-    CHECK(!parent.same_as(self->all_iter_vars[0]))
-        << "Cannot split on axis[0] of scan update";
-  }
-  if (outer.defined()) {
-    if (outer->iter_type == kThreadIndex) {
-      CHECK_EQ(parent->iter_type, kDataPar)
-          << "Split by by kThreadIndex requires kDataPar IterVar "
-          << " given " << IterVarType2String(parent->iter_type);
-    } else if (outer->iter_type == kCommReduce) {
-      CHECK_EQ(parent->iter_type, kCommReduce)
-          << "Split by by kCommReduce requires kCommReduce IterVar "
-          << " given " << IterVarType2String(parent->iter_type);
-    } else {
-      LOG(FATAL) << "Cannot take " << IterVarType2String(parent->iter_type)
-                 << " as outer IterVar";
-    }
-  } else {
-    CHECK(parent->iter_type == kDataPar ||
-          parent->iter_type == kCommReduce ||
-          parent->iter_type == kOrdered)
-        << "Cannot split on " << IterVarType2String(parent->iter_type);
-  }
-}
-
-void Split(StageNode* self, IterVar parent,
-           IterVar outer, IterVar inner, Expr factor) {
+  CHECK(parent->iter_type == kDataPar ||
+        parent->iter_type == kCommReduce ||
+        parent->iter_type == kOrdered)
+      << "Cannot split on " << IterVarType2String(parent->iter_type);
+  IterVar outer = IterVarNode::make(
+      Range(), parent->var.copy_with_suffix(".outer"), parent->iter_type);
+  IterVar inner = IterVarNode::make(
+      Range(), parent->var.copy_with_suffix(".inner"), parent->iter_type);
+  *p_outer = outer;
+  *p_inner = inner;
+  // The splits
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
-  self->relations.push_back(SplitNode::make(parent, outer, inner, factor));
+  self->relations.push_back(SplitNode::make(parent, outer, inner, factor, nparts));
   // add vars to all vars
   all_vars->data.push_back(outer.node_);
   all_vars->data.push_back(inner.node_);
@@ -98,6 +87,21 @@ Stage::Stage(Operation op) {
   node_ = n;
 }
 
+bool Stage::is_scheduled() const {
+  const StageNode* n = operator->();
+  return !(n->relations.empty() && n->attach_type == kGroupRoot &&
+           n->all_iter_vars.same_as(n->leaf_iter_vars));
+}
+
+Stage Stage::GetAttachSpec() const {
+  Stage attach_spec = *this;
+  while (attach_spec->attach_type == kGroupRoot &&
+         attach_spec->group.defined()) {
+    attach_spec = attach_spec->group;
+  }
+  return attach_spec;
+}
+
 Stage& Stage::set_scope(std::string scope) {  // NOLINT(*)
   (*this)->scope = scope;
   return *this;
@@ -106,6 +110,17 @@ Stage& Stage::set_scope(std::string scope) {  // NOLINT(*)
 Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
   CHECK_NE((*this)->attach_type, kScanUpdate)
       << "Cannot specify compute_at for scan updates";
+  // Group constraint checking.
+  Stage group = (*this)->group;
+  if (group.defined()) {
+    Stage pg = parent->group;
+    while (pg.defined() && !pg.same_as(group)) {
+      pg = pg->group;
+    }
+    CHECK(pg.same_as(group))
+        << "Can only assign compute_at to stages within the same group";
+  }
+
   (*this)->attach_type = kScope;
   (*this)->attach_ivar = scope;
   (*this)->attach_stage = parent;
@@ -117,7 +132,7 @@ Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
   }
   CHECK(found)
       << "Cannot find the axis " << scope
-      << " in parent's leaf_iter_vars or outermost_threads:"
+      << " in parent's leaf_iter_vars"
       << " parent=" << parent;
   return *this;
 }
@@ -132,61 +147,73 @@ Stage& Stage::compute_inline() {   // NOLINT(*)
 Stage& Stage::compute_root() {   // NOLINT(*)
   CHECK_NE((*this)->attach_type, kScanUpdate)
       << "Cannot specify compute_at for scan updates";
-  (*this)->attach_type = kRoot;
+  (*this)->attach_type = kGroupRoot;
   return *this;
 }
 
-Stage& Stage::rebase(IterVar parent, IterVar rebased) {  // NOLINT(*)
-  CHECK(parent->iter_type == kDataPar ||
-        parent->iter_type == kCommReduce)
-      << "Cannot rebase " << IterVarType2String(parent->iter_type);
-  CHECK(rebased->iter_type == kThreadIndex)
-      << "Cannot rebase by " << IterVarType2String(rebased->iter_type)
+Stage& Stage::bind(IterVar ivar, IterVar thread_ivar) {   // NOLINT(*)
+  StageNode* self = operator->();
+  CHECK(ivar->iter_type == kDataPar ||
+        ivar->iter_type == kCommReduce)
+      << "Cannot bind " << IterVarType2String(ivar->iter_type) << " to thread";
+  CHECK(thread_ivar->iter_type == kThreadIndex)
+      << "Cannot rebase by " << IterVarType2String(ivar->iter_type)
       << ", only thread axis is allowed so far";
-  ArrayNode* all_vars = (*this)->all_iter_vars.CopyOnWrite();
-  ArrayNode* leaf_vars = (*this)->leaf_iter_vars.CopyOnWrite();
-  size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
-  (*this)->relations.push_back(RebaseNode::make(parent, rebased));
-  // add vars to all vars
-  all_vars->data.push_back(rebased.node_);
-  // replace the position.
-  leaf_vars->data.erase(leaf_vars->data.begin() + pos);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, rebased.node_);
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  FindLeafVar(all_vars, leaf_vars, ivar);
+
+  auto it = self->iter_var_attrs.find(ivar);
+  std::shared_ptr<IterVarAttrNode> n;
+  if (it != self->iter_var_attrs.end()) {
+    n = std::make_shared<IterVarAttrNode>(*(*it).second.operator->());
+    if (n->bind_thread.defined() &&
+        !n->bind_thread.same_as(thread_ivar)) {
+      LOG(WARNING) << "Axis " << ivar
+                   << " is already bind to another thread " << n->bind_thread;
+    }
+  } else {
+    n = std::make_shared<IterVarAttrNode>();
+  }
+  n->bind_thread = thread_ivar;
+  self->iter_var_attrs.Set(ivar, IterVarAttr(n));
+  return *this;
+}
+
+Stage& Stage::env_threads(Array<IterVar> threads) {
+  StageNode* self = operator->();
+  CHECK(self->op.defined() && self->op.as<ScanOpNode>())
+      << "env_threads is only valid for composite ops such as ScanOp";
+  CHECK_EQ(self->env_threads.size(), 0U)
+      << "Already set env_threads";
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  std::vector<std::shared_ptr<Node> > temp;
+  for (IterVar iv : threads) {
+    temp.push_back(iv.node_);
+  }
+  leaf_vars->data.insert(
+      leaf_vars->data.begin(), temp.begin(), temp.end());
+  all_vars->data.insert(
+      all_vars->data.end(), temp.begin(), temp.end());
+  self->env_threads = threads;
   return *this;
 }
 
 Stage& Stage::split(
-    IterVar parent, IterVar* p_outer, IterVar* p_inner, Expr factor) {  // NOLINT(*)
-  CheckSplit(operator->(), parent, IterVar());
-  IterVar outer = IterVarNode::make(
-      Range(), parent->var.copy_with_suffix(".outer"), parent->iter_type);
-  IterVar inner = IterVarNode::make(
-      Range(), parent->var.copy_with_suffix(".inner"), parent->iter_type);
-  *p_outer = outer;
-  *p_inner = inner;
-  Split(operator->(), parent, outer, inner, factor);
+    IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner) {  // NOLINT(*)
+  Split(operator->(), parent, factor, Expr(), p_outer, p_inner);
   return *this;
 }
 
-Stage& Stage::split(IterVar parent, IterVar outer, IterVar* p_inner, Expr factor) { // NOLINT(*)
-  CheckSplit(operator->(), parent, outer);
-  std::string name_inner = parent->var->name_hint + ".inner";
-  IterVar inner = IterVarNode::make(
-      Range(), Var(name_inner, parent->var.type()), parent->iter_type);
-  *p_inner = inner;
-  Split(operator->(), parent, outer, inner, factor);
-
+Stage& Stage::split_by_nparts(
+    IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner) { // NOLINT(*)
+  Split(operator->(), parent, Expr(), nparts, p_outer, p_inner);
   return *this;
 }
 
 Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
   StageNode* self = operator->();
-  if (self->attach_type == kScanUpdate) {
-    CHECK(!inner.same_as(self->all_iter_vars[0]))
-        << "Cannot fuse on axis[0] of scan update";
-    CHECK(!outer.same_as(self->all_iter_vars[0]))
-        << "Cannot fuse on axis[0] of scan update";
-  }
   CHECK(outer->iter_type == kDataPar ||
         outer->iter_type == kCommReduce ||
         outer->iter_type == kOrdered)
@@ -236,10 +263,6 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   std::vector<size_t> pos;
 
   for (size_t i = 0; i < order.size(); ++i) {
-    if ((*this)->attach_type == kScanUpdate) {
-      CHECK(!order[i].same_as(self->all_iter_vars[0]))
-          << "Cannot split on axis[0] of scan update";
-    }
     pos.push_back(FindLeafVar(all_vars, leaf_vars, order[i]));
   }
   std::vector<std::shared_ptr<Node> > temp;
@@ -254,66 +277,48 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
 }
 
 Stage& Stage::tile(IterVar x_parent, IterVar y_parent,
+                   Expr x_factor, Expr y_factor,
                    IterVar* p_x_outer, IterVar* p_y_outer,
-                   IterVar* p_x_inner, IterVar* p_y_inner,
-                   Expr x_factor, Expr y_factor) { // NOLINT(*)
-  split(x_parent, p_x_outer, p_x_inner, x_factor);
-  split(y_parent, p_y_outer, p_y_inner, y_factor);
+                   IterVar* p_x_inner, IterVar* p_y_inner) {
+  split(x_parent, x_factor, p_x_outer, p_x_inner);
+  split(y_parent, y_factor, p_y_outer, p_y_inner);
   reorder(Array<IterVar>({*p_x_outer, *p_y_outer, *p_x_inner, *p_y_inner}));
   return *this;
 }
 
-Stage& Stage::outermost_threads(Array<IterVar> threads) {
-  StageNode* self = operator->();
-  CHECK(self->op.as<ScanOpNode>())
-      << "outermost_threads is only valid for composite ops such as ScanOp";
-  CHECK_EQ(self->outermost_threads.size(), 0U)
-      << "Already set outermost_threads";
-  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  std::vector<std::shared_ptr<Node> > temp;
-  for (IterVar iv : threads) {
-    temp.push_back(iv.node_);
-  }
-  leaf_vars->data.insert(
-      leaf_vars->data.begin(), temp.begin(), temp.end());
-  all_vars->data.insert(
-      all_vars->data.end(), temp.begin(), temp.end());
-  (*this)->outermost_threads = threads;
-  return *this;
-}
-
-inline void SetAttr(StageNode* self, IterVar var, IterVarAttr attr) {
+inline void SetAttrIterType(StageNode* self, IterVar var, IterVarType iter_type) {
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   FindLeafVar(all_vars, leaf_vars, var);
   auto it = self->iter_var_attrs.find(var);
+  std::shared_ptr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    CHECK_EQ((*it).second->iter_type, attr->iter_type)
-        << "IterVar's is already set to "
-        << (*it).second << " instead of " << attr;
+    n = std::make_shared<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    self->iter_var_attrs.Set(var, attr);
+    n = std::make_shared<IterVarAttrNode>();
   }
+  n->iter_type = iter_type;
+  self->iter_var_attrs.Set(var, IterVarAttr(n));
 }
 
 Stage& Stage::vectorize(IterVar var) {   // NOLINT(*)
-  SetAttr(operator->(), var, IterVarAttr(kVectorized));
+  SetAttrIterType(operator->(), var, kVectorized);
   return *this;
 }
 
 Stage& Stage::unroll(IterVar var) {   // NOLINT(*)
-  SetAttr(operator->(), var, IterVarAttr(kUnrolled));
+  SetAttrIterType(operator->(), var, kUnrolled);
   return *this;
 }
 
 Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
-  SetAttr(operator->(), var, IterVarAttr(kParallelized));
+  SetAttrIterType(operator->(), var, kParallelized);
   return *this;
 }
 
 Schedule::Schedule(Array<Operation> ops) {
   auto n = std::make_shared<ScheduleNode>();
+  node_ = n;
   n->outputs = ops;
   auto g = schedule::CreateReadGraph(n->outputs);
   Array<Operation> post_order = schedule::PostDFSOrder(n->outputs, g);
@@ -330,14 +335,24 @@ Schedule::Schedule(Array<Operation> ops) {
     // mark scan updates.
     if (op.as<ScanOpNode>()) {
       const ScanOpNode* scan = op.as<ScanOpNode>();
+      Array<Tensor> inputs;
+      for (Tensor t : scan->state_placeholder) {
+        inputs.push_back(t);
+      }
+      for (Tensor t : scan->inputs) {
+        inputs.push_back(t);
+      }
+      // Create the scan group.
+      Stage scan_group = create_group(scan->update, inputs, false);
+      scan_group->attach_type = kScanUpdate;
+      scan_group->attach_stage = stage;
+
       for (size_t i = 0; i < scan->update.size(); ++i) {
         Stage s = n->stage_map[scan->update[i]->op];
-        s->attach_type = kScanUpdate;
-        s->attach_stage = stage;
+        CHECK(scan_group.same_as(s->group));
       }
     }
   }
-  node_ = std::move(n);
 }
 
 Stage Schedule::operator[](const Operation& op) {
@@ -348,14 +363,174 @@ Stage Schedule::operator[](const Operation& op) {
   return (*it).second;
 }
 
-IterVarRelation SplitNode::make(
-    IterVar parent, IterVar outer,
-    IterVar inner, Expr factor) {
+Stage LeastCommonAncestor(Stage g1, Stage g2) {
+  if (!g1.defined()) return g1;
+  if (!g2.defined()) return g2;
+  if (g1.same_as(g2)) return g1;
+  Stage g = g1;
+  while (g.defined()) {
+    if (g.same_as(g2)) return g2;
+    g = g->group;
+  }
+  g = g2;
+  while (g.defined()) {
+    if (g.same_as(g1)) return g1;
+    g = g->group;
+  }
+  return g;
+}
+
+Array<Tensor> RemapTensor(ScheduleNode* self,
+                          const Array<Tensor>& arr) {
+  self->InitCache();
+  const auto& op2stage_cache = self->op2stage_cache_;
+  Array<Tensor> ret;
+  for (Tensor t : arr) {
+    if (!op2stage_cache.count(t->op.get())) {
+      CHECK(self->stage_map.count(t->op))
+          << "Given tensor is not in the schedule plan";
+      t = self->stage_map[t->op]->op.output(t->value_index);
+    }
+    ret.push_back(t);
+  }
+  return ret;
+}
+
+// Group the schedule stages.
+Stage Schedule::create_group(const Array<Tensor>& outputs,
+                             const Array<Tensor>& inputs,
+                             bool include_inputs) {
+  ScheduleNode* self = operator->();
+  self->InitCache();
+  const auto& op2stage_cache = self->op2stage_cache_;
+  // Get the ops.
+  Array<Operation> ops = schedule::GetSubGraph(
+      RemapTensor(self, outputs),
+      RemapTensor(self, inputs),
+      include_inputs);
+  // local counter entry
+  // Automatically initialize to 0 during creation.
+  struct Entry {
+    int count{0};
+  };
+  // Map of group->touched counter
+  std::unordered_map<Stage, Entry, NodeHash, NodeEqual> counter;
+  // The parent group;
+  Stage parent_group;
+  // Detect common parent and child.
+  for (size_t i = 0; i < ops.size(); ++i) {
+    Operation op = ops[i];
+    auto it = op2stage_cache.find(op.get());
+    CHECK(it != op2stage_cache.end());
+    Stage op_group = it->second->group;
+    if (i == 0) {
+      parent_group = op_group;
+    } else {
+      parent_group = LeastCommonAncestor(parent_group, op_group);
+    }
+    if (op_group.defined()) {
+      ++counter[op_group].count;
+    }
+  }
+  // Create the new group stage.
+  Stage gstage(std::make_shared<StageNode>());
+  gstage->group = parent_group;
+  if (parent_group.defined()) {
+    ++parent_group->num_child_stages;
+  }
+  // Propagate the counter statistics from by checking if subgroup
+  // Is full and propagate.
+  std::vector<Stage> stack;
+  for (auto &kv : counter) {
+    if (!kv.first.same_as(parent_group)) {
+      if (kv.first->num_child_stages == kv.second.count) {
+        stack.push_back(kv.first);
+      }
+    }
+  }
+  while (!stack.empty()) {
+    Stage g = stack.back();
+    stack.pop_back();
+    if (g->group.defined() && !g->group.same_as(parent_group)) {
+      Entry& e = counter[g->group];
+      ++e.count;
+      if (e.count == g->group->num_child_stages) {
+        stack.push_back(g->group);
+      }
+    }
+  }
+  // Verification and remappig the subgroups.
+  for (auto &kv : counter) {
+    if (kv.first.same_as(parent_group)) continue;
+    CHECK_EQ(kv.first->num_child_stages, kv.second.count)
+        << "Trying to group region that intersect with an already existed group";
+    if (kv.first->group.same_as(parent_group)) {
+      Stage s = kv.first;
+      s->group = gstage;
+      ++gstage->num_child_stages;
+      if (parent_group.defined()) {
+        --parent_group->num_child_stages;
+      }
+    }
+  }
+  // Remap the group of op stages.
+  for (Operation op : ops) {
+    auto it = op2stage_cache.find(op.get());
+    CHECK(it != op2stage_cache.end());
+    Stage s = it->second;
+    if (s->group.same_as(parent_group)) {
+      s->group = gstage;
+      ++gstage->num_child_stages;
+      if (parent_group.defined()) {
+        --parent_group->num_child_stages;
+      }
+    }
+  }
+  // Correct the attach to keep everything in group.
+  for (Operation op : ops) {
+    auto it = op2stage_cache.find(op.get());
+    CHECK(it != op2stage_cache.end());
+    Stage s = it->second;
+    if (s->attach_type == kScope) {
+      Stage cg = LeastCommonAncestor(s->attach_stage->group, gstage);
+      if (!cg.same_as(gstage)) {
+        LOG(WARNING) << "group invalidates some previous compute_at relation "
+                     << " and keeps things to be computed inside the group";
+        s.compute_root();
+      }
+    }
+  }
+
+  self->groups.push_back(gstage);
+  return gstage;
+}
+
+void ScheduleNode::InvalidateCache() {
+  op2stage_cache_.clear();
+}
+
+void ScheduleNode::InitCache() {
+  if (op2stage_cache_.size() == stages.size()) return;
+  InvalidateCache();
+  for (Stage s : stages) {
+    if (s->op.defined()) {
+      op2stage_cache_[s->op.get()] = s;
+    }
+  }
+  CHECK_EQ(op2stage_cache_.size(), stages.size());
+}
+
+IterVarRelation SplitNode::make(IterVar parent,
+                                IterVar outer,
+                                IterVar inner,
+                                Expr factor,
+                                Expr nparts) {
   auto n = std::make_shared<SplitNode>();
   n->parent = parent;
   n->outer = outer;
   n->inner = inner;
   n->factor = factor;
+  n->nparts = nparts;
   return IterVarRelation(n);
 }
 
@@ -375,12 +550,6 @@ IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
   return IterVarRelation(n);
 }
 
-IterVarAttr::IterVarAttr(IterVarType t) {
-  std::shared_ptr<IterVarAttrNode> n = std::make_shared<IterVarAttrNode>();
-  n->iter_type = t;
-  node_ = n;
-}
-
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(IterVarAttrNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
@@ -391,7 +560,11 @@ TVM_REGISTER_NODE_TYPE(ScheduleNode);
 // Printer
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<StageNode>([](const StageNode *op, IRPrinter *p) {
-    p->stream << "stage(" << op->origin_op->name << ", " << op << ")";
+    if (op->op.defined()) {
+      p->stream << "stage(" << op->origin_op->name << ", " << op << ")";
+    } else {
+      p->stream << "group-stage(" << op << ")";
+    }
 })
 .set_dispatch<IterVarAttrNode>([](const IterVarAttrNode *op, IRPrinter *p) {
     p->stream << IterVarType2String(op->iter_type);

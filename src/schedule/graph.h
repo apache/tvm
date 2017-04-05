@@ -37,6 +37,23 @@ using AttachPath = Map<Operation, Array<IterVar> >;
 ReadGraph CreateReadGraph(const Array<Operation>& roots);
 
 /*!
+ * \brief Get minimum subgraph between outputs and inputs.
+ *  The operations contains node which input-reachable from any inputs
+ *  output reachable to any outputs.
+ *
+ *  The inputs won't be included in the subgraph, the outputs will be inclued.
+ *
+ * \param outputs The outputs of the subgraph
+ * \param inputs The inputs to the subgraph.
+ * \param include_inputs Whether to include inputs
+ *
+ * \return The subgraph.
+ */
+Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
+                             const Array<Tensor>& inputs,
+                             bool include_inputs);
+
+/*!
  * \brief Get a post DFS ordered of operations in the graph.
  * \param roots The root of the graph.
  * \param g The read graph.

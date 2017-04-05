@@ -15,10 +15,12 @@ def test_scan():
     num_thread = 256
     block_x = tvm.thread_axis(None, "blockIdx.x")
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    _, x = s[s_init].split(s_init.op.axis[1], factor=num_thread, outer=block_x)
-    _, x = s[s_init].split(x, outer=thread_x)
-    _, x = s[s_update].split(s_update.op.axis[1], factor=num_thread, outer=block_x)
-    _, x = s[s_update].split(x, outer=thread_x)
+    xo, xi = s[s_init].split(s_init.op.axis[1], factor=num_thread)
+    s[s_init].bind(xo, block_x)
+    s[s_init].bind(xi, thread_x)
+    xo, xi = s[s_update].split(s_update.op.axis[1], factor=num_thread)
+    s[s_update].bind(xo, block_x)
+    s[s_update].bind(xi, thread_x)
 
     # one line to build the function.
     def check_device(device, host="stackvm"):

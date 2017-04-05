@@ -55,6 +55,7 @@ void ReplaceDataFlow(const Array<Stage>& stages,
 Tensor Schedule::cache_read(const Tensor& tensor,
                             const std::string& scope,
                             const Array<Operation>& readers) {
+  (*this)->InvalidateCache();
   // create identity mapping.
   std::ostringstream os;
   os << tensor->op->name;
@@ -81,18 +82,25 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   }
   ReplaceDataFlow((*this)->stages, &vmap);
   ArrayNode* stages = (*this)->stages.CopyOnWrite();
-  size_t pos = FindNodeRef(stages, operator[](tensor->op));
+  Stage op_stage = operator[](tensor->op);
+  size_t pos = FindNodeRef(stages, op_stage);
   Stage cache_stage = Stage(cache->op);
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos + 1,
                       cache_stage.node_);
   (*this)->stage_map.Set(cache->op, cache_stage);
+  // Update group
+  cache_stage->group = op_stage->group;
+  if (cache_stage->group.defined()) {
+    ++cache_stage->group->num_child_stages;
+  }
   return cache;
 }
 
 Tensor Schedule::cache_write(const Tensor& tensor,
                              const std::string& scope) {
+  (*this)->InvalidateCache();
   Stage orig_stage = operator[](tensor->op);
   const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
   CHECK(compute)
@@ -123,7 +131,6 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   std::unordered_map<Tensor, Tensor> vmap;
   vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
   ReplaceDataFlow((*this)->stages, &vmap);
-
   // mutate orig stage
   orig_stage->op = orig_new_op;
   orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
@@ -137,6 +144,11 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   stages->data.insert(stages->data.begin() + pos,
                       cache_stage.node_);
   (*this)->stage_map.Set(cache_op, cache_stage);
+  // Update group
+  cache_stage->group = orig_stage->group;
+  if (cache_stage->group.defined()) {
+    ++cache_stage->group->num_child_stages;
+  }
   return cache_tensor;
 }
 
@@ -150,6 +162,11 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
     }
     if (s->op.as<ScanOpNode>()) {
       attach_mark[s.get()] = 1;
+    }
+  }
+  for (Stage s : sch->groups) {
+    if (s->attach_type == kScope) {
+      attach_mark[s->attach_stage.get()] = 1;
     }
   }
 
@@ -176,6 +193,12 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       s->attach_ivar = rebase_map.at(s->attach_ivar);
     }
   }
+  for (Stage s : sch->groups) {
+    if (s->attach_type != kScope) continue;
+    if (rebase_map.count(s->attach_ivar)) {
+      s->attach_ivar = rebase_map.at(s->attach_ivar);
+    }
+  }
 }
 
 void SetScanAttach(const Schedule& sch) {  // NOLINT(*)
@@ -188,8 +211,8 @@ void SetScanAttach(const Schedule& sch) {  // NOLINT(*)
   }
 }
 
-
-void InjectInline(const Schedule& sch) {
+void InjectInline(ScheduleNode* sch) {
+  sch->InvalidateCache();
   std::vector<Expr> new_body(sch->stages.size());
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
@@ -241,12 +264,13 @@ void InjectInline(const Schedule& sch) {
 void Schedule::normalize() {
   RebaseNonZeroMinLoop(*this);
   SetScanAttach(*this);
-  InjectInline(*this);
+  InjectInline(operator->());
 }
 
 // Handle reduction factor.
 Tensor Schedule::rfactor(const Tensor& tensor,
                          const IterVar& axis) {
+  (*this)->InvalidateCache();
   using ir::Reduce;
   CHECK_EQ(axis->iter_type, kCommReduce)
       << "Can only factor reduction axis";

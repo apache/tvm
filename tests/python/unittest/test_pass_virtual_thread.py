@@ -7,8 +7,9 @@ def test_virtual_thread():
     A2 = tvm.compute((m,), lambda i: A1[i] + 3, name='A2')
 
     s = tvm.Schedule(A2.op)
-    vx = tvm.thread_axis((0, 2), "vthread", name="vx")
-    xo, xi = s[A2].split(A2.op.axis[0], outer=vx)
+    vx = tvm.thread_axis("vthread", name="vx")
+    xo, xi = s[A2].split(A2.op.axis[0], nparts=2)
+    s[A2].bind(xo, vx)
     xo, xi = s[A2].split(xi, 8)
     s[A1].compute_at(s[A2], xo)
 

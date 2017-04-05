@@ -41,6 +41,30 @@ class Schedule(NodeBase):
         """
         _api_internal._ScheduleNormalize(self)
 
+    def create_group(self, outputs, inputs, include_inputs=False):
+        """Create stage group by giving output and input boundary.
+
+        The operators between outputs and inputs are placed as member of group.
+        outputs are include in the group, while inputs are not included.
+
+        Parameters
+        ----------
+        outputs : list of Tensors
+            The outputs of the group.
+
+        inputs : list of Tensors
+            The inputs of the group.
+
+        include_inputs : boolean, optional
+            Whether include input operations in the group if they are used by outputs.
+        """
+        if isinstance(outputs, _tensor.Tensor):
+            outputs = [outputs]
+        if isinstance(inputs, _tensor.Tensor):
+            inputs = [inputs]
+        return _api_internal._ScheduleCreateGroup(
+            self, outputs, inputs, include_inputs)
+
     def cache_read(self, tensor, scope, readers):
         """Create a cache read of original tensor for readers.
 
@@ -112,25 +136,7 @@ class Schedule(NodeBase):
 @register_node
 class Stage(NodeBase):
     """A Stage represents schedule for one operation."""
-    def rebase(self, parent, rebased):
-        """Rebase parent  by an existing thread axis.
-
-        Parameters
-        ----------
-        parent : IterVar
-             The parent iter var.
-
-        rebased : IterVar
-             The rebased iter var.
-        Returns
-        -------
-        rebased : IterVar
-            The rebased itervar.
-        """
-        _api_internal._StageRebase(self, parent, rebased)
-        return rebased
-
-    def split(self, parent, factor=None, outer=None):
+    def split(self, parent, factor=None, nparts=None):
         """Split the stage either by factor providing outer scope, or both
 
         Parameters
@@ -141,8 +147,8 @@ class Stage(NodeBase):
         factor : Expr, optional
              The splitting factor
 
-        outer : IterVar, optional
-             The outer split variable
+        nparts : Expr, optional
+             The number of outer parts.
 
         Returns
         -------
@@ -152,11 +158,13 @@ class Stage(NodeBase):
         inner : IterVar
             The inner variable of iteration.
         """
-        if outer is not None:
-            inner = _api_internal._StageSplitByOuter(self, parent, outer, factor)
+        if nparts is not None:
+            if factor is not None:
+                raise ValueError("Donot need to provide both outer and nparts")
+            outer, inner = _api_internal._StageSplitByNParts(self, parent, nparts)
         else:
             if factor is None:
-                raise ValueError("either outer or factor need to be provided")
+                raise ValueError("Either nparts or factor need to be provided")
             outer, inner = _api_internal._StageSplitByFactor(self, parent, factor)
         return outer, inner
 
@@ -188,8 +196,21 @@ class Stage(NodeBase):
         """
         return _api_internal._StageSetScope(self, scope)
 
-    def outermost_threads(self, threads):
-        """Force launch threads at outermost scope of the stage.
+    def bind(self, ivar, thread_ivar):
+        """Bind ivar to thread index thread_ivar
+
+        Parameters
+        ----------
+        ivar : IterVar
+            The iteration to be binded to thread.
+
+        thread_ivar : IterVar
+            The thread to be binded.
+        """
+        _api_internal._StageBind(self, ivar, thread_ivar)
+
+    def env_threads(self, threads):
+        """Mark threads to be launched at the outer scope of composed op.
 
         Parameters
         ----------
@@ -198,7 +219,7 @@ class Stage(NodeBase):
         """
         if isinstance(threads, _collections.IterVar):
             threads = [threads]
-        _api_internal._StageOutermostThreads(self, threads)
+        _api_internal._StageEnvThreads(self, threads)
 
     def compute_at(self, parent, scope):
         """Attach the stage at parent's scope
