@@ -53,8 +53,27 @@ def test_multi_if():
     assert('if' not in str(stmt.body.first))
     print(stmt)
 
+def test_thread_axis():
+    m = tvm.Var('m')
+    l = tvm.Var('l')
+    A = tvm.placeholder((m, l), name='A')
+    B = tvm.compute((m, l), lambda i, j: A[i, j] + 3, name='B')
+
+    s = tvm.Schedule(B.op)
+
+    s[B].set_scope("shared")
+    thread_x = tvm.thread_axis((0, 16), "threadIdx.x")
+    xo, xi = s[B].split(B.op.axis[0], 32)
+    xi0, xi1 = s[B].split(xi, outer=thread_x)
+
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    stmt_ = tvm.ir_pass.LoopPartition(stmt)
+    assert('if' not in str(stmt_.body.body.body.first))
+    print(stmt_)
 
 if __name__ == "__main__":
     test_basic()
     test_multi_loop()
     test_multi_if()
+    test_thread_axis()
