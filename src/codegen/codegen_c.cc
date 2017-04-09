@@ -654,7 +654,7 @@ void CodeGenC::VisitStmt_(const Allocate* op) {
 }
 
 void CodeGenC::VisitStmt_(const AttrStmt* op) {
-  if (op->type_key == ir::attr::thread_extent) {
+  if (op->attr_key == ir::attr::thread_extent) {
     IterVar iv(op->node.node_);
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
@@ -667,11 +667,11 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
         stream << ";\n";
       }
     }
-  } else if (op->type_key == ir::attr::storage_scope) {
+  } else if (op->attr_key == ir::attr::storage_scope) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
-  } else if (op->type_key == ir::attr::volatile_scope) {
+  } else if (op->attr_key == ir::attr::volatile_scope) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
     volatile_buf_.insert(v);
