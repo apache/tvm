@@ -182,7 +182,6 @@ void ScanOpNode::PropBoundToInputs(
 
 void ScanOpNode::GatherBound(
     const Operation& self,
-    const GraphContext& graph_ctx,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
@@ -203,8 +202,7 @@ void ScanOpNode::GatherBound(
   Range r = arith::Union(time_dom).cover_range(sdom);
   (*out_dom_map)[this->scan_axis] = Range::make_with_min_extent(
       sdom->min, ir::Simplify(r->extent + r->min - sdom->min));
-  Array<Operation> body = ScanGetBody_(this, graph_ctx.feed_graph);
-  Map<IterVar, Expr> fix_pt = ScanFixPointAnalysis(self, body);
+  Map<IterVar, Expr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
   for (size_t i = 0; i < output.size(); ++i) {

@@ -132,7 +132,6 @@ void ComputeOpNode::PropBoundToInputs(
 
 void ComputeOpNode::GatherBound(
     const Operation& self,
-    const GraphContext& graph_ctx,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
   const TensorDom& tdom = tensor_dom.at(self.output(0));

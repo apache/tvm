@@ -33,7 +33,6 @@ Array<Expr> PlaceholderOpNode::output_shape(size_t i) const {
   return shape;
 }
 
-
 Operation PlaceholderOpNode::make(std::string name,
                                   Array<Expr> shape,
                                   Type dtype) {
@@ -66,7 +65,6 @@ void PlaceholderOpNode::PropBoundToInputs(
 
 void PlaceholderOpNode::GatherBound(
     const Operation& self,
-    const GraphContext& graph_ctx,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
 }

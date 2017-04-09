@@ -266,53 +266,22 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
   return reach;
 }
 
-// Get all the operations that forms body of scan
-void ScanGetBodyPostDFS_(
-    Operation op,
-    const ScanOpNode* scan,
-    const FeedGraph& feed_graph,
-    std::unordered_set<const Node*>* visited,
-    Array<Operation>* result) {
-  if (op.get() == scan) return;
-  bool empty_feed = true;
-  for (int i = 0; i < op->num_outputs(); ++i) {
-    auto it = feed_graph.find(op.output(i));
-    if (it != feed_graph.end() && it->second.size()) {
-      empty_feed = false;
-      for (const Operation& xop : it->second) {
-        if (visited->count(xop.get())) continue;
-        visited->insert(xop.get());
-        ScanGetBodyPostDFS_(xop, scan, feed_graph, visited, result);
-        result->push_back(xop);
-      }
-    }
-  }
-  if (empty_feed && op.get() != scan) {
-    LOG(FATAL) << "Bad scan body, tensor reads scan_state but not connect to scan";
-  }
-}
-
-Array<Operation> ScanGetBody_(
-    const ScanOpNode* scan,
-    const FeedGraph& feed_graph) {
-  CHECK(scan != nullptr);
-  std::unordered_set<const Node*> visited;
-  Array<Operation> result;
-  for (Tensor t : scan->state_placeholder) {
-    ScanGetBodyPostDFS_(t->op, scan, feed_graph, &visited, &result);
-  }
-  return result;
-}
-
-Array<Operation> ScanGetBody(const Operation& scan) {
-  return ScanGetBody_(scan.as<ScanOpNode>(),
-                      CreateFeedGraph(CreateReadGraph({scan})));
-}
-
-Map<IterVar, Expr> ScanFixPointAnalysis(
-    const Operation& scan_op, const Array<Operation>& body) {
+Array<Operation> ScanGetBody(const Operation& scan_op) {
   const ScanOpNode* scan = scan_op.as<ScanOpNode>();
-  CHECK(body[0].get() == scan);
+  // Get the body.
+  Array<Tensor> inputs;
+  for (Tensor t : scan->state_placeholder) {
+    inputs.push_back(t);
+  }
+  for (Tensor t : scan->inputs) {
+    inputs.push_back(t);
+  }
+  return GetSubGraph(scan->update, inputs, false);
+}
+
+Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
+  const ScanOpNode* scan = scan_op.as<ScanOpNode>();
+  Array<Operation> body = ScanGetBody(scan_op);
 
   std::unordered_map<TensorDimKey, const Node*> exact_reach;
   std::unordered_set<const Node*> fail_set;
@@ -339,8 +308,8 @@ Map<IterVar, Expr> ScanFixPointAnalysis(
     }
   };
   // prop exact reach back.
-  for (size_t i = body.size(); i != 1; --i) {
-    const Operation& op = body[i - 1];
+  for (size_t i = 0; i < body.size(); ++i) {
+    const Operation& op = body[i];
     if (op.as<ScanOpNode>()) {
       const auto& update = op.as<ScanOpNode>()->update;
       const auto& init = op.as<ScanOpNode>()->init;

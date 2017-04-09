@@ -15,6 +15,12 @@
 namespace tvm {
 namespace schedule {
 
+/*! \brief The graph context used during bound inference. */
+struct GraphContext {
+  /*! \brief The feed graph */
+  FeedGraph feed_graph;
+};
+
 // check if scope
 inline bool ScopeRelax(const IterVar& ivar,
                        const std::unordered_map<IterVar, IterVar>& bind_map,
@@ -172,7 +178,7 @@ void InferRootBound(const Stage& stage,
     }
     op->PropBoundToInputs(op, dom_map, &tmap);
   }
-  stage->op->GatherBound(stage->op, ctx, tmap, rmap);
+  stage->op->GatherBound(stage->op, tmap, rmap);
 }
 
 Map<IterVar, Range> InferBound(const Schedule& sch) {

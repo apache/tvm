@@ -32,17 +32,6 @@ struct TensorDom {
 };
 
 /*!
- * \brief The map beteen tensor and operation it feeds to.
- */
-using FeedGraph = std::unordered_map<Tensor, std::vector<Operation> >;
-
-/*! \brief The graph context used during bound inference. */
-struct GraphContext {
-  /*! \brief The feed graph */
-  FeedGraph feed_graph;
-};
-
-/*!
  * \brief Base class of all operation nodes
  */
 class OperationNode : public FunctionBaseNode {
@@ -102,13 +91,11 @@ class OperationNode : public FunctionBaseNode {
    *  Set the range of each root_iter_vars in the op to out_dom_map
    *
    * \param self The reference to self.
-   * \param graph_ctx The global graph context information.
    * \param tensor_dom Domain map of Tensor->access set of each dimension.
    * \param out_dom_map The output domain map of each IterVar to be setted.
    */
   virtual void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const = 0;
   /*!
@@ -162,7 +149,6 @@ class PlaceholderOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -214,7 +200,6 @@ class ComputeOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -284,7 +269,6 @@ class ScanOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -346,7 +330,6 @@ class ExternOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
