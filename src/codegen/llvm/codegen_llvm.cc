@@ -1245,7 +1245,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
-  if (op->type_key == ir::attr::storage_scope) {
+  if (op->attr_key == ir::attr::storage_scope) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;

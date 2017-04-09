@@ -40,17 +40,17 @@ class StorageFlattener : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == attr::realize_scope) {
+    if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
-    } else if (op->type_key == attr::thread_extent) {
+    } else if (op->attr_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
       Stmt stmt = IRMutator::Mutate_(op, s);
       curr_thread_scope_.pop_back();
       return stmt;
-    } else if (op->type_key == attr::extern_op_scope) {
+    } else if (op->attr_key == attr::extern_op_scope) {
       return HandleExternOp(op);
     }
     return IRMutator::Mutate_(op, s);

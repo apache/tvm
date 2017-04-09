@@ -200,7 +200,7 @@ class VTInjector : public IRMutator {
           body.same_as(op->body)) {
         return s;
       } else {
-        return AttrStmt::make(op->node, op->type_key, value, body);
+        return AttrStmt::make(op->node, op->attr_key, value, body);
       }
     }
   }
@@ -388,7 +388,7 @@ class VirtualThreadInjector : public IRMutator {
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<AttrStmt>();
-    if (op->type_key == attr::virtual_thread) {
+    if (op->attr_key == attr::virtual_thread) {
       IterVar iv(op->node.node_);
       int nthread = static_cast<int>(op->value.as<IntImm>()->value);
       VarTouchedAnalysis vs;

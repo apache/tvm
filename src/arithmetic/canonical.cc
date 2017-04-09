@@ -286,8 +286,8 @@ class Canonical::Internal : public IRMutator {
   }
   // AttrStmt
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) {
-    if (op->type_key == attr::thread_extent ||
-        op->type_key == attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent ||
+        op->attr_key == attr::virtual_thread) {
       ++level_counter_;
       IterVar iv(op->node.node_);
       CHECK_NE(iv->thread_tag.length(), 0U);

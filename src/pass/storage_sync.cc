@@ -57,7 +57,7 @@ class StorageSyncPlanner : public IRVisitor {
     allow_load_ = false;
   }
   void Visit_(const AttrStmt* op) final {
-    if (op->type_key == "storage_scope") {
+    if (op->attr_key == "storage_scope") {
       const Variable* buf = op->node.as<Variable>();
       storage_scope_[buf] =
           StorageScope::make(op->value.as<StringImm>()->value);

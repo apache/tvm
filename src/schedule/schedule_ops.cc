@@ -55,7 +55,7 @@ class InjectAttach : public IRMutator {
     stmt =  IRMutator::Mutate(stmt);
     const AttrStmt* op = stmt.as<AttrStmt>();
     if (op != nullptr &&
-        op->type_key == attr::loop_scope) {
+        op->attr_key == attr::loop_scope) {
       if (attach_spec_->attach_type == kScope &&
           op->node == attach_spec_->attach_ivar) {
         CHECK(!found_attach)
@@ -63,7 +63,7 @@ class InjectAttach : public IRMutator {
             << " in multiple places in the IR";
         found_attach = true;
         stmt = AttrStmt::make(
-            op->node, op->type_key, op->value,
+            op->node, op->attr_key, op->value,
             MakePipeline(stage_, dom_map_, op->body));
       }
     }
@@ -97,12 +97,12 @@ class InjectScanStep : public IRMutator {
     // update
     const AttrStmt* op = stmt.as<AttrStmt>();
     if (op != nullptr &&
-        ((op->type_key == attr::scan_update_scope && !is_init_) ||
-         (op->type_key == attr::scan_init_scope && is_init_))) {
+        ((op->attr_key == attr::scan_update_scope && !is_init_) ||
+         (op->attr_key == attr::scan_init_scope && is_init_))) {
       if (op->node.same_as(scan_op_)) {
         found_attach = true;
         stmt = AttrStmt::make(
-            op->node, op->type_key, op->value,
+            op->node, op->attr_key, op->value,
             MakePipeline(stage_, dom_map_, op->body));
       }
     }
@@ -150,20 +150,20 @@ class SchedulePostProc : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == attr::loop_scope ||
-        op->type_key == attr::scan_init_scope) {
+    if (op->attr_key == attr::loop_scope ||
+        op->attr_key == attr::scan_init_scope) {
       return this->Mutate(op->body);
-    } else if (op->type_key == attr::scan_update_scope) {
+    } else if (op->attr_key == attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
       CHECK(scan);
       var_value_[scan->scan_axis->var.get()] = op->value;
       return this->Mutate(op->body);
-    } else if (op->type_key == ir::attr::realize_scope) {
+    } else if (op->attr_key == ir::attr::realize_scope) {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
           Stmt ret = AttrStmt::make(
-              it->second, op->type_key, op->value, op->body);
+              it->second, op->attr_key, op->value, op->body);
           return this->Mutate(ret);
         } else {
           return this->Mutate(op->body);
