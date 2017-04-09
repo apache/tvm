@@ -407,7 +407,7 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor"
 Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
-                   Array<Tensor> inputs = {},
+                   Array<Tensor> inputs = Array<Tensor>(),
                    std::string name = "scan");
 
 // same as compute, specialized for different fcompute function
