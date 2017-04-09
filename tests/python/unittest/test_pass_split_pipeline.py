@@ -29,8 +29,8 @@ def test_basic_pipeline():
         B = tvm.compute((n,), lambda i: B[i] + k, name="A%s" % k)
 
     s = tvm.Schedule(B.op)
-    px = tvm.thread_axis((0, 1), "pipeline")
-    xo, xi = s[B].split(B.op.axis[0], outer=px)
+    xo, xi = s[B].split(B.op.axis[0], nparts=1)
+    s[B].bind(xo, tvm.thread_axis("pipeline"))
     xo, xi = s[B].split(xi, factor=4)
     for S in stages:
         s[S].compute_at(s[B], xo)
@@ -50,8 +50,8 @@ def test_conv1d():
         return A[i-1] + A[i] + A[i+1]
     B = tvm.compute(n, computeB, name='B')
     s = tvm.Schedule(B.op)
-    px = tvm.thread_axis((0, 1), "pipeline")
-    xo, xi = s[B].split(B.op.axis[0], outer=px)
+    px, xi = s[B].split(B.op.axis[0], nparts=1)
+    s[B].bind(px, tvm.thread_axis("pipeline"))
     s[A].compute_at(s[B], px)
     stmt = lower(s, [B])
     stmt = tvm.ir_pass.SplitPipeline(stmt, False)

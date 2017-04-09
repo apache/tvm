@@ -11,10 +11,9 @@ def test_add_pipeline():
 
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
-    grid_x = tvm.thread_axis(None, "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    _, x = s[C].split(C.op.axis[0], factor=num_thread, outer=grid_x)
-    _, x = s[C].split(x, outer=thread_x)
+    xo, xi = s[C].split(C.op.axis[0], factor=num_thread)
+    s[C].bind(xo, tvm.thread_axis("threadIdx.x"))
+    s[C].bind(xi, tvm.thread_axis("blockIdx.x"))
 
     # compile to IR
     bounds = tvm.schedule.InferBound(s)

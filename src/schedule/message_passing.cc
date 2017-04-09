@@ -22,6 +22,23 @@ inline bool prove_equal(Expr lhs, Expr rhs) {
   return is_zero(ir::Simplify(lhs - rhs));
 }
 
+void Update(std::unordered_map<IterVar, Range>* p_state,
+            const IterVar& iv,
+            Range r) {
+  auto it = p_state->find(iv);
+  if (it == p_state->end()) {
+    (*p_state)[iv] = r;
+  } else {
+    bool match = is_zero(it->second->min);
+    if (!prove_equal(r->extent, it->second->extent)) match = false;
+    CHECK(match)
+        << iv
+        << " domain already inferred,"
+        << " cannot prove their extents are the same "
+        << it->second->extent << " vs " << r->extent;
+  }
+}
+
 void PassDownDomain(const Stage& stage,
                     std::unordered_map<IterVar, Range>* p_state,
                     bool allow_missing) {
@@ -36,30 +53,15 @@ void PassDownDomain(const Stage& stage,
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       if (r->factor.defined()) {
-        state[r->inner] = Range::make_with_min_extent(0, r->factor);
-        if (r->outer->dom.defined()) {
-          state[r->outer] = r->outer->dom;
-        } else {
-          if (!state.count(r->outer)) {
-            state[r->outer] = Range::make_with_min_extent(
-                0, DivCeil(range_parent->extent, r->factor));
-          } else {
-            Expr outer_ext = DivCeil(range_parent->extent, r->factor);
-            Range outer_rng = state.at(r->outer);
-            bool match = is_zero(outer_rng->min);
-            if (!prove_equal(outer_ext, outer_rng->extent)) match = false;
-            CHECK(match)
-                << r->outer
-                << "IterVar is used in two places as outer scope,"
-                << " cannot prove their extents are the same "
-                << outer_ext << " vs " << outer_rng->extent;
-          }
-        }
+        Update(p_state, r->inner, Range::make_with_min_extent(0, r->factor));
+        Update(p_state, r->outer,
+               Range::make_with_min_extent(
+                   0, DivCeil(range_parent->extent, r->factor)));
       } else {
-        CHECK(r->outer->dom.defined());
-        state[r->outer] = r->outer->dom;
-        state[r->inner] = Range::make_with_min_extent(
-            0, DivCeil(range_parent->extent, r->outer->dom->extent));
+        Update(p_state, r->outer, Range::make_with_min_extent(0, r->nparts));
+        Update(p_state, r->inner,
+               Range::make_with_min_extent(
+                   0, DivCeil(range_parent->extent, r->nparts)));
       }
     } else if (const FuseNode* r = rel.as<FuseNode>()) {
       if (!state.count(r->outer) || !state.count(r->inner)) {
@@ -75,18 +77,18 @@ void PassDownDomain(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      Range res = Range::make_with_min_extent(
-            0, state.at(r->parent)->extent);
-      if (r->rebased->dom.defined()) {
-        Range rebase_rng = r->rebased->dom;
-        bool match = is_zero(rebase_rng->min);
-        if (!prove_equal(rebase_rng->extent, res->extent)) match = false;
-        CHECK(match) << r->rebased
-                     << " does not match parent scope's range";
-      }
-      state[r->rebased] = res;
+      Update(p_state, r->rebased,
+             Range::make_with_min_extent(
+                 0, state.at(r->parent)->extent));
     } else {
       LOG(FATAL) << "unknown relation type";
+    }
+  }
+  // update the extents of binded threads.
+  for (auto kv : stage->iter_var_attrs) {
+    if (kv.second->bind_thread.defined()) {
+      CHECK(state.count(kv.first));
+      Update(p_state, kv.second->bind_thread, state.at(kv.first));
     }
   }
 }

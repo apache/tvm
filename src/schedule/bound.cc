@@ -15,10 +15,23 @@
 namespace tvm {
 namespace schedule {
 
+/*! \brief The graph context used during bound inference. */
+struct GraphContext {
+  /*! \brief The feed graph */
+  FeedGraph feed_graph;
+};
+
 // check if scope
-inline bool ScopeRelax(const IterVar& iv, const std::string& scope) {
+inline bool ScopeRelax(const IterVar& ivar,
+                       const std::unordered_map<IterVar, IterVar>& bind_map,
+                       const std::string& scope) {
   using runtime::ThreadScope;
   using runtime::StorageScope;
+  auto it = bind_map.find(ivar);
+  IterVar iv = ivar;
+  if (it != bind_map.end()) {
+    iv = it->second;
+  }
   if (iv->thread_tag.length() == 0) return false;
   if (scope.length() == 0) return false;
 
@@ -28,10 +41,16 @@ inline bool ScopeRelax(const IterVar& iv, const std::string& scope) {
 void InferRootBound(const Stage& stage,
                     const GraphContext& ctx,
                     const AttachPath& attach_path,
+                    const std::unordered_map<IterVar, IterVar>& bind_map,
                     std::unordered_map<IterVar, Range>* rmap) {
   CHECK_NE(stage->attach_type, kInline)
       << "call schedule.normalize before scheduleops";
   if (stage->attach_type == kInlinedAlready) return;
+  if (stage->is_output) {
+    // verify correctness.
+    CHECK_EQ(stage.GetAttachSpec()->attach_type, kGroupRoot)
+          << "Output must be attached at root";
+  }
   if (stage->is_output || stage->op.as<PlaceholderOpNode>()) {
     for (auto iv :  stage->op->root_iter_vars()) {
       CHECK(iv->dom.defined());
@@ -42,8 +61,10 @@ void InferRootBound(const Stage& stage,
   }
   // parent stage, if any
   Stage parent;
-  if (stage->attach_type == kScope || stage->attach_type == kScanUpdate) {
-    parent = stage->attach_stage;
+  Stage attach_spec = stage.GetAttachSpec();
+  if (attach_spec->attach_type == kScope ||
+      attach_spec->attach_type == kScanUpdate) {
+    parent = attach_spec->attach_stage;
   }
   // The tensor domain.
   std::unordered_map<Tensor, TensorDom> tmap;
@@ -72,13 +93,11 @@ void InferRootBound(const Stage& stage,
   // from the already inferred bounds.
   std::unordered_map<const Variable*, IntSet> relax_set;
   for (IterVar iv : attach_path.at(stage->op)) {
-    if (ScopeRelax(iv, stage->scope)) {
+    if (ScopeRelax(iv, bind_map, stage->scope)) {
       relax_set[iv->var.get()] = IntSet::range(rmap->at(iv));
     }
   }
   if (direct_consume_by_parent) {
-    // parent stage if exist
-    Stage parent = stage->attach_stage;
     // Bound inference logics in parent.
     std::unordered_map<IterVar, IntSet> up_state;
     bool fix_value = true;
@@ -89,16 +108,16 @@ void InferRootBound(const Stage& stage,
       CHECK(is_zero(vrange->min))
           << "InferBound requires every leaf iter var's min equals 0, "
           << " call schedule.normalize to achieve this. "
-          << " stage=" << parent;
+          << " stage=" << parent << ", vrange=" << vrange->min;
       // special optimization to remove trivial loop
       if (is_one(vrange->extent)) {
         up_state[iv] = IntSet::single_point(vrange->min);
-      } else if (fix_value && !ScopeRelax(iv, stage->scope)) {
+      } else if (fix_value && !ScopeRelax(iv, bind_map, stage->scope)) {
         up_state[iv] = IntSet::single_point(iv->var);
       } else {
         up_state[iv] = IntSet::range(vrange);
       }
-      if (stage->attach_ivar == iv) {
+      if (attach_spec->attach_ivar == iv) {
         fix_value = false;
       }
     }
@@ -159,7 +178,7 @@ void InferRootBound(const Stage& stage,
     }
     op->PropBoundToInputs(op, dom_map, &tmap);
   }
-  stage->op->GatherBound(stage->op, ctx, tmap, rmap);
+  stage->op->GatherBound(stage->op, tmap, rmap);
 }
 
 Map<IterVar, Range> InferBound(const Schedule& sch) {
@@ -167,18 +186,25 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   for (Operation op : sch->outputs) {
     roots.push_back(sch->stage_map[op]->op);
   }
+  std::unordered_map<IterVar, IterVar> bind_map;
+  for (Stage stage : sch->stages) {
+    for (auto kv : stage->iter_var_attrs) {
+      if (kv.second->bind_thread.defined()) {
+        CHECK(!bind_map.count(kv.first));
+        bind_map[kv.first] = kv.second->bind_thread;
+      }
+    }
+  }
   GraphContext ctx;
   ctx.feed_graph = CreateFeedGraph(CreateReadGraph(roots));
   AttachPath attach_path = CreateAttachPath(sch);
-
   std::unordered_map<IterVar, Range> ret;
   for (size_t i = sch->stages.size(); i != 0; --i) {
     const Stage& stage = sch->stages[i - 1];
-    InferRootBound(stage, ctx, attach_path, &ret);
+    InferRootBound(stage, ctx, attach_path, bind_map, &ret);
     // pass down to get bound of all iter vars.
     PassDownDomain(stage, &ret);
-    // setup outer most threads.
-    for (IterVar iv : stage->outermost_threads) {
+    for (IterVar iv : stage->env_threads) {
       CHECK(iv->dom.defined());
       ret[iv] = iv->dom;
     }

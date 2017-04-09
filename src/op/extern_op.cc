@@ -99,7 +99,6 @@ void ExternOpNode::PropBoundToInputs(
 
 void ExternOpNode::GatherBound(
     const Operation& self,
-    const GraphContext& graph_ctx,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
 }

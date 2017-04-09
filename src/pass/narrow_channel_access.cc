@@ -107,14 +107,14 @@ class ChannelAccessRewriter : public IRMutator {
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     Stmt ret;
     const AttrStmt* adv = op->body.as<AttrStmt>();
-    if ((op->type_key == ir::attr::channel_read_scope &&
-         adv && adv->type_key == ir::attr::channel_read_advance) ||
-        (op->type_key == ir::attr::channel_write_scope &&
-         adv && adv->type_key == ir::attr::channel_write_advance)) {
+    if ((op->attr_key == ir::attr::channel_read_scope &&
+         adv && adv->attr_key == ir::attr::channel_read_advance) ||
+        (op->attr_key == ir::attr::channel_write_scope &&
+         adv && adv->attr_key == ir::attr::channel_write_advance)) {
       RewriteEntry e;
       e.window = op;
       e.advance = adv;
-      e.read_access = op->type_key == ir::attr::channel_read_scope;
+      e.read_access = op->attr_key == ir::attr::channel_read_scope;
       tasks_.push_back(e);
       ret = IRMutator::Mutate_(op, s);
       if (tasks_.back().rewrite_success) {

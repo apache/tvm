@@ -11,11 +11,11 @@ def test_add():
     s = tvm.Schedule(C.op)
     # create iter var and assign them tags.
     num_thread = 256
-    block_x = tvm.thread_axis(None, "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    _, x = s[C].split(C.op.axis[0], factor=num_thread*4, outer=block_x)
-    _, x = s[C].split(x, outer=thread_x)
+    bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
+    tx, x = s[C].split(x, nparts=num_thread)
     _, x = s[C].split(x, factor=4)
+    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
 
     # one line to build the function.

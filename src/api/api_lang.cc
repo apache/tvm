@@ -182,7 +182,8 @@ TVM_REGISTER_API(_ScanOp)
                             args[1],
                             args[2],
                             args[3],
-                            args[4]);
+                            args[4],
+                            args[5]);
   });
 
 TVM_REGISTER_API(_ExternOp)
@@ -219,27 +220,26 @@ TVM_REGISTER_API(_StageSetScope)
         .set_scope(args[1]);
   });
 
-TVM_REGISTER_API(_StageRebase)
+TVM_REGISTER_API(_StageBind)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    IterVar outer, inner;
     args[0].operator Stage()
-        .rebase(args[1], args[2]);
+        .bind(args[1], args[2]);
   });
 
 TVM_REGISTER_API(_StageSplitByFactor)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar outer, inner;
     args[0].operator Stage()
-        .split(args[1], &outer, &inner, args[2]);
+        .split(args[1], args[2], &outer, &inner);
     *ret = Array<IterVar>({outer, inner});
   });
 
-TVM_REGISTER_API(_StageSplitByOuter)
+TVM_REGISTER_API(_StageSplitByNParts)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    IterVar inner;
+    IterVar outer, inner;
     args[0].operator Stage()
-        .split(args[1], args[2], &inner, args[3]);
-    *ret = inner;
+        .split_by_nparts(args[1], args[2], &outer, &inner);
+    *ret = Array<IterVar>({outer, inner});
   });
 
 TVM_REGISTER_API(_StageFuse)
@@ -278,15 +278,17 @@ TVM_REGISTER_API(_StageTile)
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar x_outer, y_outer, x_inner, y_inner;
     args[0].operator Stage()
-        .tile(args[1], args[2], &x_outer, &y_outer,
-              &x_inner, &y_inner, args[3], args[4]);
+        .tile(args[1], args[2],
+              args[3], args[4],
+              &x_outer, &y_outer,
+              &x_inner, &y_inner);
     *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
   });
 
-TVM_REGISTER_API(_StageOutermostThreads)
+TVM_REGISTER_API(_StageEnvThreads)
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
-        .outermost_threads(args[1]);
+        .env_threads(args[1]);
   });
 
 TVM_REGISTER_API(_StageUnroll)
@@ -311,6 +313,12 @@ TVM_REGISTER_API(_ScheduleNormalize)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Schedule()
         .normalize();
+  });
+
+TVM_REGISTER_API(_ScheduleCreateGroup)
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = args[0].operator Schedule()
+        .create_group(args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_API(_ScheduleCacheRead)

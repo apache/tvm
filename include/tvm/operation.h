@@ -32,17 +32,6 @@ struct TensorDom {
 };
 
 /*!
- * \brief The map beteen tensor and operation it feeds to.
- */
-using FeedGraph = std::unordered_map<Tensor, std::vector<Operation> >;
-
-/*! \brief The graph context used during bound inference. */
-struct GraphContext {
-  /*! \brief The feed graph */
-  FeedGraph feed_graph;
-};
-
-/*!
  * \brief Base class of all operation nodes
  */
 class OperationNode : public FunctionBaseNode {
@@ -102,13 +91,11 @@ class OperationNode : public FunctionBaseNode {
    *  Set the range of each root_iter_vars in the op to out_dom_map
    *
    * \param self The reference to self.
-   * \param graph_ctx The global graph context information.
    * \param tensor_dom Domain map of Tensor->access set of each dimension.
    * \param out_dom_map The output domain map of each IterVar to be setted.
    */
   virtual void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const = 0;
   /*!
@@ -162,7 +149,6 @@ class PlaceholderOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -214,7 +200,6 @@ class ComputeOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -253,6 +238,11 @@ class ScanOpNode : public OperationNode {
   /*! \brief The placeholder to refer as states in update. */
   Array<Tensor> state_placeholder;
   /*!
+   * \brief the inputs to the scan, these are optionally provided
+   *  But they can be helpful to provide hints to speedup get of scan body.
+   */
+  Array<Tensor> inputs;
+  /*!
    * \brief Spatial axis to indicate spatial dimension of each output.
    *  They corresponds to flattened spatial axis of the outputs.
    *
@@ -279,7 +269,6 @@ class ScanOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -296,13 +285,15 @@ class ScanOpNode : public OperationNode {
     v->Visit("init", &init);
     v->Visit("update", &update);
     v->Visit("state_placeholder", &state_placeholder);
+    v->Visit("inputs", &inputs);
     v->Visit("spatial_axis_", &spatial_axis_);
   }
   static Operation make(std::string name,
                         IterVar axis,
                         Array<Tensor> init,
                         Array<Tensor> update,
-                        Array<Tensor> state_placeholder);
+                        Array<Tensor> state_placeholder,
+                        Array<Tensor> input);
 
   static constexpr const char* _type_key = "ScanOp";
   TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
@@ -339,7 +330,6 @@ class ExternOpNode : public OperationNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
-      const GraphContext& graph_ctx,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
@@ -388,16 +378,19 @@ Tensor placeholder(Array<Expr> shape,
 Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
 
 /*!
- * \brief Construct new tensors by scan over scan_axis.
+ * \brief Construct new tensors by scan.
  *
  * \param init The intialize tensor of first K steps.
  * \param update The update tensor indicated the updated result after each timestamp.
  * \param state_placeholder The placeholder for the states.
+ * \param inputs The inputs to the scan body, this is optional,
+ *    but recommended to provide concrete information about scan body.
  * \param name The optional name of the tensor.
  */
 Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
+                   Array<Tensor> inputs = Array<Tensor>(),
                    std::string name = "scan");
 
 // same as compute, specialized for different fcompute function

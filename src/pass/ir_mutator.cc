@@ -68,7 +68,7 @@ Stmt IRMutator::Mutate_(const AttrStmt* op, const Stmt& s) {
       body.same_as(op->body)) {
     return s;
   } else {
-    return AttrStmt::make(op->node, op->type_key, value, body);
+    return AttrStmt::make(op->node, op->attr_key, value, body);
   }
 }
 
