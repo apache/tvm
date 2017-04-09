@@ -62,9 +62,10 @@ def test_thread_axis():
     s = tvm.Schedule(B.op)
 
     s[B].set_scope("shared")
-    thread_x = tvm.thread_axis((0, 16), "threadIdx.x")
+    num_thread = 16
     xo, xi = s[B].split(B.op.axis[0], 32)
-    xi0, xi1 = s[B].split(xi, outer=thread_x)
+    xi0, xi1 = s[B].split(xi, nparts=num_thread)
+    s[B].bind(xi0, tvm.thread_axis("threadIdx.x"))
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)

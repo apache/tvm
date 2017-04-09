@@ -58,13 +58,18 @@ class PartitionFinder : public IRVisitor {
 
   void Visit_(const AttrStmt* op) {
     // handle thread_axis
-    if (const IterVarNode* thread_axis = op->node.as<IterVarNode>()) {
+    if (op->attr_key == attr::thread_extent) {
+      const IterVarNode* thread_axis = op->node.as<IterVarNode>();
+      CHECK(thread_axis);
       const Variable* var = thread_axis->var.get();
-      hint_map_.insert({var, IntSet::range(thread_axis->dom)});
-      relax_map_.insert({var, IntSet::range(thread_axis->dom)});
+      IntSet dom = IntSet::range(Range(make_zero(op->value.type()), op->value));
+      hint_map_.insert({var, dom});
+      relax_map_.insert({var, dom});
       IRVisitor::Visit_(op);
       relax_map_.erase(var);
       hint_map_.erase(var);
+    } else {
+      IRVisitor::Visit_(op);
     }
   }
 
