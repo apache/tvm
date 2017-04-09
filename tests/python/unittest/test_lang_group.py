@@ -45,6 +45,7 @@ def test_compute_group():
     assert s[x].group == g
     g.compute_at(s[x2], x2.op.axis[1])
     assert g.attach_stage == s[x2]
+    assert g.num_child_stages == 2
 
 def test_nest_group():
     m = tvm.Var("m")
@@ -59,6 +60,8 @@ def test_nest_group():
     assert s[x].group == g2
     assert s[x1].group == g1
     assert g1.group == g2
+    assert g2.num_child_stages == 2
+    assert g1.num_child_stages == 1
 
 if __name__ == "__main__":
     test_nest_group()
