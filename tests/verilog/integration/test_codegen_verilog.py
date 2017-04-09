@@ -35,8 +35,8 @@ def test_add_pipeline():
     C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
     s = tvm.Schedule(C.op)
 
-    grid_x = tvm.thread_axis((0, 1), "pipeline")
-    _, x = s[C].split(C.op.axis[0], outer=grid_x)
+    px, x = s[C].split(C.op.axis[0], nparts=1)
+    s[C].bind(px, tvm.thread_axis("pipeline"))
     fapi = lower(s, [A, B, C], "myadd")
     fsplits = tvm.ir_pass.SplitHostDevice(fapi)
     print(fsplits[1].body)

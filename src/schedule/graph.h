@@ -27,6 +27,11 @@ using ReadGraph = Map<Operation, Array<Tensor> >;
 using AttachPath = Map<Operation, Array<IterVar> >;
 
 /*!
+ * \brief The map beteen tensor and operation it feeds to.
+ */
+using FeedGraph = std::unordered_map<Tensor, std::vector<Operation> >;
+
+/*!
  * \brief Get read graph of each operation to all the
  *  Tensors that it directly depends on.
  *
@@ -35,6 +40,23 @@ using AttachPath = Map<Operation, Array<IterVar> >;
  * \return The result map.
  */
 ReadGraph CreateReadGraph(const Array<Operation>& roots);
+
+/*!
+ * \brief Get minimum subgraph between outputs and inputs.
+ *  The operations contains node which input-reachable from any inputs
+ *  output reachable to any outputs.
+ *
+ *  The inputs won't be included in the subgraph, the outputs will be inclued.
+ *
+ * \param outputs The outputs of the subgraph
+ * \param inputs The inputs to the subgraph.
+ * \param include_inputs Whether to include inputs
+ *
+ * \return The subgraph.
+ */
+Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
+                             const Array<Tensor>& inputs,
+                             bool include_inputs);
 
 /*!
  * \brief Get a post DFS ordered of operations in the graph.
@@ -67,14 +89,10 @@ AttachPath CreateAttachPath(Schedule sch);
 
 /*!
  * \brief Get all operations inside the recursion of scan.
- * \param scan The scan node.
- * \param feed_graph The feed graph to help analysis.
+ * \param scan_op The scan node ops.
  * \return The body operations, in read dependency order.
  */
-Array<Operation> ScanGetBody_(
-    const ScanOpNode* scan, const FeedGraph& feed_graph);
-// same as ScanGetBody_, but create FeedGraph internally.
-Array<Operation> ScanGetBody(const Operation& scan);
+Array<Operation> ScanGetBody(const Operation& scan_op);
 
 /*!
  * \brief Analyze each spatial dimension of scan's result.
@@ -85,11 +103,9 @@ Array<Operation> ScanGetBody(const Operation& scan);
  *  next_state[t, ..., axis, ...] = f(prev_state[t-1, ...,axis,...]
  *
  * \param scan The scan node.
- * \param body The body of scan, sorted in reverse PostDFSOrder.
  * \return Map of spatial_axis -> IntImm
  */
-Map<IterVar, Expr> ScanFixPointAnalysis(
-    const Operation& scan, const Array<Operation>& body);
+Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan);
 
 }  // namespace schedule
 }  // namespace tvm

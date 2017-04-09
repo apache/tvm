@@ -22,31 +22,41 @@ def test_gemm():
     scale = 8
     num_thread = 8
     block_factor = scale * num_thread
-    block_x = tvm.thread_axis(None, "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    block_y = tvm.thread_axis(None, "blockIdx.y")
-    thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
+    block_x = tvm.thread_axis("blockIdx.x")
+    thread_x = tvm.thread_axis("threadIdx.x")
+    block_y = tvm.thread_axis("blockIdx.y")
+    thread_y = tvm.thread_axis("threadIdx.y")
 
     CC = s.cache_write(C, "local")
     AA = s.cache_read(A, "shared", [CC])
     BB = s.cache_read(B, "shared", [CC])
-    _, yi = s[C].split(C.op.axis[0], factor=block_factor, outer=block_y)
-    _, xi = s[C].split(C.op.axis[1], factor=block_factor, outer=block_x)
-    s[C].reorder(block_y, block_x, yi, xi)
-    _, yi = s[C].split(yi, outer=thread_y)
-    _, xi = s[C].split(xi, outer=thread_x)
-    s[C].reorder(thread_y, thread_x, yi, xi)
+    by, yi = s[C].split(C.op.axis[0], factor=block_factor)
+    bx, xi = s[C].split(C.op.axis[1], factor=block_factor)
+    s[C].reorder(by, bx, yi, xi)
+    s[C].bind(by, block_y)
+    s[C].bind(bx, block_x)
+    ty, yi = s[C].split(yi, nparts=num_thread)
+    tx, xi = s[C].split(xi, nparts=num_thread)
+    s[C].reorder(ty, tx, yi, xi)
+    s[C].bind(ty, thread_y)
+    s[C].bind(tx, thread_x)
     yo, xo = CC.op.axis
     s[CC].reorder(k, yo, xo)
 
-    s[CC].compute_at(s[C], thread_x)
+
+    s[CC].compute_at(s[C], tx)
     s[AA].compute_at(s[CC], k)
     s[BB].compute_at(s[CC], k)
 
-    _, xi = s[AA].split(s[AA].op.axis[0], outer=thread_y)
-    _, xi = s[AA].split(xi, outer=thread_x)
-    _, xi = s[BB].split(s[BB].op.axis[0], outer=thread_y)
-    _, xi = s[BB].split(xi, outer=thread_x)
+    ty, xi = s[AA].split(s[AA].op.axis[0], nparts=num_thread)
+    tx, xi = s[AA].split(xi, nparts=num_thread)
+    s[AA].bind(ty, thread_y)
+    s[AA].bind(tx, thread_x)
+
+    ty, xi = s[BB].split(s[BB].op.axis[0], nparts=num_thread)
+    tx, xi = s[BB].split(xi, nparts=num_thread)
+    s[BB].bind(ty, thread_y)
+    s[BB].bind(tx, thread_x)
 
     max_auto_unroll_step = 0
     # lowering test
@@ -76,9 +86,9 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
+    check_device("cuda")
     if tvm.module.enabled("opencl"):
         tvm.module.init_opencl()
-    check_device("cuda")
     check_device("opencl")
 
 if __name__ == "__main__":

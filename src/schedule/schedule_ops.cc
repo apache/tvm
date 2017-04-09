@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "./graph.h"
+#include "../op/op_util.h"
+#include "../pass/ir_util.h"
 
 namespace tvm {
 namespace schedule {
@@ -44,8 +46,9 @@ Stmt MakePipeline(const Stage& s,
 class InjectAttach : public IRMutator {
  public:
   InjectAttach(const Stage& stage,
+               const Stage& attach_spec,
                const std::unordered_map<IterVar, Range>& dom_map)
-      : stage_(stage), dom_map_(dom_map) {}
+      : stage_(stage), attach_spec_(attach_spec), dom_map_(dom_map) {}
 
   Stmt Mutate(Stmt stmt) final {
     CHECK(stmt.defined());
@@ -53,10 +56,11 @@ class InjectAttach : public IRMutator {
     const AttrStmt* op = stmt.as<AttrStmt>();
     if (op != nullptr &&
         op->type_key == attr::loop_scope) {
-      CHECK_NE(producer_.size(), 0U);
-      if (op->node == stage_->attach_ivar &&
-          producer_.back() == stage_->attach_stage->op.get()) {
-        CHECK(!found_attach);
+      if (attach_spec_->attach_type == kScope &&
+          op->node == attach_spec_->attach_ivar) {
+        CHECK(!found_attach)
+            << "Find IterVar" << attach_spec_->attach_ivar
+            << " in multiple places in the IR";
         found_attach = true;
         stmt = AttrStmt::make(
             op->node, op->type_key, op->value,
@@ -65,26 +69,16 @@ class InjectAttach : public IRMutator {
     }
     return stmt;
   }
-  Stmt Mutate_(const ProducerConsumer* op, const Stmt& s) final {
-    if (op->is_producer) {
-      producer_.push_back(op->func.get());
-      Stmt ret = IRMutator::Mutate_(op, s);
-      producer_.pop_back();
-      return ret;
-    } else {
-      return IRMutator::Mutate_(op, s);
-    }
-  }
   // whether attach point is found
   bool found_attach{false};
 
  private:
-  // the operations to be carried
+  // The stage.
   const Stage& stage_;
+  // The attach spec, may not contain op.
+  const Stage& attach_spec_;
   // domain map
   const std::unordered_map<IterVar, Range>& dom_map_;
-  // internal stack about realization scope.
-  std::vector<const Node*> producer_;
 };
 
 // inject the operator's realization on the stmt.
@@ -128,7 +122,6 @@ class InjectScanStep : public IRMutator {
   bool is_init_;
 };
 
-
 // Postprocessing of schedule op
 // Replace the init and update's expression by scan's buffer.
 class SchedulePostProc : public IRMutator {
@@ -157,9 +150,8 @@ class SchedulePostProc : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == attr::loop_scope) {
-      return this->Mutate(op->body);
-    } else if (op->type_key == attr::scan_init_scope) {
+    if (op->type_key == attr::loop_scope ||
+        op->type_key == attr::scan_init_scope) {
       return this->Mutate(op->body);
     } else if (op->type_key == attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
@@ -237,6 +229,15 @@ class SchedulePostProc : public IRMutator {
 
   void Init(const Schedule& sch) {
     for (Stage s : sch->stages) {
+      for (auto kv : s->iter_var_attrs) {
+        // Update bind thread information.
+        if (kv.second->bind_thread.defined()) {
+          const Var& from = kv.first->var;
+          const Var& to = kv.second->bind_thread->var;
+          CHECK(!var_value_.count(from.get()));
+          var_value_[from.get()] = to;
+        }
+      }
       // This must be checked for all ops, including scan.
       if (!s->op.same_as(s->origin_op)) {
         Tensor target = s->origin_op.output(0);
@@ -279,61 +280,67 @@ class SchedulePostProc : public IRMutator {
 Stmt ScheduleOps(
     Schedule sch, Map<IterVar, Range> dom_map_) {
   Stmt body = Stmt();
-  // scan init and scan updates
-  std::unordered_map<Operation, std::pair<Operation, bool> > scan_attach;
-  for (Stage s : sch->stages) {
-    const ScanOpNode* scan = s->op.as<ScanOpNode>();
-    if (!scan) continue;
-    for (Tensor t : scan->init) {
-      if (scan_attach.count(t->op)) {
-        CHECK(scan_attach.at(t->op).first.same_as(s->op))
-            << "Scan init tensor can only belong to one scan";
-      } else {
-        scan_attach[t->op] = std::make_pair(s->op, true);
-      }
-    }
-    for (Tensor t : scan->update) {
-      if (scan_attach.count(t->op)) {
-        CHECK(scan_attach.at(t->op).first.same_as(s->op))
-            << "Scan update tensor can only belong to one scan";
-      } else {
-        scan_attach[t->op] = std::make_pair(s->op, false);
-      }
-    }
-  }
   std::unordered_map<IterVar, Range> dom_map;
   for (auto kv : dom_map_) {
     dom_map[kv.first] = kv.second;
   }
-
+  // scan init and scan updates
+  std::unordered_map<Operation, Operation> scan_init;
+  for (Stage s : sch->stages) {
+    const ScanOpNode* scan = s->op.as<ScanOpNode>();
+    if (!scan) continue;
+    for (Tensor t : scan->init) {
+      if (scan_init.count(t->op)) {
+        CHECK(scan_init.at(t->op).same_as(s->op))
+            << "Scan init tensor can only belong to one scan";
+      } else {
+        scan_init[t->op] = s->op;
+      }
+    }
+  }
+  // verify correctness of group.
+  for (Stage g : sch->groups) {
+    CHECK(!g->op.defined());
+    CHECK_EQ(g->leaf_iter_vars.size(), 0U);
+  }
   // reverse the post DFS order.
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage s = sch->stages[i - 1];
     CHECK_NE(s->attach_type, kInline)
         << "call schedule.normalize before scheduleops";
+    CHECK(s->op.defined());
     // no need to specify place holder op.
     if (s->op.as<PlaceholderOpNode>()) continue;
-    if (scan_attach.count(s->op)) {
-      CHECK(s->attach_type == kNone ||
-            s->attach_type == kScanUpdate)
-          << "Cannot specify compute_at for scan's init/update";
+    // Remove grouping sugar, get the real attach spec.
+    Stage attach_spec = s.GetAttachSpec();
+
+    if (scan_init.count(s->op)) {
       CHECK(body.defined());
-      const auto& p = scan_attach.at(s->op);
-      InjectScanStep mu(s, p.first, dom_map, p.second);
+      InjectScanStep mu(s, scan_init.at(s->op), dom_map, true);
       body = mu.Mutate(body);
       CHECK(mu.found_attach)
-          << "did not find attachment point for scan.init/update";
-    } else if (s->attach_type == kInlinedAlready) {
-      // do nothing
-    } else if (s->attach_type == kRoot || s-> attach_type == kNone) {
-      body = MakePipeline(s, dom_map, body);
-    } else if (s->attach_type == kScope) {
+          << "did not find attachment point for scan.init";
+    } else if (attach_spec->attach_type == kScanUpdate) {
+      // Handle scan update
       CHECK(body.defined());
-      InjectAttach mutator(s, dom_map);
+      InjectScanStep mu(s, attach_spec->attach_stage->op, dom_map, false);
+      body = mu.Mutate(body);
+      CHECK(mu.found_attach)
+          << "did not find attachment point for scan.update";
+    } else if (attach_spec->attach_type == kInlinedAlready) {
+      // do nothing
+    } else if (attach_spec->attach_type == kGroupRoot) {
+      CHECK(!s->group.defined());
+      body = MakePipeline(s, dom_map, body);
+    } else {
+      CHECK_EQ(attach_spec->attach_type, kScope);
+      CHECK(body.defined());
+      InjectAttach mutator(s, attach_spec, dom_map);
       body = mutator.Mutate(body);
       CHECK(mutator.found_attach)
-          << "did not find attachment point for " << s << " in"
-          << s->attach_stage->op << " x "
+          << "did not find attachment point for " << s << " in "
+          << attach_spec->attach_stage->op  << " x " << attach_spec->attach_ivar
+          << ", body:\n"
           << body;
     }
   }

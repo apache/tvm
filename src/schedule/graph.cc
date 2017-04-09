@@ -7,6 +7,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/operation.h>
 #include <unordered_set>
+#include <unordered_map>
 #include "./graph.h"
 
 namespace tvm {
@@ -82,6 +83,60 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots) {
   return rmap;
 }
 
+// Do DFS visit to get the subgraph.
+// Return if op is inside the subgraph.
+bool GetSubGraphByPostDFS_(
+    const Operation& op,
+    const std::unordered_set<const Node*>& boundary,
+    bool include_bounary,
+    std::unordered_map<const Node*, bool>* visited,
+    Array<Operation>* result) {
+  if (visited->count(op.get())) {
+    return visited->at(op.get());
+  }
+  if (boundary.count(op.get())) {
+    (*visited)[op.get()] = true;
+    if (include_bounary) {
+      result->push_back(op);
+    }
+    return true;
+  }
+  // mark to avoid loop
+  // Not necessary for DAG.
+  (*visited)[op.get()] = false;
+  // check if we can reach boundary.
+  bool reach_boundary = false;
+  for (Tensor t : op->InputTensors()) {
+    if (GetSubGraphByPostDFS_(t->op, boundary,
+                              include_bounary,
+                              visited, result)) {
+      reach_boundary = true;
+    }
+  }
+  (*visited)[op.get()] = reach_boundary;
+  if (reach_boundary) {
+    result->push_back(op);
+  }
+  return reach_boundary;
+}
+
+Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
+                             const Array<Tensor>& inputs,
+                             bool include_inputs) {
+  Array<Operation> result;
+  std::unordered_set<const Node*> boundary;
+  for (Tensor t : inputs) {
+    boundary.insert(t->op.get());
+  }
+  std::unordered_map<const Node*, bool> visited;
+  for (Tensor t : outputs) {
+    GetSubGraphByPostDFS_(t->op, boundary, include_inputs,
+                          &visited, &result);
+  }
+  return result;
+}
+
+
 void PostDFSOrder(const Operation& op,
                   const ReadGraph& g,
                   std::unordered_set<Operation>* visited,
@@ -118,30 +173,38 @@ FeedGraph CreateFeedGraph(const ReadGraph& g) {
 AttachPath CreateAttachPath(Schedule sch) {
   AttachPath ret;
   for (Stage stage : sch->stages) {
-    if (stage->attach_type == kScanUpdate) {
-      const Stage& parent = stage->attach_stage;
-      stage->attach_ivar =
-          parent->leaf_iter_vars[parent->leaf_iter_vars.size() - 1];
-    }
-  }
-
-  for (Stage stage : sch->stages) {
+    std::unordered_set<const Node*> visited;
     Array<IterVar> path;
-
-    for (Stage s = stage; s->attach_type == kScope || s->attach_type == kScanUpdate;) {
-      IterVar attach_ivar = s->attach_ivar;
-      s = s->attach_stage;
-      bool start_attach = false;
+    for (Stage s = stage; s.defined();) {
+      CHECK(!visited.count(s.get()))
+          << "Find loop in compute_at attach group";
+      visited.insert(s.get());
+      Stage spec = s.GetAttachSpec();
+      bool start_attach;
+      IterVar attach_ivar;
+      if (spec->attach_type == kScope) {
+        attach_ivar = spec->attach_ivar;
+        s = spec->attach_stage;
+        start_attach = false;
+        CHECK(attach_ivar.defined());
+      } else if (spec->attach_type == kScanUpdate) {
+        s = spec->attach_stage;
+        start_attach = true;
+      } else {
+        break;
+      }
+      CHECK(s.defined());
       for (size_t i = s->leaf_iter_vars.size(); i != 0; --i) {
         IterVar iv = s->leaf_iter_vars[i - 1];
-        if (iv == attach_ivar) start_attach = true;
+        if (!start_attach && iv.same_as(attach_ivar)) {
+          start_attach = true;
+        }
         if (start_attach) path.push_back(iv);
       }
       CHECK(start_attach)
           << "Invalid Schedule: cannot find attach point " << attach_ivar
           << " in the schedule of " << s->op;
     }
-
     if (!ret.count(stage->op)) {
       ret.Set(stage->op, path);
     }
@@ -203,53 +266,22 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
   return reach;
 }
 
-// Get all the operations that forms body of scan
-void ScanGetBodyPostDFS_(
-    Operation op,
-    const ScanOpNode* scan,
-    const FeedGraph& feed_graph,
-    std::unordered_set<const Node*>* visited,
-    Array<Operation>* result) {
-  if (op.get() == scan) return;
-  bool empty_feed = true;
-  for (int i = 0; i < op->num_outputs(); ++i) {
-    auto it = feed_graph.find(op.output(i));
-    if (it != feed_graph.end() && it->second.size()) {
-      empty_feed = false;
-      for (const Operation& xop : it->second) {
-        if (visited->count(xop.get())) continue;
-        visited->insert(xop.get());
-        ScanGetBodyPostDFS_(xop, scan, feed_graph, visited, result);
-        result->push_back(xop);
-      }
-    }
-  }
-  if (empty_feed && op.get() != scan) {
-    LOG(FATAL) << "Bad scan body, tensor reads scan_state but not connect to scan";
-  }
-}
-
-Array<Operation> ScanGetBody_(
-    const ScanOpNode* scan,
-    const FeedGraph& feed_graph) {
-  CHECK(scan != nullptr);
-  std::unordered_set<const Node*> visited;
-  Array<Operation> result;
-  for (Tensor t : scan->state_placeholder) {
-    ScanGetBodyPostDFS_(t->op, scan, feed_graph, &visited, &result);
-  }
-  return result;
-}
-
-Array<Operation> ScanGetBody(const Operation& scan) {
-  return ScanGetBody_(scan.as<ScanOpNode>(),
-                      CreateFeedGraph(CreateReadGraph({scan})));
-}
-
-Map<IterVar, Expr> ScanFixPointAnalysis(
-    const Operation& scan_op, const Array<Operation>& body) {
+Array<Operation> ScanGetBody(const Operation& scan_op) {
   const ScanOpNode* scan = scan_op.as<ScanOpNode>();
-  CHECK(body[0].get() == scan);
+  // Get the body.
+  Array<Tensor> inputs;
+  for (Tensor t : scan->state_placeholder) {
+    inputs.push_back(t);
+  }
+  for (Tensor t : scan->inputs) {
+    inputs.push_back(t);
+  }
+  return GetSubGraph(scan->update, inputs, false);
+}
+
+Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
+  const ScanOpNode* scan = scan_op.as<ScanOpNode>();
+  Array<Operation> body = ScanGetBody(scan_op);
 
   std::unordered_map<TensorDimKey, const Node*> exact_reach;
   std::unordered_set<const Node*> fail_set;
@@ -276,8 +308,8 @@ Map<IterVar, Expr> ScanFixPointAnalysis(
     }
   };
   // prop exact reach back.
-  for (size_t i = body.size(); i != 1; --i) {
-    const Operation& op = body[i - 1];
+  for (size_t i = 0; i < body.size(); ++i) {
+    const Operation& op = body[i];
     if (op.as<ScanOpNode>()) {
       const auto& update = op.as<ScanOpNode>()->update;
       const auto& init = op.as<ScanOpNode>()->init;
