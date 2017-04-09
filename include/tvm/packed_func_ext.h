@@ -139,7 +139,7 @@ inline bool TVMArgValue::IsNodeType() const {
 // extensions for TVMRetValue
 inline TVMRetValue& TVMRetValue::operator=(
     const std::shared_ptr<Node>& other) {
-  if (other == nullptr) {
+  if (other.get() == nullptr) {
     SwitchToPOD(kNull);
   } else {
     SwitchToClass<std::shared_ptr<Node> >(kNodeHandle, other);
