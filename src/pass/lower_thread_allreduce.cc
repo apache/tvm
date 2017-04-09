@@ -20,12 +20,12 @@ class ThreadAllreduceBuilder : public IRMutator {
       : warp_size_(warp_size) {}
 
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
-    if (op->type_key == attr::thread_extent) {
+    if (op->attr_key == attr::thread_extent) {
       thread_extents_.push_back(op);
       Stmt ret = IRMutator::Mutate_(op, s);
       thread_extents_.pop_back();
       return ret;
-    } else if (op->type_key == attr::storage_scope) {
+    } else if (op->attr_key == attr::storage_scope) {
       Stmt ret = IRMutator::Mutate_(op, s);
       op = ret.as<AttrStmt>();
       const Variable* v = op->node.as<Variable>();

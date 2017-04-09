@@ -25,9 +25,9 @@ class AllocateLifter : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    CHECK(op->type_key != attr::virtual_thread)
+    CHECK(op->attr_key != attr::virtual_thread)
         << "InjectVirtualThread before LiftStorageAlloc";
-    if (op->type_key == attr::storage_scope) {
+    if (op->attr_key == attr::storage_scope) {
       StorageScope sc = StorageScope::make(op->value.as<StringImm>()->value);
       allocs_[sc].emplace_back(
           AttrStmt::make(
@@ -35,7 +35,7 @@ class AllocateLifter : public IRMutator {
             op->value, Evaluate::make(0)));
        storage_scope_[op->node.get()] = sc;
       return this->Mutate(op->body);
-    } else if (op->type_key == attr::thread_extent) {
+    } else if (op->attr_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
@@ -55,7 +55,7 @@ class AllocateLifter : public IRMutator {
           Stmt body = MergeNest(vec, op->body);
           vec.clear();
           return AttrStmt::make(
-              op->node, op->type_key, op->value, body);
+              op->node, op->attr_key, op->value, body);
           }
         }
       return stmt;

@@ -77,7 +77,7 @@ class MarkChannelAccess : public IRMutator {
     }
   }
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == ir::attr::storage_scope) {
+    if (op->attr_key == ir::attr::storage_scope) {
       Var buf_var(op->node.node_);
       if (cmap_.count(buf_var.get())) return Mutate(op->body);
     }
@@ -223,7 +223,7 @@ class StageSplitter : public IRMutator {
         nest.emplace_back(IfThenElse::make(op->condition, no_op));
       } else if (const AttrStmt* op = s.as<AttrStmt>()) {
         nest.emplace_back(AttrStmt::make(
-            op->node, op->type_key, op->value, no_op));
+            op->node, op->attr_key, op->value, no_op));
       } else if (s.as<ProducerConsumer>()) {
       } else if (s.as<Block>()) {
       } else if (const Allocate* op = s.as<Allocate>()) {
@@ -266,7 +266,7 @@ class PipelineSplitter : public IRMutator {
       : split_load_(split_load) {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->type_key == ir::attr::pipeline_exec_scope) {
+    if (op->attr_key == ir::attr::pipeline_exec_scope) {
       CHECK_LE(env_.size(), 1U);
       const ProducerConsumer* env = nullptr;
       if (env_.size() == 1) {
@@ -276,7 +276,7 @@ class PipelineSplitter : public IRMutator {
           op->body, env);
       if (body.same_as(op->body)) return s;
       return AttrStmt::make(
-          op->node, op->type_key, op->value, body);
+          op->node, op->attr_key, op->value, body);
     } else {
       return IRMutator::Mutate_(op, s);
     }

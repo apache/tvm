@@ -93,20 +93,20 @@ class PipelineExtractor: public IRVisitor {
   }
 
   void Visit_(const AttrStmt* op) final {
-    if (op->type_key == attr::pipeline_stage_scope) {
+    if (op->attr_key == attr::pipeline_stage_scope) {
       CHECK(!in_pipeline_stage_);
       in_pipeline_stage_ = true;
       trigger_.emplace_back(std::make_pair(loop_.size(), op));
       IRVisitor::Visit_(op);
       trigger_.pop_back();
       in_pipeline_stage_ = false;
-    } else if (op->type_key == attr::channel_read_advance ||
-               op->type_key == attr::channel_write_advance) {
+    } else if (op->attr_key == attr::channel_read_advance ||
+               op->attr_key == attr::channel_write_advance) {
       trigger_.emplace_back(std::make_pair(loop_.size(), op));
       IRVisitor::Visit_(op);
       trigger_.pop_back();
-    } else if (op->type_key == attr::channel_read_scope ||
-               op->type_key == attr::channel_write_scope) {
+    } else if (op->attr_key == attr::channel_read_scope ||
+               op->attr_key == attr::channel_write_scope) {
       Channel ch(op->node.node_);
       ChannelEntry& cb = cmap_[ch->handle_var.get()];
       if (cb.node != nullptr) {
@@ -115,7 +115,7 @@ class PipelineExtractor: public IRVisitor {
         cb.node = std::make_shared<ChannelBlockNode>();
         cb.node->channel = ch;
       }
-      if (op->type_key == attr::channel_read_scope) {
+      if (op->attr_key == attr::channel_read_scope) {
         CHECK_EQ(cb.read_ref_count, 0)
             << "One channel can only be read from one consumer";
         ++cb.read_ref_count;
@@ -173,7 +173,7 @@ class PipelineExtractor: public IRVisitor {
     for (const auto& e : trigger_) {
       const AttrStmt* attr = e.second;
       Channel ch;
-      if (attr->type_key == attr::pipeline_stage_scope) {
+      if (attr->attr_key == attr::pipeline_stage_scope) {
         ch = arg_write;
         if (!ch.defined()) continue;
       } else {
@@ -195,10 +195,10 @@ class PipelineExtractor: public IRVisitor {
       trigger->signal_index = static_cast<int>(cb.node->ctrl_signals.size());
       // Grab the advance constant size.
       int trigger_size;
-      if (attr->type_key == attr::pipeline_stage_scope) {
+      if (attr->attr_key == attr::pipeline_stage_scope) {
         cb.node->ctrl_signals.push_back(
             ControlSignalNode::make(kComputeFinish, 0));
-      } else if (attr->type_key == attr::channel_read_advance) {
+      } else if (attr->attr_key == attr::channel_read_advance) {
         CHECK(arith::GetConstInt(attr->value, &trigger_size))
             << "Only support constant advance size";
         cb.node->ctrl_signals.push_back(
