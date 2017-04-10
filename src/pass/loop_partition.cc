@@ -39,27 +39,43 @@ bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
 
 class PartitionFinder : public IRVisitor {
  public:
-  explicit PartitionFinder(VarExpr loop_var,
+  explicit PartitionFinder(VarExpr current_var,
     const std::unordered_map<const Variable*, IntSet>& dom_map)
-      : target_var_(loop_var), out_vars_(dom_map.size()), hint_map_(dom_map) {
+      : current_var_(current_var), out_vars_(dom_map.size()), hint_map_(dom_map) {
         for (const auto& kv : dom_map) out_vars_.insert(kv.first);
       }
 
   void Visit_(const For* op) {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
 
-    hint_map_.insert({op->loop_var.get(),
-      IntSet::interval(op->min, op->min + op->extent - 1)});
-    relax_map_.insert({op->loop_var.get(),
-      IntSet::interval(op->min, op->min + op->extent - 1)});
+    const Variable* var = op->loop_var.get();
+    hint_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
+    relax_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
     IRVisitor::Visit_(op);
-    relax_map_.erase(op->loop_var.get());
-    hint_map_.erase(op->loop_var.get());
+    relax_map_.erase(var);
+    hint_map_.erase(var);
+  }
+
+  void Visit_(const AttrStmt* op) {
+    // handle thread_axis
+    if (op->attr_key == attr::thread_extent) {
+      const IterVarNode* thread_axis = op->node.as<IterVarNode>();
+      CHECK(thread_axis);
+      const Variable* var = thread_axis->var.get();
+      IntSet dom = IntSet::range(Range(make_zero(op->value.type()), op->value));
+      hint_map_.insert({var, dom});
+      relax_map_.insert({var, dom});
+      IRVisitor::Visit_(op);
+      relax_map_.erase(var);
+      hint_map_.erase(var);
+    } else {
+      IRVisitor::Visit_(op);
+    }
   }
 
   void Visit_(const IfThenElse* op) {
-    if (ExprUseVars(op->condition, std::unordered_set<const Variable*>({target_var_.get()}))) {
-      IntSet interval = DeduceBound(target_var_, op->condition, hint_map_, relax_map_);
+    if (ExprUseVars(op->condition, std::unordered_set<const Variable*>({current_var_.get()}))) {
+      IntSet interval = DeduceBound(current_var_, op->condition, hint_map_, relax_map_);
       partitions[op->condition.get()] = Partition{op->condition, interval};
     } else {
       IRVisitor::Visit_(op);
@@ -69,7 +85,7 @@ class PartitionFinder : public IRVisitor {
   std::unordered_map<const Node*, Partition> partitions;
 
  private:
-  VarExpr target_var_;
+  VarExpr current_var_;
   std::unordered_set<const Variable*> out_vars_;
   std::unordered_map<const Variable*, IntSet> hint_map_;
   std::unordered_map<const Variable*, IntSet> relax_map_;
