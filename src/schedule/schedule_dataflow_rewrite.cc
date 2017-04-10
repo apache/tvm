@@ -154,24 +154,9 @@ Tensor Schedule::cache_write(const Tensor& tensor,
 
 void RebaseNonZeroMinLoop(const Schedule& sch) {
   std::unordered_map<IterVar, IterVar> rebase_map;
-  std::unordered_map<const Node*, int> attach_mark;
-
   for (Stage s : sch->stages) {
-    if (s->attach_type == kScope) {
-      attach_mark[s->attach_stage.get()] = 1;
-    }
-    if (s->op.as<ScanOpNode>()) {
-      attach_mark[s.get()] = 1;
-    }
-  }
-  for (Stage s : sch->groups) {
-    if (s->attach_type == kScope) {
-      attach_mark[s->attach_stage.get()] = 1;
-    }
-  }
+    if (s->attach_type == kInlinedAlready) continue;
 
-  for (Stage s : sch->stages) {
-    if (!attach_mark.count(s.get())) continue;
     auto root_iter_vars = s->op->root_iter_vars();
     ArrayNode* leaf_vars = s->leaf_iter_vars.CopyOnWrite();
     for (IterVar iv : root_iter_vars) {
@@ -197,16 +182,6 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
     if (s->attach_type != kScope) continue;
     if (rebase_map.count(s->attach_ivar)) {
       s->attach_ivar = rebase_map.at(s->attach_ivar);
-    }
-  }
-}
-
-void SetScanAttach(const Schedule& sch) {  // NOLINT(*)
-  for (Stage stage : sch->stages) {
-    if (stage->attach_type == kScanUpdate) {
-      const Stage& parent = stage->attach_stage;
-      stage->attach_ivar =
-          parent->leaf_iter_vars[parent->leaf_iter_vars.size() - 1];
     }
   }
 }
@@ -262,9 +237,8 @@ void InjectInline(ScheduleNode* sch) {
 }
 
 void Schedule::normalize() {
-  RebaseNonZeroMinLoop(*this);
-  SetScanAttach(*this);
   InjectInline(operator->());
+  RebaseNonZeroMinLoop(*this);
 }
 
 // Handle reduction factor.
