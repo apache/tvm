@@ -194,29 +194,25 @@ Stmt Substitute(Stmt s,
 // Cross Thread reduction marker.
 bool IsCrossThreadReduction(const ComputeOpNode* self,
                             const Stage& stage) {
-  std::unordered_set<IterVar> rebase_thread;
-  for (IterVarRelation rel : stage->relations) {
-    if (const RebaseNode* s = rel.as<RebaseNode>()) {
-      if (s->parent->iter_type == kCommReduce &&
-          s->rebased->iter_type == kThreadIndex) {
-        rebase_thread.insert(s->rebased);
-      }
-    }
-  }
-  if (rebase_thread.size() == 0) return false;
   // Verify correctness of leaf nest.
-  bool reduce_start =  false;
+  int normal_red = 0, thread_red = 0;
   for (IterVar iv : stage->leaf_iter_vars) {
     if (iv->iter_type == kCommReduce) {
-      LOG(FATAL) << "Cannot mix cross thread reduce with normal reduce";
-    } else if (rebase_thread.count(iv)) {
-      reduce_start = true;
+      auto it = stage->iter_var_attrs.find(iv);
+      if (it != stage->iter_var_attrs.end() &&
+          (*it).second->bind_thread.defined()) {
+        ++thread_red;
+      } else {
+        ++normal_red;
+      }
     } else {
-      CHECK(!reduce_start)
+      CHECK_EQ(thread_red, 0)
           << "Cross thread reduce cannot swap with normal data axis";
     }
   }
-  return true;
+  CHECK(normal_red == 0 || thread_red == 0)
+      << "Cannot mix normal reduction with thread reduce";
+  return thread_red != 0;
 }
 
 Stmt MakeCrossThreadReduction(
@@ -246,12 +242,14 @@ Stmt MakeCrossThreadReduction(
   freduce_args.push_back(cond);
 
   std::vector<Expr> thread_head_check;
-  for (IterVarRelation rel : stage->relations) {
-    if (const RebaseNode* s = rel.as<RebaseNode>()) {
-      if (s->parent->iter_type == kCommReduce &&
-          s->rebased->iter_type == kThreadIndex) {
-        freduce_args.push_back(s->rebased->var);
-        thread_head_check.push_back(s->rebased->var == 0);
+  for (IterVar iv : stage->leaf_iter_vars) {
+    if (iv->iter_type == kCommReduce) {
+      auto it = stage->iter_var_attrs.find(iv);
+      if (it != stage->iter_var_attrs.end() &&
+          (*it).second->bind_thread.defined()) {
+        IterVar tv = (*it).second->bind_thread;
+        freduce_args.push_back(tv->var);
+        thread_head_check.push_back(tv->var == 0);
       }
     }
   }

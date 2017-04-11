@@ -128,7 +128,11 @@ void InferRootBound(const Stage& stage,
         CHECK(is_zero(vrange->min))
             << "InferBound requires every leaf iter var's min equals 0, "
             << " call schedule.normalize to achieve this. ";
-        up_state[iv] = IntSet::single_point(iv->var);
+        if (ctx.bind_map.count(iv)) {
+          up_state[iv] = IntSet::single_point(ctx.bind_map.at(iv)->var);
+        } else {
+          up_state[iv] = IntSet::single_point(iv->var);
+        }
       } else {
         up_state[iv] = IntSet::range(vrange);
       }
