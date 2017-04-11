@@ -90,10 +90,11 @@ def test_rfactor_threads():
     s = tvm.Schedule(B.op)
     ko, kf = s[B].split(k, factor=nthread)
     BF = s.rfactor(B, kf)
-    bx, tx = s[B].split(s[B].op.axis[0], factor=nthread)
+    bx, ty = s[B].split(s[B].op.axis[0], factor=nthread)
     s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(tx, tvm.thread_axis("threadIdx.y"))
-    s[B].bind(s[B].op.reduce_axis[0], tvm.thread_axis("threadIdx.x"))
+    s[B].bind(ty, tvm.thread_axis("threadIdx.y"))
+    tx = s[B].op.reduce_axis[0]
+    s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
     s[BF].compute_at(s[B], tx)
 
     # one line to build the function.
@@ -124,6 +125,6 @@ def test_rfactor_threads():
     check_target("opencl")
 
 if __name__ == "__main__":
-    test_rfactor()
     test_rfactor_threads()
+    test_rfactor()
     test_sum()

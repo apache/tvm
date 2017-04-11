@@ -161,6 +161,12 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
     ArrayNode* leaf_vars = s->leaf_iter_vars.CopyOnWrite();
     for (IterVar iv : root_iter_vars) {
       size_t idx = FindNodeRef(leaf_vars, iv);
+      auto it  = s->iter_var_attrs.find(iv);
+      // don;t need to rebase path that are binded.
+      if (it != s->iter_var_attrs.end() &&
+          (*it).second->bind_thread.defined()) {
+        continue;
+      }
       if (idx < leaf_vars->data.size()) {
         // insert rebase
         IterVar rebased = IterVarNode::make(
@@ -364,6 +370,10 @@ Tensor Schedule::rfactor(const Tensor& tensor,
   stages->data.insert(stages->data.begin() + stage_pos,
                       factor_stage.node_);
   (*this)->stage_map.Set(factor_op, factor_stage);
+  factor_stage->group = reduce_stage->group;
+  if (factor_stage->group.defined()) {
+    ++factor_stage->group->num_child_stages;
+  }
   // Replace the old reduction.
   IterVar repl_red_axis = reduce_axis(
       dom_map.at(axis), axis->var->name_hint + ".v");

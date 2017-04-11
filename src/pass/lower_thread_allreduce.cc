@@ -99,13 +99,14 @@ class ThreadAllreduceBuilder : public IRMutator {
           cond, value, Reduce::InitValue(op_code, value.type()));
     }
 
-    std::unordered_set<const Variable*> reduce_index_;
+    std::unordered_set<const Variable*> reduce_set;
     for (size_t i = 3; i < call->args.size(); ++i) {
       const Variable* v = call->args[i].as<Variable>();
       CHECK(v);
-      reduce_index_.insert(v);
+      reduce_set.insert(v);
     }
     size_t nmatch = 0;
+    std::unordered_set<const Variable*> visited;
     std::vector<ThreadEntry> vred, vpar;
     for (const AttrStmt* attr : thread_extents_) {
       ThreadEntry e;
@@ -118,15 +119,18 @@ class ThreadAllreduceBuilder : public IRMutator {
       CHECK_GE(e.scope.dim_index, 0)
           << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
-        if (reduce_index_.count(iv->var.get())) {
-          vred.push_back(e);
-          ++nmatch;
-        } else {
-          vpar.push_back(e);
+        if (!visited.count(iv->var.get())) {
+          visited.insert(iv->var.get());
+          if (reduce_set.count(iv->var.get())) {
+            vred.push_back(e);
+            ++nmatch;
+          } else {
+            vpar.push_back(e);
+          }
         }
       }
     }
-    CHECK_EQ(nmatch, reduce_index_.size())
+    CHECK_EQ(nmatch, reduce_set.size())
         << "Not all reduce index are presented in the context";
     std::sort(vred.begin(), vred.end());
     std::sort(vpar.begin(), vpar.end());
