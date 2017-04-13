@@ -148,6 +148,9 @@ void InferRootBound(const Stage& stage,
           << "call schedule.normalize to achieve this.";
       if (NeedRelax(iv, found_attach, ctx.bind_map, scope)) {
         relax_set[iv->var.get()] = IntSet::range(vrange);
+        if (ctx.bind_map.count(iv)) {
+          relax_set[ctx.bind_map.at(iv)->var.get()] = IntSet::range(vrange);
+        }
       }
     }
     CHECK(found_attach || stage_attach.size() == 0)
