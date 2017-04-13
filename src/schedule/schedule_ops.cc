@@ -158,6 +158,18 @@ class SchedulePostProc : public IRMutator {
       CHECK(scan);
       var_value_[scan->scan_axis->var.get()] = op->value;
       return this->Mutate(op->body);
+    } else if (op->attr_key == attr::thread_extent) {
+      // delete duplicated thread extent attr
+      auto it = thread_extent_scope_.find(op->node.get());
+      if (it != thread_extent_scope_.end()) {
+        CHECK(is_zero(ir::Simplify(it->second- op->value)));
+        return this->Mutate(op->body);
+      } else {
+        thread_extent_scope_[op->node.get()] = op->value;
+        Stmt ret = IRMutator::Mutate_(op, s);
+        thread_extent_scope_.erase(op->node.get());
+        return ret;
+      }
     } else if (op->attr_key == ir::attr::realize_scope) {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
@@ -267,6 +279,8 @@ class SchedulePostProc : public IRMutator {
     replace_realize_[key] = repl_realize;
     replace_op_[src->op.get()] = repl_op;
   }
+  // The thread extent scope.
+  std::unordered_map<const Node*, Expr> thread_extent_scope_;
   // The scan value
   std::unordered_map<const Variable*, Expr> var_value_;
   // buffer replacement

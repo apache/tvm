@@ -77,7 +77,8 @@ def build(sch,
           target_host="stackvm",
           name="default_function",
           binds=None,
-          max_auto_unroll_step=8):
+          max_auto_unroll_step=8,
+          detect_global_barrier=True):
     """Build a function with arguments as signiture.
 
     Parameters
@@ -104,6 +105,9 @@ def build(sch,
     max_auto_unroll_step: int
         Maximum step to perform automatic unrolling
 
+    detect_global_barrier: boolean
+        Whether detect and inser global barrier
+
     Returns
     -------
     f : Function, or pair of functions
@@ -122,14 +126,13 @@ def build(sch,
         fapi = sch
     else:
         raise ValueError("sch have to be Schedule or LoweredFunc")
-
-    fsplits = ir_pass.SplitHostDevice(fapi)
-    fsplits = [x for x in fsplits]
-    for i in range(1, len(fsplits)):
-        fsplits[i] = ir_pass.StorageSync(fsplits[i], "shared")
-        warp_size = 32 if target == "cuda" else 1
-        fsplits[i] = ir_pass.LowerThreadAllreduce(fsplits[i], warp_size)
-
+    # device related lowering
+    if detect_global_barrier:
+        fapi = ir_pass.StorageSync(fapi, "global")
+    fapi = ir_pass.StorageSync(fapi, "shared")
+    warp_size = 32 if target == "cuda" else 1
+    fapi = ir_pass.LowerThreadAllreduce(fapi, warp_size)
+    fsplits = [s for s in ir_pass.SplitHostDevice(fapi)]
     if len(fsplits) > 1:
         mhost = codegen.build(fsplits[0], target_host)
         if target:

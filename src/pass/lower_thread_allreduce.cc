@@ -106,7 +106,6 @@ class ThreadAllreduceBuilder : public IRMutator {
       reduce_set.insert(v);
     }
     size_t nmatch = 0;
-    std::unordered_set<const Variable*> visited;
     std::vector<ThreadEntry> vred, vpar;
     for (const AttrStmt* attr : thread_extents_) {
       ThreadEntry e;
@@ -119,14 +118,11 @@ class ThreadAllreduceBuilder : public IRMutator {
       CHECK_GE(e.scope.dim_index, 0)
           << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
-        if (!visited.count(iv->var.get())) {
-          visited.insert(iv->var.get());
-          if (reduce_set.count(iv->var.get())) {
-            vred.push_back(e);
-            ++nmatch;
-          } else {
-            vpar.push_back(e);
-          }
+        if (reduce_set.count(iv->var.get())) {
+          vred.push_back(e);
+          ++nmatch;
+        } else {
+          vpar.push_back(e);
         }
       }
     }
@@ -261,6 +257,7 @@ class ThreadAllreduceBuilder : public IRMutator {
   }
   // The warp size of the device.
   int warp_size_{1};
+
   // surrounding scope of thread extent.
   std::vector<const AttrStmt*> thread_extents_;
   // The load remap
