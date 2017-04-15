@@ -57,6 +57,26 @@ class Tensor(NodeBase):
         """Dimension of the tensor."""
         return len(self.shape)
 
+    @property
+    def axis(self):
+        """Axis of the tensor."""
+        return self.__getattr__("axis")
+
+    @property
+    def op(self):
+        """The corressponding :any:`Operation`."""
+        return self.__getattr__("op")
+
+    @property
+    def value_index(self):
+        """The output value index the tensor corressponds to."""
+        return self.__getattr__("value_index")
+
+    @property
+    def shape(self):
+        """The output shape of the tensor."""
+        return self.__getattr__("shape")
+
 
 class Operation(NodeBase):
     """Represent an operation that generate a tensor"""

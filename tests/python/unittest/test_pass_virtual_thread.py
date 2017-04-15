@@ -1,12 +1,12 @@
 import tvm
 
 def test_virtual_thread():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     A = tvm.placeholder((m, ), name='A')
     A1 = tvm.compute((m,), lambda i: A[i], name='A1')
     A2 = tvm.compute((m,), lambda i: A1[i] + 3, name='A2')
 
-    s = tvm.Schedule(A2.op)
+    s = tvm.create_schedule(A2.op)
     vx = tvm.thread_axis("vthread", name="vx")
     xo, xi = s[A2].split(A2.op.axis[0], nparts=2)
     s[A2].bind(xo, vx)
@@ -17,8 +17,8 @@ def test_virtual_thread():
     assert isinstance(bounds, tvm.collections.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
-    Ab = tvm.Buffer(A.shape, A.dtype, name='A')
-    A2b = tvm.Buffer(A2.shape, A2.dtype, name='A2')
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    A2b = tvm.decl_buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})
     stmt = tvm.ir_pass.Simplify(stmt)
     stmt = tvm.ir_pass.InjectVirtualThread(stmt)

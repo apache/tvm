@@ -30,14 +30,14 @@ def test_ir():
     assert isinstance(stmt, tvm.stmt.Evaluate)
 
 def test_let():
-    x = tvm.Var('x')
-    y = tvm.Var('y')
+    x = tvm.var('x')
+    y = tvm.var('y')
     stmt = tvm.make.LetStmt(
         x, 10, tvm.make.Evaluate(x + 1));
 
 def test_attr():
-    x = tvm.Var('x')
-    y = tvm.Var('y')
+    x = tvm.var('x')
+    y = tvm.var('y')
     stmt = tvm.make.AttrStmt(
         y, "stride", 10, tvm.make.Evaluate(x + 1));
     assert stmt.node == y
@@ -52,15 +52,15 @@ def test_attr():
 
 
 def test_basic():
-    a = tvm.Var('a')
-    b = tvm.Var('b')
+    a = tvm.var('a')
+    b = tvm.var('b')
     c =  a + b
     assert str(c) == '(%s + %s)' % (a.name, b.name)
 
 
 def test_stmt():
     x = tvm.make.Evaluate(0)
-    tvm.make.For(tvm.Var('i'), 0, 1,
+    tvm.make.For(tvm.var('i'), 0, 1,
                  tvm.stmt.For.Serial, 0,
                  x)
 

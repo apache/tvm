@@ -21,6 +21,24 @@ class Fuse(NodeBase):
     pass
 
 
+def create_schedule(ops):
+    """Create a schedule for list of ops
+
+    Parameters
+    ----------
+    ops : list of Operations
+        The source expression.
+
+    Returns
+    -------
+    sch : schedule.Schedule
+        The created schedule.
+    """
+    if not isinstance(ops, (list, _collections.Array)):
+        ops = [ops]
+    return _api_internal._Schedule(ops)
+
+
 @register_node
 class Schedule(NodeBase):
     """Schedule for all the stages."""
@@ -278,7 +296,8 @@ class Stage(NodeBase):
             The original y dimension
         x_factor : Expr
             The stride factor on x axis
-        y_factor : Expr The stride factor on y axis
+        y_factor : Expr
+            The stride factor on y axis
 
         Returns
         -------

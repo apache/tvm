@@ -3,18 +3,18 @@ import numpy
 
 def test_makeapi():
     """Not yet working, mock design"""
-    n = tvm.Var('n')
+    n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
-    Ab = tvm.Buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.Buffer(B.shape, B.dtype, name='B')
-    Cb = tvm.Buffer(C.shape, C.dtype, name='C')
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
+    Cb = tvm.decl_buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
 
     num_unpacked_args = 2

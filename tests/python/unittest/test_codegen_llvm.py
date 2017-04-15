@@ -7,7 +7,7 @@ def test_llvm_add_pipeline():
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     s[C].parallel(xo)
     s[C].vectorize(xi)
@@ -35,7 +35,7 @@ def test_llvm_flip_pipeline():
         n = tvm.convert(nn)
         A = tvm.placeholder((n + base), name='A')
         C = tvm.compute((n,), lambda i: A(nn + base- i - 1), name='C')
-        s = tvm.Schedule(C.op)
+        s = tvm.create_schedule(C.op)
         xo, xi = s[C].split(C.op.axis[0], factor=4)
         s[C].parallel(xo)
         s[C].vectorize(xi)
@@ -62,7 +62,7 @@ def test_llvm_madd_pipeline():
         n = tvm.convert(nn)
         A = tvm.placeholder((n + base, stride), name='A')
         C = tvm.compute((n, stride), lambda i, j: A(base + i, j) + 1, name='C')
-        s = tvm.Schedule(C.op)
+        s = tvm.create_schedule(C.op)
         xo, xi = s[C].split(C.op.axis[0], factor=4)
         s[C].parallel(xo)
         s[C].vectorize(xi)
@@ -86,7 +86,7 @@ def test_llvm_temp_space():
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute(A.shape, lambda i: A(i) + 1, name='B')
     C = tvm.compute(A.shape, lambda i: B(i) + 1, name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
 
     def check_llvm():
         if not tvm.codegen.enabled("llvm"):

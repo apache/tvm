@@ -26,9 +26,9 @@ def test_dso_module_load():
     temp = testing.tempdir()
 
     def save_object(names):
-        n = tvm.Var('n')
-        Ab = tvm.Buffer((n, ), dtype)
-        i = tvm.Var('i')
+        n = tvm.var('n')
+        Ab = tvm.decl_buffer((n, ), dtype)
+        i = tvm.var('i')
         # for i in 0 to n-1:
         stmt = tvm.make.For(
             i, 0, n - 1, 0, 0,

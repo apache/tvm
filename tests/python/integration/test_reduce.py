@@ -3,13 +3,13 @@ import numpy as np
 
 def test_sum():
     # graph
-    n = tvm.Var('n')
-    m = tvm.Var('m')
+    n = tvm.var('n')
+    m = tvm.var('m')
     A = tvm.placeholder((n, m), name='A')
     k = tvm.reduce_axis((0, m))
     B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k, where=(i>1)), name='B')
     # schedule
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     # create iter var and assign them tags.
     num_thread = 1
     xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
@@ -52,7 +52,7 @@ def test_rfactor():
     k = tvm.reduce_axis((0, n))
     B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k), name='B')
     # schedule
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
     BF = s.rfactor(B, kf)
     s[BF].parallel(BF.op.axis[0])
@@ -87,7 +87,7 @@ def test_rfactor_threads():
     nthread = 16
     B = tvm.compute((m,), lambda i: tvm.sum(A[i, k], axis=k, where=(i>1)), name='B')
     # schedule
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     ko, kf = s[B].split(k, factor=nthread)
     BF = s.rfactor(B, kf)
     bx, ty = s[B].split(s[B].op.axis[0], factor=nthread)

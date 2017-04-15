@@ -1,12 +1,12 @@
 import tvm
 
 def test_basic():
-    n = tvm.Var('n')
+    n = tvm.var('n')
     A = tvm.placeholder((n, ), name='A')
     B = tvm.placeholder((n, ), name='B')
 
     T = tvm.compute((n, ), lambda i: A[i]+B[i])
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
 
     bounds = tvm.schedule.InferBound(s)
@@ -16,11 +16,11 @@ def test_basic():
     print(stmt)
 
 def test_multi_loop():
-    i = tvm.Var('i')
-    j = tvm.Var('j')
-    k = tvm.Var('k')
-    m = tvm.Var('m')
-    n = tvm.Var('n')
+    i = tvm.var('i')
+    j = tvm.var('j')
+    k = tvm.var('k')
+    m = tvm.var('m')
+    n = tvm.var('n')
     stmt = tvm.make.For(
         i, 0, 4, 0, 0,
         tvm.make.For(
@@ -34,11 +34,11 @@ def test_multi_loop():
     print(stmt)
 
 def test_multi_if():
-    i = tvm.Var('i')
-    j = tvm.Var('j')
-    k = tvm.Var('k')
-    m = tvm.Var('m')
-    n = tvm.Var('n')
+    i = tvm.var('i')
+    j = tvm.var('j')
+    k = tvm.var('k')
+    m = tvm.var('m')
+    n = tvm.var('n')
     stmt = tvm.make.For(
         i, 0, 4, 0, 0,
         tvm.make.For(
@@ -54,12 +54,12 @@ def test_multi_if():
     print(stmt)
 
 def test_thread_axis():
-    m = tvm.Var('m')
-    l = tvm.Var('l')
+    m = tvm.var('m')
+    l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.compute((m, l), lambda i, j: A[i, j] + 3, name='B')
 
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
 
     s[B].set_scope("shared")
     num_thread = 16

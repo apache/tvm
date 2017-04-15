@@ -4,10 +4,10 @@ import numpy
 def test_simplify():
     """Not yet working, mock design"""
     dtype = 'int64'
-    n = tvm.Var('n')
-    Ab = tvm.Buffer((n, ), dtype)
-    i = tvm.Var('i')
-    j = tvm.Var('j')
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), dtype)
+    i = tvm.var('i')
+    j = tvm.var('j')
     # for i in 0 to n-1:
     stmt = tvm.make.For(
         i, 2, n, 0, 0,
@@ -22,7 +22,7 @@ def test_simplify():
 
 
 def test_basic():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     ret = tvm.ir_pass.CanonicalSimplify(tvm.make.Evaluate(m-1))
     assert str(ret.value) == "(m - 1)"
 

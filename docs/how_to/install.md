@@ -8,7 +8,7 @@ scratch on various systems. It consists of two steps:
 
 To get started, clone tvm repo from github. It is important to clone the submodules along, with ```--recursive``` option.
 ```bash
-git clone --recursive https://github.com/tqchen/tvm
+git clone --recursive ssh://git@github.com/tqchen/tvm
 ```
 For windows users who use github tools, you can open the git shell, and type the following command.
 ```bash

@@ -47,7 +47,7 @@ def rnn_matexp():
     max_auto_unroll_step = 0
     detect_global_barrier = DETECT_GLOBAL_BARRIER
 
-    num_step = tvm.Var("num_step")
+    num_step = tvm.var("num_step")
     num_hidden = tvm.convert(n_num_hidden)
     batch_size = tvm.convert(n_batch_size)
     num_thread_y = 8
@@ -65,7 +65,7 @@ def rnn_matexp():
         name="update")
     s_scan = tvm.scan(s_init, s_update, s_state)
     # schedule
-    s = tvm.Schedule(s_scan.op)
+    s = tvm.create_schedule(s_scan.op)
     CL = s_update
     SS = s.cache_read(s_state, "shared", [CL])
     SL = s.cache_read(SS, "local", [CL])

@@ -6,10 +6,10 @@ def test_basic():
     assert s.max().value == 3
 
 def test_deduce():
-    a = tvm.Var('a')
-    b = tvm.Var('b')
-    c = tvm.Var('c')
-    d = tvm.Var('d')
+    a = tvm.var('a')
+    b = tvm.var('b')
+    c = tvm.var('c')
+    d = tvm.var('d')
 
     b_s = tvm.arith.intset_interval(2, 3)
     c_s = tvm.arith.intset_interval(10, 15)
@@ -36,10 +36,10 @@ def test_deduce():
     assert str(tvm.ir_pass.Simplify(res3.min())) == str(ans3)
 
 def test_check():
-    a = tvm.Var('a')
-    b = tvm.Var('b')
-    c = tvm.Var('c')
-    d = tvm.Var('d')
+    a = tvm.var('a')
+    b = tvm.var('b')
+    c = tvm.var('c')
+    d = tvm.var('d')
 
     b_s = tvm.arith.intset_interval(2, 3)
     c_s = tvm.arith.intset_interval(5, 7)

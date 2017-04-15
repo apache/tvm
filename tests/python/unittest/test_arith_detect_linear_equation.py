@@ -1,8 +1,8 @@
 import tvm
 
 def test_basic():
-    a = tvm.Var("a")
-    b = tvm.Var("b")
+    a = tvm.var("a")
+    b = tvm.var("b")
     m = tvm.arith.DetectLinearEquation(a * 4 + b * 6 + 7, a)
     assert m[1].value == 4
     assert tvm.ir_pass.Simplify(m[0] - (b * 6 + 7)).value == 0

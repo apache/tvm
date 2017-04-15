@@ -42,7 +42,7 @@ class SliceBase(object):
     pass
 
 class NodeBase(object):
-    """Symbol is symbolic graph."""
+    """NodeBase is the base class of all TVM language AST object."""
     __slots__ = ["handle"]
     # pylint: disable=no-member
     def __init__(self, handle):
@@ -119,7 +119,21 @@ class NodeBase(object):
 
 
 def const(value, dtype=None):
-    """construct a constant"""
+    """Construct a constant value for a given type.
+
+    Parameters
+    ----------
+    value : int or float
+        The input value
+
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    expr : Expr
+        Constant expression corresponds to the value.
+    """
     if dtype is None:
         if isinstance(value, Integral):
             dtype = 'int32'

@@ -2,14 +2,14 @@ import tvm
 import pickle as pkl
 
 def test_schedule_create():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
-    l = tvm.Var('l')
+    m = tvm.var('m')
+    n = tvm.var('n')
+    l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.placeholder((n, l), name='B')
     AA = tvm.compute((m, l), lambda i, j: A[i, j])
     T = tvm.compute((m, n, l), lambda i, j, k: AA(i, k) * B(j, k))
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     s[AA].set_scope("shared")
     xo, xi = s[T].split(T.op.axis[0], factor=10)
     xi1, xi2 = s[T].split(xi, factor=2)
@@ -31,11 +31,11 @@ def test_schedule_create():
     assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 
 def test_reorder():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute(m, lambda i: A[i+1])
 
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=10)
     xi1, xi2 = s[T].split(xi, factor=2)
     order = (xi2, xi1, xo)
@@ -44,45 +44,45 @@ def test_reorder():
     assert tuple(s[T].leaf_iter_vars) == order
 
 def test_split():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i: A[i])
 
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=10)
     assert tuple(s[T].leaf_iter_vars) == (xo, xi)
 
 
 def test_tile():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
+    m = tvm.var('m')
+    n = tvm.var('n')
     A = tvm.placeholder((m, n), name='A')
     T = tvm.compute((m, n), lambda i, j: A[i, j])
 
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
     assert tuple(s[T].leaf_iter_vars) == (xo, yo, xi, yi)
 
 
 def test_fuse():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
+    m = tvm.var('m')
+    n = tvm.var('n')
     A = tvm.placeholder((m, n), name='A')
     T = tvm.compute((m, n), lambda i, j: A[i, j])
 
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
     fused = s[T].fuse(yo, xo)
     assert any(isinstance(x, tvm.schedule.Fuse) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused, xi, yi)
 
 def test_vectorize():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
+    m = tvm.var('m')
+    n = tvm.var('n')
     A = tvm.placeholder((m, n), name='A')
     T = tvm.compute((m, n), lambda i, j: A[i, j])
 
-    s = tvm.Schedule(T.op)
+    s = tvm.create_schedule(T.op)
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
     s[T].vectorize(yi)
     s[T].unroll(xi)
@@ -92,20 +92,20 @@ def test_vectorize():
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
 def test_rfactor():
-    n = tvm.Var('n')
+    n = tvm.var('n')
     k1 = tvm.reduce_axis((0, n), name="k1")
     k2 = tvm.reduce_axis((0, n), name="k2")
     A = tvm.placeholder((n, n, n), name='A')
     B = tvm.compute((n, ), lambda i: tvm.sum(A[i, k1, k2], axis=[k1, k2]))
     # normal schedule
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     BF = s.rfactor(B, k1)
     assert(tuple(BF.shape) == (n, n))
     assert(set(BF.op.body.axis) == set([k2]))
     assert(s[B].op.body.axis[0].dom.extent == n)
     assert(len(s[B].all_iter_vars) == 2)
     # schedule with splot
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     ko, ki = s[B].split(k1, factor=4)
     xo, xi = s[B].split(B.op.axis[0], factor=8)
     BF = s.rfactor(B, ki)

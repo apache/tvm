@@ -8,7 +8,7 @@ def test_add():
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
     # schedule
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
     # create iter var and assign them tags.
     num_thread = 256
     bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
