@@ -27,14 +27,14 @@ def lower(sch,
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
 
-    name : str
+    name : str, optional
         The name of result function.
 
     binds : dict, optional
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
-    max_auto_unroll_step: int
+    max_auto_unroll_step: int, optional
         Maximum step to perform automatic unrolling
 
     Returns
@@ -86,26 +86,26 @@ def build(sch,
     sch : tvm.Schedule, or LoweredFunc
         The schedule to be builded
 
-    args : list of Buffer or Tensor or Var
+    args : list of Buffer or Tensor or Var, optional
         The argument lists to the function.
 
-    target : str
+    target : str, optional
         The target of the compilation.
 
-    target_host :
+    target_host : str, optional
         Host compilation target, if target is device.
 
-    name : str
+    name : str, optional
         The name of result function.
 
     binds : dict, optional
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
-    max_auto_unroll_step: int
+    max_auto_unroll_step: int, optional
         Maximum step to perform automatic unrolling
 
-    detect_global_barrier: boolean
+    detect_global_barrier: boolean, optional
         Whether detect and inser global barrier
 
     Returns
