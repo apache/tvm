@@ -10,7 +10,7 @@ def test_get_global():
         return 10
     # get it out from global function table
     f = tvm.get_global_func("my_packed_func")
-    assert isinstance(f, tvm.nd.Function)
+    assert isinstance(f, tvm.Function)
     y = f(*targs)
     assert y == 10
 
@@ -32,7 +32,7 @@ def test_convert():
         assert(tuple(args) == targs)
 
     f = tvm.convert(myfunc)
-    assert isinstance(f, tvm.nd.Function)
+    assert isinstance(f, tvm.Function)
     f(*targs)
 
 def test_byte_array():

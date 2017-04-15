@@ -1,7 +1,6 @@
 # pylint: disable=redefined-builtin, wildcard-import
 """C++ backend related python scripts"""
 from __future__ import absolute_import as _abs
-from ._ctypes._node import register_node
 
 from . import tensor
 from . import arith
@@ -13,12 +12,16 @@ from . import codegen
 from . import collections
 from . import schedule
 from . import module
+from . import node
 
 from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, cl, vpi
 
+from ._ctypes._function import Function
+
 from ._base import TVMError
 from ._base import __version__
 from .api import *
+from .node import register_node
 from .schedule import create_schedule
 from .build import build, lower

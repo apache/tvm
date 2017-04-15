@@ -1,12 +1,16 @@
-Python API Reference
-====================
+Python API
+==========
 
 tvm
 ---
 tvm is a library root namespace contains functions for
 declaring computation.
 
-.. autofunction:: tvm.Var
+.. autofunction:: tvm.load_json
+
+.. autofunction:: tvm.save_json
+
+.. autofunction:: tvm.var
 
 .. autofunction:: tvm.convert
 
@@ -21,11 +25,6 @@ declaring computation.
 .. autofunction:: tvm.reduce_axis
 
 .. autofunction:: tvm.sum
-
-tvm.expr
---------
-.. automodule:: tvm.expr
-    :members:
 
 tvm.tensor
 ----------
@@ -42,7 +41,7 @@ and Operation class for computation declaration.
 
 tvm.schedule
 ------------
-.. autofunction:: tvm.Schedule
+.. autofunction:: tvm.create_schedule
 
 .. autoclass:: tvm.schedule.Schedule
     :members:
@@ -54,27 +53,35 @@ tvm.build
 ---------
 
 .. autofunction:: tvm.lower
-
 .. autofunction:: tvm.build
 
-Runtime Array
--------------
+tvm.ndarray
+-----------
+tvm.ndarray provides a minimum runtime array API to testing out
+the correctness of the program.
 
 .. autofunction:: tvm.cpu
+.. autofunction:: tvm.gpu
+.. autofunction:: tvm.vpi
 .. autofunction:: tvm.opencl
-
 .. autofunction:: tvm.ndarray.array
+
+.. autoclass:: tvm.ndarray.TVMContext
+    :members:
 
 .. autoclass:: tvm.ndarray.NDArray
     :members:
     :inherited-members:
 
-.. autoclass:: tvm.Function
-    :members:
-    :inherited-members:
+tvm.Function
+------------
 
-Compiled Module
----------------
+.. autofunction:: tvm.register_func
+
+.. autoclass:: tvm.Function
+
+tvm.module
+----------
 .. autofunction:: tvm.module.load
 
 .. autofunction:: tvm.module.load
@@ -82,3 +89,20 @@ Compiled Module
 .. autoclass:: tvm.module.Module
     :members:
     :inherited-members:
+
+tvm.node
+--------
+tvm.node provides
+
+.. autofunction:: tvm.register_node
+
+.. autoclass:: tvm.node.NodeBase
+    :members:
+
+.. autoclass:: tvm.node.Node
+    :members:
+
+tvm.expr
+--------
+.. automodule:: tvm.expr
+    :members:

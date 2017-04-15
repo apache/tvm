@@ -136,7 +136,8 @@ def _make_tvm_args(args, temp_args):
 
 
 class Function(object):
-    """A function object at runtime."""
+    """The Function object used in TVM.
+    """
     __slots__ = ["handle", "is_global"]
     # pylint: disable=no-member
     def __init__(self, handle, is_global=False):
@@ -158,6 +159,11 @@ class Function(object):
             check_call(_LIB.TVMFuncFree(self.handle))
 
     def __call__(self, *args):
+        """Call the function with positional arguments
+
+        args : list
+           The positional arguments to the function call.
+        """
         temp_args = []
         values, tcodes, num_args = _make_tvm_args(args, temp_args)
         ret_val = TVMValue()

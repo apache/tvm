@@ -39,7 +39,7 @@ import numpy as np
 # No computation happens during this phase, as we are only declaring how
 # the computation should be done.
 #
-n = tvm.Var("n")
+n = tvm.var("n")
 A = tvm.placeholder((n,), name='A')
 B = tvm.placeholder((n,), name='B')
 C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
@@ -64,7 +64,7 @@ print(type(C))
 #     C[i] = A[i] + B[i];
 #   }
 #
-s = tvm.Schedule(C.op)
+s = tvm.create_schedule(C.op)
 
 ######################################################################
 # We used the split construct to split the first axis of C,
@@ -159,7 +159,7 @@ print(dev_module.get_source())
 #   arrays with different shape into the fadd, an error will be raised.
 #
 #   We can do more specializations. For example, we can write
-#   :code:`n = tvm.convert(1024)` instead of :code:`n = tvm.Var("n")`,
+#   :code:`n = tvm.convert(1024)` instead of :code:`n = tvm.var("n")`,
 #   in the computation declaration. The generated function will
 #   only take vectors with length 1024.
 #
