@@ -22,6 +22,9 @@ class TempDirectory(object):
         """
         return os.path.join(self.temp_dir, name)
 
+    def listdir(self):
+        """"List contents in the dir"""
+        return os.listdir(self.temp_dir)
 
 def tempdir():
     """Return a new temp dir which deletes the contents when exit

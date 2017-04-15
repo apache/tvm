@@ -61,7 +61,7 @@ void CodeGenC::AddFunction(LoweredFunc f) {
 }
 
 std::string CodeGenC::Finish() {
-  return stream.str();
+  return decl_stream.str() + stream.str();
 }
 
 void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)

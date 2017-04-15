@@ -7,7 +7,7 @@ def test_add_pipeline():
     A = tvm.placeholder((n,), name='A')
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
-        i = tvm.Var('i')
+        i = tvm.var('i')
         stmt = tvm.make.For(
             i, 0, n, 0, 0,
             tvm.make.Store(outs[0].data,
@@ -15,7 +15,7 @@ def test_add_pipeline():
                            1, i))
         return stmt
     C = tvm.extern(A.shape, [A], extern_generator, name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
 
     def check_llvm():
         if not tvm.codegen.enabled("llvm"):
