@@ -200,7 +200,7 @@ void CodeGenC::PrintThreadIndexExpr(
   os << thread_tag;
 }
 
-void CodeGenC::PrintStorageSync(const std::string& sync) { // NOLINT(*)
+void CodeGenC::PrintStorageSync(const Call* op) { // NOLINT(*)
 }
 
 void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
@@ -737,7 +737,7 @@ void CodeGenC::VisitStmt_(const Evaluate *op) {
   const Call* call = op->value.as<Call>();
 
   if (call && call->is_intrinsic(intrinsic::tvm_storage_sync)) {
-    this->PrintStorageSync(call->args[0].as<StringImm>()->value);
+    this->PrintStorageSync(call);
   } else {
     std::string vid = this->PrintExpr(op->value);
     this->PrintIndent();
