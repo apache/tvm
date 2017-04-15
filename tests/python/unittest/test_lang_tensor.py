@@ -1,9 +1,9 @@
 import tvm
 
 def test_tensor():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
-    l = tvm.Var('l')
+    m = tvm.var('m')
+    n = tvm.var('n')
+    l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.placeholder((n, l), name='B')
     T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
@@ -19,7 +19,7 @@ def test_tensor():
 
 
 def test_conv1d():
-    n = tvm.Var('n')
+    n = tvm.var('n')
     A = tvm.placeholder((n+2), name='A')
     def computeB(ii):
         i = ii + 1
@@ -28,15 +28,15 @@ def test_conv1d():
 
 
 def test_tensor_slice():
-    n = tvm.Var('n')
+    n = tvm.var('n')
     A = tvm.compute((n, n), lambda i, j: 1)
     B = tvm.compute((n,), lambda i: A[0][i] + A[0][i])
 
 
 def test_tensor_reduce():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
-    l = tvm.Var('l')
+    m = tvm.var('m')
+    n = tvm.var('n')
+    l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.placeholder((n, l), name='B')
     T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
@@ -50,8 +50,8 @@ def test_tensor_reduce():
 
 
 def test_tensor_scan():
-    m = tvm.Var("m")
-    n = tvm.Var("n")
+    m = tvm.var("m")
+    n = tvm.var("n")
     x = tvm.placeholder((m, n))
     s = tvm.placeholder((m, n))
     res = tvm.scan(tvm.compute((1, n), lambda _, i: x[0, i]),
@@ -60,8 +60,8 @@ def test_tensor_scan():
     assert tuple(res.shape) == (m, n)
 
 def test_scan_multi_out():
-    m = tvm.Var("m")
-    n = tvm.Var("n")
+    m = tvm.var("m")
+    n = tvm.var("n")
     x1 = tvm.placeholder((m, n))
     s1 = tvm.placeholder((m, n))
     x2 = tvm.placeholder((m, n))
@@ -81,7 +81,7 @@ def test_scan_multi_out():
     assert isinstance(zz, tvm.tensor.ScanOp)
 
 def test_extern():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
 
     def extern_func(ins, outs):
@@ -92,7 +92,7 @@ def test_extern():
 
 
 def test_extern_multi_out():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
     B = tvm.compute((m,), lambda i: A[i] * 10)
 

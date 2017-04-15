@@ -1,8 +1,8 @@
 import tvm
 
 def test_basic():
-    a = tvm.Var()
-    b = tvm.Var()
+    a = tvm.var()
+    b = tvm.var()
     m = tvm.arith.EvalModular(a * 4 + b * 6 + 7)
     assert m.coeff == 2
     assert m.base == 1

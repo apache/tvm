@@ -63,7 +63,7 @@ def save_json(node):
     return _api_internal._save_json(node)
 
 
-def Var(name="tindex", dtype=int32):
+def var(name="tindex", dtype=int32):
     """Create a new variable with specified name and dtype
 
     Parameters
@@ -73,6 +73,11 @@ def Var(name="tindex", dtype=int32):
 
     dtype : int
         The data type
+
+    Returns
+    -------
+    var : Var
+        The result symbolic variable.
     """
     return _api_internal._Var(name, dtype)
 
@@ -93,7 +98,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
 
     Returns
     -------
-    tensor: tensor.Tensor
+    tensor: Tensor
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
@@ -120,7 +125,7 @@ def compute(shape, fcompute, name="compute"):
 
     Returns
     -------
-    tensor: tensor.Tensor
+    tensor: Tensor
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
@@ -171,14 +176,16 @@ def scan(init, update, state_placeholder, inputs=None, name="scan"):
 
     Example
     -------
-    # The following code is equivalent to numpy.cumsum
-    m = tvm.Var("m")
-    n = tvm.Var("n")
-    X = tvm.placeholder((m, n), name="X")
-    s_state = tvm.placeholder((m, n))
-    s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-    s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
-    res = tvm.scan(s_init, s_update, s_state, X)
+    .. code-block:: python
+
+      # The following code is equivalent to numpy.cumsum
+      m = tvm.Var("m")
+      n = tvm.Var("n")
+      X = tvm.placeholder((m, n), name="X")
+      s_state = tvm.placeholder((m, n))
+      s_init = tvm.compute((1, n), lambda _, i: X[0, i])
+      s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+      res = tvm.scan(s_init, s_update, s_state, X)
     """
     if isinstance(init, _tensor.Tensor):
         init = [init]
@@ -234,7 +241,7 @@ def extern(shape, inputs, fcompute,
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
         input_placeholders.append(
-            Buffer(t.shape, t.dtype, t.op.name))
+            decl_buffer(t.shape, t.dtype, t.op.name))
         types.add(t.dtype)
 
     if dtype is None:
@@ -244,7 +251,7 @@ def extern(shape, inputs, fcompute,
         dtype = [infered_type for _ in shape]
 
     for shp, dt in zip(shape, dtype):
-        output_placeholders.append(Buffer(shp, dt, name))
+        output_placeholders.append(decl_buffer(shp, dt, name))
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, _expr.Expr):
         body = _make.Evaluate(body)
@@ -268,13 +275,13 @@ def call_packed(*args):
         int32, "tvm_call_packed", args, 4, None, 0)
 
 
-def Buffer(shape, dtype=None,
-           name="buffer",
-           data=None,
-           strides=None,
-           byte_offset=None,
-           offset_alignment=0):
-    """Create a new symbolic buffer
+def decl_buffer(shape, dtype=None,
+                name="buffer",
+                data=None,
+                strides=None,
+                byte_offset=None,
+                offset_alignment=0):
+    """Decleare a new symbolic buffer
 
     Parameters
     ----------
@@ -308,7 +315,7 @@ def Buffer(shape, dtype=None,
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
     if data is None:
-        data = Var(name, "handle")
+        data = var(name, "handle")
 
     return _api_internal._Buffer(
         name, data, shape, strides, dtype, byte_offset, offset_alignment)
@@ -345,8 +352,8 @@ def _IterVar(dom, name, iter_type, thread_tag=''):
         if not isinstance(dom, _collections.Range):
             raise ValueError("dom need to be Range")
     name = name if name else 'iter'
-    var = Var(name)
-    return _api_internal._IterVar(dom, var, iter_type, thread_tag)
+    v = var(name)
+    return _api_internal._IterVar(dom, v, iter_type, thread_tag)
 
 
 def thread_axis(dom=None, tag='', name=''):
@@ -382,6 +389,11 @@ def reduce_axis(dom, name="rv"):
 
     name : str
         The name of the variable.
+
+    Returns
+    -------
+    axis : IterVar
+        An iteration variable representing the value.
     """
     return _IterVar(dom, name, 2)
 
@@ -399,6 +411,11 @@ def sum(expr, axis, where=None):
 
     where : optional, Expr
         Filtering predicate of the reduction.
+
+    Returns
+    -------
+    value : Expr
+        The result value.
     """
     axis = axis if isinstance(axis, list) else [axis]
     x = _make.Reduce("Add", expr, axis, where)
@@ -421,6 +438,11 @@ def min(lhs, rhs=None, axis=None, where=None):
 
     where : optional, Expr
         Filtering predicate of the reduction.
+
+    Returns
+    -------
+    value : Expr
+        The result value.
     """
     if rhs and axis:
         raise ValueError("Can only take one argument, rhs or axis")
@@ -449,6 +471,11 @@ def max(lhs, rhs=None, axis=None, where=None):
 
     where : optional, Expr
         Filtering predicate of the reduction.
+
+    Returns
+    -------
+    value : Expr
+        The result value.
     """
     if rhs and axis:
         raise ValueError("Can only take one argument, rhs or axis")
@@ -461,19 +488,6 @@ def max(lhs, rhs=None, axis=None, where=None):
     return x
 
 
-def Schedule(ops):
-    """Create a schedule for list of ops
-
-    Parameters
-    ----------
-    ops : list of Operations
-        The source expression.
-    """
-    if not isinstance(ops, (list, _collections.Array)):
-        ops = [ops]
-    return _api_internal._Schedule(ops)
-
-
 def convert(value):
     """Convert value to TVM node or function.
 
@@ -483,7 +497,7 @@ def convert(value):
 
     Returns
     -------
-    tvm_val : Node or function
+    tvm_val : Node or Function
         Converted value in TVM
     """
     if isinstance(value, (Function, NodeBase)):

@@ -17,8 +17,8 @@ def test_stack_vm_basic():
         print(shape0)
         assert shape0 == a.shape[0]
 
-    n = tvm.Var('n')
-    Ab = tvm.Buffer((n, ), tvm.float32)
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), tvm.float32)
     stmt = tvm.make.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0)
     run_jit(fapi, lambda f: f(a))
@@ -31,9 +31,9 @@ def tvm_stack_vm_print(*x):
 
 def test_stack_vm_loop():
     dtype = 'int64'
-    n = tvm.Var('n')
-    Ab = tvm.Buffer((n, ), dtype)
-    i = tvm.Var('i')
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), dtype)
+    i = tvm.var('i')
     # for i in 0 to n-1:
     stmt = tvm.make.For(
         i, 0, n - 1, 0, 0,
@@ -52,9 +52,9 @@ def test_stack_vm_loop():
 
 def test_stack_vm_cond():
     dtype = 'int64'
-    n = tvm.Var('n')
-    Ab = tvm.Buffer((n, ), dtype)
-    i = tvm.Var('i')
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), dtype)
+    i = tvm.var('i')
     # for i in 0 to n-1:
     stmt = tvm.make.For(
         i, 0, n - 1, 0, 0,

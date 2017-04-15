@@ -1,11 +1,11 @@
 import tvm
 
 def test_buffer():
-    m = tvm.Var('m')
-    n = tvm.Var('n')
-    l = tvm.Var('l')
-    Ab = tvm.Buffer((m, n), tvm.float32)
-    Bb = tvm.Buffer((n, l), tvm.float32)
+    m = tvm.var('m')
+    n = tvm.var('n')
+    l = tvm.var('l')
+    Ab = tvm.decl_buffer((m, n), tvm.float32)
+    Bb = tvm.decl_buffer((n, l), tvm.float32)
 
     assert isinstance(Ab, tvm.schedule.Buffer)
     assert Ab.dtype == tvm.float32

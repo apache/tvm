@@ -1,13 +1,13 @@
 import tvm
 
 def test_remove_no_op():
-    i = tvm.Var('i')
-    j = tvm.Var('j')
-    k = tvm.Var('k')
-    m = tvm.Var('m')
-    n = tvm.Var('n')
+    i = tvm.var('i')
+    j = tvm.var('j')
+    k = tvm.var('k')
+    m = tvm.var('m')
+    n = tvm.var('n')
     dtype = 'int64'
-    Ab = tvm.Buffer((n, ), dtype)
+    Ab = tvm.decl_buffer((n, ), dtype)
     stmt = tvm.make.For(
         i, 0, 4, 0, 0,
         tvm.make.For(

@@ -46,7 +46,7 @@ def lower(sch,
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
-            buf = api.Buffer(x.shape, dtype=x.dtype, name=x.op.name)
+            buf = api.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
             assert x not in binds
             binds[x] = buf
             arg_list.append(buf)

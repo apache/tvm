@@ -1,7 +1,7 @@
 import tvm
 
 def test_inline():
-    m = tvm.Var('m')
+    m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.make.Evaluate(T[10] + 11 * T[100])

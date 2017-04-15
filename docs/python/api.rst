@@ -1,8 +1,10 @@
 Python API Reference
 ====================
 
-Computation Declaration
------------------------
+tvm
+---
+tvm is a library root namespace contains functions for
+declaring computation.
 
 .. autofunction:: tvm.Var
 
@@ -16,8 +18,30 @@ Computation Declaration
 
 .. autofunction:: tvm.extern
 
-Computation Schedule
---------------------
+.. autofunction:: tvm.reduce_axis
+
+.. autofunction:: tvm.sum
+
+tvm.expr
+--------
+.. automodule:: tvm.expr
+    :members:
+
+tvm.tensor
+----------
+The `tvm.tensor` module contains declaration of Tensor
+and Operation class for computation declaration.
+
+.. autoclass:: tvm.tensor.Tensor
+    :members:
+    :inherited-members:
+
+.. autoclass:: tvm.tensor.Operation
+    :members:
+    :inherited-members:
+
+tvm.schedule
+------------
 .. autofunction:: tvm.Schedule
 
 .. autoclass:: tvm.schedule.Schedule
@@ -26,10 +50,15 @@ Computation Schedule
 .. autoclass:: tvm.schedule.Stage
     :members:
 
-Runtime Array Manipulation
---------------------------
-Every function under TVM API can be directly used under namespace tvm tvm.
+tvm.build
+---------
 
+.. autofunction:: tvm.lower
+
+.. autofunction:: tvm.build
+
+Runtime Array
+-------------
 
 .. autofunction:: tvm.cpu
 .. autofunction:: tvm.opencl
@@ -41,5 +70,15 @@ Every function under TVM API can be directly used under namespace tvm tvm.
     :inherited-members:
 
 .. autoclass:: tvm.Function
+    :members:
+    :inherited-members:
+
+Compiled Module
+---------------
+.. autofunction:: tvm.module.load
+
+.. autofunction:: tvm.module.load
+
+.. autoclass:: tvm.module.Module
     :members:
     :inherited-members:

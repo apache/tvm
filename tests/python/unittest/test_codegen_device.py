@@ -3,11 +3,11 @@ from tvm.addon import testing
 import numpy as np
 
 def test_add_pipeline():
-    n = tvm.Var('n')
+    n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
 
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
@@ -18,9 +18,9 @@ def test_add_pipeline():
     # compile to IR
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.Buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.Buffer(B.shape, B.dtype, name='B')
-    Cb = tvm.Buffer(C.shape, C.dtype, name='C')
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
+    Cb = tvm.decl_buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)

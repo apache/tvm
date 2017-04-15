@@ -1,7 +1,7 @@
 import tvm
 
 def test_simplify():
-  x = tvm.Var('x')
+  x = tvm.var('x')
   e1 = tvm.ir_pass.Simplify(x + 2 + 1)
   assert(tvm.ir_pass.Equal(e1, x + 3))
   e2 = tvm.ir_pass.Simplify(x * 3 + 5 * x)
@@ -14,15 +14,15 @@ def test_simplify():
 
 
 def test_verify_ssa():
-    x = tvm.Var('x')
-    y = tvm.Var()
+    x = tvm.var('x')
+    y = tvm.var()
     z = tvm.make.Evaluate(x + y)
     assert(tvm.ir_pass.VerifySSA(z))
 
 
 def test_convert_ssa():
-    x = tvm.Var('x')
-    y = tvm.Var()
+    x = tvm.var('x')
+    y = tvm.var()
     let1 = tvm.make.Let(x, 1, x + 1)
     let2 = tvm.make.Let(x, 1, x + y)
     z = tvm.make.Evaluate(let1 + let2)
@@ -32,7 +32,7 @@ def test_convert_ssa():
 
 
 def test_expr_use_var():
-    x = tvm.Var('x')
+    x = tvm.var('x')
     assert(tvm.ir_pass.ExprUseVar(x+1, x))
     assert(not tvm.ir_pass.ExprUseVar(1+10, x))
 

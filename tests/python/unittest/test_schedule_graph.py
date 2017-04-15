@@ -1,8 +1,8 @@
 import tvm
 
 def test_scan():
-    m = tvm.Var("m")
-    n = tvm.Var("n")
+    m = tvm.var("m")
+    n = tvm.var("n")
     x = tvm.compute((m, n), lambda i, j: tvm.const(1, "float32"), name="x")
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: x[0, i], name="s_init")
@@ -16,7 +16,7 @@ def test_scan():
         assert set(body) == set([s_scan.op, s_update.op, s_up1.op])
 
     def test_attach_path():
-        s = tvm.Schedule(s_scan.op)
+        s = tvm.create_schedule(s_scan.op)
         s[x_trans].compute_at(s[s_update], s_update.op.axis[0])
         apath = tvm.schedule.CreateAttachPath(s)
         assert(tuple(apath[s_update.op]) == tuple([s_scan.op.scan_axis]))
@@ -28,9 +28,9 @@ def test_scan():
         assert(fxpt[s_scan.spatial_axis_[0]].value != 0)
 
 def test_scan_fix_point():
-    m = tvm.Var("m")
-    n = tvm.Var("n")
-    l = tvm.Var("l")
+    m = tvm.var("m")
+    n = tvm.var("n")
+    l = tvm.var("l")
     x = tvm.compute((l, m, n), lambda *i: tvm.const(1, "float32"), name="x")
     s_state = tvm.placeholder((l, m, n))
     s_init = tvm.compute((1, m, n), lambda _, i, j: x[0, i, j], name="s_init")
@@ -74,8 +74,8 @@ def test_scan_fix_point():
         assert(fxpt[s_scan.op.spatial_axis_[1]].value == 0)
 
     def test_scan5_multi_output():
-        m = tvm.Var("m")
-        n = tvm.Var("n")
+        m = tvm.var("m")
+        n = tvm.var("n")
         x1 = tvm.placeholder((m, n))
         s1 = tvm.placeholder((m, n))
         x2 = tvm.placeholder((m, n))
@@ -98,8 +98,8 @@ def test_scan_fix_point():
     test_scan5_multi_output()
 
 def test_create_read_graph():
-    m = tvm.Var('m')
-    l = tvm.Var('l')
+    m = tvm.var('m')
+    l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     A1 = tvm.compute((m, l), lambda i, j: A[i, j])
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3)

@@ -1,4 +1,4 @@
-"""Expression class"""
+"""Module to declare Expression class"""
 # pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
@@ -58,6 +58,7 @@ class ExprOp(object):
 
 
 class Expr(NodeBase, ExprOp):
+    """Base class of all tvm Expressions"""
     pass
 
 class ConstExpr(Expr):
@@ -72,10 +73,9 @@ class CmpExpr(Expr):
 class LogicalExpr(Expr):
     pass
 
-
-
 @register_node("Variable")
 class Var(Expr):
+    """Symbolic variable expression."""
     pass
 
 @register_node

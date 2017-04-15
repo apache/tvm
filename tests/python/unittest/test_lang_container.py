@@ -11,8 +11,8 @@ def test_array_save_load_json():
     assert(a[1].value == 2)
 
 def test_map():
-    a = tvm.Var('a')
-    b = tvm.Var('b')
+    a = tvm.var('a')
+    b = tvm.var('b')
     amap = tvm.convert({a: 2,
                         b: 3})
     assert a in amap
@@ -22,8 +22,8 @@ def test_map():
     assert a + 1 not in amap
 
 def test_map_save_load_json():
-    a = tvm.Var('a')
-    b = tvm.Var('b')
+    a = tvm.var('a')
+    b = tvm.var('b')
     amap = tvm.convert({a: 2,
                         b: 3})
     json_str = tvm.save_json(amap)

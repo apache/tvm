@@ -2,10 +2,10 @@ import tvm
 
 def test_unroll_loop():
     dtype = 'int64'
-    n = tvm.Var('n')
-    Ab = tvm.Buffer((n, ), dtype)
-    i = tvm.Var('i')
-    j = tvm.Var('j')
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), dtype)
+    i = tvm.var('i')
+    j = tvm.var('j')
     # for i in 0 to n-1:
     stmt = tvm.make.For(
         i, n, 2, 0, 0,

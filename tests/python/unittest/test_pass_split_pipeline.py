@@ -6,7 +6,7 @@ def lower(s, args):
 
     for x in args:
         assert isinstance(x, tvm.tensor.Tensor)
-        buf = tvm.Buffer(x.shape, dtype=x.dtype, name=x.op.name)
+        buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
         binds[x] = buf
         arg_list.append(buf)
     s.normalize()
@@ -28,7 +28,7 @@ def test_basic_pipeline():
         stages.append(B)
         B = tvm.compute((n,), lambda i: B[i] + k, name="A%s" % k)
 
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], nparts=1)
     s[B].bind(xo, tvm.thread_axis("pipeline"))
     xo, xi = s[B].split(xi, factor=4)
@@ -43,13 +43,13 @@ def test_basic_pipeline():
     assert(tvm.ir_pass.VerifySSA(stmt))
 
 def test_conv1d():
-    n = tvm.Var('n')
+    n = tvm.var('n')
     A = tvm.compute((n+2), lambda i: 1,  name='A')
     def computeB(ii):
         i = ii + 1
         return A[i-1] + A[i] + A[i+1]
     B = tvm.compute(n, computeB, name='B')
-    s = tvm.Schedule(B.op)
+    s = tvm.create_schedule(B.op)
     px, xi = s[B].split(B.op.axis[0], nparts=1)
     s[B].bind(px, tvm.thread_axis("pipeline"))
     s[A].compute_at(s[B], px)

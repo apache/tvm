@@ -7,7 +7,7 @@ def lower(s, args, name="mydot"):
 
     for x in args:
         assert isinstance(x, tvm.tensor.Tensor)
-        buf = tvm.Buffer(x.shape, dtype=x.dtype, name=x.op.name)
+        buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
         binds[x] = buf
         arg_list.append(buf)
     s.normalize()
@@ -31,7 +31,7 @@ def test_dot():
     B = tvm.placeholder((n,), name='B')
     k = tvm.reduce_axis((0, n), 'k')
     C = tvm.compute((1,), lambda _: tvm.sum(A[k] * B[k], axis=k), name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
     fapi = lower(s, [A, B, C])
 
     def verify(target):

@@ -8,7 +8,7 @@ def lower(s, args, name):
 
     for x in args:
         assert isinstance(x, tvm.tensor.Tensor)
-        buf = tvm.Buffer(x.shape, dtype=x.dtype, name=x.op.name)
+        buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
         binds[x] = buf
         arg_list.append(buf)
     s.normalize()
@@ -33,7 +33,7 @@ def test_add_pipeline():
     A = tvm.placeholder((n,), name='A', dtype='int32')
     B = tvm.placeholder((n,), name='B', dtype='int32')
     C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
 
     px, x = s[C].split(C.op.axis[0], nparts=1)
     s[C].bind(px, tvm.thread_axis("pipeline"))

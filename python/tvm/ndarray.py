@@ -40,7 +40,7 @@ def array(arr, ctx=cpu(0)):
 
     Returns
     -------
-    ret : tvm.nd.NDArray
+    ret : tvm.ndarray.NDArray
         The created array
     """
     if not isinstance(arr, _np.ndarray):

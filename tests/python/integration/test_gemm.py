@@ -5,7 +5,7 @@ import numpy as np
 def test_gemm():
     # graph
     nn = 1024
-    n = tvm.Var('n')
+    n = tvm.var('n')
     n = tvm.convert(nn)
     m = n
     l = n
@@ -17,7 +17,7 @@ def test_gemm():
         lambda ii, jj: tvm.sum(A[ii, k] * B[jj, k], axis=k),
         name='CC')
     # schedule
-    s = tvm.Schedule(C.op)
+    s = tvm.create_schedule(C.op)
     xtile, ytile = 32, 32
     scale = 8
     num_thread = 8
