@@ -112,7 +112,7 @@ def compute(shape, fcompute, name="compute"):
     shape: Tuple of Expr
         The shape of the tensor
 
-    fcompute: lambda function of *indices-> value
+    fcompute: lambda function of indices-> value
         Specifies the input source expression
 
     name: str, optional

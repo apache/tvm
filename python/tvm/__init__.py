@@ -18,5 +18,6 @@ from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, cl, vpi
 
 from ._base import TVMError
+from ._base import __version__
 from .api import *
 from .build import build, lower
