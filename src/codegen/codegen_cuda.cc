@@ -14,6 +14,13 @@
 namespace tvm {
 namespace codegen {
 
+void CodeGenCUDA::Init(bool output_ssa) {
+  CodeGenC::Init(output_ssa);
+  vid_global_barrier_state_ = GetUniqueName(runtime::symbol::tvm_global_barrier_state);
+  vid_global_barrier_expect_ = GetUniqueName("__barrier_expect");
+  CHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
+}
+
 void CodeGenCUDA::AddFunction(LoweredFunc f) {
   this->stream << "extern \"C\" __global__ ";
   CodeGenC::AddFunction(f);
@@ -132,12 +139,42 @@ void CodeGenCUDA::PrintVecElemStore(
   stream << vec << "." << access[i] << " = " << value << ";\n";
 }
 
-void CodeGenCUDA::PrintStorageSync(const std::string& sync) {
+void CodeGenCUDA::PrintStorageSync(const Call* op) {
+  const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "shared") {
     this->PrintIndent();
     this->stream << "__syncthreads();\n";
   } else if (sync == "global") {
-    LOG(FATAL) << "not supported";
+    if (!need_global_barrier_) {
+      need_global_barrier_ = true;
+      this->decl_stream << "extern \"C\" __device__ unsigned "
+                        << vid_global_barrier_state_ << ";\n";
+    }
+    // global synchronizer
+    std::string is_load = PrintExpr(op->args[1]);
+    std::string num_blocks = PrintExpr(op->args[2]);
+    this->PrintIndent();
+    // In theory only threadfence is needed
+    // but we observed problems with only threadfence
+    this->stream <<"__threadfence_system();\n";
+    this->PrintIndent();
+    this->stream <<"if (" << is_load << ") {\n";
+    int wb = this->BeginScope();
+    this->PrintIndent();
+    this->stream << "atomicAdd(&" << vid_global_barrier_state_ << ", 1);\n";
+    this->PrintIndent();
+    std::string ptr = GetUniqueName("pf");
+    this->stream << "volatile unsigned* "
+                 << ptr << " = &" << vid_global_barrier_state_<< ";\n";
+    this->PrintIndent();
+    this->stream << vid_global_barrier_expect_ << " += " << num_blocks << ";\n";
+    this->PrintIndent();
+    this->stream <<"while (" << ptr << "[0] < " << vid_global_barrier_expect_ << ");\n";
+    this->EndScope(wb);
+    this->PrintIndent();
+    this->stream <<"}\n";
+    this->PrintIndent();
+    this->stream <<"__syncthreads();\n";
   }
 }
 
@@ -146,6 +183,23 @@ void CodeGenCUDA::PrintStorageScope(
   CHECK_NE(scope, "global");
   if (scope == "shared") {
     os << "__shared__ ";
+  }
+}
+
+void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
+  if (is_const(op->value)) return;
+  const Call* call = op->value.as<Call>();
+  if (call && call->is_intrinsic(intrinsic::tvm_global_barrier_kinit)) {
+    PrintIndent();
+    stream << "__shared__ unsigned " << vid_global_barrier_expect_ << ";\n";
+    PrintIndent();
+    stream << "if (threadIdx.x == 0) {\n";
+    PrintIndent();
+    stream << "  " << vid_global_barrier_expect_ << " = 0;\n";
+    PrintIndent();
+    stream << "}\n";
+  } else {
+    CodeGenC::VisitStmt_(op);
   }
 }
 }  // namespace codegen

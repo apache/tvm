@@ -184,6 +184,11 @@ constexpr const char* tvm_call_packed = "tvm_call_packed";
  */
 constexpr const char* tvm_storage_sync = "tvm_storage_sync";
 /*!
+ * \brief Initialize the global barrier.
+ *  Call this at beginning of kernel that need global barrier.
+ */
+constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
+/*!
  * \brief See pesudo code
  *
  *  Expr tvm_thread_allreduce(std::string op, Expr value, Expr cond,

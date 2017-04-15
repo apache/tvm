@@ -84,6 +84,8 @@ class CodeGenSourceBase {
   virtual void PrintSSAAssign(
       const std::string& target, const std::string& src, Type t) = 0;
 
+  /*! \brief the declaration stream */
+  std::ostringstream decl_stream;
   /*! \brief the stream to be printed */
   std::ostringstream stream;
   /*! \brief name of each variable */

@@ -127,7 +127,7 @@ class CodeGenC :
   virtual void PrintThreadIndexExpr(
       std::string tag, std::ostream& os); // NOLINT(*)
   virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
-  virtual void PrintStorageSync(const std::string& scope);  // NOLINT(*)
+  virtual void PrintStorageSync(const Call* op);  // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(
       const std::string&op, Type op_type,

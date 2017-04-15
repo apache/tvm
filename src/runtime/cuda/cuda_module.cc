@@ -97,6 +97,30 @@ class CUDAModuleNode : public runtime::ModuleNode {
     }
     return func;
   }
+  // get a global var from primary context in device_id
+  CUdeviceptr GetGlobal(int device_id,
+                        const std::string& global_name,
+                        size_t expect_nbytes) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // must recheck under the lock scope
+    if (module_[device_id] == nullptr) {
+      CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+    }
+    CUdeviceptr global;
+    size_t nbytes;
+
+    CUresult result = cuModuleGetGlobal(&global, &nbytes,
+                                        module_[device_id], global_name.c_str());
+    CHECK_EQ(nbytes, expect_nbytes);
+    if (result != CUDA_SUCCESS) {
+      const char *msg;
+      cuGetErrorName(result, &msg);
+      LOG(FATAL)
+          << "CUDAError: cuModuleGetGlobal " << global_name
+          << " failed with error: " << msg;
+    }
+    return global;
+  }
 
  private:
   // the binary data
@@ -163,6 +187,34 @@ class CUDAWrappedFunc {
   ThreadAxisConfig thread_axis_cfg_;
 };
 
+class CUDAPrepGlobalBarrier {
+ public:
+  CUDAPrepGlobalBarrier(CUDAModuleNode* m,
+                        std::shared_ptr<ModuleNode> sptr)
+      : m_(m), sptr_(sptr) {
+    std::fill(pcache_.begin(), pcache_.end(), 0);
+  }
+
+  void operator()(const TVMArgs& args, TVMRetValue* rv) const {
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    if (pcache_[device_id] == 0) {
+      pcache_[device_id] = m_->GetGlobal(
+          device_id, runtime::symbol::tvm_global_barrier_state, sizeof(unsigned));
+    }
+    CUDA_DRIVER_CALL(cuMemsetD32(pcache_[device_id], 0, 1));
+  }
+
+ private:
+  // internal module
+  CUDAModuleNode* m_;
+  // the resource holder
+  std::shared_ptr<ModuleNode> sptr_;
+  // mark as mutable, to enable lazy initialization
+  mutable std::array<CUdeviceptr, kMaxNumGPUs> pcache_;
+};
+
+
 void AutoSetCUDADevice(const TVMArgs& args, TVMRetValue* rv) {
   CHECK_EQ(args.size(), 3);
   TVMValue* values = static_cast<TVMValue*>(args[0].operator void*());
@@ -196,6 +248,8 @@ PackedFunc CUDAModuleNode::GetFunction(
       << "Device function do not have main";
   if (name == symbol::tvm_entry_setdevice) {
     return PackedFunc(AutoSetCUDADevice);
+  } else if (name == symbol::tvm_prepare_global_barrier) {
+    return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();

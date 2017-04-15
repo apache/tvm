@@ -113,7 +113,8 @@ void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
   stream << ");\n";
 }
 
-void CodeGenOpenCL::PrintStorageSync(const std::string& sync) {
+void CodeGenOpenCL::PrintStorageSync(const Call* op) {
+  const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "shared") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";

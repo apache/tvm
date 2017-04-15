@@ -16,10 +16,11 @@ namespace codegen {
 
 class CodeGenCUDA : public CodeGenC {
  public:
+  void Init(bool output_ssa);
   void AddFunction(LoweredFunc f);
   // override behavior
   void VisitStmt_(const ir::For* op) final;
-  void PrintStorageSync(const std::string& sync) final;
+  void PrintStorageSync(const Call* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
       const std::string&op, Type t,
@@ -30,10 +31,18 @@ class CodeGenCUDA : public CodeGenC {
   void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value) final;
 
+  void VisitStmt_(const Evaluate *op) final;
+
  private:
   // magic number to add pragma unroll to it.
   // used to generate code that is compact but still unrolls.
   int max_auto_unroll_{1025};
+  // Whether global barrier is needed.
+  bool need_global_barrier_{false};
+  // Global barrier state
+  std::string vid_global_barrier_state_;
+  // Global barrier expected node.
+  std::string vid_global_barrier_expect_;
 };
 
 }  // namespace codegen
