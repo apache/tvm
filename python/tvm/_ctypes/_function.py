@@ -292,7 +292,7 @@ def register_func(func_name, f=None):
     func_name : str or function
         The function name
 
-    f : function
+    f : function, optional
         The function to be registered.
 
     Returns

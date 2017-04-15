@@ -67,3 +67,12 @@ There are several ways to install the package:
     ```bash
     export PYTHONPATH=/path/to/tvm/python:${PYTHONPATH}
     ```
+
+2. Install tvm python bindings by `setup.py`:
+
+    ```bash
+    # install tvm package for the current user
+    cd python; python setup.py install --user
+    # or install tvm package system wide
+    cd python; sudo python setup.py install
+    ```

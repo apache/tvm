@@ -34,7 +34,7 @@ def array(arr, ctx=cpu(0)):
     arr : numpy.ndarray
         The array to be copied from
 
-    ctx : TVMContext
+    ctx : TVMContext, optional
         The device context to create the array
 
     Returns
