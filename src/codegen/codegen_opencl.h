@@ -22,7 +22,7 @@ class CodeGenOpenCL : public CodeGenC {
   void PrintThreadIndexExpr(
       std::string tag, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
-  void PrintStorageSync(const std::string& scope) final;  // NOLINT(*)
+  void PrintStorageSync(const Call* op) final;  // NOLINT(*)
   void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
   std::string GetVecLoad(const Variable* buffer,
                          Type t, Expr base) final;

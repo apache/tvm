@@ -3,7 +3,7 @@
 TVM has been developed and used by a group of active community members.
 Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
 
-- Please update [NEWS.md](../NEWS.md) to add note on your changes to the API or added a new document.
+- Please update [NEWS.md](../../NEWS.md) to add note on your changes to the API or added a new document.
 
 ## Guidelines
 * [Submit Pull Request](#submit-pull-request)

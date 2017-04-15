@@ -95,3 +95,4 @@ config.mk
 build_*
 Win32
 *.dir
+perf
