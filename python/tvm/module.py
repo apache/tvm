@@ -1,6 +1,8 @@
 """Runtime module related stuffs"""
 from __future__ import absolute_import as _abs
 from ._ctypes._function import ModuleBase, _init_module_module
+from ._ctypes._function import _init_api
+
 
 class Module(ModuleBase):
     """Module container of all TVM generated functions"""
@@ -28,7 +30,7 @@ class Module(ModuleBase):
 
         Returns
         ----------
-        modules : list of Modules
+        modules : list of Module
             The module
         """
         nmod = _ImportsSize(self)
@@ -58,7 +60,36 @@ def load(path, fmt=""):
     fmt : str, optional
         The format of the file, if not specified
         it will be inferred from suffix of the file.
+
+    Returns
+    -------
+    module : Module
+        The loaded module
     """
     return _LoadFromFile(path, fmt)
 
+
+def enabled(target):
+    """Whether module runtime is enabled for target
+
+    Parameters
+    ----------
+    target : str
+        The target device type.
+
+    Returns
+    -------
+    enabled : bool
+        Whether runtime is enabled.
+
+    Examples
+    --------
+    The following code checks if gpu is enabled.
+
+    >>> tvm.module.enabled("gpu")
+    """
+    return _Enabled(target)
+
+
+_init_api("tvm.module")
 _init_module_module(Module)

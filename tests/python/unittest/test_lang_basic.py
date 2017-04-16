@@ -29,6 +29,13 @@ def test_ir():
     stmt = tvm.make.Evaluate(z)
     assert isinstance(stmt, tvm.stmt.Evaluate)
 
+def test_ir2():
+    x = tvm.var("n")
+    a = tvm.var("array", tvm.handle)
+    st = tvm.make.Store(a, x + 1, 1)
+    assert isinstance(st, tvm.stmt.Store)
+    assert(st.buffer_var == a)
+
 def test_let():
     x = tvm.var('x')
     y = tvm.var('y')

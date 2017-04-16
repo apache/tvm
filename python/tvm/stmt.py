@@ -1,4 +1,18 @@
-"""Statement classes"""
+"""Statement AST Node in TVM.
+
+User do not need to deal with AST node directly.
+But they can be helpful for developer to do quick proptyping.
+While not displayed in the document and python file.
+Each statement node have subfields that can be visited from python side.
+
+.. code-block:: python
+
+    x = tvm.var("n")
+    a = tvm.var("array", tvm.handle)
+    st = tvm.make.Store(a, x + 1, 1)
+    assert isinstance(st, tvm.stmt.Store)
+    assert(st.buffer_var == a)
+"""
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 
