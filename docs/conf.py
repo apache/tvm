@@ -54,7 +54,6 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx_gallery.gen_gallery',
-    'breathe',
 ]
 
 breathe_projects = {'tvm' : 'doxygen/xml/'}
