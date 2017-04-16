@@ -48,8 +48,8 @@ def test_add_pipeline():
         if not tvm.codegen.enabled(device):
             return
         ctx = tvm.vpi(0)
-        mhost = tvm.codegen.build(fsplits[0], host)
-        mdev = tvm.codegen.build(fsplits[1:], device)
+        mhost = tvm.codegen.build_module(fsplits[0], host)
+        mdev = tvm.codegen.build_module(fsplits[1:], device)
         mhost.import_module(mdev)
         code = mdev.get_source()
         f = mhost.entry_func

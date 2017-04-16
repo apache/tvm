@@ -134,10 +134,10 @@ def build(sch,
     fapi = ir_pass.LowerThreadAllreduce(fapi, warp_size)
     fsplits = [s for s in ir_pass.SplitHostDevice(fapi)]
     if len(fsplits) > 1:
-        mhost = codegen.build(fsplits[0], target_host)
+        mhost = codegen.build_module(fsplits[0], target_host)
         if target:
-            mdev = codegen.build(fsplits[1:], target)
+            mdev = codegen.build_module(fsplits[1:], target)
             mhost.import_module(mdev)
         return mhost
     else:
-        return codegen.build(fsplits[0], target)
+        return codegen.build_module(fsplits[0], target)

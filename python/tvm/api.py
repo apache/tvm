@@ -8,13 +8,14 @@ from ._ctypes._types import TVMType
 from ._ctypes._node import register_node, NodeBase
 from ._ctypes._node import convert_to_node as _convert_to_node
 from ._ctypes._function import Function
-from ._ctypes._function import _init_api_functions, register_func, get_global_func
+from ._ctypes._function import _init_api, register_func, get_global_func
 from ._ctypes._function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
 from . import _base
 from . import make as _make
 from . import expr as _expr
 from . import tensor as _tensor
+from . import schedule as _schedule
 from . import collections as _collections
 
 int32 = "int32"
@@ -29,6 +30,27 @@ def const(value, dtype=None):
         else:
             dtype = 'float32'
     return _api_internal._const(value, dtype)
+
+
+def convert(value):
+    """Convert value to TVM node or function.
+
+    Parameters
+    ----------
+    value : python value
+
+    Returns
+    -------
+    tvm_val : Node or Function
+        Converted value in TVM
+    """
+    if isinstance(value, (Function, NodeBase)):
+        return value
+
+    if callable(value):
+        return _convert_tvm_func(value)
+    else:
+        return _convert_to_node(value)
 
 
 def load_json(json_str):
@@ -179,8 +201,8 @@ def scan(init, update, state_placeholder, inputs=None, name="scan"):
     .. code-block:: python
 
       # The following code is equivalent to numpy.cumsum
-      m = tvm.Var("m")
-      n = tvm.Var("n")
+      m = tvm.var("m")
+      n = tvm.var("n")
       X = tvm.placeholder((m, n), name="X")
       s_state = tvm.placeholder((m, n))
       s_init = tvm.compute((1, n), lambda _, i: X[0, i])
@@ -281,7 +303,10 @@ def decl_buffer(shape, dtype=None,
                 strides=None,
                 byte_offset=None,
                 offset_alignment=0):
-    """Decleare a new symbolic buffer
+    """Decleare a new symbolic buffer.
+
+    Normally buffer is created automatically during lower and build.
+    This is only needed if user want to specify their own buffer layout.
 
     Parameters
     ----------
@@ -370,6 +395,11 @@ def thread_axis(dom=None, tag='', name=''):
 
     name : str, optional
         The name of the var.
+
+    Returns
+    -------
+    axis : IterVar
+        The thread itervar.
     """
     if isinstance(dom, _base.string_types):
         tag, dom = dom, None
@@ -446,7 +476,7 @@ def min(lhs, rhs=None, axis=None, where=None):
     """
     if rhs and axis:
         raise ValueError("Can only take one argument, rhs or axis")
-    if isinstance(rhs, (_collections.IterVar, list)):
+    if isinstance(rhs, (_schedule.IterVar, list)):
         axis, rhs = rhs, axis
     if rhs:
         return _make.Min(lhs, rhs)
@@ -479,7 +509,7 @@ def max(lhs, rhs=None, axis=None, where=None):
     """
     if rhs and axis:
         raise ValueError("Can only take one argument, rhs or axis")
-    if isinstance(rhs, (_collections.IterVar, list)):
+    if isinstance(rhs, (_schedule.IterVar, list)):
         axis, rhs = rhs, axis
     if rhs:
         return _make.Max(lhs, rhs)
@@ -487,26 +517,4 @@ def max(lhs, rhs=None, axis=None, where=None):
     x = _make.Reduce("Max", expr, axis, where)
     return x
 
-
-def convert(value):
-    """Convert value to TVM node or function.
-
-    Parameters
-    ----------
-    value : python value
-
-    Returns
-    -------
-    tvm_val : Node or Function
-        Converted value in TVM
-    """
-    if isinstance(value, (Function, NodeBase)):
-        return value
-
-    if callable(value):
-        return _convert_tvm_func(value)
-    else:
-        return _convert_to_node(value)
-
-
-_init_api_functions("tvm")
+_init_api("tvm.api")

@@ -1,0 +1,11 @@
+.rst-content .hidden-section {
+    display: none;
+}
+
+.rst-toc .hidden-section {
+    display: none;
+}
+
+nav .hidden-section {
+    display: inherit;
+}

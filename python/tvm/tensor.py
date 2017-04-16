@@ -1,7 +1,7 @@
-"""Tensor related abstractions"""
+"""Tensor and Computation abstraction objects"""
+# pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, SliceBase, register_node, convert_to_node
-from . import collections as _collections
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
@@ -19,6 +19,7 @@ class TensorSlice(SliceBase, _expr.ExprOp):
             indices = (indices,)
         return TensorSlice(self.tensor, self.indices + indices)
 
+itervar_cls = None
 
 @register_node
 class Tensor(NodeBase):
@@ -30,10 +31,10 @@ class Tensor(NodeBase):
         indices = convert_to_node(indices)
         args = []
         for x in indices:
-            if isinstance(x, _collections.IterVar):
-                args.append(x.var)
-            elif isinstance(x, _expr.Expr):
+            if isinstance(x, _expr.Expr):
                 args.append(x)
+            elif isinstance(x, iter_var_cls):
+                args.append(x.var)
             else:
                 raise ValueError("The indices must be expression")
 
@@ -95,20 +96,35 @@ class Operation(NodeBase):
         """
         return _api_internal._OpGetOutput(self, index)
 
+
 @register_node
 class PlaceholderOp(Operation):
     """Placeholder operation."""
     pass
 
+
 @register_node
 class ComputeOp(Operation):
     """Compute operation."""
-    pass
+    @property
+    def axis(self):
+        """Represent axis of IterVar, only defined when it is a ComputeOp"""
+        return self.__getattr__("axis")
+
+    @property
+    def reduce_axis(self):
+        """Represent axis of reductions, only defined when it is a ComputeOp"""
+        return self.__getattr__("reduce_axis")
+
 
 @register_node
 class ScanOp(Operation):
     """Scan operation."""
-    pass
+    @property
+    def scan_axis(self):
+        """Represent axis of scan, only defined when it is a ScanOp"""
+        return self.__getattr__("scan_axis")
+
 
 @register_node
 class ExternOp(Operation):

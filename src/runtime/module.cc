@@ -97,7 +97,7 @@ bool RuntimeEnabled(const std::string& target) {
   return runtime::Registry::Get(load_f_name) != nullptr;
 }
 
-TVM_REGISTER_GLOBAL(_module_enabled)
+TVM_REGISTER_GLOBAL(_module__Enabled)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = RuntimeEnabled(args[0]);
     });

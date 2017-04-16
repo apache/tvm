@@ -136,7 +136,27 @@ def _make_tvm_args(args, temp_args):
 
 
 class Function(object):
-    """The Function object used in TVM.
+    """The PackedFunc object used in TVM.
+
+    Function plays an key role to bridge front and backend in TVM.
+    Function provide a type-erased interface, you can call function with positional arguments.
+
+    The compiled module returns Function.
+    TVM backend also registers and exposes its API as Functions.
+    For example, the developer function exposed in tvm.ir_pass are actually
+    C++ functions that are registered as PackedFunc
+
+    The following are list of common usage scenario of tvm.Function.
+
+    - Automatic exposure of C++ API into python
+    - To call PackedFunc from python side
+    - To call python callbacks to inspect results in generated code
+    - Bring python hook into C++ backend
+
+    See Also
+    --------
+    tvm.register_func: How to register global function.
+    tvm.get_global_func: How to get global function.
     """
     __slots__ = ["handle", "is_global"]
     # pylint: disable=no-member
@@ -299,6 +319,26 @@ def register_func(func_name, f=None):
     -------
     fregister : function
         Register function if f is not specified.
+
+    Examples
+    --------
+    The following code registers my_packed_func as global function.
+    Note that we simply get it back from global function table to invoke
+    it from python side. However, we can also invoke the same function
+    from C++ backend, or in the compiled TVM code.
+
+    .. code-block:: python
+
+      targs = (10, 10.0, "hello")
+      @tvm.register_func
+      def my_packed_func(*args):
+          assert(tuple(args) == targs)
+          return 10
+      # Get it out from global function table
+      f = tvm.get_global_func("my_packed_func")
+      assert isinstance(f, tvm.nd.Function)
+      y = f(*targs)
+      assert y == 10
     """
     if callable(func_name):
         f = func_name
@@ -328,7 +368,7 @@ def get_global_func(name):
 
     Returns
     -------
-    func : tvm.nd.Function
+    func : tvm.Function
         The function to be returned.
     """
     handle = FunctionHandle()
@@ -355,27 +395,60 @@ def list_global_func_names():
     return fnames
 
 
-def _init_api_functions(root_namespace):
-    """List and add all the functions to current module."""
-    module_obj = sys.modules["%s.api" % root_namespace]
-    module_internal = sys.modules["%s._api_internal" % root_namespace]
+def _get_api(f):
+    flocal = f
+    def my_api_func(*args):
+        """
+
+        This is a type erased API that calls into Global PackedFunc.
+        These APIs corresponds to functions registered from C++ backend
+        and can be used as developer functions.
+
+        args : list
+          The positional arguments to the function call.
+
+        Returns
+        -------
+        value : int, float, None, Node or Function
+        The result of the API function call.
+        """
+        return flocal(*args)
+    return my_api_func
+
+def _init_api(mod):
+    """Initialize api for a given module name
+
+    mod : str
+       The name of the module.
+    """
+    module = sys.modules[mod]
     namespace_match = {
-        "_make_": sys.modules["%s.make" % root_namespace],
-        "_arith_": sys.modules["%s.arith" % root_namespace],
-        "_pass_": sys.modules["%s.ir_pass" % root_namespace],
-        "_codegen_": sys.modules["%s.codegen" % root_namespace],
-        "_module_": sys.modules["%s.module" % root_namespace],
-        "_schedule_": sys.modules["%s.schedule" % root_namespace]
+        "_make_": "tvm.make",
+        "_arith_": "tvm.arith",
+        "_pass_": "tvm.ir_pass",
+        "_codegen_": "tvm.codegen",
+        "_module_": "tvm.module",
+        "_schedule_": "tvm.schedule"
     }
     for name in list_global_func_names():
         fname = name
-        target_module = module_internal if name.startswith('_') else module_obj
+        target = "tvm.api"
         for k, v in namespace_match.items():
             if name.startswith(k):
                 fname = name[len(k):]
-                target_module = v
+                target = v
+        if target != mod:
+            continue
+        if mod == "tvm.api" and name.startswith("_"):
+            target_module = sys.modules["tvm._api_internal"]
+        else:
+            target_module = module
+
         f = get_global_func(name)
-        setattr(target_module, fname, f)
+        ff = _get_api(f)
+        ff.__name__ = fname
+        ff.__doc__ = ("TVM PackedFunc %s. " % fname)
+        setattr(target_module, ff.__name__, ff)
 
 
 def _init_module_module(module_class):

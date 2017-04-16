@@ -3,11 +3,14 @@ from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 from . import _api_internal
 from . import tensor as _tensor
+from . import expr as _expr
 from . import collections as _collections
+from ._ctypes._function import _init_api
+
 
 @register_node
 class Buffer(NodeBase):
-    """Represent a Buffer in TVM."""
+    """Represent a symbolic buffer in TVM."""
     pass
 
 @register_node
@@ -20,6 +23,29 @@ class Fuse(NodeBase):
     """Fuse operation on axis."""
     pass
 
+@register_node
+class IterVar(NodeBase, _expr.ExprOp):
+    """Represent iteration variable.
+
+    IterVar is normally created by Operation, to represent
+    axis iterations in the computation.
+    It can also created by schedule primitives like :any:`tvm.schedule.Stage.split`.
+
+    See Also
+    --------
+    tvm.thread_axis: Create thread axis IterVar.
+    tvm.reduce_axis: Create reduce axis IterVar.
+    """
+    DataPar = 0
+    ThreadIndex = 1
+    CommReduce = 2
+    Ordered = 3
+    DimInfo = 4
+    Unrolled = 5
+    Vectorized = 6
+    Parallelized = 7
+
+_tensor.iter_var_cls = IterVar
 
 def create_schedule(ops):
     """Create a schedule for list of ops
@@ -343,3 +369,5 @@ class Stage(NodeBase):
             The iteration to be parallelized.
         """
         _api_internal._StageParallel(self, var)
+
+_init_api("tvm.schedule")
