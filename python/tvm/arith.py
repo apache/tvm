@@ -2,6 +2,7 @@
 from __future__ import absolute_import as _abs
 
 from ._ctypes._node import NodeBase, register_node
+from ._ctypes._function import _init_api
 from . import _api_internal
 
 class IntSet(NodeBase):
@@ -36,3 +37,5 @@ class StrideSet(IntSet):
 class ModularSet(IntSet):
     """Represent range of (coeff * x + base) for x in Z """
     pass
+
+_init_api("tvm.arith")

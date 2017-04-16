@@ -26,7 +26,6 @@ curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 libpath = os.path.join(curr_path, '../python/')
 sys.path.insert(0, libpath)
 
-
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
@@ -51,10 +50,15 @@ release = tvm.__version__
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
+    'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx_gallery.gen_gallery',
+    'breathe',
 ]
+
+breathe_projects = {'tvm' : 'doxygen/xml/'}
+breathe_default_project = 'tvm'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -132,7 +136,7 @@ if not on_rtd and html_theme == 'rtd':
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-#html_static_path = ['_static']
+html_static_path = ['_static']
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
@@ -153,11 +157,18 @@ latex_documents = [
 def run_doxygen(folder):
     """Run the doxygen make command in the designated folder."""
     try:
-        retcode = subprocess.call("cd %s; make doxygen" % folder, shell=True)
+        retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
         if retcode < 0:
             sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
     except OSError as e:
         sys.stderr.write("doxygen execution failed: %s" % e)
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/{.major}'.format(sys.version_info), None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
+    'matplotlib': ('http://matplotlib.org/', None),
+}
 
 examples_dirs = ['../tutorials/python']
 gallery_dirs = ['tutorials']
@@ -171,18 +182,24 @@ def generate_doxygen_xml(app):
 def setup(app):
     # Add hook for building doxygen xml when needed
     # no c++ API for now
-    # app.connect("builder-inited", generate_doxygen_xml)
+    app.connect("builder-inited", generate_doxygen_xml)
+    app.add_stylesheet('css/tvm_theme.css')
     app.add_config_value('recommonmark_config', {
             'url_resolver': lambda url: github_doc_root + url,
             }, True)
     app.add_transform(AutoStructify)
 
+
 sphinx_gallery_conf = {
     'backreferences_dir': 'gen_modules/backreferences',
-    'doc_module': ('tvm'),
-    'reference_url': {
-        'tvm': None
-    },
+    'doc_module': ('tvm', 'numpy'),
+'reference_url': {
+    'tvm': None,
+    'matplotlib': 'http://matplotlib.org',
+    'numpy': 'http://docs.scipy.org/doc/numpy-1.9.1'},
     'examples_dirs': examples_dirs,
-    'gallery_dirs': gallery_dirs
+    'gallery_dirs': gallery_dirs,
+    'find_mayavi_figures': False,
+    'filename_pattern': '.py',
+    'expected_failing_examples': []
 }

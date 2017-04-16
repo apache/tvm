@@ -32,8 +32,8 @@ def test_add_pipeline():
         if not tvm.codegen.enabled(device):
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
-        mhost = tvm.codegen.build(fsplits[0], host)
-        mdev = tvm.codegen.build(fsplits[1:], device)
+        mhost = tvm.codegen.build_module(fsplits[0], host)
+        mdev = tvm.codegen.build_module(fsplits[1:], device)
         mhost.import_module(mdev)
         code = mdev.get_source()
         f = mhost.entry_func
@@ -54,8 +54,8 @@ def test_add_pipeline():
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         fmt = "ptx" if device == "cuda" else "cl"
-        mhost = tvm.codegen.build(fsplits[0], host)
-        mdev = tvm.codegen.build(fsplits[1:], device)
+        mhost = tvm.codegen.build_module(fsplits[0], host)
+        mdev = tvm.codegen.build_module(fsplits[1:], device)
         temp = testing.tempdir()
         mpath = temp.relpath("test.%s" % fmt)
         mdev.save(mpath)

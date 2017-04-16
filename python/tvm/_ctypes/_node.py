@@ -186,13 +186,14 @@ def register_node(type_key=None):
     type_key : str or cls
         The type key of the node
     """
+    node_name = type_key if isinstance(type_key, str) else type_key.__name__
+
+    def register(cls):
+        """internal register function"""
+        NODE_TYPE[node_name] = cls
+        return cls
+
     if isinstance(type_key, str):
-        def register(cls):
-            """internal register function"""
-            NODE_TYPE[type_key] = cls
-            return cls
         return register
     else:
-        cls = type_key
-        NODE_TYPE[cls.__name__] = cls
-        return cls
+        return register(type_key)

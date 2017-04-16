@@ -1,4 +1,19 @@
-"""Module to declare Expression class"""
+"""Expression AST Node in TVM.
+
+User do not need to deal with expression AST node directly.
+But they can be helpful for developer to do quick proptyping.
+While not displayed in the document and python file.
+Each expression node have subfields that can be visited from python side.
+
+For example, you can use addexp.a to get the left operand of an Add node.
+
+.. code-block:: python
+
+  x = tvm.var("n")
+  y = x + 2
+  assert(isinstance(y, tvm.expr.Add))
+  assert(y.a == x)
+"""
 # pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
@@ -75,7 +90,7 @@ class LogicalExpr(Expr):
 
 @register_node("Variable")
 class Var(Expr):
-    """Symbolic variable expression."""
+    """Symbolic variable."""
     pass
 
 @register_node

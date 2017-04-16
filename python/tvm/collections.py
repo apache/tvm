@@ -2,11 +2,16 @@
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 from . import _api_internal
-from . import expr as _expr
 
 @register_node
 class Array(NodeBase):
-    """Array container of TVM"""
+    """Array container of TVM.
+
+    You do not need to create Array explicitly.
+    Normally python list and tuple will be converted automatically
+    to Array during tvm function call.
+    You may get Array in return values of TVM function call.
+    """
     def __getitem__(self, i):
         if isinstance(i, slice):
             start = i.start if i.start is not None else 0
@@ -26,7 +31,13 @@ class Array(NodeBase):
 
 @register_node
 class Map(NodeBase):
-    """Map container of TVM"""
+    """Map container of TVM.
+
+    You do not need to create Map explicitly.
+    Normally python dict will be converted automatically
+    to Array during tvm function call.
+    You may get Map in return values of TVM function call.
+    """
     def __getitem__(self, k):
         return _api_internal._MapGetItem(self, k)
 
@@ -47,22 +58,12 @@ class Map(NodeBase):
 
 @register_node
 class Range(NodeBase):
-    """Represent range in TVM"""
+    """Represent range in TVM.
+
+    You do not need to create Range explicitly.
+    Python list and tuple will be converted automatically to Range in api functions.
+    """
     pass
-
-
-@register_node
-class IterVar(NodeBase, _expr.ExprOp):
-    """Represent iteration variable."""
-    DataPar = 0
-    ThreadIndex = 1
-    CommReduce = 2
-    Ordered = 3
-    DimInfo = 4
-    Unrolled = 5
-    Vectorized = 6
-    Parallelized = 7
-
 
 @register_node
 class LoweredFunc(NodeBase):
