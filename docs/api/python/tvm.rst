@@ -1,7 +1,6 @@
 tvm
 ---
-tvm is a library root namespace contains functions for
-declaring computation.
+The user facing API for computation declaration.
 
 .. autosummary::
 

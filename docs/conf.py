@@ -156,7 +156,10 @@ latex_documents = [
 def run_doxygen(folder):
     """Run the doxygen make command in the designated folder."""
     try:
-        retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
+        #retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
+        retcode = subprocess.call("rm -rf _build/html/doxygen", shell=True)
+        retcode = subprocess.call("mkdir -p _build/html", shell=True)
+        retcode = subprocess.call("cp -rf doxygen/html _build/html/doxygen", shell=True)
         if retcode < 0:
             sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
     except OSError as e:
@@ -174,9 +177,7 @@ gallery_dirs = ['tutorials']
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
-    read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
-    if read_the_docs_build:
-        run_doxygen('..')
+    run_doxygen('..')
 
 def setup(app):
     # Add hook for building doxygen xml when needed

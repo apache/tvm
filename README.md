@@ -8,5 +8,9 @@
 [Release Notes](NEWS.md)
 
 # TVM
-TVM is a domain specific language(DSL) for tensor computations.
-The goal of the project is to generate efficient kernels for deep learning workloads.
+TVM is a low level domain specific language(DSL) for compiling tensor computation pipelines.
+It is designed to compile multi-dimensional tensor algebra pipelines which
+are crucial to deep learning frameworks.
+
+## Documentation
+The current documentation can be build locally via sphinx. See [docs](docs) folder for details.

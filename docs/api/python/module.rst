@@ -1,9 +1,4 @@
 tvm.module
 ----------
-.. autoclass:: tvm.module.Module
+.. automodule:: tvm.module
     :members:
-    :inherited-members:
-
-.. autofunction:: tvm.module.load
-
-.. autofunction:: tvm.module.enabled

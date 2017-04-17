@@ -1,7 +1,6 @@
 tvm.ndarray
 -----------
-tvm.ndarray provides a minimum runtime array API to testing out
-the correctness of the program.
+.. automodule:: tvm.ndarray
 
 .. autoclass:: tvm.ndarray.TVMContext
     :members:

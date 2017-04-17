@@ -1,4 +1,4 @@
-"""Runtime module related stuffs"""
+"""Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
 from ._ctypes._function import ModuleBase, _init_module_module
 from ._ctypes._function import _init_api
@@ -21,6 +21,11 @@ class Module(ModuleBase):
         ----------
         fmt : str, optional
             The specified format.
+
+        Returns
+        -------
+        source : str
+            The result source code.
         """
         return _GetSource(self, fmt)
 

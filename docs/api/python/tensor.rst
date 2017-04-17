@@ -1,7 +1,6 @@
 tvm.tensor
 ----------
-The `tvm.tensor` module contains declaration of Tensor
-and Operation class for computation declaration.
+.. automodule:: tvm.tensor
 
 .. autoclass:: tvm.tensor.Tensor
     :members:

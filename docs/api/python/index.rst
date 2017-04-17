@@ -11,6 +11,5 @@ Python API
    module
    ndarray
    collection
-   node
    function
    dev
