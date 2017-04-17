@@ -51,7 +51,7 @@ def test_schedule_scan():
 
     assert tuple(res.shape) == (m, n)
     s = tvm.create_schedule(res.op)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -68,7 +68,7 @@ def test_auto_inline():
 
     s = tvm.create_schedule(T2.op)
     tvm.schedule.AutoInlineElemWise(s)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
@@ -83,7 +83,7 @@ def test_inline_mixed():
     xo, xi = s[C].split(C.op.axis[0], factor=8)
     s[A1].compute_at(s[C], xo)
     s[A2].compute_inline()
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     print(stmt)

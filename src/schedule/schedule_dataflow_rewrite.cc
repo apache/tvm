@@ -242,9 +242,11 @@ void InjectInline(ScheduleNode* sch) {
   ReplaceDataFlow(sch->stages, &repl);
 }
 
-void Schedule::normalize() {
-  InjectInline(operator->());
-  RebaseNonZeroMinLoop(*this);
+Schedule Schedule::normalize() {
+  Schedule sn = copy();
+  InjectInline(sn.operator->());
+  RebaseNonZeroMinLoop(sn);
+  return sn;
 }
 
 // Handle reduction factor.

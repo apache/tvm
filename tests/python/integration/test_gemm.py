@@ -60,7 +60,7 @@ def test_gemm():
 
     max_auto_unroll_step = 0
     # lowering test
-    s.normalize()
+    s = s.normalize()
 
     # one line to build the function.
     def check_device(device, host="stackvm"):

@@ -22,6 +22,8 @@ def test_bound2():
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
     s = tvm.create_schedule(A2.op)
     xo, yo, xi, yi = s[A2].tile(A2.op.axis[0], A2.op.axis[1], 8, 8)
+    # test normalize not affecting schedule
+    _ = s.normalize()
     s[A1].compute_at(s[A2], yo)
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.collections.Map)
@@ -41,6 +43,8 @@ def test_bound3():
     xi0, xi1 = s[A2].split(xi, nparts=16)
     s[A2].bind(xi0, tvm.thread_axis("threadIdx.x"))
     yo, yi = s[A2].split(A2.op.axis[1], 16)
+    # test normalize not affecting schedule
+    _ = s.normalize()
     s[A2].reorder(xo, xi0, yo, xi1, yi)
     s[A1].compute_at(s[A2], yo)
 
@@ -63,7 +67,7 @@ def test_bound_scan():
     XX = s.cache_read(X, "local", s_update)
     xo, xi = s[s_update].split(s_update.op.axis[1], factor=4)
     s[XX].compute_at(s[s_update], xo)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     assert bounds[XX.op.axis[1]].extent.value == 4
@@ -77,7 +81,7 @@ def test_bound_conv1d():
     B = tvm.compute(n, computeB, name='B')
     s = tvm.create_schedule(B.op)
     s[A].compute_at(s[B], B.op.axis[0])
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[A.op.axis[0]].extent.value == 3)
 
@@ -92,7 +96,7 @@ def test_bound_blur():
     B = tvm.compute((n-2, n-2), computeB, name='B')
     s = tvm.create_schedule(B.op)
     s[A].compute_at(s[B], B.op.axis[1])
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[A.op.axis[0]].extent.value == 3)
     assert(bounds[A.op.axis[1]].extent.value == 3)
@@ -106,7 +110,7 @@ def test_bound_rfactor():
     s = tvm.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
     BF = s.rfactor(B, kf)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
 
     assert(bounds[BF.op.axis[0]].extent.value == 4)
@@ -123,7 +127,7 @@ def test_bound_group_schedule():
     g.compute_at(s[x2], x2.op.axis[0])
     assert s[x1].group == g
     assert s[x].group == g
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert bounds[x.op.axis[0]].extent.value == 1
     assert bounds[x.op.axis[1]].extent == n
@@ -141,7 +145,7 @@ def test_bound_nest_group():
     assert s[x1].group == g2
     g2.compute_at(s[x2], x2.op.axis[0])
     g1.compute_at(s[x1], s[x1].op.axis[1])
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert bounds[x.op.axis[0]].extent.value == 1
     assert bounds[x.op.axis[1]].extent.value == 1
@@ -169,7 +173,7 @@ def test_bound_nest_thread():
     _, xi = s[A2].split(A2.op.axis[0], nparts=1)
     s[A2].bind(xi, thread_x)
     s[A1].compute_at(s[A3], tx)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[A1.op.axis[0]].extent.value==1)
     assert(bounds[A2.op.axis[0]].extent.value==32)
@@ -225,7 +229,7 @@ def test_gemm_bound():
     tx, xi = s[BB].split(xi, nparts=num_thread)
     s[BB].bind(ty, thread_y)
     s[BB].bind(tx, thread_x)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[BB.op.axis[0]].extent.value==64)
     assert(bounds[AA.op.axis[0]].extent.value==64)
