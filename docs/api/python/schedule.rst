@@ -1,7 +1,6 @@
 tvm.schedule
 ------------
-The `tvm.schedule` module contains classes of scheduling
-structure of tvm.
+.. automodule:: tvm.schedule
 
 .. autoclass:: tvm.schedule.IterVar
     :members:

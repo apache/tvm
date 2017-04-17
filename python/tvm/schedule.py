@@ -1,4 +1,4 @@
-"""Collection structure in the high level DSL."""
+"""The computation schedule api of TVM."""
 from __future__ import absolute_import as _abs
 from ._ctypes._node import NodeBase, register_node
 from . import _api_internal

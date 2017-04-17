@@ -1,6 +1,7 @@
-"""TVM Runtime API.
+"""TVM Runtime NDArray API.
 
-This is a simplified runtime API for quick testing and proptyping.
+tvm.ndarray provides a minimum runtime array API to test
+the correctness of the program.
 """
 # pylint: disable=invalid-name,unused-import
 from __future__ import absolute_import as _abs

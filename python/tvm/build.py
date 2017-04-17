@@ -1,9 +1,9 @@
-"""The build pipeline in python.
+"""The build utils in python.
 
-Eventually some of these pipelines will be moved to C++.
-But the first pipeline will be kept in python for ease of change and evolving.
+This module provides the functions to transform schedule to
+LoweredFunc and compiled Module.
 """
-
+from __future__ import absolute_import as _abs
 from . import api
 from . import tensor
 from . import schedule

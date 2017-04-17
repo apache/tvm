@@ -1,11 +1,11 @@
 Developer API
 -------------
 This page contains modules that are used by developers of TVM.
+Many of these APIs are PackedFunc registered in C++ backend.
 
 tvm.node
 ~~~~~~~~
-Node is the base class of all TVM AST. Normally user do not
-need to touch this api.
+.. automodule:: tvm.node
 
 .. autoclass:: tvm.node.NodeBase
     :members:

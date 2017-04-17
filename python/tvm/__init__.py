@@ -1,5 +1,5 @@
 # pylint: disable=redefined-builtin, wildcard-import
-"""C++ backend related python scripts"""
+"""TVM: a DSL for tensor kernel compilation"""
 from __future__ import absolute_import as _abs
 
 from . import tensor
