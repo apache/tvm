@@ -1,11 +1,12 @@
 """
-Schedule the Computation with TVM
-====================
+Schedule Primitives in TVM
+=================================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang>`_
 
-TVM is a domain specifric language for efficient kernel construction.
+TVM is a domain specific language for efficient kernel construction.
 
-In this tutorial, we will show how to schedule the computation in TVM.
+In this tutorial, we will show you how to schedule the computation by
+primitives provided by TVM.
 """
 from __future__ import absolute_import, print_function
 
@@ -28,7 +29,7 @@ m = tvm.var('m')
 
 # define a function to print the schedule out
 # let's skip the detail for now
-def PrintSchedule(s):
+def print_schedule(s, ops):
     s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -38,13 +39,13 @@ def PrintSchedule(s):
 # A schedule can be created from a list of ops, by default the
 # schedule compute tensor in a serial manner in a row-major order.
 
-# declare a matrix elementwise mul
+# declare a matrix element-wise multiply
 A = tvm.placeholder((m, n), name='A')
 B = tvm.placeholder((m, n), name='B')
-T = tvm.compute((m, n), lambda i, j: A[i, j] * B[i, j], name='T')
+C = tvm.compute((m, n), lambda i, j: A[i, j] * B[i, j], name='C')
 
-s = tvm.create_schedule([T.op])
-PrintSchedule(s)
+s = tvm.create_schedule([C.op])
+print_schedule(s)
 
 ######################################################################
 # One schedule is composed by multiple stages, and one
@@ -52,161 +53,144 @@ PrintSchedule(s)
 # methods to schedule every stage.
 
 ######################################################################
-# :code:`split` can split a specified axis into two axises by `factor`.
-A = tvm.placeholder((m, n), name='A')
-T = tvm.compute((m, n), lambda i, j: A[i, j]*2, name='T')
+# split
+# --------------------------
+# :code:`split` can split a specified axis into two axises by
+# :code:`factor`.
+A = tvm.placeholder((m,), name='A')
+B = tvm.compute((m,), lambda i: A[i]*2, name='B')
 
-s = tvm.create_schedule(T.op)
-outer, inner = s[T].split(T.op.axis[1], factor=32)
-PrintSchedule(s)
-
-######################################################################
-# :code:`tile` can help you execute the computation tile by tile over
-# two axises.
-A = tvm.placeholder((m, n), name='A')
-T = tvm.compute((m, n), lambda i, j: A[i, j], name='T')
-
-s = tvm.create_schedule(T.op)
-xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
-PrintSchedule(s)
+s = tvm.create_schedule(B.op)
+xo, xi = s[B].split(B.op.axis[0], factor=32)
+print_schedule(s)
 
 ######################################################################
+# You can also split a axis by :code:`nparts`, which splits the axis
+# contrary with :code:`factor`.
+A = tvm.placeholder((m,), name='A')
+B = tvm.compute((m,), lambda i: A[i], name='B')
+
+s = tvm.create_schedule(B.op)
+bx, tx = s[B].split(B.op.axis[0], nparts=32)
+print_schedule(s)
+
+######################################################################
+# tile
+# --------------------------
+# :code:`tile` help you execute the computation tile by tile over two
+# axises.
+A = tvm.placeholder((m, n), name='A')
+B = tvm.compute((m, n), lambda i, j: A[i, j], name='B')
+
+s = tvm.create_schedule(B.op)
+xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
+print_schedule(s)
+
+######################################################################
+# fuse
+# --------------------------
 # :code:`fuse` can fuse two consecutive axises of one computation.
 A = tvm.placeholder((m, n), name='A')
-T = tvm.compute((m, n), lambda i, j: A[i, j], name='T')
+B = tvm.compute((m, n), lambda i, j: A[i, j], name='B')
 
-s = tvm.create_schedule(T.op)
+s = tvm.create_schedule(B.op)
 # tile to four axises first: (i.outer, j.outer, i.inner, j.inner)
-xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
+xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
 # then fuse (i.inner, j.inner) into one axis: (i.inner.j.inner.fused)
-fused = s[T].fuse(yi, xi)
-PrintSchedule(s)
+fused = s[B].fuse(yi, xi)
+print_schedule(s)
 
 ######################################################################
+# reorder
+# --------------------------
 # :code:`reorder` can reorder the axises in the specified order.
 A = tvm.placeholder((m, n), name='A')
-T = tvm.compute((m, n), lambda i, j: A[i, j], name='T')
+B = tvm.compute((m, n), lambda i, j: A[i, j], name='B')
 
-s = tvm.create_schedule(T.op)
+s = tvm.create_schedule(B.op)
 # tile to four axises first: (i.outer, j.outer, i.inner, j.inner)
-xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
+xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
 # then reorder the axises: (i.inner, j.outer, i.outer, j.inner)
-s[T].reorder(xi, yo, xo, yi)
-PrintSchedule(s)
+s[B].reorder(xi, yo, xo, yi)
+print_schedule(s)
 
 ######################################################################
+# bind
+# --------------------------
 # :code:`bind` can bind a specified axis with a thread axis, often used
 # in gpu programming.
 A = tvm.placeholder((n,), name='A')
-T = tvm.compute(A.shape, lambda i: A[i] * 2, name='T')
+B = tvm.compute(A.shape, lambda i: A[i] * 2, name='B')
 
-s = tvm.create_schedule(T.op)
-bx, tx = s[T].split(T.op.axis[0], factor=64)
-s[T].bind(bx, tvm.thread_axis("blockIdx.x"))
-s[T].bind(tx, tvm.thread_axis("threadIdx.x"))
-PrintSchedule(s)
+s = tvm.create_schedule(B.op)
+bx, tx = s[B].split(B.op.axis[0], factor=64)
+s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
+s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+print_schedule(s)
 
 ######################################################################
+# compute_at
+# --------------------------
 # For a schedule consists of multiple operators, tvm will compute
 # tensors at the root separately by default.
 A = tvm.placeholder((m, ), name='A')
-A1 = tvm.compute((m, ), lambda i: A[i]+1, name='A1')
-T = tvm.compute((m, ), lambda i: A1[i]*2, name='T')
+B = tvm.compute((m, ), lambda i: A[i]+1, name='B')
+C = tvm.compute((m, ), lambda i: B[i]*2, name='C')
 
-s = tvm.create_schedule(T.op)
-PrintSchedule(s)
+s = tvm.create_schedule(C.op)
+print_schedule(s)
 
 ######################################################################
-# :code:`compute_at` can move computation of `A1` into the first axis
-# of computation of `T`.
+# :code:`compute_at` can move computation of `B` into the first axis
+# of computation of `C`.
 A = tvm.placeholder((m, ), name='A')
-A1 = tvm.compute((m, ), lambda i: A[i]+1, name='A1')
-T = tvm.compute((m, ), lambda i: A1[i]*2, name='T')
+B = tvm.compute((m, ), lambda i: A[i]+1, name='B')
+C = tvm.compute((m, ), lambda i: B[i]*2, name='C')
 
-s = tvm.create_schedule(T.op)
-s[A1].compute_at(s[T], T.op.axis[0])
-PrintSchedule(s)
+s = tvm.create_schedule(C.op)
+s[B].compute_at(s[C], C.op.axis[0])
+print_schedule(s)
 
 ######################################################################
+# compute_inline
+# --------------------------
 # :code:`compute_inline` can mark one stage as inline, then the body of
 # computation will be expanded and inserted at the address where the
 # tensor is required.
 A = tvm.placeholder((m, ), name='A')
-A1 = tvm.compute((m, ), lambda i: A[i]+1, name='A1')
-T = tvm.compute((m, ), lambda i: A1[i]*2, name='T')
-s = tvm.create_schedule(T.op)
+B = tvm.compute((m, ), lambda i: A[i]+1, name='B')
+C = tvm.compute((m, ), lambda i: B[i]*2, name='C')
 
-s = tvm.create_schedule(T.op)
-s[A1].compute_inline()
-PrintSchedule(s)
+s = tvm.create_schedule(C.op)
+s[B].compute_inline()
+print_schedule(s)
 
 ######################################################################
+# compute_root
+# --------------------------
 # :code:`compute_root` can move computation of one stage to the root.
 A = tvm.placeholder((m, ), name='A')
-A1 = tvm.compute((m, ), lambda i: A[i]+1, name='A1')
-T = tvm.compute((m, ), lambda i: A1[i]*2, name='T')
-s = tvm.create_schedule(T.op)
+B = tvm.compute((m, ), lambda i: A[i]+1, name='B')
+C = tvm.compute((m, ), lambda i: B[i]*2, name='C')
+s = tvm.create_schedule(C.op)
 
-s = tvm.create_schedule(T.op)
-s[A1].compute_at(s[T], T.op.axis[0])
-s[A1].compute_root()
-PrintSchedule(s)
+s = tvm.create_schedule(C.op)
+s[B].compute_at(s[C], C.op.axis[0])
+s[B].compute_root()
+print_schedule(s)
 
 ######################################################################
-# Here is one practical example which implements GEMM with TVM.
-def tvm_gemm():
-    # graph
-    nn = 1024
-    n = tvm.var('n')
-    n = tvm.convert(nn)
-    m = n
-    l = n
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((m, l), name='B')
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute(
-        (n, m),
-        lambda ii, jj: tvm.sum(A[ii, k] * B[jj, k], axis=k),
-        name='CC')
-    s = tvm.create_schedule(C.op)
-    xtile, ytile = 32, 32
-    scale = 8
-    num_thread = 8
-    block_factor = scale * num_thread
-    block_x = tvm.thread_axis("blockIdx.x")
-    thread_x = tvm.thread_axis("threadIdx.x")
-    block_y = tvm.thread_axis("blockIdx.y")
-    thread_y = tvm.thread_axis("threadIdx.y")
-
-    CC = s.cache_write(C, "local")
-    AA = s.cache_read(A, "shared", [CC])
-    BB = s.cache_read(B, "shared", [CC])
-    by, yi = s[C].split(C.op.axis[0], factor=block_factor)
-    bx, xi = s[C].split(C.op.axis[1], factor=block_factor)
-    s[C].reorder(by, bx, yi, xi)
-    s[C].bind(by, block_y)
-    s[C].bind(bx, block_x)
-    ty, yi = s[C].split(yi, nparts=num_thread)
-    tx, xi = s[C].split(xi, nparts=num_thread)
-    s[C].reorder(ty, tx, yi, xi)
-    s[C].bind(ty, thread_y)
-    s[C].bind(tx, thread_x)
-    yo, xo = CC.op.axis
-    s[CC].reorder(k, yo, xo)
-
-
-    s[CC].compute_at(s[C], tx)
-    s[AA].compute_at(s[CC], k)
-    s[BB].compute_at(s[CC], k)
-
-    ty, xi = s[AA].split(s[AA].op.axis[0], nparts=num_thread)
-    tx, xi = s[AA].split(xi, nparts=num_thread)
-    s[AA].bind(ty, thread_y)
-    s[AA].bind(tx, thread_x)
-
-    ty, xi = s[BB].split(s[BB].op.axis[0], nparts=num_thread)
-    tx, xi = s[BB].split(xi, nparts=num_thread)
-    s[BB].bind(ty, thread_y)
-    s[BB].bind(tx, thread_x)
-
-    s.normalize()
+# Summary
+# -------
+# This tutorial provides a walk through of TVM workflow using
+# a vector add example. The general workflow is
+#
+# - Describe your computation via series of operations.
+# - Describe how we want to compute use schedule primitives.
+# - Compile to the target function we want.
+# - Optionally, save the function to be loaded later.
+#
+# You are more than welcomed to checkout other examples and
+# tutorials to learn more about the supported operations, schedule primitives
+# and other features in TVM.
+#

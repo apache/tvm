@@ -4,7 +4,7 @@ Get Started with TVM
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
 This is an introduction tutorial to TVM.
-TVM is a domain specifric language for efficient kernel construction.
+TVM is a domain specific language for efficient kernel construction.
 
 In this tutorial, we will demonstrate the basic workflow in TVM.
 """
