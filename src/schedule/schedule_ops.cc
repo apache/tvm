@@ -162,7 +162,7 @@ class SchedulePostProc : public IRMutator {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {
-        CHECK(is_zero(ir::Simplify(it->second- op->value)));
+        CHECK(is_zero(ir::Simplify(it->second - op->value)));
         return this->Mutate(op->body);
       } else {
         thread_extent_scope_[op->node.get()] = op->value;
