@@ -355,6 +355,52 @@ Schedule::Schedule(Array<Operation> ops) {
   }
 }
 
+Stage CopyStage(const Stage& s) {
+  std::shared_ptr<StageNode> n =
+      std::make_shared<StageNode>(*s.operator->());
+  return Stage(n);
+}
+
+Schedule Schedule::copy() const {
+  // map of stages.
+  const ScheduleNode* self = operator->();
+  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
+  std::shared_ptr<ScheduleNode> n = std::make_shared<ScheduleNode>();
+  n->outputs = self->outputs;
+  // Copy the stages.
+  for (Stage s : self->stages) {
+    Stage scopy = CopyStage(s);
+    smap[s] = scopy;
+    n->stages.push_back(scopy);
+  }
+  for (Stage g : self->groups) {
+    Stage gcopy = CopyStage(g);
+    smap[g] = gcopy;
+    n->groups.push_back(gcopy);
+  }
+  // Remaps the reference relations.
+  for (auto kv : self->stage_map) {
+    n->stage_map.Set(kv.first, smap.at(kv.second));
+  }
+  for (Stage s : n->stages) {
+    if (s->attach_stage.defined()) {
+      s->attach_stage = smap.at(s->attach_stage);
+    }
+    if (s->group.defined()) {
+      s->group = smap.at(s->group);
+    }
+  }
+  for (Stage s : n->groups) {
+    if (s->attach_stage.defined()) {
+      s->attach_stage = smap.at(s->attach_stage);
+    }
+    if (s->group.defined()) {
+      s->group = smap.at(s->group);
+    }
+  }
+  return Schedule(n);
+}
+
 Stage Schedule::operator[](const Operation& op) {
   auto it = (*this)->stage_map.find(op);
   CHECK(it != (*this)->stage_map.end())

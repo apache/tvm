@@ -170,7 +170,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       if (idx < leaf_vars->data.size()) {
         // insert rebase
         IterVar rebased = IterVarNode::make(
-            Range(), iv->var.copy_with_suffix(".rb"), iv->iter_type);
+            Range(), iv->var.copy_with_suffix(""), iv->iter_type);
         s->relations.push_back(RebaseNode::make(iv, rebased));
         leaf_vars->data[idx] = rebased.node_;
         rebase_map[iv] = rebased;
@@ -242,9 +242,11 @@ void InjectInline(ScheduleNode* sch) {
   ReplaceDataFlow(sch->stages, &repl);
 }
 
-void Schedule::normalize() {
-  InjectInline(operator->());
-  RebaseNonZeroMinLoop(*this);
+Schedule Schedule::normalize() {
+  Schedule sn = copy();
+  InjectInline(sn.operator->());
+  RebaseNonZeroMinLoop(sn);
+  return sn;
 }
 
 // Handle reduction factor.

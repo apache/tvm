@@ -11,7 +11,7 @@ def lower(s, args, name):
         buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
         binds[x] = buf
         arg_list.append(buf)
-    s.normalize()
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.StorageFlatten(stmt, binds)

@@ -12,10 +12,12 @@ from . import ir_pass
 from . import collections
 from . import codegen
 
+
 def lower(sch,
           args,
           name="default_function",
           binds=None,
+          with_api_wrapper=True,
           max_auto_unroll_step=8):
     """Lowering step before build into target.
 
@@ -34,13 +36,17 @@ def lower(sch,
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
+    with_api_wrapper : bool, optional
+        Whether add API wrapper during lowering.
+
     max_auto_unroll_step: int, optional
         Maximum step to perform automatic unrolling
 
     Returns
     -------
-    f : LoweredFunc
-       The result function.
+    f : LoweredFunc or Stmt
+       The result function, if with_api_wrapper=False
+       Then the Stmt before make api is returned.
     """
     binds = {} if binds is None else binds.copy()
     arg_list = []
@@ -57,7 +63,7 @@ def lower(sch,
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
     # normalize schedule first
-    sch.normalize()
+    sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.StorageFlatten(stmt, binds)
@@ -67,8 +73,9 @@ def lower(sch,
     stmt = ir_pass.LiftAllocate(stmt)
     stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
-    fapi = ir_pass.MakeAPI(stmt, name, arg_list, 0)
-    return fapi
+    if not with_api_wrapper:
+        return stmt
+    return ir_pass.MakeAPI(stmt, name, arg_list, 0)
 
 
 def build(sch,

@@ -78,12 +78,17 @@ class Schedule(NodeBase):
         return self.stage_map[k]
 
     def normalize(self):
-        """Build a normalized schedule.
+        """Build a normalized schedule from the current schedule.
 
         Insert necessary rebase to make certain iter var to start from 0.
         This is needed before bound inference and followup step.
+
+        Returns
+        -------
+        sch : Schedule
+            The normalized schedule.
         """
-        _api_internal._ScheduleNormalize(self)
+        return _api_internal._ScheduleNormalize(self)
 
     def create_group(self, outputs, inputs, include_inputs=False):
         """Create stage group by giving output and input boundary.
@@ -261,7 +266,7 @@ class Stage(NodeBase):
         threads : list of threads
             The threads to be launched.
         """
-        if isinstance(threads, _collections.IterVar):
+        if isinstance(threads, IterVar):
             threads = [threads]
         _api_internal._StageEnvThreads(self, threads)
 

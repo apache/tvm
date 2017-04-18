@@ -191,6 +191,11 @@ class Schedule : public NodeRef {
    */
   explicit Schedule(Array<Operation> ops);
   /*!
+   * \brief Get a copy of current schedule.
+   * \return The copied schedule.
+   */
+  Schedule copy() const;
+  /*!
    * \brief Get the stage corresponds to the op
    * \param op The operation.
    */
@@ -257,7 +262,7 @@ class Schedule : public NodeRef {
    *
    * \return A normalized schedule, can be same as current one.
    */
-  void normalize();
+  Schedule normalize();
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

@@ -311,7 +311,7 @@ TVM_REGISTER_API(_StageParallel)
 
 TVM_REGISTER_API(_ScheduleNormalize)
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    args[0].operator Schedule()
+    *ret = args[0].operator Schedule()
         .normalize();
   });
 
