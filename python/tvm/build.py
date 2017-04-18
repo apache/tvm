@@ -18,7 +18,7 @@ def lower(sch,
           name="default_function",
           binds=None,
           with_api_wrapper=True,
-          max_auto_unroll_step=8):
+          max_auto_unroll_step=0):
     """Lowering step before build into target.
 
     Parameters
