@@ -17,8 +17,7 @@ import numpy as np
 # Vector Add Example
 # ------------------
 # In this tutorial, we will use a vector addition example to demonstrate
-# the workflow in TVM. We will demonstrate how we can describe and compile
-# vector addition code that runs on GPU.
+# the workflow.
 #
 
 ######################################################################

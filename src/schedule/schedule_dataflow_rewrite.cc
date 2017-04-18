@@ -170,7 +170,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       if (idx < leaf_vars->data.size()) {
         // insert rebase
         IterVar rebased = IterVarNode::make(
-            Range(), iv->var.copy_with_suffix(".rb"), iv->iter_type);
+            Range(), iv->var.copy_with_suffix(""), iv->iter_type);
         s->relations.push_back(RebaseNode::make(iv, rebased));
         leaf_vars->data[idx] = rebased.node_;
         rebase_map[iv] = rebased;
