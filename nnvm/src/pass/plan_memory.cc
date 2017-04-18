@@ -171,7 +171,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx, StorageVector* sto
         if (ref_count[eid_in] == 1 &&
             ref_count[eid_out] != 0 &&
             storage[eid_out] == GraphAllocator::kBadStorageID &&
-            storage[eid_in] != GraphAllocator::kBadStorageID &&
+            storage[eid_in] >= 0 &&
             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
             dtype_vec[eid_out] == dtype_vec[eid_in]) {
           // inplace optimization
