@@ -16,6 +16,7 @@ def test_add_pipeline():
     s[C].bind(xi, tvm.thread_axis("blockIdx.x"))
 
     # compile to IR
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
