@@ -67,11 +67,11 @@ ifeq ($(USE_LLVM), 1)
 	CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
 endif
 
-ifdef $(ADD_CFLAGS)
+ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
 endif
 
-ifdef $(ADD_LDFLAGS)
+ifdef ADD_LDFLAGS
 	LDFLAGS += $(ADD_LDFLAGS)
 endif
 

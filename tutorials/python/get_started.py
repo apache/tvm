@@ -139,7 +139,7 @@ np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # is a tvm Module. fadd is the host module that contains the host wrapper,
 # it also contains a device module for the CUDA function.
 #
-# The following code fetchs the device module and prints the content code.
+# The following code fetches the device module and prints the content code.
 #
 dev_module = fadd_cuda.imported_modules[0]
 print("-----CUDA code-----")
