@@ -17,8 +17,8 @@ import numpy as np
 # Quick knobs
 TASK="rnn_matexp"
 USE_MANUAL_CODE = False
-PERSIST_KERNEL = False
-DETECT_GLOBAL_BARRIER = True
+PERSIST_KERNEL = True
+DETECT_GLOBAL_BARRIER = PERSIST_KERNEL
 SKIP_CHECK = False
 
 @tvm.register_func
@@ -93,6 +93,7 @@ def rnn_matexp():
 
     if PERSIST_KERNEL:
         s[WhhL].compute_at(s[s_scan], thread_x)
+        s[WhhL].unroll(WhhL.op.axis[0])
     else:
         s[WhhL].compute_at(s[CLF], CLF.op.axis[3])
 

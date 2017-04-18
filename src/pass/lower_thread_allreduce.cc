@@ -112,12 +112,12 @@ class ThreadAllreduceBuilder : public IRMutator {
       IterVar iv(attr->node.node_);
       e.scope = runtime::ThreadScope::make(iv->thread_tag);
       e.iv = iv;
-      CHECK(arith::GetConstInt(attr->value, &(e.extent)))
-          << "Need constant extent for thread group";
       CHECK_LE(e.scope.rank, 1);
       CHECK_GE(e.scope.dim_index, 0)
           << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
+        CHECK(arith::GetConstInt(attr->value, &(e.extent)))
+            << "Need constant extent for reduce set " << iv;
         if (reduce_set.count(iv->var.get())) {
           vred.push_back(e);
           ++nmatch;
