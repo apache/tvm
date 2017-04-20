@@ -16,18 +16,18 @@ import numpy as np
 # The following scan op computes cumsum over columns of X.
 #
 # The scan is carried over the highest dimension of the tensor.
-# s_state is a placeholder that describes the transition state of the scan.
-# s_init describes how we can initialize the first k timesteps.
+# :code:`s_state` is a placeholder that describes the transition state of the scan.
+# :code:`s_init` describes how we can initialize the first k timesteps.
 # Here since s_init's first dimension is 1, it describes how we initialize
 # The state at first timestep.
 #
-# s_update describes how to update the value at timestep t. The update
+# :code:`s_update` describes how to update the value at timestep t. The update
 # value can refer back to the values of previous timestep via state placeholder.
-# Note that while it is invalid to refer to s_state at current or later timestep.
+# Note that while it is invalid to refer to :code:`s_state` at current or later timestep.
 #
 # The scan takes in state placeholder, initial value and update description.
 # It is also recommended(although not necessary) to list the inputs to the scan cell.
-# The result of the scan is a tensor, giving the result of s_state after the
+# The result of the scan is a tensor, giving the result of :code:`s_state` after the
 # update over the time domain.
 #
 m = tvm.var("m")
@@ -43,8 +43,8 @@ s_scan = tvm.scan(s_init, s_update, s_state, inputs=[X])
 # ----------------------
 # We can schedule the body of the scan by scheduling the update and
 # init part seperately. Note that it is invalid to schedule the
-# first iteration dimension of the update part, because it cors_scanponds
-# to strict iteration over time.
+# first iteration dimension of the update part.
+# To split on the time iteration, user can schedule on scan_op.scan_axis instead.
 #
 s = tvm.create_schedule(s_scan.op)
 num_thread = 256
