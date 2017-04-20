@@ -201,6 +201,11 @@ TVM_REGISTER_API(_OpGetOutput)
         static_cast<size_t>(args[1].operator int64_t()));
   });
 
+TVM_REGISTER_API(_OpNumOutputs)
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator Operation()->num_outputs();
+  });
+
 TVM_REGISTER_API(_IterVar)
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = IterVarNode::make(

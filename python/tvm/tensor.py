@@ -78,6 +78,14 @@ class Tensor(NodeBase):
         """The output shape of the tensor."""
         return self.__getattr__("shape")
 
+    @property
+    def name(self):
+        op = self.op
+        if op.num_outputs == 1:
+            return op.name
+        else:
+            return "%s.v%d" % (op.name, self.value_index)
+
 
 class Operation(NodeBase):
     """Represent an operation that generate a tensor"""
@@ -96,6 +104,10 @@ class Operation(NodeBase):
         """
         return _api_internal._OpGetOutput(self, index)
 
+    @property
+    def num_outputs(self):
+        """Number of outputs of this op."""
+        return _api_internal._OpNumOutputs(self)
 
 @register_node
 class PlaceholderOp(Operation):
