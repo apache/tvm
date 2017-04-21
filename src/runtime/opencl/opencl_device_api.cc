@@ -189,10 +189,10 @@ bool InitOpenCL(TVMArgs args, TVMRetValue* rv) {
   return true;
 }
 
-TVM_REGISTER_GLOBAL(_module_init_opencl)
+TVM_REGISTER_GLOBAL("module.init_opencl")
 .set_body(InitOpenCL);
 
-TVM_REGISTER_GLOBAL(_device_api_opencl)
+TVM_REGISTER_GLOBAL("device_api.opencl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = OpenCLWorkspace::Global();
     *rv = static_cast<void*>(ptr);

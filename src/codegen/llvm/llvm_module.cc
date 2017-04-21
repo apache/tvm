@@ -150,7 +150,7 @@ class LLVMModuleNode : public runtime::ModuleNode {
   std::shared_ptr<llvm::LLVMContext> ctx_;
 };
 
-TVM_REGISTER_API(_codegen_build_llvm)
+TVM_REGISTER_API("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
     n->Init(args[0], args[1]);

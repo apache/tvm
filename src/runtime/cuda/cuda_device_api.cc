@@ -77,7 +77,7 @@ class CUDADeviceAPI : public DeviceAPI {
   }
 };
 
-TVM_REGISTER_GLOBAL(_device_api_gpu)
+TVM_REGISTER_GLOBAL("device_api.gpu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     static CUDADeviceAPI inst;
     DeviceAPI* ptr = &inst;

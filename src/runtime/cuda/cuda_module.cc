@@ -281,12 +281,12 @@ Module CUDAModuleLoad(const std::string& file_name,
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL(_module_loadfile_cubin)
+TVM_REGISTER_GLOBAL("module.loadfile_cubin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = CUDAModuleLoad(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL(_module_loadfile_ptx)
+TVM_REGISTER_GLOBAL("module.loadfile_ptx")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = CUDAModuleLoad(args[0], args[1]);
   });

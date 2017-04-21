@@ -46,7 +46,7 @@ class CPUDeviceAPI : public DeviceAPI {
   }
 };
 
-TVM_REGISTER_GLOBAL(_device_api_cpu)
+TVM_REGISTER_GLOBAL("device_api.cpu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     static CPUDeviceAPI inst;
     DeviceAPI* ptr = &inst;
