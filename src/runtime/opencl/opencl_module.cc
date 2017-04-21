@@ -314,12 +314,12 @@ Module OpenCLModuleLoad(const std::string& file_name,
   return OpenCLModuleCreate(data, fmt, fmap);
 }
 
-TVM_REGISTER_GLOBAL(_module_loadfile_cl)
+TVM_REGISTER_GLOBAL("module.loadfile_cl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = OpenCLModuleLoad(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL(_module_loadfile_clbin)
+TVM_REGISTER_GLOBAL("module.loadfile_clbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = OpenCLModuleLoad(args[0], args[1]);
   });

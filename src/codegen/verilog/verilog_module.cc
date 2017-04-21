@@ -86,7 +86,7 @@ class VerilogModuleNode : public runtime::ModuleNode {
   std::string fmt_;
 };
 
-TVM_REGISTER_API(_codegen_build_verilog)
+TVM_REGISTER_API("codegen.build_verilog")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<VerilogModuleNode> n =
         std::make_shared<VerilogModuleNode>();

@@ -212,47 +212,47 @@ VPIHandle VPIHandle::operator[](const std::string& name) const {
 }
 
 // API registration
-TVM_REGISTER_API(_vpi_SessMake)
+TVM_REGISTER_API("_vpi_SessMake")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = VPISession::make(args[0], args[1]);
   });
 
-TVM_REGISTER_API(_vpi_SessGetHandleByName)
+TVM_REGISTER_API("_vpi_SessGetHandleByName")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator VPISession().operator[](args[1]);
   });
 
-TVM_REGISTER_API(_vpi_SessYield)
+TVM_REGISTER_API("_vpi_SessYield")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator VPISession().yield();
   });
 
-TVM_REGISTER_API(_vpi_SessShutdown)
+TVM_REGISTER_API("_vpi_SessShutdown")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator VPISession().shutdown();
   });
 
-TVM_REGISTER_API(_vpi_HandlePutInt)
+TVM_REGISTER_API("_vpi_HandlePutInt")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator VPIHandle().put_int(args[1]);
   });
 
-TVM_REGISTER_API(_vpi_HandleGetInt)
+TVM_REGISTER_API("_vpi_HandleGetInt")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator VPIHandle().get_int();
   });
 
-TVM_REGISTER_API(_vpi_HandleGetName)
+TVM_REGISTER_API("_vpi_HandleGetName")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator VPIHandle().name();
   });
 
-TVM_REGISTER_API(_vpi_HandleGetSize)
+TVM_REGISTER_API("_vpi_HandleGetSize")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator VPIHandle().size();
   });
 
-TVM_REGISTER_API(_vpi_HandleGetHandleByName)
+TVM_REGISTER_API("_vpi_HandleGetHandleByName")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator VPIHandle().operator[](args[1]);
   });

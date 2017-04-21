@@ -13,7 +13,7 @@
 
 namespace tvm {
 
-TVM_REGISTER_API(_const)
+TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     if (args[0].type_code() == kInt) {
       *ret = make_const(args[1], args[0].operator int64_t());
@@ -25,13 +25,13 @@ TVM_REGISTER_API(_const)
   });
 
 
-TVM_REGISTER_API(_str)
+TVM_REGISTER_API("_str")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
   *ret = ir::StringImm::make(args[0]);
 });
 
 
-TVM_REGISTER_API(_Array)
+TVM_REGISTER_API("_Array")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     std::vector<std::shared_ptr<Node> > data;
     for (int i = 0; i < args.size(); ++i) {
@@ -42,7 +42,7 @@ TVM_REGISTER_API(_Array)
     *ret = node;
   });
 
-TVM_REGISTER_API(_ArrayGetItem)
+TVM_REGISTER_API("_ArrayGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     int64_t i = args[1];
     auto& sptr = args[0].node_sptr();
@@ -53,7 +53,7 @@ TVM_REGISTER_API(_ArrayGetItem)
     *ret = n->data[static_cast<size_t>(i)];
   });
 
-TVM_REGISTER_API(_ArraySize)
+TVM_REGISTER_API("_ArraySize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     auto& sptr = args[0].node_sptr();
     CHECK(sptr->is_type<ArrayNode>());
@@ -61,7 +61,7 @@ TVM_REGISTER_API(_ArraySize)
         static_cast<const ArrayNode*>(sptr.get())->data.size());
   });
 
-TVM_REGISTER_API(_Map)
+TVM_REGISTER_API("_Map")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK_EQ(args.size() % 2, 0);
     MapNode::ContainerType data;
@@ -78,7 +78,7 @@ TVM_REGISTER_API(_Map)
     *ret = node;
   });
 
-TVM_REGISTER_API(_MapSize)
+TVM_REGISTER_API("_MapSize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     auto& sptr = args[0].node_sptr();
     CHECK(sptr->is_type<MapNode>());
@@ -86,7 +86,7 @@ TVM_REGISTER_API(_MapSize)
     *ret = static_cast<int64_t>(n->data.size());
   });
 
-TVM_REGISTER_API(_MapGetItem)
+TVM_REGISTER_API("_MapGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK(args[0].type_code() == kNodeHandle);
     CHECK(args[1].type_code() == kNodeHandle);
@@ -99,7 +99,7 @@ TVM_REGISTER_API(_MapGetItem)
     *ret = (*it).second;
   });
 
-TVM_REGISTER_API(_MapCount)
+TVM_REGISTER_API("_MapCount")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK(args[0].type_code() == kNodeHandle);
     CHECK(args[1].type_code() == kNodeHandle);
@@ -110,7 +110,7 @@ TVM_REGISTER_API(_MapCount)
         n->data.count(args[1].node_sptr()));
   });
 
-TVM_REGISTER_API(_MapItems)
+TVM_REGISTER_API("_MapItems")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     auto& sptr = args[0].node_sptr();
     CHECK(sptr->is_type<MapNode>());
@@ -123,7 +123,7 @@ TVM_REGISTER_API(_MapItems)
     *ret = rkvs;
   });
 
-TVM_REGISTER_API(Range)
+TVM_REGISTER_API("Range")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     if (args.size() == 1) {
       *ret = Range(0, args[0]);
@@ -132,7 +132,7 @@ TVM_REGISTER_API(Range)
     }
   });
 
-TVM_REGISTER_API(_Buffer)
+TVM_REGISTER_API("_Buffer")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = BufferNode::make(args[0],
                             args[1],
@@ -143,7 +143,7 @@ TVM_REGISTER_API(_Buffer)
                             args[6]);
   });
 
-TVM_REGISTER_API(_Tensor)
+TVM_REGISTER_API("_Tensor")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = TensorNode::make(args[0],
                             args[1],
@@ -151,32 +151,32 @@ TVM_REGISTER_API(_Tensor)
                             args[3]);
   });
 
-TVM_REGISTER_API(_TensorEqual)
+TVM_REGISTER_API("_TensorEqual")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Tensor() == args[1].operator Tensor();
   });
 
-TVM_REGISTER_API(_TensorHash)
+TVM_REGISTER_API("_TensorHash")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = static_cast<int64_t>(
         std::hash<Tensor>()(args[0].operator Tensor()));
   });
 
-TVM_REGISTER_API(_Placeholder)
+TVM_REGISTER_API("_Placeholder")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = placeholder(args[0],
                        args[1],
                        args[2]);
   });
 
-TVM_REGISTER_API(_ComputeOp)
+TVM_REGISTER_API("_ComputeOp")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = ComputeOpNode::make(args[0],
                                args[1],
                                args[2]);
   });
 
-TVM_REGISTER_API(_ScanOp)
+TVM_REGISTER_API("_ScanOp")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = ScanOpNode::make(args[0],
                             args[1],
@@ -186,7 +186,7 @@ TVM_REGISTER_API(_ScanOp)
                             args[5]);
   });
 
-TVM_REGISTER_API(_ExternOp)
+TVM_REGISTER_API("_ExternOp")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = ExternOpNode::make(args[0],
                               args[1],
@@ -195,18 +195,18 @@ TVM_REGISTER_API(_ExternOp)
                               args[4]);
   });
 
-TVM_REGISTER_API(_OpGetOutput)
+TVM_REGISTER_API("_OpGetOutput")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Operation().output(
         static_cast<size_t>(args[1].operator int64_t()));
   });
 
-TVM_REGISTER_API(_OpNumOutputs)
+TVM_REGISTER_API("_OpNumOutputs")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Operation()->num_outputs();
   });
 
-TVM_REGISTER_API(_IterVar)
+TVM_REGISTER_API("_IterVar")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = IterVarNode::make(
         args[0], args[1],
@@ -214,24 +214,24 @@ TVM_REGISTER_API(_IterVar)
         args[3]);
   });
 
-TVM_REGISTER_API(_Schedule)
+TVM_REGISTER_API("_Schedule")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = Schedule(args[0].operator Array<Operation>());
   });
 
-TVM_REGISTER_API(_StageSetScope)
+TVM_REGISTER_API("_StageSetScope")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .set_scope(args[1]);
   });
 
-TVM_REGISTER_API(_StageBind)
+TVM_REGISTER_API("_StageBind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .bind(args[1], args[2]);
   });
 
-TVM_REGISTER_API(_StageSplitByFactor)
+TVM_REGISTER_API("_StageSplitByFactor")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar outer, inner;
     args[0].operator Stage()
@@ -239,7 +239,7 @@ TVM_REGISTER_API(_StageSplitByFactor)
     *ret = Array<IterVar>({outer, inner});
   });
 
-TVM_REGISTER_API(_StageSplitByNParts)
+TVM_REGISTER_API("_StageSplitByNParts")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar outer, inner;
     args[0].operator Stage()
@@ -247,7 +247,7 @@ TVM_REGISTER_API(_StageSplitByNParts)
     *ret = Array<IterVar>({outer, inner});
   });
 
-TVM_REGISTER_API(_StageFuse)
+TVM_REGISTER_API("_StageFuse")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar fused;
     args[0].operator Stage()
@@ -255,31 +255,31 @@ TVM_REGISTER_API(_StageFuse)
     *ret = fused;
   });
 
-TVM_REGISTER_API(_StageComputeAt)
+TVM_REGISTER_API("_StageComputeAt")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .compute_at(args[1], args[2]);
   });
 
-TVM_REGISTER_API(_StageComputeInline)
+TVM_REGISTER_API("_StageComputeInline")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .compute_inline();
   });
 
-TVM_REGISTER_API(_StageComputeRoot)
+TVM_REGISTER_API("_StageComputeRoot")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .compute_root();
   });
 
-TVM_REGISTER_API(_StageReorder)
+TVM_REGISTER_API("_StageReorder")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .reorder(args[1]);
   });
 
-TVM_REGISTER_API(_StageTile)
+TVM_REGISTER_API("_StageTile")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar x_outer, y_outer, x_inner, y_inner;
     args[0].operator Stage()
@@ -290,55 +290,55 @@ TVM_REGISTER_API(_StageTile)
     *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
   });
 
-TVM_REGISTER_API(_StageEnvThreads)
+TVM_REGISTER_API("_StageEnvThreads")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .env_threads(args[1]);
   });
 
-TVM_REGISTER_API(_StageUnroll)
+TVM_REGISTER_API("_StageUnroll")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .unroll(args[1]);
   });
 
-TVM_REGISTER_API(_StageVectorize)
+TVM_REGISTER_API("_StageVectorize")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .vectorize(args[1]);
   });
 
-TVM_REGISTER_API(_StageParallel)
+TVM_REGISTER_API("_StageParallel")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .parallel(args[1]);
   });
 
-TVM_REGISTER_API(_ScheduleNormalize)
+TVM_REGISTER_API("_ScheduleNormalize")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
         .normalize();
   });
 
-TVM_REGISTER_API(_ScheduleCreateGroup)
+TVM_REGISTER_API("_ScheduleCreateGroup")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
         .create_group(args[1], args[2], args[3]);
   });
 
-TVM_REGISTER_API(_ScheduleCacheRead)
+TVM_REGISTER_API("_ScheduleCacheRead")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
         .cache_read(args[1], args[2], args[3]);
   });
 
-TVM_REGISTER_API(_ScheduleCacheWrite)
+TVM_REGISTER_API("_ScheduleCacheWrite")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
         .cache_write(args[1], args[2]);
   });
 
-TVM_REGISTER_API(_ScheduleRFactor)
+TVM_REGISTER_API("_ScheduleRFactor")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
         .rfactor(args[1], args[2]);

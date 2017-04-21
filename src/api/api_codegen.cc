@@ -12,7 +12,7 @@
 namespace tvm {
 namespace codegen {
 
-TVM_REGISTER_API(_codegen__Build)
+TVM_REGISTER_API("codegen._Build")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<LoweredFunc>()) {
       *ret = Build({args[0]}, args[1]);
@@ -21,7 +21,7 @@ TVM_REGISTER_API(_codegen__Build)
     }
   });
 
-TVM_REGISTER_API(_codegen__Enabled)
+TVM_REGISTER_API("codegen._Enabled")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = TargetEnabled(args[0]);
   });

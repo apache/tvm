@@ -81,7 +81,6 @@ class Registry {
   friend struct Manager;
 };
 
-
 /*! \brief helper macro to supress unused warning */
 #if defined(__GNUC__)
 #define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
@@ -89,19 +88,23 @@ class Registry {
 #define TVM_ATTRIBUTE_UNUSED
 #endif
 
+#define TVM_STR_CONCAT_(__x, __y) __x##__y
+#define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
+
+#define TVM_FUNC_REG_VAR_DEF                                            \
+  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry& __make_ ## TVMOp
+
 /*!
  * \brief Register a function globally.
  * \code
- *   TVM_REGISTER_GLOBAL(MyPrint)
+ *   TVM_REGISTER_GLOBAL("MyPrint")
  *   .set_body([](TVMArgs args, TVMRetValue* rv) {
- *     // my code.
  *   });
  * \endcode
  */
 #define TVM_REGISTER_GLOBAL(OpName)                              \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry&          \
-  __make_TVMRegistry_ ## OpName =                                \
-      ::tvm::runtime::Registry::Register(#OpName)
+  TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) =            \
+      ::tvm::runtime::Registry::Register(OpName)
 
 }  // namespace runtime
 }  // namespace tvm

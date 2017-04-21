@@ -20,6 +20,18 @@ TVM_EXTERN_C {
 typedef void* NodeHandle;
 
 /*!
+ * \brief Inplace translate callback argument value to return value.
+ *  This is only needed for non-POD arguments.
+ *
+ * \param value The value to be translated.
+ * \param code The type code to be translated.
+ * \note This function will do a shallow copy when necessary.
+ *
+ * \return 0 when success, -1 when failure happens.
+ */
+TVM_DLL int TVMCbArgToReturn(TVMValue* value, int code);
+
+/*!
  * \brief free the node handle
  * \param handle The node handle to be freed.
  * \return 0 when success, -1 when failure happens

@@ -12,7 +12,7 @@ from .._base import _LIB, check_call
 from .._base import c_str, py_str, string_types
 from ._types import TVMValue, TypeCode, TVMType, TVMByteArray
 from ._types import TVMPackedCFunc, TVMCFuncFinalizer
-from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH
+from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
 from ._node import NodeBase, SliceBase, convert_to_node
 from ._ndarray import NDArrayBase
 
@@ -302,6 +302,10 @@ def _handle_return_func(x):
 # setup return handle for function type
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
+C_TO_PY_ARG_SWITCH[TypeCode.FUNC_HANDLE] = _wrap_arg_func(
+    _handle_return_func, TypeCode.FUNC_HANDLE)
+C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
+    _return_module, TypeCode.MODULE_HANDLE)
 
 
 def register_func(func_name, f=None):
@@ -415,35 +419,31 @@ def _get_api(f):
         return flocal(*args)
     return my_api_func
 
-def _init_api(mod):
+def _init_api(namespace):
     """Initialize api for a given module name
 
     mod : str
        The name of the module.
     """
-    module = sys.modules[mod]
-    namespace_match = {
-        "_make_": "tvm.make",
-        "_arith_": "tvm.arith",
-        "_pass_": "tvm.ir_pass",
-        "_codegen_": "tvm.codegen",
-        "_module_": "tvm.module",
-        "_schedule_": "tvm.schedule"
-    }
+    module = sys.modules[namespace]
+    assert namespace.startswith("tvm.")
+    prefix = namespace[4:]
+
     for name in list_global_func_names():
-        fname = name
-        target = "tvm.api"
-        for k, v in namespace_match.items():
-            if name.startswith(k):
-                fname = name[len(k):]
-                target = v
-        if target != mod:
-            continue
-        if mod == "tvm.api" and name.startswith("_"):
-            target_module = sys.modules["tvm._api_internal"]
+        if prefix == "api":
+            fname = name
+            if name.startswith("_"):
+                target_module = sys.modules["tvm._api_internal"]
+            else:
+                target_module = module
         else:
+            if not name.startswith(prefix):
+                continue
+            fname = name[len(prefix)+1:]
             target_module = module
 
+        if fname.find(".") != -1:
+            continue
         f = get_global_func(name)
         ff = _get_api(f)
         ff.__name__ = fname

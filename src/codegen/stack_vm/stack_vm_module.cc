@@ -69,7 +69,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
   std::unordered_map<std::string, StackVM> fmap_;
 };
 
-TVM_REGISTER_API(_codegen_build_stackvm)
+TVM_REGISTER_API("codegen.build_stackvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = StackVMModuleNode::Build(args[0]);
   });

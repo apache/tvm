@@ -10,7 +10,9 @@ from numbers import Number, Integral
 from .._base import _LIB, check_call
 from .._base import c_str, py_str, string_types
 from .. import _api_internal
-from ._types import TVMValue, TypeCode, RETURN_SWITCH
+from ._types import TVMValue, TypeCode
+from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+
 
 NodeHandle = ctypes.c_void_p
 
@@ -19,7 +21,7 @@ NODE_TYPE = {
 }
 
 def _return_node(x):
-    """Return function"""
+    """Return node function"""
     handle = x.v_handle
     if not isinstance(handle, NodeHandle):
         handle = NodeHandle(handle)
@@ -35,6 +37,8 @@ def _return_node(x):
 
 
 RETURN_SWITCH[TypeCode.NODE_HANDLE] = _return_node
+C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
+    _return_node, TypeCode.NODE_HANDLE)
 
 
 class SliceBase(object):

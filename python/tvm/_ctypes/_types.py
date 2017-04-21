@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 import numpy as np
-from .._base import py_str
+from .._base import py_str, check_call, _LIB
 
 tvm_shape_index_t = ctypes.c_int64
 
@@ -130,6 +130,12 @@ def _return_bytes(x):
         raise RuntimeError('memmove failed')
     return res
 
+def _wrap_arg_func(return_f, type_code):
+    tcode = ctypes.c_int(type_code)
+    def _wrap_func(x):
+        check_call(_LIB.TVMCbArgToReturn(ctypes.byref(x), tcode))
+        return return_f(x)
+    return _wrap_func
 
 RETURN_SWITCH = {
     TypeCode.INT: lambda x: x.v_int64,
