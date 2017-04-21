@@ -110,7 +110,7 @@ class DSOModuleNode : public ModuleNode {
 #endif
 };
 
-TVM_REGISTER_GLOBAL(_module_loadfile_so)
+TVM_REGISTER_GLOBAL("module.loadfile_so")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<DSOModuleNode> n = std::make_shared<DSOModuleNode>();
     n->Init(args[0]);

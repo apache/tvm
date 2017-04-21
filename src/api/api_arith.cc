@@ -11,49 +11,49 @@
 namespace tvm {
 namespace arith {
 
-TVM_REGISTER_API(_arith_intset_single_point)
+TVM_REGISTER_API("arith.intset_single_point")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = IntSet::single_point(args[0]);
   });
 
-TVM_REGISTER_API(_arith_intset_interval)
+TVM_REGISTER_API("arith.intset_interval")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = IntSet::interval(args[0], args[1]);
   });
 
-TVM_REGISTER_API(_arith_EvalModular)
+TVM_REGISTER_API("arith.EvalModular")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = EvalModular(args[0], Map<Var, IntSet>());
   });
 
-TVM_REGISTER_API(_arith_DetectLinearEquation)
+TVM_REGISTER_API("arith.DetectLinearEquation")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DetectLinearEquation(args[0], args[1]);
   });
 
-TVM_REGISTER_API(_arith_DeduceBound)
+TVM_REGISTER_API("arith.DeduceBound")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DeduceBound(args[0], args[1],
         args[2].operator Map<Var, IntSet>(),
         args[3].operator Map<Var, IntSet>());
   });
 
-TVM_REGISTER_API(_IntervalSetGetMin)
+TVM_REGISTER_API("_IntervalSetGetMin")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator IntSet().min();
   });
 
-TVM_REGISTER_API(_IntervalSetGetMax)
+TVM_REGISTER_API("_IntervalSetGetMax")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator IntSet().max();
   });
 
-TVM_REGISTER_API(_IntSetIsNothing)
+TVM_REGISTER_API("_IntSetIsNothing")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator IntSet().is_nothing();
   });
 
-TVM_REGISTER_API(_IntSetIsEverything)
+TVM_REGISTER_API("_IntSetIsEverything")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator IntSet().is_everything();
   });

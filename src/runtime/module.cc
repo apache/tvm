@@ -53,7 +53,7 @@ Module Module::LoadFromFile(const std::string& file_name,
   if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
     fmt = "so";
   }
-  std::string load_f_name = "_module_loadfile_" + fmt;
+  std::string load_f_name = "module.loadfile_" + fmt;
   const PackedFunc* f = Registry::Get(load_f_name);
   CHECK(f != nullptr)
       << "Loader of " << format << "("
@@ -88,48 +88,48 @@ bool RuntimeEnabled(const std::string& target) {
   if (target == "cpu") {
     return true;
   } else if (target == "cuda" || target == "gpu") {
-    load_f_name = "_module_loadfile_ptx";
+    load_f_name = "module.loadfile_ptx";
   } else if (target == "cl" || target == "opencl") {
-    load_f_name = "_module_loadfile_cl";
+    load_f_name = "module.loadfile_cl";
   } else {
     LOG(FATAL) << "Unknown optional runtime " << target;
   }
   return runtime::Registry::Get(load_f_name) != nullptr;
 }
 
-TVM_REGISTER_GLOBAL(_module__Enabled)
+TVM_REGISTER_GLOBAL("module._Enabled")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = RuntimeEnabled(args[0]);
     });
 
-TVM_REGISTER_GLOBAL(_module__GetSource)
+TVM_REGISTER_GLOBAL("module._GetSource")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator Module()->GetSource(args[1]);
     });
 
-TVM_REGISTER_GLOBAL(_module__ImportsSize)
+TVM_REGISTER_GLOBAL("module._ImportsSize")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = static_cast<int64_t>(
         args[0].operator Module()->imports().size());
     });
 
-TVM_REGISTER_GLOBAL(_module__GetImport)
+TVM_REGISTER_GLOBAL("module._GetImport")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator Module()->
         imports().at(args[1].operator int());
     });
 
-TVM_REGISTER_GLOBAL(_module__GetTypeKey)
+TVM_REGISTER_GLOBAL("module._GetTypeKey")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = std::string(args[0].operator Module()->type_key());
     });
 
-TVM_REGISTER_GLOBAL(_module__LoadFromFile)
+TVM_REGISTER_GLOBAL("module._LoadFromFile")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = Module::LoadFromFile(args[0], args[1]);
     });
 
-TVM_REGISTER_GLOBAL(_module__SaveToFile)
+TVM_REGISTER_GLOBAL("module._SaveToFile")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator Module()->
         SaveToFile(args[1], args[2]);

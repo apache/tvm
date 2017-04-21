@@ -17,7 +17,7 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
   if (pos != std::string::npos) {
     mode = mode.substr(0, pos);
   }
-  std::string build_f_name = "_codegen_build_" + mode;
+  std::string build_f_name = "codegen.build_" + mode;
 
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   CHECK(bf != nullptr)
@@ -27,7 +27,7 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
 }
 
 bool TargetEnabled(const std::string& target) {
-  std::string build_f_name = "_codegen_build_" + target;
+  std::string build_f_name = "codegen.build_" + target;
   return runtime::Registry::Get(build_f_name) != nullptr;
 }
 

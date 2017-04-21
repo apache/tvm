@@ -11,12 +11,12 @@
 namespace tvm {
 namespace ir {
 
-TVM_REGISTER_API(_Var)
+TVM_REGISTER_API("_Var")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Variable::make(args[1], args[0]);
   });
 
-TVM_REGISTER_API(_make_For)
+TVM_REGISTER_API("make.For")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = For::make(args[0],
                      args[1],
@@ -26,7 +26,7 @@ TVM_REGISTER_API(_make_For)
                      args[5]);
   });
 
-TVM_REGISTER_API(_make_Realize)
+TVM_REGISTER_API("make.Realize")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Realize::make(args[0],
                          args[1],
@@ -37,7 +37,7 @@ TVM_REGISTER_API(_make_Realize)
   });
 
 
-TVM_REGISTER_API(_make_Call)
+TVM_REGISTER_API("make.Call")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Call::make(args[0],
                       args[1],
@@ -47,7 +47,7 @@ TVM_REGISTER_API(_make_Call)
                       args[5]);
   });
 
-TVM_REGISTER_API(_make_Allocate)
+TVM_REGISTER_API("make.Allocate")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Allocate::make(args[0],
                           args[1],
@@ -58,31 +58,31 @@ TVM_REGISTER_API(_make_Allocate)
 
 // make from two arguments
 #define REGISTER_MAKE1(Node)                                 \
-  TVM_REGISTER_API(_make_## Node)                            \
+  TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
       *ret = Node::make(args[0]);                            \
     })                                                       \
 
 #define REGISTER_MAKE2(Node)                                 \
-  TVM_REGISTER_API(_make_## Node)                            \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {       \
+  TVM_REGISTER_API("make."#Node)                             \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
       *ret = Node::make(args[0], args[1]);                   \
     })                                                       \
 
 #define REGISTER_MAKE3(Node)                                 \
-  TVM_REGISTER_API(_make_## Node)                            \
+  TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
       *ret = Node::make(args[0], args[1], args[2]);          \
     })                                                       \
 
 #define REGISTER_MAKE4(Node)                                            \
-  TVM_REGISTER_API(_make_## Node)                                       \
+  TVM_REGISTER_API("make."#Node)                                        \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = Node::make(args[0], args[1], args[2], args[3]);       \
-    })                                                             \
+      *ret = Node::make(args[0], args[1], args[2], args[3]);            \
+    })                                                                  \
 
 #define REGISTER_MAKE_BINARY_OP(Node)                        \
-  TVM_REGISTER_API(_make_## Node)                            \
+  TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
       Expr a = args[0], b = args[1];                         \
       match_types(a, b);                                     \

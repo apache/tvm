@@ -385,7 +385,7 @@ class VPIWriteMemMap : public VPIMemMapBase {
   VPIHandle enable_;
 };
 
-TVM_REGISTER_GLOBAL(_device_api_vpi)
+TVM_REGISTER_GLOBAL("device_api.vpi")
 .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* rv) {
     runtime::DeviceAPI* ptr = VPIDeviceAPI::Global();
     *rv = static_cast<void*>(ptr);
@@ -403,13 +403,13 @@ void TVMVPIHook(runtime::TVMArgs args, runtime::TVMRetValue* rv) {
   *rv = pf;
 }
 
-TVM_REGISTER_GLOBAL(_vpi_module_tvm_vpi_mem_interface)
+TVM_REGISTER_GLOBAL("_vpi_module_tvm_vpi_mem_interface")
 .set_body(TVMVPIHook<VPIMemoryInterface>);
 
-TVM_REGISTER_GLOBAL(_vpi_module_tvm_vpi_read_mmap)
+TVM_REGISTER_GLOBAL("_vpi_module_tvm_vpi_read_mmap")
 .set_body(TVMVPIHook<VPIReadMemMap>);
 
-TVM_REGISTER_GLOBAL(_vpi_module_tvm_vpi_write_mmap)
+TVM_REGISTER_GLOBAL("_vpi_module_tvm_vpi_write_mmap")
 .set_body(TVMVPIHook<VPIWriteMemMap>);
 
 }  // namespace codegen

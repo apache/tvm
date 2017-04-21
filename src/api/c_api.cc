@@ -103,6 +103,23 @@ int TVMNodeFree(NodeHandle handle) {
   API_END();
 }
 
+int TVMCbArgToReturn(TVMValue* value, int code) {
+  API_BEGIN();
+  tvm::runtime::TVMRetValue rv;
+  rv = tvm::runtime::TVMArgValue(*value, code);
+  int tcode;
+  rv.MoveToCHost(value, &tcode);
+  CHECK_EQ(tcode, code);
+  API_END();
+}
+
+int TVMNodeDupe(NodeHandle handle, NodeHandle* out_handle) {
+  API_BEGIN();
+
+  *out_handle = new TVMAPINode(*static_cast<TVMAPINode*>(handle));
+  API_END();
+}
+
 int TVMNodeGetAttr(NodeHandle handle,
                    const char* key,
                    TVMValue* ret_val,

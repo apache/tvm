@@ -12,7 +12,7 @@
 namespace tvm {
 namespace ir {
 
-TVM_REGISTER_API(_pass_Simplify)
+TVM_REGISTER_API("ir_pass.Simplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
       *ret = Simplify(args[0].operator Stmt());
@@ -21,7 +21,7 @@ TVM_REGISTER_API(_pass_Simplify)
     }
   });
 
-TVM_REGISTER_API(_pass_Equal)
+TVM_REGISTER_API("ir_pass.Equal")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
       *ret = Equal(args[0].operator Stmt(), args[1].operator Stmt());
@@ -30,7 +30,7 @@ TVM_REGISTER_API(_pass_Equal)
     }
   });
 
-TVM_REGISTER_API(_pass_PostOrderVisit)
+TVM_REGISTER_API("ir_pass.PostOrderVisit")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     PackedFunc f = args[1];
     ir::PostOrderVisit(args[0], [f](const NodeRef& n) {
@@ -40,19 +40,19 @@ TVM_REGISTER_API(_pass_PostOrderVisit)
 
 // make from two arguments
 #define REGISTER_PASS1(PassName)                                  \
-  TVM_REGISTER_API(_pass_## PassName)                             \
+  TVM_REGISTER_API("ir_pass."#PassName)                           \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
       *ret = PassName(args[0]);                                   \
     })                                                            \
 
 #define REGISTER_PASS2(PassName)                                  \
-  TVM_REGISTER_API(_pass_## PassName)                             \
+  TVM_REGISTER_API("ir_pass."#PassName)                           \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
       *ret = PassName(args[0], args[1]);                          \
     })                                                            \
 
 #define REGISTER_PASS4(PassName)                                        \
-  TVM_REGISTER_API(_pass_## PassName)                                   \
+  TVM_REGISTER_API("ir_pass."#PassName)                                 \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
       *ret = PassName(args[0], args[1], args[2], args[3]);              \
     })                                                                  \

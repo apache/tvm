@@ -46,7 +46,7 @@ class DeviceAPIManager {
     if (api_[type] != nullptr) return api_[type];
     std::lock_guard<std::mutex> lock(mutex_);
     if (api_[type] != nullptr) return api_[type];
-    std::string factory = "_device_api_" + DeviceName(type);
+    std::string factory = "device_api." + DeviceName(type);
     auto* f = Registry::Get(factory);
     CHECK(f != nullptr)
         << "Device API " << DeviceName(type) << " is not enabled.";
