@@ -22,6 +22,7 @@ from ._ctypes._function import Function
 from ._base import TVMError
 from ._base import __version__
 from .api import *
+from .intrin import *
 from .node import register_node
 from .schedule import create_schedule
 from .build import build, lower

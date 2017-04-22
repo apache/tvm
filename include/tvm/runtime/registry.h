@@ -50,8 +50,10 @@ class Registry {
   /*!
    * \brief Register a function with given name
    * \param name The name of the function.
+   * \param override Whether allow oveeride existing function.
+   * \return Reference to theregistry.
    */
-  static Registry& Register(const std::string& name);  // NOLINT(*)
+  static Registry& Register(const std::string& name, bool override = false);  // NOLINT(*)
   /*!
    * \brief Erase global function from registry, if exist.
    * \param name The name of the function.

@@ -12,6 +12,7 @@
 #include <llvm/Bitcode/BitcodeWriter.h>
 
 #include <llvm/IR/Value.h>
+#include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
