@@ -35,9 +35,6 @@ tvm.stmt
 
 tvm.ir_pass
 ~~~~~~~~~~~
-.. automodule:: tvm.ir_pass
-   :members:
-
 .. autosummary::
 
    tvm.ir_pass.Inline
@@ -58,6 +55,13 @@ tvm.ir_pass
    tvm.ir_pass.LowerThreadAllreduce
    tvm.ir_pass.NarrowChannelAccess
 
+.. automodule:: tvm.ir_pass
+   :members:
+
+tvm.ir_builder
+~~~~~~~~~~~~~~
+.. automodule:: tvm.ir_builder
+   :members:
 
 tvm.make
 ~~~~~~~~

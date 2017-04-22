@@ -1,4 +1,4 @@
-"""Information about nnvm."""
+"""Verilog simulator modules."""
 from __future__ import absolute_import
 
 import subprocess
