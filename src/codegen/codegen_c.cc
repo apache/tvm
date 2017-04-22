@@ -396,7 +396,17 @@ void CodeGenC::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
-  if (op->is_intrinsic(Call::bitwise_and)) {
+  if (op->call_type == Call::Extern ||
+      op->call_type == Call::PureExtern) {
+    os << op->name << "(";
+    for (size_t i = 0; i < op->args.size(); i++) {
+      this->PrintExpr(op->args[i], os);
+      if (i < op->args.size() - 1) {
+        os << ", ";
+      }
+    }
+    os << ")";
+  } else if (op->is_intrinsic(Call::bitwise_and)) {
     PrintBinaryIntrinsitc(op, " & ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {
     PrintBinaryIntrinsitc(op, " ^ ", os, this);
@@ -462,19 +472,18 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     this->PrintExpr(op->args[0], os);
     os << " == NULL)";
   } else {
-    os << op->name << "(";
-    for (size_t i = 0; i < op->args.size(); i++) {
-      this->PrintExpr(op->args[i], os);
-      if (i < op->args.size() - 1) {
-        os << ", ";
-      }
+    if (op->call_type == Call::Intrinsic ||
+        op->call_type == Call::PureIntrinsic) {
+      LOG(FATAL) << "Unresolved intrinsic " << op->name
+                 << " with return type " << op->type;
+    } else {
+      LOG(FATAL) << "Unresolved call type " << op->call_type;
     }
-    os << ")";
   }
 }
 
 void CodeGenC::PrintVecBinaryOp(
-    const std::string&op, Type t,
+    const std::string& op, Type t,
     Expr lhs, Expr rhs, std::ostream& os) {  // NOLINT(*)
   if (isalpha(op[0])) {
     os << op << "(";
