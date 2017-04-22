@@ -13,7 +13,7 @@ from .._base import c_str, py_str, string_types
 from ._types import TVMValue, TypeCode, TVMType, TVMByteArray
 from ._types import TVMPackedCFunc, TVMCFuncFinalizer
 from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
-from ._node import NodeBase, SliceBase, convert_to_node
+from ._node import NodeBase, NodeGeneric, convert_to_node
 from ._ndarray import NDArrayBase
 
 FunctionHandle = ctypes.c_void_p
@@ -114,7 +114,7 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
             type_codes[i] = TypeCode.STR
-        elif isinstance(arg, (list, tuple, dict, SliceBase)):
+        elif isinstance(arg, (list, tuple, dict, NodeGeneric)):
             arg = convert_to_node(arg)
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.NODE_HANDLE

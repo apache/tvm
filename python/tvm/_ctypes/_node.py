@@ -41,9 +41,12 @@ C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
     _return_node, TypeCode.NODE_HANDLE)
 
 
-class SliceBase(object):
-    """base class of slice object"""
-    pass
+class NodeGeneric(object):
+    """Base class for all classes that can be converted to node."""
+    def asnode(self):
+        """Convert value to node"""
+        raise NotImplementedError()
+
 
 class NodeBase(object):
     """NodeBase is the base class of all TVM language AST object."""
@@ -176,8 +179,8 @@ def convert_to_node(value):
             vlist.append(it[0])
             vlist.append(convert_to_node(it[1]))
         return _api_internal._Map(*vlist)
-    elif isinstance(value, SliceBase):
-        return value.tensor(*value.indices)
+    elif isinstance(value, NodeGeneric):
+        return value.asnode()
     else:
         raise ValueError("don't know how to convert type %s to node" % type(value))
 

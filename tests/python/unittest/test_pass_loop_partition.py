@@ -1,5 +1,10 @@
 import tvm
 
+def collect_visit(stmt, f):
+    ret = []
+    tvm.ir_pass.PostOrderVisit(stmt, lambda x : ret.append(f(x)))
+    return ret
+
 def test_basic():
     n = tvm.var('n')
     A = tvm.placeholder((n, ), name='A')
@@ -16,22 +21,20 @@ def test_basic():
     print(stmt)
 
 def test_multi_loop():
-    i = tvm.var('i')
-    j = tvm.var('j')
-    k = tvm.var('k')
+    ib = tvm.ir_builder.create()
     m = tvm.var('m')
     n = tvm.var('n')
-    stmt = tvm.make.For(
-        i, 0, 4, 0, 0,
-        tvm.make.For(
-            j, 0, n, 0, 0,
-            tvm.make.For(
-                k, 0, m, 0, 0,
-                tvm.make.IfThenElse(
-                    (i*m+j+k < n), tvm.make.Evaluate(m), tvm.make.Evaluate(n)))))
+    with ib.for_range(0, 4, "i") as i:
+        with ib.for_range(0, n, "j") as j:
+            with ib.for_range(0, m, "k") as k:
+                with ib.if_scope(i*m+j+k < n):
+                    ib.emit(tvm.make.Evaluate(m))
+                with ib.else_scope():
+                    ib.emit(tvm.make.Evaluate(n))
+    stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
-    assert('if' not in str(stmt.body.first))
-    print(stmt)
+    assert(not any(collect_visit(stmt.body.first,
+                                 lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
 def test_multi_if():
     i = tvm.var('i')
@@ -74,7 +77,7 @@ def test_thread_axis():
     print(stmt_)
 
 if __name__ == "__main__":
-    test_basic()
     test_multi_loop()
+    test_basic()
     test_multi_if()
     test_thread_axis()

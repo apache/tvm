@@ -1,12 +1,12 @@
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
-from ._ctypes._node import NodeBase, SliceBase, register_node, convert_to_node
+from ._ctypes._node import NodeBase, NodeGeneric, register_node, convert_to_node
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
 
-class TensorSlice(SliceBase, _expr.ExprOp):
+class TensorSlice(NodeGeneric, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
     def __init__(self, tensor, indices):
         if not isinstance(indices, tuple):
@@ -18,6 +18,10 @@ class TensorSlice(SliceBase, _expr.ExprOp):
         if not isinstance(indices, tuple):
             indices = (indices,)
         return TensorSlice(self.tensor, self.indices + indices)
+
+    def asnode(self):
+        """Convert slice to node."""
+        return self.tensor(*self.indices)
 
     @property
     def dtype(self):

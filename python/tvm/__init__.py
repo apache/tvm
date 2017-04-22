@@ -13,6 +13,7 @@ from . import collections
 from . import schedule
 from . import module
 from . import node
+from . import ir_builder
 
 from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, cl, vpi
