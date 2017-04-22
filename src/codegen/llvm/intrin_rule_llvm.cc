@@ -24,7 +24,7 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   Array<Expr> cargs;
   // intrin id.
   cargs.push_back(UIntImm::make(UInt(32), id));
-  for (Expr arg: call->args) {
+  for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
   *rv = Call::make(
