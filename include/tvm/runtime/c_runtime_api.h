@@ -335,8 +335,10 @@ TVM_DLL int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
  *
  * \param name The name of the function.
  * \param f The function to be registered.
+ * \param override Whether allow override already registered function.
  */
-TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f);
+TVM_DLL int TVMFuncRegisterGlobal(
+    const char* name, TVMFunctionHandle f, int override);
 
 /*!
  * \brief Get a global function.

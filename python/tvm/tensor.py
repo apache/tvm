@@ -19,6 +19,12 @@ class TensorSlice(SliceBase, _expr.ExprOp):
             indices = (indices,)
         return TensorSlice(self.tensor, self.indices + indices)
 
+    @property
+    def dtype(self):
+        """Data content of the tensor."""
+        return self.tensor.dtype
+
+
 itervar_cls = None
 
 @register_node

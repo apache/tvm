@@ -140,6 +140,7 @@ def build(sch,
     warp_size = 32 if target == "cuda" else 1
     fapi = ir_pass.LowerThreadAllreduce(fapi, warp_size)
     fsplits = [s for s in ir_pass.SplitHostDevice(fapi)]
+
     if len(fsplits) > 1:
         mhost = codegen.build_module(fsplits[0], target_host)
         if target:
