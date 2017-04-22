@@ -50,6 +50,9 @@ class ExprOp(object):
     def __rtruediv__(self, other):
         return self.__rdiv__(other)
 
+    def __mod__(self, other):
+        return _make.Mod(self, other)
+
     def __neg__(self):
         return self.__mul__(-1)
 
@@ -115,10 +118,6 @@ class StringImm(ConstExpr):
 
 @register_node
 class Cast(Expr):
-    pass
-
-@register_node
-class Variable(Expr):
     pass
 
 @register_node

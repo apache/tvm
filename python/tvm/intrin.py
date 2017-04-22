@@ -57,7 +57,6 @@ def call_pure_extern(dtype, func_name, *args):
     return _make.Call(
         dtype, func_name, convert(args), _Call.PureExtern, None, 0)
 
-
 def exp(x):
     """Take exponetial of input x.
 

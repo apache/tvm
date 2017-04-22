@@ -51,6 +51,10 @@ class Allocate(Stmt):
     pass
 
 @register_node
+class AttrStmt(Stmt):
+    pass
+
+@register_node
 class Free(Stmt):
     pass
 
