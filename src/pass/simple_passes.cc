@@ -57,6 +57,15 @@ Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
   return m.Mutate(stmt);
 }
 
+Expr Substitute(Expr expr, const Map<Var, Expr>& value_map) {
+  if (value_map.size() == 0) return expr;
+  IRSubstitue m;
+  for (auto kv : value_map) {
+    m.smap[kv.first.get()] = kv.second;
+  }
+  return m.Mutate(expr);
+}
+
 class ExprUseVarVisitor : public IRVisitor {
  public:
   explicit ExprUseVarVisitor(const Variable* var)

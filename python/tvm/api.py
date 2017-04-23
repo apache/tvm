@@ -428,6 +428,24 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
+def reduce(fcombine, id_elem, expr, axis, where=None):
+    code = fcombine.__code__
+    assert fcombine.__code__.co_argcount == 2
+    arg_vars = [var(name) for name in code.co_varnames]
+    print(arg_vars)
+    result = fcombine(*[v for v in arg_vars])
+    result = convert(result)
+    functor = _make.Functor(arg_vars, result)
+
+    if isinstance(id_elem, _expr.Variable):
+        identity_element = id_elem
+    else:
+        identity_element = const(id_elem, dtype=expr.dtype)
+    axis = axis if isinstance(axis, list) else [axis]
+    reducer = _make.CommReducer(functor, identity_element, expr, axis, where)
+    return reducer
+
+
 def sum(expr, axis, where=None):
     """Create a sum expression over axis
 
@@ -447,9 +465,7 @@ def sum(expr, axis, where=None):
     value : Expr
         The result value.
     """
-    axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Add", expr, axis, where)
-    return x
+    return reduce(lambda x, y: x+y, 0, expr, axis, where)
 
 
 def min(lhs, rhs=None, axis=None, where=None):
@@ -481,7 +497,7 @@ def min(lhs, rhs=None, axis=None, where=None):
     if rhs:
         return _make.Min(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Min", expr, axis, where)
+    x = _make.Reducer("Min", expr, axis, where)
     return x
 
 
@@ -514,7 +530,7 @@ def max(lhs, rhs=None, axis=None, where=None):
     if rhs:
         return _make.Max(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Max", expr, axis, where)
+    x = _make.Reducer("Max", expr, axis, where)
     return x
 
 _init_api("tvm.api")

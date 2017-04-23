@@ -22,13 +22,38 @@ using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
 using Halide::DeviceAPI;
 
+struct FunctorNode : public Node {
+  Array<Var> args;
+  Expr result;
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("args", &args);
+    v->Visit("result", &result);
+  }
+  static constexpr const char* _type_key = "Functor";
+  TVM_DECLARE_NODE_TYPE_INFO(FunctorNode, Node);
+};
+
+struct Functor : public NodeRef {
+  Functor() {
+    node_ = std::make_shared<FunctorNode>();
+  }
+  Functor(std::shared_ptr<Node> n) : NodeRef(n) {}
+  Functor(Array<Var> args, Expr result) {
+    auto n = std::make_shared<FunctorNode>();
+    n->args = args;
+    n->result = result;
+    node_ = n;
+  }
+  static Functor make(Array<Var> args, Expr result);
+  Expr operator()(Expr a, Expr b) const;
+  using ContainerType = FunctorNode;
+};
+
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {
-  /*!
-   * \brief The binary operator of reduction
-   */
-  std::string op;
+  Functor combiner;
   /*! \brief The source operand */
+  Expr identity_element;
   Expr source;
   /*! \brief The reduction axis */
   Array<IterVar> axis;
@@ -38,38 +63,39 @@ struct Reduce : public ExprNode<Reduce> {
    */
   Expr condition;
 
+  static Expr make(const std::string& op,
+                   Expr src,
+                   Array<IterVar> rdom,
+                   Expr condition = const_true());
+
   /*! \brief construct expr from op and rdom */
-  static Expr make(std::string op, Expr src,
+  static Expr make(Functor combiner,
+                   Expr identity_element,
+                   Expr src,
                    Array<IterVar> rdom,
                    Expr condition = const_true());
   /*!
    * \brief Get initial value for reduction.
-   * \param op The operator
-   * \param type The data type.
    * \return The initial value that can be assigned to reduction.
    */
-  static Expr InitValue(const std::string& op, Type type);
+  Expr InitValue() const;
   /*!
    * \brief Combine two values with given reduction.
-   * \param op The operator
    * \param a The left operand.
    * \param b The left operand.
    * \return The combined reduction result.
    */
-  static Expr Combine(const std::string& op, Expr a, Expr b);
+  Expr Combine(Expr a, Expr b) const;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
-    v->Visit("op", &op);
+    v->Visit("combiner", &combiner);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
   }
   static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
   static constexpr const char* _type_key = "Reduce";
-  static constexpr const char* Add = "Add";
-  static constexpr const char* Max = "Max";
-  static constexpr const char* Min = "Min";
 };
 
 /*!
@@ -113,6 +139,8 @@ constexpr const char* storage_scope = "storage_scope";
 constexpr const char* realize_scope = "realize_scope";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
+
+constexpr const char* reduce_scope = "reduce_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */

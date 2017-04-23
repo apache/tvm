@@ -5,6 +5,7 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/ir.h>
+#include <tvm/ir_pass.h>
 #include <ir/IR.h>
 #include <ir/IRPrinter.h>
 #include <memory>
@@ -23,7 +24,7 @@ void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Reduce>([](const Reduce *op, IRPrinter *p) {
   p->stream << "reduce("
-            << op->op
+            << op->combiner
             << ", ";
   p->print(op->source);
   p->stream << ", axis=" << op->axis;
@@ -39,8 +40,20 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 namespace tvm {
 namespace ir {
 
-Expr Reduce::make(std::string op, Expr source,
-                  Array<IterVar> axis, Expr condition) {
+Functor Functor::make(Array<Var> args, Expr result) {
+  return Functor(args, result);
+}
+
+Expr Functor::operator()(Expr a, Expr b) const {
+  Map<Var, Expr> value_map;
+  const FunctorNode* n = this->as<FunctorNode>();
+  value_map.Set(n->args[0], a);
+  value_map.Set(n->args[1], b);
+  return Substitute(n->result, value_map);
+}
+
+Expr Reduce::make(Functor combiner, Expr identity_element,
+                  Expr source, Array<IterVar> axis, Expr condition) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
@@ -54,37 +67,41 @@ Expr Reduce::make(std::string op, Expr source,
     CHECK(axis[i].defined());
   }
   n->type = source.type();
+  n->combiner = combiner;
+  n->identity_element = identity_element;
   n->source = source;
-  n->op = op;
   n->axis = axis;
   n->condition = condition;
   return Expr(n);
 }
 
-Expr Reduce::InitValue(const std::string& op, Type type) {
+Expr Reduce::make(const std::string& op, Expr source,
+                  Array<IterVar> axis, Expr condition) {
+  Var x("x"), y("y");
+  Expr result, identity_element;
   if (op == "Add") {
-    return make_zero(type);
-  } else if (op == "Max") {
-    return type.min();
+    result = ir::Add::make(x, y);
+    identity_element = make_zero(source.type());
   } else if (op == "Min") {
-    return type.max();
+    result = ir::Min::make(x, y);
+    identity_element = source.type().min();
+  } else if (op == "Max") {
+    result = ir::Max::make(x, y);
+    identity_element = source.type().max();
   } else {
-    LOG(FATAL) << "Unsupported reduction " << op;
-    return Expr();
+    LOG(FATAL) << "Unsupported reducetion " << op;
   }
+  ir::Functor combiner({x, y}, result);
+  return ir::Reduce::make(combiner, identity_element,
+    source, axis, condition);
 }
 
-Expr Reduce::Combine(const std::string& op, Expr a, Expr b) {
-  if (op == "Add") {
-    return Add::make(a, b);
-  } else if (op == "Max") {
-    return Max::make(a, b);
-  } else if (op == "Min") {
-    return Min::make(a, b);
-  } else {
-    LOG(FATAL) << "Unsupported reduction " << op;
-    return Expr();
-  }
+Expr Reduce::InitValue() const {
+  return identity_element;
+}
+
+Expr Reduce::Combine(Expr a, Expr b) const {
+  return combiner(a, b);
 }
 
 TVM_REGISTER_NODE_TYPE(Reduce);

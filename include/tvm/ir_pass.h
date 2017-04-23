@@ -84,6 +84,7 @@ Stmt CanonicalSimplify(Stmt stmt);
  * \return The converted form.
  */
 Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map);
+Expr Substitute(Expr expr, const Map<Var, Expr>& value_map);
 
 /*!
  * \brief inline all calls of f in stmt.
