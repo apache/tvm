@@ -497,7 +497,7 @@ def min(lhs, rhs=None, axis=None, where=None):
     if rhs:
         return _make.Min(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reducer("Min", expr, axis, where)
+    x = _make.Reduce("Min", expr, axis, where)
     return x
 
 
@@ -530,7 +530,7 @@ def max(lhs, rhs=None, axis=None, where=None):
     if rhs:
         return _make.Max(lhs, rhs)
     axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reducer("Max", expr, axis, where)
+    x = _make.Reduce("Max", expr, axis, where)
     return x
 
 _init_api("tvm.api")
