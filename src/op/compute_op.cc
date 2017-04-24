@@ -173,8 +173,8 @@ void MakeReduction(const ComputeOpNode* op,
   }
   const Reduce* reduce = op->body.as<Reduce>();
   CHECK(reduce);
-  Expr init_value = reduce->InitValue();
-  Expr update_value = reduce->Combine(t(args), reduce->source);
+  Expr init_value = reduce->identity_element;
+  Expr update_value = reduce->combiner(t(args), reduce->source);
   *init = Provide::make(t->op, t->value_index, init_value, args);
   *provide = Provide::make(t->op, t->value_index, update_value, args);
   if (!is_one(reduce->condition)) {
@@ -238,7 +238,7 @@ Stmt MakeCrossThreadReduction(
   Var res_handle("reduce_temp", Handle());
   Array<Expr> freduce_args;
   freduce_args.push_back(reduce->source);
-  freduce_args.push_back(reduce->InitValue());
+  freduce_args.push_back(reduce->identity_element);
   freduce_args.push_back(cond);
 
   std::vector<Expr> thread_head_check;

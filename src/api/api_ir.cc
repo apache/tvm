@@ -56,19 +56,6 @@ TVM_REGISTER_API("make.Allocate")
                           args[4]);
   });
 
-TVM_REGISTER_API("make.Reduce")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Reduce::make(
-      static_cast<std::string>(args[0].operator std::string()),
-      args[1], args[2], args[3]);
-  });
-
-TVM_REGISTER_API("make.CommReducer")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Reduce::make(
-      static_cast<Functor>(args[0].operator Functor()),
-      args[1], args[2], args[3], args[4]);
-  });
 
 // make from two arguments
 #define REGISTER_MAKE1(Node)                                 \
@@ -95,6 +82,12 @@ TVM_REGISTER_API("make.CommReducer")
       *ret = Node::make(args[0], args[1], args[2], args[3]);            \
     })                                                                  \
 
+#define REGISTER_MAKE5(Node)                                            \
+  TVM_REGISTER_API("make."#Node)                                        \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+      *ret = Node::make(args[0], args[1], args[2], args[3], args[4]);   \
+    })                                                                  \
+
 #define REGISTER_MAKE_BINARY_OP(Node)                        \
   TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
@@ -103,8 +96,9 @@ TVM_REGISTER_API("make.CommReducer")
       *ret = Node::make(a, b);                               \
     })
 
-REGISTER_MAKE2(Functor);
+REGISTER_MAKE2(FunctorNode);
 REGISTER_MAKE4(AttrStmt);
+REGISTER_MAKE5(Reduce);
 
 REGISTER_MAKE2(IntImm);
 REGISTER_MAKE2(UIntImm);

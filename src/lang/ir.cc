@@ -40,8 +40,11 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 namespace tvm {
 namespace ir {
 
-Functor Functor::make(Array<Var> args, Expr result) {
-  return Functor(args, result);
+Functor FunctorNode::make(Array<Var> args, Expr result) {
+  auto node = std::make_shared<FunctorNode>();
+  node->args = args;
+  node->result = result;
+  return Functor(node);
 }
 
 Expr Functor::operator()(Expr a, Expr b) const {
@@ -73,35 +76,6 @@ Expr Reduce::make(Functor combiner, Expr identity_element,
   n->axis = axis;
   n->condition = condition;
   return Expr(n);
-}
-
-Expr Reduce::make(const std::string& op, Expr source,
-                  Array<IterVar> axis, Expr condition) {
-  Var x("x"), y("y");
-  Expr result, identity_element;
-  if (op == "Add") {
-    result = ir::Add::make(x, y);
-    identity_element = make_zero(source.type());
-  } else if (op == "Min") {
-    result = ir::Min::make(x, y);
-    identity_element = source.type().min();
-  } else if (op == "Max") {
-    result = ir::Max::make(x, y);
-    identity_element = source.type().max();
-  } else {
-    LOG(FATAL) << "Unsupported reducetion " << op;
-  }
-  ir::Functor combiner({x, y}, result);
-  return ir::Reduce::make(combiner, identity_element,
-    source, axis, condition);
-}
-
-Expr Reduce::InitValue() const {
-  return identity_element;
-}
-
-Expr Reduce::Combine(Expr a, Expr b) const {
-  return combiner(a, b);
 }
 
 TVM_REGISTER_NODE_TYPE(Reduce);

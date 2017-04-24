@@ -35,9 +35,8 @@ class ThreadAllreduceBuilder : public IRMutator {
         return ret;
       }
     } else if (op->attr_key == attr::reduce_scope) {
-      const FunctorNode* functor = op->node.as<FunctorNode>();
-      CHECK(functor) << "The node in reduce scope should be a Functor";
-      reduce_combiner_.push_back(functor);
+      Functor func(op->node.node_);
+      reduce_combiner_.push_back(func);
       Stmt ret = IRMutator::Mutate_(op, s);
       reduce_combiner_.pop_back();
       return ret;
@@ -98,7 +97,7 @@ class ThreadAllreduceBuilder : public IRMutator {
   };
   // make allreduce.
   Stmt MakeAllreduce(const Store* op, const Call* call) {
-    const FunctorNode* combiner = reduce_combiner_.back();
+    Functor combiner = reduce_combiner_.back();
     Expr value = call->args[0];
     Expr init  = call->args[1];
     Expr cond  = call->args[2];
@@ -172,7 +171,7 @@ class ThreadAllreduceBuilder : public IRMutator {
     return MergeSeq(seq);
   }
   // make allreduce.
-  Stmt MakeBufAllreduce(const FunctorNode* combiner,
+  Stmt MakeBufAllreduce(Functor combiner,
                         Type type,
                         Var shared_buf,
                         Expr reduce_index,
@@ -188,14 +187,13 @@ class ThreadAllreduceBuilder : public IRMutator {
     std::vector<Stmt> seq;
 
     Expr buf_index = BufIndex(reduce_index, group_index, reduce_extent);
-    Functor f(combiner->args, combiner->result);
     // make reduction
     auto freduce = [&](int offset) {
       Expr b = Load::make(
           type, shared_buf,
           BufIndex(reduce_index + offset, group_index, reduce_extent));
       Expr a = Load::make(type, shared_buf, buf_index);
-      return Store::make(shared_buf, f(a, b), buf_index);
+      return Store::make(shared_buf, combiner(a, b), buf_index);
     };
     // Step one, check for
     if (reduce_align > reduce_extent) {
@@ -269,7 +267,7 @@ class ThreadAllreduceBuilder : public IRMutator {
 
   // surrounding scope of thread extent.
   std::vector<const AttrStmt*> thread_extents_;
-  std::vector<const FunctorNode*> reduce_combiner_;
+  std::vector<Functor> reduce_combiner_;
   // The load remap
   std::unordered_map<const Variable *, Expr> load_remap_;
   // Allocate remap

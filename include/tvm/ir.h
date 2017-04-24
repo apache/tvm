@@ -22,6 +22,7 @@ using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
 using Halide::DeviceAPI;
 
+struct Functor;
 struct FunctorNode : public Node {
   Array<Var> args;
   Expr result;
@@ -29,24 +30,22 @@ struct FunctorNode : public Node {
     v->Visit("args", &args);
     v->Visit("result", &result);
   }
+  static Functor make(Array<Var> args, Expr result);
   static constexpr const char* _type_key = "Functor";
   TVM_DECLARE_NODE_TYPE_INFO(FunctorNode, Node);
 };
 
 struct Functor : public NodeRef {
-  Functor() {
-    node_ = std::make_shared<FunctorNode>();
-  }
+  Functor() {}
   Functor(std::shared_ptr<Node> n) : NodeRef(n) {}
-  Functor(Array<Var> args, Expr result) {
-    auto n = std::make_shared<FunctorNode>();
-    n->args = args;
-    n->result = result;
-    node_ = n;
-  }
-  static Functor make(Array<Var> args, Expr result);
   Expr operator()(Expr a, Expr b) const;
   using ContainerType = FunctorNode;
+  inline const FunctorNode* get() const {
+    return static_cast<const FunctorNode*>(node_.get());
+  }
+  inline const FunctorNode* operator->() const {
+    return static_cast<const FunctorNode*>(node_.get());
+  }
 };
 
 /*! \brief Reduction operator operator */
@@ -63,29 +62,12 @@ struct Reduce : public ExprNode<Reduce> {
    */
   Expr condition;
 
-  static Expr make(const std::string& op,
-                   Expr src,
-                   Array<IterVar> rdom,
-                   Expr condition = const_true());
-
   /*! \brief construct expr from op and rdom */
   static Expr make(Functor combiner,
                    Expr identity_element,
                    Expr src,
                    Array<IterVar> rdom,
                    Expr condition = const_true());
-  /*!
-   * \brief Get initial value for reduction.
-   * \return The initial value that can be assigned to reduction.
-   */
-  Expr InitValue() const;
-  /*!
-   * \brief Combine two values with given reduction.
-   * \param a The left operand.
-   * \param b The left operand.
-   * \return The combined reduction result.
-   */
-  Expr Combine(Expr a, Expr b) const;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
