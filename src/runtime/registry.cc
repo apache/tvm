@@ -34,16 +34,20 @@ Registry& Registry::set_body(PackedFunc f) {  // NOLINT(*)
   return *this;
 }
 
-Registry& Registry::Register(const std::string& name) {  // NOLINT(*)
+Registry& Registry::Register(const std::string& name, bool override) {  // NOLINT(*)
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
-  CHECK(it == m->fmap.end())
+  if (it == m->fmap.end()) {
+    Registry* r = new Registry();
+    r->name_ = name;
+    m->fmap[name] = r;
+    return *r;
+  } else {
+    CHECK(override)
       << "Global PackedFunc " << name << " is already registered";
-  Registry* r = new Registry();
-  r->name_ = name;
-  m->fmap[name] = r;
-  return *r;
+    return *it->second;
+  }
 }
 
 bool Registry::Remove(const std::string& name) {
@@ -89,9 +93,10 @@ struct TVMFuncThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<TVMFuncThreadLocalEntry> TVMFuncThreadLocalStore;
 
 
-int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f) {
+int TVMFuncRegisterGlobal(
+    const char* name, TVMFunctionHandle f, int override) {
   API_BEGIN();
-  tvm::runtime::Registry::Register(name)
+  tvm::runtime::Registry::Register(name, override != 0)
       .set_body(*static_cast<tvm::runtime::PackedFunc*>(f));
   API_END();
 }
@@ -102,7 +107,7 @@ int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
       tvm::runtime::Registry::Get(name);
   CHECK(fp != nullptr)
       << "Cannot find global function " << name;
-  *out = (TVMFunctionHandle)(fp);  // NOLINT(*)
+  *out = new tvm::runtime::PackedFunc(*fp);  // NOLINT(*)
   API_END();
 }
 

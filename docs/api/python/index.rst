@@ -5,6 +5,7 @@ Python API
    :maxdepth: 2
 
    tvm
+   intrin
    tensor
    schedule
    build

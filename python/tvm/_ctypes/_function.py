@@ -13,7 +13,7 @@ from .._base import c_str, py_str, string_types
 from ._types import TVMValue, TypeCode, TVMType, TVMByteArray
 from ._types import TVMPackedCFunc, TVMCFuncFinalizer
 from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
-from ._node import NodeBase, SliceBase, convert_to_node
+from ._node import NodeBase, NodeGeneric, convert_to_node
 from ._ndarray import NDArrayBase
 
 FunctionHandle = ctypes.c_void_p
@@ -75,7 +75,7 @@ def convert_to_tvm_func(pyfunc):
     ctypes.pythonapi.Py_IncRef(pyobj)
     check_call(_LIB.TVMFuncCreateFromCFunc(
         f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)))
-    return Function(handle)
+    return Function(handle, False)
 
 
 def _make_tvm_args(args, temp_args):
@@ -114,7 +114,7 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
             type_codes[i] = TypeCode.STR
-        elif isinstance(arg, (list, tuple, dict, SliceBase)):
+        elif isinstance(arg, (list, tuple, dict, NodeGeneric)):
             arg = convert_to_node(arg)
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.NODE_HANDLE
@@ -160,7 +160,7 @@ class Function(object):
     """
     __slots__ = ["handle", "is_global"]
     # pylint: disable=no-member
-    def __init__(self, handle, is_global=False):
+    def __init__(self, handle, is_global):
         """Initialize the function with handle
 
         Parameters
@@ -168,8 +168,8 @@ class Function(object):
         handle : FunctionHandle
             the handle to the underlying function.
 
-        is_global : bool, optional
-            Whether it is global function
+        is_global : bool
+            Whether this is a global function in python
         """
         self.handle = handle
         self.is_global = is_global
@@ -242,7 +242,7 @@ class ModuleBase(object):
         if not ret_handle.value:
             raise AttributeError(
                 "Module has no function '%s'" %  name)
-        return Function(ret_handle)
+        return Function(ret_handle, False)
 
     def import_module(self, module):
         """Add module to the import list of current one.
@@ -308,7 +308,7 @@ C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, TypeCode.MODULE_HANDLE)
 
 
-def register_func(func_name, f=None):
+def register_func(func_name, f=None, override=False):
     """Register global function
 
     Parameters
@@ -318,6 +318,9 @@ def register_func(func_name, f=None):
 
     f : function, optional
         The function to be registered.
+
+    override: boolean optional
+        Whether override existing entry.
 
     Returns
     -------
@@ -350,12 +353,14 @@ def register_func(func_name, f=None):
 
     if not isinstance(func_name, str):
         raise ValueError("expect string function name")
+
+    ioverride = ctypes.c_int(override)
     def register(myf):
         """internal register function"""
         if not isinstance(myf, Function):
             myf = convert_to_tvm_func(myf)
         check_call(_LIB.TVMFuncRegisterGlobal(
-            c_str(func_name), myf.handle))
+            c_str(func_name), myf.handle, ioverride))
     if f:
         register(f)
     else:
@@ -377,7 +382,7 @@ def get_global_func(name):
     """
     handle = FunctionHandle()
     check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
-    return Function(handle, True)
+    return Function(handle, False)
 
 
 def list_global_func_names():
@@ -401,6 +406,7 @@ def list_global_func_names():
 
 def _get_api(f):
     flocal = f
+    flocal.is_global = True
     def my_api_func(*args):
         """
 

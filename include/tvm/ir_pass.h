@@ -242,6 +242,14 @@ LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
  * \return Transformed function.
  */
 LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
+
+/*!
+ * \brief Lower intrinsic function calls.
+ * \param f The device function to be lowered.
+ * \param target The target device.
+ * \return Transformed function.
+ */
+LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 }  // namespace ir
 }  // namespace tvm
 

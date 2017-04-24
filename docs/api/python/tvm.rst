@@ -13,7 +13,6 @@ The user facing API for computation declaration.
    tvm.compute
    tvm.scan
    tvm.extern
-   tvm.call_packed
    tvm.decl_buffer
    tvm.reduce_axis
    tvm.thread_axis
@@ -30,7 +29,6 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.compute
 .. autofunction:: tvm.scan
 .. autofunction:: tvm.extern
-.. autofunction:: tvm.call_packed
 .. autofunction:: tvm.decl_buffer
 .. autofunction:: tvm.reduce_axis
 .. autofunction:: tvm.thread_axis

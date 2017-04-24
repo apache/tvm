@@ -284,19 +284,6 @@ def extern(shape, inputs, fcompute,
     return res[0] if len(res) == 1 else res
 
 
-def call_packed(*args):
-    """Build expression by call an external packed function
-
-    Parameters
-    ----------
-    args : list
-        Positional arguments.
-    """
-    args = convert(args)
-    return _make.Call(
-        int32, "tvm_call_packed", args, 4, None, 0)
-
-
 def decl_buffer(shape, dtype=None,
                 name="buffer",
                 data=None,

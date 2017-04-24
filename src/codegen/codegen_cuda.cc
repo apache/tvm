@@ -202,5 +202,7 @@ void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
     CodeGenC::VisitStmt_(op);
   }
 }
+
+
 }  // namespace codegen
 }  // namespace tvm
