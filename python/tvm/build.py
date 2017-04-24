@@ -70,7 +70,8 @@ def lower(sch,
     stmt = ir_pass.CanonicalSimplify(stmt)
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
-    stmt = ir_pass.LiftAllocate(stmt)
+    stmt = ir_pass.StorageRewrite(stmt)
+    print(stmt)
     stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
     if not with_api_wrapper:

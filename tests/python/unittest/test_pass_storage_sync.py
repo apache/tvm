@@ -17,7 +17,6 @@ def test_storage_sync():
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.collections.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    print(stmt)
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.decl_buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})

@@ -9,12 +9,13 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "./ir_util.h"
+#include "./storage_access.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace ir {
 
-using runtime::StorageScope;
+using namespace storage;
 
 class StorageSyncPlanner : public IRVisitor {
  public:
@@ -130,37 +131,7 @@ class StorageSyncPlanner : public IRVisitor {
   std::unordered_set<const Node*> syncs_inserted_;
 
  private:
-  // Storage access type
-  enum AccessType {
-    kRead,
-    kWrite,
-    kSync
-  };
-  // The access entry
-  struct AccessEntry {
-    /*! \brief The buffer variable, if any */
-    const Variable* buffer{nullptr};
-    /*! \brief The access index */
-    Expr index;
-    /*! \brief The type of access */
-    AccessType type;
-    /*! \brief The storage scope */
-    StorageScope scope;
-    // constructor
-    AccessEntry() {}
-    AccessEntry(const Variable* buffer,
-                Expr index,
-                AccessType type,
-                StorageScope scope)
-        : buffer(buffer), index(index), type(type), scope(scope) {}
-  };
-  // The statment entry
-  struct StmtEntry {
-    // the associated statement.
-    const Node* stmt;
-    std::vector<AccessEntry> access;
-  };
-  // Get current storage scope.
+  // Get storage scope of buffer.
   StorageScope GetScope(const Variable* buf) const {
     auto it = storage_scope_.find(buf);
     StorageScope s; s.rank = 0;

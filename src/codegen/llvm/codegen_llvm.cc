@@ -249,7 +249,7 @@ llvm::BasicBlock* CodeGenLLVM::CheckCallSuccess(llvm::Value* retcode) {
 }
 
 void CodeGenLLVM::AddAliasInfo(
-    llvm::Instruction* inst, const Variable* buffer, Expr index) {
+    llvm::Instruction* inst, const Variable* buffer, Expr index, Type t) {
   int base = 0, width = 0;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges.
@@ -274,9 +274,11 @@ void CodeGenLLVM::AddAliasInfo(
     }
   }
   llvm::MDNode* meta = md_tbaa_root_;
-  std::ostringstream buffer_addr;
+  std::ostringstream buffer_addr, buffer_type;
   buffer_addr << buffer;
   meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
+  buffer_type << t.element_of();
+  meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
   // create a tree-shape access structure.
   if (width != 0) {
     for (int w = 1024; w >= width; w /= 2) {
@@ -1033,7 +1035,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
     llvm::LoadInst* inst = builder_->CreateAlignedLoad(
         CreateBufferPtr(t, buf, MakeValue(op->index)),
         data_layout_->getTypeAllocSize(LLVMType(t)));
-    AddAliasInfo(inst, op->buffer_var.get(), op->index);
+    AddAliasInfo(inst, op->buffer_var.get(), op->index, op->type);
     return inst;
   } else if (ramp && is_one(ramp->stride)) {
     int alignment, native_bits;
@@ -1053,7 +1055,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
       llvm::LoadInst* inst = builder_->CreateAlignedLoad(
           builder_->CreatePointerCast(ptr, vtype), alignment);
       AddAliasInfo(inst, op->buffer_var.get(),
-                   Ramp::make(base, make_const(base.type(), 1), lanes));
+                   Ramp::make(base, make_const(base.type(), 1), lanes), op->type);
       loads.push_back(inst);
     }
     return CreateVecConcat(loads);
@@ -1127,7 +1129,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
         llvm::Value* ptr = CreateBufferPtr(t.element_of(), buf, offset);
         llvm::LoadInst* inst = builder_->CreateAlignedLoad(
             ptr, data_layout_->getTypeAllocSize(LLVMType(t)));
-        AddAliasInfo(inst, op->buffer_var.get(), Expr());
+        AddAliasInfo(inst, op->buffer_var.get(), Expr(), op->type);
         ret = builder_->CreateInsertElement(ret, inst, ConstInt32(i));
       });
     return ret;
@@ -1146,7 +1148,7 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
         value,
         CreateBufferPtr(t, buf, MakeValue(op->index)),
         data_layout_->getTypeAllocSize(value->getType()));
-    AddAliasInfo(inst, op->buffer_var.get(), op->index);
+    AddAliasInfo(inst, op->buffer_var.get(), op->index, op->value.type());
   } else if (ramp && is_one(ramp->stride)) {
     int alignment, native_bits;
     GetAlignment(t, op->buffer_var.get(), ramp->base,
@@ -1165,7 +1167,7 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
           CreateVecSlice(value, offset, lanes),
           builder_->CreatePointerCast(ptr, vtype), alignment);
       AddAliasInfo(inst, op->buffer_var.get(),
-                   Ramp::make(base, make_const(base.type(), 1), lanes));
+                   Ramp::make(base, make_const(base.type(), 1), lanes), op->value.type());
     }
   } else {
     Scalarize(op->index, [&](int i, llvm::Value* offset) {
@@ -1173,7 +1175,7 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
         llvm::StoreInst* inst = builder_->CreateAlignedStore(
             builder_->CreateExtractElement(value, ConstInt32(i)),
             ptr, data_layout_->getTypeAllocSize(LLVMType(t)));
-        AddAliasInfo(inst, op->buffer_var.get(), Expr());
+        AddAliasInfo(inst, op->buffer_var.get(), Expr(), op->value.type());
       });
   }
 }

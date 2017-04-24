@@ -68,7 +68,7 @@ REGISTER_PASS2(UnrollLoop);
 REGISTER_PASS2(StorageSync);
 REGISTER_PASS4(MakeAPI);
 REGISTER_PASS1(SplitHostDevice);
-REGISTER_PASS1(LiftAllocate);
+REGISTER_PASS1(StorageRewrite);
 REGISTER_PASS1(InjectVirtualThread);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);

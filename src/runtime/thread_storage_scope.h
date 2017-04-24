@@ -21,6 +21,9 @@ struct StorageScope {
   inline bool operator==(const StorageScope& other) const {
     return rank == other.rank;
   }
+  inline bool operator!=(const StorageScope& other) const {
+    return !(*this == other);
+  }
   inline std::string to_string() const {
     switch (rank) {
       case 0: return "global";
