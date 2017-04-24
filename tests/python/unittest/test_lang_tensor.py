@@ -33,6 +33,16 @@ def test_tensor_slice():
     B = tvm.compute((n,), lambda i: A[0][i] + A[0][i])
 
 
+def test_tensor_comm_reducer():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m, n), name='A')
+    k = tvm.reduce_axis((0, n), "k")
+    mysum = tvm.comm_reducer(lambda x, y: x+y, tvm.const(0, dtype=A.dtype))
+    mysum([m, n])
+    C = tvm.compute((m,), lambda i: mysum(T[i, k], axis=k))
+
+
 def test_tensor_reduce():
     m = tvm.var('m')
     n = tvm.var('n')

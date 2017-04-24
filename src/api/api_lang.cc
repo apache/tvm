@@ -13,6 +13,18 @@
 
 namespace tvm {
 
+TVM_REGISTER_API("_min_value")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    Type t = args[0].operator Type();
+    *ret = t.min();
+  });
+
+TVM_REGISTER_API("_max_value")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    Type t = args[0].operator Type();
+    *ret = t.max();
+  });
+
 TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     if (args[0].type_code() == kInt) {

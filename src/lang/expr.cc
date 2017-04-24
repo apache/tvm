@@ -49,28 +49,25 @@ IterVar reduce_axis(Range dom, std::string name) {
 Expr sum(Expr source, Array<IterVar> rdom) {
   Var x("x"), y("y");
   Expr result = ir::Add::make(x, y);
-  ir::Functor combiner = ir::FunctorNode::make({x, y}, result);
   Expr identity_element = make_zero(source.type());
-  return ir::Reduce::make(combiner, identity_element,
-    source, rdom, make_const(Bool(1), true));
+  Expr combiner = ir::CommReducer::make({x, y}, result, identity_element);
+  return ir::Reduce::make(combiner, source, rdom, make_const(Bool(1), true));
 }
 
 Expr max(Expr source, Array<IterVar> rdom) {
   Var x("x"), y("y");
   Expr result = ir::Max::make(x, y);
-  ir::Functor combiner = ir::FunctorNode::make({x, y}, result);
   Expr identity_element = source.type().min();
-  return ir::Reduce::make(combiner, identity_element,
-    source, rdom, make_const(Bool(1), true));
+  Expr combiner = ir::CommReducer::make({x, y}, result, identity_element);
+  return ir::Reduce::make(combiner, source, rdom, make_const(Bool(1), true));
 }
 
 Expr min(Expr source, Array<IterVar> rdom) {
   Var x("x"), y("y");
   Expr result = ir::Min::make(x, y);
-  ir::Functor combiner = ir::FunctorNode::make({x, y}, result);
   Expr identity_element = source.type().max();
-  return ir::Reduce::make(combiner, identity_element,
-    source, rdom, make_const(Bool(1), true));
+  Expr combiner = ir::CommReducer::make({x, y}, result, identity_element);
+  return ir::Reduce::make(combiner, source, rdom, make_const(Bool(1), true));
 }
 
 std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)

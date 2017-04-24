@@ -96,9 +96,9 @@ TVM_REGISTER_API("make.Allocate")
       *ret = Node::make(a, b);                               \
     })
 
-REGISTER_MAKE2(FunctorNode);
+REGISTER_MAKE3(CommReducer);
+REGISTER_MAKE4(Reduce);
 REGISTER_MAKE4(AttrStmt);
-REGISTER_MAKE5(Reduce);
 
 REGISTER_MAKE2(IntImm);
 REGISTER_MAKE2(UIntImm);

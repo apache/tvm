@@ -13,8 +13,26 @@
 namespace Halide {
 namespace Internal {
 
+using tvm::ir::CommReducer;
 using tvm::ir::Reduce;
 using tvm::ir::AttrStmt;
+
+template<>
+void ExprNode<CommReducer>::accept(IRVisitor *v, const Expr&) const {
+  LOG(FATAL) << "CommReducer do not work with old Visitor, use IRFunctor style visitor";
+}
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<CommReducer>([](const CommReducer *op, IRPrinter *p) {
+  p->stream << "CommReducer("
+            << op->result
+            << ", args=";
+  for (const auto& arg : op->args) {
+    p->stream << arg << ", ";
+  }
+  p->stream << "identity_element=" << op->identity_element;
+  p->stream << ")";
+});
 
 template<>
 void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
@@ -40,23 +58,23 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 namespace tvm {
 namespace ir {
 
-Functor FunctorNode::make(Array<Var> args, Expr result) {
-  auto node = std::make_shared<FunctorNode>();
-  node->args = args;
+Expr CommReducer::make(Array<Var> args, Expr result, Expr identity_element) {
+  auto node = std::make_shared<CommReducer>();
+  node->args   = args;
   node->result = result;
-  return Functor(node);
+  node->identity_element = identity_element;
+  return Expr(node);
 }
 
-Expr Functor::operator()(Expr a, Expr b) const {
+Expr CommReducer::operator()(Expr a, Expr b) const {
   Map<Var, Expr> value_map;
-  const FunctorNode* n = this->as<FunctorNode>();
-  value_map.Set(n->args[0], a);
-  value_map.Set(n->args[1], b);
-  return Substitute(n->result, value_map);
+  value_map.Set(args[0], a);
+  value_map.Set(args[1], b);
+  return Substitute(result, value_map);
 }
 
-Expr Reduce::make(Functor combiner, Expr identity_element,
-                  Expr source, Array<IterVar> axis, Expr condition) {
+Expr Reduce::make(Expr combiner, Expr source,
+                  Array<IterVar> axis, Expr condition) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
@@ -71,7 +89,6 @@ Expr Reduce::make(Functor combiner, Expr identity_element,
   }
   n->type = source.type();
   n->combiner = combiner;
-  n->identity_element = identity_element;
   n->source = source;
   n->axis = axis;
   n->condition = condition;

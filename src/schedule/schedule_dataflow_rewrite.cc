@@ -345,7 +345,6 @@ Tensor Schedule::rfactor(const Tensor& tensor,
     }
   }
   n->body = Reduce::make(reduce->combiner,
-                         reduce->identity_element,
                          VarReplacer(vsub).Mutate(reduce->source),
                          n->reduce_axis,
                          predicate);
@@ -391,7 +390,7 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       for (Var v : i) {
         indices.push_back(v);
       }
-      return Reduce::make(reduce->combiner, reduce->identity_element,
+      return Reduce::make(reduce->combiner,
         factor_tensor(indices), {repl_red_axis}, const_true());
     }, old_tensor->op->name + ".repl");
 

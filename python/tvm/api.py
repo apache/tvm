@@ -22,6 +22,15 @@ int32 = "int32"
 float32 = "float32"
 handle = "handle"
 
+
+def min_value(dtype):
+    return _api_internal._min_value(dtype)
+
+
+def max_value(dtype):
+    return _api_internal._max_value(dtype)
+
+
 def const(value, dtype=None):
     """construct a constant"""
     if dtype is None:
@@ -415,22 +424,14 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
-def reduce(fcombine, id_elem, expr, axis, where=None):
+def comm_reducer(fcombine, id_elem):
     code = fcombine.__code__
     assert fcombine.__code__.co_argcount == 2
     arg_vars = [var(name) for name in code.co_varnames]
-    print(arg_vars)
     result = fcombine(*[v for v in arg_vars])
     result = convert(result)
-    functor = _make.Functor(arg_vars, result)
-
-    if isinstance(id_elem, _expr.Variable):
-        identity_element = id_elem
-    else:
-        identity_element = const(id_elem, dtype=expr.dtype)
-    axis = axis if isinstance(axis, list) else [axis]
-    reducer = _make.CommReducer(functor, identity_element, expr, axis, where)
-    return reducer
+    assert isinstance(id_elem, _expr.Expr)
+    return _make.CommReducer(arg_vars, result, id_elem)
 
 
 def sum(expr, axis, where=None):
@@ -452,7 +453,9 @@ def sum(expr, axis, where=None):
     value : Expr
         The result value.
     """
-    return reduce(lambda x, y: x+y, 0, expr, axis, where)
+    functor = comm_reducer(lambda x, y: x+y,
+            const(0, expr.dtype))
+    return functor(expr, axis, where)
 
 
 def min(lhs, rhs=None, axis=None, where=None):
@@ -483,9 +486,9 @@ def min(lhs, rhs=None, axis=None, where=None):
         axis, rhs = rhs, axis
     if rhs:
         return _make.Min(lhs, rhs)
-    axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Min", expr, axis, where)
-    return x
+    functor = comm_reducer(lambda x, y: _make.Min(x, y),
+            max_value(lhs.dtype))
+    return functor(lhs, axis, where)
 
 
 def max(lhs, rhs=None, axis=None, where=None):
@@ -516,8 +519,8 @@ def max(lhs, rhs=None, axis=None, where=None):
         axis, rhs = rhs, axis
     if rhs:
         return _make.Max(lhs, rhs)
-    axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Max", expr, axis, where)
-    return x
+    functor = comm_reducer(lambda x, y: _make.Max(x, y),
+            min_value(lhs.dtype))
+    return functor(lhs, axis, where)
 
 _init_api("tvm.api")

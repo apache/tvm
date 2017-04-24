@@ -173,8 +173,10 @@ void MakeReduction(const ComputeOpNode* op,
   }
   const Reduce* reduce = op->body.as<Reduce>();
   CHECK(reduce);
-  Expr init_value = reduce->identity_element;
-  Expr update_value = reduce->combiner(t(args), reduce->source);
+  const CommReducer* combiner = reduce->combiner.as<CommReducer>();
+  CHECK(combiner);
+  Expr init_value = combiner->identity_element;
+  Expr update_value = (*combiner)(t(args), reduce->source);
   *init = Provide::make(t->op, t->value_index, init_value, args);
   *provide = Provide::make(t->op, t->value_index, update_value, args);
   if (!is_one(reduce->condition)) {
@@ -237,8 +239,8 @@ Stmt MakeCrossThreadReduction(
   }
   Var res_handle("reduce_temp", Handle());
   Array<Expr> freduce_args;
+  freduce_args.push_back(reduce->combiner);
   freduce_args.push_back(reduce->source);
-  freduce_args.push_back(reduce->identity_element);
   freduce_args.push_back(cond);
 
   std::vector<Expr> thread_head_check;
@@ -259,11 +261,6 @@ Stmt MakeCrossThreadReduction(
       ir::intrinsic::tvm_thread_allreduce,
       freduce_args, Call::Intrinsic),
     0);
-  reduce_body = AttrStmt::make(
-    reduce->combiner,
-    attr::reduce_scope,
-    make_zero(reduce->type),
-    reduce_body);
   Stmt assign_body = Provide::make(
       stage->op, 0, Load::make(reduce->type, res_handle, 0), args);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);

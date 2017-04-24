@@ -22,37 +22,24 @@ using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
 using Halide::DeviceAPI;
 
-struct Functor;
-struct FunctorNode : public Node {
+struct CommReducer : public ExprNode<CommReducer> {
   Array<Var> args;
   Expr result;
+  Expr identity_element;
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("args", &args);
     v->Visit("result", &result);
   }
-  static Functor make(Array<Var> args, Expr result);
-  static constexpr const char* _type_key = "Functor";
-  TVM_DECLARE_NODE_TYPE_INFO(FunctorNode, Node);
-};
-
-struct Functor : public NodeRef {
-  Functor() {}
-  Functor(std::shared_ptr<Node> n) : NodeRef(n) {}
+  static Expr make(Array<Var> args, Expr result, Expr identity_element);
   Expr operator()(Expr a, Expr b) const;
-  using ContainerType = FunctorNode;
-  inline const FunctorNode* get() const {
-    return static_cast<const FunctorNode*>(node_.get());
-  }
-  inline const FunctorNode* operator->() const {
-    return static_cast<const FunctorNode*>(node_.get());
-  }
+  static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
+  static constexpr const char* _type_key = "CommReducer";
 };
 
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {
-  Functor combiner;
+  Expr combiner;
   /*! \brief The source operand */
-  Expr identity_element;
   Expr source;
   /*! \brief The reduction axis */
   Array<IterVar> axis;
@@ -63,8 +50,7 @@ struct Reduce : public ExprNode<Reduce> {
   Expr condition;
 
   /*! \brief construct expr from op and rdom */
-  static Expr make(Functor combiner,
-                   Expr identity_element,
+  static Expr make(Expr combiner,
                    Expr src,
                    Array<IterVar> rdom,
                    Expr condition = const_true());
