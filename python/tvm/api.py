@@ -424,103 +424,24 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
-def comm_reducer(fcombine, id_elem):
-    code = fcombine.__code__
-    assert fcombine.__code__.co_argcount == 2
-    arg_vars = [var(name) for name in code.co_varnames]
-    result = fcombine(*[v for v in arg_vars])
-    result = convert(result)
-    assert isinstance(id_elem, _expr.Expr)
-    return _make.CommReducer(arg_vars, result, id_elem)
+class comm_reducer(object):
+    def __init__(self, fcombine, fidentity):
+        self.fcombine = fcombine
+        self.fidentity = fidentity
+        code = fcombine.__code__
+        assert fcombine.__code__.co_argcount == 2
+        self.arg_vars = [var(name) for name in code.co_varnames]
+        result = fcombine(*[v for v in self.arg_vars])
+        self.result = convert(result)
 
+    def __call__(self, expr, axis, where=None):
+        id_elem = self.fidentity(expr.dtype)
+        assert isinstance(id_elem, _expr.Expr)
+        reducer = _make.CommReducer(self.arg_vars, self.result, id_elem)
+        return reducer(expr, axis, where)
 
-def sum(expr, axis, where=None):
-    """Create a sum expression over axis
-
-    Parameters
-    ----------
-    expr : Expr
-        The source expression.
-
-    axis : IterVar
-        The reduction IterVar axis
-
-    where : optional, Expr
-        Filtering predicate of the reduction.
-
-    Returns
-    -------
-    value : Expr
-        The result value.
-    """
-    functor = comm_reducer(lambda x, y: x+y,
-            const(0, expr.dtype))
-    return functor(expr, axis, where)
-
-
-def min(lhs, rhs=None, axis=None, where=None):
-    """Create a min expression.
-
-    Parameters
-    ----------
-    lhs : Expr
-        The left hand expression.
-
-    rhs : Expr, optional
-        The right hand expression.
-
-    axis : IterVar, optional
-        The reduction IterVar axis
-
-    where : optional, Expr
-        Filtering predicate of the reduction.
-
-    Returns
-    -------
-    value : Expr
-        The result value.
-    """
-    if rhs and axis:
-        raise ValueError("Can only take one argument, rhs or axis")
-    if isinstance(rhs, (_schedule.IterVar, list)):
-        axis, rhs = rhs, axis
-    if rhs:
-        return _make.Min(lhs, rhs)
-    functor = comm_reducer(lambda x, y: _make.Min(x, y),
-            max_value(lhs.dtype))
-    return functor(lhs, axis, where)
-
-
-def max(lhs, rhs=None, axis=None, where=None):
-    """Create a max expression.
-
-    Parameters
-    ----------
-    lhs : Expr
-        The left hand expression.
-
-    rhs : Expr, optional
-        The right hand expression.
-
-    axis : IterVar, optional
-        The reduction IterVar axis
-
-    where : optional, Expr
-        Filtering predicate of the reduction.
-
-    Returns
-    -------
-    value : Expr
-        The result value.
-    """
-    if rhs and axis:
-        raise ValueError("Can only take one argument, rhs or axis")
-    if isinstance(rhs, (_schedule.IterVar, list)):
-        axis, rhs = rhs, axis
-    if rhs:
-        return _make.Max(lhs, rhs)
-    functor = comm_reducer(lambda x, y: _make.Max(x, y),
-            min_value(lhs.dtype))
-    return functor(lhs, axis, where)
 
 _init_api("tvm.api")
+sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t))
+min = comm_reducer(lambda lhs, rhs: _make.Min(lhs, rhs), lambda t: max_value(t))
+max = comm_reducer(lambda lhs, rhs: _make.Max(lhs, rhs), lambda t: min_value(t))

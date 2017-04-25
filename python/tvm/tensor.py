@@ -13,7 +13,6 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
             indices = (indices,)
         self.tensor = tensor
         self.indices = indices
-        # self.dtype = tensor.dtype
 
     def __getitem__(self, indices):
         if not isinstance(indices, tuple):
