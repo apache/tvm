@@ -86,7 +86,7 @@ The previous two tips requires force push, this is because we altered the path o
 It is fine to force push to your own fork, as long as the commits changed are only yours.
 
 ## Testcases
-- All the testcases are in [tests](../tests)
+- All the testcases are in [tests](../../tests)
 - We use python nose for python test cases.
 
 ## Core Library
