@@ -282,7 +282,7 @@ class StoragePlanRewriter : public IRMutator {
             e->allocs[0]->condition, Evaluate::make(0));
       } else {
         // Build a merged allocation.
-        size_t alloc_unit = t.bytes() * t.lanes();
+        int alloc_unit = t.bytes() * t.lanes();
         Expr combo_size;
         for (const Allocate* op : e->allocs) {
           // Get the size
@@ -290,7 +290,7 @@ class StoragePlanRewriter : public IRMutator {
           for (size_t i = 1; i < op->extents.size(); ++i) {
             sz = sz * op->extents[i];
           }
-          size_t bytes = op->type.bytes() * op->type.lanes();
+          int bytes = op->type.bytes() * op->type.lanes();
           if (alloc_unit != bytes) {
             sz = (sz * make_const(sz.type(), bytes) +
                   make_const(sz.type(), alloc_unit - 1)) /
