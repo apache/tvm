@@ -432,7 +432,7 @@ def comm_reducer(fcombine, fidentity):
         arg_vars = [var(name, dtype) for name in code.co_varnames]
         result = fcombine(*[v for v in arg_vars])
         result = convert(result)
-        id_elem = fidentity(expr.dtype)
+        id_elem = fidentity(dtype)
         assert isinstance(id_elem, _expr.Expr)
         reducer_node = _make.CommReducerNode(arg_vars, result, id_elem)
         return reducer_node(expr, axis, where)

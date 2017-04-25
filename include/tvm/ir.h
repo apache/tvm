@@ -46,6 +46,7 @@ struct CommReducer : public NodeRef {
   inline const CommReducerNode* operator->() const {
     return static_cast<CommReducerNode*>(node_.get());
   }
+  using ContainerType = CommReducerNode;
 };
 
 /*! \brief Reduction operator operator */

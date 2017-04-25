@@ -82,12 +82,6 @@ TVM_REGISTER_API("make.Allocate")
       *ret = Node::make(args[0], args[1], args[2], args[3]);            \
     })                                                                  \
 
-#define REGISTER_MAKE5(Node)                                            \
-  TVM_REGISTER_API("make."#Node)                                        \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = Node::make(args[0], args[1], args[2], args[3], args[4]);   \
-    })                                                                  \
-
 #define REGISTER_MAKE_BINARY_OP(Node)                        \
   TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
