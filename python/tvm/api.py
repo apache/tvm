@@ -424,21 +424,19 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
-class comm_reducer(object):
-    def __init__(self, fcombine, fidentity):
-        self.fcombine = fcombine
-        self.fidentity = fidentity
+def comm_reducer(fcombine, fidentity):
+    def reducer(expr, axis, where=None):
+        dtype = expr.dtype
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
-        self.arg_vars = [var(name) for name in code.co_varnames]
-        result = fcombine(*[v for v in self.arg_vars])
-        self.result = convert(result)
-
-    def __call__(self, expr, axis, where=None):
-        id_elem = self.fidentity(expr.dtype)
+        arg_vars = [var(name, dtype) for name in code.co_varnames]
+        result = fcombine(*[v for v in arg_vars])
+        result = convert(result)
+        id_elem = fidentity(expr.dtype)
         assert isinstance(id_elem, _expr.Expr)
-        reducer = _make.CommReducer(self.arg_vars, self.result, id_elem)
-        return reducer(expr, axis, where)
+        reducer_node = _make.CommReducerNode(arg_vars, result, id_elem)
+        return reducer_node(expr, axis, where)
+    return reducer
 
 
 _init_api("tvm.api")

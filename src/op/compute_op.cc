@@ -173,7 +173,7 @@ void MakeReduction(const ComputeOpNode* op,
   }
   const Reduce* reduce = op->body.as<Reduce>();
   CHECK(reduce);
-  const CommReducer* combiner = reduce->combiner.as<CommReducer>();
+  const CommReducerNode* combiner = reduce->combiner.as<CommReducerNode>();
   CHECK(combiner);
   Expr init_value = combiner->identity_element;
   Expr update_value = (*combiner)(t(args), reduce->source);
@@ -239,7 +239,6 @@ Stmt MakeCrossThreadReduction(
   }
   Var res_handle("reduce_temp", Handle());
   Array<Expr> freduce_args;
-  freduce_args.push_back(reduce->combiner);
   freduce_args.push_back(reduce->source);
   freduce_args.push_back(cond);
 
@@ -261,6 +260,11 @@ Stmt MakeCrossThreadReduction(
       ir::intrinsic::tvm_thread_allreduce,
       freduce_args, Call::Intrinsic),
     0);
+  reduce_body = AttrStmt::make(
+      reduce->combiner,
+      attr::reduce_scope,
+      make_zero(reduce->type),
+      reduce_body);
   Stmt assign_body = Provide::make(
       stage->op, 0, Load::make(reduce->type, res_handle, 0), args);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);

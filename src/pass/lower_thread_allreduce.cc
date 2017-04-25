@@ -34,6 +34,13 @@ class ThreadAllreduceBuilder : public IRMutator {
       } else {
         return ret;
       }
+    } else if (op->attr_key == attr::reduce_scope) {
+      const CommReducerNode *combiner = op->node.as<CommReducerNode>();
+      CHECK(combiner);
+      reduce_combiner_.push_back(combiner);
+      Stmt ret = IRMutator::Mutate_(op, s);
+      reduce_combiner_.pop_back();
+      return ret;
     } else {
       return IRMutator::Mutate_(op, s);
     }
@@ -91,11 +98,10 @@ class ThreadAllreduceBuilder : public IRMutator {
   };
   // make allreduce.
   Stmt MakeAllreduce(const Store* op, const Call* call) {
-    const CommReducer *combiner = call->args[0].as<CommReducer>();
-    CHECK(combiner);
+    const CommReducerNode *combiner = reduce_combiner_.back();
     Expr init  = combiner->identity_element;
-    Expr value = call->args[1];
-    Expr cond  = call->args[2];
+    Expr value = call->args[0];
+    Expr cond  = call->args[1];
     if (!is_one(cond)) {
       value = Select::make(
           cond, value, init);
@@ -166,7 +172,7 @@ class ThreadAllreduceBuilder : public IRMutator {
     return MergeSeq(seq);
   }
   // make allreduce.
-  Stmt MakeBufAllreduce(const CommReducer *combiner,
+  Stmt MakeBufAllreduce(const CommReducerNode *combiner,
                         Type type,
                         Var shared_buf,
                         Expr reduce_index,
@@ -262,6 +268,7 @@ class ThreadAllreduceBuilder : public IRMutator {
 
   // surrounding scope of thread extent.
   std::vector<const AttrStmt*> thread_extents_;
+  std::vector<const CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const Variable *, Expr> load_remap_;
   // Allocate remap

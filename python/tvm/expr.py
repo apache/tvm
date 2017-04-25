@@ -215,7 +215,7 @@ class Let(Expr):
     pass
 
 @register_node
-class CommReducer(Expr):
+class CommReducerNode(NodeBase):
     def __call__(self, expr, axis, where=None):
         axis = axis if isinstance(axis, list) else [axis]
         return _make.Reduce(self, expr, axis, where)

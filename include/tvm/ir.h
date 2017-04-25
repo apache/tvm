@@ -22,7 +22,8 @@ using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
 using Halide::DeviceAPI;
 
-struct CommReducer : public ExprNode<CommReducer> {
+class CommReducer;
+struct CommReducerNode : public Node {
   Array<Var> args;
   Expr result;
   Expr identity_element;
@@ -30,15 +31,26 @@ struct CommReducer : public ExprNode<CommReducer> {
     v->Visit("args", &args);
     v->Visit("result", &result);
   }
-  static Expr make(Array<Var> args, Expr result, Expr identity_element);
+  static CommReducer make(Array<Var> args, Expr result, Expr identity_element);
   Expr operator()(Expr a, Expr b) const;
-  static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
-  static constexpr const char* _type_key = "CommReducer";
+  static constexpr const char* _type_key = "CommReducerNode";
+  TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
+};
+
+struct CommReducer : public NodeRef {
+  CommReducer() {}
+  CommReducer(std::shared_ptr<Node> n) : NodeRef(n) {}
+  inline const CommReducerNode* get() const {
+    return static_cast<CommReducerNode*>(node_.get());
+  }
+  inline const CommReducerNode* operator->() const {
+    return static_cast<CommReducerNode*>(node_.get());
+  }
 };
 
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {
-  Expr combiner;
+  CommReducer combiner;
   /*! \brief The source operand */
   Expr source;
   /*! \brief The reduction axis */
@@ -50,14 +62,13 @@ struct Reduce : public ExprNode<Reduce> {
   Expr condition;
 
   /*! \brief construct expr from op and rdom */
-  static Expr make(Expr combiner,
+  static Expr make(CommReducer combiner,
                    Expr src,
                    Array<IterVar> rdom,
                    Expr condition = const_true());
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
-    v->Visit("combiner", &combiner);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);

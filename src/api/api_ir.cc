@@ -96,7 +96,7 @@ TVM_REGISTER_API("make.Allocate")
       *ret = Node::make(a, b);                               \
     })
 
-REGISTER_MAKE3(CommReducer);
+REGISTER_MAKE3(CommReducerNode);
 REGISTER_MAKE4(Reduce);
 REGISTER_MAKE4(AttrStmt);
 
