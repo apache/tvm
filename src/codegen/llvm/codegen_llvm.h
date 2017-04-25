@@ -211,7 +211,7 @@ class CodeGenLLVM :
   // Add a function to set global module context
   void InitGlobalContext();
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index);
+  void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index, Type type);
   // The definition of local variable.
   std::unordered_map<const Variable*, llvm::Value*> var_map_;
   // global strings

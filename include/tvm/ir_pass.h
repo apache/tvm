@@ -158,14 +158,15 @@ Stmt VectorizeLoop(Stmt stmt);
 Stmt InjectVirtualThread(Stmt stmt);
 
 /*!
- * \brief Lift storage allocation to relevant outpost location
- *
- *  Only do this after vectorization and virtual thread injection completes.
+ * \brief Rewrite storage allocation pattern.
+ *  Moves the allocation to outer most possible scope.
+ *  Trying to share space between allocations to make
+ *  a static allocation plan when possible.
  *
  * \param stmt The stmt to be trasnformed
  * \return Transformed stmt.
  */
-Stmt LiftAllocate(Stmt stmt);
+Stmt StorageRewrite(Stmt stmt);
 
 /*!
  * \brief partition loops in the stmt
