@@ -22,12 +22,67 @@ using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
 using Halide::DeviceAPI;
 
+// Node container for CommReducer
+struct CommReducerNode;
+
+struct CommReducer : public NodeRef {
+  CommReducer() {}
+  explicit CommReducer(std::shared_ptr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const CommReducerNode* get() const;
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const CommReducerNode* operator->() const;
+  /*! \brief type indicate the container type */
+  using ContainerType = CommReducerNode;
+};
+
+/*!
+ * \brief A commutative reducer node to represent a commutative
+ *  binary operator with identity element
+ */
+struct CommReducerNode : public Node {
+  /*! \brief The arguments of reducer */
+  Array<Var> args;
+  /*! \brief The result of reducer */
+  Expr result;
+  /*!
+   * \brief The identity element of reducer, which leaves other
+   *  elements unchanged when combined with it, with respect to
+   *  the binary operation of this reducer uses.
+   */
+  Expr identity_element;
+  /*! \brief Function call operator to combine a and b */
+  Expr operator()(Expr a, Expr b) const;
+  /*! \brief construct CommReducer from args, result and identity_element */
+  static CommReducer make(Array<Var> args, Expr result, Expr identity_element);
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("args", &args);
+    v->Visit("result", &result);
+    v->Visit("identity_element", &identity_element);
+  }
+
+  static constexpr const char* _type_key = "CommReducer";
+  TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
+};
+
+inline const CommReducerNode* CommReducer::get() const {
+  return static_cast<CommReducerNode*>(node_.get());
+}
+inline const CommReducerNode* CommReducer::operator->() const {
+  return static_cast<CommReducerNode*>(node_.get());
+}
+
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {
-  /*!
-   * \brief The binary operator of reduction
-   */
-  std::string op;
+  /*! \brief The commutative combiner */
+  CommReducer combiner;
   /*! \brief The source operand */
   Expr source;
   /*! \brief The reduction axis */
@@ -39,37 +94,19 @@ struct Reduce : public ExprNode<Reduce> {
   Expr condition;
 
   /*! \brief construct expr from op and rdom */
-  static Expr make(std::string op, Expr src,
+  static Expr make(CommReducer combiner,
+                   Expr src,
                    Array<IterVar> rdom,
                    Expr condition = const_true());
-  /*!
-   * \brief Get initial value for reduction.
-   * \param op The operator
-   * \param type The data type.
-   * \return The initial value that can be assigned to reduction.
-   */
-  static Expr InitValue(const std::string& op, Type type);
-  /*!
-   * \brief Combine two values with given reduction.
-   * \param op The operator
-   * \param a The left operand.
-   * \param b The left operand.
-   * \return The combined reduction result.
-   */
-  static Expr Combine(const std::string& op, Expr a, Expr b);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
-    v->Visit("op", &op);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
   }
   static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
   static constexpr const char* _type_key = "Reduce";
-  static constexpr const char* Add = "Add";
-  static constexpr const char* Max = "Max";
-  static constexpr const char* Min = "Min";
 };
 
 /*!
@@ -93,26 +130,20 @@ struct TensorKey {
 /*! \brief namespace of possible attribute sin AttrStmt.type_key */
 namespace attr {
 // The above attr does not pass to ir stage.
-/*!
- * \brief Mark launching extent of thread, used by device API.
- */
+/*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
-/*!
- * \brief Mark launching of a virtual thread.
- */
+/*! \brief Mark launching of a virtual thread. */
 constexpr const char* virtual_thread = "virtual_thread";
-/*!
- * \brief Mark the scope as volatile access for certain handle.
- */
+/*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
-/*!
- * \brief Mark storage scope of buffers
- */
+/*! \brief Mark storage scope of buffers */
 constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
+/*! \brief Mark of reduce scope */
+constexpr const char* reduce_scope = "reduce_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */

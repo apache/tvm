@@ -344,7 +344,7 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       n->reduce_axis.push_back(IterVar(ncpy));
     }
   }
-  n->body = Reduce::make(reduce->op,
+  n->body = Reduce::make(reduce->combiner,
                          VarReplacer(vsub).Mutate(reduce->source),
                          n->reduce_axis,
                          predicate);
@@ -390,8 +390,8 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       for (Var v : i) {
         indices.push_back(v);
       }
-      return Reduce::make(
-          reduce->op, factor_tensor(indices), {repl_red_axis}, const_true());
+      return Reduce::make(reduce->combiner,
+        factor_tensor(indices), {repl_red_axis}, const_true());
     }, old_tensor->op->name + ".repl");
 
   std::unordered_map<Tensor, Tensor> vmap;

@@ -56,6 +56,12 @@ TVM_REGISTER_API("make.Allocate")
                           args[4]);
   });
 
+TVM_REGISTER_API("make.CommReducer")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = CommReducerNode::make(args[0], args[1], args[2]);
+  });
+
+
 // make from two arguments
 #define REGISTER_MAKE1(Node)                                 \
   TVM_REGISTER_API("make."#Node)                             \

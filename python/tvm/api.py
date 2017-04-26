@@ -21,6 +21,15 @@ int32 = "int32"
 float32 = "float32"
 handle = "handle"
 
+
+def min_value(dtype):
+    return _api_internal._min_value(dtype)
+
+
+def max_value(dtype):
+    return _api_internal._max_value(dtype)
+
+
 def const(value, dtype=None):
     """construct a constant"""
     if dtype is None:
@@ -414,93 +423,106 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
-def sum(expr, axis, where=None):
-    """Create a sum expression over axis
+def comm_reducer(fcombine, fidentity, name="reduce"):
+    """Create a commutative reducer for reduction.
 
     Parameters
     ----------
-    expr : Expr
-        The source expression.
+    fcombine : function(Expr -> Expr -> Expr)
+        A binary function which takes two Expr as input to return a Expr.
 
-    axis : IterVar
-        The reduction IterVar axis
-
-    where : optional, Expr
-        Filtering predicate of the reduction.
+    fidentity : function(str -> Expr)
+        A function which takes a type string as input to return a const Expr.
 
     Returns
     -------
-    value : Expr
-        The result value.
-    """
-    axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Add", expr, axis, where)
-    return x
+    reducer : function
+        A function which creates a reduce expression over axis. There are two
+        to use it:
+            1. accept (expr, axis, where) to produce an Reduce Expr on
+        specified axis;
+            2. simply use it with multiple Exprs.
 
-
-def min(lhs, rhs=None, axis=None, where=None):
-    """Create a min expression.
-
-    Parameters
-    ----------
-    lhs : Expr
-        The left hand expression.
-
-    rhs : Expr, optional
-        The right hand expression.
-
-    axis : IterVar, optional
-        The reduction IterVar axis
-
-    where : optional, Expr
-        Filtering predicate of the reduction.
-
-    Returns
+    Example
     -------
-    value : Expr
-        The result value.
+    .. code-block:: python
+        n = tvm.var('n')
+        m = tvm.var('m')
+        mysum = tvm.comm_reducer(lambda x, y: x+y,
+            lambda t: tvm.const(0, dtype=t), name="mysum")
+        A = tvm.placeholder((n, m), name='A')
+        k = tvm.reduce_axis((0, m), name='k')
+        B = tvm.compute((n,), lambda i: mysum(A[i, k], axis=k), name='B')
     """
-    if rhs and axis:
-        raise ValueError("Can only take one argument, rhs or axis")
-    if isinstance(rhs, (_schedule.IterVar, list)):
-        axis, rhs = rhs, axis
-    if rhs:
-        return _make.Min(lhs, rhs)
-    axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Min", expr, axis, where)
-    return x
+    def _reduce_directly(*args):
+        num = len(args)
+        # process `where` is None
+        if num == 3 and args[2] is None:
+            num = 2
+        res = args[0]
+        for i in range(num-1):
+            res = fcombine(res, args[i+1])
+        return res
 
+    def _make_reduce(expr, axis, where=None):
+        expr = convert(expr)
+        dtype = expr.dtype
+        code = fcombine.__code__
+        assert fcombine.__code__.co_argcount == 2
+        arg_vars = [var(name, dtype) for name in code.co_varnames]
+        result = fcombine(*[v for v in arg_vars])
+        result = convert(result)
+        id_elem = fidentity(dtype)
+        assert isinstance(id_elem, _expr.Expr)
+        combiner = _make.CommReducer(arg_vars, result, id_elem)
+        axis = axis if isinstance(axis, list) else [axis]
+        return _make.Reduce(combiner, expr, axis, where)
 
-def max(lhs, rhs=None, axis=None, where=None):
-    """Create a max expression.
+    def reducer(expr, axis, where=None, *args):
+        if isinstance(axis, (_schedule.IterVar, list)):
+            assert len(args) == 0
+            return _make_reduce(expr, axis, where)
+        else:
+            if where is None:
+                assert len(args) == 0
+                return _reduce_directly(expr, axis)
+            return _reduce_directly(expr, axis, where, *args)
 
-    Parameters
-    ----------
-    lhs : Expr
-        The left hand expression.
+    doc_str = """Create a {0} expression over axis.
+              Parameters
+              ----------
+              expr : Expr
+                  The source expression.
+              axis : IterVar
+                  The reduction IterVar axis
+              where : optional, Expr
+                  Filtering predicate of the reduction.
+              Returns
+              -------
+              value : Expr
+                  The result value.
 
-    rhs : Expr, optional
-        The right hand expression.
+              Example
+              -------
+              .. code-block:: python
+                m = tvm.var("m")
+                n = tvm.var("n")
+                A = tvm.placeholder((m, n), name="A")
+                k = tvm.reduce_axis((0, n), name="k")
 
-    axis : IterVar, optional
-        The reduction IterVar axis
+                # there are two way to use this {0} reducer:
+                # mode 1, accept (expr, axis, where) to produce an Reduce Expr
+                B = tvm.compute((m,), lambda i: {0}(A[i, k], axis=k), name="B")
 
-    where : optional, Expr
-        Filtering predicate of the reduction.
+                # mode 2, simply use it with multiple Exprs:
+                {0}_res = {0}(m, n)
+              """
+    reducer.__doc__ = doc_str.format(name)
+    return reducer
 
-    Returns
-    -------
-    value : Expr
-        The result value.
-    """
-    if rhs and axis:
-        raise ValueError("Can only take one argument, rhs or axis")
-    if isinstance(rhs, (_schedule.IterVar, list)):
-        axis, rhs = rhs, axis
-    if rhs:
-        return _make.Max(lhs, rhs)
-    axis = axis if isinstance(axis, list) else [axis]
-    x = _make.Reduce("Max", expr, axis, where)
-    return x
 
 _init_api("tvm.api")
+#pylint: disable=unnecessary-lambda
+sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
+min = comm_reducer(lambda x, y: _make.Min(x, y), max_value, name='min')
+max = comm_reducer(lambda x, y: _make.Max(x, y), min_value, name='max')

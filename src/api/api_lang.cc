@@ -13,6 +13,18 @@
 
 namespace tvm {
 
+TVM_REGISTER_API("_min_value")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    Type t = args[0].operator Type();
+    *ret = t.min();
+  });
+
+TVM_REGISTER_API("_max_value")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    Type t = args[0].operator Type();
+    *ret = t.max();
+  });
+
 TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     if (args[0].type_code() == kInt) {
@@ -342,6 +354,13 @@ TVM_REGISTER_API("_ScheduleRFactor")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
         .rfactor(args[1], args[2]);
+  });
+
+TVM_REGISTER_API("_CommReducerCombine")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    const ir::CommReducerNode* combiner =
+      args[0].operator ir::CommReducer().as<ir::CommReducerNode>();
+    *ret = (*combiner)(args[1], args[2]);
   });
 
 }  // namespace tvm

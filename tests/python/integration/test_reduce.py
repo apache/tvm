@@ -1,49 +1,55 @@
 import tvm
 import numpy as np
 
-def test_sum():
-    # graph
-    n = tvm.var('n')
-    m = tvm.var('m')
-    A = tvm.placeholder((n, m), name='A')
-    k = tvm.reduce_axis((0, m))
-    B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k, where=(i>1)), name='B')
-    # schedule
-    s = tvm.create_schedule(B.op)
-    # create iter var and assign them tags.
-    num_thread = 1
-    xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
-    s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+def test_reduce_prims():
+    def test_prim(reducer, np_reducer):
+        # graph
+        n = tvm.var('n')
+        m = tvm.var('m')
+        A = tvm.placeholder((n, m), name='A')
+        k = tvm.reduce_axis((0, m))
+        B = tvm.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(i>1)), name='B')
+        # schedule
+        s = tvm.create_schedule(B.op)
+        # create iter var and assign them tags.
+        num_thread = 1
+        xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
+        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
 
-    # one line to build the function.
-    def check_device(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
-            return
-        if not tvm.codegen.enabled(device):
-            return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
-        fsum = tvm.build(s,
-                         args=[A, B],
-                         target=device, target_host=host,
-                         name="mysum")
-        print(fsum.imported_modules[0].get_source())
-        # launch the kernel.
-        n = 1028
-        m = 129
-        a = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), ctx)
-        b  = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
-        fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=1)
-        res[:2] = 0
-        np.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        # one line to build the function.
+        def check_device(device, host="stackvm"):
+            if not tvm.codegen.enabled(host):
+                return
+            if not tvm.codegen.enabled(device):
+                return
+            ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+            freduce = tvm.build(s,
+                             args=[A, B],
+                             target=device, target_host=host,
+                             name="myreduce")
+            print(freduce.imported_modules[0].get_source())
+            # launch the kernel.
+            n = 1028
+            m = 129
+            x = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), ctx)
+            y = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+            freduce(x, y)
+            npy = y.asnumpy()
+            npy[:2] = 0
+            res = np_reducer(x.asnumpy(), axis=1)
+            res[:2] = 0
+            np.testing.assert_allclose(npy, res, rtol=1e-4)
 
-    if tvm.module.enabled("opencl"):
-        tvm.module.init_opencl()
+        if tvm.module.enabled("opencl"):
+            tvm.module.init_opencl()
 
-    check_device("cuda")
-    check_device("opencl")
+        check_device("cuda")
+        check_device("opencl")
+    test_prim(tvm.sum, np.sum)
+    test_prim(tvm.min, np.amin)
+    test_prim(tvm.max, np.amax)
+
 
 
 def test_rfactor():
@@ -127,4 +133,4 @@ def test_rfactor_threads():
 if __name__ == "__main__":
     test_rfactor_threads()
     test_rfactor()
-    test_sum()
+    test_reduce_prims()

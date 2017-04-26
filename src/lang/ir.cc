@@ -5,6 +5,7 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/ir.h>
+#include <tvm/ir_pass.h>
 #include <ir/IR.h>
 #include <ir/IRPrinter.h>
 #include <memory>
@@ -12,6 +13,7 @@
 namespace Halide {
 namespace Internal {
 
+using tvm::ir::CommReducerNode;
 using tvm::ir::Reduce;
 using tvm::ir::AttrStmt;
 
@@ -22,8 +24,8 @@ void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Reduce>([](const Reduce *op, IRPrinter *p) {
-  p->stream << "reduce("
-            << op->op
+  p->stream << "reduce(combiner="
+            << op->combiner
             << ", ";
   p->print(op->source);
   p->stream << ", axis=" << op->axis;
@@ -33,13 +35,37 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<CommReducerNode>([](const CommReducerNode *op, IRPrinter *p) {
+  p->stream << "comm_reducer(result="
+            << op->result
+            << ", args=" << op->args
+            << ", identity_element="
+            << op->identity_element
+            << ")";
+});
 }  // namespace Internal
 }  // namespace Halide
 
 namespace tvm {
 namespace ir {
 
-Expr Reduce::make(std::string op, Expr source,
+CommReducer CommReducerNode::make(Array<Var> args, Expr result, Expr identity_element) {
+  auto node = std::make_shared<CommReducerNode>();
+  node->args   = args;
+  node->result = result;
+  node->identity_element = identity_element;
+  return CommReducer(node);
+}
+
+Expr CommReducerNode::operator()(Expr a, Expr b) const {
+  Map<Var, Expr> value_map;
+  value_map.Set(args[0], a);
+  value_map.Set(args[1], b);
+  return Substitute(result, value_map);
+}
+
+Expr Reduce::make(CommReducer combiner, Expr source,
                   Array<IterVar> axis, Expr condition) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
@@ -54,37 +80,11 @@ Expr Reduce::make(std::string op, Expr source,
     CHECK(axis[i].defined());
   }
   n->type = source.type();
+  n->combiner = combiner;
   n->source = source;
-  n->op = op;
   n->axis = axis;
   n->condition = condition;
   return Expr(n);
-}
-
-Expr Reduce::InitValue(const std::string& op, Type type) {
-  if (op == "Add") {
-    return make_zero(type);
-  } else if (op == "Max") {
-    return type.min();
-  } else if (op == "Min") {
-    return type.max();
-  } else {
-    LOG(FATAL) << "Unsupported reduction " << op;
-    return Expr();
-  }
-}
-
-Expr Reduce::Combine(const std::string& op, Expr a, Expr b) {
-  if (op == "Add") {
-    return Add::make(a, b);
-  } else if (op == "Max") {
-    return Max::make(a, b);
-  } else if (op == "Min") {
-    return Min::make(a, b);
-  } else {
-    LOG(FATAL) << "Unsupported reduction " << op;
-    return Expr();
-  }
 }
 
 TVM_REGISTER_NODE_TYPE(Reduce);
