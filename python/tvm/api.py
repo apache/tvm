@@ -447,7 +447,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             num = 2
         res = args[0]
         for i in range(num-1):
-          res = fcombine(res, args[i+1])
+            res = fcombine(res, args[i+1])
         return res
 
     def _make_reduce(expr, axis, where=None):
@@ -506,5 +506,5 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
 _init_api("tvm.api")
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda lhs, rhs: _make.Min(lhs, rhs), lambda t: max_value(t), name='min')
-max = comm_reducer(lambda lhs, rhs: _make.Max(lhs, rhs), lambda t: min_value(t), name='max')
+min = comm_reducer(lambda x, y: _make.Min(x, y), max_value, name='min')
+max = comm_reducer(lambda x, y: _make.Max(x, y), min_value, name='max')
