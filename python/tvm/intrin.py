@@ -157,8 +157,7 @@ def _rule_float_suffix(op):
         return call_pure_extern(op.dtype, "%sf" % op.name, *op.args)
     elif op.dtype == "float64":
         return call_pure_extern(op.dtype, op.name, *op.args)
-    else:
-        return op
+    return op
 
 
 def _rule_float_direct(op):
@@ -183,8 +182,7 @@ def _rule_float_direct(op):
     """
     if str(op.dtype).startswith("float"):
         return call_pure_extern(op.dtype, op.name, *op.args)
-    else:
-        return None
+    return None
 
 # opencl pattern for exp
 register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)

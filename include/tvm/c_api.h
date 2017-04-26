@@ -39,6 +39,24 @@ TVM_DLL int TVMCbArgToReturn(TVMValue* value, int code);
 TVM_DLL int TVMNodeFree(NodeHandle handle);
 
 /*!
+ * \brief Convert type key to type index.
+ * \param type_key The key of the type.
+ * \param out_index the corresponding type index.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMNodeTypeKey2Index(const char* type_key,
+                                 int* out_index);
+
+/*!
+ * \brief Get runtime type index of the node.
+ * \param handle the node handle.
+ * \param out_index the corresponding type index.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMNodeGetTypeIndex(NodeHandle handle,
+                                int* out_index);
+
+/*!
  * \brief get attributes given key
  * \param handle The node handle
  * \param key The attribute name

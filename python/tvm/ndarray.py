@@ -9,7 +9,7 @@ import numpy as _np
 
 from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
 from ._ffi.ndarray import cpu, gpu, opencl, vpi, empty, sync
-from ._ffi.ndarray import _init_ndarray_module
+from ._ffi.ndarray import _set_class_ndarray
 
 cl = opencl
 
@@ -49,5 +49,4 @@ def array(arr, ctx=cpu(0)):
     ret[:] = arr
     return ret
 
-
-_init_ndarray_module(NDArray)
+_set_class_ndarray(NDArray)

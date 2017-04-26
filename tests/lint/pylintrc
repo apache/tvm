@@ -9,7 +9,7 @@
 
 # Add files or directories to the blacklist. They should be base names, not
 # paths.
-ignore=CVS
+ignore=CVS, _cy2, _cy3
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
@@ -66,7 +66,6 @@ enable=indexing-exception,old-raise-syntax
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
 disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-disabled,star-args,pointless-except,bad-option-value,global-statement,fixme,suppressed-message,useless-suppression,locally-enabled,no-member,no-name-in-module,import-error,unsubscriptable-object,unbalanced-tuple-unpacking,undefined-variable,protected-access
-
 
 [REPORTS]
 

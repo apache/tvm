@@ -1,11 +1,11 @@
 #!/bin/bash
 
-if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-    if [ ${TASK} == "python_test" ] || [ ${TASK} == "all_test" ]; then
+if [ ${TASK} == "python_test" ] || [ ${TASK} == "all_test" ]; then
+    if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         brew update
         brew install python3
-        python -m pip install --user nose numpy
-        python3 -m pip install --user nose numpy
+        python -m pip install --user nose numpy cython
+        python3 -m pip install --user nose numpy cython
     fi
 fi
 

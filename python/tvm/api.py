@@ -4,13 +4,13 @@ from __future__ import absolute_import as _abs
 
 from numbers import Integral as _Integral
 
+from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
-from . import _base
 from . import make as _make
 from . import expr as _expr
 from . import tensor as _tensor
@@ -57,8 +57,8 @@ def convert(value):
 
     if callable(value):
         return _convert_tvm_func(value)
-    else:
-        return _convert_to_node(value)
+
+    return _convert_to_node(value)
 
 
 def load_json(json_str):
@@ -396,9 +396,9 @@ def thread_axis(dom=None, tag='', name=''):
     axis : IterVar
         The thread itervar.
     """
-    if isinstance(dom, _base.string_types):
+    if isinstance(dom, string_types):
         tag, dom = dom, None
-    if len(tag) == 0:
+    if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
     return _IterVar(dom, name, 1, tag)

@@ -93,8 +93,7 @@ class Tensor(NodeBase):
         op = self.op
         if op.num_outputs == 1:
             return op.name
-        else:
-            return "%s.v%d" % (op.name, self.value_index)
+        return "%s.v%d" % (op.name, self.value_index)
 
 
 class Operation(NodeBase):
