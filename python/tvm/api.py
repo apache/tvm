@@ -443,6 +443,17 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             1. accept (expr, axis, where) to produce an Reduce Expr on
         specified axis;
             2. simply use it with multiple Exprs.
+
+    Example
+    -------
+    .. code-block:: python
+        n = tvm.var('n')
+        m = tvm.var('m')
+        mysum = tvm.comm_reducer(lambda x, y: x+y,
+            lambda t: tvm.const(0, dtype=t), name="mysum")
+        A = tvm.placeholder((n, m), name='A')
+        k = tvm.reduce_axis((0, m), name='k')
+        B = tvm.compute((n,), lambda i: mysum(A[i, k], axis=k), name='B')
     """
     def _reduce_directly(*args):
         num = len(args)
@@ -512,6 +523,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
 
 _init_api("tvm.api")
+#pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _make.Min(x, y), max_value, name='min')
 max = comm_reducer(lambda x, y: _make.Max(x, y), min_value, name='max')
