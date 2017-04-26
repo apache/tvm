@@ -1,8 +1,8 @@
 """Arithmetic data structure and utility"""
 from __future__ import absolute_import as _abs
 
-from ._ctypes._node import NodeBase, register_node
-from ._ctypes._function import _init_api
+from ._ffi.node import NodeBase, register_node
+from ._ffi.function import _init_api
 from . import _api_internal
 
 class IntSet(NodeBase):

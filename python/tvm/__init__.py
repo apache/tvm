@@ -18,7 +18,7 @@ from . import ir_builder
 from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, cl, vpi
 
-from ._ctypes._function import Function
+from ._ffi.function import Function
 
 from ._base import TVMError
 from ._base import __version__

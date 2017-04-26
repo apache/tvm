@@ -1,7 +1,7 @@
 """Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
-from ._ctypes._function import ModuleBase, _init_module_module
-from ._ctypes._function import _init_api
+from ._ffi.function import ModuleBase, _init_module_module
+from ._ffi.function import _init_api
 
 
 class Module(ModuleBase):

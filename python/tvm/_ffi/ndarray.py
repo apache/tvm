@@ -8,7 +8,7 @@ import numpy as np
 
 from .._base import _LIB, check_call
 from .._base import c_array
-from ._types import TVMType, tvm_shape_index_t
+from .types import TVMType, tvm_shape_index_t
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""

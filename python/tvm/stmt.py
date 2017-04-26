@@ -14,7 +14,7 @@ Each statement node have subfields that can be visited from python side.
     assert(st.buffer_var == a)
 """
 from __future__ import absolute_import as _abs
-from ._ctypes._node import NodeBase, register_node
+from ._ffi.node import NodeBase, register_node
 
 class Stmt(NodeBase):
     pass

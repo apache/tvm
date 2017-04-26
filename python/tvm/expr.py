@@ -16,7 +16,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 """
 # pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
-from ._ctypes._node import NodeBase, register_node
+from ._ffi.node import NodeBase, register_node
 from . import make as _make
 
 class ExprOp(object):
