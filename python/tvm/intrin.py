@@ -3,7 +3,7 @@ from __future__ import absolute_import as _abs
 
 from .expr import Call as _Call
 from . import make as _make
-from ._ctypes._function import register_func as _register_func
+from ._ffi.function import register_func as _register_func
 from .api import convert
 
 def call_packed(*args):

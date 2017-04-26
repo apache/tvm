@@ -8,7 +8,7 @@ from . import make as _make
 from . import ir_pass as _pass
 from . import collections as _collections
 from ._base import string_types
-from ._ctypes._node import NodeGeneric
+from ._ffi.node import NodeGeneric
 
 class WithScope(object):
     """Auxiliary scope  with"""
