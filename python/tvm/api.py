@@ -438,7 +438,11 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     Returns
     -------
     reducer : function
-        A function which creates a reduce expression over axis
+        A function which creates a reduce expression over axis. There are two
+        to use it:
+            1. accept (expr, axis, where) to produce an Reduce Expr on
+        specified axis;
+            2. simply use it with multiple Exprs.
     """
     def _reduce_directly(*args):
         num = len(args)
@@ -464,12 +468,15 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         axis = axis if isinstance(axis, list) else [axis]
         return _make.Reduce(combiner, expr, axis, where)
 
-    def reducer(*args, **kwargs):
-        if len(kwargs) == 0 and len(args) >= 2 and \
-          not isinstance(args[1], (_schedule.IterVar, list)):
-            return _reduce_directly(*args)
+    def reducer(expr, axis, where=None, *args):
+        if isinstance(axis, (_schedule.IterVar, list)):
+            assert len(args) == 0
+            return _make_reduce(expr, axis, where)
         else:
-            return _make_reduce(*args, **kwargs)
+            if where is None:
+                assert len(args) == 0
+                return _reduce_directly(expr, axis)
+            return _reduce_directly(expr, axis, where, *args)
 
     doc_str = """Create a {0} expression over axis.
               Parameters
