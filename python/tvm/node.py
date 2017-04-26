@@ -4,6 +4,6 @@ Normally user do not need to touch this api.
 """
 # pylint: disable=unused-import
 from __future__ import absolute_import as _abs
-from ._ctypes._node import NodeBase, register_node
+from ._ffi.node import NodeBase, register_node
 
 Node = NodeBase

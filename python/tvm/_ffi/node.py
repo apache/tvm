@@ -10,8 +10,8 @@ from numbers import Number, Integral
 from .._base import _LIB, check_call
 from .._base import c_str, py_str, string_types
 from .. import _api_internal
-from ._types import TVMValue, TypeCode
-from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+from .types import TVMValue, TypeCode
+from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
 
 
 NodeHandle = ctypes.c_void_p

@@ -1,5 +1,5 @@
 """Code generation related functions."""
-from ._ctypes._function import _init_api
+from ._ffi.function import _init_api
 
 def build_module(lowered_func, target):
     """Build lowered_func into Module.

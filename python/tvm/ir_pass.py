@@ -6,6 +6,6 @@ The functions are automatically exported from C++ side via PackedFunc.
 Each api is a PackedFunc that can be called in a positional argument manner.
 You can read "include/tvm/pass.h" for the function signature of these functions.
 """
-from ._ctypes._function import _init_api
+from ._ffi.function import _init_api
 
 _init_api("tvm.ir_pass")

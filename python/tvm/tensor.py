@@ -1,7 +1,7 @@
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
-from ._ctypes._node import NodeBase, NodeGeneric, register_node, convert_to_node
+from ._ffi.node import NodeBase, NodeGeneric, register_node, convert_to_node
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr

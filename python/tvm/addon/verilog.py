@@ -8,8 +8,8 @@ import ctypes
 
 from .. import _api_internal
 from .._base import string_types
-from .._ctypes._node import NodeBase, register_node
-from .._ctypes._function import register_func
+from .._ffi.node import NodeBase, register_node
+from .._ffi.function import register_func
 from . import testing
 
 @register_node

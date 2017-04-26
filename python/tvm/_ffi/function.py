@@ -10,11 +10,11 @@ from numbers import Number, Integral
 
 from .._base import _LIB, check_call
 from .._base import c_str, py_str, string_types
-from ._types import TVMValue, TypeCode, TVMType, TVMByteArray
-from ._types import TVMPackedCFunc, TVMCFuncFinalizer
-from ._types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
-from ._node import NodeBase, NodeGeneric, convert_to_node
-from ._ndarray import NDArrayBase
+from .types import TVMValue, TypeCode, TVMType, TVMByteArray
+from .types import TVMPackedCFunc, TVMCFuncFinalizer
+from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+from .node import NodeBase, NodeGeneric, convert_to_node
+from .ndarray import NDArrayBase
 
 FunctionHandle = ctypes.c_void_p
 ModuleHandle = ctypes.c_void_p
@@ -57,7 +57,7 @@ def convert_to_tvm_func(pyfunc):
 
         if rv is not None:
             if isinstance(rv, tuple):
-                raise ValueError("PackedFunction can only support one reurn value")
+                raise ValueError("PackedFunction can only support one return value")
             temp_args = []
             values, tcodes, _ = _make_tvm_args((rv,), temp_args)
             if not isinstance(ret, TVMRetValueHandle):
@@ -84,15 +84,15 @@ def _make_tvm_args(args, temp_args):
     values = (TVMValue * num_args)()
     type_codes = (ctypes.c_int * num_args)()
     for i, arg in enumerate(args):
-        if arg is None:
+        if isinstance(arg, NodeBase):
+            values[i].v_handle = arg.handle
+            type_codes[i] = TypeCode.NODE_HANDLE
+        elif arg is None:
             values[i].v_handle = None
             type_codes[i] = TypeCode.NULL
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
             type_codes[i] = TypeCode.ARRAY_HANDLE
-        elif isinstance(arg, NodeBase):
-            values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.NODE_HANDLE
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
             type_codes[i] = TypeCode.INT

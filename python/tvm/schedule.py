@@ -1,11 +1,11 @@
 """The computation schedule api of TVM."""
 from __future__ import absolute_import as _abs
-from ._ctypes._node import NodeBase, register_node
+from ._ffi.node import NodeBase, register_node
 from . import _api_internal
 from . import tensor as _tensor
 from . import expr as _expr
 from . import collections as _collections
-from ._ctypes._function import _init_api
+from ._ffi.function import _init_api
 
 
 @register_node
