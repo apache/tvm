@@ -98,13 +98,13 @@ class ThreadAllreduceBuilder : public IRMutator {
   };
   // make allreduce.
   Stmt MakeAllreduce(const Store* op, const Call* call) {
+    CHECK(!reduce_combiner_.empty());
     const CommReducerNode *combiner = reduce_combiner_.back();
     Expr init  = combiner->identity_element;
     Expr value = call->args[0];
     Expr cond  = call->args[1];
     if (!is_one(cond)) {
-      value = Select::make(
-          cond, value, init);
+      value = Select::make(cond, value, init);
     }
 
     std::unordered_set<const Variable*> reduce_set;

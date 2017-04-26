@@ -27,7 +27,7 @@ struct CommReducerNode;
 
 struct CommReducer : public NodeRef {
   CommReducer() {}
-  CommReducer(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit CommReducer(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -68,7 +68,7 @@ struct CommReducerNode : public Node {
     v->Visit("identity_element", &identity_element);
   }
 
-  static constexpr const char* _type_key = "CommReducerNode";
+  static constexpr const char* _type_key = "CommReducer";
   TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
 };
 

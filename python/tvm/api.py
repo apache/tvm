@@ -429,18 +429,28 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
     Parameters
     ----------
-    fcombine : function(IRNode -> IRNode -> IRNode)
-        A binary function which takes two IRNode as input to return a IRNode.
+    fcombine : function(Expr -> Expr -> Expr)
+        A binary function which takes two Expr as input to return a Expr.
 
-    fidentity : function(DType -> IRNode)
-        A function which takes a type as input to return a const IRNode.
+    fidentity : function(str -> Expr)
+        A function which takes a type string as input to return a const Expr.
 
     Returns
     -------
     reducer : function
         A function which creates a reduce expression over axis
     """
-    def reducer(expr, axis, where=None):
+    def _reduce_directly(*args):
+        num = len(args)
+        # process `where` is None
+        if num == 3 and args[2] is None:
+            num = 2
+        res = args[0]
+        for i in range(num-1):
+          res = fcombine(res, args[i+1])
+        return res
+
+    def _make_reduce(expr, axis, where=None):
         expr = convert(expr)
         dtype = expr.dtype
         code = fcombine.__code__
@@ -450,9 +460,18 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         result = convert(result)
         id_elem = fidentity(dtype)
         assert isinstance(id_elem, _expr.Expr)
-        reducer_node = _make.CommReducerNode(arg_vars, result, id_elem)
-        return reducer_node(expr, axis, where)
-    doc_str = """Create a {0} expression over axis
+        combiner = _make.CommReducer(arg_vars, result, id_elem)
+        axis = axis if isinstance(axis, list) else [axis]
+        return _make.Reduce(combiner, expr, axis, where)
+
+    def reducer(*args, **kwargs):
+        if len(kwargs) == 0 and len(args) >= 2 and \
+          not isinstance(args[1], (_schedule.IterVar, list)):
+            return _reduce_directly(*args)
+        else:
+            return _make_reduce(*args, **kwargs)
+
+    doc_str = """Create a {0} expression over axis.
               Parameters
               ----------
               expr : Expr
@@ -465,6 +484,21 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               -------
               value : Expr
                   The result value.
+
+              Example
+              -------
+              .. code-block:: python
+                m = tvm.var("m")
+                n = tvm.var("n")
+                A = tvm.placeholder((m, n), name="A")
+                k = tvm.reduce_axis((0, n), name="k")
+
+                # there are two way to use this {0} reducer:
+                # mode 1, accept (expr, axis, where) to produce an Reduce Expr
+                B = tvm.compute((m,), lambda i: {0}(A[i, k], axis=k), name="B")
+
+                # mode 2, simply use it with multiple Exprs:
+                {0}_res = {0}(m, n)
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
