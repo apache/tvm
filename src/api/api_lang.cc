@@ -356,4 +356,11 @@ TVM_REGISTER_API("_ScheduleRFactor")
         .rfactor(args[1], args[2]);
   });
 
+TVM_REGISTER_API("_CommReducerCombine")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    const ir::CommReducerNode* combiner =
+      args[0].operator ir::CommReducer().as<ir::CommReducerNode>();
+    *ret = (*combiner)(args[1], args[2]);
+  });
+
 }  // namespace tvm

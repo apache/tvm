@@ -38,10 +38,14 @@ def test_tensor_comm_reducer():
     n = tvm.var('n')
     A = tvm.placeholder((m, n), name='A')
     k = tvm.reduce_axis((0, n), "k")
-    mysum = tvm.comm_reducer(lambda x, y: x+y, tvm.const(0, dtype=A.dtype))
-    mysum([m, n])
-    C = tvm.compute((m,), lambda i: mysum(T[i, k], axis=k))
+    mysum = tvm.comm_reducer(lambda x, y: x+y, lambda t: tvm.const(0, dtype=t))
+    C = tvm.compute((m,), lambda i: mysum(A[i, k], axis=k))
 
+def test_tensor_comm_reducer_overload():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    mysum = tvm.comm_reducer(lambda x, y: x+y, lambda t: tvm.const(0, dtype=t))
+    sum_res = mysum(m, n)
 
 def test_tensor_reduce():
     m = tvm.var('m')

@@ -13,7 +13,7 @@
 namespace Halide {
 namespace Internal {
 
-using tvm::ir::CommReducer;
+using tvm::ir::CommReducerNode;
 using tvm::ir::Reduce;
 using tvm::ir::AttrStmt;
 
@@ -24,7 +24,7 @@ void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Reduce>([](const Reduce *op, IRPrinter *p) {
-  p->stream << "reduce("
+  p->stream << "reduce(combiner="
             << op->combiner
             << ", ";
   p->print(op->source);
@@ -35,6 +35,15 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<CommReducerNode>([](const CommReducerNode *op, IRPrinter *p) {
+  p->stream << "comm_reducer(result="
+            << op->result
+            << ", args=" << op->args
+            << ", identity_element="
+            << op->identity_element
+            << ")";
+});
 }  // namespace Internal
 }  // namespace Halide
 

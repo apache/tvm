@@ -22,35 +22,66 @@ using Halide::Internal::IRNodeType;
 using Halide::Internal::ForType;
 using Halide::DeviceAPI;
 
-class CommReducer;
-struct CommReducerNode : public Node {
-  Array<Var> args;
-  Expr result;
-  Expr identity_element;
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("args", &args);
-    v->Visit("result", &result);
-  }
-  static CommReducer make(Array<Var> args, Expr result, Expr identity_element);
-  Expr operator()(Expr a, Expr b) const;
-  static constexpr const char* _type_key = "CommReducerNode";
-  TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
-};
+// Node container for CommReducer
+struct CommReducerNode;
 
 struct CommReducer : public NodeRef {
   CommReducer() {}
   CommReducer(std::shared_ptr<Node> n) : NodeRef(n) {}
-  inline const CommReducerNode* get() const {
-    return static_cast<CommReducerNode*>(node_.get());
-  }
-  inline const CommReducerNode* operator->() const {
-    return static_cast<CommReducerNode*>(node_.get());
-  }
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const CommReducerNode* get() const;
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const CommReducerNode* operator->() const;
+  /*! \brief type indicate the container type */
   using ContainerType = CommReducerNode;
 };
 
+/*!
+ * \brief A commutative reducer node to represent a commutative
+ *  binary operator with identity element
+ */
+struct CommReducerNode : public Node {
+  /*! \brief The arguments of reducer */
+  Array<Var> args;
+  /*! \brief The result of reducer */
+  Expr result;
+  /*!
+   * \brief The identity element of reducer, which leaves other
+   *  elements unchanged when combined with it, with respect to
+   *  the binary operation of this reducer uses.
+   */
+  Expr identity_element;
+  /*! \brief Function call operator to combine a and b */
+  Expr operator()(Expr a, Expr b) const;
+  /*! \brief construct CommReducer from args, result and identity_element */
+  static CommReducer make(Array<Var> args, Expr result, Expr identity_element);
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("args", &args);
+    v->Visit("result", &result);
+    v->Visit("identity_element", &identity_element);
+  }
+
+  static constexpr const char* _type_key = "CommReducerNode";
+  TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
+};
+
+inline const CommReducerNode* CommReducer::get() const {
+  return static_cast<CommReducerNode*>(node_.get());
+}
+inline const CommReducerNode* CommReducer::operator->() const {
+  return static_cast<CommReducerNode*>(node_.get());
+}
+
 /*! \brief Reduction operator operator */
 struct Reduce : public ExprNode<Reduce> {
+  /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
   Expr source;
@@ -99,27 +130,19 @@ struct TensorKey {
 /*! \brief namespace of possible attribute sin AttrStmt.type_key */
 namespace attr {
 // The above attr does not pass to ir stage.
-/*!
- * \brief Mark launching extent of thread, used by device API.
- */
+/*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
-/*!
- * \brief Mark launching of a virtual thread.
- */
+/*! \brief Mark launching of a virtual thread. */
 constexpr const char* virtual_thread = "virtual_thread";
-/*!
- * \brief Mark the scope as volatile access for certain handle.
- */
+/*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
-/*!
- * \brief Mark storage scope of buffers
- */
+/*! \brief Mark storage scope of buffers */
 constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
-
+/*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";

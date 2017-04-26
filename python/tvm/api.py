@@ -424,8 +424,24 @@ def reduce_axis(dom, name="rv"):
     return _IterVar(dom, name, 2)
 
 
-def comm_reducer(fcombine, fidentity):
+def comm_reducer(fcombine, fidentity, name="reduce"):
+    """Create a commutative reducer for reduction.
+
+    Parameters
+    ----------
+    fcombine : function(IRNode -> IRNode -> IRNode)
+        A binary function which takes two IRNode as input to return a IRNode.
+
+    fidentity : function(DType -> IRNode)
+        A function which takes a type as input to return a const IRNode.
+
+    Returns
+    -------
+    reducer : function
+        A function which creates a reduce expression over axis
+    """
     def reducer(expr, axis, where=None):
+        expr = convert(expr)
         dtype = expr.dtype
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
@@ -436,10 +452,25 @@ def comm_reducer(fcombine, fidentity):
         assert isinstance(id_elem, _expr.Expr)
         reducer_node = _make.CommReducerNode(arg_vars, result, id_elem)
         return reducer_node(expr, axis, where)
+    doc_str = """Create a {0} expression over axis
+              Parameters
+              ----------
+              expr : Expr
+                  The source expression.
+              axis : IterVar
+                  The reduction IterVar axis
+              where : optional, Expr
+                  Filtering predicate of the reduction.
+              Returns
+              -------
+              value : Expr
+                  The result value.
+              """
+    reducer.__doc__ = doc_str.format(name)
     return reducer
 
 
 _init_api("tvm.api")
-sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t))
-min = comm_reducer(lambda lhs, rhs: _make.Min(lhs, rhs), lambda t: max_value(t))
-max = comm_reducer(lambda lhs, rhs: _make.Max(lhs, rhs), lambda t: min_value(t))
+sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
+min = comm_reducer(lambda lhs, rhs: _make.Min(lhs, rhs), lambda t: max_value(t), name='min')
+max = comm_reducer(lambda lhs, rhs: _make.Max(lhs, rhs), lambda t: min_value(t), name='max')

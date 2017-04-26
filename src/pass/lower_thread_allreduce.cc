@@ -108,7 +108,7 @@ class ThreadAllreduceBuilder : public IRMutator {
     }
 
     std::unordered_set<const Variable*> reduce_set;
-    for (size_t i = 3; i < call->args.size(); ++i) {
+    for (size_t i = 2; i < call->args.size(); ++i) {
       const Variable* v = call->args[i].as<Variable>();
       CHECK(v);
       reduce_set.insert(v);

@@ -6,6 +6,7 @@ from . import tensor as _tensor
 from . import expr as _expr
 from . import collections as _collections
 from ._ctypes._function import _init_api
+from .expr import IterVar
 
 
 @register_node
@@ -22,28 +23,6 @@ class Split(NodeBase):
 class Fuse(NodeBase):
     """Fuse operation on axis."""
     pass
-
-@register_node
-class IterVar(NodeBase, _expr.ExprOp):
-    """Represent iteration variable.
-
-    IterVar is normally created by Operation, to represent
-    axis iterations in the computation.
-    It can also created by schedule primitives like :any:`tvm.schedule.Stage.split`.
-
-    See Also
-    --------
-    tvm.thread_axis: Create thread axis IterVar.
-    tvm.reduce_axis: Create reduce axis IterVar.
-    """
-    DataPar = 0
-    ThreadIndex = 1
-    CommReduce = 2
-    Ordered = 3
-    DimInfo = 4
-    Unrolled = 5
-    Vectorized = 6
-    Parallelized = 7
 
 _tensor.iter_var_cls = IterVar
 
