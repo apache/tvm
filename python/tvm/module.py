@@ -1,6 +1,6 @@
 """Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
-from ._ffi.function import ModuleBase, _init_module_module
+from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
 
 
@@ -97,4 +97,4 @@ def enabled(target):
 
 
 _init_api("tvm.module")
-_init_module_module(Module)
+_set_class_module(Module)

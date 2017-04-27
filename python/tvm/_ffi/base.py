@@ -4,11 +4,11 @@
 from __future__ import absolute_import
 
 import sys
+import os
 import ctypes
 import numpy as np
 from . import libinfo
 
-__all__ = ['TVMError']
 #----------------------------
 # library loading
 #----------------------------
@@ -25,7 +25,7 @@ else:
 
 
 class TVMError(Exception):
-    """Error that will be throwed by all functions"""
+    """Error thrown by TVM function"""
     pass
 
 def _load_lib():
@@ -40,9 +40,11 @@ def _load_lib():
 __version__ = libinfo.__version__
 # library instance of nnvm
 _LIB = _load_lib()
+# The FFI mode of TVM
+_FFI_MODE = os.environ.get("TVM_FFI", "auto")
 
 #----------------------------
-# helper function definition
+# helper function in ctypes.
 #----------------------------
 def check_call(ret):
     """Check the return value of C API call

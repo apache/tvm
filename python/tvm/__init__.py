@@ -19,9 +19,7 @@ from . import ndarray as nd
 from .ndarray import cpu, gpu, opencl, cl, vpi
 
 from ._ffi.function import Function
-
-from ._base import TVMError
-from ._base import __version__
+from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
 from .node import register_node

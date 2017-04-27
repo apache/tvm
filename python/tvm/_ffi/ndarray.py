@@ -1,14 +1,67 @@
 # pylint: disable=invalid-name, protected-access, too-many-arguments,  global-statement
 # pylint: disable=attribute-defined-outside-init, no-member, missing-docstring
-"""Symbolic configuration API."""
+"""Runtime NDArray api"""
 from __future__ import absolute_import
-
 import ctypes
 import numpy as np
+from .base import _LIB, check_call, c_array
 
-from .._base import _LIB, check_call
-from .._base import c_array
-from .types import TVMType, tvm_shape_index_t
+tvm_shape_index_t = ctypes.c_int64
+
+class TVMByteArray(ctypes.Structure):
+    """Temp data structure for byte array."""
+    _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)),
+                ("size", ctypes.c_size_t)]
+
+class TVMType(ctypes.Structure):
+    """TVM datatype structure"""
+    _fields_ = [("type_code", ctypes.c_uint8),
+                ("bits", ctypes.c_uint8),
+                ("lanes", ctypes.c_uint16)]
+    CODE2STR = {
+        0 : 'int',
+        1 : 'uint',
+        2 : 'float',
+        4 : 'handle'
+    }
+    def __init__(self, type_str, lanes=1):
+        super(TVMType, self).__init__()
+        if isinstance(type_str, np.dtype):
+            type_str = str(type_str)
+        if type_str.startswith("int"):
+            self.type_code = 0
+            bits = int(type_str[3:])
+        elif type_str.startswith("uint"):
+            self.type_code = 1
+            bits = int(type_str[4:])
+        elif type_str.startswith("float"):
+            self.type_code = 2
+            bits = int(type_str[5:])
+        elif type_str.startswith("handle"):
+            self.type_code = 4
+            bits = 64
+        else:
+            raise ValueError("Donot know how to handle type %s" % type_str)
+
+        bits = 32 if bits == 0 else bits
+        if (bits & (bits - 1)) != 0 or bits < 8:
+            raise ValueError("Donot know how to handle type %s" % type_str)
+        self.bits = bits
+        self.lanes = lanes
+
+    def __repr__(self):
+        x = "%s%d" % (TVMType.CODE2STR[self.type_code], self.bits)
+        if self.lanes != 1:
+            x += "x%d" % self.lanes
+        return x
+
+    def __eq__(self, other):
+        return (self.bits == other.bits and
+                self.type_code == other.type_code and
+                self.lanes == other.lanes)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
@@ -104,10 +157,6 @@ def numpyasarray(np_data):
     arr.ctx = cpu(0)
     return arr, shape
 
-
-_ndarray_cls = None
-
-
 def empty(shape, dtype="float32", ctx=cpu(0)):
     """Create an empty array given shape and device
 
@@ -133,7 +182,7 @@ def empty(shape, dtype="float32", ctx=cpu(0)):
     dtype = TVMType(dtype)
     check_call(_LIB.TVMArrayAlloc(
         shape, ndim, dtype, ctx, ctypes.byref(handle)))
-    return _ndarray_cls(handle)
+    return _CLASS_NDARRAY(handle)
 
 
 def sync(ctx):
@@ -253,7 +302,8 @@ class NDArrayBase(object):
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
 
+_CLASS_NDARRAY = None
 
-def _init_ndarray_module(ndarray_class):
-    global _ndarray_cls
-    _ndarray_cls = ndarray_class
+def _set_class_ndarray(cls):
+    global _CLASS_NDARRAY
+    _CLASS_NDARRAY = cls
