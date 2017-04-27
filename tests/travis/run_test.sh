@@ -55,6 +55,7 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "all_test" ]; then
         python -m nose -v tests/python/unittest || exit -1
         python3 -m nose -v tests/python/unittest || exit -1
         make cython || exit -1
+        make cython3 || exit -1
         TVM_FFI=cython python -m nose -v tests/python/unittest || exit -1
         TVM_FFI=cython python3 -m nose -v tests/python/unittest || exit -1
     else
