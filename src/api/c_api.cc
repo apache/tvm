@@ -113,10 +113,18 @@ int TVMCbArgToReturn(TVMValue* value, int code) {
   API_END();
 }
 
-int TVMNodeDupe(NodeHandle handle, NodeHandle* out_handle) {
+int TVMNodeTypeKey2Index(const char* type_key,
+                         int* out_index) {
   API_BEGIN();
+  *out_index = static_cast<int>(Node::TypeKey2Index(type_key));
+  API_END();
+}
 
-  *out_handle = new TVMAPINode(*static_cast<TVMAPINode*>(handle));
+int TVMNodeGetTypeIndex(NodeHandle handle,
+                        int* out_index) {
+  API_BEGIN();
+  *out_index = static_cast<int>(
+      (*static_cast<TVMAPINode*>(handle))->type_index());
   API_END();
 }
 

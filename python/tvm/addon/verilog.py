@@ -7,7 +7,7 @@ import os
 import ctypes
 
 from .. import _api_internal
-from .._base import string_types
+from .._ffi.base import string_types
 from .._ffi.node import NodeBase, register_node
 from .._ffi.function import register_func
 from . import testing
@@ -23,7 +23,10 @@ class VPISession(NodeBase):
 
     def __del__(self):
         self.proc.kill()
-        super(VPISession, self).__del__()
+        try:
+            super(VPISession, self).__del__()
+        except AttributeError:
+            pass
 
     def arg(self, index):
         """Get handle passed to host session.
@@ -143,10 +146,9 @@ def find_file(file_name):
     ver_path = search_path()
     flist = [os.path.join(p, file_name) for p in ver_path]
     found = [p for p in flist if os.path.exists(p) and os.path.isfile(p)]
-    if len(found):
-        return found[0]
-    else:
+    if not found:
         raise ValueError("Cannot find %s in %s" % (file_name, flist))
+    return found[0]
 
 
 def compile_file(file_name, file_target, options=None):

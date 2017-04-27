@@ -11,7 +11,7 @@ endif
 include $(config)
 
 # specify tensor path
-.PHONY: clean all test doc pylint cpplint lint verilog
+.PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3
 
 all: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
 
@@ -95,8 +95,6 @@ lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-
-
 lib/libtvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
@@ -116,6 +114,19 @@ lint: cpplint pylint
 
 doc:
 	doxygen docs/Doxyfile
+
+# Cython build
+cython:
+	cd python; python setup.py build_ext --inplace
+
+cython2:
+	cd python; python2 setup.py build_ext --inplace
+
+cython3:
+	cd python; python3 setup.py build_ext --inplace
+
+cyclean:
+	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.cpp
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d

@@ -7,7 +7,9 @@ import subprocess
 runtime_py = """
 import os
 import sys
+
 os.environ["TVM_USE_RUNTIME_LIB"] = "1"
+os.environ["TVM_FFI"] = "ctypes"
 import tvm
 import numpy as np
 path_dso = sys.argv[1]

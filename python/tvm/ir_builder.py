@@ -7,7 +7,7 @@ from . import expr as _expr
 from . import make as _make
 from . import ir_pass as _pass
 from . import collections as _collections
-from ._base import string_types
+from ._ffi.base import string_types
 from ._ffi.node import NodeGeneric
 
 class WithScope(object):
@@ -89,7 +89,7 @@ class IRBuilder(object):
     def _pop_seq(self):
         """Pop sequence from stack"""
         seq = self._seq_stack.pop()
-        if len(seq) == 0 or callable(seq[-1]):
+        if not seq or callable(seq[-1]):
             seq.append(_make.Evaluate(0))
         stmt = seq[-1]
         for s in reversed(seq[:-1]):
@@ -232,7 +232,7 @@ class IRBuilder(object):
             with ib.else_scope():
                 x[i] = x[i - 1] + 2
         """
-        if len(self._seq_stack[-1]) == 0:
+        if not self._seq_stack[-1]:
             raise RuntimeError("else_scope can only follow an if_scope")
         prev = self._seq_stack[-1][-1]
         if not isinstance(prev, _stmt.IfThenElse) or prev.else_case:
@@ -317,7 +317,7 @@ class IRBuilder(object):
            The result statement.
         """
         seq = self._pop_seq()
-        if len(self._seq_stack) != 0:
+        if self._seq_stack:
             raise RuntimeError("cannot call get inside construction scope")
         return seq
 

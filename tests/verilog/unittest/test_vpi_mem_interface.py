@@ -73,10 +73,10 @@ def test_ram_read():
     # yield until read is done
     for i in range(a.shape[0] * 3):
         sess.yield_until_next_cycle()
+    sess.shutdown()
     # check if result matches
     r = np.concatenate((a_np, a_np[2:]))
     np.testing.assert_equal(np.array(reader.data), r)
-
 
 def test_ram_write():
     n = 10
@@ -122,7 +122,7 @@ def test_ram_write():
     # yield until write is done
     for i in range(a.shape[0]+2):
         sess.yield_until_next_cycle()
-
+    sess.shutdown()
     # check if result matches
     np.testing.assert_equal(a.asnumpy()[2:], r_data)
 
