@@ -1,4 +1,4 @@
-"""Util to compile with C++ code"""
+"""Util to invoke c++ compilers in the system."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 import sys

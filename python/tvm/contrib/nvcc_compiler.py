@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name
-"""Util to compile with NVCC"""
+"""Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
 import os
 import sys
