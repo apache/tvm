@@ -38,7 +38,8 @@ def test_add_pipeline():
     px, x = s[C].split(C.op.axis[0], nparts=1)
     s[C].bind(px, tvm.thread_axis("pipeline"))
     fapi = lower(s, [A, B, C], "myadd")
-    fsplits = tvm.ir_pass.SplitHostDevice(fapi)
+    fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
+    fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
     print(fsplits[1].body)
     print("------")
 

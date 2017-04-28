@@ -252,6 +252,13 @@ LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
 LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
 
 /*!
+ * \brief Lower packed function call.
+ * \param f The function to be lowered.
+ * \return Transformed function.
+ */
+LoweredFunc LowerPackedCall(LoweredFunc f);
+
+/*!
  * \brief Lower intrinsic function calls.
  * \param f The device function to be lowered.
  * \param target The target device.

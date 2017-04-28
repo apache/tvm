@@ -245,7 +245,6 @@ Expr max(Expr source, Array<IterVar> axis);
  */
 Expr min(Expr source, Array<IterVar> axis);
 
-
 // print functions for expr
 std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
 

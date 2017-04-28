@@ -56,13 +56,6 @@ class CodeGenStackVM
    */
   int64_t PushOp(StackVM::OpCode opcode, int operand);
   /*!
-   * \brief Push a call packed function.
-   * \param fid The function id.
-   * \param arg_type_codes The type codes of arguments.
-   */
-  void PushCallPacked(int fid,
-                      const std::vector<int>& arg_type_codes);
-  /*!
    * \brief Set the relative jump offset to be offset.
    * \param operand_index The indexed returned by PushOp.
    * \param operand The operand to be set.

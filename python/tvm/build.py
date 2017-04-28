@@ -146,7 +146,7 @@ def build(sch,
     warp_size = 32 if target == "cuda" else 1
     fapi = ir_pass.LowerThreadAllreduce(fapi, warp_size)
     fsplits = [s for s in ir_pass.SplitHostDevice(fapi)]
-
+    fsplits[0] = ir_pass.LowerPackedCall(fsplits[0])
     if len(fsplits) > 1:
         if not target_host:
             target_host = "llvm" if codegen.enabled("llvm") else "stackvm"

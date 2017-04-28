@@ -55,24 +55,33 @@ class StackVM {
     EQ_F64,
     LT_F64,
     LE_F64,
-    // load operation
-    ADDR_LOAD_UINT32,
-    ADDR_LOAD_INT32,
-    ADDR_LOAD_INT64,
-    ADDR_LOAD_FP64,
-    ADDR_LOAD_HANDLE,
-    // store operations
-    // *(stack[sp - 1].v_andle) = stack[sp].v_int64
-    // sp = sp - 2;
-    ADDR_STORE_INT64,
     /*!
-     * \brief Quick routine to load uint32 from constant offset.
+     * \brief Routine to load data from address with const offset.
      * \code
-     *  stack[sp].v_int64 = ((uint32_t*)stack[sp].v_handle)[code[pc + 1].v_int];
+     *  stack[sp].v_int64 = ((DType*)stack[sp].v_handle)[code[pc + 1].v_int];
      *  pc = pc + 2;
      * \endcode
      */
     ARRAY_LOAD_UINT32,
+    ARRAY_LOAD_INT32,
+    ARRAY_LOAD_INT64,
+    ARRAY_LOAD_FP64,
+    ARRAY_LOAD_HANDLE,
+    ARRAY_LOAD_TVMVALUE,
+    /*!
+     * \brief Routine to store data from constant offset.
+     * \code
+     *  ((DType*)stack[sp - 1].v_handle)[code[pc + 1].v_int] = stack[sp];
+     *  pc = pc + 2;
+     *  sp = sp - 2;
+     * \endcode
+     */
+    ARRAY_STORE_UINT32,
+    ARRAY_STORE_INT32,
+    ARRAY_STORE_INT64,
+    ARRAY_STORE_FP64,
+    ARRAY_STORE_HANDLE,
+    ARRAY_STORE_TVMVALUE,
     // logical ops
     NOT,
     /*!
@@ -129,20 +138,6 @@ class StackVM {
      */
     SELECT,
     /*!
-     * \brief call an extern packed function
-     * \code
-     *  num_args = stack[sp].v_int64;
-     *  call_fid = code[pc + 1].v_int;
-     *  f = extern_func[call_fid];
-     *  int* type_codes = &(code[pc + 2].v_int)
-     *  stack[sp - num_args] = f(&stack[sp - num_args], type_codes, num_args);
-     *  sp = sp - num_args;
-     *  // The type codes are hidden in the code space.
-     *  pc = pc + 2 + num_args
-     * \endcode
-     */
-    CALL_PACKED_FUNC,
-    /*!
      * \brief Assert condition is true.
      * \code
      *  CHECK(stack[sp]) << str_data[code[pc + 1].v_int];
@@ -189,18 +184,56 @@ class StackVM {
      * \code
      */
     ASSERT_SP,
-    // Intrinsics for API function,
-    TVM_LOAD_ARG_INT64,
-    TVM_LOAD_ARG_FP64,
-    TVM_LOAD_ARG_HANDLE,
-    TVM_ARRAY_GET_DATA,
-    TVM_ARRAY_GET_SHAPE,
-    TVM_ARRAY_GET_STRIDES,
-    TVM_ARRAY_GET_NDIM,
-    TVM_ARRAY_GET_TYPE_CODE,
-    TVM_ARRAY_GET_TYPE_BITS,
-    TVM_ARRAY_GET_TYPE_LANES,
-    TVM_ARRAY_GET_BYTE_OFFSET
+    /*!
+     * \brief call an extern packed function
+     * \code
+     *  value_stack = stack[sp - 1].v_handle;
+     *  type_stack = stack[sp - 0].v_handle;
+     *  call_fid = code[pc + 1].v_int;
+     *  begin = code[pc + 2].v_int;
+     *  end = code[pc + 3].v_int;
+     *  num_args = end - begin - 1;
+     *  f = extern_func[call_fid];
+     *  stack[sp - 1] = f(&value_stack[begin:end-1], type_stack[begin:end-1], num_args);
+     *  sp = sp - 1;
+     *  // The type codes are hidden in the code space.
+     *  pc = pc + 4
+     * \endcode
+     */
+    CALL_PACKED_LOWERED,
+    // Allocate things on stack
+    /*!
+     * \brief allocate data from stack.
+     * \code
+     *  num = code[pc + 1].v_int;
+     *  void* addr = &stack[sp];
+     *  sp = sp + num;
+     *  stack[sp].v_handle = addr;
+     *  pc = pc + 1;
+     * \endcode
+     */
+    TVM_STACK_ALLOCA_BY_8BYTE,
+    /*!
+     * \brief get data from structure.
+     * \code
+     *  index = code[pc + 1].v_int;
+     *  field = code[pc + 2].v_int;
+     *  stack[sp] = ((StructType*)stack[sp].v_handle)[index]->field;
+     *  pc = pc + 3
+     * \endcode
+     */
+    TVM_STRUCT_GET,
+    /*!
+     * \brief set data into structure.
+     * \code
+     *  index = code[pc + 1].v_int;
+     *  field = code[pc + 2].v_int;
+     *  ((StructType*)stack[sp - 1].v_handle)[index]->field = stack[sp];
+     *  pc = pc + 3
+     *  sp = sp - 1
+     * \endcode
+     */
+    TVM_STRUCT_SET
   };
   /*! \brief The code structure */
   union Code {
@@ -276,23 +309,23 @@ class StackVM {
    */
   static OpCode GetLoad(TVMType t) {
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) return ADDR_LOAD_HANDLE;
+    if (t.code == kHandle) return ARRAY_LOAD_HANDLE;
     if (t.code == kInt) {
       switch (t.bits) {
-        case 32 : return ADDR_LOAD_INT32;
-        case 64 : return ADDR_LOAD_INT64;
+        case 32 : return ARRAY_LOAD_INT32;
+        case 64 : return ARRAY_LOAD_INT64;
       }
     } else if (t.code == kUInt) {
       switch (t.bits) {
-        case 32 : return ADDR_LOAD_UINT32;
+        case 32 : return ARRAY_LOAD_UINT32;
       }
     } else if (t.code == kFloat) {
       switch (t.bits) {
-        case 64 : return ADDR_LOAD_FP64;
+        case 64 : return ARRAY_LOAD_FP64;
       }
     }
     LOG(FATAL) << "Cannot load type " << t;
-    return ADDR_LOAD_FP64;
+    return ARRAY_LOAD_FP64;
   }
   /*!
    * \brief Get store opcode for type t
@@ -301,13 +334,23 @@ class StackVM {
    */
   static OpCode GetStore(TVMType t) {
     CHECK_EQ(t.lanes, 1U);
+    if (t.code == kHandle) return ARRAY_STORE_HANDLE;
     if (t.code == kInt) {
       switch (t.bits) {
-        case 64 : return ADDR_STORE_INT64;
+        case 32 : return ARRAY_STORE_INT32;
+        case 64 : return ARRAY_STORE_INT64;
+      }
+    } else if (t.code == kUInt) {
+      switch (t.bits) {
+        case 32 : return ARRAY_STORE_UINT32;
+      }
+    } else if (t.code == kFloat) {
+      switch (t.bits) {
+        case 64 : return ARRAY_STORE_FP64;
       }
     }
     LOG(FATAL) << "Cannot store type " << t;
-    return ADDR_LOAD_FP64;
+    return ARRAY_STORE_FP64;
   }
   friend std::ostream& operator<<(std::ostream& os, const StackVM& vm);  // NOLINT(*)
 

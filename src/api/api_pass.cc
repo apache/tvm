@@ -76,5 +76,6 @@ REGISTER_PASS2(SplitPipeline);
 REGISTER_PASS1(NarrowChannelAccess);
 REGISTER_PASS2(LowerThreadAllreduce);
 REGISTER_PASS2(LowerIntrin);
+REGISTER_PASS1(LowerPackedCall);
 }  // namespace ir
 }  // namespace tvm

@@ -94,7 +94,7 @@ class LLVMModuleNode : public runtime::ModuleNode {
 
   void Init(const Array<LoweredFunc>& funcs, std::string target) {
     InitializeLLVM();
-    std::tie(tm_, target_triple_) = LLVMGetTarget(target);
+    std::tie(tm_, target_triple_) = GetLLVMTarget(target);
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     CodeGenLLVM cg;

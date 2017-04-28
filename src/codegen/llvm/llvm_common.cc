@@ -37,7 +37,7 @@ void InitializeLLVM() {
 }
 
 std::pair<llvm::TargetMachine*, std::string>
-LLVMGetTarget(const std::string& target_str) {
+GetLLVMTarget(const std::string& target_str) {
   // setup target triple
   std::string target_triple;
   CHECK_EQ(target_str.substr(0, 4), "llvm");

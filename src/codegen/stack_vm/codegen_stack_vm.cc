@@ -70,25 +70,6 @@ int CodeGenStackVM::AllocVarID(const Variable* v) {
   return vid;
 }
 
-void CodeGenStackVM::PushCallPacked(
-    int fid, const std::vector<int>& arg_type_codes) {
-  StackVM::Code code;
-  // CALL_PACKED_FUNC
-  code.op_code = StackVM::CALL_PACKED_FUNC;
-  vm_.code.push_back(code);
-  // num_args
-  code.v_int = static_cast<int>(arg_type_codes.size());
-  vm_.code.push_back(code);
-  // fid
-  code.v_int = fid;
-  vm_.code.push_back(code);
-  // type codes.
-  for (int tcode : arg_type_codes) {
-    code.v_int = tcode;
-    vm_.code.push_back(code);
-  }
-}
-
 int CodeGenStackVM::GetVarID(const Variable* v) const {
   auto it = var_idmap_.find(v);
   CHECK(it != var_idmap_.end())
@@ -97,26 +78,33 @@ int CodeGenStackVM::GetVarID(const Variable* v) const {
 }
 
 void CodeGenStackVM::VisitExpr_(const Load* op) {
-  this->PushOp(StackVM::LOAD_HEAP, GetVarID(op->buffer_var.get()));
-  if (op->type == UInt(32) && op->index.as<IntImm>()) {
-    this->PushOp(StackVM::ARRAY_LOAD_UINT32, op->index.as<IntImm>()->value);
+  this->Push(op->buffer_var);
+  StackVM::OpCode code = StackVM::GetLoad(Type2TVMType(op->type));
+  if (const IntImm* index = op->index.as<IntImm>()) {
+    this->PushOp(code, op->index.as<IntImm>()->value);
   } else {
     this->Push(op->index);
     this->PushOp(StackVM::PUSH_I64, op->type.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
-    this->PushOp(StackVM::GetLoad(Type2TVMType(op->type)));
+    this->PushOp(code, 0);
   }
 }
 
 void CodeGenStackVM::VisitStmt_(const Store* op) {
-  this->PushOp(StackVM::LOAD_HEAP, GetVarID(op->buffer_var.get()));
-  this->Push(op->index);
-  this->PushOp(StackVM::PUSH_I64, op->value.type().element_of().bytes());
-  this->PushOp(StackVM::MUL_I64);
-  this->PushOp(StackVM::ADDR_ADD);
-  this->Push(op->value);
-  this->PushOp(StackVM::GetStore(Type2TVMType(op->value.type())));
+  this->Push(op->buffer_var);
+  StackVM::OpCode code = StackVM::GetStore(Type2TVMType(op->value.type()));
+  if (const IntImm* index = op->index.as<IntImm>()) {
+    this->Push(op->value);
+    this->PushOp(code, op->index.as<IntImm>()->value);
+  } else {
+    this->Push(op->index);
+    this->PushOp(StackVM::PUSH_I64, op->value.type().element_of().bytes());
+    this->PushOp(StackVM::MUL_I64);
+    this->PushOp(StackVM::ADDR_ADD);
+    this->Push(op->value);
+    this->PushOp(code, 0);
+  }
 }
 
 void CodeGenStackVM::VisitStmt_(const Allocate* op) {
@@ -141,41 +129,29 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
     this->PushOp(StackVM::PUSH_I64, l->type.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
-  } else if (op->is_intrinsic(intrinsic::tvm_api_load_arg)) {
+  } else if (op->is_intrinsic(Call::null_handle)) {
+    this->PushOp(StackVM::PUSH_I64, 0);
+  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
+    int kind = op->args[2].as<IntImm>()->value;
     this->Push(op->args[0]);
-    this->Push(op->args[1]);
-    this->Push(op->args[2]);
-    if (op->type.is_handle()) {
-      this->PushOp(StackVM::TVM_LOAD_ARG_HANDLE);
-    } else if (op->type.is_float()) {
-      this->PushOp(StackVM::TVM_LOAD_ARG_FP64);
-    } else if (op->type.is_int() || op->type.is_uint()) {
-      this->PushOp(StackVM::TVM_LOAD_ARG_INT64);
-    } else {
-      LOG(FATAL) << "donot know how to handle type" << op->type;
-    }
-  } else if (op->is_intrinsic(intrinsic::tvm_array_get_field)) {
-    CHECK_EQ(op->args.size(), 2U);
-    this->Push(op->args[0]);
-    switch (op->args[1].as<IntImm>()->value) {
-      case intrinsic::kData: PushOp(StackVM::TVM_ARRAY_GET_DATA); break;
-      case intrinsic::kShape: PushOp(StackVM::TVM_ARRAY_GET_SHAPE); break;
-      case intrinsic::kStrides: PushOp(StackVM::TVM_ARRAY_GET_STRIDES); break;
-      case intrinsic::kNDim: PushOp(StackVM::TVM_ARRAY_GET_NDIM); break;
-      case intrinsic::kTypeCode: PushOp(StackVM::TVM_ARRAY_GET_TYPE_CODE); break;
-      case intrinsic::kTypeBits: PushOp(StackVM::TVM_ARRAY_GET_TYPE_BITS); break;
-      case intrinsic::kTypeLanes: PushOp(StackVM::TVM_ARRAY_GET_TYPE_LANES); break;
-      case intrinsic::kByteOffset: PushOp(StackVM::TVM_ARRAY_GET_BYTE_OFFSET); break;
-      default: LOG(FATAL) << "unknown field code";
-    }
-  } else if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
-    CHECK_GE(op->args.size(), 1U);
+    const IntImm* index = op->args[1].as<IntImm>();
+    CHECK(index != nullptr);
+    StackVM::Code code;
+    code.op_code = StackVM::TVM_STRUCT_GET;
+    vm_.code.push_back(code);
+    code.v_int = index->value;
+    vm_.code.push_back(code);
+    code.v_int = kind;
+    vm_.code.push_back(code);
+  } else if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
+    CHECK_GE(op->args.size(), 5U);
     const StringImm* s = op->args[0].as<StringImm>();
     CHECK(s != nullptr) << "tvm_call_global expect first argument as function name";
-    for (size_t i = 1; i < op->args.size(); ++i) {
-      this->Push(op->args[i]);
-    }
+    this->Push(op->args[1]);
+    this->Push(op->args[2]);
+    int begin = op->args[3].as<IntImm>()->value;
+    int end = op->args[4].as<IntImm>()->value;
     // find the fuction id.
     const std::string& func_name = s->value;
     auto it = extern_fun_idmap_.find(func_name);
@@ -187,16 +163,39 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
       vm_.extern_func_name.push_back(func_name);
       extern_fun_idmap_[func_name] = fid;
     }
-    // get the argument type code.
-    std::vector<int> arg_type_codes;
-    for (size_t i = 1; i < op->args.size(); ++i) {
-      Type t = op->args[i].type();
-      int code = t.code();
-      int lanes = t.lanes();
-      CHECK_EQ(lanes, 1);
-      arg_type_codes.push_back(code);
+    // CALL_PACKED_FUNC
+    StackVM::Code code;
+    code.op_code = StackVM::CALL_PACKED_LOWERED;
+    vm_.code.push_back(code);
+    code.v_int = fid;
+    vm_.code.push_back(code);
+    code.v_int = begin;
+    vm_.code.push_back(code);
+    code.v_int = end;
+    vm_.code.push_back(code);
+  } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
+    CHECK_EQ(op->args.size(), 2U);
+    const std::string& type = op->args[0].as<StringImm>()->value;
+    const IntImm* num = op->args[1].as<IntImm>();
+    CHECK(num != nullptr);
+    static_assert(alignof(TVMValue) % alignof(TVMArray) == 0, "invariant");
+    static_assert(alignof(TVMValue) % alignof(tvm_index_t) == 0, "invariant");
+    size_t unit = sizeof(TVMValue);
+    size_t size = 0;
+    if (type == "shape") {
+      size = (num->value * sizeof(tvm_index_t) + unit - 1) / unit;
+    } else if (type == "arg_value") {
+      size = (num->value * sizeof(TVMValue) + unit - 1) / unit;
+    } else if (type == "arg_tcode") {
+      size = (num->value * sizeof(int) + unit - 1) / unit;
+    } else if (type == "array") {
+      size = (num->value * sizeof(TVMArray) + unit - 1) / unit;
+    } else {
+      LOG(FATAL) << "Unknown stack alloca type " << type;
     }
-    this->PushCallPacked(fid, arg_type_codes);
+    // add stack size to be safe.
+    vm_.stack_size += size;
+    this->PushOp(StackVM::TVM_STACK_ALLOCA_BY_8BYTE, static_cast<int>(size));
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
     this->Push(op->args[0]);
@@ -389,10 +388,26 @@ void CodeGenStackVM::VisitStmt_(const Block *op) {
   if (op->rest.defined()) this->Push(op->rest);
 }
 
-void CodeGenStackVM::VisitStmt_(const Evaluate *op) {
-  if (is_const(op->value)) return;
-  this->Push(op->value);
-  this->PushOp(StackVM::POP);
+void CodeGenStackVM::VisitStmt_(const Evaluate *ev) {
+  if (is_const(ev->value)) return;
+  const Call* op = ev->value.as<Call>();
+  if (op && op->is_intrinsic(intrinsic::tvm_struct_set)) {
+    CHECK_EQ(op->args.size(), 4U);
+    this->Push(op->args[0]);
+    this->Push(op->args[3]);
+    const IntImm* index = op->args[1].as<IntImm>();
+    CHECK(index != nullptr);
+    StackVM::Code code;
+    code.op_code = StackVM::TVM_STRUCT_SET;
+    vm_.code.push_back(code);
+    code.v_int = index->value;
+    vm_.code.push_back(code);
+    code.v_int = op->args[2].as<IntImm>()->value;
+    vm_.code.push_back(code);
+  } else {
+    this->Push(ev->value);
+    this->PushOp(StackVM::POP);
+  }
 }
 
 void CodeGenStackVM::VisitStmt_(const IfThenElse *op) {
