@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import nvcc_compiler
+from tvm.contrib import nvcc_compiler
 import numpy as np
 
 def test_gemm():

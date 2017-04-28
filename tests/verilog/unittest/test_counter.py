@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import verilog
+from tvm.contrib import verilog
 
 def test_counter():
     # Start a new session by run simulation on test_counter.v

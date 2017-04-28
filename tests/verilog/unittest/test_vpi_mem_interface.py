@@ -1,6 +1,6 @@
 import tvm
 import numpy as np
-from tvm.addon import verilog
+from tvm.contrib import verilog
 
 class FIFOReader(object):
     """Auxiliary class to read from FIFO """

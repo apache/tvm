@@ -437,15 +437,17 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     Returns
     -------
     reducer : function
-        A function which creates a reduce expression over axis. There are two
-        to use it:
-            1. accept (expr, axis, where) to produce an Reduce Expr on
-        specified axis;
-            2. simply use it with multiple Exprs.
+        A function which creates a reduce expression over axis.
+        There are two to use it:
+
+        1. accept (expr, axis, where) to produce an Reduce Expr on
+           specified axis;
+        2. simply use it with multiple Exprs.
 
     Example
     -------
     .. code-block:: python
+
         n = tvm.var('n')
         m = tvm.var('m')
         mysum = tvm.comm_reducer(lambda x, y: x+y,
@@ -480,15 +482,15 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
     def reducer(expr, axis, where=None, *args):
         if isinstance(axis, (_schedule.IterVar, list)):
-            assert len(args) == 0
+            assert not args
             return _make_reduce(expr, axis, where)
-        else:
-            if where is None:
-                assert len(args) == 0
-                return _reduce_directly(expr, axis)
-            return _reduce_directly(expr, axis, where, *args)
+        if where is None:
+            assert not args
+            return _reduce_directly(expr, axis)
+        return _reduce_directly(expr, axis, where, *args)
 
     doc_str = """Create a {0} expression over axis.
+
               Parameters
               ----------
               expr : Expr
@@ -505,6 +507,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               Example
               -------
               .. code-block:: python
+
                 m = tvm.var("m")
                 n = tvm.var("n")
                 A = tvm.placeholder((m, n), name="A")

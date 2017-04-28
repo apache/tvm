@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import verilog
+from tvm.contrib import verilog
 from testing_util import FIFODelayedWriter, FIFODelayedReader
 
 def run_with_lag(n, read_lag, write_lag):

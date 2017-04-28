@@ -1,6 +1,6 @@
 import tvm
 import os
-from tvm.addon import nvcc_compiler
+from tvm.contrib import nvcc_compiler
 import numpy as np
 
 TASK="gemm"

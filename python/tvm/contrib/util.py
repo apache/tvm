@@ -1,11 +1,14 @@
-"""Utilities to make tempdir"""
+"""Common system utilities"""
 from __future__ import absolute_import as _abs
 import os
 import tempfile
 import shutil
 
 class TempDirectory(object):
-    """Helper object to manage temp directory during testing"""
+    """Helper object to manage temp directory during testing.
+
+    Automatically removes the directory when it went out of scope.
+    """
     def __init__(self):
         self.temp_dir = tempfile.mkdtemp()
 
@@ -19,15 +22,26 @@ class TempDirectory(object):
         ----------
         name : str
             The name of the file.
+
+        Returns
+        -------
+        path : str
+            The concatenated path.
         """
         return os.path.join(self.temp_dir, name)
 
     def listdir(self):
-        """"List contents in the dir"""
+        """"List contents in the dir.
+
+        Returns
+        -------
+        names : list
+            The content of directory
+        """
         return os.listdir(self.temp_dir)
 
 def tempdir():
-    """Return a new temp dir which deletes the contents when exit
+    """Create temp dir which deletes the contents when exit.
 
     Returns
     -------

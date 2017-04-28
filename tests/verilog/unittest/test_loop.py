@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import verilog
+from tvm.contrib import verilog
 
 def test_loop():
     sess = verilog.session([

@@ -79,15 +79,12 @@ def test_add():
     s[C].vectorize(x)
 
     # one line to build the function.
-    def check_device(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
-            print("skip because %s is not enabled.." % host)
-            return
+    def check_device(device):
         if not tvm.codegen.enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fadd = tvm.build(s, [A, B, C],
-                         device, host,
+                         device,
                          name="myadd")
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         # launch the kernel.
@@ -101,7 +98,7 @@ def test_add():
 
     if tvm.module.enabled("opencl"):
         tvm.module.init_opencl()
-    check_device("cuda", "llvm")
+    check_device("cuda")
     check_device("opencl")
 
 

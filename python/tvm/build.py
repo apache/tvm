@@ -81,7 +81,7 @@ def lower(sch,
 def build(sch,
           args=None,
           target="llvm",
-          target_host="stackvm",
+          target_host=None,
           name="default_function",
           binds=None,
           max_auto_unroll_step=8,
@@ -101,6 +101,12 @@ def build(sch,
 
     target_host : str, optional
         Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
 
     name : str, optional
         The name of result function.
@@ -142,6 +148,8 @@ def build(sch,
     fsplits = [s for s in ir_pass.SplitHostDevice(fapi)]
 
     if len(fsplits) > 1:
+        if not target_host:
+            target_host = "llvm" if codegen.enabled("llvm") else "stackvm"
         mhost = codegen.build_module(fsplits[0], target_host)
         if target:
             mdev = codegen.build_module(fsplits[1:], target)

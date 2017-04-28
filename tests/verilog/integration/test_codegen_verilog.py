@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import testing, verilog
+from tvm.contrib import verilog
 import numpy as np
 
 def lower(s, args, name):

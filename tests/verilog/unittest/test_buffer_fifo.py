@@ -1,6 +1,6 @@
 import tvm
 import numpy as np
-from tvm.addon import verilog
+from tvm.contrib import verilog
 
 def test_buffer_fifo():
     # Test the tvm_buffer.v module as a fifo

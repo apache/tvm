@@ -16,6 +16,7 @@ The user facing API for computation declaration.
    tvm.decl_buffer
    tvm.reduce_axis
    tvm.thread_axis
+   tvm.comm_reducer
    tvm.sum
    tvm.min
    tvm.max
@@ -32,6 +33,7 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.decl_buffer
 .. autofunction:: tvm.reduce_axis
 .. autofunction:: tvm.thread_axis
+.. autofunction:: tvm.comm_reducer
 .. autofunction:: tvm.sum
 .. autofunction:: tvm.min
 .. autofunction:: tvm.max
