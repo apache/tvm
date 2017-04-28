@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import testing
+from tvm.contrib import util
 import numpy as np
 
 def test_add_pipeline():
@@ -57,7 +57,7 @@ def test_add_pipeline():
         fmt = "ptx" if device == "cuda" else "cl"
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
-        temp = testing.tempdir()
+        temp = util.tempdir()
         mpath = temp.relpath("test.%s" % fmt)
         mdev.save(mpath)
         mdev2 = tvm.module.load(mpath)

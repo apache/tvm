@@ -1,5 +1,5 @@
 import tvm
-from tvm.addon import cc_compiler as cc, testing
+from tvm.contrib import cc_compiler as cc, util
 import os
 import numpy as np
 import subprocess
@@ -25,7 +25,7 @@ def test_dso_module_load():
     if not tvm.codegen.enabled("llvm"):
         return
     dtype = 'int64'
-    temp = testing.tempdir()
+    temp = util.tempdir()
 
     def save_object(names):
         n = tvm.var('n')

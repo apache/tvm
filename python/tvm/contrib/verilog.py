@@ -10,7 +10,7 @@ from .. import _api_internal
 from .._ffi.base import string_types
 from .._ffi.node import NodeBase, register_node
 from .._ffi.function import register_func
-from . import testing
+from . import util
 
 @register_node
 class VPISession(NodeBase):
@@ -201,8 +201,7 @@ def session(file_names, codes=None):
     """
     if isinstance(file_names, string_types):
         file_names = [file_names]
-
-    path = testing.tempdir()
+    path = util.tempdir()
 
     if codes:
         if isinstance(codes, (list, tuple)):

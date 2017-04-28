@@ -1,6 +1,6 @@
 import tvm
 import numpy as np
-from tvm.addon import verilog
+from tvm.contrib import verilog
 
 def test_buffer_linebuff():
     # Test the tvm_buffer.v module as a line buffer

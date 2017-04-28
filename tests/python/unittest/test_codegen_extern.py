@@ -5,15 +5,16 @@ def test_add_pipeline():
     nn = 1024
     n = tvm.convert(nn)
     A = tvm.placeholder((n,), name='A')
+
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
-        i = tvm.var('i')
-        stmt = tvm.make.For(
-            i, 0, n, 0, 0,
-            tvm.make.Store(outs[0].data,
-                           tvm.make.Load(A.dtype, ins[0].data, i) +
-                           1, i))
-        return stmt
+        ib = tvm.ir_builder.create()
+        dout = ib.buffer_ptr(outs[0])
+        din = ib.buffer_ptr(ins[0])
+        with ib.for_range(0, n) as i:
+            dout[i] = din[i] + 1
+        return ib.get()
+
     C = tvm.extern(A.shape, [A], extern_generator, name='C')
     s = tvm.create_schedule(C.op)
 

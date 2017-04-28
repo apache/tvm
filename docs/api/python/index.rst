@@ -13,4 +13,5 @@ Python API
    ndarray
    collection
    function
+   contrib
    dev

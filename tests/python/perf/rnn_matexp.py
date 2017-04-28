@@ -11,7 +11,7 @@ import tvm
 import time
 import os
 import argparse
-from tvm.addon import nvcc_compiler
+from tvm.contrib import nvcc_compiler
 import numpy as np
 
 # Quick knobs

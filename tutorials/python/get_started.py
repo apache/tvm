@@ -175,10 +175,10 @@ print(dev_module.get_source())
 # - Then it saves the device module into a ptx file.
 # - cc.create_shared calls a env compiler(gcc) to create a shared library
 #
-from tvm.addon import cc_compiler as cc
-from tvm.addon import testing
+from tvm.contrib import cc_compiler as cc
+from tvm.contrib import util
 
-temp = testing.tempdir()
+temp = util.tempdir()
 fadd_cuda.save(temp.relpath("myadd.o"))
 fadd_cuda.imported_modules[0].save(temp.relpath("myadd.ptx"))
 cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
