@@ -70,7 +70,6 @@ setuptools.setup(
         ],
     zip_safe=False,
     packages=[
-        'tvm', 'tvm.addon',
         'tvm._ffi', 'tvm._ffi._ctypes',
         'tvm._ffi._cy2', 'tvm._ffi._cy3'
     ],

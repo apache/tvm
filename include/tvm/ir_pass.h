@@ -84,6 +84,13 @@ Stmt CanonicalSimplify(Stmt stmt);
  * \return The converted form.
  */
 Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map);
+
+/*!
+ * \brief Substitute the var specified in key->var to be value.
+ * \param expr The source expression to be substituted
+ * \param value_map The map of new values.
+ * \return The converted expression.
+ */
 Expr Substitute(Expr expr, const Map<Var, Expr>& value_map);
 
 /*!
