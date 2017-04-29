@@ -23,10 +23,12 @@ handle = "handle"
 
 
 def min_value(dtype):
+    """minimum value of dtype"""
     return _api_internal._min_value(dtype)
 
 
 def max_value(dtype):
+    """maximum value of dtype"""
     return _api_internal._max_value(dtype)
 
 
@@ -438,7 +440,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     -------
     reducer : function
         A function which creates a reduce expression over axis.
-        There are two to use it:
+        There are two ways to use it:
 
         1. accept (expr, axis, where) to produce an Reduce Expr on
            specified axis;

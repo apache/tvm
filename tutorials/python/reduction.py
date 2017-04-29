@@ -125,9 +125,27 @@ np.testing.assert_allclose(
     b.asnumpy(),  np.sum(a.asnumpy(), axis=1), rtol=1e-4)
 
 ######################################################################
+# Define General Commutative Reduction Operation
+# ----------------------------------------------
+# Besides the built-in reduction operations like :any:`tvm.sum`,
+# :any:`tvm.min` and :any:`tvm.max`, you can also define your
+# commutative reduction operation by :any:`tvm.comm_reducer`.
+#
+
+n = tvm.var('n')
+m = tvm.var('m')
+product = tvm.comm_reducer(lambda x, y: x*y,
+    lambda t: tvm.const(1, dtype=t), name="product")
+A = tvm.placeholder((n, m), name='A')
+k = tvm.reduce_axis((0, m), name='k')
+B = tvm.compute((n,), lambda i: product(A[i, k], axis=k), name='B')
+
+
+######################################################################
 # Summary
 # -------
 # This tutorial provides a walk through of reduction schedule.
 #
 # - Describe reduction with reduce_axis.
 # - Use rfactor to factor out axis if we need parallelism.
+# - Define new reduction operation by :any:`tvm.comm_reducer`
