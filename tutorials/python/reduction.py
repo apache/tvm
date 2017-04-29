@@ -127,7 +127,7 @@ np.testing.assert_allclose(
 ######################################################################
 # Define General Commutative Reduction Operation
 # ----------------------------------------------
-# Except the built-in reduction operations like :any:`tvm.sum`,
+# Besides the built-in reduction operations like :any:`tvm.sum`,
 # :any:`tvm.min` and :any:`tvm.max`, you can also define your
 # commutative reduction operation by :any:`tvm.comm_reducer`.
 #
