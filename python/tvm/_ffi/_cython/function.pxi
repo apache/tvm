@@ -4,7 +4,7 @@ from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types
 from ..node_generic import convert_to_node, NodeGeneric
-from ..ndarray import NDArrayBase, TVMType, TVMByteArray
+from ..ndarray import NDArrayBase, TVMType, TVMByteArray, _make_array
 
 print("TVM: Initializing cython mode...")
 
@@ -29,7 +29,10 @@ cdef int tvm_callback(TVMValue* args,
             tcode == kFuncHandle or
             tcode == kModuleHandle):
             CALL(TVMCbArgToReturn(&value, tcode))
-        pyargs.append(make_ret(value, tcode))
+        if tcode != kArrayHandle:
+            pyargs.append(make_ret(value, tcode))
+        else:
+            pyargs.append(_make_array(ctypes_handle(value.v_handle), True))
     try:
         rv = local_pyfunc(*pyargs)
     except Exception:
@@ -64,7 +67,9 @@ def convert_to_tvm_func(object pyfunc):
                                 <void*>(pyfunc),
                                 tvm_callback_finalize,
                                 &chandle))
-    return _CLASS_FUNCTION(ctypes_handle(chandle), False)
+    ret = _CLASS_FUNCTION(None, False)
+    (<FunctionBase>ret).chandle = chandle
+    return ret
 
 
 cdef inline void make_arg(object arg,
