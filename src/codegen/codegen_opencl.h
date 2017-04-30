@@ -24,11 +24,11 @@ class CodeGenOpenCL : public CodeGenC {
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
   void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
-  std::string GetVecLoad(const Variable* buffer,
-                         Type t, Expr base) final;
+  std::string GetVecLoad(Type t, const Variable* buffer,
+                         Expr base) final;
   void PrintVecStore(const Variable* buffer,
-                      Type t, Expr base,
-                      const std::string& value) final;  // NOLINT(*)
+                     Type t, Expr base,
+                     const std::string& value) final;  // NOLINT(*)
   // the address of load/store
   void PrintVecAddr(const Variable* buffer, Type t,
                     Expr base, std::ostream& os);  // NOLINT(*)

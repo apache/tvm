@@ -4,6 +4,7 @@
  * \file stack_vm.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ir.h>
 #include "./stack_vm.h"
 
 namespace tvm {
@@ -21,56 +22,48 @@ StackVM::State* StackVM::ThreadLocalState() {
     sp -= 1; pc += 1;                                             \
   }
 
-#define STACK_VM_CMPOP(OP, FIELD)                                 \
-  {                                                               \
+#define STACK_VM_CMPOP(OP, FIELD)                                   \
+  {                                                                 \
     stack[sp - 1].v_int64 = stack[sp - 1].FIELD OP stack[sp].FIELD; \
-    sp -= 1; pc += 1;                                             \
+    sp -= 1; pc += 1;                                               \
   }
 
 #define STACK_VM_LOAD(FIELD, DST_TYPE, SRC_TYPE)                        \
   {                                                                     \
-    stack[sp].FIELD = static_cast<DST_TYPE>(                            \
-        *static_cast<SRC_TYPE*>(stack[sp].v_handle));                   \
-    pc += 1;                                                            \
+    int index = code[pc + 1].v_int;                                     \
+    stack[sp]FIELD = static_cast<DST_TYPE>(                             \
+        static_cast<SRC_TYPE*>(stack[sp].v_handle)[index]);             \
+    pc += 2;                                                            \
   }
 
 #define STACK_VM_STORE(FIELD, DST_TYPE)                                 \
   {                                                                     \
-    *static_cast<DST_TYPE*>(stack[sp - 1].v_handle) =                   \
-        static_cast<DST_TYPE>(stack[sp].FIELD);                         \
-    sp -= 2; pc += 1;                                                   \
+    int index = code[pc + 1].v_int;                                     \
+    static_cast<DST_TYPE*>(stack[sp - 1].v_handle)[index] =             \
+        static_cast<DST_TYPE>(stack[sp]FIELD);                          \
+    sp -= 2; pc += 2;                                                   \
   }
 
-#define STACK_VM_TVM_LOAD_ARG(OP, TYPE)                                 \
-  {                                                                     \
-    TVMValue* args = static_cast<TVMValue*>(stack[sp - 2].v_handle);    \
-    int64_t index = stack[sp].v_int64;                                  \
-    int tc = static_cast<int*>(stack[sp - 1].v_handle)[index];          \
-    CHECK(OP)                                                           \
-        << " argument " << index << " is expected to be " << TYPE;      \
-    stack[sp - 2] = args[index];                                        \
-    sp -= 2;                                                            \
-    pc += 1;                                                            \
-  }
-
-
-#define STACK_VM_TVM_ARRARY_GET(FIELD, TYPE, SFIELD)            \
-  {                                                             \
-    TVMArray* arr = static_cast<TVMArray*>(stack[sp].v_handle); \
-    stack[sp].FIELD = (TYPE)(arr->SFIELD);                      \
-    pc += 1;                                                    \
-  }
-
-#define STACK_VM_PRINT_CODE0(CODE)                          \
-  case CODE:  {                                               \
+#define STACK_VM_PRINT_CODE0(CODE)                            \
+  case CODE:  {                                                     \
     os << "[" << pc << "]\t" << #CODE << std::endl; return pc + 1;  \
   }
 
 #define STACK_VM_PRINT_CODE1(CODE)                                      \
   case CODE:  {                                                         \
     os << "[" << pc << "]\t" << #CODE << " " << code[pc + 1].v_int << "\n" \
-       <<  "[" << pc + 1 << "]" << std::endl;                               \
+       <<  "[" << pc + 1 << "]" << std::endl;                           \
         return pc + 2;                                                  \
+  }
+
+#define STACK_VM_PRINT_CODE2(CODE)                                      \
+  case CODE:  {                                                         \
+    os << "[" << pc << "]\t" << #CODE                                   \
+        << " " << code[pc + 1].v_int                                    \
+        << " " << code[pc + 2].v_int << "\n"                            \
+       <<  "[" << pc + 1 << "]" << std::endl                            \
+       <<  "[" << pc + 2 << "]" << std::endl;                           \
+        return pc + 3;                                                  \
   }
 
 #define STACK_VM_PRINT_HEAP_ACCESS(CODE)                                \
@@ -110,13 +103,18 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_CODE0(LT_F64);
     STACK_VM_PRINT_CODE0(LE_F64);
     // addressing load
-    STACK_VM_PRINT_CODE0(ADDR_LOAD_UINT32);
-    STACK_VM_PRINT_CODE0(ADDR_LOAD_INT32);
-    STACK_VM_PRINT_CODE0(ADDR_LOAD_INT64);
-    STACK_VM_PRINT_CODE0(ADDR_LOAD_FP64);
-    STACK_VM_PRINT_CODE0(ADDR_LOAD_HANDLE);
-    STACK_VM_PRINT_CODE0(ADDR_STORE_INT64);
     STACK_VM_PRINT_CODE1(ARRAY_LOAD_UINT32);
+    STACK_VM_PRINT_CODE1(ARRAY_LOAD_INT32);
+    STACK_VM_PRINT_CODE1(ARRAY_LOAD_INT64);
+    STACK_VM_PRINT_CODE1(ARRAY_LOAD_FP64);
+    STACK_VM_PRINT_CODE1(ARRAY_LOAD_HANDLE);
+    STACK_VM_PRINT_CODE1(ARRAY_LOAD_TVMVALUE);
+    STACK_VM_PRINT_CODE1(ARRAY_STORE_UINT32);
+    STACK_VM_PRINT_CODE1(ARRAY_STORE_INT32);
+    STACK_VM_PRINT_CODE1(ARRAY_STORE_INT64);
+    STACK_VM_PRINT_CODE1(ARRAY_STORE_FP64);
+    STACK_VM_PRINT_CODE1(ARRAY_STORE_HANDLE);
+    STACK_VM_PRINT_CODE1(ARRAY_STORE_TVMVALUE);
     STACK_VM_PRINT_CODE0(NOT);
     STACK_VM_PRINT_CODE0(ADDR_ADD);
     // stack ops
@@ -132,32 +130,24 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_JUMP(RJUMP);
     STACK_VM_PRINT_CODE1(ASSERT_SP);
     // Intrinsics
-    STACK_VM_PRINT_CODE0(TVM_LOAD_ARG_INT64);
-    STACK_VM_PRINT_CODE0(TVM_LOAD_ARG_FP64);
-    STACK_VM_PRINT_CODE0(TVM_LOAD_ARG_HANDLE);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_DATA);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_SHAPE);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_STRIDES);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_NDIM);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_BYTE_OFFSET);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_CODE);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_BITS);
-    STACK_VM_PRINT_CODE0(TVM_ARRAY_GET_TYPE_LANES);
+    STACK_VM_PRINT_CODE2(TVM_STRUCT_GET);
+    STACK_VM_PRINT_CODE2(TVM_STRUCT_SET);
+    // Allocate data by 8 bytes.
+    STACK_VM_PRINT_CODE1(TVM_STACK_ALLOCA_BY_8BYTE);
     // packed function.
-    case CALL_PACKED_FUNC: {
-      int num_args = code[pc + 1].v_int;
+    case CALL_PACKED_LOWERED: {
+      int call_fid = code[pc + 1].v_int;
+      int begin = code[pc + 2].v_int;
+      int end = code[pc + 3].v_int;
       os << "[" << pc << "]\tCALL_PACKED_FUNC "
-         << " num_args=" << num_args
-         << " fid=" << code[pc + 2].v_int;
-      os << " type_codes:";
-      for (int i = 0; i < num_args; ++i) {
-        os << ' ' << code[pc + 3 + i].v_int;
-      }
+         << " fid=" << call_fid
+         << " begin=" << begin
+         << " end=" << end;
       os << '\n';
-      for (int i = 0; i < num_args + 2; ++i) {
-        os << "[" << pc + 1 << "]" << std::endl;
+      for (int i = 0; i < 3; ++i) {
+        os << "[" << pc + 1 + i << "]" << std::endl;
       }
-      return pc + 3 + num_args;
+      return pc + 4;
     }
   }
   LOG(FATAL) << "unknown op code " << code[pc].op_code;
@@ -193,6 +183,7 @@ void StackVM::operator()(const runtime::TVMArgs& args) const {
 void StackVM::Run(State* s) const {
   int64_t sp = s->sp;
   int64_t pc = s->pc;
+  int64_t alloca_sp = s->sp;
   std::vector<TVMValue>& stack = s->stack;
   std::vector<TVMValue>& heap = s->heap;
   s->extern_func.clear();
@@ -223,21 +214,24 @@ void StackVM::Run(State* s) const {
       case LT_F64: STACK_VM_CMPOP(<, v_float64); break;
       case LE_F64: STACK_VM_CMPOP(<=, v_float64); break;
       // addressing
-      case ADDR_LOAD_UINT32: STACK_VM_LOAD(v_int64, int64_t, uint32_t); break;
-      case ADDR_LOAD_INT32: STACK_VM_LOAD(v_int64, int64_t, int32_t); break;
-      case ADDR_LOAD_INT64: STACK_VM_LOAD(v_int64, int64_t, int64_t); break;
-      case ADDR_LOAD_FP64: STACK_VM_LOAD(v_float64, double, double); break;
-      case ADDR_LOAD_HANDLE: STACK_VM_LOAD(v_handle, void*, void*); break;
-      case ADDR_STORE_INT64: STACK_VM_STORE(v_int64, int64_t); break;
+      case ARRAY_LOAD_UINT32: STACK_VM_LOAD(.v_int64, int64_t, uint32_t); break;
+      case ARRAY_LOAD_INT32: STACK_VM_LOAD(.v_int64, int64_t, int32_t); break;
+      case ARRAY_LOAD_INT64: STACK_VM_LOAD(.v_int64, int64_t, int64_t); break;
+      case ARRAY_LOAD_FP64: STACK_VM_LOAD(.v_float64, double, double); break;
+      case ARRAY_LOAD_HANDLE: STACK_VM_LOAD(.v_handle, void*, void*); break;
+      case ARRAY_LOAD_TVMVALUE: STACK_VM_LOAD(, TVMValue, TVMValue); break;
+      // store
+      case ARRAY_STORE_UINT32: STACK_VM_STORE(.v_int64, uint32_t); break;
+      case ARRAY_STORE_INT32: STACK_VM_STORE(.v_int64, int32_t); break;
+      case ARRAY_STORE_INT64: STACK_VM_STORE(.v_int64, int64_t); break;
+      case ARRAY_STORE_FP64: STACK_VM_STORE(.v_float64, double); break;
+      case ARRAY_STORE_HANDLE: STACK_VM_STORE(.v_handle, void*); break;
+      case ARRAY_STORE_TVMVALUE: STACK_VM_STORE(, TVMValue); break;
+      // add
       case ADDR_ADD: {
         stack[sp - 1].v_handle = (char*)(stack[sp - 1].v_handle) + stack[sp].v_int64;  // NOLINT(*)
         sp = sp - 1;
         pc = pc + 1;
-        break;
-      }
-      case ARRAY_LOAD_UINT32: {
-        stack[sp].v_int64 = ((uint32_t*)stack[sp].v_handle)[code[pc + 1].v_int];  // NOLINT(*)
-        pc = pc + 2;
         break;
       }
       case NOT: {
@@ -282,21 +276,6 @@ void StackVM::Run(State* s) const {
         pc += 2;
         break;
       }
-      case CALL_PACKED_FUNC: {
-        // call packed function.
-        int num_args = code[pc + 1].v_int;
-        int call_fid = code[pc + 2].v_int;
-        static_assert(sizeof(Code) == sizeof(int) &&
-                      alignof(Code) == alignof(int), "asusmption");
-        const int* type_codes = &(code[pc].v_int) + 3;
-        runtime::TVMRetValue rv;
-        GetExtern(s, call_fid).CallPacked(
-            runtime::TVMArgs(&stack[sp + 1 - num_args], type_codes, num_args), &rv);
-        sp = sp + 1 - num_args;
-        stack[sp] = rv.value();
-        pc += 3 + num_args;
-        break;
-      }
       case ASSERT: {
         CHECK(stack[sp].v_int64) << str_data[code[pc + 1].v_int];
         sp -= 1;
@@ -331,41 +310,145 @@ void StackVM::Run(State* s) const {
         pc += 2;
         break;
       }
-      case TVM_LOAD_ARG_INT64: {
-        STACK_VM_TVM_LOAD_ARG(tc == kInt, "int"); break;
+      case CALL_PACKED_LOWERED: {
+        // call packed function.
+        TVMValue* value_stack = static_cast<TVMValue*>(stack[sp - 1].v_handle);
+        int* type_stack = static_cast<int*>(stack[sp].v_handle);
+        int call_fid = code[pc + 1].v_int;
+        int begin = code[pc + 2].v_int;
+        int end = code[pc + 3].v_int;
+        int num_args = end - begin;
+        static_assert(sizeof(Code) == sizeof(int) &&
+                      alignof(Code) == alignof(int), "asusmption");
+        runtime::TVMRetValue rv;
+        GetExtern(s, call_fid).CallPacked(
+            runtime::TVMArgs(value_stack + begin, type_stack + begin, num_args), &rv);
+        sp = sp - 1;
+        stack[sp] = rv.value();
+        pc += 4;
+        break;
       }
-      case TVM_LOAD_ARG_FP64: {
-        STACK_VM_TVM_LOAD_ARG(tc == kFloat, "float"); break;
+      // intrinsics
+      case TVM_STRUCT_GET: {
+        using namespace ir;
+        int index = code[pc + 1].v_int;
+        int kind = code[pc + 2].v_int;
+        TVMArray* arr = static_cast<TVMArray*>(stack[sp].v_handle);
+        switch (kind) {
+          case intrinsic::kArrData: {
+            stack[sp].v_handle = arr[index].data; break;
+          }
+          case intrinsic::kArrShape: {
+            stack[sp].v_handle = arr[index].shape; break;
+          }
+          case intrinsic::kArrStrides: {
+            stack[sp].v_handle = arr[index].strides; break;
+          }
+          case intrinsic::kArrNDim: {
+            stack[sp].v_int64 = arr[index].ndim; break;
+          }
+          case intrinsic::kArrTypeCode: {
+            stack[sp].v_int64 = static_cast<int64_t>(
+                arr[index].dtype.code); break;
+          }
+          case intrinsic::kArrTypeBits: {
+            stack[sp].v_int64 = static_cast<int64_t>(
+                arr[index].dtype.bits); break;
+          }
+          case intrinsic::kArrTypeLanes: {
+            stack[sp].v_int64 = static_cast<int64_t>(
+                arr[index].dtype.lanes); break;
+          }
+          case intrinsic::kArrByteOffset: {
+            stack[sp].v_int64 = static_cast<int64_t>(
+                arr[index].byte_offset); break;
+            break;
+          }
+          case intrinsic::kArrDeviceId: {
+            stack[sp].v_int64 = arr[index].ctx.device_id; break;
+          }
+          case intrinsic::kArrDeviceType: {
+            stack[sp].v_int64 = static_cast<int64_t>(
+                arr[index].ctx.device_type); break;
+          }
+          case intrinsic::kArrAddr: {
+            stack[sp].v_handle = arr + index; break;
+          }
+          case intrinsic::kTVMValueContent: {
+            stack[sp] = static_cast<TVMValue*>(stack[sp].v_handle)[index]; break;
+          }
+          default: LOG(FATAL) << "unhandled get " << kind;
+        }
+        pc = pc + 3;
+        break;
       }
-      case TVM_LOAD_ARG_HANDLE: {
-        STACK_VM_TVM_LOAD_ARG(
-            tc == kHandle || tc == kNull || tc == kArrayHandle, "handle"); break;
+      case TVM_STRUCT_SET: {
+        using namespace ir;
+        int index = code[pc + 1].v_int;
+        int kind = code[pc + 2].v_int;
+        TVMArray* arr = static_cast<TVMArray*>(stack[sp - 1].v_handle);
+        switch (kind) {
+          case intrinsic::kArrData: {
+            arr[index].data = stack[sp].v_handle; break;
+          }
+          case intrinsic::kArrShape: {
+            arr[index].shape = static_cast<int64_t*>(stack[sp].v_handle);
+            break;
+          }
+          case intrinsic::kArrStrides: {
+            arr[index].strides = static_cast<int64_t*>(stack[sp].v_handle);
+            break;
+          }
+          case intrinsic::kArrNDim: {
+            arr[index].ndim = static_cast<int>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kArrTypeCode: {
+            arr[index].dtype.code = static_cast<uint8_t>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kArrTypeBits: {
+            arr[index].dtype.bits = static_cast<uint8_t>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kArrTypeLanes: {
+            arr[index].dtype.lanes = static_cast<uint16_t>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kArrByteOffset: {
+            arr[index].byte_offset = static_cast<uint64_t>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kArrDeviceId: {
+            arr[index].ctx.device_id = static_cast<int>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kArrDeviceType: {
+            arr[index].ctx.device_type = static_cast<DLDeviceType>(stack[sp].v_int64);
+            break;
+          }
+          case intrinsic::kTVMValueContent: {
+            static_cast<TVMValue*>(stack[sp - 1].v_handle)[index] = stack[sp]; break;
+          }
+          default: LOG(FATAL) << "unhandled tvm_struct_set " << kind;
+        }
+        sp -= 2;
+        pc += 3;
+        break;
       }
-      case TVM_ARRAY_GET_DATA: {
-        STACK_VM_TVM_ARRARY_GET(v_handle, void*, data); break;
-      }
-      case TVM_ARRAY_GET_SHAPE: {
-        STACK_VM_TVM_ARRARY_GET(v_handle, void*, shape); break;
-      }
-      case TVM_ARRAY_GET_STRIDES: {
-        STACK_VM_TVM_ARRARY_GET(v_handle, void*, strides); break;
-      }
-      case TVM_ARRAY_GET_NDIM: {
-        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, ndim); break;
-      }
-      case TVM_ARRAY_GET_BYTE_OFFSET: {
-        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, byte_offset); break;
-      }
-      case TVM_ARRAY_GET_TYPE_CODE: {
-        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.code); break;
-      }
-      case TVM_ARRAY_GET_TYPE_BITS: {
-        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.bits); break;
-      }
-      case TVM_ARRAY_GET_TYPE_LANES: {
-        STACK_VM_TVM_ARRARY_GET(v_int64, int64_t, dtype.lanes); break;
+      // alloca
+      case TVM_STACK_ALLOCA_BY_8BYTE: {
+        static_assert(sizeof(TVMValue) == 8, "invariance");
+        int num = code[pc + 1].v_int;
+        void* addr = &stack[sp] + 1;
+        sp = sp + num + 1;
+        alloca_sp = sp - 1;
+        stack[sp].v_handle = addr;
+        pc = pc + 2;
+        break;
       }
     }
+    CHECK_GE(sp, alloca_sp) << "touch allocated space";
     CHECK_LT(sp, stack_cap) << "Stack overflow";
   }
 }

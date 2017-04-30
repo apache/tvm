@@ -1,21 +1,56 @@
 """Intrinsics and math functions in TVM."""
 from __future__ import absolute_import as _abs
 
-from .expr import Call as _Call
-from . import make as _make
 from ._ffi.function import register_func as _register_func
-from .api import convert
+from . import make as _make
+from .api import convert, const
+from .expr import Call as _Call
+from .schedule import Buffer as _Buffer
+
+def _pack_buffer(buf):
+    """Build intrinsics that packs the buffer.
+    """
+    assert buf.shape
+    shape = _make.Call("handle", "tvm_stack_make_shape", buf.shape,
+                       _Call.Intrinsic, None, 0)
+    strides = _make.Call("handle", "tvm_stack_make_shape", buf.strides,
+                         _Call.Intrinsic, None, 0) if buf.strides else 0
+    pack_args = [buf.data,
+                 shape,
+                 strides,
+                 len(buf.shape),
+                 const(0, dtype=buf.dtype),
+                 buf.byte_offset]
+    return _make.Call("handle", "tvm_stack_make_array",
+                      pack_args, _Call.Intrinsic, None, 0)
 
 def call_packed(*args):
-    """Build expression by call an external packed function
+    """Build expression by call an external packed function.
+
+    The argument to packed function can be Expr or Buffer.
+    The argument is the corresponding POD type when Expr is presented.
+
+    When the argument is Buffer, the corresponding PackedFunc
+    will recieve an TVMArrayHandle whose content is valid during the callback period.
+    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
 
     Parameters
     ----------
-    args : list
+    args : list of Expr or Buffer.
         Positional arguments.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+
+    See Also
+    --------
+    tvm.extern : Create tensor with extern function call.
     """
+    call_args = [_pack_buffer(x) if isinstance(x, _Buffer) else x for x in args]
     return _make.Call(
-        "int32", "tvm_call_packed", args, _Call.Intrinsic, None, 0)
+        "int32", "tvm_call_packed", call_args, _Call.Intrinsic, None, 0)
 
 
 def call_pure_intrin(dtype, func_name, *args):
@@ -34,6 +69,11 @@ def call_pure_intrin(dtype, func_name, *args):
 
     args : list
         Positional arguments.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
     """
     args = convert(args)
     return _make.Call(
@@ -53,6 +93,11 @@ def call_pure_extern(dtype, func_name, *args):
 
     args : list
         Positional arguments.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
     """
     return _make.Call(
         dtype, func_name, convert(args), _Call.PureExtern, None, 0)

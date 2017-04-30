@@ -70,6 +70,17 @@ class StorageAccessPatternFinder : public IRVisitor {
       linear_seq_.push_back(e);
     }
   }
+  void Visit_(const Evaluate* op) final {
+    scope_.push_back(StmtEntry());
+    // visit subexpr
+    IRVisitor::Visit_(op);
+    StmtEntry e = scope_.back();
+    scope_.pop_back();
+    if (e.access.size() != 0) {
+      e.stmt = op;
+      linear_seq_.push_back(e);
+    }
+  }
   void Visit_(const Load* op) final {
     // Add write access.
     IRVisitor::Visit_(op);
@@ -79,14 +90,14 @@ class StorageAccessPatternFinder : public IRVisitor {
       CHECK_LT(it->second, scope_.size())
           << "Load memory in places other than store.";
       scope_[it->second].access.emplace_back(
-        AccessEntry(buf, op->index, kRead, GetScope(buf)));
+          AccessEntry(buf, op->index, kRead, GetScope(buf)));
     }
   }
   void Visit_(const Variable* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_scope_level_.find(buf);
     if (it != alloc_scope_level_.end()) {
-      CHECK_LT(it->second, scope_.size());
+      CHECK_LT(it->second, scope_.size()) << " buf=" << buf->name_hint;
       scope_[it->second].access.emplace_back(
           AccessEntry(buf, Expr(), kOpaque, GetScope(buf)));
     }

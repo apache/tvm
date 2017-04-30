@@ -10,7 +10,7 @@ from numbers import Number, Integral
 from ..base import _LIB, check_call
 from ..base import c_str, string_types
 from ..node_generic import convert_to_node, NodeGeneric
-from ..ndarray import TVMType, TVMByteArray, NDArrayBase
+from ..ndarray import TVMType, TVMByteArray, NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
@@ -188,6 +188,7 @@ def _handle_return_func(x):
         handle = FunctionHandle(handle)
     return _CLASS_FUNCTION(handle, False)
 
+
 # setup return handle for function type
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
@@ -195,7 +196,7 @@ C_TO_PY_ARG_SWITCH[TypeCode.FUNC_HANDLE] = _wrap_arg_func(
     _handle_return_func, TypeCode.FUNC_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, TypeCode.MODULE_HANDLE)
-
+C_TO_PY_ARG_SWITCH[TypeCode.ARRAY_HANDLE] = lambda x: _make_array(x.v_handle, True)
 
 _CLASS_MODULE = None
 _CLASS_FUNCTION = None

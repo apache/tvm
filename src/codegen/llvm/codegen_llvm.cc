@@ -7,6 +7,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/ir_pass.h>
 #include "./codegen_llvm.h"
+#include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
 
 namespace tvm {
@@ -89,7 +90,7 @@ void CodeGenLLVM::Init(const std::string& module_name,
 void CodeGenLLVM::InitTarget(const std::string& target) {
   llvm::TargetMachine* tm;
   std::string target_triple;
-  std::tie(tm, target_triple) = LLVMGetTarget(target);
+  std::tie(tm, target_triple) = GetLLVMTarget(target);
   module_->setTargetTriple(target_triple);
   module_->setDataLayout(tm->createDataLayout());
   data_layout_.reset(new llvm::DataLayout(module_.get()));
@@ -318,6 +319,74 @@ llvm::Value* CodeGenLLVM::CreateBufferPtr(
   return builder_->CreateInBoundsGEP(buffer, index);
 }
 
+llvm::Value* CodeGenLLVM::CreateStructRefPtr(
+    Type t, llvm::Value* buf, llvm::Value* index, int kind) {
+  if (kind < intrinsic::kArrKindBound_) {
+    if (buf->getType() == t_void_p_) {
+      buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
+    } else {
+      CHECK_EQ(buf->getType(), t_tvm_array_->getPointerTo());
+    }
+  }
+  switch (kind) {
+    case intrinsic::kArrAddr: {
+      return builder_->CreateInBoundsGEP(buf, index);
+    }
+    case intrinsic::kArrData: {
+      return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(0)});
+    }
+    case intrinsic::kArrShape: {
+      return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(4)});
+    }
+    case intrinsic::kArrStrides: {
+      return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(5)});
+    }
+    case intrinsic::kArrNDim: {
+      return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(2)});
+    }
+    case intrinsic::kArrTypeCode: {
+      return builder_->CreateInBoundsGEP(
+          buf, {index, ConstInt32(3), ConstInt32(0)});
+    }
+    case intrinsic::kArrTypeBits: {
+      return builder_->CreateInBoundsGEP(
+          buf, {index, ConstInt32(3), ConstInt32(1)});
+    }
+    case intrinsic::kArrTypeLanes: {
+      return builder_->CreateInBoundsGEP(
+          buf, {index, ConstInt32(3), ConstInt32(2)});
+    }
+    case intrinsic::kArrByteOffset: {
+      return builder_->CreateInBoundsGEP(buf, {index, ConstInt32(6)});
+    }
+    case intrinsic::kArrDeviceId: {
+      return builder_->CreateInBoundsGEP(
+          buf, {index, ConstInt32(1), ConstInt32(0)});
+    }
+    case intrinsic::kArrDeviceType: {
+      return builder_->CreateInBoundsGEP(
+          buf, {index, ConstInt32(1), ConstInt32(1)});
+    }
+    case intrinsic::kTVMValueContent: {
+      CHECK_EQ(t.lanes(), 1);
+      CHECK(t.is_handle() || t.bits() == 64);
+      if (t.is_int()) {
+        buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
+        return builder_->CreateInBoundsGEP(buf, index);
+      } else if (t.is_float()) {
+        buf = builder_->CreatePointerCast(buf, t_float64_->getPointerTo());
+        return builder_->CreateInBoundsGEP(buf, index);
+      } else {
+        CHECK(t.is_handle());
+        buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
+        buf = builder_->CreateInBoundsGEP(buf, index);
+        return builder_->CreatePointerCast(buf, t_void_p_->getPointerTo());
+      }
+    }
+    default: LOG(FATAL) << "unknown field code"; return nullptr;
+  }
+}
+
 llvm::Value* CodeGenLLVM::CreateCast(Type from, Type to, llvm::Value* value) {
   llvm::Type * target = LLVMType(to);
   if (value->getType() == target) return value;
@@ -394,39 +463,33 @@ llvm::Value* CodeGenLLVM::GetPackedFuncHandle(const std::string& fname) {
 }
 
 llvm::Value* CodeGenLLVM::CreateCallPacked(const Call* op) {
-  CHECK_GE(op->args.size(), 1U);
+  CHECK_EQ(op->args.size(), 5U);
   std::string func_name = op->args[0].as<StringImm>()->value;
   llvm::Value* handle = GetPackedFuncHandle(func_name);
   // call the function
-  unsigned nargs = static_cast<unsigned>(op->args.size() - 1);
-  llvm::Value* targs = builder_->CreateAlloca(
-      t_tvm_value_, ConstInt32(nargs));
-  llvm::Value* tcodes = builder_->CreateAlloca(
-      t_int_, ConstInt32(nargs));
-  for (unsigned i = 0; i < nargs; ++i) {
-    Expr expr = op->args[i + 1];
-    Type t = expr.type();
-    CHECK_EQ(t.lanes(), 1);
-    // Always pass via 64 bit value.
-    // For handle type, Handle(64) maps to 32 bit void* in 32bit platform.
-    Type api_type = t.with_bits(64);
-    llvm::Value* value = CreateCast(t, api_type, MakeValue(expr));
-    llvm::Value* store_ptr = builder_->CreatePointerCast(
-        builder_->CreateInBoundsGEP(targs, ConstInt32(i)),
-        LLVMType(api_type)->getPointerTo());
-    builder_->CreateAlignedStore(value,  store_ptr, 8);
-    builder_->CreateAlignedStore(
-        ConstInt32(t.code()),
-        builder_->CreateInBoundsGEP(tcodes, ConstInt32(i)), 4);
-  }
-  llvm::Value* ret_value = builder_->CreateAlloca(t_tvm_value_);
-  llvm::Value* ret_tcode = builder_->CreateAlloca(t_int_);
+  int64_t begin = op->args[3].as<IntImm>()->value;
+  int64_t end = op->args[4].as<IntImm>()->value;
+  int64_t nargs = end - begin;
+  CHECK_GE(nargs, 0);
+  llvm::Value* stack_value = MakeValue(op->args[1]);
+  llvm::Value* stack_tcode = MakeValue(op->args[2]);
+  llvm::Value* arg_value = builder_->CreateInBoundsGEP(
+      builder_->CreatePointerCast(
+          stack_value, t_tvm_value_->getPointerTo()), ConstInt32(begin));
+  llvm::Value* arg_tcode = CreateBufferPtr(
+      Int(32), stack_tcode, ConstInt32(begin));
+  llvm::Value* ret_value = builder_->CreateInBoundsGEP(
+      builder_->CreatePointerCast(
+          stack_value, t_tvm_value_->getPointerTo()), ConstInt32(end));
+  llvm::Value* ret_tcode = CreateBufferPtr(
+      Int(32), stack_tcode, ConstInt32(end));
   CheckCallSuccess(
       builder_->CreateCall(
           f_tvm_func_call_,
-          {handle, targs, tcodes, ConstInt32(nargs), ret_value, ret_tcode}));
+          {handle, arg_value, arg_tcode, ConstInt32(nargs),
+           ret_value, ret_tcode}));
   Type r_type = op->type;
-  Type r_api_type = op->type.with_bits(64);
+  Type r_api_type = ir::APIType(r_type);
   llvm::Value* rvalue =
       builder_->CreateAlignedLoad(
           builder_->CreatePointerCast(
@@ -649,62 +712,48 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
     llvm::Value* ptr = MakeValue(op->args[0]);
     return builder_->CreateICmpEQ(
         ptr, llvm::Constant::getNullValue(ptr->getType()));
-  } else if (op->is_intrinsic(intrinsic::tvm_api_load_arg)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
-    CHECK_EQ(op->type.lanes(), 1);
-    llvm::Value* args = builder_->CreatePointerCast(
-        MakeValue(op->args[0]), t_tvm_value_->getPointerTo());
-    llvm::Value* ptr = builder_->CreateInBoundsGEP(
-        args, MakeValue(op->args[2]));
-    // always pass via 64 bit pointers
-    // For handle type, Handle(64) will simply become 32 bit void*
-    Type value_type = op->type.with_bits(64);
-    ptr = builder_->CreatePointerCast(
-        ptr, LLVMType(value_type)->getPointerTo());
-    llvm::Value* value = builder_->CreateAlignedLoad(ptr, 8);
-    // cast to the desired type
-    if (value_type != op->type) {
-      value = CreateCast(value_type, op->type, value);
+    int kind = op->args[2].as<IntImm>()->value;
+    llvm::Value* ref = this->CreateStructRefPtr(
+        op->type, MakeValue(op->args[0]),
+        MakeValue(op->args[1]), kind);
+    if (kind == intrinsic::kArrAddr) {
+      return builder_->CreatePointerCast(ref, t_void_p_);
+    } else {
+      return builder_->CreateLoad(ref);
     }
-    return value;
-  } else if (op->is_intrinsic(intrinsic::tvm_array_get_field)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_struct_set)) {
+    CHECK_EQ(op->args.size(), 4U);
+    int kind = op->args[2].as<IntImm>()->value;
+    llvm::Value* value = MakeValue(op->args[3]);
+    llvm::Value* ref = this->CreateStructRefPtr(
+        op->args[3].type(), MakeValue(op->args[0]),
+        MakeValue(op->args[1]), kind);
+    CHECK(kind != intrinsic::kArrAddr);
+    if (value->getType()->isPointerTy()) {
+      value = builder_->CreatePointerCast(
+          value, ref->getType()->getPointerElementType());
+    }
+    builder_->CreateStore(value, ref);
+    return ConstInt32(0);
+  } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
     CHECK_EQ(op->args.size(), 2U);
-    llvm::Value* arr = builder_->CreatePointerCast(
-        MakeValue(op->args[0]), t_tvm_array_->getPointerTo());
-    llvm::Constant* zero = ConstInt32(0);
-    llvm::Value* ret = nullptr;
-    switch (op->args[1].as<IntImm>()->value) {
-      case intrinsic::kData: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(0)}); break;
-      }
-      case intrinsic::kShape: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(4)}); break;
-      }
-      case intrinsic::kStrides: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(5)}); break;
-      }
-      case intrinsic::kNDim: {
-        ret = builder_->CreateInBoundsGEP(arr, {zero, ConstInt32(2)}); break;
-      }
-      case intrinsic::kTypeCode: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(3), ConstInt32(0)}); break;
-      }
-      case intrinsic::kTypeBits: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(3), ConstInt32(1)}); break;
-      }
-      case intrinsic::kTypeLanes: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(3), ConstInt32(2)}); break;
-      }
-      case intrinsic::kByteOffset: {
-        ret = builder_->CreateInBoundsGEP(
-            arr, {zero, ConstInt32(6)}); break;
-      }
-      default: LOG(FATAL) << "unknown field code";
+    const std::string& type = op->args[0].as<StringImm>()->value;
+    llvm::Value* num = MakeValue(op->args[1]);
+    if (type == "shape") {
+      return builder_->CreateAlloca(t_tvm_shape_index_, num);
+    } else if (type == "arg_value") {
+      return builder_->CreateAlloca(t_tvm_value_, num);
+    } else if (type == "arg_tcode") {
+      return builder_->CreateAlloca(t_int_, num);
+    } else if (type == "array") {
+      return builder_->CreateAlloca(t_tvm_array_, num);
+    } else {
+      LOG(FATAL) << "Unknown stack alloca type " << type;
     }
-    return builder_->CreateLoad(ret);
+  } else if (op->is_intrinsic(Call::null_handle)) {
+    return llvm::Constant::getNullValue(t_void_p_);
   } else {
     LOG(FATAL) << "Unknown intrinstic " << op->name;
   }
@@ -1180,9 +1229,8 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
   }
 }
 
-
 llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
-  if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
+  if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     return CreateCallPacked(op);
   } else if (op->call_type == Call::Intrinsic ||
              op->call_type == Call::PureIntrinsic) {
@@ -1193,7 +1241,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
     return CreateCallExtern(op);
   }
 }
-
 
 void CodeGenLLVM::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
@@ -1263,8 +1310,10 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
+    this->VisitStmt(op->body);
+  } else {
+    this->VisitStmt(op->body);
   }
-  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {

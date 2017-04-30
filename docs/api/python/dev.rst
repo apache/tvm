@@ -46,6 +46,7 @@ tvm.ir_pass
    tvm.ir_pass.VectorizeLoop
    tvm.ir_pass.UnrollLoop
    tvm.ir_pass.StorageSync
+   tvm.ir_pass.StorageRewrite
    tvm.ir_pass.MakeAPI
    tvm.ir_pass.SplitHostDevice
    tvm.ir_pass.InjectVirtualThread
@@ -53,6 +54,8 @@ tvm.ir_pass
    tvm.ir_pass.RemoveNoOp
    tvm.ir_pass.SplitPipeline
    tvm.ir_pass.LowerThreadAllreduce
+   tvm.ir_pass.LowerIntrin
+   tvm.ir_pass.LowerPackedCall
    tvm.ir_pass.NarrowChannelAccess
 
 .. automodule:: tvm.ir_pass

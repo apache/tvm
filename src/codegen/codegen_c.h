@@ -133,8 +133,7 @@ class CodeGenC :
       const std::string&op, Type op_type,
       Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(const Variable* buffer,
-                                 Type t, Expr base);
+  virtual std::string GetVecLoad(Type t, const Variable* buffer, Expr base);
   // print vector store
   virtual void PrintVecStore(const Variable* buffer,
                              Type t, Expr base,
@@ -146,11 +145,13 @@ class CodeGenC :
   virtual void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value);
 
-
  protected:
+  // Print reference to struct location
+  std::string GetStructRef(
+      Type t, const Expr& buffer, const Expr& index, int kind);
   // print reference to a buffer as type t in index.
-  std::string GetBufferRef(const Variable* buffer,
-                           Type t, Expr index);
+  std::string GetBufferRef(
+      Type t, const Variable* buffer, Expr index);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.

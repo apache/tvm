@@ -36,7 +36,6 @@ TVM_REGISTER_API("_const")
     }
   });
 
-
 TVM_REGISTER_API("_str")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
   *ret = ir::StringImm::make(args[0]);

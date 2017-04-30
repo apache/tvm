@@ -55,7 +55,7 @@ void InitializeLLVM();
  * \return Pair of target machine and target triple.
  */
 std::pair<llvm::TargetMachine*, std::string>
-LLVMGetTarget(const std::string& target_str);
+GetLLVMTarget(const std::string& target_str);
 
 }  // namespace codegen
 }  // namespace tvm
