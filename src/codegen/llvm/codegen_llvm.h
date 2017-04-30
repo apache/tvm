@@ -190,6 +190,7 @@ class CodeGenLLVM :
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   llvm::Value* GetConstString(const std::string& str);
   llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
+  llvm::Value* CreateStructRefPtr(Type t, llvm::Value* buffer, llvm::Value* index, int kind);
   llvm::Value* CreateCast(Type from, Type to, llvm::Value* value);
   llvm::Value* GetPackedFuncHandle(const std::string& str);
   // Vector concatenation.

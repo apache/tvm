@@ -95,8 +95,8 @@ void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, Type t,
   os << GetVarID(buffer) << " + ";
   PrintExpr(base, os);
 }
-std::string CodeGenOpenCL::GetVecLoad(const Variable* buffer,
-                                      Type t, Expr base) {
+std::string CodeGenOpenCL::GetVecLoad(
+    Type t, const Variable* buffer, Expr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);

@@ -89,8 +89,7 @@ void CodeGenC::PrintSSAAssign(
 
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetBufferRef(
-    const Variable* buffer,
-    Type t, Expr index) {
+    Type t, const Variable* buffer, Expr index) {
   std::ostringstream os;
   std::string vid = GetVarID(buffer);
   std::string scope;
@@ -151,6 +150,58 @@ std::string CodeGenC::GetBufferRef(
   return os.str();
 }
 
+// Print a reference expression to a buffer.
+std::string CodeGenC::GetStructRef(
+    Type t, const Expr& buffer, const Expr& index, int kind) {
+  if (kind < intrinsic::kArrKindBound_) {
+    std::ostringstream os;
+    os << "(((TVMArray*)";
+    this->PrintExpr(buffer, os);
+    os << ")";
+    if (kind == intrinsic::kArrAddr) {
+      os << " + ";
+      this->PrintExpr(index, os);
+      os << ")";
+      return os.str();
+    }
+    os << '[';
+    this->PrintExpr(index, os);
+    os << "].";
+    // other case: get fields.
+    switch (kind) {
+      case intrinsic::kArrData: os << "data"; break;
+      case intrinsic::kArrShape: os << "shape"; break;
+      case intrinsic::kArrStrides: os << "strides"; break;
+      case intrinsic::kArrNDim: os << "ndim"; break;
+      case intrinsic::kArrTypeCode: os << "dtype.code"; break;
+      case intrinsic::kArrTypeBits: os << "dtype.bits"; break;
+      case intrinsic::kArrTypeLanes: os << "dtype.lanes"; break;
+      case intrinsic::kArrDeviceId: os << "ctx.device_id"; break;
+      case intrinsic::kArrDeviceType: os << "ctx.device_type"; break;
+      default: LOG(FATAL) << "unknown field code";
+    }
+    os << ')';
+    return os.str();
+  } else {
+    CHECK_LT(kind, intrinsic::kTVMValueKindBound_);
+    std::ostringstream os;
+    os << "(((TVMValue*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].";
+    if (t.is_handle()) {
+      os << "v_handle";
+    } else if (t.is_float()) {
+      os << "v_float64";
+    } else if (t.is_int()) {
+      os << "v_int64";
+    } else {
+      LOG(FATAL) << "donot know how to handle type" << t;
+    }
+    os << ")";
+    return os.str();
+  }
+}
+
 
 bool CodeGenC::HandleTypeMatch(const Variable* buf_var, Type t) const {
   auto it = handle_data_type_.find(buf_var);
@@ -182,15 +233,15 @@ void CodeGenC::PrintVecElemStore(const std::string& vec,
          << " = " << value << ";\n";
 }
 
-std::string CodeGenC::GetVecLoad(const Variable* buffer,
-                                   Type t, Expr base) {
-  return GetBufferRef(buffer, t, base);
+std::string CodeGenC::GetVecLoad(
+    Type t, const Variable* buffer, Expr base) {
+  return GetBufferRef(t, buffer, base);
 }
 
 void CodeGenC::PrintVecStore(const Variable* buffer,
                              Type t, Expr base,
                              const std::string& value) {
-  std::string ref = GetBufferRef(buffer, t, base);
+  std::string ref = GetBufferRef(t, buffer, base);
   this->PrintIndent();
   stream << ref << " = " << value << ";\n";
 }
@@ -430,42 +481,11 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
        << " + ";
     this->PrintExpr(l->index, os);
     os << ')';
-  } else if (op->is_intrinsic(intrinsic::tvm_api_load_arg)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
-    if (!op->type.is_handle()) {
-      os << '(';
-      this->PrintType(op->type, os);
-      os << ')';
-    }
-    os << "(((TVMArg*)";
-    this->PrintExpr(op->args[0], os);
-    os << ")[" << op->args[2] << "].";
-    if (op->type.is_handle()) {
-      os << "v_handle";
-    } else if (op->type.is_float()) {
-      os << "v_double";
-    } else if (op->type.is_int() || op->type.is_uint()) {
-      os << "v_long";
-    } else {
-      LOG(FATAL) << "donot know how to handle type" << op->type;
-    }
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_array_get_field)) {
-    CHECK_EQ(op->args.size(), 2U);
-    os << "(((TVMArray*)";
-    this->PrintExpr(op->args[0], os);
-    os << ")->";
-    switch (op->args[1].as<IntImm>()->value) {
-      case intrinsic::kData: os << "data"; break;
-      case intrinsic::kShape: os << "shape"; break;
-      case intrinsic::kStrides: os << "strides"; break;
-      case intrinsic::kNDim: os << "ndim"; break;
-      case intrinsic::kTypeCode: os << "dtype.type_code"; break;
-      case intrinsic::kTypeBits: os << "dtype.bits"; break;
-      case intrinsic::kTypeLanes: os << "dtype.lanes"; break;
-      default: LOG(FATAL) << "unknown field code";
-    }
-    os << ')';
+    os << GetStructRef(
+        op->type, op->args[0], op->args[1],
+        op->args[2].as<IntImm>()->value);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(";
@@ -513,12 +533,12 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
   // delcare type.
   if (op->type.lanes() == 1) {
-    std::string ref = GetBufferRef(op->buffer_var.get(), op->type, op->index);
+    std::string ref = GetBufferRef(op->type, op->buffer_var.get(), op->index);
     os << ref;
   } else {
     Expr base;
     if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
-      std::string ref = GetVecLoad(op->buffer_var.get(), op->type, base);
+      std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
       os << ref;
     } else {
       // load seperately.
@@ -552,7 +572,7 @@ void CodeGenC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
     std::string value = this->PrintExpr(op->value);
-    std::string ref  = this->GetBufferRef(op->buffer_var.get(), t, op->index);
+    std::string ref  = this->GetBufferRef(t, op->buffer_var.get(), op->index);
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
@@ -744,14 +764,25 @@ void CodeGenC::VisitStmt_(const Block *op) {
 void CodeGenC::VisitStmt_(const Evaluate *op) {
   if (is_const(op->value)) return;
   const Call* call = op->value.as<Call>();
-
-  if (call && call->is_intrinsic(intrinsic::tvm_storage_sync)) {
-    this->PrintStorageSync(call);
-  } else {
-    std::string vid = this->PrintExpr(op->value);
-    this->PrintIndent();
-    this->stream << "(void)" << vid << ";\n";
+  if (call) {
+    if (call->is_intrinsic(intrinsic::tvm_storage_sync)) {
+      this->PrintStorageSync(call); return;
+    } else if (call->is_intrinsic(intrinsic::tvm_struct_set)) {
+      CHECK_EQ(call->args.size(), 4);
+      std::string value = PrintExpr(call->args[3]);
+      std::string ref = GetStructRef(
+          call->args[3].type(),
+          call->args[0],
+          call->args[1],
+          call->args[2].as<IntImm>()->value);
+      this->PrintIndent();
+      this->stream << ref << " = " << value << ";\n";
+      return;
+    }
   }
+  std::string vid = this->PrintExpr(op->value);
+  this->PrintIndent();
+  this->stream << "(void)" << vid << ";\n";
 }
 
 void CodeGenC::VisitStmt_(const ProducerConsumer *op) {

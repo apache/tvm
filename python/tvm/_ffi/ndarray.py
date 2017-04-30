@@ -198,9 +198,9 @@ def sync(ctx):
 
 class NDArrayBase(object):
     """A simple Device/CPU Array object in runtime."""
-    __slots__ = ["handle"]
+    __slots__ = ["handle", "is_view"]
     # pylint: disable=no-member
-    def __init__(self, handle):
+    def __init__(self, handle, is_view=False):
         """Initialize the function with handle
 
         Parameters
@@ -209,9 +209,11 @@ class NDArrayBase(object):
             the handle to the underlying C++ TVMArray
         """
         self.handle = handle
+        self.is_view = is_view
 
     def __del__(self):
-        check_call(_LIB.TVMArrayFree(self.handle))
+        if not self.is_view:
+            check_call(_LIB.TVMArrayFree(self.handle))
 
     @property
     def shape(self):
@@ -301,6 +303,10 @@ class NDArrayBase(object):
         else:
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
+
+def _make_array(handle, is_view):
+    handle = ctypes.cast(handle, TVMArrayHandle)
+    return _CLASS_NDARRAY(handle, is_view)
 
 _CLASS_NDARRAY = None
 

@@ -25,7 +25,8 @@ def test_add_pipeline():
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)
-    fsplits = tvm.ir_pass.SplitHostDevice(fapi)
+    fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
+    fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
 
     def check_target(device, host="stackvm"):
         if not tvm.codegen.enabled(host):

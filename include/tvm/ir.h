@@ -140,6 +140,10 @@ constexpr const char* volatile_scope = "volatile_scope";
 constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
+/*! \brief The allocation context for global malloc in host. */
+constexpr const char* device_context_id = "device_context_id";
+/*! \brief The device type. */
+constexpr const char* device_context_type = "device_context_type";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
@@ -167,25 +171,24 @@ constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 
 /*! \brief namespace of TVM Intrinsic functions */
 namespace intrinsic {
-// Most of the intrinsics is to enab
 /*!
  * \brief See pesudo code
  *
- *  Type tvm_api_load_arg(TVMArg* args, int* args_type_id, i) {
- *     assert(arg_type_id[i] == typeid(Type));
- *     return args[i];
+ *  Type tvm_struct_get(StructType* arr, int index, int field_id) {
+ *     return arr[index]->field;
  *  }
+ * \sa TVMStructFieldKind
  */
-constexpr const char* tvm_api_load_arg = "tvm_api_load_arg";
+constexpr const char* tvm_struct_get = "tvm_struct_get";
 /*!
  * \brief See pesudo code
  *
- *  Type tvm_array_get_field(TVMArray* arr, int field_id) {
- *     return arr->field;
+ *  Handle tvm_struct_set(StructType* arr, int index, int field_id, value) {
+ *     arr[index]->field = value;
  *  }
- * \sa TVMArrayFieldKind
+ * \sa TVMStructFieldKind
  */
-constexpr const char* tvm_array_get_field = "tvm_array_get_field";
+constexpr const char* tvm_struct_set = "tvm_struct_set";
 /*!
  * \brief See pesudo code
  *
@@ -197,6 +200,48 @@ constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
 /*!
  * \brief See pesudo code
  *
+ *  dtype in {shape, array, arg_value, arg_tcode}
+ *
+ *  Handle tvm_stack_alloca(string dtype, int num) {
+ *     return new on stack dtype[num];
+ *  }
+ * \sa TVMStructFieldKind
+ */
+constexpr const char* tvm_stack_alloca = "tvm_stack_alloca";
+/*!
+ * \brief Allocate a shape tuple on stack, return the handle.
+ *
+ *  Handle tvm_stack_make_shape(list args) {
+ *     ret = alloca stack int64_t[len(args)];
+ *     for i in range(len(args)):
+ *        ret[i] = args[i]
+ *     return &ret[0];
+ *  }
+ */
+constexpr const char* tvm_stack_make_shape = "tvm_stack_make_shape";
+/*!
+ * \brief Allocate a NDArray(DLTensor) on stack, return the handle.
+ *
+ *  Type tvm_stack_make_array(Expr data,
+ *                            Expr shape,
+ *                            Expr strides,
+ *                            Expr ndim,
+ *                            Expr dtype,
+ *                            Expr byte_offset) {
+ *     ret = alloca stack DLTensor();
+ *     ret->data = data;
+ *     ret->shape = shape;
+ *     ret->strides = strides != 0 ? strides : nullptr;
+ *     ret->ndim = ndim;
+ *     ret->dtype = dtype.type();
+ *     ret->byte_offset = byte_offset;
+ *     return ret;
+ *  }
+ */
+constexpr const char* tvm_stack_make_array = "tvm_stack_make_array";
+/*!
+ * \brief See pesudo code
+ *
  *  int tvm_call_packed(name, TVMValue* args) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const PackedFunc* f = env->GetFuncFromEnv(name);
@@ -205,6 +250,23 @@ constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
  *  }
  */
 constexpr const char* tvm_call_packed = "tvm_call_packed";
+/*!
+ * \brief Lowered version of call packed, the space of value and
+ *  type codes are explicitly allocated.
+ *
+ *  int tvm_call_packed_lowered(name,
+ *                              TVMValue* value_stack,
+ *                              int* tcode_stack,
+ *                              int begin,
+ *                              int end) {
+ *     ModuleNode* env = GetCurrentEnv();
+ *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *                           tcode_stack[begin:end]),
+ *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *  }
+ */
+constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
 /*!
  * \brief See pesudo code
  *
@@ -231,16 +293,24 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
 
-/*! \brief The field id of each field in array */
-enum TVMArrayFieldKind {
-  kData = 0,
-  kNDim = 1,
-  kShape = 2,
-  kStrides = 3,
-  kTypeCode = 4,
-  kTypeBits = 5,
-  kTypeLanes = 6,
-  kByteOffset = 7
+/*! \brief The kind of structre field info */
+enum TVMStructFieldKind : int {
+  // array head address
+  kArrAddr,
+  kArrData,
+  kArrShape,
+  kArrStrides,
+  kArrNDim,
+  kArrTypeCode,
+  kArrTypeBits,
+  kArrTypeLanes,
+  kArrByteOffset,
+  kArrDeviceId,
+  kArrDeviceType,
+  kArrKindBound_,
+  // TVMValue field
+  kTVMValueContent,
+  kTVMValueKindBound_
 };
 }   // namespace intrinsic
 
