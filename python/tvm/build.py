@@ -10,6 +10,7 @@ from . import schedule
 from . import expr
 from . import ir_pass
 from . import collections
+from . import module
 from . import codegen
 
 
@@ -149,7 +150,7 @@ def build(sch,
     fsplits[0] = ir_pass.LowerPackedCall(fsplits[0])
     if len(fsplits) > 1:
         if not target_host:
-            target_host = "llvm" if codegen.enabled("llvm") else "stackvm"
+            target_host = "llvm" if module.enabled("llvm") else "stackvm"
         mhost = codegen.build_module(fsplits[0], target_host)
         if target:
             mdev = codegen.build_module(fsplits[1:], target)

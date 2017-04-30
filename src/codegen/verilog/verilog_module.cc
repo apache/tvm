@@ -31,11 +31,7 @@ class VerilogModuleNode : public runtime::ModuleNode {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     CHECK(sptr_to_self.get() == this);
-    if (name == runtime::symbol::tvm_entry_setdevice) {
-      return PackedFunc([](const TVMArgs& args, TVMRetValue* rv){});
-    }
-    CHECK(m_.fmap.count(name)) << "Cannot find function " << name << " in the module";
-
+    if (!m_.fmap.count(name)) return PackedFunc();
     auto f = [sptr_to_self, name, this](const runtime::TVMArgs& args, TVMRetValue* rv) {
       auto* fsim = runtime::Registry::Get("tvm_callback_verilog_simulator");
       CHECK(fsim != nullptr)

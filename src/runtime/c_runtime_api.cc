@@ -25,8 +25,11 @@ class DeviceAPIManager {
  public:
   static const int kMaxDeviceAPI = 32;
   // Get API
-  static DeviceAPI* Get(TVMContext ctx) {
-    return Global()->GetAPI(ctx.device_type);
+  static DeviceAPI* Get(const TVMContext& ctx) {
+    return Get(ctx.device_type);
+  }
+  static DeviceAPI* Get(int dev_type, bool allow_missing = false) {
+    return Global()->GetAPI(dev_type, allow_missing);
   }
 
  private:
@@ -42,19 +45,24 @@ class DeviceAPIManager {
     return &inst;
   }
   // Get or initialize API.
-  DeviceAPI* GetAPI(DLDeviceType type) {
-    if (api_[type] != nullptr) return api_[type];
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (api_[type] != nullptr) return api_[type];
-    std::string factory = "device_api." + DeviceName(type);
-    auto* f = Registry::Get(factory);
-    CHECK(f != nullptr)
-        << "Device API " << DeviceName(type) << " is not enabled.";
-    void* ptr = (*f)();
-    api_[type] = static_cast<DeviceAPI*>(ptr);
-    return api_[type];
-  }
+  DeviceAPI* GetAPI(int type, bool allow_missing);
 };
+
+DeviceAPI* DeviceAPIManager::GetAPI(int type, bool allow_missing) {
+  if (api_[type] != nullptr) return api_[type];
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (api_[type] != nullptr) return api_[type];
+  std::string factory = "device_api." + DeviceName(type);
+  auto* f = Registry::Get(factory);
+  if (f == nullptr) {
+    CHECK(allow_missing)
+        << "Device API " << DeviceName(type) << " is not enabled.";
+    return nullptr;
+  }
+  void* ptr = (*f)();
+  api_[type] = static_cast<DeviceAPI*>(ptr);
+  return api_[type];
+}
 
 
 inline TVMArray* TVMArrayCreate_() {
@@ -352,8 +360,9 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
         << "Can not copy across different ctx types directly";
   }
   DeviceAPIManager::Get(ctx)->CopyDataFromTo(
-      from->data, to->data, from_size,
-      from->ctx, to->ctx, stream);
+      from->data, from->byte_offset,
+      to->data, to->byte_offset,
+      from_size, from->ctx, to->ctx, stream);
   API_END();
 }
 
@@ -362,3 +371,29 @@ int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
   DeviceAPIManager::Get(ctx)->StreamSync(ctx, stream);
   API_END();
 }
+
+// set device api
+TVM_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    int dev_type = args[0];
+    int dev_id = args[1];
+    DeviceAPIManager::Get(dev_type)->SetDevice(dev_id);
+  });
+
+// set device api
+TVM_REGISTER_GLOBAL("_GetDeviceAttr")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    int dev_type = args[0];
+    int dev_id = args[1];
+    DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[2].operator int());
+    if (kind == kExist) {
+      DeviceAPI* api = DeviceAPIManager::Get(dev_type, true);
+      if (api != nullptr) {
+        api->GetAttr(dev_id, kind, ret);
+      } else {
+        *ret = 0;
+      }
+    } else {
+      DeviceAPIManager::Get(dev_type)->GetAttr(dev_id, kind, ret);
+    }
+  });

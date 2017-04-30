@@ -84,17 +84,25 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
 }
 
 bool RuntimeEnabled(const std::string& target) {
-  std::string load_f_name;
+  std::string f_name;
   if (target == "cpu") {
     return true;
   } else if (target == "cuda" || target == "gpu") {
-    load_f_name = "module.loadfile_ptx";
+    f_name = "device_api.gpu";
   } else if (target == "cl" || target == "opencl") {
-    load_f_name = "module.loadfile_cl";
+    f_name = "device_api.opencl";
+  } else if (target == "mtl" || target == "metal") {
+    f_name = "device_api.metal";
+  } else if (target == "stackvm") {
+    f_name = "codegen.build_stackvm";
+  } else if (target == "llvm") {
+    f_name = "codegen.build_llvm";
+  } else if (target == "vpi" || target == "verilog") {
+    f_name = "device_api.vpi";
   } else {
     LOG(FATAL) << "Unknown optional runtime " << target;
   }
-  return runtime::Registry::Get(load_f_name) != nullptr;
+  return runtime::Registry::Get(f_name) != nullptr;
 }
 
 TVM_REGISTER_GLOBAL("module._Enabled")

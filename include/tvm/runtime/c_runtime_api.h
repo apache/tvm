@@ -41,6 +41,8 @@ typedef int64_t tvm_index_t;
 
 /*! \brief Extension device types in TVM */
 typedef enum {
+  /*! \brief Metal buffer. */
+  kMetal = 8,
   /*! \brief Simulated on board RAM */
   kVPI = 9
 } TVMDeviceExtType;
@@ -360,7 +362,7 @@ TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
 TVM_DLL int TVMFuncListGlobalNames(int *out_size,
                                    const char*** out_array);
 
-// Array related apis for quick proptying
+// Array related apis for quick proptyping
 /*!
  * \brief Allocate a nd-array's memory,
  *  including space of shape, of given spec.

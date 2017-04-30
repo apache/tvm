@@ -11,7 +11,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include "../void_addr_args.h"
+#include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"
 #include "../file_util.h"
@@ -90,7 +90,7 @@ class OpenCLModuleNode : public ModuleNode {
   // Initialize the programs
   void InitProgram() {
     cl::OpenCLWorkspace* w = cl::OpenCLWorkspace::Global();
-    CHECK(w->initialized());
+    w->Init();
     if (fmt_ == "cl") {
       const char* s = data_.c_str();
       size_t len = data_.length();
@@ -179,6 +179,7 @@ class OpenCLWrappedFunc {
             std::string func_name,
             std::vector<size_t> arg_size,
             const std::vector<std::string>& thread_axis_tags)  {
+    w_ = cl::OpenCLWorkspace::Global();
     m_ = m;
     sptr_ = sptr;
     entry_ = entry;
@@ -190,9 +191,7 @@ class OpenCLWrappedFunc {
   void operator()(TVMArgs args,
                   TVMRetValue* rv,
                   void** void_args) const {
-    cl::OpenCLWorkspace* w = cl::OpenCLWorkspace::Global();
     cl::OpenCLThreadEntry* t = cl::OpenCLThreadEntry::ThreadLocal();
-    CHECK(w->initialized());
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
       t->kernel_table.resize(entry_.kernel_id + 1);
@@ -200,13 +199,13 @@ class OpenCLWrappedFunc {
     const auto& e = t->kernel_table[entry_.kernel_id];
     cl_kernel kernel = e.kernel;
     if (kernel == nullptr || e.version != entry_.version) {
-      kernel = m_->InstallKernel(w, t, func_name_, entry_);
+      kernel = m_->InstallKernel(w_, t, func_name_, entry_);
     }
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], void_args[i]));
     }
-    cl_command_queue queue = w->GetQueue(t->context);
+    cl_command_queue queue = w_->GetQueue(t->context);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
@@ -221,6 +220,8 @@ class OpenCLWrappedFunc {
   }
 
  private:
+  // global workspace.
+  cl::OpenCLWorkspace* w_;
   // The module
   OpenCLModuleNode* m_;
   // resource handle
@@ -235,45 +236,12 @@ class OpenCLWrappedFunc {
   ThreadAxisConfig thread_axis_cfg_;
 };
 
-/*!
- * \brief Automatically detect and set cuda device.
- * \param args The arguments.
- */
-void AutoSetOpenCLDevice(const TVMArgs& args, TVMRetValue* rv) {
-  CHECK_EQ(args.size(), 3);
-  TVMValue* values = static_cast<TVMValue*>(args[0].operator void*());
-  int* type_codes = static_cast<int*>(args[1].operator void*());
-  int num_args = args[2].operator int();
-
-  // TODO(tqchen): merge this with CUDA logic.
-  int device_id = -1;
-  for (int i = 0; i < num_args; ++i) {
-    if (type_codes[i] == kArrayHandle) {
-      TVMContext ctx = static_cast<TVMArray*>(values[i].v_handle)->ctx;
-      CHECK_EQ(ctx.device_type, kOpenCL)
-          << "All operands need to be OpenCL";
-      if (device_id == -1) {
-        device_id = ctx.device_id;
-      } else {
-        CHECK_EQ(device_id, ctx.device_id)
-            << "Operands comes from different devices ";
-      }
-    }
-  }
-  CHECK_NE(device_id, -1)
-      << "Cannot detect device id from list";
-  cl::OpenCLThreadEntry::ThreadLocal()->context.device_id = device_id;
-}
-
 PackedFunc OpenCLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
-  if (name == symbol::tvm_entry_setdevice) {
-    return PackedFunc(AutoSetOpenCLDevice);
-  }
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
@@ -289,7 +257,7 @@ PackedFunc OpenCLModuleNode::GetFunction(
   // initialize the wrapped func.
   f.Init(this, sptr_to_self, kid_map_.at(name),
          name, arg_size, info.thread_axis_tags);
-  return PackFromVoidAddrArgs(f, info.arg_types);
+  return PackFuncVoidAddr(f, info.arg_types);
 }
 
 Module OpenCLModuleCreate(

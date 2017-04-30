@@ -14,7 +14,7 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenCUDA : public CodeGenC {
+class CodeGenCUDA final : public CodeGenC {
  public:
   void Init(bool output_ssa);
   void AddFunction(LoweredFunc f);
@@ -31,6 +31,8 @@ class CodeGenCUDA : public CodeGenC {
   void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value) final;
 
+  // overload visitor
+  void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitStmt_(const Evaluate *op) final;
 
  private:

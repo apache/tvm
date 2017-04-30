@@ -20,4 +20,11 @@
 #define TVM_OPENCL_RUNTIME 0
 #endif
 
+/*!
+ *\brief whether to use metal runtime
+ */
+#ifndef TVM_METAL_RUNTIME
+#define TVM_METAL_RUNTIME 0
+#endif
+
 #endif  // TVM_RUNTIME_CONFIG_H_

@@ -34,16 +34,19 @@ ADD_CFLAGS =
 # matrix computation libraries for CPU/GPU
 #---------------------------------------------
 
-# whether use CUDA during compile
-USE_CUDA = 1
+# whether enable CUDA during compile
+ENABLE_CUDA = 1
 
-# whether use OpenCL during compile
-USE_OPENCL = 0
+# whether enable OpenCL during compile
+ENABLE_OPENCL = 0
+
+# whether enable Metal during compile
+ENABLE_METAL = 0
 
 # whether build with LLVM support
 # This requires llvm-config to be in your PATH
 # Requires LLVM version >= 4.0
-USE_LLVM = 0
+ENABLE_LLVM = 0
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable.

@@ -14,7 +14,7 @@
 #include <string>
 #include <mutex>
 #include "./cuda_common.h"
-#include "../void_addr_args.h"
+#include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"
 #include "../file_util.h"
@@ -214,41 +214,13 @@ class CUDAPrepGlobalBarrier {
   mutable std::array<CUdeviceptr, kMaxNumGPUs> pcache_;
 };
 
-
-void AutoSetCUDADevice(const TVMArgs& args, TVMRetValue* rv) {
-  CHECK_EQ(args.size(), 3);
-  TVMValue* values = static_cast<TVMValue*>(args[0].operator void*());
-  int* type_codes = static_cast<int*>(args[1].operator void*());
-  int num_args = args[2].operator int();
-
-  int device_id = -1;
-  for (int i = 0; i < num_args; ++i) {
-    if (type_codes[i] == kArrayHandle) {
-      TVMContext ctx = static_cast<TVMArray*>(values[i].v_handle)->ctx;
-      CHECK_EQ(ctx.device_type, kGPU)
-          << "All operands need to be GPU";
-      if (device_id == -1) {
-        device_id = ctx.device_id;
-      } else {
-        CHECK_EQ(device_id, ctx.device_id)
-            << "Operands comes from different devices ";
-      }
-    }
-  }
-  CHECK_NE(device_id, -1)
-      << "Cannot detect device id from list";
-  CUDA_CALL(cudaSetDevice(device_id));
-}
-
 PackedFunc CUDAModuleNode::GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
-  if (name == symbol::tvm_entry_setdevice) {
-    return PackedFunc(AutoSetCUDADevice);
-  } else if (name == symbol::tvm_prepare_global_barrier) {
+  if (name == symbol::tvm_prepare_global_barrier) {
     return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }
   auto it = fmap_.find(name);
@@ -256,7 +228,7 @@ PackedFunc CUDAModuleNode::GetFunction(
   const FunctionInfo& info = it->second;
   CUDAWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
-  return PackFromVoidAddrArgs(f, info.arg_types);
+  return PackFuncVoidAddr(f, info.arg_types);
 }
 
 Module CUDAModuleCreate(

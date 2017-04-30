@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_opencl.h
- * \brief Utility to generate opencl code
+ * \brief Generate OpenCL device code.
  */
 #ifndef TVM_CODEGEN_CODEGEN_OPENCL_H_
 #define TVM_CODEGEN_CODEGEN_OPENCL_H_
@@ -14,13 +14,12 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenOpenCL : public CodeGenC {
+class CodeGenOpenCL final : public CodeGenC {
  public:
   void AddFunction(LoweredFunc f);
   // override print thread tag.
   void InitFuncState(LoweredFunc f) final;
-  void PrintThreadIndexExpr(
-      std::string tag, std::ostream& os) final;  // NOLINT(*)
+  void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
   void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
@@ -32,6 +31,8 @@ class CodeGenOpenCL : public CodeGenC {
   // the address of load/store
   void PrintVecAddr(const Variable* buffer, Type t,
                     Expr base, std::ostream& os);  // NOLINT(*)
+  // overload visitor
+  void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
 };
 
 }  // namespace codegen

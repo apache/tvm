@@ -23,15 +23,14 @@ def test_scan():
     s[s_update].bind(xi, thread_x)
 
     # one line to build the function.
-    def check_device(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
-            return
-        if not tvm.codegen.enabled(device):
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
             return
         fscan = tvm.build(s, [X, res],
-                          device, host,
+                          device,
                           name="myscan")
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         # launch the kernel.
         n = 1024
         m = 10
@@ -42,10 +41,8 @@ def test_scan():
         np.testing.assert_allclose(
             b.asnumpy(), np.cumsum(a_np, axis=0))
 
-    if tvm.module.enabled("opencl"):
-        tvm.module.init_opencl()
-
     check_device("cuda")
+    check_device("metal")
     check_device("opencl")
 
 

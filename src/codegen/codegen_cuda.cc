@@ -141,7 +141,9 @@ void CodeGenCUDA::PrintVecElemStore(
 
 void CodeGenCUDA::PrintStorageSync(const Call* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
-  if (sync == "shared") {
+  if (sync == "warp") {
+    // DO nothing.
+  } else if (sync == "shared") {
     this->PrintIndent();
     this->stream << "__syncthreads();\n";
   } else if (sync == "global") {
@@ -182,7 +184,7 @@ void CodeGenCUDA::PrintStorageScope(
     const std::string& scope, std::ostream& os) { // NOLINT(*)
   CHECK_NE(scope, "global");
   if (scope == "shared") {
-    os << "__shared__ ";
+    os << "__shared__";
   }
 }
 
@@ -203,6 +205,17 @@ void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   }
 }
 
+void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+  std::string v = PrintExpr(op->value);
+  os << "make_";
+  PrintType(op->type, os);
+  os << "(";
+  for (int i = 0; i < op->lanes; ++i) {
+    if (i != 0) os << ", ";
+    os << v;
+  }
+  os << ')';
+}
 
 }  // namespace codegen
 }  // namespace tvm

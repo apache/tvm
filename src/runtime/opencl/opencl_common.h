@@ -101,7 +101,7 @@ inline const char* CLGetErrorString(cl_int error) {
 /*!
  * \brief Process global OpenCL workspace.
  */
-class OpenCLWorkspace : public DeviceAPI {
+class OpenCLWorkspace final : public DeviceAPI {
  public:
   // global platform id
   cl_platform_id platform_id;
@@ -126,24 +126,25 @@ class OpenCLWorkspace : public DeviceAPI {
       OPENCL_CALL(clReleaseContext(context));
     }
   }
-  // whether the workspace is initialized.
-  inline bool initialized() const {
-    return context != nullptr;
-  }
+  // Initialzie the device.
+  void Init();
   // get the queue of the context
-  cl_command_queue GetQueue(TVMContext ctx) const {
+  cl_command_queue GetQueue(TVMContext ctx) {
     CHECK_EQ(ctx.device_type, kOpenCL);
-    CHECK(initialized())
-        << "The OpenCL is not initialized";
+    this->Init();
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << ctx.device_id;
     return queues[ctx.device_id];
   }
   // override device API
+  void SetDevice(int dev_id) final;
+  void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) final;
   void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
+                      size_t from_offset,
                       void* to,
+                      size_t to_offset,
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,

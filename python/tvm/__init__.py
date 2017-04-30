@@ -16,7 +16,7 @@ from . import node
 from . import ir_builder
 
 from . import ndarray as nd
-from .ndarray import cpu, gpu, opencl, cl, vpi
+from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi
 
 from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__

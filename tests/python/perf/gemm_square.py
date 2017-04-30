@@ -99,9 +99,9 @@ def test_gemm():
 
     # correctness
     def check_device(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
+        if not tvm.module.enabled(host):
             return
-        if not tvm.codegen.enabled(device):
+        if not tvm.module.enabled(device):
             return
         f = tvm.build(s, [A, B, C], device, host,
                       max_auto_unroll_step=max_auto_unroll_step)

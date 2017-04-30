@@ -12,4 +12,5 @@ tvm.ndarray
 .. autofunction:: tvm.cpu
 .. autofunction:: tvm.gpu
 .. autofunction:: tvm.opencl
+.. autofunction:: tvm.metal
 .. autofunction:: tvm.ndarray.array

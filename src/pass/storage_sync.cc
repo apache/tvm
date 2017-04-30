@@ -54,14 +54,17 @@ class StorageSyncPlanner : public IRVisitor {
     if (!in_device_env_) return;
     if (const Call* call = op->value.as<Call>()) {
       if (call->is_intrinsic(intrinsic::tvm_storage_sync)) {
-        StorageScope scope = StorageScope::make(call->args[0].as<StringImm>()->value);
-        if (scope.rank <= sync_scope_.rank) {
-          CHECK_EQ(curr_stmt_.access.size(), 0U);
-          curr_stmt_.access.emplace_back(
-              AccessEntry(nullptr, Expr(), kSync, scope));
-          // push to the scope
-          scope_.back().push_back(curr_stmt_);
-          curr_stmt_.access.clear();
+        const std::string& s = call->args[0].as<StringImm>()->value;
+        if (s != "warp") {
+          StorageScope scope = StorageScope::make(s);
+          if (scope.rank <= sync_scope_.rank) {
+            CHECK_EQ(curr_stmt_.access.size(), 0U);
+            curr_stmt_.access.emplace_back(
+                AccessEntry(nullptr, Expr(), kSync, scope));
+            // push to the scope
+            scope_.back().push_back(curr_stmt_);
+            curr_stmt_.access.clear();
+          }
         }
       }
     }

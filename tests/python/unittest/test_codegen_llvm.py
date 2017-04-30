@@ -12,7 +12,7 @@ def test_llvm_add_pipeline():
     s[C].parallel(xo)
     s[C].vectorize(xi)
     def check_llvm():
-        if not tvm.codegen.enabled("llvm"):
+        if not tvm.module.enabled("llvm"):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, B, C], "llvm")
@@ -30,7 +30,7 @@ def test_llvm_add_pipeline():
 
 def test_llvm_flip_pipeline():
     def check_llvm(nn, base):
-        if not tvm.codegen.enabled("llvm"):
+        if not tvm.module.enabled("llvm"):
             return
         n = tvm.convert(nn)
         A = tvm.placeholder((n + base), name='A')
@@ -57,7 +57,7 @@ def test_llvm_flip_pipeline():
 
 def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
-        if not tvm.codegen.enabled("llvm"):
+        if not tvm.module.enabled("llvm"):
             return
         n = tvm.convert(nn)
         A = tvm.placeholder((n + base, stride), name='A')
@@ -89,7 +89,7 @@ def test_llvm_temp_space():
     s = tvm.create_schedule(C.op)
 
     def check_llvm():
-        if not tvm.codegen.enabled("llvm"):
+        if not tvm.module.enabled("llvm"):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")

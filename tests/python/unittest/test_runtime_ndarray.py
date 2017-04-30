@@ -2,14 +2,14 @@ import tvm
 import numpy as np
 
 def enabled_ctx_list():
-    if tvm.module.enabled("opencl"):
-        tvm.module.init_opencl()
-
     ctx_list = [('cpu', tvm.cpu(0)),
                 ('gpu', tvm.gpu(0)),
                 ('cl', tvm.opencl(0)),
-                ('cpu', tvm.vpi(0))]
-    ctx_list = [x[1] for x in ctx_list if tvm.module.enabled(x[0])]
+                ('metal', tvm.metal(0)),
+                ('vpi', tvm.vpi(0))]
+    for k, v  in ctx_list:
+        assert tvm.context(k, 0) == v
+    ctx_list = [x[1] for x in ctx_list if x[1].exist]
     return ctx_list
 
 ENABLED_CTX_LIST = enabled_ctx_list()
@@ -29,7 +29,8 @@ def test_nd_create():
             np.testing.assert_equal(x, y.asnumpy())
             np.testing.assert_equal(x, z.asnumpy())
         # no need here, just to test usablity
-        tvm.nd.sync(ctx)
+        ctx.sync()
+
 
 if __name__ == "__main__":
     test_nd_create()

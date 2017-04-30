@@ -16,7 +16,7 @@ namespace tvm {
 namespace codegen {
 
 /*! \brief Simulated device ram */
-class VPIDeviceAPI : public runtime::DeviceAPI {
+class VPIDeviceAPI final : public runtime::DeviceAPI {
  public:
   VPIDeviceAPI() {
     static const size_t kAllocAlign = 32U;
@@ -43,6 +43,12 @@ class VPIDeviceAPI : public runtime::DeviceAPI {
     int64_t ptr = reinterpret_cast<int64_t>(addr);
     if (ptr + size >= ram_max_) return nullptr;
     return (char*)(&ram_[0]) + ptr;  // NOLINT(*)
+  }
+  void SetDevice(int dev_id) final {}
+  void GetAttr(int dev_id, runtime::DeviceAttrKind kind, TVMRetValue* rv) final {
+    if (kind == runtime::kExist) {
+      *rv = 1;
+    }
   }
   void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
     static const size_t kAllocAlign = 32U;
@@ -80,16 +86,18 @@ class VPIDeviceAPI : public runtime::DeviceAPI {
     free_blocks_.insert({b.size, head});
   }
   void CopyDataFromTo(const void* from,
+                      size_t from_offset,
                       void* to,
+                      size_t to_offset,
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
                       TVMStreamHandle stream) final {
     if (static_cast<int>(ctx_from.device_type) == kVPI) {
-      from = RealAddr(from, size);
+      from = RealAddr(static_cast<const char*>(from) + from_offset, size);
     }
     if (static_cast<int>(ctx_to.device_type) == kVPI) {
-      to = RealAddr(to, size);
+      to = RealAddr(static_cast<char*>(to) + to_offset, size);
     }
     memcpy(to, from, size);
   }

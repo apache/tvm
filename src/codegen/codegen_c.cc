@@ -24,7 +24,6 @@ void CodeGenC::InitFuncState(LoweredFunc f) {
 void CodeGenC::AddFunction(LoweredFunc f) {
   // clear previous generated state.
   this->InitFuncState(f);
-
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
   // add to alloc buffer type.
@@ -41,8 +40,8 @@ void CodeGenC::AddFunction(LoweredFunc f) {
       auto it = alloc_storage_scope_.find(v.get());
       if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
+        stream << ' ';
       }
-      stream << ' ';
     }
     if (handle_data_type_.count(v.get())) {
       PrintType(handle_data_type_.at(v.get()), stream);
@@ -246,9 +245,9 @@ void CodeGenC::PrintVecStore(const Variable* buffer,
   stream << ref << " = " << value << ";\n";
 }
 
-void CodeGenC::PrintThreadIndexExpr(
-    std::string thread_tag, std::ostream& os) { // NOLINT(*)
-  os << thread_tag;
+void CodeGenC::BindThreadIndex(const IterVar& iv) {
+  CHECK(!var_idmap_.count(iv->var.get()));
+  var_idmap_[iv->var.get()] = iv->thread_tag;
 }
 
 void CodeGenC::PrintStorageSync(const Call* op) { // NOLINT(*)
@@ -674,6 +673,7 @@ void CodeGenC::VisitStmt_(const Allocate* op) {
     const Variable* buffer = op->buffer_var.as<Variable>();
     std::string scope = alloc_storage_scope_.at(buffer);
     PrintStorageScope(scope, stream);
+    stream << ' ';
     PrintType(op->type, stream);
     stream << ' '<< vid << '['
            << constant_size << "];\n";
@@ -687,13 +687,7 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
     IterVar iv(op->node.node_);
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
-        this->PrintIndent();
-        PrintType(iv->var.type(), stream);
-        stream << ' '
-               << AllocVarID(iv->var.get())
-               << " = ";
-        PrintThreadIndexExpr(iv->thread_tag, stream);
-        stream << ";\n";
+        BindThreadIndex(iv);
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
@@ -740,7 +734,11 @@ void CodeGenC::VisitStmt_(const For* op) {
 void CodeGenC::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  stream << "if (" << cond << ") {\n";
+  if (cond[0] == '(' && cond[cond.length() - 1] == ')') {
+    stream << "if " << cond << " {\n";
+  } else {
+    stream << "if (" << cond << ") {\n";
+  }
   int then_scope = BeginScope();
   PrintStmt(op->then_case);
   this->EndScope(then_scope);
