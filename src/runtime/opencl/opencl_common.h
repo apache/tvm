@@ -107,6 +107,8 @@ class OpenCLWorkspace final : public DeviceAPI {
   cl_platform_id platform_id;
   // global context of this process
   cl_context context{nullptr};
+  // whether the workspace it initialized.
+  bool initialized_{false};
   // the devices
   std::vector<cl_device_id> devices;
   // the queues

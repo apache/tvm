@@ -91,6 +91,7 @@ class OpenCLModuleNode : public ModuleNode {
   void InitProgram() {
     cl::OpenCLWorkspace* w = cl::OpenCLWorkspace::Global();
     w->Init();
+    CHECK(w->context != nullptr) << "No OpenCL device";
     if (fmt_ == "cl") {
       const char* s = data_.c_str();
       size_t len = data_.length();

@@ -84,8 +84,10 @@ int GetWarpSize(id<MTLDevice> dev) {
 }
 
 void MetalWorkspace::Init() {
-  if (devices.size() != 0) return;
+  if (initialized_) return;
   std::lock_guard<std::mutex>(this->mutex);
+  if (initialized_) return;
+  initialized_ = true;
   if (devices.size() != 0) return;
   NSArray<id<MTLDevice>>* devs = MTLCopyAllDevices();
   for (size_t i = 0; i < devs.count; ++i) {

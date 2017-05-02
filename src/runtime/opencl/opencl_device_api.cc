@@ -52,6 +52,7 @@ void OpenCLWorkspace::GetAttr(
 void* OpenCLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t size, size_t alignment) {
   this->Init();
+  CHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
   cl_mem mptr = clCreateBuffer(
       this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
@@ -134,8 +135,9 @@ std::string GetDeviceInfo(
 
 std::vector<cl_platform_id> GetPlatformIDs() {
   cl_uint ret_size;
-  OPENCL_CALL(clGetPlatformIDs(0, nullptr, &ret_size));
+  cl_int code = clGetPlatformIDs(0, nullptr, &ret_size);
   std::vector<cl_platform_id> ret;
+  if (code != CL_SUCCESS) return ret;
   ret.resize(ret_size);
   OPENCL_CALL(clGetPlatformIDs(ret_size, &ret[0], nullptr));
   return ret;
@@ -148,8 +150,9 @@ std::vector<cl_device_id> GetDeviceIDs(
   if (device_type == "gpu") dtype = CL_DEVICE_TYPE_GPU;
   if (device_type == "accelerator") dtype = CL_DEVICE_TYPE_ACCELERATOR;
   cl_uint ret_size;
-  OPENCL_CALL(clGetDeviceIDs(pid, dtype, 0, nullptr, &ret_size));
+  cl_int code = clGetDeviceIDs(pid, dtype, 0, nullptr, &ret_size);
   std::vector<cl_device_id> ret;
+  if (code != CL_SUCCESS) return ret;
   ret.resize(ret_size);
   OPENCL_CALL(clGetDeviceIDs(pid, dtype, ret_size, &ret[0], nullptr));
   return ret;
@@ -165,13 +168,16 @@ bool MatchPlatformInfo(
 }
 
 void OpenCLWorkspace::Init() {
-  if (context != nullptr) return;
+  if (initialized_) return;
   std::lock_guard<std::mutex>(this->mu);
+  if (initialized_) return;
+  initialized_ = true;
   if (context != nullptr) return;
   // matched platforms
   std::vector<cl_platform_id> platform_matched = cl::GetPlatformIDs();
   if (platform_matched.size() == 0) {
-    LOG(FATAL) << "No OpenCL platform matched given existing options ...";
+    LOG(WARNING) << "No OpenCL platform matched given existing options ...";
+    return;
   }
   if (platform_matched.size() > 1) {
     LOG(WARNING) << "Multiple OpenCL platforms matched, use the first one ... ";
@@ -181,8 +187,10 @@ void OpenCLWorkspace::Init() {
             << cl::GetPlatformInfo(this->platform_id, CL_PLATFORM_NAME) << '\'';
   std::vector<cl_device_id> devices_matched =
       cl::GetDeviceIDs(this->platform_id, "gpu");
-  CHECK_GT(devices_matched.size(), 0U)
-      << "No OpenCL device any device matched given the options";
+  if (devices_matched.size() == 0) {
+    LOG(WARNING) << "No OpenCL device any device matched given the options";
+    return;
+  }
   this->devices = devices_matched;
   cl_int err_code;
   this->context = clCreateContext(

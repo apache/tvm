@@ -36,6 +36,8 @@ class MetalWorkspace final : public DeviceAPI {
   std::vector<id<MTLCommandQueue> > queues;
   // Warp size constant
   std::vector<int> warp_size;
+  // Whether it is initialized.
+  bool initialized_{false};
   // the mutex for initialization
   std::mutex mutex;
   // Get command queue for given context.
