@@ -40,6 +40,8 @@ class MetalWorkspace final : public DeviceAPI {
   bool initialized_{false};
   // the mutex for initialization
   std::mutex mutex;
+  // Destructor
+  ~MetalWorkspace();
   // Get command queue for given context.
   id<MTLCommandQueue> GetCommandQueue(TVMContext ctx) {
     CHECK_EQ(ctx.device_type, kMetal);
@@ -87,6 +89,7 @@ class MetalThreadEntry {
     context.device_id = 0;
     context.device_type = static_cast<DLDeviceType>(kMetal);
   }
+  ~MetalThreadEntry();
   // Get temp buffer with at least size under ctx.
   id<MTLBuffer> GetTempBuffer(TVMContext ctx, size_t size);
   // get the global workspace

@@ -104,6 +104,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
                      << [[err_msg localizedDescription] UTF8String];
         }
       }
+      [e.lib retain];
     }
     id<MTLFunction> f = [
         e.lib
@@ -121,7 +122,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
     // to the resource constraint in kernel, so it is not strictly hold
     // Turn of warp aware optimziation for now.
     // CHECK_EQ(state.threadExecutionWidth, w->warp_size[device_id]);
-    e.smap[func_name] = state;
+    e.smap[func_name] = [state retain];
     return state;
   }
 
@@ -132,6 +133,13 @@ class MetalModuleNode final :public runtime::ModuleNode {
     id<MTLLibrary> lib = nil;
     // state cache;
     std::unordered_map<std::string, id<MTLComputePipelineState> > smap;
+
+    ~DeviceEntry() {
+      if (lib != nil) [lib release];
+      for (auto &&kv : smap) {
+        [kv.second release];
+      }
+    }
   };
   // the binary data
   std::string data_;
