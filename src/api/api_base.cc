@@ -8,7 +8,6 @@
 #include <tvm/api_registry.h>
 
 namespace tvm {
-
 TVM_REGISTER_API("_format_str")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     CHECK(args[0].type_code() == kNodeHandle);
@@ -34,4 +33,7 @@ TVM_REGISTER_API("_load_json")
     *ret = NodeRef(LoadJSON_(args[0]));
   });
 
+TVM_REGISTER_API("_nop")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+  });
 }  // namespace tvm
