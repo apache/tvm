@@ -1,6 +1,13 @@
 import tvm
 from tvm.contrib import nvcc_compiler
+from tvm.contrib import metal_compiler
 import numpy as np
+import time
+
+#@tvm.register_func
+def tvm_callback_metal_compile(code):
+    lib = metal_compiler.compile_source(code)
+    return lib
 
 def test_gemm():
     # graph
@@ -63,15 +70,14 @@ def test_gemm():
     s = s.normalize()
 
     # one line to build the function.
-    def check_device(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
-            return
-        if not tvm.codegen.enabled(device):
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
             return
 
-        f = tvm.build(s, [A, B, C], device, host,
+        f = tvm.build(s, [A, B, C], device,
                       max_auto_unroll_step=max_auto_unroll_step)
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         # launch the kernel.
         n = nn
         m = n
@@ -81,15 +87,20 @@ def test_gemm():
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
-        for i in range(4):
-            f(a, b, c)
+        f(a, b, c)
+        ctx.sync()
+        tbegin = time.time()
+        f(a, b, c)
+        tpush = time.time()
+        ctx.sync()
+        tend = time.time()
+        print("launch=%g sec, exec=%g sec" % (tpush - tbegin, tend - tbegin))
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
-    check_device("cuda")
-    if tvm.module.enabled("opencl"):
-        tvm.module.init_opencl()
+    check_device("metal")
     check_device("opencl")
+    check_device("cuda")
 
 if __name__ == "__main__":
     test_gemm()

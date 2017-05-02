@@ -19,16 +19,16 @@ def test_reduce_prims():
 
         # one line to build the function.
         def check_device(device, host="stackvm"):
-            if not tvm.codegen.enabled(host):
+            if not tvm.module.enabled(host):
                 return
-            if not tvm.codegen.enabled(device):
+            if not tvm.module.enabled(device):
+                print("skip because %s is not enabled.." % device)
                 return
-            ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+            ctx = tvm.context(device, 0)
             freduce = tvm.build(s,
                              args=[A, B],
                              target=device, target_host=host,
                              name="myreduce")
-            print(freduce.imported_modules[0].get_source())
             # launch the kernel.
             n = 1028
             m = 129
@@ -41,9 +41,7 @@ def test_reduce_prims():
             res[:2] = 0
             np.testing.assert_allclose(npy, res, rtol=1e-4)
 
-        if tvm.module.enabled("opencl"):
-            tvm.module.init_opencl()
-
+        check_device("metal")
         check_device("cuda")
         check_device("opencl")
     test_prim(tvm.sum, np.sum)
@@ -64,7 +62,7 @@ def test_rfactor():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.codegen.enabled(target):
+        if not tvm.module.enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
@@ -105,15 +103,14 @@ def test_rfactor_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        if not tvm.codegen.enabled(device):
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         fapi = tvm.lower(s, args=[A, B])
-        fapi2 = tvm.ir_pass.LowerThreadAllreduce(fapi, 32)
         fsum = tvm.build(fapi,
                          target=device,
                          name="mysum")
-        print(fsum.imported_modules[0].get_source())
         # launch the kernel.
         n = nn
         m = mm
@@ -125,9 +122,8 @@ def test_rfactor_threads():
         np.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
-    if tvm.module.enabled("opencl"):
-        tvm.module.init_opencl()
     check_target("cuda")
+    check_target("metal")
     check_target("opencl")
 
 if __name__ == "__main__":

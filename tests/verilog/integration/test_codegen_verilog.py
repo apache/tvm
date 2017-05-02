@@ -40,13 +40,12 @@ def test_add_pipeline():
     fapi = lower(s, [A, B, C], "myadd")
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
     fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
-    print(fsplits[1].body)
     print("------")
 
     def check_target(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
+        if not tvm.module.enabled(host):
             return
-        if not tvm.codegen.enabled(device):
+        if not tvm.module.enabled(device):
             return
         ctx = tvm.vpi(0)
         mhost = tvm.codegen.build_module(fsplits[0], host)

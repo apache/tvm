@@ -6,11 +6,10 @@
 #include <tvm/base.h>
 #include <tvm/runtime/config.h>
 #include "./codegen_cuda.h"
+#include "./build_common.h"
 
 #if TVM_CUDA_RUNTIME
-
 #include <nvrtc.h>
-#include "../runtime/meta_data.h"
 #include "../runtime/cuda/cuda_common.h"
 #include "../runtime/cuda/cuda_module.h"
 
@@ -71,19 +70,7 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
   } else {
     ptx = NVRTCCompile(code);
   }
-
-  std::unordered_map<std::string, runtime::FunctionInfo> fmap;
-  for (LoweredFunc f : funcs) {
-    runtime::FunctionInfo info;
-    for (size_t i = 0; i < f->args.size(); ++i) {
-      info.arg_types.push_back(Type2TVMType(f->args[i].type()));
-    }
-    for (size_t i = 0; i < f->thread_axis.size(); ++i) {
-      info.thread_axis_tags.push_back(f->thread_axis[i]->thread_tag);
-    }
-    fmap[f->name] = info;
-  }
-  return CUDAModuleCreate(ptx, fmt, fmap, code);
+  return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(funcs), code);
 }
 
 TVM_REGISTER_API("codegen.build_cuda")

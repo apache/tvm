@@ -145,8 +145,8 @@ class ModuleNode {
 namespace symbol {
 /*! \brief Global variable to store module context. */
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
-/*! \brief Local function to set the device during API entry. */
-constexpr const char* tvm_entry_setdevice = "__tvm_entry_setdevice";
+/*! \brief global function to set device */
+constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */
 constexpr const char* tvm_global_barrier_state = "__tvm_global_barrier_state";
 /*! \brief Prepare the global barrier before kernels that uses global barrier. */

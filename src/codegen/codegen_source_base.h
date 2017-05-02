@@ -102,6 +102,12 @@ class CodeGenSourceBase {
   int indent_{0};
 };
 
+/*!
+ * \brief Create a source module for viewing.
+ * \param code The code to be viewed.
+ * \param fmt The code. format.
+ */
+runtime::Module SourceModuleCreate(std::string code, std::string fmt);
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_

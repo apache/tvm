@@ -31,13 +31,6 @@ using runtime::TVMRetValue;
  */
 runtime::Module Build(const Array<LoweredFunc>& funcs,
                       const std::string& target);
-
-/*!
- * \param target The target to be queried.
- * \return Whether target is enabled.
- */
-bool TargetEnabled(const std::string& target);
-
 }  // namespace codegen
 }  // namespace tvm
 

@@ -8,10 +8,8 @@ from __future__ import absolute_import as _abs
 import numpy as _np
 
 from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
-from ._ffi.ndarray import cpu, gpu, opencl, vpi, empty, sync
+from ._ffi.ndarray import context, empty
 from ._ffi.ndarray import _set_class_ndarray
-
-cl = opencl
 
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
@@ -25,6 +23,64 @@ class NDArray(NDArrayBase):
     how can we use TVM in existing project which might have their own array containers.
     """
     pass
+
+
+def cpu(dev_id=0):
+    """Construct a CPU device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+    """
+    return TVMContext(1, dev_id)
+
+
+def gpu(dev_id=0):
+    """Construct a CPU device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+    """
+    return TVMContext(2, dev_id)
+
+
+def opencl(dev_id=0):
+    """Construct a OpenCL device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+    """
+    return TVMContext(4, dev_id)
+
+
+def metal(dev_id=0):
+    """Construct a metal device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+    """
+    return TVMContext(8, dev_id)
+
+
+def vpi(dev_id=0):
+    """Construct a VPI simulated device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+    """
+    return TVMContext(9, dev_id)
+
+cl = opencl
+mtl = metal
 
 
 def array(arr, ctx=cpu(0)):

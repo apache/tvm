@@ -22,7 +22,7 @@ print("Finish runtime checking...")
 """
 
 def test_dso_module_load():
-    if not tvm.codegen.enabled("llvm"):
+    if not tvm.module.enabled("llvm"):
         return
     dtype = 'int64'
     temp = util.tempdir()
@@ -38,6 +38,7 @@ def test_dso_module_load():
                            tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1))
         fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0)
+        fapi = tvm.ir_pass.LowerPackedCall(fapi)
         m = tvm.codegen.build_module(fapi, "llvm")
         for name in names:
             m.save(name)

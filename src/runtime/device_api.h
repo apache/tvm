@@ -13,10 +13,29 @@
 namespace tvm {
 namespace runtime {
 
+enum DeviceAttrKind : int {
+  kExist = 0,
+  kMaxThreadsPerBlock = 1,
+  kWarpSize = 2
+};
+
 class DeviceAPI {
  public:
   /*! \brief virtual destructor */
   virtual ~DeviceAPI() {}
+  /*!
+   * \brief Set the environment device id to dev_id
+   * \param dev_id The device id.
+   * \return The allocated device pointer
+   */
+  virtual void SetDevice(int dev_id) = 0;
+  /*!
+   * \brief Get attribute of specified device.
+   * \param dev_id The device id
+   * \param kind The result kind
+   * \param rv The return value.
+   */
+  virtual void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) = 0;
   /*!
    * \brief Allocate a data space on device.
    * \param ctx The device context to perform operation.
@@ -36,13 +55,18 @@ class DeviceAPI {
    * \brief copy data from one place to another
    * \param dev The device to perform operation.
    * \param from The source array.
+   * \param from_offset The byte offeset in the from.
    * \param to The target array.
+   * \param to_offset The byte offset in the to.
    * \param size The size of the memory
    * \param ctx_from The source context
    * \param ctx_to The target context
+   * \param stream Optional stream object.
    */
   virtual void CopyDataFromTo(const void* from,
+                              size_t from_offset,
                               void* to,
+                              size_t to_offset,
                               size_t size,
                               TVMContext ctx_from,
                               TVMContext ctx_to,
@@ -59,11 +83,12 @@ class DeviceAPI {
  * \brief The name of Device API factory.
  * \param type The device type.
  */
-inline std::string DeviceName(DLDeviceType type) {
-  switch (static_cast<int>(type)) {
+inline std::string DeviceName(int type) {
+  switch (type) {
     case kCPU: return "cpu";
     case kGPU: return "gpu";
     case kOpenCL: return "opencl";
+    case kMetal: return "metal";
     case kVPI: return "vpi";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }

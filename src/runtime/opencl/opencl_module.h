@@ -18,7 +18,7 @@ namespace runtime {
 /*!
  * \brief create a cuda module from data.
  *
- * \param data The module data, can be ptx, cubin
+ * \param data The module data.
  * \param fmt The format of the data, can be "clbin", "cl"
  * \param fmap The map function information map of each function.
  */

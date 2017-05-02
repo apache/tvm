@@ -17,6 +17,7 @@ def lower(s, args, name="mydot"):
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, name, arg_list, 0)
+    fapi = tvm.ir_pass.LowerPackedCall(fapi)
     return fapi
 
 
@@ -35,7 +36,7 @@ def test_dot():
     fapi = lower(s, [A, B, C])
 
     def verify(target):
-        if not tvm.codegen.enabled(target):
+        if not tvm.module.enabled(target):
             print("Target %s is not enabled" % target)
             return
         f = tvm.codegen.build_module(fapi, target)

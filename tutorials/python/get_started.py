@@ -228,7 +228,6 @@ np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # The following codeblocks generate opencl code, creates array on opencl
 # device, and verifies the correctness of the code.
 #
-tvm.module.init_opencl()
 fadd_cl = tvm.build(s, [A, B, C], "opencl", name="myadd")
 print("------opencl code------")
 print(fadd_cl.imported_modules[0].get_source())

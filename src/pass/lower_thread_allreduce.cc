@@ -156,7 +156,7 @@ class ThreadAllreduceBuilder : public IRMutator {
     seq.emplace_back(Store::make(
         shared_buf, value,
         BufIndex(reduce_index, group_index, reduce_extent)));
-    seq.emplace_back(SyncThread());
+    seq.emplace_back(SyncThread("shared"));
     seq.emplace_back(MakeBufAllreduce(
         combiner, value.type(), shared_buf,
         reduce_index, group_index, reduce_extent, threadx_extent));
@@ -202,7 +202,7 @@ class ThreadAllreduceBuilder : public IRMutator {
       reduce_align = reduce_align >> 1;
       Expr cond = reduce_index < (reduce_extent - reduce_align);
       seq.emplace_back(IfThenElse::make(cond, freduce(reduce_align)));
-      seq.emplace_back(SyncThread());
+      seq.emplace_back(SyncThread("shared"));
     }
     CHECK(threadx_extent >= 1 && warp_size_ >= 1);
     // normal synchronization
@@ -211,7 +211,7 @@ class ThreadAllreduceBuilder : public IRMutator {
       reduce_align =  reduce_align >> 1;
       Expr cond = reduce_index < reduce_align;
       seq.emplace_back(IfThenElse::make(cond, freduce(reduce_align)));
-      seq.emplace_back(SyncThread());
+      seq.emplace_back(SyncThread("shared"));
     }
     // in warp synchronization.
     std::vector<Stmt> in_warp_seq;
@@ -219,6 +219,7 @@ class ThreadAllreduceBuilder : public IRMutator {
     while (reduce_align > 1) {
       reduce_align = reduce_align >> 1;
       in_warp_seq.emplace_back(freduce(reduce_align));
+      seq.emplace_back(SyncThread("warp"));
     }
     if (in_warp_seq.size() != 0) {
       Stmt warp_body = MergeSeq(in_warp_seq);
@@ -249,10 +250,10 @@ class ThreadAllreduceBuilder : public IRMutator {
     return ret;
   }
   // sync thread op.
-  static Stmt SyncThread() {
+  static Stmt SyncThread(const std::string& sync) {
     return Evaluate::make(
         Call::make(Int(32), intrinsic::tvm_storage_sync,
-                   {StringImm::make("shared")},
+                   {StringImm::make(sync)},
                    Call::Intrinsic));
   }
   // The local buffer index.

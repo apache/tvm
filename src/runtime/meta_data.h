@@ -30,7 +30,6 @@ struct FunctionInfo {
   void Save(dmlc::JSONWriter *writer) const;
   void Load(dmlc::JSONReader *reader);
 };
-
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_META_DATA_H_

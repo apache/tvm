@@ -65,7 +65,6 @@ print(fcuda.imported_modules[0].get_source())
 # We can find that the code works for both CUDA and opencl.
 # The same tvm.exp can also be used for float64 data types.
 #
-tvm.module.init_opencl()
 fopencl = tvm.build(s, [A, B], "opencl", name="myexp")
 print(fopencl.imported_modules[0].get_source())
 
