@@ -31,7 +31,7 @@ ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -fno-rtti\
 	 -Iinclude -Idlpack/include -Idmlc-core/include -IHalideIR/src  -fPIC -DDMLC_ENABLE_RTTI=0
-export OBJCFLAGS= -fobjc-arc
+export OBJCFLAGS= -fno-objc-arc
 
 ifdef CUDA_PATH
 	NVCC=$(CUDA_PATH)/bin/nvcc

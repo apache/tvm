@@ -81,7 +81,7 @@ void CodeGenStackVM::VisitExpr_(const Load* op) {
   this->Push(op->buffer_var);
   StackVM::OpCode code = StackVM::GetLoad(Type2TVMType(op->type));
   if (const IntImm* index = op->index.as<IntImm>()) {
-    this->PushOp(code, op->index.as<IntImm>()->value);
+    this->PushOp(code, index->value);
   } else {
     this->Push(op->index);
     this->PushOp(StackVM::PUSH_I64, op->type.element_of().bytes());
