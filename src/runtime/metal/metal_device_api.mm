@@ -83,6 +83,15 @@ int GetWarpSize(id<MTLDevice> dev) {
   return state.threadExecutionWidth;
 }
 
+MetalWorkspace::~MetalWorkspace() {
+  for (auto x : devices) {
+    [x release];
+  }
+  for (auto x : queues) {
+    [x release];
+  }
+}
+
 void MetalWorkspace::Init() {
   if (initialized_) return;
   std::lock_guard<std::mutex>(this->mutex);
@@ -92,8 +101,8 @@ void MetalWorkspace::Init() {
   NSArray<id<MTLDevice>>* devs = MTLCopyAllDevices();
   for (size_t i = 0; i < devs.count; ++i) {
     id<MTLDevice> d = [devs objectAtIndex:i];
-    devices.push_back(d);
-    queues.push_back([d newCommandQueue]);
+    devices.push_back([d retain]);
+    queues.push_back([[d newCommandQueue] retain]);
     LOG(INFO) << "Intializing Metal device " << i
               <<  ", name=" << d.name;
     warp_size.push_back(GetWarpSize(d));
@@ -112,13 +121,12 @@ void* MetalWorkspace::AllocDataSpace(
   id<MTLBuffer> buf = [
       dev newBufferWithLength:size
           options:MTLResourceStorageModePrivate];
-  // retain ARC to keep it alive before release.
-  return (__bridge_retained void*)(buf);
+  return (__bridge void*)([buf retain]);
 }
 
 void MetalWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   // release the ptr.
-  CFBridgingRelease(ptr);
+  CFRelease(ptr);
 }
 
 void MetalWorkspace::CopyDataFromTo(const void* from,
@@ -207,6 +215,12 @@ void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   [cb waitUntilCompleted];
 }
 
+MetalThreadEntry::~MetalThreadEntry() {
+  for (auto x : temp_buffer_) {
+    if (x != nil) [x release];
+  }
+}
+
 id<MTLBuffer> MetalThreadEntry::GetTempBuffer(TVMContext ctx, size_t size) {
   if (temp_buffer_.size() <= static_cast<size_t>(ctx.device_id)) {
     temp_buffer_.resize(ctx.device_id + 1, nil);
@@ -214,9 +228,12 @@ id<MTLBuffer> MetalThreadEntry::GetTempBuffer(TVMContext ctx, size_t size) {
   if (temp_buffer_[ctx.device_id] == nil ||
       temp_buffer_[ctx.device_id].length < size) {
     id<MTLDevice> dev = MetalWorkspace::Global()->GetDevice(ctx);
+    if (temp_buffer_[ctx.device_id] != nil) {
+      [temp_buffer_[ctx.device_id] release];
+    }
     temp_buffer_[ctx.device_id] = [
-        dev newBufferWithLength:size
-            options:MTLStorageModeShared];
+        [dev newBufferWithLength:size
+            options:MTLStorageModeShared] retain];
   }
   return temp_buffer_[ctx.device_id];
 }
