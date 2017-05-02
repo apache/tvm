@@ -32,10 +32,5 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
   return m;
 }
 
-bool TargetEnabled(const std::string& target) {
-  std::string build_f_name = "codegen.build_" + target;
-  return runtime::Registry::Get(build_f_name) != nullptr;
-}
-
 }  // namespace codegen
 }  // namespace tvm

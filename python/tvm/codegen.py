@@ -19,21 +19,4 @@ def build_module(lowered_func, target):
     """
     return _Build(lowered_func, target)
 
-
-def enabled(target):
-    """Whether target is enabled for codegen.
-
-    Parameters
-    ----------
-    target : str
-        The target module type.
-
-    Returns
-    -------
-    enabled : boolean
-        Whether the target module is enabled.
-    """
-    return _Enabled(target)
-
-
 _init_api("tvm.codegen")

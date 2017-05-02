@@ -29,17 +29,16 @@ def test_add_pipeline():
     fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
 
     def check_target(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
+        if not tvm.module.enabled(host):
             return
-        if not tvm.codegen.enabled(device):
+        if not tvm.module.enabled(device):
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
         mhost.import_module(mdev)
         code = mdev.get_source()
         f = mhost.entry_func
-
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
@@ -50,11 +49,11 @@ def test_add_pipeline():
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     def check_module_save(device, host="stackvm"):
-        if not tvm.codegen.enabled(host):
+        if not tvm.module.enabled(host):
             return
-        if not tvm.codegen.enabled(device):
+        if not tvm.module.enabled(device):
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         fmt = "ptx" if device == "cuda" else "cl"
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)

@@ -121,12 +121,10 @@ class CodeGenC :
   virtual void PrintType(Type t, std::ostream& os) const; // NOLINT(*)
   /*!
    * \brief Print expr representing the thread tag
-   * \param tag The tag in the thread.
-   * \param  os The strean to output to
+   * \param IterVar iv The thread index to be binded;
    */
-  virtual void PrintThreadIndexExpr(
-      std::string tag, std::ostream& os); // NOLINT(*)
-  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
+  virtual void BindThreadIndex(const IterVar& iv); // NOLINT(*)
+  virtual void PrintStorageScope(const std::string& scope, std::ostream& os); // NOLINT(*)
   virtual void PrintStorageSync(const Call* op);  // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(
@@ -169,12 +167,12 @@ class CodeGenC :
       const std::string& target, const std::string& src, Type t) final;
   /*! \brief the storage scope of allocation */
   std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
+  /*! \brief the data type of allocated buffers */
+  std::unordered_map<const Variable*, Type> handle_data_type_;
 
  private:
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
-  /*! \brief the data type of allocated buffers */
-  std::unordered_map<const Variable*, Type> handle_data_type_;
   /*! \brief set of volatile buf access */
   std::unordered_set<const Variable*> volatile_buf_;
 };

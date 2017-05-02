@@ -19,7 +19,7 @@ def test_add_pipeline():
     s = tvm.create_schedule(C.op)
 
     def check_llvm():
-        if not tvm.codegen.enabled("llvm"):
+        if not tvm.module.enabled("llvm"):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
@@ -51,7 +51,7 @@ def test_pack_buffer_simple():
 
 
     def check_target(target):
-        if not tvm.codegen.enabled(target):
+        if not tvm.module.enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
@@ -81,7 +81,7 @@ def test_pack_buffer_intermediate():
     s = tvm.create_schedule(C.op)
 
     def check_target(target):
-        if not tvm.codegen.enabled(target):
+        if not tvm.module.enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)

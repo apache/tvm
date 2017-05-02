@@ -24,6 +24,8 @@ def create_shared(path_target, objects,
     """
     cmd = [cc]
     cmd += ["-shared"]
+    if sys.platform == "darwin":
+        cmd += ["-undefined", "dynamic_lookup"]
     cmd += ["-o", path_target]
     cmd += objects
     if options:

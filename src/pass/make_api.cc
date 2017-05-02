@@ -244,6 +244,12 @@ LoweredFunc MakeAPI(Stmt body,
         node, attr::device_context_id, device_id, nop));
     seq_init.push_back(AttrStmt::make(
         node, attr::device_context_type, device_type, nop));
+    Stmt set_device = IfThenElse::make(
+        device_type != kCPU, Evaluate::make(Call::make(
+            Int(32), intrinsic::tvm_call_packed,
+            {StringImm::make(runtime::symbol::tvm_set_device),
+             device_type, device_id}, Call::Intrinsic)));
+    body = Block::make(set_device, body);
   }
   n->body = MergeNest({seq_init, seq_check}, body);
   LoweredFunc f(n);

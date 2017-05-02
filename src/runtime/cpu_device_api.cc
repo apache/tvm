@@ -11,8 +11,14 @@
 namespace tvm {
 namespace runtime {
 
-class CPUDeviceAPI : public DeviceAPI {
+class CPUDeviceAPI final : public DeviceAPI {
  public:
+  void SetDevice(int dev_id) final {}
+  void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) final {
+    if (kind == kExist) {
+      *rv = 1;
+    }
+  }
   void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
     void* ptr;
 #if _MSC_VER
@@ -34,12 +40,16 @@ class CPUDeviceAPI : public DeviceAPI {
   }
 
   void CopyDataFromTo(const void* from,
+                      size_t from_offset,
                       void* to,
+                      size_t to_offset,
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
                       TVMStreamHandle stream) final {
-    memcpy(to, from, size);
+    memcpy(static_cast<char*>(to) + to_offset,
+           static_cast<const char*>(from) + from_offset,
+           size);
   }
 
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {

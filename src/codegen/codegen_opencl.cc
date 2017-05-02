@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file codegen_cuda.cc
+ * \file codegen_opencl.cc
  */
 #include <tvm/runtime/config.h>
 #include <tvm/packed_func_ext.h>
@@ -22,19 +22,20 @@ void CodeGenOpenCL::InitFuncState(LoweredFunc f) {
 }
 
 void CodeGenOpenCL::AddFunction(LoweredFunc f) {
-  this->stream << " __kernel ";
+  this->stream << "__kernel ";
   CodeGenC::AddFunction(f);
 }
 
-void CodeGenOpenCL::PrintThreadIndexExpr(
-    std::string tag, std::ostream& os) { // NOLINT(*)
-  runtime::ThreadScope ts = runtime::ThreadScope::make(tag);
+void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
+  CHECK(!var_idmap_.count(iv->var.get()));
+  runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
+  std::ostringstream os;
   if (ts.rank == 1) {
     os << "get_local_id(" << ts.dim_index << ")";
   } else {
-    os << "get_global_id(" << ts.dim_index << ")"
-       << " / get_local_size(" << ts.dim_index << ")";
+    os << "get_group_id(" << ts.dim_index << ")";
   }
+  var_idmap_[iv->var.get()] = os.str();
 }
 
 void CodeGenOpenCL::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
@@ -115,7 +116,9 @@ void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
 
 void CodeGenOpenCL::PrintStorageSync(const Call* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
-  if (sync == "shared") {
+  if (sync == "warp") {
+    LOG(FATAL) << "warp sync not supported in opencl";
+  } else if (sync == "shared") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
   } else if (sync == "global") {
@@ -128,8 +131,20 @@ void CodeGenOpenCL::PrintStorageScope(
   if (scope == "global") {
     os << "__global";
   } else if (scope == "shared") {
-    os << "__local ";
+    os << "__local";
   }
+}
+
+void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+  std::string v = PrintExpr(op->value);
+  os << '(';
+  PrintType(op->type, os);
+  os << ")(";
+  for (int i = 0; i < op->lanes; ++i) {
+    if (i != 0) os << ", ";
+    os << v;
+  }
+  os << ')';
 }
 }  // namespace codegen
 }  // namespace tvm

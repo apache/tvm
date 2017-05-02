@@ -162,20 +162,6 @@ class HostDeviceSplitter : public IRMutator {
     std::shared_ptr<LoweredFuncNode> n =
         std::make_shared<LoweredFuncNode>(*f.operator->());
     n->body = this->Mutate(f->body);
-
-    if (f->is_packed_func && device_funcs_.size() != 0) {
-      // insert auto set device from device function.
-      Array<Expr> args = {StringImm::make(runtime::symbol::tvm_entry_setdevice)};
-      for (Var arg : f->args) {
-        args.push_back(arg);
-      }
-      n->body = Block::make(
-          Evaluate::make(Call::make(
-              Int(32), intrinsic::tvm_call_packed,
-              args, Call::Intrinsic)),
-          n->body);
-    }
-
     Array<LoweredFunc> ret{LoweredFunc(n)};
     for (LoweredFunc x : device_funcs_) {
       ret.push_back(x);
@@ -193,14 +179,21 @@ class HostDeviceSplitter : public IRMutator {
     m.visit_thread_extent_ = false;
     n->body = m.Mutate(body);
     n->name = os.str();
-    n->args = m.undefined_;
     n->thread_axis = m.thread_axis_;
-
-    // improve the handle data type
-    for (Var arg : n->args) {
-      auto it = handle_data_type_.find(arg.get());
-      if (it != handle_data_type_.end()) {
-        n->handle_data_type.Set(arg, it->second);
+    // Strictly order the arguments: Var pointers, positional arguments.
+    for (Var v : m.undefined_) {
+      if (v.type().is_handle()) {
+        n->args.push_back(v);
+        // mark handle data type.
+        auto it = handle_data_type_.find(v.get());
+        if (it != handle_data_type_.end()) {
+          n->handle_data_type.Set(v, it->second);
+        }
+      }
+    }
+    for (Var v : m.undefined_) {
+      if (!v.type().is_handle()) {
+        n->args.push_back(v);
       }
     }
     LoweredFunc f_device(n);
@@ -209,7 +202,6 @@ class HostDeviceSplitter : public IRMutator {
     for (Var arg : n->args) {
       call_args.push_back(arg);
     }
-
     for (Expr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
