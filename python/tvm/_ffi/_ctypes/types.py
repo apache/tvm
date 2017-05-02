@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 from ..base import py_str, check_call, _LIB
-from ..ndarray import TVMByteArray
+from ..runtime_ctypes import TVMByteArray
 
 class TypeCode(object):
     """Type code used in API calls"""

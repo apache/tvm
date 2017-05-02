@@ -19,18 +19,34 @@ cdef enum TVMTypeCode:
     kBytes = 11
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
-    struct DLType:
+    ctypedef struct DLDataType:
         uint8_t code
         uint8_t bits
         uint16_t lanes
+
+    ctypedef struct DLContext:
+        int device_id
+        int device_type
+
+    ctypedef struct DLTensor:
+        void* data
+        DLContext ctx
+        int ndim
+        DLDataType dtype
+        int64_t* shape
+        int64_t* strides
+        size_t byte_offset;
 
     ctypedef struct TVMValue:
         int64_t v_int64
         double v_float64
         void* v_handle
         const char* v_str
-        DLType v_type
+        DLDataType v_type
 
+ctypedef int64_t tvm_index_t
+ctypedef void* DLTensorHandle
+ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
 ctypedef void* TVMFunctionHandle
 ctypedef void* NodeHandle
@@ -61,6 +77,15 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,
                                TVMFunctionHandle *out)
+    int TVMArrayAlloc(tvm_index_t* shape,
+                      tvm_index_t ndim,
+                      DLDataType dtype,
+                      DLContext ctx,
+                      DLTensorHandle* out)
+    int TVMArrayFree(DLTensorHandle handle)
+    int TVMArrayCopyFromTo(DLTensorHandle src,
+                           DLTensorHandle to,
+                           TVMStreamHandle stream)
 
 cdef extern from "tvm/c_api.h":
     int TVMCbArgToReturn(TVMValue* value, int code)
@@ -105,6 +130,7 @@ cdef inline CALL(int ret):
 cdef inline object ctypes_handle(void* chandle):
     """Cast C handle to ctypes handle."""
     return ctypes.cast(<unsigned long long>chandle, ctypes.c_void_p)
+
 
 cdef inline void* c_handle(object handle):
     """Cast C types handle to c handle."""

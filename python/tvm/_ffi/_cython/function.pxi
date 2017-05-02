@@ -4,7 +4,7 @@ from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types
 from ..node_generic import convert_to_node, NodeGeneric
-from ..ndarray import NDArrayBase, TVMType, TVMByteArray, _make_array
+from ..runtime_ctypes import TVMType, TVMByteArray
 
 print("TVM: Initializing cython mode...")
 
@@ -32,7 +32,7 @@ cdef int tvm_callback(TVMValue* args,
         if tcode != kArrayHandle:
             pyargs.append(make_ret(value, tcode))
         else:
-            pyargs.append(_make_array(ctypes_handle(value.v_handle), True))
+            pyargs.append(c_make_array(value.v_handle, True))
     try:
         rv = local_pyfunc(*pyargs)
     except Exception:
@@ -81,8 +81,7 @@ cdef inline void make_arg(object arg,
         value[0].v_handle = (<NodeBase>arg).chandle
         tcode[0] = kNodeHandle
     elif isinstance(arg, NDArrayBase):
-        value[0].v_handle = c_handle(
-            ctypes.cast(arg.handle, ctypes.c_void_p))
+        value[0].v_handle = (<NDArrayBase>arg).chandle
         tcode[0] = kArrayHandle
     elif isinstance(arg, Integral):
         value[0].v_int64 = arg
@@ -205,7 +204,7 @@ cdef class FunctionBase:
     cdef TVMFunctionHandle chandle
     cdef int is_global
 
-    cdef _set_handle(self, handle):
+    cdef inline _set_handle(self, handle):
         if handle is None:
             self.chandle = NULL
         else:

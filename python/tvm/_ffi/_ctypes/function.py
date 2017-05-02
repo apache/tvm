@@ -10,7 +10,8 @@ from numbers import Number, Integral
 from ..base import _LIB, check_call
 from ..base import c_str, string_types
 from ..node_generic import convert_to_node, NodeGeneric
-from ..ndarray import TVMType, TVMByteArray, NDArrayBase, _make_array
+from ..runtime_ctypes import TVMType, TVMByteArray
+from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
