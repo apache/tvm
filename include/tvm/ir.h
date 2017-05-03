@@ -284,16 +284,16 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
 /*!
  * \brief See pesudo code
  *
- *  Expr tvm_thread_allreduce(std::string op, Expr value, Expr cond,
+ *  Expr tvm_thread_allreduce(CommReducer combiner, Expr value, Expr cond,
  *                             Var thread_idx1, thread_idx2...) {
  *     // constraint by the other thread_idx remain the same.
- *     return reduce(op, value, cond,
+ *     return reduce(combiner, value, cond,
  *                   over [thread_idx1, thread_idx2] passed by any caller)
  *  }
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
 
-/*! \brief The kind of structre field info */
+/*! \brief The kind of structure field info */
 enum TVMStructFieldKind : int {
   // array head address
   kArrAddr,
