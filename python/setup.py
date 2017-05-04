@@ -75,5 +75,5 @@ setuptools.setup(
         'tvm._ffi._cy2', 'tvm._ffi._cy3'
     ],
     data_files=[('tvm', [LIB_PATH[0]])],
-    url='https://github.com/tqchen/tvm',
+    url='https://github.com/dmlc/tvm',
     ext_modules=config_cython())
