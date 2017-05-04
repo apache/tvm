@@ -143,10 +143,11 @@ Stmt IRMutator::Mutate_(const IfThenElse *op, const Stmt& s) {
 Stmt IRMutator::Mutate_(const Store *op, const Stmt& s) {
   Expr value = this->Mutate(op->value);
   Expr index = this->Mutate(op->index);
-  if (value.same_as(op->value) && index.same_as(op->index)) {
+  Expr pred = this->Mutate(op->predicate);
+  if (value.same_as(op->value) && index.same_as(op->index) && pred.same_as(op->predicate)) {
     return s;
   } else {
-    return Store::make(op->buffer_var, value, index);
+    return Store::make(op->buffer_var, value, index, pred);
   }
 }
 
@@ -263,10 +264,11 @@ Expr IRMutator::Mutate_(const Variable *op, const Expr& e) {
 
 Expr IRMutator::Mutate_(const Load *op, const Expr& e) {
   Expr index = this->Mutate(op->index);
-  if (index.same_as(op->index)) {
+  Expr pred = this->Mutate(op->predicate);
+  if (index.same_as(op->index) && pred.same_as(op->predicate)) {
     return e;
   } else {
-    return Load::make(op->type, op->buffer_var, index);
+    return Load::make(op->type, op->buffer_var, index, pred);
   }
 }
 
@@ -383,6 +385,15 @@ Expr IRMutator::Mutate_(const Broadcast *op, const Expr& e) {
   }
 }
 
+Expr IRMutator::Mutate_(const Shuffle *op, const Expr& e) {
+  auto new_vec = MutateArray(op->vectors, this);
+  if (new_vec.same_as(op->vectors)) {
+    return e;
+  } else {
+    return Shuffle::make(new_vec, op->indices);
+  }
+}
+
 #define DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(OP)              \
   Expr IRMutator::Mutate_(const OP *op, const Expr& e) {    \
     return e;                                               \
@@ -422,7 +433,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .DISPATCH_TO_MUTATE_EXPR(IntImm)
 .DISPATCH_TO_MUTATE_EXPR(UIntImm)
 .DISPATCH_TO_MUTATE_EXPR(FloatImm)
-.DISPATCH_TO_MUTATE_EXPR(StringImm);
+.DISPATCH_TO_MUTATE_EXPR(StringImm)
+.DISPATCH_TO_MUTATE_EXPR(Shuffle);
 
 }  // namespace ir
 }  // namespace tvm

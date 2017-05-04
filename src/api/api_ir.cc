@@ -26,6 +26,26 @@ TVM_REGISTER_API("make.For")
                      args[5]);
   });
 
+TVM_REGISTER_API("make.Load")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    Type t = args[0];
+    if (args.size() == 3) {
+      *ret = Load::make(t, args[1], args[2], const_true(t.lanes()));
+    } else {
+      *ret = Load::make(t, args[1], args[2], args[3]);
+    }
+  });
+
+TVM_REGISTER_API("make.Store")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    Expr value = args[1];
+    if (args.size() == 3) {
+      *ret = Store::make(args[0], value, args[2], const_true(value.type().lanes()));
+    } else {
+      *ret = Store::make(args[0], value, args[2], args[3]);
+    }
+  });
+
 TVM_REGISTER_API("make.Realize")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Realize::make(args[0],
@@ -45,15 +65,6 @@ TVM_REGISTER_API("make.Call")
                       static_cast<Call::CallType>(args[3].operator int()),
                       args[4],
                       args[5]);
-  });
-
-TVM_REGISTER_API("make.Allocate")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Allocate::make(args[0],
-                          args[1],
-                          args[2],
-                          args[3],
-                          args[4]);
   });
 
 TVM_REGISTER_API("make.CommReducer")
@@ -85,6 +96,12 @@ TVM_REGISTER_API("make.CommReducer")
   TVM_REGISTER_API("make."#Node)                                        \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
       *ret = Node::make(args[0], args[1], args[2], args[3]);            \
+    })                                                                  \
+
+#define REGISTER_MAKE5(Node)                                            \
+  TVM_REGISTER_API("make."#Node)                                        \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+      *ret = Node::make(args[0], args[1], args[2], args[3], args[4]);   \
     })                                                                  \
 
 #define REGISTER_MAKE_BINARY_OP(Node)                        \
@@ -125,8 +142,7 @@ REGISTER_MAKE3(Let);
 REGISTER_MAKE3(LetStmt);
 REGISTER_MAKE2(AssertStmt);
 REGISTER_MAKE3(ProducerConsumer);
-REGISTER_MAKE3(Load);
-REGISTER_MAKE3(Store);
+REGISTER_MAKE5(Allocate);
 REGISTER_MAKE4(Provide);
 REGISTER_MAKE1(Free);
 REGISTER_MAKE2(Block);

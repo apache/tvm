@@ -81,11 +81,13 @@ void IRVisitor::Visit_(const Allocate *op) {
 
 void IRVisitor::Visit_(const Load *op) {
   this->Visit(op->index);
+  this->Visit(op->predicate);
 }
 
 void IRVisitor::Visit_(const Store *op) {
   this->Visit(op->value);
   this->Visit(op->index);
+  this->Visit(op->predicate);
 }
 
 void IRVisitor::Visit_(const IfThenElse *op) {

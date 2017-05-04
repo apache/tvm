@@ -34,7 +34,8 @@ class VecAllocAccess : public IRMutator {
     op = expr.as<Load>();
     if (op->buffer_var.get() == buf_) {
       return Load::make(op->type, op->buffer_var,
-                        op->index * var_lanes_ + var_);
+                        op->index * var_lanes_ + var_,
+                        op->predicate);
     } else {
       return expr;
     }
@@ -46,7 +47,8 @@ class VecAllocAccess : public IRMutator {
     if (op->buffer_var.get() == buf_) {
       return Store::make(op->buffer_var,
                          op->value,
-                         op->index * var_lanes_ + var_);
+                         op->index * var_lanes_ + var_,
+                         op->predicate);
     } else {
       return stmt;
     }
@@ -160,11 +162,16 @@ class Vectorizer : public IRMutator {
   // Load
   Expr Mutate_(const Load* op, const Expr& e) final {
     Expr index = this->Mutate(op->index);
-    if (index.same_as(op->index)) {
+    Expr pred = this->Mutate(op->predicate);
+    if (index.same_as(op->index) && pred.same_as(op->predicate)) {
       return e;
     } else {
-      return Load::make(op->type.with_lanes(index.type().lanes()),
-                        op->buffer_var, index);
+      int lanes = std::max(index.type().lanes(), pred.type().lanes());
+      return Load::make(
+          op->type.with_lanes(lanes),
+          op->buffer_var,
+          BroadcastTo(index, lanes),
+          BroadcastTo(pred, lanes));
     }
   }
   // Let
@@ -201,13 +208,16 @@ class Vectorizer : public IRMutator {
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Expr value = this->Mutate(op->value);
     Expr index = this->Mutate(op->index);
+    Expr pred = this->Mutate(op->predicate);
     if (value.same_as(op->value) && index.same_as(op->index)) {
       return s;
     } else {
       int lanes = std::max(value.type().lanes(), index.type().lanes());
+      lanes = std::max(lanes, pred.type().lanes());
       return Store::make(op->buffer_var,
                          BroadcastTo(value, lanes),
-                         BroadcastTo(index, lanes));
+                         BroadcastTo(index, lanes),
+                         BroadcastTo(pred, lanes));
     }
   }
   // For

@@ -75,7 +75,8 @@ class ChannelAccessIndexRewriter : public IRMutator {
     op = expr.as<Load>();
     if (read_access_ && buf_var_ == op->buffer_var.get()) {
       return Load::make(
-          op->type, op->buffer_var, ir::Simplify(op->index - min_));
+          op->type, op->buffer_var, ir::Simplify(op->index - min_),
+          op->predicate);
     } else {
       return expr;
     }
@@ -85,7 +86,8 @@ class ChannelAccessIndexRewriter : public IRMutator {
     op = stmt.as<Store>();
     if (!read_access_ && buf_var_ == op->buffer_var.get()) {
       return Store::make(
-          op->buffer_var, op->value, ir::Simplify(op->index - min_));
+          op->buffer_var, op->value, ir::Simplify(op->index - min_),
+          op->predicate);
     } else {
       return stmt;
     }

@@ -98,6 +98,7 @@ class IRMutator {
   virtual Expr Mutate_(const UIntImm* op, const Expr& e);
   virtual Expr Mutate_(const FloatImm* op, const Expr& e);
   virtual Expr Mutate_(const StringImm* op, const Expr& e);
+  virtual Expr Mutate_(const Shuffle* op, const Expr& e);
 };
 
 }  // namespace ir

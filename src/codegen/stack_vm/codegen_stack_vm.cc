@@ -121,7 +121,7 @@ void CodeGenStackVM::VisitStmt_(const Allocate* op) {
 }
 
 void CodeGenStackVM::VisitExpr_(const Call* op) {
-  if (op->is_intrinsic(Call::address_of)) {
+  if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);
     this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
@@ -129,8 +129,8 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
     this->PushOp(StackVM::PUSH_I64, l->type.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
-  } else if (op->is_intrinsic(Call::null_handle)) {
-    this->PushOp(StackVM::PUSH_I64, 0);
+  } else if (op->is_intrinsic(Call::reinterpret)) {
+    this->Push(op->args[0]);
   } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
     int kind = op->args[2].as<IntImm>()->value;

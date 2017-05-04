@@ -170,12 +170,13 @@ class StageSplitter : public IRMutator {
     Expr index = Mutate(op->index);
     Stmt provide = Store::make(
         ch->handle_var,
-        Load::make(op->type, op->buffer_var, index), 0);
+        Load::make(op->type, op->buffer_var, index, op->predicate),
+        0, op->predicate);
     Stmt temp = nest_.back(); nest_.pop_back();
     stages_.emplace_back(BuildStage(provide, ch));
     nest_.push_back(temp);
     fifo_map_[ch->handle_var.get()] = ch;
-    return Load::make(op->type, ch->handle_var, 0);
+    return Load::make(op->type, ch->handle_var, 0, op->predicate);
   }
 
   Stmt Split(Stmt stmt, const ProducerConsumer* env) {

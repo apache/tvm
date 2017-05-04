@@ -217,11 +217,13 @@ class PipelineExtractor: public IRVisitor {
     if (is_zero(op->index) && load) {
       compute->body = Store::make(
           op->buffer_var,
-          Load::make(load->type, load->buffer_var, repl.Mutate(load->index)),
-          op->index);
+          Load::make(load->type, load->buffer_var,
+                     repl.Mutate(load->index), op->predicate),
+          op->index, op->predicate);
     } else {
       compute->body = Store::make(
-          op->buffer_var, repl.Mutate(op->value), repl.Mutate(op->index));
+          op->buffer_var, repl.Mutate(op->value),
+          repl.Mutate(op->index), op->predicate);
     }
     compute->inputs = repl.inputs_;
     pipeline_->stages.push_back(ComputeBlock(compute));

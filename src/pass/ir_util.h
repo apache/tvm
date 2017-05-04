@@ -111,8 +111,10 @@ inline Expr TVMStructGet(
  */
 inline Expr AddressOffset(Var handle, Type dtype, int offset) {
   return Call::make(
-      Handle(), Call::address_of,
-      {Load::make(dtype, handle, make_const(Int(32), offset))}, Call::PureIntrinsic);
+      Handle(), intrinsic::tvm_address_of,
+      {Load::make(dtype, handle, make_const(Int(32), offset * dtype.lanes()),
+                  const_true(dtype.lanes()))},
+      Call::PureIntrinsic);
 }
 
 /*!

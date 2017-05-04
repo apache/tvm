@@ -152,11 +152,7 @@ class VTInjector : public IRMutator {
     return e;
   }
   Expr RewriteIndex(Expr index, Expr alloc_extent) const {
-    if (index_rewrite_strategy_ == 0) {
-      return index * num_threads_ + var_;
-    } else {
-      return index + var_ * alloc_extent;
-    }
+    return index + var_ * alloc_extent;
   }
   // Load
   Expr Mutate_(const Load* op, const Expr& e) final {
@@ -168,7 +164,8 @@ class VTInjector : public IRMutator {
     auto it = touched_alloc_.find(op->buffer_var.get());
     if (it != touched_alloc_.end()) {
       return Load::make(op->type, op->buffer_var,
-                        RewriteIndex(op->index, it->second));
+                        RewriteIndex(op->index, it->second),
+                        op->predicate);
     } else {
       return expr;
     }
@@ -184,7 +181,8 @@ class VTInjector : public IRMutator {
     if (it != touched_alloc_.end()) {
       return Store::make(op->buffer_var,
                          op->value,
-                         RewriteIndex(op->index, it->second));
+                         RewriteIndex(op->index, it->second),
+                         op->predicate);
     } else {
       return stmt;
     }
@@ -307,6 +305,9 @@ class VTInjector : public IRMutator {
       for (size_t i = 1; i < extents.size(); ++i) {
         stride = arith::ComputeExpr<Mul>(stride, extents[i]);
       }
+      if (op->type.lanes() != 0) {
+        stride = stride * op->type.lanes();
+      }
       Array<Expr> other;
       other.push_back(num_threads_);
       for (Expr e : extents) {
@@ -368,8 +369,6 @@ class VTInjector : public IRMutator {
   Var var_;
   // the threads/lanes
   int num_threads_;
-  // Index rewriting strategy
-  int index_rewrite_strategy_{1};
   // whethe the loop is already injected.
   bool vt_loop_injected_{false};
   // whether current expression get touched.
