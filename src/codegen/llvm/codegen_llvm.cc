@@ -702,7 +702,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
       return builder_->CreateLShr(
           MakeValue(op->args[0]), MakeValue(op->args[1]));
     }
-  } else if (op->is_intrinsic(Call::address_of)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);
     return CreateBufferPtr(
@@ -752,7 +752,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
     } else {
       LOG(FATAL) << "Unknown stack alloca type " << type;
     }
-  } else if (op->is_intrinsic(Call::null_handle)) {
+  } else if (op->is_intrinsic(Call::reinterpret) && is_zero(op->args[0])) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else {
     LOG(FATAL) << "Unknown intrinstic " << op->name;
@@ -1077,6 +1077,8 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
+  CHECK(is_one(op->predicate))
+      << "Predicated Load is not supported";
   Type t = op->type;
   const Ramp* ramp = op->index.as<Ramp>();
   llvm::Value* buf = GetVarValue(op->buffer_var.get());
@@ -1135,12 +1137,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
         t, op->buffer_var,
         Ramp::make(arith::ComputeExpr<Add>(
             ramp->base, make_const(bt, first_shift)),
-                   make_const(bt, 1), ramp->lanes)));
+                   make_const(bt, 1), ramp->lanes),
+        const_true(t.lanes())));
     llvm::Value* next = MakeValue(Load::make(
         t, op->buffer_var,
         Ramp::make(arith::ComputeExpr<Add>(
             ramp->base, make_const(bt, ramp->lanes + next_shift)),
-                   make_const(bt, 1), ramp->lanes)));
+                   make_const(bt, 1), ramp->lanes),
+        const_true(t.lanes())));
     // shuffle
     std::vector<llvm::Constant*> indices;
     int target_index = 0;
@@ -1170,7 +1174,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
           make_const(ramp->base.type(), 1),
           lanes);
     // load value then flip
-    llvm::Value* v = MakeValue(Load::make(t, op->buffer_var, neg_ramp));
+    llvm::Value* v = MakeValue(
+        Load::make(t, op->buffer_var, neg_ramp, const_true(t.lanes())));
     return CreateVecFlip(v);
   } else {
     llvm::Value* ret = llvm::UndefValue::get(LLVMType(t));
@@ -1187,6 +1192,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
 
 // stmts
 void CodeGenLLVM::VisitStmt_(const Store* op) {
+  CHECK(is_one(op->predicate))
+      << "Predicated Load is not supported";
   llvm::Value* value = MakeValue(op->value);
   Type t = op->value.type();
   const Ramp* ramp = op->index.as<Ramp>();
