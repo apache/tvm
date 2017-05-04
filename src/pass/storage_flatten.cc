@@ -33,7 +33,7 @@ class StorageFlattener : public IRMutator {
     op = stmt.as<Store>();
     auto it = extern_buf_remap_.find(op->buffer_var.get());
     if (it != extern_buf_remap_.end()) {
-      return Store::make(it->second, op->value, op->index);
+      return Store::make(it->second, op->value, op->index, op->predicate);
     } else {
       return stmt;
     }
@@ -115,7 +115,7 @@ class StorageFlattener : public IRMutator {
     op = expr.as<Load>();
     auto it = extern_buf_remap_.find(op->buffer_var.get());
     if (it != extern_buf_remap_.end()) {
-      return Load::make(op->type, it->second, op->index);
+      return Load::make(op->type, it->second, op->index, op->predicate);
     } else {
       return expr;
     }

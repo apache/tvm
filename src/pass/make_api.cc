@@ -122,7 +122,8 @@ LoweredFunc MakeAPI(Stmt body,
       Var tcode(v_arg->name_hint + ".code", Int(32));
       seq_init.emplace_back(LetStmt::make(
           tcode, Load::make(
-              Int(32), v_packed_arg_type_ids, IntImm::make(Int(32), i)), nop));
+              Int(32), v_packed_arg_type_ids, IntImm::make(Int(32), i), const_true(1)),
+          nop));
       Type t = v_arg.type();
       if (t.is_handle()) {
         std::ostringstream msg;
@@ -191,7 +192,7 @@ LoweredFunc MakeAPI(Stmt body,
         f_push(buf->shape[k],
                cast(buf->shape[k].type(),
                     Load::make(tvm_shape_type, v_shape,
-                               IntImm::make(Int(32), k))),
+                               IntImm::make(Int(32), k), const_true(1))),
                field_name.str());
       }
       // strides field
@@ -212,7 +213,7 @@ LoweredFunc MakeAPI(Stmt body,
           f_push(buf->strides[k],
                  cast(buf->shape[k].type(),
                       Load::make(tvm_shape_type, v_strides,
-                                 IntImm::make(Int(32), k))),
+                                 IntImm::make(Int(32), k), const_true(1))),
                  field_name.str());
         }
       }

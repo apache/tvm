@@ -194,14 +194,14 @@ class StoragePlanRewriter : public IRMutator {
     op = stmt.as<Store>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return stmt;
-    return Store::make(it->second->alloc_var, op->value, op->index);
+    return Store::make(it->second->alloc_var, op->value, op->index, op->predicate);
   }
   Expr Mutate_(const Load* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Load>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
-    return Load::make(op->type, it->second->alloc_var, op->index);
+    return Load::make(op->type, it->second->alloc_var, op->index, op->predicate);
   }
   Expr Mutate_(const Variable* op, const Expr& e) final {
     auto it = alloc_map_.find(op);

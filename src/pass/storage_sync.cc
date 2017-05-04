@@ -100,7 +100,7 @@ class StorageSyncPlanner : public IRVisitor {
     }
   }
   void Visit_(const Call* op) final {
-    if (op->is_intrinsic(Call::address_of)) {
+    if (op->is_intrinsic(intrinsic::tvm_address_of)) {
       const Load *l = op->args[0].as<Load>();
       IRVisitor::Visit_(l);
     } else {

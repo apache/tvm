@@ -8,7 +8,7 @@
 #define TVM_ARITHMETIC_COMPUTE_EXPR_H_
 
 #include <tvm/ir.h>
-#include <pass/Interval.h>
+#include <arithmetic/Interval.h>
 #include <limits>
 
 namespace tvm {

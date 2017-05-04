@@ -254,19 +254,21 @@ Stmt MakeCrossThreadReduction(
       }
     }
   }
+  Type t = reduce->type;
+  Expr pred = const_true(t.lanes());
   Stmt reduce_body = Store::make(res_handle,
     Call::make(
       reduce->type,
       ir::intrinsic::tvm_thread_allreduce,
       freduce_args, Call::Intrinsic),
-    0);
+     0, pred);
   reduce_body = AttrStmt::make(
       reduce->combiner,
       attr::reduce_scope,
       make_zero(reduce->type),
       reduce_body);
   Stmt assign_body = Provide::make(
-      stage->op, 0, Load::make(reduce->type, res_handle, 0), args);
+      stage->op, 0, Load::make(reduce->type, res_handle, 0, pred), args);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
   assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
   Stmt body = Allocate::make(

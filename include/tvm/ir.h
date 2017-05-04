@@ -174,6 +174,14 @@ namespace intrinsic {
 /*!
  * \brief See pesudo code
  *
+ *  Handle tvm_address_of(Load *op) {
+ *     return &op->buffer_var[index];
+ *  }
+ */
+constexpr const char* tvm_address_of = "tvm_address_of";
+/*!
+ * \brief See pesudo code
+ *
  *  Type tvm_struct_get(StructType* arr, int index, int field_id) {
  *     return arr[index]->field;
  *  }
@@ -355,6 +363,7 @@ using Halide::Internal::Realize;
 using Halide::Internal::Block;
 using Halide::Internal::IfThenElse;
 using Halide::Internal::Evaluate;
+using Halide::Internal::Shuffle;
 // ir functions
 using Halide::Internal::is_const_power_of_two_integer;
 

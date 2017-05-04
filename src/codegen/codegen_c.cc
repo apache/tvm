@@ -471,7 +471,7 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     PrintBinaryIntrinsitc(op, " << ", os, this);
   } else if (op->is_intrinsic(Call::shift_right)) {
     PrintBinaryIntrinsitc(op, " >> ", os, this);
-  } else if (op->is_intrinsic(Call::address_of)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);
     os << "((";
@@ -535,6 +535,8 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
     std::string ref = GetBufferRef(op->type, op->buffer_var.get(), op->index);
     os << ref;
   } else {
+    CHECK(is_one(op->predicate))
+        << "predicated load is not supported";
     Expr base;
     if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
       std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
@@ -575,6 +577,8 @@ void CodeGenC::VisitStmt_(const Store* op) {
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
+    CHECK(is_one(op->predicate))
+        << "Predicated store is not supported";
     Expr base;
     if (TryGetRamp1Base(op->index, t.lanes(), &base)) {
       std::string value = this->PrintExpr(op->value);

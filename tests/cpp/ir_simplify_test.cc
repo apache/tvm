@@ -1,7 +1,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tvm.h>
-#include <pass/Simplify.h>
+#include <arithmetic/Simplify.h>
 
 TEST(IRSIMPLIFY, Basic) {
   using namespace Halide::Internal;

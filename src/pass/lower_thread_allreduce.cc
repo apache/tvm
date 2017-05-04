@@ -143,9 +143,10 @@ class ThreadAllreduceBuilder : public IRMutator {
     int threadx_extent = 1;
     Expr reduce_index = FlattenThread(vred, &reduce_extent);
     Expr group_index = FlattenThread(vpar, &group_extent);
+    Expr pred = const_true(value.type().lanes());
     if (reduce_extent == 1) {
       // special case, no reduction is needed.
-      return Store::make(op->buffer_var, value, 0);
+      return Store::make(op->buffer_var, value, 0, pred);
     }
     // Whether the threadIdx.x is involved in reduction.
     if (vred[0].scope.dim_index == 0) {
@@ -155,7 +156,7 @@ class ThreadAllreduceBuilder : public IRMutator {
     std::vector<Stmt> seq;
     seq.emplace_back(Store::make(
         shared_buf, value,
-        BufIndex(reduce_index, group_index, reduce_extent)));
+        BufIndex(reduce_index, group_index, reduce_extent), pred));
     seq.emplace_back(SyncThread("shared"));
     seq.emplace_back(MakeBufAllreduce(
         combiner, value.type(), shared_buf,
@@ -164,11 +165,12 @@ class ThreadAllreduceBuilder : public IRMutator {
     load_remap_[op->buffer_var.get()] =
         Load::make(
             value.type(), shared_buf,
-            BufIndex(make_zero(reduce_index.type()), group_index, reduce_extent));
+            BufIndex(make_zero(reduce_index.type()), group_index, reduce_extent),
+            pred);
     alloc_remap_[op->buffer_var.get()] =
         Allocate::make(shared_buf, value.type(),
                        {Expr(group_extent), Expr(reduce_extent)},
-                       const_true(), Evaluate::make(0));
+                       pred, Evaluate::make(0));
     return MergeSeq(seq);
   }
   // make allreduce.
@@ -192,9 +194,9 @@ class ThreadAllreduceBuilder : public IRMutator {
     auto freduce = [&](int offset) {
       Expr b = Load::make(
           type, shared_buf,
-          BufIndex(reduce_index + offset, group_index, reduce_extent));
-      Expr a = Load::make(type, shared_buf, buf_index);
-      return Store::make(shared_buf, (*combiner)(a, b), buf_index);
+          BufIndex(reduce_index + offset, group_index, reduce_extent), const_true());
+      Expr a = Load::make(type, shared_buf, buf_index, const_true());
+      return Store::make(shared_buf, (*combiner)(a, b), buf_index, const_true());
     };
     // Step one, check for
     if (reduce_align > reduce_extent) {

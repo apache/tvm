@@ -99,7 +99,7 @@ class PackedCallBuilder : public IRMutator {
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
           Store::make(stack_shape_, Convert(Int(64), op->args[i]),
-                      ConstInt32(stack_begin +i)));
+                      ConstInt32(stack_begin +i), const_true(1)));
     }
     return AddressOffset(stack_shape_, Int(64), stack_begin);
   }
@@ -169,7 +169,7 @@ class PackedCallBuilder : public IRMutator {
       prep_seq_.emplace_back(
           Store::make(stack_tcode_,
                       ConstInt32(arg_tcode),
-                      stack_index));
+                      stack_index, const_true(1)));
     }
     // UPDATE stack value
     max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
