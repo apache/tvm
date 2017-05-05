@@ -120,7 +120,7 @@ lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm.a: $(ALL_DEP)
+lib/libtvm.a: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
