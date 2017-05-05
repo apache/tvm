@@ -7,7 +7,7 @@ endif()
 
 include(cmake/Util.cmake)
 tvm_option(USE_CUDA "Build with CUDA" ON)
-tvm_option(USE_OPENCL "Build with OpenCL" ON)
+tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_LLVM "Build with LLVM" OFF)
 tvm_option(USE_RTTI "Build with RTTI" OFF)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
