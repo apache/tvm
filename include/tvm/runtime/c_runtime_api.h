@@ -346,7 +346,7 @@ TVM_DLL int TVMFuncRegisterGlobal(
  * \brief Get a global function.
  *
  * \param name The name of the function.
- * \param out the result function pointer.
+ * \param out the result function pointer, NULL if it does not exist.
  *
  * \note The function handle of global function is managed by TVM runtime,
  *  So TVMFuncFree is should not be called when it get deleted.

@@ -105,9 +105,11 @@ int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   API_BEGIN();
   const tvm::runtime::PackedFunc* fp =
       tvm::runtime::Registry::Get(name);
-  CHECK(fp != nullptr)
-      << "Cannot find global function " << name;
-  *out = new tvm::runtime::PackedFunc(*fp);  // NOLINT(*)
+  if (fp != nullptr) {
+    *out = new tvm::runtime::PackedFunc(*fp);  // NOLINT(*)
+  } else {
+    *out = nullptr;
+  }
   API_END();
 }
 

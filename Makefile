@@ -10,47 +10,52 @@ endif
 
 include $(config)
 
-# specify tensor path
 .PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3
 
 all: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
 
-LIB_HALIDE_IR = HalideIR/lib/libHalideIR.a
+# The source code dependencies
+LIB_HALIDEIR = HalideIR/lib/libHalideIR.a
 
-SRC = $(wildcard src/*.cc src/*/*.cc src/*/*/*.cc)
+CC_SRC = $(filter-out src/contrib/%.cc src/runtime/%.cc,\
+             $(wildcard src/*/*.cc src/*/*/*.cc))
 METAL_SRC = $(wildcard src/runtime/metal/*.mm)
-ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-METAL_OBJ = $(patsubst src/%.mm, build/%.o, $(METAL_SRC))
-ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
-
 RUNTIME_SRC = $(wildcard src/runtime/*.cc src/runtime/*/*.cc)
-RUNTIME_DEP = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
 
-ALL_DEP = $(ALL_OBJ) $(LIB_HALIDE_IR)
+# Objectives
+METAL_OBJ = $(patsubst src/%.mm, build/%.o, $(METAL_SRC))
+CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC))
+RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
+CONTRIB_OBJ =
 
-export LDFLAGS = -pthread -lm
-export CFLAGS =  -std=c++11 -Wall -O2 -fno-rtti\
-	 -Iinclude -Idlpack/include -Idmlc-core/include -IHalideIR/src  -fPIC -DDMLC_ENABLE_RTTI=0
-export OBJCFLAGS= -fno-objc-arc
+UNAME_S := $(shell uname -s)
 
+# Deps
+ALL_DEP = $(CC_OBJ) $(CONTRIB_OBJ) $(LIB_HALIDEIR)
+RUNTIME_DEP = $(RUNTIME_OBJ)
+
+# The flags
+LDFLAGS = -pthread -lm
+CFLAGS = -std=c++11 -Wall -O2 -fno-rtti\
+	 -Iinclude -Idlpack/include -Idmlc-core/include -IHalideIR/src -fPIC -DDMLC_ENABLE_RTTI=0
+FRAMEWORKS =
+OBJCFLAGS = -fno-objc-arc
+
+# Dependency specific rules
 ifdef CUDA_PATH
 	NVCC=$(CUDA_PATH)/bin/nvcc
 	CFLAGS += -I$(CUDA_PATH)/include
 	LDFLAGS += -L$(CUDA_PATH)/lib64
 endif
 
-ifeq ($(ENABLE_CUDA), 1)
+ifeq ($(USE_CUDA), 1)
 	CFLAGS += -DTVM_CUDA_RUNTIME=1
 	LDFLAGS += -lcuda -lcudart -lnvrtc
 else
 	CFLAGS += -DTVM_CUDA_RUNTIME=0
 endif
 
-FRAMEWORKS=
-
-UNAME_S := $(shell uname -s)
-
-ifeq ($(ENABLE_OPENCL), 1)
+ifeq ($(USE_OPENCL), 1)
 	CFLAGS += -DTVM_OPENCL_RUNTIME=1
 	ifeq ($(UNAME_S), Darwin)
 		FRAMEWORKS += -framework OpenCL
@@ -61,10 +66,9 @@ else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
 endif
 
-ifeq ($(ENABLE_METAL), 1)
+ifeq ($(USE_METAL), 1)
 	CFLAGS += -DTVM_METAL_RUNTIME=1
 	LDFLAGS += -lObjc
-	ALL_DEP += $(METAL_OBJ)
 	RUNTIME_DEP += $(METAL_OBJ)
 	FRAMEWORKS += -framework Metal -framework Foundation
 else
@@ -74,12 +78,14 @@ endif
 # llvm configuration
 LLVM_CONFIG=llvm-config
 
-ifeq ($(ENABLE_LLVM), 1)
+ifeq ($(USE_LLVM), 1)
 	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
 	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
 	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)
 	CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
 endif
+
+include make/contrib/cblas.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
@@ -106,7 +112,7 @@ build/%.o: src/%.mm
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
-lib/libtvm.so: $(ALL_DEP)
+lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
@@ -114,11 +120,11 @@ lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm.a: $(ALL_DEP)
+lib/libtvm.a: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-$(LIB_HALIDE_IR): LIBHALIDEIR
+$(LIB_HALIDEIR): LIBHALIDEIR
 
 LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)

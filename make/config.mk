@@ -16,11 +16,6 @@
 #  $ make -j8
 #-------------------------------------------------------------------------------
 
-#---------------------
-# choice of compiler
-#--------------------
-export NVCC = nvcc
-
 # whether compile with debug
 DEBUG = 0
 
@@ -31,22 +26,27 @@ ADD_LDFLAGS =
 ADD_CFLAGS =
 
 #---------------------------------------------
-# matrix computation libraries for CPU/GPU
+# Backend runtimes.
 #---------------------------------------------
-
 # whether enable CUDA during compile
-ENABLE_CUDA = 1
+USE_CUDA = 1
 
 # whether enable OpenCL during compile
-ENABLE_OPENCL = 0
+USE_OPENCL = 0
 
 # whether enable Metal during compile
-ENABLE_METAL = 0
+USE_METAL = 0
 
 # whether build with LLVM support
 # This requires llvm-config to be in your PATH
 # Requires LLVM version >= 4.0
-ENABLE_LLVM = 0
+USE_LLVM = 0
+
+#---------------------------------------------
+# Contrib optional libraries.
+#---------------------------------------------
+# Whether use BLAS, choices: openblas, atlas, blas, apple
+USE_BLAS = none
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable.
