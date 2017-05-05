@@ -1,5 +1,7 @@
 # Verilog Code Guidline
 
+The verilog backend is still at early alpha and not yet ready to use.
+
 - Use ```my_port_name``` for variable naming.
 - Always use suffix to indicate certain usage.
 

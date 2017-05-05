@@ -196,7 +196,7 @@ def register_func(func_name, f=None, override=False):
         return register
 
 
-def get_global_func(name):
+def get_global_func(name, allow_missing=False):
     """Get a global function by name
 
     Parameters
@@ -204,14 +204,24 @@ def get_global_func(name):
     name : str
         The name of the global function
 
+    allow_missing : bool
+        Whether allow missing function or raise an error.
+
     Returns
     -------
     func : tvm.Function
-        The function to be returned.
+        The function to be returned, None if function is missing.
     """
     handle = FunctionHandle()
     check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
-    return Function(handle, False)
+    if handle.value:
+        return Function(handle, False)
+    else:
+        if allow_missing:
+            return None
+        else:
+            raise ValueError("Cannot find global function %s" % name)
+
 
 
 def list_global_func_names():

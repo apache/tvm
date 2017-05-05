@@ -106,6 +106,12 @@ class Schedule(NodeBase):
 
         include_inputs : boolean, optional
             Whether include input operations in the group if they are used by outputs.
+
+        Returns
+        -------
+        group : Stage
+            A virtual stage represents the group, user can use compute_at to move
+            the attachment point of the group.
         """
         if isinstance(outputs, _tensor.Tensor):
             outputs = [outputs]

@@ -22,6 +22,7 @@ import numpy as np
 #
 # A **Schedule** is a set of transformation of computation that
 # transforms the loop of computations in the program.
+#
 
 # declare some variables for use later
 n = tvm.var('n')
@@ -50,7 +51,7 @@ print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
 
 ######################################################################
 # split
-# --------------------------
+# -----
 # :code:`split` can split a specified axis into two axises by
 # :code:`factor`.
 A = tvm.placeholder((m,), name='A')
@@ -72,7 +73,7 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 
 ######################################################################
 # tile
-# --------------------------
+# ----
 # :code:`tile` help you execute the computation tile by tile over two
 # axises.
 A = tvm.placeholder((m, n), name='A')
@@ -84,7 +85,7 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 
 ######################################################################
 # fuse
-# --------------------------
+# ----
 # :code:`fuse` can fuse two consecutive axises of one computation.
 A = tvm.placeholder((m, n), name='A')
 B = tvm.compute((m, n), lambda i, j: A[i, j], name='B')
@@ -98,7 +99,7 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 
 ######################################################################
 # reorder
-# --------------------------
+# -------
 # :code:`reorder` can reorder the axises in the specified order.
 A = tvm.placeholder((m, n), name='A')
 B = tvm.compute((m, n), lambda i, j: A[i, j], name='B')
@@ -112,7 +113,7 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 
 ######################################################################
 # bind
-# --------------------------
+# ----
 # :code:`bind` can bind a specified axis with a thread axis, often used
 # in gpu programming.
 A = tvm.placeholder((n,), name='A')
@@ -126,7 +127,7 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 
 ######################################################################
 # compute_at
-# --------------------------
+# ----------
 # For a schedule consists of multiple operators, tvm will compute
 # tensors at the root separately by default.
 A = tvm.placeholder((m,), name='A')
@@ -149,7 +150,7 @@ print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
 
 ######################################################################
 # compute_inline
-# --------------------------
+# --------------
 # :code:`compute_inline` can mark one stage as inline, then the body of
 # computation will be expanded and inserted at the address where the
 # tensor is required.
@@ -163,7 +164,7 @@ print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
 
 ######################################################################
 # compute_root
-# --------------------------
+# ------------
 # :code:`compute_root` can move computation of one stage to the root.
 A = tvm.placeholder((m,), name='A')
 B = tvm.compute((m,), lambda i: A[i]+1, name='B')
