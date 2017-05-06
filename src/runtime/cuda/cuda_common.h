@@ -19,7 +19,7 @@ namespace runtime {
 #define CUDA_DRIVER_CALL(x)                                             \
   {                                                                     \
     CUresult result = x;                                                \
-    if (result != CUDA_SUCCESS) {                                       \
+    if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) { \
       const char *msg;                                                  \
       cuGetErrorName(result, &msg);                                     \
       LOG(FATAL)                                                        \
