@@ -375,7 +375,7 @@ TVM_DLL int TVMFuncListGlobalNames(int *out_size,
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
-                          tvm_index_t ndim,
+                          int ndim,
                           TVMType dtype,
                           TVMContext ctx,
                           TVMArrayHandle* out);

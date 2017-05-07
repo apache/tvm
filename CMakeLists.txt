@@ -55,6 +55,7 @@ tvm_source_group("Source\\codegen"   GLOB "src/codegen/*.cc")
 tvm_source_group("Source\\codegen\\llvm"   GLOB "src/codegen/llvm/*.cc")
 tvm_source_group("Source\\codegen\\stack_vm"   GLOB "src/codegen/stack_vm/*.cc")
 tvm_source_group("Source\\pass"   GLOB "src/pass/*.cc")
+tvm_source_group("Source\\op"   GLOB "src/op/*.cc")
 tvm_source_group("Source\\runtime"   GLOB "src/runtime/*.cc")
 tvm_source_group("Source\\runtime\\cuda"   GLOB "src/runtime/cuda/*.cc")
 tvm_source_group("Source\\runtime\\opencl"   GLOB "src/runtime/opencl/*.cc")
@@ -66,6 +67,7 @@ file(GLOB COMPILER_SRCS
     src/codegen/stack_vm/*.cc
     src/lang/*.cc
     src/pass/*.cc
+    src/op/*.cc
     src/schedule/*.cc
 )
 file(GLOB_RECURSE HALIDEIR_SRCS HalideIR/src/*.cpp)
