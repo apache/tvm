@@ -76,8 +76,6 @@ else
 endif
 
 # llvm configuration
-LLVM_CONFIG=llvm-config
-
 ifeq ($(USE_LLVM), 1)
 	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
 	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
