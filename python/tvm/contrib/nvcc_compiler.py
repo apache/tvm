@@ -63,7 +63,7 @@ def compile_source(code, target="ptx", arch=None,
 
     if proc.returncode != 0:
         sys.stderr.write("Compilation error:\n")
-        sys.stderr.write(out)
+        sys.stderr.write(str(out))
         sys.stderr.flush()
         cubin = None
     else:
