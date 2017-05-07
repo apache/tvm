@@ -231,15 +231,16 @@ void InjectInline(ScheduleNode* sch) {
   std::unordered_map<Tensor, Tensor> repl;
   // rewrite dataflow
   for (size_t i = 0; i < sch->stages.size(); ++i) {
-    if (new_body[i].defined() &&
-        !new_body[i].same_as(sch->stages[i]->op)) {
+    if (new_body[i].defined()) {
       const ComputeOpNode* compute = sch->stages[i]->op.as<ComputeOpNode>();
       CHECK(compute);
-      Operation op = ComputeOpNode::make(
-          compute->name, compute->axis, new_body[i]);
-      repl[sch->stages[i]->op.output(0)] = op.output(0);
-      Stage s = sch->stages[i];
-      s->op = op;
+      if (!new_body[i].same_as(compute->body)) {
+        Operation op = ComputeOpNode::make(
+            compute->name, compute->axis, new_body[i]);
+        Stage s = sch->stages[i];
+        repl[s->op.output(0)] = op.output(0);
+        s->op = op;
+      }
     }
   }
   ReplaceDataFlow(sch->stages, &repl);
