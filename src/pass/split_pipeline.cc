@@ -199,7 +199,7 @@ class StageSplitter : public IRMutator {
  private:
   // Build the stage.
   Stmt BuildStage(Stmt body, NodeRef target) {
-    int stage_index = static_cast<size_t>(stages_.size());
+    int stage_index = static_cast<int>(stages_.size());
     std::string stage_suffix = "." + std::to_string(stage_index);
     // The Substitute
     Map<Var, Expr> subst;

@@ -95,7 +95,7 @@ std::string CodeGenC::GetBufferRef(
   if (alloc_storage_scope_.count(buffer)) {
     scope = alloc_storage_scope_.at(buffer);
   }
-  bool is_vol = volatile_buf_.count(buffer);
+  bool is_vol = volatile_buf_.count(buffer) != 0;
   if (t.lanes() == 1) {
     if (!HandleTypeMatch(buffer, t) || is_vol) {
       os << "((";

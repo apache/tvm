@@ -310,7 +310,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
 }
 
 int TVMArrayAlloc(const tvm_index_t* shape,
-                  tvm_index_t ndim,
+                  int ndim,
                   TVMType dtype,
                   TVMContext ctx,
                   TVMArrayHandle* out) {

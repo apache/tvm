@@ -716,8 +716,8 @@ template<typename... Args>
 inline TVMRetValue PackedFunc::operator()(Args&& ...args) const {
   auto targs = std::make_tuple(std::forward<Args>(args)...);
   const int kNumArgs = sizeof...(Args);
-  TVMValue values[kNumArgs];
-  int type_codes[kNumArgs];
+  TVMValue values[kNumArgs > 0 ? kNumArgs : 1];
+  int type_codes[kNumArgs > 0 ? kNumArgs : 1];
   for_each(targs, TVMArgsSetter(values, type_codes));
   TVMRetValue rv;
   body_(TVMArgs(values, type_codes, kNumArgs), &rv);
