@@ -118,6 +118,38 @@ def exp(x):
     return call_pure_intrin(x.dtype, "exp", x)
 
 
+def tanh(x):
+    """Take hyperbolic tanh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "tanh", x)
+
+
+def sigmoid(x):
+    """Quick function to get sigmoid
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return 1.0 / (1.0 + exp(-x))
+
+
 def log(x):
     """Take log of input x.
 

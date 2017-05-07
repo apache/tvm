@@ -90,7 +90,9 @@ class StorageFlattener : public IRMutator {
       buf_map_[key].released = true;
       // deduce current storage scope.
       auto it = storage_scope_.find(op->func.get());
-      CHECK(it != storage_scope_.end());
+      CHECK(it != storage_scope_.end())
+          << "Cannot find storage scope of " << op->func
+          << " value_index=" << op->value_index;
       StorageScope skey;
       const std::string& strkey = it->second;
       if (strkey.length() == 0) {

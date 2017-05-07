@@ -126,11 +126,11 @@ def rnn_matexp():
         Whh_a = tvm.nd.array(Whh_np, ctx)
         # Skip first pass as it is compilation
         f(res_a, Whh_a)
-        tvm.nd.sync(ctx)
+        ctx.sync()
         # measure time cost of second step.
         tstart = time.time()
         f(res_a, Whh_a)
-        tvm.nd.sync(ctx)
+        ctx.sync()
         tgap = time.time() - tstart
         print("Time cost=%g" % tgap)
         # correctness
