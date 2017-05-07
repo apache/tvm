@@ -23,14 +23,13 @@ class IRInline : public IRMutator {
 
     if (op->func == f_) {
       CHECK_EQ(op->value_index, 0);
-      Expr expr = body_;
+      expr = body_;
       CHECK_EQ(args_.size(), op->args.size());
 
       bool has_side_effect = false;
       for (size_t i = 0; i < op->args.size(); ++i) {
         if (HasSideEffect(op->args[i])) has_side_effect = true;
       }
-
       if (has_side_effect) {
         for (size_t i = 0; i < args_.size(); ++i) {
           expr = Let::make(args_[i], op->args[i], expr);
@@ -45,7 +44,7 @@ class IRInline : public IRMutator {
       }
       return expr;
     } else {
-      return e;
+      return expr;
     }
   }
 

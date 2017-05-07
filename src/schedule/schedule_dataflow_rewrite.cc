@@ -197,6 +197,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
 
 void InjectInline(ScheduleNode* sch) {
   sch->InvalidateCache();
+
   std::vector<Expr> new_body(sch->stages.size());
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
@@ -231,19 +232,32 @@ void InjectInline(ScheduleNode* sch) {
   std::unordered_map<Tensor, Tensor> repl;
   // rewrite dataflow
   for (size_t i = 0; i < sch->stages.size(); ++i) {
+    Stage s = sch->stages[i];
+    if (s->attach_type == kInlinedAlready) continue;
     if (new_body[i].defined()) {
+      // Logics from ReplaceDataFlow
       const ComputeOpNode* compute = sch->stages[i]->op.as<ComputeOpNode>();
       CHECK(compute);
+      Operation op = s->op;
       if (!new_body[i].same_as(compute->body)) {
-        Operation op = ComputeOpNode::make(
+        op = ComputeOpNode::make(
             compute->name, compute->axis, new_body[i]);
-        Stage s = sch->stages[i];
+      }
+      op = op->ReplaceInputs(op, repl);
+      if (!op.same_as(s->op)) {
         repl[s->op.output(0)] = op.output(0);
+        s->op = op;
+      }
+    } else {
+      Operation op = s->op->ReplaceInputs(s->op, repl);
+      if (!op.same_as(s->op)) {
+        for (int j = 0; j < op->num_outputs(); ++j) {
+          repl[s->op.output(j)] = op.output(j);
+        }
         s->op = op;
       }
     }
   }
-  ReplaceDataFlow(sch->stages, &repl);
 }
 
 Schedule Schedule::normalize() {

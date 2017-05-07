@@ -92,7 +92,7 @@ def test_inline_mixed():
     tvm.ir_pass.PostOrderVisit(s[C].op.body, check)
 
 
-def test_scan_inline():
+def test_scan_inline1():
     m = tvm.var("m")
     n = tvm.var("n")
     x = tvm.compute((m, n), lambda i, j: tvm.const(1, "float32"), name="x")
@@ -109,6 +109,28 @@ def test_scan_inline():
                           [s_state1, s_state2])
     s = tvm.create_schedule(res1.op)
     s[s_x1].compute_inline()
+    stmt = tvm.lower(s, [x, res1, res2], with_api_wrapper=False)
+
+def test_scan_inline2():
+    m = tvm.var("m")
+    n = tvm.var("n")
+    x = tvm.compute((m, n), lambda i, j: tvm.const(1, "float32"), name="x")
+    s_state1 = tvm.placeholder((m, n))
+    s_state2 = tvm.placeholder((m, n))
+    s_init1 = tvm.compute((1, n), lambda _, i: x[0, i])
+    s_init2 = tvm.compute((1, n), lambda _, i: x[0, i])
+    s_xx = tvm.compute((m, n), lambda t, i: s_state1[t-1, i] + x[t, i], name="xx")
+    s_x1 = tvm.compute((m, n), lambda t, i: s_xx[t, i] + 1, name="x1")
+    s_x2 = tvm.compute((m, n), lambda t, i: s_xx[t, i] + s_state2[t-1, 2], name="x2")
+    s_update1 = tvm.compute((m, n), lambda t, i: s_x1[t, i], "u1")
+    s_update2 = tvm.compute((m, n), lambda t, i: s_x2[t, i], "u2")
+    res1, res2 = tvm.scan([s_init1, s_init2],
+                          [s_update1, s_update2],
+                          [s_state1, s_state2])
+    s = tvm.create_schedule(res1.op)
+    s[s_xx].compute_inline()
+    s[s_x1].compute_inline()
+    s[s_x2].compute_inline()
     stmt = tvm.lower(s, [x, res1, res2], with_api_wrapper=False)
 
 
@@ -128,7 +150,8 @@ def test_schedule_cache():
 
 
 if __name__ == "__main__":
-    test_scan_inline()
+    test_scan_inline1()
+    test_scan_inline2()
     test_inline_mixed()
     test_auto_inline()
     test_schedule_scan()
