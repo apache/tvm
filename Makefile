@@ -76,7 +76,7 @@ else
 endif
 
 # llvm configuration
-ifeq ($(USE_LLVM), 1)
+ifdef LLVM_CONFIG
 	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
 	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
 	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)

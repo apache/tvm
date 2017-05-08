@@ -242,7 +242,6 @@ Stmt MakeCrossThreadReduction(
   freduce_args.push_back(reduce->source);
   freduce_args.push_back(cond);
 
-  std::vector<Expr> thread_head_check;
   for (IterVar iv : stage->leaf_iter_vars) {
     if (iv->iter_type == kCommReduce) {
       auto it = stage->iter_var_attrs.find(iv);
@@ -250,9 +249,13 @@ Stmt MakeCrossThreadReduction(
           (*it).second->bind_thread.defined()) {
         IterVar tv = (*it).second->bind_thread;
         freduce_args.push_back(tv->var);
-        thread_head_check.push_back(tv->var == 0);
       }
     }
+  }
+  // Checks for the thread.
+  std::vector<Expr> thread_head_check;
+  if (stage->store_predicate.defined()) {
+    thread_head_check.emplace_back(stage->store_predicate);
   }
   Type t = reduce->type;
   Expr pred = const_true(t.lanes());
@@ -311,6 +314,9 @@ Stmt ComputeOpNode::BuildProvide(
   nest.push_back(op::MakeIfNest(op::MakeBoundCheck(
       stage, dom_map, false,
       std::unordered_set<IterVar>(), value_map)));
+  if (stage->store_predicate.defined()) {
+    nest.emplace_back(op::MakeIfNest({stage->store_predicate}));
+  }
   provide = Substitute(provide, value_map);
 
   if (init.defined()) {

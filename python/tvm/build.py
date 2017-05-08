@@ -85,7 +85,7 @@ def build(sch,
           target_host=None,
           name="default_function",
           binds=None,
-          max_auto_unroll_step=8,
+          max_auto_unroll_step=0,
           detect_global_barrier=True):
     """Build a function with arguments as signiture.
 

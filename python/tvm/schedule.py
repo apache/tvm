@@ -276,6 +276,19 @@ class Stage(NodeBase):
             threads = [threads]
         _api_internal._StageEnvThreads(self, threads)
 
+    def set_store_predicate(self, predicate):
+        """Set predicate under which store to the array can be performed.
+
+        Use this when there are duplicated threads doing the same store and we only
+        need one of them to do the store.
+
+        Parameters
+        ----------
+        predicate : Expr
+            The guard condition fo store.
+        """
+        _api_internal._StageSetStorePredicate(self, predicate)
+
     def compute_at(self, parent, scope):
         """Attach the stage at parent's scope
 
