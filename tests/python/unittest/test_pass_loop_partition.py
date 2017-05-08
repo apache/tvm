@@ -17,6 +17,7 @@ def test_basic():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.body.body.first))
     print(stmt)
 
@@ -27,32 +28,35 @@ def test_multi_loop():
     with ib.for_range(0, 4, "i") as i:
         with ib.for_range(0, n, "j") as j:
             with ib.for_range(0, m, "k") as k:
-                with ib.if_scope(i*m+j+k < n):
+                with ib.if_scope(ib.likely(i*m+j+k < n)):
                     ib.emit(tvm.make.Evaluate(m))
                 with ib.else_scope():
                     ib.emit(tvm.make.Evaluate(n))
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    print(stmt)
     assert(not any(collect_visit(stmt.body.first,
                                  lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
 def test_multi_if():
-    i = tvm.var('i')
-    j = tvm.var('j')
-    k = tvm.var('k')
+    ib = tvm.ir_builder.create()
     m = tvm.var('m')
     n = tvm.var('n')
-    stmt = tvm.make.For(
-        i, 0, 4, 0, 0,
-        tvm.make.For(
-            j, 0, n, 0, 0,
-            tvm.make.For(
-                k, 0, m, 0, 0,
-                tvm.make.Block(
-                    tvm.make.IfThenElse((i*m+j+k < n), tvm.make.Evaluate(m), tvm.make.Evaluate(n)),
-                    tvm.make.IfThenElse((i*m+j-k < n), tvm.make.Evaluate(m), tvm.make.Evaluate(n))
-                    ))))
+    with ib.for_range(0, 4, 'i') as i:
+        with ib.for_range(0, n, 'j') as j:
+            with ib.for_range(0, m, 'k') as k:
+                with ib.if_scope(ib.likely(i*m+j+k < n)):
+                    ib.emit(tvm.make.Evaluate(m))
+                with ib.else_scope():
+                    ib.emit(tvm.make.Evaluate(n))
+                with ib.if_scope(ib.likely(i*m+j-k < n)):
+                    ib.emit(tvm.make.Evaluate(m))
+                with ib.else_scope():
+                    ib.emit(tvm.make.Evaluate(n))
+    stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.first))
     print(stmt)
 
@@ -72,12 +76,13 @@ def test_thread_axis():
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    stmt_ = tvm.ir_pass.LoopPartition(stmt)
-    assert('if' not in str(stmt_.body.body.body.first))
-    print(stmt_)
+    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert('if' not in str(stmt.body.body.body.first))
+    print(stmt)
 
 if __name__ == "__main__":
-    test_multi_loop()
     test_basic()
+    test_multi_loop()
     test_multi_if()
     test_thread_axis()

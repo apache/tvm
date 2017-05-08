@@ -73,10 +73,15 @@ class PartitionFinder : public IRVisitor {
     }
   }
 
-  void Visit_(const IfThenElse* op) {
-    if (ExprUseVars(op->condition, std::unordered_set<const Variable*>({current_var_.get()}))) {
-      IntSet interval = DeduceBound(current_var_, op->condition, hint_map_, relax_map_);
-      partitions[op->condition.get()] = Partition{op->condition, interval};
+  void Visit_(const Call* op) {
+    if (op->is_intrinsic(Call::likely)) {
+      Expr cond = op->args[0];
+      if (ExprUseVars(cond,
+          std::unordered_set<const Variable*>({current_var_.get()}))) {
+        IntSet interval =
+          DeduceBound(current_var_, cond, hint_map_, relax_map_);
+        partitions[cond.get()] = Partition{cond, interval};
+      }
     } else {
       IRVisitor::Visit_(op);
     }
@@ -95,6 +100,7 @@ class PartitionReplacer : public IRMutator {
  public:
   explicit PartitionReplacer(const std::unordered_map<const Node*, Partition>& ps)
     : ps_(ps) {}
+  using IRMutator::Mutate;
 
   Expr Mutate(Expr e) override {
     if (ps_.count(e.get())) {
@@ -102,7 +108,6 @@ class PartitionReplacer : public IRMutator {
     }
     return IRMutator::Mutate(e);
   }
-  using IRMutator::Mutate;
 
  private:
   const std::unordered_map<const Node*, Partition>& ps_;
@@ -199,11 +204,26 @@ Stmt LoopPartitioner::DoPartition(const For* op, const Stmt& stmt) {
     s = Block::make(s, post_stmt);
   }
 
-  return Simplify(ConvertSSA(s));
+  return ConvertSSA(s);
 }
+
+class RemoveLikelyTags : public IRMutator {
+ public:
+  using IRMutator::Mutate;
+
+  Expr Mutate_(const Call *op, const Expr& e) {
+    if (op->is_intrinsic(Call::likely)) {
+      CHECK_EQ(op->args.size(), 1);
+      return IRMutator::Mutate(op->args[0]);
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+};
 
 Stmt LoopPartition(Stmt stmt) {
   stmt = LoopPartitioner().Mutate(stmt);
+  stmt = RemoveLikelyTags().Mutate(stmt);
   return stmt;
 }
 

@@ -308,9 +308,10 @@ Stmt ComputeOpNode::BuildProvide(
   std::unordered_map<IterVar, Expr> value_map;
   auto nest = op::MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map);
-  nest.push_back(op::MakeIfNest(op::MakeBoundCheck(
-      stage, dom_map, false,
-      std::unordered_set<IterVar>(), value_map)));
+  auto preds = op::MakeBoundCheck(stage, dom_map, false,
+      std::unordered_set<IterVar>(), value_map);
+  for (auto& e : preds) e = likely(e);
+  nest.push_back(op::MakeIfNest(preds));
   provide = Substitute(provide, value_map);
 
   if (init.defined()) {
@@ -346,9 +347,9 @@ Stmt ComputeOpNode::BuildProvide(
     auto init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
         skip_iter, &init_value_map);
-    init_nest.push_back(
-        op::MakeIfNest(
-            op::MakeBoundCheck(stage, dom_map, true, skip_iter, init_value_map)));
+    auto preds = op::MakeBoundCheck(stage, dom_map, true, skip_iter, init_value_map);
+    for (auto& e : preds) e = likely(e);
+    init_nest.push_back(op::MakeIfNest(preds));
     init = Substitute(init, init_value_map);
     init  = MergeNest(init_nest, init);
     // common nest
