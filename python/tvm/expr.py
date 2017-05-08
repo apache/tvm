@@ -63,7 +63,7 @@ class ExprOp(object):
         return _make.LE(self, other)
 
     def __eq__(self, other):
-        return _make.EQ(self, other)
+        return self.equal(other)
 
     def __ne__(self, other):
         return _make.NE(self, other)
@@ -73,6 +73,21 @@ class ExprOp(object):
 
     def __ge__(self, other):
         return _make.GE(self, other)
+
+    def equal(self, other):
+        """Build an equal check expression with other expr.
+
+        Parameters
+        ----------
+        other : Expr
+            The other expression
+
+        Returns
+        -------
+        ret : Expr
+            The equality expression.
+        """
+        return _make.EQ(self, other)
 
 
 class Expr(NodeBase, ExprOp):

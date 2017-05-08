@@ -38,7 +38,7 @@ class CodeGenCUDA final : public CodeGenC {
  private:
   // magic number to add pragma unroll to it.
   // used to generate code that is compact but still unrolls.
-  int max_auto_unroll_{64};
+  int max_auto_unroll_{256};
   // Whether global barrier is needed.
   bool need_global_barrier_{false};
   // Global barrier state
