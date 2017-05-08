@@ -119,7 +119,8 @@ class LoopPartitioner : public IRMutator {
 
   Stmt Mutate_(const For* op, const Stmt& stmt) {
     if (!is_const(op->min) || !is_const(op->extent)) {
-      Stmt s = DoPartition(op, stmt);
+      Stmt s = TryPartition(op, op->loop_var, op->min,
+          op->min + op->extent - 1, op->body);
       if (s.defined()) return s;
     }
     dom_map_.insert({op->loop_var.get(),
@@ -129,26 +130,44 @@ class LoopPartitioner : public IRMutator {
     return res;
   }
 
+  Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) {
+    if (op->attr_key == attr::thread_extent) {
+      const IterVarNode *iv = op->node.as<IterVarNode>();
+      CHECK(iv);
+      Var var = iv->var;
+      if ((var.get()->name_hint.compare(0, 9, "blockIdx.") == 0) &&
+          !is_const(op->value)) {
+        Stmt s = TryPartition(op, var, 0, op->value - 1, op->body);
+        if (s.defined()) return s;
+      }
+
+      dom_map_.insert({var.get(),
+        IntSet::interval(make_zero(var.type()), op->value)});
+      Stmt res = IRMutator::Mutate_(op, stmt);
+      dom_map_.erase(var.get());
+      return res;
+    } else {
+      return IRMutator::Mutate_(op, stmt);
+    }
+  }
+
  private:
-  Stmt DoPartition(const For* op, const Stmt& stmt);
+  Stmt TryPartition(const Node* op, VarExpr var, Expr min, Expr max, Stmt body);
+  Stmt MakeStmt(const Node* op, Expr extent, Stmt body);
 
   std::unordered_map<const Variable*, IntSet> dom_map_;
 };
 
-Stmt LoopPartitioner::DoPartition(const For* op, const Stmt& stmt) {
-  PartitionFinder finder(op->loop_var, dom_map_);
-  finder.Visit(op->body);
+Stmt LoopPartitioner::TryPartition(const Node* op,
+    VarExpr var, Expr min, Expr max, Stmt body) {
+  PartitionFinder finder(var, dom_map_);
+  finder.Visit(body);
   const auto& partitions = finder.partitions;
-
   if (partitions.empty()) return Stmt();
 
-  Expr min = op->min;
-  Expr max = op->min + op->extent - 1;
   Array<IntSet> sets;
   // merge partitions (take their intersect)
-  for (const auto& kv : partitions) {
-    sets.push_back(kv.second.interval);
-  }
+  for (const auto& kv : partitions) sets.push_back(kv.second.interval);
   IntSet true_itrv  = Intersect(sets);
 
   Stmt pre_stmt;
@@ -162,10 +181,8 @@ Stmt LoopPartitioner::DoPartition(const For* op, const Stmt& stmt) {
         body_begin = Max::make(body_begin, min);
       }
       // [min, body_begin)
-      Stmt body = Substitute(op->body,
-        {{Var{op->loop_var}, op->loop_var + min}});
-      pre_stmt = For::make(op->loop_var, 0,
-        body_begin - min, op->for_type, op->device_api, body);
+      Stmt new_body = Substitute(body, {{Var{var}, var + min}});
+      pre_stmt = MakeStmt(op, body_begin - min, new_body);
     }
   } else {
     body_begin = min;
@@ -182,29 +199,36 @@ Stmt LoopPartitioner::DoPartition(const For* op, const Stmt& stmt) {
         post_doubt_begin = Min::make(post_doubt_begin, max);
       }
       // [post_doubt_begin, max]
-      Stmt body = Substitute(op->body,
-        {{Var{op->loop_var}, op->loop_var + post_doubt_begin}});
-      post_stmt = For::make(op->loop_var, 0,
-        max - post_doubt_begin + 1, op->for_type, op->device_api, body);
+      Stmt new_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
+      post_stmt = MakeStmt(op, max - post_doubt_begin + 1, new_body);
     }
   } else {
     post_doubt_begin = max + 1;
   }
 
   // [body_begin, post_doubt_begin)
-  Stmt simplified_body = PartitionReplacer(partitions).Mutate(op->body);
-  Stmt body = Substitute(simplified_body, {{Var{op->loop_var}, op->loop_var + body_begin}});
-  Stmt simplified_stmt = For::make(op->loop_var, 0,
-    post_doubt_begin - body_begin, op->for_type, op->device_api, body);
+  Stmt simplified_body = PartitionReplacer(partitions).Mutate(body);
+  Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
+  Stmt simplified_stmt = MakeStmt(op, post_doubt_begin - body_begin, new_body);
   Stmt s = simplified_stmt;
-  if (pre_stmt.defined()) {
-    s = Block::make(pre_stmt, s);
-  }
-  if (post_stmt.defined()) {
-    s = Block::make(s, post_stmt);
-  }
+  if (pre_stmt.defined())  s = Block::make(pre_stmt, s);
+  if (post_stmt.defined()) s = Block::make(s, post_stmt);
 
   return ConvertSSA(s);
+}
+
+Stmt LoopPartitioner::MakeStmt(const Node *node, Expr extent, Stmt body) {
+  if (node->is_type<For>()) {
+    const For *for_node = static_cast<const For*>(node);
+    return For::make(for_node->loop_var, 0, extent,
+      for_node->for_type, for_node->device_api, body);
+  } else if (node->is_type<AttrStmt>()) {
+    const AttrStmt *attr_stmt = static_cast<const AttrStmt*>(node);
+    return AttrStmt::make(attr_stmt->node, attr_stmt->attr_key, extent, body);
+  } else {
+    LOG(FATAL) << "wrong type when try to make statement";
+    return Stmt();
+  }
 }
 
 class RemoveLikelyTags : public IRMutator {
