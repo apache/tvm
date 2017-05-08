@@ -521,6 +521,7 @@ class TVMRetValue : public TVMPODValue_ {
 inline const char* TypeCode2Str(int type_code) {
   switch (type_code) {
     case kInt: return "int";
+    case kUInt: return "uint";
     case kFloat: return "float";
     case kStr: return "str";
     case kBytes: return "bytes";

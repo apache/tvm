@@ -71,6 +71,15 @@ def test_stmt():
                  tvm.stmt.For.Serial, 0,
                  x)
 
+def test_dir():
+    x = tvm.var('x')
+    dir(x)
+
+def test_dtype():
+    x = tvm.var('x')
+    assert x.dtype == 'int32'
+    y = tvm.var('y')
+    assert (x > y).dtype == 'uint1'
 
 if __name__ == "__main__":
     test_attr()
@@ -81,3 +90,5 @@ if __name__ == "__main__":
     test_basic()
     test_stmt()
     test_let()
+    test_dir()
+    test_dtype()
