@@ -39,9 +39,9 @@ USE_METAL = 0
 
 # whether build with LLVM support
 # Requires LLVM version >= 4.0
-# Set LLVM_CONFIG to your version
-# LLVM_CONFIG = llvm-config-4.0
-USE_LLVM = 0
+# Set LLVM_CONFIG to your version, uncomment to build with llvm support
+#
+# LLVM_CONFIG = llvm-config
 
 #---------------------------------------------
 # Contrib optional libraries.

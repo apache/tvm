@@ -307,6 +307,12 @@ TVM_REGISTER_API("_StageEnvThreads")
         .env_threads(args[1]);
   });
 
+TVM_REGISTER_API("_StageSetStorePredicate")
+  .set_body([](TVMArgs args, TVMRetValue* ret) {
+    args[0].operator Stage()
+        .set_store_predicate(args[1]);
+  });
+
 TVM_REGISTER_API("_StageUnroll")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()

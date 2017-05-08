@@ -200,6 +200,12 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
   return *this;
 }
 
+Stage& Stage::set_store_predicate(Expr predicate) {
+  StageNode* self = operator->();
+  self->store_predicate = predicate;
+  return *this;
+}
+
 Stage& Stage::split(
     IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner) {  // NOLINT(*)
   Split(operator->(), parent, factor, Expr(), p_outer, p_inner);
