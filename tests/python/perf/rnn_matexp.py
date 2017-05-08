@@ -90,6 +90,8 @@ def rnn_matexp():
     s[s_update].bind(tx, thread_x)
     s[CL].bind(s[CL].op.reduce_axis[0], thread_y)
     s[CLF].compute_at(s[CL], s[CL].op.reduce_axis[0])
+    # Duplicate store predicate.
+    s[CL].set_store_predicate(thread_y.equal(0))
 
     if PERSIST_KERNEL:
         s[WhhL].compute_at(s[s_scan], thread_x)
@@ -109,7 +111,6 @@ def rnn_matexp():
     s[SS].bind(tx, thread_x)
 
     def check_device(target):
-        codes = []
         f = tvm.build(s, [s_scan, Whh],
                       target,
                       max_auto_unroll_step=max_auto_unroll_step,

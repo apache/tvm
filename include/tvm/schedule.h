@@ -82,10 +82,22 @@ class Stage : public NodeRef {
    */
   Stage& bind(IterVar ivar, IterVar thread_ivar);
   /*!
+   * \brief Set predicate under which store to the array can be performed.
+   *  Use this when there are duplicated threads doing the same store and we only
+   *  need one of them to do the store.
+   *
+   * \note This is a dangerous scheduling primitive that can change behavior of program.
+   *    Only do when we are certain that thare are duplicated store.
+   * \param predicate The condition to be checked.
+   * \return reference to self.
+   */
+  Stage& set_store_predicate(Expr predicate);
+  /*!
    * \brief Specify environment threads that launched around the group's scope.
    *  This can only be used in group stage.
    * \param threads The threads to be launched around the scope.
    * \note Each thread can only appear in one env_threads.
+   *    This is a beta feature.
    * \return reference to self.
    */
   Stage& env_threads(Array<IterVar> threads);
@@ -341,8 +353,15 @@ class StageNode : public Node {
   /*!
    * \brief Specify threads to be launched at the stage.
    *  This is only valid for composite ops such as Scan.
+   * \note Experimental primitive: used for thread persistence.
    */
   Array<IterVar> env_threads;
+  /*!
+   * \brief The predicate under which store can happen
+   *  Use this when there can be duplicated threads doing the same store.
+   * \note Experimental primitive: used by cross thread-reduction.
+   */
+  Expr store_predicate;
   /*! \brief The relation bwteen of IterVars */
   Array<IterVarRelation> relations;
   /*! \brief additional attributes about iter var. */

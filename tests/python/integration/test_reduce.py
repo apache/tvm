@@ -98,8 +98,10 @@ def test_rfactor_threads():
     s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[B].bind(ty, tvm.thread_axis("threadIdx.y"))
     tx = s[B].op.reduce_axis[0]
-    s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+    thread_x = tvm.thread_axis("threadIdx.x")
+    s[B].bind(tx, thread_x)
     s[BF].compute_at(s[B], tx)
+    s[B].set_store_predicate(thread_x.var.equal(0))
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
