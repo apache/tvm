@@ -6,7 +6,7 @@ import ctypes
 import sys
 from .. import _api_internal
 from .node_generic import NodeGeneric, convert_to_node, const
-from .base import _LIB, check_call, c_str, _FFI_MODE
+from .base import _LIB, check_call, c_str, py_str, _FFI_MODE
 
 IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
 try:
