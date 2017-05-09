@@ -7,6 +7,7 @@
 
 #if TVM_OPENCL_RUNTIME
 
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <vector>
 #include <string>
@@ -76,6 +77,12 @@ class OpenCLModuleNode : public ModuleNode {
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    stream->Write(fmt_);
+    stream->Write(fmap_);
+    stream->Write(data_);
   }
 
   std::string GetSource(const std::string& format) final {
@@ -272,8 +279,8 @@ Module OpenCLModuleCreate(
 }
 
 // Load module from module.
-Module OpenCLModuleLoad(const std::string& file_name,
-                        const std::string& format) {
+Module OpenCLModuleLoadFile(const std::string& file_name,
+                            const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -283,14 +290,30 @@ Module OpenCLModuleLoad(const std::string& file_name,
   return OpenCLModuleCreate(data, fmt, fmap);
 }
 
+Module OpenCLModuleLoadBinary(void* strm) {
+  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt;
+  stream->Read(&fmt);
+  stream->Read(&fmap);
+  stream->Read(&data);
+  return OpenCLModuleCreate(data, fmt, fmap);
+}
+
 TVM_REGISTER_GLOBAL("module.loadfile_cl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoad(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_clbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoad(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenCLModuleLoadBinary(args[0]);
   });
 }  // namespace runtime
 }  // namespace tvm

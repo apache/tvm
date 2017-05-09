@@ -19,7 +19,7 @@ using runtime::TVMArgs;
 using runtime::TVMRetValue;
 using runtime::PackedFunc;
 
-class LLVMModuleNode : public runtime::ModuleNode {
+class LLVMModuleNode final : public runtime::ModuleNode {
  public:
   ~LLVMModuleNode() {
     module_.reset();
@@ -82,6 +82,10 @@ class LLVMModuleNode : public runtime::ModuleNode {
                  << file_name << " with format=\'"<< format << "\'";
     }
     dest.close();
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    LOG(FATAL) << "LLVMModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {

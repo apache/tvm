@@ -6,6 +6,7 @@
 
 #if TVM_METAL_RUNTIME
 
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <array>
@@ -54,6 +55,11 @@ class MetalModuleNode final :public runtime::ModuleNode {
     SaveBinaryToFile(file_name, data_);
   }
 
+  void SaveToBinary(dmlc::Stream* stream) final {
+    stream->Write(fmt_);
+    stream->Write(fmap_);
+    stream->Write(data_);
+  }
   std::string GetSource(const std::string& format) final {
     if (format == fmt_) return data_;
     if (source_.length() != 0) {
@@ -261,8 +267,8 @@ Module MetalModuleCreate(
 }
 
 // Load module from module.
-Module MetalModuleLoad(const std::string& file_name,
-                       const std::string& format) {
+Module MetalModuleLoadFile(const std::string& file_name,
+                           const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -272,9 +278,25 @@ Module MetalModuleLoad(const std::string& file_name,
   return MetalModuleCreate(data, fmt, fmap, "");
 }
 
+Module MetalModuleLoadBinary(void* strm) {
+  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt;
+  stream->Read(&fmt);
+  stream->Read(&fmap);
+  stream->Read(&data);
+  return MetalModuleCreate(data, fmt, fmap, "");
+}
+
 TVM_REGISTER_GLOBAL("module.loadfile_metal")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = MetalModuleLoad(args[0], args[1]);
+    *rv = MetalModuleLoadFile(args[0], args[1]);
+    });
+
+TVM_REGISTER_GLOBAL("module.loadbinary_metal")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = MetalModuleLoadBinary(args[0]);
     });
 }  // namespace runtime
 }  // namespace tvm
