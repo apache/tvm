@@ -18,8 +18,8 @@ def test_basic():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body.first))
     print(stmt)
+    assert(xi.var.name not in str(stmt.body.body.body.body.body.condition))
 
 def test_multi_loop():
     ib = tvm.ir_builder.create()
@@ -36,8 +36,8 @@ def test_multi_loop():
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
-    assert(not any(collect_visit(stmt.body.first,
-                                 lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+    cond = stmt.body.body.body.condition
+    assert(k.name not in str(cond))
 
 def test_multi_if():
     ib = tvm.ir_builder.create()
@@ -57,15 +57,15 @@ def test_multi_if():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.first))
     print(stmt)
+    cond = stmt.body.body.body.condition
+    assert(k.name not in str(cond))
 
 def test_thread_axis():
     m = tvm.var('m')
     l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.compute((m, l), lambda i, j: A[i, j] + 3, name='B')
-
     s = tvm.create_schedule(B.op)
 
     s[B].set_scope("shared")
@@ -78,33 +78,35 @@ def test_thread_axis():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body.first))
     print(stmt)
+    cond = stmt.body.body.body.body.body.body.body.condition
+    assert(xi1.var.name not in str(cond))
 
-def test_vectorize():
-    n = tvm.var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    bias = tvm.var("bias", dtype="float32")
-    scale = tvm.var("scale", dtype="float32")
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i) * scale + bias, name='C')
-    # schedule
-    s = tvm.create_schedule(C.op)
-    # create iter var and assign them tags.
-    num_thread = 32
-    bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
-    tx, x = s[C].split(x, nparts=num_thread)
-    _, x = s[C].split(x, factor=4)
-    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[C].vectorize(x)
-    stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
-    assert('if' not in str(stmt.body.body.body.first))
-    print(stmt)
+# def test_vectorize():
+n = tvm.var('n')
+A = tvm.placeholder((n,), name='A')
+B = tvm.placeholder((n,), name='B')
+bias = tvm.var("bias", dtype="float32")
+scale = tvm.var("scale", dtype="float32")
+C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i) * scale + bias, name='C')
+# schedule
+s = tvm.create_schedule(C.op)
+# create iter var and assign them tags.
+num_thread = 32
+bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
+tx, x = s[C].split(x, nparts=num_thread)
+_, x = s[C].split(x, factor=4)
+s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+s[C].vectorize(x)
+stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
+print(stmt)
+cond = stmt.body.body.body.body.body.condition
+assert(x.var.name not in str(cond))
 
-if __name__ == "__main__":
-    test_basic()
-    test_multi_loop()
-    test_multi_if()
-    test_thread_axis()
-    test_vectorize()
+# if __name__ == "__main__":
+#     test_basic()
+#     test_multi_loop()
+#     test_multi_if()
+#     test_thread_axis()
+#     test_vectorize()
