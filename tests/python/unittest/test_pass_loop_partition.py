@@ -16,10 +16,11 @@ def test_basic():
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
+    print(stmt)
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
-    assert(xi.var.name not in str(stmt.body.body.body.body.body.condition))
+    assert('if' not in str(stmt.body.body.body.first))
 
 def test_multi_loop():
     ib = tvm.ir_builder.create()
@@ -36,8 +37,7 @@ def test_multi_loop():
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
-    cond = stmt.body.body.body.condition
-    assert(k.name not in str(cond))
+    assert(not any(collect_visit(stmt.body.first, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
 def test_multi_if():
     ib = tvm.ir_builder.create()
@@ -58,8 +58,7 @@ def test_multi_if():
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
-    cond = stmt.body.body.body.condition
-    assert(k.name not in str(cond))
+    assert('if' not in str(stmt.body.first))
 
 def test_thread_axis():
     m = tvm.var('m')
@@ -79,8 +78,7 @@ def test_thread_axis():
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
-    cond = stmt.body.body.body.body.body.condition
-    assert(xi1.var.name not in str(cond))
+    assert('if' not in str(stmt.body.body.body.first))
 
 def test_vectorize():
     n = tvm.var('n')
@@ -104,9 +102,24 @@ def test_vectorize():
     cond = stmt.body.body.body.body.body.condition
     assert(x.var.name not in str(cond))
 
+def test_select():
+    ib = tvm.ir_builder.create()
+    m = tvm.var('m')
+    n = tvm.var('n')
+    with ib.for_range(0, ((n+3)/4), 'i') as i:
+      with ib.for_range(0, 4, 'j') as j:
+        ib.emit(tvm.make.Evaluate(
+          tvm.make.Select(ib.likely(i*4+j<n), m, n)))
+    stmt = ib.get()
+    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    print(stmt)
+    assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
+
 if __name__ == "__main__":
     test_basic()
     test_multi_loop()
     test_multi_if()
     test_thread_axis()
     test_vectorize()
+    test_select()

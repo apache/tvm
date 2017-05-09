@@ -38,6 +38,66 @@ bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
   return success;
 }
 
+// Select potential candidate IRs that can be partitioned.
+// Rule:
+//   - the range should not be const
+//   - there exist a condition expression in the scope that use the var
+class CandidateSelector : public IRVisitor {
+ public:
+  using VarIsUsed = bool;
+  CandidateSelector() {}
+
+  void Visit_(const For* op) {
+    if (!is_const(op->min) || !is_const(op->extent)) {
+      const Variable* var = op->loop_var.get();
+      record_.insert({var, false});
+      IRVisitor::Visit_(op);
+      if (record_.at(var)) {
+        candidates.insert(op);
+      }
+      record_.erase(var);
+    } else {
+      IRVisitor::Visit_(op);
+    }
+  }
+
+  void Visit_(const AttrStmt* op) {
+    if (op->attr_key == attr::thread_extent) {
+      const IterVarNode *iv = op->node.as<IterVarNode>();
+      CHECK(iv);
+      Var var = iv->var;
+      runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
+      if ((scope.rank == 0) && !is_const(op->value)) {
+        record_.insert({var.get(), false});
+        IRVisitor::Visit_(op);
+        if (record_.at(var.get())) {
+          candidates.insert(op);
+        }
+        record_.erase(var.get());
+        return;
+      }
+    }
+    IRVisitor::Visit_(op);
+  }
+
+  void Visit_(const Call* op) {
+    if (op->is_intrinsic(Call::likely)) {
+      Expr cond = op->args[0];
+      PostOrderVisit(cond, [&](const NodeRef& node) {
+        const Variable* var = node.as<Variable>();
+        if (var && record_.count(var)) record_.at(var) = true;
+      });
+    }
+    IRVisitor::Visit_(op);
+  }
+
+  std::unordered_set<const Node*> candidates;
+
+ private:
+  std::unordered_map<const Variable*, VarIsUsed> record_;
+};
+
+// Find valid partition for specific variable
 class PartitionFinder : public IRVisitor {
  public:
   explicit PartitionFinder(VarExpr current_var,
@@ -97,6 +157,7 @@ class PartitionFinder : public IRVisitor {
   std::unordered_map<const Variable*, IntSet> relax_map_;
 };
 
+// Eliminate the condition expressions by partitions
 class ConditionEliminator : public IRMutator {
  public:
   explicit ConditionEliminator(const std::unordered_map<const Node*, Partition>& ps)
@@ -112,22 +173,12 @@ class ConditionEliminator : public IRMutator {
   const std::unordered_map<const Node*, Partition>& ps_;
 };
 
-bool ExistThreadScope(Stmt stmt) {
-  bool exist = false;
-  PostOrderVisit(stmt, [&exist](const NodeRef& node) {
-    if (node.as<AttrStmt>()) {
-      exist = true;
-      return;
-    }
-  });
-  return exist;
-}
 
-class PartitionInserter : public IRMutator {
+// Insert the partition branch at the innermost thread scope
+class ThreadPartitionInserter : public IRMutator {
  public:
-  explicit PartitionInserter(const std::unordered_map<const Node*, Partition>& ps,
-    Expr cond, bool exist_thread_scope) : ps_(ps), cond_(cond),
-    exist_thread_scope_(false), innermost_thread_scope_(false) {}
+  explicit ThreadPartitionInserter(const std::unordered_map<const Node*, Partition>& ps,
+    Expr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent) {
@@ -147,32 +198,20 @@ class PartitionInserter : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const IfThenElse* op, const Stmt& stmt) final {
-    // if not exist thread scope, then insert the branch at the condition
-    Stmt s = IRMutator::Mutate_(op, stmt);
-    if (!exist_thread_scope_) {
-      const Call* call = op->condition.as<Call>();
-      if (call && call->is_intrinsic(Call::likely) &&
-          ps_.count(call->args[0].get())) {
-        return IfThenElse::make(cond_, op->then_case, s);
-      }
-    }
-    return s;
-  }
-
  private:
   const std::unordered_map<const Node*, Partition>& ps_;
   Expr cond_;
-  bool exist_thread_scope_;
   bool innermost_thread_scope_;
 };
 
+// Try to do partition at the candidate IRs
 class LoopPartitioner : public IRMutator {
  public:
-  LoopPartitioner() {}
+  explicit LoopPartitioner(std::unordered_set<const Node*> candidates)
+    : candidates_(candidates) {}
 
   Stmt Mutate_(const For* op, const Stmt& stmt) {
-    if (!is_const(op->min) || !is_const(op->extent)) {
+    if (candidates_.count(op)) {
       Stmt s = TryPartition(op, stmt, op->loop_var,
           op->min, op->min + op->extent - 1, op->body);
       if (s.defined()) return s;
@@ -185,15 +224,12 @@ class LoopPartitioner : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) {
-    if (op->attr_key == attr::thread_extent) {
+    if (candidates_.count(op)) {
       const IterVarNode *iv = op->node.as<IterVarNode>();
       CHECK(iv);
       Var var = iv->var;
-      runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
-      if ((scope.rank == 0) && !is_const(op->value)) {
-        Stmt s = TryPartition(op, stmt, var, 0, op->value - 1, op->body);
-        if (s.defined()) return s;
-      }
+      Stmt s = TryPartition(op, stmt, var, 0, op->value - 1, op->body);
+      if (s.defined()) return s;
 
       dom_map_.insert({var.get(),
         IntSet::interval(make_zero(var.type()), op->value)});
@@ -208,13 +244,15 @@ class LoopPartitioner : public IRMutator {
  private:
   Stmt TryPartition(const Node* op, const Stmt& stmt, VarExpr var,
       Expr min, Expr max, Stmt body);
-  Stmt MakeStmt(const Node* op, Expr extent, Stmt body);
+  inline Stmt MakeStmt(const Node* op, Expr extent, Stmt body);
 
+  std::unordered_set<const Node*> candidates_;
   std::unordered_map<const Variable*, IntSet> dom_map_;
 };
 
-Stmt LoopPartitioner::TryPartition(const Node* op, const Stmt& stmt,
+Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
     VarExpr var, Expr min, Expr max, Stmt body) {
+  bool inside_thread_scope = node->is_type<AttrStmt>();
   PartitionFinder finder(var, dom_map_);
   finder.Visit(body);
   const auto& partitions = finder.partitions;
@@ -225,8 +263,8 @@ Stmt LoopPartitioner::TryPartition(const Node* op, const Stmt& stmt,
   for (const auto& kv : partitions) sets.push_back(kv.second.interval);
   IntSet true_itrv  = Intersect(sets);
 
-  // [min, body_begin)
   Expr body_begin;
+  Stmt pre_stmt;
   if (true_itrv.as<arith::IntervalSet>()->i.has_lower_bound()) {
     body_begin = true_itrv.min();
     if (!can_prove(body_begin == min)) {
@@ -236,13 +274,18 @@ Stmt LoopPartitioner::TryPartition(const Node* op, const Stmt& stmt,
                      << ", when generating the pre doubt loop";
         body_begin = Max::make(body_begin, min);
       }
+      // [min, body_begin)
+      if (!inside_thread_scope) {
+        Stmt new_body = Substitute(body, {{Var{var}, var + min}});
+        pre_stmt = MakeStmt(node, body_begin - min, new_body);
+      }
     }
   } else {
     body_begin = min;
   }
 
-  // [post_doubt_begin, max]
   Expr post_doubt_begin;
+  Stmt post_stmt;
   if (true_itrv.as<arith::IntervalSet>()->i.has_upper_bound()) {
     post_doubt_begin = true_itrv.max() + 1;
     if (!can_prove(true_itrv.max() == max)) {
@@ -252,32 +295,38 @@ Stmt LoopPartitioner::TryPartition(const Node* op, const Stmt& stmt,
                      << ", when generating the post doubt loop";
         post_doubt_begin = Min::make(post_doubt_begin, max);
       }
+      // [post_doubt_begin, max]
+      if (!inside_thread_scope) {
+        Stmt new_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
+        post_stmt = MakeStmt(node, max - post_doubt_begin + 1, new_body);
+      }
     }
   } else {
     post_doubt_begin = max + 1;
   }
 
   // [body_begin, post_doubt_begin)
-  Expr cond = const_true();
-  if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
-  if (!can_prove(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
-  Stmt s = PartitionInserter(partitions, cond, ExistThreadScope(stmt)).Mutate(stmt);
+  Stmt s;
+  if (!inside_thread_scope) {
+    Stmt simplified_body = ConditionEliminator(partitions).Mutate(body);
+    Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
+    s = MakeStmt(node, post_doubt_begin - body_begin, new_body);
+    if (pre_stmt.defined())  s = Block::make(pre_stmt, s);
+    if (post_stmt.defined()) s = Block::make(s, post_stmt);
+  } else {
+    Expr cond = const_true();
+    if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
+    if (!can_prove(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
+    s = ThreadPartitionInserter(partitions, cond).Mutate(stmt);
+  }
   s = ConvertSSA(s);
   return s;
 }
 
-Stmt LoopPartitioner::MakeStmt(const Node *node, Expr extent, Stmt body) {
-  if (node->is_type<For>()) {
-    const For *for_node = static_cast<const For*>(node);
-    return For::make(for_node->loop_var, 0, extent,
-      for_node->for_type, for_node->device_api, body);
-  } else if (node->is_type<AttrStmt>()) {
-    const AttrStmt *attr_stmt = static_cast<const AttrStmt*>(node);
-    return AttrStmt::make(attr_stmt->node, attr_stmt->attr_key, extent, body);
-  } else {
-    LOG(FATAL) << "wrong type when try to make statement";
-    return Stmt();
-  }
+inline Stmt LoopPartitioner::MakeStmt(const Node *node, Expr extent, Stmt body) {
+  const For *for_node = static_cast<const For*>(node);
+  return For::make(for_node->loop_var, 0, extent,
+    for_node->for_type, for_node->device_api, body);
 }
 
 class RemoveLikelyTags : public IRMutator {
@@ -295,7 +344,9 @@ class RemoveLikelyTags : public IRMutator {
 };
 
 Stmt LoopPartition(Stmt stmt) {
-  stmt = LoopPartitioner().Mutate(stmt);
+  CandidateSelector selector;
+  selector.Visit(stmt);
+  stmt = LoopPartitioner(selector.candidates).Mutate(stmt);
   stmt = RemoveLikelyTags().Mutate(stmt);
   return stmt;
 }
