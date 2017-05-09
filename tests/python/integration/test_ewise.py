@@ -64,12 +64,12 @@ from tvm.contrib import nvcc_compiler
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     print(code)
-    ptx =  nvcc_compiler.compile_source(code, target="ptx", options=["-arch=sm_52"])
+    ptx =  nvcc_compiler.compile_source(code, target="ptx", options=["-arch=sm_35"])
     return ptx
 
 def test_add():
     # graph
-    n = tvm.convert(1024)
+    n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     bias = tvm.var("bias", dtype="float32")

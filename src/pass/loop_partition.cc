@@ -97,26 +97,74 @@ class PartitionFinder : public IRVisitor {
   std::unordered_map<const Variable*, IntSet> relax_map_;
 };
 
-class PartitionReplacer : public IRMutator {
+class ConditionEliminator : public IRMutator {
  public:
-  explicit PartitionReplacer(const std::unordered_map<const Node*, Partition>& ps,
-    Expr cond) : ps_(ps), cond_(cond) {}
+  explicit ConditionEliminator(const std::unordered_map<const Node*, Partition>& ps)
+    : ps_(ps) {}
 
-  Stmt Mutate_(const IfThenElse* op, const Stmt& s) override final {
-    Expr cond = op->condition;
-    const Call* call = static_cast<const Call*>(cond.as<Call>());
-    if (call && call->is_intrinsic(Call::likely) &&
-        ps_.count(call->args[0].get())) {
-      Stmt old = IRMutator::Mutate_(op, s);
-      Stmt res = IfThenElse::make(cond_, op->then_case, old);
-      return res;
+  using IRMutator::Mutate;
+  Expr Mutate(Expr e) final {
+    if (ps_.count(e.get())) return Mutate(const_true());
+    return IRMutator::Mutate(e);
+  }
+
+ private:
+  const std::unordered_map<const Node*, Partition>& ps_;
+};
+
+bool ExistThreadScope(Stmt stmt) {
+  bool exist = false;
+  PostOrderVisit(stmt, [&exist](const NodeRef& node) {
+    if (node.as<AttrStmt>()) {
+      exist = true;
+      return;
     }
-    return IRMutator::Mutate_(op, s);
+  });
+  return exist;
+}
+
+class PartitionInserter : public IRMutator {
+ public:
+  explicit PartitionInserter(const std::unordered_map<const Node*, Partition>& ps,
+    Expr cond, bool exist_thread_scope) : ps_(ps), cond_(cond),
+    exist_thread_scope_(false), innermost_thread_scope_(false) {}
+
+  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+    if (op->attr_key == attr::thread_extent) {
+      innermost_thread_scope_ = true;
+      Stmt stmt = IRMutator::Mutate_(op, s);
+      // add branch code inside the innermost thread scope
+      if (innermost_thread_scope_) {
+        Stmt simplified_body = ConditionEliminator(ps_).Mutate(op->body);
+        Stmt body = IfThenElse::make(cond_, simplified_body, op->body);
+        Expr value = this->Mutate(op->value);
+        stmt = AttrStmt::make(op->node, op->attr_key, value, body);
+      }
+      innermost_thread_scope_ = false;
+      return stmt;
+    } else {
+      return IRMutator::Mutate_(op, s);
+    }
+  }
+
+  Stmt Mutate_(const IfThenElse* op, const Stmt& stmt) final {
+    // if not exist thread scope, then insert the branch at the condition
+    Stmt s = IRMutator::Mutate_(op, stmt);
+    if (!exist_thread_scope_) {
+      const Call* call = op->condition.as<Call>();
+      if (call && call->is_intrinsic(Call::likely) &&
+          ps_.count(call->args[0].get())) {
+        return IfThenElse::make(cond_, op->then_case, s);
+      }
+    }
+    return s;
   }
 
  private:
   const std::unordered_map<const Node*, Partition>& ps_;
   Expr cond_;
+  bool exist_thread_scope_;
+  bool innermost_thread_scope_;
 };
 
 class LoopPartitioner : public IRMutator {
@@ -210,10 +258,12 @@ Stmt LoopPartitioner::TryPartition(const Node* op, const Stmt& stmt,
   }
 
   // [body_begin, post_doubt_begin)
-  Expr cond = (var >= body_begin && var < post_doubt_begin);
-  Stmt s = PartitionReplacer(partitions, cond).Mutate(stmt);
-  Stmt res = ConvertSSA(s);
-  return res;
+  Expr cond = const_true();
+  if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
+  if (!can_prove(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
+  Stmt s = PartitionInserter(partitions, cond, ExistThreadScope(stmt)).Mutate(stmt);
+  s = ConvertSSA(s);
+  return s;
 }
 
 Stmt LoopPartitioner::MakeStmt(const Node *node, Expr extent, Stmt body) {

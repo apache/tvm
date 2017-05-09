@@ -79,34 +79,34 @@ def test_thread_axis():
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     print(stmt)
-    cond = stmt.body.body.body.body.body.body.body.condition
+    cond = stmt.body.body.body.body.body.condition
     assert(xi1.var.name not in str(cond))
 
-# def test_vectorize():
-n = tvm.var('n')
-A = tvm.placeholder((n,), name='A')
-B = tvm.placeholder((n,), name='B')
-bias = tvm.var("bias", dtype="float32")
-scale = tvm.var("scale", dtype="float32")
-C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i) * scale + bias, name='C')
-# schedule
-s = tvm.create_schedule(C.op)
-# create iter var and assign them tags.
-num_thread = 32
-bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
-tx, x = s[C].split(x, nparts=num_thread)
-_, x = s[C].split(x, factor=4)
-s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-s[C].vectorize(x)
-stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
-print(stmt)
-cond = stmt.body.body.body.body.body.condition
-assert(x.var.name not in str(cond))
+def test_vectorize():
+    n = tvm.var('n')
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.placeholder((n,), name='B')
+    bias = tvm.var("bias", dtype="float32")
+    scale = tvm.var("scale", dtype="float32")
+    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i) * scale + bias, name='C')
+    # schedule
+    s = tvm.create_schedule(C.op)
+    # create iter var and assign them tags.
+    num_thread = 32
+    bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
+    tx, x = s[C].split(x, nparts=num_thread)
+    _, x = s[C].split(x, factor=4)
+    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[C].vectorize(x)
+    stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
+    print(stmt)
+    cond = stmt.body.body.body.body.body.condition
+    assert(x.var.name not in str(cond))
 
-# if __name__ == "__main__":
-#     test_basic()
-#     test_multi_loop()
-#     test_multi_if()
-#     test_thread_axis()
-#     test_vectorize()
+if __name__ == "__main__":
+    test_basic()
+    test_multi_loop()
+    test_multi_if()
+    test_thread_axis()
+    test_vectorize()
