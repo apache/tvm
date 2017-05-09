@@ -13,7 +13,7 @@ using runtime::TVMArgs;
 using runtime::TVMRetValue;
 using runtime::PackedFunc;
 // Simulator function
-class SourceModuleNode : public runtime::ModuleNode {
+class SourceModuleNode final : public runtime::ModuleNode {
  public:
   SourceModuleNode(std::string code,
                    std::string fmt)
@@ -30,10 +30,16 @@ class SourceModuleNode : public runtime::ModuleNode {
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
   }
+
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
-    LOG(FATAL) << "not implemented";
+    LOG(FATAL) << "SourceModule: SaveToFile not supported";
   }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    LOG(FATAL) << "SourceModule: SaveToBinary not supported";
+  }
+
   std::string GetSource(const std::string& format) final {
     return code_;
   }

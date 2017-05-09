@@ -29,7 +29,13 @@ struct FunctionInfo {
 
   void Save(dmlc::JSONWriter *writer) const;
   void Load(dmlc::JSONReader *reader);
+  void Save(dmlc::Stream *writer) const;
+  bool Load(dmlc::Stream *reader);
 };
 }  // namespace runtime
 }  // namespace tvm
+
+namespace dmlc {
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::FunctionInfo, true);
+}  // namespace dmlc
 #endif  // TVM_RUNTIME_META_DATA_H_

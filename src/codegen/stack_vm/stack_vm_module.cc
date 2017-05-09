@@ -35,7 +35,11 @@ class StackVMModuleNode : public runtime::ModuleNode {
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
-    LOG(FATAL) << "StackVM do not support SaveToFile";
+    LOG(FATAL) << "StackVMModule: SaveToFile not supported";
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    LOG(FATAL) << "StackVMModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {

@@ -68,5 +68,38 @@ def test_dso_module_load():
         "python %s %s %s" % (path_runtime_py, path_dso, dtype),
         shell=True)
 
+
+def test_device_module_dump():
+    # graph
+    n = tvm.convert(1024)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = tvm.create_schedule(B.op)
+    # create iter var and assign them tags.
+    num_thread = 8
+    bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
+    s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        temp = util.tempdir()
+        f = tvm.build(s, [A, B], device, name="myadd")
+        path_dso = temp.relpath("dev_lib.so")
+        f.export_library(path_dso)
+        ctx = tvm.context(device, 0)
+        f1 = tvm.module.load(path_dso)
+        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        f1(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+    check_device("cuda")
+    check_device("opencl")
+    check_device("metal")
+
 if __name__ == "__main__":
+    test_device_module_dump()
     test_dso_module_load()

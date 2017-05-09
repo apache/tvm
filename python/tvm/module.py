@@ -2,7 +2,7 @@
 from __future__ import absolute_import as _abs
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
-
+from .contrib import cc_compiler as _cc, util as _util
 
 class Module(ModuleBase):
     """Module container of all TVM generated functions"""
@@ -44,14 +44,45 @@ class Module(ModuleBase):
     def save(self, file_name, fmt=""):
         """Save the module to file.
 
+        This do not save the dependent device modules.
+        See also export_shared
+
         Parameters
         ----------
         file_name : str
             The name of the file.
         fmt : str
             The format of the file.
+
+        See Also
+        --------
+        Module.export_library : export the module to shared library.
         """
         _SaveToFile(self, file_name, fmt)
+
+    def export_library(self, file_name):
+        """Export the module and its imported device code one library.
+
+        This function only works on host llvm modules.
+        It will pack all the imported modules
+
+        Parameters
+        ----------
+        file_name : str
+            The name of the shared library.
+        """
+        if self.type_key != "llvm":
+            raise ValueError("Only llvm support export shared")
+        temp = _util.tempdir()
+        path_obj = temp.relpath("lib.o")
+        self.save(path_obj)
+        files = [path_obj]
+        if self.imported_modules:
+            path_cc = temp.relpath("devc.cc")
+            with open(path_cc, "w") as f:
+                f.write(_PackImportsToC(self))
+            files.append(path_cc)
+        _cc.create_shared(file_name, files)
 
 
 def load(path, fmt=""):

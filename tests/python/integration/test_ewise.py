@@ -95,7 +95,6 @@ def test_add():
                          device,
                          name="myadd")
         ctx = tvm.context(device, 0)
-        print(fadd.imported_modules[0].get_source())
         # launch the kernel.
         n = 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)

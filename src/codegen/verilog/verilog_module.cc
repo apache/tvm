@@ -59,7 +59,11 @@ class VerilogModuleNode : public runtime::ModuleNode {
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
-    LOG(FATAL) << "not implemented";
+    LOG(FATAL) << "VerilogModule: SaveToFile not supported";
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    LOG(FATAL) << "VerilogModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {

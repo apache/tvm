@@ -3,6 +3,7 @@
  * \file dso_module.cc
  * \brief Module to load from dynamic shared library.
  */
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
@@ -19,7 +20,7 @@ namespace runtime {
 
 // Module to load from dynamic shared libary.
 // This is the default module TVM used for hostside AOT
-class DSOModuleNode : public ModuleNode {
+class DSOModuleNode final : public ModuleNode {
  public:
   ~DSOModuleNode() {
     if (lib_handle_) Unload();
@@ -49,7 +50,11 @@ class DSOModuleNode : public ModuleNode {
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
-    LOG(FATAL) << "Cannot save dso to another file";
+    LOG(FATAL) << "DSOModule: SaveToFile not supported";
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    LOG(FATAL) << "DSOModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {
@@ -65,6 +70,33 @@ class DSOModuleNode : public ModuleNode {
             GetGlobalVPtr(runtime::symbol::tvm_module_ctx));
     if (ctx_addr != nullptr) {
       *ctx_addr = this;
+    }
+    // Load the imported modules
+    const char* dev_mblob =
+        reinterpret_cast<const char*>(
+            GetGlobalVPtr(runtime::symbol::tvm_dev_mblob));
+    const unsigned long* dev_mblob_nbytes =   // NOLINT(*)
+        reinterpret_cast<const unsigned long*>(  // NOLINT(*)
+            GetGlobalVPtr(runtime::symbol::tvm_dev_mblob_nbytes));
+
+    if (dev_mblob != nullptr) {
+      CHECK(dev_mblob_nbytes != nullptr);
+      dmlc::MemoryFixedSizeStream fs(
+          (void*)dev_mblob, dev_mblob_nbytes[0]);  // NOLINT(*)
+      dmlc::Stream* stream = &fs;
+      uint64_t size;
+      CHECK(stream->Read(&size));
+      for (uint64_t i = 0; i < size; ++i) {
+        std::string tkey;
+        CHECK(stream->Read(&tkey));
+        std::string fkey = "module.loadbinary_" + tkey;
+        const PackedFunc* f = Registry::Get(fkey);
+        CHECK(f != nullptr)
+            << "Loader of " << tkey << "("
+            << fkey << ") is not presented.";
+        Module m = (*f)(static_cast<void*>(stream));
+        this->imports_.push_back(m);
+      }
     }
   }
 
