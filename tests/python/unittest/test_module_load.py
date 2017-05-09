@@ -82,14 +82,15 @@ def test_device_module_dump():
     s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         temp = util.tempdir()
         f = tvm.build(s, [A, B], device, name="myadd")
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
-        ctx = tvm.context(device, 0)
+
         f1 = tvm.module.load(path_dso)
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
