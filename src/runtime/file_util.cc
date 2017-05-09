@@ -36,6 +36,19 @@ void FunctionInfo::Load(dmlc::JSONReader* reader) {
   }
 }
 
+void FunctionInfo::Save(dmlc::Stream* writer) const {
+  writer->Write(name);
+  writer->Write(arg_types);
+  writer->Write(thread_axis_tags);
+}
+
+bool FunctionInfo::Load(dmlc::Stream* reader) {
+  if (!reader->Read(&name)) return false;
+  if (!reader->Read(&arg_types)) return false;
+  if (!reader->Read(&thread_axis_tags)) return false;
+  return true;
+}
+
 std::string GetFileFormat(const std::string& file_name,
                           const std::string& format) {
   std::string fmt = format;

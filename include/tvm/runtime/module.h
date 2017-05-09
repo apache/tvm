@@ -8,6 +8,7 @@
 #ifndef TVM_RUNTIME_MODULE_H_
 #define TVM_RUNTIME_MODULE_H_
 
+#include <dmlc/io.h>
 #include <memory>
 #include <vector>
 #include <string>
@@ -58,6 +59,8 @@ class Module {
                              const std::string& format);
   /*! \return internal container */
   inline ModuleNode* operator->();
+  /*! \return internal container */
+  inline const ModuleNode* operator->() const;
 
  private:
   std::shared_ptr<ModuleNode> node_;
@@ -112,13 +115,20 @@ class ModuleNode {
   virtual void SaveToFile(const std::string& file_name,
                           const std::string& format) = 0;
   /*!
+   * \brief Save the module to binary stream.
+   * \param stream The binary stream to save to.
+   * \note It is recommended to implement this for device modules,
+   *   but not necessarily host modules.
+   *   We can use this to do AOT loading of bundled device functions.
+   */
+  virtual void SaveToBinary(dmlc::Stream* stream) = 0;
+  /*!
    * \brief Get the source code of module, when available.
    * \param format Format of the source code, can be empty by default.
    * \return Possible source code when available.
    */
   virtual std::string GetSource(
       const std::string& format = "") = 0;
-
   /*!
    * \brief Get a function from current environment
    *  The environment includes all the imports as well as Global functions.
@@ -132,10 +142,12 @@ class ModuleNode {
     return imports_;
   }
 
- private:
+ protected:
   friend class Module;
   /*! \brief The modules this module depend on */
   std::vector<Module> imports_;
+
+ private:
   /*! \brief Cache used by GetImport */
   std::unordered_map<std::string,
                      std::unique_ptr<PackedFunc> > import_cache_;
@@ -145,6 +157,10 @@ class ModuleNode {
 namespace symbol {
 /*! \brief Global variable to store module context. */
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
+/*! \brief Global variable to store device module blob */
+constexpr const char* tvm_dev_mblob = "__tvm_dev_mblob";
+/*! \brief Number of bytes of device module blob. */
+constexpr const char* tvm_dev_mblob_nbytes = "__tvm_dev_mblob_nbytes";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */
@@ -157,6 +173,10 @@ constexpr const char* tvm_module_main = "__tvm_main__";
 
 // implementations of inline functions.
 inline ModuleNode* Module::operator->() {
+  return node_.get();
+}
+
+inline const ModuleNode* Module::operator->() const {
   return node_.get();
 }
 

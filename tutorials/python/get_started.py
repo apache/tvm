@@ -190,8 +190,7 @@ print(temp.listdir())
 #   The CPU(host) module is directly saved as a shared library(so).
 #   There can be multiple customed format on the device code.
 #   In our example, device code is stored in ptx, as well as a meta
-#   data json file. In the future we can consider pack every binary
-#   into one shared library.
+#   data json file. They can be loaded and linked seperatedly via import.
 #
 
 ######################################################################
@@ -205,6 +204,20 @@ fadd1 = tvm.module.load(temp.relpath("myadd.so"))
 fadd1_dev = tvm.module.load(temp.relpath("myadd.ptx"))
 fadd1.import_module(fadd1_dev)
 fadd1(a, b, c)
+np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+######################################################################
+# Pack Everything into One Library
+# --------------------------------
+# In the above example, we store the device and host code seperatedly.
+# TVM also support export everything as one shared library.
+# Under the hood, we pack the device modules into binary blobs and link
+# them together with the host code.
+# Currently we support packing of Metal, OpenCL and CUDA modules.
+#
+fadd_cuda.export_library(temp.relpath("myadd_pack.so"))
+fadd2 = tvm.module.load(temp.relpath("myadd_pack.so"))
+fadd2(a, b, c)
 np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ######################################################################
