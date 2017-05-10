@@ -143,7 +143,7 @@ class IRBuilder(object):
             value = _make.StringImm(value)
         self.emit(lambda x: _make.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, name="i", dtype="int32"):
+    def for_range(self, begin, end, name="i", dtype="int32", for_type="serial"):
         """Create a for iteration scope.
 
         Parameters
@@ -159,6 +159,9 @@ class IRBuilder(object):
 
         dtype : str, optional
             The data type of iteration variable.
+
+        for_type : str, optional
+            The special tag on the for loop.
 
         Returns
         -------
@@ -178,8 +181,18 @@ class IRBuilder(object):
         loop_var = _api.var(name, dtype=dtype)
         extent = end if begin == 0 else _pass.Simplify(end - begin)
         def _exit_cb():
+            if for_type == "serial":
+                for_type_id = 0
+            elif for_type == "parallel":
+                for_type_id = 1
+            elif for_type == "vectorize":
+                for_type_id = 2
+            elif for_type == "unroll":
+                for_type_id = 3
+            else:
+                raise ValueError("Unknown for_type")
             self.emit(_make.For(
-                loop_var, begin, extent, 0, 0, self._pop_seq()))
+                loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
         return WithScope(loop_var, _exit_cb)
 
     def if_scope(self, cond):

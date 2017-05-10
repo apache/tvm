@@ -3,22 +3,38 @@ import tvm
 def test_vectorize_loop():
     dtype = 'int64'
     n = tvm.var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.var('i')
-    j = tvm.var('j')
-    VECTORIZE = 2
-    # for i in 0 to n-1:
-    stmt = tvm.make.For(
-        i, n, 2, 0, 0,
-        tvm.make.For(j, 0, 4, VECTORIZE, 0,
-                     tvm.make.Store(Ab.data,
-                                    tvm.make.Load(dtype, Ab.data, i) + 1,
-                                    j + 1)))
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    with ib.for_range(0, n) as i:
+        with ib.for_range(0, 4, for_type="vectorize") as j:
+            A[j + 1] = A[i] + 1
+    stmt = ib.get()
     assert isinstance(stmt.body, tvm.stmt.For)
     stmt = tvm.ir_pass.VectorizeLoop(stmt)
     assert isinstance(stmt, tvm.stmt.For)
     assert not isinstance(stmt.body, tvm.stmt.For)
-    print(stmt)
+    assert isinstance(stmt.body.index, tvm.expr.Ramp)
+    assert isinstance(stmt.body.value, tvm.expr.Broadcast)
+
+def test_vectorize_with_if():
+    n = tvm.var('n')
+    x = tvm.var('x')
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    with ib.for_range(0, 4, for_type="vectorize") as i:
+        with ib.if_scope(x < n):
+            A[i] = A[i] + 1
+        with ib.else_scope():
+            with ib.if_scope(i < n):
+                A[i] = 2.0
+    stmt = ib.get()
+    stmt = tvm.ir_pass.VectorizeLoop(stmt)
+    assert isinstance(stmt, tvm.stmt.IfThenElse)
+    assert isinstance(stmt.then_case.index, tvm.expr.Ramp)
+    assert isinstance(stmt.then_case.value, tvm.expr.Add)
+    assert stmt.then_case.value.dtype == "float32x4"
+    assert isinstance(stmt.else_case, tvm.stmt.For)
 
 if __name__ == "__main__":
+    test_vectorize_with_if()
     test_vectorize_loop()
