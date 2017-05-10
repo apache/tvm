@@ -109,8 +109,7 @@ class PartitionFinder : public IRVisitor {
   explicit PartitionFinder(VarExpr current_var,
     const std::unordered_map<const Variable*, IntSet>& hint_map,
     const std::unordered_map<const Variable*, IntSet>& relax_map)
-      : current_var_(current_var), out_vars_(hint_map.size()+relax_map.size()),
-        hint_map_(hint_map),  relax_map_(relax_map) {
+      : current_var_(current_var), hint_map_(hint_map),  relax_map_(relax_map) {
         for (const auto& kv : hint_map) {
           out_vars_.insert(kv.first);
         }
