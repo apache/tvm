@@ -67,6 +67,7 @@ def lower(sch,
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
+    stmt = ir_pass.LoopPartition(stmt)
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.CanonicalSimplify(stmt)
     stmt = ir_pass.VectorizeLoop(stmt)

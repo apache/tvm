@@ -9,6 +9,7 @@ from . import ir_pass as _pass
 from . import collections as _collections
 from ._ffi.base import string_types
 from ._ffi.node import NodeGeneric
+from .expr import Call as _Call
 
 class WithScope(object):
     """Auxiliary scope  with"""
@@ -307,6 +308,19 @@ class IRBuilder(object):
             The buffer var representing the buffer.
         """
         return BufferVar(self, buf.data, buf.dtype)
+
+    def likely(self, expr):
+        """Add likely tag for expression.
+        Parameters
+        ----------
+        expr : Expr
+            The expression. Usually a condition expression.
+        Returns
+        -------
+        expr : Expr
+            The expression will likely tag.
+        """
+        return _make.Call(expr.dtype, "likely", [expr], _Call.PureIntrinsic, None, 0)
 
     def get(self):
         """Return the builded IR.
