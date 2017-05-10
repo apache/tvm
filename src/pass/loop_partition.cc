@@ -82,18 +82,24 @@ class CandidateSelector : public IRVisitor {
 
   void Visit_(const Call* op) {
     if (op->is_intrinsic(Call::likely)) {
-      Expr cond = op->args[0];
-      PostOrderVisit(cond, [&](const NodeRef& node) {
-        const Variable* var = node.as<Variable>();
-        if (var && record_.count(var)) record_.at(var) = true;
-      });
+      in_likely_ = true;
+      IRVisitor::Visit_(op);
+      in_likely_ = false;
+    } else {
+      IRVisitor::Visit_(op);
     }
-    IRVisitor::Visit_(op);
+  }
+
+  void Visit_(const Variable* op) {
+    if (in_likely_ && record_.count(op)) {
+      record_.at(op) = true;
+    }
   }
 
   std::unordered_set<const Node*> candidates;
 
  private:
+  bool in_likely_;
   std::unordered_map<const Variable*, VarIsUsed> record_;
 };
 
@@ -101,9 +107,16 @@ class CandidateSelector : public IRVisitor {
 class PartitionFinder : public IRVisitor {
  public:
   explicit PartitionFinder(VarExpr current_var,
-    const std::unordered_map<const Variable*, IntSet>& dom_map)
-      : current_var_(current_var), out_vars_(dom_map.size()), hint_map_(dom_map) {
-        for (const auto& kv : dom_map) out_vars_.insert(kv.first);
+    const std::unordered_map<const Variable*, IntSet>& hint_map,
+    const std::unordered_map<const Variable*, IntSet>& relax_map)
+      : current_var_(current_var), out_vars_(hint_map.size()+relax_map.size()),
+        hint_map_(hint_map),  relax_map_(relax_map) {
+        for (const auto& kv : hint_map) {
+          out_vars_.insert(kv.first);
+        }
+        for (const auto& kv : relax_map) {
+          out_vars_.insert(kv.first);
+        }
       }
 
   void Visit_(const For* op) {
@@ -213,54 +226,73 @@ class LoopPartitioner : public IRMutator {
   Stmt Mutate_(const For* op, const Stmt& stmt) {
     if (candidates_.count(op)) {
       Stmt s = TryPartition(op, stmt, op->loop_var,
-          op->min, op->min + op->extent - 1, op->body);
+          op->min, op->min + op->extent - 1, op->body, false);
       if (s.defined()) return s;
     }
-    dom_map_.insert({op->loop_var.get(),
+
+    // normal path when loop parittion fails
+    // normal loop variable can be put into hint map.
+    hint_map_.insert({op->loop_var.get(),
       IntSet::interval(op->min, op->min + op->extent - 1)});
     Stmt res = IRMutator::Mutate_(op, stmt);
-    dom_map_.erase(op->loop_var.get());
+    hint_map_.erase(op->loop_var.get());
     return res;
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) {
-    if (candidates_.count(op)) {
-      const IterVarNode *iv = op->node.as<IterVarNode>();
-      CHECK(iv);
-      Var var = iv->var;
-      Stmt s = TryPartition(op, stmt, var, 0, op->value - 1, op->body);
-      if (s.defined()) return s;
-
-      dom_map_.insert({var.get(),
-        IntSet::interval(make_zero(var.type()), op->value)});
-      Stmt res = IRMutator::Mutate_(op, stmt);
-      dom_map_.erase(var.get());
-      return res;
-    } else {
+    if (op->attr_key != attr::thread_extent) {
       return IRMutator::Mutate_(op, stmt);
     }
+
+    const IterVarNode *iv = op->node.as<IterVarNode>();
+    CHECK(iv);
+    Var var = iv->var;
+    if (candidates_.count(op)) {
+      Stmt s = TryPartition(op, stmt, var, 0, op->value - 1, op->body, true);
+      if (s.defined()) return s;
+    }
+
+    // normal path when loop parittion fails.
+    runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
+    Stmt res;
+    if (scope.rank == 1) {
+      // threadIdx should be put into relax map, in case of divergence.
+      relax_map_.insert({var.get(),
+        IntSet::interval(make_zero(var.type()), op->value - 1)});
+      res = IRMutator::Mutate_(op, stmt);
+      relax_map_.erase(var.get());
+    } else {
+      hint_map_.insert({var.get(),
+        IntSet::interval(make_zero(var.type()), op->value - 1)});
+      res = IRMutator::Mutate_(op, stmt);
+      hint_map_.erase(var.get());
+    }
+    return res;
   }
 
  private:
   Stmt TryPartition(const Node* op, const Stmt& stmt, VarExpr var,
-      Expr min, Expr max, Stmt body);
-  inline Stmt MakeStmt(const Node* op, Expr extent, Stmt body);
+      Expr min, Expr max, Stmt body, bool partition_thread_scope);
+  inline Stmt MakeFor(const Node* op, Expr extent, Stmt body);
 
+  /* Candidate IRs that may be partitioned potentially */
   std::unordered_set<const Node*> candidates_;
-  std::unordered_map<const Variable*, IntSet> dom_map_;
+  std::unordered_map<const Variable*, IntSet> hint_map_;
+  std::unordered_map<const Variable*, IntSet> relax_map_;
 };
 
 Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
-    VarExpr var, Expr min, Expr max, Stmt body) {
-  bool inside_thread_scope = node->is_type<AttrStmt>();
-  PartitionFinder finder(var, dom_map_);
+    VarExpr var, Expr min, Expr max, Stmt body, bool partition_thread_scope) {
+  PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
   const auto& partitions = finder.partitions;
   if (partitions.empty()) return Stmt();
 
   Array<IntSet> sets;
   // merge partitions (take their intersect)
-  for (const auto& kv : partitions) sets.push_back(kv.second.interval);
+  for (const auto& kv : partitions) {
+    sets.push_back(kv.second.interval);
+  }
   IntSet true_itrv  = Intersect(sets);
 
   Expr body_begin;
@@ -275,9 +307,9 @@ Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
         body_begin = Max::make(body_begin, min);
       }
       // [min, body_begin)
-      if (!inside_thread_scope) {
-        Stmt new_body = Substitute(body, {{Var{var}, var + min}});
-        pre_stmt = MakeStmt(node, body_begin - min, new_body);
+      if (!partition_thread_scope) {
+        Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
+        pre_stmt = MakeFor(node, body_begin - min, pre_body);
       }
     }
   } else {
@@ -296,21 +328,21 @@ Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
         post_doubt_begin = Min::make(post_doubt_begin, max);
       }
       // [post_doubt_begin, max]
-      if (!inside_thread_scope) {
-        Stmt new_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
-        post_stmt = MakeStmt(node, max - post_doubt_begin + 1, new_body);
+      if (!partition_thread_scope) {
+        Stmt post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
+        post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
       }
     }
   } else {
     post_doubt_begin = max + 1;
   }
 
-  // [body_begin, post_doubt_begin)
   Stmt s;
-  if (!inside_thread_scope) {
+  if (!partition_thread_scope) {
+    // [body_begin, post_doubt_begin)
     Stmt simplified_body = ConditionEliminator(partitions).Mutate(body);
     Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
-    s = MakeStmt(node, post_doubt_begin - body_begin, new_body);
+    s = MakeFor(node, post_doubt_begin - body_begin, new_body);
     if (pre_stmt.defined())  s = Block::make(pre_stmt, s);
     if (post_stmt.defined()) s = Block::make(s, post_stmt);
   } else {
@@ -323,8 +355,9 @@ Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
   return s;
 }
 
-inline Stmt LoopPartitioner::MakeStmt(const Node *node, Expr extent, Stmt body) {
+inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
+  CHECK(for_node);
   return For::make(for_node->loop_var, 0, extent,
     for_node->for_type, for_node->device_api, body);
 }

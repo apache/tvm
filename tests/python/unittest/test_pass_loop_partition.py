@@ -116,6 +116,24 @@ def test_select():
     print(stmt)
     assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
 
+def test_thread_axis2():
+    n = tvm.convert(4096)
+    m = tvm.var('m')
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.placeholder((n,), name='B')
+    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
+    s = tvm.create_schedule(C.op)
+    num_thread = 32
+    bx, x = s[C].split(C.op.axis[0], factor=32)
+    tx, x = s[C].split(x, nparts=num_thread)
+    _,  x = s[C].split(x, factor=m)
+    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
+    print(stmt)
+    for_body = stmt.body.body.body.body.body.first
+    assert('threadIdx' not in str(for_body.extent))
+
 if __name__ == "__main__":
     test_basic()
     test_multi_loop()
@@ -123,3 +141,4 @@ if __name__ == "__main__":
     test_thread_axis()
     test_vectorize()
     test_select()
+    test_thread_axis2()
