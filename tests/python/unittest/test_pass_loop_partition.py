@@ -16,10 +16,8 @@ def test_basic():
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    print(stmt)
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    print(stmt)
     assert('if' not in str(stmt.body.body.body.first))
 
 def test_multi_loop():
@@ -36,7 +34,6 @@ def test_multi_loop():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    print(stmt)
     assert(not any(collect_visit(stmt.body.first, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
 def test_multi_if():
@@ -57,7 +54,6 @@ def test_multi_if():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    print(stmt)
     assert('if' not in str(stmt.body.first))
 
 def test_thread_axis():
@@ -77,7 +73,6 @@ def test_thread_axis():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    print(stmt)
     assert('if' not in str(stmt.body.body.body.first))
 
 def test_vectorize():
@@ -98,9 +93,9 @@ def test_vectorize():
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
     stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
-    print(stmt)
-    cond = stmt.body.body.body.body.body.condition
-    assert(x.var.name not in str(cond))
+    body = stmt.body.body.body.body.body
+    assert(x.var.name not in str(body.condition))
+    assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.expr.Ramp))))
 
 def test_select():
     ib = tvm.ir_builder.create()
@@ -113,7 +108,6 @@ def test_select():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    print(stmt)
     assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
 
 def test_thread_axis2():
@@ -130,7 +124,6 @@ def test_thread_axis2():
     s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
-    print(stmt)
     for_body = stmt.body.body.body.body.body.first
     assert('threadIdx' not in str(for_body.extent))
 
