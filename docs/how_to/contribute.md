@@ -1,8 +1,9 @@
 # Contribute to TVM
 
-TVM has been developed and used by a group of active community members.
+TVM has been developed by community members.
 Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
 
+- Please add your name to [CONTRIBUTORS.md](../../CONTRIBUTORS.md)
 - Please update [NEWS.md](../../NEWS.md) to add note on your changes to the API or added a new document.
 
 ## Guidelines
