@@ -4,6 +4,7 @@ TVM Change Log
 This file records the changes in TVM library in reverse chronological order.
 
 ## Initial version (0.1rc)
+- Pack libary into shared library.
 - External function and contrib libraries
 - Metal backend
 - OpenCL backend
