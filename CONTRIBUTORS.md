@@ -15,8 +15,8 @@ Committers
 Committers are people who have made substantial contribution to the project and granted write access to the project.
 - [Tianqi Chen](https://github.com/tqchen), University of Washington
 - [Thierry Moreau](http://homes.cs.washington.edu/~moreau/), University of Washington
-* [Haichen Shen](http://homes.cs.washington.edu/~haichen/), University of Washington
-* [Ziheng Jiang](https://github.com/ZihengJiang), Fudan University
+- [Haichen Shen](http://homes.cs.washington.edu/~haichen/), University of Washington
+- [Ziheng Jiang](https://github.com/ZihengJiang), Fudan University
 
 List of Contributors
 --------------------
