@@ -292,6 +292,23 @@ inline IntSet CombineInterval<Div>(Interval a, Interval b) {
 }
 
 template<>
+inline IntSet CombineInterval<Mod>(Interval a, Interval b) {
+  if (a.is_single_point() && b.is_single_point()) {
+    return IntSet::single_point(ComputeExpr<Mod>(a.min, b.min));
+  }
+  if (b.is_single_point()) {
+    Expr divisor = b.min;
+    if (is_zero(divisor)) {
+      LOG(FATAL) << "Modular by zero in CombineInterval Mod";
+    }
+    return IntervalSet::make(make_zero(divisor.type()), divisor - 1);
+  }
+
+  LOG(WARNING) << "Return Everything in CombineInterval Mod";
+  return IntSet::everything();
+}
+
+template<>
 inline IntSet CombineInterval<Max>(Interval a, Interval b) {
   if (a.is_single_point() && b.is_single_point()) {
     return IntSet::single_point(ComputeExpr<Max>(a.min, b.min));

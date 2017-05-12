@@ -153,7 +153,9 @@ class PartitionFinder : public IRVisitor {
           std::unordered_set<const Variable*>({current_var_.get()}))) {
         IntSet interval =
           DeduceBound(current_var_, cond, hint_map_, relax_map_);
-        partitions[cond.get()] = Partition{cond, interval};
+        if (!interval.is_nothing()) {
+          partitions[cond.get()] = Partition{cond, interval};
+        }
       }
     } else {
       IRVisitor::Visit_(op);
