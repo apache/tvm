@@ -24,9 +24,19 @@ class NDArrayBase(object):
         if not self.is_view:
             check_call(_LIB.TVMArrayFree(self.handle))
 
+    @property
+    def _dltensor_addr(self):
+        return ctypes.cast(self.handle, ctypes.c_void_p).value
+
 def _make_array(handle, is_view):
     handle = ctypes.cast(handle, TVMArrayHandle)
     return _CLASS_NDARRAY(handle, is_view)
+
+_DLTENSOR_COMPATS = ()
+
+def _reg_dltensor(cls):
+    global _DLTENSOR_COMPATS
+    _DLTENSOR_COMPATS += (cls,)
 
 _CLASS_NDARRAY = None
 

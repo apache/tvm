@@ -12,6 +12,10 @@ cdef class NDArrayBase:
             ptr = ctypes.addressof(handle.contents)
             self.chandle = <DLTensor*>(ptr)
 
+    property _dltensor_addr:
+        def __get__(self):
+            return <unsigned long long>self.chandle
+
     property handle:
         def __get__(self):
             if self.chandle == NULL:
@@ -23,11 +27,9 @@ cdef class NDArrayBase:
         def __set__(self, value):
             self._set_handle(value)
 
-
     def __init__(self, handle, is_view):
         self._set_handle(handle)
         self.c_is_view = is_view
-
 
     def __dealloc__(self):
         if self.c_is_view == 0:
@@ -39,12 +41,17 @@ cdef c_make_array(void* chandle, is_view):
     (<NDArrayBase>ret).chandle = <DLTensor*>chandle
     return ret
 
+cdef _DLTENSOR_COMPATS = ()
+
+def _reg_dltensor(cls):
+    global _DLTENSOR_COMPATS
+    _DLTENSOR_COMPATS += (cls,)
 
 def _make_array(handle, is_view):
     handle = ctypes.cast(handle, TVMArrayHandle)
     return _CLASS_NDARRAY(handle, is_view)
 
-_CLASS_NDARRAY = None
+cdef object _CLASS_NDARRAY = None
 
 def _set_class_ndarray(cls):
     global _CLASS_NDARRAY
