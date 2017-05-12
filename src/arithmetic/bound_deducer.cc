@@ -208,6 +208,10 @@ void BoundDeducer::Deduce() {
   if (!success) return;
   // get the path
   path_ = GetPath(target_, expr_);
+  if (!path_.size()) {
+    success = false;
+    return;
+  }
   // get the sign of every subexpr
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
