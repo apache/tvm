@@ -77,11 +77,16 @@ cdef inline void make_arg(object arg,
                           int* tcode,
                           list temp_args):
     """Pack arguments into c args tvm call accept"""
+    cdef unsigned long long ptr
     if isinstance(arg, NodeBase):
         value[0].v_handle = (<NodeBase>arg).chandle
         tcode[0] = kNodeHandle
     elif isinstance(arg, NDArrayBase):
         value[0].v_handle = (<NDArrayBase>arg).chandle
+        tcode[0] = kArrayHandle
+    elif isinstance(arg, _DLTENSOR_COMPATS):
+        ptr = arg._dltensor_addr
+        value[0].v_handle = (<void*>ptr)
         tcode[0] = kArrayHandle
     elif isinstance(arg, Integral):
         value[0].v_int64 = arg

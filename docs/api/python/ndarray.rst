@@ -14,3 +14,5 @@ tvm.ndarray
 .. autofunction:: tvm.opencl
 .. autofunction:: tvm.metal
 .. autofunction:: tvm.ndarray.array
+
+.. autofunction:: tvm.register_dltensor

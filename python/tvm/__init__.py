@@ -23,5 +23,6 @@ from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
 from .node import register_node
+from .ndarray import register_dltensor
 from .schedule import create_schedule
 from .build import build, lower

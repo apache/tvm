@@ -11,6 +11,7 @@ from ..base import _LIB, check_call
 from ..base import c_str, string_types
 from ..node_generic import convert_to_node, NodeGeneric
 from ..runtime_ctypes import TVMType, TVMByteArray
+from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
@@ -93,6 +94,9 @@ def _make_tvm_args(args, temp_args):
             type_codes[i] = TypeCode.NULL
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
+            type_codes[i] = TypeCode.ARRAY_HANDLE
+        elif isinstance(arg, _nd._DLTENSOR_COMPATS):
+            values[i].v_handle = ctypes.c_void_p(arg._dltensor_addr)
             type_codes[i] = TypeCode.ARRAY_HANDLE
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
