@@ -39,10 +39,10 @@ C = tvm.compute((m, n), lambda i, j: A[i, j] * B[i, j], name='C')
 
 s = tvm.create_schedule([C.op])
 # lower will transform the computation from definition to the real
-# callable function. With argument `with_api_wrapper=False`, it will
+# callable function. With argument `simple_mode=True`, it will
 # return you a readable C like statement, we use it here to print the
 # schedule result.
-print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
+print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
 # One schedule is composed by multiple stages, and one
@@ -59,7 +59,7 @@ B = tvm.compute((m,), lambda i: A[i]*2, name='B')
 
 s = tvm.create_schedule(B.op)
 xo, xi = s[B].split(B.op.axis[0], factor=32)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # You can also split a axis by :code:`nparts`, which splits the axis
@@ -69,7 +69,7 @@ B = tvm.compute((m,), lambda i: A[i], name='B')
 
 s = tvm.create_schedule(B.op)
 bx, tx = s[B].split(B.op.axis[0], nparts=32)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # tile
@@ -81,7 +81,7 @@ B = tvm.compute((m, n), lambda i, j: A[i, j], name='B')
 
 s = tvm.create_schedule(B.op)
 xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # fuse
@@ -95,7 +95,7 @@ s = tvm.create_schedule(B.op)
 xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
 # then fuse (i.inner, j.inner) into one axis: (i.inner.j.inner.fused)
 fused = s[B].fuse(yi, xi)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # reorder
@@ -109,7 +109,7 @@ s = tvm.create_schedule(B.op)
 xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
 # then reorder the axises: (i.inner, j.outer, i.outer, j.inner)
 s[B].reorder(xi, yo, xo, yi)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # bind
@@ -123,7 +123,7 @@ s = tvm.create_schedule(B.op)
 bx, tx = s[B].split(B.op.axis[0], factor=64)
 s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
 s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # compute_at
@@ -135,7 +135,7 @@ B = tvm.compute((m,), lambda i: A[i]+1, name='B')
 C = tvm.compute((m,), lambda i: B[i]*2, name='C')
 
 s = tvm.create_schedule(C.op)
-print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
+print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
 # :code:`compute_at` can move computation of `B` into the first axis
@@ -146,7 +146,7 @@ C = tvm.compute((m,), lambda i: B[i]*2, name='C')
 
 s = tvm.create_schedule(C.op)
 s[B].compute_at(s[C], C.op.axis[0])
-print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
+print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
 # compute_inline
@@ -160,7 +160,7 @@ C = tvm.compute((m,), lambda i: B[i]*2, name='C')
 
 s = tvm.create_schedule(C.op)
 s[B].compute_inline()
-print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
+print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
 # compute_root
@@ -173,7 +173,7 @@ C = tvm.compute((m,), lambda i: B[i]*2, name='C')
 s = tvm.create_schedule(C.op)
 s[B].compute_at(s[C], C.op.axis[0])
 s[B].compute_root()
-print(tvm.lower(s, [A, B, C], with_api_wrapper=False))
+print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
 # Summary

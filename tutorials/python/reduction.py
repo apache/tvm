@@ -50,7 +50,7 @@ B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
 # Before doing anything, let us print out the IR code of default schedule.
 #
 s = tvm.create_schedule(B.op)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # You can find that the IR code is quite like the C code.
@@ -61,13 +61,13 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 #
 ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
 xo, xi = s[B].split(B.op.axis[0], factor=32)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # If we are building a GPU kernel, we can bind the rows of B to GPU threads.
 s[B.op].bind(xo, tvm.thread_axis("blockIdx.x"))
 s[B.op].bind(xi, tvm.thread_axis("threadIdx.x"))
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # Reduction Factoring and Parallelization
@@ -84,7 +84,7 @@ print(tvm.lower(s, [A, B], with_api_wrapper=False))
 s = tvm.create_schedule(B.op)
 ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
 BF = s.rfactor(B, ki)
-print(tvm.lower(s, [A, B], with_api_wrapper=False))
+print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # The scheduled operator of B also get rewritten to be sum over

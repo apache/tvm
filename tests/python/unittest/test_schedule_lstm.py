@@ -59,7 +59,7 @@ def test_lstm_cell_inline():
     s[forget_gate].compute_inline()
     s[out_gate].compute_inline()
     # verify we can lower correctly
-    tvm.lower(s, [X, Wi2h, Wh2h, scan_h, scan_c], with_api_wrapper=False)
+    tvm.lower(s, [X, Wi2h, Wh2h, scan_h, scan_c])
 
 if __name__ == "__main__":
     test_lstm_cell_inline()

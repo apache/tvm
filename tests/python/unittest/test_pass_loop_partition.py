@@ -5,6 +5,27 @@ def collect_visit(stmt, f):
     tvm.ir_pass.PostOrderVisit(stmt, lambda x : ret.append(f(x)))
     return ret
 
+def lower(sch, args):
+    binds = {}
+    arg_list = []
+    for x in args:
+        if isinstance(x, tvm.tensor.Tensor):
+            buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
+            assert x not in binds
+            binds[x] = buf
+            arg_list.append(buf)
+        else:
+            raise ValueError("args must be Tensor, Buffer or Var")
+    sch = sch.normalize()
+    bounds = tvm.schedule.InferBound(sch)
+    stmt = tvm.schedule.ScheduleOps(sch, bounds)
+    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.StorageFlatten(stmt, binds)
+    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.ir_pass.VectorizeLoop(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    return stmt
+
 def test_basic():
     n = tvm.var('n')
     A = tvm.placeholder((n, ), name='A')
@@ -92,7 +113,7 @@ def test_vectorize():
     s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
-    stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
+    stmt = lower(s, [A, B])
     body = stmt.body.body.body.body.body
     assert(x.var.name not in str(body.condition))
     assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.expr.Ramp))))
@@ -123,7 +144,7 @@ def test_thread_axis2():
     _,  x = s[C].split(x, factor=m)
     s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-    stmt = tvm.lower(s, [A, B], name='ewise_add', with_api_wrapper=False)
+    stmt = lower(s, [A, B])
     for_body = stmt.body.body.body.body.body.first
     assert('threadIdx' not in str(for_body.extent))
 

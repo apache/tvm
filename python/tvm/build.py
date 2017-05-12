@@ -13,12 +13,47 @@ from . import collections
 from . import module
 from . import codegen
 
+def get_binds(args, binds=None):
+    """Internal function to get binds and arg_list given arguments.
+
+    Parameters
+    ----------
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+
+    binds : dict, optional
+        Dictionary that maps the binding of symbolic buffer to Tensor.
+        By default, a new buffer is created for each tensor in the argument.
+
+    Returns
+    -------
+    binds: dict
+        The bind specification
+
+    arg_list: list
+        The list of symbolic buffers of arguments.
+    """
+    binds = {} if binds is None else binds.copy()
+    arg_list = []
+    for x in args:
+        if isinstance(x, tensor.Tensor):
+            buf = api.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
+            assert x not in binds
+            binds[x] = buf
+            arg_list.append(buf)
+        elif isinstance(x, schedule.Buffer):
+            arg_list.append(x)
+        elif isinstance(x, expr.Var):
+            arg_list.append(x)
+        else:
+            raise ValueError("args must be Tensor, Buffer or Var")
+    return binds, arg_list
 
 def lower(sch,
           args,
           name="default_function",
           binds=None,
-          with_api_wrapper=True,
+          simple_mode=False,
           max_auto_unroll_step=0):
     """Lowering step before build into target.
 
@@ -37,8 +72,9 @@ def lower(sch,
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
-    with_api_wrapper : bool, optional
-        Whether add API wrapper during lowering.
+    simple_mode : bool, optional
+        Whether only output simple and compact statement, this will skip
+        LoopPartition, api wrapper generation and Unrolling.
 
     max_auto_unroll_step: int, optional
         Maximum step to perform automatic unrolling
@@ -49,33 +85,22 @@ def lower(sch,
        The result function, if with_api_wrapper=False
        Then the Stmt before make api is returned.
     """
-    binds = {} if binds is None else binds.copy()
-    arg_list = []
-    for x in args:
-        if isinstance(x, tensor.Tensor):
-            buf = api.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
-            assert x not in binds
-            binds[x] = buf
-            arg_list.append(buf)
-        elif isinstance(x, schedule.Buffer):
-            arg_list.append(x)
-        elif isinstance(x, expr.Var):
-            arg_list.append(x)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
+    binds, arg_list = get_binds(args, binds)
     # normalize schedule first
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
-    stmt = ir_pass.LoopPartition(stmt)
+    if not simple_mode:
+        stmt = ir_pass.LoopPartition(stmt)
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.CanonicalSimplify(stmt)
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
     stmt = ir_pass.StorageRewrite(stmt)
-    stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
+    if not simple_mode:
+        stmt = ir_pass.UnrollLoop(stmt, max_auto_unroll_step)
     stmt = ir_pass.Simplify(stmt)
-    if not with_api_wrapper:
+    if simple_mode:
         return stmt
     return ir_pass.MakeAPI(stmt, name, arg_list, 0)
 
