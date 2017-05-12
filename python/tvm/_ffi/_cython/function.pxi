@@ -88,15 +88,23 @@ cdef inline void make_arg(object arg,
         ptr = arg._dltensor_addr
         value[0].v_handle = (<void*>ptr)
         tcode[0] = kArrayHandle
-    elif isinstance(arg, Integral):
+    elif isinstance(arg, (int, long)):
         value[0].v_int64 = arg
         tcode[0] = kInt
-    elif isinstance(arg, Number):
+    elif isinstance(arg, float):
         value[0].v_float64 = arg
         tcode[0] = kFloat
+    elif isinstance(arg, str):
+        tstr = c_str(arg)
+        value[0].v_str = tstr
+        tcode[0] = kStr
+        temp_args.append(tstr)
     elif arg is None:
         value[0].v_handle = NULL
         tcode[0] = kNull
+    elif isinstance(arg, Number):
+        value[0].v_float64 = arg
+        tcode[0] = kFloat
     elif isinstance(arg, TVMType):
         tstr = c_str(str(arg))
         value[0].v_str = tstr
@@ -172,9 +180,9 @@ cdef inline object make_ret(TVMValue value, int tcode):
         raise ValueError("Unhandled type code %d" % tcode)
 
 
-cdef inline object FuncCall2(void* chandle, tuple args, int nargs):
-    cdef TVMValue[2] values
-    cdef int[2] tcodes
+cdef inline object FuncCall3(void* chandle, tuple args, int nargs):
+    cdef TVMValue[3] values
+    cdef int[3] tcodes
     cdef TVMValue ret_val
     cdef int ret_code
     nargs = len(args)
@@ -188,8 +196,8 @@ cdef inline object FuncCall2(void* chandle, tuple args, int nargs):
 cdef inline object FuncCall(void* chandle, tuple args):
     cdef int nargs
     nargs = len(args)
-    if nargs <= 2:
-        return FuncCall2(chandle, args, nargs)
+    if nargs <= 3:
+        return FuncCall3(chandle, args, nargs)
 
     cdef vector[TVMValue] values
     cdef vector[int] tcodes
