@@ -5,6 +5,9 @@ tvm.schedule
 .. autoclass:: tvm.schedule.IterVar
     :members:
 
+.. autoclass:: tvm.schedule.Buffer
+    :members:
+
 .. autofunction:: tvm.create_schedule
 
 .. autoclass:: tvm.schedule.Schedule

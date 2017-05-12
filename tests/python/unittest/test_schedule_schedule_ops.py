@@ -109,7 +109,7 @@ def test_scan_inline1():
                           [s_state1, s_state2])
     s = tvm.create_schedule(res1.op)
     s[s_x1].compute_inline()
-    stmt = tvm.lower(s, [x, res1, res2], with_api_wrapper=False)
+    stmt = tvm.lower(s, [x, res1, res2])
 
 def test_scan_inline2():
     m = tvm.var("m")
@@ -131,7 +131,7 @@ def test_scan_inline2():
     s[s_xx].compute_inline()
     s[s_x1].compute_inline()
     s[s_x2].compute_inline()
-    stmt = tvm.lower(s, [x, res1, res2], with_api_wrapper=False)
+    stmt = tvm.lower(s, [x, res1, res2])
 
 
 def test_schedule_cache():

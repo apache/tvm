@@ -10,7 +10,18 @@ from ._ffi.function import _init_api
 
 @register_node
 class Buffer(NodeBase):
-    """Represent a symbolic buffer in TVM."""
+    """Symbolic data buffer in TVM.
+
+    Buffer provide a way to represent data layout
+    specialization of data structure in TVM.
+
+    Do not construct directly, use :any:`decl_buffer` instead.
+    See the documentation of :any:`decl_buffer` for more details.
+
+    See Also
+    --------
+    decl_buffer : Declare a buffer
+    """
     pass
 
 @register_node

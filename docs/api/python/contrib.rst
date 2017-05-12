@@ -16,3 +16,9 @@ tvm.contrib.util
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.util
     :members:
+
+
+tvm.contrib.cblas
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cblas
+    :members:
