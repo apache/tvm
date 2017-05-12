@@ -113,6 +113,12 @@ inline Expr ComputeExpr<ir::Div>(Expr a, Expr b) {
 }
 
 template<>
+inline Expr ComputeExpr<ir::Mod>(Expr a, Expr b) {
+  if (is_zero(a)) return make_zero(a.type());
+  return ir::Mod::make(a, b);
+}
+
+template<>
 inline Expr ComputeExpr<ir::Max>(Expr a, Expr b) {
   return Halide::Internal::Interval::make_max(a, b);
 }

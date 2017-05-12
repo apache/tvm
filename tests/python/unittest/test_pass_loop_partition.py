@@ -127,6 +127,20 @@ def test_thread_axis2():
     for_body = stmt.body.body.body.body.body.first
     assert('threadIdx' not in str(for_body.extent))
 
+def test_everything_during_deduction():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    ib = tvm.ir_builder.create()
+    with ib.for_range(0, n, 'i') as i:
+        with ib.for_range(0, 32, 'j') as j:
+            with ib.if_scope(ib.likely(i/j < m)):
+                # this guard will produce everything during deduction
+                ib.emit(tvm.make.Evaluate(m))
+    stmt = ib.get()
+    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(isinstance(stmt.body.body, tvm.stmt.IfThenElse))
+
 if __name__ == "__main__":
     test_basic()
     test_multi_loop()
@@ -135,3 +149,4 @@ if __name__ == "__main__":
     test_vectorize()
     test_select()
     test_thread_axis2()
+    test_everything_during_deduction()

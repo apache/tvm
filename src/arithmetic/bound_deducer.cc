@@ -204,8 +204,8 @@ void BoundDeducer::Transform() {
 void BoundDeducer::Deduce() {
   Init();
   if (!success) return;
-
   Relax();
+  if (!success) return;
   // get the path
   path_ = GetPath(target_, expr_);
   // get the sign of every subexpr
@@ -215,13 +215,14 @@ void BoundDeducer::Deduce() {
 }
 
 void BoundDeducer::Relax() {
-  if (is_greater) {
-    expr_  = EvalSet(expr_ , relax_map_).min();
-    result = EvalSet(result, relax_map_).max();
-  } else {
-    expr_  = EvalSet(expr_ , relax_map_).max();
-    result = EvalSet(result, relax_map_).min();
+  IntSet a = EvalSet(expr_, relax_map_);
+  IntSet b = EvalSet(result, relax_map_);
+  if (a.is_everything() || b.is_everything()) {
+    success = false;
+    return;
   }
+  expr_  = is_greater ? a.min() : a.max();
+  result = is_greater ? b.max() : b.min();
 }
 
 IntSet DeduceBound(Expr v, Expr e,
