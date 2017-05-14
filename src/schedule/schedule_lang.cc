@@ -390,17 +390,25 @@ Schedule Schedule::copy() const {
   }
   for (Stage s : n->stages) {
     if (s->attach_stage.defined()) {
+      CHECK(smap.find(s->attach_stage) != smap.end())
+        << s->attach_stage << " not found in " << (*this);
       s->attach_stage = smap.at(s->attach_stage);
     }
     if (s->group.defined()) {
+      CHECK(smap.find(s->group) != smap.end())
+        << s->group << " not found in " << (*this);
       s->group = smap.at(s->group);
     }
   }
   for (Stage s : n->groups) {
     if (s->attach_stage.defined()) {
+      CHECK(smap.find(s->attach_stage) != smap.end())
+        << s->attach_stage << " not found in " << (*this);
       s->attach_stage = smap.at(s->attach_stage);
     }
     if (s->group.defined()) {
+      CHECK(smap.find(s->group) != smap.end())
+        << s->group << " not found in " << (*this);
       s->group = smap.at(s->group);
     }
   }
