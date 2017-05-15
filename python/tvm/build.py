@@ -90,10 +90,10 @@ def lower(sch,
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
-    if not simple_mode:
-        stmt = ir_pass.LoopPartition(stmt)
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.CanonicalSimplify(stmt)
+    if not simple_mode:
+        stmt = ir_pass.LoopPartition(stmt)
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
     stmt = ir_pass.StorageRewrite(stmt)
