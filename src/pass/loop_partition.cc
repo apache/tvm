@@ -52,7 +52,7 @@ class CandidateSelector : public IRVisitor {
       const Variable* var = op->loop_var.get();
       record_.insert({var, false});
       IRVisitor::Visit_(op);
-      if (record_.at(var)) {
+      if (record_.at(var) && !no_split_) {
         candidates.insert(op);
       }
       record_.erase(var);
@@ -70,7 +70,7 @@ class CandidateSelector : public IRVisitor {
       if ((scope.rank == 0) && !is_const(op->value)) {
         record_.insert({var.get(), false});
         IRVisitor::Visit_(op);
-        if (record_.at(var.get())) {
+        if (record_.at(var.get()) && !no_split_) {
           candidates.insert(op);
         }
         record_.erase(var.get());
@@ -80,11 +80,25 @@ class CandidateSelector : public IRVisitor {
     IRVisitor::Visit_(op);
   }
 
+  void Visit_(const Block* op) {
+    bool temp = no_split_;
+    this->Visit(op->first);
+    // erase the no split state of first when visit rest.
+    std::swap(temp, no_split_);
+    this->Visit(op->rest);
+    // restore the no split flag.
+    no_split_ = no_split_ || temp;
+  }
+
   void Visit_(const Call* op) {
     if (op->is_intrinsic(Call::likely)) {
       in_likely_ = true;
       IRVisitor::Visit_(op);
       in_likely_ = false;
+    } else if (op->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
+      // no split if the body contains allreduce.
+      no_split_ = true;
+      return;
     } else {
       IRVisitor::Visit_(op);
     }
@@ -100,6 +114,7 @@ class CandidateSelector : public IRVisitor {
 
  private:
   bool in_likely_;
+  bool no_split_{false};
   std::unordered_map<const Variable*, VarIsUsed> record_;
 };
 
