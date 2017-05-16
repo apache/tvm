@@ -46,13 +46,14 @@ def test_return_func():
 
 def test_convert():
     # convert a function to tvm function
-    targs = (10, 10.0, "hello", 10)
+    targs = (10, 10.0, "hello", 10, tvm.cpu(0))
     def myfunc(*args):
         assert(tuple(args) == targs)
+        return args[-1]
 
     f = tvm.convert(myfunc)
     assert isinstance(f, tvm.Function)
-    f(*targs)
+    assert f(*targs) == tvm.cpu(0)
 
 def test_byte_array():
     s = "hello"
@@ -62,6 +63,7 @@ def test_byte_array():
         assert ss == a
     f = tvm.convert(myfunc)
     f(a)
+
 
 if __name__ == "__main__":
     test_get_callback_with_node()

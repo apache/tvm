@@ -10,13 +10,14 @@ cdef enum TVMTypeCode:
     kFloat = 2
     kHandle = 3
     kNull = 4
-    kArrayHandle = 5
-    kTVMType = 6
-    kNodeHandle = 7
-    kModuleHandle = 8
-    kFuncHandle = 9
-    kStr = 10
-    kBytes = 11
+    kTVMType = 5
+    kTVMContext = 6
+    kArrayHandle = 7
+    kNodeHandle = 8
+    kModuleHandle = 9
+    kFuncHandle = 10
+    kStr = 11
+    kBytes = 12
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
     ctypedef struct DLDataType:
@@ -43,6 +44,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         void* v_handle
         const char* v_str
         DLDataType v_type
+        DLContext v_ctx
 
 ctypedef int64_t tvm_index_t
 ctypedef void* DLTensorHandle

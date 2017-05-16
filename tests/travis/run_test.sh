@@ -24,6 +24,7 @@ if [ ${TRAVIS_OS_NAME} == "osx" ]; then
     echo "USE_OPENCL=1" >> config.mk
     echo "USE_METAL=1" >> config.mk
 else
+    echo "USE_RPC=1" >> config.mk
     # use g++-4.8 for linux
     if [ ${CXX} == "g++" ]; then
         export CXX=g++-4.8

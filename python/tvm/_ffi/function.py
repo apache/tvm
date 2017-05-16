@@ -61,6 +61,9 @@ class ModuleBase(object):
         self.handle = handle
         self._entry = None
 
+    def __del__(self):
+        check_call(_LIB.TVMModFree(self.handle))
+
     @property
     def entry_func(self):
         """Get the entry function

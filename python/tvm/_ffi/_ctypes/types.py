@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray
+from ..runtime_ctypes import TVMByteArray, TVMContext
 
 class TypeCode(object):
     """Type code used in API calls"""
@@ -13,20 +13,22 @@ class TypeCode(object):
     FLOAT = 2
     HANDLE = 3
     NULL = 4
-    ARRAY_HANDLE = 5
-    TVM_TYPE = 6
-    NODE_HANDLE = 7
-    MODULE_HANDLE = 8
-    FUNC_HANDLE = 9
-    STR = 10
-    BYTES = 11
+    TVM_TYPE = 5
+    TVM_CONTEXT = 6
+    ARRAY_HANDLE = 7
+    NODE_HANDLE = 8
+    MODULE_HANDLE = 9
+    FUNC_HANDLE = 10
+    STR = 11
+    BYTES = 12
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""
     _fields_ = [("v_int64", ctypes.c_int64),
                 ("v_float64", ctypes.c_double),
                 ("v_handle", ctypes.c_void_p),
-                ("v_str", ctypes.c_char_p)]
+                ("v_str", ctypes.c_char_p),
+                ("v_ctx", TVMContext)]
 
 
 TVMPackedCFunc = ctypes.CFUNCTYPE(
@@ -76,7 +78,8 @@ RETURN_SWITCH = {
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
     TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes
+    TypeCode.BYTES: _return_bytes,
+    TypeCode.TVM_CONTEXT: lambda x: x.v_ctx
 }
 
 C_TO_PY_ARG_SWITCH = {
@@ -85,5 +88,6 @@ C_TO_PY_ARG_SWITCH = {
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
     TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes
+    TypeCode.BYTES: _return_bytes,
+    TypeCode.TVM_CONTEXT: lambda x: x.v_ctx
 }

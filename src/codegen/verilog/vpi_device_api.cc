@@ -44,8 +44,8 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
     if (ptr + size >= ram_max_) return nullptr;
     return (char*)(&ram_[0]) + ptr;  // NOLINT(*)
   }
-  void SetDevice(int dev_id) final {}
-  void GetAttr(int dev_id, runtime::DeviceAttrKind kind, TVMRetValue* rv) final {
+  void SetDevice(TVMContext ctx) final {}
+  void GetAttr(TVMContext ctx, runtime::DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == runtime::kExist) {
       *rv = 1;
     }

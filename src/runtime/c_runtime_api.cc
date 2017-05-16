@@ -34,6 +34,7 @@ class DeviceAPIManager {
 
  private:
   std::array<DeviceAPI*, kMaxDeviceAPI> api_;
+  DeviceAPI* rpc_api_{nullptr};
   std::mutex mutex_;
   // constructor
   DeviceAPIManager() {
@@ -45,25 +46,38 @@ class DeviceAPIManager {
     return &inst;
   }
   // Get or initialize API.
-  DeviceAPI* GetAPI(int type, bool allow_missing);
+  DeviceAPI* GetAPI(int type, bool allow_missing) {
+    if (type < kRPCSessMask) {
+      if (api_[type] != nullptr) return api_[type];
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (api_[type] != nullptr) return api_[type];
+      api_[type] = GetAPI(DeviceName(type), allow_missing);
+      return api_[type];
+    } else {
+      if (rpc_api_ != nullptr) return rpc_api_;
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (rpc_api_ != nullptr) return rpc_api_;
+      rpc_api_ = GetAPI("rpc", allow_missing);
+      return rpc_api_;
+    }
+  }
+  DeviceAPI* GetAPI(const std::string name, bool allow_missing) {
+    std::string factory = "device_api." + name;
+    auto* f = Registry::Get(factory);
+    if (f == nullptr) {
+      CHECK(allow_missing)
+          << "Device API " << name << " is not enabled.";
+      return nullptr;
+    }
+    void* ptr = (*f)();
+    return static_cast<DeviceAPI*>(ptr);
+  }
 };
 
-DeviceAPI* DeviceAPIManager::GetAPI(int type, bool allow_missing) {
-  if (api_[type] != nullptr) return api_[type];
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (api_[type] != nullptr) return api_[type];
-  std::string factory = "device_api." + DeviceName(type);
-  auto* f = Registry::Get(factory);
-  if (f == nullptr) {
-    CHECK(allow_missing)
-        << "Device API " << DeviceName(type) << " is not enabled.";
-    return nullptr;
-  }
-  void* ptr = (*f)();
-  api_[type] = static_cast<DeviceAPI*>(ptr);
-  return api_[type];
+DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
+  return DeviceAPIManager::Get(
+      static_cast<int>(ctx.device_type), allow_missing);
 }
-
 
 inline TVMArray* TVMArrayCreate_() {
   TVMArray* arr = new TVMArray();
@@ -293,7 +307,11 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
         [func, resource_handle](TVMArgs args, TVMRetValue* rv) {
           int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
                          args.num_args, rv, resource_handle);
-          CHECK_EQ(ret, 0) << "TVMCall CFunc Error:\n" << TVMGetLastError();
+          if (ret != 0) {
+            std::ostringstream os;
+            os << "TVMCall CFunc Error:\n" << TVMGetLastError();
+            throw dmlc::Error(os.str());
+          }
         });
   } else {
     // wrap it in a shared_ptr, with fin as deleter.
@@ -303,7 +321,11 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
         [func, rpack](TVMArgs args, TVMRetValue* rv) {
           int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
                          args.num_args, rv, rpack.get());
-          CHECK_EQ(ret, 0) << "TVMCall CFunc Error:\n" << TVMGetLastError();
+          if (ret != 0) {
+            std::ostringstream os;
+            os << "TVMCall CFunc Error:\n" << TVMGetLastError();
+            throw dmlc::Error(os.str());
+          }
       });
   }
   API_END();
@@ -375,25 +397,28 @@ int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
 // set device api
 TVM_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    int dev_type = args[0];
-    int dev_id = args[1];
-    DeviceAPIManager::Get(dev_type)->SetDevice(dev_id);
+    TVMContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(args[0].operator int());
+    ctx.device_id = args[1];
+    DeviceAPIManager::Get(ctx)->SetDevice(ctx);
   });
 
 // set device api
 TVM_REGISTER_GLOBAL("_GetDeviceAttr")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    int dev_type = args[0];
-    int dev_id = args[1];
+    TVMContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(args[0].operator int());
+    ctx.device_id = args[1];
+
     DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[2].operator int());
     if (kind == kExist) {
-      DeviceAPI* api = DeviceAPIManager::Get(dev_type, true);
+      DeviceAPI* api = DeviceAPIManager::Get(ctx.device_type, true);
       if (api != nullptr) {
-        api->GetAttr(dev_id, kind, ret);
+        api->GetAttr(ctx, kind, ret);
       } else {
         *ret = 0;
       }
     } else {
-      DeviceAPIManager::Get(dev_type)->GetAttr(dev_id, kind, ret);
+      DeviceAPIManager::Get(ctx)->GetAttr(ctx, kind, ret);
     }
   });

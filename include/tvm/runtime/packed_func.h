@@ -205,6 +205,10 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kArrayHandle);
     return static_cast<TVMArray*>(value_.v_handle);
   }
+  operator TVMContext() const {
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
+    return value_.v_ctx;
+  }
   int type_code() const {
     return type_code_;
   }
@@ -254,6 +258,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator TVMArray*;
+  using TVMPODValue_::operator TVMContext;
   // conversion operator.
   operator std::string() const {
     if (type_code_ == kTVMType) {
@@ -333,6 +338,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator TVMArray*;
+  using TVMPODValue_::operator TVMContext;
   // Disable copy and assign from another value, but allow move.
   TVMRetValue(const TVMRetValue& other) {
     this->Assign(other);
@@ -474,7 +480,7 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kModuleHandle: {
-        SwitchToClass<PackedFunc>(kModuleHandle, other);
+        SwitchToClass<Module>(kModuleHandle, other);
         break;
       }
       case kNodeHandle: {
@@ -532,6 +538,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kNodeHandle: return "NodeHandle";
     case kArrayHandle: return "ArrayHandle";
     case kTVMType: return "TVMType";
+    case kTVMContext: return "TVMContext";
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
     default: LOG(FATAL) << "unknown type_code="
@@ -659,6 +666,10 @@ class TVMArgsSetter {
     values_[i].v_handle = value;
     type_codes_[i] = kArrayHandle;
   }
+  void operator()(size_t i, TVMContext value) const {
+    values_[i].v_ctx = value;
+    type_codes_[i] = kTVMContext;
+  }
   void operator()(size_t i, TVMType value) const {
     values_[i].v_type = value;
     type_codes_[i] = kTVMType;
@@ -673,6 +684,10 @@ class TVMArgsSetter {
   void operator()(size_t i, std::string& value) const {  // NOLINT(*)
     values_[i].v_str = value.c_str();
     type_codes_[i] = kStr;
+  }
+  void operator()(size_t i, TVMByteArray& value) const {  // NOLINT(*)
+    values_[i].v_handle = &value;
+    type_codes_[i] = kBytes;
   }
   void operator()(size_t i, PackedFunc& value) const {  // NOLINT(*)
     values_[i].v_handle = &value;

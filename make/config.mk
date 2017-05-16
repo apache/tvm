@@ -37,6 +37,9 @@ USE_OPENCL = 0
 # whether enable Metal during compile
 USE_METAL = 0
 
+# Whether enable RPC during compile
+USE_RPC = 0
+
 # whether build with LLVM support
 # Requires LLVM version >= 4.0
 # Set LLVM_CONFIG to your version, uncomment to build with llvm support

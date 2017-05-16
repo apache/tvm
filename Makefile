@@ -20,10 +20,16 @@ LIB_HALIDEIR = HalideIR/lib/libHalideIR.a
 CC_SRC = $(filter-out src/contrib/%.cc src/runtime/%.cc,\
              $(wildcard src/*/*.cc src/*/*/*.cc))
 METAL_SRC = $(wildcard src/runtime/metal/*.mm)
-RUNTIME_SRC = $(wildcard src/runtime/*.cc src/runtime/*/*.cc)
+CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
+OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
+RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
+RUNTIME_SRC = $(wildcard src/runtime/*.cc)
 
 # Objectives
 METAL_OBJ = $(patsubst src/%.mm, build/%.o, $(METAL_SRC))
+CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
+OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
+RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC))
 RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
 CONTRIB_OBJ =
@@ -51,6 +57,7 @@ endif
 ifeq ($(USE_CUDA), 1)
 	CFLAGS += -DTVM_CUDA_RUNTIME=1
 	LDFLAGS += -lcuda -lcudart -lnvrtc
+	RUNTIME_DEP += $(CUDA_OBJ)
 else
 	CFLAGS += -DTVM_CUDA_RUNTIME=0
 endif
@@ -62,6 +69,7 @@ ifeq ($(USE_OPENCL), 1)
 	else
 		LDFLAGS += -lOpenCL
 	endif
+	RUNTIME_DEP += $(OPENCL_OBJ)
 else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
 endif
@@ -73,6 +81,10 @@ ifeq ($(USE_METAL), 1)
 	FRAMEWORKS += -framework Metal -framework Foundation
 else
 	CFLAGS += -DTVM_METAL_RUNTIME=0
+endif
+
+ifeq ($(USE_RPC), 1)
+	RUNTIME_DEP += $(RPC_OBJ)
 endif
 
 # llvm configuration
