@@ -15,9 +15,10 @@ def find_lib_path():
     """
     use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", False)
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    root_path = os.path.join(curr_path, '../')
     api_path = os.path.join(curr_path, '../../../lib/')
     cmake_build_path = os.path.join(curr_path, '../../../build/Release/')
-    dll_path = [curr_path, api_path, cmake_build_path]
+    dll_path = [curr_path, root_path, api_path, cmake_build_path]
     if os.name == 'nt':
         vs_configuration = 'Release'
         if platform.architecture()[0] == '64bit':
