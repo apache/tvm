@@ -56,7 +56,7 @@ s[s_init].bind(xi, thread_x)
 xo, xi = s[s_update].split(s_update.op.axis[1], factor=num_thread)
 s[s_update].bind(xo, block_x)
 s[s_update].bind(xi, thread_x)
-print(tvm.lower(s, [X, s_scan], with_api_wrapper=False))
+print(tvm.lower(s, [X, s_scan], simple_mode=True))
 
 ######################################################################
 # Build and Verify
@@ -101,7 +101,7 @@ s_scan = tvm.scan(s_init, s_update_s2, s_state, inputs=[X])
 s = tvm.create_schedule(s_scan.op)
 xo, xi = s[s_update_s2].split(s_update_s2.op.axis[1], factor=32)
 s[s_update_s1].compute_at(s[s_update_s2], xo)
-print(tvm.lower(s, [X, s_scan], with_api_wrapper=False))
+print(tvm.lower(s, [X, s_scan], simple_mode=True))
 
 ######################################################################
 # Multiple States
@@ -124,7 +124,7 @@ s_scan1, s_scan2 = tvm.scan([s_init1, s_init2],
                             [s_update1, s_update2],
                             [s_state1, s_state2], inputs=[X])
 s = tvm.create_schedule(s_scan1.op)
-print(tvm.lower(s, [X, s_scan1, s_scan2], with_api_wrapper=False))
+print(tvm.lower(s, [X, s_scan1, s_scan2], simple_mode=True))
 
 ######################################################################
 # Summary
