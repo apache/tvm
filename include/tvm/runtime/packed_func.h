@@ -318,6 +318,8 @@ class TVMRetValue : public TVMPODValue_ {
    */
   TVMRetValue(TVMRetValue&& other)
       : TVMPODValue_(other.value_, other.type_code_) {
+    other.value_.v_handle = nullptr;
+	other.type_code_ = kNull;
   }
   /*! \brief destructor */
   ~TVMRetValue() {
