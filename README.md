@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/tqchen/tvm.svg?token=ZQpnpAReT4LHdjWAX8jR&branch=master)](https://travis-ci.com/dmlc/tvm)
+[![Build Status](https://travis-ci.com/dmlc/tvm.svg?token=mkPkB7rD7Myq9dXZa9GV&branch=master)](https://travis-ci.com/dmlc/tvm)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 
 [Installation](docs/how_to/install.md) |
