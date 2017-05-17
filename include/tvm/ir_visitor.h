@@ -21,7 +21,7 @@ namespace ir {
  * \sa ExprFunctor, StmtFunctor, PostOrderVisit
  *
  * \note If you need to return values during Visit:
- *  - If it is mutaion of the IR, use IRMutator
+ *  - If it is mutation of the IR, use IRMutator
  *  - If you want to return other things, consider use ExprFunctor/StmtFunctor
  *  - Watch out for possible bug pattern if you use IRVisitor to simulate returns.
  *
@@ -126,7 +126,7 @@ class IRVisitor {
 
 /*!
  * \brief recursively visit the ir in post DFS order node, apply fvisit
- * Each node is ganranteed to be visited only once.
+ * Each node is guaranteed to be visited only once.
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
