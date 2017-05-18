@@ -45,20 +45,11 @@ else(MSVC)
   set(CMAKE_CXX_FLAGS ${CMAKE_C_FLAGS})
 endif(MSVC)
 
-tvm_source_group("Include\\tvm"   GLOB "include/tvm/*.h")
-tvm_source_group("Include\\tvm\\runtime"   GLOB "include/tvm/runtime/*.h")
-tvm_source_group("Source\\lang"   GLOB "src/lang/*.cc")
-tvm_source_group("Source\\api"   GLOB "src/api/*.cc")
-tvm_source_group("Source\\arithmetic"   GLOB "src/arithmetic/*.cc")
-tvm_source_group("Source\\schedule"   GLOB "src/schedule/*.cc")
-tvm_source_group("Source\\codegen"   GLOB "src/codegen/*.cc")
-tvm_source_group("Source\\codegen\\llvm"   GLOB "src/codegen/llvm/*.cc")
-tvm_source_group("Source\\codegen\\stack_vm"   GLOB "src/codegen/stack_vm/*.cc")
-tvm_source_group("Source\\pass"   GLOB "src/pass/*.cc")
-tvm_source_group("Source\\op"   GLOB "src/op/*.cc")
-tvm_source_group("Source\\runtime"   GLOB "src/runtime/*.cc")
-tvm_source_group("Source\\runtime\\cuda"   GLOB "src/runtime/cuda/*.cc")
-tvm_source_group("Source\\runtime\\opencl"   GLOB "src/runtime/opencl/*.cc")
+# add source group
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp")
+FILE(GLOB_RECURSE GROUP_Include "src/*.h" "include/*.h" "HalideIR/src/*.h")
+assign_source_group("Source" ${GROUP_SOURCE})
+assign_source_group("Include" ${GROUP_Include})
 
 file(GLOB COMPILER_SRCS
     src/api/*.cc
@@ -141,6 +132,7 @@ else()
     set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
+list(APPEND RUNTIME_SRCS ${GROUP_Include})
 add_library(libtvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(libtvm_runtime SHARED ${RUNTIME_SRCS})
 target_link_libraries(libtvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
