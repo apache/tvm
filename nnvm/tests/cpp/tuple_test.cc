@@ -17,7 +17,7 @@ TEST(Tuple, Basic) {
   std::istringstream is(os.str());
   is >> y;
   CHECK_EQ(x, y);
-  Tuple<nnvm::index_t> ss{1, 2, 3};
+  Tuple<nnvm::dim_t> ss{1, 2, 3};
   TShape s = ss;
   s = std::move(ss);
   CHECK((s == TShape{1, 2, 3}));

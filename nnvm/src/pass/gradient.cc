@@ -156,7 +156,7 @@ Graph Gradient(Graph src) {
         CHECK_EQ((*rit)->inputs.size(), input_grads.size())
             << "Gradient function not returning enough gradient";
       } else if (CheckGradAllZero(out_agg_grads, zero_ops)) {
-        for (index_t i = 0; i < fwd_node->num_inputs(); ++i) {
+        for (size_t i = 0; i < fwd_node->num_inputs(); ++i) {
           std::ostringstream os;
           if (1 == fwd_node->num_inputs()) {
             os << fwd_node->attrs.name << "_backward";
