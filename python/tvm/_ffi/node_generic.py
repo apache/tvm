@@ -34,6 +34,8 @@ def convert_to_node(value):
     """
     if isinstance(value, _CLASS_NODE_BASE):
         return value
+    elif isinstance(value, bool):
+        return const(value, 'uint1x1')
     elif isinstance(value, Number):
         return const(value)
     elif isinstance(value, string_types):
