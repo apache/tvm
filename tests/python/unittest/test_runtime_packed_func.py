@@ -52,7 +52,6 @@ def test_convert():
 
     f = tvm.convert(myfunc)
     assert isinstance(f, tvm.Function)
-    f(*targs)
 
 def test_byte_array():
     s = "hello"
@@ -63,9 +62,10 @@ def test_byte_array():
     f = tvm.convert(myfunc)
     f(a)
 
+
 if __name__ == "__main__":
+    test_get_global()
     test_get_callback_with_node()
     test_convert()
-    test_get_global()
     test_return_func()
     test_byte_array()

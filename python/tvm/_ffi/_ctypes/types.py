@@ -13,13 +13,15 @@ class TypeCode(object):
     FLOAT = 2
     HANDLE = 3
     NULL = 4
-    ARRAY_HANDLE = 5
-    TVM_TYPE = 6
-    NODE_HANDLE = 7
-    MODULE_HANDLE = 8
-    FUNC_HANDLE = 9
-    STR = 10
-    BYTES = 11
+    TVM_TYPE = 5
+    TVM_CONTEXT = 6
+    ARRAY_HANDLE = 7
+    NODE_HANDLE = 8
+    MODULE_HANDLE = 9
+    FUNC_HANDLE = 10
+    STR = 11
+    BYTES = 12
+
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""

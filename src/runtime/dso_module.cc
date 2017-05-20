@@ -26,7 +26,7 @@ class DSOModuleNode final : public ModuleNode {
     if (lib_handle_) Unload();
   }
 
-  const char* type_key() const {
+  const char* type_key() const final {
     return "dso";
   }
 

@@ -4,7 +4,7 @@ from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types
 from ..node_generic import convert_to_node, NodeGeneric
-from ..runtime_ctypes import TVMType, TVMByteArray
+from ..runtime_ctypes import TVMType, TVMContext, TVMByteArray
 
 print("TVM: Initializing cython mode...")
 
@@ -110,6 +110,10 @@ cdef inline void make_arg(object arg,
         value[0].v_str = tstr
         tcode[0] = kStr
         temp_args.append(tstr)
+    elif isinstance(arg, TVMContext):
+        value[0].v_ctx = (<DLContext*>(
+            <unsigned long long>ctypes.addressof(arg)))[0]
+        tcode[0] = kTVMContext
     elif isinstance(arg, bytearray):
         arr = TVMByteArray()
         arr.data = ctypes.cast(
@@ -170,6 +174,8 @@ cdef inline object make_ret(TVMValue value, int tcode):
         return make_ret_bytes(value.v_handle)
     elif tcode == kHandle:
         return ctypes_handle(value.v_handle)
+    elif tcode == kTVMContext:
+        return TVMContext(value.v_ctx.device_type, value.v_ctx.device_id)
     elif tcode == kModuleHandle:
         return _CLASS_MODULE(ctypes_handle(value.v_handle))
     elif tcode == kFuncHandle:

@@ -19,6 +19,7 @@ fi
 
 cp make/config.mk config.mk
 echo "USE_CUDA=0" >> config.mk
+echo "USE_RPC=1" >> config.mk
 
 if [ ${TRAVIS_OS_NAME} == "osx" ]; then
     echo "USE_OPENCL=1" >> config.mk

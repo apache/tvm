@@ -18,9 +18,9 @@ MetalWorkspace* MetalWorkspace::Global() {
 }
 
 void MetalWorkspace::GetAttr(
-    int dev_id, DeviceAttrKind kind, TVMRetValue* rv) {
+    TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   this->Init();
-  size_t index = static_cast<size_t>(dev_id);
+  size_t index = static_cast<size_t>(ctx.device_id);
   if (kind == kExist) {
     *rv = int(index< devices.size());
     return;
@@ -30,7 +30,7 @@ void MetalWorkspace::GetAttr(
   switch (kind) {
     case kMaxThreadsPerBlock: {
       *rv = static_cast<int>(
-          [devices[dev_id] maxThreadsPerThreadgroup].width);
+          [devices[ctx.device_id] maxThreadsPerThreadgroup].width);
       break;
     }
     case kWarpSize: {
@@ -69,7 +69,7 @@ int GetWarpSize(id<MTLDevice> dev) {
           [NSString stringWithUTF8String:kDummyKernel]
         options:nil
         error:&error_msg];
-  CHECK(lib != nil) << error_msg;
+  CHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
   id<MTLFunction> f =
       [lib
         newFunctionWithName:
@@ -79,7 +79,7 @@ int GetWarpSize(id<MTLDevice> dev) {
       [dev
         newComputePipelineStateWithFunction:f
         error:&error_msg];
-  CHECK(state != nil) << error_msg;
+  CHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
   return state.threadExecutionWidth;
 }
 
@@ -109,8 +109,8 @@ void MetalWorkspace::Init() {
   }
 }
 
-void MetalWorkspace::SetDevice(int dev_id) {
-  MetalThreadEntry::ThreadLocal()->context.device_id = dev_id;
+void MetalWorkspace::SetDevice(TVMContext ctx) {
+  MetalThreadEntry::ThreadLocal()->context.device_id = ctx.device_id;
 }
 
 void* MetalWorkspace::AllocDataSpace(

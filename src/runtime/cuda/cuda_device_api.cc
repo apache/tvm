@@ -17,26 +17,26 @@ namespace runtime {
 
 class CUDADeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(int dev_id) final {
-    CUDA_CALL(cudaSetDevice(dev_id));
+  void SetDevice(TVMContext ctx) final {
+    CUDA_CALL(cudaSetDevice(ctx.device_id));
   }
-  void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
     int value;
     switch (kind) {
       case kExist:
         value = (
             cudaDeviceGetAttribute(
-                &value, cudaDevAttrMaxThreadsPerBlock, dev_id)
+                &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id)
             == cudaSuccess);
         break;
       case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(
-            &value, cudaDevAttrMaxThreadsPerBlock, dev_id));
+            &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id));
         break;
       }
       case kWarpSize: {
         CUDA_CALL(cudaDeviceGetAttribute(
-            &value, cudaDevAttrWarpSize, dev_id));
+            &value, cudaDevAttrWarpSize, ctx.device_id));
         break;
       }
     }

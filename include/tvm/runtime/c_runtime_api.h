@@ -57,13 +57,14 @@ typedef enum {
   // that is used by TVM API calls.
   kHandle = 3U,
   kNull = 4U,
-  kArrayHandle = 5U,
-  kTVMType = 6U,
-  kNodeHandle = 7U,
-  kModuleHandle = 8U,
-  kFuncHandle = 9U,
-  kStr = 10U,
-  kBytes = 11U
+  kTVMType = 5U,
+  kTVMContext = 6U,
+  kArrayHandle = 7U,
+  kNodeHandle = 8U,
+  kModuleHandle = 9U,
+  kFuncHandle = 10U,
+  kStr = 11U,
+  kBytes = 12U
 } TVMTypeCode;
 
 /*!
@@ -98,6 +99,7 @@ typedef union {
   void* v_handle;
   const char* v_str;
   TVMType v_type;
+  TVMContext v_ctx;
 } TVMValue;
 
 /*!

@@ -13,8 +13,8 @@ namespace runtime {
 
 class CPUDeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(int dev_id) final {}
-  void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void SetDevice(TVMContext ctx) final {}
+  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == kExist) {
       *rv = 1;
     }

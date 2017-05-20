@@ -64,6 +64,7 @@ class TVMType(ctypes.Structure):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+RPC_SESS_MASK = 128
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
@@ -121,6 +122,11 @@ class TVMContext(ctypes.Structure):
         return not self.__eq__(other)
 
     def __repr__(self):
+        if self.device_type >= RPC_SESS_MASK:
+            tbl_id = self.device_type / RPC_SESS_MASK - 1
+            dev_type = self.device_type % RPC_SESS_MASK
+            return "remote[%d]:%s(%d)" % (
+                tbl_id, TVMContext.MASK2STR[dev_type], self.device_id)
         return "%s(%d)" % (
             TVMContext.MASK2STR[self.device_type], self.device_id)
 

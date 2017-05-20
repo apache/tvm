@@ -32,6 +32,11 @@ def cpu(dev_id=0):
     ----------
     dev_id : int, optional
         The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
     """
     return TVMContext(1, dev_id)
 
@@ -43,6 +48,11 @@ def gpu(dev_id=0):
     ----------
     dev_id : int, optional
         The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
     """
     return TVMContext(2, dev_id)
 
@@ -54,6 +64,11 @@ def opencl(dev_id=0):
     ----------
     dev_id : int, optional
         The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
     """
     return TVMContext(4, dev_id)
 
@@ -65,6 +80,11 @@ def metal(dev_id=0):
     ----------
     dev_id : int, optional
         The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
     """
     return TVMContext(8, dev_id)
 
@@ -76,6 +96,11 @@ def vpi(dev_id=0):
     ----------
     dev_id : int, optional
         The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
     """
     return TVMContext(9, dev_id)
 

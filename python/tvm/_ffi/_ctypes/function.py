@@ -10,7 +10,7 @@ from numbers import Number, Integral
 from ..base import _LIB, check_call
 from ..base import c_str, string_types
 from ..node_generic import convert_to_node, NodeGeneric
-from ..runtime_ctypes import TVMType, TVMByteArray
+from ..runtime_ctypes import TVMType, TVMByteArray, TVMContext
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
@@ -107,6 +107,9 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, TVMType):
             values[i].v_str = c_str(str(arg))
             type_codes[i] = TypeCode.STR
+        elif isinstance(arg, TVMContext):
+            values[i].v_ctx = arg
+            type_codes[i] = TypeCode.TVM_CONTEXT
         elif isinstance(arg, bytearray):
             arr = TVMByteArray()
             arr.data = ctypes.cast(
