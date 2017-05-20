@@ -97,6 +97,8 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "codegen.build_stackvm";
   } else if (target == "llvm") {
     f_name = "codegen.build_llvm";
+  } else if (target == "rpc") {
+    f_name = "device_api.rpc";
   } else if (target == "vpi" || target == "verilog") {
     f_name = "device_api.vpi";
   } else {

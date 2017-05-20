@@ -22,13 +22,13 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
 
+
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""
     _fields_ = [("v_int64", ctypes.c_int64),
                 ("v_float64", ctypes.c_double),
                 ("v_handle", ctypes.c_void_p),
-                ("v_str", ctypes.c_char_p),
-                ("v_ctx", TVMContext)]
+                ("v_str", ctypes.c_char_p)]
 
 
 TVMPackedCFunc = ctypes.CFUNCTYPE(
@@ -78,8 +78,7 @@ RETURN_SWITCH = {
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
     TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes,
-    TypeCode.TVM_CONTEXT: lambda x: x.v_ctx
+    TypeCode.BYTES: _return_bytes
 }
 
 C_TO_PY_ARG_SWITCH = {
@@ -88,6 +87,5 @@ C_TO_PY_ARG_SWITCH = {
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
     TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes,
-    TypeCode.TVM_CONTEXT: lambda x: x.v_ctx
+    TypeCode.BYTES: _return_bytes
 }

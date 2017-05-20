@@ -5,6 +5,8 @@ import time
 from tvm.contrib import rpc, util
 
 def test_rpc_simple():
+    if not tvm.module.enabled("rpc"):
+        return
     @tvm.register_func("rpc.test.addone")
     def addone(x):
         return x + 1
@@ -20,6 +22,8 @@ def test_rpc_simple():
     assert f2("abc", 11) == "abc:11"
 
 def test_rpc_array():
+    if not tvm.module.enabled("rpc"):
+        return
     x = np.random.randint(0, 10, size=(3, 4))
     @tvm.register_func("rpc.test.remote_array_func")
     def remote_array_func(y):
@@ -34,6 +38,8 @@ def test_rpc_array():
     fremote(r_cpu)
 
 def test_rpc_file_exchange():
+    if not tvm.module.enabled("rpc"):
+        return
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
     blob = bytearray(np.random.randint(0, 10, size=(127)))
@@ -41,6 +47,8 @@ def test_rpc_file_exchange():
     rev = remote.download("dat.bin")
 
 def test_rpc_remote_module():
+    if not tvm.module.enabled("rpc"):
+        return
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
     # graph
