@@ -18,14 +18,14 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
   return &inst;
 }
 
-void OpenCLWorkspace::SetDevice(int dev_id) {
-  OpenCLThreadEntry::ThreadLocal()->context.device_id = dev_id;
+void OpenCLWorkspace::SetDevice(TVMContext ctx) {
+  OpenCLThreadEntry::ThreadLocal()->context.device_id = ctx.device_id;
 }
 
 void OpenCLWorkspace::GetAttr(
-    int dev_id, DeviceAttrKind kind, TVMRetValue* rv) {
+    TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   this->Init();
-  size_t index = static_cast<size_t>(dev_id);
+  size_t index = static_cast<size_t>(ctx.device_id);
   if (kind == kExist) {
     *rv = static_cast<int>(index< devices.size());
     return;

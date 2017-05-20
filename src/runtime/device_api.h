@@ -24,18 +24,18 @@ class DeviceAPI {
   /*! \brief virtual destructor */
   virtual ~DeviceAPI() {}
   /*!
-   * \brief Set the environment device id to dev_id
-   * \param dev_id The device id.
+   * \brief Set the environment device id to ctx
+   * \param ctx The context to be set.
    * \return The allocated device pointer
    */
-  virtual void SetDevice(int dev_id) = 0;
+  virtual void SetDevice(TVMContext ctx) = 0;
   /*!
    * \brief Get attribute of specified device.
-   * \param dev_id The device id
+   * \param ctx The device context
    * \param kind The result kind
    * \param rv The return value.
    */
-  virtual void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) = 0;
+  virtual void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) = 0;
   /*!
    * \brief Allocate a data space on device.
    * \param ctx The device context to perform operation.
@@ -77,7 +77,17 @@ class DeviceAPI {
    * \param stream The stream to be sync.
    */
   virtual void StreamSync(TVMContext ctx, TVMStreamHandle stream) = 0;
+  /*!
+   * \brief Get device API base don context.
+   * \param ctx The context
+   * \param allow_missing Whether allow missing
+   * \return The corresponding device API.
+   */
+  static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
 };
+
+/*! \brief The device type bigger than this is RPC device */
+constexpr int kRPCSessMask = 128;
 
 /*!
  * \brief The name of Device API factory.

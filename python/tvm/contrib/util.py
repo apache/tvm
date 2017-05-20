@@ -12,8 +12,14 @@ class TempDirectory(object):
     def __init__(self):
         self.temp_dir = tempfile.mkdtemp()
 
+    def remove(self):
+        """Remote the tmp dir"""
+        if self.temp_dir:
+            shutil.rmtree(self.temp_dir)
+            self.temp_dir = None
+
     def __del__(self):
-        shutil.rmtree(self.temp_dir)
+        self.remove()
 
     def relpath(self, name):
         """Relative path in temp dir

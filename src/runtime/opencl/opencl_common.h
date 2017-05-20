@@ -139,8 +139,8 @@ class OpenCLWorkspace final : public DeviceAPI {
     return queues[ctx.device_id];
   }
   // override device API
-  void SetDevice(int dev_id) final;
-  void GetAttr(int dev_id, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void SetDevice(TVMContext ctx) final;
+  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
   void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
