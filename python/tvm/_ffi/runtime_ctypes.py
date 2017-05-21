@@ -68,8 +68,8 @@ RPC_SESS_MASK = 128
 
 class TVMContext(ctypes.Structure):
     """TVM context strucure."""
-    _fields_ = [("device_id", ctypes.c_int),
-                ("device_type", ctypes.c_int)]
+    _fields_ = [("device_type", ctypes.c_int),
+                ("device_id", ctypes.c_int)]
     MASK2STR = {
         1 : 'cpu',
         2 : 'gpu',
@@ -88,8 +88,8 @@ class TVMContext(ctypes.Structure):
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()
-        self.device_id = device_id
         self.device_type = device_type
+        self.device_id = device_id
 
     @property
     def exist(self):
