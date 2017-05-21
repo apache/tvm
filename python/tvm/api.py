@@ -463,6 +463,23 @@ def reduce_axis(dom, name="rv"):
     """
     return _IterVar(dom, name, 2)
 
+def select(cond, t, f):
+    """Construct a select branch
+    Parameters
+    ----------
+    cond : Expr
+        The condition
+    t : Expr
+        The result expression if cond is true.
+    f : Expr
+        The result expression if cond is false.
+
+    Returns
+    -------
+    node : Node
+        The tvm.expr.Select node
+    """
+    return _make.Select(convert(cond), convert(t), convert(f))
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
     """Create a commutative reducer for reduction.
