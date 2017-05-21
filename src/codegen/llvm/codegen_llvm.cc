@@ -361,11 +361,11 @@ llvm::Value* CodeGenLLVM::CreateStructRefPtr(
     }
     case intrinsic::kArrDeviceId: {
       return builder_->CreateInBoundsGEP(
-          buf, {index, ConstInt32(1), ConstInt32(0)});
+          buf, {index, ConstInt32(1), ConstInt32(1)});
     }
     case intrinsic::kArrDeviceType: {
       return builder_->CreateInBoundsGEP(
-          buf, {index, ConstInt32(1), ConstInt32(1)});
+          buf, {index, ConstInt32(1), ConstInt32(0)});
     }
     case intrinsic::kTVMValueContent: {
       CHECK_EQ(t.lanes(), 1);

@@ -26,8 +26,8 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         uint16_t lanes
 
     ctypedef struct DLContext:
-        int device_id
         int device_type
+        int device_id
 
     ctypedef struct DLTensor:
         void* data
