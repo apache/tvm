@@ -103,10 +103,10 @@ class Server(object):
     def __init__(self, host, port=9091, port_end=9199):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.port = None
-        for port in range(port, port_end):
+        for my_port in range(port, port_end):
             try:
-                sock.bind((host, port))
-                self.port = port
+                sock.bind((host, my_port))
+                self.port = my_port
                 break
             except socket.error as sock_err:
                 if sock_err.errno in [98, 48]:
