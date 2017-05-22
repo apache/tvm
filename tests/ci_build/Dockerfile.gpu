@@ -1,0 +1,20 @@
+FROM nvidia/cuda:cudnn
+
+# Base scripts
+RUN apt-get update
+
+COPY install/ubuntu_*.sh /install/
+RUN bash /install/ubuntu_install_core.sh
+RUN bash /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_llvm.sh
+RUN bash /install/ubuntu_install_opencl.sh
+RUN bash /install/ubuntu_install_iverilog.sh
+
+# Environment variables
+ENV PATH=/usr/local/nvidia/bin:${PATH}
+ENV PATH=/usr/clang+llvm-4.0.0-x86_64-linux-gnu-ubuntu-14.04/bin:${PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
+ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
+ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}

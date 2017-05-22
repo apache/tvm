@@ -28,7 +28,7 @@ def test_matmul_add():
         bb = 10.0
         f(a, b, d, bb)
         np.testing.assert_allclose(
-            d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + bb)
+            d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + bb, rtol=1e-5)
     verify()
 
 
