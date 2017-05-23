@@ -3,7 +3,7 @@ sudo: false
 language: cpp
 
 os:
-  - linux
+#  - linux
   - osx
 
 osx_image: xcode8
