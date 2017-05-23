@@ -1,13 +1,6 @@
 import tvm
-from tvm.contrib import nvcc_compiler
-from tvm.contrib import metal_compiler
 import numpy as np
 import time
-
-#@tvm.register_func
-def tvm_callback_metal_compile(code):
-    lib = metal_compiler.compile_source(code)
-    return lib
 
 def test_gemm():
     # graph

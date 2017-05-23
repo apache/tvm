@@ -1,9 +1,10 @@
-[![Build Status](https://travis-ci.com/dmlc/tvm.svg?token=mkPkB7rD7Myq9dXZa9GV&branch=master)](https://travis-ci.com/dmlc/tvm)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
+[![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=dmlc/tvm/master)](http://mode-gpu.cs.washington.edu:8080/job/dmlc/job/tvm/job/master/)
 
 [Installation](docs/how_to/install.md) |
-[Documentation](docs) |
-[Tutorials](tutorials) |
+[Documentation](http://docs.tvmlang.org) |
+[Tutorials](http://tutorials.tvmlang.org) |
+[FAQ](docs/faq.md) |
 [Contributors](CONTRIBUTORS.md) |
 [Release Notes](NEWS.md)
 

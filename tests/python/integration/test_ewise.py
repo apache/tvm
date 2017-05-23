@@ -59,13 +59,6 @@ def test_log_llvm():
     np.testing.assert_allclose(
         b.asnumpy(), np.log(a.asnumpy()), rtol=1e-5)
 
-from tvm.contrib import nvcc_compiler
-
-@tvm.register_func
-def tvm_callback_cuda_compile(code):
-    print(code)
-    ptx =  nvcc_compiler.compile_source(code, target="ptx", options=["-arch=sm_35"])
-    return ptx
 
 def test_add():
     # graph
