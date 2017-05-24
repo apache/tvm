@@ -18,7 +18,7 @@ void CodeGenLLVM::Init(const std::string& module_name,
                        llvm::LLVMContext* ctx) {
   InitializeLLVM();
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
-  static_assert(alignof(TVMValue) == alignof(double), "invariant");
+  // static_assert(alignof(TVMValue) == alignof(double), "invariant");
   // clear maps
   var_map_.clear();
   str_map_.clear();

@@ -96,7 +96,7 @@ void CodeGenStackVM::VisitStmt_(const Store* op) {
   StackVM::OpCode code = StackVM::GetStore(Type2TVMType(op->value.type()));
   if (const IntImm* index = op->index.as<IntImm>()) {
     this->Push(op->value);
-    this->PushOp(code, op->index.as<IntImm>()->value);
+    this->PushOp(code, index->value);
   } else {
     this->Push(op->index);
     this->PushOp(StackVM::PUSH_I64, op->value.type().element_of().bytes());
@@ -179,7 +179,7 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
     const IntImm* num = op->args[1].as<IntImm>();
     CHECK(num != nullptr);
     static_assert(alignof(TVMValue) % alignof(TVMArray) == 0, "invariant");
-    static_assert(alignof(TVMValue) % alignof(tvm_index_t) == 0, "invariant");
+    // static_assert(alignof(TVMValue) % alignof(tvm_index_t) == 0, "invariant");
     size_t unit = sizeof(TVMValue);
     size_t size = 0;
     if (type == "shape") {
@@ -200,7 +200,7 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
     CHECK_EQ(op->args.size(), 1U);
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
-    this->PushOp(StackVM::EQ_I64);
+    this->PushOp(StackVM::EQ_HANDLE);
   } else {
     LOG(FATAL) << "unknown function call " << op->name;
   }

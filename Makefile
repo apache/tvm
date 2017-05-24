@@ -12,7 +12,8 @@ include $(config)
 
 .PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3
 
-all: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
+BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
+all: ${BUILD_TARGETS}
 
 # The source code dependencies
 LIB_HALIDEIR = HalideIR/lib/libHalideIR.a

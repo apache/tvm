@@ -102,6 +102,8 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_CODE0(EQ_F64);
     STACK_VM_PRINT_CODE0(LT_F64);
     STACK_VM_PRINT_CODE0(LE_F64);
+    // handle.
+    STACK_VM_PRINT_CODE0(EQ_HANDLE);
     // addressing load
     STACK_VM_PRINT_CODE1(ARRAY_LOAD_UINT32);
     STACK_VM_PRINT_CODE1(ARRAY_LOAD_INT32);
@@ -213,6 +215,7 @@ void StackVM::Run(State* s) const {
       case EQ_F64: STACK_VM_CMPOP(==, v_float64); break;
       case LT_F64: STACK_VM_CMPOP(<, v_float64); break;
       case LE_F64: STACK_VM_CMPOP(<=, v_float64); break;
+      case EQ_HANDLE: STACK_VM_CMPOP(==, v_handle); break;
       // addressing
       case ARRAY_LOAD_UINT32: STACK_VM_LOAD(.v_int64, int64_t, uint32_t); break;
       case ARRAY_LOAD_INT32: STACK_VM_LOAD(.v_int64, int64_t, int32_t); break;

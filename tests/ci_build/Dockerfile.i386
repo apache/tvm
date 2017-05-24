@@ -1,0 +1,8 @@
+FROM ioft/i386-ubuntu:14.04
+
+RUN apt-get update
+
+COPY install/ubuntu_*.sh /install/
+RUN bash /install/ubuntu_install_core.sh
+RUN bash /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_llvm.sh
