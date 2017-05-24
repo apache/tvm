@@ -1,4 +1,4 @@
-FROM nvidia/cuda:cudnn
+FROM nvidia/cuda:7.5-cudnn5-devel
 
 # Base scripts
 RUN apt-get update

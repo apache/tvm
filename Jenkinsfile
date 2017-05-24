@@ -153,7 +153,19 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_docs.sh"
         }
+        pack_lib('mydocs', 'docs.tgz')
       }
     }
   }
+}
+
+stage('Deploy') {
+    node('docker' && 'doc') {
+      ws('workspace/tvm/deploy-docs') {
+        if (env.BRANCH_NAME == "master") {
+           unpack_lib('mydocs', 'docs.tgz')
+           sh "tar xf docs.tgz -C /var/docs"
+        }
+      }
+    }
 }

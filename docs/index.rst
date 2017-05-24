@@ -12,6 +12,7 @@ Contents
    self
    how_to/install
    tutorials/index
+   faq
    api/python/index
    how_to/contribute
    genindex
