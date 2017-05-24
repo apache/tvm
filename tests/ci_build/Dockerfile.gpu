@@ -10,6 +10,10 @@ RUN bash /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_opencl.sh
 RUN bash /install/ubuntu_install_iverilog.sh
 
+# Fix recommonmark to latest version
+RUN git clone https://github.com/rtfd/recommonmark
+RUN cd recommonmark; python setup.py install
+
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/clang+llvm-4.0.0-x86_64-linux-gnu-ubuntu-14.04/bin:${PATH}

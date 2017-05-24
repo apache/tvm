@@ -4,7 +4,7 @@ This document contains frequently asked questions.
 
 How to Install
 --------------
-See [Installation](how_to/install.md)
+See [Installation](https://github.com/dmlc/tvm/blob/master/docs/how_to/install.md)
 
 TVM's relation to XLA
 ---------------------
