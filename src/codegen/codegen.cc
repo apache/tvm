@@ -17,7 +17,7 @@ namespace codegen {
 runtime::Module Build(const Array<LoweredFunc>& funcs,
                       const std::string& target) {
   std::string mode = target;
-  size_t pos = mode.find("-");
+  size_t pos = mode.find(' ');
   if (pos != std::string::npos) {
     mode = mode.substr(0, pos);
   }

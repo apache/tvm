@@ -98,11 +98,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   void Init(const Array<LoweredFunc>& funcs, std::string target) {
     InitializeLLVM();
-    std::tie(tm_, target_triple_) = GetLLVMTarget(target);
+    tm_ = GetLLVMTargetMachine(target);
+    target_ = target;
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     CodeGenLLVM cg;
-    cg.Init(funcs[0]->name, target, ctx_.get());
+    cg.Init(funcs[0]->name, tm_, ctx_.get());
     for (LoweredFunc f :  funcs) {
       cg.AddFunction(f);
     }
@@ -115,11 +116,16 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void LazyInitJIT() {
     CHECK(ee_ == nullptr);
     std::lock_guard<std::mutex> lock(mutex_);
-    std::string target_triple = mptr_->getTargetTriple();
     llvm::EngineBuilder builder(std::move(module_));
     builder.setEngineKind(llvm::EngineKind::JIT);
     builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
     llvm::TargetMachine *tm = builder.selectTarget();
+    llvm::TargetMachine *tm_sys = GetLLVMTargetMachine("llvm");
+    if (tm_sys->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {
+      LOG(FATAL) << "Cannot run module, architecture mismatch "
+                 << " module=" << tm->getTargetTriple().str()
+                 << " system=" << tm_sys->getTargetTriple().str();
+    }
     llvm::DataLayout layout(tm->createDataLayout());
     CHECK(layout == mptr_->getDataLayout())
         << "Data layout mismatch between module("
@@ -127,8 +133,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << " and ExecutionEngine ("
         << layout.getStringRepresentation() << ")";
     ee_ = builder.create(tm);
+
     CHECK(ee_ != nullptr)
-        << "Failed to initialize git engine for " << target_triple;
+        << "Failed to initialize git engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
     // setup context address.
     void** ctx_addr =
@@ -139,7 +146,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
   }
   // The target configuration string
-  std::string target_triple_;
+  std::string target_;
   // JIT lock
   std::mutex mutex_;
   // execution engine
