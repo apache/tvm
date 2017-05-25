@@ -4,13 +4,15 @@ from __future__ import absolute_import as _abs
 import sys
 import subprocess
 
-def create_shared(path_target, objects,
-                  options=None, cc="g++"):
+def create_shared(output,
+                  objects,
+                  options=None,
+                  cc="g++"):
     """Create shared library.
 
     Parameters
     ----------
-    path_target : str
+    output : str
         The target shared library.
 
     objects : list
@@ -19,19 +21,25 @@ def create_shared(path_target, objects,
     options : str
         The additional options.
 
-    cc : str
+    cc : str, optional
         The compile string.
     """
     cmd = [cc]
     cmd += ["-shared"]
+
     if sys.platform == "darwin":
         cmd += ["-undefined", "dynamic_lookup"]
-    cmd += ["-o", path_target]
-    cmd += objects
+    cmd += ["-o", output]
+
+    if isinstance(objects, str):
+        cmd += [objects]
+    else:
+        cmd += objects
+
     if options:
         cmd += options
-    args = ' '.join(cmd)
 
+    args = ' '.join(cmd)
     proc = subprocess.Popen(
         args, shell=True,
         stdout=subprocess.PIPE,
@@ -39,6 +47,6 @@ def create_shared(path_target, objects,
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
-        sys.stderr.write("Compilation error:\n")
-        sys.stderr.write(out)
-        sys.stderr.flush()
+        msg = "Compilation error:\n"
+        msg += out
+        raise RuntimeError(msg)

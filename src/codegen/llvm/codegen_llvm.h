@@ -31,11 +31,11 @@ class CodeGenLLVM :
   /*!
    * \brief Initialize the code generator with given context
    * \param module_name The name of the module.
-   * \param target_triple The target triple, can be empty.
+   * \param tm Target machine model
    * \param ctx The context.
    */
   void Init(const std::string& module_name,
-            const std::string& target_triple,
+            llvm::TargetMachine* tm,
             llvm::LLVMContext* ctx);
   /*!
    * \brief Compile and add function f to the current module.
@@ -208,7 +208,7 @@ class CodeGenLLVM :
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
   // Initialize target
-  void InitTarget(const std::string& target);
+  void InitTarget(llvm::TargetMachine* tm);
   // Add a function to set global module context
   void InitGlobalContext();
   // add alias information.
