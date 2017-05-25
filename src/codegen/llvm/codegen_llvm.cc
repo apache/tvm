@@ -14,7 +14,7 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenLLVM::Init(const std::string& module_name,
-                       const std::string& target_triple,
+                       llvm::TargetMachine* tm,
                        llvm::LLVMContext* ctx) {
   InitializeLLVM();
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
@@ -81,17 +81,14 @@ void CodeGenLLVM::Init(const std::string& module_name,
           t_int64_, t_int64_, t_f_tvm_par_for_lambda_->getPointerTo(), t_void_p_}
         , false),
       llvm::Function::ExternalLinkage, "TVMBackendParallelFor", module_.get());
-  this->InitTarget(target_triple);
+  this->InitTarget(tm);
   // initialize builder
   builder_.reset(new IRBuilder(*ctx));
   this->InitGlobalContext();
 }
 
-void CodeGenLLVM::InitTarget(const std::string& target) {
-  llvm::TargetMachine* tm;
-  std::string target_triple;
-  std::tie(tm, target_triple) = GetLLVMTarget(target);
-  module_->setTargetTriple(target_triple);
+void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
+  module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
   data_layout_.reset(new llvm::DataLayout(module_.get()));
 }

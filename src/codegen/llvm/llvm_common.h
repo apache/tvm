@@ -51,11 +51,11 @@ void InitializeLLVM();
 
 /*!
  * \brief Get target machine from target_str string.
- * \param target_str Target triple string, can have llvm- prefix, can be empty.
- * \return Pair of target machine and target triple.
+ * \param target_str Target string, in format "llvm -target=xxx -mcpu=xxx"
+ * \return target machine
  */
-std::pair<llvm::TargetMachine*, std::string>
-GetLLVMTarget(const std::string& target_str);
+llvm::TargetMachine*
+GetLLVMTargetMachine(const std::string& target_str);
 
 }  // namespace codegen
 }  // namespace tvm

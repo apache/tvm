@@ -36,32 +36,55 @@ void InitializeLLVM() {
   }
 }
 
-std::pair<llvm::TargetMachine*, std::string>
-GetLLVMTarget(const std::string& target_str) {
+llvm::TargetMachine*
+GetLLVMTargetMachine(const std::string& target_str) {
   // setup target triple
-  std::string target_triple;
-  CHECK_EQ(target_str.substr(0, 4), "llvm");
-  if (target_str.length() > 4) {
-    target_triple = target_str.substr(5, target_str.length() - 5);
-  } else {
-    target_triple = "";
+  CHECK(target_str.length() >= 4 &&
+        target_str.substr(0, 4) == "llvm")
+      << "llvm target must starts with llvm";
+  // simple parser
+  std::string target_triple = "";
+  std::string cpu = "generic";
+  std::string features = "";
+  std::string key, value;
+  if (target_str.length() > 5) {
+    std::istringstream is(target_str.substr(5, target_str.length() - 5));
+    while (is >> key) {
+      size_t pos = key.find('=');
+      if (pos != std::string::npos) {
+        CHECK_GE(key.length(), pos + 1)
+            << "inavlid argument " << key;
+        value = key.substr(pos + 1, key.length() - 1);
+        key = key.substr(0, pos);
+      } else {
+        CHECK(is >> value)
+            << "Unspecified value for option " << key;
+      }
+      if (key == "-target" ||
+          key == "-mtriple") {
+        target_triple = value;
+      } else if (key == "-mcpu") {
+        cpu = value;
+      } else if (key == "-features") {
+        features = value;
+      } else {
+        LOG(FATAL) << "unknown option " << key;
+      }
+    }
   }
   if (target_triple.length() == 0 ||
       target_triple == "default") {
     target_triple = llvm::sys::getDefaultTargetTriple();
   }
-
   std::string err;
   const llvm::Target* target =
       llvm::TargetRegistry::lookupTarget(target_triple, err);
   CHECK(target) << err << " target_triple=" << target_triple;
-  std::string cpu = "generic";
-  std::string features = "";
   llvm::TargetOptions opt;
   auto rmodel = llvm::Reloc::PIC_;
   llvm::TargetMachine* tm =
       target->createTargetMachine(target_triple, cpu, features, opt, rmodel);
-  return {tm, target_triple};
+  return tm;
 }
 
 }  // namespace codegen

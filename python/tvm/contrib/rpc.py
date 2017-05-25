@@ -15,7 +15,7 @@ import socket
 import struct
 import logging
 import multiprocessing
-from . import util
+from . import util, cc_compiler
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
 from .._ffi.ndarray import context as _context
@@ -34,19 +34,28 @@ def _serve_loop(sock, addr):
         path = temp.relpath(file_name)
         with open(path, "wb") as out_file:
             out_file.write(blob)
+        logging.info("upload %s", path)
 
     @register_func("tvm.contrib.rpc.server.download")
     def download(file_name):
         """Download file from remote"""
         path = temp.relpath(file_name)
         dat = bytearray(open(path, "rb").read())
+        logging.info("download %s", path)
         return dat
 
     @register_func("tvm.contrib.rpc.server.load_module")
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)
+        # Try create a shared library in remote
+        if path.endswith('.o'):
+            logging.info('Create shared library based on %s', path)
+            cc_compiler.create_shared(path + '.so', path)
+            path += '.so'
+
         m = _load_module(path)
+        logging.info("load_module %s", path)
         return m
 
     _ServerLoop(sockfd)
