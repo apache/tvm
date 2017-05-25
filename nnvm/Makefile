@@ -98,3 +98,4 @@ clean:
 
 -include build/*.d
 -include build/*/*.d
+-include build/*/*/*.d
