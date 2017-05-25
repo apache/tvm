@@ -82,7 +82,7 @@ stage('Build') {
            cp make/config.mk .
            echo USE_CUDA=1 >> config.mk
            echo USE_OPENCL=1 >> config.mk
-           echo LLVM_CONFIG=llvm-config >> config.mk
+           echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
            echo USE_BLAS=openblas >> config.mk
            """
@@ -105,6 +105,22 @@ stage('Build') {
         pack_lib('cpu')
       }
     }
+  },
+  'i386': {
+    node('CPU' && 'linux') {
+      ws('workspace/tvm/build-i386') {
+        init_git()
+        sh """
+           cp make/config.mk .
+           echo USE_CUDA=0 >> config.mk
+           echo USE_OPENCL=0 >> config.mk
+           echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
+           echo USE_RPC=1 >> config.mk
+           """
+        make('i386', '-j4')
+        pack_lib('i386')
+      }
+    }
   }
 }
 
@@ -116,6 +132,18 @@ stage('Unit Test') {
         unpack_lib('gpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_unittest.sh"
+        }
+      }
+    }
+  },
+  'python2/3: i386': {
+    node('CPU' && 'linux') {
+      ws('workspace/tvm/ut-python-i386') {
+        init_git()
+        unpack_lib('i386', tvm_lib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} i386 ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} i386 ./tests/scripts/task_python_integration.sh"
         }
       }
     }

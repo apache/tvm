@@ -1,7 +1,7 @@
 from ..base import TVMError
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
-from libc.stdint cimport int64_t, uint8_t, uint16_t
+from libc.stdint cimport int64_t, uint64_t, uint8_t, uint16_t
 import ctypes
 
 cdef enum TVMTypeCode:
@@ -36,7 +36,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         DLDataType dtype
         int64_t* shape
         int64_t* strides
-        size_t byte_offset;
+        uint64_t byte_offset;
 
     ctypedef struct TVMValue:
         int64_t v_int64

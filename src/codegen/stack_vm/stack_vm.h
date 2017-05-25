@@ -55,6 +55,8 @@ class StackVM {
     EQ_F64,
     LT_F64,
     LE_F64,
+    // Pointer comparison
+    EQ_HANDLE,
     /*!
      * \brief Routine to load data from address with const offset.
      * \code

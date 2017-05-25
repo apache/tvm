@@ -139,6 +139,6 @@ class TVMArray(ctypes.Structure):
                 ("dtype", TVMType),
                 ("shape", ctypes.POINTER(tvm_shape_index_t)),
                 ("strides", ctypes.POINTER(tvm_shape_index_t)),
-                ("byte_offset", ctypes.c_size_t)]
+                ("byte_offset", ctypes.c_uint64)]
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)

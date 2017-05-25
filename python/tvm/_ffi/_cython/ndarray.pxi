@@ -9,7 +9,7 @@ cdef class NDArrayBase:
         if handle is None:
             self.chandle = NULL
         else:
-            ptr = ctypes.addressof(handle.contents)
+            ptr = ctypes.cast(handle, ctypes.c_void_p).value
             self.chandle = <DLTensor*>(ptr)
 
     property _dltensor_addr:
@@ -48,8 +48,9 @@ def _reg_dltensor(cls):
     _DLTENSOR_COMPATS += (cls,)
 
 def _make_array(handle, is_view):
-    handle = ctypes.cast(handle, TVMArrayHandle)
-    return _CLASS_NDARRAY(handle, is_view)
+    cdef unsigned long long ptr
+    ptr = ctypes.cast(handle, ctypes.c_void_p).value
+    return c_make_array(<void*>ptr, is_view)
 
 cdef object _CLASS_NDARRAY = None
 

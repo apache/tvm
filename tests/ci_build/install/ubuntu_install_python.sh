@@ -6,5 +6,3 @@ cd /tmp && wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && py
 
 pip2 install nose pylint numpy nose-timer cython
 pip3 install nose pylint numpy nose-timer cython
-
-pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark
