@@ -527,6 +527,22 @@ Symbol Symbol::CreateFunctor(const Op* op,
   return s;
 }
 
+Symbol Symbol::CreateFunctor(const NodeAttrs& attrs) {
+  static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
+  Symbol s;
+  NodePtr n = Node::Create();
+  n->attrs = attrs;
+
+  uint32_t nout = n->num_outputs();
+  if (fnum_vis_output.count(n->op())) {
+    nout = fnum_vis_output[n->op()](n->attrs);
+  }
+  for (uint32_t i = 0; i < nout; ++i) {
+    s.outputs.emplace_back(NodeEntry{n, i, 0});
+  }
+  return s;
+}
+
 Symbol Symbol::CreateGroup(const std::vector<Symbol> &symbols) {
   Symbol ret;
   for (const auto &s : symbols) {
