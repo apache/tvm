@@ -21,7 +21,7 @@
 namespace nnvm {
 /*!
  * \brief Symbol is help class used to represent the operator node in Graph.
- * 
+ *
  *  Symbol acts as an interface for building graphs from different components
  *  like Variable, Functor and Group. Symbol is also exported to python front-end
  *  (while Graph is not) to enable quick test and deployment. Conceptually,
@@ -192,6 +192,12 @@ class Symbol {
    */
   static Symbol CreateFunctor(const Op* op,
                               std::unordered_map<std::string, std::string> attrs);
+  /*!
+   * \brief Create symbolic functor(AtomicSymbol) by given node attributes.
+   * \param attrs pre-initialized Node attributes.
+   * \return Symbol that can be used to call compose further.
+   */
+  static Symbol CreateFunctor(const NodeAttrs& attrs);
   /*!
    * \brief Create symbol node representing variable.
    * \param name Name of the variable.
