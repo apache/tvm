@@ -3,7 +3,7 @@
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
 // tvm libraries
-tvm_lib = 'lib/libtvm.so, lib/libtvm_runtime.so, lib/libtvm.a, HalideIR/lib/libHalideIR.a, config.mk'
+tvm_lib = 'lib/libtvm.so, lib/libtvm_runtime.so, config.mk'
 // command to start a docker container
 docker_run = 'tests/ci_build/ci_build.sh'
 // timeout in minutes
