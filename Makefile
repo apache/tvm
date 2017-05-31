@@ -15,6 +15,14 @@ include $(config)
 BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
 all: ${BUILD_TARGETS}
 
+ifndef DMLC_CORE_PATH
+  DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core/include
+endif
+
+ifndef DLPACK_PATH
+  DLPATCH_PATH = $(ROOTDIR)/dlpack/include
+endif
+
 # The source code dependencies
 LIB_HALIDEIR = HalideIR/lib/libHalideIR.a
 
@@ -44,7 +52,7 @@ RUNTIME_DEP = $(RUNTIME_OBJ)
 # The flags
 LDFLAGS = -pthread -lm -ldl
 CFLAGS = -std=c++11 -Wall -O2\
-	 -Iinclude -Idlpack/include -Idmlc-core/include -IHalideIR/src -fPIC
+	 -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -fPIC
 LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
