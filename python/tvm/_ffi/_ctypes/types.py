@@ -4,24 +4,7 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray
-
-class TypeCode(object):
-    """Type code used in API calls"""
-    INT = 0
-    UINT = 1
-    FLOAT = 2
-    HANDLE = 3
-    NULL = 4
-    TVM_TYPE = 5
-    TVM_CONTEXT = 6
-    ARRAY_HANDLE = 7
-    NODE_HANDLE = 8
-    MODULE_HANDLE = 9
-    FUNC_HANDLE = 10
-    STR = 11
-    BYTES = 12
-
+from ..runtime_ctypes import TVMByteArray, TypeCode
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""

@@ -95,9 +95,9 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
             type_codes[i] = TypeCode.ARRAY_HANDLE
-        elif isinstance(arg, _nd._DLTENSOR_COMPATS):
-            values[i].v_handle = ctypes.c_void_p(arg._dltensor_addr)
-            type_codes[i] = TypeCode.ARRAY_HANDLE
+        elif isinstance(arg, _nd._TVM_COMPATS):
+            values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
+            type_codes[i] = arg._tvm_tcode
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
             type_codes[i] = TypeCode.INT

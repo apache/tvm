@@ -98,12 +98,11 @@ def test_gemm():
     max_auto_unroll_step = 8
 
     # correctness
-    def check_device(device, host="stackvm"):
-        if not tvm.module.enabled(host):
-            return
+    def check_device(device):
         if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
             return
-        f = tvm.build(s, [A, B, C], device, host,
+        f = tvm.build(s, [A, B, C], device,
                       max_auto_unroll_step=max_auto_unroll_step)
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         # launch the kernel.

@@ -1,14 +1,18 @@
 import tvm
 import numpy as np
 
-@tvm.register_dltensor
+@tvm.register_extension
 class MyTensorView(object):
     def __init__(self, arr):
         self.arr = arr
 
     @property
-    def _dltensor_addr(self):
-        return self.arr._dltensor_addr
+    def _tvm_handle(self):
+        return self.arr._tvm_handle
+
+    @property
+    def _tvm_tcode(self):
+        return tvm.TypeCode.ARRAY_HANDLE
 
 def test_dltensor_compatible():
     dtype = 'int64'

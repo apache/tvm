@@ -12,7 +12,7 @@ cdef class NDArrayBase:
             ptr = ctypes.cast(handle, ctypes.c_void_p).value
             self.chandle = <DLTensor*>(ptr)
 
-    property _dltensor_addr:
+    property _tvm_handle:
         def __get__(self):
             return <unsigned long long>self.chandle
 
@@ -41,11 +41,11 @@ cdef c_make_array(void* chandle, is_view):
     (<NDArrayBase>ret).chandle = <DLTensor*>chandle
     return ret
 
-cdef _DLTENSOR_COMPATS = ()
+cdef _TVM_COMPATS = ()
 
-def _reg_dltensor(cls):
-    global _DLTENSOR_COMPATS
-    _DLTENSOR_COMPATS += (cls,)
+def _reg_extension(cls):
+    global _TVM_COMPATS
+    _TVM_COMPATS += (cls,)
 
 def _make_array(handle, is_view):
     cdef unsigned long long ptr

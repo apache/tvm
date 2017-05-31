@@ -18,11 +18,12 @@ from . import ir_builder
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi
 
+from ._ffi.runtime_ctypes import TypeCode
 from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
 from .node import register_node
-from .ndarray import register_dltensor
+from .ndarray import register_extension
 from .schedule import create_schedule
 from .build import build, lower
