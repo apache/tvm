@@ -29,6 +29,7 @@ def find_lib_path():
             dll_path.append(os.path.join(curr_path, '../../../windows', vs_configuration))
     elif os.name == "posix" and os.environ.get('LD_LIBRARY_PATH', None):
         dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
+    dll_path = [os.path.abspath(x) for x in dll_path]
 
     if os.name == 'nt':
         lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path]
