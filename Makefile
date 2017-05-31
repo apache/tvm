@@ -12,7 +12,7 @@ include $(config)
 
 .PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3
 
-BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
+BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
 all: ${BUILD_TARGETS}
 
 # The source code dependencies
@@ -42,9 +42,10 @@ ALL_DEP = $(CC_OBJ) $(CONTRIB_OBJ) $(LIB_HALIDEIR)
 RUNTIME_DEP = $(RUNTIME_OBJ)
 
 # The flags
-LDFLAGS = -pthread -lm
-CFLAGS = -std=c++11 -Wall -O2 -fno-rtti\
-	 -Iinclude -Idlpack/include -Idmlc-core/include -IHalideIR/src -fPIC -DDMLC_ENABLE_RTTI=0
+LDFLAGS = -pthread -lm -ldl
+CFLAGS = -std=c++11 -Wall -O2\
+	 -Iinclude -Idlpack/include -Idmlc-core/include -IHalideIR/src -fPIC
+LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
 
@@ -93,7 +94,7 @@ ifdef LLVM_CONFIG
 	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
 	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
 	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)
-	CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
+	LLVM_CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
 endif
 
 include make/contrib/cblas.mk
@@ -113,15 +114,22 @@ test: $(TEST)
 include verilog/verilog.mk
 verilog: $(VER_LIBS)
 
+
+# Special rules for LLVM related modules.
+build/codegen/llvm/%.o: src/codegen/llvm/%.cc
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) -c $(CFLAGS) $(LLVM_CFLAGS) -c $< -o $@
+
+build/runtime/metal/%.o: src/runtime/metal/%.mm
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
+
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
-
-build/%.o: src/%.mm
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
-	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
 lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
@@ -131,9 +139,6 @@ lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm.a: $(ALL_DEP) $(RUNTIME_DEP)
-	@mkdir -p $(@D)
-	ar crv $@ $(filter %.o, $?)
 
 $(LIB_HALIDEIR): LIBHALIDEIR
 
@@ -141,7 +146,7 @@ LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
 cpplint:
-	python dmlc-core/scripts/lint.py tvm cpp include src verilog
+	python dmlc-core/scripts/lint.py tvm cpp include src verilog examples/extension/src
 
 pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc

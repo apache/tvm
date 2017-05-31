@@ -92,6 +92,7 @@ ENV/
 *~
 build
 config.mk
+config.cmake
 build_*
 Win32
 *.dir
