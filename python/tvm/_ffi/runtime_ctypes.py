@@ -9,6 +9,22 @@ from .. import _api_internal
 
 tvm_shape_index_t = ctypes.c_int64
 
+class TypeCode(object):
+    """Type code used in API calls"""
+    INT = 0
+    UINT = 1
+    FLOAT = 2
+    HANDLE = 3
+    NULL = 4
+    TVM_TYPE = 5
+    TVM_CONTEXT = 6
+    ARRAY_HANDLE = 7
+    NODE_HANDLE = 8
+    MODULE_HANDLE = 9
+    FUNC_HANDLE = 10
+    STR = 11
+    BYTES = 12
+
 class TVMByteArray(ctypes.Structure):
     """Temp data structure for byte array."""
     _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)),

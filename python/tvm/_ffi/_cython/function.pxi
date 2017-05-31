@@ -84,10 +84,10 @@ cdef inline void make_arg(object arg,
     elif isinstance(arg, NDArrayBase):
         value[0].v_handle = (<NDArrayBase>arg).chandle
         tcode[0] = kArrayHandle
-    elif isinstance(arg, _DLTENSOR_COMPATS):
-        ptr = arg._dltensor_addr
+    elif isinstance(arg, _TVM_COMPATS):
+        ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
-        tcode[0] = kArrayHandle
+        tcode[0] = arg._tvm_tcode
     elif isinstance(arg, (int, long)):
         value[0].v_int64 = arg
         tcode[0] = kInt
