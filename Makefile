@@ -171,6 +171,7 @@ cyclean:
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
+	cd HalideIR; make clean; cd $(ROOTDIR)
 
 -include build/*.d
 -include build/*/*.d
