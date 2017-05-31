@@ -25,6 +25,9 @@ def test_llvm_add_pipeline():
             assert struct.unpack(endian + 'h', arr[0x12:0x14])[0] == e_machine
 
     def build_i386():
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled..")
+            return
         temp = util.tempdir()
         target = "llvm -target=i386-pc-linux-gnu"
         f = tvm.build(s, [A, B, C], target)
@@ -33,6 +36,9 @@ def test_llvm_add_pipeline():
         verify_elf(path, 0x03)
 
     def build_arm():
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled..")
+            return
         temp = util.tempdir()
         target = "llvm -target=arm-none-linux-gnueabihf"
         f = tvm.build(s, [A, B, C], target)
