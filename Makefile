@@ -16,11 +16,11 @@ BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
 all: ${BUILD_TARGETS}
 
 ifndef DMLC_CORE_PATH
-  DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core/include
+  DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core
 endif
 
 ifndef DLPACK_PATH
-  DLPATCH_PATH = $(ROOTDIR)/dlpack/include
+  DLPACK_PATH = $(ROOTDIR)/dlpack
 endif
 
 # The source code dependencies
