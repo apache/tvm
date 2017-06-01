@@ -93,6 +93,26 @@ struct ComExpr {
   std::shared_ptr<ComExprNode> ptr_;
 };
 
+// binary comparison op.
+struct BinaryExpr {
+  int kind;
+  Expr lhs, rhs;
+  // comparator
+  bool operator<(const BinaryExpr& b) const {
+    if (kind < b.kind) return true;
+    if (kind > b.kind) return false;
+    if (lhs.get() < b.lhs.get()) return true;
+    if (lhs.get() > b.lhs.get()) return false;
+    return rhs.get() < b.rhs.get();
+  }
+  // equality
+  bool operator==(const BinaryExpr& b) const {
+    return kind == b.kind &&
+        lhs.same_as(b.lhs) &&
+        rhs.same_as(b.rhs);
+  }
+};
+
 template<typename T>
 inline Expr Binary_(const T* op,
                     const Expr& e,
@@ -102,12 +122,6 @@ inline Expr Binary_(const T* op,
   } else {
     return T::make(a, b);
   }
-}
-
-template<typename T>
-inline Expr Binary(
-    const T* op, const Expr& e, IRMutator* m) {
-  return Binary_(op, e, m->Mutate(op->a), m->Mutate(op->b));
 }
 
 // internal of canonical engine.
@@ -200,7 +214,7 @@ class Canonical::Internal : public IRMutator {
   // Add
   Expr Mutate_(const Add* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
-      return Binary(op, e, this);
+      return Binary(op, e);
     }
     CacheEntry a = Produce(op->a);
     CacheEntry b = Produce(op->b);
@@ -212,7 +226,7 @@ class Canonical::Internal : public IRMutator {
   // Sub
   Expr Mutate_(const Sub* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
-      return Binary(op, e, this);
+      return Binary(op, e);
     }
     CacheEntry a = Produce(op->a);
     CacheEntry b = Produce(op->b);
@@ -224,7 +238,7 @@ class Canonical::Internal : public IRMutator {
   // Mul
   Expr Mutate_(const Mul* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
-      return Binary(op, e, this);
+      return Binary(op, e);
     }
     CacheEntry a = Produce(op->a);
     CacheEntry b = Produce(op->b);
@@ -252,7 +266,7 @@ class Canonical::Internal : public IRMutator {
   // comparison
   Expr Mutate_(const LT* op, const Expr& e) {
     if (!EnableOpt(op->a.type())) {
-      return Binary(op, e, this);
+      return Binary(op, e);
     }
     CacheEntry a = Produce(op->a);
     CacheEntry b = Produce(op->b);
@@ -265,6 +279,23 @@ class Canonical::Internal : public IRMutator {
     } else {
       return Binary_(op, e, a.value, b.value);
     }
+  }
+  // IntImm
+  Expr Mutate_(const IntImm* op, const Expr& e) final {
+    auto it = cache_intimm_.find(op->value);
+    if (it != cache_intimm_.end()) {
+      return it->second;
+    } else {
+      cache_intimm_[op->value] = e;
+      return e;
+    }
+  }
+  // binary ops
+  Expr Mutate_(const Div* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  Expr Mutate_(const Mod* op, const Expr& e) final {
+    return Binary(op, e);
   }
   // Call
   Expr Mutate_(const Call* op, const Expr& e) final {
@@ -309,12 +340,30 @@ class Canonical::Internal : public IRMutator {
   }
 
  private:
+  template<typename T>
+  Expr Binary(const T* op, const Expr& e) {
+    Expr a = this->Mutate(op->a);
+    Expr b = this->Mutate(op->b);
+    BinaryExpr key{static_cast<int>(T::_type_info), a, b};
+    auto it = cache_binary_.find(key);
+    if (it != cache_binary_.end()) {
+      return it->second;
+    } else {
+      Expr ret = Binary_(op, e, a, b);
+      cache_binary_[key] = ret;
+      return ret;
+    }
+  }
   // return entry
   CacheEntry ret_entry_;
   // internal information stack
   std::vector<StackEntry> stack_;
   // cache sum
   std::map<ComExpr, CacheEntry> cache_sum_;
+  // cache of normal binary op
+  std::map<BinaryExpr, Expr> cache_binary_;
+  // cache of int constant
+  std::unordered_map<int64_t, Expr> cache_intimm_;
   // range of each var
   std::unordered_map<const Variable*, IntSet> var_range_;
   // level of each var
