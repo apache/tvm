@@ -58,7 +58,6 @@ def test_gemm():
     s[BB].bind(ty, thread_y)
     s[BB].bind(tx, thread_x)
 
-    max_auto_unroll_step = 0
     # lowering test
     s = s.normalize()
 
@@ -68,8 +67,7 @@ def test_gemm():
             print("skip because %s is not enabled.." % device)
             return
 
-        f = tvm.build(s, [A, B, C], device,
-                      max_auto_unroll_step=max_auto_unroll_step)
+        f = tvm.build(s, [A, B, C], device)
         ctx = tvm.context(device, 0)
         # launch the kernel.
         n = nn

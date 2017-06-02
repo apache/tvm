@@ -15,7 +15,7 @@ from tvm.contrib import nvcc_compiler
 import numpy as np
 
 # Quick knobs
-TASK="rnn_matexp"
+TASK="matexp"
 USE_MANUAL_CODE = False
 PERSIST_KERNEL = True
 DETECT_GLOBAL_BARRIER = PERSIST_KERNEL
@@ -44,7 +44,6 @@ def rnn_matexp():
     n_num_step = 128
     n_num_hidden = 1152
     n_batch_size = 4
-    max_auto_unroll_step = 0
     detect_global_barrier = DETECT_GLOBAL_BARRIER
 
     num_step = tvm.var("num_step")
@@ -111,10 +110,12 @@ def rnn_matexp():
     s[SS].bind(tx, thread_x)
 
     def check_device(target):
-        f = tvm.build(s, [s_scan, Whh],
-                      target,
-                      max_auto_unroll_step=max_auto_unroll_step,
-                      detect_global_barrier=detect_global_barrier)
+        with tvm.build_config(
+                detect_global_barrier=detect_global_barrier,
+                auto_unroll_min_depth=2,
+                auto_unroll_max_step=128,
+                unroll_explicit=False):
+            f = tvm.build(s, [s_scan, Whh], target)
         ctx = tvm.gpu(0) if target == "cuda" else tvm.cl(0)
         # launch the kernel.
         res_np = np.zeros(

@@ -95,15 +95,12 @@ def test_gemm():
     s[BB].bind(ty, thread_y)
     s[BB].bind(tx, thread_x)
     s[BB].vectorize(xi)
-    max_auto_unroll_step = 8
-
     # correctness
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        f = tvm.build(s, [A, B, C], device,
-                      max_auto_unroll_step=max_auto_unroll_step)
+        f = tvm.build(s, [A, B, C], device)
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         # launch the kernel.
         n, m, l = nn, nn, nn
@@ -117,7 +114,10 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(b_np.T, a_np), rtol=1e-5)
 
-    check_device("cuda")
+    with tvm.build_config(auto_unroll_max_step=32,
+                          auto_unroll_min_depth=0,
+                          unroll_explicit=False):
+        check_device("cuda")
 
 if __name__ == "__main__":
     test_gemm()

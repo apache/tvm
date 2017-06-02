@@ -147,8 +147,7 @@ def lstm():
     def check_device(target):
         num_step = n_num_step
         flstm = tvm.build(s, [Xi2h, Wh2h, scan_h, scan_c],
-                          target,
-                          detect_global_barrier=DETECT_GLOBAL_BARRIER)
+                          target)
         ctx = tvm.gpu(0) if target == "cuda" else tvm.cl(0)
         # launch the kernel.
         scan_h_np = np.zeros(
@@ -172,7 +171,12 @@ def lstm():
         tgap = time.time() - tstart
         print("Time cost=%g" % tgap)
 
-    check_device("cuda")
+    # set unroll_explicit for more readable code.
+    with tvm.build_config(
+            detect_global_barrier=DETECT_GLOBAL_BARRIER,
+            auto_unroll_max_step=128,
+            unroll_explicit=False):
+        check_device("cuda")
 
 if __name__ == "__main__":
     lstm()
