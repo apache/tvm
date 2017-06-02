@@ -6,6 +6,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <memory>
 #include <array>
+#include <chrono>
 #include "./rpc_session.h"
 #include "../device_api.h"
 
@@ -179,6 +180,11 @@ void RPCSession::CopyFromRemote(void* from,
   } else {
     HandleException();
   }
+}
+
+RPCFuncHandle RPCSession::GetTimeEvaluator(
+    RPCFuncHandle fhandle, TVMContext ctx, int nstep) {
+  return this->CallRemote(RPCCode::kGetTimeEvaluator, fhandle, ctx, nstep);
 }
 
 void RPCSession::SendReturnValue(
@@ -593,6 +599,13 @@ void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {
   *rv = (*static_cast<Module*>(mhandle))->GetSource(fmt);
 }
 
+void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
+  PackedFunc *pf = static_cast<PackedFunc*>(args[0].operator void*());
+  void *fhandle = new PackedFunc(WrapTimeEvaluator(*pf, args[1], args[2]));
+  delete pf;
+  *rv = fhandle;
+}
+
 RPCCode RPCSession::HandleNextEvent(TVMRetValue *rv) {
   RPCCode code;
   CHECK_EQ(sock_.RecvAll(&code, sizeof(int)), sizeof(int));
@@ -604,6 +617,7 @@ RPCCode RPCSession::HandleNextEvent(TVMRetValue *rv) {
     case RPCCode::kCopyToRemote: HandleCopyToRemote(); break;
     case RPCCode::kShutdown: break;
     // system functions
+    case RPCCode::kGetTimeEvaluator: CallHandler(RPCGetTimeEvaluator); break;
     case RPCCode::kFreeFunc: CallHandler(RPCFreeFunc); break;
     case RPCCode::kGetGlobalFunc: CallHandler(RPCGetGlobalFunc); break;
     case RPCCode::kDevSetDevice: CallHandler(RPCDevSetDevice); break;
@@ -619,6 +633,27 @@ RPCCode RPCSession::HandleNextEvent(TVMRetValue *rv) {
     default: LOG(FATAL) << "Unknown event " << static_cast<int>(code);
   }
   return code;
+}
+
+PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int nstep) {
+  auto ftimer = [pf, ctx, nstep](TVMArgs args, TVMRetValue *rv) {
+    TVMRetValue temp;
+    // skip first time call, to activate lazy compilation components.
+    pf.CallPacked(args, &temp);
+    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+    // start timing
+    auto tbegin = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < nstep; ++i) {
+      pf.CallPacked(args, &temp);
+    }
+    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+    auto tend = std::chrono::high_resolution_clock::now();
+    double speed = std::chrono::duration_cast<std::chrono::duration<double> >(
+        tend - tbegin).count() / nstep;
+    // return the time.
+    *rv = speed;
+  };
+  return PackedFunc(ftimer);
 }
 }  // namespace runtime
 }  // namespace tvm

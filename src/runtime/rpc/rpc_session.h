@@ -31,6 +31,7 @@ enum class RPCCode : int {
   kCopyAck,
   // The following are code that can send over CallRemote
   kGetGlobalFunc,
+  kGetTimeEvaluator,
   kFreeFunc,
   kDevSetDevice,
   kDevGetAttr,
@@ -93,6 +94,18 @@ class RPCSession {
                       size_t size,
                       TVMContext ctx_from);
   /*!
+   * \brief Get a remote timer function on ctx.
+   *  This function consumes fhandle, caller should not call Free on fhandle.
+   *
+   * \param fhandle The function handle.
+   * \param ctx The ctx to run measurement on.
+   * \param nstep Number of steps to run.
+   * \return A remote timer function
+   */
+  RPCFuncHandle GetTimeEvaluator(RPCFuncHandle fhandle,
+                                 TVMContext ctx,
+                                 int nstep);
+  /*!
    * \brief Call a remote defined system function with arguments.
    * \param fcode The function code.
    * \param args The arguments
@@ -133,13 +146,13 @@ class RPCSession {
   void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int n);
   void RecvPackedSeq(RPCArgBuffer *buf);
   RPCCode HandleNextEvent(TVMRetValue *rv);
+  TVMContext StripSessMask(TVMContext ctx);
   // special handler.
   void HandleCallFunc();
   void HandleException();
   void HandleCopyFromRemote();
   void HandleCopyToRemote();
   void HandleReturn(TVMRetValue* rv);
-  TVMContext StripSessMask(TVMContext ctx);
   // Internal mutex
   std::recursive_mutex mutex_;
   // Internal socket
@@ -151,6 +164,14 @@ class RPCSession {
   // The index of this session in RPC session table.
   int table_index_{0};
 };
+
+/*!
+ * \brief Wrap a timer function for a given packed function.
+ * \param f The function argument.
+ * \param ctx The context.
+ * \param nstep Number of repeative steps.
+ */
+PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int nstep);
 
 // Remote space pointer.
 struct RemoteSpace {

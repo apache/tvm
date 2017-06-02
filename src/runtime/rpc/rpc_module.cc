@@ -51,18 +51,8 @@ class RPCModuleNode final : public ModuleNode {
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
-    RPCFuncHandle handle = nullptr;
-    if (module_handle_ == nullptr) {
-      handle = sess_->CallRemote(RPCCode::kGetGlobalFunc, name);
-    } else {
-      handle = sess_->CallRemote(
-          RPCCode::kModuleGetFunc, module_handle_, name);
-    }
-    if (handle == nullptr) return PackedFunc();
-    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
-    return PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
-        return wf->operator()(args, rv);
-      });
+    RPCFuncHandle handle = GetFuncHandle(name);
+    return WrapRemote(handle);
   }
 
   void SaveToFile(const std::string& file_name,
@@ -86,7 +76,34 @@ class RPCModuleNode final : public ModuleNode {
     return sess_;
   }
 
+  PackedFunc GetTimeEvaluator(const std::string& name,
+                              TVMContext ctx,
+                              int nstep) {
+    RPCFuncHandle handle = GetFuncHandle(name);
+    if (handle == nullptr) return PackedFunc();
+    handle = sess_->GetTimeEvaluator(handle, ctx, nstep);
+    return WrapRemote(handle);
+  }
+
  private:
+  PackedFunc WrapRemote(RPCFuncHandle handle) {
+    if (handle == nullptr) return PackedFunc();
+    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
+    return PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
+        return wf->operator()(args, rv);
+      });
+  }
+
+  RPCFuncHandle GetFuncHandle(const std::string& name) {
+    RPCFuncHandle handle = nullptr;
+    if (module_handle_ == nullptr) {
+      handle = sess_->CallRemote(RPCCode::kGetGlobalFunc, name);
+    } else {
+      handle = sess_->CallRemote(
+          RPCCode::kModuleGetFunc, module_handle_, name);
+    }
+    return handle;
+  }
   // The module handle
   void* module_handle_{nullptr};
   // The local channel
@@ -121,6 +138,22 @@ void RPCServerLoop(int sockfd) {
 TVM_REGISTER_GLOBAL("contrib.rpc._Connect")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = RPCConnect(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Module m = args[0];
+    std::string tkey = m->type_key();
+    TVMContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(args[2].operator int());
+    ctx.device_id = args[3];
+    if (tkey == "rpc") {
+      *rv = static_cast<RPCModuleNode*>(m.operator->())
+          ->GetTimeEvaluator(args[1], ctx, args[4]);
+    } else {
+      *rv = WrapTimeEvaluator(
+          m.GetFunction(args[1], false), ctx, args[3]);
+    }
   });
 
 TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteModule")

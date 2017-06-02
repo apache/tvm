@@ -78,14 +78,9 @@ def test_gemm():
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
-        f(a, b, c)
-        ctx.sync()
-        tbegin = time.time()
-        f(a, b, c)
-        tpush = time.time()
-        ctx.sync()
-        tend = time.time()
-        print("launch=%g sec, exec=%g sec" % (tpush - tbegin, tend - tbegin))
+        ftimer = f.time_evaluator(f.entry_name, ctx, number=20)
+        tcost = ftimer(a, b, c)
+        print("%s: exec=%g sec/op" % (ctx, tcost))
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
