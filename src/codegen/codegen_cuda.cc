@@ -27,10 +27,8 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
 }
 
 void CodeGenCUDA::VisitStmt_(const ir::For* op) {
-  int ext;
   CHECK(is_zero(op->min));
-  if (arith::GetConstInt(op->extent, &ext) &&
-      ext <= max_auto_unroll_) {
+  if (op->for_type == ir::ForType::Unrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
