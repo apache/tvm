@@ -144,12 +144,16 @@ Stmt SplitPipeline(Stmt stmt, bool split_load);
 Stmt NarrowChannelAccess(Stmt stmt);
 
 /*!
- * \brief unroll the constant loops
+ * \brief unroll the constant loop marked by unroll.
+ * This pass also automatically attach pragma unroll tag to loops which meets the standard.
+ *
  * \param stmt The statment to be unrolled.
- * \param max_auto_step The maximum step to stop performing automatic unrolling.
+ * \param auto_max_step The maximum step before stop attach automatic unroll
+ * \param auto_min_depth The minimum depth before we can start automatic unroll
+ * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
  * \return Transformed stmt.
  */
-Stmt UnrollLoop(Stmt stmt, int max_auto_step);
+Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_min_depth, bool explicit_unroll);
 
 /*!
  * \brief vectorize the constant loops

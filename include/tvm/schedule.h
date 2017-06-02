@@ -161,7 +161,7 @@ class Stage : public NodeRef {
   Stage& vectorize(IterVar var);   // NOLINT(*)
   /*!
    * \brief Unroll iteration.
-   * \param var The axis to be vectorized.
+   * \param var The axis to be unrolled.
    * \return reference to self.
    */
   Stage& unroll(IterVar var);   // NOLINT(*)

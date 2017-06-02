@@ -51,6 +51,12 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
       *ret = PassName(args[0], args[1]);                          \
     })                                                            \
 
+#define REGISTER_PASS3(PassName)                                        \
+  TVM_REGISTER_API("ir_pass."#PassName)                                 \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+      *ret = PassName(args[0], args[1], args[2]);                       \
+    })                                                                  \
+
 #define REGISTER_PASS4(PassName)                                        \
   TVM_REGISTER_API("ir_pass."#PassName)                                 \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
@@ -64,7 +70,7 @@ REGISTER_PASS4(Inline);
 REGISTER_PASS2(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS2(ExprUseVar);
-REGISTER_PASS2(UnrollLoop);
+REGISTER_PASS4(UnrollLoop);
 REGISTER_PASS2(StorageSync);
 REGISTER_PASS4(MakeAPI);
 REGISTER_PASS1(SplitHostDevice);
