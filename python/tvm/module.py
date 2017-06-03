@@ -111,7 +111,7 @@ class Module(ModuleBase):
         """
         try:
             return _RPCTimeEvaluator(
-                self, func_name, ctx.device_type,  ctx.device_id, number)
+                self, func_name, ctx.device_type, ctx.device_id, number)
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
