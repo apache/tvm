@@ -72,7 +72,7 @@ class Module(ModuleBase):
             The name of the shared library.
         """
         if self.type_key != "llvm":
-            raise ValueError("Only llvm support export shared")
+            raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
         temp = _util.tempdir()
         path_obj = temp.relpath("lib.o")
         self.save(path_obj)
@@ -83,6 +83,37 @@ class Module(ModuleBase):
                 f.write(_PackImportsToC(self))
             files.append(path_cc)
         _cc.create_shared(file_name, files)
+
+    def time_evaluator(self, func_name, ctx, number):
+        """Get an evaluator that measures time cost of running function.
+
+        Parameters
+        ----------
+        func_name: str
+            The name of the function in the module.
+
+        ctx: TVMContext
+            The context we should run this function on.
+
+        number: int
+            The number of repeative times to run evaluation.
+
+        Note
+        ----
+        The function will be invoked number + 1 times,
+        with the first call discarded in case there is lazy initialization.
+
+        Returns
+        -------
+        ftimer : Function
+            The function that takes same argument as func
+            and return a float representing seconds per function call.
+        """
+        try:
+            return _RPCTimeEvaluator(
+                self, func_name, ctx.device_type, ctx.device_id, number)
+        except NameError:
+            raise NameError("time_evaluate is only supported when RPC is enabled")
 
 
 def load(path, fmt=""):
