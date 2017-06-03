@@ -56,10 +56,12 @@ class Function(_FunctionBase):
 
 class ModuleBase(object):
     """Base class for module"""
-    __slots__ = ["handle", "_entry"]
+    __slots__ = ["handle", "_entry", "entry_name"]
+
     def __init__(self, handle):
         self.handle = handle
         self._entry = None
+        self.entry_name = "__tvm_main__"
 
     def __del__(self):
         check_call(_LIB.TVMModFree(self.handle))
@@ -75,7 +77,7 @@ class ModuleBase(object):
         """
         if self._entry:
             return self._entry
-        self._entry = self.get_function("__tvm_main__")
+        self._entry = self.get_function(self.entry_name)
         return self._entry
 
     def get_function(self, name, query_imports=False):
