@@ -66,7 +66,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
     if (fmt == "cu") {
       CHECK_NE(cuda_source_.length(), 0);
       SaveMetaDataToFile(meta_file, fmap_);
-      SaveBinaryToFile(file_name, cuds_source_);
+      SaveBinaryToFile(file_name, cuda_source_);
     } else {
       CHECK_EQ(fmt, fmt_)
           << "Can only save to format=" << fmt_;
