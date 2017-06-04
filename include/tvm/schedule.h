@@ -435,8 +435,9 @@ class ScheduleNode : public Node {
   void InvalidateCache();
 
   /*!
-   * \brief construct schedule for array of ops(and their dependencies).
+   * \brief Create a schedule for array of ops(and their dependencies).
    * \param ops The ops to be scheduled.
+   * \return sch The created Schedule.
    */
   static Schedule make(Array<Operation> ops);
 
@@ -444,6 +445,11 @@ class ScheduleNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
 };
 
+/*!
+ * \brief Create a schedule for array of ops(and their dependencies).
+ * \param ops The ops to be scheduled.
+ * \return sch The created Schedule.
+ */
 inline Schedule CreateSchedule(Array<Operation> ops) {
   return ScheduleNode::make(ops);
 }
