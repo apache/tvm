@@ -96,7 +96,7 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
 void CodeGenLLVM::InitGlobalContext() {
   gv_mod_ctx_ = new llvm::GlobalVariable(
       *module_, t_void_p_, false,
-      llvm::GlobalValue::LinkOnceODRLinkage, 0, "__tvm_module_ctx");
+      llvm::GlobalValue::LinkOnceAnyLinkage, 0, "__tvm_module_ctx");
   gv_mod_ctx_->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
   gv_mod_ctx_->setInitializer(llvm::Constant::getNullValue(t_void_p_));
 }
@@ -142,21 +142,12 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
 void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
   llvm::Function* f = module_->getFunction(entry_func_name);
   CHECK(f) << "Function " << entry_func_name << "does not in module";
-  CHECK(!module_->getFunction(runtime::symbol::tvm_module_main));
-  llvm::FunctionType* ftype = f->getFunctionType();
-  function_ = llvm::cast<llvm::Function>(
-      module_->getOrInsertFunction(runtime::symbol::tvm_module_main, ftype));
-  function_->setCallingConv(llvm::CallingConv::C);
-  std::vector<llvm::Value*> args;
-  for (auto it = function_->arg_begin();
-       it != function_->arg_end(); ++it) {
-    args.push_back(&(*it));
-  }
-  llvm::BasicBlock* block = llvm::BasicBlock::Create(*ctx_, "entry", function_);
-  builder_->SetInsertPoint(block);
-  llvm::CallInst* call = builder_->CreateCall(f, args);
-  call->setTailCall(true);
-  builder_->CreateRet(call);
+  llvm::Type* type = llvm::ArrayType::get(t_char_, entry_func_name.length() + 1);
+  llvm::GlobalVariable *global = new llvm::GlobalVariable(
+      *module_, type, true, llvm::GlobalValue::WeakAnyLinkage, 0,
+      runtime::symbol::tvm_module_main);
+  global->setAlignment(1);
+  global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
 }
 
 class FPassManager : public llvm::legacy::FunctionPassManager {
@@ -424,7 +415,7 @@ llvm::Value* CodeGenLLVM::GetPackedFuncHandle(const std::string& fname) {
     // create the function handle
     hptr = new llvm::GlobalVariable(
         *module_, t_tvm_func_handle_, false,
-        llvm::GlobalValue::PrivateLinkage, 0, ".tvm_func");
+        llvm::GlobalValue::LinkOnceAnyLinkage, 0, ".tvm_func." + fname);
     hptr->setAlignment(align);
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;

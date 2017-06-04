@@ -155,6 +155,7 @@ class HostDeviceSplitter : public IRMutator {
   }
 
   Array<LoweredFunc> Split(LoweredFunc f) {
+    CHECK_EQ(f->func_type, kMixedFunc);
     for (auto kv : f->handle_data_type) {
       handle_data_type_[kv.first.get()] = kv.second;
     }
@@ -162,6 +163,7 @@ class HostDeviceSplitter : public IRMutator {
     std::shared_ptr<LoweredFuncNode> n =
         std::make_shared<LoweredFuncNode>(*f.operator->());
     n->body = this->Mutate(f->body);
+    n->func_type = kHostFunc;
     Array<LoweredFunc> ret{LoweredFunc(n)};
     for (LoweredFunc x : device_funcs_) {
       ret.push_back(x);
@@ -179,6 +181,7 @@ class HostDeviceSplitter : public IRMutator {
     m.visit_thread_extent_ = false;
     n->body = m.Mutate(body);
     n->name = os.str();
+    n->func_type = kDeviceFunc;
     n->thread_axis = m.thread_axis_;
     // Strictly order the arguments: Var pointers, positional arguments.
     for (Var v : m.undefined_) {
