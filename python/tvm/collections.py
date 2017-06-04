@@ -68,4 +68,6 @@ class Range(NodeBase):
 @register_node
 class LoweredFunc(NodeBase):
     """Represent a LoweredFunc in TVM."""
-    pass
+    MixedFunc = 0
+    HostFunc = 1
+    DeviceFunc = 2
