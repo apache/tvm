@@ -444,6 +444,10 @@ class ScheduleNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
 };
 
+inline Schedule CreateSchedule(Array<Operation> ops) {
+  return ScheduleNode::make(ops);
+}
+
 /*! \brief node container for IterVar attr */
 class IterVarAttrNode : public Node {
  public:

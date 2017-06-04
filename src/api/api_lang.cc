@@ -225,9 +225,9 @@ TVM_REGISTER_API("_IterVar")
         args[3]);
   });
 
-TVM_REGISTER_API("_Schedule")
+TVM_REGISTER_API("_CreateSchedule")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ScheduleNode::make(args[0].operator Array<Operation>());
+    *ret = CreateSchedule(args[0].operator Array<Operation>());
   });
 
 TVM_REGISTER_API("_StageSetScope")
