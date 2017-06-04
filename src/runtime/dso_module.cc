@@ -101,6 +101,17 @@ class DSOModuleNode final : public ModuleNode {
   }
 
  private:
+  BackendPackedCFunc GetFuncPtr(const std::string& name) {
+    if (name == runtime::symbol::tvm_module_main) {
+      const char* entry_name = reinterpret_cast<const char*>(
+          GetGlobalVPtr(runtime::symbol::tvm_module_main));
+      CHECK(entry_name!= nullptr)
+          << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
+      return GetFuncPtr_(entry_name);
+    } else {
+      return GetFuncPtr_(name);
+    }
+  }
   // Platform dependent handling.
 #if defined(_WIN32)
   // library handle
@@ -111,7 +122,7 @@ class DSOModuleNode final : public ModuleNode {
     std::wstring wname(name.begin(), name.end());
     lib_handle_ = LoadLibraryW(wname.c_str());
   }
-  BackendPackedCFunc GetFuncPtr(const std::string& name) {
+  BackendPackedCFunc GetFuncPtr_(const std::string& name) {
     return reinterpret_cast<BackendPackedCFunc>(
         GetProcAddress(lib_handle_, (LPCSTR)name.c_str()));  // NOLINT(*)
   }
@@ -129,7 +140,7 @@ class DSOModuleNode final : public ModuleNode {
   void Load(const std::string& name) {
     lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
   }
-  BackendPackedCFunc GetFuncPtr(const std::string& name) {
+  BackendPackedCFunc GetFuncPtr_(const std::string& name) {
     return reinterpret_cast<BackendPackedCFunc>(
         dlsym(lib_handle_, name.c_str()));
   }

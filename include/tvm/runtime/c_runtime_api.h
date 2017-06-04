@@ -29,13 +29,15 @@
 #define TVM_DLL
 #endif
 
-#include <stdint.h>
-#include <stddef.h>
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
 
-
+#ifdef __cplusplus
 TVM_EXTERN_C {
+#endif
+#include <stdint.h>
+#include <stddef.h>
+
 /*! \brief type of array index. */
 typedef int64_t tvm_index_t;
 
@@ -405,6 +407,7 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
+#ifdef __cplusplus
 }  // TVM_EXTERN_C
-
+#endif
 #endif  // TVM_RUNTIME_C_RUNTIME_API_H_

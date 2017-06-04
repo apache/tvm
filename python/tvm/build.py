@@ -220,30 +220,57 @@ def build(sch,
     if isinstance(sch, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
-        fapi = lower(sch, args,
-                     name=name,
-                     binds=binds)
+        flist = lower(sch, args,
+                      name=name,
+                      binds=binds)
+        if isinstance(flist, collections.LoweredFunc):
+            flist = [flist]
     elif isinstance(sch, collections.LoweredFunc):
         if args:
             raise ValueError("args must be done when build from LoweredFunc")
-        fapi = sch
+        flist = [sch]
+    elif isinstance(sch, (list, tuple, collections.Array)):
+        flist = sch
     else:
-        raise ValueError("sch have to be Schedule or LoweredFunc")
-    # device related lowering
-    if BuildConfig.current.detect_global_barrier:
-        fapi = ir_pass.StorageSync(fapi, "global")
-    fapi = ir_pass.StorageSync(fapi, "shared")
-    warp_size = 32 if target == "cuda" else 1
-    fapi = ir_pass.LowerThreadAllreduce(fapi, warp_size)
-    fsplits = [s for s in ir_pass.SplitHostDevice(fapi)]
-    fsplits[0] = ir_pass.LowerPackedCall(fsplits[0])
-    if len(fsplits) > 1:
+        raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
+    fname_set = set()
+    for x in flist:
+        if not isinstance(x, collections.LoweredFunc):
+            raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
+        if x.name in fname_set:
+            raise ValueError("Duplicate function name %s" % x.name)
+
+    fhost = []
+    fdevice = []
+    for func in flist:
+        if func.func_type == collections.LoweredFunc.MixedFunc:
+            if BuildConfig.current.detect_global_barrier:
+                func = ir_pass.StorageSync(func, "global")
+            func = ir_pass.StorageSync(func, "shared")
+            warp_size = 32 if target == "cuda" else 1
+            func = ir_pass.LowerThreadAllreduce(func, warp_size)
+            fsplits = [s for s in ir_pass.SplitHostDevice(func)]
+            fhost.append(fsplits[0])
+            for x in fsplits[1:]:
+                fdevice.append(x)
+        elif func.func_type == collections.LoweredFunc.HostFunc:
+            fhost.append(func)
+        elif func.func_type == collections.LoweredFunc.DeviceFunc:
+            fdevice.append(func)
+        else:
+            raise ValueError("unknown function type %d" % func.func_type)
+    fhost = [ir_pass.LowerPackedCall(x) for x in fhost]
+
+    if not target.startswith("llvm") and target != "stackvm" and not fdevice:
+        raise ValueError(
+            "Specified target %s, but cannot find device code, did you do bind?" % target)
+    if fdevice:
         if not target_host:
             target_host = "llvm" if module.enabled("llvm") else "stackvm"
-        mhost = codegen.build_module(fsplits[0], target_host)
+        mhost = codegen.build_module(fhost, target_host)
         if target:
-            mdev = codegen.build_module(fsplits[1:], target)
+            mdev = codegen.build_module(fdevice, target)
             mhost.import_module(mdev)
         return mhost
     else:
-        return codegen.build_module(fsplits[0], target)
+        return codegen.build_module(fhost, target)

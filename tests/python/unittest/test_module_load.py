@@ -101,6 +101,44 @@ def test_device_module_dump():
     check_device("opencl")
     check_device("metal")
 
+
+def test_combine_module_llvm():
+    """Test combine multiple module into one shared lib."""
+    # graph
+    nn = 12
+    n = tvm.convert(nn)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = tvm.create_schedule(B.op)
+
+    def check_llvm():
+        ctx = tvm.cpu(0)
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled" )
+            return
+        temp = util.tempdir()
+        fadd1 = tvm.build(s, [A, B], "llvm", name="myadd1")
+        fadd2 = tvm.build(s, [A, B], "llvm", name="myadd2")
+        path1 = temp.relpath("myadd1.o")
+        path2 = temp.relpath("myadd2.o")
+        path_dso = temp.relpath("mylib.so")
+        fadd1.save(path1)
+        fadd2.save(path2)
+        # create shared library with multiple functions
+        cc.create_shared(path_dso, [path1, path2])
+        m = tvm.module.load(path_dso)
+        fadd1 = m['myadd1']
+        fadd2 = m['myadd2']
+        a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
+        fadd1(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        fadd2(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    check_llvm()
+
+
 if __name__ == "__main__":
+    test_combine_module_llvm()
     test_device_module_dump()
     test_dso_module_load()
