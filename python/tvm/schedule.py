@@ -73,7 +73,7 @@ def create_schedule(ops):
     """
     if not isinstance(ops, (list, _collections.Array)):
         ops = [ops]
-    return _api_internal._Schedule(ops)
+    return _api_internal._CreateSchedule(ops)
 
 
 @register_node
