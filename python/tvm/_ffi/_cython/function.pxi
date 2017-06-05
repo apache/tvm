@@ -16,7 +16,7 @@ cdef int tvm_callback(TVMValue* args,
                       int* type_codes,
                       int num_args,
                       TVMRetValueHandle ret,
-                      void* fhandle):
+                      void* fhandle) with gil:
     cdef list pyargs
     cdef TVMValue value
     cdef int tcode
@@ -140,6 +140,9 @@ cdef inline void make_arg(object arg,
     elif isinstance(arg, FunctionBase):
         value[0].v_handle = (<FunctionBase>arg).chandle
         tcode[0] = kFuncHandle
+    elif isinstance(arg, ctypes.c_void_p):
+        value[0].v_handle = c_handle(arg)
+        tcode[0] = kHandle
     elif callable(arg):
         arg = convert_to_tvm_func(arg)
         value[0].v_handle = (<FunctionBase>arg).chandle

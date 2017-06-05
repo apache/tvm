@@ -7,7 +7,12 @@ PKG_CFLAGS = -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/HalideIR/src
 
 PKG_LDFLAGS =-L${TVM_ROOT}/lib
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S), Darwin)
+	PKG_LDFLAGS += -undefined dynamic_lookup
+endif
 
 lib/libtvm_ext.so: src/tvm_ext.cc
 	@mkdir -p $(@D)
-	$(CXX) $(PKG_CFLAGS) -shared -o $@ $^ $(PKG_LDFLAGS) -ltvm
+	$(CXX) $(PKG_CFLAGS) -shared -o $@ $^ $(PKG_LDFLAGS)

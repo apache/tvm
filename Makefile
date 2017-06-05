@@ -154,7 +154,8 @@ LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
 cpplint:
-	python dmlc-core/scripts/lint.py tvm cpp include src verilog examples/extension/src
+	python dmlc-core/scripts/lint.py tvm cpp include src verilog\
+	 examples/extension/src examples/graph_executor/src
 
 pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
