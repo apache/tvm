@@ -450,7 +450,7 @@ class ScheduleNode : public Node {
  * \param ops The ops to be scheduled.
  * \return sch The created Schedule.
  */
-inline Schedule CreateSchedule(Array<Operation> ops) {
+inline Schedule create_schedule(Array<Operation> ops) {
   return ScheduleNode::make(ops);
 }
 
