@@ -54,5 +54,10 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
       std::make_shared<SourceModuleNode>(code, fmt);
   return runtime::Module(n);
 }
+
+TVM_REGISTER_GLOBAL("module.source_module_create")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = SourceModuleCreate(args[0], args[1]);
+  });
 }  // namespace codegen
 }  // namespace tvm
