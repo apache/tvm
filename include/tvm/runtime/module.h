@@ -77,17 +77,6 @@ class ModuleNode {
   /*! \return The module type key */
   virtual const char* type_key() const = 0;
   /*!
-   * \brief Eagerly compile the function under certain context,
-   *  assuming that it is used by the current thread.
-   *
-   *  This is useful for benchmarking to eliminate lazy compilation
-   *  overhead during the first execution of the kernel.
-   *
-   * \param name The name of the function.
-   * \param ctx The context to be executed.
-   */
-  virtual void PreCompile(const std::string& name, TVMContext ctx) = 0;
-  /*!
    * \brief Get a PackedFunc from module.
    *
    *  The PackedFunc may not be fully initialized,
@@ -113,7 +102,7 @@ class ModuleNode {
    * \param format The format of the file.
    */
   virtual void SaveToFile(const std::string& file_name,
-                          const std::string& format) = 0;
+                          const std::string& format);
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.
@@ -121,14 +110,13 @@ class ModuleNode {
    *   but not necessarily host modules.
    *   We can use this to do AOT loading of bundled device functions.
    */
-  virtual void SaveToBinary(dmlc::Stream* stream) = 0;
+  virtual void SaveToBinary(dmlc::Stream* stream);
   /*!
    * \brief Get the source code of module, when available.
    * \param format Format of the source code, can be empty by default.
    * \return Possible source code when available.
    */
-  virtual std::string GetSource(
-      const std::string& format = "") = 0;
+  virtual std::string GetSource(const std::string& format = "");
   /*!
    * \brief Get a function from current environment
    *  The environment includes all the imports as well as Global functions.

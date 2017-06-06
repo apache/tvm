@@ -16,8 +16,6 @@ class StackVMModuleNode : public runtime::ModuleNode {
     return "stackvm";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {}
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
@@ -31,15 +29,6 @@ class StackVMModuleNode : public runtime::ModuleNode {
     return PackedFunc([vm, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         vm(args);
       });
-  }
-
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    LOG(FATAL) << "StackVMModule: SaveToFile not supported";
-  }
-
-  void SaveToBinary(dmlc::Stream* stream) final {
-    LOG(FATAL) << "StackVMModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {

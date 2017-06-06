@@ -30,10 +30,6 @@ class DSOModuleNode final : public ModuleNode {
     return "dso";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    GetFuncPtr(name);
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
@@ -46,19 +42,6 @@ class DSOModuleNode final : public ModuleNode {
             args.num_args);
         CHECK_EQ(ret, 0) << TVMGetLastError();
       });
-  }
-
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    LOG(FATAL) << "DSOModule: SaveToFile not supported";
-  }
-
-  void SaveToBinary(dmlc::Stream* stream) final {
-    LOG(FATAL) << "DSOModule: SaveToBinary not supported";
-  }
-
-  std::string GetSource(const std::string& format) final {
-    return "";
   }
 
   void Init(const std::string& name) {
