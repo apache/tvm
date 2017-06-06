@@ -49,12 +49,6 @@ class CUDAModuleNode : public runtime::ModuleNode {
     return "cuda";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id));
-    cudaFree(nullptr);
-    this->GetFunc(ctx.device_id, name);
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;
