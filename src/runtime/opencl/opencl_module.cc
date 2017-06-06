@@ -59,12 +59,6 @@ class OpenCLModuleNode : public ModuleNode {
     return "opencl";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    InstallKernel(cl::OpenCLWorkspace::Global(),
-                  cl::OpenCLThreadEntry::ThreadLocal(),
-                  name, kid_map_.at(name));
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;

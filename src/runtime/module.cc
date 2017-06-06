@@ -62,6 +62,20 @@ Module Module::LoadFromFile(const std::string& file_name,
   return m;
 }
 
+void ModuleNode::SaveToFile(const std::string& file_name,
+                            const std::string& format) {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToFile";
+}
+
+void ModuleNode::SaveToBinary(dmlc::Stream* stream) {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToBinary";
+}
+
+std::string ModuleNode::GetSource(const std::string& format) {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support GetSource";
+  return "";
+}
+
 const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();

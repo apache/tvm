@@ -33,17 +33,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return "llvm";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    if (ee_ == nullptr) LazyInitJIT();
-    std::lock_guard<std::mutex> lock(mutex_);
-    const std::string& fname = (name == runtime::symbol::tvm_module_main ?
-                                entry_func_ : name);
-    BackendPackedCFunc faddr =
-        reinterpret_cast<BackendPackedCFunc>(ee_->getFunctionAddress(fname));
-    CHECK(faddr != nullptr)
-        << "Failed to Precompile function " << name;
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
