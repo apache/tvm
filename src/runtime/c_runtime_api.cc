@@ -196,14 +196,6 @@ int TVMModGetFunction(TVMModuleHandle mod,
   API_END();
 }
 
-int TVMModPreCompile(TVMModuleHandle mod,
-                     const char* func_name,
-                     TVMContext ctx) {
-  API_BEGIN();
-  (*static_cast<Module*>(mod))->PreCompile(func_name, ctx);
-  API_END();
-}
-
 int TVMModFree(TVMModuleHandle mod) {
   API_BEGIN();
   delete static_cast<Module*>(mod);

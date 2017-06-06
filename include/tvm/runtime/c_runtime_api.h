@@ -183,21 +183,6 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
                               TVMFunctionHandle *out);
 
 /*!
- * \brief Precompile the function under given context.
- *  Many TVMFunctionHandle is initialized lazily,
- *  This call eagerly prepares the resources under given context.
- *  Useful for benchmarking purposes.
- *
- * \param mod The module handle.
- * \param func_name The name of the function.
- * \param ctx The context to be precompiled on.
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_DLL int TVMModPreCompile(TVMModuleHandle mod,
-                             const char* func_name,
-                             TVMContext ctx);
-
-/*!
  * \brief Free the Module
  * \param mod The module to be freed.
  *

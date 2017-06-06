@@ -45,23 +45,11 @@ class RPCModuleNode final : public ModuleNode {
     return "rpc";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     RPCFuncHandle handle = GetFuncHandle(name);
     return WrapRemote(handle);
-  }
-
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    LOG(FATAL) << "RPCModule: SaveToFile not supported";
-  }
-
-  void SaveToBinary(dmlc::Stream* stream) final {
-    LOG(FATAL) << "RPCModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {

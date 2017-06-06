@@ -116,20 +116,6 @@ class ModuleBase(object):
         """
         check_call(_LIB.TVMModImport(self.handle, module.handle))
 
-    def precompile(self, func_name, ctx):
-        """Add module to the import list of current one.
-
-        Parameters
-        ----------
-        func_name : str
-            The name of function to be precompiled.
-
-        ctx : Context
-            The context to be precompiled.
-        """
-        check_call(_LIB.TVMModPreCompile(
-            self.handle, c_str(func_name), ctx))
-
     def __getitem__(self, name):
         if not isinstance(name, string_types):
             raise ValueError("Can only take string as function name")
