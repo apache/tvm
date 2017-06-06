@@ -182,7 +182,7 @@ class ComputeOpNode : public OperationNode {
   /*! \brief IterVar on each reduction axis, if the body is a Reduce */
   Array<IterVar> reduce_axis;
   /*! \brief the compute expression */
-  Expr body;
+  Array<Expr> body;
   /*! \brief constructor */
   ComputeOpNode() {}
   // override functions
@@ -218,7 +218,7 @@ class ComputeOpNode : public OperationNode {
   }
   static Operation make(std::string name,
                         Array<IterVar> axis,
-                        Expr body);
+                        Array<Expr> body);
 
   static constexpr const char* _type_key = "ComputeOp";
   TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, OperationNode);

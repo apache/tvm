@@ -174,10 +174,19 @@ def compute(shape, fcompute, name="compute"):
 
     dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape)]
     body = fcompute(*[v.var for v in dim_var])
+    if not isinstance(body, (list, tuple)):
+        body = [body]
     body = convert(body)
     op_node = _api_internal._ComputeOp(
         name, dim_var, body)
-    return op_node.output(0)
+    outputs = []
+    num = op_node.num_outputs
+    if num == 1:
+        return op_node.output(0)
+    else:
+        for i in range(num):
+            outputs.append(op_node.output(i))
+        return tuple(outputs)
 
 
 def scan(init, update, state_placeholder, inputs=None, name="scan"):
@@ -526,9 +535,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
     def _make_reduce(expr, axis, where=None):
         expr = convert(expr)
-        dtype = expr.dtype
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
+        dtype = expr.dtype
         arg_vars = [var(name, dtype) for name in code.co_varnames]
         result = fcombine(*[v for v in arg_vars])
         result = convert(result)

@@ -120,13 +120,13 @@ Tensor Schedule::cache_write(const Tensor& tensor,
     vsub[iv->var.get()] = new_iv->var;
   }
   VarReplacer repl(vsub);
-  Expr body = repl.Mutate(compute->body);
+  Expr body = repl.Mutate(compute->body[tensor->value_index]);
   Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, new_axis, body);
+      compute->name + "." + scope, new_axis, {body});
   Tensor cache_tensor = cache_op.output(0);
   Operation orig_new_op = ComputeOpNode::make(
       compute->name, compute->axis,
-      cache_tensor(args));
+      {cache_tensor(args)});
 
   std::unordered_map<Tensor, Tensor> vmap;
   vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
@@ -214,14 +214,14 @@ void InjectInline(ScheduleNode* sch) {
         for (auto iv : compute->axis) {
           args.push_back(iv->var);
         }
-        body = compute->body;
+        body = compute->body[0];
       }
       for (size_t j = i; j < sch->stages.size(); ++j) {
         Stage s = sch->stages[j];
         const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
         if (compute) {
           if (!new_body[j].defined()) {
-            new_body[j] = s->op.as<ComputeOpNode>()->body;
+            new_body[j] = s->op.as<ComputeOpNode>()->body[0];
           }
           new_body[j] = ir::Inline(ir::Evaluate::make(new_body[j]),
                                    stage->op, args, body).as<ir::Evaluate>()->value;
@@ -241,7 +241,7 @@ void InjectInline(ScheduleNode* sch) {
       Operation op = s->op;
       if (!new_body[i].same_as(compute->body)) {
         op = ComputeOpNode::make(
-            compute->name, compute->axis, new_body[i]);
+            compute->name, compute->axis, {new_body[i]});
       }
       op = op->ReplaceInputs(op, repl);
       if (!op.same_as(s->op)) {
@@ -359,10 +359,10 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       n->reduce_axis.push_back(IterVar(ncpy));
     }
   }
-  n->body = Reduce::make(reduce->combiner,
-                         VarReplacer(vsub).Mutate(reduce->source),
-                         n->reduce_axis,
-                         predicate);
+  n->body = {Reduce::make(reduce->combiner,
+                          VarReplacer(vsub).Mutate(reduce->source),
+                          n->reduce_axis,
+                          predicate)};
   // refresh relations, keep the un-touched relations.
   Array<IterVarRelation> rels;
   for (IterVarRelation rel : reduce_stage->relations) {
