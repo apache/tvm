@@ -101,8 +101,8 @@ def test_rfactor():
     s = tvm.create_schedule(B.op)
     BF = s.rfactor(B, k1)
     assert(tuple(BF.shape) == (n, n))
-    assert(set(BF.op.body.axis) == set([k2]))
-    assert(s[B].op.body.axis[0].dom.extent == n)
+    assert(set(BF.op.body[0].axis) == set([k2]))
+    assert(s[B].op.body[0].axis[0].dom.extent == n)
     assert(len(s[B].all_iter_vars) == 2)
     # schedule with splot
     s = tvm.create_schedule(B.op)
@@ -111,9 +111,9 @@ def test_rfactor():
     BF = s.rfactor(B, ki)
     assert(BF.shape[0].value == 4)
     assert(BF.shape[1] == n)
-    assert(BF.op.body.axis[0] ==  k2)
-    assert(BF.op.body.axis[1].var ==  ko.var)
-    assert(s[B].op.body.axis[0].dom.extent.value == 4)
+    assert(BF.op.body[0].axis[0] ==  k2)
+    assert(BF.op.body[0].axis[1].var ==  ko.var)
+    assert(s[B].op.body[0].axis[0].dom.extent.value == 4)
 
 
 if __name__ == "__main__":

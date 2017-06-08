@@ -257,7 +257,7 @@ class Schedule : public NodeRef {
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
    * This will create a new stage that generated the new tensor with axis
-   * as the first dimension. The tensor's body wil be rewriten as a reduction
+   * as the first dimension. The tensor's body will be rewritten as a reduction
    * over the factored tensor.
    *
    * \param tensor The tensor to be factored.

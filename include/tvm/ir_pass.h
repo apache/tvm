@@ -96,10 +96,10 @@ Expr Substitute(Expr expr, const Map<Var, Expr>& value_map);
 /*!
  * \brief inline all calls of f in stmt.
  *
+ * \param stmt The statement to apply inline optimization.
  * \param f The function reference to be inlined
  * \param args The arguments variable of the function.
- * \param body The defintion body of the function.
- * \param stmt The statement to apply inline optimization.
+ * \param body The definition body of the function.
  * \return The result stmt
  *
  * \note All the passes in this file uses SSA form and outputs SSA form.

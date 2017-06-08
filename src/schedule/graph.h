@@ -27,7 +27,7 @@ using ReadGraph = Map<Operation, Array<Tensor> >;
 using AttachPath = Map<Operation, Array<IterVar> >;
 
 /*!
- * \brief The map beteen tensor and operation it feeds to.
+ * \brief The map between tensor and operation it feeds to.
  */
 using FeedGraph = std::unordered_map<Tensor, std::vector<Operation> >;
 
@@ -46,7 +46,7 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots);
  *  The operations contains node which input-reachable from any inputs
  *  output reachable to any outputs.
  *
- *  The inputs won't be included in the subgraph, the outputs will be inclued.
+ *  The inputs won't be included in the subgraph, the outputs will be included.
  *
  * \param outputs The outputs of the subgraph
  * \param inputs The inputs to the subgraph.

@@ -43,6 +43,16 @@ using Halide::Internal::is_no_op;
 using Halide::likely;
 using Halide::likely_if_innermost;
 
+/*! \brief whether two array have the same content */
+template<typename T>
+bool IsSame(const Array<T>& a, const Array<T>& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (!a[i].same_as(b[i])) return false;
+  }
+  return true;
+}
+
 inline Type TVMShapeIndexType() {
   if (std::is_signed<tvm_index_t>::value) {
     return Int(sizeof(tvm_index_t) * 8);

@@ -198,14 +198,14 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
 void InjectInline(ScheduleNode* sch) {
   sch->InvalidateCache();
 
-  std::vector<Expr> new_body(sch->stages.size());
+  std::vector<Array<Expr>> new_body(sch->stages.size());
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage stage = sch->stages[i - 1];
     if (stage->attach_type == kInline) {
       stage->attach_type = kInlinedAlready;
       Array<Var> args;
-      Expr body;
+      Array<Expr> body;
       {
         // setup args
         const ComputeOpNode* compute = stage->op.as<ComputeOpNode>();
@@ -214,17 +214,19 @@ void InjectInline(ScheduleNode* sch) {
         for (auto iv : compute->axis) {
           args.push_back(iv->var);
         }
-        body = compute->body[0];
+        body = compute->body;
       }
       for (size_t j = i; j < sch->stages.size(); ++j) {
         Stage s = sch->stages[j];
         const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
         if (compute) {
-          if (!new_body[j].defined()) {
-            new_body[j] = s->op.as<ComputeOpNode>()->body[0];
+          if (!new_body[j].size()) {
+            new_body[j] = s->op.as<ComputeOpNode>()->body;
           }
-          new_body[j] = ir::Inline(ir::Evaluate::make(new_body[j]),
-                                   stage->op, args, body).as<ir::Evaluate>()->value;
+          for (size_t k = 0; k < body.size(); ++k) {
+            new_body[j].Set(k, ir::Inline(ir::Evaluate::make(new_body[j][k]),
+                            stage->op, args, body[k]).as<ir::Evaluate>()->value);
+          }
         }
       }
     }
@@ -234,19 +236,21 @@ void InjectInline(ScheduleNode* sch) {
   for (size_t i = 0; i < sch->stages.size(); ++i) {
     Stage s = sch->stages[i];
     if (s->attach_type == kInlinedAlready) continue;
-    if (new_body[i].defined()) {
+    if (new_body[i].size()) {
       // Logics from ReplaceDataFlow
       const ComputeOpNode* compute = sch->stages[i]->op.as<ComputeOpNode>();
       CHECK(compute);
       Operation op = s->op;
-      if (!new_body[i].same_as(compute->body)) {
+      if (!IsSame(new_body[i], compute->body)) {
         op = ComputeOpNode::make(
-            compute->name, compute->axis, {new_body[i]});
+            compute->name, compute->axis, new_body[i]);
       }
       op = op->ReplaceInputs(op, repl);
       if (!op.same_as(s->op)) {
-        repl[s->op.output(0)] = op.output(0);
-        s->op = op;
+        for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
+          repl[s->op.output(idx)] = op.output(idx);
+          s->op = op;
+        }
       }
     } else {
       Operation op = s->op->ReplaceInputs(s->op, repl);
@@ -329,7 +333,8 @@ Tensor Schedule::rfactor(const Tensor& tensor,
     }
   }
   // predicate generation, copy not touched axis.
-  const Reduce* reduce = compute_op->body.as<Reduce>();
+  int idx = tensor->value_index;
+  const Reduce* reduce = compute_op->body[idx].as<Reduce>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   Expr predicate = reduce->condition;
   std::unordered_map<const Variable*, Expr> vsub;

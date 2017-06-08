@@ -116,7 +116,7 @@ Operation ComputeOpNode::ReplaceInputs(
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
   Array<Expr> new_body = ReplaceTensor(this->body, rmap);
-  if (!new_body.same_as(this->body)) {
+  if (!IsSame(new_body, this->body)) {
     return ComputeOpNode::make(name, axis, new_body);
   } else {
     return self;
@@ -140,7 +140,7 @@ void ComputeOpNode::PropBoundToInputs(
       }
     }
   };
-  ir::PostOrderVisit(body, fvisit);
+  for (auto& e : body) ir::PostOrderVisit(e, fvisit);
 }
 
 void ComputeOpNode::GatherBound(
@@ -253,7 +253,7 @@ Stmt MakeCrossThreadReduction(
   for (IterVar iv : self->axis) {
     args.push_back(iv->var);
   }
-  const Reduce* reduce = self->body.as<Reduce>();
+  const Reduce* reduce = self->body[0].as<Reduce>();
   CHECK(reduce);
   std::unordered_map<IterVar, Expr> value_map;
   auto nest = op::MakeLoopNest(

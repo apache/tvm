@@ -126,9 +126,11 @@ def test_multi_inputs_outputs():
     T0, T1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='T')
     s = tvm.create_schedule(T0.op)
 
-    sch = s.normalize()
-    bounds = schedule.InferBound(sch)
-    stmt = schedule.ScheduleOps(sch, bounds)
+    for i in range(len(T0.shape)):
+      assert(T0.shape[i] == T1.shape[i])
+    assert(T0.op == T1.op)
+    assert(T0.value_index == 0)
+    assert(T1.value_index == 1)
 
 def test_multi_inputs_outputs_reduce():
     m = tvm.var('m')
@@ -138,12 +140,14 @@ def test_multi_inputs_outputs_reduce():
     k = tvm.reduce_axis((0, n), "k")
     mysum  = tvm.comm_reducer(lambda x, y: x+y, lambda t: tvm.const(0, dtype=t))
     myprod = tvm.comm_reducer(lambda x, y: x*y, lambda t: tvm.const(1, dtype=t))
-    T0, T1 = tvm.compute((m,), lambda i: (mysum(A0[i, k], axis=k), myprod(A1[i, k], axis=k)))
+    T0, T1 = tvm.compute((m,), lambda i: (mysum(A0[i, k], axis=k), myprod(A1[i, k], axis=k)), name='T')
     s = tvm.create_schedule(T1.op)
 
-    sch = s.normalize()
-    bounds = schedule.InferBound(sch)
-    stmt = schedule.ScheduleOps(sch, bounds)
+    for i in range(len(T0.shape)):
+      assert(T0.shape[i] == T1.shape[i])
+    assert(T0.op == T1.op)
+    assert(T0.value_index == 0)
+    assert(T1.value_index == 1)
 
 
 if __name__ == "__main__":
@@ -155,3 +159,5 @@ if __name__ == "__main__":
     test_scan_multi_out()
     test_extern()
     test_extern_multi_out()
+    test_multi_inputs_outputs()
+    test_multi_inputs_outputs_reduce()

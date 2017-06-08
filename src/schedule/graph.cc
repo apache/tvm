@@ -260,7 +260,9 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
           }
         }
       };
-      ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
+      for (auto& e: op.as<ComputeOpNode>()->body) {
+        ir::PostOrderVisit(e, fvisit);
+      }
     }
   }
   return reach;
@@ -321,11 +323,14 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
       }
     } else if (op.as<ComputeOpNode>()) {
-      std::unordered_map<const Node*, TensorDimKey> vmap;
+      std::unordered_map<const Node*, std::vector<TensorDimKey>> vmap;
       const auto& axis = op.as<ComputeOpNode>()->axis;
-      Tensor t = op.output(0);
       for (size_t i = 0; i < axis.size(); ++i) {
-        vmap[axis[i]->var.get()] = TensorDimKey(t, i);
+        std::vector<TensorDimKey> keys;
+        for (int j = 0; j < op->num_outputs(); ++j) {
+          keys.emplace_back(op.output(j), i);
+        }
+        vmap[axis[i]->var.get()] = std::move(keys);
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](
           const NodeRef& n) {
@@ -335,7 +340,10 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
             auto it = vmap.find(call->args[i].get());
             TensorDimKey src(call, static_cast<int>(i));
             if (it != vmap.end()) {
-              f_merge_key(it->second, src);
+              const std::vector<TensorDimKey>& keys = it->second;
+              for (const auto& key: keys) {
+                f_merge_key(key, src);
+              }
             } else {
               if (exact_reach.count(src)) {
                 fail_set.insert(exact_reach.at(src));
@@ -344,7 +352,9 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
           }
         }
       };
-      ir::PostOrderVisit(op.as<ComputeOpNode>()->body, fvisit);
+      for (auto& e : op.as<ComputeOpNode>()->body) {
+        ir::PostOrderVisit(e, fvisit);
+      }
     }
   }
   ReachGraph reach;
