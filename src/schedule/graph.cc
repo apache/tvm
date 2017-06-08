@@ -260,7 +260,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
           }
         }
       };
-      for (auto& e: op.as<ComputeOpNode>()->body) {
+      for (auto& e : op.as<ComputeOpNode>()->body) {
         ir::PostOrderVisit(e, fvisit);
       }
     }
@@ -341,7 +341,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
             TensorDimKey src(call, static_cast<int>(i));
             if (it != vmap.end()) {
               const std::vector<TensorDimKey>& keys = it->second;
-              for (const auto& key: keys) {
+              for (const auto& key : keys) {
                 f_merge_key(key, src);
               }
             } else {
