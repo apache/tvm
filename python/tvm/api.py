@@ -183,10 +183,9 @@ def compute(shape, fcompute, name="compute"):
     num = op_node.num_outputs
     if num == 1:
         return op_node.output(0)
-    else:
-        for i in range(num):
-            outputs.append(op_node.output(i))
-        return tuple(outputs)
+    for i in range(num):
+        outputs.append(op_node.output(i))
+    return tuple(outputs)
 
 
 def scan(init, update, state_placeholder, inputs=None, name="scan"):
