@@ -104,6 +104,18 @@ nnvm
 ## IOS
 DerivedData/
 
+## Java
+*.class
+jvm/*/target/
+jvm/*/*/target/
+*.worksheet
+*.idea
+*.iml
+*.classpath
+*.project
+*.settings
+*/node_modules/
+
 ## Various settings
 *.pbxuser
 !default.pbxuser
@@ -120,3 +132,4 @@ xcuserdata/
 *.xccheckout
 *.xcscmblueprint
 .DS_Store
+

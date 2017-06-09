@@ -194,6 +194,23 @@ cython3:
 cyclean:
 	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.cpp
 
+ifeq ($(OS),Windows_NT)
+  JVM_PKG_PROFILE := windows
+else
+	ifeq ($(UNAME_S), Darwin)
+		JVM_PKG_PROFILE := osx-x86_64
+	else
+		JVM_PKG_PROFILE := linux-x86_64
+	endif
+endif
+
+JVM_PKG_PROFILE := osx-x86_64-cpu
+jvmpkg:
+	(cd $(ROOTDIR)/jvm; \
+		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
+			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
+			-Dcurrent_libdir="$(ROOTDIR)/lib") 
+
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
 	cd HalideIR; make clean; cd $(ROOTDIR)
