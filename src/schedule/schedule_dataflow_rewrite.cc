@@ -199,6 +199,7 @@ void InjectInline(ScheduleNode* sch) {
   sch->InvalidateCache();
 
   std::vector<Array<Expr>> new_body(sch->stages.size());
+  std::vector<bool> changed(sch->stages.size(), false);
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage stage = sch->stages[i - 1];
@@ -224,6 +225,7 @@ void InjectInline(ScheduleNode* sch) {
             new_body[j] = s->op.as<ComputeOpNode>()->body;
           }
           for (size_t k = 0; k < body.size(); ++k) {
+            changed[j] = true;
             new_body[j].Set(k, ir::Inline(ir::Evaluate::make(new_body[j][k]),
                             stage->op, args, body[k]).as<ir::Evaluate>()->value);
           }
@@ -241,7 +243,7 @@ void InjectInline(ScheduleNode* sch) {
       const ComputeOpNode* compute = sch->stages[i]->op.as<ComputeOpNode>();
       CHECK(compute);
       Operation op = s->op;
-      if (!IsSame(new_body[i], compute->body)) {
+      if (changed[i]) {
         op = ComputeOpNode::make(
             compute->name, compute->axis, new_body[i]);
       }

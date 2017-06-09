@@ -4,6 +4,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
+#include "./ir_util.h"
 
 namespace tvm {
 namespace ir {
@@ -17,19 +18,8 @@ IRMutator::FMutateStmt& IRMutator::vtable_stmt() {  // NOLINT(*)
 }
 
 inline Array<Expr> MutateArray(Array<Expr> arr, IRMutator *m) {
-  std::vector<Expr> new_arr(arr.size());
-  bool changed = false;
-  for (size_t i = 0; i < arr.size(); i++) {
-    Expr old_elem = arr[i];
-    Expr new_elem = m->Mutate(old_elem);
-    if (!new_elem.same_as(old_elem)) changed = true;
-    new_arr[i] = new_elem;
-  }
-  if (!changed) {
-    return arr;
-  } else {
-    return Array<Expr>(new_arr);
-  }
+  std::function<Expr(Expr)> fupdate = [m] (Expr e) { return m->Mutate(e); };
+  return UpdateArray(arr, fupdate);
 }
 
 inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {

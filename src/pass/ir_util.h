@@ -12,6 +12,23 @@
 namespace tvm {
 namespace ir {
 
+template<typename T>
+inline Array<T> UpdateArray(Array<T> arr, std::function<T(T)> fupdate) {
+  std::vector<T> new_arr(arr.size());
+  bool changed = false;
+  for (size_t i = 0; i < arr.size(); ++i) {
+    T old_elem = arr[i];
+    T new_elem = fupdate(old_elem);
+    if (!new_elem.same_as(old_elem)) changed = true;
+    new_arr[i] = new_elem;
+  }
+  if (!changed) {
+    return arr;
+  } else {
+    return Array<T>(new_arr);
+  }
+}
+
 /*!
  * \brief combine the nest stmt, whose body is not defined.
  * \param nest A list of For and LetStmt, whose body is not defined.

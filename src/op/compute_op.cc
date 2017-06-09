@@ -77,7 +77,8 @@ Operation ComputeOpNode::make(std::string name,
   n->axis = axis;
   n->body = body;
   if (n->body[0]->is_type<ir::Reduce>()) {
-    // batch reduction should have the same axis
+    CHECK_EQ(n->body.size(), 1)
+      << "Only support single reduction expression for now";
     n->reduce_axis = n->body[0].as<ir::Reduce>()->axis;
   }
   return Operation(n);
@@ -102,22 +103,16 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   return ret;
 }
 
-Array<Expr> ReplaceTensor(Array<Expr> exprs,
-                          const std::unordered_map<Tensor, Tensor>& replace) {
-  Array<Expr> ret;
-  for (auto& e : exprs) {
-    ret.push_back(op::ReplaceTensor(e, replace));
-  }
-  return ret;
-}
-
 Operation ComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  Array<Expr> new_body = ReplaceTensor(this->body, rmap);
-  if (!IsSame(new_body, this->body)) {
-    return ComputeOpNode::make(name, axis, new_body);
+  std::function<Expr(Expr)> fupdate = [&rmap] (Expr e) {
+      return op::ReplaceTensor(e, rmap);
+    };
+  Array<Expr> arr = UpdateArray(this->body, fupdate);
+  if (!arr.same_as(this->body)) {
+    return ComputeOpNode::make(name, axis, arr);
   } else {
     return self;
   }
@@ -259,62 +254,57 @@ Stmt MakeCrossThreadReduction(
   auto conds = op::MakeBoundCheck(
       stage, dom_map, false,
       std::unordered_set<IterVar>(), value_map);
+  const Reduce* reduce = self->body[0].as<Reduce>();
+  CHECK(reduce);
+  Expr cond = reduce->condition;
+  for (Expr v : conds) {
+    cond = cond && v;
+  }
+  Var res_handle("reduce_temp", Handle());
+  Array<Expr> freduce_args;
+  freduce_args.push_back(reduce->source);
+  freduce_args.push_back(cond);
 
-  std::vector<Stmt> reduction_bodies;
-  for (size_t idx = 0; idx < self->body.size(); ++idx) {
-    const Reduce* reduce = self->body[idx].as<Reduce>();
-    CHECK(reduce);
-    Expr cond = reduce->condition;
-    for (Expr v : conds) {
-      cond = cond && v;
-    }
-    Var res_handle("reduce_temp"+std::to_string(idx), Handle());
-    Array<Expr> freduce_args;
-    freduce_args.push_back(reduce->source);
-    freduce_args.push_back(cond);
-
-    for (IterVar iv : stage->leaf_iter_vars) {
-      if (iv->iter_type == kCommReduce) {
-        auto it = stage->iter_var_attrs.find(iv);
-        if (it != stage->iter_var_attrs.end() &&
-            (*it).second->bind_thread.defined()) {
-          IterVar tv = (*it).second->bind_thread;
-          freduce_args.push_back(tv->var);
-        }
+  for (IterVar iv : stage->leaf_iter_vars) {
+    if (iv->iter_type == kCommReduce) {
+      auto it = stage->iter_var_attrs.find(iv);
+      if (it != stage->iter_var_attrs.end() &&
+          (*it).second->bind_thread.defined()) {
+        IterVar tv = (*it).second->bind_thread;
+        freduce_args.push_back(tv->var);
       }
     }
-    // Checks for the thread.
-    std::vector<Expr> thread_head_check;
-    if (stage->store_predicate.defined()) {
-      thread_head_check.emplace_back(stage->store_predicate);
-    }
-    Type t = reduce->type;
-    Expr pred = const_true(t.lanes());
-    Stmt reduce_body = Store::make(res_handle,
-      Call::make(
-        reduce->type,
-        ir::intrinsic::tvm_thread_allreduce,
-        freduce_args, Call::Intrinsic),
-       0, pred);
-    reduce_body = AttrStmt::make(
-        reduce->combiner,
-        attr::reduce_scope,
-        make_zero(reduce->type),
-        reduce_body);
-    Stmt assign_body = Provide::make(
-        stage->op, 0, Load::make(reduce->type, res_handle, 0, pred), args);
-
-    assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
-    assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
-    Stmt body = Allocate::make(
-        res_handle, reduce->type, {1}, const_true(),
-        Block::make(reduce_body, assign_body));
-    body = AttrStmt::make(
-        res_handle, attr::storage_scope, StringImm::make("local"), body);
-    body = Substitute(body, value_map);
-    reduction_bodies.push_back(body);
   }
-  return MergeNest(nest, Block::make(reduction_bodies));
+  // Checks for the thread.
+  std::vector<Expr> thread_head_check;
+  if (stage->store_predicate.defined()) {
+    thread_head_check.emplace_back(stage->store_predicate);
+  }
+  Type t = reduce->type;
+  Expr pred = const_true(t.lanes());
+  Stmt reduce_body = Store::make(res_handle,
+    Call::make(
+      reduce->type,
+      ir::intrinsic::tvm_thread_allreduce,
+      freduce_args, Call::Intrinsic),
+     0, pred);
+  reduce_body = AttrStmt::make(
+      reduce->combiner,
+      attr::reduce_scope,
+      make_zero(reduce->type),
+      reduce_body);
+  Stmt assign_body = Provide::make(
+      stage->op, 0, Load::make(reduce->type, res_handle, 0, pred), args);
+
+  assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
+  assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
+  Stmt body = Allocate::make(
+      res_handle, reduce->type, {1}, const_true(),
+      Block::make(reduce_body, assign_body));
+  body = AttrStmt::make(
+      res_handle, attr::storage_scope, StringImm::make("local"), body);
+  body = Substitute(body, value_map);
+  return MergeNest(nest, body);
 }
 
 Stmt MakeProvide(const ComputeOpNode* op,
@@ -332,7 +322,6 @@ Stmt ComputeOpNode::BuildProvide(
   CHECK_EQ(stage->op.operator->(), this);
 
   if (IsCrossThreadReduction(this, stage)) {
-    LOG(INFO) << stage;
     // specially handle cross thread reduction.
     return MakeCrossThreadReduction(this, stage, dom_map);
   }
