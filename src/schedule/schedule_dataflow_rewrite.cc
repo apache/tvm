@@ -432,9 +432,11 @@ Tensor Schedule::rfactor(const Tensor& tensor,
         factor_exprs.push_back(factor_tensors[idx](indices));
       }
       Array<Expr> reductions;
+      Array<IterVar> axis = {repl_red_axis};
+      Expr cond = const_true();
       for (int idx = 0; idx < size; ++idx) {
         reductions.push_back(Reduce::make(reduce->combiner,
-          factor_exprs, {repl_red_axis}, const_true(), idx));
+          factor_exprs, axis, cond, idx));
       }
       return reductions;
     }, reduce_stage->op->name + ".repl");
