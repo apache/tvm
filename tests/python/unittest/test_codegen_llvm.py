@@ -103,7 +103,42 @@ def test_llvm_temp_space():
             c.asnumpy(), a.asnumpy() + 1 + 1)
     check_llvm()
 
+def test_multiple_func():
+    nn = 1024
+    n = tvm.convert(nn)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.placeholder((n,), name='B')
+    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = tvm.create_schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], factor=4)
+    s[C].parallel(xo)
+    s[C].vectorize(xi)
+    def check_llvm():
+        if not tvm.module.enabled("llvm"):
+            return
+        # build two functions
+        f2 = tvm.lower(s, [A, B, C], name="fadd1")
+        f1 = tvm.lower(s, [A, B, C], name="fadd2")
+        m = tvm.build([f1, f2], "llvm")
+        fadd1 = m['fadd1']
+        fadd2 = m['fadd2']
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        n = nn
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        fadd1(a, b, c)
+        np.testing.assert_allclose(
+            c.asnumpy(), a.asnumpy() + b.asnumpy())
+        fadd2(a, b, c)
+        np.testing.assert_allclose(
+            c.asnumpy(), a.asnumpy() + b.asnumpy())
+    check_llvm()
+
+
 if __name__ == "__main__":
+    test_multiple_func()
     test_llvm_add_pipeline()
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()

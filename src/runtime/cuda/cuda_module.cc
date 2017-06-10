@@ -49,12 +49,6 @@ class CUDAModuleNode : public runtime::ModuleNode {
     return "cuda";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id));
-    cudaFree(nullptr);
-    this->GetFunc(ctx.device_id, name);
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;
@@ -62,11 +56,17 @@ class CUDAModuleNode : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, fmt_)
-        << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
-    SaveMetaDataToFile(meta_file, fmap_);
-    SaveBinaryToFile(file_name, data_);
+    if (fmt == "cu") {
+      CHECK_NE(cuda_source_.length(), 0);
+      SaveMetaDataToFile(meta_file, fmap_);
+      SaveBinaryToFile(file_name, cuda_source_);
+    } else {
+      CHECK_EQ(fmt, fmt_)
+          << "Can only save to format=" << fmt_;
+      SaveMetaDataToFile(meta_file, fmap_);
+      SaveBinaryToFile(file_name, data_);
+    }
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {

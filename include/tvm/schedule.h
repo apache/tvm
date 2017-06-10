@@ -198,11 +198,6 @@ class Schedule : public NodeRef {
   Schedule() {}
   explicit Schedule(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
-   * \brief construct schedule for array of ops(and their dependencies).
-   * \param ops The ops to be scheduled.
-   */
-  explicit Schedule(Array<Operation> ops);
-  /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
    */
@@ -439,9 +434,25 @@ class ScheduleNode : public Node {
   /*! \brief Invalidate temp cache. */
   void InvalidateCache();
 
+  /*!
+   * \brief Create a schedule for array of ops(and their dependencies).
+   * \param ops The ops to be scheduled.
+   * \return sch The created Schedule.
+   */
+  static Schedule make(Array<Operation> ops);
+
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
 };
+
+/*!
+ * \brief Create a schedule for array of ops(and their dependencies).
+ * \param ops The ops to be scheduled.
+ * \return sch The created Schedule.
+ */
+inline Schedule create_schedule(Array<Operation> ops) {
+  return ScheduleNode::make(ops);
+}
 
 /*! \brief node container for IterVar attr */
 class IterVarAttrNode : public Node {

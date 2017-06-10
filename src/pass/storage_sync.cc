@@ -397,6 +397,7 @@ Stmt StorageSync(Stmt stmt, std::string storage_scope) {
 }
 
 LoweredFunc StorageSync(LoweredFunc f, std::string storage_scope) {
+  CHECK_NE(f->func_type, kHostFunc);
   auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
   n->body = StorageSync(f->body, storage_scope);
   return LoweredFunc(n);

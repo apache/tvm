@@ -37,6 +37,16 @@ class LoweredFunc : public FunctionRef {
   using ContainerType = LoweredFuncNode;
 };
 
+/*! \brief specific type of lowered function */
+enum LoweredFuncType : int {
+  /*! \brief Function that can mix device and host calls */
+  kMixedFunc = 0,
+  /*! \brief Only contains host code */
+  kHostFunc = 1,
+  /*! \brief Only contains device code */
+  kDeviceFunc = 2
+};
+
 /*! \brief Node container of LoweredFunc */
 class LoweredFuncNode : public FunctionBaseNode {
  public:
@@ -72,6 +82,8 @@ class LoweredFuncNode : public FunctionBaseNode {
    *  constant Expr of given type is used.
    */
   Map<Var, Expr> handle_data_type;
+  /*! \brief The type of the function */
+  LoweredFuncType func_type{kMixedFunc};
   /*! \brief Whether this function is packed function */
   bool is_packed_func{true};
   /*! \brief The body statment of the function */
@@ -90,6 +102,7 @@ class LoweredFuncNode : public FunctionBaseNode {
     v->Visit("args", &args);
     v->Visit("thread_axis", &thread_axis);
     v->Visit("handle_data_type", &handle_data_type);
+    v->Visit("func_type", &func_type);
     v->Visit("is_packed_func", &is_packed_func);
     v->Visit("body", &body);
   }

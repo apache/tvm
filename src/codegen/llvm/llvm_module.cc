@@ -33,22 +33,15 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return "llvm";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    if (ee_ == nullptr) LazyInitJIT();
-    std::lock_guard<std::mutex> lock(mutex_);
-    BackendPackedCFunc faddr =
-        reinterpret_cast<BackendPackedCFunc>(ee_->getFunctionAddress(name));
-    CHECK(faddr != nullptr)
-        << "Failed to Precompile function " << name;
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     if (ee_ == nullptr) LazyInitJIT();
     std::lock_guard<std::mutex> lock(mutex_);
+    const std::string& fname = (name == runtime::symbol::tvm_module_main ?
+                                entry_func_ : name);
     BackendPackedCFunc faddr =
-        reinterpret_cast<BackendPackedCFunc>(ee_->getFunctionAddress(name));
+        reinterpret_cast<BackendPackedCFunc>(ee_->getFunctionAddress(fname));
     if (faddr == nullptr) return PackedFunc();
     return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         int ret = (*faddr)(
@@ -103,6 +96,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     CodeGenLLVM cg;
+    entry_func_ = funcs[0]->name;
     cg.Init(funcs[0]->name, tm_, ctx_.get());
     for (LoweredFunc f :  funcs) {
       cg.AddFunction(f);
@@ -147,6 +141,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   }
   // The target configuration string
   std::string target_;
+  // Name of entry function.
+  std::string entry_func_;
   // JIT lock
   std::mutex mutex_;
   // execution engine

@@ -322,45 +322,6 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
-Schedule::Schedule(Array<Operation> ops) {
-  auto n = std::make_shared<ScheduleNode>();
-  node_ = n;
-  n->outputs = ops;
-  auto g = schedule::CreateReadGraph(n->outputs);
-  Array<Operation> post_order = schedule::PostDFSOrder(n->outputs, g);
-  // output set.
-  std::unordered_set<Operation> output_set;
-  for (Operation x : ops) {
-    output_set.insert(x);
-  }
-  for (Operation op : post_order) {
-    Stage stage(op);
-    stage->is_output = output_set.count(op) != 0;
-    n->stages.push_back(stage);
-    n->stage_map.Set(op, stage);
-    // mark scan updates.
-    if (op.as<ScanOpNode>()) {
-      const ScanOpNode* scan = op.as<ScanOpNode>();
-      Array<Tensor> inputs;
-      for (Tensor t : scan->state_placeholder) {
-        inputs.push_back(t);
-      }
-      for (Tensor t : scan->inputs) {
-        inputs.push_back(t);
-      }
-      // Create the scan group.
-      Stage scan_group = create_group(scan->update, inputs, false);
-      scan_group->attach_type = kScanUpdate;
-      scan_group->attach_stage = stage;
-
-      for (size_t i = 0; i < scan->update.size(); ++i) {
-        Stage s = n->stage_map[scan->update[i]->op];
-        CHECK(scan_group.same_as(s->group));
-      }
-    }
-  }
-}
-
 Stage CopyStage(const Stage& s) {
   std::shared_ptr<StageNode> n =
       std::make_shared<StageNode>(*s.operator->());
@@ -578,6 +539,46 @@ void ScheduleNode::InitCache() {
     }
   }
   CHECK_EQ(op2stage_cache_.size(), stages.size());
+}
+
+Schedule ScheduleNode::make(Array<Operation> ops) {
+  auto n = std::make_shared<ScheduleNode>();
+  Schedule sch(n);
+  n->outputs = ops;
+  auto g = schedule::CreateReadGraph(n->outputs);
+  Array<Operation> post_order = schedule::PostDFSOrder(n->outputs, g);
+  // output set.
+  std::unordered_set<Operation> output_set;
+  for (Operation x : ops) {
+    output_set.insert(x);
+  }
+  for (Operation op : post_order) {
+    Stage stage(op);
+    stage->is_output = output_set.count(op) != 0;
+    n->stages.push_back(stage);
+    n->stage_map.Set(op, stage);
+    // mark scan updates.
+    if (op.as<ScanOpNode>()) {
+      const ScanOpNode* scan = op.as<ScanOpNode>();
+      Array<Tensor> inputs;
+      for (Tensor t : scan->state_placeholder) {
+        inputs.push_back(t);
+      }
+      for (Tensor t : scan->inputs) {
+        inputs.push_back(t);
+      }
+      // Create the scan group.
+      Stage scan_group = sch.create_group(scan->update, inputs, false);
+      scan_group->attach_type = kScanUpdate;
+      scan_group->attach_stage = stage;
+
+      for (size_t i = 0; i < scan->update.size(); ++i) {
+        Stage s = n->stage_map[scan->update[i]->op];
+        CHECK(scan_group.same_as(s->group));
+      }
+    }
+  }
+  return sch;
 }
 
 IterVarRelation SplitNode::make(IterVar parent,

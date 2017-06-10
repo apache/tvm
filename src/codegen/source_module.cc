@@ -21,23 +21,12 @@ class SourceModuleNode final : public runtime::ModuleNode {
   const char* type_key() const {
     return "source";
   }
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-  }
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
-  }
-
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    LOG(FATAL) << "SourceModule: SaveToFile not supported";
-  }
-
-  void SaveToBinary(dmlc::Stream* stream) final {
-    LOG(FATAL) << "SourceModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {
@@ -54,5 +43,10 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
       std::make_shared<SourceModuleNode>(code, fmt);
   return runtime::Module(n);
 }
+
+TVM_REGISTER_GLOBAL("module.source_module_create")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = SourceModuleCreate(args[0], args[1]);
+  });
 }  // namespace codegen
 }  // namespace tvm

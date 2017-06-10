@@ -24,8 +24,6 @@ class VerilogModuleNode : public runtime::ModuleNode {
   const char* type_key() const {
     return "verilog";
   }
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-  }
 
   PackedFunc GetFunction(
       const std::string& name,
@@ -55,15 +53,6 @@ class VerilogModuleNode : public runtime::ModuleNode {
       fsim->CallPacked(TVMArgs(&values[0], &codes[0], args.num_args + 1), rv);
     };
     return PackedFunc(f);
-  }
-
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    LOG(FATAL) << "VerilogModule: SaveToFile not supported";
-  }
-
-  void SaveToBinary(dmlc::Stream* stream) final {
-    LOG(FATAL) << "VerilogModule: SaveToBinary not supported";
   }
 
   std::string GetSource(const std::string& format) final {

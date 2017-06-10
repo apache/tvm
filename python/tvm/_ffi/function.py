@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 import sys
 import ctypes
-from .base import _LIB, check_call, py_str, c_str, _FFI_MODE
+from .base import _LIB, check_call, py_str, c_str, string_types, _FFI_MODE
 
 IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
 
@@ -115,20 +115,6 @@ class ModuleBase(object):
             The other module.
         """
         check_call(_LIB.TVMModImport(self.handle, module.handle))
-
-    def precompile(self, func_name, ctx):
-        """Add module to the import list of current one.
-
-        Parameters
-        ----------
-        func_name : str
-            The name of function to be precompiled.
-
-        ctx : Context
-            The context to be precompiled.
-        """
-        check_call(_LIB.TVMModPreCompile(
-            self.handle, c_str(func_name), ctx))
 
     def __getitem__(self, name):
         if not isinstance(name, string_types):

@@ -37,10 +37,6 @@ class MetalModuleNode final :public runtime::ModuleNode {
     return "metal";
   }
 
-  void PreCompile(const std::string& name, TVMContext ctx) final {
-    GetPipelineState(ctx.device_id, name);
-  }
-
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;

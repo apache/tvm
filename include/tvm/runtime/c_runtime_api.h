@@ -29,13 +29,15 @@
 #define TVM_DLL
 #endif
 
-#include <stdint.h>
-#include <stddef.h>
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
 
-
+#ifdef __cplusplus
 TVM_EXTERN_C {
+#endif
+#include <stdint.h>
+#include <stddef.h>
+
 /*! \brief type of array index. */
 typedef int64_t tvm_index_t;
 
@@ -179,21 +181,6 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
                               const char* func_name,
                               int query_imports,
                               TVMFunctionHandle *out);
-
-/*!
- * \brief Precompile the function under given context.
- *  Many TVMFunctionHandle is initialized lazily,
- *  This call eagerly prepares the resources under given context.
- *  Useful for benchmarking purposes.
- *
- * \param mod The module handle.
- * \param func_name The name of the function.
- * \param ctx The context to be precompiled on.
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_DLL int TVMModPreCompile(TVMModuleHandle mod,
-                             const char* func_name,
-                             TVMContext ctx);
 
 /*!
  * \brief Free the Module
@@ -405,6 +392,7 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
+#ifdef __cplusplus
 }  // TVM_EXTERN_C
-
+#endif
 #endif  // TVM_RUNTIME_C_RUNTIME_API_H_
