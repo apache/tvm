@@ -12,6 +12,8 @@ private[tvm] object Base {
   class RefString(val value: String = null)
 
   type CPtrAddress = Long
+  type FunctionHandle = CPtrAddress
+  type TVMArrayHandle = CPtrAddress
 
   // FIXME
   val baseDir = System.getProperty("user.dir") + "/jvm/native"

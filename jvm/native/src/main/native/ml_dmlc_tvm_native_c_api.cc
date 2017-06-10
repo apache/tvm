@@ -6,8 +6,6 @@ JavaVM *_jvm;
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_nativeLibInit
   (JNIEnv *env, jobject obj) {
-  // FIXME:
-  std::cout << "Hello world!!!" << std::endl;
   return env->GetJavaVM(&_jvm);
 }
 
@@ -15,6 +13,7 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_tvm_LibInfo_tvmGetLastError(JNIEnv * env,
   return env->NewStringUTF(TVMGetLastError());
 }
 
+// Function
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
   JNIEnv * env, jobject obj, jobject jfuncNames) {
   int outSize;
@@ -37,4 +36,15 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
   }
 
   return ret;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncFree(
+  JNIEnv * env, jobject obj, jlong jhandle) {
+  return TVMFuncFree(reinterpret_cast<TVMFunctionHandle>(jhandle));
+}
+
+// NDArray
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayFree(
+  JNIEnv * env, jobject obj, jlong jhandle) {
+  return TVMArrayFree(reinterpret_cast<TVMArrayHandle>(jhandle));
 }
