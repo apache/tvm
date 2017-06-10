@@ -161,7 +161,7 @@ def test_argmax():
         mm = 12
         nn = 16
         np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
-        np_val = np.random.randint(low=0, high=100, size=(mm, nn)).astype('float32')
+        np_val = np.random.uniform(size=(mm, nn)).astype('float32')
         np_res = np.argmax(np_val, axis=1)
 
         nd_idx  = tvm.nd.array(np_idx, ctx)
@@ -221,7 +221,7 @@ def test_rfactor_argmax():
                             name="argmax")
 
         np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
-        np_val = np.random.randint(low=0, high=100000, size=(mm, nn)).astype('float32')
+        np_val = np.random.uniform(size=(mm, nn)).astype('float32')
         np_res = np.argmax(np_val, axis=1)
 
         nd_idx  = tvm.nd.array(np_idx, ctx)

@@ -211,8 +211,8 @@ void MakeReduction(const ComputeOpNode* op,
                    const Array<Tensor>& tensors,
                    std::vector<Stmt>* inits,
                    std::vector<Stmt>* provides) {
-  CHECK_EQ(inits->size(), 0);
-  CHECK_EQ(provides->size(), 0);
+  CHECK(inits->empty());
+  CHECK(provides->empty());
   Array<Expr>  args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
