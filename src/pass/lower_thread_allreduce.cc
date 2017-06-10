@@ -100,15 +100,20 @@ class ThreadAllreduceBuilder : public IRMutator {
   Stmt MakeAllreduce(const Store* op, const Call* call) {
     CHECK(!reduce_combiner_.empty());
     const CommReducerNode *combiner = reduce_combiner_.back();
-    Expr init  = combiner->identity_element;
-    Expr value = call->args[0];
-    Expr cond  = call->args[1];
+    size_t size = combiner->result.size();
+    CHECK_EQ(size, 1)
+      << "for now, only support single argument for allreduce";
+    Expr init  = combiner->identity_element[0];
+    const UIntImm *size_of_args = call->args[0].as<UIntImm>();
+    CHECK(size_of_args) << call->args[0]->type_key();
+    Expr value = call->args[1];
+    Expr cond  = call->args[size+1];
     if (!is_one(cond)) {
       value = Select::make(cond, value, init);
     }
 
     std::unordered_set<const Variable*> reduce_set;
-    for (size_t i = 2; i < call->args.size(); ++i) {
+    for (size_t i = size + 2; i < call->args.size(); ++i) {
       const Variable* v = call->args[i].as<Variable>();
       CHECK(v);
       reduce_set.insert(v);
@@ -196,7 +201,7 @@ class ThreadAllreduceBuilder : public IRMutator {
           type, shared_buf,
           BufIndex(reduce_index + offset, group_index, reduce_extent), const_true());
       Expr a = Load::make(type, shared_buf, buf_index, const_true());
-      return Store::make(shared_buf, (*combiner)(a, b), buf_index, const_true());
+      return Store::make(shared_buf, (*combiner)({a}, {b})[0], buf_index, const_true());
     };
     // Step one, check for
     if (reduce_align > reduce_extent) {

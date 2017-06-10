@@ -77,8 +77,6 @@ Operation ComputeOpNode::make(std::string name,
   n->axis = axis;
   n->body = body;
   if (n->body[0]->is_type<ir::Reduce>()) {
-    CHECK_EQ(n->body.size(), 1)
-      << "Only support single reduction expression for now";
     n->reduce_axis = n->body[0].as<ir::Reduce>()->axis;
   }
   return Operation(n);
@@ -174,23 +172,39 @@ Stmt ComputeOpNode::BuildRealize(
 
 // Build a reduction body.
 void MakeReduction(const ComputeOpNode* op,
-                   const Tensor& t,
-                   Stmt* init,
-                   Stmt* provide) {
+                   const Array<Tensor>& tensors,
+                   std::vector<Stmt>* inits,
+                   std::vector<Stmt>* provides) {
+  CHECK_EQ(inits->size(), 0);
+  CHECK_EQ(provides->size(), 0);
   Array<Expr>  args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
-  const Reduce* reduce = op->body[t->value_index].as<Reduce>();
+
+  size_t size = op->body.size();
+  const Reduce* reduce = op->body[0].as<Reduce>();
   CHECK(reduce);
   const CommReducerNode* combiner = reduce->combiner.as<CommReducerNode>();
   CHECK(combiner);
-  Expr init_value = combiner->identity_element;
-  Expr update_value = (*combiner)(t(args), reduce->source);
-  *init = Provide::make(t->op, t->value_index, init_value, args);
-  *provide = Provide::make(t->op, t->value_index, update_value, args);
+  Array<Expr> lhs;
+  for (size_t i = 0; i < size; ++i) {
+    lhs.push_back(tensors[i](args));
+  }
+  Array<Expr> init_value = combiner->identity_element;
+  Array<Expr> update_value = (*combiner)(lhs, reduce->source);
+  for (size_t i = 0; i < size; ++i) {
+    Tensor t = tensors[i];
+    inits->emplace_back(Provide::make(
+          t->op, t->value_index, init_value[i], args));
+    provides->emplace_back(Provide::make(
+          t->op, t->value_index, update_value[i], args));
+  }
+
   if (!is_one(reduce->condition)) {
-    *provide = IfThenElse::make(reduce->condition, *provide);
+    for (size_t i = 0; i < size; ++i) {
+      provides->at(i) = IfThenElse::make(reduce->condition, provides->at(i));
+    }
   }
 }
 
@@ -262,7 +276,11 @@ Stmt MakeCrossThreadReduction(
   }
   Var res_handle("reduce_temp", Handle());
   Array<Expr> freduce_args;
-  freduce_args.push_back(reduce->source);
+  size_t size = reduce->source.size();
+  freduce_args.push_back(make_const(UInt(32), size));
+  for (size_t i = 0; i < size; ++i) {
+    freduce_args.push_back(reduce->source[i]);
+  }
   freduce_args.push_back(cond);
 
   for (IterVar iv : stage->leaf_iter_vars) {
@@ -326,19 +344,19 @@ Stmt ComputeOpNode::BuildProvide(
     return MakeCrossThreadReduction(this, stage, dom_map);
   }
 
+  size_t size = this->body.size();
   std::vector<Stmt> inits;
   std::vector<Stmt> provides;
   if (this->reduce_axis.size() == 0) {
-    for (int i = 0; i < this->num_outputs(); ++i) {
-      provides.push_back(MakeProvide(this, stage->op.output(i)));
+    for (size_t i = 0; i < size; ++i) {
+      provides.emplace_back(MakeProvide(this, stage->op.output(i)));
     }
   } else {
-    for (int i = 0; i < this->num_outputs(); ++i) {
-      Stmt init, provide;
-      MakeReduction(this, stage->op.output(i), &init, &provide);
-      inits.push_back(init);
-      provides.push_back(provide);
+    Array<Tensor> source;
+    for (size_t i = 0; i < size; ++i) {
+      source.push_back(stage->op.output(i));
     }
+    MakeReduction(this, source, &inits, &provides);
   }
 
   // make loop nest

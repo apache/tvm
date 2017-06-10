@@ -533,18 +533,44 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         return res
 
     def _make_reduce(expr, axis, where=None):
-        expr = convert(expr)
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
-        dtype = expr.dtype
-        arg_vars = [var(name, dtype) for name in code.co_varnames]
-        result = fcombine(*[v for v in arg_vars])
+        expr = convert(expr)
+        if isinstance(expr, _collections.Array):
+            size = len(expr)
+            larr = []
+            rarr = []
+            dtypes = []
+            for i in range(size):
+                dtype = expr[i].dtype
+                dtypes.append(dtype)
+                lname = code.co_varnames[0] + '_' + str(i)
+                larr.append(var(lname, dtype))
+                rname = code.co_varnames[1] + '_' + str(i)
+                rarr.append(var(rname, dtype))
+            lhs = convert(larr)
+            rhs = convert(rarr)
+            result = fcombine(lhs, rhs)
+            id_elem = fidentity(*dtypes)
+        else:
+            assert isinstance(expr, _expr.Expr)
+            size = 1
+            dtype = expr.dtype
+            lvar = var(code.co_varnames[0], dtype)
+            rvar = var(code.co_varnames[1], dtype)
+            result = [fcombine(lvar, rvar)]
+            id_elem = [fidentity(dtype)]
+            lhs = convert([lvar])
+            rhs = convert([rvar])
+            expr = convert([expr])
         result = convert(result)
-        id_elem = fidentity(dtype)
-        assert isinstance(id_elem, _expr.Expr)
-        combiner = _make.CommReducer(arg_vars, result, id_elem)
+        id_elem = convert(id_elem)
+        combiner = _make.CommReducer(lhs, rhs, result, id_elem)
         axis = axis if isinstance(axis, list) else [axis]
-        return _make.Reduce(combiner, expr, axis, where)
+        if size == 1:
+            return _make.Reduce(combiner, expr, axis, where, 0)
+        return [_make.Reduce(combiner, expr, axis, where, i)
+                for i in range(size)]
 
     def reducer(expr, axis, where=None, *args):
         if isinstance(axis, (_schedule.IterVar, list)):

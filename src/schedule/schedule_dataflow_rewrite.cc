@@ -8,6 +8,7 @@
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./message_passing.h"
+#include "../pass/ir_util.h"
 
 namespace tvm {
 
@@ -366,8 +367,11 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       n->reduce_axis.push_back(IterVar(ncpy));
     }
   }
+  VarReplacer replacer(vsub);
+  std::function<Expr(Expr)> fupdate =
+    [&replacer] (Expr e) { return replacer.Mutate(e); };
   n->body = {Reduce::make(reduce->combiner,
-                          VarReplacer(vsub).Mutate(reduce->source),
+                          ir::UpdateArray(reduce->source, fupdate),
                           n->reduce_axis,
                           predicate)};
   // refresh relations, keep the un-touched relations.
@@ -413,7 +417,7 @@ Tensor Schedule::rfactor(const Tensor& tensor,
         indices.push_back(v);
       }
       return Reduce::make(reduce->combiner,
-        factor_tensor(indices), {repl_red_axis}, const_true());
+        {factor_tensor(indices)}, {repl_red_axis}, const_true());
     }, old_tensor->op->name + ".repl");
 
   std::unordered_map<Tensor, Tensor> vmap;

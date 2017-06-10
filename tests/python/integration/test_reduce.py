@@ -128,7 +128,55 @@ def test_rfactor_threads():
     check_target("metal")
     check_target("opencl")
 
+def test_argmax():
+    def fcombine(x, y):
+        lhs = tvm.make.Select((x[1] > y[1]), x[0], y[0])
+        rhs = tvm.make.Select((x[1] > y[1]), x[1], y[1])
+        return [lhs, rhs]
+
+    def fidentity(t0, t1):
+        return [tvm.const(-1, t0), tvm.min_value(t1)]
+
+    argmax = tvm.comm_reducer(fcombine,
+                              fidentity,
+                              name='argmax')
+    dtype = 'int32'
+    m = tvm.var('m')
+    n = tvm.var('n')
+    idx = tvm.placeholder((m, n), name='idx', dtype=dtype)
+    val = tvm.placeholder((m, n), name='val', dtype=dtype)
+    k = tvm.reduce_axis((0, n), 'k')
+    T0, T1 = tvm.compute((m,), lambda i: argmax((idx[i,k], val[i,k]), axis=k), name='T')
+    s = tvm.create_schedule(T0.op)
+
+    def check_target():
+        device = 'cpu'
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
+            return
+        ctx = tvm.context(device, 0)
+        fapi = tvm.lower(s, args=[idx, val, T0, T1])
+        fargmax = tvm.build(fapi,
+                            target='llvm',
+                            name="argmax")
+
+        mm = 12
+        nn = 16
+        np_idx = np.repeat(np.arange(nn, dtype=dtype).reshape(1, nn), mm, axis=0)
+        np_val = np.random.randint(low=0, high=100, size=(mm, nn)).astype(dtype)
+        np_res = np.argmax(np_val, axis=1)
+
+        nd_idx  = tvm.nd.array(np_idx, ctx)
+        nd_val  = tvm.nd.array(np_val, ctx)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype=dtype), ctx)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype=dtype), ctx)
+        fargmax(nd_idx, nd_val, nd_res0, nd_res1)
+        np.testing.assert_allclose(np_res, nd_res0.asnumpy())
+
+    check_target()
+
 if __name__ == "__main__":
     test_rfactor_threads()
     test_rfactor()
     test_reduce_prims()
+    test_argmax()

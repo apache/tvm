@@ -47,23 +47,27 @@ struct CommReducer : public NodeRef {
  *  binary operator with identity element
  */
 struct CommReducerNode : public Node {
-  /*! \brief The arguments of reducer */
-  Array<Var> args;
+  /*! \brief The left argument of reducer */
+  Array<Var> lhs;
+  /*! \brief The right argument of reducer */
+  Array<Var> rhs;
   /*! \brief The result of reducer */
-  Expr result;
+  Array<Expr> result;
   /*!
    * \brief The identity element of reducer, which leaves other
    *  elements unchanged when combined with it, with respect to
    *  the binary operation of this reducer uses.
    */
-  Expr identity_element;
+  Array<Expr> identity_element;
   /*! \brief Function call operator to combine a and b */
-  Expr operator()(Expr a, Expr b) const;
+  Array<Expr> operator()(Array<Expr> a, Array<Expr> b) const;
   /*! \brief construct CommReducer from args, result and identity_element */
-  static CommReducer make(Array<Var> args, Expr result, Expr identity_element);
+  static CommReducer make(Array<Var> lhs, Array<Var> rhs,
+                          Array<Expr> result, Array<Expr> identity_element);
 
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("args", &args);
+    v->Visit("lhs", &lhs);
+    v->Visit("rhs", &rhs);
     v->Visit("result", &result);
     v->Visit("identity_element", &identity_element);
   }
@@ -84,7 +88,7 @@ struct Reduce : public ExprNode<Reduce> {
   /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
-  Expr source;
+  Array<Expr> source;
   /*! \brief The reduction axis */
   Array<IterVar> axis;
   /*!
@@ -92,18 +96,22 @@ struct Reduce : public ExprNode<Reduce> {
    *  Only add the body to reduction if condition is true.
    */
   Expr condition;
+  /*! \brief the index of this reduce node */
+  int value_index;
 
   /*! \brief construct expr from op and rdom */
   static Expr make(CommReducer combiner,
-                   Expr src,
+                   Array<Expr> src,
                    Array<IterVar> rdom,
-                   Expr condition = const_true());
+                   Expr condition = const_true(),
+                   int value_index = 0);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
+    v->Visit("value_index", &value_index);
   }
   static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
   static constexpr const char* _type_key = "Reduce";

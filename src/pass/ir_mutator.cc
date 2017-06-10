@@ -313,7 +313,7 @@ DEFINE_BIOP_EXPR_MUTATE_(Or)
 
 Expr IRMutator::Mutate_(const Reduce *op, const Expr& e) {
   Array<IterVar> new_axis  = MutateIterVarArr(op->axis, this);
-  Expr new_source = this->Mutate(op->source);
+  Array<Expr> new_source = MutateArray(op->source, this);
   Expr new_cond = this->Mutate(op->condition);
   if (op->axis.same_as(new_axis) &&
       op->source.same_as(new_source) &&
