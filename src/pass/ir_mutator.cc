@@ -18,8 +18,7 @@ IRMutator::FMutateStmt& IRMutator::vtable_stmt() {  // NOLINT(*)
 }
 
 inline Array<Expr> MutateArray(Array<Expr> arr, IRMutator *m) {
-  std::function<Expr(Expr)> fupdate = [m] (Expr e) { return m->Mutate(e); };
-  return UpdateArray(arr, fupdate);
+  return UpdateArray(arr, [&m] (const Expr& e) { return m->Mutate(e); });
 }
 
 inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {

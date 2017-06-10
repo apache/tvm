@@ -49,7 +49,6 @@ def test_reduce_prims():
     test_prim(tvm.max, np.amax)
 
 
-
 def test_rfactor():
     n = tvm.convert(1027)
     A = tvm.placeholder((n,), name='A')
@@ -130,8 +129,8 @@ def test_rfactor_threads():
 
 def test_argmax():
     def fcombine(x, y):
-        lhs = tvm.make.Select((x[1] > y[1]), x[0], y[0])
-        rhs = tvm.make.Select((x[1] > y[1]), x[1], y[1])
+        lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
         return [lhs, rhs]
 
     def fidentity(t0, t1):
@@ -140,11 +139,10 @@ def test_argmax():
     argmax = tvm.comm_reducer(fcombine,
                               fidentity,
                               name='argmax')
-    dtype = 'int32'
     m = tvm.var('m')
     n = tvm.var('n')
-    idx = tvm.placeholder((m, n), name='idx', dtype=dtype)
-    val = tvm.placeholder((m, n), name='val', dtype=dtype)
+    idx = tvm.placeholder((m, n), name='idx', dtype='int32')
+    val = tvm.placeholder((m, n), name='val', dtype='float32')
     k = tvm.reduce_axis((0, n), 'k')
     T0, T1 = tvm.compute((m,), lambda i: argmax((idx[i,k], val[i,k]), axis=k), name='T')
     s = tvm.create_schedule(T0.op)
@@ -162,21 +160,82 @@ def test_argmax():
 
         mm = 12
         nn = 16
-        np_idx = np.repeat(np.arange(nn, dtype=dtype).reshape(1, nn), mm, axis=0)
-        np_val = np.random.randint(low=0, high=100, size=(mm, nn)).astype(dtype)
+        np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
+        np_val = np.random.randint(low=0, high=100, size=(mm, nn)).astype('float32')
         np_res = np.argmax(np_val, axis=1)
 
         nd_idx  = tvm.nd.array(np_idx, ctx)
         nd_val  = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype=dtype), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype=dtype), ctx)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
         np.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
     check_target()
+
+
+def test_rfactor_argmax():
+    def fcombine(x, y):
+        lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
+        return [lhs, rhs]
+
+    def fidentity(t0, t1):
+        return [tvm.const(-1, t0), tvm.min_value(t1)]
+
+    argmax = tvm.comm_reducer(fcombine,
+                              fidentity,
+                              name='argmax')
+
+    nn = 1027
+    mm = 10
+    n = tvm.convert(nn)
+    m = tvm.convert(mm)
+    A0 = tvm.placeholder((m, n), name='A0', dtype='int32')
+    A1 = tvm.placeholder((m, n), name='A1', dtype='float32')
+    k = tvm.reduce_axis((0, n))
+    B0, B1 = tvm.compute((m,), lambda i: argmax((A0[i, k], A1[i, k]), axis=k), name='B')
+
+    # schedule
+    s = tvm.create_schedule(B0.op)
+    nthread = 16
+    ko, kf = s[B0].split(k, factor=nthread)
+    BF = s.rfactor(B0, kf)
+    bx, ty = s[B0].split(s[B0].op.axis[0], factor=nthread)
+    s[B0].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[B0].bind(ty, tvm.thread_axis("threadIdx.y"))
+    tx = s[B0].op.reduce_axis[0]
+    thread_x = tvm.thread_axis("threadIdx.x")
+    s[B0].bind(tx, thread_x)
+    s[BF].compute_at(s[B0], tx)
+    s[B0].set_store_predicate(thread_x.var.equal(0))
+
+    def check_target(device):
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
+            return
+        ctx = tvm.context(device, 0)
+        fapi = tvm.lower(s, args=[A0, A1, B0, B1])
+        fargmax = tvm.build(fapi,
+                            target=device,
+                            name="argmax")
+
+        np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
+        np_val = np.random.randint(low=0, high=100000, size=(mm, nn)).astype('float32')
+        np_res = np.argmax(np_val, axis=1)
+
+        nd_idx  = tvm.nd.array(np_idx, ctx)
+        nd_val  = tvm.nd.array(np_val, ctx)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
+        fargmax(nd_idx, nd_val, nd_res0, nd_res1)
+        np.testing.assert_allclose(np_res, nd_res0.asnumpy())
+
+    check_target("cuda")
 
 if __name__ == "__main__":
     test_rfactor_threads()
     test_rfactor()
     test_reduce_prims()
     test_argmax()
+    test_rfactor_argmax()

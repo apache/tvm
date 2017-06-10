@@ -29,9 +29,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
             << op->combiner;
   p->stream << ", source=" << op->source;
   p->stream << ", axis=" << op->axis;
-  if (!is_const(op->condition, 1)) {
-    p->stream << ", where=" << op->condition;
-  }
+  p->stream << ", where=" << op->condition;
+  p->stream << ", value_index=" << op->value_index;
   p->stream << ")";
 });
 
@@ -70,10 +69,9 @@ Array<Expr> CommReducerNode::operator()(Array<Expr> a, Array<Expr> b) const {
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  std::function<Expr(Expr)> fupdate = [&value_map] (Expr e) {
+  return UpdateArray(result, [&value_map] (const Expr& e) {
       return Substitute(e, value_map);
-    };
-  return UpdateArray(result, fupdate);
+    });
 }
 
 Expr Reduce::make(CommReducer combiner, Array<Expr> source,
@@ -90,7 +88,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
   }
-  n->type = source[0].type();
+  n->type = source[value_index].type();
   n->combiner = combiner;
   n->source = source;
   n->axis = axis;

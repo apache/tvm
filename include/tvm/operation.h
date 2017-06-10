@@ -358,6 +358,9 @@ class ExternOpNode : public OperationNode {
 /*! \brief The compute function to specify the input source of a Tensor */
 using FCompute = std::function<Expr (const Array<Var>& i)>;
 
+/*! \brief The compute function to specify the inputs source of Tensors */
+using FBatchCompute = std::function<Array<Expr> (const Array<Var>& i)>;
+
 /*!
  * \brief create a place holder tensor.
  * \param shape The shape of the tensor.
@@ -376,6 +379,15 @@ Tensor placeholder(Array<Expr> shape,
  * \param name The optional name of the tensor.
  */
 Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
+
+/*!
+ * \brief Construct a new tensor by computing over shape,
+ *  using the computation rule: result_tensor[axis] = fcompute(axis)
+ * \param shape Shape of the tensor.
+ * \param fcompute The compute function to create the tensors.
+ * \param name The optional name of the tensor.
+ */
+Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string name = "tensor");
 
 /*!
  * \brief Construct new tensors by scan.

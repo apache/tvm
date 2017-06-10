@@ -566,7 +566,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         result = convert(result)
         id_elem = convert(id_elem)
         combiner = _make.CommReducer(lhs, rhs, result, id_elem)
-        axis = axis if isinstance(axis, list) else [axis]
+        axis = convert(axis if isinstance(axis, list) else [axis])
+        if where is None:
+            where = convert(True)
         if size == 1:
             return _make.Reduce(combiner, expr, axis, where, 0)
         return [_make.Reduce(combiner, expr, axis, where, i)

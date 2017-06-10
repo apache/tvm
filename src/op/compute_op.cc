@@ -69,6 +69,35 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   return ComputeOpNode::make(name, axis, {fcompute(args)}).output(0);
 }
 
+Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string name) {
+  auto op_node = std::make_shared<ComputeOpNode>();
+  // compute dimension.
+  size_t ndim = shape.size();
+  std::vector<IterVar> axis;
+  std::vector<Var> args;
+  for (size_t i = 0; i < ndim; ++i) {
+    std::ostringstream os;
+    os << "ax" << i;
+    axis.emplace_back(IterVarNode::make(
+        Range(0, shape[i]), Var(os.str(), shape[i].type()), kDataPar));
+    args.push_back(axis.back()->var);
+  }
+
+  Operation op = ComputeOpNode::make(name, axis, fcompute(args));
+  Array<Tensor> outputs;
+  for (int idx = 0; idx < op->num_outputs(); ++idx) {
+    outputs.push_back(op.output(idx));
+  }
+  return outputs;
+}
+
+bool CheckReduce(const ir::Reduce* a, const ir::Reduce* b) {
+  return (a->combiner.same_as(b->combiner)) &&
+         (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) &&
+         (a->condition.same_as(b->condition));
+}
+
 Operation ComputeOpNode::make(std::string name,
                               Array<IterVar> axis,
                               Array<Expr> body) {
@@ -77,7 +106,15 @@ Operation ComputeOpNode::make(std::string name,
   n->axis = axis;
   n->body = body;
   if (n->body[0]->is_type<ir::Reduce>()) {
-    n->reduce_axis = n->body[0].as<ir::Reduce>()->axis;
+    const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
+    for (size_t i = 1; i < n->body.size(); ++i) {
+      const ir::Reduce* reduce_ = n->body[i].as<ir::Reduce>();
+      CHECK(reduce_);
+      CHECK(CheckReduce(reduce_, reduce))
+        << "The Reduce inputs of ComputeOp should "
+        << "have the same attribute except value_index";
+    }
+    n->reduce_axis = reduce->axis;
   }
   return Operation(n);
 }
@@ -105,10 +142,9 @@ Operation ComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  std::function<Expr(Expr)> fupdate = [&rmap] (Expr e) {
+  Array<Expr> arr = UpdateArray(this->body, [&rmap] (const Expr& e) {
       return op::ReplaceTensor(e, rmap);
-    };
-  Array<Expr> arr = UpdateArray(this->body, fupdate);
+    });
   if (!arr.same_as(this->body)) {
     return ComputeOpNode::make(name, axis, arr);
   } else {
@@ -268,20 +304,30 @@ Stmt MakeCrossThreadReduction(
   auto conds = op::MakeBoundCheck(
       stage, dom_map, false,
       std::unordered_set<IterVar>(), value_map);
-  const Reduce* reduce = self->body[0].as<Reduce>();
-  CHECK(reduce);
-  Expr cond = reduce->condition;
+
+  size_t size = self->body.size();
+  CHECK_GT(size, 0);
+  std::vector<const Reduce*> reduces(size);
+  for (size_t i = 0; i < size; ++i) {
+    const Reduce* reduce = self->body[i].as<Reduce>();
+    CHECK(reduce);
+    reduces[i] = reduce;
+  }
+  Expr cond = reduces[0]->condition;
   for (Expr v : conds) {
     cond = cond && v;
   }
-  Var res_handle("reduce_temp", Handle());
   Array<Expr> freduce_args;
-  size_t size = reduce->source.size();
   freduce_args.push_back(make_const(UInt(32), size));
   for (size_t i = 0; i < size; ++i) {
-    freduce_args.push_back(reduce->source[i]);
+    freduce_args.push_back(reduces[0]->source[i]);
   }
   freduce_args.push_back(cond);
+  std::vector<Var> res_handles(size);
+  for (size_t idx = 0; idx < size; ++idx) {
+    res_handles[idx] = Var("reduce_temp" + std::to_string(idx), Handle());
+    freduce_args.push_back(res_handles[idx]);
+  }
 
   for (IterVar iv : stage->leaf_iter_vars) {
     if (iv->iter_type == kCommReduce) {
@@ -298,29 +344,33 @@ Stmt MakeCrossThreadReduction(
   if (stage->store_predicate.defined()) {
     thread_head_check.emplace_back(stage->store_predicate);
   }
-  Type t = reduce->type;
-  Expr pred = const_true(t.lanes());
-  Stmt reduce_body = Store::make(res_handle,
-    Call::make(
-      reduce->type,
-      ir::intrinsic::tvm_thread_allreduce,
-      freduce_args, Call::Intrinsic),
-     0, pred);
-  reduce_body = AttrStmt::make(
-      reduce->combiner,
-      attr::reduce_scope,
-      make_zero(reduce->type),
-      reduce_body);
-  Stmt assign_body = Provide::make(
-      stage->op, 0, Load::make(reduce->type, res_handle, 0, pred), args);
 
+  Stmt reduce_body = Evaluate::make(Call::make(
+      Handle(),
+      ir::intrinsic::tvm_thread_allreduce,
+      freduce_args, Call::Intrinsic));
+  reduce_body = AttrStmt::make(
+      reduces[0]->combiner,
+      attr::reduce_scope,
+      make_zero(Handle()),
+      reduce_body);
+  std::vector<Stmt> assigns(size);
+  for (size_t idx = 0; idx < size; ++idx) {
+    Type t = reduces[idx]->type;
+    assigns[idx] = Provide::make(
+      stage->op, idx,
+      Load::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
+  }
+  Stmt assign_body = Block::make(assigns);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
   assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
-  Stmt body = Allocate::make(
-      res_handle, reduce->type, {1}, const_true(),
-      Block::make(reduce_body, assign_body));
-  body = AttrStmt::make(
-      res_handle, attr::storage_scope, StringImm::make("local"), body);
+  Stmt body = Block::make(reduce_body, assign_body);
+  for (int idx = size - 1; idx >= 0; --idx) {
+    body = Allocate::make(
+      res_handles[idx], reduces[idx]->type, {1}, const_true(), body);
+    body = AttrStmt::make(
+      res_handles[idx], attr::storage_scope, StringImm::make("local"), body);
+  }
   body = Substitute(body, value_map);
   return MergeNest(nest, body);
 }

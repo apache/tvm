@@ -12,8 +12,15 @@
 namespace tvm {
 namespace ir {
 
-template<typename T>
-inline Array<T> UpdateArray(Array<T> arr, std::function<T(T)> fupdate) {
+/*!
+ * \brief update array with an unary function
+ * \param arr array
+ * \param fupdate an unary function
+ * \return if update happens, return the new array, else return the
+ *  original array
+ */
+template<typename T, typename F>
+inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
   std::vector<T> new_arr(arr.size());
   bool changed = false;
   for (size_t i = 0; i < arr.size(); ++i) {
