@@ -66,11 +66,8 @@
             <linkerMiddleOption>-framework JavaVM</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-exported_symbol,_Java_*</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-x</linkerMiddleOption>
-            <!--
             <linkerMiddleOption>${lddeps}</linkerMiddleOption>
-            <linkerMiddleOption>-force_load ../../../lib/libmxnet.a</linkerMiddleOption>
-            <linkerMiddleOption>-force_load ../../../nnvm/lib/libnnvm.a</linkerMiddleOption>
-            -->
+            <linkerMiddleOption>-force_load ../../../lib/libtvm.so</linkerMiddleOption>
           </linkerMiddleOptions>
           <linkerEndOptions>
             <linkerEndOption>${ldflags}</linkerEndOption>
