@@ -89,7 +89,7 @@ def test_inline_mixed():
     def check(x):
         if isinstance(x, tvm.expr.Call):
             assert x.func != A2
-    tvm.ir_pass.PostOrderVisit(s[C].op.body, check)
+    tvm.ir_pass.PostOrderVisit(s[C].op.body[0], check)
 
 
 def test_scan_inline1():

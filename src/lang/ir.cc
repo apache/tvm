@@ -9,6 +9,7 @@
 #include <ir/IR.h>
 #include <ir/IRPrinter.h>
 #include <memory>
+#include "../pass/ir_util.h"
 
 namespace Halide {
 namespace Internal {
@@ -25,23 +26,20 @@ void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Reduce>([](const Reduce *op, IRPrinter *p) {
   p->stream << "reduce(combiner="
-            << op->combiner
-            << ", ";
-  p->print(op->source);
+            << op->combiner;
+  p->stream << ", source=" << op->source;
   p->stream << ", axis=" << op->axis;
-  if (!is_const(op->condition, 1)) {
-    p->stream << ", where=" << op->condition;
-  }
+  p->stream << ", where=" << op->condition;
+  p->stream << ", value_index=" << op->value_index;
   p->stream << ")";
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<CommReducerNode>([](const CommReducerNode *op, IRPrinter *p) {
-  p->stream << "comm_reducer(result="
-            << op->result
-            << ", args=" << op->args
-            << ", identity_element="
-            << op->identity_element
+  p->stream << "comm_reducer(result=" << op->result
+            << ", lhs=" << op->lhs
+            << ", rhs=" << op->rhs
+            << ", identity_element=" << op->identity_element
             << ")";
 });
 }  // namespace Internal
@@ -50,23 +48,34 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 namespace tvm {
 namespace ir {
 
-CommReducer CommReducerNode::make(Array<Var> args, Expr result, Expr identity_element) {
+CommReducer CommReducerNode::make(Array<Var> lhs,
+                                  Array<Var> rhs,
+                                  Array<Expr> result,
+                                  Array<Expr> identity_element) {
   auto node = std::make_shared<CommReducerNode>();
-  node->args   = args;
+  node->lhs = lhs;
+  node->rhs = rhs;
   node->result = result;
   node->identity_element = identity_element;
   return CommReducer(node);
 }
 
-Expr CommReducerNode::operator()(Expr a, Expr b) const {
+Array<Expr> CommReducerNode::operator()(Array<Expr> a, Array<Expr> b) const {
+  CHECK_EQ(a.size(), b.size());
+  CHECK_EQ(lhs.size(), a.size());
+  CHECK_EQ(rhs.size(), b.size());
   Map<Var, Expr> value_map;
-  value_map.Set(args[0], a);
-  value_map.Set(args[1], b);
-  return Substitute(result, value_map);
+  for (size_t i = 0; i < a.size(); ++i) {
+    value_map.Set(lhs[i], a[i]);
+    value_map.Set(rhs[i], b[i]);
+  }
+  return UpdateArray(result, [&value_map] (const Expr& e) {
+      return Substitute(e, value_map);
+    });
 }
 
-Expr Reduce::make(CommReducer combiner, Expr source,
-                  Array<IterVar> axis, Expr condition) {
+Expr Reduce::make(CommReducer combiner, Array<Expr> source,
+                  Array<IterVar> axis, Expr condition, int value_index) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
@@ -79,11 +88,12 @@ Expr Reduce::make(CommReducer combiner, Expr source,
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
   }
-  n->type = source.type();
-  n->combiner = combiner;
-  n->source = source;
-  n->axis = axis;
+  n->type = source[value_index].type();
+  n->combiner = std::move(combiner);
+  n->source = std::move(source);
+  n->axis = std::move(axis);
   n->condition = condition;
+  n->value_index = value_index;
   return Expr(n);
 }
 

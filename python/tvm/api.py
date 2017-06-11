@@ -174,10 +174,14 @@ def compute(shape, fcompute, name="compute"):
 
     dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape)]
     body = fcompute(*[v.var for v in dim_var])
+    if not isinstance(body, (list, tuple)):
+        body = [body]
     body = convert(body)
     op_node = _api_internal._ComputeOp(
         name, dim_var, body)
-    return op_node.output(0)
+    num = op_node.num_outputs
+    outputs = tuple(op_node.output(i) for i in range(num))
+    return outputs[0] if num == 1 else outputs
 
 
 def scan(init, update, state_placeholder, inputs=None, name="scan"):
@@ -525,18 +529,45 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         return res
 
     def _make_reduce(expr, axis, where=None):
-        expr = convert(expr)
-        dtype = expr.dtype
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
-        arg_vars = [var(name, dtype) for name in code.co_varnames]
-        result = fcombine(*[v for v in arg_vars])
+        expr = convert(expr)
+        if isinstance(expr, _collections.Array):
+            size = len(expr)
+            larr = []
+            rarr = []
+            dtypes = []
+            for i in range(size):
+                dtype = expr[i].dtype
+                dtypes.append(dtype)
+                lname = code.co_varnames[0] + '_' + str(i)
+                larr.append(var(lname, dtype))
+                rname = code.co_varnames[1] + '_' + str(i)
+                rarr.append(var(rname, dtype))
+            lhs = convert(larr)
+            rhs = convert(rarr)
+            result = fcombine(lhs, rhs)
+            id_elem = fidentity(*dtypes)
+        else:
+            assert isinstance(expr, _expr.Expr)
+            size = 1
+            dtype = expr.dtype
+            lvar = var(code.co_varnames[0], dtype)
+            rvar = var(code.co_varnames[1], dtype)
+            result = [fcombine(lvar, rvar)]
+            id_elem = [fidentity(dtype)]
+            lhs = convert([lvar])
+            rhs = convert([rvar])
+            expr = convert([expr])
         result = convert(result)
-        id_elem = fidentity(dtype)
-        assert isinstance(id_elem, _expr.Expr)
-        combiner = _make.CommReducer(arg_vars, result, id_elem)
-        axis = axis if isinstance(axis, list) else [axis]
-        return _make.Reduce(combiner, expr, axis, where)
+        id_elem = convert(id_elem)
+        combiner = _make.CommReducer(lhs, rhs, result, id_elem)
+        axis = convert(axis if isinstance(axis, list) else [axis])
+        if where is None:
+            where = convert(True)
+        outputs = tuple(_make.Reduce(combiner, expr, axis, where, i)
+                        for i in range(size))
+        return outputs[0] if size == 1 else outputs
 
     def reducer(expr, axis, where=None, *args):
         if isinstance(axis, (_schedule.IterVar, list)):

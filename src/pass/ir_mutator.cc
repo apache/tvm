@@ -4,6 +4,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
+#include "./ir_util.h"
 
 namespace tvm {
 namespace ir {
@@ -17,19 +18,7 @@ IRMutator::FMutateStmt& IRMutator::vtable_stmt() {  // NOLINT(*)
 }
 
 inline Array<Expr> MutateArray(Array<Expr> arr, IRMutator *m) {
-  std::vector<Expr> new_arr(arr.size());
-  bool changed = false;
-  for (size_t i = 0; i < arr.size(); i++) {
-    Expr old_elem = arr[i];
-    Expr new_elem = m->Mutate(old_elem);
-    if (!new_elem.same_as(old_elem)) changed = true;
-    new_arr[i] = new_elem;
-  }
-  if (!changed) {
-    return arr;
-  } else {
-    return Array<Expr>(new_arr);
-  }
+  return UpdateArray(arr, [&m] (const Expr& e) { return m->Mutate(e); });
 }
 
 inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {
@@ -323,14 +312,15 @@ DEFINE_BIOP_EXPR_MUTATE_(Or)
 
 Expr IRMutator::Mutate_(const Reduce *op, const Expr& e) {
   Array<IterVar> new_axis  = MutateIterVarArr(op->axis, this);
-  Expr new_source = this->Mutate(op->source);
+  Array<Expr> new_source = MutateArray(op->source, this);
   Expr new_cond = this->Mutate(op->condition);
   if (op->axis.same_as(new_axis) &&
       op->source.same_as(new_source) &&
       op->condition.same_as(new_cond)) {
     return e;
   } else {
-    return Reduce::make(op->combiner, new_source, new_axis, new_cond);
+    return Reduce::make(
+      op->combiner, new_source, new_axis, new_cond, op->value_index);
   }
 }
 

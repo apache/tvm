@@ -253,7 +253,7 @@ class SchedulePostProc : public IRMutator {
       // This must be checked for all ops, including scan.
       if (!s->op.same_as(s->origin_op)) {
         for (int i = 0; i < s->op->num_outputs(); ++i) {
-          Tensor target = s->origin_op.output(0);
+          Tensor target = s->origin_op.output(i);
           AddReplace(s->op.output(i), target,
                      target, s->origin_op);
         }

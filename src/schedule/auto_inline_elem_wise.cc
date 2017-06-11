@@ -46,7 +46,7 @@ class ElemWiseDetector : public ir::IRVisitor {
 bool IsElemWise(const Operation& op) {
   if (const ComputeOpNode* compute = op.as<ComputeOpNode>()) {
     ElemWiseDetector v = ElemWiseDetector(compute->axis);
-    v.Visit(compute->body);
+    for (auto& e : compute->body) v.Visit(e);
     return v.is_elem_wise_;
   }
   return false;

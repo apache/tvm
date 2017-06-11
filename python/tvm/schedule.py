@@ -181,7 +181,7 @@ class Schedule(NodeBase):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.
 
         This will create a new stage that generated the new tensor with axis
-        as the first dimension. The tensor's body wil be rewriten as a reduction
+        as the first dimension. The tensor's body will be rewritten as a reduction
         over the factored tensor.
 
         Parameters
@@ -193,10 +193,11 @@ class Schedule(NodeBase):
 
         Returns
         -------
-        tfactor : Tensor
+        tfactor : Tensor or Array of Tensor
             The created factored tensor.
         """
-        return _api_internal._ScheduleRFactor(self, tensor, axis)
+        factored = _api_internal._ScheduleRFactor(self, tensor, axis)
+        return factored[0] if len(factored) == 1 else factored
 
 
 @register_node

@@ -118,6 +118,43 @@ def test_extern_multi_out():
     assert(len(res) == 2)
     assert(res[1].value_index == 1)
 
+def test_tuple_inputs():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A0 = tvm.placeholder((m, n), name='A0')
+    A1 = tvm.placeholder((m, n), name='A1')
+    T0, T1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='T')
+    s = tvm.create_schedule(T0.op)
+
+    for i in range(len(T0.shape)):
+      assert(T0.shape[i] == T1.shape[i])
+    assert(T0.op == T1.op)
+    assert(T0.value_index == 0)
+    assert(T1.value_index == 1)
+
+def test_tuple_with_different_deps():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A0 = tvm.placeholder((m, n), name='A1')
+    A1 = tvm.placeholder((m, n), name='A2')
+    B0, B1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='B')
+    C = tvm.compute((m, n), lambda i, j: B0[i, j] + 4, name='C')
+
+    s = tvm.create_schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], factor=10)
+    s[B0.op].compute_at(s[C], xo)
+    sch = s.normalize()
+    bounds = tvm.schedule.InferBound(sch)
+    stmt = tvm.schedule.ScheduleOps(sch, bounds)
+
+    def get_B1_realize(x):
+        if isinstance(x, tvm.stmt.Realize) and \
+           x.func == B1.op and x.value_index == 1:
+            ret.append(x)
+    ret = []
+    tvm.ir_pass.PostOrderVisit(stmt, get_B1_realize)
+
+    assert stmt.node == C.op and len(ret) == 1
 
 if __name__ == "__main__":
     test_conv1d()
@@ -128,3 +165,5 @@ if __name__ == "__main__":
     test_scan_multi_out()
     test_extern()
     test_extern_multi_out()
+    test_tuple_inputs()
+    test_tuple_with_different_deps()

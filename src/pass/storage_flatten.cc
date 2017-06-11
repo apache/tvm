@@ -157,7 +157,9 @@ class StorageFlattener : public IRMutator {
     CHECK_EQ(extern_buf_remap_.size(), 0U);
     for (size_t i = 0; i < ext_op->output_placeholders.size(); ++i) {
       TensorKey key{func, static_cast<int>(i)};
-      CHECK(buf_map_.count(key));
+      CHECK(buf_map_.count(key))
+          << "Cannot find allocated buffer for " << key.f
+          << "(" << key.value_index << ")";
       extern_buf_remap_[ext_op->output_placeholders[i]->data.get()] =
           buf_map_.at(key).buffer->data;
     }

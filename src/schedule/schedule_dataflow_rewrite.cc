@@ -8,6 +8,7 @@
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./message_passing.h"
+#include "../pass/ir_util.h"
 
 namespace tvm {
 
@@ -120,13 +121,13 @@ Tensor Schedule::cache_write(const Tensor& tensor,
     vsub[iv->var.get()] = new_iv->var;
   }
   VarReplacer repl(vsub);
-  Expr body = repl.Mutate(compute->body);
+  Expr body = repl.Mutate(compute->body[tensor->value_index]);
   Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, new_axis, body);
+      compute->name + "." + scope, new_axis, {body});
   Tensor cache_tensor = cache_op.output(0);
   Operation orig_new_op = ComputeOpNode::make(
       compute->name, compute->axis,
-      cache_tensor(args));
+      {cache_tensor(args)});
 
   std::unordered_map<Tensor, Tensor> vmap;
   vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
@@ -198,14 +199,15 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
 void InjectInline(ScheduleNode* sch) {
   sch->InvalidateCache();
 
-  std::vector<Expr> new_body(sch->stages.size());
+  std::vector<Array<Expr>> new_body(sch->stages.size());
+  std::vector<bool> changed(sch->stages.size(), false);
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage stage = sch->stages[i - 1];
     if (stage->attach_type == kInline) {
       stage->attach_type = kInlinedAlready;
       Array<Var> args;
-      Expr body;
+      Array<Expr> body;
       {
         // setup args
         const ComputeOpNode* compute = stage->op.as<ComputeOpNode>();
@@ -220,11 +222,14 @@ void InjectInline(ScheduleNode* sch) {
         Stage s = sch->stages[j];
         const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
         if (compute) {
-          if (!new_body[j].defined()) {
+          if (!new_body[j].size()) {
             new_body[j] = s->op.as<ComputeOpNode>()->body;
           }
-          new_body[j] = ir::Inline(ir::Evaluate::make(new_body[j]),
-                                   stage->op, args, body).as<ir::Evaluate>()->value;
+          for (size_t k = 0; k < body.size(); ++k) {
+            changed[j] = true;
+            new_body[j].Set(k, ir::Inline(ir::Evaluate::make(new_body[j][k]),
+                            stage->op, args, body[k]).as<ir::Evaluate>()->value);
+          }
         }
       }
     }
@@ -234,19 +239,21 @@ void InjectInline(ScheduleNode* sch) {
   for (size_t i = 0; i < sch->stages.size(); ++i) {
     Stage s = sch->stages[i];
     if (s->attach_type == kInlinedAlready) continue;
-    if (new_body[i].defined()) {
+    if (new_body[i].size()) {
       // Logics from ReplaceDataFlow
       const ComputeOpNode* compute = sch->stages[i]->op.as<ComputeOpNode>();
       CHECK(compute);
       Operation op = s->op;
-      if (!new_body[i].same_as(compute->body)) {
+      if (changed[i]) {
         op = ComputeOpNode::make(
             compute->name, compute->axis, new_body[i]);
       }
       op = op->ReplaceInputs(op, repl);
       if (!op.same_as(s->op)) {
-        repl[s->op.output(0)] = op.output(0);
-        s->op = op;
+        for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
+          repl[s->op.output(idx)] = op.output(idx);
+          s->op = op;
+        }
       }
     } else {
       Operation op = s->op->ReplaceInputs(s->op, repl);
@@ -268,15 +275,15 @@ Schedule Schedule::normalize() {
 }
 
 // Handle reduction factor.
-Tensor Schedule::rfactor(const Tensor& tensor,
-                         const IterVar& axis) {
+Array<Tensor> Schedule::rfactor(const Tensor& tensor,
+                                const IterVar& axis) {
   (*this)->InvalidateCache();
   using ir::Reduce;
   CHECK_EQ(axis->iter_type, kCommReduce)
       << "Can only factor reduction axis";
   Stage reduce_stage = operator[](tensor->op);
   const ComputeOpNode* compute_op = reduce_stage->op.as<ComputeOpNode>();
-  CHECK(compute_op) << "Can only factor  ComputeOp";
+  CHECK(compute_op) << "Can only factor ComputeOp";
   ArrayNode* leaf_vars = reduce_stage->leaf_iter_vars.CopyOnWrite();
   {
     size_t axis_pos = FindNodeRef(leaf_vars, axis);
@@ -329,7 +336,8 @@ Tensor Schedule::rfactor(const Tensor& tensor,
     }
   }
   // predicate generation, copy not touched axis.
-  const Reduce* reduce = compute_op->body.as<Reduce>();
+  int idx = tensor->value_index;
+  const Reduce* reduce = compute_op->body[idx].as<Reduce>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   Expr predicate = reduce->condition;
   std::unordered_map<const Variable*, Expr> vsub;
@@ -359,10 +367,18 @@ Tensor Schedule::rfactor(const Tensor& tensor,
       n->reduce_axis.push_back(IterVar(ncpy));
     }
   }
-  n->body = Reduce::make(reduce->combiner,
-                         VarReplacer(vsub).Mutate(reduce->source),
-                         n->reduce_axis,
-                         predicate);
+  VarReplacer replacer(vsub);
+  Array<Expr> new_source = ir::UpdateArray(reduce->source,
+    [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+  std::vector<Expr> body;
+  for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
+    body.emplace_back(Reduce::make(reduce->combiner,
+                                   new_source,
+                                   n->reduce_axis,
+                                   predicate,
+                                   idx));
+  }
+  n->body = Array<Expr>(body);
   // refresh relations, keep the un-touched relations.
   Array<IterVarRelation> rels;
   for (IterVarRelation rel : reduce_stage->relations) {
@@ -397,26 +413,44 @@ Tensor Schedule::rfactor(const Tensor& tensor,
   // Replace the old reduction.
   IterVar repl_red_axis = reduce_axis(
       dom_map.at(axis), axis->var->name_hint + ".v");
-  Tensor factor_tensor = factor_op.output(0);
-  Tensor old_tensor = reduce_stage->op.output(0);
-  Tensor repl_tensor = compute(old_tensor->shape, [&](const Array<Var>& i) {
+  Array<Tensor> factor_tensors;
+  Array<Tensor> old_tensors;
+  int size = factor_op->num_outputs();
+  for (int idx = 0; idx < size; ++idx) {
+    factor_tensors.push_back(factor_op.output(idx));
+    old_tensors.push_back(reduce_stage->op.output(idx));
+  }
+  Array<Tensor> repl_tensors = compute(old_tensors[0]->shape,
+    [&](const Array<Var>& i) {
       Array<Expr> indices;
       indices.push_back(repl_red_axis->var);
       for (Var v : i) {
         indices.push_back(v);
       }
-      return Reduce::make(reduce->combiner,
-        factor_tensor(indices), {repl_red_axis}, const_true());
-    }, old_tensor->op->name + ".repl");
+      Array<Expr> factor_exprs;
+      for (int idx = 0; idx < size; ++idx) {
+        factor_exprs.push_back(factor_tensors[idx](indices));
+      }
+      Array<Expr> reductions;
+      Array<IterVar> axis = {repl_red_axis};
+      Expr cond = const_true();
+      for (int idx = 0; idx < size; ++idx) {
+        reductions.push_back(Reduce::make(reduce->combiner,
+          factor_exprs, axis, cond, idx));
+      }
+      return reductions;
+    }, reduce_stage->op->name + ".repl");
 
   std::unordered_map<Tensor, Tensor> vmap;
-  vmap[old_tensor] = repl_tensor;
+  for (int idx = 0; idx < size; ++idx) {
+    vmap[old_tensors[idx]] = repl_tensors[idx];
+  }
   ReplaceDataFlow((*this)->stages, &vmap);
   // revamp the reduction stage.
-  reduce_stage->op = repl_tensor->op;
-  reduce_stage->all_iter_vars = repl_tensor->op->root_iter_vars();
+  reduce_stage->op = repl_tensors[0]->op;
+  reduce_stage->all_iter_vars = repl_tensors[0]->op->root_iter_vars();
   reduce_stage->leaf_iter_vars = reduce_stage->all_iter_vars;
   reduce_stage->relations = Array<IterVarRelation>();
-  return factor_tensor;
+  return factor_tensors;
 }
 }  // namespace tvm
