@@ -125,6 +125,8 @@ np.testing.assert_allclose(
     b.asnumpy(),  np.sum(a.asnumpy(), axis=1), rtol=1e-4)
 
 ######################################################################
+# .. _general-reduction:
+#
 # Define General Commutative Reduction Operation
 # ----------------------------------------------
 # Besides the built-in reduction operations like :any:`tvm.sum`,

@@ -1,9 +1,13 @@
 """
-Operation with Tuple Inputs
-===========================
+Compute and Reduction with Tuple Inputs
+=======================================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang>`_
 
-In this tutorial, we will introduce the usage of tuple input in TVM.
+Often we want to compute multiple outputs with the same shape within
+a single loop or perform reduction that involves multiple values like
+:code:`argmax`. These problems can be addressed by tuple inputs.
+
+In this tutorial, we will introduce the usage of tuple inputs in TVM.
 """
 from __future__ import absolute_import, print_function
 
@@ -14,7 +18,7 @@ import numpy as np
 # Describe Batchwise Computation
 # ------------------------------
 # For operators which have the same shape, we can put them together as
-# the input of :any:`tvm.compute`, if we wish they can be scheduled
+# the inputs of :any:`tvm.compute`, if we wish they can be scheduled
 # together in the next schedule procedure.
 #
 n = tvm.var("n")
@@ -61,6 +65,12 @@ T0, T1 = tvm.compute((m, ), lambda i: argmax((idx[i, k], val[i, k]), axis=k), na
 # the generated IR code would be:
 s = tvm.create_schedule(T0.op)
 print(tvm.lower(s, [idx, val, T0, T1], simple_mode=True))
+
+######################################################################
+# .. note::
+#
+#   For ones who are not familiar with reduction, please refer to
+#   :ref:`general-reduction`.
 
 ######################################################################
 # Schedule Operation with Tuple Inputs
