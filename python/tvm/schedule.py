@@ -196,7 +196,7 @@ class Schedule(NodeBase):
         tfactor : Tensor or Array<Tensor>
             The created factored tensor.
         """
-        factored =  _api_internal._ScheduleRFactor(self, tensor, axis)
+        factored = _api_internal._ScheduleRFactor(self, tensor, axis)
         if len(factored) == 1:
             return factored[0]
         return factored
