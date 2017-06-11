@@ -132,6 +132,29 @@ def test_multi_inputs_outputs():
     assert(T0.value_index == 0)
     assert(T1.value_index == 1)
 
+def test_multi_different_deps():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A0 = tvm.placeholder((m, n), name='A1')
+    A1 = tvm.placeholder((m, n), name='A2')
+    B0, B1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='B')
+    C = tvm.compute((m, n), lambda i, j: B0[i, j] + 4, name='C')
+
+    s = tvm.create_schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], factor=10)
+    s[B0.op].compute_at(s[C], xo)
+    sch = s.normalize()
+    bounds = tvm.schedule.InferBound(sch)
+    stmt = tvm.schedule.ScheduleOps(sch, bounds)
+
+    def is_B1_realize(x):
+        if isinstance(x, tvm.stmt.Realize) and \
+           x.func == B1.op and x.value_index == 1:
+            ret.append(x)
+    ret = []
+    tvm.ir_pass.PostOrderVisit(stmt, is_B1_realize)
+
+    assert stmt.node == C.op and len(ret) == 1
 
 if __name__ == "__main__":
     test_conv1d()
@@ -143,3 +166,4 @@ if __name__ == "__main__":
     test_extern()
     test_extern_multi_out()
     test_multi_inputs_outputs()
+    test_multi_different_deps()

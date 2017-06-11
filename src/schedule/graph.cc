@@ -323,7 +323,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
       }
     } else if (op.as<ComputeOpNode>()) {
-      std::unordered_map<const Node*, std::vector<TensorDimKey>> vmap;
+      std::unordered_map<const Node*, std::vector<TensorDimKey> > vmap;
       const auto& axis = op.as<ComputeOpNode>()->axis;
       for (size_t i = 0; i < axis.size(); ++i) {
         std::vector<TensorDimKey> keys;

@@ -131,10 +131,10 @@ def test_argmax():
     def fcombine(x, y):
         lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
         rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
-        return [lhs, rhs]
+        return lhs, rhs
 
     def fidentity(t0, t1):
-        return [tvm.const(-1, t0), tvm.min_value(t1)]
+        return tvm.const(-1, t0), tvm.min_value(t1)
 
     argmax = tvm.comm_reducer(fcombine,
                               fidentity,
@@ -178,10 +178,10 @@ def test_rfactor_argmax():
     def fcombine(x, y):
         lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
         rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
-        return [lhs, rhs]
+        return lhs, rhs
 
     def fidentity(t0, t1):
-        return [tvm.const(-1, t0), tvm.min_value(t1)]
+        return tvm.const(-1, t0), tvm.min_value(t1)
 
     argmax = tvm.comm_reducer(fcombine,
                               fidentity,
@@ -200,14 +200,14 @@ def test_rfactor_argmax():
     s = tvm.create_schedule(B0.op)
     nthread = 16
     ko, kf = s[B0].split(k, factor=nthread)
-    BF = s.rfactor(B0, kf)
+    BF0, BF1 = s.rfactor(B0, kf)
     bx, ty = s[B0].split(s[B0].op.axis[0], factor=nthread)
     s[B0].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[B0].bind(ty, tvm.thread_axis("threadIdx.y"))
     tx = s[B0].op.reduce_axis[0]
     thread_x = tvm.thread_axis("threadIdx.x")
     s[B0].bind(tx, thread_x)
-    s[BF].compute_at(s[B0], tx)
+    s[BF0.op].compute_at(s[B0], tx)
     s[B0].set_store_predicate(thread_x.var.equal(0))
 
     def check_target(device):

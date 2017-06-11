@@ -16,6 +16,8 @@ namespace ir {
  * \brief update array with an unary function
  * \param arr array
  * \param fupdate an unary function
+ * \tparam T type of array element
+ * \tparam F type of the unary function
  * \return if update happens, return the new array, else return the
  *  original array
  */

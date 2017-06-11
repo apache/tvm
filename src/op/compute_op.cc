@@ -209,14 +209,13 @@ Stmt ComputeOpNode::BuildRealize(
 // Build a reduction body.
 void MakeReduction(const ComputeOpNode* op,
                    const Array<Tensor>& tensors,
-                   std::vector<Stmt>* inits,
-                   std::vector<Stmt>* provides) {
-  CHECK(inits->empty());
-  CHECK(provides->empty());
+                   Stmt* init,
+                   Stmt* provide) {
   Array<Expr>  args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
+  std::vector<Stmt> inits, provides;
 
   size_t size = op->body.size();
   const Reduce* reduce = op->body[0].as<Reduce>();
@@ -231,16 +230,15 @@ void MakeReduction(const ComputeOpNode* op,
   Array<Expr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
-    inits->emplace_back(Provide::make(
+    inits.emplace_back(Provide::make(
           t->op, t->value_index, init_value[i], args));
-    provides->emplace_back(Provide::make(
+    provides.emplace_back(Provide::make(
           t->op, t->value_index, update_value[i], args));
   }
-
+  *init = Block::make(inits);
+  *provide = Block::make(provides);
   if (!is_one(reduce->condition)) {
-    for (size_t i = 0; i < size; ++i) {
-      provides->at(i) = IfThenElse::make(reduce->condition, provides->at(i));
-    }
+    *provide = IfThenElse::make(reduce->condition, *provide);
   }
 }
 
@@ -251,19 +249,6 @@ Stmt Substitute(Stmt s,
     temp.Set(kv.first->var, kv.second);
   }
   return ir::Substitute(s, temp);
-}
-
-std::vector<Stmt> Substitute(std::vector<Stmt> stmt,
-                             const std::unordered_map<IterVar, Expr>& value_map) {
-  Map<Var, Expr> temp;
-  for (const auto& kv : value_map) {
-    temp.Set(kv.first->var, kv.second);
-  }
-  std::vector<Stmt> ret;
-  for (auto& s : stmt)  {
-    ret.push_back(ir::Substitute(s, temp));
-  }
-  return ret;
 }
 
 // Cross Thread reduction marker.
@@ -395,18 +380,20 @@ Stmt ComputeOpNode::BuildProvide(
   }
 
   size_t size = this->body.size();
-  std::vector<Stmt> inits;
-  std::vector<Stmt> provides;
+  Stmt init;
+  Stmt provide;
   if (this->reduce_axis.size() == 0) {
+    std::vector<Stmt> provides;
     for (size_t i = 0; i < size; ++i) {
       provides.emplace_back(MakeProvide(this, stage->op.output(i)));
     }
+    provide = Block::make(provides);
   } else {
     Array<Tensor> source;
     for (size_t i = 0; i < size; ++i) {
       source.push_back(stage->op.output(i));
     }
-    MakeReduction(this, source, &inits, &provides);
+    MakeReduction(this, source, &init, &provide);
   }
 
   // make loop nest
@@ -420,9 +407,9 @@ Stmt ComputeOpNode::BuildProvide(
   if (stage->store_predicate.defined()) {
     nest.emplace_back(op::MakeIfNest({stage->store_predicate}));
   }
-  provides = Substitute(provides, value_map);
+  provide = Substitute(provide, value_map);
 
-  if (!inits.empty()) {
+  if (init.defined()) {
     // try to find the location to insert the initialization.
     // Fuse the initialization and provide loop when possible.
     std::unordered_map<IterVar, int> update_state;
@@ -458,15 +445,15 @@ Stmt ComputeOpNode::BuildProvide(
     auto preds = op::MakeBoundCheck(stage, dom_map, true, skip_iter, init_value_map);
     for (auto& e : preds) e = likely(e);
     init_nest.push_back(op::MakeIfNest(preds));
-    inits = Substitute(inits, init_value_map);
-    Stmt init = MergeNest(init_nest, Block::make(inits));
+    init = Substitute(init, init_value_map);
+    init = MergeNest(init_nest, init);
     // common nest
     std::vector<std::vector<Stmt> > common(nest.begin(), nest.begin() + begin_loop + 1);
     std::vector<std::vector<Stmt> > reduce(nest.begin() + begin_loop + 1, nest.end());
-    Stmt provide = MergeNest(reduce, Block::make(provides));
+    provide = MergeNest(reduce, provide);
     return MergeNest(common, Block::make(init, provide));
   } else {
-    return MergeNest(nest, Block::make(provides));
+    return MergeNest(nest, provide);
   }
 }
 }  // namespace tvm

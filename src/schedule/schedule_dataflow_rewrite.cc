@@ -275,8 +275,8 @@ Schedule Schedule::normalize() {
 }
 
 // Handle reduction factor.
-Tensor Schedule::rfactor(const Tensor& tensor,
-                         const IterVar& axis) {
+Array<Tensor> Schedule::rfactor(const Tensor& tensor,
+                                const IterVar& axis) {
   (*this)->InvalidateCache();
   using ir::Reduce;
   CHECK_EQ(axis->iter_type, kCommReduce)
@@ -451,6 +451,6 @@ Tensor Schedule::rfactor(const Tensor& tensor,
   reduce_stage->all_iter_vars = repl_tensors[0]->op->root_iter_vars();
   reduce_stage->leaf_iter_vars = reduce_stage->all_iter_vars;
   reduce_stage->relations = Array<IterVarRelation>();
-  return factor_tensors[0];
+  return factor_tensors;
 }
 }  // namespace tvm

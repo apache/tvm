@@ -319,7 +319,8 @@ Expr IRMutator::Mutate_(const Reduce *op, const Expr& e) {
       op->condition.same_as(new_cond)) {
     return e;
   } else {
-    return Reduce::make(op->combiner, new_source, new_axis, new_cond);
+    return Reduce::make(
+      op->combiner, new_source, new_axis, new_cond, op->value_index);
   }
 }
 

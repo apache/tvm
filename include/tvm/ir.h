@@ -103,8 +103,8 @@ struct Reduce : public ExprNode<Reduce> {
   static Expr make(CommReducer combiner,
                    Array<Expr> src,
                    Array<IterVar> rdom,
-                   Expr condition = const_true(),
-                   int value_index = 0);
+                   Expr condition,
+                   int value_index);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
