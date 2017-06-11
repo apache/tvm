@@ -118,11 +118,11 @@ def test_extern_multi_out():
     assert(len(res) == 2)
     assert(res[1].value_index == 1)
 
-def test_multi_inputs_outputs():
+def test_tuple_inputs():
     m = tvm.var('m')
     n = tvm.var('n')
-    A0 = tvm.placeholder((m, n), name='A1')
-    A1 = tvm.placeholder((m, n), name='A2')
+    A0 = tvm.placeholder((m, n), name='A0')
+    A1 = tvm.placeholder((m, n), name='A1')
     T0, T1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='T')
     s = tvm.create_schedule(T0.op)
 
@@ -132,7 +132,7 @@ def test_multi_inputs_outputs():
     assert(T0.value_index == 0)
     assert(T1.value_index == 1)
 
-def test_multi_different_deps():
+def test_tuple_with_different_deps():
     m = tvm.var('m')
     n = tvm.var('n')
     A0 = tvm.placeholder((m, n), name='A1')
@@ -147,12 +147,12 @@ def test_multi_different_deps():
     bounds = tvm.schedule.InferBound(sch)
     stmt = tvm.schedule.ScheduleOps(sch, bounds)
 
-    def is_B1_realize(x):
+    def get_B1_realize(x):
         if isinstance(x, tvm.stmt.Realize) and \
            x.func == B1.op and x.value_index == 1:
             ret.append(x)
     ret = []
-    tvm.ir_pass.PostOrderVisit(stmt, is_B1_realize)
+    tvm.ir_pass.PostOrderVisit(stmt, get_B1_realize)
 
     assert stmt.node == C.op and len(ret) == 1
 
@@ -165,5 +165,5 @@ if __name__ == "__main__":
     test_scan_multi_out()
     test_extern()
     test_extern_multi_out()
-    test_multi_inputs_outputs()
-    test_multi_different_deps()
+    test_tuple_inputs()
+    test_tuple_with_different_deps()
