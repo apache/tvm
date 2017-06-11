@@ -142,6 +142,12 @@ A = tvm.placeholder((n, m), name='A')
 k = tvm.reduce_axis((0, m), name='k')
 B = tvm.compute((n,), lambda i: product(A[i, k], axis=k), name='B')
 
+######################################################################
+# .. note::
+#
+#   Sometimes we would like to perform reduction that involves multiple
+#   values like :code:`argmax`, which can be done by tuple inputs.
+#   See :ref:`reduction-with-tuple-inputs` for more detail.
 
 ######################################################################
 # Summary

@@ -32,6 +32,8 @@ s = tvm.create_schedule(B0.op)
 print(tvm.lower(s, [A0, A1, B0, B1], simple_mode=True))
 
 ######################################################################
+# .. _reduction-with-tuple-inputs:
+#
 # Describe Reduction with Collaborative Inputs
 # --------------------------------------------
 # Sometimes, we requires multiple inputs to express some reduction
