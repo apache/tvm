@@ -89,9 +89,9 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
     CHECK(axis[i].defined());
   }
   n->type = source[value_index].type();
-  n->combiner = combiner;
-  n->source = source;
-  n->axis = axis;
+  n->combiner = std::move(combiner);
+  n->source = std::move(source);
+  n->axis = std::move(axis);
   n->condition = condition;
   n->value_index = value_index;
   return Expr(n);

@@ -91,7 +91,7 @@ Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string nam
   return outputs;
 }
 
-bool CheckReduce(const ir::Reduce* a, const ir::Reduce* b) {
+bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
   return (a->combiner.same_as(b->combiner)) &&
          (a->source.same_as(b->source)) &&
          (a->axis.same_as(b->axis)) &&
@@ -110,7 +110,7 @@ Operation ComputeOpNode::make(std::string name,
     for (size_t i = 1; i < n->body.size(); ++i) {
       const ir::Reduce* reduce_ = n->body[i].as<ir::Reduce>();
       CHECK(reduce_);
-      CHECK(CheckReduce(reduce_, reduce))
+      CHECK(ReduceEqual(reduce_, reduce))
         << "The Reduce inputs of ComputeOp should "
         << "have the same attribute except value_index";
     }
@@ -350,11 +350,11 @@ Stmt MakeCrossThreadReduction(
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
   assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
   Stmt body = Block::make(reduce_body, assign_body);
-  for (int idx = size - 1; idx >= 0; --idx) {
+  for (size_t idx = size; idx != 0; --idx) {
     body = Allocate::make(
-      res_handles[idx], reduces[idx]->type, {1}, const_true(), body);
+      res_handles[idx - 1], reduces[idx - 1]->type, {1}, const_true(), body);
     body = AttrStmt::make(
-      res_handles[idx], attr::storage_scope, StringImm::make("local"), body);
+      res_handles[idx - 1], attr::storage_scope, StringImm::make("local"), body);
   }
   body = Substitute(body, value_map);
   return MergeNest(nest, body);

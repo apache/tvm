@@ -300,11 +300,12 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
 /*!
  * \brief See pesudo code
  *
- *  Expr tvm_thread_allreduce(CommReducer combiner, Expr value, Expr cond,
- *                             Var thread_idx1, thread_idx2...) {
+ *  void tvm_thread_allreduce(UIntImm size, Expr source0, ..., Expr cond,
+ *                            Var reduce_temp0, .., Var thread_idx1, ...) {
  *     // constraint by the other thread_idx remain the same.
- *     return reduce(combiner, value, cond,
- *                   over [thread_idx1, thread_idx2] passed by any caller)
+ *     // reduce_temp is used to save intermediate result.
+ *     reduce_temp0, ... = reduce(combiner, source0, ..., cond
+ *       over [thread_idx1, thread_idx2] passed by any caller)
  *  }
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";

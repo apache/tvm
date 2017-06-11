@@ -202,7 +202,7 @@ class ThreadAllreduceBuilder : public IRMutator {
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode *combiner,
                         const std::vector<Type>& types,
-                        Array<Var> shared_bufs,
+                        const Array<Var>& shared_bufs,
                         Expr reduce_index,
                         Expr group_index,
                         int reduce_extent,

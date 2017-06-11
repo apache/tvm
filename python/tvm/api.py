@@ -179,13 +179,9 @@ def compute(shape, fcompute, name="compute"):
     body = convert(body)
     op_node = _api_internal._ComputeOp(
         name, dim_var, body)
-    outputs = []
     num = op_node.num_outputs
-    if num == 1:
-        return op_node.output(0)
-    for i in range(num):
-        outputs.append(op_node.output(i))
-    return tuple(outputs)
+    outputs = tuple(op_node.output(i) for i in range(num))
+    return outputs[0] if num == 1 else outputs
 
 
 def scan(init, update, state_placeholder, inputs=None, name="scan"):
@@ -569,10 +565,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         axis = convert(axis if isinstance(axis, list) else [axis])
         if where is None:
             where = convert(True)
-        if size == 1:
-            return _make.Reduce(combiner, expr, axis, where, 0)
-        return [_make.Reduce(combiner, expr, axis, where, i)
-                for i in range(size)]
+        outputs = tuple(_make.Reduce(combiner, expr, axis, where, i)
+                        for i in range(size))
+        return outputs[0] if size == 1 else outputs
 
     def reducer(expr, axis, where=None, *args):
         if isinstance(axis, (_schedule.IterVar, list)):
