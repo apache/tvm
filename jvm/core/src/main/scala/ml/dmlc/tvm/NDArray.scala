@@ -12,3 +12,7 @@ class NDArray(private val handle: TVMArrayHandle, private val isView: Boolean = 
     }
   }
 }
+
+object NDArray {
+  def empty(shape: Shape): NDArray = ???
+}

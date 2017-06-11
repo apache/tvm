@@ -1,5 +1,7 @@
 package ml.dmlc.tvm
 
+import ml.dmlc.tvm.types.TVMValue
+
 // import org.slf4j.{Logger, LoggerFactory}
 
 private[tvm] object Base {
@@ -10,6 +12,7 @@ private[tvm] object Base {
   class RefLong(val value: Long = 0)
   class RefFloat(val value: Float = 0)
   class RefString(val value: String = null)
+  class RefTVMValue(val value: TVMValue = null)
 
   type CPtrAddress = Long
   type FunctionHandle = CPtrAddress
