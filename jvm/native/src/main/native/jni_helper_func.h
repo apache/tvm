@@ -8,6 +8,44 @@
 #ifndef TVM_JNICPP_MAIN_NATIVE_JNI_HELPER_FUNC_H_
 #define TVM_JNICPP_MAIN_NATIVE_JNI_HELPER_FUNC_H_
 
+// Helper functions for RefXXX getter & setter
+jlong getLongField(JNIEnv *env, jobject obj) {
+  jclass refClass = env->FindClass("ml/dmlc/tvm/Base$RefLong");
+  jfieldID refFid = env->GetFieldID(refClass, "value", "J");
+  jlong ret = env->GetLongField(obj, refFid);
+  env->DeleteLocalRef(refClass);
+  return ret;
+}
+
+jint getIntField(JNIEnv *env, jobject obj) {
+  jclass refClass = env->FindClass("ml/dmlc/tvm/Base$RefInt");
+  jfieldID refFid = env->GetFieldID(refClass, "value", "I");
+  jint ret = env->GetIntField(obj, refFid);
+  env->DeleteLocalRef(refClass);
+  return ret;
+}
+
+void setIntField(JNIEnv *env, jobject obj, jint value) {
+  jclass refClass = env->FindClass("ml/dmlc/tvm/Base$RefInt");
+  jfieldID refFid = env->GetFieldID(refClass, "value", "I");
+  env->SetIntField(obj, refFid, value);
+  env->DeleteLocalRef(refClass);
+}
+
+void setLongField(JNIEnv *env, jobject obj, jlong value) {
+  jclass refClass = env->FindClass("ml/dmlc/tvm/Base$RefLong");
+  jfieldID refFid = env->GetFieldID(refClass, "value", "J");
+  env->SetLongField(obj, refFid, value);
+  env->DeleteLocalRef(refClass);
+}
+
+void setStringField(JNIEnv *env, jobject obj, const char *value) {
+  jclass refClass = env->FindClass("ml/dmlc/tvm/Base$RefString");
+  jfieldID refFid = env->GetFieldID(refClass, "value", "Ljava/lang/String;");
+  env->SetObjectField(obj, refFid, env->NewStringUTF(value));
+  env->DeleteLocalRef(refClass);
+}
+
 // Helper functions for TVMValue
 jlong getTVMValueLongField(JNIEnv *env, jobject obj) {
   jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueLong");
@@ -21,6 +59,14 @@ jdouble getTVMValueDoubleField(JNIEnv *env, jobject obj) {
   jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueDouble");
   jfieldID fid = env->GetFieldID(cls, "value", "D");
   jdouble ret = env->GetDoubleField(obj, fid);
+  env->DeleteLocalRef(cls);
+  return ret;
+}
+
+jstring getTVMValueStringField(JNIEnv *env, jobject obj) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueString");
+  jfieldID fid = env->GetFieldID(cls, "value", "Ljava/lang/String;");
+  jstring ret = static_cast<jstring>(env->GetObjectField(obj, fid));
   env->DeleteLocalRef(cls);
   return ret;
 }

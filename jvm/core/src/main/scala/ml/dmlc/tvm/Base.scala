@@ -16,6 +16,7 @@ private[tvm] object Base {
 
   type CPtrAddress = Long
   type FunctionHandle = CPtrAddress
+  type RefFunctionHandle = RefLong
   type TVMArrayHandle = CPtrAddress
 
   // FIXME

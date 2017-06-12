@@ -12,7 +12,8 @@ private[tvm] class LibInfo {
   // Function
   @native def tvmFuncListGlobalNames(funcNames: ArrayBuffer[String]): Int
   @native def tvmFuncFree(handle: FunctionHandle): Int
-  @native def tvmFuncCall(handle: FunctionHandle, args: Array[TVMValue], retVal: TVMValue): Int
+  @native def tvmFuncGetGlobal(name: String, handle: RefFunctionHandle): Int
+  @native def tvmFuncCall(handle: FunctionHandle, args: Array[TVMValue], retVal: RefTVMValue): Int
 
   // NDArray
   @native def tvmArrayFree(handle: TVMArrayHandle): Int

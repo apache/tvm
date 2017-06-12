@@ -7,6 +7,7 @@ private[tvm] object TVMValue {
   implicit def fromLong(x: Long): TVMValue = new TVMValueLong(x)
   implicit def fromDouble(x: Double): TVMValue = new TVMValueDouble(x)
   implicit def fromFloat(x: Float): TVMValue = new TVMValueDouble(x)
+  implicit def fromString(x: String): TVMValue = new TVMValueString(x)
 }
 
 private[tvm] sealed class TVMValue(val argType: TypeCode) {

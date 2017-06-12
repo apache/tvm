@@ -46,6 +46,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncFree(
   return TVMFuncFree(reinterpret_cast<TVMFunctionHandle>(jhandle));
 }
 
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncGetGlobal(
+  JNIEnv *env, jobject obj, jstring jname, jobject jhandle) {
+  TVMFunctionHandle handle;
+  const char *name = env->GetStringUTFChars(jname, 0);
+  int ret = TVMFuncGetGlobal(name, &handle);
+  env->ReleaseStringUTFChars(jname, name);
+  setLongField(env, jhandle, reinterpret_cast<jlong>(handle));
+  return ret;
+}
+
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   JNIEnv *env, jobject obj, jlong jhandle, jobjectArray jargs, jobject jretVal) {
   jclass tvmArgClass = env->FindClass("ml/dmlc/tvm/types/TVMValue");
@@ -61,11 +71,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
     int argId = static_cast<int>(env->GetIntField(jarg, tvmArgId));
     TVMValue value;
     switch (argId) {
-      case 0:
+      case kInt:
+      case kUInt:
         value.v_int64 = static_cast<int64_t>(getTVMValueLongField(env, jarg));
         break;
-      case 2:
+      case kFloat:
         value.v_float64 = static_cast<double>(getTVMValueDoubleField(env, jarg));
+        break;
+      case kStr:
+        value.v_str = env->GetStringUTFChars(getTVMValueStringField(env, jarg), 0);
+        // TODO: env->ReleaseStringUTFChars(jvalue, value);
         break;
       default:
         // TODO
