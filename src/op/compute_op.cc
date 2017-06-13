@@ -303,7 +303,7 @@ Stmt MakeCrossThreadReduction(
     cond = cond && v;
   }
   Array<Expr> freduce_args;
-  freduce_args.push_back(make_const(UInt(32), size));
+  freduce_args.push_back(make_const(UInt(32), static_cast<uint32_t>(size)));
   for (size_t i = 0; i < size; ++i) {
     freduce_args.push_back(reduces[0]->source[i]);
   }
