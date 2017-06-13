@@ -15,8 +15,13 @@ private[tvm] object Base {
   class RefTVMValue(val value: TVMValue = null)
 
   type CPtrAddress = Long
+
   type FunctionHandle = CPtrAddress
   type RefFunctionHandle = RefLong
+
+  type ModuleHandle = CPtrAddress
+  type RefModuleHandle = RefLong
+
   type TVMArrayHandle = CPtrAddress
 
   // FIXME

@@ -15,6 +15,11 @@ private[tvm] class LibInfo {
   @native def tvmFuncGetGlobal(name: String, handle: RefFunctionHandle): Int
   @native def tvmFuncCall(handle: FunctionHandle, args: Array[TVMValue], retVal: RefTVMValue): Int
 
+  // Module
+  @native def tvmModFree(handle: ModuleHandle): Int
+  @native def tvmModGetFunction(handle: ModuleHandle, name: String,
+                                queryImports: Int, retHandle: RefFunctionHandle): Int
+
   // NDArray
   @native def tvmArrayFree(handle: TVMArrayHandle): Int
 }

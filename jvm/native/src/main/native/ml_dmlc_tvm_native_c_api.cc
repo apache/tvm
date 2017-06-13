@@ -72,7 +72,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
     TVMValue value;
     switch (argId) {
       case kInt:
-      case kUInt:
         value.v_int64 = static_cast<int64_t>(getTVMValueLongField(env, jarg));
         break;
       case kFloat:
@@ -104,13 +103,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   jfieldID refTVMValueFid = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/types/TVMValue");
 
   switch (retTypeCode) {
-    case 0:
+    case kInt:
       env->SetObjectField(jretVal, refTVMValueFid,
         newTVMValueLong(env, static_cast<jlong>(retVal.v_int64)));
       break;
-    case 2:
+    case kFloat:
       env->SetObjectField(jretVal, refTVMValueFid,
         newTVMValueDouble(env, static_cast<jdouble>(retVal.v_float64)));
+      break;
+    case kModuleHandle:
+      // TODO
       break;
     default:
       // TODO
@@ -118,6 +120,28 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   }
 
   env->DeleteLocalRef(refTVMValueCls);
+
+  return ret;
+}
+
+// Module
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModFree(
+  JNIEnv *env, jobject obj, jlong jhandle) {
+  return TVMFuncFree(reinterpret_cast<TVMModuleHandle>(jhandle));
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModGetFunction(
+  JNIEnv *env, jobject obj, jlong jhandle, jstring jname, jint jimport, jobject jret) {
+  TVMFunctionHandle retFunc;
+
+  const char *name = env->GetStringUTFChars(jname, 0);
+  int ret = TVMModGetFunction(reinterpret_cast<TVMFunctionHandle>(jhandle),
+                              name,
+                              reinterpret_cast<int>(jimport),
+                              &retFunc);
+  env->ReleaseStringUTFChars(jname, name);
+
+  setLongField(env, jret, reinterpret_cast<jlong>(retFunc));
 
   return ret;
 }
