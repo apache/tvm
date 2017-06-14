@@ -130,6 +130,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModFree(
   return TVMFuncFree(reinterpret_cast<TVMModuleHandle>(jhandle));
 }
 
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModImport(
+  JNIEnv *env, jobject obj, jlong jmod, jlong jdep) {
+  return TVMModImport(reinterpret_cast<TVMModuleHandle>(jmod),
+                      reinterpret_cast<TVMModuleHandle>(jdep));
+}
+
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModGetFunction(
   JNIEnv *env, jobject obj, jlong jhandle, jstring jname, jint jimport, jobject jret) {
   TVMFunctionHandle retFunc;

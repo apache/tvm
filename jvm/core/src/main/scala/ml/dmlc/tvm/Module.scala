@@ -1,6 +1,7 @@
 package ml.dmlc.tvm
 
 import ml.dmlc.tvm.Base._
+import ml.dmlc.tvm.types.TVMValue
 
 class Module(private val handle: ModuleHandle) {
   private var entry: Function = null
@@ -8,6 +9,17 @@ class Module(private val handle: ModuleHandle) {
 
   override protected def finalize(): Unit = {
     checkCall(_LIB.tvmModFree(handle))
+  }
+
+  /**
+   * Get the entry function
+   * @return The entry function if exist
+   */
+  def entryFunc: Function = {
+    if (entry == null) {
+      entry = getFunction(entryName)
+    }
+    entry
   }
 
   /**
@@ -24,5 +36,17 @@ class Module(private val handle: ModuleHandle) {
       throw new IllegalArgumentException("Module has no function " + name)
     }
     new Function(retHandle.value, false)
+  }
+
+  /**
+   * Add module to the import list of current one.
+   * @param module The other module.
+   */
+  def importModule(module: Module): Unit = {
+    checkCall(_LIB.tvmModImport(handle, module.handle))
+  }
+
+  def apply(args: TVMValue*): TVMValue = {
+    entryFunc(args: _*)
   }
 }
