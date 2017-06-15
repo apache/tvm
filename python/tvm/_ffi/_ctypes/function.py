@@ -133,6 +133,9 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, FunctionBase):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.FUNC_HANDLE
+        elif isinstance(arg, ctypes.c_void_p):
+            values[i].v_handle = arg
+            type_codes[i] = TypeCode.HANDLE
         elif callable(arg):
             arg = convert_to_tvm_func(arg)
             values[i].v_handle = arg.handle
