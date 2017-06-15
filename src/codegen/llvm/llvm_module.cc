@@ -92,7 +92,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const Array<LoweredFunc>& funcs, std::string target) {
     InitializeLLVM();
     tm_ = GetLLVMTargetMachine(target);
-    target_ = target;
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     CodeGenLLVM cg;
@@ -104,6 +103,20 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     cg.AddMainFunction(funcs[0]->name);
     module_ = cg.Finish();
     mptr_ = module_.get();
+  }
+
+  void LoadIR(const std::string& file_name) {
+    InitializeLLVM();
+    ctx_ = std::make_shared<llvm::LLVMContext>();
+    llvm::SMDiagnostic err;
+    module_ = llvm::parseIRFile(file_name, err, *ctx_);
+    CHECK(module_.get() != nullptr)
+        << "Fail to load ir file " << file_name;
+    std::string target = module_->getTargetTriple();
+    mptr_ = module_.get();
+    std::ostringstream os;
+    os << "llvm -target " << target;
+    tm_ = GetLLVMTargetMachine(os.str());
   }
 
  private:
@@ -127,7 +140,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << " and ExecutionEngine ("
         << layout.getStringRepresentation() << ")";
     ee_ = builder.create(tm);
-
     CHECK(ee_ != nullptr)
         << "Failed to initialize git engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
@@ -135,6 +147,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     void** ctx_addr =
         reinterpret_cast<void**>(
             ee_->getGlobalValueAddress(runtime::symbol::tvm_module_ctx));
+    // setup context address.
+    entry_func_ =
+        reinterpret_cast<const char*>(
+            ee_->getGlobalValueAddress(runtime::symbol::tvm_module_main));
     if (ctx_addr != nullptr) {
       *ctx_addr = this;
     }
@@ -161,6 +177,13 @@ TVM_REGISTER_API("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
     n->Init(args[0], args[1]);
+    *rv = runtime::Module(n);
+  });
+
+TVM_REGISTER_API("module.loadfile_ll")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
+    n->LoadIR(args[0]);
     *rv = runtime::Module(n);
   });
 }  // namespace codegen
