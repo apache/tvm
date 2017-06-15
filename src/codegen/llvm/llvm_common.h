@@ -10,6 +10,7 @@
 #include <llvm/ExecutionEngine/MCJIT.h>
 
 #include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/Support/SourceMgr.h>
 
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Intrinsics.h>
@@ -36,6 +37,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <llvm/IRReader/IRReader.h>
 
 #include <utility>
 #include <string>

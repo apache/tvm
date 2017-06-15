@@ -51,8 +51,7 @@ def test_dso_module_load():
     cc.create_shared(path_dso, [path_obj])
 
     f1 = tvm.module.load(path_dso)
-    f2 = tvm.module.load(path_dso)
-
+    f2 = tvm.module.load(path_ll)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f1(a)
     np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
