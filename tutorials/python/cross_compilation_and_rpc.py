@@ -1,14 +1,16 @@
 """
-Cross Compile and RPC
-=====================
+Cross Compilation and RPC
+=========================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_
 
-This tutorial introduces how to use RPC feature in TVM.
-With RPC feature, you can compile program on your local machine
-then run it on remote device. It is useful when the resource of
-remote device is limited, like Raspberry Pi and mobile platforms,
-so you do not wish to put the compilation procedure on the device
-in order to save time and space.
+This tutorial introduces cross compilation and remote device
+execution with RPC in TVM.
+
+With cross compilation and RPC, you can compile program on your
+local machine then run it on remote device. It is useful when the
+resource of remote device is limited, like Raspberry Pi and mobile
+platforms, so you do not wish to put the compilation procedure on
+the device in order to save time and space.
 In this tutorial, I will take Raspberry Pi as our target platform
 for example.
 """
@@ -80,10 +82,11 @@ f.save(path)
 #   the argument :code:`target` in :code:`build` should be replaced
 #   :code:`'llvm'` with the target triple of your device, which might be
 #   different for different device. For example, it is
-#   :code:`'llvm -target=armv7l-none-linux-gnueabihf'` for my
-#   Raspberry Pi. Usually, you can query that by execute :code:`gcc -v` on
-#   your device. Here we use :code:`'llvm'` directly to make the tutorial
-#   runable.
+#   :code:`'llvm -target=armv7l-none-linux-gnueabihf'` for my Raspberry
+#   Pi. Here we use :code:`'llvm'` directly to make the tutorial runable.
+#
+#   Usually, you can query the target by execute :code:`gcc -v` on your
+#   device, although it may be still a loose configuration.
 #
 #   Besides :code:`-target`, you can also set other compilation options
 #   like:
@@ -101,12 +104,16 @@ f.save(path)
 #         llc -mtriple=<your device target triple> -mattr=help
 #
 #   These options are consistent with `llc <http://llvm.org/docs/CommandGuide/llc.html>`_.
-#   So for my board, the complete compilation option would be:
+#   So for my board, to get the best performance, the complete compilation
+#   option would be:
 #
 #   .. code-block:: bash
 #
 #     llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon
 #
+#   It is recommended to set target triple and feature set to contain specific
+#   feature available, so we can take full advantage of the features of the
+#   board.
 #   You can find more details about cross compilation attributes from
 #   `LLVM guide of cross compilation <https://clang.llvm.org/docs/CrossCompilation.html>`_.
 
@@ -120,11 +127,16 @@ host = '0.0.0.0'
 port = 9090
 # connect the remote device
 remote = rpc.connect(host, port)
-ctx = remote.cpu(0)
-# upload the lib to the remote device
+
+######################################################################
+# Here we upload the lib to the remote device, then invoke a device local
+# compiler for shared lib and load it into device memory. now `f` is a
+# remote module object.
 remote.upload(path)
-# now f is a remote module
 f = remote.load_module('mylib.o')
+
+# create array on the remote device
+ctx = remote.cpu(0)
 a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
 b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
 # the function will run on the remote device
@@ -132,22 +144,26 @@ f(a, b)
 np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 ######################################################################
-# You can also use time_evaluator to run the function multiple times on
-# the device for the purpose of evaluating the performance of the kernel.
+# When you want to evaluate the performance of the kernel on the remote
+# device, it is important to avoid overhead of remote function call.
+# :code:`time_evaluator` will returns a remote function that runs the
+# function over number times, measures the cost per run on the remote
+# device and returns the measured cost.
+#
 time_f = f.time_evaluator(f.entry_name, ctx, number=10)
 cost = time_f(a, b)
 print('%g secs/op' % cost)
 
 # terminate the server after experiment
 server.terminate()
-# clean the temp folder
-temp.remove()
 
 ######################################################################
 # Summary
 # -------
-# This tutorial provides a walk through of RPC feature.
+# This tutorial provides a walk through of cross compilation and RPC
+# features in TVM.
 #
 # - Set up RPC server on the remote device.
-# - Declare and compile kernel on the local machine.
+# - Set up target device configuration to cross compile kernel on the
+#   local machine.
 # - Upload and run the kernel remotely by RPC API.
