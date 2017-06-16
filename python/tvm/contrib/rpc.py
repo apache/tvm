@@ -278,7 +278,10 @@ def connect(url, port):
     sess : RPCSession
         The connected session.
     """
-    sess = _Connect(url, port)
+    try:
+        sess = _Connect(url, port)
+    except NameError:
+        raise RuntimeError('Please compile with USE_RPC=1')
     return RPCSession(sess)
 
 _init_api("tvm.contrib.rpc")
