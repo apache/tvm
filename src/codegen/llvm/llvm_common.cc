@@ -45,7 +45,7 @@ GetLLVMTargetMachine(const std::string& target_str) {
   // simple parser
   std::string target_triple = "";
   std::string cpu = "generic";
-  std::string features = "";
+  std::string attr = "";
   std::string key, value;
   if (target_str.length() > 5) {
     std::istringstream is(target_str.substr(5, target_str.length() - 5));
@@ -65,8 +65,8 @@ GetLLVMTargetMachine(const std::string& target_str) {
         target_triple = value;
       } else if (key == "-mcpu") {
         cpu = value;
-      } else if (key == "-features") {
-        features = value;
+      } else if (key == "-mattr") {
+        attr = value;
       } else {
         LOG(FATAL) << "unknown option " << key;
       }
@@ -83,7 +83,7 @@ GetLLVMTargetMachine(const std::string& target_str) {
   llvm::TargetOptions opt;
   auto rmodel = llvm::Reloc::PIC_;
   llvm::TargetMachine* tm =
-      target->createTargetMachine(target_triple, cpu, features, opt, rmodel);
+      target->createTargetMachine(target_triple, cpu, attr, opt, rmodel);
   return tm;
 }
 

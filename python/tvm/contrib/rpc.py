@@ -281,8 +281,7 @@ def connect(url, port):
     try:
         sess = _Connect(url, port)
     except NameError:
-        import sys
-        sys.exit('FATAL: Please compile with USE_RPC=1')
+        raise RuntimeError('Please compile with USE_RPC=1')
     return RPCSession(sess)
 
 _init_api("tvm.contrib.rpc")

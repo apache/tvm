@@ -1,6 +1,6 @@
 """
-Run Kernel Remotely by RPC
-==========================
+Cross Compile and RPC
+=====================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_
 
 This tutorial introduces how to use RPC feature in TVM.
@@ -16,6 +16,7 @@ from __future__ import absolute_import, print_function
 
 import tvm
 import numpy as np
+from tvm.contrib import rpc, util
 
 ######################################################################
 # Set Up RPC Server on Device
@@ -28,27 +29,31 @@ import numpy as np
 #
 #   python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
 #
-# or run the python code directly:
-from tvm.contrib import rpc
+# In the following code block, we simply start an RPC server on the
+# same machine, for demonstration. This line can be omitted if we
+# started an remote server.
+#
 server = rpc.Server(host='0.0.0.0', port=9090)
 
 ######################################################################
 # .. note::
 #
-#   Because we do not need TVM do compilation on the device, we only
-#   need to compile the runtime lib for saving time and space:
+#   Usually device has limited resources and we only need to build
+#   runtime. The idea is we will use TVM compiler on the local server
+#   to compile and upload the compiled program to the device and run
+#   the device function remotely.
 #
 #   .. code-block:: bash
 #
-#     make runtime -j`nproc`
+#     make runtime
 #
 #   Also make sure that you have set :code:`USE_RPC=1` in your
 #   :code:`config.mk`.
 #
 
 ######################################################################
-# Declare and Compile Kernel on Local Machine
-# -------------------------------------------
+# Declare and Cross Compile Kernel on Local Machine
+# -------------------------------------------------
 # Here we will declare a simple kernel with TVM on the local machine:
 #
 n = tvm.convert(1024)
@@ -60,22 +65,50 @@ s = tvm.create_schedule(B.op)
 # Then we cross compile the kernel:
 #
 
+# the target here should be 'llvm -target=armv7l-none-linux-gnueabihf',
+# and we use 'llvm' here to make example run locally, see the detailed
+# note in the following block
 f = tvm.build(s, [A, B], target='llvm', name='myadd')
-# save it at local
-f.save('mylib.o')
+# save the lib at local temp folder
+temp = util.tempdir()
+path = temp.relpath('mylib.o')
+f.save(path)
 
 ######################################################################
 # .. note::
 #
-#   the argument :code:`target` in :code:`build` should be replaced by
+#   the argument :code:`target` in :code:`build` should be replaced
 #   :code:`'llvm'` with the target triple of your device, which might be
 #   different for different device. For example, it is
-#   :code:`'llvm -target=arm-linux-gnueabihf'` on my
+#   :code:`'llvm -target=armv7l-none-linux-gnueabihf'` for my
 #   Raspberry Pi. Usually, you can query that by execute :code:`gcc -v` on
-#   your device. Here we use :code:`'llvm'` directly to make the tutorial runable.
+#   your device. Here we use :code:`'llvm'` directly to make the tutorial
+#   runable.
 #
-#   More details about cross compilation can be found at
-#   `here <https://clang.llvm.org/docs/CrossCompilation.html>`_.
+#   Besides :code:`-target`, you can also set other compilation options
+#   like:
+#
+#   * -mtriple=<target triple>
+#       Specify the target triple, same as '-target'.
+#   * -mcpu=<cpuname>
+#       Specify a specific chip in the current architecture to generate code for. By default this is inferred from the target triple and autodetected to the current architecture.
+#   * -mattr=a1,+a2,-a3,...
+#       Override or control specific attributes of the target, such as whether SIMD operations are enabled or not. The default set of attributes is set by the current CPU.
+#       To get the list of available attributes, you can do:
+#
+#       .. code-block:: bash
+#
+#         llc -mtriple=<your device target triple> -mattr=help
+#
+#   These options are consistent with `llc <http://llvm.org/docs/CommandGuide/llc.html>`_.
+#   So for my board, the complete compilation option would be:
+#
+#   .. code-block:: bash
+#
+#     llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon
+#
+#   You can find more details about cross compilation attributes from
+#   `LLVM guide of cross compilation <https://clang.llvm.org/docs/CrossCompilation.html>`_.
 
 ######################################################################
 # Run Kernel Remotely by RPC
@@ -89,7 +122,7 @@ port = 9090
 remote = rpc.connect(host, port)
 ctx = remote.cpu(0)
 # upload the lib to the remote device
-remote.upload('mylib.o')
+remote.upload(path)
 # now f is a remote module
 f = remote.load_module('mylib.o')
 a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
@@ -107,6 +140,8 @@ print('%g secs/op' % cost)
 
 # terminate the server after experiment
 server.terminate()
+# clean the temp folder
+temp.remove()
 
 ######################################################################
 # Summary
