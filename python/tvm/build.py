@@ -196,14 +196,20 @@ def build(sch,
     target : str, optional
         The target and option of the compilation.
         When the target is llvm, you can set options like:
-          * -mtriple=<target triple> or -target
+
+          * **-mtriple=<target triple>** or **-target**
+
             Specify the target triple, which is useful for cross
             compilation.
-          * -mcpu=<cpuname>
+
+          * **-mcpu=<cpuname>**
+
             Specify a specific chip in the current architecture to
             generate code for. By default this is infered from the
             target triple and autodetected to the current architecture.
-          * -mattr=a1,+a2,-a3,...
+
+          * **-mattr=a1,+a2,-a3,...**
+
             Override or control specific attributes of the target,
             such as whether SIMD operations are enabled or not. The
             default set of attributes is set by the current CPU.
