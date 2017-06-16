@@ -100,7 +100,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
 
   // return TVMValue object to Java
   jclass refTVMValueCls = env->FindClass("ml/dmlc/tvm/Base$RefTVMValue");
-  jfieldID refTVMValueFid = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/types/TVMValue");
+  jfieldID refTVMValueFid = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/types/TVMValue;");
 
   switch (retTypeCode) {
     case kInt:
@@ -112,7 +112,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
         newTVMValueDouble(env, static_cast<jdouble>(retVal.v_float64)));
       break;
     case kModuleHandle:
-      // TODO
+      env->SetObjectField(jretVal, refTVMValueFid,
+        newTVMValueModuleHandle(env, reinterpret_cast<jlong>(retVal.v_handle)));
       break;
     default:
       // TODO

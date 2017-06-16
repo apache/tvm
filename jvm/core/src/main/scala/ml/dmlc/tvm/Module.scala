@@ -1,7 +1,8 @@
 package ml.dmlc.tvm
 
 import ml.dmlc.tvm.Base._
-import ml.dmlc.tvm.types.TVMValue
+import ml.dmlc.tvm.types.{TVMValueModuleHandle, TVMValue}
+import ml.dmlc.tvm.types.TypeCode._
 
 class Module(private val handle: ModuleHandle) {
   private var entry: Function = null
@@ -48,5 +49,22 @@ class Module(private val handle: ModuleHandle) {
 
   def apply(args: TVMValue*): TVMValue = {
     entryFunc(args: _*)
+  }
+}
+
+object Module {
+  /**
+   * Load module from file
+   * @param path The path to the module file.
+   * @param fmt The format of the file,
+   *            if not specified it will be inferred from suffix of the file.
+   * @return The loaded module
+   */
+  def load(path: String, fmt: String = ""): Module = {
+    // TODO
+    val ret = Function.functions("module._LoadFromFile")("myadd.so", "")
+    require(ret.argType == MODULE_HANDLE)
+    val tvmValue = ret.asInstanceOf[TVMValueModuleHandle]
+    new Module(tvmValue.value)
   }
 }

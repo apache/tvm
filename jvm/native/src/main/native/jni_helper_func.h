@@ -87,4 +87,12 @@ jobject newTVMValueDouble(JNIEnv *env, jdouble value) {
   return object;
 }
 
+jobject newTVMValueModuleHandle(JNIEnv *env, jlong value) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueModuleHandle");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject object = env->NewObject(cls, constructor, value);
+  env->DeleteLocalRef(cls);
+  return object;
+}
+
 #endif // TVM_JNICPP_MAIN_NATIVE_JNI_HELPER_FUNC_H_
