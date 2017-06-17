@@ -167,6 +167,7 @@ class CUDAWrappedFunc {
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
+    CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     CUDA_DRIVER_CALL(cuLaunchKernel(
         fcache_[device_id],
@@ -176,7 +177,7 @@ class CUDAWrappedFunc {
         wl.block_dim(0),
         wl.block_dim(1),
         wl.block_dim(2),
-        0, nullptr, void_args, 0));
+        0, strm, void_args, 0));
   }
 
  private:

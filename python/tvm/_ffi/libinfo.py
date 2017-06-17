@@ -38,12 +38,19 @@ def find_lib_path():
         lib_dll_path = [os.path.join(p, 'libtvm.so') for p in dll_path]
         runtime_dll_path = [os.path.join(p, 'libtvm_runtime.so') for p in dll_path]
 
-    dll_path = runtime_dll_path if use_runtime else lib_dll_path
-    lib_found = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
+    if not use_runtime:
+        # try to find lib_dll_path
+        lib_found = [p for p in lib_dll_path if os.path.exists(p) and os.path.isfile(p)]
+    if use_runtime or not lib_found:
+        # try to find runtime_dll_path
+        use_runtime = True
+        lib_found = [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
 
     if not lib_found:
         raise RuntimeError('Cannot find the files.\n' +
-                           'List of candidates:\n' + str('\n'.join(dll_path)))
+                           'List of candidates:\n' +
+                           str('\n'.join(lib_dll_path + runtime_dll_path)))
+
     if use_runtime:
         sys.stderr.write("Loading runtime library %s... exec only\n" % lib_found[0])
         sys.stderr.flush()

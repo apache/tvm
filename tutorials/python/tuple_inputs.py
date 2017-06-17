@@ -1,5 +1,5 @@
 """
-Compute and Reduction with Tuple Inputs
+Compute and Reduce with Tuple Inputs
 =======================================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang>`_
 

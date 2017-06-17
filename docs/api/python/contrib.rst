@@ -12,6 +12,11 @@ tvm.contrib.cc_compiler
 .. automodule:: tvm.contrib.cc_compiler
     :members:
 
+tvm.contrib.rpc
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.rpc
+    :members:
+
 tvm.contrib.util
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.util

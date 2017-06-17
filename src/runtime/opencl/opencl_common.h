@@ -9,10 +9,10 @@
 #include <tvm/runtime/config.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
-#if TVM_OPENCL_RUNTIME
-#include "../device_api.h"
 
+#if TVM_OPENCL_RUNTIME
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
