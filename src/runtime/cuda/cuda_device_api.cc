@@ -8,6 +8,7 @@
 
 #if TVM_CUDA_RUNTIME
 #include <dmlc/logging.h>
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
 #include "./cuda_common.h"
