@@ -4,13 +4,14 @@
  * \brief GPU specific API
  */
 #include <tvm/runtime/config.h>
+#include <tvm/runtime/device_api.h>
 
 #if TVM_CUDA_RUNTIME
 #include <dmlc/logging.h>
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
 #include "./cuda_common.h"
-#include "../device_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -92,6 +93,11 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDA_CALL(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
   }
 
+  void SetStream(TVMContext ctx, TVMStreamHandle stream) final {
+    CUDAThreadEntry::ThreadLocal()
+        ->stream = static_cast<cudaStream_t>(stream);
+  }
+
  private:
   static void GPUCopy(const void* from,
                       void* to,
@@ -105,6 +111,12 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
   }
 };
+
+typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;
+
+CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
+  return CUDAThreadStore::Get();
+}
 
 TVM_REGISTER_GLOBAL("device_api.gpu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
