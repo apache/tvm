@@ -58,7 +58,6 @@ class DeviceAPI {
   virtual void FreeDataSpace(TVMContext ctx, void* ptr) = 0;
   /*!
    * \brief copy data from one place to another
-   * \param dev The device to perform operation.
    * \param from The source array.
    * \param from_offset The byte offeset in the from.
    * \param to The target array.
