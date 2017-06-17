@@ -4,13 +4,13 @@
  * \brief GPU specific API
  */
 #include <tvm/runtime/config.h>
+#include <tvm/runtime/device_api.h>
 
 #if TVM_CUDA_RUNTIME
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
 #include "./cuda_common.h"
-#include "../device_api.h"
 
 namespace tvm {
 namespace runtime {
