@@ -92,6 +92,11 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDA_CALL(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
   }
 
+  void SetStream(TVMContext ctx, TVMStreamHandle stream) final {
+    CUDAThreadEntry::ThreadLocal()
+        ->stream = static_cast<cudaStream_t>(stream);
+  }
+
  private:
   static void GPUCopy(const void* from,
                       void* to,
@@ -105,6 +110,12 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
   }
 };
+
+typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;
+
+CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
+  return CUDAThreadStore::Get();
+}
 
 TVM_REGISTER_GLOBAL("device_api.gpu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {

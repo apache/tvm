@@ -195,43 +195,6 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
 TVM_DLL int TVMModFree(TVMModuleHandle mod);
 
 /*!
- * \brief Backend function for modules to get function
- *  from its environment mod_node (its imports and global function).
- *
- *  The user do should not call TVMFuncFree on func.
- *
- * \note This API is supposed to be used by backend,
- *  it is not supposed to be used by user.
- *
- * \param mod_node The module handle.
- * \param func_name The name of the function.
- * \param out The result function.
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node,
-                                     const char* func_name,
-                                     TVMFunctionHandle *out);
-
-/*!
- * \brief Backend function for running parallel for loop.
- *
- * \note This API is supposed to be used by backend,
- *  it is not supposed to be used by user.
- *
- * \param begin The start of iteration.
- * \param end The end of iteration.
- * \param lambda The lambda function to be executed.
- * \param env The environment of lambda function.
- *
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_DLL int TVMBackendParallelFor(
-    int64_t begin,
-    int64_t end,
-    int (*lambda)(int64_t begin, int64_t end, void* env),
-    void* env);
-
-/*!
  * \brief Free the function when it is no longer needed.
  * \param func The function handle
  * \return 0 when success, -1 when failure happens
@@ -351,6 +314,44 @@ TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
 TVM_DLL int TVMFuncListGlobalNames(int *out_size,
                                    const char*** out_array);
 
+// Backend related functions.
+/*!
+ * \brief Backend function for modules to get function
+ *  from its environment mod_node (its imports and global function).
+ *
+ *  The user do should not call TVMFuncFree on func.
+ *
+ * \note This API is supposed to be used by backend,
+ *  it is not supposed to be used by user.
+ *
+ * \param mod_node The module handle.
+ * \param func_name The name of the function.
+ * \param out The result function.
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node,
+                                     const char* func_name,
+                                     TVMFunctionHandle *out);
+
+/*!
+ * \brief Backend function for running parallel for loop.
+ *
+ * \note This API is supposed to be used by backend,
+ *  it is not supposed to be used by user.
+ *
+ * \param begin The start of iteration.
+ * \param end The end of iteration.
+ * \param lambda The lambda function to be executed.
+ * \param env The environment of lambda function.
+ *
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMBackendParallelFor(
+    int64_t begin,
+    int64_t end,
+    int (*lambda)(int64_t begin, int64_t end, void* env),
+    void* env);
+
 // Array related apis for quick proptyping
 /*!
  * \brief Allocate a nd-array's memory,
@@ -368,6 +369,7 @@ TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
                           TVMType dtype,
                           TVMContext ctx,
                           TVMArrayHandle* out);
+
 /*!
  * \brief Free the TVM Array.
  * \param handle The array handle to be freed.
@@ -385,6 +387,19 @@ TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
 TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
                                TVMArrayHandle to,
                                TVMStreamHandle stream);
+
+/*!
+ * \brief Set the runtime stream of current thread to be stream.
+ *  The subsequent calls to the same device_type
+ *  will use the setted stream handle.
+ *  The specific type of stream is runtime device dependent.
+ *
+ * \param ctx The context.
+ * \param handle The stream handle.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMSetStream(TVMContext ctx, TVMStreamHandle handle);
+
 /*!
  * \brief Wait until all computations on stream completes.
  * \param ctx The ctx to be synchronized.

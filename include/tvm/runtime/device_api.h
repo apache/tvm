@@ -1,24 +1,28 @@
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file device_api.h
- * \brief Device specific API
+ * \brief Abstract device memory management API
  */
 #ifndef TVM_RUNTIME_DEVICE_API_H_
 #define TVM_RUNTIME_DEVICE_API_H_
 
-#include <tvm/base.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <string>
+#include "./c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
-
+/*!
+ * \brief the query type into GetAttr
+ */
 enum DeviceAttrKind : int {
   kExist = 0,
   kMaxThreadsPerBlock = 1,
   kWarpSize = 2
 };
-
+/*!
+ * \brief TVM Runtime Device API, abstracts the device
+ *  specific interface for memory management.
+ */
 class DeviceAPI {
  public:
   /*! \brief virtual destructor */
@@ -34,6 +38,7 @@ class DeviceAPI {
    * \param ctx The device context
    * \param kind The result kind
    * \param rv The return value.
+   * \sa DeviceAttrKind
    */
   virtual void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) = 0;
   /*!
@@ -78,6 +83,12 @@ class DeviceAPI {
    */
   virtual void StreamSync(TVMContext ctx, TVMStreamHandle stream) = 0;
   /*!
+   * \brief Set the stream
+   * \param ctx The context to set stream.
+   * \param stream The stream to be set.
+   */
+  virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
+  /*!
    * \brief Get device API base don context.
    * \param ctx The context
    * \param allow_missing Whether allow missing
@@ -88,21 +99,6 @@ class DeviceAPI {
 
 /*! \brief The device type bigger than this is RPC device */
 constexpr int kRPCSessMask = 128;
-
-/*!
- * \brief The name of Device API factory.
- * \param type The device type.
- */
-inline std::string DeviceName(int type) {
-  switch (type) {
-    case kCPU: return "cpu";
-    case kGPU: return "gpu";
-    case kOpenCL: return "opencl";
-    case kMetal: return "metal";
-    case kVPI: return "vpi";
-    default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
-  }
-}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_DEVICE_API_H_

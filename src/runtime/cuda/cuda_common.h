@@ -34,13 +34,14 @@ namespace runtime {
         << "CUDA: " << cudaGetErrorString(e);                      \
   }
 
-
-/*!
- * \brief Compile code into ptx using NVRTC
- * \param code The cuda code.
- * \return The PTX code.
- */
-std::string NVRTCCompile(const std::string& code);
+/*! \brief Thread local workspace */
+class CUDAThreadEntry {
+ public:
+  /*! \brief The cuda stream */
+  cudaStream_t stream{nullptr};
+  // get the threadlocal workspace
+  static CUDAThreadEntry* ThreadLocal();
+};
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_CUDA_RUNTIME

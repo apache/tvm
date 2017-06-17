@@ -4,9 +4,9 @@
  */
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/device_api.h>
 #include <cstdlib>
 #include <cstring>
-#include "./device_api.h"
 
 namespace tvm {
 namespace runtime {

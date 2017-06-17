@@ -8,7 +8,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
-#include <dmlc/timer.h>
+#include <tvm/runtime/device_api.h>
 #include <array>
 #include <algorithm>
 #include <string>
@@ -16,10 +16,24 @@
 #include <thread>
 #include <mutex>
 #include "./runtime_base.h"
-#include "./device_api.h"
 
 namespace tvm {
 namespace runtime {
+
+/*!
+ * \brief The name of Device API factory.
+ * \param type The device type.
+ */
+inline std::string DeviceName(int type) {
+  switch (type) {
+    case kCPU: return "cpu";
+    case kGPU: return "gpu";
+    case kOpenCL: return "opencl";
+    case kMetal: return "metal";
+    case kVPI: return "vpi";
+    default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
+  }
+}
 
 class DeviceAPIManager {
  public:
@@ -377,6 +391,12 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
       from->data, from->byte_offset,
       to->data, to->byte_offset,
       from_size, from->ctx, to->ctx, stream);
+  API_END();
+}
+
+int TVMSetStream(TVMContext ctx, TVMStreamHandle stream) {
+  API_BEGIN();
+  DeviceAPIManager::Get(ctx)->SetStream(ctx, stream);
   API_END();
 }
 
