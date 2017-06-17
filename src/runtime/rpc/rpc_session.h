@@ -7,9 +7,9 @@
 #define TVM_RUNTIME_RPC_RPC_SESSION_H_
 
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/device_api.h>
 #include <mutex>
 #include <string>
-#include "../device_api.h"
 #include "../../common/socket.h"
 
 namespace tvm {

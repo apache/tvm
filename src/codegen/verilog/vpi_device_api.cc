@@ -4,12 +4,12 @@
  * \brief Simulated VPI RAM device.
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/packed_func_ext.h>
 #include <cstdlib>
 #include <unordered_map>
 #include <map>
 #include <queue>
-#include "../../runtime/device_api.h"
 #include "./vpi_session.h"
 
 namespace tvm {

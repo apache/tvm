@@ -4,11 +4,12 @@
  * \brief RPC session for remote function call.
  */
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
 #include <memory>
 #include <array>
 #include <chrono>
 #include "./rpc_session.h"
-#include "../device_api.h"
 
 namespace tvm {
 namespace runtime {
