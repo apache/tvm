@@ -66,6 +66,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
           pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
       pass.run(*mptr_);
+    } else if (fmt == "s" || fmt == "asm") {
+      llvm::legacy::PassManager pass;
+      CHECK(tm_);
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+      pass.run(*mptr_);
     } else if (fmt == "ll") {
       mptr_->print(dest, nullptr);
     } else if (fmt == "bc") {
