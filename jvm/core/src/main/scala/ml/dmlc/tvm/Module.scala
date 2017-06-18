@@ -6,7 +6,7 @@ import ml.dmlc.tvm.types.TypeCode._
 
 class Module(private val handle: ModuleHandle) {
   private var entry: Function = null
-  private var entryName = "__tvm_main__"
+  private val entryName = "__tvm_main__"
 
   override protected def finalize(): Unit = {
     checkCall(_LIB.tvmModFree(handle))

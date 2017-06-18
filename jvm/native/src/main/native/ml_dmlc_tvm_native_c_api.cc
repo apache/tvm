@@ -158,3 +158,58 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayFree(
   JNIEnv *env, jobject obj, jlong jhandle) {
   return TVMArrayFree(reinterpret_cast<TVMArrayHandle>(jhandle));
 }
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
+  JNIEnv *env, jobject obj, jlongArray jshape, jobject jdtype, jobject jctx, jobject jret) {
+
+  int ndim = static_cast<int>(env->GetArrayLength(jshape));
+  jlong *shapeArray = env->GetLongArrayElements(jshape, NULL);
+
+  TVMType dtype;
+  jclass tvmTypeClass = env->FindClass("ml/dmlc/tvm/types/TVMType");
+
+  dtype.code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
+  dtype.bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
+  dtype.lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
+  env->DeleteLocalRef(tvmTypeClass);
+
+  TVMContext ctx;
+  jclass tvmContextClass = env->FindClass("ml/dmlc/tvm/types/TVMContext");
+  ctx.device_type = static_cast<DLDeviceType>(env->GetIntField(jctx,
+    env->GetFieldID(tvmContextClass, "deviceType", "I")));
+  ctx.device_id = static_cast<int>(env->GetIntField(jctx,
+    env->GetFieldID(tvmContextClass, "deviceId", "I")));
+  env->DeleteLocalRef(tvmContextClass);
+
+  TVMArrayHandle out;
+  int ret = TVMArrayAlloc(reinterpret_cast<const tvm_index_t*>(shapeArray),
+                          ndim, dtype, ctx, &out);
+  env->ReleaseLongArrayElements(jshape, shapeArray, 0);
+
+  setLongField(env, jret, reinterpret_cast<jlong>(out));
+
+  return ret;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
+  JNIEnv *env, jobject obj, jlong jhandle, jobject jshape) {
+  TVMArray *array = reinterpret_cast<TVMArray *>(jhandle);
+  int64_t *shape = array->shape;
+  int ndim = array->ndim;
+
+  // fill shape buffer
+  jclass longClass = env->FindClass("java/lang/Long");
+  jmethodID newLong = env->GetMethodID(longClass, "<init>", "(J)V");
+
+  jclass arrayClass = env->FindClass("scala/collection/mutable/ArrayBuffer");
+  jmethodID arrayAppend = env->GetMethodID(arrayClass,
+    "$plus$eq", "(Ljava/lang/Object;)Lscala/collection/mutable/ArrayBuffer;");
+  for (int i = 0; i < ndim; ++i) {
+    jobject data = env->NewObject(longClass, newLong, static_cast<jlong>(shape[i]));
+    env->CallObjectMethod(jshape, arrayAppend, data);
+    env->DeleteLocalRef(data);
+  }
+  env->DeleteLocalRef(longClass);
+
+  return 0;
+}

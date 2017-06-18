@@ -1,7 +1,7 @@
 package ml.dmlc.tvm
 
 import ml.dmlc.tvm.Base._
-import ml.dmlc.tvm.types.TVMValue
+import ml.dmlc.tvm.types.{TVMContext, TVMType, TVMValue}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -23,4 +23,9 @@ private[tvm] class LibInfo {
 
   // NDArray
   @native def tvmArrayFree(handle: TVMArrayHandle): Int
+  @native def tvmArrayAlloc(shape: Array[Long],
+                            dtype: TVMType,
+                            ctx: TVMContext,
+                            refHandle: RefTVMArrayHandle): Int
+  @native def tvmArrayGetShape(handle: TVMArrayHandle, shape: ArrayBuffer[Long]): Int
 }

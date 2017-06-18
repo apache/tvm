@@ -23,6 +23,7 @@ private[tvm] object Base {
   type RefModuleHandle = RefLong
 
   type TVMArrayHandle = CPtrAddress
+  type RefTVMArrayHandle = RefLong
 
   // FIXME
   val baseDir = System.getProperty("user.dir") + "/jvm/native"

@@ -1,7 +1,14 @@
 package ml.dmlc.tvm.types
 
+import ml.dmlc.tvm.Function
+import ml.dmlc.tvm.Base._
+
 // TVM context structure
 object TVMContext {
+  def apply(deviceType: String, deviceId: Int): TVMContext = {
+    new TVMContext(deviceType, deviceId)
+  }
+
   val MASK2STR = Map(
     1 -> "cpu",
     2 -> "gpu",
@@ -20,46 +27,56 @@ object TVMContext {
   )
 }
 
-class TVMContext(val deviceType: String, val deviceId: Int) {
-  // Whether this device exist.
-  def exist: Boolean = {
-    //_api_internal._GetDeviceAttr(
-    //  self.device_type, self.device_id, 0) != 0
-    ???
+class TVMContext(private val deviceType: Int, private val deviceId: Int) {
+  private val RPC_SESS_MASK = 128
+
+  def this(deviceType: String, deviceId: Int) = {
+    this(TVMContext.STR2MASK(deviceType), deviceId)
   }
 
-/*
-@property
-def max_threads_per_block (self):
-"""Maximum number of threads on each block."""
-return _api_internal._GetDeviceAttr (
-self.device_type, self.device_id, 1)
+  // Whether this device exist.
+  def exist: Boolean = {
+    val ret = Function.functions("_GetDeviceAttr")(deviceType, deviceId, 0)
+    ret.asInstanceOf[TVMValueLong].value != 0
+  }
 
-@property
-def warp_size (self):
-"""Number of threads that executes in concurrent."""
-return _api_internal._GetDeviceAttr (
-self.device_type, self.device_id, 2)
+  // Maximum number of threads on each block.
+  def maxThreadsPerBlock: Long = {
+    val ret = Function.functions("_GetDeviceAttr")(deviceType, deviceId, 1)
+    ret.asInstanceOf[TVMValueLong].value
+  }
 
-def sync (self):
-"""Synchronize until jobs finished at the context."""
-check_call (_LIB.TVMSynchronize (self, None) )
+  // Number of threads that executes in concurrent.
+  def warpSize: Long = {
+    val ret = Function.functions("_GetDeviceAttr")(deviceType, deviceId, 2)
+    ret.asInstanceOf[TVMValueLong].value
+  }
 
-def __eq__ (self, other):
-return (isinstance (other, TVMContext) and
-self.device_id == other.device_id and
-self.device_type == other.device_type)
+  // Synchronize until jobs finished at the context.
+  def sync(): Unit = {
+    // TODO: checkCall(_LIB.TVMSynchronize(self, None))
+  }
 
-def __ne__ (self, other):
-return not self.__eq__ (other)
+  override def hashCode: Int = {
+    (deviceType << 16) | deviceId
+  }
 
-def __repr__ (self):
-if self.device_type >= RPC_SESS_MASK:
-tbl_id = self.device_type / RPC_SESS_MASK - 1
-dev_type = self.device_type % RPC_SESS_MASK
-return "remote[%d]:%s(%d)" % (
-tbl_id, TVMContext.MASK2STR[dev_type], self.device_id)
-return "%s(%d)" % (
-TVMContext.MASK2STR[self.device_type], self.device_id)
-*/
+  override def equals(other: Any): Boolean = {
+    other match {
+      case obj: TVMContext =>
+        deviceId == obj.deviceId && deviceType == obj.deviceType
+      case _ =>
+        false
+    }
+  }
+
+  override def toString: String = {
+    if (deviceType >= RPC_SESS_MASK) {
+      val tblId = deviceType / RPC_SESS_MASK - 1
+      val devType = deviceType % RPC_SESS_MASK
+      s"remote[$tblId]:${TVMContext.MASK2STR(devType)}($deviceId)"
+    } else {
+      s"${TVMContext.MASK2STR(deviceType)}($deviceId)"
+    }
+  }
 }
