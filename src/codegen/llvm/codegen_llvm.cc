@@ -1317,7 +1317,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
     if (constant_size % 4 == 0 && info.alignment == 0) {
       info.alignment = op->type.bytes() * 4;
     }
-    if (alloca->getAlignment() < info.alignment) {
+    if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
       alloca->setAlignment(info.alignment);
     }
     info.alignment = alloca->getAlignment();
