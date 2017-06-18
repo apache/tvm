@@ -91,6 +91,20 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
   data_layout_.reset(new llvm::DataLayout(module_.get()));
+  // initialize native vector bits
+  std::string target = tm->getTarget().getName();
+  if (target == "arm") {
+    native_vector_bits_ = 16 * 8;
+  } else if (target == "x86-64") {
+    // for avx512
+    native_vector_bits_ = 64 * 8;
+  } else if (target == "x86") {
+    native_vector_bits_ = 32 * 8;
+  } else {
+    native_vector_bits_ = 32 * 8;
+    LOG(WARNING) << "set native vector to be " << native_vector_bits_ / 8
+                 << " for target " << target;
+  }
 }
 
 void CodeGenLLVM::InitGlobalContext() {
@@ -104,7 +118,7 @@ void CodeGenLLVM::InitGlobalContext() {
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
   align_map_.clear();
-  alloc_storage_scope_.clear();
+  alloc_storage_info_.clear();
 }
 
 void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
@@ -750,7 +764,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
 
 int CodeGenLLVM::NativeVectorBits(const std::string& storage_scope) const {
   // By default, we ask the buffer to be aligned to 64 bytes
-  return 64 * 8;
+  return native_vector_bits_;
 }
 
 void CodeGenLLVM::GetAlignment(
@@ -759,17 +773,20 @@ void CodeGenLLVM::GetAlignment(
   int& alignment = *p_alignment;
   int& native_bits = *p_native_bits;
   // The storage scope.
-  std::string scope;
-  auto it = alloc_storage_scope_.find(buf_var);
-  if (it != alloc_storage_scope_.end()) {
-    scope = it->second;
+  StorageInfo info;
+  auto it = alloc_storage_info_.find(buf_var);
+  if (it != alloc_storage_info_.end()) {
+    info = it->second;
   }
   arith::ModularEntry m = EvalModular(index, align_map_);
-  native_bits = NativeVectorBits(scope);
+  native_bits = NativeVectorBits(info.scope);
   alignment = t.element_of().bits();
-  // find alignment
+  // find alignment, cannot exceed allocated alignment
+  int max_align_bits = std::min(
+      info.alignment * 8, alignment * t.lanes());
   while ((m.coeff & 1) == 0 &&
          (m.base & 1) == 0 &&
+         alignment < max_align_bits &&
          alignment < native_bits) {
     m.coeff /= 2;
     m.base /= 2;
@@ -1291,8 +1308,19 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
         << "Can only handle constant size stack allocation for now";
-    buf = builder_->CreateAlloca(
+    llvm::AllocaInst* alloca = builder_->CreateAlloca(
         LLVMType(op->type), ConstInt32(constant_size));
+    buf = alloca;
+    StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
+    // Align stack to be multiple of 4 if it is
+    // TODO(tqchen) have pass to detect vector access and pre-set alignment
+    if (constant_size % 4 == 0 && info.alignment == 0) {
+      info.alignment = op->type.bytes() * 4;
+    }
+    if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+      alloca->setAlignment(info.alignment);
+    }
+    info.alignment = alloca->getAlignment();
   }
   buf = builder_->CreatePointerCast(buf, LLVMType(op->type)->getPointerTo());
   CHECK(!var_map_.count(op->buffer_var.get()));
@@ -1304,7 +1332,13 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == ir::attr::storage_scope) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
-    alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
+    alloc_storage_info_[v].scope = op->value.as<StringImm>()->value;
+    this->VisitStmt(op->body);
+  } else if (op->attr_key == ir::attr::storage_alignment) {
+    const Variable* v = op->node.as<Variable>();
+    CHECK(v);
+    alloc_storage_info_[v].alignment =
+        static_cast<int>(op->value.as<IntImm>()->value);
     this->VisitStmt(op->body);
   } else {
     this->VisitStmt(op->body);

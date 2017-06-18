@@ -19,7 +19,6 @@ namespace codegen {
 class VPIDeviceAPI final : public runtime::DeviceAPI {
  public:
   VPIDeviceAPI() {
-    static const size_t kAllocAlign = 32U;
     const char* s_ram_size = getenv("TVM_VPI_RAM_SIZE_MB");
     // 16 MB ram.
     int ram_size = 32;
@@ -27,7 +26,7 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
       ram_size = atoi(s_ram_size);
     }
     ram_.resize(ram_size << 17);
-    ram_head_ = kAllocAlign;
+    ram_head_ = runtime::kAllocAlignment;
     ram_max_ = ram_.size() * sizeof(int64_t);
     LOG(INFO) << "Initialize VPI simulated ram " << ram_size << "MB ...";
   }
@@ -51,10 +50,9 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
     }
   }
   void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
-    static const size_t kAllocAlign = 32U;
     // always align to 32 bytes at least.
-    CHECK_LE(alignment, kAllocAlign);
-    alignment = kAllocAlign;
+    CHECK_LE(alignment, runtime::kAllocAlignment);
+    alignment = runtime::kAllocAlignment;
     // always allocate block with aligned size.
     size += alignment - (size % alignment);
     // This is not thread safe, but fine for simulation.
@@ -67,7 +65,7 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
       b.is_free = false;
       return reinterpret_cast<void*>(head);
     } else {
-      CHECK_EQ(ram_head_ % kAllocAlign, 0U);
+      CHECK_EQ(ram_head_ % runtime::kAllocAlignment, 0U);
       Block b;
       b.size = size;
       b.is_free = false;

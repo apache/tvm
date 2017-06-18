@@ -115,6 +115,13 @@ class CodeGenLLVM :
   virtual void Scalarize(const Expr& e,
                          std::function<void(int i, llvm::Value* v)> f);
  protected:
+  /*! \brief The storage information */
+  struct StorageInfo {
+    /*! \brief The storage scope */
+    std::string scope;
+    /*! \brief The alignment of allocation */
+    int alignment{0};
+  };
   /*!
    * \param t The original type.
    * \return LLVM type of t
@@ -174,8 +181,10 @@ class CodeGenLLVM :
   llvm::Function* f_tvm_parallel_for_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
+  /*! \brief native vector bits of current targetx*/
+  int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
+  std::unordered_map<const Variable*, StorageInfo> alloc_storage_info_;
 
  private:
   // comparison op

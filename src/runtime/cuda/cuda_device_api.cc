@@ -22,7 +22,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDA_CALL(cudaSetDevice(ctx.device_id));
   }
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
-    int value;
+    int value = 0;
     switch (kind) {
       case kExist:
         value = (
