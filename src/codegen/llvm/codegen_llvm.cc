@@ -95,9 +95,11 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   std::string target = tm->getTarget().getName();
   if (target == "arm") {
     native_vector_bits_ = 16 * 8;
-  } else if (target == "x86") {
+  } else if (target == "x86-64") {
     // for avx512
     native_vector_bits_ = 64 * 8;
+  } else if (target == "x86") {
+    native_vector_bits_ = 32 * 8;
   } else {
     native_vector_bits_ = 32 * 8;
     LOG(WARNING) << "set native vector to be " << native_vector_bits_ / 8
