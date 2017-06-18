@@ -46,6 +46,7 @@ GetLLVMTargetMachine(const std::string& target_str) {
   std::string target_triple = "";
   std::string cpu = "generic";
   std::string attr = "";
+  bool soft_float_abi = false;
   std::string key, value;
   if (target_str.length() > 5) {
     std::istringstream is(target_str.substr(5, target_str.length() - 5));
@@ -67,6 +68,14 @@ GetLLVMTargetMachine(const std::string& target_str) {
         cpu = value;
       } else if (key == "-mattr") {
         attr = value;
+      } else if (key == "-mfloat-abi") {
+        if (value == "hard") {
+          soft_float_abi = false;
+        } else if (value == "soft") {
+          soft_float_abi = true;
+        } else {
+          LOG(FATAL) << "invalid -mfloat-abi option " << value;
+        }
       } else {
         LOG(FATAL) << "unknown option " << key;
       }
@@ -80,7 +89,18 @@ GetLLVMTargetMachine(const std::string& target_str) {
   const llvm::Target* target =
       llvm::TargetRegistry::lookupTarget(target_triple, err);
   CHECK(target) << err << " target_triple=" << target_triple;
+  // set target option
   llvm::TargetOptions opt;
+  opt.LessPreciseFPMADOption = true;
+  opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
+  opt.UnsafeFPMath = true;
+  opt.NoInfsFPMath = true;
+  opt.NoNaNsFPMath = true;
+  if (soft_float_abi) {
+    opt.FloatABIType = llvm::FloatABI::Soft;
+  } else {
+    opt.FloatABIType = llvm::FloatABI::Hard;
+  }
   auto rmodel = llvm::Reloc::PIC_;
   llvm::TargetMachine* tm =
       target->createTargetMachine(target_triple, cpu, attr, opt, rmodel);
