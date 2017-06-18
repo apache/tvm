@@ -6,7 +6,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/buffer.h>
-
+#include <tvm/runtime/device_api.h>
 #include <vector>
 #include <utility>
 #include <unordered_set>
@@ -180,6 +180,10 @@ LoweredFunc MakeAPI(Stmt body,
                  v_arg->name_hint + ".data")) {
         Var vptr(buf->data);
         handle_data_type.Set(vptr, make_const(buf->dtype, 0));
+        // mark storage alignment of external buffer arguments.
+        seq_init.emplace_back(AttrStmt::make(
+            vptr, ir::attr::storage_alignment,
+            IntImm::make(Int(32), runtime::kAllocAlignment), nop));
       }
       // shape field
       Var v_shape(v_arg->name_hint + ".shape", Handle());

@@ -146,6 +146,8 @@ constexpr const char* virtual_thread = "virtual_thread";
 constexpr const char* volatile_scope = "volatile_scope";
 /*! \brief Mark storage scope of buffers */
 constexpr const char* storage_scope = "storage_scope";
+/*! \brief Mark storage alignement requirement of buffers */
+constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
 /*! \brief The allocation context for global malloc in host. */

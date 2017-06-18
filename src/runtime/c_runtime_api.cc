@@ -136,7 +136,7 @@ inline size_t GetDataSize(TVMArray* arr) {
 
 inline size_t GetDataAlignment(TVMArray* arr) {
   size_t align = (arr->dtype.bits / 8) * arr->dtype.lanes;
-  if (align < 8) return 8;
+  if (align < kAllocAlignment) return kAllocAlignment;
   return align;
 }
 

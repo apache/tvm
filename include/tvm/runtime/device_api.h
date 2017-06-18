@@ -20,6 +20,10 @@ enum DeviceAttrKind : int {
   kMaxThreadsPerBlock = 1,
   kWarpSize = 2
 };
+
+/*! \brief Number of bytes each allocation must align to */
+constexpr int kAllocAlignment = 64;
+
 /*!
  * \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.

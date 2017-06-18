@@ -33,6 +33,16 @@ def test_tensor_slice():
     B = tvm.compute((n,), lambda i: A[0][i] + A[0][i])
 
 
+def test_tensor_reduce_multi_axis():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m, n), name='A')
+    k1 = tvm.reduce_axis((0, n), "k")
+    k2 = tvm.reduce_axis((0, m), "k")
+    C = tvm.compute((1,), lambda _: tvm.sum(A[k1, k2], axis=(k1, k2)))
+    C = tvm.compute((1,), lambda _: tvm.sum(A[k1, k2], axis=[k1, k2]))
+
+
 def test_tensor_comm_reducer():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -157,6 +167,7 @@ def test_tuple_with_different_deps():
     assert stmt.node == C.op and len(ret) == 1
 
 if __name__ == "__main__":
+    test_tensor_reduce_multi_axis()
     test_conv1d()
     test_tensor_slice()
     test_tensor()
