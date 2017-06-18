@@ -782,10 +782,11 @@ void CodeGenLLVM::GetAlignment(
   native_bits = NativeVectorBits(info.scope);
   alignment = t.element_of().bits();
   // find alignment, cannot exceed allocated alignment
-  int alloc_align_bits = info.alignment * 8;
+  int max_align_bits = std::min(
+      info.alignment * 8, alignment * t.lanes());
   while ((m.coeff & 1) == 0 &&
          (m.base & 1) == 0 &&
-         alignment < alloc_align_bits &&
+         alignment < max_align_bits &&
          alignment < native_bits) {
     m.coeff /= 2;
     m.base /= 2;
