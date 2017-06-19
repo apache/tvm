@@ -66,6 +66,7 @@ class IRMutator {
   virtual Stmt Mutate_(const ProducerConsumer* op, const Stmt& s);
   virtual Stmt Mutate_(const Provide* op, const Stmt& s);
   virtual Stmt Mutate_(const Realize* op, const Stmt& s);
+  virtual Stmt Mutate_(const Prefetch* op, const Stmt& s);
   virtual Stmt Mutate_(const Block* op, const Stmt& s);
   virtual Stmt Mutate_(const Evaluate* op, const Stmt& s);
 

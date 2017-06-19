@@ -212,7 +212,7 @@ void BoundDeducer::Deduce() {
     success = false;
     return;
   }
-  // get the sign of every subexpr
+
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
   Visit(expr_);

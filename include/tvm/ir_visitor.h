@@ -116,6 +116,7 @@ class IRVisitor {
   virtual void Visit_(const ProducerConsumer* op);
   virtual void Visit_(const Provide* op);
   virtual void Visit_(const Realize* op);
+  virtual void Visit_(const Prefetch* op);
   virtual void Visit_(const Block* op);
   virtual void Visit_(const Evaluate* op);
   virtual void Visit_(const IntImm* op);

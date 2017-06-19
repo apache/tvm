@@ -55,14 +55,18 @@ MakeLoopNest(const Stage& stage,
     // Mark the iter var in the IR, to remember the point
     if (bind_iv->thread_tag.length() == 0) {
       ForType for_type = ForType::Serial;
+      IterVarAttr it_attr;
       if (stage->iter_var_attrs.count(iv)) {
-        switch (stage->iter_var_attrs[iv]->iter_type) {
+        it_attr = stage->iter_var_attrs[iv];
+      }
+      if (it_attr.defined()) {
+        switch (it_attr->iter_type) {
           case kUnrolled: for_type = ForType::Unrolled; break;
           case kVectorized: for_type = ForType::Vectorized; break;
           case kParallelized: for_type = ForType::Parallel; break;
           case kDataPar: break;
           default: LOG(FATAL) << "Unknown iter type"
-                              << stage->iter_var_attrs[iv]->iter_type
+                              << it_attr->iter_type
                               << " in the iter_var_attrs";
         }
       }
@@ -84,6 +88,18 @@ MakeLoopNest(const Stage& stage,
         value_map[iv] = new_value;
         nest[i + 1].emplace_back(
             LetStmt::make(var, new_value, no_op));
+      }
+      if (it_attr.defined() && it_attr->prefetch_data.size() != 0) {
+        CHECK(!is_one(dom->extent))
+            << "Cannot prefetch on trivial loop with extent=1";
+        CHECK_EQ(it_attr->prefetch_data.size(),
+                 it_attr->prefetch_offset.size());
+        for (size_t i = 0; i < it_attr->prefetch_data.size(); ++i) {
+          nest[i + 1].emplace_back(
+              AttrStmt::make(it_attr->prefetch_data[i],
+                             ir::attr::prefetch_scope,
+                             it_attr->prefetch_offset[i], no_op));
+        }
       }
     } else if (bind_iv->thread_tag == "vthread") {
       // virtual thread

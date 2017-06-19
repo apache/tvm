@@ -461,10 +461,16 @@ class IterVarAttrNode : public Node {
   IterVarType iter_type{kDataPar};
   /*! \brief The thread this iter Var binds, can be null */
   IterVar bind_thread;
+  /*! \brief List of tensor to be prefetched in this loop */
+  Array<Tensor> prefetch_data;
+  /*! \brief The offset used in each prefetch */
+  Array<Expr> prefetch_offset;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("iter_type", &iter_type);
     v->Visit("bind_thread", &bind_thread);
+    v->Visit("prefetch_data", &prefetch_data);
+    v->Visit("prefetch_offset", &prefetch_offset);
   }
 
   static constexpr const char* _type_key = "IterVarAttr";
