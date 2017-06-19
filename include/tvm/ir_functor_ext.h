@@ -17,6 +17,9 @@ namespace ir {
  *  You can use this as a more powerful Visitor, since it allows you to
  *  define function signatures of Visit Function.
  *
+ *  This helps you to avoid to book-keep return value of Visitor via state,
+ *  which can cause bugs easily when state is incorrectly maintained.
+ *
  * \code
  *  // A functor that set variable to b. and calculate results.
  *  class MyExprFunctor
@@ -223,6 +226,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const ProducerConsumer* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Provide* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Realize* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const Prefetch* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Block* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Evaluate* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Node* op, Args ...) {
@@ -245,6 +249,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(ProducerConsumer);
     IR_STMT_FUNCTOR_DISPATCH(Provide);
     IR_STMT_FUNCTOR_DISPATCH(Realize);
+    IR_STMT_FUNCTOR_DISPATCH(Prefetch);
     IR_STMT_FUNCTOR_DISPATCH(Block);
     IR_STMT_FUNCTOR_DISPATCH(Evaluate);
     return vtable;
