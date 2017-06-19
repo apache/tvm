@@ -13,3 +13,4 @@ There can be internal header files within each module that sit in src.
 - pass The optimization pass on the IR structure
 - codegen The code generator.
 - runtime Minimum runtime related codes
+- contrib Contrib extension libraries

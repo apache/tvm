@@ -13,7 +13,7 @@ namespace tvm {
 namespace ir {
 
 // If expression is touched by var.
-class ExprTouched : public IRVisitor {
+class ExprTouched final : public IRVisitor {
  public:
   explicit ExprTouched(const std::unordered_set<const Variable*> &touched)
       : touched_var_(touched) {}

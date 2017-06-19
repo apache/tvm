@@ -180,6 +180,31 @@ Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
   }
 }
 
+Stmt IRMutator::Mutate_(const Prefetch* op, const Stmt& s) {
+  IRMutator* m = this;
+  Halide::Internal::Region new_bounds;
+  bool bounds_changed = false;
+
+  // Mutate the bounds
+  for (size_t i = 0; i < op->bounds.size(); i++) {
+    Expr old_min = op->bounds[i]->min;
+    Expr old_extent = op->bounds[i]->extent;
+    Expr new_min = m->Mutate(old_min);
+    Expr new_extent = m->Mutate(old_extent);
+    if (!new_min.same_as(old_min))  bounds_changed = true;
+    if (!new_extent.same_as(old_extent)) bounds_changed = true;
+    new_bounds.push_back(
+        Range::make_by_min_extent(new_min, new_extent));
+  }
+
+  if (!bounds_changed) {
+    return s;
+  } else {
+    return Prefetch::make(op->func, op->value_index,
+                          op->type, new_bounds);
+  }
+}
+
 Stmt IRMutator::Mutate_(const Block* op, const Stmt& s) {
   Stmt first = this->Mutate(op->first);
   Stmt rest = this->Mutate(op->rest);

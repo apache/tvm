@@ -42,7 +42,7 @@ bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
 // Rule:
 //   - the range should not be const
 //   - there exist a condition expression in the scope that use the var
-class CandidateSelector : public IRVisitor {
+class CandidateSelector final : public IRVisitor {
  public:
   using VarIsUsed = bool;
   CandidateSelector() {}

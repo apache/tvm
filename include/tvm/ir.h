@@ -158,6 +158,11 @@ constexpr const char* device_context_type = "device_context_type";
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
+/*!
+ * \brief Mark of prefetch scope, value=offset,
+ *  run prefetch of Tensor on the current loop scope
+ */
+constexpr const char* prefetch_scope = "prefetch_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
@@ -371,6 +376,7 @@ using Halide::Internal::Provide;
 using Halide::Internal::Allocate;
 using Halide::Internal::Free;
 using Halide::Internal::Realize;
+using Halide::Internal::Prefetch;
 using Halide::Internal::Block;
 using Halide::Internal::IfThenElse;
 using Halide::Internal::Evaluate;

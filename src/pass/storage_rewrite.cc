@@ -31,7 +31,7 @@ using namespace storage;
 // The storage need to be kept alive between allocate and last access.
 // The free point is only inserted at the same scope of allocate.
 //
-class StorageAccessPatternFinder : public IRVisitor {
+class StorageAccessPatternFinder final : public IRVisitor {
  public:
   // Get linear access pattern.
   std::vector<StmtEntry> GetLinearSeq(const Stmt& s) {

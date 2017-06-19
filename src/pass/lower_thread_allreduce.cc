@@ -14,7 +14,7 @@
 namespace tvm {
 namespace ir {
 
-class ThreadAllreduceBuilder : public IRMutator {
+class ThreadAllreduceBuilder final : public IRMutator {
  public:
   explicit ThreadAllreduceBuilder(int warp_size)
       : warp_size_(warp_size) {}

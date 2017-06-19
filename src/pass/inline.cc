@@ -12,7 +12,7 @@ namespace ir {
 // inliner to inline a function
 // the result may not be SSA,
 // ConvertSSA need to be applied after this pass
-class IRInline : public IRMutator {
+class IRInline final : public IRMutator {
  public:
   IRInline(FunctionRef f, Array<Var> args, Expr body)
       : f_(f), args_(args), body_(body) {}

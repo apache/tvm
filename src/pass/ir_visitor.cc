@@ -174,7 +174,6 @@ void IRVisitor::Visit_(const Provide *op) {
 }
 
 void IRVisitor::Visit_(const Realize *op) {
-    // Mutate the bounds
   for (size_t i = 0; i < op->bounds.size(); i++) {
     this->Visit(op->bounds[i]->min);
     this->Visit(op->bounds[i]->extent);
@@ -182,6 +181,13 @@ void IRVisitor::Visit_(const Realize *op) {
 
   this->Visit(op->body);
   this->Visit(op->condition);
+}
+
+void IRVisitor::Visit_(const Prefetch *op) {
+  for (size_t i = 0; i < op->bounds.size(); i++) {
+    this->Visit(op->bounds[i]->min);
+    this->Visit(op->bounds[i]->extent);
+  }
 }
 
 void IRVisitor::Visit_(const Block *op) {
