@@ -20,5 +20,10 @@ object HelloWorld {
 
     val arr = NDArray.empty(Shape(1,2))
     println(arr.shape)
+
+    arr.set(Array(3.0f, 4.0f))
+    println(arr.shape)
+
+    println("to Array: [" + arr.internal.toFloatArray.mkString(",") + "]")
   }
 }

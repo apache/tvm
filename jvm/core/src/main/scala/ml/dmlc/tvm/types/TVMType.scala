@@ -29,6 +29,10 @@ class TVMType(typeStr: String, val lanes: Int = 1) {
     throw new IllegalArgumentException("Do not know how to handle type " + typeStr)
   }
 
+  def numOfBytes: Int = {
+    bits / 8
+  }
+
   override def hashCode: Int = {
     (typeCode << 16) | (bits  << 8) | lanes
   }

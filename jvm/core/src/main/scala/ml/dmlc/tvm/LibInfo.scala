@@ -28,4 +28,8 @@ private[tvm] class LibInfo {
                             ctx: TVMContext,
                             refHandle: RefTVMArrayHandle): Int
   @native def tvmArrayGetShape(handle: TVMArrayHandle, shape: ArrayBuffer[Long]): Int
+  @native def tvmArrayCopyFromJArray(fromRaw: Array[Float],
+                                     from: TVMArrayHandle,
+                                     to: TVMArrayHandle): Int
+  @native def tvmArrayCopyToJArray(from: TVMArrayHandle, to: Array[Byte]): Int
 }

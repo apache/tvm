@@ -162,26 +162,18 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayFree(
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
   JNIEnv *env, jobject obj, jlongArray jshape, jobject jdtype, jobject jctx, jobject jret) {
 
-  int ndim = static_cast<int>(env->GetArrayLength(jshape));
-  jlong *shapeArray = env->GetLongArrayElements(jshape, NULL);
 
   TVMType dtype;
-  jclass tvmTypeClass = env->FindClass("ml/dmlc/tvm/types/TVMType");
-
-  dtype.code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
-  dtype.bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
-  dtype.lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
-  env->DeleteLocalRef(tvmTypeClass);
+  fromJavaDType(env, jdtype, dtype);
 
   TVMContext ctx;
-  jclass tvmContextClass = env->FindClass("ml/dmlc/tvm/types/TVMContext");
-  ctx.device_type = static_cast<DLDeviceType>(env->GetIntField(jctx,
-    env->GetFieldID(tvmContextClass, "deviceType", "I")));
-  ctx.device_id = static_cast<int>(env->GetIntField(jctx,
-    env->GetFieldID(tvmContextClass, "deviceId", "I")));
-  env->DeleteLocalRef(tvmContextClass);
+  fromJavaContext(env, jctx, ctx);
+
+  int ndim = static_cast<int>(env->GetArrayLength(jshape));
 
   TVMArrayHandle out;
+
+  jlong *shapeArray = env->GetLongArrayElements(jshape, NULL);
   int ret = TVMArrayAlloc(reinterpret_cast<const tvm_index_t*>(shapeArray),
                           ndim, dtype, ctx, &out);
   env->ReleaseLongArrayElements(jshape, shapeArray, 0);
@@ -212,4 +204,33 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
   env->DeleteLocalRef(longClass);
 
   return 0;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromJArray(
+  JNIEnv *env, jobject obj, jfloatArray jarr, jlong jfrom, jlong jto) {
+  jfloat *data = env->GetFloatArrayElements(jarr, NULL);
+
+  TVMArray *from = reinterpret_cast<TVMArray *>(jfrom);
+  from->data = static_cast<void *>(data);
+
+  int ret = TVMArrayCopyFromTo(static_cast<TVMArrayHandle>(from),
+                               reinterpret_cast<TVMArrayHandle>(jto), NULL);
+
+  from->data = NULL;
+  env->ReleaseFloatArrayElements(jarr, data, 0);
+
+  return ret;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyToJArray(
+  JNIEnv *env, jobject obj, jlong jfrom, jbyteArray jarr) {
+  TVMArray *from = reinterpret_cast<TVMArray *>(jfrom);
+  int size = static_cast<int>(env->GetArrayLength(jarr));
+  jbyte *pdata = env->GetByteArrayElements(jarr, NULL);
+  int ret = 0;
+  if (memcpy(static_cast<void *>(pdata), from->data, size) == NULL) {
+    ret = 1;
+  }
+  env->ReleaseByteArrayElements(jarr, pdata, 0);  // copy back to java array automatically
+  return ret;
 }
