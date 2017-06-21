@@ -81,6 +81,13 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
         value.v_str = env->GetStringUTFChars(getTVMValueStringField(env, jarg), 0);
         // TODO: env->ReleaseStringUTFChars(jvalue, value);
         break;
+      case kNull:
+        value.v_handle = NULL;
+        break;
+      case kArrayHandle:
+        value.v_handle = reinterpret_cast<void *>(
+          getTVMValueLongField(env, jarg, "ml/dmlc/tvm/types/TVMValueNDArrayHandle"));
+        break;
       default:
         // TODO
         LOG(FATAL) << "Do NOT know how to handle argId " << argId;
@@ -100,7 +107,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
 
   // return TVMValue object to Java
   jclass refTVMValueCls = env->FindClass("ml/dmlc/tvm/Base$RefTVMValue");
-  jfieldID refTVMValueFid = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/types/TVMValue;");
+  jfieldID refTVMValueFid
+    = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/types/TVMValue;");
 
   switch (retTypeCode) {
     case kInt:
@@ -114,6 +122,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
     case kModuleHandle:
       env->SetObjectField(jretVal, refTVMValueFid,
         newTVMValueModuleHandle(env, reinterpret_cast<jlong>(retVal.v_handle)));
+      break;
+    case kNull:
+      env->SetObjectField(jretVal, refTVMValueFid,
+        newObject(env, "ml/dmlc/tvm/types/TVMValueNull"));
       break;
     default:
       // TODO

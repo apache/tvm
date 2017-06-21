@@ -47,8 +47,9 @@ void setStringField(JNIEnv *env, jobject obj, const char *value) {
 }
 
 // Helper functions for TVMValue
-jlong getTVMValueLongField(JNIEnv *env, jobject obj) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueLong");
+jlong getTVMValueLongField(JNIEnv *env, jobject obj,
+  const char *clsname = "ml/dmlc/tvm/types/TVMValueLong") {
+  jclass cls = env->FindClass(clsname);
   jfieldID fid = env->GetFieldID(cls, "value", "J");
   jlong ret = env->GetLongField(obj, fid);
   env->DeleteLocalRef(cls);
@@ -91,6 +92,14 @@ jobject newTVMValueModuleHandle(JNIEnv *env, jlong value) {
   jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueModuleHandle");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
   jobject object = env->NewObject(cls, constructor, value);
+  env->DeleteLocalRef(cls);
+  return object;
+}
+
+jobject newObject(JNIEnv *env, const char *clsname) {
+  jclass cls = env->FindClass(clsname);
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "()V");
+  jobject object = env->NewObject(cls, constructor);
   env->DeleteLocalRef(cls);
   return object;
 }

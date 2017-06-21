@@ -4,7 +4,7 @@ import ml.dmlc.tvm.Base._
 import ml.dmlc.tvm.types.{TVMValueModuleHandle, TVMValue}
 import ml.dmlc.tvm.types.TypeCode._
 
-class Module(private val handle: ModuleHandle) {
+class Module(private[tvm] val handle: ModuleHandle) {
   private var entry: Function = null
   private val entryName = "__tvm_main__"
 

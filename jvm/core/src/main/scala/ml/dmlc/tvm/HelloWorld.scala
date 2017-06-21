@@ -18,12 +18,18 @@ object HelloWorld {
     val ctx = TVMContext("cpu", 0)
     println("CPU exist: " + ctx.exist)
 
-    val arr = NDArray.empty(Shape(1,2))
+    val shape = Shape(2)
+
+    val arr = NDArray.empty(shape)
     println(arr.shape)
 
     arr.set(Array(3.0f, 4.0f))
     println(arr.shape)
 
-    println("to Array: [" + arr.internal.toFloatArray.mkString(",") + "]")
+    val res = NDArray.empty(shape)
+    mod(arr, arr, res)
+
+    println("arr to Array: [" + arr.internal.toFloatArray.mkString(",") + "]")
+    println("res to Array: [" + res.internal.toFloatArray.mkString(",") + "]")
   }
 }

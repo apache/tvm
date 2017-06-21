@@ -10,7 +10,7 @@ import scala.collection.mutable.ArrayBuffer
 /**
  * Lightweight NDArray class of TVM runtime.
  */
-class NDArray(private val handle: TVMArrayHandle,
+class NDArray(private[tvm] val handle: TVMArrayHandle,
               private val isView: Boolean = false,
               private val dtype: TVMType = new TVMType("float32")) {
   override protected def finalize(): Unit = {
