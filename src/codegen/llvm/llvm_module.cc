@@ -101,14 +101,14 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     tm_ = GetLLVMTargetMachine(target);
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
-    CodeGenLLVM cg;
+    std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_);
     entry_func_ = funcs[0]->name;
-    cg.Init(funcs[0]->name, tm_, ctx_.get());
+    cg->Init(funcs[0]->name, tm_, ctx_.get());
     for (LoweredFunc f :  funcs) {
-      cg.AddFunction(f);
+      cg->AddFunction(f);
     }
-    cg.AddMainFunction(funcs[0]->name);
-    module_ = cg.Finish();
+    cg->AddMainFunction(funcs[0]->name);
+    module_ = cg->Finish();
     mptr_ = module_.get();
   }
 

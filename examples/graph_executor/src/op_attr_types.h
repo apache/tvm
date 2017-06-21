@@ -37,8 +37,7 @@ using DLTypeVector = std::vector<DLDataType>;
  */
 using FTVMCompute = std::function<
   Array<Tensor>
-  (const NodeAttrs& attrs,
-   const Array<Tensor>& inputs)>;
+  (const NodeAttrs& attrs, const Array<Tensor>& inputs)>;
 
 /*!
  * \brief Build the computation schedule for
