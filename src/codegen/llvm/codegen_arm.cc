@@ -3,6 +3,7 @@
  * \file codegen_arm.cc
  * \brief ARM specific code generator
  */
+#ifdef TVM_LLVM_VERSION
 #include "./codegen_llvm.h"
 
 namespace tvm {
@@ -27,3 +28,4 @@ TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_arm")
 
 }  // namespace codegen
 }  // namespace tvm
+#endif  // TVM_LLVM_VERSION
