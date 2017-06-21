@@ -13,6 +13,18 @@
 namespace tvm {
 namespace codegen {
 
+std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(llvm::TargetMachine *tm) {
+  std::string target = tm->getTarget().getName();
+  std::string factory_name = "tvm.codegen.llvm.target_" + target;
+  const PackedFunc* f = runtime::Registry::Get(factory_name);
+  if (f != nullptr) {
+    void* handle = (*f)();
+    return std::unique_ptr<CodeGenLLVM>(static_cast<CodeGenLLVM*>(handle));
+  } else {
+    return std::unique_ptr<CodeGenLLVM>(new CodeGenLLVM());
+  }
+}
+
 void CodeGenLLVM::Init(const std::string& module_name,
                        llvm::TargetMachine* tm,
                        llvm::LLVMContext* ctx) {
@@ -93,17 +105,17 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   data_layout_.reset(new llvm::DataLayout(module_.get()));
   // initialize native vector bits
   std::string target = tm->getTarget().getName();
-  if (target == "arm") {
-    native_vector_bits_ = 16 * 8;
-  } else if (target == "x86-64") {
+  if (target == "x86-64") {
     // for avx512
     native_vector_bits_ = 64 * 8;
   } else if (target == "x86") {
     native_vector_bits_ = 32 * 8;
   } else {
-    native_vector_bits_ = 32 * 8;
-    LOG(WARNING) << "set native vector to be " << native_vector_bits_ / 8
-                 << " for target " << target;
+    if (native_vector_bits_ == 0) {
+      native_vector_bits_ = 32 * 8;
+      LOG(WARNING) << "set native vector to be " << native_vector_bits_ / 8
+                   << " for target " << target;
+    }
   }
 }
 

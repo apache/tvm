@@ -29,6 +29,12 @@ class CodeGenLLVM :
       public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
+   * \brief Create new code generator based on target machine.
+   * \param tm The target machine
+   * \return The created llvm generator.
+   */
+  static std::unique_ptr<CodeGenLLVM> Create(llvm::TargetMachine* tm);
+  /*!
    * \brief Initialize the code generator with given context
    * \param module_name The name of the module.
    * \param tm Target machine model
@@ -136,6 +142,8 @@ class CodeGenLLVM :
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(
       const Call* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
+  // Initialize target
+  virtual void InitTarget(llvm::TargetMachine* tm);
   // apply optimization on the module.
   virtual void Optimize();
   // Get the maximim storage align bits of buffer pointer given storage scope.
@@ -216,8 +224,6 @@ class CodeGenLLVM :
   // if not directly finalize function and pass on return code.
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
-  // Initialize target
-  void InitTarget(llvm::TargetMachine* tm);
   // Add a function to set global module context
   void InitGlobalContext();
   // add alias information.

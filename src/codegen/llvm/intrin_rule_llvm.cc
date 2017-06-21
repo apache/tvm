@@ -36,6 +36,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 .set_body(DispatchLLVMIntrin<::llvm::Intrinsic::log>);
+
 }  // namespace llvm
 }  // namespace codegen
 }  // namespace tvm
