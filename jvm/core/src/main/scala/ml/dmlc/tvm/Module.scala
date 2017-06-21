@@ -53,6 +53,12 @@ class Module(private[tvm] val handle: ModuleHandle) {
 }
 
 object Module {
+  private val function = Function.initAPI(
+    name => name.startsWith("module."),
+    name => name.substring("module.".length))
+
+  def apply(name: String): Function = function(name)
+
   /**
    * Load module from file
    * @param path The path to the module file.
@@ -61,8 +67,7 @@ object Module {
    * @return The loaded module
    */
   def load(path: String, fmt: String = ""): Module = {
-    // TODO
-    val ret = Function.functions("module._LoadFromFile")("myadd.so", "")
+    val ret = Module("_LoadFromFile")(path, fmt)
     require(ret.argType == MODULE_HANDLE)
     val tvmValue = ret.asInstanceOf[TVMValueModuleHandle]
     new Module(tvmValue.value)

@@ -1,6 +1,6 @@
 package ml.dmlc.tvm.types
 
-import ml.dmlc.tvm.Function
+import ml.dmlc.tvm.APIInternal
 import ml.dmlc.tvm.Base._
 
 // TVM context structure
@@ -36,19 +36,19 @@ class TVMContext(private val deviceType: Int, private val deviceId: Int) {
 
   // Whether this device exist.
   def exist: Boolean = {
-    val ret = Function.functions("_GetDeviceAttr")(deviceType, deviceId, 0)
+    val ret = APIInternal("_GetDeviceAttr")(deviceType, deviceId, 0)
     ret.asInstanceOf[TVMValueLong].value != 0
   }
 
   // Maximum number of threads on each block.
   def maxThreadsPerBlock: Long = {
-    val ret = Function.functions("_GetDeviceAttr")(deviceType, deviceId, 1)
+    val ret = APIInternal("_GetDeviceAttr")(deviceType, deviceId, 1)
     ret.asInstanceOf[TVMValueLong].value
   }
 
   // Number of threads that executes in concurrent.
   def warpSize: Long = {
-    val ret = Function.functions("_GetDeviceAttr")(deviceType, deviceId, 2)
+    val ret = APIInternal("_GetDeviceAttr")(deviceType, deviceId, 2)
     ret.asInstanceOf[TVMValueLong].value
   }
 

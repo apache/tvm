@@ -6,7 +6,13 @@ import ml.dmlc.tvm.types.TVMValue
 import scala.collection.mutable.ArrayBuffer
 
 object Function {
-  val functions = initFunctionAPI()
+  private[tvm] def initAPI(filter: String => Boolean, getName: String => String)
+    : Map[String, Function] = {
+    listGlobalFuncNames().filter(filter).map(fullName => {
+      val funcName = getName(fullName)
+      (funcName, getGlobalFunc(fullName, isResident = true).get)
+    }).toMap
+  }
 
   /**
    * Get list of global functions registered.
@@ -20,17 +26,17 @@ object Function {
 
   /**
    * Get a global function by name.
-   * @param name The name of the global function.
-   * @param isGlobal Whether it is a global function. FIXME: not a good name
+   * @param name The name of the function.
+   * @param isResident Whether it is a global function. FIXME: not a good name
    * @param allowMissing Whether allow missing function or raise an error.
    * @return The function to be returned, None if function is missing.
    */
-  private def getGlobalFunc(name: String, isGlobal: Boolean = false,
+  private def getGlobalFunc(name: String, isResident: Boolean = false,
                             allowMissing: Boolean = false): Option[Function] = {
     val handle = new RefFunctionHandle()
     checkCall(_LIB.tvmFuncGetGlobal(name, handle))
     if (handle.value != 0) {
-      Some(new Function(handle.value, isGlobal))
+      Some(new Function(handle.value, isResident))
     } else {
       if (allowMissing) {
         None
@@ -39,23 +45,16 @@ object Function {
       }
     }
   }
-
-
-  private def initFunctionAPI(): Map[String, Function] = {
-    listGlobalFuncNames().map { funcName =>
-      (funcName, getGlobalFunc(funcName, isGlobal = true).get)
-    }.toMap
-  }
 }
 
 /**
  * Initialize the function with handle
  * @param handle the handle to the underlying function.
- * @param isGlobal Whether this is a global function in python
+ * @param isResident Whether this is a resident function in jvm
  */
-class Function(private val handle: FunctionHandle, private val isGlobal: Boolean) {
+class Function(private val handle: FunctionHandle, private val isResident: Boolean) {
   override protected def finalize(): Unit = {
-    if (!isGlobal) {
+    if (!isResident) {
       checkCall(_LIB.tvmFuncFree(handle))
     }
   }
@@ -64,18 +63,6 @@ class Function(private val handle: FunctionHandle, private val isGlobal: Boolean
     val ret = new RefTVMValue()
     checkCall(_LIB.tvmFuncCall(handle, args.toArray, ret))
     ret.value
-    /*
-    temp_args = []
-    values, tcodes, num_args = _make_tvm_args(args, temp_args)
-    ret_val = TVMValue()
-    ret_tcode = ctypes.c_int()
-    check_call(_LIB.TVMFuncCall(
-      self.handle, values, tcodes, ctypes.c_int(num_args),
-      ctypes.byref(ret_val), ctypes.byref(ret_tcode)))
-    _ = temp_args
-    _ = args
-    return RETURN_SWITCH[ret_tcode.value](ret_val)
-    */
   }
 }
 
