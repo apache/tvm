@@ -26,27 +26,33 @@ class IntrinInjecter : public IRMutator {
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
-      for (size_t i = 0; i < patterns_.size(); ++i) {
-        std::string& p = patterns_[i];
-        size_t psize = p.length();
-        p.resize(psize + op->name.length());
-        op->name.copy(&p[0] + psize, op->name.length());
-        const runtime::PackedFunc* f = runtime::Registry::Get(p);
-        p.resize(psize);
-        // if pattern exists.
-        if (f != nullptr) {
-          Expr r = (*f)(e);
-          CHECK(r.defined()) << "intrinsic rule must always return valid Expr";
-          if (!r.same_as(e)) {
-            return this->Mutate(r);
-          }
-        }
-      }
+      Expr r = ApplyPattern(op->name, e);
+      if (r.defined()) return r;
     }
     return IRMutator::Mutate_(op, e);
   }
 
  private:
+  Expr ApplyPattern(const std::string& name, const Expr& e) {
+    for (size_t i = 0; i < patterns_.size(); ++i) {
+      std::string& p = patterns_[i];
+      size_t psize = p.length();
+      p.resize(psize + name.length());
+      name.copy(&p[0] + psize, name.length());
+      const runtime::PackedFunc* f = runtime::Registry::Get(p);
+      p.resize(psize);
+      // if pattern exists.
+      if (f != nullptr) {
+        Expr r = (*f)(e);
+        CHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+        if (!r.same_as(e)) {
+          return this->Mutate(r);
+        }
+      }
+    }
+    return Expr();
+  }
+  // patterns
   std::vector<std::string> patterns_;
 };
 
