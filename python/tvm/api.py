@@ -467,14 +467,14 @@ def reduce_axis(dom, name="rv"):
     """
     return _IterVar(dom, name, 2)
 
-def cast(expr, dtype):
+def cast(dtype, expr):
     """Cast an expression to other type
     Parameters
     ----------
-    expr : Expr
-        The expression
     dtype : str, optional
         The type of new expression
+    expr : Expr
+        The expression
 
     Returns
     -------

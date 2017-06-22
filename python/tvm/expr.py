@@ -89,6 +89,20 @@ class ExprOp(object):
         """
         return _make.EQ(self, other)
 
+    def astype(self, dtype):
+        """Cast the expression to other type
+        Parameters
+        ----------
+        dtype : str, optional
+            The type of new expression
+
+        Returns
+        -------
+        expr : Expr
+            Expression with new type
+        """
+        return _make.Cast(dtype, self)
+
 
 class Expr(NodeBase, ExprOp):
     """Base class of all tvm Expressions"""
