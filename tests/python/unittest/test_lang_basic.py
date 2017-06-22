@@ -81,6 +81,51 @@ def test_dtype():
     y = tvm.var('y')
     assert (x > y).dtype == 'uint1'
 
+
+def test_any():
+    x = tvm.var('x')
+    y = tvm.var('y')
+    z = tvm.var('z')
+    try:
+        t = x or x
+        assert False
+    except ValueError:
+        pass
+    try:
+        tvm.any()
+        assert False
+    except ValueError:
+        pass
+    assert str(tvm.any(x < y)) == '(%s < %s)' % (x.name, y.name)
+    assert str(tvm.any(x < y, x > z)) == '((%s < %s) || (%s > %s))' % (
+        x.name, y.name, x.name, z.name)
+    assert str(tvm.any(x < y, y > z + 1, x < z * 2)) == \
+        '(((%s < %s) || (%s > (%s + 1))) || (%s < (%s*2)))' % (
+            x.name, y.name, y.name, z.name, x.name, z.name)
+
+
+def test_all():
+    x = tvm.var('x')
+    y = tvm.var('y')
+    z = tvm.var('z')
+    try:
+        t = x and x
+        assert False
+    except ValueError:
+        pass
+    try:
+        tvm.all()
+        assert False
+    except ValueError:
+        pass
+    assert str(tvm.all(x < y)) == '(%s < %s)' % (x.name, y.name)
+    assert str(tvm.all(x < y, x > z)) == '((%s < %s) && (%s > %s))' % (
+        x.name, y.name, x.name, z.name)
+    assert str(tvm.all(x < y, y > z + 1, x < z * 2)) == \
+        '(((%s < %s) && (%s > (%s + 1))) && (%s < (%s*2)))' % (
+            x.name, y.name, y.name, z.name, x.name, z.name)
+
+    
 if __name__ == "__main__":
     test_attr()
     test_const()
@@ -92,3 +137,5 @@ if __name__ == "__main__":
     test_let()
     test_dir()
     test_dtype()
+    test_any()
+    test_all()
