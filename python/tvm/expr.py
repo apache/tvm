@@ -78,6 +78,9 @@ class ExprOp(object):
         raise ValueError("Cannot use and / or / not operator to Expr, hint: " +
                          "use tvm.all / tvm.any instead")
 
+    def __bool__(self):
+        return self.__nonzero__()
+
     def equal(self, other):
         """Build an equal check expression with other expr.
 
