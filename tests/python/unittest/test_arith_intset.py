@@ -50,7 +50,7 @@ def test_check():
     assert res1.is_nothing()
 
     # multiple compare operators
-    res2 = tvm.arith.DeduceBound(a, a+b>3>c , {b: b_s, c: c_s}, {})
+    res2 = tvm.arith.DeduceBound(a, (a+b>3)>c , {b: b_s, c: c_s}, {})
     assert res1.is_nothing()
 
     # multiple target variable
