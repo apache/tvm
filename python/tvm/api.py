@@ -114,6 +114,53 @@ def var(name="tindex", dtype=int32):
     return _api_internal._Var(name, dtype)
 
 
+def any(*args):
+    """Create a new experssion of the union of all conditions in the arguments
+
+    Parameters
+    ----------
+    args : list
+        List of symbolic boolean expressions
+
+    Returns
+    -------
+    expr: Expr
+        Expression
+    """
+    if not args:
+        raise ValueError("Any must take at least 1 argument")
+    if len(args) == 1:
+        return args[0]
+    ret = _make.Or(args[0], args[1])
+    for i in range(2, len(args)):
+        ret = _make.Or(ret, args[i])
+    return ret
+
+
+def all(*args):
+    """Create a new experssion of the intersection of all conditions in the
+      arguments
+
+    Parameters
+    ----------
+    args : list
+        List of symbolic boolean expressions
+
+    Returns
+    -------
+    expr: Expr
+        Expression
+    """
+    if not args:
+        raise ValueError("Any must take at least 1 argument")
+    if len(args) == 1:
+        return args[0]
+    ret = _make.And(args[0], args[1])
+    for i in range(2, len(args)):
+        ret = _make.And(ret, args[i])
+    return ret
+
+
 def placeholder(shape, dtype=None, name="placeholder"):
     """Construct an empty tensor object.
 
