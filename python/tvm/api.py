@@ -467,6 +467,23 @@ def reduce_axis(dom, name="rv"):
     """
     return _IterVar(dom, name, 2)
 
+def cast(expr, dtype):
+    """Cast an expression to other type
+    Parameters
+    ----------
+    expr : Expr
+        The expression
+    dtype : str, optional
+        The type of new expression
+
+    Returns
+    -------
+    expr : Expr
+        Expression with new type
+    """
+    return _make.Cast(dtype, expr)
+
+
 def select(cond, t, f):
     """Construct a select branch
     Parameters
