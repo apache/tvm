@@ -91,6 +91,9 @@ Graph Gradient(Graph src) {
   if (src.attrs.count("zero_ops") != 0) {
     zero_ops = src.GetAttr<std::vector<const Op*> >("zero_ops");
   }
+  const Op* copy_op = (src.attrs.count("copy_op") != 0) ?
+      Op::Get(src.GetAttr<std::string>("copy_op")) :
+      nullptr;
 
   // topo sort
   std::vector<NodePtr> topo_order;
@@ -190,7 +193,9 @@ Graph Gradient(Graph src) {
   }
   // take out the xs' grads
   Graph ret;
-  ret.outputs.reserve(xs.size());
+  ret.outputs.resize(xs.size());
+  NodeEntryMap<std::pair<size_t, size_t> > unique_grads;
+  size_t counter = 0;
   for (const NodeEntry& e : xs) {
     GradEntry& entry = output_grads[e.node.get()][e.index];
     // aggregate sum if there haven't been
@@ -200,7 +205,32 @@ Graph Gradient(Graph src) {
         entry.sum = attr_hint_fun(entry.sum, e);
       }
     }
-    ret.outputs.emplace_back(std::move(entry.sum));
+    if (copy_op != nullptr) {
+      auto kv = unique_grads.find(entry.sum);
+      if (kv == unique_grads.end()) {
+        unique_grads.emplace(std::move(entry.sum), std::make_pair(1, counter));
+      } else {
+        NodePtr copy_node = Node::Create();
+        std::ostringstream os;
+        os << entry.sum.node->attrs.name << "_" << kv->second.first << "_copy";
+        kv->second.first++;
+        copy_node->attrs.op = copy_op;
+        copy_node->attrs.name = os.str();
+        copy_node->inputs.emplace_back(entry.sum);
+        if (copy_node->attrs.op->attr_parser != nullptr) {
+            copy_node->attrs.op->attr_parser(&(copy_node->attrs));
+        }
+        unique_grads.emplace(NodeEntry{std::move(copy_node), 0, 0}, std::make_pair(1, counter));
+      }
+    } else {
+        ret.outputs[counter] = entry.sum;
+    }
+    ++counter;
+  }
+  if (copy_op != nullptr) {
+    for (const auto& kv : unique_grads) {
+      ret.outputs[kv.second.second] = kv.first;
+    }
   }
   return ret;
 }
