@@ -17,32 +17,12 @@
 
 package ml.dmlc.tvm
 
-import ml.dmlc.tvm.types._
-import ml.dmlc.tvm.types.TVMValue._
+import org.scalatest.{Matchers, BeforeAndAfterAll, FunSuite}
 
-// scalastyle:off println
-object HelloWorld {
-  def main(args: Array[String]): Unit = {
-    val filename = "myadd.so"
-    val mod = Module.load(filename)
-    println(mod.entryFunc)
-
-    val ctx = TVMContext("cpu", 0)
-    println("CPU exist: " + ctx.exist)
-
-    val shape = Shape(2)
-
-    val arr = NDArray.empty(shape)
-    println(arr.shape)
-
-    arr.set(Array(3.0f, 4.0f))
-    println(arr.shape)
-
-    val res = NDArray.empty(shape)
-    mod(arr, arr, res)
-
-    println("arr to Array: [" + arr.internal.toFloatArray.mkString(",") + "]")
-    println("res to Array: [" + res.internal.toFloatArray.mkString(",") + "]")
+class NDArraySuite extends FunSuite with BeforeAndAfterAll with Matchers {
+  test("from & to java array") {
+    val ndarray = NDArray.empty(Shape(2, 2))
+    ndarray.set(Array(1f, 2f, 3f, 4f))
+    assert(ndarray.toArray === Array(1f, 2f, 3f, 4f))
   }
 }
-// scalastyle:on println

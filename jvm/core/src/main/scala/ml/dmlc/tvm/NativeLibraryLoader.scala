@@ -1,11 +1,30 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ml.dmlc.tvm
 
 import java.io._
-import scala.Console
+import org.slf4j.{LoggerFactory, Logger}
 
 private[tvm] class NativeLibraryLoader
 
 private[tvm] object NativeLibraryLoader {
+  private val logger: Logger = LoggerFactory.getLogger(classOf[NativeLibraryLoader])
+
   private val libPathInJar = "/lib/native/"
   private val _tempDir: File =
     try {
@@ -22,15 +41,14 @@ private[tvm] object NativeLibraryLoader {
         Runtime.getRuntime.addShutdownHook(new Thread() {
           override def run(): Unit = {
             for (f <- tempDir.listFiles()) {
-              Console.err.println("Deleting " + f.getAbsolutePath)
+              logger.info("Deleting {}", f.getAbsolutePath)
               if (!f.delete()) {
-                Console.err.println(s"[WARN] Couldn't delete temporary file ${f.getAbsolutePath}")
+                logger.warn(s"Couldn't delete temporary file ${f.getAbsolutePath}")
               }
             }
-            Console.err.println(s"Deleting ${tempDir.getAbsolutePath}")
+            logger.info(s"Deleting ${tempDir.getAbsolutePath}")
             if (!tempDir.delete()) {
-              Console.err.println(
-                s"[WARN] Couldn't delete temporary directory ${tempDir.getAbsolutePath}")
+              logger.warn(s"Couldn't delete temporary directory ${tempDir.getAbsolutePath}")
             }
           }
         })
@@ -40,7 +58,7 @@ private[tvm] object NativeLibraryLoader {
       }
     } catch {
       case ex: IOException =>
-        Console.err.println("[ERROR] Couldn't create temporary directory: {}", ex.getMessage)
+        logger.error("Couldn't create temporary directory: {}", ex.getMessage)
         null
     }
 
@@ -60,18 +78,18 @@ private[tvm] object NativeLibraryLoader {
     val mappedLibname = System.mapLibraryName(libname)
     val loadLibname: String =
       if (mappedLibname.endsWith("dylib")) {
-        Console.err.println("Replaced .dylib with .jnilib")
+        logger.info("Replaced .dylib with .jnilib")
         mappedLibname.replace(".dylib", ".jnilib")
       } else {
         mappedLibname
       }
-    Console.err.println(s"Attempting to load $loadLibname")
+    logger.info(s"Attempting to load $loadLibname")
     val libFileInJar = libPathInJar + loadLibname
     val is: InputStream = getClass.getResourceAsStream(libFileInJar)
     if (is == null) {
       throw new UnsatisfiedLinkError(s"Couldn't find the resource $loadLibname")
     }
-    Console.err.println(s"Loading $loadLibname from $libPathInJar copying to $libname")
+    logger.info(s"Loading $loadLibname from $libPathInJar copying to $libname")
     loadLibraryFromStream(libname, is)
   }
 
@@ -103,7 +121,8 @@ private[tvm] object NativeLibraryLoader {
    */
   private def loadLibraryFromStream(libname: String, is: InputStream) {
     try {
-      val tempfile: File = createTempFile(libname)
+      val tempfile = createTempFile(libname)
+      logger.debug("tempfile.getPath() = {}", tempfile.getPath)
       val os: OutputStream = new FileOutputStream(tempfile)
       val savedTime: Long = System.currentTimeMillis
       val buf: Array[Byte] = new Array[Byte](8192)
@@ -116,15 +135,15 @@ private[tvm] object NativeLibraryLoader {
       val lock: InputStream = new FileInputStream(tempfile)
       os.close()
       val seconds: Double = (System.currentTimeMillis - savedTime).toDouble / 1e3
-      Console.err.println(s"Copying took $seconds seconds.")
-      Console.err.println("Loading library from {}", tempfile.getPath)
+      logger.info(s"Copying took $seconds seconds.")
+      logger.info("Loading library from {}", tempfile.getPath)
       System.load(tempfile.getPath)
       lock.close()
     } catch {
       case io: IOException =>
-        Console.err.println("[ERROR] Could not create the temp file: {}", io.toString)
+        logger.error("Could not create the temp file: {}", io.toString)
       case ule: UnsatisfiedLinkError =>
-        Console.err.println("[ERROR] Couldn't load copied link file: {}", ule.toString)
+        logger.error("Couldn't load copied link file: {}", ule.toString)
         throw ule
     }
   }

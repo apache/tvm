@@ -24,7 +24,7 @@
     </dependency>
     <dependency>
       <groupId>ml.dmlc.tvm</groupId>
-      <artifactId>libtvm-osx-x86_64-cpu</artifactId>
+      <artifactId>libtvm-jvm-osx-x86_64-cpu</artifactId>
       <version>${project.version}</version>
       <type>jnilib</type>
     </dependency>

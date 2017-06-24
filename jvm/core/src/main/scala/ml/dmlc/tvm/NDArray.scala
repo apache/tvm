@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ml.dmlc.tvm
 
 import java.nio.{ByteOrder, ByteBuffer}
@@ -10,6 +27,7 @@ import scala.collection.mutable.ArrayBuffer
 /**
  * Lightweight NDArray class of TVM runtime.
  */
+// scalastyle:off finalize
 class NDArray(private[tvm] val handle: TVMArrayHandle,
               private val isView: Boolean = false,
               private val dtype: TVMType = new TVMType("float32")) {
@@ -47,6 +65,14 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
   // Get size of current NDArray.
   def size: Long = shape.product
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * @return  A copy of array content.
+   */
+  def toArray: Array[Float] = {
+    internal.toFloatArray
+  }
+
   def internal: NDArrayInternal = {
     val arrLength = dtype.numOfBytes * size.toInt
     val arr = Array.ofDim[Byte](arrLength)
@@ -54,6 +80,7 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
     new NDArrayInternal(arr, dtype)
   }
 }
+// scalastyle:on finalize
 
 object NDArray {
   /**
@@ -73,7 +100,7 @@ object NDArray {
   }
 }
 
-private[tvm] class NDArrayInternal (private val internal: Array[Byte], private val dtype: TVMType) {
+private[tvm] class NDArrayInternal(private val internal: Array[Byte], private val dtype: TVMType) {
   private val unitSize = dtype.numOfBytes
   require(internal.length > 0 && internal.length % unitSize == 0,
     s"$dtype size $unitSize cannot divide byte array size ${internal.length}")

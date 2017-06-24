@@ -10,7 +10,7 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>libtvm-osx-x86_64-cpu</artifactId>
+  <artifactId>libtvm-jvm-osx-x86_64-cpu</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>TVM JVM Package - Native OSX-x86_64 CPU-only</name>
   <url>http://maven.apache.org</url>
@@ -67,7 +67,8 @@
             <linkerMiddleOption>-Wl,-exported_symbol,_Java_*</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-x</linkerMiddleOption>
             <linkerMiddleOption>${lddeps}</linkerMiddleOption>
-            <linkerMiddleOption>-force_load ../../../lib/libtvm.so</linkerMiddleOption>
+            <linkerMiddleOption>-force_load ../../../HalideIR/lib/libHalideIR.a</linkerMiddleOption>
+            <linkerMiddleOption>-force_load ../../../lib/libtvm.a</linkerMiddleOption>
           </linkerMiddleOptions>
           <linkerEndOptions>
             <linkerEndOption>${ldflags}</linkerEndOption>

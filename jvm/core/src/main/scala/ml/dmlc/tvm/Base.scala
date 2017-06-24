@@ -1,8 +1,28 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ml.dmlc.tvm
 
 import ml.dmlc.tvm.types.TVMValue
+import org.slf4j.{LoggerFactory, Logger}
 
 private[tvm] object Base {
+  private val logger: Logger = LoggerFactory.getLogger("TVM-JVM")
+
   // type definitions
   class RefInt(val value: Int = 0)
   class RefLong(val value: Long = 0)
@@ -26,7 +46,7 @@ private[tvm] object Base {
       tryLoadLibraryOS("tvm-jvm")
     } catch {
       case e: UnsatisfiedLinkError =>
-        Console.err.println("[WARN] TVM native library not found in path. " +
+        logger.warn("TVM native library not found in path. " +
           "Copying native library from the archive. " +
           "Consider installing the library somewhere in the path " +
           "(for Windows: PATH, for Linux: LD_LIBRARY_PATH), " +
@@ -35,14 +55,14 @@ private[tvm] object Base {
     }
   } catch {
     case e: UnsatisfiedLinkError =>
-      Console.err.println("[ERROR] Couldn't find native library tvm")
+      logger.error("Couldn't find native library tvm-jvm")
       throw e
   }
 
   @throws(classOf[UnsatisfiedLinkError])
   private def tryLoadLibraryOS(libname: String): Unit = {
     try {
-      Console.err.println(s"Try loading $libname from native path.")
+      logger.info(s"Try loading $libname from native path.")
       System.loadLibrary(libname)
     } catch {
       case e: UnsatisfiedLinkError =>
@@ -63,11 +83,11 @@ private[tvm] object Base {
   private def tryLoadLibraryXPU(libname: String, arch: String): Unit = {
     try {
       // try gpu first
-      Console.err.println(s"Try loading $libname-$arch-gpu from native path.")
+      logger.info(s"Try loading $libname-$arch-gpu from native path.")
       System.loadLibrary(s"$libname-$arch-gpu")
     } catch {
       case e: UnsatisfiedLinkError =>
-        Console.err.println(s"Try loading $libname-$arch-cpu from native path.")
+        logger.info(s"Try loading $libname-$arch-cpu from native path.")
         System.loadLibrary(s"$libname-$arch-cpu")
     }
   }

@@ -21,7 +21,7 @@
       <useProjectArtifact>false</useProjectArtifact>
       <useStrictFiltering>false</useStrictFiltering>
       <includes>
-        <include>ml.dmlc.tvm:libtvm-osx-x86_64-cpu:jnilib</include>
+        <include>ml.dmlc.tvm:libtvm-jvm-osx-x86_64-cpu:jnilib</include>
       </includes>
     </dependencySet>
   </dependencySets>

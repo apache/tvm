@@ -12,7 +12,7 @@ include $(config)
 
 .PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
 
-BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
+BUILD_TARGETS ?= lib/libtvm.a lib/libtvm.so lib/libtvm_runtime.so
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.so
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
@@ -144,6 +144,10 @@ build/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
+lib/libtvm.a: $(ALL_DEP) $(RUNTIME_DEP)
+	@mkdir -p $(@D)
+	ar crv $@ $(filter %.o, $?)
+
 lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
@@ -210,6 +214,12 @@ jvmpkg:
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
 			-Dcurrent_libdir="$(ROOTDIR)/lib") 
+
+jvmtest:
+	(cd $(ROOTDIR)/jvm; \
+		mvn verify -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
+			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
+			$(JVM_TEST_ARGS))
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
