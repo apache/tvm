@@ -64,6 +64,12 @@ class Tensor : public NodeRef {
    */
   Expr operator()(Array<Expr> indices) const;
   /*!
+   * \brief Take elements from the tensor
+   * \param indices the indices.
+   * \return the result expression representing tensor read.
+   */
+  Expr operator()(Array<Var> indices) const;
+  /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
    *  This is used to enable syntax sugar of Tensor[x][y][z] to get the element.
    */

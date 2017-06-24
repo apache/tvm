@@ -1,3 +1,4 @@
+"""Example code to do square matrix multiplication."""
 import tvm
 import os
 from tvm.contrib import nvcc_compiler

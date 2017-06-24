@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export PYTHONPATH=python
+export PYTHONPATH=python:topi/python
 
 TVM_FFI=ctypes python -m nose -v tests/python/unittest || exit -1
 TVM_FFI=ctypes python3 -m nose -v tests/python/unittest || exit -1
