@@ -1,5 +1,6 @@
 #include <tvm/tvm.h>
 #include <topi/ewise.h>
+#include <gtest/gtest.h>
 
 namespace topi {
 TEST(Tensor, Basic) {
