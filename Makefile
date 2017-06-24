@@ -53,7 +53,7 @@ RUNTIME_DEP = $(RUNTIME_OBJ)
 # The flags
 LDFLAGS = -pthread -lm -ldl
 CFLAGS = -std=c++11 -Wall -O2\
-	 -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -fPIC
+	 -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include -fPIC
 LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
@@ -155,11 +155,13 @@ LIBHALIDEIR:
 	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
 
 cpplint:
+	python dmlc-core/scripts/lint.py topi cpp topi/include;
 	python dmlc-core/scripts/lint.py tvm cpp include src verilog\
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 lint: cpplint pylint
 

@@ -14,7 +14,6 @@ TEST(Tensor, Basic) {
     }, "C");
 
   Tensor::Slice x = A[n];
-  LOG(INFO) << C->op.as<ComputeOpNode>()->body;
 }
 
 TEST(Tensor, Reduce) {

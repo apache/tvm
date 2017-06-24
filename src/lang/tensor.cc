@@ -9,6 +9,11 @@
 
 namespace tvm {
 
+Expr Tensor::operator()(Array<Var> indices) const {
+  Array<Expr> arr(indices.begin(), indices.end());
+  return operator()(arr);
+}
+
 Expr Tensor::operator()(Array<Expr> indices) const {
   using Halide::Internal::Call;
   CHECK_EQ(ndim(), indices.size())

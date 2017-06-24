@@ -7,8 +7,8 @@
 #define TVM_EXPR_H_
 
 #include <ir/Expr.h>
-#include <ir/IRPrinter.h>
 #include <ir/IROperator.h>
+#include <ir/IRPrinter.h>
 #include <string>
 #include <algorithm>
 #include "./base.h"
@@ -40,8 +40,6 @@ using Halide::Internal::as_const_uint;
 using Halide::Internal::const_true;
 using Halide::Internal::const_false;
 using Halide::Internal::is_no_op;
-using Halide::likely;
-using Halide::likely_if_innermost;
 
 inline Type TVMShapeIndexType() {
   if (std::is_signed<tvm_index_t>::value) {
@@ -217,37 +215,8 @@ IterVar reduce_axis(Range dom, std::string name = "rv");
 
 using Domain = Array<Range>;
 
-// functions
-using Halide::cast;
-using Halide::min;
-using Halide::max;
-using Halide::abs;
-using Halide::select;
-
-/*!
- * \brief sum of of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- */
-Expr sum(Expr source, Array<IterVar> axis);
-
-/*!
- * \brief max of of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- */
-Expr max(Expr source, Array<IterVar> axis);
-
-/*!
- * \brief max of of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- */
-Expr min(Expr source, Array<IterVar> axis);
-
 // print functions for expr
 std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
-
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration
