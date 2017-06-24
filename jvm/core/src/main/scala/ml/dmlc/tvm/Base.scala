@@ -2,11 +2,7 @@ package ml.dmlc.tvm
 
 import ml.dmlc.tvm.types.TVMValue
 
-// import org.slf4j.{Logger, LoggerFactory}
-
 private[tvm] object Base {
-  // private val logger: Logger = LoggerFactory.getLogger("TVM_JVM")
-
   // type definitions
   class RefInt(val value: Int = 0)
   class RefLong(val value: Long = 0)
@@ -25,17 +21,63 @@ private[tvm] object Base {
   type TVMArrayHandle = CPtrAddress
   type RefTVMArrayHandle = RefLong
 
-  // FIXME
-  val baseDir = System.getProperty("user.dir") + "/jvm/native"
-  System.load(s"$baseDir/osx-x86_64-cpu/target/libtvm-osx-x86_64-cpu.jnilib")
+  try {
+    try {
+      tryLoadLibraryOS("tvm-jvm")
+    } catch {
+      case e: UnsatisfiedLinkError =>
+        Console.err.println("[WARN] TVM native library not found in path. " +
+          "Copying native library from the archive. " +
+          "Consider installing the library somewhere in the path " +
+          "(for Windows: PATH, for Linux: LD_LIBRARY_PATH), " +
+          "or specifying by Java cmd option -Djava.library.path=[lib path].")
+        NativeLibraryLoader.loadLibrary("tvm-jvm")
+    }
+  } catch {
+    case e: UnsatisfiedLinkError =>
+      Console.err.println("[ERROR] Couldn't find native library tvm")
+      throw e
+  }
+
+  @throws(classOf[UnsatisfiedLinkError])
+  private def tryLoadLibraryOS(libname: String): Unit = {
+    try {
+      Console.err.println(s"Try loading $libname from native path.")
+      System.loadLibrary(libname)
+    } catch {
+      case e: UnsatisfiedLinkError =>
+        val os = System.getProperty("os.name")
+        // ref: http://lopica.sourceforge.net/os.html
+        if (os.startsWith("Linux")) {
+          tryLoadLibraryXPU(libname, "linux-x86_64")
+        } else if (os.startsWith("Mac")) {
+          tryLoadLibraryXPU(libname, "osx-x86_64")
+        } else {
+          // TODO(yizhi) support windows later
+          throw new UnsatisfiedLinkError()
+        }
+    }
+  }
+
+  @throws(classOf[UnsatisfiedLinkError])
+  private def tryLoadLibraryXPU(libname: String, arch: String): Unit = {
+    try {
+      // try gpu first
+      Console.err.println(s"Try loading $libname-$arch-gpu from native path.")
+      System.loadLibrary(s"$libname-$arch-gpu")
+    } catch {
+      case e: UnsatisfiedLinkError =>
+        Console.err.println(s"Try loading $libname-$arch-cpu from native path.")
+        System.loadLibrary(s"$libname-$arch-cpu")
+    }
+  }
 
   val _LIB = new LibInfo
   checkCall(_LIB.nativeLibInit())
 
-  // TODO: shutdown hook won't work on Windows
   Runtime.getRuntime.addShutdownHook(new Thread() {
     override def run(): Unit = {
-      notifyShutdown()
+      // TODO
     }
   })
 
@@ -51,11 +93,6 @@ private[tvm] object Base {
     if (ret != 0) {
       throw new TVMError(_LIB.tvmGetLastError())
     }
-  }
-
-  // Notify MXNet about a shutdown
-  private def notifyShutdown(): Unit = {
-    // checkCall(_LIB.mxNotifyShutdown())
   }
 
   // Convert ctypes returned doc string information into parameters docstring.

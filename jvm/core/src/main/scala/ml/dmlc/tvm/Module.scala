@@ -1,7 +1,7 @@
 package ml.dmlc.tvm
 
 import ml.dmlc.tvm.Base._
-import ml.dmlc.tvm.types.{TVMValueModuleHandle, TVMValue}
+import ml.dmlc.tvm.types._
 import ml.dmlc.tvm.types.TypeCode._
 
 class Module(private[tvm] val handle: ModuleHandle) {
@@ -71,5 +71,17 @@ object Module {
     require(ret.argType == MODULE_HANDLE)
     val tvmValue = ret.asInstanceOf[TVMValueModuleHandle]
     new Module(tvmValue.value)
+  }
+
+  /**
+   * Whether module runtime is enabled for target,
+   * e.g., The following code checks if gpu is enabled.
+   * Module.enabled("gpu")
+   * @param target The target device type.
+   * @return Whether runtime is enabled.
+   */
+  def enabled(target: String): Boolean = {
+    val ret = Module("_Enabled")(target)
+    if (ret.asInstanceOf[TVMValueLong].value == 0) false else true
   }
 }
