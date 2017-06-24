@@ -52,6 +52,9 @@ USE_RPC = 0
 # Whether use BLAS, choices: openblas, atlas, blas, apple
 USE_BLAS = none
 
+USE_NNPACK = 1
+# NNPACK_PATH = none
+
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable.
 # CUDA_PATH = /usr/local/cuda

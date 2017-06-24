@@ -107,6 +107,7 @@ ifdef LLVM_CONFIG
 endif
 
 include make/contrib/cblas.mk
+include make/contrib/nnpack.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
