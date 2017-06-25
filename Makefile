@@ -132,11 +132,11 @@ else
 endif
 
 ifeq ($(USE_CUDA), 1)
-	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cuda
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
 else ifeq ($(USE_OPENCL), 1)
-	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-opencl
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
 else ifeq ($(USE_METAL), 1)
-	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-metal
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
 else
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
 endif
