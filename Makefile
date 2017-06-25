@@ -120,6 +120,27 @@ ifdef ADD_LDFLAGS
 	LDFLAGS += $(ADD_LDFLAGS)
 endif
 
+ifeq ($(OS),Windows_NT)
+  JVM_PKG_PROFILE := windows
+else
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S), Darwin)
+		JVM_PKG_PROFILE := osx-x86_64
+	else
+		JVM_PKG_PROFILE := linux-x86_64
+	endif
+endif
+
+ifeq ($(USE_CUDA), 1)
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cuda
+else ifeq ($(USE_OPENCL), 1)
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-opencl
+else ifeq ($(USE_METAL), 1)
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-metal
+else
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
+endif
+
 include tests/cpp/unittest.mk
 
 test: $(TEST)
@@ -198,22 +219,11 @@ cython3:
 cyclean:
 	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.cpp
 
-ifeq ($(OS),Windows_NT)
-  JVM_PKG_PROFILE := windows
-else
-	ifeq ($(UNAME_S), Darwin)
-		JVM_PKG_PROFILE := osx-x86_64
-	else
-		JVM_PKG_PROFILE := linux-x86_64
-	endif
-endif
-
-JVM_PKG_PROFILE := osx-x86_64-cpu
 jvmpkg:
 	(cd $(ROOTDIR)/jvm; \
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
-			-Dcurrent_libdir="$(ROOTDIR)/lib") 
+			-Dcurrent_libdir="$(ROOTDIR)/lib")
 
 jvmtest:
 	(cd $(ROOTDIR)/jvm; \

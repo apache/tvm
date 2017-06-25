@@ -47,7 +47,7 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
    */
   private def syncCopyFrom(sourceArray: Array[Double]): Unit = {
     require(shape.product == sourceArray.length)
-    val tmpArr = NDArray.empty(shape, dtype = this.dtype.typeStr)
+    val tmpArr = NDArray.empty(shape, dtype = this.dtype)
 
     val nativeArr = Array.ofDim[Byte](sourceArray.length * dtype.numOfBytes)
     dtype.typeCode match {
@@ -121,12 +121,28 @@ object NDArray {
    * @return The array tvm supported
    */
   def empty(shape: Shape,
-            dtype: String = "float32",
+            dtype: TVMType = TVMType("float32"),
             ctx: TVMContext = new TVMContext(1, 0)): NDArray = {
     val refHandle = new RefTVMArrayHandle()
-    val t = new TVMType(dtype)
-    checkCall(_LIB.tvmArrayAlloc(shape.toArray, t, ctx, refHandle))
-    new NDArray(refHandle.value, false, t)
+    checkCall(_LIB.tvmArrayAlloc(shape.toArray, dtype, ctx, refHandle))
+    new NDArray(refHandle.value, false, dtype)
+  }
+
+  /**
+   * Create an array from source arr.
+   * @param arr The source array to be copied from
+   * @param shape The shape of the nd array
+   * @param dtype The data type of the nd array
+   * @param ctx The context of the nd array
+   * @return The created nd array
+   */
+  def array(arr: Array[Double],
+            shape: Shape,
+            dtype: TVMType = TVMType("float32"),
+            ctx: TVMContext = new TVMContext(1, 0)): NDArray = {
+    val ndArray = empty(shape, dtype, ctx)
+    ndArray.set(arr)
+    ndArray
   }
 }
 

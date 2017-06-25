@@ -18,6 +18,8 @@
 package ml.dmlc.tvm.types
 
 object TVMType {
+  implicit def str2Type(dtype: String): TVMType = TVMType(dtype)
+
   val CODE2STR = Map(
     0 -> "int",
     1 -> "uint",
@@ -29,6 +31,10 @@ object TVMType {
   val UINT = 1
   val FLOAT = 2
   val HANDLE = 4
+
+  def apply(typeStr: String, lanes: Int = 1): TVMType = {
+    new TVMType(typeStr, lanes)
+  }
 }
 
 class TVMType(val typeStr: String, val lanes: Int = 1) {

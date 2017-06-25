@@ -10,12 +10,12 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>libtvm-jvm-osx-x86_64-cpu</artifactId>
+  <artifactId>libtvm-jvm-linux-x86_64-cpu</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>TVM JVM Package - Native OSX-x86_64 CPU-only</name>
+  <name>TVM JVM Package - Native Linux-x86_64 CPU-only</name>
   <url>http://maven.apache.org</url>
 
-  <packaging>jnilib</packaging>
+  <packaging>so</packaging>
 
   <dependencies>
     <dependency>
@@ -40,7 +40,7 @@
         <extensions>true</extensions>
         <configuration>
           <!--  trigger javah -->
-          <javahOS>darwin</javahOS>
+          <javahOS>linux</javahOS>
           <compilerProvider>generic-classic</compilerProvider>
           <compilerExecutable>${cxx}</compilerExecutable>
           <linkerExecutable>${cxx}</linkerExecutable>
@@ -63,11 +63,10 @@
             <linkerStartOption>-shared</linkerStartOption>
           </linkerStartOptions>
           <linkerMiddleOptions>
-            <linkerMiddleOption>-framework JavaVM</linkerMiddleOption>
-            <linkerMiddleOption>-Wl,-exported_symbol,_Java_*</linkerMiddleOption>
-            <linkerMiddleOption>-Wl,-x</linkerMiddleOption>
-            <linkerMiddleOption>-force_load ../../../HalideIR/lib/libHalideIR.a</linkerMiddleOption>
-            <linkerMiddleOption>-force_load ../../../lib/libtvm.a</linkerMiddleOption>
+            <linkerMiddleOption>-Wl,--whole-archive</linkerMiddleOption>
+            <linkerMiddleOption>../../../HalideIR/lib/libHalideIR.a</linkerMiddleOption>
+            <linkerMiddleOption>../../../lib/libtvm.a</linkerMiddleOption>
+            <linkerMiddleOption>-Wl,--no-whole-archive</linkerMiddleOption>
           </linkerMiddleOptions>
           <linkerEndOptions>
             <linkerEndOption>${ldflags}</linkerEndOption>
@@ -79,7 +78,7 @@
             <id>javah</id>
             <phase>generate-sources</phase>
             <configuration>
-              <javahOS>darwin</javahOS>
+              <javahOS>linux</javahOS>
               <javahProvider>default</javahProvider>
               <javahOutputDirectory>${project.build.directory}/custom-javah</javahOutputDirectory>
               <workingDirectory>${basedir}</workingDirectory>

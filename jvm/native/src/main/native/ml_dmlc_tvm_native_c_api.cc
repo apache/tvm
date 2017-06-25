@@ -2,6 +2,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <iostream>
+#include <cstring>
 
 #include "jni_helper_func.h"
 
@@ -173,8 +174,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayFree(
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
   JNIEnv *env, jobject obj, jlongArray jshape, jobject jdtype, jobject jctx, jobject jret) {
-
-
   TVMType dtype;
   fromJavaDType(env, jdtype, dtype);
 
@@ -245,4 +244,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyToJArray(
   }
   env->ReleaseByteArrayElements(jarr, pdata, 0);  // copy back to java array automatically
   return ret;
+}
+
+// Context
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmSynchronize(
+  JNIEnv *env, jobject obj, jobject jctx) {
+  TVMContext ctx;
+  fromJavaContext(env, jctx, ctx);
+  return TVMSynchronize(ctx, NULL);
 }

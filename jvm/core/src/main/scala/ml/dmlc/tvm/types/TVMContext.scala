@@ -18,6 +18,7 @@
 package ml.dmlc.tvm.types
 
 import ml.dmlc.tvm.APIInternal
+import ml.dmlc.tvm.Base._
 
 // TVM context structure
 object TVMContext {
@@ -25,14 +26,15 @@ object TVMContext {
     new TVMContext(deviceType, deviceId)
   }
 
-  val MASK2STR = Map(
+  private val MASK2STR = Map(
     1 -> "cpu",
     2 -> "gpu",
     4 -> "opencl",
     8 -> "metal",
     9 -> "vpi"
   )
-  val STR2MASK = Map(
+
+  private val STR2MASK = Map(
     "cpu" -> 1,
     "gpu" -> 2,
     "cuda" -> 2,
@@ -41,6 +43,53 @@ object TVMContext {
     "metal" -> 8,
     "vpi" -> 9
   )
+
+  /**
+   * Construct a CPU device
+   * @param devId The device id
+   * @return The created context
+   */
+  def cpu(devId: Int = 0): TVMContext = {
+    new TVMContext(1, devId)
+  }
+
+
+  /**
+   * Construct a GPU device
+   * @param devId The device id
+   * @return The created context
+   */
+  def gpu(devId: Int = 0): TVMContext = {
+    new TVMContext(2, devId)
+  }
+
+
+  /**
+   * Construct a OpenCL device
+   * @param devId The device id
+   * @return The created context
+   */
+  def opencl(devId: Int = 0): TVMContext = {
+    new TVMContext(4, devId)
+  }
+
+  /**
+   * Construct a metal device
+   * @param devId The device id
+   * @return The created context
+   */
+  def metal(devId: Int = 0): TVMContext = {
+    new TVMContext(8, devId)
+  }
+
+  /**
+   * Construct a VPI simulated device
+   * @param devId The device id
+   * @return The created context
+   */
+  def vpi(devId: Int = 0): TVMContext = {
+    new TVMContext(9, devId)
+  }
 }
 
 class TVMContext(private val deviceType: Int, private val deviceId: Int) {
@@ -70,7 +119,7 @@ class TVMContext(private val deviceType: Int, private val deviceId: Int) {
 
   // Synchronize until jobs finished at the context.
   def sync(): Unit = {
-    // TODO: checkCall(_LIB.TVMSynchronize(self, None))
+    checkCall(_LIB.tvmSynchronize(this))
   }
 
   override def hashCode: Int = {

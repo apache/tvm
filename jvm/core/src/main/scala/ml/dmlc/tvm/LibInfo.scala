@@ -49,4 +49,7 @@ private[tvm] class LibInfo {
                                      from: TVMArrayHandle,
                                      to: TVMArrayHandle): Int
   @native def tvmArrayCopyToJArray(from: TVMArrayHandle, to: Array[Byte]): Int
+
+  // TVMContext
+  @native def tvmSynchronize(ctx: TVMContext): Int
 }
