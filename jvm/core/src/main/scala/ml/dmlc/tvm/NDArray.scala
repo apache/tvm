@@ -37,7 +37,7 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
     }
   }
 
-  def set(source: Array[Float]): Unit = {
+  def set(source: Array[Double]): Unit = {
     syncCopyFrom(source)
   }
 
@@ -45,10 +45,40 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
    * Perform an synchronize copy from the array.
    * @param sourceArray The data source we should like to copy from.
    */
-  private def syncCopyFrom(sourceArray: Array[Float]): Unit = {
+  private def syncCopyFrom(sourceArray: Array[Double]): Unit = {
     require(shape.product == sourceArray.length)
-    val tmpArr = NDArray.empty(shape)
-    checkCall(_LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle))
+    val tmpArr = NDArray.empty(shape, dtype = this.dtype.typeStr)
+
+    val nativeArr = Array.ofDim[Byte](sourceArray.length * dtype.numOfBytes)
+    dtype.typeCode match {
+      case TVMType.INT | TVMType.UINT =>
+        dtype.bits match {
+          case 8 => (0 until sourceArray.length).foreach(i => nativeArr(i) = sourceArray(i).toByte)
+          case 16 => (0 until sourceArray.length).foreach(i =>
+            NDArrayInternal.wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
+              .putShort(sourceArray(i).toShort))
+          case 32 => (0 until sourceArray.length).foreach(i =>
+            NDArrayInternal.wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
+              .putInt(sourceArray(i).toLong.toInt))
+          case 64 => (0 until sourceArray.length).foreach(i =>
+            NDArrayInternal.wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
+              .putLong(sourceArray(i).toLong))
+          case _ => throw new IllegalArgumentException("Do not know how to handle type " + dtype)
+        }
+      case TVMType.FLOAT =>
+        dtype.bits match {
+          case 16 => throw new IllegalArgumentException(
+            "Currently cannot convert native numerical types to float16")
+          case 32 => (0 until sourceArray.length).foreach(i =>
+            NDArrayInternal.wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
+              .putFloat(sourceArray(i).toFloat))
+          case 64 => (0 until sourceArray.length).foreach(i =>
+            NDArrayInternal.wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
+              .putDouble(sourceArray(i)))
+          case _ => throw new IllegalArgumentException("Do not know how to handle type " + dtype)
+        }
+    }
+    checkCall(_LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle))
     checkCall(_LIB.tvmArrayFree(tmpArr.handle))
   }
 
@@ -69,8 +99,8 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
    * Return a copied flat java array of current array (row-major).
    * @return  A copy of array content.
    */
-  def toArray: Array[Float] = {
-    internal.toFloatArray
+  def toArray: Array[Double] = {
+    internal.toArray
   }
 
   def internal: NDArrayInternal = {
@@ -100,24 +130,66 @@ object NDArray {
   }
 }
 
+private[tvm] object NDArrayInternal {
+  def wrapBytes(bytes: Array[Byte]): ByteBuffer = {
+    val bb = ByteBuffer.wrap(bytes)
+    bb.order(ByteOrder.LITTLE_ENDIAN)
+    bb
+  }
+
+  def wrapBytes(bytes: Array[Byte], offset: Int, length: Int): ByteBuffer = {
+    val bb = ByteBuffer.wrap(bytes, offset, length)
+    bb.order(ByteOrder.LITTLE_ENDIAN)
+    bb
+  }
+}
+
 private[tvm] class NDArrayInternal(private val internal: Array[Byte], private val dtype: TVMType) {
   private val unitSize = dtype.numOfBytes
   require(internal.length > 0 && internal.length % unitSize == 0,
     s"$dtype size $unitSize cannot divide byte array size ${internal.length}")
+
   private val units: Array[Array[Byte]] = (
     for (i <- 0 until internal.length / unitSize)
       yield internal.slice(i * unitSize, (i + 1) * unitSize)
     ).toArray
 
   def getRaw: Array[Byte] = internal
-  def toFloatArray: Array[Float] = {
-    // TODO
-    units.map(wrapBytes(_).getFloat)
-  }
 
-  private def wrapBytes(bytes: Array[Byte]): ByteBuffer = {
-    val bb = ByteBuffer.wrap(bytes)
-    bb.order(ByteOrder.LITTLE_ENDIAN)
-    bb
+  def toArray: Array[Double] = {
+    dtype.typeCode match {
+      case TVMType.INT =>
+        dtype.bits match {
+          case 8 => internal.map(_.toDouble)
+          case 16 => units.map(NDArrayInternal.wrapBytes(_).getShort.toDouble)
+          case 32 => units.map(NDArrayInternal.wrapBytes(_).getInt.toDouble)
+          case 64 => units.map(NDArrayInternal.wrapBytes(_).getLong.toDouble)
+          case _ => throw new IllegalArgumentException("Do not know how to handle type " + dtype)
+        }
+      case TVMType.UINT =>
+        dtype.bits match {
+          case 8 => internal.map { x =>
+           val i = x.toInt & 0xFF
+           i.toDouble
+          }
+          case 16 => units.map { x =>
+            val i = NDArrayInternal.wrapBytes(x).getShort.toInt & 0xFFFF
+            i.toDouble
+          }
+          case 32 => units.map { x =>
+            val i = NDArrayInternal.wrapBytes(x).getInt.toLong & 0xFFFFFFFFL
+            i.toDouble
+          }
+          case _ => throw new IllegalArgumentException("Do not know how to handle type " + dtype)
+        }
+      case TVMType.FLOAT =>
+        dtype.bits match {
+          case 16 => throw new IllegalArgumentException(
+            "Currently cannot convert float16 to native numerical types")
+          case 32 => units.map(NDArrayInternal.wrapBytes(_).getFloat.toDouble)
+          case 64 => units.map(NDArrayInternal.wrapBytes(_).getDouble)
+          case _ => throw new IllegalArgumentException("Do not know how to handle type " + dtype)
+        }
+    }
   }
 }

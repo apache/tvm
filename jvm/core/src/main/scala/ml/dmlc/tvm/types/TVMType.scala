@@ -18,15 +18,20 @@
 package ml.dmlc.tvm.types
 
 object TVMType {
-  private val CODE2STR = Map(
+  val CODE2STR = Map(
     0 -> "int",
     1 -> "uint",
     2 -> "float",
     4 -> "handle"
   )
+
+  val INT = 0
+  val UINT = 1
+  val FLOAT = 2
+  val HANDLE = 4
 }
 
-class TVMType(typeStr: String, val lanes: Int = 1) {
+class TVMType(val typeStr: String, val lanes: Int = 1) {
   private val (typeCodeTemp, bitsTemp) =
     if (typeStr.startsWith("int")) {
       (0, typeStr.substring(3).toInt)

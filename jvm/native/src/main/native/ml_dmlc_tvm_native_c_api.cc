@@ -219,8 +219,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromJArray(
-  JNIEnv *env, jobject obj, jfloatArray jarr, jlong jfrom, jlong jto) {
-  jfloat *data = env->GetFloatArrayElements(jarr, NULL);
+  JNIEnv *env, jobject obj, jbyteArray jarr, jlong jfrom, jlong jto) {
+  jbyte *data = env->GetByteArrayElements(jarr, NULL);
 
   TVMArray *from = reinterpret_cast<TVMArray *>(jfrom);
   from->data = static_cast<void *>(data);
@@ -229,7 +229,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromJArray(
                                reinterpret_cast<TVMArrayHandle>(jto), NULL);
 
   from->data = NULL;
-  env->ReleaseFloatArrayElements(jarr, data, 0);
+  env->ReleaseByteArrayElements(jarr, data, 0);
 
   return ret;
 }

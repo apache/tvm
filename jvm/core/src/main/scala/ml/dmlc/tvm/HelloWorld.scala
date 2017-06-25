@@ -41,8 +41,8 @@ object HelloWorld {
     val res = NDArray.empty(shape)
     mod(arr, arr, res)
 
-    println("arr to Array: [" + arr.internal.toFloatArray.mkString(",") + "]")
-    println("res to Array: [" + res.internal.toFloatArray.mkString(",") + "]")
+    println("arr to Array: [" + arr.toArray.mkString(",") + "]")
+    println("res to Array: [" + res.toArray.mkString(",") + "]")
   }
 }
 // scalastyle:on println
