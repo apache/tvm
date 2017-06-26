@@ -121,7 +121,7 @@ ifdef ADD_LDFLAGS
 endif
 
 ifeq ($(OS),Windows_NT)
-  JVM_PKG_PROFILE := windows
+	JVM_PKG_PROFILE := windows
 else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S), Darwin)

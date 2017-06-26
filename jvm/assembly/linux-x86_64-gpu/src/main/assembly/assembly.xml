@@ -1,0 +1,28 @@
+<assembly>
+  <id>full</id>
+  <formats>
+    <format>jar</format>
+  </formats>
+  <includeBaseDirectory>false</includeBaseDirectory>
+  <dependencySets>
+    <dependencySet>
+      <includes>
+        <include>*:*:jar</include>
+      </includes>
+      <outputDirectory>/</outputDirectory>
+      <useProjectArtifact>true</useProjectArtifact>
+      <unpack>true</unpack>
+      <scope>runtime</scope>
+    </dependencySet>
+    <dependencySet>
+      <outputDirectory>lib/native</outputDirectory>
+      <outputFileNameMapping>libtvm-jvm.so</outputFileNameMapping>
+      <unpack>false</unpack>
+      <useProjectArtifact>false</useProjectArtifact>
+      <useStrictFiltering>false</useStrictFiltering>
+      <includes>
+        <include>ml.dmlc.tvm:libtvm-jvm-linux-x86_64-gpu:so</include>
+      </includes>
+    </dependencySet>
+  </dependencySets>
+</assembly>
