@@ -18,6 +18,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tanh")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt")
+.set_body(DispatchExtern<FloatSuffix>);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
