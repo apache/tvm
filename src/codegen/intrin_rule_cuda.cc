@@ -45,6 +45,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh")
 .set_body(DispatchExtern<CUDAMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt")
+.set_body(DispatchExtern<CUDAMath>);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
