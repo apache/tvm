@@ -166,6 +166,22 @@ def log(x):
     return call_pure_intrin(x.dtype, "log", x)
 
 
+def sqrt(x):
+    """Take log of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "sqrt", x)
+
+
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
     """Register an intrinsic function generation rule.

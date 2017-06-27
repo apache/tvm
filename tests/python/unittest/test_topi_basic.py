@@ -14,6 +14,8 @@ def test_ewise():
     test_apply(topi.exp, "exp")
     test_apply(topi.tanh, "tanh")
     test_apply(topi.sigmoid, "sigmoid")
+    test_apply(topi.log, "log")
+    test_apply(topi.sqrt, "sqrt")
 
 
 if __name__ == "__main__":
