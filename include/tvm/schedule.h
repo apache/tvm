@@ -181,6 +181,14 @@ class Stage : public NodeRef {
    */
   Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
+   * \brief Fetch data in advance.
+   * \param domain the tensor to be prefetched
+   * \param var the iteration point at which to apply prefetching
+   * \param offset the number of iterations be to fetched in advance
+   * \return reference to self
+   */
+  Stage& prefetch(Tensor domain, IterVar var, Expr offset); //NOLINT(*)
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */

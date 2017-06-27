@@ -185,6 +185,8 @@ def lower(sch,
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
+    #TODO: figure out how to access the data structure which specifies the prefetch
+    stmt = ir_pass.InjectPrefetch(stmt) 
     stmt = ir_pass.StorageFlatten(stmt, binds)
     stmt = ir_pass.CanonicalSimplify(stmt)
     if not simple_mode:

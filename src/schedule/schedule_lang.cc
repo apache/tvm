@@ -337,6 +337,23 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
+Stage& Stage::prefetch(Tensor domain, IterVar var, Expr offset) {
+  StageNode *self = operator->();
+  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  FindLeafVar(all_vars, leaf_vars, var);
+  auto it = self->iter_var_attrs.find(var);
+  std::shared_ptr<IterVarAttrNode> n;
+  if (it != self->iter_var_attrs.end()) {
+    n = std::make_shared<IterVarAttrNode>(*(*it).second.operator->());
+  } else {
+    n = std::make_shared<IterVarAttrNode>();
+  }
+  n->prefetch_data.push_back(domain);
+  n->prefetch_offset.push_back(offset);
+  self->iter_var_attrs.Set(var, IterVarAttr(n));
+}
+
 Stage CopyStage(const Stage& s) {
   std::shared_ptr<StageNode> n =
       std::make_shared<StageNode>(*s.operator->());

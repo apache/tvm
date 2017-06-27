@@ -223,6 +223,13 @@ Stmt VectorizeLoop(Stmt stmt);
 Stmt InjectVirtualThread(Stmt stmt);
 
 /*!
+ * \brief Inject prefetch instructions into stmt.
+ * \param stmt The statment to be transformed.
+ * \return Transformed stmt.
+ */
+Stmt InjectPrefetch(Stmt stmt);
+
+/*!
  * \brief Rewrite storage allocation pattern.
  *  Moves the allocation to outer most possible scope.
  *  Trying to share space between allocations to make

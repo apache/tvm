@@ -95,6 +95,7 @@ REGISTER_PASS2(BindDeviceType);
 REGISTER_PASS1(SplitHostDevice);
 REGISTER_PASS1(StorageRewrite);
 REGISTER_PASS1(InjectVirtualThread);
+REGISTER_PASS1(InjectPrefetch);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
 REGISTER_PASS2(SplitPipeline);
