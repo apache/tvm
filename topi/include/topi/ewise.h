@@ -22,5 +22,6 @@ using namespace tvm;
 TOPI_DECLARE_UNARY_OP(exp);
 TOPI_DECLARE_UNARY_OP(tanh);
 TOPI_DECLARE_UNARY_OP(sigmoid);
+TOPI_DECLARE_UNARY_OP(sqrt);
 }  // namespace topi
 #endif  // TOPI_EWISE_H_

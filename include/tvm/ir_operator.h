@@ -51,6 +51,7 @@ Expr min(Expr source, Array<IterVar> axis);
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
+TVM_DECLARE_INTRIN_UNARY(sqrt);
 }  // namespace tvm
 
 #endif  // TVM_IR_OPERATOR_H_
