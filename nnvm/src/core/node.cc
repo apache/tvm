@@ -27,6 +27,7 @@ Node::~Node() {
       for (NodePtr& sp : n->control_deps) {
         if (sp.unique()) {
           stack.push_back(sp.get());
+          to_delete.emplace_back(std::move(sp));
         } else {
           sp.reset();
         }
