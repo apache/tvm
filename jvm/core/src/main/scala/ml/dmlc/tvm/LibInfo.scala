@@ -23,7 +23,9 @@ import ml.dmlc.tvm.types.{TVMContext, TVMType, TVMValue}
 import scala.collection.mutable.ArrayBuffer
 
 private[tvm] class LibInfo {
-  @native def nativeLibInit(): Int
+  @native def nativeLibInit(tvmLibFile: String): Int
+  @native def shutdown(): Int
+
   @native def tvmGetLastError(): String
 
   // Function
@@ -45,6 +47,7 @@ private[tvm] class LibInfo {
                             ctx: TVMContext,
                             refHandle: RefTVMArrayHandle): Int
   @native def tvmArrayGetShape(handle: TVMArrayHandle, shape: ArrayBuffer[Long]): Int
+  @native def tvmArrayCopyFromTo(from: TVMArrayHandle, to: TVMArrayHandle): Int
   @native def tvmArrayCopyFromJArray(fromRaw: Array[Byte],
                                      from: TVMArrayHandle,
                                      to: TVMArrayHandle): Int

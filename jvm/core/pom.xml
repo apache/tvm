@@ -5,15 +5,15 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ml.dmlc.tvm</groupId>
-    <artifactId>tvm-parent_2.11</artifactId>
+    <artifactId>tvm4j-parent_2.11</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <groupId>ml.dmlc.tvm</groupId>
-  <artifactId>tvm-core_2.11</artifactId>
+  <artifactId>tvm4j-core_2.11</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>TVM JVM Package - Core</name>
+  <name>TVM4J Package - Core</name>
 
   <profiles>
     <profile>
@@ -59,7 +59,8 @@
         <configuration>
           <argLine>
             -Djava.library.path=${project.parent.basedir}/native/${platform}/target \
-            -Dlog4j.configuration=file://${project.basedir}/src/test/resources/log4j.properties
+            -Dlog4j.configuration=file://${project.basedir}/src/test/resources/log4j.properties \
+            -Dlibtvm.so.path=${project.parent.basedir}/../lib/libtvm_runtime.so
           </argLine>
         </configuration>
       </plugin>

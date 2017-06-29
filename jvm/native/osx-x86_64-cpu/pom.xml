@@ -5,14 +5,14 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ml.dmlc.tvm</groupId>
-    <artifactId>tvm-native-parent</artifactId>
+    <artifactId>tvm4j-native-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>libtvm-jvm-osx-x86_64-cpu</artifactId>
+  <artifactId>libtvm4j-osx-x86_64-cpu</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>TVM JVM Package - Native OSX-x86_64 CPU-only</name>
+  <name>TVM4J Package - Native OSX-x86_64 CPU-only</name>
   <url>http://maven.apache.org</url>
 
   <packaging>jnilib</packaging>
@@ -20,7 +20,7 @@
   <dependencies>
     <dependency>
       <groupId>ml.dmlc.tvm</groupId>
-      <artifactId>tvm-core_${scala.binary.version}</artifactId>
+      <artifactId>tvm4j-core_${scala.binary.version}</artifactId>
       <version>${project.version}</version>
       <type>jar</type>
       <scope>compile</scope>
@@ -65,9 +65,9 @@
           <linkerMiddleOptions>
             <linkerMiddleOption>-framework JavaVM</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-exported_symbol,_Java_*</linkerMiddleOption>
+            <linkerMiddleOption>-undefined dynamic_lookup</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-x</linkerMiddleOption>
             <linkerMiddleOption>-force_load ../../../HalideIR/lib/libHalideIR.a</linkerMiddleOption>
-            <linkerMiddleOption>-force_load ../../../lib/libtvm.a</linkerMiddleOption>
           </linkerMiddleOptions>
           <linkerEndOptions>
             <linkerEndOption>${ldflags}</linkerEndOption>

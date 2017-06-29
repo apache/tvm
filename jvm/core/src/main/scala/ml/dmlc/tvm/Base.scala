@@ -17,11 +17,13 @@
 
 package ml.dmlc.tvm
 
+import java.io.File
+
 import ml.dmlc.tvm.types.TVMValue
 import org.slf4j.{LoggerFactory, Logger}
 
 private[tvm] object Base {
-  private val logger: Logger = LoggerFactory.getLogger("TVM-JVM")
+  private val logger: Logger = LoggerFactory.getLogger("tvm4j")
 
   // type definitions
   class RefInt(val value: Int = 0)
@@ -43,7 +45,7 @@ private[tvm] object Base {
 
   try {
     try {
-      tryLoadLibraryOS("tvm-jvm")
+      tryLoadLibraryOS("tvm4j")
     } catch {
       case e: UnsatisfiedLinkError =>
         logger.warn("TVM native library not found in path. " +
@@ -51,11 +53,11 @@ private[tvm] object Base {
           "Consider installing the library somewhere in the path " +
           "(for Windows: PATH, for Linux: LD_LIBRARY_PATH), " +
           "or specifying by Java cmd option -Djava.library.path=[lib path].")
-        NativeLibraryLoader.loadLibrary("tvm-jvm")
+        NativeLibraryLoader.loadLibrary("tvm4j")
     }
   } catch {
     case e: UnsatisfiedLinkError =>
-      logger.error("Couldn't find native library tvm-jvm")
+      logger.error("Couldn't find native library tvm4j")
       throw e
   }
 
@@ -93,11 +95,18 @@ private[tvm] object Base {
   }
 
   val _LIB = new LibInfo
-  checkCall(_LIB.nativeLibInit())
+  val tvmLibFilename = System.getProperty("libtvm.so.path")
+  if (tvmLibFilename == null || !new File(tvmLibFilename).isFile
+        || _LIB.nativeLibInit(tvmLibFilename) != 0) {
+    NativeLibraryLoader.extractResourceFileToTempDir("libtvm_runtime.so", target => {
+      logger.info("Loading tvm runtime from {}", target.getPath)
+      checkCall(_LIB.nativeLibInit(target.getPath))
+    })
+  }
 
   Runtime.getRuntime.addShutdownHook(new Thread() {
     override def run(): Unit = {
-      // TODO
+      _LIB.shutdown()
     }
   })
 

@@ -4,6 +4,13 @@
     <format>jar</format>
   </formats>
   <includeBaseDirectory>false</includeBaseDirectory>
+  <files>
+    <file>
+      <source>../../../lib/libtvm_runtime.so</source>
+      <outputDirectory>lib/native</outputDirectory>
+      <fileMode>0644</fileMode>
+    </file>
+  </files>
   <dependencySets>
     <dependencySet>
       <includes>
@@ -16,12 +23,12 @@
     </dependencySet>
     <dependencySet>
       <outputDirectory>lib/native</outputDirectory>
-      <outputFileNameMapping>libtvm-jvm.jnilib</outputFileNameMapping>
+      <outputFileNameMapping>libtvm4j.jnilib</outputFileNameMapping>
       <unpack>false</unpack>
       <useProjectArtifact>false</useProjectArtifact>
       <useStrictFiltering>false</useStrictFiltering>
       <includes>
-        <include>ml.dmlc.tvm:libtvm-jvm-osx-x86_64-cpu:jnilib</include>
+        <include>ml.dmlc.tvm:libtvm4j-osx-x86_64-cpu:jnilib</include>
       </includes>
     </dependencySet>
   </dependencySets>

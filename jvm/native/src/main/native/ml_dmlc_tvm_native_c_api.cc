@@ -3,14 +3,33 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <iostream>
 #include <cstring>
+#include <vector>
+#include <dlfcn.h>
 
 #include "jni_helper_func.h"
 
 JavaVM *_jvm;
+void *_tvmHandle;
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_nativeLibInit
-  (JNIEnv *env, jobject obj) {
+  (JNIEnv *env, jobject obj, jstring jtvmLibFile) {
+  if (_tvmHandle == NULL) {
+    const char *tvmLibFile = env->GetStringUTFChars(jtvmLibFile, 0);
+    _tvmHandle = dlopen(tvmLibFile, RTLD_LAZY | RTLD_GLOBAL);
+    env->ReleaseStringUTFChars(jtvmLibFile, tvmLibFile);
+    if (!_tvmHandle) {
+      fprintf(stderr, "%s\n", dlerror());
+      return 1;
+    }
+  }
   return env->GetJavaVM(&_jvm);
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_shutdown(JNIEnv *env, jobject obj) {
+  if (_tvmHandle) {
+    dlclose(_tvmHandle);
+  }
+  return 0;
 }
 
 JNIEXPORT jstring JNICALL Java_ml_dmlc_tvm_LibInfo_tvmGetLastError(JNIEnv * env, jobject obj) {
@@ -67,10 +86,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   TVMValue *argValues = new TVMValue[numArgs];
   int *typeCodes = new int[numArgs];
 
+  std::vector<std::pair<jstring, const char *>> strArgs; // store string for later release
   for (int i = 0; i < numArgs; ++i) {
     jobject jarg = env->GetObjectArrayElement(jargs, i);
     int argId = static_cast<int>(env->GetIntField(jarg, tvmArgId));
     TVMValue value;
+    jstring strArg;
     switch (argId) {
       case kInt:
         value.v_int64 = static_cast<int64_t>(getTVMValueLongField(env, jarg));
@@ -79,8 +100,9 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
         value.v_float64 = static_cast<double>(getTVMValueDoubleField(env, jarg));
         break;
       case kStr:
-        value.v_str = env->GetStringUTFChars(getTVMValueStringField(env, jarg), 0);
-        // TODO: env->ReleaseStringUTFChars(jvalue, value);
+        strArg = getTVMValueStringField(env, jarg);
+        value.v_str = env->GetStringUTFChars(strArg, 0);
+        strArgs.push_back(std::make_pair(strArg, value.v_str));
         break;
       case kNull:
         value.v_handle = NULL;
@@ -97,10 +119,19 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
     argValues[i] = value;
   }
 
+  int (*func)(TVMFunctionHandle, TVMValue *, int *, int, TVMValue *, int *);
+  func = (int(*)(TVMFunctionHandle, TVMValue *, int *, int, TVMValue *, int *))
+    dlsym(_tvmHandle, "TVMFuncCall");
+
   TVMValue retVal;
   int retTypeCode;
-  int ret = TVMFuncCall(reinterpret_cast<TVMFunctionHandle>(jhandle),
-                        argValues, typeCodes, numArgs, &retVal, &retTypeCode);
+  int ret = func(reinterpret_cast<TVMFunctionHandle>(jhandle),
+    argValues, typeCodes, numArgs, &retVal, &retTypeCode);
+
+  // release temp strings
+  for (auto iter = strArgs.cbegin(); iter != strArgs.cend(); iter++) {
+    env->ReleaseStringUTFChars(iter->first, iter->second);
+  }
 
   delete[] typeCodes;
   delete[] argValues;
@@ -215,6 +246,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
   env->DeleteLocalRef(longClass);
 
   return 0;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromTo(
+  JNIEnv *env, jobject obj, jlong jfrom, jlong jto) {
+  return TVMArrayCopyFromTo(reinterpret_cast<TVMArrayHandle>(jfrom),
+                            reinterpret_cast<TVMArrayHandle>(jto), NULL);
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromJArray(

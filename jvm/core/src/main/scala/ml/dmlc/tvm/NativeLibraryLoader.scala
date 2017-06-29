@@ -84,13 +84,10 @@ private[tvm] object NativeLibraryLoader {
         mappedLibname
       }
     logger.info(s"Attempting to load $loadLibname")
-    val libFileInJar = libPathInJar + loadLibname
-    val is: InputStream = getClass.getResourceAsStream(libFileInJar)
-    if (is == null) {
-      throw new UnsatisfiedLinkError(s"Couldn't find the resource $loadLibname")
-    }
-    logger.info(s"Loading $loadLibname from $libPathInJar copying to $libname")
-    loadLibraryFromStream(libname, is)
+    extractResourceFileToTempDir(loadLibname, target => {
+      logger.info("Loading library from {}", target.getPath)
+      System.load(target.getPath)
+    })
   }
 
   /**
@@ -113,15 +110,19 @@ private[tvm] object NativeLibraryLoader {
   }
 
   /**
-   * Load a system library from a stream. Copies the library to a temp file
-   * and loads from there.
-   *
-   * @param libname name of the library (just used in constructing the library name)
-   * @param is      InputStream pointing to the library
+   * Copies the resource file to a temp file and do an action.
+   * @param filename source file name (in lib/native).
+   * @param action callback function to deal with the copied file.
    */
-  private def loadLibraryFromStream(libname: String, is: InputStream) {
+  def extractResourceFileToTempDir(filename: String, action: File => Unit): Unit = {
+    val libFileInJar = libPathInJar + filename
+    val is: InputStream = getClass.getResourceAsStream(libFileInJar)
+    if (is == null) {
+      throw new UnsatisfiedLinkError(s"Couldn't find the resource $filename")
+    }
+    logger.info(s"Loading $filename from $libPathInJar")
     try {
-      val tempfile = createTempFile(libname)
+      val tempfile = createTempFile(filename)
       logger.debug("tempfile.getPath() = {}", tempfile.getPath)
       val os: OutputStream = new FileOutputStream(tempfile)
       val savedTime: Long = System.currentTimeMillis
@@ -132,12 +133,11 @@ private[tvm] object NativeLibraryLoader {
         len = is.read(buf)
       }
       os.flush()
-      val lock: InputStream = new FileInputStream(tempfile)
+      val lock = new FileInputStream(tempfile)
       os.close()
-      val seconds: Double = (System.currentTimeMillis - savedTime).toDouble / 1e3
+      val seconds = (System.currentTimeMillis - savedTime).toDouble / 1e3
       logger.info(s"Copying took $seconds seconds.")
-      logger.info("Loading library from {}", tempfile.getPath)
-      System.load(tempfile.getPath)
+      action(tempfile)
       lock.close()
     } catch {
       case io: IOException =>
@@ -145,6 +145,9 @@ private[tvm] object NativeLibraryLoader {
       case ule: UnsatisfiedLinkError =>
         logger.error("Couldn't load copied link file: {}", ule.toString)
         throw ule
+      case e: Throwable =>
+        logger.error(e.getMessage, e)
+        throw e
     }
   }
 }

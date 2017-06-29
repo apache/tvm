@@ -5,14 +5,14 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ml.dmlc.tvm</groupId>
-    <artifactId>tvm-native-parent</artifactId>
+    <artifactId>tvm4j-native-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>libtvm-jvm-linux-x86_64-gpu</artifactId>
+  <artifactId>libtvm4j-linux-x86_64-gpu</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>TVM JVM Package - Native Linux-x86_64 GPU</name>
+  <name>TVM4J Package - Native Linux-x86_64 GPU</name>
   <url>http://maven.apache.org</url>
 
   <packaging>so</packaging>
@@ -20,7 +20,7 @@
   <dependencies>
     <dependency>
       <groupId>ml.dmlc.tvm</groupId>
-      <artifactId>tvm-core_${scala.binary.version}</artifactId>
+      <artifactId>tvm4j-core_${scala.binary.version}</artifactId>
       <version>${project.version}</version>
       <type>jar</type>
       <scope>compile</scope>
@@ -65,7 +65,6 @@
           <linkerMiddleOptions>
             <linkerMiddleOption>-Wl,--whole-archive</linkerMiddleOption>
             <linkerMiddleOption>../../../HalideIR/lib/libHalideIR.a</linkerMiddleOption>
-            <linkerMiddleOption>../../../lib/libtvm.a</linkerMiddleOption>
             <linkerMiddleOption>-Wl,--no-whole-archive</linkerMiddleOption>
           </linkerMiddleOptions>
           <linkerEndOptions>

@@ -5,14 +5,14 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ml.dmlc.tvm</groupId>
-    <artifactId>tvm-parent_2.11</artifactId>
+    <artifactId>tvm4j-parent_2.11</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>tvm-native-parent</artifactId>
+  <artifactId>tvm4j-native-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>TVM JVM Package - Native Parent</name>
+  <name>TVM4J Package - Native Parent</name>
   <packaging>pom</packaging>
 
   <profiles>

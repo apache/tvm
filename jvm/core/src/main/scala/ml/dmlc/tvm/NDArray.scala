@@ -104,9 +104,12 @@ class NDArray(private[tvm] val handle: TVMArrayHandle,
   }
 
   def internal: NDArrayInternal = {
+    val tmp = NDArray.empty(shape, dtype)
+    checkCall(_LIB.tvmArrayCopyFromTo(handle, tmp.handle))
+
     val arrLength = dtype.numOfBytes * size.toInt
     val arr = Array.ofDim[Byte](arrLength)
-    checkCall(_LIB.tvmArrayCopyToJArray(handle, arr))
+    checkCall(_LIB.tvmArrayCopyToJArray(tmp.handle, arr))
     new NDArrayInternal(arr, dtype)
   }
 }
