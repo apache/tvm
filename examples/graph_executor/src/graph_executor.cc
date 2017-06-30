@@ -263,7 +263,9 @@ tvm::runtime::Module CreateExecutor(nnvm::Graph g, TVMContext ctx) {
 TVM_REGISTER_GLOBAL("tvm_graph._create_executor")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     void* graph_handle = args[0];
-    TVMContext ctx = args[1];
+    int device_type = args[1];
+    int device_id = args[2];
+    TVMContext ctx{static_cast<DLDeviceType>(device_type), device_id};
     nnvm::Graph g = static_cast<nnvm::Graph*>(graph_handle)[0];
     *rv = CreateExecutor(g, ctx);
   });
