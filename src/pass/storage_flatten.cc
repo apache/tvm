@@ -83,7 +83,7 @@ class StorageFlattener : public IRMutator {
       for (auto r : e.bounds) {
         shape.push_back(r->extent);
       }
-      e.buffer = Buffer(shape, op->type, key.GetName());
+      e.buffer = decl_buffer(shape, op->type, key.GetName());
 
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);
