@@ -369,11 +369,13 @@ def extern(shape, inputs, fcompute,
     return res[0] if len(res) == 1 else res
 
 
-def decl_buffer(shape, dtype=None,
+def decl_buffer(shape,
+                dtype=None,
                 name="buffer",
                 data=None,
                 strides=None,
                 byte_offset=None,
+                scope="",
                 offset_alignment=0):
     """Decleare a new symbolic buffer.
 
@@ -401,6 +403,10 @@ def decl_buffer(shape, dtype=None,
 
     byte_offset: Expr, optional
         The offset in bytes to data pointer.
+
+    scope: str, optional
+        The storage scope of the buffer, if not global.
+        If scope equals empty string, it means it is global memory.
 
     offset_alignment: int, optional
         The alignment of offset
@@ -430,7 +436,7 @@ def decl_buffer(shape, dtype=None,
         data = var(name, "handle")
 
     return _api_internal._Buffer(
-        name, data, shape, strides, dtype, byte_offset, offset_alignment)
+        data, dtype, shape, strides, byte_offset, name, scope, offset_alignment)
 
 
 def _IterVar(dom, name, iter_type, thread_tag=''):

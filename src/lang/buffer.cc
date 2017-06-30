@@ -16,14 +16,16 @@ Array<Expr> GetStrides(Array<Expr> shape) {
   return Array<Expr>(vec.rbegin(), vec.rend());
 }
 
-Buffer::Buffer(Array<Expr> shape,
-               Type dtype,
-               std::string name)
-    : Buffer(BufferNode::make(
-          name,
-          Var(name, Type(Type::Handle, 0, 0)),
-          shape, Array<Expr>(), dtype,
-          Expr(), 0)) {
+Buffer decl_buffer(Array<Expr> shape,
+                   Type dtype,
+                   std::string name) {
+  return BufferNode::make(
+      Var(name, Handle()),
+      dtype,
+      shape,
+      Array<Expr>(),
+      Expr(),
+      name, "", 0);
 }
 
 inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
@@ -61,22 +63,23 @@ Stmt Buffer::MakeStore(Array<Expr> index, Expr value) const {
                          const_true(n->dtype.lanes()));
 }
 
-Buffer BufferNode::make(std::string name,
-                        Var data,
+Buffer BufferNode::make(Var data,
+                        Type dtype,
                         Array<Expr> shape,
                         Array<Expr> strides,
-                        Type dtype,
                         Expr byte_offset,
+                        std::string name,
+                        std::string scope,
                         int offset_alignment) {
   auto n = std::make_shared<BufferNode>();
-  n->name = name;
-  n->data = data;
-  n->shape = shape;
-  n->strides = strides;
+  n->data = std::move(data);
   n->dtype = dtype;
-
+  n->shape = std::move(shape);
+  n->strides = std::move(strides);
+  n->name = std::move(name);
+  n->scope = std::move(scope);
   if (!byte_offset.defined()) {
-    byte_offset = make_const(shape[0].type(), 0);
+    byte_offset = make_const(n->shape[0].type(), 0);
   }
   if (offset_alignment != 0) {
     CHECK_EQ(offset_alignment % dtype.bytes(), 0)
