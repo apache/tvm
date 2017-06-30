@@ -52,7 +52,7 @@ USE_RPC = 0
 # Whether use BLAS, choices: openblas, atlas, blas, apple
 USE_BLAS = none
 
-USE_NNPACK = 1
+USE_NNPACK = 0
 # NNPACK_PATH = none
 
 # add the path to CUDA library to link and compile flag
