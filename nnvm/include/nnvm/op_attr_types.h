@@ -107,8 +107,6 @@ using TIsBackward = bool;
  * \brief Get possible inplace options.
  *  This function enables optimization to reuse memory of inputs in output.
  * \param attrs The attributes of the node
- * \param in_data The input data.
- * \param out_data The output data.
  * \return list of pair of that maps input->output,
  *   indicating possible in place operations.
  *
@@ -116,6 +114,18 @@ using TIsBackward = bool;
  */
 using FInplaceOption = std::function<
   std::vector<std::pair<int, int> > (const NodeAttrs& attrs)>;
+
+/*!
+ * \brief Get if the inplace option is an identity
+ *  This function enables inplace optimization even when input reference count
+ *  is greater than one.
+ * \param attrs The attributes of the node
+ * \return list of bool indicating whether corresponding pair from FInplaceOption
+ *         is an identity
+ *
+ * \note Register under "FInplaceIdentity", by default no identities.
+ */
+using FInplaceIdentity = std::function<std::vector<bool> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Get list of inputs in the op whose content are actually not used by the operator
