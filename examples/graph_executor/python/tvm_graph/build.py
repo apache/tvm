@@ -29,7 +29,7 @@ def build(sym, target, shape, dtype="float32"):
 
 
 def bind(g, ctx):
-    m = _create_exec(g.handle, ctx)
+    m = _create_exec(g.handle, ctx.device_type, ctx.device_id)
     return m
 
 
