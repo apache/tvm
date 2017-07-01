@@ -125,6 +125,24 @@ np.testing.assert_allclose(
     b.asnumpy(),  np.sum(a.asnumpy(), axis=1), rtol=1e-4)
 
 ######################################################################
+# Describe Convolution via 2D Reduction
+# ----------------------
+# In TVM, we can describe convolution via 2D reduction in a simple way. 
+# Here is an example for 2D convolution with filter size = [3, 3] and strides = [1, 1].
+#
+n = tvm.var('n')
+Input = tvm.placeholder((n, n), name='Input')
+Filter = tvm.placeholder((3, 3), name='Filter')
+di = tvm.reduce_axis((0, 3), name='di')
+dj = tvm.reduce_axis((0, 3), name='dj')
+Output = tvm.compute(
+    (n - 2, n - 2),
+    lambda i, j: tvm.sum(Input[i + di, j + dj] * Filter[di, dj], axis=[di, dj]),
+    name='Output')
+s = tvm.create_schedule(Output.op)
+print(tvm.lower(s, [Input, Filter, Output], simple_mode=True))
+
+######################################################################
 # .. _general-reduction:
 #
 # Define General Commutative Reduction Operation
