@@ -10,7 +10,7 @@ endif
 
 include $(config)
 
-.PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
+.PHONY: clean install all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
 
 BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
 all: ${BUILD_TARGETS}
@@ -206,6 +206,13 @@ lint: cpplint pylint jnilint
 
 doc:
 	doxygen docs/Doxyfile
+
+install: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
+	mkdir -p include
+	cp -R include/tvm $(DESTDIR)$(PREFIX)/include
+	cp lib/libtvm.so $(DESTDIR)$(PREFIX)/lib
+	cp lib/libtvm_runtime.so $(DESTDIR)$(PREFIX)/lib
+	cp lib/libtvm.a $(DESTDIR)$(PREFIX)/lib
 
 # Cython build
 cython:
