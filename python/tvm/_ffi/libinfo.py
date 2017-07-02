@@ -19,21 +19,34 @@ def find_lib_path(name=None, search_path=None):
         List of all found path to the libraries
     """
     use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", False)
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    root_path = os.path.join(curr_path, '../')
-    api_path = os.path.join(curr_path, '../../../lib/')
-    cmake_build_path = os.path.join(curr_path, '../../../build/Release/')
-    dll_path = [curr_path, root_path, api_path, cmake_build_path]
-    if os.name == 'nt':
-        vs_configuration = 'Release'
-        if platform.architecture()[0] == '64bit':
-            dll_path.append(os.path.join(curr_path, '../../../build', vs_configuration))
-            dll_path.append(os.path.join(curr_path, '../../../windows/x64', vs_configuration))
-        else:
-            dll_path.append(os.path.join(curr_path, '../../../build', vs_configuration))
-            dll_path.append(os.path.join(curr_path, '../../../windows', vs_configuration))
-    elif os.name == "posix" and os.environ.get('LD_LIBRARY_PATH', None):
+
+    # See https://github.com/dmlc/tvm/issues/281 for some background.
+
+    # NB: This will either be the source directory (if TVM is run
+    # inplace) or the install directory (if TVM is installed).
+    # An installed TVM's curr_path will look something like:
+    #   $PREFIX/lib/python3.6/site-packages/tvm/_ffi
+    ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    source_dir = os.path.join(ffi_dir, "..", "..", "..")
+    install_lib_dir = os.path.join(ffi_dir, "..", "..", "..", "..")
+
+    dll_path = []
+
+    if os.environ.get('TVM_LIBRARY_PATH', None):
+        dll_path.append(os.environ['TVM_LIBRARY_PATH'])
+
+    if sys.platform.startswith('linux') and os.environ.get('LD_LIBRARY_PATH', None):
         dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
+    elif sys.platform.startswith('darwin') and os.environ.get('DYLD_LIBRARY_PATH', None):
+        dll_path.extend([p.strip() for p in os.environ['DYLD_LIBRARY_PATH'].split(":")])
+
+    # Default cmake build directory
+    dll_path.append(os.path.join(source_dir, "build"))
+    # Default mkae build directory
+    dll_path.append(os.path.join(source_dir, "lib"))
+
+    dll_path.append(install_lib_dir)
+
     dll_path = [os.path.abspath(x) for x in dll_path]
     if search_path is not None:
         if search_path is list:
@@ -44,9 +57,12 @@ def find_lib_path(name=None, search_path=None):
         lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []
     else:
-        if os.name == 'nt':
+        if sys.platform.startswith('win32'):
             lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path]
             runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dll') for p in dll_path]
+        elif sys.platform.startswith('darwin'):
+            lib_dll_path = [os.path.join(p, 'libtvm.dylib') for p in dll_path]
+            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dylib') for p in dll_path]
         else:
             lib_dll_path = [os.path.join(p, 'libtvm.so') for p in dll_path]
             runtime_dll_path = [os.path.join(p, 'libtvm_runtime.so') for p in dll_path]
