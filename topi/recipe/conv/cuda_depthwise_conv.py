@@ -10,10 +10,9 @@ Output: 4-D tensor with shape [batch, in_channel * channel_multiplier, out_heigh
 
 import tvm
 import os
-from tvm.contrib import nvcc_compiler
 import numpy as np
-from scipy import signal
-import time
+from tvm.contrib import nvcc_compiler
+from topi.util import get_const_tuple
 
 TASK="depthwise_conv"
 USE_MANUAL_CODE = False
@@ -37,17 +36,17 @@ def tvm_callback_cuda_postproc(code):
     return code
 
 def depthwise_conv(Input, Filter, Stride, padding):  
-    for i in range(4):
-        assert(isinstance(Input.shape[i], tvm.expr.IntImm))
-        assert(isinstance(Filter.shape[i], tvm.expr.IntImm))    
-    in_batch = Input.shape[0].value
-    in_channel = Input.shape[1].value
-    in_height = Input.shape[2].value
-    in_width = Input.shape[3].value
-    filter_channel = Filter.shape[0].value
-    channel_multiplier = Filter.shape[1].value
-    filter_height = Filter.shape[2].value
-    filter_width = Filter.shape[3].value   
+    in_shape = get_const_tuple(Input.shape)
+    in_batch = in_shape[0]
+    in_channel = in_shape[1]
+    in_height = in_shape[2]
+    in_width = in_shape[3]
+
+    filter_shape = get_const_tuple(Filter.shape)
+    filter_channel = filter_shape[0]
+    channel_multiplier = filter_shape[1]
+    filter_height = filter_shape[2]
+    filter_width = filter_shape[3]
     if not in_channel==filter_channel:
         print("Input channel and filter channel doesn't match!")
         return
@@ -113,13 +112,7 @@ def depthwise_conv(Input, Filter, Stride, padding):
     num_thread = 8
     num_vthread_x = 1
     num_vthread_y = 1
-    if out_height % 32 == 0:
-        num_vthread_x = out_height / 32
-    elif out_height % 16 == 0:
-        num_vthread_x = out_height / 16
-    if out_width % 32 == 0:
-        num_vthread_y = out_width / 32
-    elif out_width % 16 == 0:
+    if out_width % 16 == 0:
         num_vthread_y = out_width / 16     
     block_x = tvm.thread_axis("blockIdx.x")
     block_y = tvm.thread_axis("blockIdx.y")
@@ -160,83 +153,3 @@ def depthwise_conv(Input, Filter, Stride, padding):
     s[FS].bind(ty, thread_y)
 
     return s, Output
-
-def test_depthwise_conv():
-    in_batch = 2
-    in_channel = 256
-    in_height = 32
-    in_width = 32
-
-    filter_channel = in_channel
-    channel_multiplier = 2
-    filter_height = 5
-    filter_width = 5
-
-    stride_h = 2
-    stride_w = 2
-
-    Input = tvm.placeholder((in_batch, in_channel, in_height, in_width), name='Input')
-    Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
-    Stride = tvm.nd.array(np.array([stride_h, stride_w]))
-    padding = 'SAME' # or 'VALID' 
-
-    schedule, Output = depthwise_conv(Input, Filter, Stride, padding)
-
-    def check_device(device):
-        if not tvm.module.enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        f = tvm.build(schedule, [Input, Filter, Output], device)
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
-        # launch the kernel
-        input_np = np.random.uniform(size=(in_batch, in_channel, in_height, in_width)).astype(Input.dtype)
-        filter_np = np.random.uniform(size=(in_channel, channel_multiplier, filter_height, filter_width)).astype(Filter.dtype)
-        input_tvm = tvm.nd.array(input_np, ctx)
-        filter_tvm = tvm.nd.array(filter_np, ctx)
-        for i in range(4):
-            assert(isinstance(Output.shape[i], tvm.expr.IntImm))
-        out_batch = Output.shape[0].value
-        out_channel = Output.shape[1].value
-        out_height = Output.shape[2].value
-        out_width = Output.shape[3].value
-        output_tvm = tvm.nd.array(np.zeros((out_batch, out_channel, out_height, out_width), dtype=Output.dtype), ctx)
-        # skip first pass as it is compilation
-        f(input_tvm, filter_tvm, output_tvm)
-        ctx.sync()
-        # measure time cost of 10000 iterations
-        start = time.time()
-        for i in range(10000):
-            f(input_tvm, filter_tvm, output_tvm)
-        ctx.sync()
-        elapsed_time = time.time() - start   
-        print("Time cost of 10000 iterations = %g sec" % elapsed_time)
-        # correctness with scipy's convolve2d       
-        output_scipy = np.zeros((out_batch, out_channel, out_height, out_width), dtype=Output.dtype)
-        if padding == 'SAME':
-            pad_top_tvm = np.int(np.ceil(float(np.max((out_height - 1) * stride_h + filter_height - in_height, 0)) / 2))
-            pad_left_tvm = np.int(np.ceil(float(np.max((out_width - 1) * stride_w + filter_width - in_width, 0)) / 2))
-            pad_top_scipy = np.int(np.ceil(float(filter_height - 1) / 2))
-            pad_left_scipy = np.int(np.ceil(float(filter_width - 1) / 2))
-            index_h = pad_top_scipy - pad_top_tvm
-            index_w = pad_left_scipy - pad_left_tvm
-            for i in range(out_batch):
-                for j in range(out_channel):
-                    output_scipy[i,j,:,:] = signal.convolve2d(input_np[i, j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2), 
-                        mode='same')[index_h:in_height:stride_h, index_w:in_width:stride_w]   
-        if padding == 'VALID':
-            for i in range(out_batch):
-                for j in range(out_channel):
-                    output_scipy[i,j,:,:] = signal.convolve2d(input_np[i, j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2), 
-                        mode='valid')[0:(in_height - filter_height + 1):stride_h, 0:(in_width - filter_height + 1):stride_w]  
-        np.testing.assert_allclose(output_tvm.asnumpy(), output_scipy, rtol=1e-5)
-        print "success"
-        
-    with tvm.build_config(auto_unroll_max_step=32,
-                          auto_unroll_min_depth=0,
-                          unroll_explicit=True,
-                          detect_global_barrier=False):
-        check_device("cuda")
-
-if __name__ == "__main__":
-    test_depthwise_conv()
-
