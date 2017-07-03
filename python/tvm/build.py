@@ -26,7 +26,7 @@ class BuildConfig(object):
         'auto_unroll_max_step': 0,
         'auto_unroll_min_depth': 1,
         'unroll_explicit': True,
-        'detect_global_barrier': True
+        'detect_global_barrier': False
     }
     def __init__(self, **kwargs):
         self._old_scope = None
