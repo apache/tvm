@@ -140,7 +140,7 @@ TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
           ->GetTimeEvaluator(args[1], ctx, args[4]);
     } else {
       *rv = WrapTimeEvaluator(
-          m.GetFunction(args[1], false), ctx, args[3]);
+          m.GetFunction(args[1], false), ctx, args[4]);
     }
   });
 
