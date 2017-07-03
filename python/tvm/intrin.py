@@ -1,4 +1,4 @@
-"""Intrinsics and math functions in TVM."""
+"""Expression Intrinsics and math functions in TVM."""
 from __future__ import absolute_import as _abs
 
 from ._ffi.function import register_func as _register_func
@@ -20,7 +20,7 @@ def _pack_buffer(buf):
                  strides,
                  len(buf.shape),
                  const(0, dtype=buf.dtype),
-                 buf.byte_offset]
+                 buf.elem_offset]
     return _make.Call("handle", "tvm_stack_make_array",
                       pack_args, _Call.Intrinsic, None, 0)
 

@@ -16,10 +16,11 @@ namespace tvm {
 
 // Internal node container Buffer
 class BufferNode;
+
 /*!
  * \brief Buffer is a symbolic n-darray structure.
  *  It is a composition of primitive symbolic types,
- *  used to specify input/output strcuture of the program.
+ *  used to specify the memory layout of the Tensor used in program input.
  */
 class Buffer : public NodeRef {
  public:
@@ -38,6 +39,21 @@ class Buffer : public NodeRef {
    * \return The load expression.
    */
   Stmt MakeStore(Array<Expr> index, Expr value) const;
+  /*!
+   * \brief Return a new buffer that is equivalent with current one
+   *  but always add stride field.
+   * \return The strided version of the buffer.
+   */
+  Buffer MakeStrideView() const;
+  /*!
+   * \brief Make a new symbolic buffer representing a slice of the buffer.
+   * \param begins The beginning position of each dimension.
+   * \param extents The extent of each dimension.
+   * \note This function will make target buffer as compact as possible.
+   *  If stride is not needed in the slice, it won't be presented
+   * \return the result buffer.
+   */
+  Buffer MakeSlice(Array<Expr> begins, Array<Expr> extents) const;
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -63,17 +79,14 @@ class BufferNode : public Node {
    *  This can be an empty array, indicating array is contiguous
    */
   Array<Expr> strides;
-  /*!
-   * \brief The offset in bytes to the beginning pointer to data
-   *  Can be undefined, indicating this must be zero.
-   */
-  Expr byte_offset;
+  /*! \brief The offset in terms of number of dtype elements (including lanes) */
+  Expr elem_offset;
   // Meta data
   /*! \brief optional name of the buffer */
   std::string name;
   /*! \brief storage scope of the buffer, if other than global */
   std::string scope;
-  /*! \brief Alignment bytes size of byte_offset */
+  /*! \brief Alignment multiple in terms of dtype elements (including lanes) */
   int offset_alignment;
   /*! \brief constructor */
   BufferNode() {}
@@ -83,7 +96,7 @@ class BufferNode : public Node {
     v->Visit("dtype", &dtype);
     v->Visit("shape", &shape);
     v->Visit("strides", &strides);
-    v->Visit("byte_offset", &byte_offset);
+    v->Visit("elem_offset", &elem_offset);
     v->Visit("name", &name);
     v->Visit("scope", &scope);
     v->Visit("offset_alignment", &offset_alignment);
