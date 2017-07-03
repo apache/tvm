@@ -150,6 +150,8 @@ class CodeGenC :
   // print reference to a buffer as type t in index.
   std::string GetBufferRef(
       Type t, const Variable* buffer, Expr index);
+  // Get a cast type from to
+  std::string CastFromTo(std::string value, Type from, Type target);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
