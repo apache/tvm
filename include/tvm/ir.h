@@ -167,8 +167,16 @@ constexpr const char* prefetch_scope = "prefetch_scope";
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
 constexpr const char* scan_init_scope = "scan_init_scope";
-/*! \brief extern operator scope */
-constexpr const char* extern_op_scope = "extern_op_scope";
+/*!
+ * \brief Bind the buffer specification to the region of the op
+ *  When this scope occurs, the stmt.node is a Array<NodeRef> = [buffer, tensor]
+ *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
+ *  The scope represents that we need to bind the storage region of tensor to buffer.
+ *  This will affect replacement of some variables inside the scope that
+ *  corresponds to field of buffer to be the actual expressions of tensor during
+ *  storage flattening phase.
+ */
+constexpr const char* buffer_bind_scope = "buffer_bind_scope";
 // Pipeline related attributes
 /*! \brief channel read scope */
 constexpr const char* channel_read_scope = "channel_read_scope";
@@ -194,6 +202,14 @@ namespace intrinsic {
  *  }
  */
 constexpr const char* tvm_address_of = "tvm_address_of";
+/*!
+ * \brief tvm_tuple is not an actual function and cannot codegen.
+ *  It is used to represent tuple structure in value field of AttrStmt,
+ *  for the sake of giving hint to optimization.
+ *
+ *  Handle tvm_tuple(value0, value1, ..., value_n);
+ */
+constexpr const char* tvm_tuple = "tvm_tuple";
 /*!
  * \brief See pesudo code
  *
@@ -250,14 +266,14 @@ constexpr const char* tvm_stack_make_shape = "tvm_stack_make_shape";
  *                            Expr strides,
  *                            Expr ndim,
  *                            Expr dtype,
- *                            Expr byte_offset) {
+ *                            Expr elem_offset) {
  *     ret = alloca stack DLTensor();
  *     ret->data = data;
  *     ret->shape = shape;
  *     ret->strides = strides != 0 ? strides : nullptr;
  *     ret->ndim = ndim;
  *     ret->dtype = dtype.type();
- *     ret->byte_offset = byte_offset;
+ *     ret->byte_offset = elem_offset * sizeof(dtype);
  *     return ret;
  *  }
  */

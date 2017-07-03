@@ -30,7 +30,7 @@ Tensor TensorNode::make(Array<Expr> shape,
                         Operation op,
                         int value_index) {
   auto n = std::make_shared<TensorNode>();
-  n->shape = shape;
+  n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
   n->value_index = value_index;

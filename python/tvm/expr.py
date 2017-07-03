@@ -237,6 +237,10 @@ class Broadcast(Expr):
     pass
 
 @register_node
+class Shuffle(Expr):
+    pass
+
+@register_node
 class Call(Expr):
     Extern = 0
     ExternCPlusPlus = 1

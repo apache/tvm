@@ -12,6 +12,7 @@
 #include <unordered_set>
 
 #include "./ir_util.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace ir {
@@ -222,9 +223,19 @@ LoweredFunc MakeAPI(Stmt body,
         }
       }
       // Byte_offset field.
-      f_push(buf->byte_offset,
-             TVMArrayGet(UInt(64), v_arg, intrinsic::kArrByteOffset),
-             v_arg->name_hint + ".byte_offset");
+      int data_bytes = GetVectorBytes(buf->dtype);
+      int64_t const_offset;
+      if (arith::GetConst(buf->elem_offset, &const_offset)) {
+        f_push(make_const(buf->elem_offset.type(), const_offset * data_bytes),
+               TVMArrayGet(UInt(64), v_arg, intrinsic::kArrByteOffset),
+               v_arg->name_hint + ".byte_offset");
+      } else {
+        f_push(buf->elem_offset,
+               cast(buf->elem_offset.type(),
+                    (TVMArrayGet(UInt(64), v_arg, intrinsic::kArrByteOffset) /
+                     make_const(UInt(64), data_bytes))),
+               v_arg->name_hint + ".elem_offset");
+      }
       // device info.
       f_push(device_id,
              TVMArrayGet(Int(32), v_arg, intrinsic::kArrDeviceId),

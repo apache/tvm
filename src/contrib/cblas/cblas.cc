@@ -40,10 +40,13 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
                 transa ? A->shape[1] : A->shape[0],
                 transa ? B->shape[1] : B->shape[0],
                 1.0f,
-                static_cast<float*>(B->data), B->shape[1],
-                static_cast<float*>(A->data), A->shape[1],
+                reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
+                B->shape[1],
+                reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset),
+                A->shape[1],
                 0.0f,
-                static_cast<float*>(C->data), C->shape[1]);
+                reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset),
+                C->shape[1]);
   });
 }  // namespace contrib
 }  // namespace tvm

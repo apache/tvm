@@ -287,6 +287,7 @@ def scan(init, update, state_placeholder, inputs=None, name="scan"):
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
 
+
 def extern(shape, inputs, fcompute,
            name="extern", dtype=None):
     """Compute several tensor via extern function.
@@ -374,7 +375,7 @@ def decl_buffer(shape,
                 name="buffer",
                 data=None,
                 strides=None,
-                byte_offset=None,
+                elem_offset=None,
                 scope="",
                 offset_alignment=0):
     """Decleare a new symbolic buffer.
@@ -401,8 +402,9 @@ def decl_buffer(shape,
     strides: array of Expr
         The stride of the buffer.
 
-    byte_offset: Expr, optional
-        The offset in bytes to data pointer.
+    elem_offset: Expr, optional
+        The beginning offset of the array to data.
+        In terms of number of elements of dtype.
 
     scope: str, optional
         The storage scope of the buffer, if not global.
@@ -423,7 +425,7 @@ def decl_buffer(shape,
     to create function that only handles specific case of data structure
     and make compiled function benefit from it.
 
-    If user pass strides and byte_offset is passed as None
+    If user pass strides and elem_offset is passed as None
     when constructing the function, then the function will be specialized
     for the DLTensor that is compact and aligned.
     If user pass a fully generic symbolic array to the strides,
@@ -436,7 +438,7 @@ def decl_buffer(shape,
         data = var(name, "handle")
 
     return _api_internal._Buffer(
-        data, dtype, shape, strides, byte_offset, name, scope, offset_alignment)
+        data, dtype, shape, strides, elem_offset, name, scope, offset_alignment)
 
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
@@ -464,11 +466,11 @@ def _IterVar(dom, name, iter_type, thread_tag=''):
     if dom is not None:
         if isinstance(dom, (list, tuple)):
             if len(dom) != 2:
-                raise ValueError("need to list of ranges")
+                raise TypeError("need to be list of ranges")
             dom = Range(dom[0], dom[1])
 
         if not isinstance(dom, _collections.Range):
-            raise ValueError("dom need to be Range")
+            raise TypeError("dom need to be Range")
     name = name if name else 'iter'
     v = var(name)
     return _api_internal._IterVar(dom, v, iter_type, thread_tag)

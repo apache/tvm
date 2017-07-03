@@ -42,6 +42,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
             << ", identity_element=" << op->identity_element
             << ")";
 });
+
 }  // namespace Internal
 }  // namespace Halide
 
