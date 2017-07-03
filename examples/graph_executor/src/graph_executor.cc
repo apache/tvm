@@ -156,15 +156,17 @@ void GraphExecutor::SetupStorage() {
     int storage_id = vstorage[i];
     size_t size = vshape[i].Size();
     CHECK_GE(storage_id, 0) << "Do not support runtime shape op";
+
     DLDataType t = vtype[i];
     size_t bits = t.bits * t.lanes;
     CHECK_EQ(bits % 8U, 0U);
     size_t bytes = (bits / 8U) * size;
+
     size_t sid = static_cast<size_t>(storage_id);
     if (sid >= pool_entry_bytes.size()) {
       pool_entry_bytes.resize(sid + 1, 0);
     }
-    pool_entry_bytes[sid] = std::max(pool_entry_bytes[sid], size * bytes);
+    pool_entry_bytes[sid] = std::max(pool_entry_bytes[sid], bytes);
   }
   // Allocate the space.
   for (size_t i = 0; i < pool_entry_bytes.size(); ++i) {
