@@ -14,8 +14,13 @@ def test_llvm_add_pipeline():
     def check_llvm():
         if not tvm.module.enabled("llvm"):
             return
+        # Specifically allow offset to test codepath when offset is available
+        Ab = tvm.decl_buffer(
+            A.shape, A.dtype, elem_offset=tvm.var('Aoffset'),
+            name='A')
+        binds = {A : Ab}
         # build and invoke the kernel.
-        f = tvm.build(s, [A, B, C], "llvm")
+        f = tvm.build(s, [Ab, B, C], "llvm", binds=binds)
         ctx = tvm.cpu(0)
         # launch the kernel.
         n = nn
@@ -25,6 +30,7 @@ def test_llvm_add_pipeline():
         f(a, b, c)
         np.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
+
     check_llvm()
 
 

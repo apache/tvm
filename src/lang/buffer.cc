@@ -4,6 +4,7 @@
  */
 #include <tvm/buffer.h>
 #include <tvm/ir.h>
+#include <tvm/ir_pass.h>
 
 namespace tvm {
 
@@ -28,25 +29,41 @@ Buffer decl_buffer(Array<Expr> shape,
       name, "", 0);
 }
 
-inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
-  Expr base;
+// The buffer offset in convention of number of elements of
+// original data ignoring number of lanes.
+inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
+  Expr base = n->elem_offset;
   if (n->strides.size() == 0) {
     CHECK_EQ(n->shape.size(), index.size());
-    base = index[0];
+    if (is_zero(base)) {
+      base = index[0];
+    } else {
+      base = base + index[0];
+    }
     for (size_t i = 1; i < index.size(); ++i) {
       base = base * n->shape[i] + index[i];
     }
   } else {
     CHECK_EQ(n->strides.size(), index.size());
-    base = index[0] * n->strides[0];
+    if (is_zero(base)) {
+      base = index[0] * n->strides[0];
+    } else {
+      base = base + index[0] * n->strides[0];
+    }
     for (size_t i = 1; i < index.size(); ++i) {
       base = base + index[i] * n->strides[i];
     }
   }
-  if (!is_zero(n->byte_offset)) {
-    base = base + (n->byte_offset / n->dtype.bytes());
-  }
   return base;
+}
+
+// Buffer access offset.
+inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
+  Expr offset = ElemOffset(n, index);
+  if (n->dtype.lanes() != 1) {
+    offset = offset * make_const(offset.type(), n->dtype.lanes());
+  }
+  return offset;
 }
 
 Expr Buffer::MakeLoad(Array<Expr> index) const {
@@ -63,11 +80,58 @@ Stmt Buffer::MakeStore(Array<Expr> index, Expr value) const {
                          const_true(n->dtype.lanes()));
 }
 
+Buffer Buffer::MakeStrideView() const {
+  if ((*this)->strides.size() != 0) return *this;
+  std::vector<Expr> temp;
+  auto n = std::make_shared<BufferNode>(*operator->());
+  Expr acc = make_const(n->shape[0].type(), 1);
+  for (size_t i = n->shape.size(); i != 0 ; --i) {
+    temp.push_back(acc);
+    acc = acc * n->shape[i - 1];
+  }
+  for (size_t i = temp.size(); i != 0; --i) {
+    n->strides.push_back(temp[i - 1]);
+  }
+  return Buffer(n);
+}
+
+Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
+  const BufferNode* n = operator->();
+  Expr elem_offset = ElemOffset(n, begins);
+  Array<Expr> strides = n->strides;
+  if (strides.size() == 0) {
+    bool can_relax = true;
+    bool need_stride = false;
+    // check if stride is needed.
+    for (size_t i = 0; i < extents.size(); ++i) {
+      if (!can_relax) {
+        if (!is_zero(begins[i]) ||
+            !is_zero(ir::Simplify(extents[i] - n->shape[i]))) {
+          need_stride = true;
+        }
+      }
+      if (!is_one(extents[i])) can_relax = false;
+    }
+    // make stride.
+    if (need_stride) {
+      return MakeStrideView().MakeSlice(begins, extents);
+    }
+  }
+  return BufferNode::make(n->data,
+                          n->dtype,
+                          extents,
+                          strides,
+                          elem_offset,
+                          n->name + "_slice",
+                          n->scope,
+                          0);
+}
+
 Buffer BufferNode::make(Var data,
                         Type dtype,
                         Array<Expr> shape,
                         Array<Expr> strides,
-                        Expr byte_offset,
+                        Expr elem_offset,
                         std::string name,
                         std::string scope,
                         int offset_alignment) {
@@ -78,16 +142,13 @@ Buffer BufferNode::make(Var data,
   n->strides = std::move(strides);
   n->name = std::move(name);
   n->scope = std::move(scope);
-  if (!byte_offset.defined()) {
-    byte_offset = make_const(n->shape[0].type(), 0);
+  if (!elem_offset.defined()) {
+    elem_offset = make_const(n->shape[0].type(), 0);
   }
-  if (offset_alignment != 0) {
-    CHECK_EQ(offset_alignment % dtype.bytes(), 0)
-        << "Offset alignments must be at least " << dtype.bytes();
-  } else {
-    offset_alignment = dtype.bytes();
+  if (offset_alignment == 0) {
+    offset_alignment = 1;
   }
-  n->byte_offset = byte_offset;
+  n->elem_offset = elem_offset;
   n->offset_alignment = offset_alignment;
   return Buffer(n);
 }
