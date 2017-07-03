@@ -126,6 +126,12 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
   this->stream << "}\n\n";
 }
 
+void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
+  CHECK(!var_idmap_.count(iv->var.get()));
+  var_idmap_[iv->var.get()] =
+      CastFromTo(iv->thread_tag, UInt(16), iv->var.type());
+}
+
 void CodeGenMetal::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
