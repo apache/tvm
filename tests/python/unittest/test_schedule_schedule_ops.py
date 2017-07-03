@@ -72,6 +72,17 @@ def test_auto_inline():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+def test_schedule_const_bound():
+    n = 128
+    A = tvm.placeholder((n,), name='A')
+    A1 = tvm.compute((n,), lambda i: A[i] + 1, name='A1')
+    s = tvm.create_schedule(A1.op)
+    xo, xi = s[A1].split(A1.op.axis[0], 8)
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.collections.Map)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
 def test_inline_mixed():
     n = tvm.var('n')
     A = tvm.placeholder((n, ), name='A')
@@ -150,6 +161,7 @@ def test_schedule_cache():
 
 
 if __name__ == "__main__":
+    test_schedule_const_bound()
     test_scan_inline1()
     test_scan_inline2()
     test_inline_mixed()

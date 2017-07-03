@@ -131,9 +131,15 @@ class PackedCallBuilder : public IRMutator {
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeLanes,
                      make_const(UInt(16), dtype.lanes())));
+    // set byte offset
+    int data_bytes = GetVectorBytes(dtype);
+    Expr byte_offset = op->args[5];
+    if (!is_zero(byte_offset)) {
+      byte_offset = byte_offset * make_const(byte_offset.type(), data_bytes);
+    }
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrByteOffset,
-                     Convert(Int(64), op->args[5])));
+                     Convert(UInt(64), byte_offset)));
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
     prep_seq_.emplace_back(

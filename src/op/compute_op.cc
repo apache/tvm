@@ -251,7 +251,7 @@ Stmt Substitute(Stmt s,
   return ir::Substitute(s, temp);
 }
 
-// Cross Thread reduction marker.
+// Cross Thread reduction
 bool IsCrossThreadReduction(const ComputeOpNode* self,
                             const Stage& stage) {
   // Verify correctness of leaf nest.
@@ -360,6 +360,7 @@ Stmt MakeCrossThreadReduction(
   return MergeNest(nest, body);
 }
 
+// Normal computation.
 Stmt MakeProvide(const ComputeOpNode* op,
                  const Tensor& t) {
   Array<Expr> args;
@@ -369,60 +370,56 @@ Stmt MakeProvide(const ComputeOpNode* op,
   return Provide::make(t->op, t->value_index, op->body[t->value_index], args);
 }
 
-Stmt ComputeOpNode::BuildProvide(
+// loop nest structure for general compute
+// This the the loop nest structured used in compute.
+// Does not include the loop body.
+struct ComputeLoopNest {
+  // The common number of loops between init and main
+  size_t num_common_loop;
+  // predicates for the initialize loop
+  std::vector<Expr> init_predicates;
+  // Initialization nest involved.
+  std::vector<std::vector<Stmt> > init_nest;
+  // Value map for the init code
+  std::unordered_map<IterVar, Expr> init_vmap;
+  // Predicates for the main update loop
+  std::vector<Expr> main_predicates;
+  // The general loop nest
+  std::vector<std::vector<Stmt> > main_nest;
+  // Value map for the IterVar.
+  std::unordered_map<IterVar, Expr> main_vmap;
+};
+
+ComputeLoopNest MakeComputeLoopNest(
+    const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map) const {
-  CHECK_EQ(stage->op.operator->(), this);
-
-  if (IsCrossThreadReduction(this, stage)) {
-    // specially handle cross thread reduction.
-    return MakeCrossThreadReduction(this, stage, dom_map);
+    const std::unordered_map<IterVar, Range>& dom_map) {
+  CHECK_EQ(stage->op.operator->(), self);
+  ComputeLoopNest ret;
+  // make main loop nest
+  ret.main_nest = op::MakeLoopNest(
+      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap);
+  ret.main_predicates = op::MakeBoundCheck(stage, dom_map, false,
+      std::unordered_set<IterVar>(), ret.main_vmap);
+  for (auto& e : ret.main_predicates) {
+    e = likely(e);
   }
-
-  size_t size = this->body.size();
-  Stmt init;
-  Stmt provide;
-  if (this->reduce_axis.size() == 0) {
-    std::vector<Stmt> provides;
-    for (size_t i = 0; i < size; ++i) {
-      provides.emplace_back(MakeProvide(this, stage->op.output(i)));
-    }
-    provide = Block::make(provides);
-  } else {
-    Array<Tensor> source;
-    for (size_t i = 0; i < size; ++i) {
-      source.push_back(stage->op.output(i));
-    }
-    MakeReduction(this, source, &init, &provide);
-  }
-
-  // make loop nest
-  std::unordered_map<IterVar, Expr> value_map;
-  auto nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map);
-  auto preds = op::MakeBoundCheck(stage, dom_map, false,
-      std::unordered_set<IterVar>(), value_map);
-  for (auto& e : preds) e = likely(e);
-  nest.push_back(op::MakeIfNest(preds));
   if (stage->store_predicate.defined()) {
-    nest.emplace_back(op::MakeIfNest({stage->store_predicate}));
+    ret.main_predicates.push_back(stage->store_predicate);
   }
-  provide = Substitute(provide, value_map);
-
-  if (init.defined()) {
+  if (self->reduce_axis.size() != 0) {
     // try to find the location to insert the initialization.
     // Fuse the initialization and provide loop when possible.
     std::unordered_map<IterVar, int> update_state;
-    for (IterVar iv : this->reduce_axis) {
+    for (IterVar iv : self->reduce_axis) {
       update_state[iv] = 2;
     }
-    for (IterVar iv : this->axis) {
+    for (IterVar iv : self->axis) {
       update_state[iv] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
     schedule::PassDownBitMaskOr(stage, &update_state);
     auto leaf_iter_vars = stage->leaf_iter_vars;
-    std::unordered_map<IterVar, Expr> init_value_map;
     // first first loop that is related to reduction.
     size_t begin_loop = leaf_iter_vars.size();
     for (size_t i = 0; i < leaf_iter_vars.size(); ++i) {
@@ -431,29 +428,69 @@ Stmt ComputeOpNode::BuildProvide(
       if ((flag & 2) != 0) {
         begin_loop = i; break;
       }
-      init_value_map[iv] = value_map.at(iv);
+      ret.init_vmap[iv] = ret.main_vmap.at(iv);
     }
+    ret.num_common_loop = begin_loop;
     // skip loops that does not relates to axis.
     std::unordered_set<IterVar> skip_iter;
     for (auto kv : update_state) {
       int flag = kv.second;
       if ((flag & 1) == 0) skip_iter.insert(kv.first);
     }
-    auto init_nest = op::MakeLoopNest(
+    ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
-        skip_iter, &init_value_map);
-    auto preds = op::MakeBoundCheck(stage, dom_map, true, skip_iter, init_value_map);
-    for (auto& e : preds) e = likely(e);
-    init_nest.push_back(op::MakeIfNest(preds));
-    init = Substitute(init, init_value_map);
-    init = MergeNest(init_nest, init);
+        skip_iter, &(ret.init_vmap));
+    ret.init_predicates = op::MakeBoundCheck(
+        stage, dom_map, true, skip_iter, ret.init_vmap);
+    for (auto& e : ret.init_predicates) {
+      e = likely(e);
+    }
+  } else {
+    ret.num_common_loop = ret.main_nest.size() - 1;
+  }
+  // copy elison here.
+  return ret;
+}
+
+// implement the provide utility.
+Stmt ComputeOpNode::BuildProvide(
+    const Stage& stage,
+    const std::unordered_map<IterVar, Range>& dom_map) const {
+  CHECK_EQ(stage->op.operator->(), this);
+  if (IsCrossThreadReduction(this, stage)) {
+    // specially handle cross thread reduction.
+    return MakeCrossThreadReduction(this, stage, dom_map);
+  }
+  // grab the nest structure
+  ComputeLoopNest n = MakeComputeLoopNest(this, stage, dom_map);
+  // Normal loop structure
+  n.init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+  n.main_nest.emplace_back(op::MakeIfNest(n.main_predicates));
+  if (this->reduce_axis.size() != 0) {
+    // make reduction.
+    Stmt init, provide;
+    Array<Tensor> source;
+    for (size_t i = 0; i < this->body.size(); ++i) {
+      source.push_back(stage->op.output(i));
+    }
+    MakeReduction(this, source, &init, &provide);
+    init = Substitute(init, n.init_vmap);
+    init = MergeNest(n.init_nest, init);
     // common nest
-    std::vector<std::vector<Stmt> > common(nest.begin(), nest.begin() + begin_loop + 1);
-    std::vector<std::vector<Stmt> > reduce(nest.begin() + begin_loop + 1, nest.end());
+    std::vector<std::vector<Stmt> > common(
+        n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
+    std::vector<std::vector<Stmt> > reduce(
+        n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
+    provide = Substitute(provide, n.main_vmap);
     provide = MergeNest(reduce, provide);
     return MergeNest(common, Block::make(init, provide));
   } else {
-    return MergeNest(nest, provide);
+    std::vector<Stmt> provides;
+    for (size_t i = 0; i < this->body.size(); ++i) {
+      provides.emplace_back(MakeProvide(this, stage->op.output(i)));
+    }
+    Stmt provide = Substitute(Block::make(provides), n.main_vmap);
+    return MergeNest(n.main_nest, provide);
   }
 }
 }  // namespace tvm

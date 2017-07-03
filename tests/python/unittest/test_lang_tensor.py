@@ -168,7 +168,14 @@ def test_tuple_with_different_deps():
 
     assert stmt.node == C.op and len(ret) == 1
 
+
+def test_tensor_inputs():
+    x = tvm.placeholder((1,), name='x')
+    y = tvm.compute(x.shape, lambda i: x[i] + x[i])
+    assert tuple(y.op.input_tensors) == (x,)
+
 if __name__ == "__main__":
+    test_tensor_inputs()
     test_tensor_reduce_multi_axis()
     test_conv1d()
     test_tensor_slice()

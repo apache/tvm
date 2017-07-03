@@ -218,6 +218,11 @@ TVM_REGISTER_API("_OpNumOutputs")
     *ret = args[0].operator Operation()->num_outputs();
   });
 
+TVM_REGISTER_API("_OpInputTensors")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator Operation()->InputTensors();
+  });
+
 TVM_REGISTER_API("_IterVar")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = IterVarNode::make(

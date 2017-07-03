@@ -7,8 +7,8 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
-#include <tvm/operation.h>
 #include <unordered_map>
+#include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -31,9 +31,12 @@ class StorageFlattener : public IRMutator {
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Store>();
-    auto it = extern_buf_remap_.find(op->buffer_var.get());
-    if (it != extern_buf_remap_.end()) {
-      return Store::make(it->second, op->value, op->index, op->predicate);
+    auto it = var_remap_.find(op->buffer_var.get());
+    if (it != var_remap_.end() &&
+        !it->second.same_as(op->buffer_var)) {
+      CHECK(it->second.as<Variable>());
+      VarExpr buf_var(it->second.node_);
+      return Store::make(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
     }
@@ -50,8 +53,8 @@ class StorageFlattener : public IRMutator {
       Stmt stmt = IRMutator::Mutate_(op, s);
       curr_thread_scope_.pop_back();
       return stmt;
-    } else if (op->attr_key == attr::extern_op_scope) {
-      return HandleExternOp(op);
+    } else if (op->attr_key == attr::buffer_bind_scope) {
+      return HandleBufferBindScope(op);
     }
     return IRMutator::Mutate_(op, s);
   }
@@ -115,17 +118,20 @@ class StorageFlattener : public IRMutator {
   Expr Mutate_(const Load* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Load>();
-    auto it = extern_buf_remap_.find(op->buffer_var.get());
-    if (it != extern_buf_remap_.end()) {
-      return Load::make(op->type, it->second, op->index, op->predicate);
+    auto it = var_remap_.find(op->buffer_var.get());
+    if (it != var_remap_.end() &&
+        !it->second.same_as(op->buffer_var)) {
+      CHECK(it->second.as<Variable>());
+      VarExpr buf_var(it->second.node_);
+      return Load::make(op->type, buf_var, op->index, op->predicate);
     } else {
       return expr;
     }
   }
 
   Expr Mutate_(const Variable* op, const Expr& e) final {
-    auto it = extern_buf_remap_.find(op);
-    if (it != extern_buf_remap_.end()) {
+    auto it = var_remap_.find(op);
+    if (it != var_remap_.end()) {
       return it->second;
     } else {
       return e;
@@ -150,35 +156,115 @@ class StorageFlattener : public IRMutator {
   }
 
  private:
-  Stmt HandleExternOp(const AttrStmt* op) {
-    const ExternOpNode* ext_op = op->node.as<ExternOpNode>();
-    CHECK(ext_op);
-    Operation func(op->node.node_);
-    CHECK_EQ(extern_buf_remap_.size(), 0U);
-    for (size_t i = 0; i < ext_op->output_placeholders.size(); ++i) {
-      TensorKey key{func, static_cast<int>(i)};
-      CHECK(buf_map_.count(key))
-          << "Cannot find allocated buffer for " << key.f
-          << "(" << key.value_index << ")";
-      extern_buf_remap_[ext_op->output_placeholders[i]->data.get()] =
-          buf_map_.at(key).buffer->data;
+  // Bind the symbol sym to value if it is a Variable
+  // send a sequence of asserts if it is a constant constrant.
+  // hint_name: used for error message
+  // add_keys: a list of newly binded keys
+  // add_asserts: a list of asserts during the bind
+  void BindSymbol(Expr sym,
+                  Expr value,
+                  std::string hint_name,
+                  std::vector<const Variable*>* add_keys,
+                  std::vector<Stmt>* add_asserts) {
+    if (const Variable* v = sym.as<Variable>()) {
+      auto it = var_remap_.find(v);
+      if (it == var_remap_.end()) {
+        add_keys->push_back(v);
+        var_remap_[v] = value;
+        return;
+      }
     }
-    for (size_t i = 0; i < ext_op->inputs.size(); ++i) {
-      TensorKey key{ext_op->inputs[i]->op, ext_op->inputs[i]->value_index};
-      CHECK(buf_map_.count(key));
-      extern_buf_remap_[ext_op->input_placeholders[i]->data.get()] =
-          buf_map_.at(key).buffer->data;
+    // add assertions
+    std::ostringstream os;
+    os << "BufferBind constaint fail " << hint_name;
+    add_asserts->emplace_back(
+        AssertStmt::make(sym == value, os.str()));
+  }
+  // Start bind
+  Stmt HandleBufferBindScope(const AttrStmt* op) {
+    Array<NodeRef> arr(op->node.node_);
+    CHECK_EQ(arr.size(), 2U);
+    const BufferNode* buffer = arr[0].as<BufferNode>();
+    const TensorNode* tensor = arr[1].as<TensorNode>();
+    const Call* tuple = op->value.as<Call>();
+    CHECK(buffer && tensor);
+    CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
+    TensorKey key{tensor->op, tensor->value_index};
+    CHECK(buf_map_.count(key));
+    const BufferEntry& be = buf_map_.at(key);
+    CHECK(!be.released);
+    CHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
+    Array<Expr> begins, extents;
+    if (be.bounds.size() != 0) {
+      CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
+      for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
+        begins.push_back(
+            arith::ComputeExpr<Sub>(tuple->args[2 * i], be.bounds[i]->min));
+        extents.push_back(tuple->args[2 * i + 1]);
+      }
+    } else {
+      for (size_t i = 0; i < tuple->args.size(); i += 2) {
+        begins.push_back(tuple->args[i]);
+        extents.push_back(tuple->args[i + 1]);
+      }
     }
-    Stmt ret = Mutate(op->body);
-    extern_buf_remap_.clear();
-    return ret;
+    Buffer slice = be.buffer.MakeSlice(begins, extents);
+    if (buffer->strides.size() == 0) {
+      CHECK_EQ(slice->strides.size(), 0U)
+          << "Trying to bind compact buffer to strided one";
+    } else {
+      slice = slice.MakeStrideView();
+    }
+    CHECK_EQ(slice->strides.size(), buffer->strides.size());
+    // start binding
+    std::vector<const Variable*> keys;
+    std::vector<Stmt> asserts;
+    BindSymbol(buffer->data, slice->data,
+               buffer->name + ".data",
+               &keys, &asserts);
+    for (size_t i = 0; i < buffer->shape.size(); ++i) {
+      std::ostringstream field_name;
+      field_name << buffer->name << ".shape[" << i << ']';
+      BindSymbol(buffer->shape[i], slice->shape[i],
+                 field_name.str(),
+                 &keys, &asserts);
+    }
+    for (size_t i = 0; i < buffer->strides.size(); ++i) {
+      std::ostringstream field_name;
+      field_name << buffer->name << ".strides[" << i << ']';
+      BindSymbol(buffer->strides[i], slice->strides[i],
+                 field_name.str(),
+                 &keys, &asserts);
+    }
+    BindSymbol(buffer->elem_offset, slice->elem_offset,
+               buffer->name + ".elem_offset",
+               &keys, &asserts);
+    CHECK_EQ(buffer->scope, slice->scope)
+        << "Buffer bind scope mismatch";
+    // Apply the remaps
+    Stmt body = this->Mutate(op->body);
+    for (size_t i = 0; i < asserts.size(); ++i) {
+      Stmt ret = Simplify(this->Mutate(asserts[i]));
+      if (const AssertStmt* assert_op = ret.as<AssertStmt>()) {
+        if (!is_zero(assert_op->condition)) {
+          body = Block::make(ret, body);
+        } else {
+          LOG(FATAL) << "BindBuffer have unmet assertion: " << ret;
+        }
+      }
+    }
+    // remove the binds
+    for (const Variable* op : keys) {
+      var_remap_.erase(op);
+    }
+    return body;
   }
 
   // The buffer entry in the flatten map
   struct BufferEntry {
     // the buffer of storage
     Buffer buffer;
-    // the bounds of realization, can be null
+    // the bounds of realization, can be null, means everything
     Region bounds;
     // Whether the buffer is external
     bool external{false};
@@ -200,7 +286,9 @@ class StorageFlattener : public IRMutator {
     }
   };
   // The buffer assignment map
-  std::unordered_map<const Variable*, Var> extern_buf_remap_;
+  // Variable remap
+  std::unordered_map<const Variable*, Expr> var_remap_;
+  // Buffer map
   std::unordered_map<TensorKey, BufferEntry> buf_map_;
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.

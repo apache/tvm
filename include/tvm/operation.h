@@ -62,7 +62,7 @@ class OperationNode : public FunctionBaseNode {
   virtual Array<Expr> output_shape(size_t i) const = 0;
   /*!
    * \brief List all the input Tensors.
-   * \return List if input tensors.
+   * \return List of input tensors.
    */
   virtual Array<Tensor> InputTensors() const = 0;
   /*!

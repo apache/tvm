@@ -26,8 +26,6 @@ class Array(NodeBase):
     def __len__(self):
         return _api_internal._ArraySize(self)
 
-    def __repr__(self):
-        return '[' + (','.join(str(x) for x in self)) + ']'
 
 @register_node
 class Map(NodeBase):
@@ -51,9 +49,6 @@ class Map(NodeBase):
 
     def __len__(self):
         return _api_internal._MapSize(self)
-
-    def __repr__(self):
-        return '{' + (", ".join(str(x[0]) + ": " +str(x[1]) for x in self.items())) + '}'
 
 
 @register_node

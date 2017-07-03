@@ -73,3 +73,7 @@ class IfThenElse(Stmt):
 @register_node
 class Evaluate(Stmt):
     pass
+
+@register_node
+class Prefetch(Stmt):
+    pass

@@ -118,6 +118,12 @@ class Operation(NodeBase):
         """Number of outputs of this op."""
         return _api_internal._OpNumOutputs(self)
 
+    @property
+    def input_tensors(self):
+        """List of input tensors to this op."""
+        return _api_internal._OpInputTensors(self)
+
+
 @register_node
 class PlaceholderOp(Operation):
     """Placeholder operation."""

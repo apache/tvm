@@ -128,8 +128,26 @@ Stmt ExternOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map) const {
   CHECK_EQ(stage->op.operator->(), this);
-  return AttrStmt::make(
-      stage->op, ir::attr::extern_op_scope,
-      StringImm::make(name), body);
+  Stmt ret = this->body;
+  auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
+    Array<NodeRef> bind_spec;
+    Array<Expr> tuple;
+    bind_spec.push_back(buffer);
+    bind_spec.push_back(tensor);
+    for (size_t k = 0; k < buffer->shape.size(); ++k) {
+      tuple.push_back(make_const(buffer->shape[k].type(), 0));
+      tuple.push_back(buffer->shape[k]);
+    }
+    ret = AttrStmt::make(
+        bind_spec, attr::buffer_bind_scope,
+        Call::make(Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
+  };
+  for (size_t i = output_placeholders.size(); i != 0; --i) {
+    f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));
+  }
+  for (size_t i = inputs.size(); i != 0; --i) {
+    f_push_bind(input_placeholders[i - 1], inputs[i - 1]);
+  }
+  return ret;
 }
 }  // namespace tvm
