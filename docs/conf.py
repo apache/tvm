@@ -185,7 +185,8 @@ def setup(app):
     app.connect("builder-inited", generate_doxygen_xml)
     app.add_stylesheet('css/tvm_theme.css')
     app.add_config_value('recommonmark_config', {
-            'url_resolver': lambda url: github_doc_root + url,
+        'url_resolver': lambda url: github_doc_root + url,
+        'auto_doc_ref': True
             }, True)
     app.add_transform(AutoStructify)
 
