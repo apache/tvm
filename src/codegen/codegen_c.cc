@@ -245,9 +245,17 @@ void CodeGenC::PrintVecStore(const Variable* buffer,
   stream << ref << " = " << value << ";\n";
 }
 
+std::string CodeGenC::CastFromTo(std::string value, Type from, Type target) {
+  if (from == target) return value;
+  std::ostringstream os;
+  os << "((";
+  this->PrintType(target, os);
+  os << ")" << value << ")";
+  return os.str();
+}
+
 void CodeGenC::BindThreadIndex(const IterVar& iv) {
-  CHECK(!var_idmap_.count(iv->var.get()));
-  var_idmap_[iv->var.get()] = iv->thread_tag;
+  LOG(FATAL) << "not implemented";
 }
 
 void CodeGenC::PrintStorageSync(const Call* op) { // NOLINT(*)

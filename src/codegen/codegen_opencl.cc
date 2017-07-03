@@ -35,7 +35,8 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
   } else {
     os << "get_group_id(" << ts.dim_index << ")";
   }
-  var_idmap_[iv->var.get()] = os.str();
+  var_idmap_[iv->var.get()] =
+      CastFromTo(os.str(), UInt(64), iv->var.type());
 }
 
 void CodeGenOpenCL::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)

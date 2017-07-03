@@ -35,6 +35,12 @@ void CodeGenCUDA::VisitStmt_(const ir::For* op) {
   CodeGenC::VisitStmt_(op);
 }
 
+void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
+  CHECK(!var_idmap_.count(iv->var.get()));
+  var_idmap_[iv->var.get()] =
+      CastFromTo(iv->thread_tag, UInt(32), iv->var.type());
+}
+
 void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
