@@ -36,14 +36,14 @@ using FOpExec = std::function<void()>;
   }
 
 /*! \brief Graph Executor with TVM runtime */
-class GraphExecutor final : public runtime::ModuleNode {
+class GraphExecutor : public runtime::ModuleNode {
  public:
-  const char* type_key() const final {
+  const char* type_key() const {
     return "GraphExecutor";
   }
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+      const std::shared_ptr<ModuleNode>& sptr_to_self);
   // Destructor
   ~GraphExecutor();
   // Setup with a given graph
