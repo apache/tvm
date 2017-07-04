@@ -26,49 +26,38 @@ def tvm_callback_cuda_postproc(code):
         code = open("perf/%s_manual.cu" % TASK).read()
     return code
 
-def conv_python(a_np, w_np, stride, pad):
-    in_height, in_width, in_channel, batch = a_np.shape
-    kernel, kernel, _, num_filter = w_np.shape
-    out_channel = num_filter
-    out_height = (in_height - kernel + pad * 2) / stride + 1
-    out_width = (in_width - kernel + pad * 2) / stride + 1
+def conv_gpu(tensorA, tensorW, tensorB, stride=1, pad=0, device='cuda'):
+    """Compute the convolution in GPU
 
-    at = a_np.transpose((3, 2, 0, 1))
-    wt = w_np.transpose((3, 2, 0, 1))
-    bt = np.zeros((batch, out_channel, out_height, out_width))
+    Parameters
+    ----------
+    tensorA : NDArray
+        Input tensor, layout is HWCN
 
-    for n in range(batch):
-        for f in range(out_channel):
-            for c in range(in_channel):
-                if pad > 0:
-                    apad = np.zeros((in_height + pad * 2, in_width + pad *2))
-                    apad[pad:-pad, pad:-pad] = at[n, c]
-                else:
-                    apad = at[n, c]
-                out = scipy.signal.convolve2d(apad, np.rot90(np.rot90(wt[f, c])), mode='valid')
-                bt[n, f] += out[::stride,::stride]
-    return bt.transpose((2, 3, 1, 0))
+    tensorW : NDArray
+        Weight tensor, layout is kernel x kernel x channel x num_filter
 
-def test_conv():
-    batch = 64
-    in_channel = 128
-    in_height = 16
-    in_width = 16
-    num_filter = 128
-    kernel = 3
-    stride = 2
-    pad = 1
+    tensorB : NDArray
+        Output tensor, layout is HWCN
 
-    out_channel = num_filter
-    out_height = (in_height - kernel + pad * 2) / stride + 1
-    out_width = (in_width - kernel + pad * 2) / stride + 1
+    stride : int
+        Stride
 
-    A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
-    W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel), name='ry')
-    rx = tvm.reduce_axis((0, kernel), name='rx')
+    pad : int
+        Padding
 
+    device : ['cuda', 'opencl']
+        Device name
+    """
+    in_height, in_width, in_channel, batch = tensorA.shape
+    kernel, kernel, channel, num_filter = tensorW.shape
+    assert device in ['cuda', 'opencl']
+    if not tvm.module.enabled(device):
+        raise RuntimeError("Device %s is not enabled" % device)
+
+    # graph
+    A = tvm.placeholder(tensorA.shape, name='A')
+    W = tvm.placeholder(tensorW.shape, name='W')
     Apad = tvm.compute(
         (in_height + pad * 2, in_width + pad * 2, in_channel, batch),
         lambda yy, xx, cc, nn: tvm.select(
@@ -76,8 +65,12 @@ def test_conv():
                     xx >= pad, xx - pad < in_width),
             A[yy - pad, xx - pad, cc, nn], tvm.const(0.)))
 
+    rc = tvm.reduce_axis((0, in_channel), name='rc')
+    ry = tvm.reduce_axis((0, kernel), name='ry')
+    rx = tvm.reduce_axis((0, kernel), name='rx')
+
     B = tvm.compute(
-        (out_height, out_width, out_channel, batch),
+        tensorB.shape,
         lambda yy, xx, ff, nn: tvm.sum(
             Apad[yy * stride + ry, xx * stride + rx, rc, nn] * W[ry, rx, rc, ff],
             axis=[ry, rx, rc]),
@@ -153,32 +146,72 @@ def test_conv():
     s[WW].bind(ty, thread_y)
     s[WW].bind(tx, thread_x)
     s[WW].vectorize(fi)
-    # Show the IR
+    # display the IR
     # print(tvm.lower(s, [A, W, B], simple_mode=True))
-
-    # correctness
-    def check_device(device):
-        if not tvm.module.enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        func = tvm.build(s, [A, W, B], device)
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
-        # launch the kernel.
-        a_np = np.random.uniform(size=(in_height, in_width, in_channel, batch)).astype(A.dtype)
-        w_np = np.random.uniform(size=(kernel, kernel, in_channel, num_filter)).astype(W.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(np.zeros((out_height, out_width, out_channel, batch), dtype=B.dtype), ctx)
-        for i in range(2):
-            func(a, w, b)
-        b_np = conv_python(a_np, w_np, stride, pad)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     with tvm.build_config(auto_unroll_max_step=32,
                           auto_unroll_min_depth=0,
                           unroll_explicit=False,
                           detect_global_barrier=False):
-        check_device("cuda")
+        # build the kernel
+        func = tvm.build(s, [A, W, B], device)
+        # launch the kernel
+        func(tensorA, tensorW, tensorB)
+
+def conv_python(a_np, w_np, stride, pad):
+    in_height, in_width, in_channel, batch = a_np.shape
+    kernel, kernel, channel, num_filter = w_np.shape
+    out_channel = num_filter
+    out_height = (in_height - kernel + pad * 2) / stride + 1
+    out_width = (in_width - kernel + pad * 2) / stride + 1
+
+    at = a_np.transpose((3, 2, 0, 1))
+    wt = w_np.transpose((3, 2, 0, 1))
+    bt = np.zeros((batch, out_channel, out_height, out_width))
+
+    for n in range(batch):
+        for f in range(out_channel):
+            for c in range(in_channel):
+                if pad > 0:
+                    apad = np.zeros((in_height + pad * 2, in_width + pad *2))
+                    apad[pad:-pad, pad:-pad] = at[n, c]
+                else:
+                    apad = at[n, c]
+                out = scipy.signal.convolve2d(
+                    apad, np.rot90(np.rot90(wt[f, c])), mode='valid')
+                bt[n, f] += out[::stride,::stride]
+    return bt.transpose((2, 3, 1, 0))
+
+def test_conv():
+    batch = 64
+    in_channel = 128
+    in_height = 16
+    in_width = 16
+    num_filter = 128
+    kernel = 3
+    stride = 2
+    pad = 1
+
+    out_channel = num_filter
+    out_height = (in_height - kernel + pad * 2) / stride + 1
+    out_width = (in_width - kernel + pad * 2) / stride + 1
+
+    a_np = np.random.uniform(size=(in_height, in_width, in_channel, batch)).astype(np.float32)
+    w_np = np.random.uniform(size=(kernel, kernel, in_channel, num_filter)).astype(np.float32)
+    b_np = conv_python(a_np, w_np, stride, pad)
+
+    for device in ['cuda', 'opencl']:
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            continue
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        a = tvm.nd.array(a_np, ctx)
+        w = tvm.nd.array(w_np, ctx)
+        b = tvm.nd.array(np.zeros((out_height, out_width, out_channel, batch),
+                                  dtype=np.float32), ctx)
+        conv_gpu(a, w, b, stride=stride, pad=pad, device=device)
+        # check correctness
+        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
     
 if __name__ == "__main__":
     test_conv()
