@@ -37,64 +37,107 @@ bool HasSideEffect(const Expr& e) {
 
 class IRSubstitue : public IRMutator {
  public:
+  explicit IRSubstitue(
+      const std::unordered_map<const Variable*, Expr>& smap)
+      : smap_(smap) {
+  }
+
   Expr Mutate_(const Variable* op, const Expr& e) final {
-    auto it = smap.find(op);
-    if (it != smap.end()) {
+    auto it = smap_.find(op);
+    if (it != smap_.end()) {
       return it->second;
     } else {
       return e;
     }
   }
-  std::unordered_map<const Variable*, Expr> smap;
+
+ private:
+  const std::unordered_map<const Variable*, Expr>& smap_;
 };
 
-Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
+Stmt Substitute(Stmt stmt,
+                const std::unordered_map<const Variable*, Expr>& value_map) {
   if (value_map.size() == 0) return stmt;
-  IRSubstitue m;
-  for (auto kv : value_map) {
-    m.smap[kv.first.get()] = kv.second;
+  return IRSubstitue(value_map).Mutate(stmt);
+}
+
+Expr Substitute(Expr expr,
+                const std::unordered_map<const Variable*, Expr>& value_map) {
+  if (value_map.size() == 0) return expr;
+  return IRSubstitue(value_map).Mutate(expr);
+}
+
+Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
+  std::unordered_map<const Variable*, Expr> vmap;
+  for (const auto& kv : value_map) {
+    vmap[kv.first.get()] = kv.second;
   }
-  return m.Mutate(stmt);
+  return Substitute(stmt, vmap);
 }
 
 Expr Substitute(Expr expr, const Map<Var, Expr>& value_map) {
-  if (value_map.size() == 0) return expr;
-  IRSubstitue m;
-  for (auto kv : value_map) {
-    m.smap[kv.first.get()] = kv.second;
+  std::unordered_map<const Variable*, Expr> vmap;
+  for (const auto& kv : value_map) {
+    vmap[kv.first.get()] = kv.second;
   }
-  return m.Mutate(expr);
+  return Substitute(expr, vmap);
 }
 
-class ExprUseVarVisitor : public IRVisitor {
+class VarTouchVisitor : public IRVisitor {
  public:
-  explicit ExprUseVarVisitor(const Variable* var)
-      : var_(var) {}
-
   void Visit(const NodeRef& e) final {
     if (use_var_) return;
     IRVisitor::Visit(e);
   }
 
   void Visit_(const Variable* op) final {
-    if (op == var_) {
-      use_var_ = true;
-    }
+    Handle(op);
   }
 
   void Visit_(const Load* op) final {
-    if (op->buffer_var.get() == var_) {
-      use_var_ = true;
-    }
+    Handle(op->buffer_var.get());
     IRVisitor::Visit_(op);
   }
 
-  const Variable* var_;
+  virtual void Handle(const Variable* var) = 0;
+
   bool use_var_{false};
+};
+
+class ExprUseVarVisitor : public VarTouchVisitor {
+ public:
+  explicit ExprUseVarVisitor(const Variable* var)
+      : var_(var) {}
+
+  void Handle(const Variable* var) final {
+    if (var == var_) use_var_ = true;
+  }
+ private:
+  const Variable* var_;
+};
+
+class ExprUseVSetVisitor : public VarTouchVisitor {
+ public:
+  explicit ExprUseVSetVisitor(
+      const std::unordered_set<const Variable*>& vset)
+      : vset_(vset) {}
+
+  void Handle(const Variable* var) final {
+    if (vset_.count(var)) use_var_ = true;
+  }
+ private:
+  const std::unordered_set<const Variable*>& vset_;
 };
 
 bool ExprUseVar(const Expr& e, const Var& v) {
   ExprUseVarVisitor visitor(v.get());
+  visitor.Visit(e);
+  return visitor.use_var_;
+}
+
+bool ExprUseVar(const Expr& e,
+                const std::unordered_set<const Variable*>& vset) {
+  ExprUseVSetVisitor visitor(vset);
   visitor.Visit(e);
   return visitor.use_var_;
 }

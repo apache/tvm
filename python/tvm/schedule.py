@@ -7,7 +7,6 @@ from . import expr as _expr
 from . import collections as _collections
 from ._ffi.function import _init_api
 
-
 @register_node
 class Buffer(NodeBase):
     """Symbolic data buffer in TVM.
@@ -24,15 +23,18 @@ class Buffer(NodeBase):
     """
     pass
 
+
 @register_node
 class Split(NodeBase):
     """Split operation on axis."""
     pass
 
+
 @register_node
 class Fuse(NodeBase):
     """Fuse operation on axis."""
     pass
+
 
 @register_node
 class IterVar(NodeBase, _expr.ExprOp):
