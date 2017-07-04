@@ -286,8 +286,11 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       nnvm::NodePtr np = nnvm::Node::Create();
       np->attrs.op = tvm_op;
       np->attrs.name = inode.source->attrs.name;
+      np->attrs.dict["num_inputs"] = std::to_string(fe.inputs.size());
+      np->attrs.dict["num_outputs"] = std::to_string(fe.outputs.size());
       np->attrs.dict["func_name"] = fuse_vec[nid].func_name;
       np->attrs.dict["flatten_data"] = std::to_string(pattern_vec[nid] == kElemWise);
+      np->op()->attr_parser(&(np->attrs));
       for (const auto& e : fe.inputs) {
         auto it = old_new.find(e.node_id);
         CHECK(it != old_new.end())
@@ -336,5 +339,53 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
 NNVM_REGISTER_PASS(GraphFuse)
 .set_body(GraphFuse);
 
+struct TVMOpParam : public dmlc::Parameter<TVMOpParam> {
+  std::string func_name;
+  uint32_t num_inputs;
+  uint32_t num_outputs;
+  bool flatten_data;
+  DMLC_DECLARE_PARAMETER(TVMOpParam) {
+    DMLC_DECLARE_FIELD(func_name);
+    DMLC_DECLARE_FIELD(num_inputs)
+    .set_default(1);
+    DMLC_DECLARE_FIELD(num_outputs)
+    .set_default(1);
+    DMLC_DECLARE_FIELD(flatten_data)
+    .set_default(false);
+  }
+};
+DMLC_REGISTER_PARAMETER(TVMOpParam);
+
+/*! \brief Parse keyword arguments as PType arguments and save to parsed */
+template<typename PType>
+inline void ParamParser(nnvm::NodeAttrs* attrs) {
+  PType param;
+  try {
+    param.Init(attrs->dict);
+  } catch (const dmlc::ParamError& e) {
+    std::ostringstream os;
+    os << e.what();
+    os << ", in operator " << attrs->op->name << "("
+       << "name=\"" << attrs->name << "\"";
+    for (const auto& k : attrs->dict) {
+      os << ", " << k.first << "=\"" << k.second << "\"";
+    }
+    os << ")";
+    throw dmlc::ParamError(os.str());
+  }
+  attrs->parsed = std::move(param);
+}
+
+// ewise tvm op
+NNVM_REGISTER_OP(tvm_op)
+.set_attr_parser(ParamParser<TVMOpParam>)
+.set_num_inputs([](const NodeAttrs& attrs) {
+    const TVMOpParam& param = nnvm::get<TVMOpParam>(attrs.parsed);
+    return param.num_inputs;
+  })
+.set_num_outputs([](const NodeAttrs& attrs) {
+    const TVMOpParam& param = nnvm::get<TVMOpParam>(attrs.parsed);
+    return param.num_outputs;
+  });
 }  // namespace contrib
 }  // namespace tvm

@@ -271,10 +271,5 @@ TVM_REGISTER_GLOBAL("tvm_graph._create_executor")
     nnvm::Graph g = static_cast<nnvm::Graph*>(graph_handle)[0];
     *rv = CreateExecutor(g, ctx);
   });
-
-// ewise tvm op
-NNVM_REGISTER_OP(tvm_op)
-.set_num_inputs(-1);
-
 }  // namespace contrib
 }  // namespace tvm
