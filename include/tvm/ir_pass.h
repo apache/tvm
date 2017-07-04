@@ -64,6 +64,14 @@ bool HasSideEffect(const Expr& e);
 bool ExprUseVar(const Expr& e, const Var& v);
 
 /*!
+ * \brief Whether e expression used any var in variable set..
+ * \param e The expression to be checked.
+ * \param vset The variable set.
+ * \return Whether e uses vset.
+ */
+bool ExprUseVar(const Expr& e, const std::unordered_set<const Variable*>& vset);
+
+/*!
  * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.
  * \return The converted form.
@@ -76,6 +84,24 @@ Stmt ConvertSSA(Stmt stmt);
  * \return Canonicalized statement.
  */
 Stmt CanonicalSimplify(Stmt stmt);
+
+/*!
+ * \brief Substitute the var specified in key->var to be value.
+ * \param stmt The source statement to be substituted
+ * \param value_map The map of new values.
+ * \return The converted form.
+ */
+Stmt Substitute(Stmt stmt,
+                const std::unordered_map<const Variable*, Expr>& value_map);
+
+/*!
+ * \brief Substitute the var specified in key->var to be value.
+ * \param expr The source expression to be substituted
+ * \param value_map The map of new values.
+ * \return The converted expression.
+ */
+Expr Substitute(Expr expr,
+                const std::unordered_map<const Variable*, Expr>& value_map);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.

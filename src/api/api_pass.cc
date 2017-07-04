@@ -30,6 +30,11 @@ TVM_REGISTER_API("ir_pass.Equal")
     }
   });
 
+TVM_REGISTER_API("ir_pass.ExprUseVar")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = ExprUseVar(args[0].operator Expr(), args[1].operator Var());
+  });
+
 TVM_REGISTER_API("ir_pass.PostOrderVisit")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     PackedFunc f = args[1];
@@ -69,7 +74,6 @@ REGISTER_PASS1(CanonicalSimplify);
 REGISTER_PASS4(Inline);
 REGISTER_PASS2(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
-REGISTER_PASS2(ExprUseVar);
 REGISTER_PASS4(UnrollLoop);
 REGISTER_PASS2(StorageSync);
 REGISTER_PASS4(MakeAPI);

@@ -12,20 +12,11 @@
 #include <unordered_set>
 
 #include "./ir_util.h"
+#include "./arg_binder.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace ir {
-
-inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
-  return TVMStructGet(t, arr, 0, kind);
-}
-
-inline Stmt AssertNull(Var handle, std::string msg) {
-  return AssertStmt::make(Call::make(
-      Bool(1), intrinsic::tvm_handle_is_null,
-      {handle}, Call::PureIntrinsic), msg);
-}
 
 inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
   return AssertStmt::make(lhs == rhs, msg);
@@ -35,8 +26,6 @@ LoweredFunc MakeAPI(Stmt body,
                     std::string name,
                     Array<NodeRef> api_args,
                     int num_unpacked_args) {
-  const Type tvm_shape_type = TVMShapeIndexType();
-  const Type tvm_ndim_type = Int(32);
   const Stmt nop = Evaluate::make(0);
   int num_args = static_cast<int>(api_args.size());
   CHECK_LE(num_unpacked_args, num_args);
@@ -48,14 +37,13 @@ LoweredFunc MakeAPI(Stmt body,
   Var v_num_packed_args("num_args", Int(32));
   // The arguments of the function.
   Array<Var> args;
+  // The device context
+  Var device_type("dev_type"), device_id("dev_id");
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after iniit
   std::vector<Stmt> seq_init, seq_check;
-  std::unordered_set<const Variable*> visited;
-  // the handle data types
-  Map<Var, Expr> handle_data_type;
-  // The device context
-  Var device_id, device_type;
+  std::unordered_map<const Variable*, Expr> vmap;
+  ArgBinder binder(&vmap);
   // ---------------------------
   // local function defintiions
   // load i-th argument as type t
@@ -81,25 +69,6 @@ LoweredFunc MakeAPI(Stmt body,
     const Variable* v = api_args[i].as<Variable>();
     return Var(os.str(), v ? v->type: Handle());
   };
-  // Push related into assertions or variable defintion
-  // given the symbolic declaration and concrete value
-  auto f_push = [&](Expr sym, Expr value, std::string field) {
-    if (sym.as<Variable>()) {
-      // If sym is a Variable and this Variable is not yet defined
-      // add this to defintion.
-      Var v(sym.node_);
-      if (!visited.count(v.get())) {
-        seq_init.emplace_back(LetStmt::make(v, value, nop));
-        visited.insert(v.get());
-        return true;
-      }
-    }
-    // otherwise, assume sym is already defined, insert assertion.
-    std::ostringstream os;
-    os << "Field " << field << " has a unsatisfied constraint";
-    seq_check.emplace_back(MakeAssertEQ(sym, value, os.str()));
-    return false;
-  };
   // ---------------------------
   // start of logics
   // add signiture for packed arguments.
@@ -112,7 +81,6 @@ LoweredFunc MakeAPI(Stmt body,
     seq_init.emplace_back(
         MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
-
   for (int i = 0; i < static_cast<int>(api_args.size()); ++i) {
     Var v_arg = f_arg_decl(i);
     if (i < num_packed_args) {
@@ -148,117 +116,30 @@ LoweredFunc MakeAPI(Stmt body,
     }
     // add checks for functions.
     if (api_args[i].as<Variable>()) {
-      f_push(Var(api_args[i].node_), v_arg, v_arg->name_hint);
+      binder.Bind(Var(api_args[i].node_), v_arg, v_arg->name_hint, true);
     } else {
       // Buffer checks
       CHECK(api_args[i].as<BufferNode>())
           << "api_args can only be Buffer or Var";
       Buffer buf(api_args[i].node_);
-      // dimension checks
-      Expr v_ndim = TVMArrayGet(tvm_ndim_type, v_arg, intrinsic::kArrNDim);
-      std::ostringstream ndim_err_msg;
-      ndim_err_msg << "arg_" << i
-                   << ".ndim is expected to equal "
-                   << buf->shape.size();
-      seq_init.emplace_back(
-          MakeAssertEQ(v_ndim,
-                       make_const(tvm_ndim_type,
-                                  static_cast<int64_t>(buf->shape.size())),
-                       ndim_err_msg.str()));
-      // type checks
-      Type dtype = buf->dtype;
-      std::ostringstream type_err_msg;
-      type_err_msg << "arg" << i << ".dtype is expected to be " << dtype;
-      Expr cond = (TVMArrayGet(UInt(8), v_arg, intrinsic::kArrTypeCode) ==
-                   UIntImm::make(UInt(8), dtype.code()) &&
-                   TVMArrayGet(UInt(8), v_arg, intrinsic::kArrTypeBits) ==
-                   UIntImm::make(UInt(8), dtype.bits()) &&
-                   TVMArrayGet(UInt(16), v_arg, intrinsic::kArrTypeLanes) ==
-                   UIntImm::make(UInt(16), dtype.lanes()));
-      seq_init.emplace_back(AssertStmt::make(cond, type_err_msg.str()));
-      // Data Field
-      if (f_push(buf->data, TVMArrayGet(Handle(), v_arg, intrinsic::kArrData),
-                 v_arg->name_hint + ".data")) {
-        Var vptr(buf->data);
-        handle_data_type.Set(vptr, make_const(buf->dtype, 0));
-        // mark storage alignment of external buffer arguments.
-        seq_init.emplace_back(AttrStmt::make(
-            vptr, ir::attr::storage_alignment,
-            IntImm::make(Int(32), runtime::kAllocAlignment), nop));
-      }
-      // shape field
-      Var v_shape(v_arg->name_hint + ".shape", Handle());
-      handle_data_type.Set(v_shape, make_const(tvm_shape_type, 0));
-      seq_init.emplace_back(LetStmt::make(
-          v_shape, TVMArrayGet(Handle(), v_arg, intrinsic::kArrShape), nop));
-      for (size_t k = 0; k < buf->shape.size(); ++k) {
-        std::ostringstream field_name;
-        field_name << v_shape->name_hint << '[' << k << ']';
-        f_push(buf->shape[k],
-               cast(buf->shape[k].type(),
-                    Load::make(tvm_shape_type, v_shape,
-                               IntImm::make(Int(32), k), const_true(1))),
-               field_name.str());
-      }
-      // strides field
-      Var v_strides(v_arg->name_hint + ".strides", Handle());
-      handle_data_type.Set(v_strides, make_const(tvm_shape_type, 0));
-      seq_init.emplace_back(LetStmt::make(
-          v_strides, TVMArrayGet(Handle(), v_arg, intrinsic::kArrStrides),
-          nop));
-      if (buf->strides.size() == 0) {
-        std::ostringstream stride_err_msg;
-        stride_err_msg << "arg_" << i << ".strides:"
-                       << " expected to be nullptr for contiguous array";
-        seq_init.emplace_back(AssertNull(v_strides, stride_err_msg.str()));
-      } else {
-        for (size_t k = 0; k < buf->strides.size(); ++k) {
-          std::ostringstream field_name;
-          field_name << v_strides->name_hint << '[' << k << ']';
-          f_push(buf->strides[k],
-                 cast(buf->shape[k].type(),
-                      Load::make(tvm_shape_type, v_strides,
-                                 IntImm::make(Int(32), k), const_true(1))),
-                 field_name.str());
-        }
-      }
-      // Byte_offset field.
-      int data_bytes = GetVectorBytes(buf->dtype);
-      int64_t const_offset;
-      if (arith::GetConst(buf->elem_offset, &const_offset)) {
-        f_push(make_const(buf->elem_offset.type(), const_offset * data_bytes),
-               TVMArrayGet(UInt(64), v_arg, intrinsic::kArrByteOffset),
-               v_arg->name_hint + ".byte_offset");
-      } else {
-        f_push(buf->elem_offset,
-               cast(buf->elem_offset.type(),
-                    (TVMArrayGet(UInt(64), v_arg, intrinsic::kArrByteOffset) /
-                     make_const(UInt(64), data_bytes))),
-               v_arg->name_hint + ".elem_offset");
-      }
-      // device info.
-      f_push(device_id,
-             TVMArrayGet(Int(32), v_arg, intrinsic::kArrDeviceId),
-             v_arg->name_hint + ".device_id");
-      f_push(device_type,
-             TVMArrayGet(Int(32), v_arg, intrinsic::kArrDeviceType),
-             v_arg->name_hint + ".device_type");
+      binder.BindDLTensor(
+          buf, device_type, device_id, v_arg, v_arg->name_hint);
     }
   }
 
   std::shared_ptr<LoweredFuncNode> n = std::make_shared<LoweredFuncNode>();
   n->name = name;
   n->args = args;
-  n->handle_data_type = handle_data_type;
+  n->handle_data_type = binder.def_handle_dtype();
   n->is_packed_func = num_unpacked_args == 0;
 
   // Set device context
-  if (visited.count(device_id.get())) {
+  if (vmap.count(device_id.get())) {
     Expr node = StringImm::make("default");
-    CHECK(visited.count(device_type.get()));
-    seq_init.push_back(AttrStmt::make(
+    CHECK(vmap.count(device_type.get()));
+    seq_check.push_back(AttrStmt::make(
         node, attr::device_context_id, device_id, nop));
-    seq_init.push_back(AttrStmt::make(
+    seq_check.push_back(AttrStmt::make(
         node, attr::device_context_type, device_type, nop));
     Stmt set_device = IfThenElse::make(
         device_type != kCPU, Evaluate::make(Call::make(
@@ -267,7 +148,8 @@ LoweredFunc MakeAPI(Stmt body,
              device_type, device_id}, Call::Intrinsic)));
     body = Block::make(set_device, body);
   }
-  n->body = MergeNest({seq_init, seq_check}, body);
+  n->body = MergeNest(
+      {seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
   LoweredFunc f(n);
   Array<Var> undefined = UndefinedVars(f->body, f->args);
   if (undefined.size() != 0) {

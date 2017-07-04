@@ -215,11 +215,7 @@ void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64,
   if (t.is_int()) {
     this->PushOp(op_int64);
   } else if (t.is_uint()) {
-    if (t.bits() <= 32) {
-      this->PushOp(op_int64);
-    } else {
-      LOG(FATAL) << "Cannot handle uint64_t in StackVM";
-    }
+    this->PushOp(op_int64);
   } else {
     this->PushOp(StackVM::CodeI64ToF64(op_int64));
   }

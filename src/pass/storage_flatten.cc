@@ -8,6 +8,8 @@
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
 #include <unordered_map>
+#include "./ir_util.h"
+#include "./arg_binder.h"
 #include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
@@ -156,30 +158,6 @@ class StorageFlattener : public IRMutator {
   }
 
  private:
-  // Bind the symbol sym to value if it is a Variable
-  // send a sequence of asserts if it is a constant constrant.
-  // hint_name: used for error message
-  // add_keys: a list of newly binded keys
-  // add_asserts: a list of asserts during the bind
-  void BindSymbol(Expr sym,
-                  Expr value,
-                  std::string hint_name,
-                  std::vector<const Variable*>* add_keys,
-                  std::vector<Stmt>* add_asserts) {
-    if (const Variable* v = sym.as<Variable>()) {
-      auto it = var_remap_.find(v);
-      if (it == var_remap_.end()) {
-        add_keys->push_back(v);
-        var_remap_[v] = value;
-        return;
-      }
-    }
-    // add assertions
-    std::ostringstream os;
-    os << "BufferBind constaint fail " << hint_name;
-    add_asserts->emplace_back(
-        AssertStmt::make(sym == value, os.str()));
-  }
   // Start bind
   Stmt HandleBufferBindScope(const AttrStmt* op) {
     Array<NodeRef> arr(op->node.node_);
@@ -215,47 +193,16 @@ class StorageFlattener : public IRMutator {
     } else {
       slice = slice.MakeStrideView();
     }
-    CHECK_EQ(slice->strides.size(), buffer->strides.size());
     // start binding
-    std::vector<const Variable*> keys;
-    std::vector<Stmt> asserts;
-    BindSymbol(buffer->data, slice->data,
-               buffer->name + ".data",
-               &keys, &asserts);
-    for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      std::ostringstream field_name;
-      field_name << buffer->name << ".shape[" << i << ']';
-      BindSymbol(buffer->shape[i], slice->shape[i],
-                 field_name.str(),
-                 &keys, &asserts);
-    }
-    for (size_t i = 0; i < buffer->strides.size(); ++i) {
-      std::ostringstream field_name;
-      field_name << buffer->name << ".strides[" << i << ']';
-      BindSymbol(buffer->strides[i], slice->strides[i],
-                 field_name.str(),
-                 &keys, &asserts);
-    }
-    BindSymbol(buffer->elem_offset, slice->elem_offset,
-               buffer->name + ".elem_offset",
-               &keys, &asserts);
-    CHECK_EQ(buffer->scope, slice->scope)
-        << "Buffer bind scope mismatch";
+    ArgBinder binder(&var_remap_);
+    binder.BindBuffer(Buffer(arr[0].node_), slice, buffer->name);
     // Apply the remaps
-    Stmt body = this->Mutate(op->body);
-    for (size_t i = 0; i < asserts.size(); ++i) {
-      Stmt ret = Simplify(this->Mutate(asserts[i]));
-      if (const AssertStmt* assert_op = ret.as<AssertStmt>()) {
-        if (!is_zero(assert_op->condition)) {
-          body = Block::make(ret, body);
-        } else {
-          LOG(FATAL) << "BindBuffer have unmet assertion: " << ret;
-        }
-      }
-    }
+    Stmt body = MergeNest(binder.asserts(), op->body);
+    body = MergeNest(binder.init_nest(), body);
+    body = this->Mutate(body);
     // remove the binds
-    for (const Variable* op : keys) {
-      var_remap_.erase(op);
+    for (const Var& v : binder.defs()) {
+      var_remap_.erase(v.get());
     }
     return body;
   }
