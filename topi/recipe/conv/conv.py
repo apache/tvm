@@ -90,7 +90,7 @@ def conv_gpu(tensorA, tensorW, tensorB, stride=1, pad=0, device='cuda'):
     block_factor = tile * num_thread
     step = 8
     vthread = 2
-    
+
     block_x = tvm.thread_axis("blockIdx.x")
     block_y = tvm.thread_axis("blockIdx.y")
     block_z = tvm.thread_axis("blockIdx.z")
@@ -212,6 +212,6 @@ def test_conv():
         conv_gpu(a, w, b, stride=stride, pad=pad, device=device)
         # check correctness
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-    
+
 if __name__ == "__main__":
     test_conv()
