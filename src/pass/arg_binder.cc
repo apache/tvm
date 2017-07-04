@@ -18,11 +18,12 @@ void BinderAddAssert(Expr cond,
                      std::vector<Stmt>* asserts) {
   cond = Simplify(cond);
   if (is_zero(cond)) {
-    LOG(FATAL) << "Bind have unmet assertion: " << cond << ", " << " on argument " << arg_name;
+    LOG(FATAL) << "Bind have an unmet assertion: "
+               << cond << ", " << " on argument " << arg_name;
   }
   if (!is_one(cond)) {
     std::ostringstream os;
-    os << "Argument " << arg_name << " has a unsatisfied constraint";
+    os << "Argument " << arg_name << " has an unsatisfied constraint";
     asserts->emplace_back(AssertStmt::make(cond, os.str()));
   }
 }
