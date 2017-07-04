@@ -15,4 +15,4 @@ tvm.ndarray
 .. autofunction:: tvm.metal
 .. autofunction:: tvm.ndarray.array
 
-.. autofunction:: tvm.register_dltensor
+.. autofunction:: tvm.register_extension

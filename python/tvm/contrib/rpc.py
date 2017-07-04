@@ -98,8 +98,8 @@ class Server(object):
     It is also possible to implement a similar C based sever with
     TVM runtime which does not depend on the python.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     host : str
         The host url of the server.
 

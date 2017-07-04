@@ -126,8 +126,8 @@ np.testing.assert_allclose(
 
 ######################################################################
 # Describe Convolution via 2D Reduction
-# ----------------------
-# In TVM, we can describe convolution via 2D reduction in a simple way. 
+# -------------------------------------
+# In TVM, we can describe convolution via 2D reduction in a simple way.
 # Here is an example for 2D convolution with filter size = [3, 3] and strides = [1, 1].
 #
 n = tvm.var('n')
