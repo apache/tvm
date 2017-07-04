@@ -11,6 +11,28 @@
 
 namespace tvm {
 namespace ir {
+/*!
+ * \brief combine the nest stmt, whose body is not defined.
+ * \param nest A list of For and LetStmt, whose body is not defined.
+ * \param body body
+ * \return The combined Stmt
+ */
+Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
+
+/*!
+ * \brief combine the nest stmt, whose body is not defined.
+ * \param nest A list of For and LetStmt, whose body is not defined.
+ * \param body body
+ * \return The combined Stmt
+ */
+Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body);
+
+/*!
+ * \brief combine sequence of operations.
+ * \param seq The sequence.
+ * \return The combined Stmt
+ */
+Stmt MergeSeq(const std::vector<Stmt>& seq);
 
 /*!
  * \brief update array with an unary function
@@ -36,79 +58,6 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
   } else {
     return Array<T>(new_arr);
   }
-}
-
-/*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and LetStmt, whose body is not defined.
- * \param body body
- * \return The combined Stmt
- */
-inline Stmt MergeNest(std::vector<Stmt> nest, Stmt body) {
-  // use reverse iteration
-  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
-    Stmt s = *ri;
-    if (s.as<For>()) {
-      auto n = std::make_shared<For>(*s.as<For>());
-      CHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else if (s.as<LetStmt>()) {
-      auto n = std::make_shared<LetStmt>(*s.as<LetStmt>());
-      CHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else if (s.as<AttrStmt>()) {
-      auto n = std::make_shared<AttrStmt>(*s.as<AttrStmt>());
-      CHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else if (s.as<IfThenElse>()) {
-      auto n = std::make_shared<IfThenElse>(*s.as<IfThenElse>());
-      CHECK(is_no_op(n->then_case));
-      CHECK(!n->else_case.defined());
-      n->then_case = body;
-      body = Stmt(n);
-    } else if (s.as<AssertStmt>()) {
-      body = Block::make(s, body);
-    } else if (s.as<Allocate>()) {
-      auto n = std::make_shared<Allocate>(*s.as<Allocate>());
-      CHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else {
-      LOG(FATAL) << "not supported nest type";
-    }
-  }
-  return body;
-}
-
-/*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and LetStmt, whose body is not defined.
- * \param body body
- * \return The combined Stmt
- */
-inline Stmt MergeNest(std::vector<std::vector<Stmt> > nest, Stmt body) {
-  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
-    body = MergeNest(*ri, body);
-  }
-  return body;
-}
-
-
-/*!
- * \brief combine sequence of operations.
- * \param seq The sequence.
- * \return The combined Stmt
- */
-inline Stmt MergeSeq(const std::vector<Stmt>& seq) {
-  if (seq.size() == 0) return Evaluate::make(0);
-  Stmt body = seq[0];
-  for (size_t i = 1; i < seq.size(); ++i) {
-    body = Block::make(body, seq[i]);
-  }
-  return body;
 }
 
 /*!
@@ -176,7 +125,6 @@ inline Type APIType(Type t) {
   CHECK(t.is_float());
   return Float(64);
 }
-
 }  // namespace ir
 }  // namespace tvm
 #endif  // TVM_PASS_IR_UTIL_H_
