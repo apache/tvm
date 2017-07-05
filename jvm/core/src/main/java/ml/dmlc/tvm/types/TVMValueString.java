@@ -15,20 +15,12 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm
+package ml.dmlc.tvm.types;
 
-object API {
-  private val function = Function.initAPI(
-    name => name.indexOf('.') == -1 && !name.startsWith("_"),
-    name => name)
-
-  def apply(name: String): Function = function(name)
-}
-
-object APIInternal {
-  private val function = Function.initAPI(
-    name => name.indexOf('.') == -1 && name.startsWith("_"),
-    name => name)
-
-  def apply(name: String): Function = function(name)
+public class TVMValueString extends TVMValue {
+  public final String value;
+  public TVMValueString(String value) {
+    super(TypeCode.STR);
+    this.value = value;
+  }
 }

@@ -219,7 +219,7 @@ jvmpkg:
 	(cd $(ROOTDIR)/jvm; \
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
-			-Dcurrent_libdir="$(ROOTDIR)/lib")
+			-Dcurrent_libdir="$(ROOTDIR)/lib" -DskipTests)
 
 jvmtest:
 	(cd $(ROOTDIR)/jvm; \

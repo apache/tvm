@@ -4,12 +4,17 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include <thread>
 #include <dlfcn.h>
 
 #include "jni_helper_func.h"
 
 JavaVM *_jvm;
 void *_tvmHandle;
+thread_local std::vector<TVMValue> _tvmFuncArgValues;
+thread_local std::vector<int> _tvmFuncArgTypes;
+// for later release
+thread_local std::vector<std::pair<jstring, const char *>> _tvmFuncArgPushedStrs;
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_nativeLibInit
   (JNIEnv *env, jobject obj, jstring jtvmLibFile) {
@@ -37,6 +42,41 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_tvm_LibInfo_tvmGetLastError(JNIEnv * env,
 }
 
 // Function
+JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgLong(
+  JNIEnv *env, jobject obj, jlong arg) {
+  TVMValue value;
+  value.v_int64 = static_cast<int64_t>(arg);
+  _tvmFuncArgValues.push_back(value);
+  _tvmFuncArgTypes.push_back(kInt);
+}
+
+JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgDouble(
+  JNIEnv *env, jobject obj, jdouble arg) {
+  TVMValue value;
+  value.v_float64 = static_cast<double>(arg);
+  _tvmFuncArgValues.push_back(value);
+  _tvmFuncArgTypes.push_back(kFloat);
+}
+
+JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgString(
+  JNIEnv *env, jobject obj, jstring arg) {
+  TVMValue value;
+  jstring garg = reinterpret_cast<jstring>(env->NewGlobalRef(arg));
+  value.v_str = env->GetStringUTFChars(garg, 0);
+  _tvmFuncArgValues.push_back(value);
+  _tvmFuncArgTypes.push_back(kStr);
+  // release string args later
+  _tvmFuncArgPushedStrs.push_back(std::make_pair(garg, value.v_str));
+}
+
+JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgHandle(
+  JNIEnv *env, jobject obj, jlong arg, jint argType) {
+  TVMValue value;
+  value.v_handle = reinterpret_cast<void *>(arg);
+  _tvmFuncArgValues.push_back(value);
+  _tvmFuncArgTypes.push_back(static_cast<int>(argType));
+}
+
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
   JNIEnv *env, jobject obj, jobject jfuncNames) {
   int outSize;
@@ -47,9 +87,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
     return ret;
   }
 
-  jclass arrayClass = env->FindClass("scala/collection/mutable/ArrayBuffer");
-  jmethodID arrayAppend = env->GetMethodID(arrayClass,
-    "$plus$eq", "(Ljava/lang/Object;)Lscala/collection/mutable/ArrayBuffer;");
+  jclass arrayClass = env->FindClass("java/util/List");
+  jmethodID arrayAppend = env->GetMethodID(arrayClass, "add", "(Ljava/lang/Object;)Z");
 
   // fill names
   for (int i = 0; i < outSize; ++i) {
@@ -57,6 +96,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
     env->CallObjectMethod(jfuncNames, arrayAppend, jname);
     env->DeleteLocalRef(jname);
   }
+
+  env->DeleteLocalRef(arrayClass);
 
   return ret;
 }
@@ -77,47 +118,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncGetGlobal(
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
-  JNIEnv *env, jobject obj, jlong jhandle, jobjectArray jargs, jobject jretVal) {
-  jclass tvmArgClass = env->FindClass("ml/dmlc/tvm/types/TVMValue");
-  jfieldID tvmArgId = env->GetFieldID(tvmArgClass, "argTypeId", "I");
-
-  int numArgs = static_cast<int>(env->GetArrayLength(jargs));
-
-  TVMValue *argValues = new TVMValue[numArgs];
-  int *typeCodes = new int[numArgs];
-
-  std::vector<std::pair<jstring, const char *>> strArgs; // store string for later release
-  for (int i = 0; i < numArgs; ++i) {
-    jobject jarg = env->GetObjectArrayElement(jargs, i);
-    int argId = static_cast<int>(env->GetIntField(jarg, tvmArgId));
-    TVMValue value;
-    jstring strArg;
-    switch (argId) {
-      case kInt:
-        value.v_int64 = static_cast<int64_t>(getTVMValueLongField(env, jarg));
-        break;
-      case kFloat:
-        value.v_float64 = static_cast<double>(getTVMValueDoubleField(env, jarg));
-        break;
-      case kStr:
-        strArg = getTVMValueStringField(env, jarg);
-        value.v_str = env->GetStringUTFChars(strArg, 0);
-        strArgs.push_back(std::make_pair(strArg, value.v_str));
-        break;
-      case kNull:
-        value.v_handle = NULL;
-        break;
-      case kArrayHandle:
-        value.v_handle = reinterpret_cast<void *>(
-          getTVMValueLongField(env, jarg, "ml/dmlc/tvm/types/TVMValueNDArrayHandle"));
-        break;
-      default:
-        // TODO
-        LOG(FATAL) << "Do NOT know how to handle argId " << argId;
-    }
-    typeCodes[i] = argId;
-    argValues[i] = value;
-  }
+  JNIEnv *env, jobject obj, jlong jhandle, jobject jretVal) {
+  int numArgs = _tvmFuncArgValues.size();
 
   int (*func)(TVMFunctionHandle, TVMValue *, int *, int, TVMValue *, int *);
   func = (int(*)(TVMFunctionHandle, TVMValue *, int *, int, TVMValue *, int *))
@@ -126,16 +128,15 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   TVMValue retVal;
   int retTypeCode;
   int ret = func(reinterpret_cast<TVMFunctionHandle>(jhandle),
-    argValues, typeCodes, numArgs, &retVal, &retTypeCode);
+    &_tvmFuncArgValues[0], &_tvmFuncArgTypes[0], numArgs, &retVal, &retTypeCode);
 
-  // release temp strings
-  for (auto iter = strArgs.cbegin(); iter != strArgs.cend(); iter++) {
+  for (auto iter = _tvmFuncArgPushedStrs.cbegin(); iter != _tvmFuncArgPushedStrs.cend(); iter++) {
     env->ReleaseStringUTFChars(iter->first, iter->second);
+    env->DeleteGlobalRef(iter->first);
   }
-
-  delete[] typeCodes;
-  delete[] argValues;
-  env->DeleteLocalRef(tvmArgClass);
+  _tvmFuncArgPushedStrs.clear();
+  _tvmFuncArgTypes.clear();
+  _tvmFuncArgValues.clear();
 
   // return TVMValue object to Java
   jclass refTVMValueCls = env->FindClass("ml/dmlc/tvm/Base$RefTVMValue");
@@ -165,6 +166,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   }
 
   env->DeleteLocalRef(refTVMValueCls);
+
 
   return ret;
 }
@@ -235,15 +237,15 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
   jclass longClass = env->FindClass("java/lang/Long");
   jmethodID newLong = env->GetMethodID(longClass, "<init>", "(J)V");
 
-  jclass arrayClass = env->FindClass("scala/collection/mutable/ArrayBuffer");
-  jmethodID arrayAppend = env->GetMethodID(arrayClass,
-    "$plus$eq", "(Ljava/lang/Object;)Lscala/collection/mutable/ArrayBuffer;");
+  jclass arrayClass = env->FindClass("java/util/List");
+  jmethodID arrayAppend = env->GetMethodID(arrayClass, "add", "(Ljava/lang/Object;)Z");
   for (int i = 0; i < ndim; ++i) {
     jobject data = env->NewObject(longClass, newLong, static_cast<jlong>(shape[i]));
     env->CallObjectMethod(jshape, arrayAppend, data);
     env->DeleteLocalRef(data);
   }
   env->DeleteLocalRef(longClass);
+  env->DeleteLocalRef(arrayClass);
 
   return 0;
 }

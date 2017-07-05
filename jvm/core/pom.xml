@@ -53,23 +53,43 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
       </plugin>
-      <plugin>
-        <groupId>org.scalatest</groupId>
-        <artifactId>scalatest-maven-plugin</artifactId>
+      <plugin>             
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.7</version>
         <configuration>
+          <forkCount>1</forkCount>
+          <reuseForks>true</reuseForks>
+          <threadCount>1</threadCount>
           <argLine>
-            -Djava.library.path=${project.parent.basedir}/native/${platform}/target \
-            -Dlog4j.configuration=file://${project.basedir}/src/test/resources/log4j.properties \
+            -Djava.library.path=${project.parent.basedir}/native/${platform}/target
             -Dlibtvm.so.path=${project.parent.basedir}/../lib/libtvm_runtime.so
           </argLine>
         </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.scalastyle</groupId>
-        <artifactId>scalastyle-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test</id>
+            <!--
+             We put it in the integration-test phase,
+             because the test suites require the jni library,
+             which means, in order to run the unit tests,
+             we have to compile all the modules first.
+            -->
+            <phase>integration-test</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
   <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.11</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>
