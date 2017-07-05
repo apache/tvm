@@ -75,13 +75,38 @@ void ArgBinder::BindArray(const Array<Expr>& arg,
 
 void ArgBinder::BindBuffer(const Buffer& arg,
                            const Buffer& value,
-                           const std::string& arg_name) {
+                           const std::string& arg_name,
+                           bool fuzzy_match) {
   CHECK_EQ(arg->scope, value->scope)
       << "Argument " << arg_name
       << " Buffer bind scope mismatch";
   this->Bind(arg->data, value->data, arg_name + ".data");
-  this->BindArray(arg->shape, value->shape, arg_name + ".shape");
-  this->BindArray(arg->strides, value->strides, arg_name + ".strides");
+  if (arg->shape.size() > value->shape.size()) {
+    CHECK(fuzzy_match) << "Argument " << arg_name << " size mismatch";
+    size_t diff = arg->shape.size() - value->shape.size();
+    for (size_t i = 0; i < diff; ++i) {
+      CHECK(is_one(arg->shape[i]))
+          << "Argument " << arg_name << " shape mismatch"
+          << arg->shape << " vs " << value->shape;
+    }
+    for (size_t i = 0; i < value->shape.size(); ++i) {
+      std::ostringstream os;
+      os << arg_name << ".shape[" << i << "]";
+      this->Bind(arg->shape[i + diff], value->shape[i], os.str());
+    }
+    if (arg->strides.size() != 0) {
+      CHECK_EQ(arg->strides.size(), arg->shape.size());
+      CHECK_EQ(value->strides.size(), value->shape.size());
+      for (size_t i = 0; i < value->strides.size(); ++i) {
+        std::ostringstream os;
+        os << arg_name << ".strides[" << i << "]";
+        this->Bind(arg->strides[i + diff], value->strides[i], os.str());
+      }
+    }
+  } else {
+    this->BindArray(arg->shape, value->shape, arg_name + ".shape");
+    this->BindArray(arg->strides, value->strides, arg_name + ".strides");
+  }
   this->Bind(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset");
 }
 

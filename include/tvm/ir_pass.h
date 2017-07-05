@@ -23,14 +23,6 @@
 namespace tvm {
 namespace ir {
 
-inline bool Equal(Expr a, Expr b) {
-  return Halide::Internal::equal(a, b);
-}
-
-inline bool Equal(Stmt a, Stmt b) {
-  return Halide::Internal::equal(a, b);
-}
-
 inline Expr Simplify(Expr a) {
   return Halide::Internal::simplify(a);
 }
@@ -38,6 +30,22 @@ inline Expr Simplify(Expr a) {
 inline Stmt Simplify(Stmt a) {
   return Halide::Internal::simplify(a);
 }
+
+/*!
+ * \brief Deep compare lhs and rhs
+ * \param lhs The left operand
+ * \param rhs The right operand
+ * \return The comparison result.
+ */
+bool Equal(const Expr& lhs, const Expr& rhs);
+
+/*!
+ * \brief Deep compare lhs and rhs
+ * \param lhs The left operand
+ * \param rhs The right operand
+ * \return The comparison result.
+ */
+bool Equal(const Stmt& lhs, const Stmt& rhs);
 
 /*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.

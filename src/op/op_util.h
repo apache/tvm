@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <vector>
 #include "../pass/ir_util.h"
+#include "../pass/arg_binder.h"
 
 namespace tvm {
 namespace op {
@@ -73,6 +74,15 @@ Stmt ReplaceTensor(Stmt stmt,
  */
 Expr ReplaceTensor(Expr expr,
                    const std::unordered_map<Tensor, Tensor>& replace);
+
+/*!
+ * \brief Substitute the variables of stmt by value map.
+ * \param stmt the statment
+ * \param value_map The value map.
+ * \return Substituted result.
+ */
+Stmt Substitute(Stmt stmt,
+                const std::unordered_map<IterVar, Expr>& value_map);
 
 }  // namespace op
 }  // namespace tvm
