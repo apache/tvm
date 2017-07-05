@@ -55,13 +55,11 @@ def tag_scope(tag):
         k = tvm.reduce_axis((0, l), name='k')
 
         with tvm.tag_scope(tag='matmul'):
-            C = tvm.compute((n, m), lambda i, j: \
-                            tvm.sum(A[i, k] * B[j, k], axis=k))
+            C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k))
 
         # or use tag_scope as decorator
         @tvm.tag_scope(tag="conv")
         def compute_relu(data):
-            return tvm.compute(data.shape, lambda *i: \
-                               tvm.select(data(*i) < 0, 0.0, data(*i)))
+            return tvm.compute(data.shape, lambda *i: tvm.select(data(*i) < 0, 0.0, data(*i)))
     """
     return TagScope(tag)
