@@ -20,6 +20,7 @@ The user facing API for computation declaration.
    tvm.sum
    tvm.min
    tvm.max
+   tvm.tag_scope
 
 .. autofunction:: tvm.load_json
 .. autofunction:: tvm.save_json
@@ -37,3 +38,4 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.sum
 .. autofunction:: tvm.min
 .. autofunction:: tvm.max
+.. autofunction:: tvm.tag_scope

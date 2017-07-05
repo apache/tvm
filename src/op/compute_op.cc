@@ -53,7 +53,10 @@ Array<Expr> ComputeOpNode::output_shape(size_t idx) const {
   return Array<Expr>(shape);
 }
 
-Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
+Tensor compute(Array<Expr> shape,
+               FCompute fcompute,
+               std::string name,
+               std::string tag) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -67,10 +70,13 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
     args.push_back(axis.back()->var);
   }
 
-  return ComputeOpNode::make(name, axis, {fcompute(args)}).output(0);
+  return ComputeOpNode::make(name, tag, axis, {fcompute(args)}).output(0);
 }
 
-Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string name) {
+Array<Tensor> compute(Array<Expr> shape,
+                      FBatchCompute fcompute,
+                      std::string name,
+                      std::string tag) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -84,7 +90,7 @@ Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string nam
     args.push_back(axis.back()->var);
   }
 
-  Operation op = ComputeOpNode::make(name, axis, fcompute(args));
+  Operation op = ComputeOpNode::make(name, tag, axis, fcompute(args));
   Array<Tensor> outputs;
   for (int idx = 0; idx < op->num_outputs(); ++idx) {
     outputs.push_back(op.output(idx));
@@ -100,10 +106,12 @@ bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
 }
 
 Operation ComputeOpNode::make(std::string name,
+                              std::string tag,
                               Array<IterVar> axis,
                               Array<Expr> body) {
   auto n = std::make_shared<ComputeOpNode>();
   n->name = name;
+  n->tag = tag;
   n->axis = axis;
   n->body = body;
   if (n->body[0]->is_type<ir::Reduce>()) {
@@ -147,7 +155,7 @@ Operation ComputeOpNode::ReplaceInputs(
       return op::ReplaceTensor(e, rmap);
     });
   if (!arr.same_as(this->body)) {
-    return ComputeOpNode::make(name, axis, arr);
+    return ComputeOpNode::make(name, tag, axis, arr);
   } else {
     return self;
   }

@@ -44,6 +44,7 @@ Array<Expr> ScanOpNode::output_shape(size_t i) const {
 }
 
 Operation ScanOpNode::make(std::string name,
+                           std::string tag,
                            IterVar axis,
                            Array<Tensor> init,
                            Array<Tensor> update,
@@ -86,6 +87,7 @@ Operation ScanOpNode::make(std::string name,
     }
   }
   n->name = name;
+  n->tag = tag;
   n->scan_axis = axis;
   n->init = init;
   n->update = update;
@@ -98,14 +100,15 @@ Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
                    Array<Tensor> inputs,
-                   std::string name) {
+                   std::string name,
+                   std::string tag) {
   IterVar scan_axis =
       IterVarNode::make(
           Range::make_with_min_extent(
               init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
           Var(name + ".idx"), kOrdered);
   Operation op = ScanOpNode::make(
-      name, scan_axis, init, update, state_placeholder, inputs);
+      name, tag, scan_axis, init, update, state_placeholder, inputs);
   Array<Tensor> res;
   for (int i = 0; i < op->num_outputs(); ++i) {
     res.push_back(op.output(i));
