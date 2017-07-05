@@ -3,7 +3,7 @@ from functools import wraps
 
 class TagScope(object):
     """Tag scope object to set tag for operators, working as context
-    manager and decorator both.
+    manager and decorator both. See also tag_scope.
     """
     current = None
     def __init__(self, tag):
@@ -34,7 +34,7 @@ def tag_scope(tag):
 
     Parameters
     ----------
-    tag: str, default=""
+    tag: str
         The tag name.
 
     Returns
@@ -42,5 +42,26 @@ def tag_scope(tag):
     tag_scope: TagScope
         The tag scope object, which can be used as decorator or
         context manger.
+
+    Example
+    -------
+    .. code-block:: python
+
+        n = tvm.var('n')
+        m = tvm.var('m')
+        l = tvm.var('m')
+        A = tvm.placeholder((n, l), name='A')
+        B = tvm.placeholder((m, l), name='A')
+        k = tvm.reduce_axis((0, l), name='k')
+
+        with tvm.tag_scope(tag='matmul'):
+            C = tvm.compute((n, m), lambda i, j: \
+                            tvm.sum(A[i, k] * B[j, k], axis=k))
+
+        # or use tag_scope as decorator
+        @tvm.tag_scope(tag="conv")
+        def compute_relu(data):
+            return tvm.compute(data.shape, lambda *i: \
+                               tvm.select(data(*i) < 0, 0.0, data(*i)))
     """
     return TagScope(tag)

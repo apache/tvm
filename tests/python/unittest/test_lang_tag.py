@@ -20,8 +20,8 @@ def test_with():
     m = tvm.var('m')
     l = tvm.var('l')
 
-    A = tvm.placeholder((n, m), name='A')
-    B = tvm.placeholder((n, m), name='B')
+    A = tvm.placeholder((n, l), name='A')
+    B = tvm.placeholder((m, l), name='B')
     with tvm.tag_scope(tag="gemm"):
         k = tvm.reduce_axis((0, l), name='k')
         C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k))
