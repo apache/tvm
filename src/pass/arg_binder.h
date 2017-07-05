@@ -71,10 +71,12 @@ class ArgBinder {
    * \param arg The argument to be binded.
    * \param value The target expression value
    * \param arg_name argument name.
+   * \param fuzzy_match If enabled, we allow value's dimension to be smaller than arg, as long as arg's higher dimensions are of 1.
    */
   void BindBuffer(const Buffer& arg,
                   const Buffer& value,
-                  const std::string& arg_name);
+                  const std::string& arg_name,
+                  bool fuzzy_match);
   /*!
    * \brief Bind symbolic buffer to a DLTensor handle.
    * \param buffer The argument buffer to be binded.

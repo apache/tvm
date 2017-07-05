@@ -9,6 +9,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
+#include "./compute_op.h"
 #include "./op_util.h"
 #include "../schedule/message_passing.h"
 
@@ -242,124 +243,6 @@ void MakeReduction(const ComputeOpNode* op,
   }
 }
 
-Stmt Substitute(Stmt s,
-                const std::unordered_map<IterVar, Expr>& value_map) {
-  Map<Var, Expr> temp;
-  for (const auto& kv : value_map) {
-    temp.Set(kv.first->var, kv.second);
-  }
-  return ir::Substitute(s, temp);
-}
-
-// Cross Thread reduction
-bool IsCrossThreadReduction(const ComputeOpNode* self,
-                            const Stage& stage) {
-  // Verify correctness of leaf nest.
-  int normal_red = 0, thread_red = 0;
-  for (IterVar iv : stage->leaf_iter_vars) {
-    if (iv->iter_type == kCommReduce) {
-      auto it = stage->iter_var_attrs.find(iv);
-      if (it != stage->iter_var_attrs.end() &&
-          (*it).second->bind_thread.defined()) {
-        ++thread_red;
-      } else {
-        ++normal_red;
-      }
-    } else {
-      CHECK_EQ(thread_red, 0)
-          << "Cross thread reduce cannot swap with normal data axis";
-    }
-  }
-  CHECK(normal_red == 0 || thread_red == 0)
-      << "Cannot mix normal reduction with thread reduce";
-  return thread_red != 0;
-}
-
-Stmt MakeCrossThreadReduction(
-    const ComputeOpNode* self,
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map) {
-  Array<Expr>  args;
-  for (IterVar iv : self->axis) {
-    args.push_back(iv->var);
-  }
-  std::unordered_map<IterVar, Expr> value_map;
-  auto nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map);
-  auto conds = op::MakeBoundCheck(
-      stage, dom_map, false,
-      std::unordered_set<IterVar>(), value_map);
-
-  size_t size = self->body.size();
-  CHECK_GT(size, 0);
-  std::vector<const Reduce*> reduces(size);
-  for (size_t i = 0; i < size; ++i) {
-    const Reduce* reduce = self->body[i].as<Reduce>();
-    CHECK(reduce);
-    reduces[i] = reduce;
-  }
-  Expr cond = reduces[0]->condition;
-  for (Expr v : conds) {
-    cond = cond && v;
-  }
-  Array<Expr> freduce_args;
-  freduce_args.push_back(make_const(UInt(32), static_cast<uint32_t>(size)));
-  for (size_t i = 0; i < size; ++i) {
-    freduce_args.push_back(reduces[0]->source[i]);
-  }
-  freduce_args.push_back(cond);
-  std::vector<Var> res_handles(size);
-  for (size_t idx = 0; idx < size; ++idx) {
-    res_handles[idx] = Var("reduce_temp" + std::to_string(idx), Handle());
-    freduce_args.push_back(res_handles[idx]);
-  }
-
-  for (IterVar iv : stage->leaf_iter_vars) {
-    if (iv->iter_type == kCommReduce) {
-      auto it = stage->iter_var_attrs.find(iv);
-      if (it != stage->iter_var_attrs.end() &&
-          (*it).second->bind_thread.defined()) {
-        IterVar tv = (*it).second->bind_thread;
-        freduce_args.push_back(tv->var);
-      }
-    }
-  }
-  // Checks for the thread.
-  std::vector<Expr> thread_head_check;
-  if (stage->store_predicate.defined()) {
-    thread_head_check.emplace_back(stage->store_predicate);
-  }
-
-  Stmt reduce_body = Evaluate::make(Call::make(
-      Handle(),
-      ir::intrinsic::tvm_thread_allreduce,
-      freduce_args, Call::Intrinsic));
-  reduce_body = AttrStmt::make(
-      reduces[0]->combiner,
-      attr::reduce_scope,
-      make_zero(Handle()),
-      reduce_body);
-  std::vector<Stmt> assigns(size);
-  for (size_t idx = 0; idx < size; ++idx) {
-    Type t = reduces[idx]->type;
-    assigns[idx] = Provide::make(
-      stage->op, idx,
-      Load::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
-  }
-  Stmt assign_body = Block::make(assigns);
-  assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
-  assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
-  Stmt body = Block::make(reduce_body, assign_body);
-  for (size_t idx = size; idx != 0; --idx) {
-    body = Allocate::make(
-      res_handles[idx - 1], reduces[idx - 1]->type, {1}, const_true(), body);
-    body = AttrStmt::make(
-      res_handles[idx - 1], attr::storage_scope, StringImm::make("local"), body);
-  }
-  body = Substitute(body, value_map);
-  return MergeNest(nest, body);
-}
-
 // Normal computation.
 Stmt MakeProvide(const ComputeOpNode* op,
                  const Tensor& t) {
@@ -370,27 +253,56 @@ Stmt MakeProvide(const ComputeOpNode* op,
   return Provide::make(t->op, t->value_index, op->body[t->value_index], args);
 }
 
-// loop nest structure for general compute
-// This the the loop nest structured used in compute.
-// Does not include the loop body.
-struct ComputeLoopNest {
-  // The common number of loops between init and main
-  size_t num_common_loop;
-  // predicates for the initialize loop
-  std::vector<Expr> init_predicates;
-  // Initialization nest involved.
-  std::vector<std::vector<Stmt> > init_nest;
-  // Value map for the init code
-  std::unordered_map<IterVar, Expr> init_vmap;
-  // Predicates for the main update loop
-  std::vector<Expr> main_predicates;
-  // The general loop nest
-  std::vector<std::vector<Stmt> > main_nest;
-  // Value map for the IterVar.
-  std::unordered_map<IterVar, Expr> main_vmap;
-};
+Stmt MakeComputeStmt(const ComputeOpNode* self,
+                     const Stage& stage,
+                     const std::unordered_map<IterVar, Range>& dom_map) {
+  // grab the nest structure
+  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map);
+  // Normal loop structure
+  n.init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+  n.main_nest.emplace_back(op::MakeIfNest(n.main_predicates));
+  if (self->reduce_axis.size() != 0) {
+    // make reduction.
+    Stmt init, provide;
+    Array<Tensor> source;
+    for (size_t i = 0; i < self->body.size(); ++i) {
+      source.push_back(stage->op.output(i));
+    }
+    MakeReduction(self, source, &init, &provide);
+    init = op::Substitute(init, n.init_vmap);
+    init = MergeNest(n.init_nest, init);
+    // common nest
+    std::vector<std::vector<Stmt> > common(
+        n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
+    std::vector<std::vector<Stmt> > reduce(
+        n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
+    provide = op::Substitute(provide, n.main_vmap);
+    provide = MergeNest(reduce, provide);
+    return MergeNest(common, Block::make(init, provide));
+  } else {
+    std::vector<Stmt> provides;
+    for (size_t i = 0; i < self->body.size(); ++i) {
+      provides.emplace_back(MakeProvide(self, stage->op.output(i)));
+    }
+    Stmt provide = op::Substitute(Block::make(provides), n.main_vmap);
+    return MergeNest(n.main_nest, provide);
+  }
+}
 
-ComputeLoopNest MakeComputeLoopNest(
+// implement the provide utility.
+Stmt ComputeOpNode::BuildProvide(
+    const Stage& stage,
+    const std::unordered_map<IterVar, Range>& dom_map) const {
+  CHECK_EQ(stage->op.operator->(), this);
+  if (IsCrossThreadReduction(this, stage)) {
+    // specially handle cross thread reduction.
+    return MakeCrossThreadReduction(this, stage, dom_map);
+  } else {
+    return MakeComputeStmt(this, stage, dom_map);
+  }
+}
+
+ComputeLoopNest ComputeLoopNest::make(
     const ComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map) {
@@ -446,51 +358,10 @@ ComputeLoopNest MakeComputeLoopNest(
       e = likely(e);
     }
   } else {
-    ret.num_common_loop = ret.main_nest.size() - 1;
+    CHECK_EQ(ret.main_nest.size(), stage->leaf_iter_vars.size() + 1);
+    ret.num_common_loop = stage->leaf_iter_vars.size();
   }
   // copy elison here.
   return ret;
-}
-
-// implement the provide utility.
-Stmt ComputeOpNode::BuildProvide(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map) const {
-  CHECK_EQ(stage->op.operator->(), this);
-  if (IsCrossThreadReduction(this, stage)) {
-    // specially handle cross thread reduction.
-    return MakeCrossThreadReduction(this, stage, dom_map);
-  }
-  // grab the nest structure
-  ComputeLoopNest n = MakeComputeLoopNest(this, stage, dom_map);
-  // Normal loop structure
-  n.init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
-  n.main_nest.emplace_back(op::MakeIfNest(n.main_predicates));
-  if (this->reduce_axis.size() != 0) {
-    // make reduction.
-    Stmt init, provide;
-    Array<Tensor> source;
-    for (size_t i = 0; i < this->body.size(); ++i) {
-      source.push_back(stage->op.output(i));
-    }
-    MakeReduction(this, source, &init, &provide);
-    init = Substitute(init, n.init_vmap);
-    init = MergeNest(n.init_nest, init);
-    // common nest
-    std::vector<std::vector<Stmt> > common(
-        n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
-    std::vector<std::vector<Stmt> > reduce(
-        n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
-    provide = Substitute(provide, n.main_vmap);
-    provide = MergeNest(reduce, provide);
-    return MergeNest(common, Block::make(init, provide));
-  } else {
-    std::vector<Stmt> provides;
-    for (size_t i = 0; i < this->body.size(); ++i) {
-      provides.emplace_back(MakeProvide(this, stage->op.output(i)));
-    }
-    Stmt provide = Substitute(Block::make(provides), n.main_vmap);
-    return MergeNest(n.main_nest, provide);
-  }
 }
 }  // namespace tvm

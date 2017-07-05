@@ -223,7 +223,6 @@ std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
 }
 
 
-
 // replacer to replace tensors
 class TensorReplacer : public ir::IRMutator {
  public:
@@ -263,5 +262,16 @@ Expr ReplaceTensor(Expr expr,
   Expr ret = repl.Mutate(expr);
   return repl.found ? ret : expr;
 }
+
+
+Stmt Substitute(Stmt s,
+                const std::unordered_map<IterVar, Expr>& value_map) {
+  std::unordered_map<const Variable*, Expr> init;
+  for (const auto& kv : value_map) {
+    init[kv.first->var.get()] = kv.second;
+  }
+  return ir::Substitute(s, init);
+}
+
 }  // namespace op
 }  // namespace tvm
