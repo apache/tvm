@@ -53,7 +53,10 @@ Array<Expr> ComputeOpNode::output_shape(size_t idx) const {
   return Array<Expr>(shape);
 }
 
-Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
+Tensor compute(Array<Expr> shape,
+               FCompute fcompute,
+               std::string name,
+               std::string tag) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -70,7 +73,10 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name) {
   return ComputeOpNode::make(name, axis, {fcompute(args)}).output(0);
 }
 
-Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string name) {
+Array<Tensor> compute(Array<Expr> shape,
+                      FBatchCompute fcompute,
+                      std::string name,
+                      std::string tag) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -84,7 +90,7 @@ Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string nam
     args.push_back(axis.back()->var);
   }
 
-  Operation op = ComputeOpNode::make(name, axis, fcompute(args));
+  Operation op = ComputeOpNode::make(name, axis, fcompute(args), tag);
   Array<Tensor> outputs;
   for (int idx = 0; idx < op->num_outputs(); ++idx) {
     outputs.push_back(op.output(idx));
@@ -101,11 +107,13 @@ bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
 
 Operation ComputeOpNode::make(std::string name,
                               Array<IterVar> axis,
-                              Array<Expr> body) {
+                              Array<Expr> body,
+                              std::string tag) {
   auto n = std::make_shared<ComputeOpNode>();
   n->name = name;
   n->axis = axis;
   n->body = body;
+  n->tag = tag;
   if (n->body[0]->is_type<ir::Reduce>()) {
     const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
     for (size_t i = 1; i < n->body.size(); ++i) {

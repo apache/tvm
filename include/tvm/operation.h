@@ -39,6 +39,8 @@ class OperationNode : public FunctionBaseNode {
  public:
   /*! \brief optional name of the operation */
   std::string name;
+  /*! \brief optional tag of the operation */
+  std::string tag;
   /*! \return name of the operation */
   const std::string& func_name() const final {
     return name;
@@ -216,10 +218,12 @@ class ComputeOpNode : public OperationNode {
     v->Visit("axis", &axis);
     v->Visit("reduce_axis", &reduce_axis);
     v->Visit("body", &body);
+    v->Visit("tag", &tag);
   }
   static Operation make(std::string name,
                         Array<IterVar> axis,
-                        Array<Expr> body);
+                        Array<Expr> body,
+                        std::string tag = "");
 
   static constexpr const char* _type_key = "ComputeOp";
   TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, OperationNode);
@@ -288,13 +292,15 @@ class ScanOpNode : public OperationNode {
     v->Visit("state_placeholder", &state_placeholder);
     v->Visit("inputs", &inputs);
     v->Visit("spatial_axis_", &spatial_axis_);
+    v->Visit("tag", &tag);
   }
   static Operation make(std::string name,
                         IterVar axis,
                         Array<Tensor> init,
                         Array<Tensor> update,
                         Array<Tensor> state_placeholder,
-                        Array<Tensor> input);
+                        Array<Tensor> input,
+                        std::string tag = "");
 
   static constexpr const char* _type_key = "ScanOp";
   TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
@@ -345,12 +351,14 @@ class ExternOpNode : public OperationNode {
     v->Visit("name", &name);
     v->Visit("inputs", &inputs);
     v->Visit("body", &body);
+    v->Visit("tag", &tag);
   }
   static Operation make(std::string name,
                         Array<Tensor> inputs,
                         Array<Buffer> input_placeholders,
                         Array<Buffer> output_placeholders,
-                        Stmt body);
+                        Stmt body,
+                        std::string tag = "");
 
   static constexpr const char* _type_key = "ExternOp";
   TVM_DECLARE_NODE_TYPE_INFO(ExternOpNode, OperationNode);
@@ -378,8 +386,12 @@ Tensor placeholder(Array<Expr> shape,
  * \param shape Shape of the tensor.
  * \param fcompute The compute function to create the tensor.
  * \param name The optional name of the tensor.
+ * \param tag The optional tag of the tensor.
  */
-Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor");
+Tensor compute(Array<Expr> shape,
+               FCompute fcompute,
+               std::string name = "tensor",
+               std::string tag = "");
 
 /*!
  * \brief Construct a new tensor by computing over shape,
@@ -387,8 +399,12 @@ Tensor compute(Array<Expr> shape, FCompute fcompute, std::string name = "tensor"
  * \param shape Shape of the tensor.
  * \param fcompute The compute function to create the tensors.
  * \param name The optional name of the tensor.
+ * \param tag The optional tag of the tensor.
  */
-Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string name = "tensor");
+Array<Tensor> compute(Array<Expr> shape,
+                      FBatchCompute fcompute,
+                      std::string name = "tensor",
+                      std::string tag = "");
 
 /*!
  * \brief Construct new tensors by scan.
@@ -399,12 +415,14 @@ Array<Tensor> compute(Array<Expr> shape, FBatchCompute fcompute, std::string nam
  * \param inputs The inputs to the scan body, this is optional,
  *    but recommended to provide concrete information about scan body.
  * \param name The optional name of the tensor.
+ * \param tag The optional tag of the tensor.
  */
 Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
                    Array<Tensor> state_placeholder,
                    Array<Tensor> inputs = Array<Tensor>(),
-                   std::string name = "scan");
+                   std::string name = "scan",
+                   std::string tag = "");
 
 // same as compute, specialized for different fcompute function
 inline Tensor compute(Array<Expr> shape,

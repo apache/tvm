@@ -16,6 +16,7 @@ from . import expr as _expr
 from . import tensor as _tensor
 from . import schedule as _schedule
 from . import collections as _collections
+from . import op_tag as _op_tag
 
 int32 = "int32"
 float32 = "float32"
@@ -186,7 +187,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
         shape, dtype, name)
 
 
-def compute(shape, fcompute, name="compute"):
+def compute(shape, fcompute, name="compute", op_tag=""):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -207,6 +208,10 @@ def compute(shape, fcompute, name="compute"):
     tensor: Tensor
         The created tensor
     """
+    if _op_tag.OpTag.current is not None:
+        if op_tag != "":
+            raise ValueError("nested op_tag is not allowed for now")
+        op_tag = _op_tag.OpTag.current.tag
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     ndim = len(shape)
     code = fcompute.__code__
@@ -225,13 +230,13 @@ def compute(shape, fcompute, name="compute"):
         body = [body]
     body = convert(body)
     op_node = _api_internal._ComputeOp(
-        name, dim_var, body)
+        name, dim_var, body, op_tag)
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
 
 
-def scan(init, update, state_placeholder, inputs=None, name="scan"):
+def scan(init, update, state_placeholder, inputs=None, name="scan", op_tag=""):
     """Construct new tensors by scanning over axis.
 
     Parameters
@@ -270,6 +275,10 @@ def scan(init, update, state_placeholder, inputs=None, name="scan"):
       s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
       res = tvm.scan(s_init, s_update, s_state, X)
     """
+    if _op_tag.OpTag.current is not None:
+        if op_tag != "":
+            raise ValueError("nested op_tag is not allowed for now")
+        op_tag = _op_tag.OpTag.current.tag
     if isinstance(init, _tensor.Tensor):
         init = [init]
     if isinstance(update, _tensor.Tensor):
@@ -283,13 +292,13 @@ def scan(init, update, state_placeholder, inputs=None, name="scan"):
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
     axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
-    op = _api_internal._ScanOp(name, axis, init, update, state_placeholder, inputs)
+    op = _api_internal._ScanOp(name, axis, init, update,
+                               state_placeholder, inputs, op_tag)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
 
 
-def extern(shape, inputs, fcompute,
-           name="extern", dtype=None):
+def extern(shape, inputs, fcompute, name="extern", dtype=None, op_tag=""):
     """Compute several tensor via extern function.
 
     Parameters
@@ -340,6 +349,10 @@ def extern(shape, inputs, fcompute,
                           "tvm.contrib.cblas.matmul",
                             ins[0], ins[1], outs[0], 0, 0), name="C")
     """
+    if _op_tag.OpTag.current is not None:
+        if op_tag != "":
+            raise ValueError("nested op_tag is not allowed for now")
+        op_tag = _op_tag.OpTag.current.tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
     shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
     input_placeholders = []
@@ -365,7 +378,7 @@ def extern(shape, inputs, fcompute,
         body = _make.Evaluate(body)
 
     op = _api_internal._ExternOp(
-        name, inputs, input_placeholders, output_placeholders, body)
+        name, inputs, input_placeholders, output_placeholders, body, op_tag)
     res = [op.output(i) for i in range(len(output_placeholders))]
     return res[0] if len(res) == 1 else res
 
