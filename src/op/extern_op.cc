@@ -37,11 +37,11 @@ Array<Expr> ExternOpNode::output_shape(size_t i) const {
 
 
 Operation ExternOpNode::make(std::string name,
+                             std::string tag,
                              Array<Tensor> inputs,
                              Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders,
-                             Stmt body,
-                             std::string tag) {
+                             Stmt body) {
   auto n = std::make_shared<ExternOpNode>();
   n->name = name;
   n->tag = tag;

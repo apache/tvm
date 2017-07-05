@@ -123,10 +123,10 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   VarReplacer repl(vsub);
   Expr body = repl.Mutate(compute->body[tensor->value_index]);
   Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, new_axis, {body});
+      compute->name + "." + scope, compute->tag, new_axis, {body});
   Tensor cache_tensor = cache_op.output(0);
   Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->axis,
+      compute->name, compute->tag, compute->axis,
       {cache_tensor(args)});
 
   std::unordered_map<Tensor, Tensor> vmap;
@@ -246,7 +246,7 @@ void InjectInline(ScheduleNode* sch) {
       Operation op = s->op;
       if (changed[i]) {
         op = ComputeOpNode::make(
-            compute->name, compute->axis, new_body[i]);
+            compute->name, compute->tag, compute->axis, new_body[i]);
       }
       op = op->ReplaceInputs(op, repl);
       if (!op.same_as(s->op)) {

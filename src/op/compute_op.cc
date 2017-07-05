@@ -70,7 +70,7 @@ Tensor compute(Array<Expr> shape,
     args.push_back(axis.back()->var);
   }
 
-  return ComputeOpNode::make(name, axis, {fcompute(args)}).output(0);
+  return ComputeOpNode::make(name, tag, axis, {fcompute(args)}).output(0);
 }
 
 Array<Tensor> compute(Array<Expr> shape,
@@ -90,7 +90,7 @@ Array<Tensor> compute(Array<Expr> shape,
     args.push_back(axis.back()->var);
   }
 
-  Operation op = ComputeOpNode::make(name, axis, fcompute(args), tag);
+  Operation op = ComputeOpNode::make(name, tag, axis, fcompute(args));
   Array<Tensor> outputs;
   for (int idx = 0; idx < op->num_outputs(); ++idx) {
     outputs.push_back(op.output(idx));
@@ -106,14 +106,14 @@ bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
 }
 
 Operation ComputeOpNode::make(std::string name,
+                              std::string tag,
                               Array<IterVar> axis,
-                              Array<Expr> body,
-                              std::string tag) {
+                              Array<Expr> body) {
   auto n = std::make_shared<ComputeOpNode>();
   n->name = name;
+  n->tag = tag;
   n->axis = axis;
   n->body = body;
-  n->tag = tag;
   if (n->body[0]->is_type<ir::Reduce>()) {
     const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
     for (size_t i = 1; i < n->body.size(); ++i) {
@@ -155,7 +155,7 @@ Operation ComputeOpNode::ReplaceInputs(
       return op::ReplaceTensor(e, rmap);
     });
   if (!arr.same_as(this->body)) {
-    return ComputeOpNode::make(name, axis, arr);
+    return ComputeOpNode::make(name, tag, axis, arr);
   } else {
     return self;
   }

@@ -215,15 +215,15 @@ class ComputeOpNode : public OperationNode {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
+    v->Visit("tag", &tag);
     v->Visit("axis", &axis);
     v->Visit("reduce_axis", &reduce_axis);
     v->Visit("body", &body);
-    v->Visit("tag", &tag);
   }
   static Operation make(std::string name,
+                        std::string tag,
                         Array<IterVar> axis,
-                        Array<Expr> body,
-                        std::string tag = "");
+                        Array<Expr> body);
 
   static constexpr const char* _type_key = "ComputeOp";
   TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, OperationNode);
@@ -286,21 +286,21 @@ class ScanOpNode : public OperationNode {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
+    v->Visit("tag", &tag);
     v->Visit("scan_axis", &scan_axis);
     v->Visit("init", &init);
     v->Visit("update", &update);
     v->Visit("state_placeholder", &state_placeholder);
     v->Visit("inputs", &inputs);
     v->Visit("spatial_axis_", &spatial_axis_);
-    v->Visit("tag", &tag);
   }
   static Operation make(std::string name,
+                        std::string tag,
                         IterVar axis,
                         Array<Tensor> init,
                         Array<Tensor> update,
                         Array<Tensor> state_placeholder,
-                        Array<Tensor> input,
-                        std::string tag = "");
+                        Array<Tensor> input);
 
   static constexpr const char* _type_key = "ScanOp";
   TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
@@ -349,16 +349,16 @@ class ExternOpNode : public OperationNode {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
+    v->Visit("tag", &tag);
     v->Visit("inputs", &inputs);
     v->Visit("body", &body);
-    v->Visit("tag", &tag);
   }
   static Operation make(std::string name,
+                        std::string tag,
                         Array<Tensor> inputs,
                         Array<Buffer> input_placeholders,
                         Array<Buffer> output_placeholders,
-                        Stmt body,
-                        std::string tag = "");
+                        Stmt body);
 
   static constexpr const char* _type_key = "ExternOp";
   TVM_DECLARE_NODE_TYPE_INFO(ExternOpNode, OperationNode);
@@ -427,27 +427,31 @@ Array<Tensor> scan(Array<Tensor> init,
 // same as compute, specialized for different fcompute function
 inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var)> f,
-                      std::string name = "tensor") {
+                      std::string name = "tensor",
+                      std::string tag = "") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0]); };
-  return compute(shape, fc, name);
+  return compute(shape, fc, name, tag);
 }
 inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var)> f,
-                      std::string name = "tensor") {
+                      std::string name = "tensor",
+                      std::string tag = "") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1]); };
-  return compute(shape, fc, name);
+  return compute(shape, fc, name, tag);
 }
 inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var, Var)> f,
-                      std::string name = "tensor") {
+                      std::string name = "tensor",
+                      std::string tag = "") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
-  return  compute(shape, fc, name);
+  return  compute(shape, fc, name, tag);
 }
 inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var, Var, Var)> f,
-                      std::string name = "tensor") {
+                      std::string name = "tensor",
+                      std::string tag = "") {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
-  return compute(shape, fc, name);
+  return compute(shape, fc, name, tag);
 }
 
 // inline function.

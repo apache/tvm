@@ -1,6 +1,6 @@
 import tvm
 
-@tvm.op_tag(tag="conv")
+@tvm.tag_scope(tag="conv")
 def compute_conv(data, weight):
     N, IC, H, W = data.shape
     OC, IC, KH, KW = weight.shape
@@ -22,7 +22,7 @@ def test_with():
 
     A = tvm.placeholder((n, m), name='A')
     B = tvm.placeholder((n, m), name='B')
-    with tvm.op_tag(tag="gemm"):
+    with tvm.tag_scope(tag="gemm"):
         k = tvm.reduce_axis((0, l), name='k')
         C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k))
     assert C.op.tag == 'gemm'
@@ -51,7 +51,7 @@ def test_nested():
     A = tvm.placeholder((n, c, h, w), name='A')
     B = tvm.placeholder((c, c, kh, kw), name='B')
     try:
-        with tvm.op_tag(tag='conv'):
+        with tvm.tag_scope(tag='conv'):
             C = compute_conv(A, B)
         assert False
     except ValueError:
