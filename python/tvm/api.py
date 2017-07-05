@@ -390,7 +390,8 @@ def decl_buffer(shape,
                 strides=None,
                 elem_offset=None,
                 scope="",
-                offset_alignment=0):
+                data_alignment=0,
+                offset_factor=0):
     """Decleare a new symbolic buffer.
 
     Normally buffer is created automatically during lower and build.
@@ -423,8 +424,15 @@ def decl_buffer(shape,
         The storage scope of the buffer, if not global.
         If scope equals empty string, it means it is global memory.
 
-    offset_alignment: int, optional
-        The alignment of offset
+    data_alignment: int, optional
+        The alignment of data pointer in bytes.
+        If 0 is passed, the alignment will be set to TVM's internal default.
+
+    offset_factor: int, optional
+        The factor of elem_offset field, when set,
+        elem_offset is required to be multiple of offset_factor.
+        If 0 is pssed, the alignment will be set to 1.
+        if non-zero is passed, we will created a Var for elem_offset if elem_offset is not None.
 
     Returns
     -------
@@ -447,11 +455,14 @@ def decl_buffer(shape,
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
+    if offset_factor != 0 and elem_offset is None:
+        elem_offset = var('%s_elem_offset' % name, shape[0].dtype)
     if data is None:
         data = var(name, "handle")
 
     return _api_internal._Buffer(
-        data, dtype, shape, strides, elem_offset, name, scope, offset_alignment)
+        data, dtype, shape, strides, elem_offset, name, scope,
+        data_alignment, offset_factor)
 
 
 def _IterVar(dom, name, iter_type, thread_tag=''):

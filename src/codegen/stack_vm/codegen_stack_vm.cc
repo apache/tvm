@@ -456,6 +456,7 @@ void CodeGenStackVM::VisitStmt_(const AssertStmt *op) {
     this->Push(op->condition);
     this->PushOp(StackVM::ASSERT, sid);
   }
+  this->Push(op->body);
 }
 
 void CodeGenStackVM::VisitStmt_(const AttrStmt *op) {

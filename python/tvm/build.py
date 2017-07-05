@@ -26,7 +26,8 @@ class BuildConfig(object):
         'auto_unroll_max_step': 0,
         'auto_unroll_min_depth': 1,
         'unroll_explicit': True,
-        'detect_global_barrier': False
+        'detect_global_barrier': False,
+        'offset_factor': 0
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -76,6 +77,10 @@ def build_config(**kwargs):
     detect_global_barrier: bool, default=True
         Whether detect global barrier.
 
+    offset_factor: int, default=0
+        The factor used in default buffer declaration.
+        If specified as 0, offset field is not used.
+
     Returns
     -------
     config: BuildConfig
@@ -105,10 +110,12 @@ def get_binds(args, binds=None):
         The list of symbolic buffers of arguments.
     """
     binds = {} if binds is None else binds.copy()
+    offset_factor = BuildConfig.current.offset_factor
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
-            buf = api.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
+            buf = api.decl_buffer(x.shape, dtype=x.dtype, name=x.name,
+                                  offset_factor=offset_factor)
             assert x not in binds
             binds[x] = buf
             arg_list.append(buf)

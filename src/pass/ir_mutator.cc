@@ -219,11 +219,14 @@ Stmt IRMutator::Mutate_(const Block* op, const Stmt& s) {
 Stmt IRMutator::Mutate_(const AssertStmt *op, const Stmt& s) {
   Expr condition = this->Mutate(op->condition);
   Expr message = this->Mutate(op->message);
+  Stmt body = this->Mutate(op->body);
 
-  if (condition.same_as(op->condition) && message.same_as(op->message)) {
+  if (condition.same_as(op->condition) &&
+      message.same_as(op->message) &&
+      body.same_as(op->body)) {
     return s;
   } else {
-    return AssertStmt::make(condition, message);
+    return AssertStmt::make(condition, message, body);
   }
 }
 

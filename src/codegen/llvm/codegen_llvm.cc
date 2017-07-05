@@ -1377,6 +1377,31 @@ void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
   builder_->CreateRet(llvm::ConstantInt::getSigned(t_int32_, -1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);
+  // Detect useful invariant pattern and use them to visit child.
+  // Pattern: Var % const  == 0
+  // TODO(tqchen) move these pattern to a generic scope info visitor.
+  if (const EQ* eq = op->condition.as<EQ>()){
+    const Mod* mod = eq->a.as<Mod>();
+    int64_t factor, offset;
+    if (mod && arith::GetConst(eq->b, &offset)) {
+      const Variable *var = mod->a.as<Variable>();
+      if (var && arith::GetConst(mod->b, &factor)) {
+        arith::ModularEntry old = align_map_[var];
+        if (factor > old.coeff) {
+          arith::ModularEntry e;
+          e.coeff = static_cast<int>(factor);
+          e.base = static_cast<int>(offset);
+          // new alignment info,
+          align_map_[var] = e;
+          this->VisitStmt(op->body);
+          // restore old info
+          align_map_[var] = old;
+          return;
+        }
+      }
+    }
+  }
+  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmt* op) {

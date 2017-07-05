@@ -34,7 +34,10 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       n->then_case = body;
       body = Stmt(n);
     } else if (s.as<AssertStmt>()) {
-      body = Block::make(s, body);
+      auto n = std::make_shared<AssertStmt>(*s.as<AssertStmt>());
+      CHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
     } else if (s.as<Allocate>()) {
       auto n = std::make_shared<Allocate>(*s.as<Allocate>());
       CHECK(is_no_op(n->body));

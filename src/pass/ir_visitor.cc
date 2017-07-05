@@ -162,6 +162,7 @@ void IRVisitor::Visit_(const Broadcast *op) {
 void IRVisitor::Visit_(const AssertStmt *op) {
   this->Visit(op->condition);
   this->Visit(op->message);
+  this->Visit(op->body);
 }
 
 void IRVisitor::Visit_(const ProducerConsumer *op) {
