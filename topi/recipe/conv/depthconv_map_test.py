@@ -15,11 +15,11 @@ def test_depthconv_map():
 
     filter_channel = in_channel
     channel_multiplier = 2
-    filter_height = 5
-    filter_width = 5
+    filter_height = 3
+    filter_width = 3
 
-    stride_h = 2
-    stride_w = 2
+    stride_h = 1
+    stride_w = 1
 
     padding = 'SAME' # or 'VALID' 
 
@@ -114,7 +114,7 @@ def test_depthconv_map():
         for i in range(10000):
             f3(input_tvm, filter_tvm, bn_params_tvm, relu_tvm)
         ctx.sync()
-        elapsed_time_3 = time.time() - start 
+        elapsed_time_3 = time.time() - start
         print("Input shape = " + str(get_const_tuple(Input.shape)))
         print("Filter shape = " + str(get_const_tuple(Filter.shape)))
         print("Stride = (%d, %d)" % (stride_h, stride_w))
@@ -128,10 +128,11 @@ def test_depthconv_map():
         np.testing.assert_allclose(batchnorm_tvm.asnumpy(), batchnorm_scipy, atol=1e-5, rtol=1e-5)
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, atol=1e-5, rtol=1e-5)
         print "success"
-        
+
+    unroll_explicit = (get_const_tuple(DepthConv.shape)[2] % 8 == 0)
     with tvm.build_config(auto_unroll_max_step=32,
                           auto_unroll_min_depth=0,
-                          unroll_explicit=True,
+                          unroll_explicit=unroll_explicit,
                           detect_global_barrier=False,
                           restricted_func=True):
         check_device("cuda")

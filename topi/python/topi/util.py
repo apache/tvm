@@ -8,7 +8,7 @@ def get_const_tuple(in_tuple):
     Parameters
     ----------
     in_tuple : tuple of tvm.expr.IntImm
-    	The input.
+        The input.
 
     Returns
     -------
