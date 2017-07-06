@@ -25,7 +25,7 @@ def test_add_pipeline():
     stmt = tvm.ir_pass.LoopPartition(stmt)
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
     stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0, True)
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
     fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
 

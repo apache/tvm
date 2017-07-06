@@ -1343,7 +1343,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
     // Align stack to be TempAllocaAlignment.
     // TODO(tqchen) have pass to detect vector access and pre-set alignment
     if (constant_size % 4 == 0 && info.alignment == 0) {
-      info.alignment = runtime::kTempAllocaAlignment;
+      info.alignment = GetTempAllocaAlignment(op->type, constant_size);
     }
     if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
       alloca->setAlignment(info.alignment);

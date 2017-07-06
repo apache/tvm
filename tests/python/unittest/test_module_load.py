@@ -37,7 +37,7 @@ def test_dso_module_load():
             tvm.make.Store(Ab.data,
                            tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1))
-        fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0)
+        fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
         fapi = tvm.ir_pass.LowerPackedCall(fapi)
         m = tvm.codegen.build_module(fapi, "llvm")
         for name in names:

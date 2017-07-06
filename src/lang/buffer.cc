@@ -100,7 +100,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
   const BufferNode* n = operator->();
-  Expr elem_offset = ElemOffset(n, begins);
+  Expr elem_offset = ir::Simplify(ElemOffset(n, begins));
   Array<Expr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;

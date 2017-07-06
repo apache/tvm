@@ -25,7 +25,7 @@ enum DeviceAttrKind : int {
 constexpr int kAllocAlignment = 64;
 
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
-constexpr int kTempAllocaAlignment = 32;
+constexpr int kTempAllocaAlignment = 64;
 
 /*!
  * \brief TVM Runtime Device API, abstracts the device

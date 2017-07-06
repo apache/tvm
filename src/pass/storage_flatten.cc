@@ -103,12 +103,15 @@ class StorageFlattener : public IRMutator {
       } else {
         skey = StorageScope::make(strkey);
       }
+      // use small alignment for small arrays
+      int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
+      int align = GetTempAllocaAlignment(op->type, const_size);
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
           op->type, shape,
           Array<Expr>(), Expr(),
           key.GetName(), skey.to_string(),
-          runtime::kTempAllocaAlignment, 0);
+          align, 0);
 
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);
