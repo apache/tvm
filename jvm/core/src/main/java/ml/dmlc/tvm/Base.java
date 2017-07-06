@@ -25,16 +25,6 @@ import ml.dmlc.tvm.types.TVMValue;
 
 public class Base {
   // type definitions
-  public static class RefInt {
-    public final int value;
-    public RefInt(int value) {
-      this.value = value;
-    }
-    public RefInt() {
-      this(0);
-    }
-  }
-
   public static class RefLong {
     public final long value;
     public RefLong(long value) {
@@ -42,26 +32,6 @@ public class Base {
     }
     public RefLong() {
       this(0L);
-    }
-  }
-
-  public static class RefFloat {
-    public final float value;
-    public RefFloat(float value) {
-      this.value = value;
-    }
-    public RefFloat() {
-      this(0f);
-    }
-  }
-
-  public static class RefString {
-    public final String value;
-    public RefString(String value) {
-      this.value = value;
-    }
-    public RefString() {
-      this(null);
     }
   }
 

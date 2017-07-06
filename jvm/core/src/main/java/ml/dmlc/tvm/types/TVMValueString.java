@@ -23,4 +23,8 @@ public class TVMValueString extends TVMValue {
     super(TypeCode.STR);
     this.value = value;
   }
+
+  @Override public String asString() {
+    return value;
+  }
 }

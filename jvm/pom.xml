@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>ml.dmlc.tvm</groupId>
-  <artifactId>tvm4j-parent_2.11</artifactId>
+  <artifactId>tvm4j-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>TVM4J Package - Parent</name>
   <url>https://github.com/dmlc/tvm/tree/master/jvm</url>
@@ -24,11 +24,6 @@
     <developerConnection>scm:git:git@github.com:dmlc/tvm.git</developerConnection>
     <url>https://github.com/dmlc/tvm</url>
   </scm>
-
-  <properties>
-    <scala.version>2.11.8</scala.version>
-    <scala.binary.version>2.11</scala.binary.version>
-  </properties>
 
   <packaging>pom</packaging>
   <modules>

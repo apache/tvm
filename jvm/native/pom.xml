@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ml.dmlc.tvm</groupId>
-    <artifactId>tvm4j-parent_2.11</artifactId>
+    <artifactId>tvm4j-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>

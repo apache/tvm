@@ -25,63 +25,63 @@ import static org.junit.Assert.*;
 public class NDArrayTest {
   @Test
   public void test_from_float32() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("float32"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("float32"));
     ndarray.set(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_float64() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("float64"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("float64"));
     ndarray.set(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_int8() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("int8"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int8"));
     ndarray.set(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_int16() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("int16"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int16"));
     ndarray.set(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_int32() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("int32"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int32"));
     ndarray.set(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_int64() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("int64"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int64"));
     ndarray.set(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_uint8() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("uint8"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("uint8"));
     ndarray.set(new double[]{128, 2, 3, 4});
     assertArrayEquals(new double[]{128.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_uint16() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("uint16"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("uint16"));
     ndarray.set(new double[]{65535, 2, 3, 4});
     assertArrayEquals(new double[]{65535.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }
 
   @Test
   public void test_from_uint32() {
-    NDArray ndarray = NDArray.empty(new Shape(2, 2), new TVMType("uint32"));
+    NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("uint32"));
     ndarray.set(new double[]{4294967295.0, 2, 3, 4});
     assertArrayEquals(new double[]{4294967295.0, 2.0, 3.0, 4.0}, ndarray.toArray(), 1e-3);
   }

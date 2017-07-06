@@ -95,8 +95,7 @@ public class Module {
   public static Module load(String path, String fmt) {
     TVMValue ret = functions.get("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
     assert(ret.typeCode == TypeCode.MODULE_HANDLE);
-    TVMValueModuleHandle tvmValue = (TVMValueModuleHandle) ret;
-    return new Module(tvmValue.value);
+    return ret.asModule();
   }
 
   public static Module load(String path) {
@@ -112,6 +111,6 @@ public class Module {
    */
   public static boolean enabled(String target) {
     TVMValue ret = functions.get("_Enabled").pushArg(target).invoke();
-    return ((TVMValueLong) ret).value != 0;
+    return ret.asLong() != 0;
   }
 }

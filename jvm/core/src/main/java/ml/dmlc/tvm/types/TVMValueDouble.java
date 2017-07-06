@@ -23,4 +23,8 @@ public class TVMValueDouble extends TVMValue {
     super(TypeCode.FLOAT);
     this.value = value;
   }
+
+  @Override public double asDouble() {
+    return value;
+  }
 }

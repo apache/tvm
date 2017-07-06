@@ -14,7 +14,7 @@ void *_tvmHandle;
 thread_local std::vector<TVMValue> _tvmFuncArgValues;
 thread_local std::vector<int> _tvmFuncArgTypes;
 // for later release
-thread_local std::vector<std::pair<jstring, const char *>> _tvmFuncArgPushedStrs;
+thread_local std::vector<std::pair<jstring, const char *> > _tvmFuncArgPushedStrs;
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_nativeLibInit
   (JNIEnv *env, jobject obj, jstring jtvmLibFile) {
@@ -82,7 +82,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
   int outSize;
   const char **outArray;
 
-  int ret = TVMFuncListGlobalNames(&outSize, &outArray);
+  int (*func)(int *, const char ***);
+  func = (int(*)(int *, const char ***)) dlsym(_tvmHandle, "TVMFuncListGlobalNames");
+
+  int ret = func(&outSize, &outArray);
   if (ret) {
     return ret;
   }
@@ -104,14 +107,19 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncFree(
   JNIEnv *env, jobject obj, jlong jhandle) {
-  return TVMFuncFree(reinterpret_cast<TVMFunctionHandle>(jhandle));
+  int (*func)(TVMFunctionHandle);
+  func = (int(*)(TVMFunctionHandle)) dlsym(_tvmHandle, "TVMFuncFree");
+  return func(reinterpret_cast<TVMFunctionHandle>(jhandle));
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncGetGlobal(
   JNIEnv *env, jobject obj, jstring jname, jobject jhandle) {
+  int (*func)(const char *, TVMFunctionHandle *);
+  func = (int(*)(const char *, TVMFunctionHandle *)) dlsym(_tvmHandle, "TVMFuncGetGlobal");
+
   TVMFunctionHandle handle;
   const char *name = env->GetStringUTFChars(jname, 0);
-  int ret = TVMFuncGetGlobal(name, &handle);
+  int ret = func(name, &handle);
   env->ReleaseStringUTFChars(jname, name);
   setLongField(env, jhandle, reinterpret_cast<jlong>(handle));
   return ret;
@@ -167,31 +175,36 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
 
   env->DeleteLocalRef(refTVMValueCls);
 
-
   return ret;
 }
 
 // Module
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModFree(
   JNIEnv *env, jobject obj, jlong jhandle) {
+  int (*func)(TVMModuleHandle);
+  func = (int(*)(TVMModuleHandle)) dlsym(_tvmHandle, "TVMFuncFree");
   return TVMFuncFree(reinterpret_cast<TVMModuleHandle>(jhandle));
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModImport(
   JNIEnv *env, jobject obj, jlong jmod, jlong jdep) {
-  return TVMModImport(reinterpret_cast<TVMModuleHandle>(jmod),
-                      reinterpret_cast<TVMModuleHandle>(jdep));
+  int (*func)(TVMModuleHandle, TVMModuleHandle);
+  func = (int(*)(TVMModuleHandle, TVMModuleHandle)) dlsym(_tvmHandle, "TVMModImport");
+  return func(reinterpret_cast<TVMModuleHandle>(jmod),
+              reinterpret_cast<TVMModuleHandle>(jdep));
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModGetFunction(
   JNIEnv *env, jobject obj, jlong jhandle, jstring jname, jint jimport, jobject jret) {
+  int (*func)(TVMModuleHandle, const char *, int, TVMFunctionHandle);
+  func = (int(*)(TVMModuleHandle, const char *, int, TVMFunctionHandle))
+    dlsym(_tvmHandle, "TVMModGetFunction");
+
   TVMFunctionHandle retFunc;
 
   const char *name = env->GetStringUTFChars(jname, 0);
-  int ret = TVMModGetFunction(reinterpret_cast<TVMFunctionHandle>(jhandle),
-                              name,
-                              reinterpret_cast<int>(jimport),
-                              &retFunc);
+  int ret = func(reinterpret_cast<TVMFunctionHandle>(jhandle),
+                 name, reinterpret_cast<int>(jimport), &retFunc);
   env->ReleaseStringUTFChars(jname, name);
 
   setLongField(env, jret, reinterpret_cast<jlong>(retFunc));
@@ -202,11 +215,17 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModGetFunction(
 // NDArray
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayFree(
   JNIEnv *env, jobject obj, jlong jhandle) {
-  return TVMArrayFree(reinterpret_cast<TVMArrayHandle>(jhandle));
+  int (*func)(TVMArrayHandle);
+  func = (int(*)(TVMArrayHandle)) dlsym(_tvmHandle, "TVMArrayFree");
+  return func(reinterpret_cast<TVMArrayHandle>(jhandle));
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
   JNIEnv *env, jobject obj, jlongArray jshape, jobject jdtype, jobject jctx, jobject jret) {
+  int (*func)(const tvm_index_t *, int, TVMType, TVMContext, TVMArrayHandle *);
+  func = (int(*)(const tvm_index_t *, int, TVMType, TVMContext, TVMArrayHandle *))
+    dlsym(_tvmHandle, "TVMArrayAlloc");
+
   TVMType dtype;
   fromJavaDType(env, jdtype, dtype);
 
@@ -218,8 +237,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
   TVMArrayHandle out;
 
   jlong *shapeArray = env->GetLongArrayElements(jshape, NULL);
-  int ret = TVMArrayAlloc(reinterpret_cast<const tvm_index_t*>(shapeArray),
-                          ndim, dtype, ctx, &out);
+  int ret = func(reinterpret_cast<const tvm_index_t*>(shapeArray), ndim, dtype, ctx, &out);
   env->ReleaseLongArrayElements(jshape, shapeArray, 0);
 
   setLongField(env, jret, reinterpret_cast<jlong>(out));
@@ -252,19 +270,26 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromTo(
   JNIEnv *env, jobject obj, jlong jfrom, jlong jto) {
-  return TVMArrayCopyFromTo(reinterpret_cast<TVMArrayHandle>(jfrom),
-                            reinterpret_cast<TVMArrayHandle>(jto), NULL);
+  int (*func)(TVMArrayHandle, TVMArrayHandle, TVMStreamHandle);
+  func = (int(*)(TVMArrayHandle, TVMArrayHandle, TVMStreamHandle))
+    dlsym(_tvmHandle, "TVMArrayCopyFromTo");
+  return func(reinterpret_cast<TVMArrayHandle>(jfrom),
+              reinterpret_cast<TVMArrayHandle>(jto), NULL);
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyFromJArray(
   JNIEnv *env, jobject obj, jbyteArray jarr, jlong jfrom, jlong jto) {
+  int (*func)(TVMArrayHandle, TVMArrayHandle, TVMStreamHandle);
+  func = (int(*)(TVMArrayHandle, TVMArrayHandle, TVMStreamHandle))
+    dlsym(_tvmHandle, "TVMArrayCopyFromTo");
+
   jbyte *data = env->GetByteArrayElements(jarr, NULL);
 
   TVMArray *from = reinterpret_cast<TVMArray *>(jfrom);
   from->data = static_cast<void *>(data);
 
   int ret = TVMArrayCopyFromTo(static_cast<TVMArrayHandle>(from),
-                               reinterpret_cast<TVMArrayHandle>(jto), NULL);
+                 reinterpret_cast<TVMArrayHandle>(jto), NULL);
 
   from->data = NULL;
   env->ReleaseByteArrayElements(jarr, data, 0);
@@ -288,7 +313,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyToJArray(
 // Context
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmSynchronize(
   JNIEnv *env, jobject obj, jobject jctx) {
+  int (*func)(TVMContext, TVMStreamHandle);
+  func = (int(*)(TVMContext, TVMStreamHandle)) dlsym(_tvmHandle, "TVMSynchronize");
+
   TVMContext ctx;
   fromJavaContext(env, jctx, ctx);
-  return TVMSynchronize(ctx, NULL);
+  return func(ctx, NULL);
 }

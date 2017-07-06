@@ -17,9 +17,33 @@
 
 package ml.dmlc.tvm.types;
 
+import ml.dmlc.tvm.Module;
+import ml.dmlc.tvm.NDArray;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 public class TVMValue {
   public final TypeCode typeCode;
   public TVMValue(TypeCode tc) {
     typeCode = tc;
+  }
+
+  public long asLong() {
+    throw new NotImplementedException();
+  }
+
+  public double asDouble() {
+    throw new NotImplementedException();
+  }
+
+  public Module asModule() {
+    throw new NotImplementedException();
+  }
+
+  public NDArray asNDArray() {
+    throw new NotImplementedException();
+  }
+
+  public String asString() {
+    throw new NotImplementedException();
   }
 }

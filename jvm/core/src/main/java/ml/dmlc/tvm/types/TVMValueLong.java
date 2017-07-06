@@ -23,4 +23,8 @@ public class TVMValueLong extends TVMValue {
     super(TypeCode.INT);
     this.value = value;
   }
+
+  @Override public long asLong() {
+    return value;
+  }
 }

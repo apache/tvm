@@ -20,7 +20,7 @@
   <dependencies>
     <dependency>
       <groupId>ml.dmlc.tvm</groupId>
-      <artifactId>tvm4j-core_${scala.binary.version}</artifactId>
+      <artifactId>tvm4j-core</artifactId>
       <version>${project.version}</version>
       <type>jar</type>
       <scope>compile</scope>
@@ -62,11 +62,6 @@
           <linkerStartOptions>
             <linkerStartOption>-shared</linkerStartOption>
           </linkerStartOptions>
-          <linkerMiddleOptions>
-            <linkerMiddleOption>-Wl,--whole-archive</linkerMiddleOption>
-            <linkerMiddleOption>../../../HalideIR/lib/libHalideIR.a</linkerMiddleOption>
-            <linkerMiddleOption>-Wl,--no-whole-archive</linkerMiddleOption>
-          </linkerMiddleOptions>
           <linkerEndOptions>
             <linkerEndOption>${ldflags}</linkerEndOption>
           </linkerEndOptions>

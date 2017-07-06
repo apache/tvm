@@ -29,23 +29,22 @@ import ml.dmlc.tvm.types.TVMContext;
 /**
  * Lightweight NDArray class of TVM runtime.
  */
-// scalastyle:off finalize
 public class NDArray {
   public final long handle;
   private final boolean isView;
   private final TVMType dtype;
 
-  private NDArray(long handle, boolean isView, TVMType dtype){
+  public NDArray(long handle, boolean isView, TVMType dtype){
     this.handle = handle;
     this.isView = isView;
     this.dtype = dtype;
   }
 
-  private NDArray(long handle) {
+  public NDArray(long handle) {
     this(handle, false, new TVMType("float32", 1));
   }
 
-  private NDArray(long handle, boolean isView) {
+  public NDArray(long handle, boolean isView) {
     this(handle, isView, new TVMType("float32", 1));
   }
 
@@ -65,9 +64,9 @@ public class NDArray {
    * @param sourceArray The data source we should like to copy from.
    */
   private void syncCopyFrom(double[] sourceArray) {
-    if (shape().product() != sourceArray.length) {
+    if (size() != sourceArray.length) {
       throw new IllegalArgumentException(String.format("Array shape size not match: %d v.s. %d",
-        sourceArray.length, shape().product()));
+        sourceArray.length, size()));
     }
 
     NDArray tmpArr = empty(shape(), this.dtype);
@@ -136,15 +135,24 @@ public class NDArray {
    * Get shape of current NDArray.
    * @return an array representing shape of current ndarray
    */
-  public Shape shape() {
+  public long[] shape() {
     List<Long> data = new ArrayList<Long>();
     Base.checkCall(Base._LIB.tvmArrayGetShape(handle, data));
-    return new Shape(data);
+    long[] shapeArr = new long[data.size()];
+    for (int i = 0; i < shapeArr.length; ++i) {
+      shapeArr[i] = data.get(i);
+    }
+    return shapeArr;
   }
 
   // Get size of current NDArray.
   public long size() {
-    return shape().product();
+    long product = 1L;
+    long[] shapeArr = shape();
+    for (int i = 0; i < shapeArr.length; ++i) {
+      product *= shapeArr[i];
+    }
+    return product;
   }
 
   /**
@@ -172,21 +180,21 @@ public class NDArray {
    * @param ctx The context of the array
    * @return The array tvm supported
    */
-  public static NDArray empty(Shape shape, TVMType dtype, TVMContext ctx) {
+  public static NDArray empty(long[] shape, TVMType dtype, TVMContext ctx) {
     RefLong refHandle = new RefLong();
-    Base.checkCall(Base._LIB.tvmArrayAlloc(shape.toArray(), dtype, ctx, refHandle));
+    Base.checkCall(Base._LIB.tvmArrayAlloc(shape, dtype, ctx, refHandle));
     return new NDArray(refHandle.value, false, dtype);
   }
 
-  public static NDArray empty(Shape shape, TVMType dtype) {
+  public static NDArray empty(long[] shape, TVMType dtype) {
     return empty(shape, dtype, new TVMContext(1, 0));
   }
 
-  public static NDArray empty(Shape shape) {
+  public static NDArray empty(long[] shape) {
     return empty(shape, new TVMType("float32", 1), new TVMContext(1, 0));
   }
 
-  public static NDArray empty(Shape shape, TVMContext ctx) {
+  public static NDArray empty(long[] shape, TVMContext ctx) {
     return empty(shape, new TVMType("float32", 1), ctx);
   }
 
@@ -198,25 +206,25 @@ public class NDArray {
    * @param ctx The context of the nd array
    * @return The created nd array
    */
-  public static NDArray array(double[] arr, Shape shape, TVMType dtype, TVMContext ctx) {
+  public static NDArray array(double[] arr, long[] shape, TVMType dtype, TVMContext ctx) {
     NDArray ndArray = empty(shape, dtype, ctx);
     ndArray.set(arr);
     return ndArray;
   }
 
-  public static NDArray array(double[] arr, Shape shape, TVMType dtype) {
+  public static NDArray array(double[] arr, long[] shape, TVMType dtype) {
     NDArray ndArray = empty(shape, dtype);
     ndArray.set(arr);
     return ndArray;
   }
 
-  public static NDArray array(double[] arr, Shape shape) {
+  public static NDArray array(double[] arr, long[] shape) {
     NDArray ndArray = empty(shape);
     ndArray.set(arr);
     return ndArray;
   }
 
-  public static NDArray array(double[] arr, Shape shape, TVMContext ctx) {
+  public static NDArray array(double[] arr, long[] shape, TVMContext ctx) {
     NDArray ndArray = empty(shape, ctx);
     ndArray.set(arr);
     return ndArray;
@@ -334,4 +342,3 @@ public class NDArray {
     }
   }
 }
-// scalastyle:on finalize
