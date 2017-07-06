@@ -100,7 +100,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
   const BufferNode* n = operator->();
-  Expr elem_offset = ElemOffset(n, begins);
+  Expr elem_offset = ir::Simplify(ElemOffset(n, begins));
   Array<Expr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;
@@ -146,6 +146,9 @@ Buffer BufferNode::make(Var data,
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->name = std::move(name);
+  if (scope.length() == 0) {
+    scope = "global";
+  }
   n->scope = std::move(scope);
   if (!elem_offset.defined()) {
     elem_offset = make_const(n->shape[0].type(), 0);
@@ -156,7 +159,7 @@ Buffer BufferNode::make(Var data,
   if (offset_factor == 0) {
     offset_factor = 1;
   }
-  n->elem_offset = elem_offset;
+  n->elem_offset = std::move(elem_offset);
   n->data_alignment = data_alignment;
   n->offset_factor = offset_factor;
   return Buffer(n);

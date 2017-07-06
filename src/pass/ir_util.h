@@ -7,6 +7,7 @@
 #define TVM_PASS_IR_UTIL_H_
 
 #include <tvm/ir.h>
+#include <tvm/runtime/device_api.h>
 #include <vector>
 
 namespace tvm {
@@ -93,6 +94,20 @@ inline Expr AddressOffset(Var handle, Type dtype, int offset) {
 }
 
 /*!
+ * \brief Address of handle + offset
+ * \param handle the array handle.
+ * \param dtype The data type.
+ * \param offset the offset index.
+ */
+inline Expr AddressOffset(Var handle, Type dtype, Expr offset) {
+  return Call::make(
+      Handle(), intrinsic::tvm_address_of,
+      {Load::make(dtype, handle, offset * make_const(offset.type(), dtype.lanes()),
+                  const_true(dtype.lanes()))},
+      Call::PureIntrinsic);
+}
+
+/*!
  * \brief Set value into struct.
  * \param handle the struct handle.
  * \param index the offset index.
@@ -124,6 +139,23 @@ inline Type APIType(Type t) {
   if (t.is_uint() || t.is_int()) return Int(64);
   CHECK(t.is_float());
   return Float(64);
+}
+
+/*!
+ * \brief Rule to get allocation alignment requirement for a given const array.
+ * \param type The type of allocation.
+ * \param const_size The constant size of the array.
+ * \return the alignment
+ */
+inline int GetTempAllocaAlignment(Type type, int32_t const_size) {
+  int align = runtime::kTempAllocaAlignment;
+  if (const_size > 0) {
+    const_size = const_size * type.bits() * type.lanes() / 8;
+    while (align > const_size) {
+      align = align / 2;
+    }
+  }
+  return align;
 }
 }  // namespace ir
 }  // namespace tvm

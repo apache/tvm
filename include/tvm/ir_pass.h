@@ -233,6 +233,9 @@ Stmt LoopPartition(Stmt stmt);
  * \param api_args Arguments to the function, can be either Var, or Buffer
  * \param num_unpacked_args Number of arguments that
  *         are processed in plain form instead of packed form.
+ * \param is_restricted Whether the caller can guarantee that each buffer argument do not overlap.
+ *  It is recommended to set to true for optimized code if such invariant holds.
+ *
  * \return a LoweredFunc with the specified signiture.
  *
  * \note
@@ -254,7 +257,8 @@ Stmt LoopPartition(Stmt stmt);
 LoweredFunc MakeAPI(Stmt body,
                     std::string name,
                     Array<NodeRef> api_args,
-                    int num_unpacked_args);
+                    int num_unpacked_args,
+                    bool is_restricted);
 
 /*!
  * \brief Find undefined vars in the statment.

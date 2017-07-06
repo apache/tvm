@@ -80,40 +80,63 @@ void ArgBinder::BindBuffer(const Buffer& arg,
   CHECK_EQ(arg->scope, value->scope)
       << "Argument " << arg_name
       << " Buffer bind scope mismatch";
-  this->Bind(arg->data, value->data, arg_name + ".data");
-  if (arg->shape.size() > value->shape.size()) {
+  CHECK_EQ(arg->dtype, value->dtype)
+      << "Argument " << arg_name
+      << " Buffer bind data type mismatch";
+  if (value->data_alignment % arg->data_alignment != 0) {
+    LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
+                 << " required_alignment=" << arg->data_alignment
+                 << ", provided_alignment=" << value->data_alignment;
+  }
+  // bind pointer and offset.
+  if (is_zero(arg->elem_offset) && !is_zero(value->elem_offset)) {
+    // If target buffer only accepts pointer, try to fold offset into pointer.
+    Expr addr = AddressOffset(value->data, value->dtype, value->elem_offset);
+    if (Bind_(arg->data, addr, arg_name + ".data", true)) {
+      int offset_factor = arg->data_alignment * 8 / (arg->dtype.bits() * arg->dtype.lanes());
+      if (offset_factor > 1) {
+        Expr offset = value->elem_offset;
+        Expr factor = make_const(offset.type(), offset_factor);
+        Expr zero = make_zero(offset.type());
+        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
+      }
+    }
+  } else {
+    this->Bind(arg->data, value->data, arg_name + ".data");
+    if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
+      if (arg->offset_factor > 1) {
+        Expr offset = value->elem_offset;
+        Expr factor = make_const(offset.type(), arg->offset_factor);
+        Expr zero = make_zero(offset.type());
+        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
+      }
+    }
+  }
+  if (arg->shape.size() < value->shape.size()) {
     CHECK(fuzzy_match) << "Argument " << arg_name << " size mismatch";
-    size_t diff = arg->shape.size() - value->shape.size();
+    size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
-      CHECK(is_one(arg->shape[i]))
+      CHECK(is_one(value->shape[i]))
           << "Argument " << arg_name << " shape mismatch"
           << arg->shape << " vs " << value->shape;
     }
-    for (size_t i = 0; i < value->shape.size(); ++i) {
+    for (size_t i = 0; i < arg->shape.size(); ++i) {
       std::ostringstream os;
       os << arg_name << ".shape[" << i << "]";
-      this->Bind(arg->shape[i + diff], value->shape[i], os.str());
+      this->Bind(arg->shape[i], value->shape[i + diff], os.str());
     }
-    if (arg->strides.size() != 0) {
+    if (value->strides.size() != 0) {
       CHECK_EQ(arg->strides.size(), arg->shape.size());
       CHECK_EQ(value->strides.size(), value->shape.size());
-      for (size_t i = 0; i < value->strides.size(); ++i) {
+      for (size_t i = 0; i < arg->strides.size(); ++i) {
         std::ostringstream os;
         os << arg_name << ".strides[" << i << "]";
-        this->Bind(arg->strides[i + diff], value->strides[i], os.str());
+        this->Bind(arg->strides[i], value->strides[i + diff], os.str());
       }
     }
   } else {
     this->BindArray(arg->shape, value->shape, arg_name + ".shape");
     this->BindArray(arg->strides, value->strides, arg_name + ".strides");
-  }
-  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
-    if (arg->offset_factor > 1) {
-      Expr offset = value->elem_offset;
-      Expr factor = make_const(offset.type(), arg->offset_factor);
-      Expr zero = make_zero(offset.type());
-      BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
-    }
   }
 }
 

@@ -19,7 +19,7 @@ def test_makeapi():
 
     num_unpacked_args = 2
     f = tvm.ir_pass.MakeAPI(
-        stmt, "myadd", [n, Ab, Bb, Cb], num_unpacked_args)
+        stmt, "myadd", [n, Ab, Bb, Cb], num_unpacked_args, True)
     assert(f.handle_data_type[Ab.data].dtype == Ab.dtype)
     assert(len(f.args) == 5)
     output_ssa = False

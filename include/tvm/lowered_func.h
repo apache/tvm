@@ -86,6 +86,11 @@ class LoweredFuncNode : public FunctionBaseNode {
   LoweredFuncType func_type{kMixedFunc};
   /*! \brief Whether this function is packed function */
   bool is_packed_func{true};
+  /*!
+   * \brief Whether function ensures that argument pointers do not alias.
+   *  This corresponds to restrict keyword in C.
+   */
+  bool is_restricted{true};
   /*! \brief The body statment of the function */
   Stmt body;
   /*! \return name of the operation */
@@ -104,6 +109,7 @@ class LoweredFuncNode : public FunctionBaseNode {
     v->Visit("handle_data_type", &handle_data_type);
     v->Visit("func_type", &func_type);
     v->Visit("is_packed_func", &is_packed_func);
+    v->Visit("is_restricted", &is_restricted);
     v->Visit("body", &body);
   }
 
