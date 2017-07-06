@@ -19,7 +19,7 @@ namespace tvm {
 namespace ir {
 
 inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
-  return AssertStmt::make(lhs == rhs, msg);
+  return AssertStmt::make(lhs == rhs, msg, Evaluate::make(0));
 }
 
 LoweredFunc MakeAPI(Stmt body,
@@ -100,16 +100,16 @@ LoweredFunc MakeAPI(Stmt body,
         seq_check.emplace_back(
             AssertStmt::make(tcode == kHandle ||
                              tcode == kArrayHandle ||
-                             tcode == kNull, msg.str()));
+                             tcode == kNull, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << "Expect argument " << i << " to be int";
-        seq_check.emplace_back(AssertStmt::make(tcode == kInt, msg.str()));
+        seq_check.emplace_back(AssertStmt::make(tcode == kInt, msg.str(), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << "Expect argument " << i << " to be float";
-        seq_check.emplace_back(AssertStmt::make(tcode == kFloat, msg.str()));
+        seq_check.emplace_back(AssertStmt::make(tcode == kFloat, msg.str(), nop));
       }
     } else {
       args.push_back(v_arg);

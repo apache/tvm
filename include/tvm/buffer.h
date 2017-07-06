@@ -68,7 +68,10 @@ class Buffer : public NodeRef {
 class BufferNode : public Node {
  public:
   // Data fields.
-  /*! \brief The pointer to the head of the data */
+  /*!
+   * \brief The pointer to the head of the data
+   * \sa data_alignment The alignment of data in bytes.
+   */
   Var data;
   /*! \brief data type in the content of the tensor */
   Type dtype;
@@ -86,8 +89,13 @@ class BufferNode : public Node {
   std::string name;
   /*! \brief storage scope of the buffer, if other than global */
   std::string scope;
-  /*! \brief Alignment multiple in terms of dtype elements (including lanes) */
-  int offset_alignment;
+  /*! \brief Alignment requirement of data pointer in bytes. */
+  int data_alignment;
+  /*!
+   * \brief Factor of elem_offset field,
+   *  elem_offset is guaranteed to be multiple of offset_factor.
+   */
+  int offset_factor;
   /*! \brief constructor */
   BufferNode() {}
 
@@ -99,9 +107,12 @@ class BufferNode : public Node {
     v->Visit("elem_offset", &elem_offset);
     v->Visit("name", &name);
     v->Visit("scope", &scope);
-    v->Visit("offset_alignment", &offset_alignment);
+    v->Visit("data_alignment", &data_alignment);
+    v->Visit("offset_factor", &offset_factor);
   }
 
+  // User can specify data_alignment and offset_factor to be 0
+  // A default value will be picked.
   static Buffer make(Var ptr,
                      Type dtype,
                      Array<Expr> shape,
@@ -109,7 +120,8 @@ class BufferNode : public Node {
                      Expr byte_offset,
                      std::string name,
                      std::string scope,
-                     int offset_alignment);
+                     int data_alignment,
+                     int offset_factor);
 
   static constexpr const char* _type_key = "Buffer";
   TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);

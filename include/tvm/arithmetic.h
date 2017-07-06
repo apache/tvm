@@ -119,9 +119,9 @@ class IntSet : public NodeRef {
  */
 struct ModularEntry {
   /*! \brief The base */
-  int base;
+  int base{0};
   /*! \brief linear co-efficient */
-  int coeff;
+  int coeff{1};
 
   /*! \return entry represent everything */
   static ModularEntry everything() {
