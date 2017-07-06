@@ -10,29 +10,6 @@
 namespace tvm {
 using namespace ir;
 
-bool IsCrossThreadReduction(const ComputeOpNode* self,
-                            const Stage& stage) {
-  // Verify correctness of leaf nest.
-  int normal_red = 0, thread_red = 0;
-  for (IterVar iv : stage->leaf_iter_vars) {
-    if (iv->iter_type == kCommReduce) {
-      auto it = stage->iter_var_attrs.find(iv);
-      if (it != stage->iter_var_attrs.end() &&
-          (*it).second->bind_thread.defined()) {
-        ++thread_red;
-      } else {
-        ++normal_red;
-      }
-    } else {
-      CHECK_EQ(thread_red, 0)
-          << "Cross thread reduce cannot swap with normal data axis";
-    }
-  }
-  CHECK(normal_red == 0 || thread_red == 0)
-      << "Cannot mix normal reduction with thread reduce";
-  return thread_red != 0;
-}
-
 Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
     const Stage& stage,

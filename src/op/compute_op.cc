@@ -297,14 +297,62 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
   }
 }
 
+enum class ComputeType {
+  kNormal,
+  kCrossThreadReduction,
+  kTensorize
+};
+
+ComputeType DetectComputeType(const ComputeOpNode* self,
+                                const Stage& stage) {
+  // Verify correctness of leaf nest.
+  int normal_red = 0, thread_red = 0, tensorize = 0;
+
+  for (IterVar iv : stage->leaf_iter_vars) {
+    IterVarAttr attr;
+    auto it = stage->iter_var_attrs.find(iv);
+    if (it != stage->iter_var_attrs.end()) {
+      attr = (*it).second;
+    }
+    if (attr.defined() && attr->iter_type == kTensorized) {
+      ++tensorize;
+    }
+    if (iv->iter_type == kCommReduce) {
+      if (attr.defined() && attr->bind_thread.defined()) {
+        ++thread_red;
+      } else {
+        ++normal_red;
+      }
+    } else {
+      CHECK_EQ(thread_red, 0)
+          << "Cross thread reduce cannot swap with normal data axis";
+    }
+  }
+  if (tensorize != 0) {
+    CHECK(thread_red == 0)
+        << "Cannot mix cross thread reduction with Tensorize";
+    return ComputeType::kTensorize;
+  }
+  CHECK(normal_red == 0 || thread_red == 0)
+      << "Cannot mix normal reduction with thread reduce";
+  if (thread_red != 0) {
+    return ComputeType::kCrossThreadReduction;
+  } else {
+    return ComputeType::kNormal;
+  }
+}
+
 // implement the provide utility.
 Stmt ComputeOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map) const {
   CHECK_EQ(stage->op.operator->(), this);
-  if (IsCrossThreadReduction(this, stage)) {
+  ComputeType ctype = DetectComputeType(this, stage);
+  if (ctype == ComputeType::kCrossThreadReduction) {
     // specially handle cross thread reduction.
     return MakeCrossThreadReduction(this, stage, dom_map);
+  } else if (ctype == ComputeType::kTensorize) {
+    return MakeTensorize(this, stage, dom_map);
   } else {
     return MakeComputeStmt(this, stage, dom_map);
   }

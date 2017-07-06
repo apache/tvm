@@ -10,6 +10,7 @@
 #include "./base.h"
 #include "./expr.h"
 #include "./tensor.h"
+#include "./tensor_intrin.h"
 
 namespace tvm {
 
@@ -159,6 +160,14 @@ class Stage : public NodeRef {
    * \return reference to self.
    */
   Stage& vectorize(IterVar var);   // NOLINT(*)
+  /*!
+   * \brief Replace computation of the current stage by tensor intrinsic f.
+   * \param var The axis marks beginning of tensorization.
+   *  Every operations inside the axis(include axis itself is tensorized).
+   * \param f The Tensor compute intrinsics.
+   * \return reference to self.
+   */
+  Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
   /*!
    * \brief Unroll iteration.
    * \param var The axis to be unrolled.
@@ -465,12 +474,18 @@ class IterVarAttrNode : public Node {
   Array<Tensor> prefetch_data;
   /*! \brief The offset used in each prefetch */
   Array<Expr> prefetch_offset;
+  /*!
+   * \brief Tensor intrinsic used in tensorization,
+   *   when the axis is marked as Tensorized
+   */
+  TensorIntrin tensor_intrin;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("iter_type", &iter_type);
     v->Visit("bind_thread", &bind_thread);
     v->Visit("prefetch_data", &prefetch_data);
     v->Visit("prefetch_offset", &prefetch_offset);
+    v->Visit("tensor_intrin", &tensor_intrin);
   }
 
   static constexpr const char* _type_key = "IterVarAttr";

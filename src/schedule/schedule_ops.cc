@@ -296,10 +296,7 @@ class SchedulePostProc : public IRMutator {
 Stmt ScheduleOps(
     Schedule sch, Map<IterVar, Range> dom_map_) {
   Stmt body = Stmt();
-  std::unordered_map<IterVar, Range> dom_map;
-  for (auto kv : dom_map_) {
-    dom_map[kv.first] = kv.second;
-  }
+  std::unordered_map<IterVar, Range> dom_map = as_unordered_map(dom_map_);
   // scan init and scan updates
   std::unordered_map<Operation, Operation> scan_init;
   for (Stage s : sch->stages) {

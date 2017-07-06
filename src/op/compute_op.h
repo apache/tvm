@@ -46,13 +46,6 @@ struct ComputeLoopNest {
 };
 
 /*!
- * \brief Whether compute op is a cross thread reduction structure.
- * \param self The pointer to ComputeOpNode
- * \param stage the schedule stage.
- */
-bool IsCrossThreadReduction(const ComputeOpNode* self,
-                            const Stage& stage);
-/*!
  * \brief Build body of compute for cross thread reduction pattern.
  * \param self The pointer to ComputeOpNode
  * \param stage The schedule stage.
@@ -63,6 +56,17 @@ Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map);
+
+/*!
+ * \brief Build body of compute for tensorization.
+ * \param self The pointer to ComputeOpNode
+ * \param stage The schedule stage.
+ * \param dom_map The domain map.
+ * \return The created statement.
+ */
+Stmt MakeTensorize(const ComputeOpNode* self,
+                   const Stage& stage,
+                   const std::unordered_map<IterVar, Range>& dom_map);
 }  // namespace tvm
 
 #endif  // TVM_OP_COMPUTE_OP_H_

@@ -57,6 +57,7 @@ class IterVar(NodeBase, _expr.ExprOp):
     Unrolled = 5
     Vectorized = 6
     Parallelized = 7
+    Tensorized = 8
 
 _tensor.iter_var_cls = IterVar
 
@@ -387,6 +388,19 @@ class Stage(NodeBase):
             The iteration to be vectorize
         """
         _api_internal._StageVectorize(self, var)
+
+    def tensorize(self, var, tensor_intrin):
+        """Tensorize the computation enclosed by var with tensor_intrin
+
+        Parameters
+        ----------
+        var : IterVar
+            The iteration boundary of tensorization.
+
+        tensor_intrin : TensorIntrin
+            The tensor intrinsic used for computation.
+        """
+        _api_internal._StageTensorize(self, var, tensor_intrin)
 
     def unroll(self, var):
         """Unroll the iteration.
