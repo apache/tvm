@@ -60,7 +60,6 @@ def context(dev_type, dev_id=0):
         dev_type = TVMContext.STR2MASK[dev_type]
     return TVMContext(dev_type, dev_id)
 
-
 def numpyasarray(np_data):
     """Return a TVMArray representation of a numpy array.
     """
@@ -158,11 +157,10 @@ class NDArrayBase(_NDArrayBase):
         source_array = np.ascontiguousarray(source_array, dtype=self.dtype)
         if source_array.shape != self.shape:
             raise ValueError('array shape do not match the shape of NDArray')
-        source_tvm_arr, shape = numpyasarray(source_array)
-        check_call(_LIB.TVMArrayCopyFromTo(
-            ctypes.byref(source_tvm_arr), self.handle, None))
-        # de-allocate shape until now
-        _ = shape
+        assert source_array.flags['C_CONTIGUOUS']
+        data = source_array.ctypes.data_as(ctypes.c_void_p)
+        nbytes = ctypes.c_size_t(np.prod(source_array.shape) * source_array.dtype.itemsize)
+        check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
 
     def asnumpy(self):
         """Convert this array to numpy array
@@ -173,10 +171,10 @@ class NDArrayBase(_NDArrayBase):
             The corresponding numpy array.
         """
         np_arr = np.empty(self.shape, dtype=self.dtype)
-        tvm_arr, shape = numpyasarray(np_arr)
-        check_call(_LIB.TVMArrayCopyFromTo(
-            self.handle, ctypes.byref(tvm_arr), None))
-        _ = shape
+        assert np_arr.flags['C_CONTIGUOUS']
+        data = np_arr.ctypes.data_as(ctypes.c_void_p)
+        nbytes = ctypes.c_size_t(np.prod(np_arr.shape) * np_arr.dtype.itemsize)
+        check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
         return np_arr
 
     def copyto(self, target):
