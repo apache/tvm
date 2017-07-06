@@ -79,6 +79,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,
                                TVMFunctionHandle *out)
+    int TVMCbArgToReturn(TVMValue* value, int code)
     int TVMArrayAlloc(tvm_index_t* shape,
                       tvm_index_t ndim,
                       DLDataType dtype,
@@ -89,8 +90,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
                            DLTensorHandle to,
                            TVMStreamHandle stream)
 
-cdef extern from "tvm/c_api.h":
-    int TVMCbArgToReturn(TVMValue* value, int code)
+cdef extern from "tvm/c_dsl_api.h":
     int TVMNodeFree(NodeHandle handle)
     TVMNodeTypeKey2Index(const char* type_key,
                          int* out_index)
