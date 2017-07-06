@@ -23,7 +23,7 @@ def test_llvm_add_pipeline():
             name='A')
         binds = {A : Ab}
         # BUILD and invoke the kernel.
-        f = tvm.build(s, [Ab, B, C], "llvm", binds=binds)
+        f = tvm.build(s, [A, B, C], "llvm", binds=binds)
         ctx = tvm.cpu(0)
         # launch the kernel.
         n = nn

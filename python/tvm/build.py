@@ -109,9 +109,10 @@ def get_binds(args, binds=None):
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
 
-    binds : dict, optional
-        Dictionary that maps the binding of symbolic buffer to Tensor.
-        By default, a new buffer is created for each tensor in the argument.
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        Dictionary that maps the Tensor to Buffer which specified the data layout
+        requirement of the function. By default, a new compact buffer is created
+        for each tensor in the argument.
 
     Returns
     -------
@@ -126,14 +127,16 @@ def get_binds(args, binds=None):
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
-            buf = api.decl_buffer(x.shape,
-                                  dtype=x.dtype,
-                                  name=x.name,
-                                  data_alignment=cfg.data_alignment,
-                                  offset_factor=cfg.offset_factor)
-            assert x not in binds
-            binds[x] = buf
-            arg_list.append(buf)
+            if x not in binds:
+                buf = api.decl_buffer(x.shape,
+                                      dtype=x.dtype,
+                                      name=x.name,
+                                      data_alignment=cfg.data_alignment,
+                                      offset_factor=cfg.offset_factor)
+                binds[x] = buf
+                arg_list.append(buf)
+            else:
+                arg_list.append(binds[x])
         elif isinstance(x, schedule.Buffer):
             arg_list.append(x)
         elif isinstance(x, expr.Var):
@@ -161,9 +164,10 @@ def lower(sch,
     name : str, optional
         The name of result function.
 
-    binds : dict, optional
-        Dictionary that maps the binding of symbolic buffer to Tensor.
-        By default, a new buffer is created for each tensor in the argument.
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        Dictionary that maps the Tensor to Buffer which specified the data layout
+        requirement of the function. By default, a new compact buffer is created
+        for each tensor in the argument.
 
     simple_mode : bool, optional
         Whether only output simple and compact statement, this will skip

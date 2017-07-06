@@ -21,6 +21,15 @@ TVM_REGISTER_API("ir_pass.Simplify")
     }
   });
 
+TVM_REGISTER_API("ir_pass.CanonicalSimplify")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args[0].IsNodeType<Stmt>()) {
+      *ret = CanonicalSimplify(args[0].operator Stmt());
+    } else {
+      *ret = CanonicalSimplify(args[0].operator Expr());
+    }
+  });
+
 TVM_REGISTER_API("ir_pass.Equal")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
@@ -76,7 +85,6 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
 
 REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
-REGISTER_PASS1(CanonicalSimplify);
 REGISTER_PASS4(Inline);
 REGISTER_PASS2(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);

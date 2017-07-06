@@ -292,7 +292,8 @@ Stage& Stage::tile(IterVar x_parent, IterVar y_parent,
   return *this;
 }
 
-inline void SetAttrIterType(StageNode* self, IterVar var, IterVarType iter_type) {
+template<typename FUpdate>
+inline void UpdateIterVarAttr(StageNode* self, IterVar var, FUpdate fupdate) {
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   FindLeafVar(all_vars, leaf_vars, var);
@@ -303,12 +304,26 @@ inline void SetAttrIterType(StageNode* self, IterVar var, IterVarType iter_type)
   } else {
     n = std::make_shared<IterVarAttrNode>();
   }
-  n->iter_type = iter_type;
+  fupdate(n.get());
   self->iter_var_attrs.Set(var, IterVarAttr(n));
+}
+
+inline void SetAttrIterType(StageNode* self, IterVar var, IterVarType iter_type) {
+  UpdateIterVarAttr(self, var, [iter_type](IterVarAttrNode* n) {
+      n->iter_type = iter_type;
+    });
 }
 
 Stage& Stage::vectorize(IterVar var) {   // NOLINT(*)
   SetAttrIterType(operator->(), var, kVectorized);
+  return *this;
+}
+
+Stage& Stage::tensorize(IterVar var, TensorIntrin f) {   // NOLINT(*)
+  UpdateIterVarAttr(operator->(), var, [f](IterVarAttrNode* n) {
+      n->iter_type = kTensorized;
+      n->tensor_intrin = f;
+    });
   return *this;
 }
 

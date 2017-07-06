@@ -164,6 +164,17 @@ TVM_REGISTER_API("_Tensor")
                             args[3]);
   });
 
+TVM_REGISTER_API("_TensorIntrin")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = TensorIntrinNode::make(args[0],
+                                  args[1],
+                                  args[2],
+                                  args[3],
+                                  args[4],
+                                  args[5],
+                                  args[6]);
+  });
+
 TVM_REGISTER_API("_TensorEqual")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Tensor() == args[1].operator Tensor();
@@ -333,6 +344,12 @@ TVM_REGISTER_API("_StageVectorize")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
     args[0].operator Stage()
         .vectorize(args[1]);
+  });
+
+TVM_REGISTER_API("_StageTensorize")
+  .set_body([](TVMArgs args, TVMRetValue* ret) {
+    args[0].operator Stage()
+        .tensorize(args[1], args[2]);
   });
 
 TVM_REGISTER_API("_StageParallel")

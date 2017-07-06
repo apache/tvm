@@ -531,5 +531,8 @@ Stmt CanonicalSimplify(Stmt stmt) {
   return arith::Canonical().Simplify(stmt);
 }
 
+Expr CanonicalSimplify(Expr expr) {
+  return arith::Canonical().Simplify(expr);
+}
 }  // namespace ir
 }  // namespace tvm

@@ -1,5 +1,5 @@
 # pylint: disable=redefined-builtin, wildcard-import
-"""TVM: a DSL for tensor kernel compilation"""
+"""TVM: Low level DSL/IR stack for tensor computation."""
 from __future__ import absolute_import as _abs
 
 from . import tensor
@@ -23,6 +23,7 @@ from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
+from .tensor_intrin import decl_tensor_intrin
 from .node import register_node
 from .ndarray import register_extension
 from .schedule import create_schedule

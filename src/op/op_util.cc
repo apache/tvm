@@ -65,6 +65,7 @@ MakeLoopNest(const Stage& stage,
           case kVectorized: for_type = ForType::Vectorized; break;
           case kParallelized: for_type = ForType::Parallel; break;
           case kDataPar: break;
+          case kTensorized: break;
           default: LOG(FATAL) << "Unknown iter type"
                               << it_attr->iter_type
                               << " in the iter_var_attrs";

@@ -4,6 +4,7 @@
  */
 #include <tvm/tensor.h>
 #include <tvm/operation.h>
+#include <tvm/tensor_intrin.h>
 #include <ir/IR.h>
 #include <memory>
 
@@ -54,4 +55,28 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
+TensorIntrin TensorIntrinNode::make(std::string name,
+                                    Operation op,
+                                    Array<Tensor> inputs,
+                                    Array<Buffer> buffers,
+                                    Stmt body,
+                                    Stmt reduce_init,
+                                    Stmt reduce_update) {
+  auto n = std::make_shared<TensorIntrinNode>();
+  n->name = std::move(name);
+  n->op = std::move(op);
+  n->inputs = std::move(inputs);
+  n->buffers = std::move(buffers);
+  n->body = std::move(body);
+  n->reduce_init = std::move(reduce_init);
+  n->reduce_update = std::move(reduce_update);
+  return TensorIntrin(n);
+}
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<TensorIntrinNode>([](const TensorIntrinNode *n, IRPrinter *p) {
+    p->stream << "TensorIntrin(name=" << n->name << ", " << n << ")";
+  });
+
+TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 }  // namespace tvm

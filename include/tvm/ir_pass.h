@@ -9,8 +9,6 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
-#include <ir/IREquality.h>
-#include <arithmetic/Simplify.h>
 #include <tvm/ir_functor.h>
 #include <arithmetic/Simplify.h>
 #include <unordered_map>
@@ -31,6 +29,20 @@ inline Expr Simplify(Expr a) {
 inline Stmt Simplify(Stmt a) {
   return Halide::Internal::simplify(a);
 }
+
+/*!
+ * \brief Simplify by applying canonical form.
+ * \param stmt The statement to be canonically simplifed.
+ * \return Canonicalized statement.
+ */
+Stmt CanonicalSimplify(Stmt stmt);
+
+/*!
+ * \brief Simplify by applying canonical form.
+ * \param expr The statement to be canonically simplifed.
+ * \return Canonicalized expression.
+ */
+Expr CanonicalSimplify(Expr expr);
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -86,13 +98,6 @@ bool ExprUseVar(const Expr& e, const std::unordered_set<const Variable*>& vset);
  * \return The converted form.
  */
 Stmt ConvertSSA(Stmt stmt);
-
-/*!
- * \brief Simplify by applying canonical form.
- * \param stmt The statement to be canonically simplifed.
- * \return Canonicalized statement.
- */
-Stmt CanonicalSimplify(Stmt stmt);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.

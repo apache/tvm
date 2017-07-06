@@ -115,8 +115,33 @@ def test_rfactor():
     assert(BF.op.body[0].axis[1].var ==  ko.var)
     assert(s[B].op.body[0].axis[0].dom.extent.value == 4)
 
+def test_tensor_intrin():
+    n = 16
+    x = tvm.placeholder((n,), name='x')
+    y = tvm.placeholder((n,), name='y')
+    z = tvm.compute(x.shape, lambda i: x[i] + y[i], name='z')
+    def intrin_func(ins, outs):
+        assert(isinstance(ins[0], tvm.schedule.Buffer))
+        assert(ins[0].shape[0].value == n)
+        return tvm.call_packed("vadd", ins[0].data, outs[0].data, ins[0].shape[0])
+    intrin = tvm.decl_tensor_intrin(z.op, intrin_func)
+    assert intrin.op == z.op
+    assert intrin.reduce_init is None
+    assert tuple(intrin.inputs) == tuple(z.op.input_tensors)
+    assert(intrin.buffers[0].shape[0].value == n)
+    m = 32
+    x = tvm.placeholder((m,), name='x')
+    y = tvm.placeholder((m,), name='y')
+    z = tvm.compute(x.shape, lambda i: x[i] + y[i], name='z')
+    s = tvm.create_schedule(z.op)
+    xo, xi = s[z].split(z.op.axis[0], factor=n)
+    s[z].tensorize(xi, intrin)
+    assert(s[z].iter_var_attrs[xi].tensor_intrin == intrin)
+    assert(s[z].iter_var_attrs[xi].iter_type == tvm.schedule.IterVar.Tensorized)
+
 
 if __name__ == "__main__":
+    test_tensor_intrin()
     test_rfactor()
     test_schedule_create()
     test_reorder()

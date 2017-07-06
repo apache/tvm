@@ -14,8 +14,8 @@ namespace runtime {
 DSLAPI* FindDSLAPI() {
   auto* f = Registry::Get("dsl_api.singleton");
   if (f == nullptr) {
-    throw dmlc::Error("TVM runtime only environment, "\
-                      "DSL API is not available");
+    throw dmlc::Error("TVM runtime only environment,"\
+                      " DSL API is not available");
   }
   void* ptr = (*f)();
   return static_cast<DSLAPI*>(ptr);

@@ -179,7 +179,11 @@ enum IterVarType : int {
   /*!
    * \brief The loop is parallelized.
    */
-  kParallelized = 7
+  kParallelized = 7,
+  /*!
+   * \brief Marks boundary of tensorization intrinsic.
+   */
+  kTensorized = 8
 };
 
 /*!
@@ -281,10 +285,27 @@ inline const char* IterVarType2String(IterVarType t) {
     case kUnrolled: return "Unrolled";
     case kVectorized: return "Vectorized";
     case kParallelized: return "Parallelized";
+    case kTensorized: return "Tensorized";
   }
   return "Unknown";
 }
 
+/*
+ * \brief Template function to convert Map to unordered_map
+ *  Sometimes useful for API gluing when internal uses unordered_map
+ * \param dmap The container map
+ * \return The corresponding unordered_map.
+ * \tparam K the key of the Map.
+ * \tparam V the value of the Map.
+ */
+template<typename K, typename V>
+inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
+  std::unordered_map<K, V> ret;
+  for (auto kv : dmap) {
+    ret[kv.first] = kv.second;
+  }
+  return ret;
+}
 }  // namespace tvm
 
 namespace std {
