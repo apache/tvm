@@ -390,7 +390,7 @@ def decl_buffer(shape,
                 strides=None,
                 elem_offset=None,
                 scope="",
-                data_alignment=0,
+                data_alignment=-1,
                 offset_factor=0):
     """Decleare a new symbolic buffer.
 
@@ -426,7 +426,7 @@ def decl_buffer(shape,
 
     data_alignment: int, optional
         The alignment of data pointer in bytes.
-        If 0 is passed, the alignment will be set to TVM's internal default.
+        If -1 is passed, the alignment will be set to TVM's internal default.
 
     offset_factor: int, optional
         The factor of elem_offset field, when set,

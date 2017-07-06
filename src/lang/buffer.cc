@@ -153,7 +153,7 @@ Buffer BufferNode::make(Var data,
   if (!elem_offset.defined()) {
     elem_offset = make_const(n->shape[0].type(), 0);
   }
-  if (data_alignment == 0) {
+  if (data_alignment <= 0) {
     data_alignment = runtime::kAllocAlignment;
   }
   if (offset_factor == 0) {

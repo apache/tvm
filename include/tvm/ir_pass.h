@@ -12,6 +12,7 @@
 #include <ir/IREquality.h>
 #include <arithmetic/Simplify.h>
 #include <tvm/ir_functor.h>
+#include <arithmetic/Simplify.h>
 #include <unordered_map>
 #include <vector>
 #include <string>

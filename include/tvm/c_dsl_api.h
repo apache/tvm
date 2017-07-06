@@ -1,35 +1,27 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file c_api.h
- * \brief C API of TVM DSL
+ * \file c_dsl_api.h
  *
- * \note The API is designed in a minimum way.
- *  Most of the API functions are registered and can be pulled out.
+ * \brief TVM DSL Node C API, used to interact to DSL compilation.
  *
- *  The common flow is:
- *   - Use TVMFuncListGlobalNames to get global function name
- *   - Use TVMFuncCall to call these functions.
+ *  These are only a few functions needed for DSL construction time.
+ *  These function are only available when link libtvm.
+ *  If only TVM runtime is linked, calling these function will trigger error.
+ *
+ * \note Most API functions are registerd as PackedFunc and
+ *  can be grabbed via TVMFuncGetGlobal
  */
-#ifndef TVM_C_API_H_
-#define TVM_C_API_H_
+#ifndef TVM_C_DSL_API_H_
+#define TVM_C_DSL_API_H_
 
 #include "./runtime/c_runtime_api.h"
 
+#ifdef __cplusplus
 TVM_EXTERN_C {
+#endif
+
 /*! \brief handle to node */
 typedef void* NodeHandle;
-
-/*!
- * \brief Inplace translate callback argument value to return value.
- *  This is only needed for non-POD arguments.
- *
- * \param value The value to be translated.
- * \param code The type code to be translated.
- * \note This function will do a shallow copy when necessary.
- *
- * \return 0 when success, -1 when failure happens.
- */
-TVM_DLL int TVMCbArgToReturn(TVMValue* value, int code);
 
 /*!
  * \brief free the node handle
@@ -82,5 +74,7 @@ TVM_DLL int TVMNodeGetAttr(NodeHandle handle,
 TVM_DLL int TVMNodeListAttrNames(NodeHandle handle,
                                  int *out_size,
                                  const char*** out_array);
+#ifdef __cplusplus
 }  // TVM_EXTERN_C
-#endif  // TVM_C_API_H_
+#endif
+#endif  // TVM_C_DSL_API_H_

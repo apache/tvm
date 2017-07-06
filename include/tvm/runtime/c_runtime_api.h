@@ -5,9 +5,15 @@
  *
  *  The philosophy of TVM project is to customize the compilation
  *  stage to generate code that can used by other projects transparently.
- *
  *  So this is a minimum runtime code gluing, and some limited
  *  memory management code to enable quick testing.
+ *
+ *  The runtime API is independent from TVM compilation stack and can
+ *  be linked via libtvm_runtime.
+ *
+ *  The common flow is:
+ *   - Use TVMFuncListGlobalNames to get global function name
+ *   - Use TVMFuncCall to call these functions.
  */
 #ifndef TVM_RUNTIME_C_RUNTIME_API_H_
 #define TVM_RUNTIME_C_RUNTIME_API_H_
@@ -243,6 +249,18 @@ TVM_DLL int TVMCFuncSetReturn(TVMRetValueHandle ret,
                               int type_code);
 
 /*!
+ * \brief Inplace translate callback argument value to return value.
+ *  This is only needed for non-POD arguments.
+ *
+ * \param value The value to be translated.
+ * \param code The type code to be translated.
+ * \note This function will do a shallow copy when necessary.
+ *
+ * \return 0 when success, -1 when failure happens.
+ */
+TVM_DLL int TVMCbArgToReturn(TVMValue* value, int code);
+
+/*!
  * \brief C type of packed function.
  *
  * \param args The arguments
@@ -376,6 +394,28 @@ TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
+
+/*!
+ * \brief Copy array data from CPU byte array.
+ * \param handle The array handle.
+ * \param data the data pointer
+ * \param nbytes The number of bytes to copy.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayCopyFromBytes(TVMArrayHandle handle,
+                                  void* data,
+                                  size_t nbytes);
+
+/*!
+ * \brief Copy array data to CPU byte array.
+ * \param handle The array handle.
+ * \param data the data pointer
+ * \param nbytes The number of bytes to copy.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayCopyToBytes(TVMArrayHandle handle,
+                                void* data,
+                                size_t nbytes);
 
 /*!
  * \brief Copy the array, both from and to must be valid during the copy.
