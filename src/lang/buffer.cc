@@ -3,6 +3,7 @@
  * \file buffer.cc
  */
 #include <tvm/buffer.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 
@@ -26,7 +27,9 @@ Buffer decl_buffer(Array<Expr> shape,
       shape,
       Array<Expr>(),
       Expr(),
-      name, "", 0);
+      name,
+      "",
+      0, 0);
 }
 
 // The buffer offset in convention of number of elements of
@@ -124,6 +127,7 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           elem_offset,
                           n->name + "_slice",
                           n->scope,
+                          n->data_alignment,
                           0);
 }
 
@@ -134,7 +138,8 @@ Buffer BufferNode::make(Var data,
                         Expr elem_offset,
                         std::string name,
                         std::string scope,
-                        int offset_alignment) {
+                        int data_alignment,
+                        int offset_factor) {
   auto n = std::make_shared<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -145,11 +150,15 @@ Buffer BufferNode::make(Var data,
   if (!elem_offset.defined()) {
     elem_offset = make_const(n->shape[0].type(), 0);
   }
-  if (offset_alignment == 0) {
-    offset_alignment = 1;
+  if (data_alignment == 0) {
+    data_alignment = runtime::kAllocAlignment;
+  }
+  if (offset_factor == 0) {
+    offset_factor = 1;
   }
   n->elem_offset = elem_offset;
-  n->offset_alignment = offset_alignment;
+  n->data_alignment = data_alignment;
+  n->offset_factor = offset_factor;
   return Buffer(n);
 }
 
