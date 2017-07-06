@@ -68,6 +68,12 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
       *ret = PassName(args[0], args[1], args[2], args[3]);              \
     })                                                                  \
 
+#define REGISTER_PASS5(PassName)                                        \
+  TVM_REGISTER_API("ir_pass."#PassName)                                 \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+      *ret = PassName(args[0], args[1], args[2], args[3],args[4]);      \
+    })                                                                  \
+
 REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
 REGISTER_PASS1(CanonicalSimplify);
@@ -76,7 +82,7 @@ REGISTER_PASS2(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS4(UnrollLoop);
 REGISTER_PASS2(StorageSync);
-REGISTER_PASS4(MakeAPI);
+REGISTER_PASS5(MakeAPI);
 REGISTER_PASS1(SplitHostDevice);
 REGISTER_PASS1(StorageRewrite);
 REGISTER_PASS1(InjectVirtualThread);

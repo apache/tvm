@@ -7,6 +7,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
+#include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "./ir_util.h"
 #include "./arg_binder.h"
@@ -88,11 +89,6 @@ class StorageFlattener : public IRMutator {
       for (auto r : e.bounds) {
         shape.push_back(r->extent);
       }
-      e.buffer = decl_buffer(shape, op->type, key.GetName());
-
-      buf_map_[key] = e;
-      Stmt body = this->Mutate(op->body);
-      buf_map_[key].released = true;
       // deduce current storage scope.
       auto it = storage_scope_.find(op->func.get());
       CHECK(it != storage_scope_.end())
@@ -107,12 +103,23 @@ class StorageFlattener : public IRMutator {
       } else {
         skey = StorageScope::make(strkey);
       }
+      e.buffer = BufferNode::make(
+          Var(key.GetName(), Handle()),
+          op->type, shape,
+          Array<Expr>(), Expr(),
+          key.GetName(), skey.to_string(),
+          runtime::kTempAllocaAlignment, 0);
+
+      buf_map_[key] = e;
+      Stmt body = this->Mutate(op->body);
+      buf_map_[key].released = true;
+
       Stmt ret = Allocate::make(
           e.buffer->data, e.buffer->dtype, e.buffer->shape,
           make_const(Bool(e.buffer->dtype.lanes()), true), body);
       ret = AttrStmt::make(
           e.buffer->data, attr::storage_scope,
-          StringImm::make(skey.to_string()), ret);
+          StringImm::make(e.buffer->scope), ret);
       return ret;
     }
   }

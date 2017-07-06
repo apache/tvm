@@ -16,6 +16,7 @@ namespace codegen {
 
 class CodeGenCUDA final : public CodeGenC {
  public:
+  CodeGenCUDA();
   void Init(bool output_ssa);
   void AddFunction(LoweredFunc f);
   // override behavior

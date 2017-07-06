@@ -93,6 +93,20 @@ inline Expr AddressOffset(Var handle, Type dtype, int offset) {
 }
 
 /*!
+ * \brief Address of handle + offset
+ * \param handle the array handle.
+ * \param dtype The data type.
+ * \param offset the offset index.
+ */
+inline Expr AddressOffset(Var handle, Type dtype, Expr offset) {
+  return Call::make(
+      Handle(), intrinsic::tvm_address_of,
+      {Load::make(dtype, handle, offset * make_const(offset.type(), dtype.lanes()),
+                  const_true(dtype.lanes()))},
+      Call::PureIntrinsic);
+}
+
+/*!
  * \brief Set value into struct.
  * \param handle the struct handle.
  * \param index the offset index.
