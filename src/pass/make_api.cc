@@ -25,7 +25,8 @@ inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
 LoweredFunc MakeAPI(Stmt body,
                     std::string name,
                     Array<NodeRef> api_args,
-                    int num_unpacked_args) {
+                    int num_unpacked_args,
+                    bool is_restricted) {
   const Stmt nop = Evaluate::make(0);
   int num_args = static_cast<int>(api_args.size());
   CHECK_LE(num_unpacked_args, num_args);
@@ -132,6 +133,7 @@ LoweredFunc MakeAPI(Stmt body,
   n->args = args;
   n->handle_data_type = binder.def_handle_dtype();
   n->is_packed_func = num_unpacked_args == 0;
+  n->is_restricted = is_restricted;
 
   // Set device context
   if (vmap.count(device_id.get())) {

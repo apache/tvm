@@ -174,6 +174,7 @@ class CodeGenLLVM :
   // branch
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
+  llvm::MDNode* md_tbaa_alias_set_{nullptr};
   // TVM related data types
   llvm::Type* t_tvm_shape_index_{nullptr};
   llvm::Type* t_tvm_func_handle_{nullptr};
@@ -234,6 +235,10 @@ class CodeGenLLVM :
   std::unordered_map<std::string, llvm::Constant*> str_map_;
   // The alignment information
   std::unordered_map<const Variable*, arith::ModularEntry> align_map_;
+  // Whether current function is restricted
+  bool is_restricted_{true};
+  // set of var that are not restricted(can alias)
+  std::unordered_set<const Variable*> alias_var_set_;
   // The local module_context
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   // global to packed function handle

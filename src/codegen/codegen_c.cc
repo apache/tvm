@@ -46,6 +46,9 @@ void CodeGenC::AddFunction(LoweredFunc f) {
     if (handle_data_type_.count(v.get())) {
       PrintType(handle_data_type_.at(v.get()), stream);
       stream << "*";
+      if (f->is_restricted && restrict_keyword_.length() != 0) {
+        stream << ' ' << restrict_keyword_;
+      }
     } else {
       PrintType(v.type(), stream);
     }

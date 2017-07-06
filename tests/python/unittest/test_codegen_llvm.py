@@ -6,7 +6,8 @@ def test_llvm_add_pipeline():
     n = tvm.convert(nn)
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    T = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='T')
+    C = tvm.compute(A.shape, lambda *i: T(*i), name='C')
     s = tvm.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     s[C].parallel(xo)
@@ -87,7 +88,8 @@ def test_llvm_madd_pipeline():
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
-    check_llvm(4, 0, 3)
+    with tvm.build_config(restricted_func=False):
+        check_llvm(4, 0, 3)
 
 def test_llvm_temp_space():
     nn = 1024

@@ -16,6 +16,7 @@ namespace codegen {
 
 class CodeGenOpenCL final : public CodeGenC {
  public:
+  CodeGenOpenCL();
   void AddFunction(LoweredFunc f);
   // override print thread tag.
   void InitFuncState(LoweredFunc f) final;
