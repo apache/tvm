@@ -71,7 +71,7 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
 #define REGISTER_PASS5(PassName)                                        \
   TVM_REGISTER_API("ir_pass."#PassName)                                 \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = PassName(args[0], args[1], args[2], args[3],args[4]);      \
+      *ret = PassName(args[0], args[1], args[2], args[3], args[4]);     \
     })                                                                  \
 
 REGISTER_PASS1(ConvertSSA);
