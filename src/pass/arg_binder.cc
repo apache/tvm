@@ -24,7 +24,7 @@ void BinderAddAssert(Expr cond,
   if (!is_one(cond)) {
     std::ostringstream os;
     os << "Argument " << arg_name << " has an unsatisfied constraint";
-    asserts->emplace_back(AssertStmt::make(cond, os.str()));
+    asserts->emplace_back(AssertStmt::make(cond, os.str(), Evaluate::make(0)));
   }
 }
 
@@ -107,7 +107,14 @@ void ArgBinder::BindBuffer(const Buffer& arg,
     this->BindArray(arg->shape, value->shape, arg_name + ".shape");
     this->BindArray(arg->strides, value->strides, arg_name + ".strides");
   }
-  this->Bind(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset");
+  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
+    if (arg->offset_factor > 1) {
+      Expr offset = value->elem_offset;
+      Expr factor = make_const(offset.type(), arg->offset_factor);
+      Expr zero = make_zero(offset.type());
+      BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
+    }
+  }
 }
 
 inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
@@ -117,7 +124,7 @@ inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
 inline Stmt AssertNull(Var handle, std::string msg) {
   return AssertStmt::make(Call::make(
       Bool(1), intrinsic::tvm_handle_is_null,
-      {handle}, Call::PureIntrinsic), msg);
+      {handle}, Call::PureIntrinsic), msg, Evaluate::make(0));
 }
 
 void ArgBinder::BindDLTensor(const Buffer& buffer,
@@ -136,7 +143,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   ndim_err_msg << arg_name
                << ".ndim is expected to equal "
                << buffer->shape.size();
-  asserts_.emplace_back(AssertStmt::make(a_ndim == v_ndim, ndim_err_msg.str()));
+  asserts_.emplace_back(AssertStmt::make(a_ndim == v_ndim, ndim_err_msg.str(), nop));
   // type checks
   Type dtype = buffer->dtype;
   std::ostringstream type_err_msg;
@@ -147,7 +154,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                UIntImm::make(UInt(8), dtype.bits()) &&
                TVMArrayGet(UInt(16), handle, intrinsic::kArrTypeLanes) ==
                UIntImm::make(UInt(16), dtype.lanes()));
-  asserts_.emplace_back(AssertStmt::make(cond, type_err_msg.str()));
+  asserts_.emplace_back(AssertStmt::make(cond, type_err_msg.str(), nop));
   // data field
   if (Bind_(buffer->data, TVMArrayGet(Handle(), handle, intrinsic::kArrData),
             arg_name + ".data", true)) {
@@ -156,7 +163,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     // mark alignment of external bufs
     init_nest_.emplace_back(AttrStmt::make(
         vptr, ir::attr::storage_alignment,
-        IntImm::make(Int(32), runtime::kAllocAlignment), nop));
+        IntImm::make(Int(32), buffer->data_alignment), nop));
   }
 
   Var v_shape(arg_name + ".shape", Handle());
@@ -202,11 +209,18 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                TVMArrayGet(UInt(64), handle, intrinsic::kArrByteOffset),
           arg_name + ".byte_offset", true);
   } else {
-    Bind_(buffer->elem_offset,
-           cast(buffer->elem_offset.type(),
-                (TVMArrayGet(UInt(64), handle, intrinsic::kArrByteOffset) /
-                 make_const(UInt(64), data_bytes))),
-          arg_name + ".elem_offset", true);
+    if (Bind_(buffer->elem_offset,
+              cast(buffer->elem_offset.type(),
+                   (TVMArrayGet(UInt(64), handle, intrinsic::kArrByteOffset) /
+                    make_const(UInt(64), data_bytes))),
+              arg_name + ".elem_offset", true)) {
+      if (buffer->offset_factor > 1) {
+        Expr offset = buffer->elem_offset;
+        Expr factor = make_const(offset.type(), buffer->offset_factor);
+        Expr zero = make_zero(offset.type());
+        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
+      }
+    }
   }
   // device info.
   Bind_(device_type,

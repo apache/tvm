@@ -118,6 +118,7 @@ class IRDeepCompare :
     const AssertStmt* rhs = other.as<AssertStmt>();
     if (CompareExpr(op->condition, rhs->condition) != 0) return;
     if (CompareExpr(op->message, rhs->message) != 0) return;
+    if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
   void VisitStmt_(const ProducerConsumer* op, const Stmt& other) final {
@@ -126,7 +127,6 @@ class IRDeepCompare :
     if (CompareValue(op->is_producer, rhs->is_producer) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
-
 
   void VisitStmt_(const Provide* op, const Stmt& other) final {
     const Provide* rhs = other.as<Provide>();
