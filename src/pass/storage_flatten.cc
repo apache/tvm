@@ -103,9 +103,11 @@ class StorageFlattener : public IRMutator {
       } else {
         skey = StorageScope::make(strkey);
       }
+
       // use small alignment for small arrays
       int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
       int align = GetTempAllocaAlignment(op->type, const_size);
+
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
           op->type, shape,

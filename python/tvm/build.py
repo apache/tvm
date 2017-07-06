@@ -28,7 +28,7 @@ class BuildConfig(object):
         'unroll_explicit': True,
         'detect_global_barrier': False,
         'offset_factor': 0,
-        'data_alignment': 0,
+        'data_alignment': -1,
         'restricted_func': True
     }
     def __init__(self, **kwargs):
@@ -81,7 +81,7 @@ def build_config(**kwargs):
 
     data_alignment: int, optional
         The alignment of data pointer in bytes.
-        If 0 is passed, the alignment will be set to TVM's internal default.
+        If -1 is passed, the alignment will be set to TVM's internal default.
 
     offset_factor: int, default=0
         The factor used in default buffer declaration.

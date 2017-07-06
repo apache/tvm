@@ -81,11 +81,9 @@ def register_node(type_key=None):
     def register(cls):
         """internal register function"""
         tindex = ctypes.c_int()
-        try:
-            check_call(_LIB.TVMNodeTypeKey2Index(c_str(node_name), ctypes.byref(tindex)))
+        ret = _LIB.TVMNodeTypeKey2Index(c_str(node_name), ctypes.byref(tindex))
+        if ret == 0:
             _register_node(tindex.value, cls)
-        except AttributeError:
-            pass
         return cls
 
     if isinstance(type_key, str):

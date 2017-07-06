@@ -130,7 +130,7 @@ inline size_t GetDataSize(TVMArray* arr) {
   for (tvm_index_t i = 0; i < arr->ndim; ++i) {
     size *= arr->shape[i];
   }
-  size *= (arr->dtype.bits / 8) * arr->dtype.lanes;
+  size *= (arr->dtype.bits * arr->dtype.lanes + 7) / 8;
   return size;
 }
 
@@ -394,6 +394,40 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
   API_END();
 }
 
+int TVMArrayCopyFromBytes(TVMArrayHandle handle,
+                          void* data,
+                          size_t nbytes) {
+  API_BEGIN();
+  TVMContext cpu_ctx;
+  cpu_ctx.device_type = kCPU;
+  cpu_ctx.device_id = 0;
+  size_t arr_size = GetDataSize(handle);
+  CHECK_EQ(arr_size, nbytes)
+      << "TVMArrayCopyFromBytes: size mismatch";
+  DeviceAPIManager::Get(handle->ctx)->CopyDataFromTo(
+      data, 0,
+      handle->data, handle->byte_offset,
+      nbytes, cpu_ctx, handle->ctx, nullptr);
+  API_END();
+}
+
+int TVMArrayCopyToBytes(TVMArrayHandle handle,
+                        void* data,
+                        size_t nbytes) {
+  API_BEGIN();
+  TVMContext cpu_ctx;
+  cpu_ctx.device_type = kCPU;
+  cpu_ctx.device_id = 0;
+  size_t arr_size = GetDataSize(handle);
+  CHECK_EQ(arr_size, nbytes)
+      << "TVMArrayCopyToBytes: size mismatch";
+  DeviceAPIManager::Get(handle->ctx)->CopyDataFromTo(
+      handle->data, handle->byte_offset,
+      data, 0,
+      nbytes, handle->ctx, cpu_ctx, nullptr);
+  API_END();
+}
+
 int TVMSetStream(TVMContext ctx, TVMStreamHandle stream) {
   API_BEGIN();
   DeviceAPIManager::Get(ctx)->SetStream(ctx, stream);
@@ -403,6 +437,16 @@ int TVMSetStream(TVMContext ctx, TVMStreamHandle stream) {
 int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
   API_BEGIN();
   DeviceAPIManager::Get(ctx)->StreamSync(ctx, stream);
+  API_END();
+}
+
+int TVMCbArgToReturn(TVMValue* value, int code) {
+  API_BEGIN();
+  tvm::runtime::TVMRetValue rv;
+  rv = tvm::runtime::TVMArgValue(*value, code);
+  int tcode;
+  rv.MoveToCHost(value, &tcode);
+  CHECK_EQ(tcode, code);
   API_END();
 }
 

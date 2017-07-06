@@ -1,19 +1,19 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * Implementation of C API
- * \file c_api.cc
+ *  Implementation of DSL API
+ * \file dsl_api.cc
  */
 #include <dmlc/base.h>
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
-#include <tvm/c_api.h>
 #include <tvm/api_registry.h>
 #include <vector>
 #include <string>
 #include <exception>
-#include "../runtime/runtime_base.h"
+#include "../runtime/dsl_api.h"
 
-
+namespace tvm {
+namespace runtime {
 /*! \brief entry to to easily hold returning information */
 struct TVMAPIThreadLocalEntry {
   /*! \brief result holder for returning strings */
@@ -23,8 +23,6 @@ struct TVMAPIThreadLocalEntry {
   /*! \brief result holder for retruning string */
   std::string ret_str;
 };
-
-using namespace tvm;
 
 /*! \brief Thread local store that can be used to hold return values. */
 typedef dmlc::ThreadLocalStore<TVMAPIThreadLocalEntry> TVMAPIThreadLocalStore;
@@ -96,84 +94,71 @@ struct APIAttrDir : public AttrVisitor {
   }
 };
 
-
-int TVMNodeFree(NodeHandle handle) {
-  API_BEGIN();
-  delete static_cast<TVMAPINode*>(handle);
-  API_END();
-}
-
-int TVMCbArgToReturn(TVMValue* value, int code) {
-  API_BEGIN();
-  tvm::runtime::TVMRetValue rv;
-  rv = tvm::runtime::TVMArgValue(*value, code);
-  int tcode;
-  rv.MoveToCHost(value, &tcode);
-  CHECK_EQ(tcode, code);
-  API_END();
-}
-
-int TVMNodeTypeKey2Index(const char* type_key,
-                         int* out_index) {
-  API_BEGIN();
-  *out_index = static_cast<int>(Node::TypeKey2Index(type_key));
-  API_END();
-}
-
-int TVMNodeGetTypeIndex(NodeHandle handle,
-                        int* out_index) {
-  API_BEGIN();
-  *out_index = static_cast<int>(
-      (*static_cast<TVMAPINode*>(handle))->type_index());
-  API_END();
-}
-
-int TVMNodeGetAttr(NodeHandle handle,
-                   const char* key,
-                   TVMValue* ret_val,
-                   int* ret_type_code,
-                   int* ret_success) {
-  API_BEGIN();
-  TVMRetValue rv;
-  APIAttrGetter getter;
-  getter.skey = key;
-  getter.ret = &rv;
-  TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
-  if (getter.skey == "type_key") {
-    ret_val->v_str = (*tnode)->type_key();
-    *ret_type_code = kStr;
-    *ret_success = 1;
-  } else {
-    (*tnode)->VisitAttrs(&getter);
-    *ret_success = getter.found_node_ref || rv.type_code() != kNull;
-    if (rv.type_code() == kStr ||
-        rv.type_code() == kTVMType) {
-      TVMAPIThreadLocalEntry *e = TVMAPIThreadLocalStore::Get();
-      e->ret_str = rv.operator std::string();
+class DSLAPIImpl : public DSLAPI {
+ public:
+  void NodeFree(NodeHandle handle) const final {
+    delete static_cast<TVMAPINode*>(handle);
+  }
+  void NodeTypeKey2Index(const char* type_key,
+                        int* out_index) const final {
+    *out_index = static_cast<int>(Node::TypeKey2Index(type_key));
+  }
+  void NodeGetTypeIndex(NodeHandle handle,
+                          int* out_index) const final {
+    *out_index = static_cast<int>(
+        (*static_cast<TVMAPINode*>(handle))->type_index());
+  }
+  void NodeGetAttr(NodeHandle handle,
+                  const char* key,
+                  TVMValue* ret_val,
+                  int* ret_type_code,
+                  int* ret_success) const final {
+    TVMRetValue rv;
+    APIAttrGetter getter;
+    getter.skey = key;
+    getter.ret = &rv;
+    TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
+    if (getter.skey == "type_key") {
+      ret_val->v_str = (*tnode)->type_key();
       *ret_type_code = kStr;
-      ret_val->v_str = e->ret_str.c_str();
+      *ret_success = 1;
     } else {
-      rv.MoveToCHost(ret_val, ret_type_code);
+      (*tnode)->VisitAttrs(&getter);
+      *ret_success = getter.found_node_ref || rv.type_code() != kNull;
+      if (rv.type_code() == kStr ||
+          rv.type_code() == kTVMType) {
+        TVMAPIThreadLocalEntry *e = TVMAPIThreadLocalStore::Get();
+        e->ret_str = rv.operator std::string();
+        *ret_type_code = kStr;
+        ret_val->v_str = e->ret_str.c_str();
+      } else {
+        rv.MoveToCHost(ret_val, ret_type_code);
+      }
     }
   }
-  API_END();
-}
-
-int TVMNodeListAttrNames(NodeHandle handle,
-                         int *out_size,
-                         const char*** out_array) {
-  TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
-  API_BEGIN();
-  ret->ret_vec_str.clear();
-  TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
-  APIAttrDir dir;
-  dir.names = &(ret->ret_vec_str);
-  (*tnode)->VisitAttrs(&dir);
-  ret->ret_vec_charp.clear();
-  for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
-    ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
+  void NodeListAttrNames(NodeHandle handle,
+                        int *out_size,
+                        const char*** out_array) const final {
+    TVMAPIThreadLocalEntry *ret = TVMAPIThreadLocalStore::Get();
+    ret->ret_vec_str.clear();
+    TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
+    APIAttrDir dir;
+    dir.names = &(ret->ret_vec_str);
+    (*tnode)->VisitAttrs(&dir);
+    ret->ret_vec_charp.clear();
+    for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
+      ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
+    }
+    *out_array = dmlc::BeginPtr(ret->ret_vec_charp);
+    *out_size = static_cast<int>(ret->ret_vec_str.size());
   }
-  *out_array = dmlc::BeginPtr(ret->ret_vec_charp);
-  *out_size = static_cast<int>(ret->ret_vec_str.size());
-  API_END();
-}
+};
+
+TVM_REGISTER_GLOBAL("dsl_api.singleton")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    static DSLAPIImpl impl;
+    void* ptr = &impl;
+    *rv = ptr;
+  });
+}  // namespace runtime
+}  // namespace tvm

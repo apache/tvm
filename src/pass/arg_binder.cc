@@ -16,15 +16,15 @@ namespace ir {
 void BinderAddAssert(Expr cond,
                      const std::string& arg_name,
                      std::vector<Stmt>* asserts) {
-  cond = Simplify(cond);
-  if (is_zero(cond)) {
+  Expr scond = Simplify(cond);
+  if (is_zero(scond)) {
     LOG(FATAL) << "Bind have an unmet assertion: "
                << cond << ", " << " on argument " << arg_name;
   }
-  if (!is_one(cond)) {
+  if (!is_one(scond)) {
     std::ostringstream os;
     os << "Argument " << arg_name << " has an unsatisfied constraint";
-    asserts->emplace_back(AssertStmt::make(cond, os.str(), Evaluate::make(0)));
+    asserts->emplace_back(AssertStmt::make(scond, os.str(), Evaluate::make(0)));
   }
 }
 
