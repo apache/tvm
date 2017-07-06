@@ -1380,7 +1380,7 @@ void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
   // Detect useful invariant pattern and use them to visit child.
   // Pattern: Var % const  == 0
   // TODO(tqchen) move these pattern to a generic scope info visitor.
-  if (const EQ* eq = op->condition.as<EQ>()){
+  if (const EQ* eq = op->condition.as<EQ>()) {
     const Mod* mod = eq->a.as<Mod>();
     int64_t factor, offset;
     if (mod && arith::GetConst(eq->b, &offset)) {
