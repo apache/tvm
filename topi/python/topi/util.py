@@ -21,3 +21,15 @@ def get_const_tuple(in_tuple):
             raise ValueError("Element of input tuple should be IntImm")
         out_tuple = out_tuple + (elem.value, )
     return out_tuple
+
+def is_output(op, schedule):
+    """Determines whether op is the last stage of schedule."""
+    return str([op]) == str(schedule.outputs)
+
+def is_ewise(op):
+    """Determines whether op is ewise."""
+    return op.tag == 'ewise'
+
+def is_depthconv(op):
+    """"Determines whether op is depthconv."""
+    return op.tag == 'depthconv'
