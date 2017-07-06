@@ -93,6 +93,14 @@ class StorageAccessPatternFinder final : public IRVisitor {
           AccessEntry(buf, op->index, kRead, GetScope(buf)));
     }
   }
+  void Visit_(const Call* op) final {
+    if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+      const Load* l = op->args[0].as<Load>();
+      this->Visit(l->index);
+    } else {
+      IRVisitor::Visit_(op);
+    }
+  }
   void Visit_(const Variable* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_scope_level_.find(buf);

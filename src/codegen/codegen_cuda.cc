@@ -14,6 +14,10 @@
 namespace tvm {
 namespace codegen {
 
+CodeGenCUDA::CodeGenCUDA() {
+  restrict_keyword_ = "__restrict__";
+}
+
 void CodeGenCUDA::Init(bool output_ssa) {
   CodeGenC::Init(output_ssa);
   vid_global_barrier_state_ = GetUniqueName(runtime::symbol::tvm_global_barrier_state);

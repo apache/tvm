@@ -12,6 +12,10 @@
 namespace tvm {
 namespace codegen {
 
+CodeGenOpenCL::CodeGenOpenCL() {
+  restrict_keyword_ = "restrict";
+}
+
 void CodeGenOpenCL::InitFuncState(LoweredFunc f) {
   CodeGenC::InitFuncState(f);
   for (Var arg : f->args) {

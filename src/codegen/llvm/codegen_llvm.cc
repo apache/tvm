@@ -5,6 +5,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/ir_pass.h>
 #include "./codegen_llvm.h"
 #include "../../pass/ir_util.h"
@@ -65,6 +66,8 @@ void CodeGenLLVM::Init(const std::string& module_name,
     md_very_likely_branch_ =
         md_builder_->createBranchWeights(1 << 30, 0);
     md_tbaa_root_ = md_builder_->createTBAARoot("tvmtbaa");
+    md_tbaa_alias_set_ = md_builder_->createTBAAScalarTypeNode(
+        "alias_set", md_tbaa_root_);
   }
   ctx_ = ctx;
   // initialize modules
@@ -131,10 +134,12 @@ void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
   align_map_.clear();
   alloc_storage_info_.clear();
+  alias_var_set_.clear();
 }
 
 void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
   this->InitFuncState();
+  is_restricted_ = f->is_restricted;
   CHECK(!module_->getFunction(f->name))
       << "Function " << f->name << "already exists in module";
   std::vector<llvm::Type*> arg_type;
@@ -143,6 +148,9 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
     if (t.is_handle() && f->handle_data_type.count(arg)) {
       arg_type.push_back(
           LLVMType(f->handle_data_type[arg].type())->getPointerTo());
+      if (!is_restricted_) {
+        alias_var_set_.insert(arg.get());
+      }
     } else {
       arg_type.push_back(LLVMType(t));
     }
@@ -265,6 +273,14 @@ llvm::BasicBlock* CodeGenLLVM::CheckCallSuccess(llvm::Value* retcode) {
 
 void CodeGenLLVM::AddAliasInfo(
     llvm::Instruction* inst, const Variable* buffer, Expr index, Type t) {
+  if (alias_var_set_.count(buffer) != 0) {
+    // Mark all possibly aliased pointer as same type.
+    llvm::MDNode* meta = md_tbaa_alias_set_;
+    inst->setMetadata(
+        "tbaa",
+        md_builder_->createTBAAStructTagNode(meta, meta, 0));
+    return;
+  }
   int base = 0, width = 0;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges.
@@ -1324,10 +1340,10 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
         LLVMType(op->type), ConstInt32(constant_size));
     buf = alloca;
     StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
-    // Align stack to be multiple of 4 if it is
+    // Align stack to be TempAllocaAlignment.
     // TODO(tqchen) have pass to detect vector access and pre-set alignment
     if (constant_size % 4 == 0 && info.alignment == 0) {
-      info.alignment = op->type.bytes() * 4;
+      info.alignment = GetTempAllocaAlignment(op->type, constant_size);
     }
     if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
       alloca->setAlignment(info.alignment);
@@ -1408,6 +1424,11 @@ void CodeGenLLVM::VisitStmt_(const LetStmt* op) {
   llvm::Value* v = MakeValue(op->value);
   CHECK(!var_map_.count(op->var.get()));
   CHECK(!align_map_.count(op->var.get()));
+  if (op->var.type().is_handle()) {
+    if (!is_restricted_) {
+      alias_var_set_.insert(op->var.get());
+    }
+  }
   var_map_[op->var.get()] = v;
   align_map_[op->var.get()] = arith::EvalModular(op->value, align_map_);
   this->VisitStmt(op->body);

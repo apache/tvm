@@ -167,6 +167,8 @@ class CodeGenC :
   // override
   void PrintSSAAssign(
       const std::string& target, const std::string& src, Type t) final;
+  /*! \brief restrict keyword */
+  std::string restrict_keyword_{""};
   /*! \brief the storage scope of allocation */
   std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
