@@ -51,6 +51,9 @@ GetLLVMTargetMachine(const std::string& target_str) {
   if (target_str.length() > 5) {
     std::istringstream is(target_str.substr(5, target_str.length() - 5));
     while (is >> key) {
+      if (key == "--system-lib" || key == "-system-lib") {
+        continue;
+      }
       size_t pos = key.find('=');
       if (pos != std::string::npos) {
         CHECK_GE(key.length(), pos + 1)

@@ -4,7 +4,6 @@
  */
 #include <dmlc/json.h>
 #include <dmlc/logging.h>
-#include <tvm/runtime/packed_func.h>
 #include <fstream>
 #include "./file_util.h"
 

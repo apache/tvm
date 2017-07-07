@@ -1,14 +1,13 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file module.cc
- * \brief The global registry of packed function.
+ * \brief TVM module system
  */
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <unordered_set>
 #include "./file_util.h"
-#include "./meta_data.h"
 
 namespace tvm {
 namespace runtime {

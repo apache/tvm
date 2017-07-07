@@ -11,13 +11,6 @@
 #include <vector>
 #include "./runtime_base.h"
 
-extern "C" {
-// Function signature for generated packed function in shared library
-typedef int (*BackendPackedCFunc)(void* args,
-                                  int* type_codes,
-                                  int num_args);
-}  // extern "C"
-
 namespace tvm {
 namespace runtime {
 

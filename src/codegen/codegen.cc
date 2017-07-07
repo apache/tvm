@@ -35,7 +35,7 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
   return m;
 }
 
-std::string PackImportsToC(const runtime::Module& mod) {
+std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
@@ -55,29 +55,39 @@ std::string PackImportsToC(const runtime::Module& mod) {
      << "extern \"C\" {\n"
      << "#endif\n";
   os << "extern const char " << runtime::symbol::tvm_dev_mblob << "[];\n";
-  os << "extern const unsigned long " << runtime::symbol::tvm_dev_mblob_nbytes << ";\n";
+  uint64_t nbytes = bin.length();
   os << "const char " << runtime::symbol::tvm_dev_mblob
-     << "[" << bin.length() << "] = {\n  ";
+     << "[" << bin.length() + sizeof(nbytes) << "] = {\n  ";
   os << std::hex;
   size_t nunit = 80 / 4;
-  for (size_t i = 0; i < bin.length(); ++i) {
+  for (size_t i = 0; i < sizeof(nbytes); ++i) {
     // sperators
     if (i != 0) {
-      if (i % nunit == 0) {
-        os << ",\n  ";
-      } else {
-        os << ",";
-      }
+      os << ",";
+    }
+    os << "0x" << ((nbytes >> (i * 8)) & 0xffUL);
+  }
+  for (size_t i = 0; i < bin.length(); ++i) {
+    // sperators
+    if ((i + sizeof(nbytes)) % nunit == 0) {
+      os << ",\n  ";
+    } else {
+      os << ",";
     }
     int c = bin[i];
     os << "0x" << (c & 0xff);
   }
-  os << "\n};\n"
-     << "const unsigned long " << runtime::symbol::tvm_dev_mblob_nbytes
-     << " = " << std::dec << bin.length() << "UL;\n"
-     << "#ifdef __cplusplus\n"
+  os << "\n};\n";
+  if (system_lib) {
+    os << "extern int TVMBackendRegisterSystemLibSymbol(const char*, void*);\n";
+    os << "static int " << runtime::symbol::tvm_dev_mblob << "_reg_ = "
+       << "TVMBackendRegisterSystemLibSymbol(\"" << runtime::symbol::tvm_dev_mblob << "\", (void*)"
+       << runtime::symbol::tvm_dev_mblob << ");\n";
+  }
+  os << "#ifdef __cplusplus\n"
      << "}\n"
      << "#endif\n";
+
   return os.str();
 }
 }  // namespace codegen

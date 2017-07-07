@@ -28,6 +28,7 @@
 #include <llvm/IR/MDBuilder.h>
 
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/IPO.h>
 
@@ -54,6 +55,7 @@ void InitializeLLVM();
 /*!
  * \brief Get target machine from target_str string.
  * \param target_str Target string, in format "llvm -target=xxx -mcpu=xxx"
+ *
  * \return target machine
  */
 llvm::TargetMachine*

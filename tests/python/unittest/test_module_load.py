@@ -1,5 +1,6 @@
 import tvm
 from tvm.contrib import cc_compiler as cc, util
+import ctypes
 import os
 import numpy as np
 import subprocess
@@ -86,7 +87,8 @@ def test_device_module_dump():
             print("Skip because %s is not enabled" % device)
             return
         temp = util.tempdir()
-        f = tvm.build(s, [A, B], device, name="myadd")
+        name = "myadd_%s" % device
+        f = tvm.build(s, [A, B], device, "llvm -system-lib", name=name)
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
 
@@ -94,6 +96,9 @@ def test_device_module_dump():
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
         f1(a, b)
+        f2 = tvm.module.system_lib()
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        f2[name](a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     check_device("cuda")
@@ -134,7 +139,35 @@ def test_combine_module_llvm():
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         fadd2(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+    def check_system_lib():
+        ctx = tvm.cpu(0)
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled" )
+            return
+        temp = util.tempdir()
+        fadd1 = tvm.build(s, [A, B], "llvm -system-lib", name="myadd1")
+        fadd2 = tvm.build(s, [A, B], "llvm -system-lib", name="myadd2")
+        path1 = temp.relpath("myadd1.o")
+        path2 = temp.relpath("myadd2.o")
+        path_dso = temp.relpath("mylib.so")
+        fadd1.save(path1)
+        fadd2.save(path2)
+        cc.create_shared(path_dso, [path1, path2])
+        # Load dll, will trigger system library registration
+        dll = ctypes.CDLL(path_dso)
+        # Load the system wide library
+        mm = tvm.module.system_lib()
+        a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
+        mm['myadd1'](a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        mm['myadd2'](a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+    check_system_lib()
     check_llvm()
+
 
 
 if __name__ == "__main__":
