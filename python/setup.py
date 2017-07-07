@@ -67,6 +67,7 @@ setuptools.setup(
     description='A domain specific language(DSL) for tensor computations.',
     install_requires=[
         'numpy',
+        'decorator',
         ],
     zip_safe=False,
     packages=[
