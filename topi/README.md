@@ -21,6 +21,10 @@ optimizing tvm generated kernels. The goal
   - Some kernels have requirements on shape and data layout, assert them
 - Data layout aware, if not specified in argument or in function, assume NCHW by default.
 
+## Testcase
+- Add testcases to testout the schedule and dataflow in the TOPI workflow
+- Only do correctness testing without attaching compiler flags and only run it once.
+
 ## Performance Tuning Workflow
 Since TVM is work in progress, some optimization might not be perfect.
 One quick way I find useful is to do codegen plus manual modification.

@@ -169,6 +169,7 @@ stage('Integration Test') {
         unpack_lib('gpu')
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} gpu ./tests/scripts/task_python_topi.sh"
         }
       }
     }
