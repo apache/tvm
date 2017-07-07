@@ -1,12 +1,9 @@
 import os
-import sys
 import tvm
 import numpy as np
 from scipy import signal
 from tvm.contrib import nvcc_compiler
 
-DIR_PATH = os.path.realpath(os.path.dirname(__file__))
-sys.path.append(os.path.join(DIR_PATH, '..', '..', 'python'))
 import topi
 from topi.nn.util import get_const_tuple
 from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
