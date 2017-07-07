@@ -15,3 +15,4 @@ Python API
    function
    contrib
    dev
+   topi

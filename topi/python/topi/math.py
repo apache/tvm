@@ -85,20 +85,3 @@ def sigmoid(x):
         The result.
     """
     return tvm.compute(x.shape, lambda *i: tvm.sigmoid(x(*i)))
-
-
-@tvm.tag_scope(tag="ewise")
-def relu(x):
-    """Take relu of input x.
-
-    Parameters
-    ----------
-    x : tvm.Tensor
-        Input argument.
-
-    Returns
-    -------
-    y : tvm.Tensor
-        The result.
-    """
-    return tvm.compute(x.shape, lambda *i: tvm.max(x(*i), 0))
