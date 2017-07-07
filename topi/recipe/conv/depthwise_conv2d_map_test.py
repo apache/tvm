@@ -1,9 +1,12 @@
 import os
+import sys
 import tvm
 import numpy as np
 from scipy import signal
 from tvm.contrib import nvcc_compiler
 
+DIR_PATH = os.path.realpath(os.path.dirname(__file__))
+sys.path.append(os.path.join(DIR_PATH, '..', '..', 'python'))
 import topi
 from topi.nn.util import get_const_tuple
 from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
@@ -78,12 +81,14 @@ def test_depthwise_conv2d_map():
             index_w = pad_left_scipy - pad_left_tvm
             for i in range(batch):
                 for j in range(out_channel):
-                    depthwise_conv2d_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2),
+                    depthwise_conv2d_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j // channel_multiplier,:,:],
+                                                                        np.rot90(filter_np[j // channel_multiplier,j%channel_multiplier,:,:], 2),
                         mode='same')[index_h:in_height:stride_h, index_w:in_width:stride_w]
         if padding == 'VALID':
             for i in range(batch):
                 for j in range(out_channel):
-                    depthwise_conv2d_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2),
+                    depthwise_conv2d_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j // channel_multiplier,:,:],
+                                                                        np.rot90(filter_np[j // channel_multiplier,j%channel_multiplier,:,:], 2),
                         mode='valid')[0:(in_height - filter_height + 1):stride_h, 0:(in_width - filter_height + 1):stride_w]
         for c in range(out_channel):
             scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
@@ -132,7 +137,7 @@ def test_depthwise_conv2d_map():
         np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
-        print "success"
+        print("success")
 
     with tvm.build_config(auto_unroll_max_step=32,
                           auto_unroll_min_depth=0,
