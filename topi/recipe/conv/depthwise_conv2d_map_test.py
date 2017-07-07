@@ -1,15 +1,37 @@
+import os
 import tvm
-import numpy as np
-from topi.util import *
-from scipy import signal
 import time
+import numpy as np
+from scipy import signal
+from topi.nn.util import *
+from tvm.contrib import nvcc_compiler
 
 from topi.ewise import relu
-from topi.nn import scale_shift
-from topi.conv import depthconv
-from topi.cuda.depthconv_map import schedule_depthconv_map
+from topi.nn import scale_shift, depthwise_conv2d
+from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
 
-def test_depthconv_map():
+TASK = "depthwise_conv2d_map"
+USE_MANUAL_CODE = False
+
+@tvm.register_func
+def tvm_callback_cuda_compile(code):
+    ptx = nvcc_compiler.compile_source(code, target="ptx", options=["-arch=sm_52"])
+    return ptx
+
+def write_code(code, fname):
+    with open(fname, "w") as f:
+        f.write(code)
+
+@tvm.register_func
+def tvm_callback_cuda_postproc(code):
+    if not os.path.exists("perf"):
+        os.mkdir("perf")
+    write_code(code, "perf/%s_generated.cu" % TASK)
+    if USE_MANUAL_CODE:
+        code = open("perf/%s_manual.cu" % TASK).read()
+    return code
+
+def test_depthwise_conv2d_map():
     """You may test different settings."""
     batch = 2
     in_channel = 256
@@ -33,20 +55,20 @@ def test_depthconv_map():
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # Declare
-    DepthConv = depthconv(Input, Filter, Stride, padding)
-    ScaleShift = scale_shift(DepthConv, Scale, Shift)
+    DepthwiseConv2d = depthwise_conv2d(Input, Filter, Stride, padding)
+    ScaleShift = scale_shift(DepthwiseConv2d, Scale, Shift)
     Relu = relu(ScaleShift)
     # Schedule
-    s1 = schedule_depthconv_map(DepthConv.op)
-    s2 = schedule_depthconv_map(ScaleShift.op)
-    s3 = schedule_depthconv_map(Relu.op)
+    s1 = schedule_depthwise_conv2d_map(DepthwiseConv2d.op)
+    s2 = schedule_depthwise_conv2d_map(ScaleShift.op)
+    s3 = schedule_depthwise_conv2d_map(Relu.op)
 
-    def depthconv_map_scipy(input_np, filter_np, scale_np, shift_np):
-        out_shape = get_const_tuple(DepthConv.shape)
+    def depthwise_conv2d_map_scipy(input_np, filter_np, scale_np, shift_np):
+        out_shape = get_const_tuple(DepthwiseConv2d.shape)
         out_channel = out_shape[1]
         out_height = out_shape[2]
         out_width = out_shape[3]
-        depthconv_scipy = np.zeros((batch, out_channel, out_height, out_width), dtype=DepthConv.dtype)
+        depthwise_conv2d_scipy = np.zeros((batch, out_channel, out_height, out_width), dtype=DepthwiseConv2d.dtype)
         scale_shift_scipy = np.zeros((batch, out_channel, out_height, out_width), dtype=ScaleShift.dtype)
         relu_scipy = np.zeros((batch, out_channel, out_height, out_width), dtype=Relu.dtype)
         if padding == 'SAME':
@@ -58,17 +80,17 @@ def test_depthconv_map():
             index_w = pad_left_scipy - pad_left_tvm
             for i in range(batch):
                 for j in range(out_channel):
-                    depthconv_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2),
+                    depthwise_conv2d_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2),
                         mode='same')[index_h:in_height:stride_h, index_w:in_width:stride_w]
         if padding == 'VALID':
             for i in range(batch):
                 for j in range(out_channel):
-                    depthconv_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2),
+                    depthwise_conv2d_scipy[i,j,:,:] = signal.convolve2d(input_np[i,j/channel_multiplier,:,:], np.rot90(filter_np[j/channel_multiplier,j%channel_multiplier,:,:], 2),
                         mode='valid')[0:(in_height - filter_height + 1):stride_h, 0:(in_width - filter_height + 1):stride_w]
         for c in range(out_channel):
-            scale_shift_scipy[:,c,:,:] = depthconv_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
+            scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
         relu_scipy[:,:,:,:] = np.maximum(scale_shift_scipy[:,:,:,:], 0)
-        return depthconv_scipy, scale_shift_scipy, relu_scipy
+        return depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -76,7 +98,7 @@ def test_depthconv_map():
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         # Build the kernel
-        f1 = tvm.build(s1, [Input, Filter, DepthConv], device)
+        f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
         f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
         # Prepare data
@@ -88,18 +110,18 @@ def test_depthconv_map():
         shift_np = np.random.uniform(size=(in_channel * channel_multiplier)).astype(Shift.dtype)
         scale_tvm = tvm.nd.array(scale_np, ctx)
         shift_tvm = tvm.nd.array(shift_np, ctx)
-        depthconv_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthConv.shape), dtype=DepthConv.dtype), ctx)
+        depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx)
         scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
-        # Launch kernel 1 (depthconv)
-        f1(input_tvm, filter_tvm, depthconv_tvm)
+        # Launch kernel 1 (depthwise_conv2d)
+        f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
         ctx.sync()
         start = time.time()
         for i in range(10000):
-            f1(input_tvm, filter_tvm, depthconv_tvm)
+            f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
         ctx.sync()
         elapsed_time_1 = time.time() - start
-        # Launch kernel 2 (depthconv + scale_shift)
+        # Launch kernel 2 (depthwise_conv2d + scale_shift)
         f2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
         ctx.sync()
         start = time.time()
@@ -107,7 +129,7 @@ def test_depthconv_map():
             f2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
         ctx.sync()
         elapsed_time_2 = time.time() - start
-        # Launch kernel 3 (depthconv + scale_shift + relu)
+        # Launch kernel 3 (depthwise_conv2d + scale_shift + relu)
         f3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm)
         ctx.sync()
         start = time.time()
@@ -119,17 +141,17 @@ def test_depthconv_map():
         print("Filter shape = " + str(get_const_tuple(Filter.shape)))
         print("Stride = (%d, %d)" % (stride_h, stride_w))
         print("padding = %s\n" % padding)
-        print("Output shape = " + str(get_const_tuple(DepthConv.shape)))
-        print("time cost of 10000 iterations (depthconv) = %g sec" % elapsed_time_1)
-        print("time cost of 10000 iterations (depthconv + scale_shift) = %g sec" % elapsed_time_2)
-        print("time cost of 10000 iterations (depthconv + scale_shift + relu) = %g sec" % elapsed_time_3)
-        depthconv_scipy, scale_shift_scipy, relu_scipy = depthconv_map_scipy(input_np, filter_np, scale_np, shift_np)
-        np.testing.assert_allclose(depthconv_tvm.asnumpy(), depthconv_scipy, rtol=1e-5)
+        print("Output shape = " + str(get_const_tuple(DepthwiseConv2d.shape)))
+        print("time cost of 10000 iterations (depthwise_conv2d) = %g sec" % elapsed_time_1)
+        print("time cost of 10000 iterations (depthwise_conv2d + scale_shift) = %g sec" % elapsed_time_2)
+        print("time cost of 10000 iterations (depthwise_conv2d + scale_shift + relu) = %g sec" % elapsed_time_3)
+        depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy = depthwise_conv2d_map_scipy(input_np, filter_np, scale_np, shift_np)
+        np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print "success"
 
-    unroll_explicit = (get_const_tuple(DepthConv.shape)[2] % 8 == 0)
+    unroll_explicit = (get_const_tuple(DepthwiseConv2d.shape)[2] % 8 == 0)
     with tvm.build_config(auto_unroll_max_step=32,
                           auto_unroll_min_depth=0,
                           unroll_explicit=unroll_explicit,
@@ -138,4 +160,4 @@ def test_depthconv_map():
         check_device("cuda")
 
 if __name__ == "__main__":
-    test_depthconv_map()
+    test_depthwise_conv2d_map()

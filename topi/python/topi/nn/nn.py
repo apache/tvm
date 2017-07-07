@@ -1,13 +1,36 @@
 # pylint: disable=invalid-name, line-too-long, wildcard-import, unused-variable
-"""Convolution operators"""
+"""Neural network operators"""
 from __future__ import absolute_import as _abs
 import tvm
 import numpy as np
-from topi.util import get_const_tuple
+from .util import get_const_tuple
 
-@tvm.tag_scope(tag="depthconv")
-def depthconv(Input, Filter, Stride, padding):
-    """Depthwise convolution operator.
+@tvm.tag_scope(tag="scale_shift")
+def scale_shift(Input, Scale, Shift):
+    """Batch normalization operator in inference.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+    	Input tensor, layout is NCHW
+
+    Scale : tvm.Tensor
+    	Scale tensor, 1-D of size channel number
+
+    Shift : tvm.Tensor
+    	Shift tensor, 1-D of size channel number
+
+    Returns
+    -------
+    Output : tvm.Tensor
+    	Output tensor, layout is NCHW
+    """
+    return tvm.compute(Input.shape, lambda b, c, i, j: Input[b, c, i, j] * Scale[c] + Shift[c], name='ScaleShift')
+
+
+@tvm.tag_scope(tag="depthwise_conv2d")
+def depthwise_conv2d(Input, Filter, Stride, padding):
+    """Depthwise convolution operator, as depthwise_conv2d in tensorflow.
 
     Parameters
     ----------
@@ -15,18 +38,18 @@ def depthconv(Input, Filter, Stride, padding):
         4-D with shape [batch, in_channel, in_height, in_width]
 
     Filter : tvm.Tensor
-    	4-D with shape [in_channel, channel_multiplier, filter_height, filter_width]
+        4-D with shape [in_channel, channel_multiplier, filter_height, filter_width]
 
     Stride : tvm.Tensor
-    	1-D of size 2
+        1-D of size 2
 
     padding : str
-    	'VALID' or 'SAME'
+        'VALID' or 'SAME'
 
     Returns
     -------
     Output : tvm.Tensor
-    	4-D with shape [batch, out_channel, out_height, out_width]
+        4-D with shape [batch, out_channel, out_height, out_width]
     """
     in_shape = get_const_tuple(Input.shape)
     batch = in_shape[0]
@@ -72,5 +95,5 @@ def depthconv(Input, Filter, Stride, padding):
         lambda b, c, i, j: tvm.sum(
             PaddedInput[b, c/channel_multiplier, i*stride_h + di, j*stride_w + dj] * Filter[c/channel_multiplier, c%channel_multiplier, di, dj],
             axis=[di, dj]),
-        name='DepthConv')
+        name='DepthwiseConv2d')
     return Output
