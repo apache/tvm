@@ -25,7 +25,7 @@ def create_shared(output,
         The compile string.
     """
     cmd = [cc]
-    cmd += ["-shared"]
+    cmd += ["-shared", "-fPIC"]
 
     if sys.platform == "darwin":
         cmd += ["-undefined", "dynamic_lookup"]

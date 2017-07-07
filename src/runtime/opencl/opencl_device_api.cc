@@ -13,9 +13,9 @@ namespace tvm {
 namespace runtime {
 namespace cl {
 
-OpenCLWorkspace* OpenCLWorkspace::Global() {
-  static OpenCLWorkspace inst;
-  return &inst;
+const std::shared_ptr<OpenCLWorkspace>& OpenCLWorkspace::Global() {
+  static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<OpenCLWorkspace>();
+  return inst;
 }
 
 void OpenCLWorkspace::SetDevice(TVMContext ctx) {
@@ -210,14 +210,13 @@ void OpenCLWorkspace::Init() {
 }
 
 bool InitOpenCL(TVMArgs args, TVMRetValue* rv) {
-  cl::OpenCLWorkspace* w = cl::OpenCLWorkspace::Global();
-  w->Init();
+  cl::OpenCLWorkspace::Global()->Init();
   return true;
 }
 
 TVM_REGISTER_GLOBAL("device_api.opencl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = OpenCLWorkspace::Global();
+    DeviceAPI* ptr = OpenCLWorkspace::Global().get();
     *rv = static_cast<void*>(ptr);
   });
 

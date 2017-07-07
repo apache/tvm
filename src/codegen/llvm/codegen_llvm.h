@@ -12,6 +12,7 @@
 #include <tvm/codegen.h>
 #include <tvm/arithmetic.h>
 #include <memory>
+#include <utility>
 #include <vector>
 #include <string>
 #include "./llvm_common.h"
@@ -39,10 +40,12 @@ class CodeGenLLVM :
    * \param module_name The name of the module.
    * \param tm Target machine model
    * \param ctx The context.
+   * \param system_lib Whether to insert system library registration.
    */
   void Init(const std::string& module_name,
             llvm::TargetMachine* tm,
-            llvm::LLVMContext* ctx);
+            llvm::LLVMContext* ctx,
+            bool system_lib);
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -163,7 +166,7 @@ class CodeGenLLVM :
   llvm::LLVMContext* ctx_{nullptr};
   // helpful data types
   llvm::Type* t_void_{nullptr};
-  llvm::Type* t_void_p_{nullptr};
+  llvm::PointerType* t_void_p_{nullptr};
   llvm::Type* t_int_{nullptr};
   llvm::Type* t_char_{nullptr};
   llvm::Type* t_int8_{nullptr};
@@ -188,6 +191,7 @@ class CodeGenLLVM :
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
   llvm::Function* f_tvm_api_set_last_error_{nullptr};
   llvm::Function* f_tvm_parallel_for_{nullptr};
+  llvm::Function* f_tvm_register_system_symbol_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
   /*! \brief native vector bits of current targetx*/
@@ -227,6 +231,8 @@ class CodeGenLLVM :
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
   // Add a function to set global module context
   void InitGlobalContext();
+  // Add module startup function if needed.
+  void AddStartupFunction();
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index, Type type);
   // The definition of local variable.
@@ -243,6 +249,8 @@ class CodeGenLLVM :
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
+  // List of symbols to be exported to TVM system lib.
+  std::vector<std::pair<std::string, llvm::Value*> > export_system_symbols_;
 };
 }  // namespace codegen
 }  // namespace tvm

@@ -40,10 +40,9 @@ class OpenCLModuleNode : public ModuleNode {
   ~OpenCLModuleNode() {
     {
       // free the kernel ids in global table.
-      cl::OpenCLWorkspace* w = cl::OpenCLWorkspace::Global();
-      std::lock_guard<std::mutex> lock(w->mu);
+      std::lock_guard<std::mutex> lock(workspace_->mu);
       for (auto& kv : kid_map_) {
-        w->free_kernel_ids.push_back(kv.second.kernel_id);
+        workspace_->free_kernel_ids.push_back(kv.second.kernel_id);
       }
     }
     // free the kernels
@@ -89,33 +88,33 @@ class OpenCLModuleNode : public ModuleNode {
   }
 
   // Initialize the programs
-  void InitProgram() {
-    cl::OpenCLWorkspace* w = cl::OpenCLWorkspace::Global();
-    w->Init();
-    CHECK(w->context != nullptr) << "No OpenCL device";
+  void Init() {
+    workspace_ = cl::OpenCLWorkspace::Global();
+    workspace_->Init();
+    CHECK(workspace_->context != nullptr) << "No OpenCL device";
     if (fmt_ == "cl") {
       const char* s = data_.c_str();
       size_t len = data_.length();
       cl_int err;
       program_ = clCreateProgramWithSource(
-          w->context, 1, &s, &len, &err);
+          workspace_->context, 1, &s, &len, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;
     }
-    device_built_flag_.resize(w->devices.size(), false);
+    device_built_flag_.resize(workspace_->devices.size(), false);
     // initialize the kernel id, need to lock global table.
-    std::lock_guard<std::mutex> lock(w->mu);
+    std::lock_guard<std::mutex> lock(workspace_->mu);
     for (const auto& kv : fmap_) {
       const std::string& key = kv.first;
       KTRefEntry e;
-      if (w->free_kernel_ids.size() != 0) {
-        e.kernel_id = w->free_kernel_ids.back();
-        w->free_kernel_ids.pop_back();
+      if (workspace_->free_kernel_ids.size() != 0) {
+        e.kernel_id = workspace_->free_kernel_ids.back();
+        workspace_->free_kernel_ids.pop_back();
       } else {
-        e.kernel_id = w->num_registered_kernels++;
+        e.kernel_id = workspace_->num_registered_kernels++;
       }
-      e.version = w->timestamp++;
+      e.version = workspace_->timestamp++;
       kid_map_[key] = e;
     }
   }
@@ -154,6 +153,9 @@ class OpenCLModuleNode : public ModuleNode {
   }
 
  private:
+  // The workspace, need to keep reference to use it in destructor.
+  // In case of static destruction order problem.
+  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
   // the binary data
   std::string data_;
   // The format
@@ -181,7 +183,7 @@ class OpenCLWrappedFunc {
             std::string func_name,
             std::vector<size_t> arg_size,
             const std::vector<std::string>& thread_axis_tags)  {
-    w_ = cl::OpenCLWorkspace::Global();
+    w_ = cl::OpenCLWorkspace::Global().get();
     m_ = m;
     sptr_ = sptr;
     entry_ = entry;
@@ -268,7 +270,7 @@ Module OpenCLModuleCreate(
     std::unordered_map<std::string, FunctionInfo> fmap) {
   std::shared_ptr<OpenCLModuleNode> n =
       std::make_shared<OpenCLModuleNode>(data, fmt, fmap);
-  n->InitProgram();
+  n->Init();
   return Module(n);
 }
 
