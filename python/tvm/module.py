@@ -86,7 +86,7 @@ class Module(ModuleBase):
             is_system_lib = True
         except AttributeError:
             is_system_lib = False
-            pass
+
         if self.imported_modules:
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:
