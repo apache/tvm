@@ -223,22 +223,30 @@ def build(sch,
         The target and option of the compilation.
         When the target is llvm, you can set options like:
 
-          * **-mtriple=<target triple>** or **-target**
+          - **-mtriple=<target triple>** or **-target**
 
             Specify the target triple, which is useful for cross
             compilation.
 
-          * **-mcpu=<cpuname>**
+          - **-mcpu=<cpuname>**
 
             Specify a specific chip in the current architecture to
             generate code for. By default this is infered from the
             target triple and autodetected to the current architecture.
 
-          * **-mattr=a1,+a2,-a3,...**
+          - **-mattr=a1,+a2,-a3,...**
 
             Override or control specific attributes of the target,
             such as whether SIMD operations are enabled or not. The
             default set of attributes is set by the current CPU.
+
+          - **-system-lib**
+
+            Build TVM system library module. System lib is a global module that contains
+            self registered functions in program startup. User can get the module using
+            :any:`tvm.module.system_lib`.
+            It is useful in environments where dynamic loading api like dlopen is banned.
+            The system lib will be available as long as the result code is linked by the program.
 
     target_host : str, optional
         Host compilation target, if target is device.

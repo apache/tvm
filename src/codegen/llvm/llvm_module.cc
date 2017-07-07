@@ -10,7 +10,7 @@
 #include "./llvm_common.h"
 #include "./codegen_llvm.h"
 #include "../../runtime/file_util.h"
-#include "../../runtime/meta_data.h"
+#include "../../runtime/module_util.h"
 
 namespace tvm {
 namespace codegen {
@@ -99,11 +99,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const Array<LoweredFunc>& funcs, std::string target) {
     InitializeLLVM();
     tm_ = GetLLVMTargetMachine(target);
+    bool system_lib = (target.find("-system-lib") != std::string::npos);
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_);
     entry_func_ = funcs[0]->name;
-    cg->Init(funcs[0]->name, tm_, ctx_.get());
+    cg->Init(funcs[0]->name, tm_, ctx_.get(), system_lib);
     for (LoweredFunc f :  funcs) {
       cg->AddFunction(f);
     }

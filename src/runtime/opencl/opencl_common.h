@@ -153,7 +153,7 @@ class OpenCLWorkspace final : public DeviceAPI {
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   // get the global workspace
-  static OpenCLWorkspace* Global();
+  static const std::shared_ptr<OpenCLWorkspace>& Global();
 };
 
 

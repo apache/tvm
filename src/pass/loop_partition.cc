@@ -113,7 +113,7 @@ class CandidateSelector final : public IRVisitor {
   std::unordered_set<const Node*> candidates;
 
  private:
-  bool in_likely_;
+  bool in_likely_{false};
   bool no_split_{false};
   std::unordered_map<const Variable*, VarIsUsed> record_;
 };

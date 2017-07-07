@@ -38,9 +38,10 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
  *  the dependency from the shared library.
  *
  * \param m The host module with the imports.
+ * \param system_lib Whether expose as system library.
  * \return cstr The C string representation of the file.
  */
-std::string PackImportsToC(const runtime::Module& m);
+std::string PackImportsToC(const runtime::Module& m, bool system_lib);
 }  // namespace codegen
 }  // namespace tvm
 

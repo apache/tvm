@@ -71,16 +71,26 @@ class Module(ModuleBase):
         file_name : str
             The name of the shared library.
         """
+        if self.type_key == "stacktvm":
+            raise ValueError("Module[%s]: export_library requires llvm module,"
+                             " did you build with LLVM enabled?" % self.type_key)
+
         if self.type_key != "llvm":
             raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
         temp = _util.tempdir()
         path_obj = temp.relpath("lib.o")
         self.save(path_obj)
         files = [path_obj]
+        try:
+            self.get_function("__tvm_module_startup")
+            is_system_lib = True
+        except AttributeError:
+            is_system_lib = False
+
         if self.imported_modules:
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:
-                f.write(_PackImportsToC(self))
+                f.write(_PackImportsToC(self, is_system_lib))
             files.append(path_cc)
         _cc.create_shared(file_name, files)
 
@@ -114,6 +124,27 @@ class Module(ModuleBase):
                 self, func_name, ctx.device_type, ctx.device_id, number)
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
+
+
+def system_lib():
+    """Get system-wide library module singleton.
+
+    System lib is a global module that contains self register functions in startup.
+    Unlike normal dso modules which need to be loaded explicitly.
+    It is useful in environments where dynamic loading api like dlopen is banned.
+
+    To build system lib function, simply specify target option ```llvm --system-lib```
+    The system lib will be available as long as the result code is linked by the program.
+
+    The system lib is intended to be linked and loaded during the entire life-cyle of the program.
+    If you want dynamic loading features, use dso modules instead.
+
+    Returns
+    -------
+    module : Module
+        The system-wide library module.
+    """
+    return _GetSystemLib()
 
 
 def load(path, fmt=""):

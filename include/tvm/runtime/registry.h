@@ -94,7 +94,7 @@ class Registry {
 #define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
 
 #define TVM_FUNC_REG_VAR_DEF                                            \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry& __make_ ## TVMOp
+  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry& __mk_ ## TVM
 
 /*!
  * \brief Register a function globally.
