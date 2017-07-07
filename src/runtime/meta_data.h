@@ -7,16 +7,11 @@
 #define TVM_RUNTIME_META_DATA_H_
 
 #include <dmlc/json.h>
+#include <dmlc/io.h>
+#include <tvm/runtime/packed_func.h>
 #include <string>
 #include <vector>
 #include "./runtime_base.h"
-
-extern "C" {
-// Function signature for generated packed function in shared library
-typedef int (*BackendPackedCFunc)(void* args,
-                                  int* type_codes,
-                                  int num_args);
-}  // extern "C"
 
 namespace tvm {
 namespace runtime {

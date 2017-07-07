@@ -28,7 +28,8 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(llvm::TargetMachine *tm) {
 
 void CodeGenLLVM::Init(const std::string& module_name,
                        llvm::TargetMachine* tm,
-                       llvm::LLVMContext* ctx) {
+                       llvm::LLVMContext* ctx,
+                       bool system_lib) {
   InitializeLLVM();
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   // static_assert(alignof(TVMValue) == alignof(double), "invariant");
@@ -36,6 +37,7 @@ void CodeGenLLVM::Init(const std::string& module_name,
   var_map_.clear();
   str_map_.clear();
   func_handle_map_.clear();
+  export_system_symbols_.clear();
   // initialize types.
   if (ctx_ != ctx) {
     t_void_ = llvm::Type::getVoidTy(*ctx);
@@ -96,6 +98,13 @@ void CodeGenLLVM::Init(const std::string& module_name,
           t_int64_, t_int64_, t_f_tvm_par_for_lambda_->getPointerTo(), t_void_p_}
         , false),
       llvm::Function::ExternalLinkage, "TVMBackendParallelFor", module_.get());
+  if (system_lib) {
+    f_tvm_register_system_symbol_ = llvm::Function::Create(
+        llvm::FunctionType::get(t_int_, {t_char_->getPointerTo(), t_void_p_}, false),
+        llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
+  } else {
+    f_tvm_register_system_symbol_ = nullptr;
+  }
   this->InitTarget(tm);
   // initialize builder
   builder_.reset(new IRBuilder(*ctx));
@@ -125,9 +134,15 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
 void CodeGenLLVM::InitGlobalContext() {
   gv_mod_ctx_ = new llvm::GlobalVariable(
       *module_, t_void_p_, false,
-      llvm::GlobalValue::LinkOnceAnyLinkage, 0, "__tvm_module_ctx");
+      llvm::GlobalValue::LinkOnceAnyLinkage, 0,
+      tvm::runtime::symbol::tvm_module_ctx);
   gv_mod_ctx_->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
   gv_mod_ctx_->setInitializer(llvm::Constant::getNullValue(t_void_p_));
+
+  if (f_tvm_register_system_symbol_ != nullptr) {
+    export_system_symbols_.emplace_back(
+        std::make_pair(tvm::runtime::symbol::tvm_module_ctx, gv_mod_ctx_));
+  }
 }
 
 void CodeGenLLVM::InitFuncState() {
@@ -171,6 +186,11 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
   builder_->SetInsertPoint(block);
   this->VisitStmt(f->body);
   builder_->CreateRet(ConstInt32(0));
+
+  if (f_tvm_register_system_symbol_ != nullptr) {
+    export_system_symbols_.emplace_back(
+        std::make_pair(f->name, builder_->CreatePointerCast(function_, t_void_p_)));
+  }
 }
 
 void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
@@ -225,11 +245,33 @@ void CodeGenLLVM::Optimize() {
 }
 
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
+  this->AddStartupFunction();
   this->Optimize();
   var_map_.clear();
   str_map_.clear();
   func_handle_map_.clear();
+  export_system_symbols_.clear();
   return std::move(module_);
+}
+
+void CodeGenLLVM::AddStartupFunction() {
+  if (export_system_symbols_.size() != 0) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(t_void_, {}, false);
+    function_ = llvm::Function::Create(
+        ftype,
+        llvm::Function::InternalLinkage,
+        "__tvm_module_startup", module_.get());
+    llvm::BasicBlock* startup_entry = llvm::BasicBlock::Create(*ctx_, "entry", function_);
+    builder_->SetInsertPoint(startup_entry);
+    for (const auto& kv : export_system_symbols_) {
+      llvm::Value* name = GetConstString(kv.first);
+      builder_->CreateCall(
+          f_tvm_register_system_symbol_, {
+            name, builder_->CreateBitCast(kv.second, t_void_p_)});
+    }
+    llvm::appendToGlobalCtors(*module_, function_, 65535);
+    builder_->CreateRet(nullptr);
+  }
 }
 
 llvm::Type* CodeGenLLVM::LLVMType(const Type& t) const {
