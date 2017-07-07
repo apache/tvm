@@ -1,6 +1,5 @@
 import os
 import tvm
-import time
 import numpy as np
 from scipy import signal
 from tvm.contrib import nvcc_compiler
@@ -112,38 +111,23 @@ def test_depthwise_conv2d_map():
         depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx)
         scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
-        # Launch kernel 1 (depthwise_conv2d)
-        f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
-        ctx.sync()
-        start = time.time()
-        for i in range(10000):
-            f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
-        ctx.sync()
-        elapsed_time_1 = time.time() - start
-        # Launch kernel 2 (depthwise_conv2d + scale_shift)
-        f2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
-        ctx.sync()
-        start = time.time()
-        for i in range(10000):
-            f2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
-        ctx.sync()
-        elapsed_time_2 = time.time() - start
-        # Launch kernel 3 (depthwise_conv2d + scale_shift + relu)
-        f3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm)
-        ctx.sync()
-        start = time.time()
-        for i in range(10000):
-            f3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm)
-        ctx.sync()
-        elapsed_time_3 = time.time() - start
+        # Measure time cost of kernel 1 (depthwise_conv2d)
+        timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=10000)
+        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
+        # Measure time cost of kernel 2 (depthwise_conv2d + scale_shift)
+        timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=10000)
+        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
+        # Measure time cost of kernel 3 (depthwise_conv2d + scale_shift + relu)
+        timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=10000)
+        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm)
         print("Input shape = " + str(get_const_tuple(Input.shape)))
         print("Filter shape = " + str(get_const_tuple(Filter.shape)))
         print("Stride = (%d, %d)" % (stride_h, stride_w))
         print("padding = %s\n" % padding)
         print("Output shape = " + str(get_const_tuple(DepthwiseConv2d.shape)))
-        print("time cost of 10000 iterations (depthwise_conv2d) = %g sec" % elapsed_time_1)
-        print("time cost of 10000 iterations (depthwise_conv2d + scale_shift) = %g sec" % elapsed_time_2)
-        print("time cost of 10000 iterations (depthwise_conv2d + scale_shift + relu) = %g sec" % elapsed_time_3)
+        print("average time cost of 10000 runs (depthwise_conv2d) = %g sec" % tcost_1)
+        print("average time cost of 10000 runs (depthwise_conv2d + scale_shift) = %g sec" % tcost_2)
+        print("average time cost of 10000 runs (depthwise_conv2d + scale_shift + relu) = %g sec" % tcost_3)
         depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy = depthwise_conv2d_map_scipy(input_np, filter_np, scale_np, shift_np)
         np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)

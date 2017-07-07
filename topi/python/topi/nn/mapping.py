@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, line-too-long
-"""One-to-one mapping operators"""
+"""Operators of one-to-one-mapping on the first input"""
 from __future__ import absolute_import as _abs
 import tvm
 
