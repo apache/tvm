@@ -3,11 +3,10 @@ import tvm
 import time
 import numpy as np
 from scipy import signal
-from topi.nn.util import *
 from tvm.contrib import nvcc_compiler
 
-from topi.ewise import relu
-from topi.nn import scale_shift, depthwise_conv2d
+import topi
+from topi.nn.util import get_const_tuple
 from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
 
 TASK = "depthwise_conv2d_map"
@@ -55,9 +54,9 @@ def test_depthwise_conv2d_map():
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # Declare
-    DepthwiseConv2d = depthwise_conv2d(Input, Filter, Stride, padding)
-    ScaleShift = scale_shift(DepthwiseConv2d, Scale, Shift)
-    Relu = relu(ScaleShift)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d(Input, Filter, Stride, padding)
+    ScaleShift = topi.nn.scale_shift(DepthwiseConv2d, Scale, Shift)
+    Relu = topi.ewise.relu(ScaleShift)
     # Schedule
     s1 = schedule_depthwise_conv2d_map(DepthwiseConv2d.op)
     s2 = schedule_depthwise_conv2d_map(ScaleShift.op)
@@ -151,10 +150,9 @@ def test_depthwise_conv2d_map():
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print "success"
 
-    unroll_explicit = (get_const_tuple(DepthwiseConv2d.shape)[2] % 8 == 0)
     with tvm.build_config(auto_unroll_max_step=32,
                           auto_unroll_min_depth=0,
-                          unroll_explicit=unroll_explicit,
+                          unroll_explicit=True,
                           detect_global_barrier=False,
                           restricted_func=True):
         check_device("cuda")

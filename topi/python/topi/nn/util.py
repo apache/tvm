@@ -21,7 +21,3 @@ def get_const_tuple(in_tuple):
             raise ValueError("Element of input tuple should be IntImm")
         out_tuple = out_tuple + (elem.value, )
     return out_tuple
-
-def is_output(op, schedule):
-    """Determines whether op is the last stage of schedule."""
-    return op in schedule.outputs

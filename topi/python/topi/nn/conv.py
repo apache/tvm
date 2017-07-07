@@ -1,32 +1,9 @@
-# pylint: disable=invalid-name, line-too-long, wildcard-import, unused-variable
-"""Neural network operators"""
+# pylint: disable=invalid-name, line-too-long, unused-variable
+"""Convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
 import numpy as np
 from .util import get_const_tuple
-
-@tvm.tag_scope(tag="scale_shift")
-def scale_shift(Input, Scale, Shift):
-    """Batch normalization operator in inference.
-
-    Parameters
-    ----------
-    Input : tvm.Tensor
-    	Input tensor, layout is NCHW
-
-    Scale : tvm.Tensor
-    	Scale tensor, 1-D of size channel number
-
-    Shift : tvm.Tensor
-    	Shift tensor, 1-D of size channel number
-
-    Returns
-    -------
-    Output : tvm.Tensor
-    	Output tensor, layout is NCHW
-    """
-    return tvm.compute(Input.shape, lambda b, c, i, j: Input[b, c, i, j] * Scale[c] + Shift[c], name='ScaleShift')
-
 
 @tvm.tag_scope(tag="depthwise_conv2d")
 def depthwise_conv2d(Input, Filter, Stride, padding):

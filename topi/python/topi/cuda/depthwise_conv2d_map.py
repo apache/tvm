@@ -1,15 +1,26 @@
-# pylint: disable=invalid-name, wildcard-import, missing-docstring
-"""Depthwise convolution operator.
-
-Auto fusion with one-to-one-mapping operators, e.g. scale-shift and relu.
-"""
-
+# pylint: disable=invalid-name
+"""Schedule for depthwise_conv2d with auto fusion"""
 import tvm
-from ..nn.util import *
+from ..nn.util import get_const_tuple
 
 def schedule_depthwise_conv2d_map(op):
+    """Schedule for depthwise_conv2d and auto fusion with
+    one-to-one-mapping operators, e.g. scale-shift and relu.
+
+    Parameters
+    ----------
+    op: Operation
+        The symbolic description of the operation, should be depthwise_conv2d or
+        depthwise_conv2d followed by a sequence of one-to-one-mapping operators.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for the op.
+    """
     s = tvm.create_schedule(op)
     def schedule_depthwise_conv2d(PaddedInput, Filter, DepthwiseConv2d):
+        """Schedule for depthwise_conv2d declared in topi.nn.conv"""
         out_shape = get_const_tuple(DepthwiseConv2d.shape)
         out_height = out_shape[2]
         out_width = out_shape[3]
@@ -19,7 +30,7 @@ def schedule_depthwise_conv2d_map(op):
         FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
         IL = s.cache_read(IS, "local", [DepthwiseConv2d])
         FL = s.cache_read(FS, "local", [DepthwiseConv2d])
-        if is_output(DepthwiseConv2d.op, s):
+        if DepthwiseConv2d.op in s.outputs:
             Output = DepthwiseConv2d
             CL = s.cache_write(DepthwiseConv2d, "local")
         else:
@@ -67,7 +78,7 @@ def schedule_depthwise_conv2d_map(op):
         # local memory load
         s[IL].compute_at(s[Output], ty)
         s[FL].compute_at(s[Output], ty)
-        if is_output(DepthwiseConv2d.op, s):
+        if DepthwiseConv2d.op in s.outputs:
             s[CL].compute_at(s[Output], ty)
         else:
             s[DepthwiseConv2d].compute_at(s[Output], ty)
@@ -88,7 +99,7 @@ def schedule_depthwise_conv2d_map(op):
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
         if OP.tag == 'ewise' or OP.tag == 'scale_shift':
-            if not is_output(OP, s):
+            if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
                 if str(tensor.op.input_tensors) != str([]):

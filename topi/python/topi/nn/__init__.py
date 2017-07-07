@@ -2,4 +2,6 @@
 """Neural network operators"""
 from __future__ import absolute_import as _abs
 
-from .nn import *
+from .util import *
+from .mapping import *
+from .conv import *
