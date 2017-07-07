@@ -7,7 +7,7 @@ from .util import get_const_tuple
 
 @tvm.tag_scope(tag="depthwise_conv2d")
 def depthwise_conv2d(Input, Filter, Stride, padding):
-    """Depthwise convolution operator, as depthwise_conv2d in tensorflow.
+    """Depthwise convolution operator.
 
     Parameters
     ----------
