@@ -4,8 +4,9 @@ import tvm
 from ..nn.util import get_const_tuple
 
 def schedule_depthwise_conv2d_map(op):
-    """Schedule for depthwise_conv2d and auto fusion with
-    one-to-one-mapping operators, e.g. scale-shift and relu.
+    """Schedule for depthwise_conv2d  map ops.
+
+    This include scale-shift and relu.
 
     Parameters
     ----------

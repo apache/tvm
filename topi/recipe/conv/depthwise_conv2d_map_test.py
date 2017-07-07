@@ -55,7 +55,7 @@ def test_depthwise_conv2d_map():
     # Declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d(Input, Filter, Stride, padding)
     ScaleShift = topi.nn.scale_shift(DepthwiseConv2d, Scale, Shift)
-    Relu = topi.ewise.relu(ScaleShift)
+    Relu = topi.nn.relu(ScaleShift)
     # Schedule
     s1 = schedule_depthwise_conv2d_map(DepthwiseConv2d.op)
     s2 = schedule_depthwise_conv2d_map(ScaleShift.op)

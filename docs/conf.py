@@ -23,8 +23,8 @@ from recommonmark.transform import AutoStructify
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-libpath = os.path.join(curr_path, '../python/')
-sys.path.insert(0, libpath)
+sys.path.insert(0, os.path.join(curr_path, '../python/'))
+sys.path.insert(0, os.path.join(curr_path, '../topi/python'))
 
 # -- General configuration ------------------------------------------------
 
