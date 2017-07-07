@@ -1,5 +1,5 @@
 """Tag class for TVM operators."""
-from functools import wraps
+from decorator import decorate
 
 class TagScope(object):
     """Tag scope object to set tag for operators, working as context
@@ -22,11 +22,10 @@ class TagScope(object):
         TagScope.current = self._old_scope
 
     def __call__(self, fdecl):
-        @wraps(fdecl)
-        def tagged_fdecl(*args, **kwargs):
+        def tagged_fdecl(func, *args, **kwargs):
             with self:
-                return fdecl(*args, **kwargs)
-        return tagged_fdecl
+                return func(*args, **kwargs)
+        return decorate(fdecl, tagged_fdecl)
 
 
 def tag_scope(tag):
