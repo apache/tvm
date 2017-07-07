@@ -216,7 +216,7 @@ class Tuple {
     // get (
     while (true) {
       char ch = is.peek();
-      if (isdigit(ch)) {
+      if (isdigit(ch) || ch == '-') {
         ValueType idx;
         if (is >> idx) {
           t.assign(&idx, &idx + 1);
