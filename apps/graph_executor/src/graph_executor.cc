@@ -173,7 +173,7 @@ void GraphExecutor::SetupStorage() {
     TShape shape{static_cast<int64_t>(pool_entry_bytes[i] + 3) / 4};
     DLTensor* tensor;
     TVM_CCALL(TVMArrayAlloc(
-        shape.data(), 1, DLDataType{kFloat, 32U, 1U}, ctx_, &tensor));
+        shape.data(), 1, kFloat, 32, 1, ctx_.device_type, ctx_.device_id, &tensor));
     storage_pool_.push_back(tensor);
   }
   // Assign the pooled entries.

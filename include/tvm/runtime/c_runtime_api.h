@@ -339,15 +339,21 @@ TVM_DLL int TVMFuncListGlobalNames(int *out_size,
  *
  * \param shape The shape of the array, the data content will be copied to out
  * \param ndim The number of dimension of the array.
- * \param dtype The array data type.
- * \param ctx The ctx this array sits on.
+ * \param dtype_code The type code of the dtype
+ * \param dtype_bits The number of bits of dtype
+ * \param dtype_lanes The number of lanes in the dtype.
+ * \param device_type The device type of context
+ * \param device_id The device id of context.
  * \param out The output handle.
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
                           int ndim,
-                          TVMType dtype,
-                          TVMContext ctx,
+                          int dtype_code,
+                          int dtype_bits,
+                          int dtype_lanes,
+                          int device_type,
+                          int device_id,
                           TVMArrayHandle* out);
 
 /*!
@@ -396,19 +402,22 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
  *  will use the setted stream handle.
  *  The specific type of stream is runtime device dependent.
  *
- * \param ctx The context.
+ * \param device_type The device type of context
+ * \param device_id The device id of context.
  * \param handle The stream handle.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMSetStream(TVMContext ctx, TVMStreamHandle handle);
+TVM_DLL int TVMSetStream(int device_type, int device_id, TVMStreamHandle handle);
 
 /*!
  * \brief Wait until all computations on stream completes.
- * \param ctx The ctx to be synchronized.
+ *
+ * \param device_type The device type of context
+ * \param device_id The device id of context.
  * \param stream The stream to be synchronized.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream);
+TVM_DLL int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
