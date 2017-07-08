@@ -89,7 +89,7 @@ class WorkspacePool::Pool {
   // Release all resources
   void Release(TVMContext ctx, DeviceAPI* device) {
     CHECK_EQ(allocated_.size(), 1);
-    for (size_t i = 0; i < free_list_.size(); ++i) {
+    for (size_t i = 1; i < free_list_.size(); ++i) {
       device->FreeDataSpace(ctx, free_list_[i].data);
     }
     free_list_.clear();
