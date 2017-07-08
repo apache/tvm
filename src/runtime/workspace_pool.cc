@@ -26,6 +26,7 @@ class WorkspacePool::Pool {
   void* Alloc(TVMContext ctx, DeviceAPI* device, size_t size) {
     // Allocate align to page.
     size = (size + (kWorkspacePageSize - 1)) / kWorkspacePageSize * kWorkspacePageSize;
+    if (size == 0) size = kWorkspacePageSize;
     Entry e;
     if (free_list_.size() == 2) {
       e = free_list_.back();
