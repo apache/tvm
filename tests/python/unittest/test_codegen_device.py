@@ -7,13 +7,18 @@ def test_add_pipeline():
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    D = tvm.compute(A.shape, lambda *i: C(*i) + 1, name='C')
+    s = tvm.create_schedule(D.op)
 
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
     xo, xi = s[C].split(C.op.axis[0], factor=num_thread)
     s[C].bind(xo, tvm.thread_axis("threadIdx.x"))
     s[C].bind(xi, tvm.thread_axis("blockIdx.x"))
+
+    xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
+    s[D].bind(xo, tvm.thread_axis("threadIdx.x"))
+    s[D].bind(xi, tvm.thread_axis("blockIdx.x"))
 
     # compile to IR
     s = s.normalize()

@@ -8,6 +8,7 @@
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./ir_util.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace ir {
@@ -59,6 +60,57 @@ class PackedCallBuilder : public IRMutator {
     }
     return stmt;
   }
+
+  Stmt Mutate_(const Allocate* op, const Stmt& s) {
+    // Lower allocate to device allocate when needed.
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Allocate>();
+    // Get constant allocation bound.
+    int64_t dev_type;
+    int64_t nbytes = GetVectorBytes(op->type);
+    if (device_type_.defined()) {
+      if (arith::GetConst(device_type_, &dev_type)) {
+        if (dev_type == kCPU) {
+          int32_t constant_size = op->constant_allocation_size();
+          if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
+            return stmt;
+          }
+        }
+      }
+    }
+    Expr total_bytes = make_const(op->extents[0].type(), nbytes);
+    for (size_t i = 0; i < op->extents.size(); ++i) {
+      total_bytes = total_bytes * op->extents[i];
+    }
+    Stmt throw_last_error = Evaluate::make(Call::make(Int(32),
+                                           intrinsic::tvm_throw_last_error, {},
+                                           Call::Intrinsic));
+
+    Stmt body = Block::make(
+        IfThenElse::make(Call::make(Bool(1),
+                                    intrinsic::tvm_handle_is_null,
+                                    {op->buffer_var}, Call::PureIntrinsic),
+                         throw_last_error),
+        op->body);
+    Stmt alloca = LetStmt::make(op->buffer_var,
+                                Call::make(op->buffer_var.type(),
+                                           "TVMBackendAllocWorkspace",
+                                           {cast(Int(32), device_type_),
+                                                 cast(Int(32), device_id_),
+                                                 cast(UInt(64), total_bytes)},
+                                           Call::Extern),
+                                body);
+
+    Expr free_op = Call::make(Int(32),
+                              "TVMBackendFreeWorkspace",
+                              {cast(Int(32), device_type_),
+                                    cast(Int(32), device_id_),
+                                    op->buffer_var},
+                              Call::Extern);
+    Stmt free_stmt = IfThenElse::make(free_op != make_zero(Int(32)), throw_last_error);
+    return Block::make(alloca, free_stmt);
+  }
+
   Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
     if (op->attr_key == attr::device_context_id) {
       CHECK(!device_id_.defined());

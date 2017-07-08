@@ -107,6 +107,14 @@ void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   OPENCL_CALL(clFinish(this->GetQueue(ctx)));
 }
 
+void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+  return OpenCLThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+}
+
+void OpenCLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
+  OpenCLThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+}
+
 typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;
 
 OpenCLThreadEntry* OpenCLThreadEntry::ThreadLocal() {

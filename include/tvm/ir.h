@@ -239,12 +239,19 @@ constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
 /*!
  * \brief See pesudo code
  *
+ *  void tvm_throw_last_error() {
+ *    throw TVMGetLastError();
+ *  }
+ */
+constexpr const char* tvm_throw_last_error = "tvm_throw_last_error";
+/*!
+ * \brief See pesudo code
+ *
  *  dtype in {shape, array, arg_value, arg_tcode}
  *
  *  Handle tvm_stack_alloca(string dtype, int num) {
  *     return new on stack dtype[num];
  *  }
- * \sa TVMStructFieldKind
  */
 constexpr const char* tvm_stack_alloca = "tvm_stack_alloca";
 /*!

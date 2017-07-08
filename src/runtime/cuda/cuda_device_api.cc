@@ -98,6 +98,20 @@ class CUDADeviceAPI final : public DeviceAPI {
         ->stream = static_cast<cudaStream_t>(stream);
   }
 
+  void* AllocWorkspace(TVMContext ctx, size_t size) final {
+    return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+  }
+
+  void FreeWorkspace(TVMContext ctx, void* data) final {
+    CUDAThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+  }
+
+  static const std::shared_ptr<CUDADeviceAPI>& Global() {
+    static std::shared_ptr<CUDADeviceAPI> inst =
+        std::make_shared<CUDADeviceAPI>();
+    return inst;
+  }
+
  private:
   static void GPUCopy(const void* from,
                       void* to,
@@ -114,14 +128,17 @@ class CUDADeviceAPI final : public DeviceAPI {
 
 typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;
 
+CUDAThreadEntry::CUDAThreadEntry()
+    : pool(kGPU, CUDADeviceAPI::Global()) {
+}
+
 CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
   return CUDAThreadStore::Get();
 }
 
 TVM_REGISTER_GLOBAL("device_api.gpu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    static CUDADeviceAPI inst;
-    DeviceAPI* ptr = &inst;
+    DeviceAPI* ptr = CUDADeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);
   });
 
