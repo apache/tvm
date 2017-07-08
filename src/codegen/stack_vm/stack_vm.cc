@@ -5,6 +5,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/ir.h>
+#include <tvm/runtime/c_backend_api.h>
 #include "./stack_vm.h"
 
 namespace tvm {
@@ -136,6 +137,9 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     STACK_VM_PRINT_CODE2(TVM_STRUCT_SET);
     // Allocate data by 8 bytes.
     STACK_VM_PRINT_CODE1(TVM_STACK_ALLOCA_BY_8BYTE);
+    STACK_VM_PRINT_CODE0(TVM_DEVICE_ALLOCA);
+    STACK_VM_PRINT_CODE0(TVM_DEVICE_FREE);
+    STACK_VM_PRINT_CODE0(TVM_THROW_LAST_ERROR);
     // packed function.
     case CALL_PACKED_LOWERED: {
       int call_fid = code[pc + 1].v_int;
@@ -448,6 +452,30 @@ void StackVM::Run(State* s) const {
         alloca_sp = sp - 1;
         stack[sp].v_handle = addr;
         pc = pc + 2;
+        break;
+      }
+      case TVM_DEVICE_ALLOCA: {
+        int device_type = static_cast<int>(stack[sp - 2].v_int64);
+        int device_id = static_cast<int>(stack[sp - 1].v_int64);
+        size_t nbytes = static_cast<size_t>(stack[sp].v_int64);
+        void* ptr = TVMBackendAllocWorkspace(device_type, device_id, nbytes);
+        stack[sp - 2].v_handle = ptr;
+        sp = sp - 2;
+        pc = pc + 1;
+        break;
+      }
+      case TVM_DEVICE_FREE: {
+        int device_type = static_cast<int>(stack[sp - 2].v_int64);
+        int device_id = static_cast<int>(stack[sp - 1].v_int64);
+        void* ptr = stack[sp].v_handle;
+        int ret = TVMBackendFreeWorkspace(device_type, device_id, ptr);
+        stack[sp - 2].v_int64 = ret;
+        sp = sp - 2;
+        pc = pc + 1;
+        break;
+      }
+      case TVM_THROW_LAST_ERROR: {
+        LOG(FATAL) << TVMGetLastError();
         break;
       }
     }

@@ -27,6 +27,9 @@ constexpr int kAllocAlignment = 64;
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
 constexpr int kTempAllocaAlignment = 64;
 
+/*! \brief Maximum size that can be allocated on stack */
+constexpr int kMaxStackAlloca = 1024;
+
 /*!
  * \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.
@@ -95,6 +98,28 @@ class DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
+  /*!
+   * \brief Allocate temporal workspace for backend execution.
+   *
+   *  \note We have the following assumption about backend temporal
+   *   workspace allocation, and backend will optimize for such assumption:
+   *
+   *  - Only a few allocation will happen, and space will be released after use.
+   *  - The release order is usually in reverse order of allocate (stack style).
+   *  - Repeative pattern of same allocations over different runs.
+   *  - Workspace should not overlap between different threads(i.e. be threadlocal)
+   *
+   * \param ctx The context of allocation.
+   * \param The size to be allocated.
+   */
+  virtual void* AllocWorkspace(TVMContext ctx, size_t size);
+  /*!
+   * \brief Free temporal workspace in backend execution.
+   *
+   * \param ctx The context of allocation.
+   * \param ptr The pointer to be freed.
+   */
+  virtual void FreeWorkspace(TVMContext ctx, void* ptr);
   /*!
    * \brief Get device API base don context.
    * \param ctx The context

@@ -196,6 +196,20 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
     // add stack size to be safe.
     vm_.stack_size += size;
     this->PushOp(StackVM::TVM_STACK_ALLOCA_BY_8BYTE, static_cast<int>(size));
+  } else if (op->name == "TVMBackendAllocWorkspace") {
+    CHECK_EQ(op->args.size(), 3U);
+    this->Push(op->args[0]);
+    this->Push(op->args[1]);
+    this->Push(op->args[2]);
+    this->PushOp(StackVM::TVM_DEVICE_ALLOCA);
+  } else if (op->name == "TVMBackendFreeWorkspace") {
+    CHECK_EQ(op->args.size(), 3U);
+    this->Push(op->args[0]);
+    this->Push(op->args[1]);
+    this->Push(op->args[2]);
+    this->PushOp(StackVM::TVM_DEVICE_FREE);
+  } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
+    this->PushOp(StackVM::TVM_THROW_LAST_ERROR);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
     this->Push(op->args[0]);

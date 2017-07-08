@@ -73,8 +73,10 @@ class MetalWorkspace final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
+  void* AllocWorkspace(TVMContext ctx, size_t size) final;
+  void FreeWorkspace(TVMContext ctx, void* data) final;
   // get the global workspace
-  static MetalWorkspace* Global();
+  static const std::shared_ptr<MetalWorkspace>& Global();
 };
 
 /*! \brief Thread local workspace */
@@ -84,8 +86,11 @@ class MetalThreadEntry {
   TVMContext context;
   /*! \brief The shared buffer used for copy. */
   std::vector<id<MTLBuffer> > temp_buffer_;
-
-  MetalThreadEntry() {
+  /*! \brief workspace pool */
+  WorkspacePool pool;
+  // constructor
+  MetalThreadEntry()
+      : pool(static_cast<DLDeviceType>(kMetal), MetalWorkspace::Global()) {
     context.device_id = 0;
     context.device_type = static_cast<DLDeviceType>(kMetal);
   }

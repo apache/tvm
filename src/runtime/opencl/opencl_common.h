@@ -22,6 +22,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include "../workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -152,6 +153,8 @@ class OpenCLWorkspace final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
+  void* AllocWorkspace(TVMContext ctx, size_t size) final;
+  void FreeWorkspace(TVMContext ctx, void* data) final;
   // get the global workspace
   static const std::shared_ptr<OpenCLWorkspace>& Global();
 };
@@ -171,8 +174,11 @@ class OpenCLThreadEntry {
   TVMContext context;
   /*! \brief The thread-local kernel table */
   std::vector<KTEntry> kernel_table;
-
-  OpenCLThreadEntry() {
+  /*! \brief workspace pool */
+  WorkspacePool pool;
+  // constructor
+  OpenCLThreadEntry()
+      : pool(kOpenCL, OpenCLWorkspace::Global()) {
     context.device_id = 0;
     context.device_type = kOpenCL;
   }

@@ -215,6 +215,14 @@ void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   [cb waitUntilCompleted];
 }
 
+void* MetalWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+  return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+}
+
+void MetalWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
+  MetalThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+}
+
 MetalThreadEntry::~MetalThreadEntry() {
   for (auto x : temp_buffer_) {
     if (x != nil) [x release];

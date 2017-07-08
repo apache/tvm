@@ -216,6 +216,34 @@ class StackVM {
      */
     TVM_STACK_ALLOCA_BY_8BYTE,
     /*!
+     * \brief allocate data from device.
+     * \code
+     *  device_type = stack[sp - 2].v_int64;
+     *  device_id = stack[sp - 1].v_int64;
+     *  nbytes = stack[sp].v_int64;
+     *  stack[sp - 2].v_handle = device_alloca(device_type, device_id, nbytes);
+     *  sp = sp - 2;
+     *  pc = pc + 1;
+     * \endcode
+     */
+    TVM_DEVICE_ALLOCA,
+    /*!
+     * \brief free data into device.
+     * \code
+     *  device_type = stack[sp - 2].v_int64;
+     *  device_id = stack[sp - 1].v_int64;
+     *  ptr = stack[sp].v_handle;
+     *  stack[sp - 2].v_int64 = device_free(device_type, device_id, ptr);
+     *  sp = sp - 2;
+     *  pc = pc + 1;
+     * \endcode
+     */
+    TVM_DEVICE_FREE,
+    /*!
+     * \brief throw last error
+     */
+    TVM_THROW_LAST_ERROR,
+    /*!
      * \brief get data from structure.
      * \code
      *  index = code[pc + 1].v_int;
