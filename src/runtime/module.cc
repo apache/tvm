@@ -108,12 +108,14 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "device_api.metal";
   } else if (target == "stackvm") {
     f_name = "codegen.build_stackvm";
-  } else if (target == "llvm") {
-    f_name = "codegen.build_llvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
   } else if (target == "vpi" || target == "verilog") {
     f_name = "device_api.vpi";
+  } else if (target.length() >= 4 && target.substr(0, 4) == "llvm") {
+    const PackedFunc* pf = runtime::Registry::Get("codegen.llvm_target_enabled");
+    if (pf == nullptr) return false;
+    return (*pf)(target);
   } else {
     LOG(FATAL) << "Unknown optional runtime " << target;
   }

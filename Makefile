@@ -10,11 +10,12 @@ endif
 
 include $(config)
 
-.PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3
+.PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
 
 BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.so
+web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
 
 ifndef DMLC_CORE_PATH
   DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core
@@ -52,11 +53,13 @@ RUNTIME_DEP = $(RUNTIME_OBJ)
 
 # The flags
 LDFLAGS = -pthread -lm -ldl
-CFLAGS = -std=c++11 -Wall -O2\
-	 -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include -fPIC
+INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
+CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
+EMCC_FLAGS= -s RESERVED_FUNCTION_POINTERS=2 -s NO_EXIT_RUNTIME=1 -DDMLC_LOG_STACK_TRACE=0\
+	 -std=c++11 -Oz $(INCLUDE_FLAGS)
 
 # Dependency specific rules
 ifdef CUDA_PATH
@@ -149,6 +152,15 @@ lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
+lib/libtvm_web_runtime.bc: web/web_runtime.cc
+	@mkdir -p build/web
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT lib/libtvm_web_runtime.bc $< >build/web/web_runtime.d
+	emcc $(EMCC_FLAGS) -o $@ web/web_runtime.cc
+
+lib/libtvm_web_runtime.js: lib/libtvm_web_runtime.bc
+	@mkdir -p $(@D)
+	emcc $(EMCC_FLAGS) -o $@ lib/libtvm_web_runtime.bc
 
 $(LIB_HALIDEIR): LIBHALIDEIR
 

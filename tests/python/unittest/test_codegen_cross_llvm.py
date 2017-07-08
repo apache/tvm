@@ -36,11 +36,11 @@ def test_llvm_add_pipeline():
         verify_elf(path, 0x03)
 
     def build_arm():
-        if not tvm.module.enabled("llvm"):
-            print("Skip because llvm is not enabled..")
+        target = "llvm -target=armv7-none-linux-gnueabihf"
+        if not tvm.module.enabled(target):
+            print("Skip because %s is not enabled.." % target)
             return
         temp = util.tempdir()
-        target = "llvm -target=armv7-none-linux-gnueabihf"
         f = tvm.build(s, [A, B, C], target)
         path = temp.relpath("myadd.o")
         f.save(path)

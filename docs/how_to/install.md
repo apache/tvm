@@ -35,7 +35,7 @@ You can edit `make/config.mk` to change the compile options, and then build by
 ### Building on Windows
 
 TVM support build via MSVC using cmake. To build with Visual Studio 2015 use cmake.
-Make sure you have a recent version of cmake added to your path and then from the xgboost directory:
+Make sure you have a recent version of cmake added to your path and then from the tvm directory:
 
 ```bash
 mkdir build
@@ -46,8 +46,8 @@ This specifies an out of source build using the MSVC 12 64 bit generator. Open t
 
 ### Customized Building
 
-The configuration of xgboost can be modified by ```config.mk```
-- First copy [make/config.mk](../make/config.mk) to the project root, on which
+The configuration of tvm can be modified by ```config.mk```
+- First copy make/config.mk to the project root, on which
   any local modification will be ignored by git, then modify the according flags.
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
   - LLVM 4.0 is needed for build with LLVM
@@ -55,7 +55,7 @@ The configuration of xgboost can be modified by ```config.mk```
 
 ## Python Package Installation
 
-The python package is located at [python](../python).
+The python package is located at python
 There are several ways to install the package:
 
 1. Set the environment variable `PYTHONPATH` to tell python where to find

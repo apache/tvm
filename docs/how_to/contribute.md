@@ -3,8 +3,8 @@
 TVM has been developed by community members.
 Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
 
-- Please add your name to [CONTRIBUTORS.md](../../CONTRIBUTORS.md)
-- Please update [NEWS.md](../../NEWS.md) to add note on your changes to the API or added a new document.
+- Please add your name to [CONTRIBUTORS.md](https://github.com/dmlc/tvm/blob/master/CONTRIBUTORS.md)
+- Please update [NEWS.md](https://github.com/dmlc/tvm/blob/master/NEWS.md) to add note on your changes to the API or added a new document.
 
 ## Guidelines
 * [Submit Pull Request](#submit-pull-request)
@@ -29,7 +29,7 @@ git rebase upstream/master
   it might be good to merge them together(use git rebase then squash) into more meaningful groups.
 * Send the pull request!
   - Fix the problems reported by automatic checks
-  - If you are contributing a new module, consider add a testcase in [tests](../tests)
+  - If you are contributing a new module or new function, add a test.
 
 ## Git Workflow Howtos
 ### How to resolve conflict with master
@@ -87,8 +87,7 @@ The previous two tips requires force push, this is because we altered the path o
 It is fine to force push to your own fork, as long as the commits changed are only yours.
 
 ## Testcases
-- All the testcases are in [tests](../../tests)
-- We use python nose for python test cases.
+- All the testcases are in tests
 
 ## Core Library
 - Follow Google C style for C++.
