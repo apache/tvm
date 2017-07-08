@@ -780,7 +780,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
           MakeValue(op->args[0]), MakeValue(op->args[1]));
     }
   } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
-    builder_->CreateRet(llvm::ConstantInt::getSigned(t_int32_, -1));
+    builder_->CreateRet(ConstInt32(-1));
     return ConstInt32(-1);
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
@@ -1440,7 +1440,7 @@ void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
   // fail condition.
   builder_->SetInsertPoint(fail_block);
   builder_->CreateCall(f_tvm_api_set_last_error_, {msg});
-  builder_->CreateRet(llvm::ConstantInt::getSigned(t_int32_, -1));
+  builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);
   // Detect useful invariant pattern and use them to visit child.

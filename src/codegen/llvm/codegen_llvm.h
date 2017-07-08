@@ -70,8 +70,8 @@ class CodeGenLLVM :
     return VisitExpr(e);
   }
   // Short hande code to get a constant int 32
-  llvm::Constant* ConstInt32(unsigned value) const {
-    return llvm::ConstantInt::get(t_int32_, value);
+  llvm::Constant* ConstInt32(int64_t value) const {
+    return llvm::ConstantInt::getSigned(t_int32_, value);
   }
   // override codegen
   llvm::Value* VisitExpr_(const Variable* op) override;
