@@ -5,6 +5,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/ir_mutator.h>
 #include <tvm/buffer.h>
 #include <tvm/runtime/device_api.h>
 #include <vector>
@@ -164,5 +165,37 @@ LoweredFunc MakeAPI(Stmt body,
   }
   return f;
 }
+
+class DeviceTypeBinder: public IRMutator {
+ public:
+  explicit DeviceTypeBinder(int device_type)
+      : device_type_(device_type) {}
+
+  Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
+    if (op->attr_key == attr::device_context_type) {
+      if (const Variable* var = op->value.as<Variable>()) {
+        std::unordered_map<const Variable*, Expr> dmap;
+        Expr value = make_const(op->value.type(), device_type_);
+        dmap[var] = value;
+        Stmt body = Substitute(s, dmap);
+        std::ostringstream os;
+        os << "device_type need to be " << device_type_;
+        return AssertStmt::make(op->value == value, os.str(), body);
+      }
+    }
+    return IRMutator::Mutate_(op, s);
+  }
+
+ public:
+  int device_type_;
+};
+
+LoweredFunc BindDeviceType(LoweredFunc f,
+                           int device_type) {
+  auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
+  n->body = DeviceTypeBinder(device_type).Mutate(n->body);
+  return LoweredFunc(n);
+}
+
 }  // namespace ir
 }  // namespace tvm

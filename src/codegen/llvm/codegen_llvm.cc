@@ -577,11 +577,16 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(const Call* op) {
   }
   if (op->type.is_scalar()) {
     llvm::Function* f = module_->getFunction(op->name);
-    if (f) {
-      return builder_->CreateCall(f, arg_values);
-    } else {
-      LOG(FATAL) << "cannot find function " << op->name;
+    if (f == nullptr) {
+      std::vector<llvm::Type*> arg_types;
+      for (llvm::Value* v : arg_values) {
+        arg_types.push_back(v->getType());
+      }
+      f = llvm::Function::Create(
+          llvm::FunctionType::get(LLVMType(op->type), arg_types, false),
+          llvm::Function::ExternalLinkage, op->name, module_.get());
     }
+    return builder_->CreateCall(f, arg_values);
   } else {
     llvm::Function* f = module_->getFunction(op->name);
     if (f) {
@@ -774,6 +779,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
       return builder_->CreateLShr(
           MakeValue(op->args[0]), MakeValue(op->args[1]));
     }
+  } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
+    builder_->CreateRet(llvm::ConstantInt::getSigned(t_int32_, -1));
+    return ConstInt32(-1);
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);
