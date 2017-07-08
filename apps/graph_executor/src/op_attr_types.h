@@ -52,6 +52,18 @@ using FTVMSchedule = std::function<
            const Array<Tensor>& outs,
            const std::string& target)>;
 
+// TODO better structure of layout
+struct LayoutInfo {
+  using Layout = std::string;
+  Layout src;
+  Layout dst;
+};
+
+using FTVMLayoutInfo = std::function<
+  std::vector<LayoutInfo>(const NodeAttrs& attrs)>;
+using FTVMInputsLayoutInfo  = FTVMLayoutInfo;
+using FTVMOutputsLayoutInfo = FTVMLayoutInfo;
+
 // The storage result of op
 enum OpPatternKind : int {
   // Elementwise operation
