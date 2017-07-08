@@ -1,3 +1,4 @@
+#!groovy
 // -*- mode: groovy -*-
 // Jenkins pipeline
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/

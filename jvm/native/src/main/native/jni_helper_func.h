@@ -5,8 +5,8 @@
  */
 #include <jni.h>
 
-#ifndef TVM_JNICPP_MAIN_NATIVE_JNI_HELPER_FUNC_H_
-#define TVM_JNICPP_MAIN_NATIVE_JNI_HELPER_FUNC_H_
+#ifndef TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_
+#define TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_
 
 // Helper functions for RefXXX getter & setter
 jlong getLongField(JNIEnv *env, jobject obj) {
@@ -104,21 +104,21 @@ jobject newObject(JNIEnv *env, const char *clsname) {
   return object;
 }
 
-void fromJavaDType(JNIEnv *env, jobject jdtype, TVMType &dtype) {
+void fromJavaDType(JNIEnv *env, jobject jdtype, TVMType *dtype) {
   jclass tvmTypeClass = env->FindClass("ml/dmlc/tvm/types/TVMType");
-  dtype.code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
-  dtype.bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
-  dtype.lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
+  dtype->code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
+  dtype->bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
+  dtype->lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
   env->DeleteLocalRef(tvmTypeClass);
 }
 
-void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext &ctx) {
+void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
   jclass tvmContextClass = env->FindClass("ml/dmlc/tvm/types/TVMContext");
-  ctx.device_type = static_cast<DLDeviceType>(env->GetIntField(jctx,
+  ctx->device_type = static_cast<DLDeviceType>(env->GetIntField(jctx,
     env->GetFieldID(tvmContextClass, "deviceType", "I")));
-  ctx.device_id = static_cast<int>(env->GetIntField(jctx,
+  ctx->device_id = static_cast<int>(env->GetIntField(jctx,
     env->GetFieldID(tvmContextClass, "deviceId", "I")));
   env->DeleteLocalRef(tvmContextClass);
 }
 
-#endif // TVM_JNICPP_MAIN_NATIVE_JNI_HELPER_FUNC_H_
+#endif  // TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_

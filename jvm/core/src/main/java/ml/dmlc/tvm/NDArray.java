@@ -55,79 +55,111 @@ public class NDArray {
     }
   }
 
-  public void set(double[] source) {
-    syncCopyFrom(source);
+  public void set(double[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 64) {
+      throw new IllegalArgumentException("Cannot set double[] for " + dtype.toString() + " array");
+    }
+    byte[] nativeArr = new byte[sourceArray.length * dtype.numOfBytes];
+    for (int i = 0; i < sourceArray.length; ++i) {
+      wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putDouble(sourceArray[i]);
+    }
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
-  /**
-   * Perform an synchronize copy from the array.
-   * @param sourceArray The data source we should like to copy from.
-   */
-  private void syncCopyFrom(double[] sourceArray) {
-    if (size() != sourceArray.length) {
-      throw new IllegalArgumentException(String.format("Array shape size not match: %d v.s. %d",
-        sourceArray.length, size()));
+  public void set(float[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
+      throw new IllegalArgumentException("Cannot set float[] for " + dtype.toString() + " array");
     }
-
-    NDArray tmpArr = empty(shape(), this.dtype);
-
     byte[] nativeArr = new byte[sourceArray.length * dtype.numOfBytes];
-    switch (dtype.typeCode) {
-    case TVMType.INT:
-    case TVMType.UINT:
-      switch (dtype.bits) {
-      case 8:
-        for (int i = 0; i < sourceArray.length; ++i) {
-          nativeArr[i] = (byte) sourceArray[i];
-        }
-        break;
-      case 16:
-        for (int i = 0; i < sourceArray.length; ++i) {
-          wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putShort(
-            (short) sourceArray[i]);
-        }
-        break;
-      case 32:
-        for (int i = 0; i < sourceArray.length; ++i) {
-          wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
-            .putInt((int) ((long) sourceArray[i]));
-        }
-        break;
-      case 64:
-        for (int i = 0; i < sourceArray.length; ++i) {
-          wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
-            .putLong((long) sourceArray[i]);
-        }
-        break;
-      default:
-        throw new IllegalArgumentException("Do not know how to handle type " + dtype);
-      }
-      break;
-    case TVMType.FLOAT:
-      switch (dtype.bits) {
-      case 16:
-        throw new IllegalArgumentException(
-          "Currently cannot convert native numerical types to float16");
-      case 32:
-        for (int i = 0; i < sourceArray.length; ++i) {
-          wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
-            .putFloat((float) sourceArray[i]);
-        }
-        break;
-      case 64:
-        for (int i = 0; i < sourceArray.length; ++i) {
-          wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes)
-            .putDouble(sourceArray[i]);
-        }
-        break;
-      default:
-        throw new IllegalArgumentException("Do not know how to handle type " + dtype);
-      }
-      break;
-    default:
-      throw new IllegalArgumentException("Do not know how to handle type " + dtype);
+    for (int i = 0; i < sourceArray.length; ++i) {
+      wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putFloat(sourceArray[i]);
     }
+    NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+  }
+
+  public void set(long[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
+      throw new IllegalArgumentException("Cannot set long[] for " + dtype.toString() + " array");
+    }
+    byte[] nativeArr = new byte[sourceArray.length * dtype.numOfBytes];
+    for (int i = 0; i < sourceArray.length; ++i) {
+      wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putLong(sourceArray[i]);
+    }
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+  }
+
+  public void set(int[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
+      throw new IllegalArgumentException("Cannot set int[] for " + dtype.toString() + " array");
+    }
+    byte[] nativeArr = new byte[sourceArray.length * dtype.numOfBytes];
+    for (int i = 0; i < sourceArray.length; ++i) {
+      wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putInt(sourceArray[i]);
+    }
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+  }
+
+  public void set(short[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
+      throw new IllegalArgumentException("Cannot set short[] for " + dtype.toString() + " array");
+    }
+    byte[] nativeArr = new byte[sourceArray.length * dtype.numOfBytes];
+    for (int i = 0; i < sourceArray.length; ++i) {
+      wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putShort(sourceArray[i]);
+    }
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+  }
+
+  public void set(byte[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
+      throw new IllegalArgumentException("Cannot set byte[] for " + dtype.toString() + " array");
+    }
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+  }
+
+  public void set(char[] sourceArray) {
+    checkCopySize(sourceArray.length);
+    if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
+      throw new IllegalArgumentException("Cannot set char[] for " + dtype.toString() + " array");
+    }
+    byte[] nativeArr = new byte[sourceArray.length * dtype.numOfBytes];
+    for (int i = 0; i < sourceArray.length; ++i) {
+      wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putChar(sourceArray[i]);
+    }
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
+    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+  }
+
+  private void checkCopySize(int sourceLength) {
+    long arrSize = size();
+    if (arrSize != sourceLength) {
+      throw new IllegalArgumentException(String.format("Array shape size not match: %d v.s. %d",
+        sourceLength, size()));
+    }
+  }
+
+  public void setRaw(byte[] sourceArray) {
+    NDArray tmpArr = empty(shape(), this.dtype);
+    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
@@ -157,20 +189,119 @@ public class NDArray {
 
   /**
    * Return a copied flat java array of current array (row-major).
-   * @return  A copy of array content.
+   * @return A copy of array content.
    */
-  public double[] toArray() {
-    return internal().toArray();
+  public double[] toDoubleArray() {
+    if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 64) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to double[] for " + dtype.toString() + " array");
+    }
+    byte[][] units = groupInternalBytes();
+    double[] array = new double[units.length];
+    for (int i = 0; i < units.length; ++i) {
+      array[i] = wrapBytes(units[i]).getDouble();
+    }
+    return array;
   }
 
-  private NDArrayInternal internal() {
+  public float[] toFloatArray() {
+    if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to float[] for " + dtype.toString() + " array");
+    }
+    byte[][] units = groupInternalBytes();
+    float[] array = new float[units.length];
+    for (int i = 0; i < units.length; ++i) {
+      array[i] = wrapBytes(units[i]).getFloat();
+    }
+    return array;
+  }
+
+  public long[] toLongArray() {
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to long[] for " + dtype.toString() + " array");
+    }
+    byte[][] units = groupInternalBytes();
+    long[] array = new long[units.length];
+    for (int i = 0; i < units.length; ++i) {
+      array[i] = wrapBytes(units[i]).getLong();
+    }
+    return array;
+  }
+
+  public int[] toIntArray() {
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to int[] for " + dtype.toString() + " array");
+    }
+    byte[][] units = groupInternalBytes();
+    int[] array = new int[units.length];
+    for (int i = 0; i < units.length; ++i) {
+      array[i] = wrapBytes(units[i]).getInt();
+    }
+    return array;
+  }
+
+  public short[] toShortArray() {
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to short[] for " + dtype.toString() + " array");
+    }
+    byte[][] units = groupInternalBytes();
+    short[] array = new short[units.length];
+    for (int i = 0; i < units.length; ++i) {
+      array[i] = wrapBytes(units[i]).getShort();
+    }
+    return array;
+  }
+
+  public char[] toCharArray() {
+    if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to char[] for " + dtype.toString() + " array");
+    }
+    byte[][] units = groupInternalBytes();
+    char[] array = new char[units.length];
+    for (int i = 0; i < units.length; ++i) {
+      array[i] = wrapBytes(units[i]).getChar();
+    }
+    return array;
+  }
+
+  public byte[] toByteArray() {
+    if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
+      throw new IllegalArgumentException(
+        "Cannot set convert to byte[] for " + dtype.toString() + " array");
+    }
+    return internal();
+  }
+
+  public byte[] internal() {
     NDArray tmp = NDArray.empty(shape(), dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromTo(handle, tmp.handle));
 
     int arrLength = dtype.numOfBytes * (int) size();
     byte[] arr = new byte[arrLength];
     Base.checkCall(Base._LIB.tvmArrayCopyToJArray(tmp.handle, arr));
-    return new NDArrayInternal(arr, dtype);
+    return arr;
+  }
+
+  private byte[][] groupInternalBytes() {
+    byte[] raw = internal();
+    int unitSize = dtype.numOfBytes;
+    if (raw.length <= 0 || raw.length % unitSize != 0) {
+      throw new IllegalArgumentException(String.format(
+        "%s size %d cannot divide byte array size %d",
+        dtype.toString(), unitSize, raw.length));
+    }
+
+    int numOfUnits = raw.length / unitSize;
+    byte[][] units = new byte[numOfUnits][unitSize];
+    for (int i = 0; i < numOfUnits; ++i) {
+      System.arraycopy(raw, i * unitSize, units[i], 0, unitSize);
+    }
+    return units;
   }
 
   /**
@@ -198,38 +329,6 @@ public class NDArray {
     return empty(shape, new TVMType("float32", 1), ctx);
   }
 
-  /**
-   * Create an array from source arr.
-   * @param arr The source array to be copied from
-   * @param shape The shape of the nd array
-   * @param dtype The data type of the nd array
-   * @param ctx The context of the nd array
-   * @return The created nd array
-   */
-  public static NDArray array(double[] arr, long[] shape, TVMType dtype, TVMContext ctx) {
-    NDArray ndArray = empty(shape, dtype, ctx);
-    ndArray.set(arr);
-    return ndArray;
-  }
-
-  public static NDArray array(double[] arr, long[] shape, TVMType dtype) {
-    NDArray ndArray = empty(shape, dtype);
-    ndArray.set(arr);
-    return ndArray;
-  }
-
-  public static NDArray array(double[] arr, long[] shape) {
-    NDArray ndArray = empty(shape);
-    ndArray.set(arr);
-    return ndArray;
-  }
-
-  public static NDArray array(double[] arr, long[] shape, TVMContext ctx) {
-    NDArray ndArray = empty(shape, ctx);
-    ndArray.set(arr);
-    return ndArray;
-  }
-
   private static ByteBuffer wrapBytes(byte[] bytes) {
     ByteBuffer bb = ByteBuffer.wrap(bytes);
     bb.order(ByteOrder.LITTLE_ENDIAN);
@@ -240,105 +339,5 @@ public class NDArray {
     ByteBuffer bb = ByteBuffer.wrap(bytes, offset, length);
     bb.order(ByteOrder.LITTLE_ENDIAN);
     return bb;
-  }
-
-  private static class NDArrayInternal {
-    private final byte[] internal;
-    private final TVMType dtype;
-    private final int unitSize;
-    private final byte[][] units;
-
-    public NDArrayInternal(byte[] internal, TVMType dtype) {
-      this.internal = internal;
-      this.dtype = dtype;
-
-      unitSize = dtype.numOfBytes;
-      if (internal.length <= 0 || internal.length % unitSize != 0) {
-        throw new IllegalArgumentException(String.format(
-          "%s size %d cannot divide byte array size %d",
-          dtype.toString(), unitSize, internal.length));
-      }
-
-      int numOfUnits = internal.length / unitSize;
-      units = new byte[numOfUnits][unitSize];
-      for (int i = 0; i < numOfUnits; ++i) {
-        System.arraycopy(internal, i * unitSize, units[i], 0, unitSize);
-      }
-    }
-
-    public double[] toArray() {
-      double[] array = new double[units.length];
-      switch (dtype.typeCode) {
-      case TVMType.INT:
-        switch (dtype.bits) {
-        case 8:
-          for (int i = 0; i < internal.length; ++i) {
-            array[i] = internal[i];
-          }
-          break;
-        case 16:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = wrapBytes(units[i]).getShort();
-          }
-          break;
-        case 32:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = wrapBytes(units[i]).getInt();
-          }
-          break;
-        case 64:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = wrapBytes(units[i]).getLong();
-          }
-          break;
-        default:
-          throw new IllegalArgumentException("Do not know how to handle type " + dtype);
-        }
-        break;
-      case TVMType.UINT:
-        switch (dtype.bits) {
-        case 8:
-          for (int i = 0; i < internal.length; ++i) {
-            array[i] = ((int) internal[i]) & 0xFF;
-          }
-          break;
-        case 16:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = ((int) wrapBytes(units[i]).getShort()) & 0xFFFF;
-          }
-          break;
-        case 32:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = ((long) wrapBytes(units[i]).getInt()) & 0xFFFFFFFFL;
-          }
-          break;
-        default:
-          throw new IllegalArgumentException("Do not know how to handle type " + dtype);
-        }
-        break;
-      case TVMType.FLOAT:
-        switch (dtype.bits) {
-        case 16:
-          throw new IllegalArgumentException(
-            "Currently cannot convert float16 to native numerical types");
-        case 32:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = wrapBytes(units[i]).getFloat();
-          }
-          break;
-        case 64:
-          for (int i = 0; i < units.length; ++i) {
-            array[i] = wrapBytes(units[i]).getDouble();
-          }
-          break;
-        default:
-          throw new IllegalArgumentException("Do not know how to handle type " + dtype);
-        }
-        break;
-      default:
-        throw new IllegalArgumentException("Do not know how to handle type " + dtype);
-      }
-      return array;
-    }
   }
 }
