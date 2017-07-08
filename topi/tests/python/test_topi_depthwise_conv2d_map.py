@@ -5,7 +5,7 @@ from scipy import signal
 from topi.nn.util import get_const_tuple
 from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
 
-def test_depthwise_conv2d_map(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
+def depthwise_conv2d_map_with_workload(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
     in_width = in_height
     filter_channel = in_channel
     filter_width = filter_height
@@ -70,8 +70,8 @@ def test_depthwise_conv2d_map(batch, in_channel, in_height, channel_multiplier, 
         filter_np = np.random.uniform(size=get_const_tuple(Filter.shape)).astype(Filter.dtype)
         input_tvm = tvm.nd.array(input_np, ctx)
         filter_tvm = tvm.nd.array(filter_np, ctx)
-        scale_np = np.random.uniform(size=(in_channel * channel_multiplier)).astype(Scale.dtype)
-        shift_np = np.random.uniform(size=(in_channel * channel_multiplier)).astype(Shift.dtype)
+        scale_np = np.random.uniform(size=get_const_tuple(Scale.shape)).astype(Scale.dtype)
+        shift_np = np.random.uniform(size=get_const_tuple(Shift.shape)).astype(Shift.dtype)
         scale_tvm = tvm.nd.array(scale_np, ctx)
         shift_tvm = tvm.nd.array(shift_np, ctx)
         depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx)
@@ -97,13 +97,16 @@ def test_depthwise_conv2d_map(batch, in_channel, in_height, channel_multiplier, 
     check_device("metal")
 
 
-if __name__ == "__main__":
-    test_depthwise_conv2d_map(1, 728, 64, 1, 3, 1, "SAME")
-    test_depthwise_conv2d_map(1, 728, 32, 1, 3, 1, "SAME")
-    test_depthwise_conv2d_map(4, 256, 64, 2, 5, 2, "SAME")
-    test_depthwise_conv2d_map(4, 256, 32, 2, 5, 2, "SAME")
+def test_depthwise_conv2d_map():
+    depthwise_conv2d_map_with_workload(1, 728, 64, 1, 3, 1, "SAME")
+    depthwise_conv2d_map_with_workload(1, 728, 32, 1, 3, 1, "SAME")
+    depthwise_conv2d_map_with_workload(4, 256, 64, 2, 5, 2, "SAME")
+    depthwise_conv2d_map_with_workload(4, 256, 32, 2, 5, 2, "SAME")
+    depthwise_conv2d_map_with_workload(1, 728, 64, 1, 3, 1, "VALID")
+    depthwise_conv2d_map_with_workload(1, 728, 32, 1, 3, 1, "VALID")
+    depthwise_conv2d_map_with_workload(4, 256, 64, 2, 5, 2, "VALID")
+    depthwise_conv2d_map_with_workload(4, 256, 32, 2, 5, 2, "VALID")
 
-    test_depthwise_conv2d_map(1, 728, 64, 1, 3, 1, "VALID")
-    test_depthwise_conv2d_map(1, 728, 32, 1, 3, 1, "VALID")
-    test_depthwise_conv2d_map(4, 256, 64, 2, 5, 2, "VALID")
-    test_depthwise_conv2d_map(4, 256, 32, 2, 5, 2, "VALID")
+
+if __name__ == "__main__":
+    test_depthwise_conv2d_map()
