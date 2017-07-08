@@ -267,6 +267,14 @@ LoweredFunc MakeAPI(Stmt body,
                     bool is_restricted);
 
 /*!
+ * \brief Bind the device type of host function to be device_type.
+ * \param func The function to be binded.
+ * \param device_type The device type to be binded.
+ * \return The binded function.
+ */
+LoweredFunc BindDeviceType(LoweredFunc func,
+                           int device_type);
+/*!
  * \brief Find undefined vars in the statment.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.

@@ -91,6 +91,7 @@ REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS4(UnrollLoop);
 REGISTER_PASS2(StorageSync);
 REGISTER_PASS5(MakeAPI);
+REGISTER_PASS2(BindDeviceType);
 REGISTER_PASS1(SplitHostDevice);
 REGISTER_PASS1(StorageRewrite);
 REGISTER_PASS1(InjectVirtualThread);

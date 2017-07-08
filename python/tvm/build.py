@@ -12,6 +12,7 @@ from . import ir_pass
 from . import collections
 from . import module
 from . import codegen
+from . import ndarray
 
 class BuildConfig(object):
     """Configuration scope to set a build config option.
@@ -311,11 +312,16 @@ def build(sch,
             fdevice.append(func)
         else:
             raise ValueError("unknown function type %d" % func.func_type)
-    fhost = [ir_pass.LowerPackedCall(x) for x in fhost]
 
     if not target.startswith("llvm") and target != "stackvm" and not fdevice:
         raise ValueError(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
+
+    device = "cpu" if target.startswith("llvm") or target == "stackvm" else target
+    device_type = ndarray.context(device, 0).device_type
+    fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
+    fhost = [ir_pass.LowerPackedCall(x) for x in fhost]
+
     if fdevice:
         if not target_host:
             target_host = "llvm" if module.enabled("llvm") else "stackvm"

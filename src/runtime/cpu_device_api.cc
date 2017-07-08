@@ -3,14 +3,15 @@
  * \file cpu_device_api.cc
  */
 #include <dmlc/logging.h>
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <cstdlib>
 #include <cstring>
+#include "./workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
-
 class CPUDeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(TVMContext ctx) final {}
@@ -54,12 +55,34 @@ class CPUDeviceAPI final : public DeviceAPI {
 
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
   }
+
+  void* AllocWorkspace(TVMContext ctx, size_t size) final;
+  void FreeWorkspace(TVMContext ctx, void* data) final;
+
+  static const std::shared_ptr<CPUDeviceAPI>& Global() {
+    static std::shared_ptr<CPUDeviceAPI> inst =
+        std::make_shared<CPUDeviceAPI>();
+    return inst;
+  }
 };
+
+struct CPUWorkspacePool : public WorkspacePool {
+  CPUWorkspacePool() :
+      WorkspacePool(kCPU, CPUDeviceAPI::Global()) {}
+};
+
+void* CPUDeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
+  return dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()
+      ->AllocWorkspace(ctx, size);
+}
+
+void CPUDeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
+  dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(ctx, data);
+}
 
 TVM_REGISTER_GLOBAL("device_api.cpu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    static CPUDeviceAPI inst;
-    DeviceAPI* ptr = &inst;
+    DeviceAPI* ptr = CPUDeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);
   });
 }  // namespace runtime

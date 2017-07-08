@@ -5,6 +5,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
@@ -91,6 +92,14 @@ class DeviceAPIManager {
 DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
   return DeviceAPIManager::Get(
       static_cast<int>(ctx.device_type), allow_missing);
+}
+
+void* DeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
+  return AllocDataSpace(ctx, size, kTempAllocaAlignment);
+}
+
+void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
+  FreeDataSpace(ctx, ptr);
 }
 
 inline TVMArray* TVMArrayCreate_() {
@@ -223,6 +232,25 @@ int TVMBackendGetFuncFromEnv(void* mod_node,
   *func = (TVMFunctionHandle)(
       static_cast<ModuleNode*>(mod_node)->GetFuncFromEnv(func_name));
   API_END();
+}
+
+void* TVMBackendAllocWorkspace(int device_type,
+                             int device_id,
+                             uint64_t size) {
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx, size);
+}
+
+int TVMBackendFreeWorkspace(int device_type,
+                            int device_id,
+                            void* ptr) {
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->FreeWorkspace(ctx, ptr);
+  return 0;
 }
 
 int TVMBackendParallelFor(
