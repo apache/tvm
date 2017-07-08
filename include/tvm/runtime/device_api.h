@@ -110,7 +110,7 @@ class DeviceAPI {
    *  - Workspace should not overlap between different threads(i.e. be threadlocal)
    *
    * \param ctx The context of allocation.
-   * \param The size to be allocated.
+   * \param size The size to be allocated.
    */
   virtual void* AllocWorkspace(TVMContext ctx, size_t size);
   /*!

@@ -2,7 +2,7 @@ import tvm
 import numpy as np
 
 def test_llvm_add_pipeline():
-    nn = 1024
+    nn = 10
     n = tvm.convert(nn)
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
