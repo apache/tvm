@@ -421,8 +421,8 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
   static auto& olayouts =
     nnvm::Op::GetAttr<FTVMOutputsLayoutInfo>("FTVMOutputsLayoutInfo");
 
-  nnvm::NodeEntryMap<nnvm::NodeEntry> transformed;
   std::unordered_map<nnvm::Node*, nnvm::NodePtr> mirror_map;
+  std::unordered_map<nnvm::Node*, std::vector<nnvm::NodePtr> > transformed;
 
   DFSVisit(src.outputs, [&](const nnvm::NodePtr& n) {
       nnvm::NodePtr new_node = nnvm::Node::Create();
@@ -433,14 +433,13 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
       }
 
       if (olayouts.count(n->op())) {
+        std::vector<nnvm::NodePtr> tnodes(n->num_outputs(), nullptr);
         for (uint32_t i = 0; i < n->num_outputs(); ++i) {
           LayoutInfo layout = GetLayout(olayouts, n, i);
-          nnvm::NodePtr tnode =
-            CreateLayoutTransformNode(layout.src, layout.dst);
-          tnode->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
-          transformed.emplace(
-            nnvm::NodeEntry{n, i, 0}, nnvm::NodeEntry{tnode, 0, 0});
+          tnodes[i] = CreateLayoutTransformNode(layout.src, layout.dst);
+          tnodes[i]->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
         }
+        transformed.emplace(n.get(), std::move(tnodes));
       }
 
       for (size_t idx = 0; idx < n->inputs.size(); ++idx) {
@@ -460,7 +459,9 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
         }
 
         if (otrans) {
-          new_node->inputs[idx] = transformed.at(e);
+          const auto& tnodes = transformed.at(in.get());
+          new_node->inputs[idx] =
+            nnvm::NodeEntry{tnodes[e.index], 0, 0};
         }
 
         if (itrans) {
@@ -477,7 +478,8 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
   std::vector<nnvm::NodeEntry> outputs;
   for (const auto& e : src.outputs) {
     if (olayouts.count(e.node->op())) {
-      outputs.emplace_back(transformed.at(e));
+      const auto& tnodes = transformed.at(e.node.get());
+      outputs.emplace_back(nnvm::NodeEntry{tnodes[e.index], 0, 0});
     } else {
       outputs.emplace_back(
         nnvm::NodeEntry{mirror_map.at(e.node.get()), e.index, e.version});
