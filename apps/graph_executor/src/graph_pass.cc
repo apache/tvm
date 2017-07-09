@@ -411,6 +411,10 @@ nnvm::NodePtr CreateLayoutTransformNode(std::string src, std::string dst) {
 }
 
 
+/*!
+ * \brief A simple layout transform pass that will
+ *  insert layout transform nodes automatically.
+ */
 nnvm::Graph LayoutTransform(nnvm::Graph src) {
   static auto& ilayouts =
     nnvm::Op::GetAttr<FTVMInputsLayoutInfo>("FTVMInputsLayoutInfo");
@@ -428,10 +432,22 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
         return;
       }
 
+      if (olayouts.count(n->op())) {
+        for (uint32_t i = 0; i < n->num_outputs(); ++i) {
+          LayoutInfo layout = GetLayout(olayouts, n, i);
+          nnvm::NodePtr tnode =
+            CreateLayoutTransformNode(layout.src, layout.dst);
+          tnode->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
+          transformed.emplace(
+            nnvm::NodeEntry{n, i, 0}, nnvm::NodeEntry{tnode, 0, 0});
+        }
+      }
+
       for (size_t idx = 0; idx < n->inputs.size(); ++idx) {
         const nnvm::NodeEntry& e = n->inputs[idx];
         const nnvm::NodePtr& in = e.node;
-        new_node->inputs[idx] = e;
+        new_node->inputs[idx] =
+          nnvm::NodeEntry{mirror_map.at(in.get()), e.index, e.version};
 
         bool otrans = olayouts.count(in->op());
         bool itrans = ilayouts.count(n->op());
@@ -439,18 +455,11 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
           LayoutInfo olayout = GetLayout(olayouts, in, e.index);
           LayoutInfo ilayout = GetLayout(ilayouts, n, idx);
           if (IsPair(olayout, ilayout)) {
-            break;
+            continue;
           }
         }
 
         if (otrans) {
-          LayoutInfo layout = GetLayout(olayouts, in, e.index);
-          if (!transformed.count(e)) {
-            nnvm::NodePtr tnode =
-              CreateLayoutTransformNode(layout.src, layout.dst);
-            tnode->inputs.emplace_back(e);
-            transformed.emplace(e, nnvm::NodeEntry{tnode, 0, 0});
-          }
           new_node->inputs[idx] = transformed.at(e);
         }
 
@@ -465,23 +474,13 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
       mirror_map[n.get()] = std::move(new_node);
     });
 
-
   std::vector<nnvm::NodeEntry> outputs;
   for (const auto& e : src.outputs) {
-    nnvm::NodePtr mirror_node = mirror_map.at(e.node.get());
-    nnvm::NodeEntry mirror_entry{mirror_node, e.index, e.version};
-
     if (olayouts.count(e.node->op())) {
-      LayoutInfo layout = GetLayout(olayouts, e.node, e.index);
-      nnvm::NodePtr tnode =
-        CreateLayoutTransformNode(layout.src, layout.dst);
-      tnode->inputs.emplace_back(mirror_entry);
-
-      outputs.emplace_back(
-        nnvm::NodeEntry{tnode, 0, 0});
+      outputs.emplace_back(transformed.at(e));
     } else {
       outputs.emplace_back(
-        nnvm::NodeEntry{mirror_node, e.index, e.version});
+        nnvm::NodeEntry{mirror_map.at(e.node.get()), e.index, e.version});
     }
   }
 
