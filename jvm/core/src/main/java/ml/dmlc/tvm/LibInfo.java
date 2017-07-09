@@ -48,12 +48,18 @@ public class LibInfo {
 
   // NDArray
   native public int tvmArrayFree(long handle);
-  native public int tvmArrayAlloc(long[] shape, TVMType dtype, TVMContext ctx, RefLong refHandle);
+  native public int tvmArrayAlloc(long[] shape,
+                                  int dtypeCode,
+                                  int dtypeBits,
+                                  int dtypeLanes,
+                                  int deviceType,
+                                  int deviceId,
+                                  RefLong refHandle);
   native public int tvmArrayGetShape(long handle, List<Long> shape);
   native public int tvmArrayCopyFromTo(long from, long to);
   native public int tvmArrayCopyFromJArray(byte[] fromRaw, long from, long to);
   native public int tvmArrayCopyToJArray(long from, byte[] to);
 
   // TVMContext
-  native public int tvmSynchronize(TVMContext ctx);
+  native public int tvmSynchronize(int deviceType, int deviceId);
 }

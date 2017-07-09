@@ -110,8 +110,8 @@ public class TVMContext {
     return vpi(0);
   }
 
-  private final int deviceType;
-  private final int deviceId;
+  public final int deviceType;
+  public final int deviceId;
 
   public TVMContext(int deviceType, int deviceId) {
     this.deviceType = deviceType;
@@ -145,7 +145,7 @@ public class TVMContext {
 
   // Synchronize until jobs finished at the context.
   public void sync() {
-    Base.checkCall(Base._LIB.tvmSynchronize(this));
+    Base.checkCall(Base._LIB.tvmSynchronize(deviceType, deviceId));
   }
 
   @Override public int hashCode() {

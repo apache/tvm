@@ -311,7 +311,9 @@ public class NDArray {
    */
   public static NDArray empty(long[] shape, TVMType dtype, TVMContext ctx) {
     RefLong refHandle = new RefLong();
-    Base.checkCall(Base._LIB.tvmArrayAlloc(shape, dtype, ctx, refHandle));
+    Base.checkCall(Base._LIB.tvmArrayAlloc(
+      shape, dtype.typeCode, dtype.bits, dtype.lanes,
+      ctx.deviceType, ctx.deviceId, refHandle));
     return new NDArray(refHandle.value, false, dtype);
   }
 

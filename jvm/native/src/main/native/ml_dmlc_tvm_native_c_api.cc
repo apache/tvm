@@ -215,19 +215,22 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayFree(
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
-  JNIEnv *env, jobject obj, jlongArray jshape, jobject jdtype, jobject jctx, jobject jret) {
-  TVMType dtype;
-  fromJavaDType(env, jdtype, &dtype);
-
-  TVMContext ctx;
-  fromJavaContext(env, jctx, &ctx);
-
+  JNIEnv *env, jobject obj, jlongArray jshape, jint jdtypeCode,
+  jint jdtypeBits, jint jdtypeLanes, jint jdeviceType, jint jdeviceId, jobject jret) {
   int ndim = static_cast<int>(env->GetArrayLength(jshape));
 
   TVMArrayHandle out;
 
   jlong *shapeArray = env->GetLongArrayElements(jshape, NULL);
-  int ret = TVMArrayAlloc(reinterpret_cast<const tvm_index_t*>(shapeArray), ndim, dtype, ctx, &out);
+  int ret = TVMArrayAlloc(
+    reinterpret_cast<const tvm_index_t*>(shapeArray),
+    ndim,
+    static_cast<int>(jdtypeCode),
+    static_cast<int>(jdtypeBits),
+    static_cast<int>(jdtypeLanes),
+    static_cast<int>(jdeviceType),
+    static_cast<int>(jdeviceId),
+    &out);
   env->ReleaseLongArrayElements(jshape, shapeArray, 0);
 
   setLongField(env, jret, reinterpret_cast<jlong>(out));
@@ -295,8 +298,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayCopyToJArray(
 
 // Context
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmSynchronize(
-  JNIEnv *env, jobject obj, jobject jctx) {
-  TVMContext ctx;
-  fromJavaContext(env, jctx, &ctx);
-  return TVMSynchronize(ctx, NULL);
+  JNIEnv *env, jint deviceType, jint deviceId) {
+  return TVMSynchronize(static_cast<int>(deviceType), static_cast<int>(deviceId), NULL);
 }
