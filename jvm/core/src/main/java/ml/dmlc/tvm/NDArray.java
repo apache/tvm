@@ -55,7 +55,7 @@ public class NDArray {
     }
   }
 
-  public void set(double[] sourceArray) {
+  public void copyFrom(double[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 64) {
       throw new IllegalArgumentException("Cannot set double[] for " + dtype.toString() + " array");
@@ -69,7 +69,7 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
-  public void set(float[] sourceArray) {
+  public void copyFrom(float[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
       throw new IllegalArgumentException("Cannot set float[] for " + dtype.toString() + " array");
@@ -83,7 +83,7 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
-  public void set(long[] sourceArray) {
+  public void copyFrom(long[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
       throw new IllegalArgumentException("Cannot set long[] for " + dtype.toString() + " array");
@@ -97,7 +97,7 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
-  public void set(int[] sourceArray) {
+  public void copyFrom(int[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
       throw new IllegalArgumentException("Cannot set int[] for " + dtype.toString() + " array");
@@ -111,7 +111,7 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
-  public void set(short[] sourceArray) {
+  public void copyFrom(short[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
       throw new IllegalArgumentException("Cannot set short[] for " + dtype.toString() + " array");
@@ -125,17 +125,15 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
-  public void set(byte[] sourceArray) {
+  public void copyFrom(byte[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
       throw new IllegalArgumentException("Cannot set byte[] for " + dtype.toString() + " array");
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    copyFromRaw(sourceArray);
   }
 
-  public void set(char[] sourceArray) {
+  public void copyFrom(char[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
       throw new IllegalArgumentException("Cannot set char[] for " + dtype.toString() + " array");
@@ -157,7 +155,7 @@ public class NDArray {
     }
   }
 
-  public void setRaw(byte[] sourceArray) {
+  public void copyFromRaw(byte[] sourceArray) {
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
@@ -191,7 +189,7 @@ public class NDArray {
    * Return a copied flat java array of current array (row-major).
    * @return A copy of array content.
    */
-  public double[] toDoubleArray() {
+  public double[] asDoubleArray() {
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 64) {
       throw new IllegalArgumentException(
         "Cannot set convert to double[] for " + dtype.toString() + " array");
@@ -204,7 +202,7 @@ public class NDArray {
     return array;
   }
 
-  public float[] toFloatArray() {
+  public float[] asFloatArray() {
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
       throw new IllegalArgumentException(
         "Cannot set convert to float[] for " + dtype.toString() + " array");
@@ -217,7 +215,7 @@ public class NDArray {
     return array;
   }
 
-  public long[] toLongArray() {
+  public long[] asLongArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
       throw new IllegalArgumentException(
         "Cannot set convert to long[] for " + dtype.toString() + " array");
@@ -230,7 +228,7 @@ public class NDArray {
     return array;
   }
 
-  public int[] toIntArray() {
+  public int[] asIntArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
       throw new IllegalArgumentException(
         "Cannot set convert to int[] for " + dtype.toString() + " array");
@@ -243,7 +241,7 @@ public class NDArray {
     return array;
   }
 
-  public short[] toShortArray() {
+  public short[] asShortArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
       throw new IllegalArgumentException(
         "Cannot set convert to short[] for " + dtype.toString() + " array");
@@ -256,7 +254,7 @@ public class NDArray {
     return array;
   }
 
-  public char[] toCharArray() {
+  public char[] asCharArray() {
     if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
       throw new IllegalArgumentException(
         "Cannot set convert to char[] for " + dtype.toString() + " array");
@@ -269,7 +267,7 @@ public class NDArray {
     return array;
   }
 
-  public byte[] toByteArray() {
+  public byte[] asByteArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
       throw new IllegalArgumentException(
         "Cannot set convert to byte[] for " + dtype.toString() + " array");
