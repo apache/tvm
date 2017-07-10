@@ -115,7 +115,7 @@ echo ${DOCKER_BINARY}
 ${DOCKER_BINARY} run --rm --pid=host \
     -v ${WORKSPACE}:/workspace \
     -w /workspace \
-    -e "CI_BUILD_HOME=${WORKSPACE}" \
+    -e "CI_BUILD_HOME=/workspace" \
     -e "CI_BUILD_USER=$(id -u -n)" \
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
