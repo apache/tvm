@@ -187,7 +187,7 @@ class Stage : public NodeRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  Stage& prefetch(Tensor domain, IterVar var, Expr offset); //NOLINT(*)
+  Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.

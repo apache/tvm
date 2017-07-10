@@ -337,7 +337,7 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
-Stage& Stage::prefetch(Tensor tensor, IterVar var, Expr offset) {
+Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   StageNode *self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
