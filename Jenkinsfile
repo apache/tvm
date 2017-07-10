@@ -184,6 +184,17 @@ stage('Unit Test') {
         }
       }
     }
+  },
+  'java': {
+    node('GPU' && 'linux') {
+      ws('workspace/tvm/ut-java') {
+        init_git()
+        unpack_lib('gpu', tvm_lib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} gpu ./tests/scripts/task_java_unittest.sh"
+        }
+      }
+    }
   }
 }
 

@@ -131,6 +131,8 @@ else
 	endif
 endif
 
+JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests)
+
 ifeq ($(USE_CUDA), 1)
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
 else ifeq ($(USE_OPENCL), 1)
@@ -222,13 +224,7 @@ jvmpkg:
 	(cd $(ROOTDIR)/jvm; \
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
-			-Dcurrent_libdir="$(ROOTDIR)/lib" -DskipTests)
-
-jvmtest:
-	(cd $(ROOTDIR)/jvm; \
-		mvn verify -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
-			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
-			$(JVM_TEST_ARGS))
+			-Dcurrent_libdir="$(ROOTDIR)/lib" $(JVM_TEST_ARGS))
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
