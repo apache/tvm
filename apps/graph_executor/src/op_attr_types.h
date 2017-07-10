@@ -52,6 +52,36 @@ using FTVMSchedule = std::function<
            const Array<Tensor>& outs,
            const std::string& target)>;
 
+/*!
+ * \brief Layout transform information,
+ *  from source layout to destination layout.
+ */
+struct LayoutInfo {
+  using Layout = std::string;
+  Layout src;
+  Layout dst;
+};
+
+/*!
+ * \brief Layout info of the node.
+ * \param attrs The attribute of the node.
+ * \return layouts A vector of inputs/outputs layout info.
+ */
+using FTVMLayoutInfo = std::function<
+  std::vector<LayoutInfo>(const NodeAttrs& attrs)>;
+/*!
+ * \brief Inputs layout info of the node.
+ * \param attrs The attribute of the node.
+ * \return layouts A vector of inputs layout info.
+ */
+using FTVMInputsLayoutInfo  = FTVMLayoutInfo;
+/*!
+ * \brief Outputs layout info of the node.
+ * \param attrs The attribute of the node.
+ * \return layouts A vector of outputs layout info.
+ */
+using FTVMOutputsLayoutInfo = FTVMLayoutInfo;
+
 // The storage result of op
 enum OpPatternKind : int {
   // Elementwise operation
