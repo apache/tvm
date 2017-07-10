@@ -101,7 +101,13 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
     handle = TVMArrayHandle()
     dtype = TVMType(dtype)
     check_call(_LIB.TVMArrayAlloc(
-        shape, ndim, dtype, ctx, ctypes.byref(handle)))
+        shape, ndim,
+        ctypes.c_int(dtype.type_code),
+        ctypes.c_int(dtype.bits),
+        ctypes.c_int(dtype.lanes),
+        ctx.device_type,
+        ctx.device_id,
+        ctypes.byref(handle)))
     return _make_array(handle, False)
 
 class NDArrayBase(_NDArrayBase):

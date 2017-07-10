@@ -124,14 +124,14 @@ inline void TVMArrayFree_(TVMArray* arr) {
   delete arr;
 }
 
-inline void VerifyType(TVMType dtype) {
-  CHECK_GE(dtype.lanes, 1U);
-  if (dtype.code == kFloat) {
-    CHECK_EQ(dtype.bits % 32U, 0U);
+inline void VerifyType(int dtype_code, int dtype_bits, int dtype_lanes) {
+  CHECK_GE(dtype_lanes, 1);
+  if (dtype_code == kFloat) {
+    CHECK_EQ(dtype_bits % 32, 0);
   } else {
-    CHECK_EQ(dtype.bits % 8U, 0U);
+    CHECK_EQ(dtype_bits % 8, 0);
   }
-  CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
+  CHECK_EQ(dtype_bits & (dtype_bits - 1), 0);
 }
 
 inline size_t GetDataSize(TVMArray* arr) {
@@ -323,11 +323,13 @@ int TVMFuncCall(TVMFunctionHandle func,
 }
 
 int TVMCFuncSetReturn(TVMRetValueHandle ret,
-                      TVMValue value,
-                      int type_code) {
+                      TVMValue* value,
+                      int* type_code,
+                      int num_ret) {
   API_BEGIN();
+  CHECK_EQ(num_ret, 1);
   TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
-  *rv = TVMArgValue(value, type_code);
+  *rv = TVMArgValue(value[0], type_code[0]);
   API_END();
 }
 
@@ -367,8 +369,11 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
 
 int TVMArrayAlloc(const tvm_index_t* shape,
                   int ndim,
-                  TVMType dtype,
-                  TVMContext ctx,
+                  int dtype_code,
+                  int dtype_bits,
+                  int dtype_lanes,
+                  int device_type,
+                  int device_id,
                   TVMArrayHandle* out) {
   TVMArray* arr = nullptr;
   API_BEGIN();
@@ -377,17 +382,20 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   // ndim
   arr->ndim = ndim;
   // dtype
-  VerifyType(dtype);
-  arr->dtype = dtype;
+  VerifyType(dtype_code, dtype_bits, dtype_lanes);
+  arr->dtype.code = static_cast<uint8_t>(dtype_code);
+  arr->dtype.bits = static_cast<uint8_t>(dtype_bits);
+  arr->dtype.lanes = static_cast<uint16_t>(dtype_lanes);
   tvm_index_t* shape_copy = new tvm_index_t[ndim];
   std::copy(shape, shape + ndim, shape_copy);
   arr->shape = shape_copy;
   // ctx
-  arr->ctx = ctx;
+  arr->ctx.device_type = static_cast<DLDeviceType>(device_type);
+  arr->ctx.device_id = device_id;
   size_t size = GetDataSize(arr);
   size_t alignment = GetDataAlignment(arr);
-  arr->data = DeviceAPIManager::Get(ctx)->AllocDataSpace(
-      ctx, size, alignment);
+  arr->data = DeviceAPIManager::Get(arr->ctx)->AllocDataSpace(
+      arr->ctx, size, alignment);
   *out = arr;
   API_END_HANDLE_ERROR(TVMArrayFree_(arr));
 }
@@ -456,14 +464,20 @@ int TVMArrayCopyToBytes(TVMArrayHandle handle,
   API_END();
 }
 
-int TVMSetStream(TVMContext ctx, TVMStreamHandle stream) {
+int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
   DeviceAPIManager::Get(ctx)->SetStream(ctx, stream);
   API_END();
 }
 
-int TVMSynchronize(TVMContext ctx, TVMStreamHandle stream) {
+int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
   DeviceAPIManager::Get(ctx)->StreamSync(ctx, stream);
   API_END();
 }

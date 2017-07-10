@@ -43,8 +43,8 @@ def depthwise_conv2d(Input, Filter, Stride, padding):
     # calculate output shape
     if padding == 'VALID':
         out_channel = in_channel * channel_multiplier
-        out_height = (in_height - filter_height) / stride_h + 1
-        out_width = (in_width - filter_width) / stride_w + 1
+        out_height = (in_height - filter_height) // stride_h + 1
+        out_width = (in_width - filter_width) // stride_w + 1
         pad_along_height = 0
         pad_along_width = 0
     if padding == 'SAME':
