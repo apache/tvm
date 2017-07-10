@@ -73,8 +73,9 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
                     int* ret_type_code)
     int TVMFuncFree(TVMFunctionHandle func)
     int TVMCFuncSetReturn(TVMRetValueHandle ret,
-                          TVMValue value,
-                          int type_code)
+                          TVMValue* value,
+                          int* type_code,
+                          int num_ret)
     int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,

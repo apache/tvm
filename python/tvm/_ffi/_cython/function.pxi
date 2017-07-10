@@ -44,7 +44,7 @@ cdef int tvm_callback(TVMValue* args,
             raise ValueError("PackedFunction can only support one return value")
         temp_args = []
         make_arg(rv, &value, &tcode, temp_args)
-        CALL(TVMCFuncSetReturn(ret, value, tcode))
+        CALL(TVMCFuncSetReturn(ret, &value, &tcode, 1))
     return 0
 
 

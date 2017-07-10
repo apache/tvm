@@ -64,7 +64,7 @@ def convert_to_tvm_func(pyfunc):
             values, tcodes, _ = _make_tvm_args((rv,), temp_args)
             if not isinstance(ret, TVMRetValueHandle):
                 ret = TVMRetValueHandle(ret)
-            check_call(_LIB.TVMCFuncSetReturn(ret, values[0], ctypes.c_int(tcodes[0])))
+            check_call(_LIB.TVMCFuncSetReturn(ret, values, tcodes, ctypes.c_int(1)))
             _ = temp_args
             _ = rv
         return 0
