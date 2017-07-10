@@ -243,10 +243,12 @@ TVM_DLL int TVMFuncCall(TVMFunctionHandle func,
  * \param ret The return value handle, pass by ret in TVMPackedCFunc
  * \param value The value to be returned.
  * \param type_code The type of the value to be returned.
+ * \param num_ret Number of return values, for now only 1 is supported.
  */
 TVM_DLL int TVMCFuncSetReturn(TVMRetValueHandle ret,
-                              TVMValue value,
-                              int type_code);
+                              TVMValue* value,
+                              int* type_code,
+                              int num_ret);
 
 /*!
  * \brief Inplace translate callback argument value to return value.

@@ -323,11 +323,13 @@ int TVMFuncCall(TVMFunctionHandle func,
 }
 
 int TVMCFuncSetReturn(TVMRetValueHandle ret,
-                      TVMValue value,
-                      int type_code) {
+                      TVMValue* value,
+                      int* type_code,
+                      int num_ret) {
   API_BEGIN();
+  CHECK_EQ(num_ret, 1);
   TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
-  *rv = TVMArgValue(value, type_code);
+  *rv = TVMArgValue(value[0], type_code[0]);
   API_END();
 }
 
