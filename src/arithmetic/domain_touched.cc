@@ -6,7 +6,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
-#include <tvm/arithmetic.h>
+#include <tvm/tensor.h>
 #include <tvm/api_registry.h>
 
 #include <unordered_set>
@@ -20,8 +20,8 @@ using namespace ir;
 // Find Read region of the tensor in the stmt.
 class FuncTouchedDomain final : public IRVisitor {
 public:
-  FuncTouchedDomain(FunctionRef func, bool consider_calls, bool consider_provides)
-    : func_(func), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
+  FuncTouchedDomain(const Tensor &tensor, bool consider_calls, bool consider_provides)
+    : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
 
   Domain Find(const Stmt& stmt) {
     this->Visit(stmt);
@@ -63,14 +63,14 @@ public:
   }
 
   void Visit_(const Call* op) final {
-    if (consider_calls_ && op->func.same_as(func_)) {
+    if (consider_calls_ && tensor_->op.same_as(op->func) && tensor_->value_index == op->value_index) {
       Touch(op->args);
     }
     IRVisitor::Visit_(op);
   }
 
   void Visit_(const Provide* op) final {
-    if (consider_provides_ && op->func.same_as(func_)) {
+    if (consider_provides_ && tensor_->op.same_as(op->func) && tensor_->value_index == op->value_index) {
       Touch(op->args);
     }
     IRVisitor::Visit_(op);
@@ -86,14 +86,14 @@ private:
     }
   }
 
-  FunctionRef func_;
+  const Tensor &tensor_;
   bool consider_calls_, consider_provides_;
   std::vector<std::vector<IntSet> > bounds_;
   std::unordered_map<const Variable*, IntSet> dom_map_;
 };
 
-Domain RegionTouched(Stmt stmt, const FunctionRef &func, bool consider_calls, bool consider_provides) {
-  return FuncTouchedDomain(func, consider_calls, consider_provides).Find(stmt);
+Domain DomainTouched(Stmt stmt, const Tensor &tensor, bool consider_calls, bool consider_provides) {
+  return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
 }
 
 }  // namespace arith
