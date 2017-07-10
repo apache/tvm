@@ -255,7 +255,8 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(IntImm)
 .DISPATCH_TO_VISIT(UIntImm)
 .DISPATCH_TO_VISIT(FloatImm)
-.DISPATCH_TO_VISIT(StringImm);
+.DISPATCH_TO_VISIT(StringImm)
+.DISPATCH_TO_VISIT(Prefetch);
 
 }  // namespace ir
 }  // namespace tvm
