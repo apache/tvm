@@ -337,7 +337,7 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
-Stage& Stage::prefetch(Tensor domain, IterVar var, Expr offset) {
+Stage& Stage::prefetch(Tensor tensor, IterVar var, Expr offset) {
   StageNode *self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -349,7 +349,7 @@ Stage& Stage::prefetch(Tensor domain, IterVar var, Expr offset) {
   } else {
     n = std::make_shared<IterVarAttrNode>();
   }
-  n->prefetch_data.push_back(domain);
+  n->prefetch_data.push_back(tensor);
   n->prefetch_offset.push_back(offset);
   self->iter_var_attrs.Set(var, IterVarAttr(n));
 }
