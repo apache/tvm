@@ -255,6 +255,16 @@ IntSet DeduceBound(Expr v, Expr cond,
                    const std::unordered_map<const Variable*, IntSet>& relax_map);
 
 /*!
+ * \brief Infer a regular domain that covers all the calls or provides within the given statement.
+ * \param body The given statement.
+ * \param func The name of the calls of provides.
+ * \param consider_calls If calls are considered.
+ * \param consider_provides If provides are considered.
+ * \return The domain that covers all the calls or provides within the given statement.
+ */
+Domain RegionTouched(Stmt body, const FunctionRef &func, bool consider_calls, bool consider_provides);
+
+/*!
  * \brief Evaluate the expression with modular analysis
  * \param e The expression to be evaluated.
  * \param mod_map Map of modular statistics of known variables.

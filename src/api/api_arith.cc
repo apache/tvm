@@ -38,6 +38,12 @@ TVM_REGISTER_API("arith.DeduceBound")
         args[3].operator Map<Var, IntSet>());
   });
 
+TVM_REGISTER_API("arith.DomainTouched")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = RegionTouched(args[0], args[1], args[2], args[3]);
+  });
+
+
 TVM_REGISTER_API("_IntervalSetGetMin")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator IntSet().min();
