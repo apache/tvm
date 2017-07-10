@@ -12,6 +12,9 @@
 #include "./expr.h"
 
 namespace tvm {
+
+class Tensor;
+
 /*! \brief namespace of arithmetic */
 namespace arith {
 /*!
@@ -257,12 +260,12 @@ IntSet DeduceBound(Expr v, Expr cond,
 /*!
  * \brief Infer a regular domain that covers all the calls or provides within the given statement.
  * \param body The given statement.
- * \param func The name of the calls of provides.
- * \param consider_calls If calls are considered.
- * \param consider_provides If provides are considered.
+ * \param tensor The name of the calls or provides.
+ * \param consider_calls If calls (read) are considered.
+ * \param consider_provides If provides (write) are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Domain RegionTouched(Stmt body, const FunctionRef &func, bool consider_calls, bool consider_provides);
+Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool consider_provides);
 
 /*!
  * \brief Evaluate the expression with modular analysis
