@@ -1,6 +1,6 @@
+# pylint: disable=invalid-name
 """Schedule for conv2d_hwcn with auto fusion"""
 import tvm
-from ..nn.util import get_const_tuple
 
 
 def _schedule_conv2d_hwcn(op, sch):
@@ -22,7 +22,7 @@ def _schedule_conv2d_hwcn(op, sch):
         Out = sch.outputs[0].output(0)
         sch[B].set_scope("local")
         BL = B
-    
+
     tile = 8
     num_thread = 8
     block_factor = tile * num_thread
