@@ -28,6 +28,7 @@ class TVMError(Exception):
     """Error thrown by TVM function"""
     pass
 
+
 def _load_lib():
     """Load libary by searching possible path."""
     lib_path = libinfo.find_lib_path()
