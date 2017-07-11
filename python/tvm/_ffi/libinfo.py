@@ -5,8 +5,13 @@ import os
 import platform
 
 
-def find_lib_path():
+def find_lib_path(name=None):
     """Find dynamic library files.
+
+    Parameters
+    ----------
+    name : list of str
+        List of names to be found.
 
     Returns
     -------
@@ -30,13 +35,16 @@ def find_lib_path():
     elif os.name == "posix" and os.environ.get('LD_LIBRARY_PATH', None):
         dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
     dll_path = [os.path.abspath(x) for x in dll_path]
-
-    if os.name == 'nt':
-        lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path]
-        runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dll') for p in dll_path]
+    if name is not None:
+        lib_dll_path = [os.path.join(p, name) for p in dll_path]
+        runtime_dll_path = []
     else:
-        lib_dll_path = [os.path.join(p, 'libtvm.so') for p in dll_path]
-        runtime_dll_path = [os.path.join(p, 'libtvm_runtime.so') for p in dll_path]
+        if os.name == 'nt':
+            lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path]
+            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dll') for p in dll_path]
+        else:
+            lib_dll_path = [os.path.join(p, 'libtvm.so') for p in dll_path]
+            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.so') for p in dll_path]
 
     if not use_runtime:
         # try to find lib_dll_path
