@@ -33,13 +33,13 @@ def conv2d_hwcn_python(a_np, w_np, stride, pad):
     in_height, in_width, in_channel, batch = a_np.shape
     kernel, kernel, channel, num_filter = w_np.shape
     out_channel = num_filter
-    out_height = (in_height - kernel + pad * 2) / stride + 1
-    out_width = (in_width - kernel + pad * 2) / stride + 1
-
+    out_height = (in_height - kernel + pad * 2) // stride + 1
+    out_width = (in_width - kernel + pad * 2) // stride + 1
+    # change the layout from HWCN to NCHW
     at = a_np.transpose((3, 2, 0, 1))
     wt = w_np.transpose((3, 2, 0, 1))
     bt = np.zeros((batch, out_channel, out_height, out_width))
-
+    # computation
     for n in range(batch):
         for f in range(out_channel):
             for c in range(in_channel):
@@ -63,6 +63,7 @@ def test_conv_hwcn_map():
     kernel = 3
     stride = 2
     padding = 'same'
+    pad = 1
 
     A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
@@ -73,7 +74,7 @@ def test_conv_hwcn_map():
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     w_np = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-    b_np = conv2d_hwcn_python(a_np, w_np, stride, padding)
+    b_np = conv2d_hwcn_python(a_np, w_np, stride, pad)
     c_np = np.maximum(b_np, 0)
 
     def check_device(device):

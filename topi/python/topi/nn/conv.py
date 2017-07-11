@@ -40,10 +40,10 @@ def conv2d_hwcn(Input, Filter, stride, padding):
     # compute the padding size
     if isinstance(padding, int):
         pad_h = pad_w = padding * 2
-    elif padding == 'VALID':
+    elif padding == 'valid':
         pad_h = 0
         pad_w = 0
-    else: # "SAME"
+    else: # 'same'
         pad_h = kernel_h - 1
         pad_w = kernel_w - 1
     pad_top = int(np.ceil(float(pad_h) / 2))
