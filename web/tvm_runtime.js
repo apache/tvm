@@ -7,6 +7,7 @@
 /* eslint no-unused-vars: "off" */
 /* eslint no-unexpected-multiline: "off" */
 /* eslint indent: "off" */
+/* eslint no-console: "off" */
 /**
  * TVM Runtime namespace.
  * Provide tvm_runtime.create to create a {@link tvm.TVMRuntime}.
@@ -31,8 +32,13 @@ var tvm_runtime = tvm_runtime || {};
    * @memberof tvm
    */
   function TVMRuntime() {
+    "use strict";
+    var runtime_ref = this;
     // Utility function to throw error
     function throwError(message) {
+      if (typeof runtime_ref.logger !== "undefined") {
+        runtime_ref.logger(message);
+      }
       if (typeof Error !== "undefined") {
         throw new Error(message);
       }
@@ -232,6 +238,21 @@ var tvm_runtime = tvm_runtime || {};
         throwError(message);
       }
     };
+    /**
+     * Logging function.
+     * Override this to change logger behavior.
+     *
+     * @param {string} message
+     */
+    this.logger = function(message) {
+      console.log(message);
+    };
+
+    function logging(message) {
+      runtime_ref.logger(message);
+    }
+    // Override print error to logging
+    Module.printErr = logging;
     var CHECK = this.assert;
 
     function TVM_CALL(ret) {
@@ -746,11 +767,12 @@ var tvm_runtime = tvm_runtime || {};
       out_array.release();
       return names;
     };
+    var listGlobalFuncNames = this.listGlobalFuncNames;
     /**
      * Get a global function from TVM runtime.
      *
      * @param {string} The name of the function.
-     * @return {Function} The corresponding function.
+     * @return {Function} The corresponding function, null if function do not exist
      */
     this.getGlobalFunc = function (name) {
       // alloc
@@ -759,7 +781,11 @@ var tvm_runtime = tvm_runtime || {};
       var out_handle = out.asHandle();
       // release
       out.release();
-      return makeTVMFunction(out_handle);
+      if (out_handle != 0) {
+        return makeTVMFunction(out_handle);
+      } else {
+        return null;
+      }
     };
     var getGlobalFunc = this.getGlobalFunc;
     /**
@@ -788,14 +814,120 @@ var tvm_runtime = tvm_runtime || {};
     //-----------------------------------------
     // Wrap of TVM Functions.
     // ----------------------------------------
-    var fGetSystemLib = getGlobalFunc("module._GetSystemLib");
+    var systemFunc = {};
     /**
-     * Get system-wide library module singleton.
+     * Get system-wide library module singleton.5A
      * System lib is a global module that contains self register functions in startup.
      * @return {tvm.TVMModule} The system module singleton.
      */
     this.systemLib = function() {
-      return fGetSystemLib();
+      if (typeof systemFunc.fGetSystemLib === "undefined") {
+        systemFunc.fGetSystemLib = getGlobalFunc("module._GetSystemLib");
+      }
+      return systemFunc.fGetSystemLib();
+    };
+
+    this.startRPCServer = function(url, key, counter) {
+      if (typeof key === "undefined") {
+        key = "";
+      }
+      if (typeof counter === "undefined") {
+        counter = 1;
+      }
+      // WebSocket for nodejs
+      if (typeof module !== "undefined" && module.exports) {
+        var WebSocket = require("ws");
+      }
+      // Node js, import websocket
+      var bkey = StringToUint8Array("server:" + key);
+      var server_name = "WebSocketRPCServer[" + key + "]";
+      var RPC_MAGIC = 0xff271;
+      function checkEndian() {
+        var a = new ArrayBuffer(4);
+        var b = new Uint8Array(a);
+        var c = new Uint32Array(a);
+        b[0] = 0x11;
+        b[1] = 0x22;
+        b[2] = 0x33;
+        b[3] = 0x44;
+        CHECK(c[0] === 0x44332211, "Need little endian to work");
+      }
+      checkEndian();
+      // start rpc
+      function RPCServer(counter) {
+        var socket = new WebSocket(url);
+        var self = this;
+        socket.binaryType = "arraybuffer";
+        this.init = true;
+        this.counter = counter;
+
+        if (typeof systemFunc.fcreateServer === "undefined") {
+          systemFunc.fcreateServer =
+            getGlobalFunc("contrib.rpc._CreateEventDrivenServer");
+        }
+        if (systemFunc.fcreateServer == null) {
+          throwError("RPCServer is not included in runtime");
+        }
+
+        var message_handler = systemFunc.fcreateServer(
+          function(cbytes) {
+            if (socket.readyState == 1) {
+              socket.send(cbytes);
+              return new TVMConstant(cbytes.length, "int32");
+            } else {
+              return new TVMConstant(0, "int32");
+            }
+          } , server_name);
+
+        function on_open(event) {
+          var intbuf = new Int32Array(1);
+          intbuf[0] = RPC_MAGIC;
+          socket.send(intbuf);
+          intbuf[0] = bkey.length;
+          socket.send(intbuf);
+          socket.send(bkey);
+          logging(server_name + " connected...");
+        }
+
+        function on_message(event) {
+          if (self.init) {
+            var msg = new Uint8Array(event.data);
+            CHECK(msg.length >= 4, "Need message header to be bigger than 4");
+            var magic = new Int32Array(event.data)[0];
+            if (magic == RPC_MAGIC + 1) {
+              throwError("key: " + key + " has already been used in proxy");
+            } else if (magic == RPC_MAGIC + 2) {
+              logging(server_name + ": RPCProxy do not have matching client key " + key);
+            } else {
+              CHECK(magic == RPC_MAGIC, url + "is not RPC Proxy");
+              self.init = false;
+            }
+            logging(server_name + "init end...");
+            if (msg.length > 4) {
+              if (!message_handler(new Uint8Array(event.data, 4, msg.length -4))) {
+                socket.close();
+              }
+            }
+          } else {
+            if (!message_handler(new Uint8Array(event.data))) {
+              socket.close();
+            }
+          }
+        }
+        function on_close(event) {
+          message_handler.release();
+          logging(server_name + ": closed finish...");
+          if (!self.init && self.counter != 0) {
+            logging(server_name +  ":reconnect to serve another request, session left=" + counter);
+            // start a new server.
+            new RPCServer(counter - 1);
+          }
+        }
+        socket.addEventListener("open", on_open);
+        socket.addEventListener("message", on_message);
+        socket.addEventListener("close", on_close);
+      }
+      return new RPCServer(counter);
     };
     //-----------------------------------------
     // Class defintions
@@ -943,16 +1075,12 @@ var tvm_runtime = tvm_runtime || {};
    * @property {string} create
    * @memberof tvm_runtime
    * @param Module The emscripten module.
-   * @param Runtime The emscripten runtime, optional
    * @return {tvm.TVMRuntime} The created TVM runtime.
    */
-  this.create = function(Module, Runtime) {
+  this.create = function(Module) {
     var tvm = {};
     tvm.Module = Module;
-    if (typeof Runtime == "undefined") {
-      Runtime = Module.Runtime;
-    }
-    tvm.Runtime = Runtime;
+    tvm.Runtime = Module.Runtime;
     TVMRuntime.apply(tvm);
     return tvm;
   };

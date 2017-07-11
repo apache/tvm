@@ -10,10 +10,12 @@
 #include <tvm/runtime/device_api.h>
 #include <mutex>
 #include <string>
-#include "../../common/socket.h"
+#include "../../common/ring_buffer.h"
 
 namespace tvm {
 namespace runtime {
+
+const int kRPCMagic = 0xff271;
 
 /*! \brief The remote functio handle */
 using RPCFuncHandle = void*;
@@ -22,6 +24,7 @@ struct RPCArgBuffer;
 
 /*! \brief The RPC code */
 enum class RPCCode : int {
+  kNone,
   kCallFunc,
   kReturn,
   kException,
@@ -30,6 +33,7 @@ enum class RPCCode : int {
   kCopyToRemote,
   kCopyAck,
   // The following are code that can send over CallRemote
+  kSystemFuncStart,
   kGetGlobalFunc,
   kGetTimeEvaluator,
   kFreeFunc,
@@ -45,6 +49,30 @@ enum class RPCCode : int {
   kModuleGetSource
 };
 
+/*!
+ * \brief Abstract channel interface used to create RPCSession.
+ */
+class RPCChannel {
+ public:
+  /*! \brief virtual destructor */
+  virtual ~RPCChannel() {}
+  /*!
+   * \brief Send data over to the channel.
+   * \param data The data pointer.
+   * \param size The size fo the data.
+   * \return The actual bytes sent.
+   */
+  virtual size_t Send(const void* data, size_t size) = 0;
+  /*!
+e   * \brief Recv data from channel.
+   *
+   * \param data The data pointer.
+   * \param size The size fo the data.
+   * \return The actual bytes received.
+   */
+  virtual size_t Recv(void* data, size_t size) = 0;
+};
+
 // Bidirectional Communication Session of PackedRPC
 class RPCSession {
  public:
@@ -54,6 +82,17 @@ class RPCSession {
    *  \brief The server loop that server runs to handle RPC calls.
    */
   void ServerLoop();
+  /*!
+   * \brief Message handling function for event driven server.
+   *  Called when the server receives a message.
+   *  Event driven handler will never call recv on the channel
+   *  and always relies on the ServerOnMessageHandler
+   *  to receive the data.
+   *
+   * \param bytes The incoming bytes.
+   * \return Whether need continue running, return false when receive a shutdown message.
+   */
+  bool ServerOnMessageHandler(const std::string& bytes);
   /*!
    * \brief Call into remote function
    * \param handle The function handle
@@ -121,10 +160,13 @@ class RPCSession {
   }
   /*!
    * \brief Create a RPC session with given socket
-   * \param sock The socket.
+   * \param channel The communication channel.
+   * \param name The name of the session, used for debug
    * \return The session.
    */
-  static std::shared_ptr<RPCSession> Create(common::TCPSocket sock);
+  static std::shared_ptr<RPCSession> Create(
+      std::unique_ptr<RPCChannel> channel,
+      std::string name);
   /*!
    * \brief Try get session from the global session table by table index.
    * \param table_index The table index of the session.
@@ -133,36 +175,28 @@ class RPCSession {
   static std::shared_ptr<RPCSession> Get(int table_index);
 
  private:
-  /*!
-   * \brief Handle the remote call with f
-   * \param f The handle function
-   * \tparam F the handler function.
-   */
-  template<typename F>
-  void CallHandler(F f);
+  class EventHandler;
+  // Handle events until receives a return
+  // Also flushes channels so that the function advances.
+  RPCCode HandleUntilReturnEvent(TVMRetValue* rv);
+  // Initalization
   void Init();
+  // Shutdown
   void Shutdown();
-  void SendReturnValue(int succ, TVMValue value, int tcode);
-  void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int n);
-  void RecvPackedSeq(RPCArgBuffer *buf);
-  RPCCode HandleNextEvent(TVMRetValue *rv);
-  TVMContext StripSessMask(TVMContext ctx);
-  // special handler.
-  void HandleCallFunc();
-  void HandleException();
-  void HandleCopyFromRemote();
-  void HandleCopyToRemote();
-  void HandleReturn(TVMRetValue* rv);
+  // Internal channel.
+  std::unique_ptr<RPCChannel> channel_;
   // Internal mutex
   std::recursive_mutex mutex_;
-  // Internal socket
-  common::TCPSocket sock_;
-  // Internal temporal data space.
-  std::string temp_data_;
+  // Internal ring buffer.
+  common::RingBuffer reader_, writer_;
+  // Event handler.
+  std::shared_ptr<EventHandler> handler_;
   // call remote with the specified function coede.
   PackedFunc call_remote_;
   // The index of this session in RPC session table.
   int table_index_{0};
+  // The name of the session.
+  std::string name_;
 };
 
 /*!
@@ -172,6 +206,13 @@ class RPCSession {
  * \param nstep Number of repeative steps.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int nstep);
+
+/*!
+ * \brief Create a Global RPC module that refers to the session.
+ * \param sess The RPC session of the global module.
+ * \return The created module.
+ */
+Module CreateRPCModule(std::shared_ptr<RPCSession> sess);
 
 // Remote space pointer.
 struct RemoteSpace {
@@ -183,7 +224,7 @@ struct RemoteSpace {
 template<typename... Args>
 inline TVMRetValue RPCSession::CallRemote(RPCCode code, Args&& ...args) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
-  CHECK_EQ(sock_.SendAll(&code, sizeof(code)), sizeof(code));
+  writer_.Write(&code, sizeof(code));
   return call_remote_(std::forward<Args>(args)...);
 }
 }  // namespace runtime

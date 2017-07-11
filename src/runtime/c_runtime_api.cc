@@ -157,6 +157,7 @@ using namespace tvm::runtime;
 struct TVMRuntimeEntry {
   std::string ret_str;
   std::string last_error;
+  TVMByteArray ret_bytes;
   // threads used in parallel for
   std::vector<std::thread> par_threads;
   // errors created in parallel for.
@@ -311,11 +312,23 @@ int TVMFuncCall(TVMFunctionHandle func,
       TVMArgs(args, arg_type_codes, num_args), &rv);
   // handle return string.
   if (rv.type_code() == kStr ||
-      rv.type_code() == kTVMType) {
+     rv.type_code() == kTVMType ||
+      rv.type_code() == kBytes) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    e->ret_str = rv.operator std::string();
-    *ret_type_code = kStr;
-    ret_val->v_str = e->ret_str.c_str();
+    if (rv.type_code() != kTVMType) {
+      e->ret_str = *rv.ptr<std::string>();
+    } else {
+      e->ret_str = rv.operator std::string();
+    }
+    if (rv.type_code() == kBytes) {
+      e->ret_bytes.data = e->ret_str.c_str();
+      e->ret_bytes.size = e->ret_str.length();
+      *ret_type_code = kBytes;
+      ret_val->v_handle = &(e->ret_bytes);
+    } else {
+      *ret_type_code = kStr;
+      ret_val->v_str = e->ret_str.c_str();
+    }
   } else {
     rv.MoveToCHost(ret_val, ret_type_code);
   }

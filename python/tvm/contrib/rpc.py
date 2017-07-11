@@ -19,32 +19,20 @@ from . import util, cc_compiler
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
 from .._ffi.ndarray import context as _context
+from .._ffi.base import py_str
 
 RPC_MAGIC = 0xff271
 RPC_SESS_MASK = 128
 
-def _serve_loop(sock, addr):
-    """Server loop"""
-    sockfd = sock.fileno()
+def _server_env():
+    """Server environment function return temp dir"""
     temp = util.tempdir()
     # pylint: disable=unused-variable
-    @register_func("tvm.contrib.rpc.server.upload")
-    def upload(file_name, blob):
-        """Upload the blob to remote temp file"""
-        path = temp.relpath(file_name)
-        with open(path, "wb") as out_file:
-            out_file.write(blob)
-        logging.info("upload %s", path)
+    @register_func("tvm.contrib.rpc.server.workpath")
+    def get_workpath(path):
+        return temp.relpath(path)
 
-    @register_func("tvm.contrib.rpc.server.download")
-    def download(file_name):
-        """Download file from remote"""
-        path = temp.relpath(file_name)
-        dat = bytearray(open(path, "rb").read())
-        logging.info("download %s", path)
-        return dat
-
-    @register_func("tvm.contrib.rpc.server.load_module")
+    @register_func("tvm.contrib.rpc.server.load_module", override=True)
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)
@@ -53,11 +41,16 @@ def _serve_loop(sock, addr):
             logging.info('Create shared library based on %s', path)
             cc_compiler.create_shared(path + '.so', path)
             path += '.so'
-
         m = _load_module(path)
         logging.info("load_module %s", path)
         return m
+    return temp
 
+
+def _serve_loop(sock, addr):
+    """Server loop"""
+    sockfd = sock.fileno()
+    temp = _server_env()
     _ServerLoop(sockfd)
     temp.remove()
     logging.info("Finish serving %s", addr)
@@ -78,17 +71,43 @@ def _listen_loop(sock):
     while True:
         conn, addr = sock.accept()
         logging.info("RPCServer: connection from %s", addr)
-        conn.sendall(struct.pack('@i', RPC_MAGIC))
         magic = struct.unpack('@i', _recvall(conn, 4))[0]
         if magic != RPC_MAGIC:
             conn.close()
             continue
+        keylen = struct.unpack('@i', _recvall(conn, 4))[0]
+        key = py_str(_recvall(conn, keylen))
+        if not key.startswith("client:"):
+            conn.sendall(struct.pack('@i', RPC_MAGIC + 2))
+        else:
+            conn.sendall(struct.pack('@i', RPC_MAGIC))
         logging.info("Connection from %s", addr)
         process = multiprocessing.Process(target=_serve_loop, args=(conn, addr))
         process.deamon = True
         process.start()
         # close from our side.
         conn.close()
+
+
+def _connect_proxy_loop(addr, key):
+    while True:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(addr)
+        sock.sendall(struct.pack('@i', RPC_MAGIC))
+        sock.sendall(struct.pack('@i', len(key)))
+        sock.sendall(key)
+        magic = struct.unpack('@i', _recvall(sock, 4))[0]
+        if magic == RPC_MAGIC + 1:
+            raise RuntimeError("key: %s has already been used in proxy" % key)
+        elif magic == RPC_MAGIC + 2:
+            logging.info("RPCProxy do not have matching client key %s", key)
+        elif magic != RPC_MAGIC:
+            raise RuntimeError("%s is not RPC Proxy" % str(addr))
+        logging.info("RPCProxy connected to %s", str(addr))
+        process = multiprocessing.Process(target=_serve_loop, args=(sock, addr))
+        process.deamon = True
+        process.start()
+        process.join()
 
 
 class Server(object):
@@ -108,27 +127,43 @@ class Server(object):
 
     port_end : int, optional
         The end port to search
+
+    is_proxy : bool, optional
+        Whether the address specified is a proxy.
+        If this is true, the host and port actually corresponds to the
+        address of the proxy server.
+
+    key : str, optional
+        The key used to identify the server in Proxy connection.
     """
-    def __init__(self, host, port=9091, port_end=9199):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.port = None
-        for my_port in range(port, port_end):
-            try:
-                sock.bind((host, my_port))
-                self.port = my_port
-                break
-            except socket.error as sock_err:
-                if sock_err.errno in [98, 48]:
-                    continue
-                else:
-                    raise sock_err
-        if not self.port:
-            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
-        logging.info("RPCServer: bind to %s:%d", host, self.port)
-        sock.listen(1)
-        self.sock = sock
+    def __init__(self, host, port=9091, port_end=9199, is_proxy=False, key=""):
         self.host = host
-        self.proc = multiprocessing.Process(target=_listen_loop, args=(self.sock,))
+        self.port = port
+
+        if not is_proxy:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.port = None
+            for my_port in range(port, port_end):
+                try:
+                    sock.bind((host, my_port))
+                    self.port = my_port
+                    break
+                except socket.error as sock_err:
+                    if sock_err.errno in [98, 48]:
+                        continue
+                    else:
+                        raise sock_err
+                if not self.port:
+                    raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+            logging.info("RPCServer: bind to %s:%d", host, self.port)
+            sock.listen(1)
+            self.sock = sock
+            self.proc = multiprocessing.Process(
+                target=_listen_loop, args=(self.sock,))
+        else:
+            self.proc = multiprocessing.Process(
+                target=_connect_proxy_loop, args=((host, port), key))
+        self.proc.deamon = True
         self.proc.start()
 
     def terminate(self):
@@ -139,6 +174,7 @@ class Server(object):
 
     def __del__(self):
         self.terminate()
+
 
 
 class RPCSession(object):
@@ -262,7 +298,7 @@ class RPCSession(object):
         return _LoadRemoteModule(self._sess, path)
 
 
-def connect(url, port):
+def connect(url, port, key=""):
     """Connect to RPC Server
 
     Parameters
@@ -273,13 +309,16 @@ def connect(url, port):
     port : int
         The port to connect to
 
+    key : str, optional
+        Additional key to match server
+
     Returns
     -------
     sess : RPCSession
         The connected session.
     """
     try:
-        sess = _Connect(url, port)
+        sess = _Connect(url, port, key)
     except NameError:
         raise RuntimeError('Please compile with USE_RPC=1')
     return RPCSession(sess)

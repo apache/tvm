@@ -212,13 +212,6 @@ class TVMPODValue_ {
   int type_code() const {
     return type_code_;
   }
-
- protected:
-  friend class TVMArgsSetter;
-  friend class TVMRetValue;
-  TVMPODValue_() : type_code_(kNull) {}
-  TVMPODValue_(TVMValue value, int type_code)
-      : value_(value), type_code_(type_code) {}
   /*!
    * \brief return handle as specific pointer type.
    * \tparam T the data type.
@@ -228,6 +221,14 @@ class TVMPODValue_ {
   T* ptr() const {
     return static_cast<T*>(value_.v_handle);
   }
+
+ protected:
+  friend class TVMArgsSetter;
+  friend class TVMRetValue;
+  TVMPODValue_() : type_code_(kNull) {}
+  TVMPODValue_(TVMValue value, int type_code)
+      : value_(value), type_code_(type_code) {}
+
   /*! \brief The value */
   TVMValue value_;
   /*! \brief the type code */
@@ -347,6 +348,8 @@ class TVMRetValue : public TVMPODValue_ {
   operator std::string() const {
     if (type_code_ == kTVMType) {
       return TVMType2String(operator TVMType());
+    } else if (type_code_ == kBytes) {
+      return *ptr<std::string>();
     }
     TVM_CHECK_TYPE_CODE(type_code_, kStr);
     return *ptr<std::string>();
@@ -414,6 +417,10 @@ class TVMRetValue : public TVMPODValue_ {
     this->SwitchToClass(kStr, value);
     return *this;
   }
+  TVMRetValue& operator=(TVMByteArray value) {
+    this->SwitchToClass(kBytes, std::string(value.data, value.size));
+    return *this;
+  }
   TVMRetValue& operator=(PackedFunc f) {
     this->SwitchToClass(kFuncHandle, f);
     return *this;
@@ -442,7 +449,7 @@ class TVMRetValue : public TVMPODValue_ {
   void MoveToCHost(TVMValue* ret_value,
                    int* ret_type_code) {
     // cannot move str; need specially handle.
-    CHECK(type_code_ != kStr);
+    CHECK(type_code_ != kStr && type_code_ != kBytes);
     *ret_value = value_;
     *ret_type_code = type_code_;
     type_code_ = kNull;
@@ -470,9 +477,12 @@ class TVMRetValue : public TVMPODValue_ {
   template<typename T>
   void Assign(const T& other) {
     switch (other.type_code()) {
-      case kStr:
-      case kBytes: {
+      case kStr: {
         SwitchToClass<std::string>(kStr, other);
+        break;
+      }
+      case kBytes: {
+        SwitchToClass<std::string>(kBytes, other);
         break;
       }
       case kFuncHandle: {
@@ -702,6 +712,7 @@ class TVMArgsSetter {
       values_[i].v_str = value.ptr<std::string>()->c_str();
       type_codes_[i] = kStr;
     } else {
+      CHECK_NE(value.type_code(), kBytes) << "not handled.";
       values_[i] = value.value_;
       type_codes_[i] = value.type_code();
     }
