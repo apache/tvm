@@ -12,9 +12,10 @@ namespace tvm {
 namespace runtime {
 namespace metal {
 
-MetalWorkspace* MetalWorkspace::Global() {
-  static MetalWorkspace inst;
-  return &inst;
+const std::shared_ptr<MetalWorkspace>& MetalWorkspace::Global() {
+  static std::shared_ptr<MetalWorkspace> inst =
+      std::make_shared<MetalWorkspace>();
+  return inst;
 }
 
 void MetalWorkspace::GetAttr(
@@ -254,7 +255,7 @@ MetalThreadEntry* MetalThreadEntry::ThreadLocal() {
 
 TVM_REGISTER_GLOBAL("device_api.metal")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = MetalWorkspace::Global();
+    DeviceAPI* ptr = MetalWorkspace::Global().get();
     *rv = static_cast<void*>(ptr);
   });
 
