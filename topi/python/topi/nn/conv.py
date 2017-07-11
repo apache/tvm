@@ -50,8 +50,8 @@ def conv2d_hwcn(Input, Filter, stride, padding):
     pad_left = int(np.ceil(float(pad_w) / 2))
     # compute the output shape
     out_channel = num_filter
-    out_height = (in_height - kernel_h + pad_h) / stride_h + 1
-    out_width = (in_width - kernel_w + pad_w) / stride_w + 1
+    out_height = (in_height - kernel_h + pad_h) // stride_h + 1
+    out_width = (in_width - kernel_w + pad_w) // stride_w + 1
     # compute graph
     PaddedInput = tvm.compute(
         (in_height + pad_h, in_width + pad_w, in_channel, batch),
