@@ -3,6 +3,7 @@ TVM Documentation
 
 Welcome to TVM documentation.
 
+
 Contents
 --------
 
@@ -13,6 +14,7 @@ Contents
    how_to/install
    tutorials/index
    faq
-   api/python/index
    how_to/contribute
+   api/python/index
+   api_links
    genindex

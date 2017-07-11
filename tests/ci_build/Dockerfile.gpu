@@ -28,7 +28,14 @@ RUN cd recommonmark; python setup.py install
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
 
+COPY install/ubuntu_install_nodejs.sh /install/ubuntu_install_nodejs.sh
+RUN bash /install/ubuntu_install_nodejs.sh
+
+# Enable doxygen for c++ doc build
+RUN apt-get install -y doxygen graphviz
+
 # Environment variables
+ENV PATH=/node_modules/.bin:${PATH}
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/clang+llvm-4.0.0-x86_64-linux-gnu-ubuntu-14.04/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}

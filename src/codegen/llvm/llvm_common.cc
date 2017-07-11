@@ -37,7 +37,7 @@ void InitializeLLVM() {
 }
 
 llvm::TargetMachine*
-GetLLVMTargetMachine(const std::string& target_str) {
+GetLLVMTargetMachine(const std::string& target_str, bool allow_null) {
   // setup target triple
   CHECK(target_str.length() >= 4 &&
         target_str.substr(0, 4) == "llvm")
@@ -91,7 +91,10 @@ GetLLVMTargetMachine(const std::string& target_str) {
   std::string err;
   const llvm::Target* target =
       llvm::TargetRegistry::lookupTarget(target_triple, err);
-  CHECK(target) << err << " target_triple=" << target_triple;
+  if (target == nullptr) {
+    CHECK(allow_null) << err << " target_triple=" << target_triple;
+    return nullptr;
+  }
   // set target option
   llvm::TargetOptions opt;
   opt.LessPreciseFPMADOption = true;
@@ -109,6 +112,8 @@ GetLLVMTargetMachine(const std::string& target_str) {
       target->createTargetMachine(target_triple, cpu, attr, opt, rmodel);
   return tm;
 }
+
+
 
 }  // namespace codegen
 }  // namespace tvm

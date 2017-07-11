@@ -24,7 +24,12 @@
 #define TVM_EXTERN_C
 #endif
 
-/*! \brief TVM_DLL prefix for windows */
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#define TVM_DLL EMSCRIPTEN_KEEPALIVE
+#endif
+
+#ifndef TVM_DLL
 #ifdef _WIN32
 #ifdef TVM_EXPORTS
 #define TVM_DLL __declspec(dllexport)
@@ -33,6 +38,7 @@
 #endif
 #else
 #define TVM_DLL
+#endif
 #endif
 
 // TVM Runtime is DLPack compatible.
@@ -331,7 +337,7 @@ TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
  * \param out_array The array of function names.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMFuncListGlobalNames(int *out_size,
+TVM_DLL int TVMFuncListGlobalNames(int* out_size,
                                    const char*** out_array);
 
 // Array related apis for quick proptyping

@@ -194,6 +194,12 @@ TVM_REGISTER_API("module.loadfile_ll")
     n->LoadIR(args[0]);
     *rv = runtime::Module(n);
   });
+
+TVM_REGISTER_API("codegen.llvm_target_enabled")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    InitializeLLVM();
+    *rv = (GetLLVMTargetMachine(args[0], true) != nullptr);
+  });
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
