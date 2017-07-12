@@ -323,6 +323,10 @@ Graph PlanMemory(Graph ret) {
       ret.attrs["storage_num_not_allocated"] = std::make_shared<any>(storage_num_not_allocated);
       min_allocated_bytes = storage_allocated_bytes;
     }
+
+    if (max_match_range == 0) {
+      break;
+    }
   }
   return ret;
 }
