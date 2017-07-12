@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file NNVM Graph executor.
  */
+#include <dmlc/io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
@@ -52,6 +53,10 @@ class GraphExecutor : public runtime::ModuleNode {
   void SetInput(int index, DLTensor* data_in);
   // Copy index-th output to data_out
   void GetOutput(int index, DLTensor* data_out);
+  // Save parameters to file
+  void SaveParams(std::string fname);
+  // Load parameters from file
+  void LoadParams(std::string fname);
   // Execute the graph.
   void Run();
 
@@ -67,8 +72,12 @@ class GraphExecutor : public runtime::ModuleNode {
   nnvm::Graph graph_;
   // The execution context
   TVMContext ctx_;
+  // The storage id of data
+  std::vector<int> storage_id_;
   // Common storage pool
   std::vector<DLTensor*> storage_pool_;
+  // The data shape
+  std::vector<TShape> data_shape_;
   // The data entry
   std::vector<DLTensor> data_entry_;
   // The operation lambda on each node
@@ -92,6 +101,14 @@ PackedFunc GraphExecutor::GetFunction(
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
+      });
+  } else if (name == "save_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->SaveParams(args[0]);
+      });
+  } else if (name == "load_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->LoadParams(args[0]);
       });
   } else {
     return PackedFunc();
@@ -133,27 +150,113 @@ void GraphExecutor::GetOutput(int index, DLTensor* data_out) {
   TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
 }
 
+
+constexpr uint64_t kTVMNDArrayMagic = 0x841924;
+
+bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
+    uint64_t header = kTVMNDArrayMagic, reserved = 0;
+    strm->Write(&header, sizeof(header));
+    strm->Write(&reserved, sizeof(reserved));
+
+    strm->Write(&tensor->ctx, sizeof(tensor->ctx));
+    strm->Write(&tensor->ndim, sizeof(tensor->ndim));
+    strm->Write(&tensor->dtype, sizeof(tensor->dtype));
+
+    int ndim = tensor->ndim;
+    strm->Write(tensor->shape, sizeof(int64_t) * ndim);
+
+    int64_t size = 1;
+    int type_size = tensor->dtype.bits / 8;
+    for (int i = 0; i < ndim; ++i) {
+        size *= tensor->shape[i];
+    }
+    strm->Write(tensor->data, type_size * size);
+    return true;
+}
+
+
+bool LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
+    uint64_t header, reserved;
+    strm->Read(&header, sizeof(header));
+    strm->Read(&reserved, sizeof(reserved));
+
+    strm->Read(&tensor->ctx, sizeof(tensor->ctx));
+    strm->Read(&tensor->ndim, sizeof(tensor->ndim));
+    strm->Read(&tensor->dtype, sizeof(tensor->dtype));
+
+    int ndim = tensor->ndim;
+    strm->Read(tensor->shape, sizeof(int64_t) * ndim);
+
+    int64_t size = 1;
+    int type_size = tensor->dtype.bits / 8;
+    for (int i = 0; i < ndim; ++i) {
+        size *= tensor->shape[i];
+    }
+    strm->Read(tensor->data, type_size * size);
+    return true;
+}
+
+
+constexpr uint64_t kTVMNDArrayListMagic = 0x234124;
+
+void GraphExecutor::SaveParams(std::string fname) {
+  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+  uint64_t header = kTVMNDArrayListMagic, reserved = 0;
+  fo->Write(&header, sizeof(header));
+  fo->Write(&reserved, sizeof(reserved));
+
+  {
+    uint64_t sz = static_cast<uint64_t>(data_entry_.size());
+    fo->Write(&sz, sizeof(sz));
+    for (size_t i = 0; i < sz; ++i) {
+      SaveDLTensor(fo.get(), &data_entry_[i]);
+    }
+  }
+}
+
+
+void GraphExecutor::LoadParams(std::string fname) {
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+  uint64_t header, reserved;
+  CHECK(fi->Read(&header));
+  CHECK(fi->Read(&reserved));
+
+  {
+    uint64_t sz;
+    fi->Read(&sz, sizeof(sz));
+    size_t size = static_cast<size_t>(sz);
+    data_entry_.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+      data_entry_[i] = *storage_pool_[storage_id_[i]];
+      data_entry_[i].shape = const_cast<int64_t*>(data_shape_[i].data());
+      LoadDLTensor(fi.get(), &data_entry_[i]);
+    }
+  }
+}
+
+
 void GraphExecutor::SetupStorage() {
   const auto& idx = graph_.indexed_graph();
   // Grab saved optimization plan from graph.
-  auto vstorage = graph_.MoveCopyAttr<StorageVector>("storage_id");
+  storage_id_ = graph_.MoveCopyAttr<StorageVector>("storage_id");
   const auto& vshape = graph_.GetAttr<ShapeVector>("shape");
+  data_shape_ = vshape;
   const auto& vtype = graph_.GetAttr<DLTypeVector>("dltype");
   data_entry_.resize(idx.num_node_entries());
 
   // Find the maximum space size.
   int max_id = 0;
   for (size_t i = 0; i < vshape.size(); ++i) {
-    max_id = std::max(vstorage[i] + 1, max_id);
+    max_id = std::max(storage_id_[i] + 1, max_id);
   }
   for (const auto& e : idx.input_nodes()) {
-    vstorage[idx.entry_id(e, 0)] = max_id++;
+    storage_id_[idx.entry_id(e, 0)] = max_id++;
   }
   // size of each storage pool entry
   std::vector<size_t> pool_entry_bytes;
   // Find the maximum space size.
   for (size_t i = 0; i < vshape.size(); ++i) {
-    int storage_id = vstorage[i];
+    int storage_id = storage_id_[i];
     size_t size = vshape[i].Size();
     CHECK_GE(storage_id, 0) << "Do not support runtime shape op";
 
@@ -178,7 +281,7 @@ void GraphExecutor::SetupStorage() {
   }
   // Assign the pooled entries.
   for (size_t i = 0; i < data_entry_.size(); ++i) {
-    int storage_id = vstorage[i];
+    int storage_id = storage_id_[i];
     data_entry_[i] = *storage_pool_[storage_id];
     data_entry_[i].shape = const_cast<int64_t*>(vshape[i].data());
     data_entry_[i].ndim = vshape[i].ndim();

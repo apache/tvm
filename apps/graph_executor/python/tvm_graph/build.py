@@ -42,5 +42,5 @@ def _lower(sch, inputs, func_name):
 
 @tvm.register_func("tvm_graph.build_target")
 def _build(funcs, target):
-    return tvm.build(funcs, target)
+    return tvm.build(funcs, target=target)
 
