@@ -151,7 +151,7 @@ void GraphExecutor::GetOutput(int index, DLTensor* data_out) {
 }
 
 
-constexpr uint64_t kTVMNDArrayMagic = 0x841924;
+constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
 
 bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
     uint64_t header = kTVMNDArrayMagic, reserved = 0;
@@ -165,39 +165,55 @@ bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
     int ndim = tensor->ndim;
     strm->Write(tensor->shape, sizeof(int64_t) * ndim);
 
-    int64_t size = 1;
     int type_size = tensor->dtype.bits / 8;
+    int64_t size = 1;
     for (int i = 0; i < ndim; ++i) {
-        size *= tensor->shape[i];
+      size *= tensor->shape[i];
     }
-    strm->Write(tensor->data, type_size * size);
+    int64_t data_byte_size = type_size * size;
+    strm->Write(&data_byte_size, sizeof(data_byte_size));
+    strm->Write(tensor->data, data_byte_size);
     return true;
 }
 
 
 bool LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
     uint64_t header, reserved;
-    strm->Read(&header, sizeof(header));
-    strm->Read(&reserved, sizeof(reserved));
+    CHECK(strm->Read(&header, sizeof(header)))
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(&reserved, sizeof(reserved)))
+      << "Invalid DLTensor file format";
+    CHECK(header == kTVMNDArrayMagic)
+      << "Invalid DLTensor file format";
 
-    strm->Read(&tensor->ctx, sizeof(tensor->ctx));
-    strm->Read(&tensor->ndim, sizeof(tensor->ndim));
-    strm->Read(&tensor->dtype, sizeof(tensor->dtype));
+    CHECK(strm->Read(&tensor->ctx, sizeof(tensor->ctx)))
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(&tensor->ndim, sizeof(tensor->ndim)))
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(&tensor->dtype, sizeof(tensor->dtype)))
+      << "Invalid DLTensor file format";
 
     int ndim = tensor->ndim;
-    strm->Read(tensor->shape, sizeof(int64_t) * ndim);
+    CHECK(strm->Read(tensor->shape, sizeof(int64_t) * ndim))
+      << "Invalid DLTensor file format";
 
     int64_t size = 1;
     int type_size = tensor->dtype.bits / 8;
     for (int i = 0; i < ndim; ++i) {
-        size *= tensor->shape[i];
+      size *= tensor->shape[i];
     }
-    strm->Read(tensor->data, type_size * size);
+    int64_t data_byte_size;
+    CHECK(strm->Read(&data_byte_size, sizeof(data_byte_size)))
+      << "Invalid DLTensor file format";
+    CHECK(data_byte_size == type_size * size)
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(tensor->data, type_size * size))
+      << "Invalid DLTensor file format";
     return true;
 }
 
 
-constexpr uint64_t kTVMNDArrayListMagic = 0x234124;
+constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
 void GraphExecutor::SaveParams(std::string fname) {
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
