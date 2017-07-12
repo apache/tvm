@@ -17,7 +17,6 @@
 
 package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.types.TVMType;
 import org.junit.Test;
 
 import static org.junit.Assert.*;

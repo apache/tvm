@@ -15,16 +15,10 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.types;
+package ml.dmlc.tvm;
 
-public class TVMValueString extends TVMValue {
-  public final String value;
-  public TVMValueString(String value) {
-    super(TypeCode.STR);
-    this.value = value;
-  }
-
-  @Override public String asString() {
-    return value;
+public class TVMValueNull extends TVMValue {
+  public TVMValueNull() {
+    super(TypeCode.NULL);
   }
 }

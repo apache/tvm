@@ -18,12 +18,11 @@
 package ml.dmlc.tvm;
 
 import ml.dmlc.tvm.Base.*;
-import ml.dmlc.tvm.types.*;
 
 import java.util.Map;
 
 public class Module {
-  private static final Map<String, Function> functions = Function.initAPI(
+  private static final Map<String, Function> FUNCTIONS = Function.initAPI(
     new Function.InitAPINameFilter() {
       @Override public boolean accept(String name) {
         return name != null && name.startsWith("module.");
@@ -93,7 +92,7 @@ public class Module {
    * @return The loaded module
    */
   public static Module load(String path, String fmt) {
-    TVMValue ret = functions.get("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
+    TVMValue ret = FUNCTIONS.get("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
     assert(ret.typeCode == TypeCode.MODULE_HANDLE);
     return ret.asModule();
   }
@@ -110,7 +109,7 @@ public class Module {
    * @return Whether runtime is enabled.
    */
   public static boolean enabled(String target) {
-    TVMValue ret = functions.get("_Enabled").pushArg(target).invoke();
+    TVMValue ret = FUNCTIONS.get("_Enabled").pushArg(target).invoke();
     return ret.asLong() != 0;
   }
 }

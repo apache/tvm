@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.types;
+package ml.dmlc.tvm;
 
 import ml.dmlc.tvm.NDArray;
 

@@ -17,13 +17,10 @@
 
 package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.types.TVMValue;
-import ml.dmlc.tvm.types.TypeCode;
-
 import java.util.*;
 
 public class Function {
-  public final long handle;
+  final long handle;
   public final boolean isResident;
 
   static interface InitAPINameFilter {

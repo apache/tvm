@@ -15,13 +15,10 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.types;
+package ml.dmlc.tvm;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import ml.dmlc.tvm.APIInternal;
-import ml.dmlc.tvm.Base;
 
 public class TVMContext {
   private static final int RPC_SESS_MASK = 128;

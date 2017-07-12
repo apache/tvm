@@ -15,10 +15,16 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.types;
+package ml.dmlc.tvm;
 
-public class TVMValueNull extends TVMValue {
-  public TVMValueNull() {
-    super(TypeCode.NULL);
+public class TVMValueDouble extends TVMValue {
+  public final double value;
+  public TVMValueDouble(double value) {
+    super(TypeCode.FLOAT);
+    this.value = value;
+  }
+
+  @Override public double asDouble() {
+    return value;
   }
 }

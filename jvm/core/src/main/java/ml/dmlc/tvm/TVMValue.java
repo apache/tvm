@@ -15,11 +15,7 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.types;
-
-import ml.dmlc.tvm.Module;
-import ml.dmlc.tvm.NDArray;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+package ml.dmlc.tvm;
 
 public class TVMValue {
   public final TypeCode typeCode;
@@ -28,22 +24,22 @@ public class TVMValue {
   }
 
   public long asLong() {
-    throw new NotImplementedException();
+    throw new UnsupportedOperationException();
   }
 
   public double asDouble() {
-    throw new NotImplementedException();
+    throw new UnsupportedOperationException();
   }
 
   public Module asModule() {
-    throw new NotImplementedException();
+    throw new UnsupportedOperationException();
   }
 
   public NDArray asNDArray() {
-    throw new NotImplementedException();
+    throw new UnsupportedOperationException();
   }
 
   public String asString() {
-    throw new NotImplementedException();
+    throw new UnsupportedOperationException();
   }
 }

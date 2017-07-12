@@ -23,8 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import ml.dmlc.tvm.Base.*;
-import ml.dmlc.tvm.types.TVMType;
-import ml.dmlc.tvm.types.TVMContext;
 
 /**
  * Lightweight NDArray class of TVM runtime.
@@ -40,11 +38,11 @@ public class NDArray {
     this.dtype = dtype;
   }
 
-  public NDArray(long handle) {
+  NDArray(long handle) {
     this(handle, false, new TVMType("float32", 1));
   }
 
-  public NDArray(long handle, boolean isView) {
+  NDArray(long handle, boolean isView) {
     this(handle, isView, new TVMType("float32", 1));
   }
 
@@ -55,6 +53,11 @@ public class NDArray {
     }
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by float64
+   * @param sourceArray the source data
+   */
   public void copyFrom(double[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 64) {
@@ -69,6 +72,11 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by float32
+   * @param sourceArray the source data
+   */
   public void copyFrom(float[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
@@ -83,6 +91,11 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by int64
+   * @param sourceArray the source data
+   */
   public void copyFrom(long[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
@@ -97,6 +110,11 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by float32
+   * @param sourceArray the source data
+   */
   public void copyFrom(int[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
@@ -111,6 +129,11 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by int16
+   * @param sourceArray the source data
+   */
   public void copyFrom(short[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
@@ -125,6 +148,11 @@ public class NDArray {
     Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by int8
+   * @param sourceArray the source data
+   */
   public void copyFrom(byte[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
@@ -133,6 +161,11 @@ public class NDArray {
     copyFromRaw(sourceArray);
   }
 
+  /**
+   * Copy from a native array.
+   * The NDArray type must by uint16
+   * @param sourceArray the source data
+   */
   public void copyFrom(char[] sourceArray) {
     checkCopySize(sourceArray.length);
     if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
@@ -155,6 +188,10 @@ public class NDArray {
     }
   }
 
+  /**
+   * Copy from a raw byte array.
+   * @param sourceArray the source data
+   */
   public void copyFromRaw(byte[] sourceArray) {
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
@@ -175,7 +212,10 @@ public class NDArray {
     return shapeArr;
   }
 
-  // Get size of current NDArray.
+  /**
+   * Get total size of current NDArray.
+   * @return size of current NDArray.
+   */
   public long size() {
     long product = 1L;
     long[] shapeArr = shape();
@@ -187,6 +227,7 @@ public class NDArray {
 
   /**
    * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be float64
    * @return A copy of array content.
    */
   public double[] asDoubleArray() {
@@ -202,6 +243,11 @@ public class NDArray {
     return array;
   }
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be float32
+   * @return A copy of array content.
+   */
   public float[] asFloatArray() {
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
       throw new IllegalArgumentException(
@@ -215,6 +261,11 @@ public class NDArray {
     return array;
   }
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be int64
+   * @return A copy of array content.
+   */
   public long[] asLongArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
       throw new IllegalArgumentException(
@@ -228,6 +279,11 @@ public class NDArray {
     return array;
   }
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be int32
+   * @return A copy of array content.
+   */
   public int[] asIntArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
       throw new IllegalArgumentException(
@@ -241,6 +297,11 @@ public class NDArray {
     return array;
   }
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be int16
+   * @return A copy of array content.
+   */
   public short[] asShortArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
       throw new IllegalArgumentException(
@@ -254,6 +315,11 @@ public class NDArray {
     return array;
   }
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be uint16
+   * @return A copy of array content.
+   */
   public char[] asCharArray() {
     if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
       throw new IllegalArgumentException(
@@ -267,6 +333,11 @@ public class NDArray {
     return array;
   }
 
+  /**
+   * Return a copied flat java array of current array (row-major).
+   * The NDArray dtype must be int8
+   * @return A copy of array content.
+   */
   public byte[] asByteArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
       throw new IllegalArgumentException(
@@ -275,6 +346,10 @@ public class NDArray {
     return internal();
   }
 
+  /**
+   * Return a copied internal byte array of current array (row-major).
+   * @return A copy of array content.
+   */
   public byte[] internal() {
     NDArray tmp = NDArray.empty(shape(), dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromTo(handle, tmp.handle));
@@ -303,7 +378,7 @@ public class NDArray {
   }
 
   /**
-   * Create an empty array given shape and device
+   * Create an empty array given shape, type and device
    * @param shape The shape of the array
    * @param dtype The data type of the array
    * @param ctx The context of the array
@@ -317,14 +392,31 @@ public class NDArray {
     return new NDArray(refHandle.value, false, dtype);
   }
 
+  /**
+   * Create an empty array on cpu given shape and type
+   * @param shape The shape of the array
+   * @param dtype The data type of the array
+   * @return The array tvm supported
+   */
   public static NDArray empty(long[] shape, TVMType dtype) {
     return empty(shape, dtype, new TVMContext(1, 0));
   }
 
+  /**
+   * Create an empty float32 array on cpu given shape
+   * @param shape The shape of the array
+   * @return The array tvm supported
+   */
   public static NDArray empty(long[] shape) {
     return empty(shape, new TVMType("float32", 1), new TVMContext(1, 0));
   }
 
+  /**
+   * Create an empty float32 array given shape and device
+   * @param shape The shape of the array
+   * @param ctx The context of the array
+   * @return The array tvm supported
+   */
   public static NDArray empty(long[] shape, TVMContext ctx) {
     return empty(shape, new TVMType("float32", 1), ctx);
   }

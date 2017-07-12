@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 
 import ml.dmlc.tvm.NativeLibraryLoader.Action;
-import ml.dmlc.tvm.types.TVMValue;
 
 public class Base {
   // type definitions

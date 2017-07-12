@@ -20,7 +20,7 @@ package ml.dmlc.tvm;
 import java.util.Map;
 
 public class APIInternal {
-  private static final Map<String, Function> functions = Function.initAPI(
+  private static final Map<String, Function> FUNCTIONS = Function.initAPI(
     new Function.InitAPINameFilter() {
       @Override public boolean accept(String name) {
         return name != null && name.indexOf('.') == -1 && name.startsWith("_");
@@ -32,6 +32,6 @@ public class APIInternal {
     });
 
   public static Function get(String name) {
-    return functions.get(name);
+    return FUNCTIONS.get(name);
   }
 }

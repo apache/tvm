@@ -15,18 +15,22 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.types;
+package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.Module;
+// Type code used in API calls
+public enum TypeCode {
+  INT(0), UINT(1), FLOAT(2), HANDLE(3), NULL(4), TVM_TYPE(5),
+  TVM_CONTEXT(6), ARRAY_HANDLE(7), NODE_HANDLE(8), MODULE_HANDLE(9),
+  FUNC_HANDLE(10), STR(11), BYTES(12);
 
-public class TVMValueModuleHandle extends TVMValue {
-  public final long value;
-  public TVMValueModuleHandle(long value) {
-    super(TypeCode.MODULE_HANDLE);
-    this.value = value;
+  public final int id;
+
+  private TypeCode(int id) {
+    this.id = id;
   }
 
-  @Override public Module asModule() {
-    return new Module(value);
+  @Override
+  public String toString() {
+    return String.valueOf(id);
   }
 }

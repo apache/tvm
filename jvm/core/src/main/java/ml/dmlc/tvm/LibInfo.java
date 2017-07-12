@@ -18,12 +18,10 @@
 package ml.dmlc.tvm;
 
 import ml.dmlc.tvm.Base.*;
-import ml.dmlc.tvm.types.TVMContext;
-import ml.dmlc.tvm.types.TVMType;
 
 import java.util.List;
 
-public class LibInfo {
+class LibInfo {
   native public int nativeLibInit(String tvmLibFile);
   native public int shutdown();
 
