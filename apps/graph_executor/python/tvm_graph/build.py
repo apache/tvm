@@ -44,3 +44,14 @@ def _lower(sch, inputs, func_name):
 def _build(funcs, target):
     return tvm.build(funcs, target=target)
 
+
+_save_param_dict = tvm.get_global_func("tvm_graph._save_param_dict")
+
+def save_params(fname, params):
+    args = []
+    args.append(fname)
+    args.append(len(params))
+    for kv in params.items():
+        args.append(kv[0])
+        args.append(kv[1])
+    _save_param_dict(*args)

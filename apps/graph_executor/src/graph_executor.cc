@@ -53,8 +53,6 @@ class GraphExecutor : public runtime::ModuleNode {
   void SetInput(int index, DLTensor* data_in);
   // Copy index-th output to data_out
   void GetOutput(int index, DLTensor* data_out);
-  // Save parameters to file
-  void SaveParams(std::string fname);
   // Load parameters from file
   void LoadParams(std::string fname);
   // Execute the graph.
@@ -72,12 +70,8 @@ class GraphExecutor : public runtime::ModuleNode {
   nnvm::Graph graph_;
   // The execution context
   TVMContext ctx_;
-  // The storage id of data
-  std::vector<int> storage_id_;
   // Common storage pool
   std::vector<DLTensor*> storage_pool_;
-  // The data shape
-  std::vector<TShape> data_shape_;
   // The data entry
   std::vector<DLTensor> data_entry_;
   // The operation lambda on each node
@@ -101,10 +95,6 @@ PackedFunc GraphExecutor::GetFunction(
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
-      });
-  } else if (name == "save_params") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->SaveParams(args[0]);
       });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -215,37 +205,68 @@ bool LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
 
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
-void GraphExecutor::SaveParams(std::string fname) {
-  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-  uint64_t header = kTVMNDArrayListMagic, reserved = 0;
-  fo->Write(&header, sizeof(header));
-  fo->Write(&reserved, sizeof(reserved));
-
-  {
-    uint64_t sz = static_cast<uint64_t>(data_entry_.size());
-    fo->Write(&sz, sizeof(sz));
-    for (size_t i = 0; i < sz; ++i) {
-      SaveDLTensor(fo.get(), &data_entry_[i]);
+TVM_REGISTER_GLOBAL("tvm_graph._save_param_dict")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    std::string fname = args[0];
+    int num_params = args[1];
+    std::vector<std::string> names;
+    names.reserve(num_params);
+    std::vector<DLTensor*> arrays;
+    arrays.reserve(num_params);
+    for (int i = 2; i < (2 + 2*num_params); i += 2) {
+      names.emplace_back(args[i].operator std::string());
+      arrays.emplace_back(args[i+1].operator DLTensor*());
     }
-  }
-}
+
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+    uint64_t header = kTVMNDArrayListMagic, reserved = 0;
+    fo->Write(&header, sizeof(header));
+    fo->Write(&reserved, sizeof(reserved));
+
+    fo->Write(names);
+    {
+      uint64_t sz = static_cast<uint64_t>(arrays.size());
+      fo->Write(&sz, sizeof(sz));
+      for (size_t i = 0; i < sz; ++i) {
+        SaveDLTensor(fo.get(), arrays[i]);
+      }
+    }
+  });
 
 
 void GraphExecutor::LoadParams(std::string fname) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
   uint64_t header, reserved;
-  CHECK(fi->Read(&header));
-  CHECK(fi->Read(&reserved));
+  CHECK(fi->Read(&header))
+    << "Invalid parameters file format";
+  CHECK(header == kTVMNDArrayListMagic)
+    << "Invalid parameters file format";
+  CHECK(fi->Read(&reserved))
+    << "Invalid parameters file format";
+
+  std::vector<std::string> names;
+  CHECK(fi->Read(&names))
+    << "Invalid parameters file format";
+
+  nnvm::Symbol s;
+  s.outputs = graph_.outputs;
+  std::vector<std::string> input_names =
+    s.ListInputNames(nnvm::Symbol::ListInputOption::kAll);
+  std::unordered_map<std::string, size_t> name_index;
+  for (size_t i = 0; i < input_names.size(); ++i) {
+    name_index.emplace(input_names[i], i);
+  }
 
   {
     uint64_t sz;
     fi->Read(&sz, sizeof(sz));
     size_t size = static_cast<size_t>(sz);
-    data_entry_.resize(size);
+    CHECK(size == names.size())
+      << "Invalid parameters file format";
     for (size_t i = 0; i < size; ++i) {
-      data_entry_[i] = *storage_pool_[storage_id_[i]];
-      data_entry_[i].shape = const_cast<int64_t*>(data_shape_[i].data());
-      LoadDLTensor(fi.get(), &data_entry_[i]);
+      size_t idx = name_index.at(names[i]);
+      CHECK(LoadDLTensor(fi.get(), &data_entry_[idx]))
+        << "Invalid parameters file format";
     }
   }
 }
@@ -254,25 +275,24 @@ void GraphExecutor::LoadParams(std::string fname) {
 void GraphExecutor::SetupStorage() {
   const auto& idx = graph_.indexed_graph();
   // Grab saved optimization plan from graph.
-  storage_id_ = graph_.MoveCopyAttr<StorageVector>("storage_id");
+  auto vstorage = graph_.MoveCopyAttr<StorageVector>("storage_id");
   const auto& vshape = graph_.GetAttr<ShapeVector>("shape");
-  data_shape_ = vshape;
   const auto& vtype = graph_.GetAttr<DLTypeVector>("dltype");
   data_entry_.resize(idx.num_node_entries());
 
   // Find the maximum space size.
   int max_id = 0;
   for (size_t i = 0; i < vshape.size(); ++i) {
-    max_id = std::max(storage_id_[i] + 1, max_id);
+    max_id = std::max(vstorage[i] + 1, max_id);
   }
   for (const auto& e : idx.input_nodes()) {
-    storage_id_[idx.entry_id(e, 0)] = max_id++;
+    vstorage[idx.entry_id(e, 0)] = max_id++;
   }
   // size of each storage pool entry
   std::vector<size_t> pool_entry_bytes;
   // Find the maximum space size.
   for (size_t i = 0; i < vshape.size(); ++i) {
-    int storage_id = storage_id_[i];
+    int storage_id = vstorage[i];
     size_t size = vshape[i].Size();
     CHECK_GE(storage_id, 0) << "Do not support runtime shape op";
 
@@ -297,7 +317,7 @@ void GraphExecutor::SetupStorage() {
   }
   // Assign the pooled entries.
   for (size_t i = 0; i < data_entry_.size(); ++i) {
-    int storage_id = storage_id_[i];
+    int storage_id = vstorage[i];
     data_entry_[i] = *storage_pool_[storage_id];
     data_entry_[i].shape = const_cast<int64_t*>(vshape[i].data());
     data_entry_[i].ndim = vshape[i].ndim();
