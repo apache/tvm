@@ -4,7 +4,7 @@ export PYTHONPATH=${PYTHONPATH}:apps/graph_executor/python:apps/graph_executor/n
 export LD_LIBRARY_PATH=lib:${LD_LIBRARY_PATH}
 
 CURR_DIR=$(cd `dirname $0`; pwd)
-SCRIPT_DIR=$CURRDIR/../../jvm/core/src/test/scripts
+SCRIPT_DIR=$CURR_DIR/../../jvm/core/src/test/scripts
 TEMP_DIR=$(mktemp -d)
 
 python $SCRIPT_DIR/test_add_cpu.py $TEMP_DIR || exit -1
