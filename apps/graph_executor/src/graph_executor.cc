@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file NNVM Graph executor.
  */
+#include <dmlc/io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
@@ -52,6 +53,8 @@ class GraphExecutor : public runtime::ModuleNode {
   void SetInput(int index, DLTensor* data_in);
   // Copy index-th output to data_out
   void GetOutput(int index, DLTensor* data_out);
+  // Load parameters from file
+  void LoadParams(std::string fname);
   // Execute the graph.
   void Run();
 
@@ -93,6 +96,10 @@ PackedFunc GraphExecutor::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
       });
+  } else if (name == "load_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->LoadParams(args[0]);
+      });
   } else {
     return PackedFunc();
   }
@@ -132,6 +139,138 @@ void GraphExecutor::GetOutput(int index, DLTensor* data_out) {
   uint32_t eid = idx.entry_id(idx.outputs()[index]);
   TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
 }
+
+
+constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
+
+bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
+    uint64_t header = kTVMNDArrayMagic, reserved = 0;
+    strm->Write(&header, sizeof(header));
+    strm->Write(&reserved, sizeof(reserved));
+
+    strm->Write(&tensor->ctx, sizeof(tensor->ctx));
+    strm->Write(&tensor->ndim, sizeof(tensor->ndim));
+    strm->Write(&tensor->dtype, sizeof(tensor->dtype));
+
+    int ndim = tensor->ndim;
+    strm->Write(tensor->shape, sizeof(int64_t) * ndim);
+
+    int type_size = tensor->dtype.bits / 8;
+    int64_t size = 1;
+    for (int i = 0; i < ndim; ++i) {
+      size *= tensor->shape[i];
+    }
+    int64_t data_byte_size = type_size * size;
+    strm->Write(&data_byte_size, sizeof(data_byte_size));
+    strm->Write(tensor->data, data_byte_size);
+    return true;
+}
+
+
+bool LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
+    uint64_t header, reserved;
+    CHECK(strm->Read(&header, sizeof(header)))
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(&reserved, sizeof(reserved)))
+      << "Invalid DLTensor file format";
+    CHECK(header == kTVMNDArrayMagic)
+      << "Invalid DLTensor file format";
+
+    CHECK(strm->Read(&tensor->ctx, sizeof(tensor->ctx)))
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(&tensor->ndim, sizeof(tensor->ndim)))
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(&tensor->dtype, sizeof(tensor->dtype)))
+      << "Invalid DLTensor file format";
+
+    int ndim = tensor->ndim;
+    CHECK(strm->Read(tensor->shape, sizeof(int64_t) * ndim))
+      << "Invalid DLTensor file format";
+
+    int64_t size = 1;
+    int type_size = tensor->dtype.bits / 8;
+    for (int i = 0; i < ndim; ++i) {
+      size *= tensor->shape[i];
+    }
+    int64_t data_byte_size;
+    CHECK(strm->Read(&data_byte_size, sizeof(data_byte_size)))
+      << "Invalid DLTensor file format";
+    CHECK(data_byte_size == type_size * size)
+      << "Invalid DLTensor file format";
+    CHECK(strm->Read(tensor->data, type_size * size))
+      << "Invalid DLTensor file format";
+    return true;
+}
+
+
+constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
+
+TVM_REGISTER_GLOBAL("tvm_graph._save_param_dict")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    std::string fname = args[0];
+    int num_params = args[1];
+    std::vector<std::string> names;
+    names.reserve(num_params);
+    std::vector<DLTensor*> arrays;
+    arrays.reserve(num_params);
+    for (int i = 2; i < (2 + 2*num_params); i += 2) {
+      names.emplace_back(args[i].operator std::string());
+      arrays.emplace_back(args[i+1].operator DLTensor*());
+    }
+
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+    uint64_t header = kTVMNDArrayListMagic, reserved = 0;
+    fo->Write(&header, sizeof(header));
+    fo->Write(&reserved, sizeof(reserved));
+
+    fo->Write(names);
+    {
+      uint64_t sz = static_cast<uint64_t>(arrays.size());
+      fo->Write(&sz, sizeof(sz));
+      for (size_t i = 0; i < sz; ++i) {
+        SaveDLTensor(fo.get(), arrays[i]);
+      }
+    }
+  });
+
+
+void GraphExecutor::LoadParams(std::string fname) {
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+  uint64_t header, reserved;
+  CHECK(fi->Read(&header))
+    << "Invalid parameters file format";
+  CHECK(header == kTVMNDArrayListMagic)
+    << "Invalid parameters file format";
+  CHECK(fi->Read(&reserved))
+    << "Invalid parameters file format";
+
+  std::vector<std::string> names;
+  CHECK(fi->Read(&names))
+    << "Invalid parameters file format";
+
+  nnvm::Symbol s;
+  s.outputs = graph_.outputs;
+  std::vector<std::string> input_names =
+    s.ListInputNames(nnvm::Symbol::ListInputOption::kAll);
+  std::unordered_map<std::string, size_t> name_index;
+  for (size_t i = 0; i < input_names.size(); ++i) {
+    name_index.emplace(input_names[i], i);
+  }
+
+  {
+    uint64_t sz;
+    fi->Read(&sz, sizeof(sz));
+    size_t size = static_cast<size_t>(sz);
+    CHECK(size == names.size())
+      << "Invalid parameters file format";
+    for (size_t i = 0; i < size; ++i) {
+      size_t idx = name_index.at(names[i]);
+      CHECK(LoadDLTensor(fi.get(), &data_entry_[idx]))
+        << "Invalid parameters file format";
+    }
+  }
+}
+
 
 void GraphExecutor::SetupStorage() {
   const auto& idx = graph_.indexed_graph();

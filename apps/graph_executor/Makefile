@@ -1,10 +1,11 @@
 # Minimum Makefile for the extension package
 TVM_ROOT=$(shell cd ../..; pwd)
 NNVM_PATH=nnvm
+DMLC_CORE=${TVM_ROOT}/dmlc-core
 
 PKG_CFLAGS = -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/include\
-	-I${TVM_ROOT}/dmlc-core/include\
+	-I${DMLC_CORE}/include\
 	-I${TVM_ROOT}/dlpack/include\
 	-I${TVM_ROOT}/HalideIR/src
 
@@ -23,10 +24,12 @@ endif
 NNVM_CONTRIB_SRC = $(wildcard src/*.cc)
 NNVM_CONTRIB_OBJ = $(patsubst src/%.cc, build/%.o, $(NNVM_CONTRIB_SRC))
 
+include $(DMLC_CORE)/make/dmlc.mk
+
 ALL_DEP = $(NNVM_CONTRIB_OBJ)
 
 PKG_CFLAGS += -I${NNVM_PATH}/include
-ALL_DEP += ${NNVM_PATH}/lib/libnnvm.a
+ALL_DEP += ${DMLC_CORE}/libdmlc.a ${NNVM_PATH}/lib/libnnvm.a
 
 .PHONY: clean all
 
@@ -38,6 +41,8 @@ nnvm:
 nnvm/lib/libnnvm.a: | nnvm
 	+	cd nnvm; make ; cd -
 
+$(DMLC_CORE)/libdmlc.a:
+	+	cd $(DMLC_CORE); make libdmlc.a; cd $(TVM_ROOT)
 
 build/%.o: src/%.cc | nnvm
 	@mkdir -p $(@D)
