@@ -131,7 +131,7 @@ else
 	endif
 endif
 
-JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests -Dcheckstyle.skip=true)
+JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests)
 
 ifeq ($(USE_CUDA), 1)
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
@@ -198,9 +198,6 @@ cpplint:
 pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-
-jvmlint:
-	(cd $(ROOTDIR)/jvm/core; mvn checkstyle:check)
 
 jnilint:                                                                                                                            
 	python dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src

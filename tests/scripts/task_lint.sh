@@ -3,8 +3,6 @@ echo "Check codestyle of c++ code..."
 make cpplint || exit -1
 echo "Check codestyle of python code..."
 make pylint || exit -1
-echo "Check codestyle of java code..."
-make jvmlint || exit -1
 echo "Check codestyle of jni code..."
 make jnilint || exit -1
 echo "Check documentations of c++ code..."
