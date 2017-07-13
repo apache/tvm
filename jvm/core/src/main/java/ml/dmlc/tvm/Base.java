@@ -22,23 +22,36 @@ import java.io.IOException;
 
 import ml.dmlc.tvm.NativeLibraryLoader.Action;
 
-public class Base {
-  // type definitions
+/**
+ * Initializing methods and types.
+ */
+final class Base {
+
+  /**
+   * Hold Long reference for JNI.
+   */
   public static class RefLong {
     public final long value;
-    public RefLong(long value) {
+
+    public RefLong(final long value) {
       this.value = value;
     }
+
     public RefLong() {
       this(0L);
     }
   }
 
+  /**
+   * Hold TVMValue reference for JNI.
+   */
   public static class RefTVMValue {
     public final TVMValue value;
+
     public RefTVMValue(TVMValue value) {
       this.value = value;
     }
+
     public RefTVMValue() {
       this(null);
     }
@@ -51,11 +64,11 @@ public class Base {
       try {
         tryLoadLibraryOS("tvm4j");
       } catch (UnsatisfiedLinkError e) {
-        System.err.println("[WARN] TVM native library not found in path. " +
-          "Copying native library from the archive. " +
-          "Consider installing the library somewhere in the path " +
-          "(for Windows: PATH, for Linux: LD_LIBRARY_PATH), " +
-          "or specifying by Java cmd option -Djava.library.path=[lib path].");
+        System.err.println("[WARN] TVM native library not found in path. "
+            + "Copying native library from the archive. "
+            + "Consider installing the library somewhere in the path "
+            + "(for Windows: PATH, for Linux: LD_LIBRARY_PATH), "
+            + "or specifying by Java cmd option -Djava.library.path=[lib path].");
         NativeLibraryLoader.loadLibrary("tvm4j");
       }
     } catch (Throwable e) {
@@ -85,6 +98,11 @@ public class Base {
     });
   }
 
+  /**
+   * Load JNI for different OS.
+   * @param libname library name.
+   * @throws UnsatisfiedLinkError if loading fails.
+   */
   private static void tryLoadLibraryOS(String libname) throws UnsatisfiedLinkError {
     try {
       System.err.println(String.format("Try loading %s from native path.", libname));
@@ -98,11 +116,17 @@ public class Base {
         tryLoadLibraryXPU(libname, "osx-x86_64");
       } else {
         // TODO(yizhi) support windows later
-        throw new UnsatisfiedLinkError();
+        throw new UnsatisfiedLinkError("Windows not supported currently");
       }
     }
   }
 
+  /**
+   * Load native library for different architectures.
+   * @param libname library name.
+   * @param arch architecture.
+   * @throws UnsatisfiedLinkError if loading fails
+   */
   private static void tryLoadLibraryXPU(String libname, String arch) throws UnsatisfiedLinkError {
     try {
       // try gpu first
@@ -117,9 +141,10 @@ public class Base {
   // helper function definitions
   /**
    * Check the return value of C API call
-   *
+   * <p>
    * This function will raise exception when error occurs.
    * Wrap every API call with this function
+   * </p>
    * @param ret return value from API calls
    */
   public static void checkCall(int ret) throws TVMError {
@@ -128,10 +153,19 @@ public class Base {
     }
   }
 
+  /**
+   * TVM Runtime error.
+   */
   static class TVMError extends RuntimeException {
     public TVMError(String err) {
       super(err);
     }
+  }
+
+  /**
+   * Cannot be instantiated.
+   */
+  private Base() {
   }
 }
 

@@ -17,7 +17,11 @@
 
 package ml.dmlc.tvm;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Function {
   final long handle;
@@ -89,37 +93,71 @@ public class Function {
     }
   }
 
+  /**
+   * Invoke the function.
+   * @return the result.
+   */
   public TVMValue invoke() {
     Base.RefTVMValue ret = new Base.RefTVMValue();
     Base.checkCall(Base._LIB.tvmFuncCall(handle, ret));
     return ret.value;
   }
 
+  /**
+   * Push argument to the function.
+   * @param arg int argument.
+   * @return this
+   */
   public Function pushArg(int arg) {
     Base._LIB.tvmFuncPushArgLong(arg);
     return this;
   }
 
+  /**
+   * Push argument to the function.
+   * @param arg long argument.
+   * @return this
+   */
   public Function pushArg(long arg) {
     Base._LIB.tvmFuncPushArgLong(arg);
     return this;
   }
 
+  /**
+   * Push argument to the function.
+   * @param arg float argument.
+   * @return this
+   */
   public Function pushArg(float arg) {
     Base._LIB.tvmFuncPushArgDouble(arg);
     return this;
   }
 
+  /**
+   * Push argument to the function.
+   * @param arg double argument.
+   * @return this
+   */
   public Function pushArg(double arg) {
     Base._LIB.tvmFuncPushArgDouble(arg);
     return this;
   }
 
+  /**
+   * Push argument to the function.
+   * @param arg String argument.
+   * @return this
+   */
   public Function pushArg(String arg) {
     Base._LIB.tvmFuncPushArgString(arg);
     return this;
   }
 
+  /**
+   * Push argument to the function.
+   * @param arg NDArray.
+   * @return this
+   */
   public Function pushArg(NDArray arg) {
     Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.ARRAY_HANDLE.id);
     return this;

@@ -19,6 +19,7 @@ package ml.dmlc.tvm;
 
 public class TVMValue {
   public final TypeCode typeCode;
+
   public TVMValue(TypeCode tc) {
     typeCode = tc;
   }

@@ -19,6 +19,7 @@ package ml.dmlc.tvm;
 
 public class TVMValueDouble extends TVMValue {
   public final double value;
+
   public TVMValueDouble(double value) {
     super(TypeCode.FLOAT);
     this.value = value;

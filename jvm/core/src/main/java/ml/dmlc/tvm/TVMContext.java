@@ -43,7 +43,7 @@ public class TVMContext {
   }
 
   /**
-   * Construct a CPU device
+   * Construct a CPU device.
    * @param devId The device id
    * @return The created context
    */
@@ -56,7 +56,7 @@ public class TVMContext {
   }
 
   /**
-   * Construct a GPU device
+   * Construct a GPU device.
    * @param devId The device id
    * @return The created context
    */
@@ -69,7 +69,7 @@ public class TVMContext {
   }
 
   /**
-   * Construct a OpenCL device
+   * Construct a OpenCL device.
    * @param devId The device id
    * @return The created context
    */
@@ -82,7 +82,7 @@ public class TVMContext {
   }
 
   /**
-   * Construct a metal device
+   * Construct a metal device.
    * @param devId The device id
    * @return The created context
    */
@@ -95,7 +95,7 @@ public class TVMContext {
   }
 
   /**
-   * Construct a VPI simulated device
+   * Construct a VPI simulated device.
    * @param devId The device id
    * @return The created context
    */
@@ -119,28 +119,39 @@ public class TVMContext {
     this(STR2MASK.get(deviceType), deviceId);
   }
 
-  // Whether this device exist.
+  /**
+   * Whether this device exists.
+   * @return true if exists.
+   */
   public boolean exist() {
     TVMValue ret = APIInternal.get("_GetDeviceAttr")
-      .pushArg(deviceType).pushArg(deviceId).pushArg(0).invoke();
+        .pushArg(deviceType).pushArg(deviceId).pushArg(0).invoke();
     return ((TVMValueLong) ret).value != 0;
   }
 
-  // Maximum number of threads on each block.
+  /**
+   * Maximum number of threads on each block.
+   * @return the maximum thread number.
+   */
   public long maxThreadsPerBlock() {
     TVMValue ret = APIInternal.get("_GetDeviceAttr")
-      .pushArg(deviceType).pushArg(deviceId).pushArg(1).invoke();
+        .pushArg(deviceType).pushArg(deviceId).pushArg(1).invoke();
     return ((TVMValueLong) ret).value;
   }
 
-  // Number of threads that executes in concurrent.
+  /**
+   * Number of threads that executes in concurrent.
+   * @return the thread number.
+   */
   public long warpSize() {
     TVMValue ret = APIInternal.get("_GetDeviceAttr")
-      .pushArg(deviceType).pushArg(deviceId).pushArg(2).invoke();
+        .pushArg(deviceType).pushArg(deviceId).pushArg(2).invoke();
     return ((TVMValueLong) ret).value;
   }
 
-  // Synchronize until jobs finished at the context.
+  /**
+   * Synchronize until jobs finished at the context.
+   */
   public void sync() {
     Base.checkCall(Base._LIB.tvmSynchronize(deviceType, deviceId));
   }

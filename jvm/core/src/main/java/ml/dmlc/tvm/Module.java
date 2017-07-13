@@ -17,23 +17,25 @@
 
 package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.Base.*;
-
 import java.util.Map;
 
+/**
+ * Container of compiled functions of TVM.
+ */
 public class Module {
   private static final Map<String, Function> FUNCTIONS = Function.initAPI(
-    new Function.InitAPINameFilter() {
-      @Override public boolean accept(String name) {
-        return name != null && name.startsWith("module.");
-      }
-    }, new Function.InitAPINameGenerator() {
-      @Override public String generate(String name) {
-        return name.substring("module.".length());
-      }
-    });
+      new Function.InitAPINameFilter() {
+        @Override public boolean accept(final String name) {
+          return name != null && name.startsWith("module.");
+        }
+      }, new Function.InitAPINameGenerator() {
+        @Override public String generate(final String name) {
+          return name.substring("module.".length());
+        }
+      });
 
   public final long handle;
+
   public Module(long handle) {
     this.handle = handle;
   }
@@ -46,7 +48,7 @@ public class Module {
   }
 
   /**
-   * Get the entry function
+   * Get the entry function.
    * @return The entry function if exist
    */
   public Function entryFunc() {
@@ -63,9 +65,9 @@ public class Module {
    * @return The result function.
    */
   public Function getFunction(String name, boolean queryImports) {
-    RefLong retHandle = new RefLong();
+    Base.RefLong retHandle = new Base.RefLong();
     Base.checkCall(Base._LIB.tvmModGetFunction(
-      handle, name, queryImports ? 1 : 0, retHandle));
+        handle, name, queryImports ? 1 : 0, retHandle));
     if (retHandle.value == 0) {
       throw new IllegalArgumentException("Module has no function " + name);
     }
@@ -85,7 +87,7 @@ public class Module {
   }
 
   /**
-   * Load module from file
+   * Load module from file.
    * @param path The path to the module file.
    * @param fmt The format of the file,
    *            if not specified it will be inferred from suffix of the file.
@@ -93,7 +95,7 @@ public class Module {
    */
   public static Module load(String path, String fmt) {
     TVMValue ret = FUNCTIONS.get("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
-    assert(ret.typeCode == TypeCode.MODULE_HANDLE);
+    assert ret.typeCode == TypeCode.MODULE_HANDLE;
     return ret.asModule();
   }
 

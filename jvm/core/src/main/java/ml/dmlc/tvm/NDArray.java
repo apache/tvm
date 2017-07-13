@@ -17,12 +17,10 @@
 
 package ml.dmlc.tvm;
 
-import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
-
-import ml.dmlc.tvm.Base.*;
 
 /**
  * Lightweight NDArray class of TVM runtime.
@@ -32,7 +30,7 @@ public class NDArray {
   private final boolean isView;
   private final TVMType dtype;
 
-  public NDArray(long handle, boolean isView, TVMType dtype) {
+  NDArray(long handle, boolean isView, TVMType dtype) {
     this.handle = handle;
     this.isView = isView;
     this.dtype = dtype;
@@ -378,44 +376,44 @@ public class NDArray {
   }
 
   /**
-   * Create an empty array given shape, type and device
-   * @param shape The shape of the array
-   * @param dtype The data type of the array
-   * @param ctx The context of the array
-   * @return The array tvm supported
+   * Create an empty array given shape, type and device.
+   * @param shape The shape of the array.
+   * @param dtype The data type of the array.
+   * @param ctx The context of the array.
+   * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape, TVMType dtype, TVMContext ctx) {
-    RefLong refHandle = new RefLong();
+    Base.RefLong refHandle = new Base.RefLong();
     Base.checkCall(Base._LIB.tvmArrayAlloc(
-      shape, dtype.typeCode, dtype.bits, dtype.lanes,
-      ctx.deviceType, ctx.deviceId, refHandle));
+        shape, dtype.typeCode, dtype.bits, dtype.lanes,
+        ctx.deviceType, ctx.deviceId, refHandle));
     return new NDArray(refHandle.value, false, dtype);
   }
 
   /**
-   * Create an empty array on cpu given shape and type
-   * @param shape The shape of the array
-   * @param dtype The data type of the array
-   * @return The array tvm supported
+   * Create an empty array on cpu given shape and type.
+   * @param shape The shape of the array.
+   * @param dtype The data type of the array.
+   * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape, TVMType dtype) {
     return empty(shape, dtype, new TVMContext(1, 0));
   }
 
   /**
-   * Create an empty float32 array on cpu given shape
-   * @param shape The shape of the array
-   * @return The array tvm supported
+   * Create an empty float32 array on cpu given shape.
+   * @param shape The shape of the array.
+   * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape) {
     return empty(shape, new TVMType("float32", 1), new TVMContext(1, 0));
   }
 
   /**
-   * Create an empty float32 array given shape and device
-   * @param shape The shape of the array
-   * @param ctx The context of the array
-   * @return The array tvm supported
+   * Create an empty float32 array given shape and device.
+   * @param shape The shape of the array.
+   * @param ctx The context of the array.
+   * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape, TVMContext ctx) {
     return empty(shape, new TVMType("float32", 1), ctx);

@@ -17,10 +17,9 @@
 
 package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.NDArray;
-
 public class TVMValueNDArrayHandle extends TVMValue {
   public final long value;
+
   public TVMValueNDArrayHandle(long value) {
     super(TypeCode.ARRAY_HANDLE);
     this.value = value;

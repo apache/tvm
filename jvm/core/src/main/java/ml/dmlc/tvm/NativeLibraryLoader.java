@@ -17,7 +17,12 @@
 
 package ml.dmlc.tvm;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 class NativeLibraryLoader {
   private static final String libPathInJar = "/lib/native/";
@@ -46,7 +51,7 @@ class NativeLibraryLoader {
             System.err.println("Deleting " + tempDir.getAbsolutePath());
             if (!tempDir.delete()) {
               System.err.println(
-                "[WARN] Couldn't delete temporary directory " + tempDir.getAbsolutePath());
+                  "[WARN] Couldn't delete temporary directory " + tempDir.getAbsolutePath());
             }
           }
         });
@@ -115,7 +120,7 @@ class NativeLibraryLoader {
    * @param action callback function to deal with the copied file.
    */
   public static void extractResourceFileToTempDir(String filename, Action action)
-    throws IOException {
+      throws IOException {
     final String libFileInJar = libPathInJar + filename;
     InputStream is = NativeLibraryLoader.class.getResourceAsStream(libFileInJar);
     if (is == null) {
@@ -125,7 +130,7 @@ class NativeLibraryLoader {
     try {
       File tempfile = createTempFile(filename);
       OutputStream os = new FileOutputStream(tempfile);
-      long savedTime = System.currentTimeMillis();
+      final long savedTime = System.currentTimeMillis();
       byte[] buf = new byte[8192];
       int len = is.read(buf);
       while (len > 0) {
@@ -133,7 +138,7 @@ class NativeLibraryLoader {
         len = is.read(buf);
       }
       os.flush();
-      FileInputStream lock = new FileInputStream(tempfile);
+      final FileInputStream lock = new FileInputStream(tempfile);
       os.close();
       double seconds = (double) (System.currentTimeMillis() - savedTime) / 1e3;
       System.err.println(String.format("Copying took %.2f seconds.", seconds));

@@ -19,19 +19,36 @@ package ml.dmlc.tvm;
 
 import java.util.Map;
 
-public class APIInternal {
+/**
+ * Internal api functions.
+ */
+public final class APIInternal {
+  /**
+   * Predefined functions.
+   */
   private static final Map<String, Function> FUNCTIONS = Function.initAPI(
-    new Function.InitAPINameFilter() {
-      @Override public boolean accept(String name) {
-        return name != null && name.indexOf('.') == -1 && name.startsWith("_");
-      }
-    }, new Function.InitAPINameGenerator() {
-      @Override public String generate(String name) {
-        return name;
-      }
-    });
+      new Function.InitAPINameFilter() {
+        @Override public boolean accept(final String name) {
+          return name != null && name.indexOf('.') == -1 && name.startsWith("_");
+        }
+      }, new Function.InitAPINameGenerator() {
+        @Override public String generate(final String name) {
+          return name;
+        }
+      });
 
-  public static Function get(String name) {
+  /**
+   * Get a tvm api function according by name.
+   * @param name function name.
+   * @return a TVM Function.
+   */
+  public static Function get(final String name) {
     return FUNCTIONS.get(name);
+  }
+
+  /**
+   * Cannot be instantiated.
+   */
+  private APIInternal() {
   }
 }

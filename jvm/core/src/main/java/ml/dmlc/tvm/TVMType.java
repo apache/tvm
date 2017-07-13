@@ -28,6 +28,11 @@ public class TVMType {
   public final int numOfBytes;
   public final int lanes;
 
+  /**
+   * TVMType constructor.
+   * @param typeStr type name, e.g., "float32", "float64", "uint8", etc.
+   * @param lanes NDArray lanes.
+   */
   public TVMType(String typeStr, int lanes) {
     this.lanes = lanes;
     int bitsTemp = 0;
@@ -71,20 +76,23 @@ public class TVMType {
   }
 
   @Override public String toString() {
-    String typeCodeStr = "Unknown";
+    String typeCodeStr;
     switch (typeCode) {
-    case 0:
-      typeCodeStr = "int";
-      break;
-    case 1:
-      typeCodeStr = "uint";
-      break;
-    case 2:
-      typeCodeStr = "float";
-      break;
-    case 4:
-      typeCodeStr = "handle";
-      break;
+      case 0:
+        typeCodeStr = "int";
+        break;
+      case 1:
+        typeCodeStr = "uint";
+        break;
+      case 2:
+        typeCodeStr = "float";
+        break;
+      case 4:
+        typeCodeStr = "handle";
+        break;
+      default:
+        typeCodeStr = "Unknown";
+        break;
     }
     String str = typeCodeStr + bits;
     if (lanes != 1) {

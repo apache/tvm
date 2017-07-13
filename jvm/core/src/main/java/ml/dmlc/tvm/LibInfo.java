@@ -17,47 +17,59 @@
 
 package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.Base.*;
-
 import java.util.List;
 
 class LibInfo {
-  native public int nativeLibInit(String tvmLibFile);
-  native public int shutdown();
+  public native int nativeLibInit(String tvmLibFile);
 
-  native public String tvmGetLastError();
+  public native int shutdown();
+
+  public native String tvmGetLastError();
 
   // Function
-  native public void tvmFuncPushArgLong(long arg);
-  native public void tvmFuncPushArgDouble(double arg);
-  native public void tvmFuncPushArgString(String arg);
-  native public void tvmFuncPushArgHandle(long arg, int argType);
+  public native void tvmFuncPushArgLong(long arg);
 
-  native public int tvmFuncListGlobalNames(List<String> funcNames);
-  native public int tvmFuncFree(long handle);
-  native public int tvmFuncGetGlobal(String name, RefLong handle);
-  native public int tvmFuncCall(long handle, RefTVMValue retVal);
+  public native void tvmFuncPushArgDouble(double arg);
+
+  public native void tvmFuncPushArgString(String arg);
+
+  public native void tvmFuncPushArgHandle(long arg, int argType);
+
+  public native int tvmFuncListGlobalNames(List<String> funcNames);
+
+  public native int tvmFuncFree(long handle);
+
+  public native int tvmFuncGetGlobal(String name, Base.RefLong handle);
+
+  public native int tvmFuncCall(long handle, Base.RefTVMValue retVal);
 
   // Module
-  native public int tvmModFree(long handle);
-  native public int tvmModGetFunction(long handle, String name,
-                               int queryImports, RefLong retHandle);
-  native public int tvmModImport(long mod, long dep);
+  public native int tvmModFree(long handle);
+
+  public native int tvmModGetFunction(long handle, String name,
+                                      int queryImports, Base.RefLong retHandle);
+
+  public native int tvmModImport(long mod, long dep);
 
   // NDArray
-  native public int tvmArrayFree(long handle);
-  native public int tvmArrayAlloc(long[] shape,
+  public native int tvmArrayFree(long handle);
+
+  public native int tvmArrayAlloc(long[] shape,
                                   int dtypeCode,
                                   int dtypeBits,
                                   int dtypeLanes,
                                   int deviceType,
                                   int deviceId,
-                                  RefLong refHandle);
-  native public int tvmArrayGetShape(long handle, List<Long> shape);
-  native public int tvmArrayCopyFromTo(long from, long to);
-  native public int tvmArrayCopyFromJArray(byte[] fromRaw, long from, long to);
-  native public int tvmArrayCopyToJArray(long from, byte[] to);
+                                  Base.RefLong refHandle);
+
+  public native int tvmArrayGetShape(long handle, List<Long> shape);
+
+  public native int tvmArrayCopyFromTo(long from, long to);
+
+  public native int tvmArrayCopyFromJArray(byte[] fromRaw, long from, long to);
+
+  public native int tvmArrayCopyToJArray(long from, byte[] to);
 
   // TVMContext
-  native public int tvmSynchronize(int deviceType, int deviceId);
+  public native int tvmSynchronize(int deviceType, int deviceId);
 }

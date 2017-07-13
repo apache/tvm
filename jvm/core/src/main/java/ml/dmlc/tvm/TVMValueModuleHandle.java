@@ -17,10 +17,9 @@
 
 package ml.dmlc.tvm;
 
-import ml.dmlc.tvm.Module;
-
 public class TVMValueModuleHandle extends TVMValue {
   public final long value;
+
   public TVMValueModuleHandle(long value) {
     super(TypeCode.MODULE_HANDLE);
     this.value = value;
