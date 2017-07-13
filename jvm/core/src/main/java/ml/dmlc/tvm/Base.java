@@ -17,10 +17,10 @@
 
 package ml.dmlc.tvm;
 
+import ml.dmlc.tvm.NativeLibraryLoader.Action;
+
 import java.io.File;
 import java.io.IOException;
-
-import ml.dmlc.tvm.NativeLibraryLoader.Action;
 
 /**
  * Initializing methods and types.
