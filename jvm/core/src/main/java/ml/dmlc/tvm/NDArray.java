@@ -32,7 +32,7 @@ public class NDArray {
   private final boolean isView;
   private final TVMType dtype;
 
-  public NDArray(long handle, boolean isView, TVMType dtype){
+  public NDArray(long handle, boolean isView, TVMType dtype) {
     this.handle = handle;
     this.isView = isView;
     this.dtype = dtype;

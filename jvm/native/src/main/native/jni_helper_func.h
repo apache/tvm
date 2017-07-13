@@ -48,7 +48,7 @@ void setStringField(JNIEnv *env, jobject obj, const char *value) {
 
 // Helper functions for TVMValue
 jlong getTVMValueLongField(JNIEnv *env, jobject obj,
-  const char *clsname = "ml/dmlc/tvm/types/TVMValueLong") {
+  const char *clsname = "ml/dmlc/tvm/TVMValueLong") {
   jclass cls = env->FindClass(clsname);
   jfieldID fid = env->GetFieldID(cls, "value", "J");
   jlong ret = env->GetLongField(obj, fid);
@@ -57,7 +57,7 @@ jlong getTVMValueLongField(JNIEnv *env, jobject obj,
 }
 
 jdouble getTVMValueDoubleField(JNIEnv *env, jobject obj) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueDouble");
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueDouble");
   jfieldID fid = env->GetFieldID(cls, "value", "D");
   jdouble ret = env->GetDoubleField(obj, fid);
   env->DeleteLocalRef(cls);
@@ -65,7 +65,7 @@ jdouble getTVMValueDoubleField(JNIEnv *env, jobject obj) {
 }
 
 jstring getTVMValueStringField(JNIEnv *env, jobject obj) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueString");
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueString");
   jfieldID fid = env->GetFieldID(cls, "value", "Ljava/lang/String;");
   jstring ret = static_cast<jstring>(env->GetObjectField(obj, fid));
   env->DeleteLocalRef(cls);
@@ -73,7 +73,7 @@ jstring getTVMValueStringField(JNIEnv *env, jobject obj) {
 }
 
 jobject newTVMValueLong(JNIEnv *env, jlong value) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueLong");
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueLong");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
   jobject object = env->NewObject(cls, constructor, value);
   env->DeleteLocalRef(cls);
@@ -81,7 +81,7 @@ jobject newTVMValueLong(JNIEnv *env, jlong value) {
 }
 
 jobject newTVMValueDouble(JNIEnv *env, jdouble value) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueDouble");
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueDouble");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(D)V");
   jobject object = env->NewObject(cls, constructor, value);
   env->DeleteLocalRef(cls);
@@ -89,7 +89,7 @@ jobject newTVMValueDouble(JNIEnv *env, jdouble value) {
 }
 
 jobject newTVMValueModuleHandle(JNIEnv *env, jlong value) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/types/TVMValueModuleHandle");
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueModuleHandle");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
   jobject object = env->NewObject(cls, constructor, value);
   env->DeleteLocalRef(cls);
@@ -105,7 +105,7 @@ jobject newObject(JNIEnv *env, const char *clsname) {
 }
 
 void fromJavaDType(JNIEnv *env, jobject jdtype, TVMType *dtype) {
-  jclass tvmTypeClass = env->FindClass("ml/dmlc/tvm/types/TVMType");
+  jclass tvmTypeClass = env->FindClass("ml/dmlc/tvm/TVMType");
   dtype->code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
   dtype->bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
   dtype->lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
@@ -113,7 +113,7 @@ void fromJavaDType(JNIEnv *env, jobject jdtype, TVMType *dtype) {
 }
 
 void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
-  jclass tvmContextClass = env->FindClass("ml/dmlc/tvm/types/TVMContext");
+  jclass tvmContextClass = env->FindClass("ml/dmlc/tvm/TVMContext");
   ctx->device_type = static_cast<DLDeviceType>(env->GetIntField(jctx,
     env->GetFieldID(tvmContextClass, "deviceType", "I")));
   ctx->device_id = static_cast<int>(env->GetIntField(jctx,
