@@ -10,6 +10,7 @@ TEMP_DIR=$(mktemp -d)
 python $SCRIPT_DIR/test_add_cpu.py $TEMP_DIR || exit -1
 python $SCRIPT_DIR/test_add_gpu.py $TEMP_DIR || exit -1
 
-make jvmpkg JVM_TEST_ARGS="-DskipTests=false -Dcheckstyle.skip=true -Dtest.tempdir=$TEMP_DIR" || exit -1
+make jvmpkg || exit -1
+make jvmpkg JVM_TEST_ARGS="-DskipTests=false -Dtest.tempdir=$TEMP_DIR" || exit -1
 
 rm -rf $TEMP_DIR
