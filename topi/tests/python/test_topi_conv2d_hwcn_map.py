@@ -29,12 +29,29 @@ def tvm_callback_cuda_postproc(code):
     return code
 
 
-def conv2d_hwcn_python(a_np, w_np, stride, pad):
+def conv2d_hwcn_python(a_np, w_np, stride, padding):
     in_height, in_width, in_channel, batch = a_np.shape
-    kernel, kernel, channel, num_filter = w_np.shape
+    kernel_h, kernel_w, channel, num_filter = w_np.shape
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+    if isinstance(padding, int):
+        pad_h = pad_w = padding * 2
+    elif padding == 'VALID':
+        pad_h = 0
+        pad_w = 0
+    else: # 'same'
+        pad_h = kernel_h - 1
+        pad_w = kernel_w - 1
+    pad_top = int(np.ceil(float(pad_h) / 2))
+    pad_bottom = pad_h - pad_top
+    pad_left = int(np.ceil(float(pad_w) / 2))
+    pad_right = pad_w - pad_left
+    # compute the output shape
     out_channel = num_filter
-    out_height = (in_height - kernel + pad * 2) // stride + 1
-    out_width = (in_width - kernel + pad * 2) // stride + 1
+    out_height = (in_height - kernel_h + pad_h) // stride_h + 1
+    out_width = (in_width - kernel_w + pad_w) // stride_w + 1
     # change the layout from HWCN to NCHW
     at = a_np.transpose((3, 2, 0, 1))
     wt = w_np.transpose((3, 2, 0, 1))
@@ -43,9 +60,9 @@ def conv2d_hwcn_python(a_np, w_np, stride, pad):
     for n in range(batch):
         for f in range(out_channel):
             for c in range(in_channel):
-                if pad > 0:
-                    apad = np.zeros((in_height + pad * 2, in_width + pad *2))
-                    apad[pad:-pad, pad:-pad] = at[n, c]
+                if pad_h > 0:
+                    apad = np.zeros((in_height + pad_h, in_width + pad_w))
+                    apad[pad_top:-pad_bottom, pad_left:-pad_right] = at[n, c]
                 else:
                     apad = at[n, c]
                 out = scipy.signal.convolve2d(
@@ -54,16 +71,8 @@ def conv2d_hwcn_python(a_np, w_np, stride, pad):
     return bt.transpose((2, 3, 1, 0))
 
 
-def test_conv_hwcn_map():
-    batch = 64
-    in_channel = 128
-    in_height = 16
-    in_width = 16
-    num_filter = 128
-    kernel = 3
-    stride = 2
-    padding = 'same'
-    pad = 1
+def verify_conv2d_hwcn_map(batch, in_channel, in_size, num_filter, kernel, stride, padding):
+    in_height = in_width = in_size
 
     A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
@@ -74,7 +83,7 @@ def test_conv_hwcn_map():
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     w_np = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-    b_np = conv2d_hwcn_python(a_np, w_np, stride, pad)
+    b_np = conv2d_hwcn_python(a_np, w_np, stride, padding)
     c_np = np.maximum(b_np, 0)
 
     def check_device(device):
@@ -90,16 +99,26 @@ def test_conv_hwcn_map():
                               auto_unroll_min_depth=0,
                               unroll_explicit=False):
             func1 = tvm.build(s1, [A, W, B], device)
-            func1(a, w, b)
-            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-            del b
             func2 = tvm.build(s2, [A, W, C], device)
+            func1(a, w, b)
             func2(a, w, c)
+            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
             np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl']:
+    for device in ['cuda', 'opencl', 'metal']:
         check_device(device)
 
 
+def test_conv2d_hwcn_map():
+    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "SAME")
+    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "SAME")
+    verify_conv2d_hwcn_map(4, 128, 16, 128, 5, 2, "SAME")
+    verify_conv2d_hwcn_map(4, 128, 16, 256, 5, 2, "SAME")
+    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "VALID")
+    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "VALID")
+    verify_conv2d_hwcn_map(4, 128, 16, 128, 5, 2, "VALID")
+    verify_conv2d_hwcn_map(4, 128, 16, 256, 5, 2, "VALID")
+
+
 if __name__ == "__main__":
-    test_conv_hwcn_map()
+    test_conv2d_hwcn_map()

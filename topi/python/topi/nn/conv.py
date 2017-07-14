@@ -22,7 +22,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
         Stride size, or [stride_height, stride_width]
 
     padding : int or str
-        Padding size or ['valid', 'same']
+        Padding size or ['VALID', 'SAME']
 
     Returns
     -------
@@ -30,7 +30,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
         4-D with shape [out_height, out_width, out_channel, batch]
     """
     assert isinstance(stride, int) or len(stride) == 2
-    assert isinstance(padding, int) or padding in ['valid', 'same']
+    assert isinstance(padding, int) or padding in ['VALID', 'SAME']
     in_height, in_width, in_channel, batch = get_const_tuple(Input.shape)
     kernel_h, kernel_w, channel, num_filter = get_const_tuple(Filter.shape)
     if isinstance(stride, int):
@@ -40,7 +40,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
     # compute the padding size
     if isinstance(padding, int):
         pad_h = pad_w = padding * 2
-    elif padding == 'valid':
+    elif padding == 'VALID':
         pad_h = 0
         pad_w = 0
     else: # 'same'
