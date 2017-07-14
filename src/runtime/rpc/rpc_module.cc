@@ -168,10 +168,15 @@ TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteExecutor")
     std::string tkey = m->type_key();
     CHECK_EQ(tkey, "rpc");
     auto& sess = static_cast<RPCModuleNode*>(m.operator->())->sess();
+
+    TVMContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(args[3].operator int());
+    ctx.device_id   = args[4];
+
     void* mhandle = sess->CallRemote(RPCCode::kExecutorLoad,
-      args[1], args[2], args[3], args[4]);
+      args[1], args[2], ctx);
     std::shared_ptr<RPCModuleNode> n =
-        std::make_shared<RPCModuleNode>(mhandle, sess);
+      std::make_shared<RPCModuleNode>(mhandle, sess);
     *rv = Module(n);
   });
 

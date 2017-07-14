@@ -34,10 +34,13 @@ def bind(g, ctx):
 
 _get_module = tvm.get_global_func("tvm_graph._get_module_from_graph")
 
-def compile_to_lib(fname, sym, target, shape, dtype="float32"):
+def compile_graph(sym_fname, lib_fname, sym, target, shape, dtype="float32"):
     g = build(sym, target, shape, dtype)
     m = _get_module(g.handle)
-    return m.save(fname)
+    m.save(lib_fname)
+    json_str = g.apply('SaveJSON').json_attr('json')
+    with open(sym_fname, 'w') as f:
+        f.write(json_str)
 
 @tvm.register_func("tvm_graph.lower")
 def _lower(sch, inputs, func_name):

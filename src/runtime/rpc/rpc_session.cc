@@ -145,7 +145,7 @@ class RPCSession::EventHandler {
     arg_recv_stage_ = 0;
     arg_buf_.reset();
   }
-  // strip sessionon mask
+  // strip session on mask
   TVMContext StripSessMask(TVMContext ctx) {
     int dev_type = ctx.device_type;
     CHECK_EQ(dev_type / kRPCSessMask, rpc_sess_table_index_ + 1)
@@ -966,11 +966,8 @@ void RPCExecutorLoad(TVMArgs args, TVMRetValue *rv) {
   }
   std::string sym_fname = args[0];
   std::string lib_fname = args[1];
-  int device_type = args[2];
-  int device_id   = args[3];
-  void* module_addr =
-    (*fexec_load_)(sym_fname, lib_fname, device_type, device_id);
-  *rv = module_addr;
+  TVMContext ctx = args[2];
+  *rv = (*fexec_load_)(sym_fname, lib_fname, ctx);
 }
 
 void RPCSession::EventHandler::HandlePackedCall() {

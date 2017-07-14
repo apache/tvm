@@ -386,7 +386,8 @@ FOpExec GraphExecutor::CreateTVMOp(const nnvm::NodeAttrs& attrs,
   }
   // get compiled function from module.
   runtime::PackedFunc pf = module_.GetFunction(it->second, false);
-  auto fexec = [arg_ptr,  pf] () {
+  CHECK(pf != nullptr) << "no such function in module: " << it->second;
+  auto fexec = [arg_ptr, pf] () {
     runtime::TVMRetValue rv;
     runtime::TVMArgs targs(arg_ptr->arg_values.data(),
                            arg_ptr->arg_tcodes.data(),
@@ -418,16 +419,15 @@ TVM_REGISTER_GLOBAL("tvm_graph._create_executor")
 TVM_REGISTER_GLOBAL("tvm_graph._get_module_from_graph")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     void* graph_handle = args[0];
-    nnvm::Graph g = *static_cast<nnvm::Graph*>(graph_handle);
-    *rv = g.GetAttr<tvm::runtime::Module>("module");
+    nnvm::Graph* g = static_cast<nnvm::Graph*>(graph_handle);
+    *rv = g->MoveCopyAttr<tvm::runtime::Module>("module");
   });
 
 TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     std::string sym_fname = args[0];
     std::string lib_fname = args[1];
-    int device_type = args[2];
-    int device_id   = args[3];
+    TVMContext ctx = args[2];
 
     nnvm::Graph g;
     {
@@ -443,18 +443,13 @@ TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
       fsys_load_ = runtime::Registry::Get("tvm.contrib.rpc.server.load_module");
       CHECK(fsys_load_ != nullptr);
     }
-    // only shared lib
     runtime::Module m = (*fsys_load_)(lib_fname);
     g.attrs["module"] = std::make_shared<nnvm::any>(m);
 
-    TVMContext ctx{static_cast<DLDeviceType>(device_type), device_id};
     std::shared_ptr<GraphExecutor> exec =
         std::make_shared<GraphExecutor>();
-    LOG(INFO) << "Skip Init";
-    // no shape, dltype info
-    // exec->Init(g, ctx);
-	void* me = static_cast<void*>(new tvm::runtime::Module(exec));
-	*rv = me;
+    exec->Init(g, ctx);
+    *rv = static_cast<void*>(new tvm::runtime::Module(exec));
   });
 }  // namespace contrib
 }  // namespace tvm

@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file Additional optimization pass of NNVM.
  */
+#include <dmlc/json.h>
 #include <nnvm/graph.h>
 #include <nnvm/op_attr_types.h>
 #include <nnvm/graph_attr_types.h>
@@ -514,3 +515,27 @@ NNVM_REGISTER_OP(layout_transform)
 .set_num_outputs(1);
 }  // namespace contrib
 }  // namespace tvm
+
+namespace dmlc {
+namespace json {
+
+template<>
+struct Handler<DLDataType> {
+  static void Write(JSONWriter *writer, const DLDataType& data) {
+    std::vector<int> tmp({data.code, data.bits, data.lanes});
+    writer->Write(tmp);
+  }
+
+  static void Read(JSONReader *reader, DLDataType* data) {
+    std::vector<int> tmp;
+    reader->Read(&tmp);
+    data->code  = tmp[0];
+    data->bits  = tmp[1];
+    data->lanes = tmp[2];
+  }
+};
+
+DMLC_JSON_ENABLE_ANY(std::vector<DLDataType>, list_dltype);
+
+}  // namespace dmlc
+}  // namespace json
