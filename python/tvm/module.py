@@ -1,8 +1,12 @@
 """Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
+
+from collections import namedtuple
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
 from .contrib import cc_compiler as _cc, util as _util
+
+ProfileResult = namedtuple("ProfileResult", ["mean"])
 
 class Module(ModuleBase):
     """Module container of all TVM generated functions"""
@@ -120,8 +124,14 @@ class Module(ModuleBase):
             and return a float representing seconds per function call.
         """
         try:
-            return _RPCTimeEvaluator(
+            feval = _RPCTimeEvaluator(
                 self, func_name, ctx.device_type, ctx.device_id, number)
+            def evaluator(*args):
+                """Internal wrapped evaluator."""
+                # Wrap feval so we can add more stats in future.
+                mean = feval(*args)
+                return ProfileResult(mean=mean)
+            return evaluator
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
