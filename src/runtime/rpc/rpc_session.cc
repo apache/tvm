@@ -958,6 +958,21 @@ void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
   *rv = fhandle;
 }
 
+void RPCExecutorLoad(TVMArgs args, TVMRetValue *rv) {
+  static const PackedFunc* fexec_load_ = nullptr;
+  if (fexec_load_ == nullptr) {
+    fexec_load_ = runtime::Registry::Get("tvm_graph._load_executor");
+    CHECK(fexec_load_ != nullptr);
+  }
+  std::string sym_fname = args[0];
+  std::string lib_fname = args[1];
+  int device_type = args[2];
+  int device_id   = args[3];
+  void* module_addr =
+    (*fexec_load_)(sym_fname, lib_fname, device_type, device_id);
+  *rv = module_addr;
+}
+
 void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(pending_request_bytes_, 0U);
   if (code_ == RPCCode::kReturn) {
@@ -998,6 +1013,7 @@ void RPCSession::EventHandler::HandlePackedCall() {
     case RPCCode::kModuleFree: CallHandler(RPCModuleFree); break;
     case RPCCode::kModuleGetFunc: CallHandler(RPCModuleGetFunc); break;
     case RPCCode::kModuleGetSource: CallHandler(RPCModuleGetSource); break;
+    case RPCCode::kExecutorLoad: CallHandler(RPCExecutorLoad); break;
     default: LOG(FATAL) << "Unknown event " << static_cast<int>(code_);
   }
   CHECK_EQ(state_, kRecvCode);

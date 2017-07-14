@@ -46,7 +46,8 @@ enum class RPCCode : int {
   kModuleLoad,
   kModuleFree,
   kModuleGetFunc,
-  kModuleGetSource
+  kModuleGetSource,
+  kExecutorLoad
 };
 
 /*!

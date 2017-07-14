@@ -297,6 +297,10 @@ class RPCSession(object):
         """
         return _LoadRemoteModule(self._sess, path)
 
+    def load_executor(self, sym_fname, lib_fname, ctx):
+        return _LoadRemoteExecutor(self._sess,
+            sym_fname, lib_fname, ctx.device_type, ctx.device_id)
+
 
 def connect(url, port, key=""):
     """Connect to RPC Server

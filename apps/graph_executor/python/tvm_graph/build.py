@@ -32,6 +32,12 @@ def bind(g, ctx):
     m = _create_exec(g.handle, ctx.device_type, ctx.device_id)
     return m
 
+_get_module = tvm.get_global_func("tvm_graph._get_module_from_graph")
+
+def compile_to_lib(fname, sym, target, shape, dtype="float32"):
+    g = build(sym, target, shape, dtype)
+    m = _get_module(g.handle)
+    return m.save(fname)
 
 @tvm.register_func("tvm_graph.lower")
 def _lower(sch, inputs, func_name):

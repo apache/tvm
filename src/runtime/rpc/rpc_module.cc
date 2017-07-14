@@ -162,6 +162,19 @@ TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteModule")
     *rv = Module(n);
   });
 
+TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteExecutor")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Module m = args[0];
+    std::string tkey = m->type_key();
+    CHECK_EQ(tkey, "rpc");
+    auto& sess = static_cast<RPCModuleNode*>(m.operator->())->sess();
+    void* mhandle = sess->CallRemote(RPCCode::kExecutorLoad,
+      args[1], args[2], args[3], args[4]);
+    std::shared_ptr<RPCModuleNode> n =
+        std::make_shared<RPCModuleNode>(mhandle, sess);
+    *rv = Module(n);
+  });
+
 TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
