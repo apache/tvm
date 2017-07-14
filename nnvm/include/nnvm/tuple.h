@@ -19,7 +19,7 @@ namespace nnvm {
 typedef int64_t dim_t;
 
 /*!
- * \brief A dynamic sized array data strcuture that is optimized for storing
+ * \brief A dynamic sized array data structure that is optimized for storing
  *        small number of elements with same type.
  *
  *  Data will be stored in stack when number of elements is small.
@@ -72,7 +72,7 @@ class Tuple {
   }
   /*!
    * \brief Assign content to tuple from iterator.
-   * \param begin the beginning of iteratro
+   * \param begin the beginning of iterator
    * \param end end the end of the iterator
    * \tparam RandomAccessIterator iterator type
    */
