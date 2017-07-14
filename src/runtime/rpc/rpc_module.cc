@@ -13,16 +13,28 @@ namespace runtime {
 // Wrapped remote function to packed func.
 struct RPCWrappedFunc {
  public:
-  RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess)
-      : handle_(handle), sess_(sess) {}
+  RPCWrappedFunc(void* handle,
+                 std::shared_ptr<RPCSession> sess)
+      : handle_(handle), sess_(sess) {
+    fwrap_ = PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
+        WrapRemote(sess, args.values[0].v_handle, args.type_codes[0], rv);
+      });
+  }
+
   void operator()(TVMArgs args, TVMRetValue *rv) const {
-    sess_->CallFunc(handle_, args, rv);
+    sess_->CallFunc(handle_, args, rv, &fwrap_);
   }
   ~RPCWrappedFunc() {
     sess_->CallRemote(RPCCode::kFreeFunc, handle_);
   }
 
+  static void WrapRemote(std::shared_ptr<RPCSession> sess,
+                         void* handle,
+                         int tcode,
+                         TVMRetValue* rv);
+
  private:
+  PackedFunc fwrap_;
   void* handle_{nullptr};
   std::shared_ptr<RPCSession> sess_;
 };
@@ -94,7 +106,27 @@ class RPCModuleNode final : public ModuleNode {
   void* module_handle_{nullptr};
   // The local channel
   std::shared_ptr<RPCSession> sess_;
+  // Wrap function to wrap remote module/function.
+  PackedFunc fwrap_;
 };
+
+void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
+                                void* handle,
+                                int tcode,
+                                TVMRetValue *rv) {
+  if (handle == nullptr) return;
+  if (tcode == kFuncHandle) {
+    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess);
+    *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
+        return wf->operator()(args, rv);
+      });
+  } else {
+    CHECK_EQ(tcode, kModuleHandle);
+    std::shared_ptr<RPCModuleNode> n =
+        std::make_shared<RPCModuleNode>(handle, sess);
+    *rv = Module(n);
+  }
+}
 
 Module CreateRPCModule(std::shared_ptr<RPCSession> sess) {
   std::shared_ptr<RPCModuleNode> n =

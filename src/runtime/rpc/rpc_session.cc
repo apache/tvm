@@ -69,7 +69,10 @@ class RPCSession::EventHandler {
   void FinishCopyAck() {
     this->SwitchToState(kRecvCode);
   }
-  RPCCode HandleNextEvent(TVMRetValue* rv) {
+  RPCCode HandleNextEvent(TVMRetValue* rv,
+                          bool client_mode,
+                          const PackedFunc* fwrap) {
+    std::swap(client_mode_, client_mode);
     while (this->Ready()) {
       switch (state_) {
         case kRecvCode: HandleRecvCode(); break;
@@ -110,19 +113,29 @@ class RPCSession::EventHandler {
         case kReturnReceived: {
           CHECK_EQ(arg_buf_->value.size(), 1U);
           TVMArgValue argv = arg_buf_->AsTVMArgs()[0];
-          *rv = argv;
+          if (argv.type_code() == kFuncHandle ||
+              argv.type_code() == kModuleHandle) {
+            CHECK(fwrap != nullptr) << "function/module wrapper not available";
+            fwrap->CallPacked(arg_buf_->AsTVMArgs(), rv);
+          } else {
+            *rv = argv;
+          }
           arg_buf_.reset();
           this->SwitchToState(kRecvCode);
-          return RPCCode::kReturn;
+          std::swap(client_mode_, client_mode);
+          return  RPCCode::kReturn;
         }
         case kCopyAckReceived: {
+          std::swap(client_mode_, client_mode);
           return RPCCode::kCopyAck;
         }
         case kShutdownReceived: {
+          std::swap(client_mode_, client_mode);
           return RPCCode::kShutdown;
         }
       }
     }
+    std::swap(client_mode_, client_mode);
     return RPCCode::kNone;
   }
   // Reset and clear all states.
@@ -161,6 +174,8 @@ class RPCSession::EventHandler {
           writer_->Write(&value, sizeof(TVMValue));
           break;
         }
+        case kFuncHandle:
+        case kModuleHandle:
         case kHandle: {
           // always send handle in 64 bit.
           uint64_t handle = reinterpret_cast<uint64_t>(value.v_handle);
@@ -231,6 +246,8 @@ class RPCSession::EventHandler {
   int arg_index_;
   // The stage of each argument receiver.
   int arg_recv_stage_;
+  // Whether current handler is client or server mode.
+  bool client_mode_{false};
   // Argument buffer
   std::unique_ptr<RPCArgBuffer> arg_buf_;
   // Temp byte buffer.
@@ -305,7 +322,15 @@ class RPCSession::EventHandler {
       case kHandle:
       case kStr:
       case kBytes:
-      case kTVMContext: this->RequestBytes(sizeof(TVMValue)); break;
+      case kTVMContext: {
+        this->RequestBytes(sizeof(TVMValue)); break;
+      }
+      case kFuncHandle:
+      case kModuleHandle: {
+        CHECK(client_mode_)
+            << "Only client can receive remote functions";
+        this->RequestBytes(sizeof(TVMValue)); break;
+      }
       case kNull: break;
       case kArrayHandle: {
         this->RequestBytes(sizeof(uint64_t));
@@ -337,6 +362,8 @@ class RPCSession::EventHandler {
           this->SwitchToState(kRecvPackedSeqArg);
           break;
         }
+        case kFuncHandle:
+        case kModuleHandle:
         case kHandle: {
           // always send handle in 64 bit.
           uint64_t handle;
@@ -558,6 +585,13 @@ class RPCSession::EventHandler {
         ret_value.v_handle = &arr;
         ret_tcode = kBytes;
         SendPackedSeq(&ret_value, &ret_tcode, 1);
+      } else if (rv.type_code() == kFuncHandle ||
+                 rv.type_code() == kModuleHandle) {
+        // always send handle in 64 bit.
+        CHECK(!client_mode_)
+              << "Only server can send function and module handle back.";
+        rv.MoveToCHost(&ret_value, &ret_tcode);
+        SendPackedSeq(&ret_value, &ret_tcode, 1);
       } else {
         ret_value = rv.value();
         ret_tcode = rv.type_code();
@@ -634,7 +668,8 @@ struct RPCSessTable {
   std::array<std::weak_ptr<RPCSession>, kMaxRPCSession> tbl_;
 };
 
-RPCCode RPCSession::HandleUntilReturnEvent(TVMRetValue* rv) {
+RPCCode RPCSession::HandleUntilReturnEvent(
+    TVMRetValue* rv,  bool client_mode, const PackedFunc* fwrap) {
   RPCCode code = RPCCode::kCallFunc;
   while (code != RPCCode::kReturn &&
          code != RPCCode::kShutdown &&
@@ -657,7 +692,7 @@ RPCCode RPCSession::HandleUntilReturnEvent(TVMRetValue* rv) {
         }
       }
     }
-    code = handler_->HandleNextEvent(rv);
+    code = handler_->HandleNextEvent(rv, client_mode, fwrap);
   }
   return code;
 }
@@ -668,7 +703,7 @@ void RPCSession::Init() {
   // Quick function to call remote.
   call_remote_ = PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       handler_->SendPackedSeq(args.values, args.type_codes, args.num_args);
-      RPCCode code = HandleUntilReturnEvent(rv);
+      RPCCode code = HandleUntilReturnEvent(rv, true, nullptr);
       CHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
     });
 }
@@ -712,7 +747,7 @@ void RPCSession::Shutdown() {
 void RPCSession::ServerLoop() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   TVMRetValue rv;
-  CHECK(HandleUntilReturnEvent(&rv) == RPCCode::kShutdown);
+  CHECK(HandleUntilReturnEvent(&rv, false, nullptr) == RPCCode::kShutdown);
   LOG(INFO) << "Shutdown...";
   channel_.reset(nullptr);
 }
@@ -722,7 +757,7 @@ bool RPCSession::ServerOnMessageHandler(const std::string& bytes) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   reader_.Write(bytes.c_str(), bytes.length());
   TVMRetValue rv;
-  RPCCode code = handler_->HandleNextEvent(&rv);
+  RPCCode code = handler_->HandleNextEvent(&rv, false, nullptr);
   while (writer_.bytes_available() != 0) {
     writer_.ReadWithCallback([this](const void *data, size_t size) {
         return channel_->Send(data, size);
@@ -733,13 +768,18 @@ bool RPCSession::ServerOnMessageHandler(const std::string& bytes) {
 }
 
 // Get remote function with name
-void RPCSession::CallFunc(void* h, TVMArgs args, TVMRetValue* rv) {
+void RPCSession::CallFunc(void* h,
+                          TVMArgs args,
+                          TVMRetValue* rv,
+                          const PackedFunc* fwrap) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   RPCCode code = RPCCode::kCallFunc;
   writer_.Write(&code, sizeof(code));
   uint64_t handle = reinterpret_cast<uint64_t>(h);
   writer_.Write(&handle, sizeof(handle));
-  call_remote_.CallPacked(args, rv);
+  handler_->SendPackedSeq(args.values, args.type_codes, args.num_args);
+  code = HandleUntilReturnEvent(rv, true, fwrap);
+  CHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
 }
 
 void RPCSession::CopyToRemote(void* from,
@@ -761,7 +801,7 @@ void RPCSession::CopyToRemote(void* from,
   writer_.Write(&ctx_to, sizeof(ctx_to));
   writer_.Write(reinterpret_cast<char*>(from) + from_offset, data_size);
   TVMRetValue rv;
-  CHECK(HandleUntilReturnEvent(&rv) == RPCCode::kReturn);
+  CHECK(HandleUntilReturnEvent(&rv, true, nullptr) == RPCCode::kReturn);
 }
 
 void RPCSession::CopyFromRemote(void* from,
@@ -782,7 +822,7 @@ void RPCSession::CopyFromRemote(void* from,
   writer_.Write(&size, sizeof(size));
   writer_.Write(&ctx_from, sizeof(ctx_from));
   TVMRetValue rv;
-  CHECK(HandleUntilReturnEvent(&rv) == RPCCode::kCopyAck);
+  CHECK(HandleUntilReturnEvent(&rv, true, nullptr) == RPCCode::kCopyAck);
   reader_.Reserve(data_size);
   while (reader_.bytes_available() < data_size) {
     size_t bytes_needed = data_size - reader_.bytes_available();

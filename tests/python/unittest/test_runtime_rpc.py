@@ -11,7 +11,7 @@ def test_rpc_simple():
     def addone(x):
         return x + 1
     @tvm.register_func("rpc.test.strcat")
-    def addone(name, x):
+    def strcat(name, x):
         return "%s:%d" % (name, x)
 
     @tvm.register_func("rpc.test.except")
@@ -83,16 +83,26 @@ def test_rpc_remote_module():
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
-        cost = time_f(a, b)
+        cost = time_f(a, b).mean
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
     check_remote()
 
+def test_rpc_return_func():
+    @tvm.register_func("rpc.test.remote_func")
+    def addone(x):
+        return lambda y: x+y
+    server = rpc.Server("localhost")
+    client = rpc.connect(server.host, server.port, key="x1")
+    f1 = client.get_function("rpc.test.remote_func")
+    fadd = f1(10)
+    assert fadd(12) == 22
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_rpc_return_func()
     test_rpc_file_exchange()
-    exit(0)
     test_rpc_array()
     test_rpc_remote_module()
     test_rpc_simple()

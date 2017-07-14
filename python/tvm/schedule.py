@@ -4,7 +4,7 @@ from ._ffi.node import NodeBase, register_node
 from . import _api_internal
 from . import tensor as _tensor
 from . import expr as _expr
-from . import collections as _collections
+from . import container as _container
 from ._ffi.function import _init_api
 
 @register_node
@@ -74,7 +74,7 @@ def create_schedule(ops):
     sch : schedule.Schedule
         The created schedule.
     """
-    if not isinstance(ops, (list, _collections.Array)):
+    if not isinstance(ops, (list, _container.Array)):
         ops = [ops]
     return _api_internal._CreateSchedule(ops)
 

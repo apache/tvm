@@ -6,7 +6,7 @@ from . import stmt as _stmt
 from . import expr as _expr
 from . import make as _make
 from . import ir_pass as _pass
-from . import collections as _collections
+from . import container as _container
 from ._ffi.base import string_types
 from ._ffi.node import NodeGeneric
 from .expr import Call as _Call
@@ -280,7 +280,7 @@ class IRBuilder(object):
             The buffer var representing the buffer.
         """
         buffer_var = _api.var(name, dtype="handle")
-        if not isinstance(shape, (list, tuple, _collections.Array)):
+        if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
         if scope:
             self.scope_attr(buffer_var, "storage_scope", scope)

@@ -15,7 +15,7 @@ from . import make as _make
 from . import expr as _expr
 from . import tensor as _tensor
 from . import schedule as _schedule
-from . import collections as _collections
+from . import container as _container
 from . import tag as _tag
 
 int32 = "int32"
@@ -493,7 +493,7 @@ def _IterVar(dom, name, iter_type, thread_tag=''):
                 raise TypeError("need to be list of ranges")
             dom = Range(dom[0], dom[1])
 
-        if not isinstance(dom, _collections.Range):
+        if not isinstance(dom, _container.Range):
             raise TypeError("dom need to be Range")
     name = name if name else 'iter'
     v = var(name)
@@ -628,7 +628,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
         expr = convert(expr)
-        if isinstance(expr, _collections.Array):
+        if isinstance(expr, _container.Array):
             size = len(expr)
             larr = []
             rarr = []

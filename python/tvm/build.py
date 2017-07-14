@@ -9,7 +9,7 @@ from . import tensor
 from . import schedule
 from . import expr
 from . import ir_pass
-from . import collections
+from . import container
 from . import module
 from . import codegen
 from . import ndarray
@@ -276,19 +276,19 @@ def build(sch,
         flist = lower(sch, args,
                       name=name,
                       binds=binds)
-        if isinstance(flist, collections.LoweredFunc):
+        if isinstance(flist, container.LoweredFunc):
             flist = [flist]
-    elif isinstance(sch, collections.LoweredFunc):
+    elif isinstance(sch, container.LoweredFunc):
         if args:
             raise ValueError("args must be done when build from LoweredFunc")
         flist = [sch]
-    elif isinstance(sch, (list, tuple, collections.Array)):
+    elif isinstance(sch, (list, tuple, container.Array)):
         flist = sch
     else:
         raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
     fname_set = set()
     for x in flist:
-        if not isinstance(x, collections.LoweredFunc):
+        if not isinstance(x, container.LoweredFunc):
             raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
         if x.name in fname_set:
             raise ValueError("Duplicate function name %s" % x.name)
@@ -296,7 +296,7 @@ def build(sch,
     fhost = []
     fdevice = []
     for func in flist:
-        if func.func_type == collections.LoweredFunc.MixedFunc:
+        if func.func_type == container.LoweredFunc.MixedFunc:
             if BuildConfig.current.detect_global_barrier:
                 func = ir_pass.StorageSync(func, "global")
             func = ir_pass.StorageSync(func, "shared")
@@ -306,9 +306,9 @@ def build(sch,
             fhost.append(fsplits[0])
             for x in fsplits[1:]:
                 fdevice.append(x)
-        elif func.func_type == collections.LoweredFunc.HostFunc:
+        elif func.func_type == container.LoweredFunc.HostFunc:
             fhost.append(func)
-        elif func.func_type == collections.LoweredFunc.DeviceFunc:
+        elif func.func_type == container.LoweredFunc.DeviceFunc:
             fdevice.append(func)
         else:
             raise ValueError("unknown function type %d" % func.func_type)
