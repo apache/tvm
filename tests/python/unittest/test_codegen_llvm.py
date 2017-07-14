@@ -1,6 +1,21 @@
 import tvm
 import numpy as np
 
+def test_llvm_intrin():
+    ib = tvm.ir_builder.create()
+    n = tvm.convert(4)
+    A = ib.pointer("float32", name="A")
+    args = [
+        tvm.call_pure_intrin("handle", "tvm_address_of", A[0]),
+        0, 3, 1
+    ]
+    ib.emit(tvm.make.Evaluate(
+        tvm.make.Call(
+            "int32", "__buildin_prefetch", args, tvm.expr.Call.Intrinsic, None, 0)))
+    body = ib.get()
+    func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
+    fcode = tvm.build(func, None, "llvm")
+
 def test_llvm_add_pipeline():
     nn = 1024
     n = tvm.convert(nn)
@@ -151,6 +166,7 @@ def test_multiple_func():
 
 
 if __name__ == "__main__":
+    test_llvm_intrin()
     test_multiple_func()
     test_llvm_add_pipeline()
     test_llvm_flip_pipeline()
