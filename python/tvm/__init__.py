@@ -9,7 +9,7 @@ from . import stmt
 from . import make
 from . import ir_pass
 from . import codegen
-from . import collections
+from . import container
 from . import schedule
 from . import module
 from . import node
