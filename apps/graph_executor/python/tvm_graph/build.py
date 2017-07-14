@@ -37,7 +37,7 @@ def bind(g, ctx):
 def _lower(sch, inputs, func_name):
     f = tvm.lower(sch, inputs, name=func_name)
     return f if isinstance(
-        f, (tvm.collections.Array, tuple, list)) else [f]
+        f, (tvm.container.Array, tuple, list)) else [f]
 
 
 @tvm.register_func("tvm_graph.build_target")
