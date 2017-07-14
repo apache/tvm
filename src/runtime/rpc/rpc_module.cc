@@ -10,8 +10,6 @@
 namespace tvm {
 namespace runtime {
 
-const int kRPCMagic = 0xff271;
-
 // Wrapped remote function to packed func.
 struct RPCWrappedFunc {
  public:
@@ -98,35 +96,11 @@ class RPCModuleNode final : public ModuleNode {
   std::shared_ptr<RPCSession> sess_;
 };
 
-Module RPCConnect(std::string url, int port) {
-  common::TCPSocket sock;
-  common::SockAddr addr(url.c_str(), port);
-  sock.Create();
-  CHECK(sock.Connect(addr))
-      << "Connect to " << addr.AsString() << " failed";
-  // hand shake
-  int code = kRPCMagic;
-  CHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
-  CHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
-  if (code != kRPCMagic) {
-    sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
-  }
+Module CreateRPCModule(std::shared_ptr<RPCSession> sess) {
   std::shared_ptr<RPCModuleNode> n =
-      std::make_shared<RPCModuleNode>(nullptr, RPCSession::Create(sock));
+      std::make_shared<RPCModuleNode>(nullptr, sess);
   return Module(n);
 }
-
-void RPCServerLoop(int sockfd) {
-  common::TCPSocket sock(
-      static_cast<common::TCPSocket::SockType>(sockfd));
-  RPCSession::Create(sock)->ServerLoop();
-}
-
-TVM_REGISTER_GLOBAL("contrib.rpc._Connect")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = RPCConnect(args[0], args[1]);
-  });
 
 TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -162,11 +136,6 @@ TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
     std::string tkey = m->type_key();
     CHECK_EQ(tkey, "rpc");
     *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
-  });
-
-TVM_REGISTER_GLOBAL("contrib.rpc._ServerLoop")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    RPCServerLoop(args[0]);
   });
 }  // namespace runtime
 }  // namespace tvm

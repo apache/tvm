@@ -139,9 +139,18 @@ sysLib.release();
 
 ```
 
-## Notes
-- Current example supports static linking, which is the preferred way to get more efficiency
+Current example supports static linking, which is the preferred way to get more efficiency
 in javascript backend.
-- It should also be possible to use Emscripten's dynamic linking to dynamically load modules.
-- Take a look at tvm_runtime.js which contains quite a few helper functions
-  to interact with TVM from javascript.
+
+## Proxy based RPC
+
+We can now use javascript end to start an RPC server and connect to it from python side,
+making the testing flow easier.
+
+The following is an example to reproduce this. This requires everything to be in the git source and setup PYTHONPATH(instead of use setup.py install)
+- run "python -m tvm.exec.rpc_proxy --example-rpc=1" to start proxy.
+- Open broswer, goto the server webpage click Connect to proxy.
+  - Alternatively run "node web/example_rpc_node.js"
+- run "python tests/web/websock_rpc_test.py" to run the rpc client.
+
+The general idea is to use Emscripten's dynamic linking to dynamically load modules.

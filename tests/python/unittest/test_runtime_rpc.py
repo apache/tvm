@@ -14,10 +14,21 @@ def test_rpc_simple():
     def addone(name, x):
         return "%s:%d" % (name, x)
 
+    @tvm.register_func("rpc.test.except")
+    def remotethrow(name):
+        raise ValueError("%s" % name)
+
     server = rpc.Server("localhost")
-    client = rpc.connect(server.host, server.port)
+    client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.addone")
     assert f1(10) == 11
+    f3 = client.get_function("rpc.test.except")
+    try:
+        f3("abc")
+        assert False
+    except tvm.TVMError as e:
+        assert "abc" in str(e)
+
     f2 = client.get_function("rpc.test.strcat")
     assert f2("abc", 11) == "abc:11"
 
@@ -42,9 +53,10 @@ def test_rpc_file_exchange():
         return
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
-    blob = bytearray(np.random.randint(0, 10, size=(127)))
+    blob = bytearray(np.random.randint(0, 10, size=(10)))
     remote.upload(blob, "dat.bin")
     rev = remote.download("dat.bin")
+    assert(rev == blob)
 
 def test_rpc_remote_module():
     if not tvm.module.enabled("rpc"):
@@ -79,7 +91,8 @@ def test_rpc_remote_module():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_rpc_file_exchange()
+    exit(0)
     test_rpc_array()
     test_rpc_remote_module()
-    test_rpc_file_exchange()
     test_rpc_simple()
