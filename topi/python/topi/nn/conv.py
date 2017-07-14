@@ -43,7 +43,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
     elif padding == 'VALID':
         pad_h = 0
         pad_w = 0
-    else: # 'same'
+    else: # 'SAME'
         pad_h = kernel_h - 1
         pad_w = kernel_w - 1
     pad_top = int(np.ceil(float(pad_h) / 2))
