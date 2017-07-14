@@ -95,13 +95,16 @@ class RPCSession {
   bool ServerOnMessageHandler(const std::string& bytes);
   /*!
    * \brief Call into remote function
+   * \param sptr_to_self shared_ptr to self.
    * \param handle The function handle
    * \param args The arguments
    * \param rv The return value.
+   * \param fwrapper Wrapper function to turn Function/Module handle into real return.
    */
   void CallFunc(RPCFuncHandle handle,
                 TVMArgs args,
-                TVMRetValue* rv);
+                TVMRetValue* rv,
+                const PackedFunc* fwrap);
   /*!
    * \brief Copy bytes into remote array content.
    * \param from The source host data.
@@ -146,6 +149,7 @@ class RPCSession {
                                  int nstep);
   /*!
    * \brief Call a remote defined system function with arguments.
+   * \param sptr_to_self shared_ptr to self.
    * \param fcode The function code.
    * \param args The arguments
    * \return The returned remote value.
@@ -178,7 +182,8 @@ class RPCSession {
   class EventHandler;
   // Handle events until receives a return
   // Also flushes channels so that the function advances.
-  RPCCode HandleUntilReturnEvent(TVMRetValue* rv);
+  RPCCode HandleUntilReturnEvent(
+      TVMRetValue* rv, bool client_mode, const PackedFunc* fwrap);
   // Initalization
   void Init();
   // Shutdown
@@ -191,7 +196,7 @@ class RPCSession {
   common::RingBuffer reader_, writer_;
   // Event handler.
   std::shared_ptr<EventHandler> handler_;
-  // call remote with the specified function coede.
+  // call remote with specified function code.
   PackedFunc call_remote_;
   // The index of this session in RPC session table.
   int table_index_{0};

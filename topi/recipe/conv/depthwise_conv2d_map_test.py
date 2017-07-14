@@ -115,13 +115,13 @@ def test_depthwise_conv2d_map():
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # Measure time cost of kernel 1 (depthwise_conv2d)
         timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=10000)
-        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
+        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm).mean
         # Measure time cost of kernel 2 (depthwise_conv2d + scale_shift)
         timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=10000)
-        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
+        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm).mean
         # Measure time cost of kernel 3 (depthwise_conv2d + scale_shift + relu)
         timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=10000)
-        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm)
+        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
         print("Input shape = " + str(get_const_tuple(Input.shape)))
         print("Filter shape = " + str(get_const_tuple(Filter.shape)))
         print("Stride = (%d, %d)" % (stride_h, stride_w))

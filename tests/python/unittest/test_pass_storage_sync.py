@@ -15,7 +15,7 @@ def test_storage_sync():
     s[A1].set_scope("shared")
 
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.decl_buffer(A2.shape, A2.dtype, name='A2')

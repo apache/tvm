@@ -95,8 +95,8 @@ def test_add():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         vbias = np.random.uniform()
         vscale = np.random.uniform()
-        ftimer = fadd.time_evaluator(fadd.entry_name, ctx, number=1000)
-        tcost = ftimer(a, b, c, vbias, vscale)
+        ftimer = fadd.time_evaluator(fadd.entry_name, ctx, number=10)
+        tcost = ftimer(a, b, c, vbias, vscale).mean
         np.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy() * vscale + vbias, rtol=1e-6)
 

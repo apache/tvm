@@ -11,7 +11,7 @@ def test_bound1():
     xo, xi = s[A2].split(s[A2].op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     assert(bounds[A1.op.axis[0]].extent.value == 8)
 
 def test_bound2():
@@ -26,7 +26,7 @@ def test_bound2():
     _ = s.normalize()
     s[A1].compute_at(s[A2], yo)
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     assert(bounds[A1.op.axis[0]].extent.value == 8)
     assert(bounds[A1.op.axis[1]].extent.value == 8)
 
@@ -49,7 +49,7 @@ def test_bound3():
     s[A1].compute_at(s[A2], yo)
 
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     assert(bounds[A1.op.axis[0]].extent.value==32)
     assert(bounds[A1.op.axis[1]].extent.value==16)
 

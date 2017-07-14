@@ -78,8 +78,8 @@ def test_gemm():
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
-        ftimer = f.time_evaluator(f.entry_name, ctx, number=20)
-        tcost = ftimer(a, b, c)
+        ftimer = f.time_evaluator(f.entry_name, ctx, number=1)
+        tcost = ftimer(a, b, c).mean
         print("%s: exec=%g sec/op" % (ctx, tcost))
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)

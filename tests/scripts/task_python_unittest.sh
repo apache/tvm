@@ -2,6 +2,8 @@
 
 export PYTHONPATH=python
 
+rm -rf python/tvm/*.pyc
+
 TVM_FFI=ctypes python -m nose -v tests/python/unittest || exit -1
 TVM_FFI=ctypes python3 -m nose -v tests/python/unittest || exit -1
 make cython || exit -1

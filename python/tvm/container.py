@@ -1,4 +1,4 @@
-"""Collections contains data structures used in TVM DSL."""
+"""Container data structures used in TVM DSL."""
 from __future__ import absolute_import as _abs
 from ._ffi.node import NodeBase, register_node
 from . import _api_internal

@@ -9,7 +9,7 @@ def test_schedule0():
     s = tvm.create_schedule(A1.op)
 
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 def test_schedule1():
@@ -21,7 +21,7 @@ def test_schedule1():
     s = tvm.create_schedule(A1.op)
     xo, xi = s[A1].split(A1.op.axis[0], 8)
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
@@ -36,7 +36,7 @@ def test_schedule2():
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
@@ -79,7 +79,7 @@ def test_schedule_const_bound():
     s = tvm.create_schedule(A1.op)
     xo, xi = s[A1].split(A1.op.axis[0], 8)
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 

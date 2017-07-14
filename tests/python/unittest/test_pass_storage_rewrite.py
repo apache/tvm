@@ -11,7 +11,7 @@ def test_storage_share():
 
     s = tvm.create_schedule(B.op)
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
@@ -47,7 +47,7 @@ def test_storage_share_gpu():
         s[A[2*t+1]].set_scope("shared")
 
     bounds = tvm.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.collections.Map)
+    assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     Ab = tvm.decl_buffer(A[0].shape, A[0].dtype, name='A')
     Bb = tvm.decl_buffer(A[0].shape, A[0].dtype, name='B')

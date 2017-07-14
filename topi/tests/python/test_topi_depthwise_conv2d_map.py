@@ -79,13 +79,13 @@ def depthwise_conv2d_map_with_workload(batch, in_channel, in_height, channel_mul
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # launch kernel 1 (depthwise_conv2d)
         timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1)
-        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
+        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm).mean
         # launch kernel 2 (depthwise_conv2d + scale_shift)
         timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=1)
-        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm)
+        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm).mean
         # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
         timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
-        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm)
+        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
         # correctness with scipy
         depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy = depthwise_conv2d_map_scipy(input_np, filter_np, scale_np, shift_np)
         np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)

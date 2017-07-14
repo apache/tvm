@@ -151,7 +151,7 @@ np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 # device and returns the measured cost.
 #
 time_f = f.time_evaluator(f.entry_name, ctx, number=10)
-cost = time_f(a, b)
+cost = time_f(a, b).mean
 print('%g secs/op' % cost)
 
 # terminate the server after experiment
