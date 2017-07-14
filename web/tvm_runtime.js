@@ -834,10 +834,6 @@ var tvm_runtime = tvm_runtime || {};
       if (typeof counter === "undefined") {
         counter = 1;
       }
-      // WebSocket for nodejs
-      if (typeof module !== "undefined" && module.exports) {
-        var WebSocket = require("ws");
-      }
       // Node js, import websocket
       var bkey = StringToUint8Array("server:" + key);
       var server_name = "WebSocketRPCServer[" + key + "]";
@@ -855,7 +851,14 @@ var tvm_runtime = tvm_runtime || {};
       checkEndian();
       // start rpc
       function RPCServer(counter) {
-        var socket = new WebSocket(url);
+        var socket;
+        if (typeof module !== "undefined" && module.exports) {
+          // WebSocket for nodejs
+          const WebSocket = require("ws");
+          socket = new WebSocket(url);
+        } else {
+          socket = new WebSocket(url);
+        }
         var self = this;
         socket.binaryType = "arraybuffer";
         this.init = true;
