@@ -787,7 +787,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
     CHECK(op->args.size() == 1 && l);
     return builder_->CreatePointerCast(
         CreateBufferPtr(
-            l->type,GetVarValue(l->buffer_var.get()), MakeValue(l->index)),
+            l->type, GetVarValue(l->buffer_var.get()), MakeValue(l->index)),
         t_void_p_);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
