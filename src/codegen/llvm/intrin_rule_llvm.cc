@@ -17,7 +17,7 @@ namespace llvm {
 using namespace ir;
 
 template<unsigned id>
-inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
+inline void DispatchLLVMBuildin(const TVMArgs& targs, TVMRetValue* rv) {
   Expr e = targs[0];
   const Call* call = e.as<Call>();
   CHECK(call != nullptr);
@@ -28,7 +28,7 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
     cargs.push_back(arg);
   }
   *rv = Call::make(
-      call->type, "llvm_intrin", cargs, Call::Intrinsic);
+      call->type, "llvm_buildin", cargs, Call::Intrinsic);
 }
 
 template<unsigned id>
@@ -47,7 +47,7 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.__buildin_prefetch")
-.set_body(DispatchLLVMIntrin<::llvm::Intrinsic::prefetch>);
+.set_body(DispatchLLVMBuildin<::llvm::Intrinsic::prefetch>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp>);

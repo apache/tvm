@@ -751,6 +751,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinstic(const Call* op) {
     llvm::Function* f = llvm::Intrinsic::getDeclaration(
         module_.get(), id, arg_types);
     return builder_->CreateCall(f, arg_values);
+  } else if (op->is_intrinsic("llvm_buildin")) {
+    std::vector<llvm::Value*> arg_values;
+    for (size_t i = 1; i < op->args.size(); ++i) {
+      llvm::Value* v = MakeValue(op->args[i]);
+      arg_values.push_back(v);
+    }
+    auto id = static_cast<llvm::Intrinsic::ID>(op->args[0].as<UIntImm>()->value);
+    llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id);
+    return builder_->CreateCall(f, arg_values);
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     CHECK_EQ(op->args.size(), 2U);
     return builder_->CreateAnd(

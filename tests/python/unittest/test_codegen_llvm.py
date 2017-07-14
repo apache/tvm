@@ -1,5 +1,6 @@
 import tvm
 import numpy as np
+import ctypes
 
 def test_llvm_intrin():
     ib = tvm.ir_builder.create()
