@@ -82,6 +82,8 @@ class PackedCallBuilder : public IRMutator {
     for (size_t i = 0; i < op->extents.size(); ++i) {
       total_bytes = total_bytes * op->extents[i];
     }
+    CHECK(device_type_.defined()) << "Unknown device type in current IR";
+    CHECK(device_id_.defined()) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate::make(Call::make(Int(32),
                                            intrinsic::tvm_throw_last_error, {},
                                            Call::Intrinsic));
