@@ -25,6 +25,10 @@
     <url>https://github.com/dmlc/tvm</url>
   </scm>
 
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
   <packaging>pom</packaging>
   <modules>
     <module>core</module>
