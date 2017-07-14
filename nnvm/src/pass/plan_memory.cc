@@ -24,6 +24,8 @@ class GraphAllocator {
   static const StorageID kBadStorageID = -1;
   // external storage id
   static const StorageID kExternalStorageID = -2;
+  // dynamic storage id
+  static const StorageID kDynamicStorageID = -3;
 
   // request a free storage
   StorageID Request(int dev_id, int dtype, TShape shape, uint32_t node_id) {
@@ -66,7 +68,7 @@ class GraphAllocator {
   // release a memory space.
   void Release(StorageID id, uint32_t node_id) {
     CHECK_NE(id, kBadStorageID);
-    if (id == kExternalStorageID) return;
+    if (id == kExternalStorageID || id == kDynamicStorageID) return;
     StorageEntry *e = data_[id].get();
     e->released_by_node = node_id;
     free_.insert({e->max_bytes, e});
@@ -209,6 +211,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx, StorageVector* sto
     std::multimap<size_t, uint32_t> eids;
     for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
       uint32_t eid = idx.entry_id(nid, index);
+      // only request memory for kBadStorageID
       if (storage[eid] == GraphAllocator::kBadStorageID) {
         auto &eshape = shape_vec[eid];
         size_t esize = 0;
