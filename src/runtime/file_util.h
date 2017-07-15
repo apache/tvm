@@ -36,7 +36,7 @@ void LoadBinaryFromFile(const std::string& file_name,
 /*!
  * \brief Load binary file into a in-memory buffer.
  * \param file_name The name of the file.
- * \param The binary
+ * \param data The binary data to be saved.
  */
 void SaveBinaryToFile(const std::string& file_name,
                       const std::string& data);

@@ -69,7 +69,7 @@ class RingBuffer {
   /*!
    * \brief Read data from buffer with and put them to non-blocking send function.
    *
-   * \param frecv A send function handle to put the data to.
+   * \param fsend A send function handle to put the data to.
    * \param max_nbytes Maximum number of bytes can to read.
    * \tparam FSend A non-blocking function with signature size_t (const void* data, size_t size);
    */
