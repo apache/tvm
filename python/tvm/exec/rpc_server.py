@@ -3,7 +3,7 @@ from __future__ import absolute_import
 
 import logging
 import argparse
-import sys, os
+import os
 import ctypes
 from ..contrib import rpc
 
