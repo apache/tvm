@@ -34,7 +34,8 @@ def bind(g, ctx):
 
 _get_module = tvm.get_global_func("tvm_graph._get_module_from_graph")
 
-def compile_graph(sym_fname, lib_fname, sym, target, shape, dtype="float32"):
+def compile_graph(sym_fname, lib_fname, params_fname,
+                  sym, target, shape, dtype="float32"):
     g = build(sym, target, shape, dtype)
     m = _get_module(g.handle)
     m.save(lib_fname)

@@ -297,9 +297,33 @@ class RPCSession(object):
         """
         return _LoadRemoteModule(self._sess, path)
 
-    def load_executor(self, sym_fname, lib_fname, ctx):
+    def load_executor(self, sym_fname, lib_fname, param_fname, ctx):
+        """Load a remote graph executor, with the local files.
+
+        Parameters
+        ----------
+        sym_fname : str
+            The local path to the symbol json file.
+        lib_fname : str
+            The local path to the compiled library file.
+        param_fname : str
+            The local path to the parameters file.
+
+        Returns
+        -------
+        exec : GraphExecutor
+            The remote graph executor containing remote function.
+        """
+        sym_json = open(sym_fname, "r").read()
+        param_blob = bytearray(open(param_fname, "rb").read())
+        lib_blob = bytearray(open(lib_fname, "rb").read())
         return _LoadRemoteExecutor(self._sess,
-            sym_fname, lib_fname, ctx.device_type, ctx.device_id)
+                                   sym_json,
+                                   os.path.basename(lib_fname),
+                                   lib_blob,
+                                   param_blob,
+                                   ctx.device_type,
+                                   ctx.device_id)
 
 
 def connect(url, port, key=""):

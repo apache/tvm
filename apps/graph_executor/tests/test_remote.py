@@ -1,12 +1,13 @@
-import tvm_graph as tg
 import numpy as np
 import tvm
+import tvm_graph as tg
 from tvm.contrib import util, rpc
 
+LOCAL = True
 tmp = util.tempdir()
 sym_fname    = tmp.relpath('net.json')
 lib_fname    = tmp.relpath('net.o')
-params_fname = tmp.relpath('net.params')
+param_fname = tmp.relpath('net.param')
 
 x = tg.Variable('x')
 y = tg.Variable('y')
@@ -16,29 +17,28 @@ shape = (10, 128)
 dtype = tvm.float32
 na = tvm.nd.array(np.ones(shape).astype(dtype))
 nb = tvm.nd.array(np.ones(shape).astype(dtype))
-tg.save_params(params_fname, {'x': na, 'y': nb})
+tg.save_params(param_fname, {'x': na, 'y': nb})
 
+target = "llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
 target = "llvm"
 shapes = {'x': shape, 'y': shape}
-tg.compile_graph(sym_fname, lib_fname, sym, target, shapes)
+tg.compile_graph(sym_fname, lib_fname, param_fname, sym, target, shapes)
 
+host = 'rasp0'
 host = '0.0.0.0'
 port = 9090
-server = rpc.Server(host, port)
+if LOCAL:
+    server = rpc.Server(host, port)
 
 remote = rpc.connect(host, port)
 ctx = remote.cpu(0)
 
-remote.upload(sym_fname)
-remote.upload(lib_fname)
-remote.upload(params_fname)
-
-rm = remote.load_executor(sym_fname, lib_fname, ctx)
-load_params, run, get_output = rm['load_params'], rm['run'], rm['get_output']
-load_params(params_fname)
+rm = remote.load_executor(sym_fname, lib_fname, param_fname, ctx)
+run, get_output = rm['run'], rm['get_output']
 
 nc = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
 run()
 get_output(0, nc)
 
-server.terminate()
+if LOCAL:
+    server.terminate()

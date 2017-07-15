@@ -3,8 +3,8 @@
  * \file tvm_vpi.h
  * \brief Messages passed around VPI used for simulation.
  */
-#ifndef VERILOG_TVM_VPI_H_
-#define VERILOG_TVM_VPI_H_
+#ifndef TVM_VERILOG_TVM_VPI_H_
+#define TVM_VERILOG_TVM_VPI_H_
 
 namespace tvm {
 namespace vpi {
@@ -52,4 +52,4 @@ typedef void* VPIRawHandle;
 
 }  // namespace vpi
 }  // namespace tvm
-#endif  // VERILOG_TVM_VPI_H_
+#endif  // TVM_VERILOG_TVM_VPI_H_

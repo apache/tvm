@@ -3,6 +3,7 @@
  * \file NNVM Graph executor.
  */
 #include <dmlc/io.h>
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
@@ -56,6 +57,8 @@ class GraphExecutor : public runtime::ModuleNode {
   void SetInput(int index, DLTensor* data_in);
   // Copy index-th output to data_out
   void GetOutput(int index, DLTensor* data_out);
+  // Load parameters from stream
+  void LoadParams(dmlc::Stream* strm);
   // Load parameters from file
   void LoadParams(std::string fname);
   // Execute the graph.
@@ -101,7 +104,7 @@ PackedFunc GraphExecutor::GetFunction(
       });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->LoadParams(args[0]);
+        this->LoadParams(args[0].operator std::string());
       });
   } else {
     return PackedFunc();
@@ -236,19 +239,17 @@ TVM_REGISTER_GLOBAL("tvm_graph._save_param_dict")
     }
   });
 
-
-void GraphExecutor::LoadParams(std::string fname) {
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+void GraphExecutor::LoadParams(dmlc::Stream *strm) {
   uint64_t header, reserved;
-  CHECK(fi->Read(&header))
+  CHECK(strm->Read(&header))
     << "Invalid parameters file format";
   CHECK(header == kTVMNDArrayListMagic)
     << "Invalid parameters file format";
-  CHECK(fi->Read(&reserved))
+  CHECK(strm->Read(&reserved))
     << "Invalid parameters file format";
 
   std::vector<std::string> names;
-  CHECK(fi->Read(&names))
+  CHECK(strm->Read(&names))
     << "Invalid parameters file format";
 
   nnvm::Symbol s;
@@ -260,20 +261,22 @@ void GraphExecutor::LoadParams(std::string fname) {
     name_index.emplace(input_names[i], i);
   }
 
-  {
-    uint64_t sz;
-    fi->Read(&sz, sizeof(sz));
-    size_t size = static_cast<size_t>(sz);
-    CHECK(size == names.size())
+  uint64_t sz;
+  strm->Read(&sz, sizeof(sz));
+  size_t size = static_cast<size_t>(sz);
+  CHECK(size == names.size())
+    << "Invalid parameters file format";
+  for (size_t i = 0; i < size; ++i) {
+    size_t idx = name_index.at(names[i]);
+    CHECK(LoadDLTensor(strm, &data_entry_[idx]))
       << "Invalid parameters file format";
-    for (size_t i = 0; i < size; ++i) {
-      size_t idx = name_index.at(names[i]);
-      CHECK(LoadDLTensor(fi.get(), &data_entry_[idx]))
-        << "Invalid parameters file format";
-    }
   }
 }
 
+void GraphExecutor::LoadParams(std::string fname) {
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+  this->LoadParams(fi.get());
+}
 
 void GraphExecutor::SetupStorage() {
   const auto& idx = graph_.indexed_graph();
@@ -423,21 +426,20 @@ TVM_REGISTER_GLOBAL("tvm_graph._get_module_from_graph")
     *rv = g->MoveCopyAttr<tvm::runtime::Module>("module");
   });
 
+
 TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    std::string sym_fname = args[0];
-    std::string lib_fname = args[1];
-    TVMContext ctx = args[2];
+    std::string sym_json    = args[0];
+    std::string lib_fname   = args[1];
+    std::string param_blob  = args[2];
+    TVMContext ctx = args[3];
 
+    // load graph from json string
     nnvm::Graph g;
-    {
-      std::ifstream is(sym_fname);
-      g.attrs["json"] = std::make_shared<nnvm::any>(
-        std::string(std::istreambuf_iterator<char>(is),
-                    std::istreambuf_iterator<char>()));
-      g = nnvm::ApplyPass(std::move(g), "LoadJSON");
-    }
+    g.attrs["json"] = std::make_shared<nnvm::any>(sym_json);
+    g = nnvm::ApplyPass(std::move(g), "LoadJSON");
 
+    // load module from file
     static const PackedFunc* fsys_load_ = nullptr;
     if (fsys_load_ == nullptr) {
       fsys_load_ = runtime::Registry::Get("tvm.contrib.rpc.server.load_module");
@@ -449,6 +451,11 @@ TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
     std::shared_ptr<GraphExecutor> exec =
         std::make_shared<GraphExecutor>();
     exec->Init(g, ctx);
+
+    // load params form stream of string
+    dmlc::MemoryStringStream strm(&param_blob);
+    exec->LoadParams(&strm);
+
     *rv = static_cast<void*>(new tvm::runtime::Module(exec));
   });
 }  // namespace contrib

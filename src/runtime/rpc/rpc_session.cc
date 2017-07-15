@@ -11,6 +11,7 @@
 #include <string>
 #include <chrono>
 #include "./rpc_session.h"
+#include "../file_util.h"
 #include "../../common/ring_buffer.h"
 
 namespace tvm {
@@ -958,16 +959,20 @@ void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
   *rv = fhandle;
 }
 
+std::string RPCGetPath(const std::string& name);
+
 void RPCExecutorLoad(TVMArgs args, TVMRetValue *rv) {
   static const PackedFunc* fexec_load_ = nullptr;
   if (fexec_load_ == nullptr) {
     fexec_load_ = runtime::Registry::Get("tvm_graph._load_executor");
     CHECK(fexec_load_ != nullptr);
   }
-  std::string sym_fname = args[0];
-  std::string lib_fname = args[1];
-  TVMContext ctx = args[2];
-  *rv = (*fexec_load_)(sym_fname, lib_fname, ctx);
+
+  // save library module into file on remote device
+  std::string lib_fname = RPCGetPath(args[1]);
+  SaveBinaryToFile(lib_fname, args[2]);
+
+  *rv = (*fexec_load_)(args[0], lib_fname, args[3], args[4]);
 }
 
 void RPCSession::EventHandler::HandlePackedCall() {
