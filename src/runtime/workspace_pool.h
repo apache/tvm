@@ -35,7 +35,7 @@ class WorkspacePool {
   /*!
    * \brief Allocate temporal workspace.
    * \param ctx The context of allocation.
-   * \param The size to be allocated.
+   * \param size The size to be allocated.
    */
   void* AllocWorkspace(TVMContext ctx, size_t size);
   /*!

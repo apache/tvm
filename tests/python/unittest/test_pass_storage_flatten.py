@@ -14,12 +14,10 @@ def test_flatten2():
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
-    print(stmt)
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.decl_buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})
     stmt = tvm.ir_pass.Simplify(stmt)
-    print(stmt)
 
 if __name__ == "__main__":
     test_flatten2()

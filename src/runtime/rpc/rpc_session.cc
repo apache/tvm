@@ -40,7 +40,7 @@ struct RPCArgBuffer {
   std::vector<std::unique_ptr<RPCDataArrayBuffer> > temp_array;
   // convert buffer as TVMArgs
   TVMArgs AsTVMArgs() const {
-    return TVMArgs(value.data(), tcode.data(), value.size());
+    return TVMArgs(value.data(), tcode.data(), static_cast<int>(value.size()));
   }
 };
 

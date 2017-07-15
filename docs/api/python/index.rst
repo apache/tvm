@@ -11,7 +11,7 @@ Python API
    build
    module
    ndarray
-   collection
+   container
    function
    contrib
    dev
