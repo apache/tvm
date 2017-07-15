@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 from collections import namedtuple
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
-from .contrib import cc_compiler as _cc, util as _util
+from .contrib import cc as _cc, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean"])
 
