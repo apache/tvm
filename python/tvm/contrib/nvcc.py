@@ -1,13 +1,12 @@
 # pylint: disable=invalid-name
 """Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
-import os
 import sys
-import tempfile
 import subprocess
+from . import util
 
-def compile_source(code, target="ptx", arch=None,
-                   options=None, path_target=None):
+def compile_cuda(code, target="ptx", arch=None,
+                 options=None, path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -32,11 +31,11 @@ def compile_source(code, target="ptx", arch=None,
     cubin : bytearray
         The bytearray of the cubin
     """
-    temp_dir = tempfile.mkdtemp()
+    temp = util.tempdir()
     if target not in ["cubin", "ptx", "fatbin"]:
         raise ValueError("target must be in cubin, ptx, fatbin")
-    temp_code = os.path.join(temp_dir, "my_kernel.cu")
-    temp_target = os.path.join(temp_dir, "my_kernel.%s" % target)
+    temp_code = temp.relpath("my_kernel.cu")
+    temp_target = temp.relpath("my_kernel.%s" % target)
 
     with open(temp_code, "w") as out_file:
         out_file.write(code)
@@ -68,8 +67,4 @@ def compile_source(code, target="ptx", arch=None,
         cubin = None
     else:
         cubin = bytearray(open(file_target, "rb").read())
-    os.remove(temp_code)
-    if os.path.exists(temp_target):
-        os.remove(temp_target)
-    os.rmdir(temp_dir)
     return cubin
