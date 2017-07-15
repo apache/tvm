@@ -12,7 +12,6 @@
 #include <nnvm/tuple.h>
 #include <nnvm/pass.h>
 #include <numeric>
-#include <fstream>
 #include <string>
 
 namespace tvm {

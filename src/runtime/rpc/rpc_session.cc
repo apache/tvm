@@ -11,7 +11,6 @@
 #include <string>
 #include <chrono>
 #include "./rpc_session.h"
-#include "../file_util.h"
 #include "../../common/ring_buffer.h"
 
 namespace tvm {
@@ -958,8 +957,6 @@ void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
   delete pf;
   *rv = fhandle;
 }
-
-std::string RPCGetPath(const std::string& name);
 
 void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(pending_request_bytes_, 0U);
