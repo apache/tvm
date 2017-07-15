@@ -1,5 +1,5 @@
 import tvm
-from tvm.contrib import cc_compiler as cc, util
+from tvm.contrib import cc, util
 import ctypes
 import os
 import numpy as np

@@ -11,7 +11,7 @@ import tvm
 import time
 import os
 import argparse
-from tvm.contrib import nvcc_compiler
+from tvm.contrib import nvcc
 import numpy as np
 
 # Quick knobs
@@ -24,7 +24,7 @@ SKIP_CHECK = False
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     """Use nvcc compiler for better perf."""
-    ptx =  nvcc_compiler.compile_source(code, target="ptx", options=["-arch=sm_52"])
+    ptx =  nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
     return ptx
 
 def write_code(code, fname):

@@ -175,7 +175,7 @@ print(dev_module.get_source())
 # - Then it saves the device module into a ptx file.
 # - cc.create_shared calls a env compiler(gcc) to create a shared library
 #
-from tvm.contrib import cc_compiler as cc
+from tvm.contrib import cc
 from tvm.contrib import util
 
 temp = util.tempdir()

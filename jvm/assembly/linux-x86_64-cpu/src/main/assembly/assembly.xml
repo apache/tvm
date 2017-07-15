@@ -1,0 +1,35 @@
+<assembly>
+  <id>full</id>
+  <formats>
+    <format>jar</format>
+  </formats>
+  <includeBaseDirectory>false</includeBaseDirectory>
+  <files>
+    <file>
+      <source>../../../lib/libtvm_runtime.so</source>
+      <outputDirectory>lib/native</outputDirectory>
+      <fileMode>0644</fileMode>
+    </file>
+  </files>
+  <dependencySets>
+    <dependencySet>
+      <includes>
+        <include>*:*:jar</include>
+      </includes>
+      <outputDirectory>/</outputDirectory>
+      <useProjectArtifact>true</useProjectArtifact>
+      <unpack>true</unpack>
+      <scope>runtime</scope>
+    </dependencySet>
+    <dependencySet>
+      <outputDirectory>lib/native</outputDirectory>
+      <outputFileNameMapping>libtvm4j.so</outputFileNameMapping>
+      <unpack>false</unpack>
+      <useProjectArtifact>false</useProjectArtifact>
+      <useStrictFiltering>false</useStrictFiltering>
+      <includes>
+        <include>ml.dmlc.tvm:libtvm4j-linux-x86_64-cpu:so</include>
+      </includes>
+    </dependencySet>
+  </dependencySets>
+</assembly>

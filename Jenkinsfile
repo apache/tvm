@@ -1,3 +1,4 @@
+#!groovy
 // -*- mode: groovy -*-
 // Jenkins pipeline
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
@@ -180,6 +181,17 @@ stage('Unit Test') {
         unpack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} cpu ./tests/scripts/task_cpp_unittest.sh"
+        }
+      }
+    }
+  },
+  'java': {
+    node('GPU' && 'linux') {
+      ws('workspace/tvm/ut-java') {
+        init_git()
+        unpack_lib('gpu', tvm_lib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} gpu ./tests/scripts/task_java_unittest.sh"
         }
       }
     }
