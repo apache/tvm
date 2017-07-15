@@ -432,7 +432,9 @@ TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
     std::string sym_json    = args[0];
     std::string lib_fname   = args[1];
     std::string param_blob  = args[2];
-    TVMContext ctx = args[3];
+    TVMContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(args[3].operator int());
+    ctx.device_id   = args[4];
 
     // load graph from json string
     nnvm::Graph g;
@@ -456,7 +458,7 @@ TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
     dmlc::MemoryStringStream strm(&param_blob);
     exec->LoadParams(&strm);
 
-    *rv = static_cast<void*>(new tvm::runtime::Module(exec));
+    *rv = tvm::runtime::Module(exec);
   });
 }  // namespace contrib
 }  // namespace tvm

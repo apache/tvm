@@ -188,6 +188,7 @@ class RPCSession(object):
         self._tbl_index = _SessTableIndex(sess)
         self._upload_func = None
         self._download_func = None
+        self._load_executor_func = None
 
     def get_function(self, name):
         """Get function from the session.
@@ -319,12 +320,16 @@ class RPCSession(object):
         """
         sym_json = open(sym_fname, "r").read()
         param_blob = bytearray(open(param_fname, "rb").read())
-        return _LoadRemoteExecutor(self._sess,
-                                   sym_json,
-                                   lib_fname,
-                                   param_blob,
-                                   ctx.device_type,
-                                   ctx.device_id)
+        if not self._load_executor_func:
+            self._load_executor_func = self.get_function(
+                "tvm_graph._load_executor")
+        assert ctx.device_type / RPC_SESS_MASK == self._tbl_index + 1
+        device_type = ctx.device_type % RPC_SESS_MASK
+        return self._load_executor_func(sym_json,
+                                        lib_fname,
+                                        param_blob,
+                                        device_type,
+                                        ctx.device_id)
 
 
 def connect(url, port, key=""):

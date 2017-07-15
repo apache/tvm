@@ -961,16 +961,6 @@ void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
 
 std::string RPCGetPath(const std::string& name);
 
-void RPCExecutorLoad(TVMArgs args, TVMRetValue *rv) {
-  static const PackedFunc* fexec_load_ = nullptr;
-  if (fexec_load_ == nullptr) {
-    fexec_load_ = runtime::Registry::Get("tvm_graph._load_executor");
-    CHECK(fexec_load_ != nullptr);
-  }
-
-  *rv = (*fexec_load_)(args[0], args[1], args[2], args[3]);
-}
-
 void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(pending_request_bytes_, 0U);
   if (code_ == RPCCode::kReturn) {
@@ -1011,7 +1001,6 @@ void RPCSession::EventHandler::HandlePackedCall() {
     case RPCCode::kModuleFree: CallHandler(RPCModuleFree); break;
     case RPCCode::kModuleGetFunc: CallHandler(RPCModuleGetFunc); break;
     case RPCCode::kModuleGetSource: CallHandler(RPCModuleGetSource); break;
-    case RPCCode::kExecutorLoad: CallHandler(RPCExecutorLoad); break;
     default: LOG(FATAL) << "Unknown event " << static_cast<int>(code_);
   }
   CHECK_EQ(state_, kRecvCode);

@@ -5,7 +5,7 @@ import numpy as np
 import os
 
 def test_rpc_executor():
-    host = '0.0.0.0'
+    host = 'localhost'
     port = 9090
     server = rpc.Server(host, port)
 
