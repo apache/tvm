@@ -76,7 +76,7 @@ Operation ScanOpNode::make(std::string name,
         spatial_name << name << ".out" << i << ".i" << k;
         n->spatial_axis_.push_back(
             IterVarNode::make(
-                Range::make_with_min_extent(0, update[i]->shape[k]),
+                Range::make_by_min_extent(0, update[i]->shape[k]),
                 Var(spatial_name.str()), kOpaque));
       }
     }
@@ -104,7 +104,7 @@ Array<Tensor> scan(Array<Tensor> init,
                    std::string tag) {
   IterVar scan_axis =
       IterVarNode::make(
-          Range::make_with_min_extent(
+          Range::make_by_min_extent(
               init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
           Var(name + ".idx"), kOrdered);
   Operation op = ScanOpNode::make(
@@ -165,7 +165,7 @@ void ScanOpNode::PropBoundToInputs(
     // first dimension, always needed.
     if (init_dom) {
       init_dom->data[0].push_back(IntSet::range(
-          Range::make_with_min_extent(0, this->init[i]->shape[0])));
+          Range::make_by_min_extent(0, this->init[i]->shape[0])));
     }
     if (update_dom) {
       update_dom->data[0].push_back(dom_map.at(this->scan_axis->var.get()));
@@ -203,7 +203,7 @@ void ScanOpNode::GatherBound(
   CHECK(!out_dom_map->count(this->scan_axis));
   Range sdom = this->scan_axis->dom;
   Range r = arith::Union(time_dom).cover_range(sdom);
-  (*out_dom_map)[this->scan_axis] = Range::make_with_min_extent(
+  (*out_dom_map)[this->scan_axis] = Range::make_by_min_extent(
       sdom->min, ir::Simplify(r->extent + r->min - sdom->min));
   Map<IterVar, Expr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
@@ -231,7 +231,7 @@ Stmt ScanOpNode::BuildRealize(
     const Stmt& body) const {
   CHECK_EQ(self.operator->(), this);
   Range sdom = dom_map.at(this->scan_axis);
-  Range tdom = Range::make_with_min_extent(
+  Range tdom = Range::make_by_min_extent(
       0, ir::Simplify(sdom->extent + sdom->min));
   Stmt ret = body;
   size_t sp_idx = 0;

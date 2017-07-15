@@ -93,7 +93,7 @@ void ExternOpNode::PropBoundToInputs(
     TensorDom& dom = it->second;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       dom.data[i].emplace_back(IntSet::range(
-          Range::make_with_min_extent(
+          Range::make_by_min_extent(
               make_const(t->shape[i].type(), 0), t->shape[i])));
     }
   }
@@ -116,7 +116,7 @@ Stmt ExternOpNode::BuildRealize(
     Halide::Internal::Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
-          Range::make_with_min_extent(
+          Range::make_by_min_extent(
               make_const(t->shape[i].type(), 0), t->shape[i]));
     }
     realize_body = ir::Realize::make(

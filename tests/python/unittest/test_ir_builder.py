@@ -37,6 +37,21 @@ def test_if():
     assert isinstance(body.then_case.index, tvm.expr.Var)
     assert body.else_case.index.value == 0
 
+def test_prefetch():
+    A = tvm.placeholder((10, 20), name="A")
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i") as i:
+        ib.emit(
+            tvm.make.Prefetch(
+                A.op, A.value_index, A.dtype,
+                [tvm.make.range_by_min_extent(i+1, 2),
+                 tvm.make.range_by_min_extent(0, 20)]))
+    body = ib.get()
+    assert body.body.bounds[0].extent.value == 2
+
+
 if __name__ == "__main__":
+    test_prefetch()
     test_if()
     test_for()

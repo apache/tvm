@@ -27,6 +27,7 @@ using Halide::ExprEqual;
 
 using Halide::Expr;
 using Halide::VarExpr;
+using Halide::IR::RangeNode;
 using Halide::IR::FunctionRef;
 using Halide::IR::FunctionBaseNode;
 using Halide::Internal::Stmt;
@@ -113,7 +114,7 @@ class Range : public Halide::IR::Range {
    */
   Range(Expr begin, Expr end);
 
-  static Range make_with_min_extent(Expr min, Expr extent);
+  static Range make_by_min_extent(Expr min, Expr extent);
 };
 
 /*!

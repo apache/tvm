@@ -32,7 +32,7 @@ inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {
     if (!r->min.same_as(new_min)) changed = true;
     if (!r->extent.same_as(new_extent)) changed = true;
     new_dom[i] = IterVarNode::make(
-        Range::make_with_min_extent(new_min, new_extent),
+        Range::make_by_min_extent(new_min, new_extent),
         v->var, v->iter_type, v->thread_tag);
   }
   if (!changed) {

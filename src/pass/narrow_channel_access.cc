@@ -171,8 +171,8 @@ class ChannelAccessRewriter : public IRMutator {
     Channel ch(adv_op->node.node_);
     ChannelAccessBound acc(ch->handle_var.get(), read_access);
     IntSet iset = acc.Eval(for_op->body);
-    Range r = iset.cover_range(Range::make_with_min_extent(0, window));
-    r = Range::make_with_min_extent(
+    Range r = iset.cover_range(Range::make_by_min_extent(0, window));
+    r = Range::make_by_min_extent(
         ir::Simplify(r->min), ir::Simplify(r->extent));
     if (ExprUseVar(r->extent, var)) return body;
     Array<Expr> linear_eq = DetectLinearEquation(r->min, var);

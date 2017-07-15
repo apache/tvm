@@ -53,14 +53,14 @@ void PassDownDomain(const Stage& stage,
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       if (r->factor.defined()) {
-        Update(p_state, r->inner, Range::make_with_min_extent(0, r->factor));
+        Update(p_state, r->inner, Range::make_by_min_extent(0, r->factor));
         Update(p_state, r->outer,
-               Range::make_with_min_extent(
+               Range::make_by_min_extent(
                    0, DivCeil(range_parent->extent, r->factor)));
       } else {
-        Update(p_state, r->outer, Range::make_with_min_extent(0, r->nparts));
+        Update(p_state, r->outer, Range::make_by_min_extent(0, r->nparts));
         Update(p_state, r->inner,
-               Range::make_with_min_extent(
+               Range::make_by_min_extent(
                    0, DivCeil(range_parent->extent, r->nparts)));
       }
     } else if (const FuseNode* r = rel.as<FuseNode>()) {
@@ -70,7 +70,7 @@ void PassDownDomain(const Stage& stage,
       }
       const Range& range_outer = state.at(r->outer);
       const Range& range_inner = state.at(r->inner);
-      state[r->fused] = Range::make_with_min_extent(
+      state[r->fused] = Range::make_by_min_extent(
           0, range_outer->extent * range_inner->extent);
     } else if (const RebaseNode* r = rel.as<RebaseNode>()) {
       if (!state.count(r->parent)) {
@@ -78,7 +78,7 @@ void PassDownDomain(const Stage& stage,
         continue;
       }
       Update(p_state, r->rebased,
-             Range::make_with_min_extent(
+             Range::make_by_min_extent(
                  0, state.at(r->parent)->extent));
     } else {
       LOG(FATAL) << "unknown relation type";
