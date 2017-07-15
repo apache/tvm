@@ -43,9 +43,17 @@ public class ModuleTest {
     arr.copyFrom(new float[]{3f, 4f});
 
     NDArray res = NDArray.empty(shape, ctx);
-    fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
 
+    fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     assertArrayEquals(new float[]{6f, 8f}, res.asFloatArray(), 1e-3f);
+
+    // test call() api
+    fadd.entryFunc().call(arr, arr, res);
+    assertArrayEquals(new float[]{6f, 8f}, res.asFloatArray(), 1e-3f);
+
+    arr.release();
+    res.release();
+    fadd.release();
   }
 
   @Test
@@ -74,5 +82,10 @@ public class ModuleTest {
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
 
     assertArrayEquals(dataX2, res.asFloatArray(), 1e-3f);
+
+    arr.release();
+    res.release();
+    faddDev.release();
+    fadd.release();
   }
 }

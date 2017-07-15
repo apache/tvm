@@ -27,6 +27,7 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("float32"));
     ndarray.copyFrom(new float[]{1, 2, 3, 4});
     assertArrayEquals(new float[]{1f, 2f, 3f, 4f}, ndarray.asFloatArray(), 1e-3f);
+    ndarray.release();
   }
 
   @Test
@@ -34,6 +35,7 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("float64"));
     ndarray.copyFrom(new double[]{1, 2, 3, 4});
     assertArrayEquals(new double[]{1.0, 2.0, 3.0, 4.0}, ndarray.asDoubleArray(), 1e-3);
+    ndarray.release();
   }
 
   @Test
@@ -41,6 +43,7 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int8"));
     ndarray.copyFrom(new byte[]{1, 2, 3, 4});
     assertArrayEquals(new byte[]{1, 2, 3, 4}, ndarray.asByteArray());
+    ndarray.release();
   }
 
   @Test
@@ -48,6 +51,7 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int16"));
     ndarray.copyFrom(new short[]{1, 2, 3, 4});
     assertArrayEquals(new short[]{1, 2, 3, 4}, ndarray.asShortArray());
+    ndarray.release();
   }
 
   @Test
@@ -55,6 +59,7 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int32"));
     ndarray.copyFrom(new int[]{1, 2, 3, 4});
     assertArrayEquals(new int[]{1, 2, 3, 4}, ndarray.asIntArray());
+    ndarray.release();
   }
 
   @Test
@@ -62,6 +67,7 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("int64"));
     ndarray.copyFrom(new long[]{1, 2, 3, 4});
     assertArrayEquals(new long[]{1, 2, 3, 4}, ndarray.asLongArray());
+    ndarray.release();
   }
 
   @Test
@@ -69,5 +75,6 @@ public class NDArrayTest {
     NDArray ndarray = NDArray.empty(new long[]{2, 2}, new TVMType("uint16"));
     ndarray.copyFrom(new char[]{65535, 2, 3, 4});
     assertArrayEquals(new char[]{65535, 2, 3, 4}, ndarray.asCharArray());
+    ndarray.release();
   }
 }

@@ -17,24 +17,12 @@
 
 package ml.dmlc.tvm;
 
-import java.util.Map;
-
 /**
  * Container of compiled functions of TVM.
  */
 public class Module {
-  private static final Map<String, Function> FUNCTIONS = Function.initAPI(
-      new Function.InitAPINameFilter() {
-        @Override public boolean accept(final String name) {
-          return name != null && name.startsWith("module.");
-        }
-      }, new Function.InitAPINameGenerator() {
-        @Override public String generate(final String name) {
-          return name.substring("module.".length());
-        }
-      });
-
   public final long handle;
+  private boolean isReleased = false;
 
   public Module(long handle) {
     this.handle = handle;
@@ -43,8 +31,23 @@ public class Module {
   private Function entry = null;
   private final String entryName = "__tvm_main__";
 
-  @Override protected void finalize() {
-    Base.checkCall(Base._LIB.tvmModFree(handle));
+  @Override protected void finalize() throws Throwable {
+    release();
+    super.finalize();
+  }
+
+  /**
+   * Release the Module.
+   * <p>
+   * We highly recommend you to do this manually since the GC strategy is lazy
+   * and `finalize()` is not guaranteed to be called when GC happens.
+   * </p>
+   */
+  public void release() {
+    if (!isReleased) {
+      Base.checkCall(Base._LIB.tvmModFree(handle));
+      isReleased = true;
+    }
   }
 
   /**
@@ -94,7 +97,7 @@ public class Module {
    * @return The loaded module
    */
   public static Module load(String path, String fmt) {
-    TVMValue ret = FUNCTIONS.get("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
+    TVMValue ret = Function.getFunction("module._LoadFromFile").pushArg(path).pushArg(fmt).invoke();
     assert ret.typeCode == TypeCode.MODULE_HANDLE;
     return ret.asModule();
   }
@@ -111,7 +114,7 @@ public class Module {
    * @return Whether runtime is enabled.
    */
   public static boolean enabled(String target) {
-    TVMValue ret = FUNCTIONS.get("_Enabled").pushArg(target).invoke();
+    TVMValue ret = Function.getFunction("module._Enabled").pushArg(target).invoke();
     return ret.asLong() != 0;
   }
 }

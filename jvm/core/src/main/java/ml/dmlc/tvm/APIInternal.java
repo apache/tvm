@@ -17,33 +17,17 @@
 
 package ml.dmlc.tvm;
 
-import java.util.Map;
-
 /**
  * Internal api functions.
  */
 public final class APIInternal {
-  /**
-   * Predefined functions.
-   */
-  private static final Map<String, Function> FUNCTIONS = Function.initAPI(
-      new Function.InitAPINameFilter() {
-        @Override public boolean accept(final String name) {
-          return name != null && name.indexOf('.') == -1 && name.startsWith("_");
-        }
-      }, new Function.InitAPINameGenerator() {
-        @Override public String generate(final String name) {
-          return name;
-        }
-      });
-
   /**
    * Get a tvm api function according by name.
    * @param name function name.
    * @return a TVM Function.
    */
   public static Function get(final String name) {
-    return FUNCTIONS.get(name);
+    return Function.getFunction(name);
   }
 
   /**

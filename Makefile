@@ -131,7 +131,7 @@ else
 	endif
 endif
 
-JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests)
+JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests -Dcheckstyle.skip=true)
 
 ifeq ($(USE_CUDA), 1)
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu

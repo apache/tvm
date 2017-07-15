@@ -26,24 +26,32 @@ import java.util.Map;
 public class Function {
   final long handle;
   public final boolean isResident;
+  private boolean isReleased = false;
 
-  static interface InitAPINameFilter {
-    public boolean accept(String name);
-  }
+  private static ThreadLocal<Map<String, Function>> apiFuncs
+      = new ThreadLocal<Map<String, Function>>() {
+          @Override
+          protected Map<String, Function> initialValue() {
+            return new HashMap<String, Function>();
+          }
+      };
 
-  static interface InitAPINameGenerator {
-    public String generate(String name);
-  }
-
-  static Map<String, Function> initAPI(InitAPINameFilter filter, InitAPINameGenerator generator) {
-    Map<String, Function> functions = new HashMap<String, Function>();
-    for (String fullName : listGlobalFuncNames()) {
-      if (filter.accept(fullName)) {
-        String funcName = generator.generate(fullName);
-        functions.put(funcName, getGlobalFunc(fullName, true, false));
+  /**
+   * Get registered function.
+   * @param name full function name.
+   * @return TVM function.
+   */
+  static Function getFunction(final String name) {
+    Function fun = apiFuncs.get().get(name);
+    if (fun == null) {
+      for (String fullName : listGlobalFuncNames()) {
+        if (fullName.equals(name)) {
+          fun = getGlobalFunc(fullName, true, false);
+          apiFuncs.get().put(name, fun);
+        }
       }
     }
-    return Collections.unmodifiableMap(functions);
+    return fun;
   }
 
   /**
@@ -87,9 +95,24 @@ public class Function {
     this.isResident = isResident;
   }
 
-  @Override protected void finalize() {
-    if (!isResident) {
-      Base.checkCall(Base._LIB.tvmFuncFree(handle));
+  @Override protected void finalize() throws Throwable {
+    release();
+    super.finalize();
+  }
+
+  /**
+   * Release the Function.
+   * <p>
+   * We highly recommend you to do this manually since the GC strategy is lazy
+   * and `finalize()` is not guaranteed to be called when GC happens.
+   * </p>
+   */
+  public void release() {
+    if (!isReleased) {
+      if (!isResident) {
+        Base.checkCall(Base._LIB.tvmFuncFree(handle));
+        isReleased = true;
+      }
     }
   }
 
@@ -161,5 +184,31 @@ public class Function {
   public Function pushArg(NDArray arg) {
     Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.ARRAY_HANDLE.id);
     return this;
+  }
+
+  /**
+   * Invoke function with arguments.
+   * @param args Can be Integer, Long, Float, Double, String, NDArray.
+   * @return the result.
+   */
+  public TVMValue call(Object... args) {
+    for (Object arg : args) {
+      if (arg instanceof Integer) {
+        pushArg((Integer) arg);
+      } else if (arg instanceof Long) {
+        pushArg((Long) arg);
+      } else if (arg instanceof Float) {
+        pushArg((Float) arg);
+      } else if (arg instanceof Double) {
+        pushArg((Double) arg);
+      } else if (arg instanceof String) {
+        pushArg((String) arg);
+      } else if (arg instanceof NDArray) {
+        pushArg((NDArray) arg);
+      } else {
+        throw new IllegalArgumentException("Invalid argument: " + arg);
+      }
+    }
+    return invoke();
   }
 }

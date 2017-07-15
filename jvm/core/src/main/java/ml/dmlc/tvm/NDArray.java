@@ -30,6 +30,8 @@ public class NDArray {
   private final boolean isView;
   private final TVMType dtype;
 
+  private boolean isReleased = false;
+
   NDArray(long handle, boolean isView, TVMType dtype) {
     this.handle = handle;
     this.isView = isView;
@@ -44,10 +46,24 @@ public class NDArray {
     this(handle, isView, new TVMType("float32", 1));
   }
 
-  @Override
-  protected void finalize() {
-    if (!isView) {
-      Base.checkCall(Base._LIB.tvmArrayFree(handle));
+  @Override protected void finalize() throws Throwable {
+    release();
+    super.finalize();
+  }
+
+  /**
+   * Release the NDArray memory.
+   * <p>
+   * We highly recommend you to do this manually since the GC strategy is lazy
+   * and `finalize()` is not guaranteed to be called when GC happens.
+   * </p>
+   */
+  public void release() {
+    if (!isReleased) {
+      if (!isView) {
+        Base.checkCall(Base._LIB.tvmArrayFree(handle));
+        isReleased = true;
+      }
     }
   }
 
