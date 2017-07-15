@@ -76,7 +76,7 @@ def remote_load_exec(sess, sym_json, remote_module_name, param_blob, ctx):
         The relative library location to remote temp folder. The
         library need to be uploaded first.
 
-    param_blob : bytearray
+    param_blob : bytes or bytearray
         The binary file to the local parameters.
 
     Returns
@@ -90,6 +90,6 @@ def remote_load_exec(sess, sym_json, remote_module_name, param_blob, ctx):
     device_type = ctx.device_type % tvm.contrib.rpc.RPC_SESS_MASK
     return sess._remote_funcs["load_executor"](sym_json,
                                                remote_module_name,
-                                               param_blob,
+                                               bytearray(param_blob),
                                                device_type,
                                                ctx.device_id)
