@@ -120,6 +120,29 @@ ifdef ADD_LDFLAGS
 	LDFLAGS += $(ADD_LDFLAGS)
 endif
 
+ifeq ($(OS),Windows_NT)
+	JVM_PKG_PROFILE := windows
+else
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S), Darwin)
+		JVM_PKG_PROFILE := osx-x86_64
+	else
+		JVM_PKG_PROFILE := linux-x86_64
+	endif
+endif
+
+JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests -Dcheckstyle.skip=true)
+
+ifeq ($(USE_CUDA), 1)
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
+else ifeq ($(USE_OPENCL), 1)
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
+else ifeq ($(USE_METAL), 1)
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
+else
+	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
+endif
+
 include tests/cpp/unittest.mk
 
 test: $(TEST)
@@ -176,7 +199,10 @@ pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
-lint: cpplint pylint
+jnilint:                                                                                                                            
+	python dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
+
+lint: cpplint pylint jnilint
 
 doc:
 	doxygen docs/Doxyfile
@@ -193,6 +219,12 @@ cython3:
 
 cyclean:
 	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.cpp
+
+jvmpkg:
+	(cd $(ROOTDIR)/jvm; \
+		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
+			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
+			-Dcurrent_libdir="$(ROOTDIR)/lib" $(JVM_TEST_ARGS))
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
