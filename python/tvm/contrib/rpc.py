@@ -139,6 +139,7 @@ class Server(object):
     def __init__(self, host, port=9091, port_end=9199, is_proxy=False, key=""):
         self.host = host
         self.port = port
+        self.libs = []
 
         if not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -186,8 +187,7 @@ class RPCSession(object):
     def __init__(self, sess):
         self._sess = sess
         self._tbl_index = _SessTableIndex(sess)
-        self._upload_func = None
-        self._download_func = None
+        self._remote_funcs = {}
 
     def get_function(self, name):
         """Get function from the session.
@@ -259,10 +259,10 @@ class RPCSession(object):
             if not target:
                 target = os.path.basename(data)
 
-        if not self._upload_func:
-            self._upload_func = self.get_function(
+        if "upload" not in self._remote_funcs:
+            self._remote_funcs["upload"] = self.get_function(
                 "tvm.contrib.rpc.server.upload")
-        self._upload_func(target, blob)
+        self._remote_funcs["upload"](target, blob)
 
     def download(self, path):
         """Download file from remote temp folder.
@@ -277,10 +277,10 @@ class RPCSession(object):
         blob : bytearray
             The result blob from the file.
         """
-        if not self._download_func:
-            self._download_func = self.get_function(
+        if "download" not in self._remote_funcs:
+            self._remote_funcs["download"] = self.get_function(
                 "tvm.contrib.rpc.server.download")
-        return self._download_func(path)
+        return self._remote_funcs["download"](path)
 
     def load_module(self, path):
         """Load a remote module, the file need to be uploaded first.

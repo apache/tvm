@@ -32,6 +32,14 @@ def bind(g, ctx):
     m = _create_exec(g.handle, ctx.device_type, ctx.device_id)
     return m
 
+_get_module = tvm.get_global_func("tvm_graph._get_module_from_graph")
+
+def compile_graph(lib_fname, sym, target, shape, dtype="float32"):
+    g = build(sym, target, shape, dtype)
+    m = _get_module(g.handle)
+    m.save(lib_fname)
+    json_str = g.apply('SaveJSON').json_attr('json')
+    return json_str
 
 @tvm.register_func("tvm_graph.lower")
 def _lower(sch, inputs, func_name):
@@ -55,3 +63,33 @@ def save_params(fname, params):
         args.append(kv[0])
         args.append(kv[1])
     _save_param_dict(*args)
+
+
+def remote_load_exec(sess, sym_json, remote_module_name, param_blob, ctx):
+    """Load a remote graph executor, with the local files.
+    Parameters
+    ----------
+    sym_json : str
+        The symbol json file.
+
+    remote_module_fname : str
+        The relative library location to remote temp folder. The
+        library need to be uploaded first.
+
+    param_blob : bytes or bytearray
+        The binary file to the local parameters.
+
+    Returns
+    -------
+    exec : GraphExecutor
+        The remote graph executor containing remote function.
+    """
+    if "load_executor" not in sess._remote_funcs:
+        sess._remote_funcs["load_executor"] = sess.get_function("tvm_graph._load_executor")
+    assert ctx.device_type / tvm.contrib.rpc.RPC_SESS_MASK == sess._tbl_index + 1
+    device_type = ctx.device_type % tvm.contrib.rpc.RPC_SESS_MASK
+    return sess._remote_funcs["load_executor"](sym_json,
+                                               remote_module_name,
+                                               bytearray(param_blob),
+                                               device_type,
+                                               ctx.device_id)

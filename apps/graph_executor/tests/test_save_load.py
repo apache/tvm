@@ -26,7 +26,7 @@ def test_save_load():
     # create another executor
     m1 = tg.bind(g, tvm.cpu(0))
     load_params1 = m1['load_params']
-    load_params1('test.params')
+    load_params1(bytearray(open('test.params', 'rb').read()))
 
     run1, get_output1 = m1['run'], m1['get_output']
     run1()

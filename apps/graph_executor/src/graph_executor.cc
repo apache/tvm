@@ -3,13 +3,16 @@
  * \file NNVM Graph executor.
  */
 #include <dmlc/io.h>
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <nnvm/graph.h>
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/tuple.h>
+#include <nnvm/pass.h>
 #include <numeric>
+#include <string>
 
 namespace tvm {
 namespace contrib {
@@ -53,8 +56,10 @@ class GraphExecutor : public runtime::ModuleNode {
   void SetInput(int index, DLTensor* data_in);
   // Copy index-th output to data_out
   void GetOutput(int index, DLTensor* data_out);
-  // Load parameters from file
-  void LoadParams(std::string fname);
+  // Load parameters from stream
+  void LoadParams(dmlc::Stream* strm);
+  // Load parameters from binary file blob
+  void LoadParamsFromBlob(std::string param_blob);
   // Execute the graph.
   void Run();
 
@@ -98,7 +103,7 @@ PackedFunc GraphExecutor::GetFunction(
       });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->LoadParams(args[0]);
+        this->LoadParamsFromBlob(args[0]);
       });
   } else {
     return PackedFunc();
@@ -233,19 +238,17 @@ TVM_REGISTER_GLOBAL("tvm_graph._save_param_dict")
     }
   });
 
-
-void GraphExecutor::LoadParams(std::string fname) {
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+void GraphExecutor::LoadParams(dmlc::Stream *strm) {
   uint64_t header, reserved;
-  CHECK(fi->Read(&header))
+  CHECK(strm->Read(&header))
     << "Invalid parameters file format";
   CHECK(header == kTVMNDArrayListMagic)
     << "Invalid parameters file format";
-  CHECK(fi->Read(&reserved))
+  CHECK(strm->Read(&reserved))
     << "Invalid parameters file format";
 
   std::vector<std::string> names;
-  CHECK(fi->Read(&names))
+  CHECK(strm->Read(&names))
     << "Invalid parameters file format";
 
   nnvm::Symbol s;
@@ -257,20 +260,22 @@ void GraphExecutor::LoadParams(std::string fname) {
     name_index.emplace(input_names[i], i);
   }
 
-  {
-    uint64_t sz;
-    fi->Read(&sz, sizeof(sz));
-    size_t size = static_cast<size_t>(sz);
-    CHECK(size == names.size())
+  uint64_t sz;
+  strm->Read(&sz, sizeof(sz));
+  size_t size = static_cast<size_t>(sz);
+  CHECK(size == names.size())
+    << "Invalid parameters file format";
+  for (size_t i = 0; i < size; ++i) {
+    size_t idx = name_index.at(names[i]);
+    CHECK(LoadDLTensor(strm, &data_entry_[idx]))
       << "Invalid parameters file format";
-    for (size_t i = 0; i < size; ++i) {
-      size_t idx = name_index.at(names[i]);
-      CHECK(LoadDLTensor(fi.get(), &data_entry_[idx]))
-        << "Invalid parameters file format";
-    }
   }
 }
 
+void GraphExecutor::LoadParamsFromBlob(std::string param_blob) {
+  dmlc::MemoryStringStream strm(&param_blob);
+  this->LoadParams(&strm);
+}
 
 void GraphExecutor::SetupStorage() {
   const auto& idx = graph_.indexed_graph();
@@ -383,7 +388,8 @@ FOpExec GraphExecutor::CreateTVMOp(const nnvm::NodeAttrs& attrs,
   }
   // get compiled function from module.
   runtime::PackedFunc pf = module_.GetFunction(it->second, false);
-  auto fexec = [arg_ptr,  pf] () {
+  CHECK(pf != nullptr) << "no such function in module: " << it->second;
+  auto fexec = [arg_ptr, pf] () {
     runtime::TVMRetValue rv;
     runtime::TVMArgs targs(arg_ptr->arg_values.data(),
                            arg_ptr->arg_tcodes.data(),
@@ -409,6 +415,48 @@ TVM_REGISTER_GLOBAL("tvm_graph._create_executor")
     TVMContext ctx{static_cast<DLDeviceType>(device_type), device_id};
     nnvm::Graph g = static_cast<nnvm::Graph*>(graph_handle)[0];
     *rv = CreateExecutor(g, ctx);
+  });
+
+
+TVM_REGISTER_GLOBAL("tvm_graph._get_module_from_graph")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    void* graph_handle = args[0];
+    nnvm::Graph* g = static_cast<nnvm::Graph*>(graph_handle);
+    *rv = g->MoveCopyAttr<tvm::runtime::Module>("module");
+  });
+
+
+TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    std::string sym_json    = args[0];
+    std::string lib_fname   = args[1];
+    std::string param_blob  = args[2];
+    TVMContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(args[3].operator int());
+    ctx.device_id   = args[4];
+
+    // load graph from json string
+    nnvm::Graph g;
+    g.attrs["json"] = std::make_shared<nnvm::any>(sym_json);
+    g = nnvm::ApplyPass(std::move(g), "LoadJSON");
+
+    // load module from file
+    static const PackedFunc* fsys_load_ = nullptr;
+    if (fsys_load_ == nullptr) {
+      fsys_load_ = runtime::Registry::Get("tvm.contrib.rpc.server.load_module");
+      CHECK(fsys_load_ != nullptr);
+    }
+    runtime::Module m = (*fsys_load_)(lib_fname);
+    g.attrs["module"] = std::make_shared<nnvm::any>(m);
+
+    std::shared_ptr<GraphExecutor> exec =
+        std::make_shared<GraphExecutor>();
+    exec->Init(g, ctx);
+
+    // load params form stream of string
+    exec->LoadParamsFromBlob(std::move(param_blob));
+
+    *rv = tvm::runtime::Module(exec);
   });
 }  // namespace contrib
 }  // namespace tvm

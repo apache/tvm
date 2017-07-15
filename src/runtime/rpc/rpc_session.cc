@@ -145,7 +145,7 @@ class RPCSession::EventHandler {
     arg_recv_stage_ = 0;
     arg_buf_.reset();
   }
-  // strip sessionon mask
+  // strip session on mask
   TVMContext StripSessMask(TVMContext ctx) {
     int dev_type = ctx.device_type;
     CHECK_EQ(dev_type / kRPCSessMask, rpc_sess_table_index_ + 1)
