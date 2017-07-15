@@ -17,12 +17,32 @@
 
 package ml.dmlc.tvm;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Container of compiled functions of TVM.
  */
 public class Module {
   public final long handle;
   private boolean isReleased = false;
+
+  private static ThreadLocal<Map<String, Function>> apiFuncs
+      = new ThreadLocal<Map<String, Function>>() {
+        @Override
+        protected Map<String, Function> initialValue() {
+          return new HashMap<String, Function>();
+        }
+      };
+
+  private static Function getApi(String name) {
+    Function func = apiFuncs.get().get(name);
+    if (func == null) {
+      func = Function.getFunction("module." + name);
+      apiFuncs.get().put(name, func);
+    }
+    return func;
+  }
 
   public Module(long handle) {
     this.handle = handle;
@@ -97,7 +117,7 @@ public class Module {
    * @return The loaded module
    */
   public static Module load(String path, String fmt) {
-    TVMValue ret = Function.getFunction("module._LoadFromFile").pushArg(path).pushArg(fmt).invoke();
+    TVMValue ret = getApi("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
     assert ret.typeCode == TypeCode.MODULE_HANDLE;
     return ret.asModule();
   }
@@ -114,7 +134,7 @@ public class Module {
    * @return Whether runtime is enabled.
    */
   public static boolean enabled(String target) {
-    TVMValue ret = Function.getFunction("module._Enabled").pushArg(target).invoke();
+    TVMValue ret = getApi("_Enabled").pushArg(target).invoke();
     return ret.asLong() != 0;
   }
 }

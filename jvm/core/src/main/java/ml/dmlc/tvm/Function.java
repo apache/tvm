@@ -19,22 +19,12 @@ package ml.dmlc.tvm;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Function {
   final long handle;
   public final boolean isResident;
   private boolean isReleased = false;
-
-  private static ThreadLocal<Map<String, Function>> apiFuncs
-      = new ThreadLocal<Map<String, Function>>() {
-          @Override
-          protected Map<String, Function> initialValue() {
-            return new HashMap<String, Function>();
-          }
-      };
 
   /**
    * Get registered function.
@@ -42,16 +32,12 @@ public class Function {
    * @return TVM function.
    */
   static Function getFunction(final String name) {
-    Function fun = apiFuncs.get().get(name);
-    if (fun == null) {
-      for (String fullName : listGlobalFuncNames()) {
-        if (fullName.equals(name)) {
-          fun = getGlobalFunc(fullName, true, false);
-          apiFuncs.get().put(name, fun);
-        }
+    for (String fullName : listGlobalFuncNames()) {
+      if (fullName.equals(name)) {
+        return getGlobalFunc(fullName, true, false);
       }
     }
-    return fun;
+    return null;
   }
 
   /**

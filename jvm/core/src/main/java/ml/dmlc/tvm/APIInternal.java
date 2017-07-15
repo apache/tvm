@@ -27,7 +27,7 @@ public final class APIInternal {
    * @return a TVM Function.
    */
   public static Function get(final String name) {
-    return Function.getFunction(name);
+    return API.get(name);
   }
 
   /**

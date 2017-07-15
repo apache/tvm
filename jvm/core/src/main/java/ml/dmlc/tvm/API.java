@@ -17,17 +17,33 @@
 
 package ml.dmlc.tvm;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * TVM API functions.
  */
 public final class API {
+  private static ThreadLocal<Map<String, Function>> apiFuncs
+      = new ThreadLocal<Map<String, Function>>() {
+        @Override
+        protected Map<String, Function> initialValue() {
+          return new HashMap<String, Function>();
+        }
+      };
+
   /**
    * Get a tvm api function according by name.
    * @param name function name.
    * @return a TVM Function.
    */
   public static Function get(final String name) {
-    return Function.getFunction(name);
+    Function func = apiFuncs.get().get(name);
+    if (func == null) {
+      func = Function.getFunction(name);
+      apiFuncs.get().put(name, func);
+    }
+    return func;
   }
 
   /**
