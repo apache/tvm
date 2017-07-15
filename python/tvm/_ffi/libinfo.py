@@ -5,7 +5,7 @@ import os
 import platform
 
 
-def find_lib_path(name=None):
+def find_lib_path(name=None, search_path=None):
     """Find dynamic library files.
 
     Parameters
@@ -35,6 +35,11 @@ def find_lib_path(name=None):
     elif os.name == "posix" and os.environ.get('LD_LIBRARY_PATH', None):
         dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
     dll_path = [os.path.abspath(x) for x in dll_path]
+    if search_path is not None:
+        if search_path is list:
+            dll_path = dll_path + search_path
+        else:
+            dll_path.append(search_path)
     if name is not None:
         lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []

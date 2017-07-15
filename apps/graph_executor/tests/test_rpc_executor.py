@@ -6,7 +6,7 @@ import os
 
 def test_rpc_executor():
     host = 'localhost'
-    port = 9090
+    port = 9091
     server = rpc.Server(host, port)
 
     tmp = util.tempdir()
@@ -24,17 +24,22 @@ def test_rpc_executor():
     nb = tvm.nd.array(np.ones(shape).astype(dtype))
     tg.save_params(param_fname, {'x': na, 'y': nb})
 
-    target = "llvm"
-    shapes = {'x': shape, 'y': shape}
-    tg.compile_graph(sym_fname, lib_fname, param_fname,
-                     sym, target, shapes)
-
     remote = rpc.connect(host, port)
     ctx = remote.cpu(0)
 
+    target = "llvm"
+    shapes = {'x': shape, 'y': shape}
+
+    sym_json = tg.compile_graph(lib_fname, sym, target, shapes)
     remote.upload(lib_fname)
-    rm = remote.load_executor(sym_fname, os.path.basename(lib_fname),
-                              param_fname, ctx)
+    param_blob = bytearray(open(param_fname, "rb").read())
+
+    rm = tg.remote_load_exec(remote,
+                             sym_json,
+                             os.path.basename(lib_fname),
+                             param_blob,
+                             ctx)
+
     run, get_output = rm['run'], rm['get_output']
 
     nc = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)

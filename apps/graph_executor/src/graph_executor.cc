@@ -58,8 +58,8 @@ class GraphExecutor : public runtime::ModuleNode {
   void GetOutput(int index, DLTensor* data_out);
   // Load parameters from stream
   void LoadParams(dmlc::Stream* strm);
-  // Load parameters from file
-  void LoadParams(std::string fname);
+  // Load parameters from binary file blob
+  void LoadParamsFromBlob(std::string param_blob);
   // Execute the graph.
   void Run();
 
@@ -103,7 +103,7 @@ PackedFunc GraphExecutor::GetFunction(
       });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->LoadParams(args[0].operator std::string());
+        this->LoadParamsFromBlob(args[0]);
       });
   } else {
     return PackedFunc();
@@ -272,9 +272,9 @@ void GraphExecutor::LoadParams(dmlc::Stream *strm) {
   }
 }
 
-void GraphExecutor::LoadParams(std::string fname) {
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-  this->LoadParams(fi.get());
+void GraphExecutor::LoadParamsFromBlob(std::string param_blob) {
+  dmlc::MemoryStringStream strm(&param_blob);
+  this->LoadParams(&strm);
 }
 
 void GraphExecutor::SetupStorage() {
@@ -454,8 +454,7 @@ TVM_REGISTER_GLOBAL("tvm_graph._load_executor")
     exec->Init(g, ctx);
 
     // load params form stream of string
-    dmlc::MemoryStringStream strm(&param_blob);
-    exec->LoadParams(&strm);
+    exec->LoadParamsFromBlob(std::move(param_blob));
 
     *rv = tvm::runtime::Module(exec);
   });

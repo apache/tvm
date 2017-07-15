@@ -139,6 +139,7 @@ class Server(object):
     def __init__(self, host, port=9091, port_end=9199, is_proxy=False, key=""):
         self.host = host
         self.port = port
+        self.libs = []
 
         if not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -186,9 +187,7 @@ class RPCSession(object):
     def __init__(self, sess):
         self._sess = sess
         self._tbl_index = _SessTableIndex(sess)
-        self._upload_func = None
-        self._download_func = None
-        self._load_executor_func = None
+        self._remote_funcs = {}
 
     def get_function(self, name):
         """Get function from the session.
@@ -260,10 +259,10 @@ class RPCSession(object):
             if not target:
                 target = os.path.basename(data)
 
-        if not self._upload_func:
-            self._upload_func = self.get_function(
+        if "upload" not in self._remote_funcs:
+            self._remote_funcs["upload"] = self.get_function(
                 "tvm.contrib.rpc.server.upload")
-        self._upload_func(target, blob)
+        self._remote_funcs["upload"](target, blob)
 
     def download(self, path):
         """Download file from remote temp folder.
@@ -278,10 +277,10 @@ class RPCSession(object):
         blob : bytearray
             The result blob from the file.
         """
-        if not self._download_func:
-            self._download_func = self.get_function(
+        if "download" not in self._remote_funcs:
+            self._remote_funcs["download"] = self.get_function(
                 "tvm.contrib.rpc.server.download")
-        return self._download_func(path)
+        return self._remote_funcs["download"](path)
 
     def load_module(self, path):
         """Load a remote module, the file need to be uploaded first.
@@ -297,39 +296,6 @@ class RPCSession(object):
             The remote module containing remote function.
         """
         return _LoadRemoteModule(self._sess, path)
-
-    def load_executor(self, sym_fname, lib_fname, param_fname, ctx):
-        """Load a remote graph executor, with the local files.
-
-        Parameters
-        ----------
-        sym_fname : str
-            The local path to the symbol json file.
-
-        lib_fname : str
-            The relative library location to remote temp folder. The
-            library need to be uploaded first.
-
-        param_fname : str
-            The local path to the parameters file.
-
-        Returns
-        -------
-        exec : GraphExecutor
-            The remote graph executor containing remote function.
-        """
-        sym_json = open(sym_fname, "r").read()
-        param_blob = bytearray(open(param_fname, "rb").read())
-        if not self._load_executor_func:
-            self._load_executor_func = self.get_function(
-                "tvm_graph._load_executor")
-        assert ctx.device_type / RPC_SESS_MASK == self._tbl_index + 1
-        device_type = ctx.device_type % RPC_SESS_MASK
-        return self._load_executor_func(sym_json,
-                                        lib_fname,
-                                        param_blob,
-                                        device_type,
-                                        ctx.device_id)
 
 
 def connect(url, port, key=""):
