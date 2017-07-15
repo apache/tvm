@@ -15,7 +15,7 @@ import socket
 import struct
 import logging
 import multiprocessing
-from . import util, cc_compiler
+from . import util, cc
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
 from .._ffi.ndarray import context as _context
@@ -39,7 +39,7 @@ def _server_env():
         # Try create a shared library in remote
         if path.endswith('.o'):
             logging.info('Create shared library based on %s', path)
-            cc_compiler.create_shared(path + '.so', path)
+            cc.create_shared(path + '.so', path)
             path += '.so'
         m = _load_module(path)
         logging.info("load_module %s", path)

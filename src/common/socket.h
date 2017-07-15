@@ -56,7 +56,7 @@ struct SockAddr {
   }
   /*!
    * \brief set the address
-   * \param url the url of the address
+   * \param host the url of the address
    * \param port the port of address
    */
   void Set(const char *host, int port) {
@@ -86,7 +86,7 @@ struct SockAddr {
                               &buf[0], buf.length());
 #else
     const char *s = inet_ntop(AF_INET, &addr.sin_addr,
-                              &buf[0], buf.length());
+                              &buf[0], static_cast<socklen_t>(buf.length()));
 #endif
     CHECK(s != nullptr) << "cannot decode address";
     std::ostringstream os;
@@ -138,7 +138,7 @@ class Socket {
   }
   /*!
    * \brief bind the socket to an address
-   * \param addr
+   * \param addr The address to be binded
    */
   void Bind(const SockAddr &addr) {
     if (bind(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
@@ -342,9 +342,9 @@ class TCPSocket : public Socket {
   }
   /*!
    * \brief send data using the socket
-   * \param buf the pointer to the buffer
+   * \param buf_ the pointer to the buffer
    * \param len the size of the buffer
-   * \param flags extra flags
+   * \param flag extra flags
    * \return size of data actually sent
    *         return -1 if error occurs
    */
@@ -367,7 +367,7 @@ class TCPSocket : public Socket {
   /*!
    * \brief peform block write that will attempt to send all data out
    *    can still return smaller than request when error occurs
-   * \param buf the pointer to the buffer
+   * \param buf_ the pointer to the buffer
    * \param len the size of the buffer
    * \return size of data actually sent
    */

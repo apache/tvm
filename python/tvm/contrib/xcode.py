@@ -1,11 +1,11 @@
 # pylint: disable=invalid-name
-"""Utility to invoke metal compiler in the CLI system"""
+"""Utility to invoke Xcode compiler toolchain"""
 from __future__ import absolute_import as _abs
 import sys
 import subprocess
 from . import util
 
-def compile_source(code, path_target=None):
+def compile_metal(code, path_target=None, sdk="macosx"):
     """Compile metal with CLI tool from env.
 
     Parameters
@@ -15,6 +15,9 @@ def compile_source(code, path_target=None):
 
     path_target : str, optional
         Output file.
+
+    sdk : str, optional
+        The target platform SDK.
 
     Return
     ------
@@ -30,9 +33,9 @@ def compile_source(code, path_target=None):
         out_file.write(code)
     file_target = path_target if path_target else temp_target
 
-    cmd1 = ["xcrun", "-sdk", "macosx", "metal", "-O3"]
+    cmd1 = ["xcrun", "-sdk", sdk, "metal", "-O3"]
     cmd1 += [temp_code, "-o", temp_ir]
-    cmd2 = ["xcrun", "-sdk", "macosx", "metallib"]
+    cmd2 = ["xcrun", "-sdk", sdk, "metallib"]
     cmd2 += [temp_ir, "-o", file_target]
     proc = subprocess.Popen(
         ' '.join(cmd1) + ";" + ' '.join(cmd2),
