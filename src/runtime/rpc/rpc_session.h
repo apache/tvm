@@ -95,11 +95,10 @@ class RPCSession {
   bool ServerOnMessageHandler(const std::string& bytes);
   /*!
    * \brief Call into remote function
-   * \param sptr_to_self shared_ptr to self.
    * \param handle The function handle
    * \param args The arguments
    * \param rv The return value.
-   * \param fwrapper Wrapper function to turn Function/Module handle into real return.
+   * \param fwrap Wrapper function to turn Function/Module handle into real return.
    */
   void CallFunc(RPCFuncHandle handle,
                 TVMArgs args,
@@ -149,7 +148,6 @@ class RPCSession {
                                  int nstep);
   /*!
    * \brief Call a remote defined system function with arguments.
-   * \param sptr_to_self shared_ptr to self.
    * \param fcode The function code.
    * \param args The arguments
    * \return The returned remote value.

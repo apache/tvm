@@ -41,7 +41,6 @@ class DeviceAPI {
   /*!
    * \brief Set the environment device id to ctx
    * \param ctx The context to be set.
-   * \return The allocated device pointer
    */
   virtual void SetDevice(TVMContext ctx) = 0;
   /*!
@@ -64,7 +63,6 @@ class DeviceAPI {
    * \brief Free a data space on device.
    * \param ctx The device context to perform operation.
    * \param ptr The data space.
-   * \tparam xpu The device mask.
    */
   virtual void FreeDataSpace(TVMContext ctx, void* ptr) = 0;
   /*!
