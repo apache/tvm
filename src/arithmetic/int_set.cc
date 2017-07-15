@@ -40,7 +40,7 @@ Range IntSet::cover_range(Range max_range) const {
     s_int = temp.as<IntervalSet>();
   }
   if (s_int->i.is_bounded()) {
-    return Range::make_with_min_extent(
+    return Range::make_by_min_extent(
         s_int->i.min, Simplify(s_int->i.max + 1 - s_int->i.min));
   }
   return max_range;

@@ -22,7 +22,7 @@ Range::Range(Expr begin, Expr end)
           is_zero(begin) ? end : (end - begin))) {
 }
 
-Range Range::make_with_min_extent(Expr min, Expr extent) {
+Range Range::make_by_min_extent(Expr min, Expr extent) {
   return Range(std::make_shared<Halide::IR::RangeNode>(min, extent));
 }
 

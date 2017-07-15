@@ -309,7 +309,7 @@ class Canonical::Internal : public IRMutator {
     ++level_counter_;
     Var loop_var(op->loop_var.node_);
     this->SetRange(loop_var,
-                   Range::make_with_min_extent(op->min, op->extent),
+                   Range::make_by_min_extent(op->min, op->extent),
                    level_counter_);
     Stmt stmt = IRMutator::Mutate_(op, s);
     --level_counter_;
@@ -324,7 +324,7 @@ class Canonical::Internal : public IRMutator {
       CHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_level_.count(iv->var.get())) {
         this->SetRange(iv->var,
-                       Range::make_with_min_extent(0, op->value),
+                       Range::make_by_min_extent(0, op->value),
                        level_counter_);
       }
       Stmt stmt = IRMutator::Mutate_(op, s);

@@ -16,6 +16,11 @@ TVM_REGISTER_API("_Var")
     *ret = Variable::make(args[1], args[0]);
   });
 
+TVM_REGISTER_API("make._range_by_min_extent")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = Range::make_by_min_extent(args[0], args[1]);
+  });
+
 TVM_REGISTER_API("make.For")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = For::make(args[0],
@@ -147,6 +152,7 @@ REGISTER_MAKE3(AssertStmt);
 REGISTER_MAKE3(ProducerConsumer);
 REGISTER_MAKE5(Allocate);
 REGISTER_MAKE4(Provide);
+REGISTER_MAKE4(Prefetch);
 REGISTER_MAKE1(Free);
 REGISTER_MAKE2(Block);
 REGISTER_MAKE3(IfThenElse);
