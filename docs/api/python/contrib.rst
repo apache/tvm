@@ -2,18 +2,23 @@ Contrib APIs
 ------------
 .. automodule:: tvm.contrib
 
-tvm.contrib.nvcc_compiler
-~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.nvcc_compiler
+tvm.contrib.nvcc
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.nvcc
     :members:
 
-tvm.contrib.cc_compiler
-~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.cc_compiler
+tvm.contrib.cc
+~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cc
+    :members:
+
+tvm.contrib.xcode
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.xcode
     :members:
 
 tvm.contrib.rpc
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.rpc
     :members:
 
@@ -21,7 +26,6 @@ tvm.contrib.util
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.util
     :members:
-
 
 tvm.contrib.cblas
 ~~~~~~~~~~~~~~~~~
