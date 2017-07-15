@@ -304,8 +304,11 @@ class RPCSession(object):
         ----------
         sym_fname : str
             The local path to the symbol json file.
+
         lib_fname : str
-            The local path to the compiled library file.
+            The relative library location to remote temp folder. The
+            library need to be uploaded first.
+
         param_fname : str
             The local path to the parameters file.
 
@@ -316,11 +319,9 @@ class RPCSession(object):
         """
         sym_json = open(sym_fname, "r").read()
         param_blob = bytearray(open(param_fname, "rb").read())
-        lib_blob = bytearray(open(lib_fname, "rb").read())
         return _LoadRemoteExecutor(self._sess,
                                    sym_json,
-                                   os.path.basename(lib_fname),
-                                   lib_blob,
+                                   lib_fname,
                                    param_blob,
                                    ctx.device_type,
                                    ctx.device_id)

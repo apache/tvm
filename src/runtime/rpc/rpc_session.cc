@@ -968,11 +968,7 @@ void RPCExecutorLoad(TVMArgs args, TVMRetValue *rv) {
     CHECK(fexec_load_ != nullptr);
   }
 
-  // save library module into file on remote device
-  std::string lib_fname = RPCGetPath(args[1]);
-  SaveBinaryToFile(lib_fname, args[2]);
-
-  *rv = (*fexec_load_)(args[0], lib_fname, args[3], args[4]);
+  *rv = (*fexec_load_)(args[0], args[1], args[2], args[3]);
 }
 
 void RPCSession::EventHandler::HandlePackedCall() {

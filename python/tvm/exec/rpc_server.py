@@ -44,9 +44,9 @@ def main():
                         help='the hostname of the server')
     parser.add_argument('--port', type=int, default=9090,
                         help='The port of the PRC')
-    parser.add_argument('--port_end', type=int, default=9199,
+    parser.add_argument('--port-end', type=int, default=9199,
                         help='The end search port of the PRC')
-    parser.add_argument('--with_executor', type=bool, default=False,
+    parser.add_argument('--with-executor', type=bool, default=False,
                         help="Whether to load executor runtime")
     args = parser.parse_args()
 
