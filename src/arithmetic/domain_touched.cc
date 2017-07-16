@@ -36,7 +36,7 @@ public:
   void Visit_(const For *op) final {
     const Variable* var = op->loop_var.get();
     dom_map_[var] = IntSet::range(
-        Range::make_with_min_extent(op->min, op->extent));
+        Range::make_by_min_extent(op->min, op->extent));
     IRVisitor::Visit_(op);
     dom_map_.erase(var);
   }

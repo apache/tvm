@@ -1,4 +1,4 @@
-import tvm
+import tvm, numpy
 
 def test_flatten2():
     m = tvm.var('m')
@@ -19,5 +19,11 @@ def test_flatten2():
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})
     stmt = tvm.ir_pass.Simplify(stmt)
 
+def test_flatten_prefetch():
+    A = tvm.placeholder((25, 100, 4), name = 'A')
+    stmt = tvm.make.Prefetch(A.op, 0, A.dtype, [(0, 2), (0, 2), (0, 4)])
+    print stmt
+
 if __name__ == "__main__":
     test_flatten2()
+    test_flatten_prefetch()

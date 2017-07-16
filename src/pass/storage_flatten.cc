@@ -5,6 +5,7 @@
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
 #include <tvm/runtime/device_api.h>
@@ -168,6 +169,61 @@ class StorageFlattener : public IRMutator {
       return expr;
     }
   }
+
+#define cache_line_size 64
+  Stmt Mutate_(const Prefetch *op, const Stmt &s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Prefetch>();
+    if (op) {
+      TensorKey key{op->func, op->value_index};
+      auto it = buf_map_.find(key);
+      CHECK(it != buf_map_.end())
+          << "Cannot find allocated buffer for " << key.f;
+      const BufferEntry& e = it->second;
+      CHECK(!e.released)
+          << "Read a buffer that is already out of scope";
+
+      CHECK(e.buffer->shape.size() == op->bounds.size())
+        << "Prefetch dim should be the same as buffer dim";
+      Expr block_size(1);
+      Expr elem_cnt = cache_line_size / e.buffer->dtype.bytes();
+      int starts = op->bounds.size() - 1;
+      while (starts > 0 && can_prove(elem_cnt >= block_size * e.buffer->shape[starts])) {
+        block_size *= e.buffer->shape[starts];
+        starts--;
+      }
+      Expr stride = elem_cnt / block_size;
+      std::cout << s << "\n";
+      //std::cout << stride << "\n";
+      //std::cout << starts << "\n";
+
+      Array<Expr> args;
+      std::vector<VarExpr> vars;
+
+      for (int i = op->bounds.size() - 1; i > starts; --i) {
+        args.push_back(op->bounds[i]->min);
+      }
+      vars.push_back(VarExpr("prefetch." + op->func->func_name() + "." + std::to_string(starts), Int(32)));
+      args.push_back(op->bounds[starts]->min + stride * vars.back());
+      for (int i = starts - 1; i >= 0; --i) {
+        vars.push_back(VarExpr("prefetch." + op->func->func_name() + "." + std::to_string(i), Int(32)));
+        args.push_back(vars.back() + op->bounds[i]->min);
+      }
+      for (int i = starts; i >= 0; --i) {
+        if (i < starts) {
+          stmt = For::make(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+        } else {
+          Expr address = Call::make(Handle(), intrinsic::tvm_address_of, {e.buffer.MakeLoad(e.RelIndex(args))}, Call::PureIntrinsic);
+          stmt = Evaluate::make(Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic));
+          Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
+          stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
+        }
+      }
+    }
+    std::cout << stmt << "\n";
+    return stmt;
+  }
+#undef cache_line_size
 
  private:
   // Start bind
