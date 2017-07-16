@@ -9,6 +9,6 @@ var Module = require("../lib/libtvm_web_runtime.js");
 const tvm_runtime = require("../web/tvm_runtime.js");
 const tvm = tvm_runtime.create(Module);
 
-var websock_proxy = "ws://localhost:9888/ws";
+var websock_proxy = "ws://localhost:9190/ws";
 var num_sess = 100;
 tvm.startRPCServer(websock_proxy, "js", num_sess)

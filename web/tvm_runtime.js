@@ -503,7 +503,7 @@ var tvm_runtime = tvm_runtime || {};
      * @return {boolean} Whether f is PackedFunc
      */
     this.isPackedFunc = function(f) {
-      return (typeof f._tvm_function !== "undefined");
+      return (typeof f == "function") && f.hasOwnProperty("_tvm_function");
     };
     var isPackedFunc = this.isPackedFunc;
     /**
@@ -633,7 +633,7 @@ var tvm_runtime = tvm_runtime || {};
             }
           } else if (tp == "number") {
             this.setDouble(i, v);
-          } else if (typeof v._tvm_function !== "undefined") {
+          } else if (tp == "function" && v.hasOwnProperty("_tvm_function")) {
             this.setString(i, v._tvm_function.handle, kFuncHandle);
           } else if (v === null) {
             this.setHandle(i, 0, kNull);
@@ -907,12 +907,15 @@ var tvm_runtime = tvm_runtime || {};
             }
             logging(server_name + "init end...");
             if (msg.length > 4) {
-              if (!message_handler(new Uint8Array(event.data, 4, msg.length -4))) {
+              if (message_handler(
+                      new Uint8Array(event.data, 4, msg.length -4),
+                      new TVMConstant(3, "int32")) == 0) {
                 socket.close();
               }
             }
           } else {
-            if (!message_handler(new Uint8Array(event.data))) {
+            if (message_handler(new Uint8Array(event.data),
+                                new TVMConstant(3, "int32")) == 0) {
               socket.close();
             }
           }

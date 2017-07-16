@@ -86,13 +86,18 @@ class RPCSession {
    * \brief Message handling function for event driven server.
    *  Called when the server receives a message.
    *  Event driven handler will never call recv on the channel
-   *  and always relies on the ServerOnMessageHandler
+   *  and always relies on the ServerEventHandler.
    *  to receive the data.
    *
-   * \param bytes The incoming bytes.
-   * \return Whether need continue running, return false when receive a shutdown message.
+   * \param in_bytes The incoming bytes.
+   * \param event_flag  1: read_available, 2: write_avaiable.
+   * \return State flag.
+   *     1: continue running, no need to write,
+   *     2: need to write
+   *     0: shutdown
    */
-  bool ServerOnMessageHandler(const std::string& bytes);
+  int ServerEventHandler(const std::string& in_bytes,
+                         int event_flag);
   /*!
    * \brief Call into remote function
    * \param handle The function handle
@@ -161,7 +166,7 @@ class RPCSession {
     return table_index_;
   }
   /*!
-   * \brief Create a RPC session with given socket
+   * \brief Create a RPC session with given channel.
    * \param channel The communication channel.
    * \param name The name of the session, used for debug
    * \return The session.

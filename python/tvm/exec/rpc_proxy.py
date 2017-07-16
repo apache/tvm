@@ -29,7 +29,7 @@ def main():
                         help='the hostname of the server')
     parser.add_argument('--port', type=int, default=9090,
                         help='The port of the PRC')
-    parser.add_argument('--web-port', type=int, default=9888,
+    parser.add_argument('--web-port', type=int, default=9190,
                         help='The port of the http/websocket server')
     parser.add_argument('--example-rpc', type=bool, default=False,
                         help='Whether to switch on example rpc mode')
