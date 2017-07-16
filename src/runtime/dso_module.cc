@@ -91,7 +91,8 @@ class DSOModuleNode final : public ModuleNode {
   void Load(const std::string& name) {
     lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
     CHECK(lib_handle_ != nullptr)
-        << "Failed to load dynamic shared library " << name;
+        << "Failed to load dynamic shared library " << name
+        << " " << dlerror();
   }
   void* GetSymbol(const char* name) {
     return dlsym(lib_handle_, name);

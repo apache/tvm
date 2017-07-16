@@ -241,7 +241,7 @@ void* TVMBackendAllocWorkspace(int device_type,
   TVMContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
-  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx, size);
+  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx, static_cast<size_t>(size));
 }
 
 int TVMBackendFreeWorkspace(int device_type,
@@ -437,8 +437,8 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
         << "Can not copy across different ctx types directly";
   }
   DeviceAPIManager::Get(ctx)->CopyDataFromTo(
-      from->data, from->byte_offset,
-      to->data, to->byte_offset,
+      from->data, static_cast<size_t>(from->byte_offset),
+      to->data, static_cast<size_t>(to->byte_offset),
       from_size, from->ctx, to->ctx, stream);
   API_END();
 }
@@ -455,7 +455,7 @@ int TVMArrayCopyFromBytes(TVMArrayHandle handle,
       << "TVMArrayCopyFromBytes: size mismatch";
   DeviceAPIManager::Get(handle->ctx)->CopyDataFromTo(
       data, 0,
-      handle->data, handle->byte_offset,
+      handle->data, static_cast<size_t>(handle->byte_offset),
       nbytes, cpu_ctx, handle->ctx, nullptr);
   API_END();
 }
@@ -471,7 +471,7 @@ int TVMArrayCopyToBytes(TVMArrayHandle handle,
   CHECK_EQ(arr_size, nbytes)
       << "TVMArrayCopyToBytes: size mismatch";
   DeviceAPIManager::Get(handle->ctx)->CopyDataFromTo(
-      handle->data, handle->byte_offset,
+      handle->data, static_cast<size_t>(handle->byte_offset),
       data, 0,
       nbytes, handle->ctx, cpu_ctx, nullptr);
   API_END();

@@ -81,7 +81,7 @@ int GetWarpSize(id<MTLDevice> dev) {
         newComputePipelineStateWithFunction:f
         error:&error_msg];
   CHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
-  return state.threadExecutionWidth;
+  return static_cast<int>(state.threadExecutionWidth);
 }
 
 MetalWorkspace::~MetalWorkspace() {
@@ -99,15 +99,22 @@ void MetalWorkspace::Init() {
   if (initialized_) return;
   initialized_ = true;
   if (devices.size() != 0) return;
-  NSArray<id<MTLDevice>>* devs = MTLCopyAllDevices();
-  for (size_t i = 0; i < devs.count; ++i) {
-    id<MTLDevice> d = [devs objectAtIndex:i];
+#if TARGET_OS_IPHONE
+    // on iPhone
+    id<MTLDevice> d = MTLCreateSystemDefaultDevice();
     devices.push_back([d retain]);
     queues.push_back([[d newCommandQueue] retain]);
-    LOG(INFO) << "Intializing Metal device " << i
-              <<  ", name=" << d.name;
-    warp_size.push_back(GetWarpSize(d));
-  }
+#else
+    NSArray<id<MTLDevice>>* devs = MTLCopyAllDevices();
+    for (size_t i = 0; i < devs.count; ++i) {
+      id<MTLDevice> d = [devs objectAtIndex:i];
+      devices.push_back([d retain]);
+      queues.push_back([[d newCommandQueue] retain]);
+      LOG(INFO) << "Intializing Metal device " << i
+                <<  ", name=" << d.name;
+      warp_size.push_back(GetWarpSize(d));
+    }
+#endif
 }
 
 void MetalWorkspace::SetDevice(TVMContext ctx) {
@@ -122,6 +129,7 @@ void* MetalWorkspace::AllocDataSpace(
   id<MTLBuffer> buf = [
       dev newBufferWithLength:size
           options:MTLResourceStorageModePrivate];
+  CHECK(buf != nil);
   return (__bridge void*)([buf retain]);
 }
 
@@ -144,13 +152,13 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
   if (ctx_from.device_type == kCPU) ctx = ctx_to;
   id<MTLCommandQueue> queue = GetCommandQueue(ctx);
   id<MTLCommandBuffer> cb = [queue commandBuffer];
-  id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
   int from_dev_type = static_cast<int>(ctx_from.device_type);
   int to_dev_type = static_cast<int>(ctx_to.device_type);
 
   if (from_dev_type == kMetal && to_dev_type == kMetal) {
     CHECK_EQ(ctx_from.device_id, ctx_to.device_id)
         << "Metal disallow cross device copy.";
+    id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
     [encoder copyFromBuffer:(__bridge id<MTLBuffer>)(from)
              sourceOffset:from_offset
              toBuffer:(__bridge id<MTLBuffer>)(to)
@@ -164,6 +172,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
     if (from_buf.storageMode != MTLStorageModeShared) {
       id<MTLBuffer> temp = MetalThreadEntry::ThreadLocal()
           ->GetTempBuffer(ctx_from, size);
+      id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
       [encoder copyFromBuffer:from_buf
                sourceOffset:from_offset
                toBuffer:temp
@@ -188,6 +197,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
       memcpy([temp contents],
               static_cast<const char*>(from) + from_offset,
               size);
+      id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
       [encoder copyFromBuffer:temp
                sourceOffset:0
                toBuffer:to_buf

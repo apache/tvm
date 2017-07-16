@@ -946,7 +946,11 @@ void RPCModuleGetFunc(TVMArgs args, TVMRetValue *rv) {
   void* mhandle = args[0];
   PackedFunc pf = static_cast<Module*>(mhandle)->GetFunction(
       args[1], false);
-  *rv = static_cast<void*>(new PackedFunc(pf));
+  if (pf != nullptr) {
+    *rv = static_cast<void*>(new PackedFunc(pf));
+  } else {
+    *rv = nullptr;
+  }
 }
 
 void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {

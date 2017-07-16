@@ -41,5 +41,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.workpath")
     static RPCEnv env;
     *rv = env.GetPath(args[0]);
   });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.load_module")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    std::string file_name = "/rpc/" + args[0].operator std::string();
+    *rv = Module::LoadFromFile(file_name, "");
+    LOG(INFO) << "Load module from " << file_name << " ...";
+  });
 }  // namespace contrib
 }  // namespace tvm

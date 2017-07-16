@@ -11,11 +11,12 @@ class TempDirectory(object):
     """
     def __init__(self):
         self.temp_dir = tempfile.mkdtemp()
+        self._rmtree = shutil.rmtree
 
     def remove(self):
         """Remote the tmp dir"""
         if self.temp_dir:
-            shutil.rmtree(self.temp_dir)
+            self._rmtree(self.temp_dir)
             self.temp_dir = None
 
     def __del__(self):

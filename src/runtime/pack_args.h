@@ -32,7 +32,7 @@ union ArgUnion {
  *
  * \param f with signiture (TVMArgs args, TVMRetValue* rv, void* void_args)
  * \param arg_types The arguments that wish to get from
- * \tparam T the function type
+ * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
@@ -43,7 +43,7 @@ inline PackedFunc PackFuncVoidAddr(F f, const std::vector<TVMType>& arg_types);
  *
  * \param f with signiture (TVMArgs args, TVMRetValue* rv, ArgUnion* pack_args)
  * \param arg_types The arguments that wish to get from
- * \tparam T the function type
+ * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
