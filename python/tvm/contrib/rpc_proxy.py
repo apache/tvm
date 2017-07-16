@@ -235,8 +235,9 @@ class RequestHandler(tornado.web.RequestHandler):
         self.page = open(kwargs.pop("file_path")).read()
         web_port = kwargs.pop("rpc_web_port", None)
         if web_port:
-            self.page.replace(r"ws://localhost:9888/ws",
-                              r"ws://localhost:%d/ws" % web_port)
+            self.page = self.page.replace(
+                "ws://localhost:9190/ws",
+                "ws://localhost:%d/ws" % web_port)
         super(RequestHandler, self).__init__(*args, **kwargs)
 
     def data_received(self, _):

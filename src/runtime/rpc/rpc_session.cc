@@ -752,19 +752,23 @@ void RPCSession::ServerLoop() {
   channel_.reset(nullptr);
 }
 
-
-bool RPCSession::ServerOnMessageHandler(const std::string& bytes) {
+int RPCSession::ServerEventHandler(const std::string& bytes, int event_flag) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
-  reader_.Write(bytes.c_str(), bytes.length());
-  TVMRetValue rv;
-  RPCCode code = handler_->HandleNextEvent(&rv, false, nullptr);
-  while (writer_.bytes_available() != 0) {
+  RPCCode code = RPCCode::kNone;
+  if (bytes.length() != 0) {
+    reader_.Write(bytes.c_str(), bytes.length());
+    TVMRetValue rv;
+    RPCCode code = handler_->HandleNextEvent(&rv, false, nullptr);
+  }
+  if ((event_flag & 2) != 0 && writer_.bytes_available() != 0) {
     writer_.ReadWithCallback([this](const void *data, size_t size) {
         return channel_->Send(data, size);
       }, writer_.bytes_available());
   }
   CHECK(code != RPCCode::kReturn && code != RPCCode::kCopyAck);
-  return code != RPCCode::kShutdown;
+  if (code == RPCCode::kShutdown) return 0;
+  if (writer_.bytes_available() != 0) return 2;
+  return 1;
 }
 
 // Get remote function with name
