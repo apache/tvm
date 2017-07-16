@@ -503,7 +503,7 @@ var tvm_runtime = tvm_runtime || {};
      * @return {boolean} Whether f is PackedFunc
      */
     this.isPackedFunc = function(f) {
-      return (typeof f == "object") && f.hasOwnProperty("_tvm_function");
+      return (typeof f == "function") && f.hasOwnProperty("_tvm_function");
     };
     var isPackedFunc = this.isPackedFunc;
     /**
@@ -633,7 +633,7 @@ var tvm_runtime = tvm_runtime || {};
             }
           } else if (tp == "number") {
             this.setDouble(i, v);
-          } else if (tp == "object" && v.hasOwnProperty("_tvm_function")) {
+          } else if (tp == "function" && v.hasOwnProperty("_tvm_function")) {
             this.setString(i, v._tvm_function.handle, kFuncHandle);
           } else if (v === null) {
             this.setHandle(i, 0, kNull);
