@@ -144,6 +144,11 @@ constexpr const char* thread_extent = "thread_extent";
 constexpr const char* virtual_thread = "virtual_thread";
 /*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
+/*!
+ * \brief Mark the scope as when computation start to happen
+ *  This can hint some code generator to create a new function for compute.
+ */
+constexpr const char* compute_scope = "compute_scope";
 /*! \brief Mark storage scope of buffers */
 constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage alignement requirement of buffers */

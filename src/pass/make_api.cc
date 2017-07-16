@@ -149,6 +149,9 @@ LoweredFunc MakeAPI(Stmt body,
             Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, Call::Intrinsic)));
+    body = AttrStmt::make(
+        make_zero(Int(32)), attr::compute_scope,
+        StringImm::make(name + "_compute_"), body);
     body = Block::make(set_device, body);
   }
   n->body = MergeNest(
