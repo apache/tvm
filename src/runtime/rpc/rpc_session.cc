@@ -758,7 +758,7 @@ int RPCSession::ServerEventHandler(const std::string& bytes, int event_flag) {
   if (bytes.length() != 0) {
     reader_.Write(bytes.c_str(), bytes.length());
     TVMRetValue rv;
-    RPCCode code = handler_->HandleNextEvent(&rv, false, nullptr);
+    code = handler_->HandleNextEvent(&rv, false, nullptr);
   }
   if ((event_flag & 2) != 0 && writer_.bytes_available() != 0) {
     writer_.ReadWithCallback([this](const void *data, size_t size) {

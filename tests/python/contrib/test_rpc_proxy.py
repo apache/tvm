@@ -5,7 +5,7 @@ import time
 import multiprocessing
 from tvm.contrib import rpc
 
-def rpc_proxy_test():
+def rpc_proxy_check():
     """This is a simple test function for RPC Proxy
 
     It is not included as nosetests, because:
@@ -47,4 +47,4 @@ def rpc_proxy_test():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    rpc_proxy_test()
+    rpc_proxy_check()

@@ -469,14 +469,14 @@ def websocket_proxy_server(url, key=""):
         logging.info("Connection established")
         msg = msg[4:]
         if msg:
-            on_message(bytearray(msg))
+            on_message(bytearray(msg), 3)
 
         while True:
             try:
                 msg = yield conn.read_message()
                 if msg is None:
                     break
-                on_message(bytearray(msg))
+                on_message(bytearray(msg), 3)
             except websocket.WebSocketClosedError as err:
                 break
         logging.info("WebSocketProxyServer closed...")
