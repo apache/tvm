@@ -225,6 +225,8 @@ class CodeGenLLVM :
   // Create serial for
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end,
                        const VarExpr& loop_var, const Stmt& body);
+  // Create a new compute scope.
+  void CreateComputeScope(const AttrStmt* op);
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
   // return the end block after the check
