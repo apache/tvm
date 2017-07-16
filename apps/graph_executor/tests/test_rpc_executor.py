@@ -16,7 +16,7 @@ def test_rpc_executor():
 
     x = tg.Variable('x')
     y = tg.Variable('y')
-    sym = tg.exp(y + x)
+    sym = tg.exp(y + x) + tg.exp(x + y)
 
     shape = (10, 128)
     dtype = tvm.float32
@@ -46,8 +46,10 @@ def test_rpc_executor():
     run()
     get_output(0, nc)
 
-    np.testing.assert_allclose(
-        nc.asnumpy(), np.exp(na.asnumpy() + nb.asnumpy()))
+    npa = na.asnumpy()
+    npb = nb.asnumpy()
+    np.testing.assert_allclose(nc.asnumpy(),
+                               np.exp(npa + npb) + np.exp(npb + npa))
     server.terminate()
 
 if __name__ == "__main__":

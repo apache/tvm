@@ -22,14 +22,15 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
-    server = rpc.Server(args.host, args.port, args.port_end)
 
     if args.with_executor:
         curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
         apps_path = os.path.join(curr_path, "../../../apps/graph_executor/lib/")
         lib_path = find_lib_path('libtvm_graph_exec.so', apps_path)
-        server.libs.append(ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL))
+        lib = ctypes.CDLL(lib_path[0])
 
+    server = rpc.Server(args.host, args.port, args.port_end)
+    server.libs.append(lib)
     server.proc.join()
 
 if __name__ == "__main__":
