@@ -154,29 +154,64 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   jfieldID refTVMValueFid
     = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/TVMValue;");
 
-  switch (retTypeCode) {
-    case kInt:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newTVMValueLong(env, static_cast<jlong>(retVal.v_int64)));
-      break;
-    case kFloat:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newTVMValueDouble(env, static_cast<jdouble>(retVal.v_float64)));
-      break;
-    case kModuleHandle:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newTVMValueModuleHandle(env, reinterpret_cast<jlong>(retVal.v_handle)));
-      break;
-    case kNull:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newObject(env, "ml/dmlc/tvm/TVMValueNull"));
-      break;
-    default:
-      LOG(FATAL) << "Do NOT know how to handle return type code " << retTypeCode;
-  }
+  env->SetObjectField(jretVal, refTVMValueFid, tvmRetValueToJava(env, retVal, retTypeCode));
 
   env->DeleteLocalRef(refTVMValueCls);
 
+  return ret;
+}
+
+// Callback function
+extern "C" int funcInvokeCallback(TVMValue *args,
+    int *typeCodes, int numArgs, TVMRetValueHandle ret, void *resourceHandle) {
+  JNIEnv *env;
+  _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), NULL);
+
+  jclass tvmValueCls = env->FindClass("ml/dmlc/tvm/TVMValue");
+  jobjectArray jargs = env->NewObjectArray(numArgs, tvmValueCls, 0);
+  for (int i = 0; i < numArgs; ++i) {
+    TVMValue arg = args[i];
+    int tcode = typeCodes[i];
+    if (tcode == kNodeHandle || tcode == kFuncHandle || tcode == kModuleHandle) {
+      TVMCbArgToReturn(&arg, tcode);
+    }
+    jobject jarg = tvmRetValueToJava(env, arg, tcode);
+    env->SetObjectArrayElement(jargs, i, jarg);
+  }
+
+  jclass clsFunc = env->FindClass("ml/dmlc/tvm/Function");
+  jmethodID midFunc = env->GetStaticMethodID(clsFunc, "invokeRegisteredCbFunc",
+      "(I[Lml/dmlc/tvm/TVMValue;)Lml/dmlc/tvm/TVMValue;");
+
+  jobject jretValue = env->CallStaticObjectMethod(clsFunc, midFunc,
+      (jint)(size_t) resourceHandle, jargs);
+
+  TVMValue retValue;
+  int retCode;
+  javaRetValueToTVM(env, jretValue, &retValue, &retCode);
+  TVMCFuncSetReturn(ret, &retValue, &retCode, 1);
+
+  env->DeleteLocalRef(tvmValueCls);
+
+  return 0;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCreateFromCFunc(
+  JNIEnv *env, jobject obj, jint jfid, jobject jretHandle) {
+  TVMFunctionHandle out;
+  // TODO: register finalizer
+  int ret = TVMFuncCreateFromCFunc(reinterpret_cast<TVMPackedCFunc>(&funcInvokeCallback),
+                                   reinterpret_cast<void *>(jfid), NULL, &out);
+  setLongField(env, jretHandle, reinterpret_cast<jlong>(out));
+  return ret;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncRegisterGlobal(
+  JNIEnv *env, jobject obj, jstring jname, jlong jhandle, jint joverride) {
+  const char *name = env->GetStringUTFChars(jname, 0);
+  int ret = TVMFuncRegisterGlobal(
+      name, reinterpret_cast<TVMFunctionHandle>(jhandle), reinterpret_cast<int>(joverride));
+  env->ReleaseStringUTFChars(jname, name);
   return ret;
 }
 

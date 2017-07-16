@@ -28,4 +28,8 @@ public class TVMValueNDArrayHandle extends TVMValue {
   @Override public NDArray asNDArray() {
     return new NDArray(value);
   }
+
+  @Override protected long asHandle() {
+    return value;
+  }
 }

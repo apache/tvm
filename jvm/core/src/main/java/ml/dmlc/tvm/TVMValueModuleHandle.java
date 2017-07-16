@@ -28,4 +28,8 @@ public class TVMValueModuleHandle extends TVMValue {
   @Override public Module asModule() {
     return new Module(value);
   }
+
+  @Override protected long asHandle() {
+    return value;
+  }
 }

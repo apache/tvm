@@ -19,7 +19,11 @@ package ml.dmlc.tvm;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 
 public class Function {
   final long handle;
@@ -196,5 +200,77 @@ public class Function {
       }
     }
     return invoke();
+  }
+
+  public static interface Callback {
+    public TVMValue invoke(TVMValue... args);
+  }
+
+  /**
+   * Register user-defined global function.
+   * @param name The function name.
+   * @param function The function to be registered.
+   * @param override Whether override existing entry.
+   */
+  public static void register(String name, Callback function, boolean override) {
+    int fid = genFunctionId(function);
+    Base.RefLong createdFuncHandleRef = new Base.RefLong();
+    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(fid, createdFuncHandleRef));
+    int ioverride = override ? 1 : 0;
+    Base.checkCall(Base._LIB.tvmFuncRegisterGlobal(name, createdFuncHandleRef.value, ioverride));
+  }
+
+  /**
+   * Register user-defined global function, do not override existing entry.
+   * @param name The function name.
+   * @param function The function to be registered.
+   */
+  public static void register(String name, Callback function) {
+    register(name, function, false);
+  }
+
+  private static Map<Integer, Callback> funcTable = new HashMap<Integer, Callback>();
+  private static Queue<Integer> freeFuncId = new LinkedList<Integer>();
+
+  private static synchronized int genFunctionId(Callback func) {
+    int fid;
+    if (!freeFuncId.isEmpty()) {
+      fid = freeFuncId.poll();
+    } else {
+      fid = funcTable.size();
+    }
+    funcTable.put(fid, func);
+    return fid;
+  }
+
+  private static synchronized TVMValue invokeRegisteredCbFunc(int fid, TVMValue[] args) {
+    Callback cb = funcTable.get(fid);
+    if (cb == null) {
+      System.err.println("[ERROR] Cannot find registered function with id = " + fid);
+      return null;
+    }
+    return cb.invoke(args);
+  }
+
+  /**
+   * TODO: Test register cb, will remove.
+   * @param args arguments.
+   */
+  public static void main(String[] args) {
+    System.out.println("Register ...");
+    Function.register("xyz", new Callback() {
+      @Override public TVMValue invoke(TVMValue... args) {
+        long res = 0L;
+        for (TVMValue arg : args) {
+          res += arg.asLong();
+        }
+        return new TVMValueLong(res);
+      }
+    });
+    System.out.println("Get registered function ...");
+    Function func = Function.getFunction("xyz");
+    System.out.println("Call registered function ...");
+    TVMValue res = func.pushArg(10).pushArg(20).invoke();
+    System.out.println("Result = " + res.asLong());
   }
 }

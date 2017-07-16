@@ -43,4 +43,9 @@ public class TVMValue {
   public String asString() {
     throw new UnsupportedOperationException();
   }
+
+  // easy for JNI to use.
+  protected long asHandle() {
+    throw new UnsupportedOperationException();
+  }
 }
