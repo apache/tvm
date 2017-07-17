@@ -110,7 +110,12 @@ class PackedCallBuilder : public IRMutator {
                                     op->buffer_var},
                               Call::Extern);
     Stmt free_stmt = IfThenElse::make(free_op != make_zero(Int(32)), throw_last_error);
-    return Block::make(alloca, free_stmt);
+    body = Block::make(alloca, free_stmt);
+    body = AttrStmt::make(
+        op->buffer_var, attr::storage_alignment,
+        make_const(Int(32), runtime::kTempAllocaAlignment),
+        body);
+    return body;
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
