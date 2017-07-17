@@ -35,8 +35,15 @@ class IRDeepCompare :
     return order_ == 0;
   }
 
+  int Compare(const Expr& lhs, const Expr& rhs) {
+    tie_def_ = false;
+    VisitExpr(lhs, rhs);
+    return order_;
+  }
+
   void VisitExpr(const Expr& n, const Expr& other) override {
     if (order_ != 0) return;
+    if (n.same_as(other)) return;
     if (CompareValue(n->type_index(), other->type_index()) != 0) return;
     if (CompareType(n.type(), other.type()) != 0) return;
     ExprComparator::VisitExpr(n, other);
@@ -44,6 +51,7 @@ class IRDeepCompare :
 
   void VisitStmt(const Stmt& n, const Stmt& other) override {
     if (order_ != 0) return;
+    if (n.same_as(other)) return;
     if (CompareValue(n->type_index(), other->type_index()) != 0) return;
     StmtComparator::VisitStmt(n, other);
   }
@@ -411,6 +419,10 @@ bool Equal(const Stmt& lhs, const Stmt& rhs) {
 
 bool Equal(const Expr& lhs, const Expr& rhs) {
   return IRDeepCompare().Equal(lhs, rhs);
+}
+
+int Compare(const Expr& lhs, const Expr& rhs) {
+  return IRDeepCompare().Compare(lhs, rhs);
 }
 
 }  // namespace ir
