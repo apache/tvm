@@ -302,6 +302,18 @@ constexpr const char* tvm_stack_make_array = "tvm_stack_make_array";
  */
 constexpr const char* tvm_call_packed = "tvm_call_packed";
 /*!
+ * \brief See pesudo code
+ *  Mark the content as thread local context, can get optimized
+ *  by only call the call once at thread start.
+ *
+ *  Do not allow nesting(getting a thread context from another).
+ *
+ *  Handle tvm_thread_context(Expr call) {
+ *     return call;
+ *  }
+ */
+constexpr const char* tvm_thread_context = "tvm_thread_context";
+/*!
  * \brief Lowered version of call packed, the space of value and
  *  type codes are explicitly allocated.
  *
