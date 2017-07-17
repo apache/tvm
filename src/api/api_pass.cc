@@ -102,5 +102,6 @@ REGISTER_PASS1(NarrowChannelAccess);
 REGISTER_PASS2(LowerThreadAllreduce);
 REGISTER_PASS2(LowerIntrin);
 REGISTER_PASS1(LowerPackedCall);
+REGISTER_PASS1(CombineContextCall);
 }  // namespace ir
 }  // namespace tvm

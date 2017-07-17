@@ -61,6 +61,19 @@ bool Equal(const Expr& lhs, const Expr& rhs);
 bool Equal(const Stmt& lhs, const Stmt& rhs);
 
 /*!
+ * \brief Deep compare lhs and rhs.
+ *
+ *  If you only want equality comparison, use Equal
+ *  which will also tie definitions. The compare mode
+ *  will give order of expression in total order.
+ *
+ * \param lhs The left operand
+ * \param rhs The right operand
+ * \return The comparison result.
+ */
+int Compare(const Expr& lhs, const Expr& rhs);
+
+/*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each VarExpr is defined and assigned once(in Let/For)
  *
@@ -313,6 +326,13 @@ LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
  * \return Transformed function.
  */
 LoweredFunc LowerPackedCall(LoweredFunc f);
+
+/*!
+ * \brief Combine context function calls.
+ * \param f The host function to be lowered.
+ * \return Transformed function.
+ */
+LoweredFunc CombineContextCall(LoweredFunc f);
 
 /*!
  * \brief Lower intrinsic function calls.
