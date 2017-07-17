@@ -157,7 +157,6 @@ REGISTER_MAKE1(Free);
 REGISTER_MAKE2(Block);
 REGISTER_MAKE3(IfThenElse);
 REGISTER_MAKE1(Evaluate);
-REGISTER_MAKE4(Prefetch);
 
 }  // namespace ir
 }  // namespace tvm

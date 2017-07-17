@@ -352,6 +352,7 @@ Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   n->prefetch_data.push_back(tensor);
   n->prefetch_offset.push_back(offset);
   self->iter_var_attrs.Set(var, IterVarAttr(n));
+  return *this;
 }
 
 Stage CopyStage(const Stage& s) {

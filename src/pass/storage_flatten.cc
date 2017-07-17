@@ -193,9 +193,6 @@ class StorageFlattener : public IRMutator {
         starts--;
       }
       Expr stride = elem_cnt / block_size;
-      std::cout << s << "\n";
-      //std::cout << stride << "\n";
-      //std::cout << starts << "\n";
 
       Array<Expr> args;
       std::vector<VarExpr> vars;
@@ -220,7 +217,6 @@ class StorageFlattener : public IRMutator {
         }
       }
     }
-    std::cout << stmt << "\n";
     return stmt;
   }
 #undef cache_line_size

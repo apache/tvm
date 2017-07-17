@@ -28,10 +28,10 @@ inline void DispatchLLVMBuildin(const TVMArgs& targs, TVMRetValue* rv) {
     cargs.push_back(arg);
   }
   *rv = Call::make(
-      call->type, "llvm_builtin", cargs, Call::Intrinsic);
+      call->type, "llvm_builtin", cargs, Call::PureIntrinsic);
 }
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.__builtin_prefetch")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.prefetch")
 .set_body(DispatchLLVMBuildin<::llvm::Intrinsic::prefetch>);
 
 template<unsigned id>
@@ -72,9 +72,6 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt>);
-
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.prefetch")
-.set_body(DispatchLLVMIntrin<::llvm::Intrinsic::prefetch>);
 
 }  // namespace llvm
 }  // namespace codegen
