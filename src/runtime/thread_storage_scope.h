@@ -17,18 +17,21 @@ namespace runtime {
 struct StorageScope {
   /*! \brief The rank of the storage */
   int rank{0};
+  /*! \brief tag for special memory, if any */
+  std::string tag;
   // comparator
   inline bool operator==(const StorageScope& other) const {
-    return rank == other.rank;
+    return rank == other.rank && tag == other.tag;
   }
   inline bool operator!=(const StorageScope& other) const {
     return !(*this == other);
   }
   inline std::string to_string() const {
+    std::string ret;
     switch (rank) {
-      case 0: return "global";
-      case 1: return "shared";
-      case 2: return "local";
+      case 0: return "global" + tag;
+      case 1: return "shared" + tag;
+      case 2: return "local" + tag;
       default: LOG(FATAL) << "unknown storage scope"; return "";
     }
   }
@@ -39,12 +42,15 @@ struct StorageScope {
    */
   static StorageScope make(const std::string& s) {
     StorageScope r;
-    if (s == "global") {
+    if (s.compare(0, 6, "global")  == 0) {
       r.rank = 0;
-    } else if (s == "shared") {
+      r.tag = s.substr(6, std::string::npos);
+    } else if (s.compare(0, 6, "shared") == 0) {
       r.rank = 1;
-    } else if (s == "local") {
+      r.tag = s.substr(6, std::string::npos);
+    } else if (s.compare(0, 5, "local") == 0) {
       r.rank = 2;
+      r.tag = s.substr(5, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
     }
