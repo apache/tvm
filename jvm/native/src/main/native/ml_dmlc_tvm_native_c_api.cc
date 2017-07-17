@@ -180,17 +180,31 @@ extern "C" int funcInvokeCallback(TVMValue *args,
   }
 
   jclass clsFunc = env->FindClass("ml/dmlc/tvm/Function");
-  jmethodID midFunc = env->GetStaticMethodID(clsFunc, "invokeRegisteredCbFunc",
+  jmethodID invokeRegisteredCbFunc = env->GetStaticMethodID(clsFunc, "invokeRegisteredCbFunc",
       "(I[Lml/dmlc/tvm/TVMValue;)Lml/dmlc/tvm/TVMValue;");
+  jmethodID pushArgToStack = env->GetStaticMethodID(clsFunc, "pushArgToStack",
+      "(Ljava/lang/Object;)V");
 
-  jobject jretValue = env->CallStaticObjectMethod(clsFunc, midFunc,
+  jobject jretValue = env->CallStaticObjectMethod(clsFunc, invokeRegisteredCbFunc,
       (jint)(size_t) resourceHandle, jargs);
 
-  TVMValue retValue;
-  int retCode;
-  javaRetValueToTVM(env, jretValue, &retValue, &retCode);
+  // convert returned (java) TVMValue to (C) TVMValue
+  env->CallStaticVoidMethod(clsFunc, pushArgToStack, jretValue);
+  TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
+
+  TVMValue retValue = e->tvmFuncArgValues.back();
+  e->tvmFuncArgValues.pop_back();
+
+  int retCode = e->tvmFuncArgTypes.back();
+  e->tvmFuncArgTypes.pop_back();
+
+  // set back the return value
   TVMCFuncSetReturn(ret, &retValue, &retCode, 1);
 
+  // tvmFuncArgPushedStrs will be cleared in tvmFuncCall.
+  // Thus we simply ignore the allocated strings here.
+
+  env->DeleteLocalRef(clsFunc);
   env->DeleteLocalRef(tvmValueCls);
 
   return 0;

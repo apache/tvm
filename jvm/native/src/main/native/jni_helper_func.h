@@ -88,6 +88,16 @@ jobject newTVMValueDouble(JNIEnv *env, jdouble value) {
   return object;
 }
 
+jobject newTVMValueString(JNIEnv *env, const char *value) {
+  jstring jvalue = env->NewStringUTF(value);
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueString");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
+  jobject object = env->NewObject(cls, constructor, jvalue);
+  env->DeleteLocalRef(cls);
+  env->DeleteLocalRef(jvalue);
+  return object;
+}
+
 jobject newTVMValueModuleHandle(JNIEnv *env, jlong value) {
   jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueModuleHandle");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
@@ -122,6 +132,7 @@ void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
 }
 
 jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
+  // TODO: support more types.
   switch (tcode) {
     case kUInt:
     case kInt:
@@ -130,53 +141,13 @@ jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
       return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
     case kModuleHandle:
       return newTVMValueModuleHandle(env, reinterpret_cast<jlong>(value.v_handle));
+    case kStr:
+      return newTVMValueString(env, value.v_str);
     case kNull:
       return newObject(env, "ml/dmlc/tvm/TVMValueNull");
     default:
       LOG(FATAL) << "Do NOT know how to handle return type code " << tcode;
   }
-}
-
-void javaRetValueToTVM(JNIEnv *env, jobject jvalue, TVMValue *retValue, int *retCode) {
-  jclass tvmValueCls = env->FindClass("ml/dmlc/tvm/TVMValue");
-
-  // as-type methods
-  jmethodID asLong = env->GetMethodID(tvmValueCls, "asLong", "()J");
-  jmethodID asDouble = env->GetMethodID(tvmValueCls, "asDouble", "()D");
-  jmethodID asHandle = env->GetMethodID(tvmValueCls, "asHandle", "()J");
-  jmethodID asString = env->GetMethodID(tvmValueCls, "asString", "()Ljava/lang/String;");
-
-  jobject jtypeCode = env->GetObjectField(
-      jvalue, env->GetFieldID(tvmValueCls, "typeCode", "Lml/dmlc/tvm/TypeCode;"));
-
-  jclass typeCodeCls = env->FindClass("ml/dmlc/tvm/TypeCode");
-  int tcode = reinterpret_cast<int>(env->GetIntField(jtypeCode,
-      env->GetFieldID(typeCodeCls, "id", "I")));
-
-  *retCode = tcode;
-  switch (tcode) {
-    case kUInt:
-    case kInt:
-      retValue->v_int64 = static_cast<int64_t>(env->CallLongMethod(jvalue, asLong));
-      break;
-    case kFloat:
-      retValue->v_float64 = static_cast<double>(env->CallDoubleMethod(jvalue, asDouble));
-      break;
-    case kModuleHandle:
-    case kFuncHandle:
-      retValue->v_handle = reinterpret_cast<void *>(env->CallLongMethod(jvalue, asHandle));
-      break;
-    case kStr:
-      retValue->v_str = env->GetStringUTFChars(
-          static_cast<jstring>(env->NewGlobalRef(
-          env->CallObjectMethod(jvalue, asString))), 0);
-      break;
-    default:
-      LOG(FATAL) << "Do NOT know how to handle return type code " << tcode;
-  }
-
-  env->DeleteLocalRef(typeCodeCls);
-  env->DeleteLocalRef(tvmValueCls);
 }
 
 #endif  // TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_

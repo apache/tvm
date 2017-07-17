@@ -177,29 +177,78 @@ public class Function {
   }
 
   /**
+   * Push argument to the function.
+   * @param arg Module.
+   * @return this
+   */
+  public Function pushArg(Module arg) {
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.MODULE_HANDLE.id);
+    return this;
+  }
+
+  /**
+   * Push argument to the function.
+   * @param arg Function.
+   * @return this
+   */
+  public Function pushArg(Function arg) {
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.FUNC_HANDLE.id);
+    return this;
+  }
+
+  /**
    * Invoke function with arguments.
    * @param args Can be Integer, Long, Float, Double, String, NDArray.
    * @return the result.
    */
   public TVMValue call(Object... args) {
     for (Object arg : args) {
-      if (arg instanceof Integer) {
-        pushArg((Integer) arg);
-      } else if (arg instanceof Long) {
-        pushArg((Long) arg);
-      } else if (arg instanceof Float) {
-        pushArg((Float) arg);
-      } else if (arg instanceof Double) {
-        pushArg((Double) arg);
-      } else if (arg instanceof String) {
-        pushArg((String) arg);
-      } else if (arg instanceof NDArray) {
-        pushArg((NDArray) arg);
-      } else {
-        throw new IllegalArgumentException("Invalid argument: " + arg);
-      }
+      pushArgToStack(arg);
     }
     return invoke();
+  }
+
+  private static void pushArgToStack(Object arg) {
+    if (arg instanceof Integer) {
+      Base._LIB.tvmFuncPushArgLong((Integer) arg);
+    } else if (arg instanceof Long) {
+      Base._LIB.tvmFuncPushArgLong((Long) arg);
+    } else if (arg instanceof Float) {
+      Base._LIB.tvmFuncPushArgDouble((Float) arg);
+    } else if (arg instanceof Double) {
+      Base._LIB.tvmFuncPushArgDouble((Double) arg);
+    } else if (arg instanceof String) {
+      Base._LIB.tvmFuncPushArgString((String) arg);
+    } else if (arg instanceof NDArray) {
+      Base._LIB.tvmFuncPushArgHandle(((NDArray) arg).handle, TypeCode.ARRAY_HANDLE.id);
+    } else if (arg instanceof Module) {
+      Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, TypeCode.MODULE_HANDLE.id);
+    } else if (arg instanceof Function) {
+      Base._LIB.tvmFuncPushArgHandle(((Function) arg).handle, TypeCode.FUNC_HANDLE.id);
+    } else if (arg instanceof TVMValue) {
+      TVMValue tvmArg = (TVMValue) arg;
+      switch (tvmArg.typeCode) {
+        case UINT:
+        case INT:
+          Base._LIB.tvmFuncPushArgLong(tvmArg.asLong());
+          break;
+        case FLOAT:
+          Base._LIB.tvmFuncPushArgDouble(tvmArg.asDouble());
+          break;
+        case STR:
+          Base._LIB.tvmFuncPushArgString(tvmArg.asString());
+          break;
+        case ARRAY_HANDLE:
+        case MODULE_HANDLE:
+        case FUNC_HANDLE:
+          Base._LIB.tvmFuncPushArgHandle(tvmArg.asHandle(), tvmArg.typeCode.id);
+          break;
+        default:
+          throw new IllegalArgumentException("Invalid argument: " + arg);
+      }
+    } else {
+      throw new IllegalArgumentException("Invalid argument: " + arg);
+    }
   }
 
   public static interface Callback {
@@ -272,5 +321,19 @@ public class Function {
     System.out.println("Call registered function ...");
     TVMValue res = func.pushArg(10).pushArg(20).invoke();
     System.out.println("Result = " + res.asLong());
+
+    System.out.println("Register str function ...");
+    Function.register("str", new Callback() {
+      @Override public TVMValue invoke(TVMValue... args) {
+        String res = "";
+        for (TVMValue arg : args) {
+          res += arg.asString();
+        }
+        return new TVMValueString(res);
+      }
+    });
+    Function func2 = Function.getFunction("str");
+    TVMValue res2 = func2.pushArg("Hello").pushArg(" ").pushArg("World").invoke();
+    System.out.println("Result = " + res2.asString());
   }
 }

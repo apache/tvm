@@ -17,39 +17,19 @@
 
 package ml.dmlc.tvm;
 
-public class TVMValue {
-  public final TypeCode typeCode;
+public class TVMValueFunctionHandle extends TVMValue {
+  public final long value;
 
-  public TVMValue(TypeCode tc) {
-    typeCode = tc;
+  public TVMValueFunctionHandle(long value) {
+    super(TypeCode.FUNC_HANDLE);
+    this.value = value;
   }
 
-  public long asLong() {
-    throw new UnsupportedOperationException();
+  @Override public Function asFunction() {
+    return new Function(value, false);
   }
 
-  public double asDouble() {
-    throw new UnsupportedOperationException();
-  }
-
-  public Module asModule() {
-    throw new UnsupportedOperationException();
-  }
-
-  public NDArray asNDArray() {
-    throw new UnsupportedOperationException();
-  }
-
-  public Function asFunction() {
-    throw new UnsupportedOperationException();
-  }
-
-  public String asString() {
-    throw new UnsupportedOperationException();
-  }
-
-  // easy for JNI to use.
-  protected long asHandle() {
-    throw new UnsupportedOperationException();
+  @Override protected long asHandle() {
+    return value;
   }
 }
