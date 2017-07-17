@@ -89,7 +89,7 @@ def call_pure_extern(dtype, func_name, *args):
         The data type of the result.
 
     func_name: str
-        The intrinsic function name.
+        The extern function name.
 
     args : list
         Positional arguments.
@@ -101,6 +101,30 @@ def call_pure_extern(dtype, func_name, *args):
     """
     return _make.Call(
         dtype, func_name, convert(args), _Call.PureExtern, None, 0)
+
+
+def call_extern(dtype, func_name, *args):
+    """Build expression by calling a extern function.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    func_name: str
+        The extern function name.
+
+    args : list
+        Positional arguments.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+    """
+    return _make.Call(
+        dtype, func_name, convert(args), _Call.Extern, None, 0)
+
 
 def exp(x):
     """Take exponetial of input x.
