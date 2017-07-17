@@ -19,18 +19,25 @@ def main():
                         help='The end search port of the PRC')
     parser.add_argument('--with-executor', type=bool, default=False,
                         help="Whether to load executor runtime")
+    parser.add_argument('--load-libary', type=str, default="",
+                        help="Additional libary to load")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
-
+    load_libary = args.load_libary.split(":")
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    apps_path = os.path.join(curr_path, "../../../apps/graph_executor/lib/")
+    libs = []
     if args.with_executor:
-        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-        apps_path = os.path.join(curr_path, "../../../apps/graph_executor/lib/")
-        lib_path = find_lib_path('libtvm_graph_exec.so', apps_path)
-        lib = ctypes.CDLL(lib_path[0])
+        load_libary += ["libtvm_graph_exec.so"]
+    if load_libary:
+        for file_name in args.load_libary.split(":"):
+            file_name = find_lib_path(file_name, apps_path)[0]
+            libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
+            logging.info("Load additional libary %s", file_name)
 
     server = rpc.Server(args.host, args.port, args.port_end)
-    server.libs.append(lib)
+    server.libs += libs
     server.proc.join()
 
 if __name__ == "__main__":
