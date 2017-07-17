@@ -35,12 +35,12 @@ def _load_lib():
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
     # DMatrix functions
     lib.TVMGetLastError.restype = ctypes.c_char_p
-    return lib
+    return lib, os.path.basename(lib_path[0])
 
 # version number
 __version__ = libinfo.__version__
 # library instance of nnvm
-_LIB = _load_lib()
+_LIB, _LIB_NAME = _load_lib()
 # The FFI mode of TVM
 _FFI_MODE = os.environ.get("TVM_FFI", "auto")
 
