@@ -10,6 +10,7 @@
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
+using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
 #endif
@@ -100,7 +101,6 @@ struct SockAddr {
 class Socket {
  public:
 #if defined(_WIN32)
-  using ssize_t = int;
   using sock_size_t = int;
   using SockType = SOCKET;
 #else
