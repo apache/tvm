@@ -25,7 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 
-public class Function {
+/**
+ * TVM Packed Function.
+ */
+public class Function extends TVMValue {
   final long handle;
   public final boolean isResident;
   private boolean isReleased = false;
@@ -80,14 +83,31 @@ public class Function {
    * @param handle the handle to the underlying function.
    * @param isResident Whether this is a resident function in jvm
    */
-  public Function(long handle, boolean isResident) {
+  Function(long handle, boolean isResident) {
+    super(TypeCode.FUNC_HANDLE);
     this.handle = handle;
     this.isResident = isResident;
+  }
+
+  Function(long handle) {
+    this(handle, false);
   }
 
   @Override protected void finalize() throws Throwable {
     release();
     super.finalize();
+  }
+
+  /**
+   * Easy for user to get the instance from returned TVMValue.
+   * @return this
+   */
+  @Override public Function asFunction() {
+    return this;
+  }
+
+  @Override long asHandle() {
+    return handle;
   }
 
   /**
@@ -97,7 +117,7 @@ public class Function {
    * and `finalize()` is not guaranteed to be called when GC happens.
    * </p>
    */
-  public void release() {
+  @Override public void release() {
     if (!isReleased) {
       if (!isResident) {
         Base.checkCall(Base._LIB.tvmFuncFree(handle));

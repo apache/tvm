@@ -213,7 +213,7 @@ extern "C" int funcInvokeCallback(TVMValue *args,
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCreateFromCFunc(
   JNIEnv *env, jobject obj, jint jfid, jobject jretHandle) {
   TVMFunctionHandle out;
-  // TODO: register finalizer
+  // TODO(yizhi): register finalizer
   int ret = TVMFuncCreateFromCFunc(reinterpret_cast<TVMPackedCFunc>(&funcInvokeCallback),
                                    reinterpret_cast<void *>(jfid), NULL, &out);
   setLongField(env, jretHandle, reinterpret_cast<jlong>(out));

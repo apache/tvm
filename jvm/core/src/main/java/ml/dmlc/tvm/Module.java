@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * Container of compiled functions of TVM.
  */
-public class Module {
+public class Module extends TVMValue {
   public final long handle;
   private boolean isReleased = false;
 
@@ -44,7 +44,8 @@ public class Module {
     return func;
   }
 
-  public Module(long handle) {
+  Module(long handle) {
+    super(TypeCode.MODULE_HANDLE);
     this.handle = handle;
   }
 
@@ -57,13 +58,25 @@ public class Module {
   }
 
   /**
+   * Easy for user to get the instance from returned TVMValue.
+   * @return this
+   */
+  @Override public Module asModule() {
+    return this;
+  }
+
+  @Override long asHandle() {
+    return handle;
+  }
+
+  /**
    * Release the Module.
    * <p>
    * We highly recommend you to do this manually since the GC strategy is lazy
    * and `finalize()` is not guaranteed to be called when GC happens.
    * </p>
    */
-  public void release() {
+  @Override public void release() {
     if (!isReleased) {
       Base.checkCall(Base._LIB.tvmModFree(handle));
       isReleased = true;

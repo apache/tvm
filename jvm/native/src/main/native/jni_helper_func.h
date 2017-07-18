@@ -98,8 +98,16 @@ jobject newTVMValueString(JNIEnv *env, const char *value) {
   return object;
 }
 
-jobject newTVMValueModuleHandle(JNIEnv *env, jlong value) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueModuleHandle");
+jobject newModule(JNIEnv *env, jlong value) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/Module");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject object = env->NewObject(cls, constructor, value);
+  env->DeleteLocalRef(cls);
+  return object;
+}
+
+jobject newFunction(JNIEnv *env, jlong value) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/Function");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
   jobject object = env->NewObject(cls, constructor, value);
   env->DeleteLocalRef(cls);
@@ -132,7 +140,7 @@ void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
 }
 
 jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
-  // TODO: support more types.
+  // TODO(yizhi): support more types.
   switch (tcode) {
     case kUInt:
     case kInt:
@@ -140,7 +148,9 @@ jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
     case kFloat:
       return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
     case kModuleHandle:
-      return newTVMValueModuleHandle(env, reinterpret_cast<jlong>(value.v_handle));
+      return newModule(env, reinterpret_cast<jlong>(value.v_handle));
+    case kFuncHandle:
+      return newFunction(env, reinterpret_cast<jlong>(value.v_handle));
     case kStr:
       return newTVMValueString(env, value.v_str);
     case kNull:

@@ -24,6 +24,9 @@ public class TVMValue {
     typeCode = tc;
   }
 
+  public void release() {
+  }
+
   public long asLong() {
     throw new UnsupportedOperationException();
   }
@@ -36,10 +39,6 @@ public class TVMValue {
     throw new UnsupportedOperationException();
   }
 
-  public NDArray asNDArray() {
-    throw new UnsupportedOperationException();
-  }
-
   public Function asFunction() {
     throw new UnsupportedOperationException();
   }
@@ -49,7 +48,7 @@ public class TVMValue {
   }
 
   // easy for JNI to use.
-  protected long asHandle() {
+  long asHandle() {
     throw new UnsupportedOperationException();
   }
 }
