@@ -169,10 +169,12 @@ Stmt Inline(Stmt stmt,
  * \param stmt The stmt to be trasnformed.
  * \param extern_buffer Map specifies external
  *    buffer assignment of input and outputs.
+ * \param cache_line_size The size of CPU cache line.
  * \return Transformed stmt.
  */
 Stmt StorageFlatten(Stmt stmt,
-                    Map<Tensor, Buffer> extern_buffer);
+                    Map<Tensor, Buffer> extern_buffer,
+                    int cache_line_size);
 
 /*!
  * \brief Remove No Op from the Stmt.
