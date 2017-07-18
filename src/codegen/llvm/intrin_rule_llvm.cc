@@ -28,7 +28,7 @@ inline void DispatchLLVMBuildin(const TVMArgs& targs, TVMRetValue* rv) {
     cargs.push_back(arg);
   }
   *rv = Call::make(
-      call->type, "llvm_builtin", cargs, Call::PureIntrinsic);
+      call->type, "llvm_builtin", cargs, Call::Intrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.prefetch")
