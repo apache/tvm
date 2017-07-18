@@ -181,7 +181,7 @@ extern "C" int funcInvokeCallback(TVMValue *args,
 
   jclass clsFunc = env->FindClass("ml/dmlc/tvm/Function");
   jmethodID invokeRegisteredCbFunc = env->GetStaticMethodID(clsFunc, "invokeRegisteredCbFunc",
-      "(I[Lml/dmlc/tvm/TVMValue;)Lml/dmlc/tvm/TVMValue;");
+      "(I[Lml/dmlc/tvm/TVMValue;)Ljava/lang/Object;");
   jmethodID pushArgToStack = env->GetStaticMethodID(clsFunc, "pushArgToStack",
       "(Ljava/lang/Object;)V");
 

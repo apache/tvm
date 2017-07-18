@@ -140,7 +140,7 @@ void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
 }
 
 jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
-  // TODO(yizhi): support more types.
+  // TODO(yizhi): support kBytes.
   switch (tcode) {
     case kUInt:
     case kInt:

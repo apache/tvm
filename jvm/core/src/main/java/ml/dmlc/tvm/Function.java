@@ -272,7 +272,7 @@ public class Function extends TVMValue {
   }
 
   public static interface Callback {
-    public TVMValue invoke(TVMValue... args);
+    public Object invoke(TVMValue... args);
   }
 
   /**
@@ -312,7 +312,7 @@ public class Function extends TVMValue {
     return fid;
   }
 
-  private static synchronized TVMValue invokeRegisteredCbFunc(int fid, TVMValue[] args) {
+  private static synchronized Object invokeRegisteredCbFunc(int fid, TVMValue[] args) {
     Callback cb = funcTable.get(fid);
     if (cb == null) {
       System.err.println("[ERROR] Cannot find registered function with id = " + fid);
@@ -328,12 +328,12 @@ public class Function extends TVMValue {
   public static void main(String[] args) {
     System.out.println("Register ...");
     Function.register("xyz", new Callback() {
-      @Override public TVMValue invoke(TVMValue... args) {
+      @Override public Object invoke(TVMValue... args) {
         long res = 0L;
         for (TVMValue arg : args) {
           res += arg.asLong();
         }
-        return new TVMValueLong(res);
+        return res;
       }
     });
     System.out.println("Get registered function ...");
@@ -341,19 +341,23 @@ public class Function extends TVMValue {
     System.out.println("Call registered function ...");
     TVMValue res = func.pushArg(10).pushArg(20).invoke();
     System.out.println("Result = " + res.asLong());
+    res.release();
+    func.release();
 
     System.out.println("Register str function ...");
     Function.register("str", new Callback() {
-      @Override public TVMValue invoke(TVMValue... args) {
+      @Override public Object invoke(TVMValue... args) {
         String res = "";
         for (TVMValue arg : args) {
           res += arg.asString();
         }
-        return new TVMValueString(res);
+        return res;
       }
     });
     Function func2 = Function.getFunction("str");
-    TVMValue res2 = func2.pushArg("Hello").pushArg(" ").pushArg("World").invoke();
+    TVMValue res2 = func2.pushArg("Hello").pushArg(" ").pushArg("World!").invoke();
     System.out.println("Result = " + res2.asString());
+    res2.release();
+    func2.release();
   }
 }
