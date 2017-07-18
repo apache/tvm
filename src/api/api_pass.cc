@@ -86,7 +86,7 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
 REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
 REGISTER_PASS4(Inline);
-REGISTER_PASS2(StorageFlatten);
+REGISTER_PASS3(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS4(UnrollLoop);
 REGISTER_PASS2(StorageSync);
@@ -95,6 +95,7 @@ REGISTER_PASS2(BindDeviceType);
 REGISTER_PASS1(SplitHostDevice);
 REGISTER_PASS1(StorageRewrite);
 REGISTER_PASS1(InjectVirtualThread);
+REGISTER_PASS1(InjectPrefetch);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
 REGISTER_PASS2(SplitPipeline);

@@ -5,6 +5,7 @@
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
 #include <tvm/runtime/device_api.h>
@@ -20,16 +21,18 @@ namespace ir {
 using Halide::Internal::Region;
 using runtime::StorageScope;
 using runtime::ThreadScope;
+using intrinsic::tvm_address_of;
 
 class StorageFlattener : public IRMutator {
  public:
-  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer) {
+  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer, int cache_line_size) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
       e.external = true;
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = e;
     }
+    cache_line_size_ = cache_line_size;
   }
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
@@ -169,6 +172,62 @@ class StorageFlattener : public IRMutator {
     }
   }
 
+  Stmt Mutate_(const Prefetch *op, const Stmt &s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Prefetch>();
+    CHECK(op != nullptr);
+    TensorKey key{op->func, op->value_index};
+    auto it = buf_map_.find(key);
+    CHECK(it != buf_map_.end())
+        << "Cannot find allocated buffer for " << key.f;
+    const BufferEntry& e = it->second;
+
+    CHECK(!e.released)
+        << "Read a buffer that is already out of scope";
+    CHECK_EQ(e.buffer->shape.size(), op->bounds.size())
+      << "Prefetch dim should be the same as buffer dim";
+
+    int block_size = 1,
+        elem_cnt = cache_line_size_ / e.buffer->dtype.bytes(),
+        shape = 0;
+
+    int starts = op->bounds.size() - 1;
+    while (starts > 0 && arith::GetConstInt(e.buffer->shape[starts], &shape)
+        && elem_cnt >= block_size * shape) {
+      block_size *= shape;
+      starts--;
+    }
+    Expr stride(elem_cnt / block_size);
+
+    Array<Expr> args;
+    std::vector<VarExpr> vars;
+
+    for (int i = op->bounds.size() - 1; i > starts; --i) {
+      args.push_back(op->bounds[i]->min);
+    }
+    auto &func_name = op->func->func_name();
+    vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(starts), Int(32)));
+    args.push_back(op->bounds[starts]->min + stride * vars.back());
+    for (int i = starts - 1; i >= 0; --i) {
+      vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(i), Int(32)));
+      args.push_back(vars.back() + op->bounds[i]->min);
+    }
+    for (int i = starts; i >= 0; --i) {
+      if (i < starts) {
+        stmt = For::make(
+            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+      } else {
+        Expr load = e.buffer.MakeLoad(e.RelIndex(args));
+        Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
+        Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
+        stmt = Evaluate::make(prefetch);
+        Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
+        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
+      }
+    }
+    return stmt;
+  }
+
  private:
   // Start bind
   Stmt HandleBufferBindScope(const AttrStmt* op) {
@@ -252,11 +311,14 @@ class StorageFlattener : public IRMutator {
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
+  // The size of cacheline
+  int cache_line_size_;
 };
 
 Stmt StorageFlatten(Stmt stmt,
-                    Map<Tensor, Buffer> extern_buffer) {
-  stmt = StorageFlattener(extern_buffer).Mutate(stmt);
+                    Map<Tensor, Buffer> extern_buffer,
+                    int cache_line_size) {
+  stmt = StorageFlattener(extern_buffer, cache_line_size).Mutate(stmt);
   return stmt;
 }
 

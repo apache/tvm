@@ -28,7 +28,7 @@ def test_add_pipeline():
     Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
     Cb = tvm.decl_buffer(C.shape, C.dtype, name='C')
     stmt = tvm.ir_pass.LoopPartition(stmt)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb})
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0, True)
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]

@@ -95,11 +95,11 @@ MakeLoopNest(const Stage& stage,
             << "Cannot prefetch on trivial loop with extent=1";
         CHECK_EQ(it_attr->prefetch_data.size(),
                  it_attr->prefetch_offset.size());
-        for (size_t i = 0; i < it_attr->prefetch_data.size(); ++i) {
+        for (size_t j = 0; j < it_attr->prefetch_data.size(); ++j) {
           nest[i + 1].emplace_back(
-              AttrStmt::make(it_attr->prefetch_data[i],
+              AttrStmt::make(it_attr->prefetch_data[j],
                              ir::attr::prefetch_scope,
-                             it_attr->prefetch_offset[i], no_op));
+                             it_attr->prefetch_offset[j], no_op));
         }
       }
     } else if (bind_iv->thread_tag == "vthread") {

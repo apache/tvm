@@ -422,4 +422,18 @@ class Stage(NodeBase):
         """
         _api_internal._StageParallel(self, var)
 
+    def prefetch(self, tensor, var, offset):
+        """Prefetch the specified variable
+
+        Parameters
+        ----------
+        tensor : Tensor
+            The tensor to be prefetched
+        var : IterVar
+            The loop point at which the prefetching is applied
+        offset : Expr
+            The number of iterations to be prefetched before actual execution
+        """
+        _api_internal._StagePrefetch(self, tensor, var, offset)
+
 _init_api("tvm.schedule")
