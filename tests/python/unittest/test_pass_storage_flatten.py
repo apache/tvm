@@ -21,8 +21,14 @@ def test_flatten2():
 
 def test_flatten_prefetch():
     A = tvm.placeholder((25, 100, 4), name = 'A')
-    stmt = tvm.make.Prefetch(A.op, 0, A.dtype, [(0, 2), (0, 2), (0, 4)])
-    print stmt
+    _A= tvm.decl_buffer(A.shape, A.dtype, name = 'A');
+    i = tvm.var('i')
+    j = tvm.var('j')
+    stmt = tvm.make.Prefetch(A.op, 0, A.dtype, [tvm.make.range_by_min_extent(i, 2), tvm.make.range_by_min_extent(j, 8), tvm.make.range_by_min_extent(0, 4)])
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A})
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert str(stmt.extent) == "2"
+    assert str(stmt.body.extent) == "2"
 
 if __name__ == "__main__":
     test_flatten2()
