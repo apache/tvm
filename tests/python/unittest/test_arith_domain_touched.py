@@ -1,4 +1,4 @@
-import tvm, numpy
+import tvm
 
 def test_domain_touched():
     i = tvm.var('i')

@@ -1,4 +1,4 @@
-import tvm, numpy
+import tvm
 
 def test_flatten2():
     m = tvm.var('m')
