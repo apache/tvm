@@ -12,7 +12,7 @@ def test_llvm_intrin():
     ]
     ib.emit(tvm.make.Evaluate(
         tvm.make.Call(
-            "int32", "__buildin_prefetch", args, tvm.expr.Call.Intrinsic, None, 0)))
+            "int32", "prefetch", args, tvm.expr.Call.Intrinsic, None, 0)))
     body = ib.get()
     func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
