@@ -20,15 +20,35 @@ def test_domain_touched():
             )
     )
     a_domain_r = tvm.arith.DomainTouched(ir, a, True, False)
-    assert str(a_domain_r) == "[range(min=-1, ext=100),range(min=-1, ext=m)]"
+    assert a_domain_r[0].min.value == -1
+    assert a_domain_r[0].extent.value == 100
+    assert a_domain_r[1].min.value == -1
+    assert a_domain_r[1].extent.name == 'm'
+
     a_domain_w = tvm.arith.DomainTouched(ir, a, False, True)
-    assert str(a_domain_w) == "[range(min=0, ext=100),range(min=0, ext=m)]"
+    assert a_domain_w[0].min.value == 0
+    assert a_domain_w[0].extent.value == 100
+    assert a_domain_w[1].min.value == 0
+    assert a_domain_w[1].extent.name == 'm'
+
     a_domain_rw= tvm.arith.DomainTouched(ir, a, True, True)
-    assert str(a_domain_rw) == "[range(min=-1, ext=101),range(min=-1, ext=(m + 1))]"
+    assert a_domain_rw[0].min.value == -1
+    assert a_domain_rw[0].extent.value == 101
+    assert a_domain_rw[1].min.value == -1
+    assert isinstance(a_domain_rw[1].extent, tvm.expr.Add)
+    assert a_domain_rw[1].extent.a.name == 'm'
+    assert a_domain_rw[1].extent.b.value == 1
+
     b_domain_r = tvm.arith.DomainTouched(ir, b, True, False)
-    assert str(b_domain_r) == "[range(min=-1, ext=100),range(min=1, ext=m)]"
+    assert b_domain_r
+    assert b_domain_r[0].min.value == -1
+    assert b_domain_r[0].extent.value == 100
+    assert b_domain_r[1].min.value == 1
+    assert b_domain_r[1].extent.name == 'm'
+
     b_domain_w = tvm.arith.DomainTouched(ir, b, False, True)
-    assert str(b_domain_w) == "[]"
+    assert isinstance(b_domain_w, tvm.container.Array)
+    assert len(b_domain_w) == 0
 
 if __name__ == "__main__":
     test_domain_touched()

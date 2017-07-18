@@ -28,8 +28,9 @@ def test_flatten_prefetch():
     stmt = tvm.make.Prefetch(A.op, 0, A.dtype, region)
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert str(stmt.extent) == "2"
-    assert str(stmt.body.extent) == "2"
+    assert stmt.extent.value == 2
+    assert isinstance(stmt.body, tvm.stmt.For)
+    assert stmt.body.extent.value == 2
 
 if __name__ == "__main__":
     test_flatten2()
