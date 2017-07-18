@@ -24,7 +24,7 @@ def test_flatten_prefetch():
     _A= tvm.decl_buffer(A.shape, A.dtype, name = 'A');
     i = tvm.var('i')
     j = tvm.var('j')
-    region = map(lambda a: tvm.make.range_by_min_extent(a[0], a[1]), [(i, 2), (j, 8), (0, 4)])
+    region = [tvm.make.range_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
     stmt = tvm.make.Prefetch(A.op, 0, A.dtype, region)
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
