@@ -7,27 +7,6 @@ from tvm.contrib import nvcc_compiler
 import topi
 from topi.nn.util import get_const_tuple
 
-TASK = "conv2d_hwcn_map"
-USE_MANUAL_CODE = False
-
-@tvm.register_func
-def tvm_callback_cuda_compile(code):
-    ptx = nvcc_compiler.compile_source(code, target="ptx", options=["-arch=sm_52"])
-    return ptx
-
-def write_code(code, fname):
-    with open(fname, "w") as f:
-        f.write(code)
-
-@tvm.register_func
-def tvm_callback_cuda_postproc(code):
-    if not os.path.exists("perf"):
-        os.mkdir("perf")
-    write_code(code, "perf/%s_generated.cu" % TASK)
-    if USE_MANUAL_CODE:
-        code = open("perf/%s_manual.cu" % TASK).read()
-    return code
-
 
 def conv2d_hwcn_python(a_np, w_np, stride, padding):
     in_height, in_width, in_channel, batch = a_np.shape
