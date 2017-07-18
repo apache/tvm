@@ -28,7 +28,7 @@ class PrefetchInjector : public IRMutator {
       Region region;
 
       auto iter_var = loop_nest_.back().get();
-      vectorized_[iter_var] = arith::IntSet::single_point(loop_nest_.back() + op->value);
+      vectorized_[iter_var] = IntSet::single_point(loop_nest_.back() + op->value);
 
       for (Range r : domain) {
         if (!r.defined()) {
@@ -36,7 +36,7 @@ class PrefetchInjector : public IRMutator {
           return op->body;
         }
         Range res(EvalSet(r, vectorized_).cover_range(none));
-        region.push_back(Halide::IR::Range::make_by_min_extent(res->min, res->extent));
+        region.push_back(Range::make_by_min_extent(res->min, res->extent));
       }
 
       vectorized_.erase(iter_var);
@@ -51,7 +51,7 @@ class PrefetchInjector : public IRMutator {
     auto &var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {
-      vectorized_[var.get()] = arith::IntSet::interval(op->min, (op->min + op->extent) - 1);
+      vectorized_[var.get()] = IntSet::interval(op->min, (op->min + op->extent) - 1);
     }
     Stmt ret = IRMutator::Mutate_(op, s);
     if (op->for_type == ForType::Vectorized) {

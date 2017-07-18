@@ -175,51 +175,54 @@ class StorageFlattener : public IRMutator {
   Stmt Mutate_(const Prefetch *op, const Stmt &s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Prefetch>();
-    if (op) {
-      TensorKey key{op->func, op->value_index};
-      auto it = buf_map_.find(key);
-      CHECK(it != buf_map_.end())
-          << "Cannot find allocated buffer for " << key.f;
-      const BufferEntry& e = it->second;
-      CHECK(!e.released)
-          << "Read a buffer that is already out of scope";
+    CHECK(op != nullptr);
+    TensorKey key{op->func, op->value_index};
+    auto it = buf_map_.find(key);
+    CHECK(it != buf_map_.end())
+        << "Cannot find allocated buffer for " << key.f;
+    const BufferEntry& e = it->second;
 
-      CHECK(e.buffer->shape.size() == op->bounds.size())
-        << "Prefetch dim should be the same as buffer dim";
-      Expr block_size(1);
-      Expr elem_cnt = cache_line_size_ / e.buffer->dtype.bytes();
-      int starts = op->bounds.size() - 1;
-      while (starts > 0 && can_prove(elem_cnt >= block_size * e.buffer->shape[starts])) {
-        block_size *= e.buffer->shape[starts];
-        starts--;
-      }
-      Expr stride = elem_cnt / block_size;
+    CHECK(!e.released)
+        << "Read a buffer that is already out of scope";
+    CHECK_EQ(e.buffer->shape.size(), op->bounds.size())
+      << "Prefetch dim should be the same as buffer dim";
 
-      Array<Expr> args;
-      std::vector<VarExpr> vars;
+    int block_size = 1,
+        elem_cnt = cache_line_size_ / e.buffer->dtype.bytes(),
+        shape = 0;
 
-      for (int i = op->bounds.size() - 1; i > starts; --i) {
-        args.push_back(op->bounds[i]->min);
-      }
-      auto &func_name = op->func->func_name();
-      vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(starts), Int(32)));
-      args.push_back(op->bounds[starts]->min + stride * vars.back());
-      for (int i = starts - 1; i >= 0; --i) {
-        vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(i), Int(32)));
-        args.push_back(vars.back() + op->bounds[i]->min);
-      }
-      for (int i = starts; i >= 0; --i) {
-        if (i < starts) {
-          stmt = For::make(
-              vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
-        } else {
-          Expr load = e.buffer.MakeLoad(e.RelIndex(args));
-          Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
-          Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
-          stmt = Evaluate::make(prefetch);
-          Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
-          stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
-        }
+    int starts = op->bounds.size() - 1;
+    while (starts > 0 && arith::GetConstInt(e.buffer->shape[starts], &shape)
+        && elem_cnt >= block_size * shape) {
+      block_size *= shape;
+      starts--;
+    }
+    Expr stride(elem_cnt / block_size);
+
+    Array<Expr> args;
+    std::vector<VarExpr> vars;
+
+    for (int i = op->bounds.size() - 1; i > starts; --i) {
+      args.push_back(op->bounds[i]->min);
+    }
+    auto &func_name = op->func->func_name();
+    vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(starts), Int(32)));
+    args.push_back(op->bounds[starts]->min + stride * vars.back());
+    for (int i = starts - 1; i >= 0; --i) {
+      vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(i), Int(32)));
+      args.push_back(vars.back() + op->bounds[i]->min);
+    }
+    for (int i = starts; i >= 0; --i) {
+      if (i < starts) {
+        stmt = For::make(
+            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+      } else {
+        Expr load = e.buffer.MakeLoad(e.RelIndex(args));
+        Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
+        Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
+        stmt = Evaluate::make(prefetch);
+        Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
+        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
       }
     }
     return stmt;
