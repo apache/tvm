@@ -16,7 +16,7 @@ def test_flatten2():
 
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b})
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
 
 def test_flatten_prefetch():
@@ -24,8 +24,9 @@ def test_flatten_prefetch():
     _A= tvm.decl_buffer(A.shape, A.dtype, name = 'A');
     i = tvm.var('i')
     j = tvm.var('j')
-    stmt = tvm.make.Prefetch(A.op, 0, A.dtype, [tvm.make.range_by_min_extent(i, 2), tvm.make.range_by_min_extent(j, 8), tvm.make.range_by_min_extent(0, 4)])
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A})
+    region = map(lambda a: tvm.make.range_by_min_extent(a[0], a[1]), [(i, 2), (j, 8), (0, 4)])
+    stmt = tvm.make.Prefetch(A.op, 0, A.dtype, region)
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert str(stmt.extent) == "2"
     assert str(stmt.body.extent) == "2"

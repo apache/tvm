@@ -25,13 +25,14 @@ using intrinsic::tvm_address_of;
 
 class StorageFlattener : public IRMutator {
  public:
-  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer) {
+  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer, int cache_line_size) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
       e.external = true;
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = e;
     }
+    cache_line_size_ = cache_line_size;
   }
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
@@ -171,7 +172,6 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-#define cache_line_size 64
   Stmt Mutate_(const Prefetch *op, const Stmt &s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Prefetch>();
@@ -187,7 +187,7 @@ class StorageFlattener : public IRMutator {
       CHECK(e.buffer->shape.size() == op->bounds.size())
         << "Prefetch dim should be the same as buffer dim";
       Expr block_size(1);
-      Expr elem_cnt = cache_line_size / e.buffer->dtype.bytes();
+      Expr elem_cnt = cache_line_size_ / e.buffer->dtype.bytes();
       int starts = op->bounds.size() - 1;
       while (starts > 0 && can_prove(elem_cnt >= block_size * e.buffer->shape[starts])) {
         block_size *= e.buffer->shape[starts];
@@ -224,7 +224,6 @@ class StorageFlattener : public IRMutator {
     }
     return stmt;
   }
-#undef cache_line_size
 
  private:
   // Start bind
@@ -309,11 +308,14 @@ class StorageFlattener : public IRMutator {
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
+  // The size of cacheline
+  int cache_line_size_;
 };
 
 Stmt StorageFlatten(Stmt stmt,
-                    Map<Tensor, Buffer> extern_buffer) {
-  stmt = StorageFlattener(extern_buffer).Mutate(stmt);
+                    Map<Tensor, Buffer> extern_buffer,
+                    int cache_line_size) {
+  stmt = StorageFlattener(extern_buffer, cache_line_size).Mutate(stmt);
   return stmt;
 }
 

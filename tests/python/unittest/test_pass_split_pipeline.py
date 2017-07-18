@@ -12,7 +12,7 @@ def lower(s, args):
     s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds)
+    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     return stmt

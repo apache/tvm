@@ -186,7 +186,7 @@ def lower(sch,
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.InjectPrefetch(stmt) 
-    stmt = ir_pass.StorageFlatten(stmt, binds)
+    stmt = ir_pass.StorageFlatten(stmt, binds, 64)
     stmt = ir_pass.CanonicalSimplify(stmt)
     if not simple_mode:
         stmt = ir_pass.LoopPartition(stmt)
