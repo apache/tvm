@@ -3,7 +3,6 @@ import os
 import numpy as np
 import scipy.signal
 import tvm
-from tvm.contrib import nvcc_compiler
 import topi
 from topi.nn.util import get_const_tuple
 
