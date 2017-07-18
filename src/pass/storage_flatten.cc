@@ -21,6 +21,7 @@ namespace ir {
 using Halide::Internal::Region;
 using runtime::StorageScope;
 using runtime::ThreadScope;
+using intrinsic::tvm_address_of;
 
 class StorageFlattener : public IRMutator {
  public:
@@ -200,18 +201,22 @@ class StorageFlattener : public IRMutator {
       for (int i = op->bounds.size() - 1; i > starts; --i) {
         args.push_back(op->bounds[i]->min);
       }
-      vars.push_back(VarExpr("prefetch." + op->func->func_name() + "." + std::to_string(starts), Int(32)));
+      auto &func_name = op->func->func_name();
+      vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(starts), Int(32)));
       args.push_back(op->bounds[starts]->min + stride * vars.back());
       for (int i = starts - 1; i >= 0; --i) {
-        vars.push_back(VarExpr("prefetch." + op->func->func_name() + "." + std::to_string(i), Int(32)));
+        vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(i), Int(32)));
         args.push_back(vars.back() + op->bounds[i]->min);
       }
       for (int i = starts; i >= 0; --i) {
         if (i < starts) {
-          stmt = For::make(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+          stmt = For::make(
+              vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
         } else {
-          Expr address = Call::make(Handle(), intrinsic::tvm_address_of, {e.buffer.MakeLoad(e.RelIndex(args))}, Call::PureIntrinsic);
-          stmt = Evaluate::make(Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic));
+          Expr load = e.buffer.MakeLoad(e.RelIndex(args));
+          Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
+          Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
+          stmt = Evaluate::make(prefetch);
           Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
           stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
         }

@@ -19,7 +19,7 @@ using namespace ir;
 
 // Find Read region of the tensor in the stmt.
 class FuncTouchedDomain final : public IRVisitor {
-public:
+ public:
   FuncTouchedDomain(const Tensor &tensor, bool consider_calls, bool consider_provides)
     : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
 
@@ -63,20 +63,22 @@ public:
   }
 
   void Visit_(const Call* op) final {
-    if (consider_calls_ && tensor_->op.same_as(op->func) && tensor_->value_index == op->value_index) {
+    if (consider_calls_ && tensor_->op.same_as(op->func)
+        && tensor_->value_index == op->value_index) {
       Touch(op->args);
     }
     IRVisitor::Visit_(op);
   }
 
   void Visit_(const Provide* op) final {
-    if (consider_provides_ && tensor_->op.same_as(op->func) && tensor_->value_index == op->value_index) {
+    if (consider_provides_ && tensor_->op.same_as(op->func)
+        && tensor_->value_index == op->value_index) {
       Touch(op->args);
     }
     IRVisitor::Visit_(op);
   }
 
-private:
+ private:
   void Touch(const Array<Expr>& args) {
     if (args.size() > bounds_.size()) {
       bounds_.resize(args.size());
