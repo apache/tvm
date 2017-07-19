@@ -135,7 +135,9 @@ LoweredFunc MakeAPI(Stmt body,
   n->handle_data_type = binder.def_handle_dtype();
   n->is_packed_func = num_unpacked_args == 0;
   n->is_restricted = is_restricted;
-
+  body = AttrStmt::make(
+      make_zero(Int(32)), attr::compute_scope,
+      StringImm::make(name + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
     Expr node = StringImm::make("default");
@@ -149,9 +151,6 @@ LoweredFunc MakeAPI(Stmt body,
             Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, Call::Intrinsic)));
-    body = AttrStmt::make(
-        make_zero(Int(32)), attr::compute_scope,
-        StringImm::make(name + "_compute_"), body);
     body = Block::make(set_device, body);
   }
   n->body = MergeNest(

@@ -66,7 +66,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
       return "";
     }
   }
-  // get a CUfunction from primary context in device_id
+  // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(
       size_t device_id, const std::string& func_name) {
     metal::MetalWorkspace* w = metal::MetalWorkspace::Global().get();
@@ -194,7 +194,7 @@ class MetalWrappedFunc {
     id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
     [encoder setComputePipelineState:scache_[device_id]];
     for (size_t i = 0; i < num_buffer_args_; ++i) {
-      void* buf = args[i];
+      void* buf = args[static_cast<int>(i)];
       [encoder setBuffer:(__bridge id<MTLBuffer>)(buf) offset:0 atIndex:i];
     }
     if (num_pack_args_ != 0) {
@@ -287,12 +287,12 @@ Module MetalModuleLoadBinary(void* strm) {
 TVM_REGISTER_GLOBAL("module.loadfile_metal")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = MetalModuleLoadFile(args[0], args[1]);
-    });
+  });
 
 TVM_REGISTER_GLOBAL("module.loadbinary_metal")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = MetalModuleLoadBinary(args[0]);
-    });
+  });
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_METAL_RUNTIME
