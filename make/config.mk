@@ -29,7 +29,7 @@ ADD_CFLAGS =
 # Backend runtimes.
 #---------------------------------------------
 # whether enable CUDA during compile
-USE_CUDA = 1
+USE_CUDA = 0
 
 # whether enable OpenCL during compile
 USE_OPENCL = 0
