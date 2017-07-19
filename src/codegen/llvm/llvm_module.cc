@@ -36,6 +36,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+    if (name == "__tvm_is_system_module") {
+      bool flag =
+          (mptr_->getFunction("__tvm_module_startup") != nullptr);
+      return PackedFunc([flag](TVMArgs args, TVMRetValue *rv) {
+          * rv = flag;
+        });
+    }
     if (ee_ == nullptr) LazyInitJIT();
     std::lock_guard<std::mutex> lock(mutex_);
     const std::string& fname = (name == runtime::symbol::tvm_module_main ?
@@ -118,8 +125,11 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     ctx_ = std::make_shared<llvm::LLVMContext>();
     llvm::SMDiagnostic err;
     module_ = llvm::parseIRFile(file_name, err, *ctx_);
-    CHECK(module_.get() != nullptr)
-        << "Fail to load ir file " << file_name;
+    if (module_.get() == nullptr) {
+      std::string msg = err.getMessage();
+      LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
+                 << "line " << err.getLineNo() << ":" << msg;
+    }
     std::string target = module_->getTargetTriple();
     mptr_ = module_.get();
     std::ostringstream os;
