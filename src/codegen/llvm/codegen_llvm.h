@@ -41,11 +41,14 @@ class CodeGenLLVM :
    * \param tm Target machine model
    * \param ctx The context.
    * \param system_lib Whether to insert system library registration.
+   * \param dynamic_lookup Whether dynamically lookup runtime function
+   *                       or use the runtime function table passed by caller.
    */
   void Init(const std::string& module_name,
             llvm::TargetMachine* tm,
             llvm::LLVMContext* ctx,
-            bool system_lib);
+            bool system_lib,
+            bool dynamic_lookup);
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -114,7 +117,7 @@ class CodeGenLLVM :
   void VisitStmt_(const Evaluate* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
   // create intrinstic given call
-  virtual llvm::Value* CreateIntrinstic(const Call* op);
+  virtual llvm::Value* CreateIntrinsic(const Call* op);
   // create extern function call
   virtual llvm::Value* CreateCallExtern(const Call* op);
   // create call into tvm packed function.
@@ -178,6 +181,7 @@ class CodeGenLLVM :
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
   llvm::MDNode* md_tbaa_alias_set_{nullptr};
+  llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
   // TVM related data types
   llvm::Type* t_tvm_shape_index_{nullptr};
   llvm::Type* t_tvm_func_handle_{nullptr};
@@ -185,13 +189,12 @@ class CodeGenLLVM :
   llvm::StructType* t_tvm_type_{nullptr};
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
-  llvm::FunctionType* t_f_tvm_par_for_lambda_{nullptr};
-  // tvm api functions
-  llvm::Function* f_tvm_func_call_{nullptr};
-  llvm::Function* f_tvm_get_func_from_env_{nullptr};
-  llvm::Function* f_tvm_api_set_last_error_{nullptr};
-  llvm::Function* f_tvm_parallel_for_{nullptr};
-  llvm::Function* f_tvm_register_system_symbol_{nullptr};
+  llvm::FunctionType* ftype_tvm_par_for_lambda_{nullptr};
+  llvm::FunctionType* ftype_tvm_func_call_{nullptr};
+  llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
+  llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
+  llvm::FunctionType* ftype_tvm_parallel_for_{nullptr};
+  llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
   /*! \brief native vector bits of current targetx*/
@@ -200,6 +203,13 @@ class CodeGenLLVM :
   std::unordered_map<const Variable*, StorageInfo> alloc_storage_info_;
 
  private:
+  // Get runtime functions
+  llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
+  llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
+  llvm::Value* RuntimeTVMFuncCall();
+  llvm::Value* RuntimeTVMGetFuncFromEnv();
+  llvm::Value* RuntimeTVMAPISetLastError();
+  llvm::Value* RuntimeTVMParallelFor();
   // comparison op
   llvm::Value* GetVarValue(const Variable* v) const;
   llvm::Value* CreateLT(Type t, llvm::Value* a, llvm::Value* b);
@@ -232,7 +242,7 @@ class CodeGenLLVM :
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
   // Add a function to set global module context
-  void InitGlobalContext();
+  void InitGlobalContext(bool dynamic_lookup);
   // Add module startup function if needed.
   void AddStartupFunction();
   // add alias information.
@@ -247,8 +257,19 @@ class CodeGenLLVM :
   bool is_restricted_{true};
   // set of var that are not restricted(can alias)
   std::unordered_set<const Variable*> alias_var_set_;
-  // The local module_context
+  // Context for injection lookup
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
+  llvm::GlobalVariable* gv_tvm_func_call_{nullptr};
+  llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
+  llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
+  llvm::GlobalVariable* gv_tvm_parallel_for_{nullptr};
+  std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
+  // context for direct dynamic lookup
+  llvm::Function* f_tvm_func_call_{nullptr};
+  llvm::Function* f_tvm_get_func_from_env_{nullptr};
+  llvm::Function* f_tvm_api_set_last_error_{nullptr};
+  llvm::Function* f_tvm_parallel_for_{nullptr};
+  llvm::Function* f_tvm_register_system_symbol_{nullptr};
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.

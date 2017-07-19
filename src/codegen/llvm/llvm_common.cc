@@ -113,8 +113,6 @@ GetLLVMTargetMachine(const std::string& target_str, bool allow_null) {
   return tm;
 }
 
-
-
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
