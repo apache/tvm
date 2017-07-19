@@ -33,6 +33,8 @@ class LibInfo {
 
   native void tvmFuncPushArgString(String arg);
 
+  native void tvmFuncPushArgBytes(byte[] arg);
+
   native void tvmFuncPushArgHandle(long arg, int argType);
 
   native int tvmFuncListGlobalNames(List<String> funcNames);

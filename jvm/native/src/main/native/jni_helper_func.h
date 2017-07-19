@@ -98,6 +98,18 @@ jobject newTVMValueString(JNIEnv *env, const char *value) {
   return object;
 }
 
+jobject newTVMValueBytes(JNIEnv *env, const TVMByteArray *arr) {
+  jbyteArray jarr = env->NewByteArray(arr->size);
+  env->SetByteArrayRegion(jarr, 0, arr->size,
+      reinterpret_cast<jbyte *>(const_cast<char *>(arr->data)));
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueBytes");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "([B)V");
+  jobject object = env->NewObject(cls, constructor, jarr);
+  env->DeleteLocalRef(cls);
+  env->DeleteLocalRef(jarr);
+  return object;
+}
+
 jobject newModule(JNIEnv *env, jlong value) {
   jclass cls = env->FindClass("ml/dmlc/tvm/Module");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
@@ -140,7 +152,6 @@ void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
 }
 
 jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
-  // TODO(yizhi): support kBytes.
   switch (tcode) {
     case kUInt:
     case kInt:
@@ -153,6 +164,8 @@ jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
       return newFunction(env, reinterpret_cast<jlong>(value.v_handle));
     case kStr:
       return newTVMValueString(env, value.v_str);
+    case kBytes:
+      return newTVMValueBytes(env, reinterpret_cast<TVMByteArray *>(value.v_handle));
     case kNull:
       return newObject(env, "ml/dmlc/tvm/TVMValueNull");
     default:

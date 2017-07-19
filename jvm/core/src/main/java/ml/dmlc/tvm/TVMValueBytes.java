@@ -17,42 +17,15 @@
 
 package ml.dmlc.tvm;
 
-public class TVMValue {
-  public final TypeCode typeCode;
+public class TVMValueBytes extends TVMValue {
+  public final byte[] value;
 
-  public TVMValue(TypeCode tc) {
-    typeCode = tc;
+  public TVMValueBytes(byte[] value) {
+    super(TypeCode.BYTES);
+    this.value = value;
   }
 
-  public void release() {
-  }
-
-  public long asLong() {
-    throw new UnsupportedOperationException();
-  }
-
-  public double asDouble() {
-    throw new UnsupportedOperationException();
-  }
-
-  public byte[] asBytes() {
-    throw new UnsupportedOperationException();
-  }
-
-  public Module asModule() {
-    throw new UnsupportedOperationException();
-  }
-
-  public Function asFunction() {
-    throw new UnsupportedOperationException();
-  }
-
-  public String asString() {
-    throw new UnsupportedOperationException();
-  }
-
-  // easy for JNI to use.
-  long asHandle() {
-    throw new UnsupportedOperationException();
+  @Override public byte[] asBytes() {
+    return value;
   }
 }

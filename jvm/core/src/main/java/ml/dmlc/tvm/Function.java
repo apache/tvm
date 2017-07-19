@@ -18,6 +18,7 @@
 package ml.dmlc.tvm;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -217,6 +218,16 @@ public class Function extends TVMValue {
   }
 
   /**
+   * Push argument to the function.
+   * @param arg bytes.
+   * @return this
+   */
+  public Function pushArg(byte[] arg) {
+    Base._LIB.tvmFuncPushArgBytes(arg);
+    return this;
+  }
+
+  /**
    * Invoke function with arguments.
    * @param args Can be Integer, Long, Float, Double, String, NDArray.
    * @return the result.
@@ -239,6 +250,8 @@ public class Function extends TVMValue {
       Base._LIB.tvmFuncPushArgDouble((Double) arg);
     } else if (arg instanceof String) {
       Base._LIB.tvmFuncPushArgString((String) arg);
+    } else if (arg instanceof byte[]) {
+      Base._LIB.tvmFuncPushArgBytes((byte[]) arg);
     } else if (arg instanceof NDArray) {
       Base._LIB.tvmFuncPushArgHandle(((NDArray) arg).handle, TypeCode.ARRAY_HANDLE.id);
     } else if (arg instanceof Module) {
@@ -257,6 +270,9 @@ public class Function extends TVMValue {
           break;
         case STR:
           Base._LIB.tvmFuncPushArgString(tvmArg.asString());
+          break;
+        case BYTES:
+          Base._LIB.tvmFuncPushArgBytes(tvmArg.asBytes());
           break;
         case ARRAY_HANDLE:
         case MODULE_HANDLE:
@@ -321,6 +337,11 @@ public class Function extends TVMValue {
     return cb.invoke(args);
   }
 
+  private static synchronized void freeCallback(int fid) {
+    funcTable.remove(fid);
+    freeFuncId.offer(fid);
+  }
+
   /**
    * TODO: Test register cb, will remove.
    * @param args arguments.
@@ -359,5 +380,23 @@ public class Function extends TVMValue {
     System.out.println("Result = " + res2.asString());
     res2.release();
     func2.release();
+
+    System.out.println("Register bytes function ...");
+    Function.register("bytes", new Callback() {
+      @Override public Object invoke(TVMValue... args) {
+        byte[] bt = new byte[2];
+        for (TVMValue arg : args) {
+          bt[0] = arg.asBytes()[0];
+        }
+        System.out.println("In bytes callback java function 3");
+        bt[1] = 2;
+        return bt;
+      }
+    });
+    Function func3 = Function.getFunction("bytes");
+    TVMValue res3 = func3.pushArg(new byte[]{1}).invoke();
+    System.out.println("Result = " + Arrays.toString(res3.asBytes()));
+    res3.release();
+    func3.release();
   }
 }
