@@ -30,11 +30,10 @@ def main():
     libs = []
     if args.with_executor:
         load_library += ["libtvm_graph_exec.so"]
-    if load_library:
-        for file_name in load_library:
-            file_name = find_lib_path(file_name, apps_path)[0]
-            libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
-            logging.info("Load additional library %s", file_name)
+    for file_name in load_library:
+        file_name = find_lib_path(file_name, apps_path)[0]
+        libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
+        logging.info("Load additional library %s", file_name)
 
     server = rpc.Server(args.host, args.port, args.port_end)
     server.libs += libs
