@@ -72,7 +72,7 @@ There are several ways to install the package:
 
     ```bash
     # install tvm package for the current user
-    # NOTE: if you installed python via homebrew, you do not --user during installaiton
+    # NOTE: if you installed python via homebrew, --user is not needed during installaiton
     #       it will be automatically installed to your user directory.
     #       providing --user flag may trigger error during installation in such case.
     cd python; python setup.py install --user
