@@ -5,6 +5,73 @@ import tvm
 import numpy as np
 from .util import get_const_tuple
 
+
+@tvm.tag_scope(tag="conv2d_hwcn")
+def conv2d_hwcn(Input, Filter, stride, padding):
+    """Convolution operator in HWCN layout.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [in_height, in_width, in_channel, batch]
+
+    Filter : tvm.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [out_height, out_width, out_channel, batch]
+    """
+    assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(padding, int) or padding in ['VALID', 'SAME']
+    in_height, in_width, in_channel, batch = get_const_tuple(Input.shape)
+    kernel_h, kernel_w, channel, num_filter = get_const_tuple(Filter.shape)
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+    # compute the padding size
+    if isinstance(padding, int):
+        pad_h = pad_w = padding * 2
+    elif padding == 'VALID':
+        pad_h = 0
+        pad_w = 0
+    else: # 'SAME'
+        pad_h = kernel_h - 1
+        pad_w = kernel_w - 1
+    pad_top = int(np.ceil(float(pad_h) / 2))
+    pad_left = int(np.ceil(float(pad_w) / 2))
+    # compute the output shape
+    out_channel = num_filter
+    out_height = (in_height - kernel_h + pad_h) // stride_h + 1
+    out_width = (in_width - kernel_w + pad_w) // stride_w + 1
+    # compute graph
+    PaddedInput = tvm.compute(
+        (in_height + pad_h, in_width + pad_w, in_channel, batch),
+        lambda yy, xx, cc, nn: tvm.select(
+            tvm.all(yy >= pad_top, yy - pad_top < in_height,
+                    xx >= pad_left, xx - pad_left < in_width),
+            Input[yy - pad_top, xx - pad_left, cc, nn], tvm.const(0.)),
+        name='PaddedInput')
+    rc = tvm.reduce_axis((0, in_channel), name='rc')
+    ry = tvm.reduce_axis((0, kernel_h), name='ry')
+    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    Output = tvm.compute(
+        (out_height, out_width, out_channel, batch),
+        lambda yy, xx, ff, nn: tvm.sum(
+            PaddedInput[yy * stride_h + ry, xx * stride_w + rx, rc, nn] * Filter[ry, rx, rc, ff],
+            axis=[ry, rx, rc]),
+        name='Conv2dOutput')
+    return Output
+
+
 @tvm.tag_scope(tag="depthwise_conv2d")
 def depthwise_conv2d(Input, Filter, Stride, padding):
     """Depthwise convolution operator.
