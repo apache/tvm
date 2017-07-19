@@ -219,7 +219,7 @@ std::vector<Expr> MakeBoundCheck(
     if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
       Expr value = ComputeExpr<Sub>(value_map.at(iv), iv->dom->min);
       Expr vmax = EvalSet(value, iset_dmap).max();
-      if (vmax.type() != value.type() || !can_prove(vmax < dom->extent)) {
+      if (vmax.type() != value.type() || !can_prove(vmax < iv->dom->extent)) {
         preds.emplace_back(value < iv->dom->extent);
       }
     }
