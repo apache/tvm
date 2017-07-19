@@ -198,17 +198,30 @@ std::vector<Expr> MakeBoundCheck(
   }
   PassUpBoundCheck(stage, dom_map, &bound_state);
   std::vector<Expr> preds;
+  std::unordered_map<const Variable*, IntSet> iset_dmap;
+
+  // setup domain map for set analysis
+  for (const auto& kv : dom_map) {
+    iset_dmap[kv.first->var.get()] = IntSet::range(kv.second);
+  }
+
   for (IterVar iv : stage->op->root_iter_vars()) {
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
     Range dom = dom_map.at(iv);
     if (bound_state.at(iv)) {
-      preds.emplace_back(
-          ComputeExpr<Sub>(value_map.at(iv), dom->min) < dom->extent);
+      Expr value = ComputeExpr<Sub>(value_map.at(iv), dom->min);
+      Expr vmax = EvalSet(value, iset_dmap).max();
+      if (vmax.type() != value.type() || !can_prove(vmax < dom->extent)) {
+        preds.emplace_back(value < dom->extent);
+      }
     }
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
-      preds.emplace_back(
-          ComputeExpr<Sub>(value_map.at(iv), iv->dom->min) < iv->dom->extent);
+      Expr value = ComputeExpr<Sub>(value_map.at(iv), iv->dom->min);
+      Expr vmax = EvalSet(value, iset_dmap).max();
+      if (vmax.type() != value.type() || !can_prove(vmax < dom->extent)) {
+        preds.emplace_back(value < iv->dom->extent);
+      }
     }
   }
   return preds;
