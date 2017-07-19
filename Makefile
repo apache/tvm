@@ -154,12 +154,12 @@ verilog: $(VER_LIBS)
 # Special rules for LLVM related modules.
 build/codegen/llvm/%.o: src/codegen/llvm/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/codegen/llvm/$*.o $< >build/codegen/llvm/$*.d
 	$(CXX) -c $(CFLAGS) $(LLVM_CFLAGS) -c $< -o $@
 
 build/runtime/metal/%.o: src/runtime/metal/%.mm
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
 build/%.o: src/%.cc
@@ -199,7 +199,7 @@ pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
-jnilint:                                                                                                                            
+jnilint:
 	python dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
 lint: cpplint pylint jnilint

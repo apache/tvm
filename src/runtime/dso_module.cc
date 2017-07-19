@@ -40,7 +40,7 @@ class DSOModuleNode final : public ModuleNode {
           << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
       faddr = reinterpret_cast<BackendPackedCFunc>(GetSymbol(entry_name));
     } else {
-      faddr = reinterpret_cast<BackendPackedCFunc>(GetSymbol(name));
+      faddr = reinterpret_cast<BackendPackedCFunc>(GetSymbol(name.c_str()));
     }
     if (faddr == nullptr) return PackedFunc();
     return WrapPackedFunc(faddr, sptr_to_self);
@@ -48,12 +48,13 @@ class DSOModuleNode final : public ModuleNode {
 
   void Init(const std::string& name) {
     Load(name);
-    void** ctx_addr =
-        reinterpret_cast<void**>(
-            GetSymbol(runtime::symbol::tvm_module_ctx));
-    if (ctx_addr != nullptr) {
+    if (auto *ctx_addr =
+        reinterpret_cast<void**>(GetSymbol(runtime::symbol::tvm_module_ctx))) {
       *ctx_addr = this;
     }
+    InitContextFunctions([this](const char* fname) {
+        return GetSymbol(fname);
+      });
     // Load the imported modules
     const char* dev_mblob =
         reinterpret_cast<const char*>(
@@ -76,9 +77,9 @@ class DSOModuleNode final : public ModuleNode {
     CHECK(lib_handle_ != nullptr)
         << "Failed to load dynamic shared library " << name;
   }
-  void* GetSymbol(const std::string& name) {
+  void* GetSymbol(const char* name) {
     return reinterpret_cast<void*>(
-        GetProcAddress(lib_handle_, (LPCSTR)name.c_str())); // NOLINT(*)
+        GetProcAddress(lib_handle_, (LPCSTR)name)); // NOLINT(*)
   }
   void Unload() {
     FreeLibrary(lib_handle_);
@@ -92,8 +93,8 @@ class DSOModuleNode final : public ModuleNode {
     CHECK(lib_handle_ != nullptr)
         << "Failed to load dynamic shared library " << name;
   }
-  void* GetSymbol(const std::string& name) {
-    return dlsym(lib_handle_, name.c_str());
+  void* GetSymbol(const char* name) {
+    return dlsym(lib_handle_, name);
   }
   void Unload() {
     dlclose(lib_handle_);
