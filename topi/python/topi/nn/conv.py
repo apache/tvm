@@ -8,7 +8,7 @@ from .util import get_const_tuple
 
 @tvm.tag_scope(tag="conv2d_hwcn")
 def conv2d_hwcn(Input, Filter, stride, padding):
-    """Depthwise convolution operator.
+    """Convolution operator in HWCN layout.
 
     Parameters
     ----------
@@ -22,7 +22,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
         Stride size, or [stride_height, stride_width]
 
     padding : int or str
-        Padding size or ['VALID', 'SAME']
+        Padding size, or ['VALID', 'SAME']
 
     Returns
     -------

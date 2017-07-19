@@ -1,10 +1,33 @@
+# pylint: disable=invalid-name, line-too-long, unused-variable
+"""Convolution in python"""
 import numpy as np
 import scipy.signal
 
 
 def conv2d_hwcn_python(a_np, w_np, stride, padding):
+    """Convolution operator in HWCN layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        4-D with shape [in_height, in_width, in_channel, batch]
+
+    w_np : numpy.ndarray
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [out_height, out_width, out_channel, batch]
+    """
     in_height, in_width, in_channel, batch = a_np.shape
-    kernel_h, kernel_w, channel, num_filter = w_np.shape
+    kernel_h, kernel_w, _, num_filter = w_np.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -40,5 +63,5 @@ def conv2d_hwcn_python(a_np, w_np, stride, padding):
                     apad = at[n, c]
                 out = scipy.signal.convolve2d(
                     apad, np.rot90(np.rot90(wt[f, c])), mode='valid')
-                bt[n, f] += out[::stride,::stride]
+                bt[n, f] += out[::stride, ::stride]
     return bt.transpose((2, 3, 1, 0))
