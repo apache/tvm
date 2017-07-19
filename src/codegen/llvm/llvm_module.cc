@@ -104,7 +104,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_);
     entry_func_ = funcs[0]->name;
-    cg->Init(funcs[0]->name, tm_, ctx_.get(), system_lib);
+    cg->Init(funcs[0]->name, tm_, ctx_.get(), system_lib, system_lib);
     for (LoweredFunc f :  funcs) {
       cg->AddFunction(f);
     }
@@ -152,16 +152,17 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << "Failed to initialize git engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
     // setup context address.
-    void** ctx_addr =
-        reinterpret_cast<void**>(
-            ee_->getGlobalValueAddress(runtime::symbol::tvm_module_ctx));
-    // setup context address.
     entry_func_ =
         reinterpret_cast<const char*>(
             ee_->getGlobalValueAddress(runtime::symbol::tvm_module_main));
-    if (ctx_addr != nullptr) {
+    if (void** ctx_addr = reinterpret_cast<void**>(
+            ee_->getGlobalValueAddress(runtime::symbol::tvm_module_ctx))) {
       *ctx_addr = this;
     }
+    runtime::InitContextFunctions([this](const char *name) {
+        auto value =  ee_->getGlobalValueAddress(name);
+        return value;
+      });
   }
   // The target configuration string
   std::string target_;
