@@ -154,12 +154,12 @@ verilog: $(VER_LIBS)
 # Special rules for LLVM related modules.
 build/codegen/llvm/%.o: src/codegen/llvm/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/codegen/llvm/$*.o $< >build/codegen/llvm/$*.d
+	$(CXX) $(CFLAGS) $(LLVM_CFLAGS) -MM -MT build/codegen/llvm/$*.o $< >build/codegen/llvm/$*.d
 	$(CXX) -c $(CFLAGS) $(LLVM_CFLAGS) -c $< -o $@
 
 build/runtime/metal/%.o: src/runtime/metal/%.mm
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
+	$(CXX) $(OBJCFLAGS) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
 build/%.o: src/%.cc
@@ -233,3 +233,4 @@ clean:
 -include build/*.d
 -include build/*/*.d
 -include build/*/*/*.d
+-include build/*/*/*/*.d

@@ -39,7 +39,8 @@ class SockChannel final : public RPCChannel {
   common::TCPSocket sock_;
 };
 
-Module RPCConnect(std::string url, int port, std::string key) {
+std::shared_ptr<RPCSession>
+RPCConnect(std::string url, int port, std::string key) {
   common::TCPSocket sock;
   common::SockAddr addr(url.c_str(), port);
   sock.Create();
@@ -47,8 +48,6 @@ Module RPCConnect(std::string url, int port, std::string key) {
       << "Connect to " << addr.AsString() << " failed";
   // hand shake
   std::ostringstream os;
-  os << "client:" << key;
-  key = os.str();
   int code = kRPCMagic;
   int keylen = static_cast<int>(key.length());
   CHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
@@ -64,15 +63,16 @@ Module RPCConnect(std::string url, int port, std::string key) {
   } else if (code == kRPCMagic + 1) {
     sock.Close();
     LOG(FATAL) << "URL " << url << ":" << port
-               << " server already have client key=" << key;
+               << " server already have key=" << key;
   } else if (code != kRPCMagic) {
     sock.Close();
     LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
   }
-  return CreateRPCModule(
-      RPCSession::Create(
-          std::unique_ptr<SockChannel>(new SockChannel(sock)),
-          "SockClient"));
+  return RPCSession::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), key);
+}
+
+Module RPCClientConnect(std::string url, int port, std::string key) {
+  return CreateRPCModule(RPCConnect(url, port, "client:" + key));
 }
 
 void RPCServerLoop(int sockfd) {
@@ -85,7 +85,7 @@ void RPCServerLoop(int sockfd) {
 
 TVM_REGISTER_GLOBAL("contrib.rpc._Connect")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = RPCConnect(args[0], args[1], args[2]);
+    *rv = RPCClientConnect(args[0], args[1], args[2]);
   });
 
 TVM_REGISTER_GLOBAL("contrib.rpc._ServerLoop")

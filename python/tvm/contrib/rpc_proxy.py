@@ -390,7 +390,7 @@ class Proxy(object):
                  port=9091,
                  port_end=9199,
                  web_port=0,
-                 timeout_client=10,
+                 timeout_client=240,
                  timeout_server=600,
                  index_page=None,
                  resource_files=None):

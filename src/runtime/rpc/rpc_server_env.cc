@@ -36,12 +36,5 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.download")
     *rv = arr;
   });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.load_module")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-    std::string file_name = RPCGetPath(args[0]);
-    *rv = Module::LoadFromFile(file_name, "");
-    LOG(INFO) << "Load module from " << file_name << " ...";
-  });
-
 }  // namespace runtime
 }  // namespace tvm

@@ -64,7 +64,10 @@ class Module(ModuleBase):
         """
         _SaveToFile(self, file_name, fmt)
 
-    def export_library(self, file_name):
+    def export_library(self,
+                       file_name,
+                       fcompile=None,
+                       **kwargs):
         """Export the module and its imported device code one library.
 
         This function only works on host llvm modules.
@@ -74,6 +77,12 @@ class Module(ModuleBase):
         ----------
         file_name : str
             The name of the shared library.
+
+        fcompile : function(target, file_list, **kwargs), optional
+            Compilation function to use create dynamic library.
+
+        kwargs : dict, optiona;
+            Additional arguments passed to fcompile
         """
         if self.type_key == "stacktvm":
             raise ValueError("Module[%s]: export_library requires llvm module,"
@@ -85,18 +94,14 @@ class Module(ModuleBase):
         path_obj = temp.relpath("lib.o")
         self.save(path_obj)
         files = [path_obj]
-        try:
-            self.get_function("__tvm_module_startup")
-            is_system_lib = True
-        except AttributeError:
-            is_system_lib = False
-
+        is_system_lib = self.get_function("__tvm_is_system_module")()
         if self.imported_modules:
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:
                 f.write(_PackImportsToC(self, is_system_lib))
             files.append(path_cc)
-        _cc.create_shared(file_name, files)
+        fcompile = fcompile if fcompile else _cc.create_shared
+        fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number):
         """Get an evaluator that measures time cost of running function.
