@@ -195,7 +195,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
 extern "C" int funcInvokeCallback(TVMValue *args,
     int *typeCodes, int numArgs, TVMRetValueHandle ret, void *resourceHandle) {
   JNIEnv *env;
-  _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), NULL);
+  int jniStatus = _jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (jniStatus == JNI_EDETACHED) {
+    _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr);
+  } else {
+    CHECK(jniStatus == JNI_OK);
+  }
 
   jclass tvmValueCls = env->FindClass("ml/dmlc/tvm/TVMValue");
   jobjectArray jargs = env->NewObjectArray(numArgs, tvmValueCls, 0);
@@ -211,12 +216,12 @@ extern "C" int funcInvokeCallback(TVMValue *args,
 
   jclass clsFunc = env->FindClass("ml/dmlc/tvm/Function");
   jmethodID invokeRegisteredCbFunc = env->GetStaticMethodID(clsFunc, "invokeRegisteredCbFunc",
-      "(I[Lml/dmlc/tvm/TVMValue;)Ljava/lang/Object;");
+      "(Lml/dmlc/tvm/Function$Callback;[Lml/dmlc/tvm/TVMValue;)Ljava/lang/Object;");
   jmethodID pushArgToStack = env->GetStaticMethodID(clsFunc, "pushArgToStack",
       "(Ljava/lang/Object;)V");
 
   jobject jretValue = env->CallStaticObjectMethod(clsFunc, invokeRegisteredCbFunc,
-      (jint)(size_t) resourceHandle, jargs);
+      (jobject)(size_t) resourceHandle, jargs);
 
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
   const int prevNumStrArg = e->tvmFuncArgPushedStrs.size();
@@ -260,21 +265,20 @@ extern "C" int funcInvokeCallback(TVMValue *args,
 // Free callback function
 extern "C" void funcFreeCallback(void *resourceHandle) {
   JNIEnv *env;
-  _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), NULL);
-
-  jclass clsFunc = env->FindClass("ml/dmlc/tvm/Function");
-  jmethodID freeCallback = env->GetStaticMethodID(clsFunc, "freeCallback", "(I)V");
-
-  env->CallStaticVoidMethod(clsFunc, freeCallback, (jint)(size_t) resourceHandle);
-
-  env->DeleteLocalRef(clsFunc);
+  int jniStatus = _jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (jniStatus == JNI_EDETACHED) {
+    _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr);
+  } else {
+    CHECK(jniStatus == JNI_OK);
+  }
+  env->DeleteGlobalRef((jobject)(size_t) resourceHandle);
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCreateFromCFunc(
-  JNIEnv *env, jobject obj, jint jfid, jobject jretHandle) {
+  JNIEnv *env, jobject obj, jobject jfunction, jobject jretHandle) {
   TVMFunctionHandle out;
   int ret = TVMFuncCreateFromCFunc(reinterpret_cast<TVMPackedCFunc>(&funcInvokeCallback),
-                                   reinterpret_cast<void *>(jfid),
+                                   reinterpret_cast<void *>(env->NewGlobalRef(jfunction)),
                                    reinterpret_cast<TVMPackedCFuncFinalizer>(&funcFreeCallback),
                                    &out);
   setLongField(env, jretHandle, reinterpret_cast<jlong>(out));

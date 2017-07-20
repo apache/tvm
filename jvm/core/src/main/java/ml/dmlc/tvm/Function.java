@@ -19,11 +19,7 @@ package ml.dmlc.tvm;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Queue;
 
 /**
  * TVM Packed Function.
@@ -297,9 +293,8 @@ public class Function extends TVMValue {
    * @param override Whether override existing entry.
    */
   public static void register(String name, Callback function, boolean override) {
-    int fid = genFunctionId(function);
     Base.RefLong createdFuncHandleRef = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(fid, createdFuncHandleRef));
+    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(function, createdFuncHandleRef));
     int ioverride = override ? 1 : 0;
     Base.checkCall(Base._LIB.tvmFuncRegisterGlobal(name, createdFuncHandleRef.value, ioverride));
   }
@@ -313,31 +308,22 @@ public class Function extends TVMValue {
     register(name, function, false);
   }
 
-  private static Map<Integer, Callback> funcTable = new HashMap<Integer, Callback>();
-  private static Queue<Integer> freeFuncId = new LinkedList<Integer>();
-
-  private static synchronized int genFunctionId(Callback func) {
-    int fid;
-    if (!freeFuncId.isEmpty()) {
-      fid = freeFuncId.poll();
-    } else {
-      fid = funcTable.size();
-    }
-    funcTable.put(fid, func);
-    return fid;
+  /**
+   * Convert a Java function to TVM function.
+   * @param function Java function.
+   * @return TVM function.
+   */
+  public static Function convertFunc(Callback function) {
+    Base.RefLong createdFuncHandleRef = new Base.RefLong();
+    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(function, createdFuncHandleRef));
+    return new Function(createdFuncHandleRef.value);
   }
 
-  private static synchronized Object invokeRegisteredCbFunc(int fid, TVMValue[] args) {
-    Callback cb = funcTable.get(fid);
+  private static Object invokeRegisteredCbFunc(Callback cb, TVMValue[] args) {
     if (cb == null) {
-      System.err.println("[ERROR] Cannot find registered function with id = " + fid);
+      System.err.println("[ERROR] Failed to get registered function");
       return null;
     }
     return cb.invoke(args);
-  }
-
-  private static synchronized void freeCallback(int fid) {
-    funcTable.remove(fid);
-    freeFuncId.offer(fid);
   }
 }

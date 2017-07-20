@@ -42,8 +42,8 @@ public class FunctionTest {
   }
 
   @Test
-  public void test_reg_add_string() {
-    Function.register("add_string", new Function.Callback() {
+  public void test_add_string() {
+    Function func = Function.convertFunc(new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         String res = "";
         for (TVMValue arg : args) {
@@ -52,7 +52,6 @@ public class FunctionTest {
         return res;
       }
     });
-    Function func = Function.getFunction("add_string");
     TVMValue res = func.pushArg("Hello").pushArg(" ").pushArg("World!").invoke();
     assertEquals("Hello World!", res.asString());
     res.release();
@@ -60,8 +59,8 @@ public class FunctionTest {
   }
 
   @Test
-  public void test_reg_sum_first_byte() {
-    Function.register("sum_first_byte", new Function.Callback() {
+  public void test_sum_first_byte() {
+    Function func = Function.convertFunc(new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         byte[] bt = new byte[1];
         for (TVMValue arg : args) {
@@ -70,7 +69,6 @@ public class FunctionTest {
         return bt;
       }
     });
-    Function func = Function.getFunction("sum_first_byte");
     TVMValue res = func.pushArg(new byte[]{1}).pushArg(new byte[]{2, 3}).invoke();
     assertArrayEquals(new byte[]{3}, res.asBytes());
     res.release();
@@ -78,9 +76,9 @@ public class FunctionTest {
   }
 
   @Test
-  public void test_reg_sum_ndarray() {
+  public void test_sum_ndarray() {
     final long[] shape = new long[]{2, 1};
-    Function.register("sum_ndarray", new Function.Callback() {
+    Function func = Function.convertFunc(new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         double sum = 0.0;
         for (TVMValue arg : args) {
@@ -95,12 +93,31 @@ public class FunctionTest {
         return sum;
       }
     });
-    Function func = Function.getFunction("sum_ndarray");
     NDArray arr = NDArray.empty(shape, new TVMType("float32"));
     arr.copyFrom(new float[]{2f, 3f});
     TVMValue res = func.pushArg(arr).pushArg(arr).invoke();
     assertEquals(10.0, res.asDouble(), 1e-3);
     res.release();
     func.release();
+  }
+
+  @Test
+  public void test_return_function() {
+    Function myFunc = Function.convertFunc(new Function.Callback() {
+      @Override public Object invoke(TVMValue... args) {
+        final long y = args[0].asLong();
+        return Function.convertFunc(new Function.Callback() {
+          @Override public Object invoke(TVMValue... args) {
+            final long x = args[0].asLong();
+            return x + y;
+          }
+        });
+      }
+    });
+    Function func = myFunc.pushArg(10).invoke().asFunction();
+    TVMValue res = func.pushArg(20).invoke();
+    assertEquals(30, res.asLong());
+    func.release();
+    myFunc.release();
   }
 }

@@ -45,7 +45,7 @@ class LibInfo {
 
   native int tvmFuncCall(long handle, Base.RefTVMValue retVal);
 
-  native int tvmFuncCreateFromCFunc(int functionId, Base.RefLong handle);
+  native int tvmFuncCreateFromCFunc(Function.Callback function, Base.RefLong handle);
 
   native int tvmFuncRegisterGlobal(String name, long handle, int override);
 
