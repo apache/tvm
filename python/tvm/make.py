@@ -30,6 +30,33 @@ def range_by_min_extent(min_value, extent):
     return _range_by_min_extent(min_value, extent)
 
 
+def node(type_key, **kwargs):
+    """Make a new DSL node by its type key and fields
+
+    Parameters
+    ----------
+    type_key : str
+        The type key of the node.
+
+    **kwargs : dict
+        The fields of the node.
+
+    Example
+    -------
+    The following code constructs a IntImm object
+
+    .. code-block:: python
+
+       x = tvm.make.node("IntImm", dtype="int32", value=10)
+       assert isinstance(x, tvm.expr.IntImm)
+       assert x.value == 10
+    """
+    args = [type_key]
+    for k, v in kwargs.items():
+        args += [k, v]
+    return _Node(*args)
+
+
 def stmt_seq(*args):
     """Make sequence of statements
 
