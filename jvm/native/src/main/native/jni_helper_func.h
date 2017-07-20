@@ -88,8 +88,46 @@ jobject newTVMValueDouble(JNIEnv *env, jdouble value) {
   return object;
 }
 
-jobject newTVMValueModuleHandle(JNIEnv *env, jlong value) {
-  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueModuleHandle");
+jobject newTVMValueString(JNIEnv *env, const char *value) {
+  jstring jvalue = env->NewStringUTF(value);
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueString");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
+  jobject object = env->NewObject(cls, constructor, jvalue);
+  env->DeleteLocalRef(cls);
+  env->DeleteLocalRef(jvalue);
+  return object;
+}
+
+jobject newTVMValueBytes(JNIEnv *env, const TVMByteArray *arr) {
+  jbyteArray jarr = env->NewByteArray(arr->size);
+  env->SetByteArrayRegion(jarr, 0, arr->size,
+      reinterpret_cast<jbyte *>(const_cast<char *>(arr->data)));
+  jclass cls = env->FindClass("ml/dmlc/tvm/TVMValueBytes");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "([B)V");
+  jobject object = env->NewObject(cls, constructor, jarr);
+  env->DeleteLocalRef(cls);
+  env->DeleteLocalRef(jarr);
+  return object;
+}
+
+jobject newModule(JNIEnv *env, jlong value) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/Module");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject object = env->NewObject(cls, constructor, value);
+  env->DeleteLocalRef(cls);
+  return object;
+}
+
+jobject newFunction(JNIEnv *env, jlong value) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/Function");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject object = env->NewObject(cls, constructor, value);
+  env->DeleteLocalRef(cls);
+  return object;
+}
+
+jobject newNDArray(JNIEnv *env, jlong value) {
+  jclass cls = env->FindClass("ml/dmlc/tvm/NDArrayBase");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
   jobject object = env->NewObject(cls, constructor, value);
   env->DeleteLocalRef(cls);
@@ -119,6 +157,30 @@ void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
   ctx->device_id = static_cast<int>(env->GetIntField(jctx,
     env->GetFieldID(tvmContextClass, "deviceId", "I")));
   env->DeleteLocalRef(tvmContextClass);
+}
+
+jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
+  switch (tcode) {
+    case kUInt:
+    case kInt:
+      return newTVMValueLong(env, static_cast<jlong>(value.v_int64));
+    case kFloat:
+      return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
+    case kModuleHandle:
+      return newModule(env, reinterpret_cast<jlong>(value.v_handle));
+    case kFuncHandle:
+      return newFunction(env, reinterpret_cast<jlong>(value.v_handle));
+    case kArrayHandle:
+      return newNDArray(env, reinterpret_cast<jlong>(value.v_handle));
+    case kStr:
+      return newTVMValueString(env, value.v_str);
+    case kBytes:
+      return newTVMValueBytes(env, reinterpret_cast<TVMByteArray *>(value.v_handle));
+    case kNull:
+      return newObject(env, "ml/dmlc/tvm/TVMValueNull");
+    default:
+      LOG(FATAL) << "Do NOT know how to handle return type code " << tcode;
+  }
 }
 
 #endif  // TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_

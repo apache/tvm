@@ -17,15 +17,15 @@
 
 package ml.dmlc.tvm;
 
-public class TVMValueNDArrayHandle extends TVMValue {
-  public final long value;
+public class TVMValueBytes extends TVMValue {
+  public final byte[] value;
 
-  public TVMValueNDArrayHandle(long value) {
-    super(TypeCode.ARRAY_HANDLE);
+  public TVMValueBytes(byte[] value) {
+    super(TypeCode.BYTES);
     this.value = value;
   }
 
-  @Override public NDArray asNDArray() {
-    return new NDArray(value);
+  @Override public byte[] asBytes() {
+    return value;
   }
 }

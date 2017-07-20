@@ -21,7 +21,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class Function {
+/**
+ * TVM Packed Function.
+ */
+public class Function extends TVMValue {
   final long handle;
   public final boolean isResident;
   private boolean isReleased = false;
@@ -76,14 +79,31 @@ public class Function {
    * @param handle the handle to the underlying function.
    * @param isResident Whether this is a resident function in jvm
    */
-  public Function(long handle, boolean isResident) {
+  Function(long handle, boolean isResident) {
+    super(TypeCode.FUNC_HANDLE);
     this.handle = handle;
     this.isResident = isResident;
+  }
+
+  Function(long handle) {
+    this(handle, false);
   }
 
   @Override protected void finalize() throws Throwable {
     release();
     super.finalize();
+  }
+
+  /**
+   * Easy for user to get the instance from returned TVMValue.
+   * @return this
+   */
+  @Override public Function asFunction() {
+    return this;
+  }
+
+  @Override long asHandle() {
+    return handle;
   }
 
   /**
@@ -93,7 +113,7 @@ public class Function {
    * and `finalize()` is not guaranteed to be called when GC happens.
    * </p>
    */
-  public void release() {
+  @Override public void release() {
     if (!isReleased) {
       if (!isResident) {
         Base.checkCall(Base._LIB.tvmFuncFree(handle));
@@ -167,8 +187,38 @@ public class Function {
    * @param arg NDArray.
    * @return this
    */
-  public Function pushArg(NDArray arg) {
+  public Function pushArg(NDArrayBase arg) {
     Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.ARRAY_HANDLE.id);
+    return this;
+  }
+
+  /**
+   * Push argument to the function.
+   * @param arg Module.
+   * @return this
+   */
+  public Function pushArg(Module arg) {
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.MODULE_HANDLE.id);
+    return this;
+  }
+
+  /**
+   * Push argument to the function.
+   * @param arg Function.
+   * @return this
+   */
+  public Function pushArg(Function arg) {
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.FUNC_HANDLE.id);
+    return this;
+  }
+
+  /**
+   * Push argument to the function.
+   * @param arg bytes.
+   * @return this
+   */
+  public Function pushArg(byte[] arg) {
+    Base._LIB.tvmFuncPushArgBytes(arg);
     return this;
   }
 
@@ -179,22 +229,101 @@ public class Function {
    */
   public TVMValue call(Object... args) {
     for (Object arg : args) {
-      if (arg instanceof Integer) {
-        pushArg((Integer) arg);
-      } else if (arg instanceof Long) {
-        pushArg((Long) arg);
-      } else if (arg instanceof Float) {
-        pushArg((Float) arg);
-      } else if (arg instanceof Double) {
-        pushArg((Double) arg);
-      } else if (arg instanceof String) {
-        pushArg((String) arg);
-      } else if (arg instanceof NDArray) {
-        pushArg((NDArray) arg);
-      } else {
-        throw new IllegalArgumentException("Invalid argument: " + arg);
-      }
+      pushArgToStack(arg);
     }
     return invoke();
+  }
+
+  private static void pushArgToStack(Object arg) {
+    if (arg instanceof Integer) {
+      Base._LIB.tvmFuncPushArgLong((Integer) arg);
+    } else if (arg instanceof Long) {
+      Base._LIB.tvmFuncPushArgLong((Long) arg);
+    } else if (arg instanceof Float) {
+      Base._LIB.tvmFuncPushArgDouble((Float) arg);
+    } else if (arg instanceof Double) {
+      Base._LIB.tvmFuncPushArgDouble((Double) arg);
+    } else if (arg instanceof String) {
+      Base._LIB.tvmFuncPushArgString((String) arg);
+    } else if (arg instanceof byte[]) {
+      Base._LIB.tvmFuncPushArgBytes((byte[]) arg);
+    } else if (arg instanceof NDArrayBase) {
+      Base._LIB.tvmFuncPushArgHandle(((NDArrayBase) arg).handle, TypeCode.ARRAY_HANDLE.id);
+    } else if (arg instanceof Module) {
+      Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, TypeCode.MODULE_HANDLE.id);
+    } else if (arg instanceof Function) {
+      Base._LIB.tvmFuncPushArgHandle(((Function) arg).handle, TypeCode.FUNC_HANDLE.id);
+    } else if (arg instanceof TVMValue) {
+      TVMValue tvmArg = (TVMValue) arg;
+      switch (tvmArg.typeCode) {
+        case UINT:
+        case INT:
+          Base._LIB.tvmFuncPushArgLong(tvmArg.asLong());
+          break;
+        case FLOAT:
+          Base._LIB.tvmFuncPushArgDouble(tvmArg.asDouble());
+          break;
+        case STR:
+          Base._LIB.tvmFuncPushArgString(tvmArg.asString());
+          break;
+        case BYTES:
+          Base._LIB.tvmFuncPushArgBytes(tvmArg.asBytes());
+          break;
+        case ARRAY_HANDLE:
+        case MODULE_HANDLE:
+        case FUNC_HANDLE:
+          Base._LIB.tvmFuncPushArgHandle(tvmArg.asHandle(), tvmArg.typeCode.id);
+          break;
+        default:
+          throw new IllegalArgumentException("Invalid argument: " + arg);
+      }
+    } else {
+      throw new IllegalArgumentException("Invalid argument: " + arg);
+    }
+  }
+
+  public static interface Callback {
+    public Object invoke(TVMValue... args);
+  }
+
+  /**
+   * Register user-defined global function.
+   * @param name The function name.
+   * @param function The function to be registered.
+   * @param override Whether override existing entry.
+   */
+  public static void register(String name, Callback function, boolean override) {
+    Base.RefLong createdFuncHandleRef = new Base.RefLong();
+    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(function, createdFuncHandleRef));
+    int ioverride = override ? 1 : 0;
+    Base.checkCall(Base._LIB.tvmFuncRegisterGlobal(name, createdFuncHandleRef.value, ioverride));
+  }
+
+  /**
+   * Register user-defined global function, do not override existing entry.
+   * @param name The function name.
+   * @param function The function to be registered.
+   */
+  public static void register(String name, Callback function) {
+    register(name, function, false);
+  }
+
+  /**
+   * Convert a Java function to TVM function.
+   * @param function Java function.
+   * @return TVM function.
+   */
+  public static Function convertFunc(Callback function) {
+    Base.RefLong createdFuncHandleRef = new Base.RefLong();
+    Base.checkCall(Base._LIB.tvmFuncCreateFromCFunc(function, createdFuncHandleRef));
+    return new Function(createdFuncHandleRef.value);
+  }
+
+  private static Object invokeRegisteredCbFunc(Callback cb, TVMValue[] args) {
+    if (cb == null) {
+      System.err.println("[ERROR] Failed to get registered function");
+      return null;
+    }
+    return cb.invoke(args);
   }
 }

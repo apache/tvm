@@ -20,56 +20,57 @@ package ml.dmlc.tvm;
 import java.util.List;
 
 class LibInfo {
-  public native int nativeLibInit(String tvmLibFile);
+  native int nativeLibInit(String tvmLibFile);
 
-  public native int shutdown();
+  native int shutdown();
 
-  public native String tvmGetLastError();
+  native String tvmGetLastError();
 
   // Function
-  public native void tvmFuncPushArgLong(long arg);
+  native void tvmFuncPushArgLong(long arg);
 
-  public native void tvmFuncPushArgDouble(double arg);
+  native void tvmFuncPushArgDouble(double arg);
 
-  public native void tvmFuncPushArgString(String arg);
+  native void tvmFuncPushArgString(String arg);
 
-  public native void tvmFuncPushArgHandle(long arg, int argType);
+  native void tvmFuncPushArgBytes(byte[] arg);
 
-  public native int tvmFuncListGlobalNames(List<String> funcNames);
+  native void tvmFuncPushArgHandle(long arg, int argType);
 
-  public native int tvmFuncFree(long handle);
+  native int tvmFuncListGlobalNames(List<String> funcNames);
 
-  public native int tvmFuncGetGlobal(String name, Base.RefLong handle);
+  native int tvmFuncFree(long handle);
 
-  public native int tvmFuncCall(long handle, Base.RefTVMValue retVal);
+  native int tvmFuncGetGlobal(String name, Base.RefLong handle);
+
+  native int tvmFuncCall(long handle, Base.RefTVMValue retVal);
+
+  native int tvmFuncCreateFromCFunc(Function.Callback function, Base.RefLong handle);
+
+  native int tvmFuncRegisterGlobal(String name, long handle, int override);
 
   // Module
-  public native int tvmModFree(long handle);
+  native int tvmModFree(long handle);
 
-  public native int tvmModGetFunction(long handle, String name,
+  native int tvmModGetFunction(long handle, String name,
                                       int queryImports, Base.RefLong retHandle);
 
-  public native int tvmModImport(long mod, long dep);
+  native int tvmModImport(long mod, long dep);
 
   // NDArray
-  public native int tvmArrayFree(long handle);
+  native int tvmArrayFree(long handle);
 
-  public native int tvmArrayAlloc(long[] shape,
-                                  int dtypeCode,
-                                  int dtypeBits,
-                                  int dtypeLanes,
-                                  int deviceType,
-                                  int deviceId,
-                                  Base.RefLong refHandle);
+  native int tvmArrayAlloc(long[] shape, int dtypeCode, int dtypeBits, int dtypeLanes,
+      int deviceType, int deviceId, Base.RefLong refHandle);
 
-  public native int tvmArrayGetShape(long handle, List<Long> shape);
+  native int tvmArrayGetShape(long handle, List<Long> shape);
 
-  public native int tvmArrayCopyFromTo(long from, long to);
+  native int tvmArrayCopyFromTo(long from, long to);
 
-  public native int tvmArrayCopyFromJArray(byte[] fromRaw, long from, long to);
+  native int tvmArrayCopyFromJArray(byte[] fromRaw, long from, long to);
 
-  public native int tvmArrayCopyToJArray(long from, byte[] to);
+  native int tvmArrayCopyToJArray(long from, byte[] to);
 
   // TVMContext
-  public native int tvmSynchronize(int deviceType, int deviceId);
+  native int tvmSynchronize(int deviceType, int deviceId);
 }

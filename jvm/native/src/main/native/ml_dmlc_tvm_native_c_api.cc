@@ -22,6 +22,7 @@ struct TVMFuncArgsThreadLocalEntry {
   std::vector<int> tvmFuncArgTypes;
   // for later release
   std::vector<std::pair<jstring, const char *> > tvmFuncArgPushedStrs;
+  std::vector<std::pair<jbyteArray, TVMByteArray *> > tvmFuncArgPushedBytes;
 };
 typedef dmlc::ThreadLocalStore<TVMFuncArgsThreadLocalEntry> TVMFuncArgsThreadLocalStore;
 
@@ -90,6 +91,26 @@ JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgHandle(
   e->tvmFuncArgTypes.push_back(static_cast<int>(argType));
 }
 
+JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgBytes(
+  JNIEnv *env, jobject obj, jbyteArray arg) {
+  jbyteArray garg = reinterpret_cast<jbyteArray>(env->NewGlobalRef(arg));
+  jbyte *data = env->GetByteArrayElements(garg, 0);
+
+  TVMByteArray *byteArray = new TVMByteArray();
+  byteArray->size = static_cast<size_t>(env->GetArrayLength(garg));
+  byteArray->data = reinterpret_cast<const char *>(data);
+
+  TVMValue value;
+  value.v_handle = reinterpret_cast<void *>(byteArray);
+
+  TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
+  e->tvmFuncArgValues.push_back(value);
+  e->tvmFuncArgTypes.push_back(kBytes);
+
+  e->tvmFuncArgPushedBytes.push_back(std::make_pair(garg, byteArray));
+  // release (garg, data), byteArray later
+}
+
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncListGlobalNames(
   JNIEnv *env, jobject obj, jobject jfuncNames) {
   int outSize;
@@ -145,7 +166,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
     env->ReleaseStringUTFChars(iter->first, iter->second);
     env->DeleteGlobalRef(iter->first);
   }
+  for (auto iter = e->tvmFuncArgPushedBytes.cbegin();
+        iter != e->tvmFuncArgPushedBytes.cend(); iter++) {
+    env->ReleaseByteArrayElements(iter->first,
+        reinterpret_cast<jbyte *>(const_cast<char *>(iter->second->data)), 0);
+    env->DeleteGlobalRef(iter->first);
+    delete iter->second;
+  }
+
   e->tvmFuncArgPushedStrs.clear();
+  e->tvmFuncArgPushedBytes.clear();
   e->tvmFuncArgTypes.clear();
   e->tvmFuncArgValues.clear();
 
@@ -154,29 +184,113 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   jfieldID refTVMValueFid
     = env->GetFieldID(refTVMValueCls, "value", "Lml/dmlc/tvm/TVMValue;");
 
-  switch (retTypeCode) {
-    case kInt:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newTVMValueLong(env, static_cast<jlong>(retVal.v_int64)));
-      break;
-    case kFloat:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newTVMValueDouble(env, static_cast<jdouble>(retVal.v_float64)));
-      break;
-    case kModuleHandle:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newTVMValueModuleHandle(env, reinterpret_cast<jlong>(retVal.v_handle)));
-      break;
-    case kNull:
-      env->SetObjectField(jretVal, refTVMValueFid,
-        newObject(env, "ml/dmlc/tvm/TVMValueNull"));
-      break;
-    default:
-      LOG(FATAL) << "Do NOT know how to handle return type code " << retTypeCode;
-  }
+  env->SetObjectField(jretVal, refTVMValueFid, tvmRetValueToJava(env, retVal, retTypeCode));
 
   env->DeleteLocalRef(refTVMValueCls);
 
+  return ret;
+}
+
+// Callback function
+extern "C" int funcInvokeCallback(TVMValue *args,
+    int *typeCodes, int numArgs, TVMRetValueHandle ret, void *resourceHandle) {
+  JNIEnv *env;
+  int jniStatus = _jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (jniStatus == JNI_EDETACHED) {
+    _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr);
+  } else {
+    CHECK(jniStatus == JNI_OK);
+  }
+
+  jclass tvmValueCls = env->FindClass("ml/dmlc/tvm/TVMValue");
+  jobjectArray jargs = env->NewObjectArray(numArgs, tvmValueCls, 0);
+  for (int i = 0; i < numArgs; ++i) {
+    TVMValue arg = args[i];
+    int tcode = typeCodes[i];
+    if (tcode == kNodeHandle || tcode == kFuncHandle || tcode == kModuleHandle) {
+      TVMCbArgToReturn(&arg, tcode);
+    }
+    jobject jarg = tvmRetValueToJava(env, arg, tcode);
+    env->SetObjectArrayElement(jargs, i, jarg);
+  }
+
+  jclass clsFunc = env->FindClass("ml/dmlc/tvm/Function");
+  jmethodID invokeRegisteredCbFunc = env->GetStaticMethodID(clsFunc, "invokeRegisteredCbFunc",
+      "(Lml/dmlc/tvm/Function$Callback;[Lml/dmlc/tvm/TVMValue;)Ljava/lang/Object;");
+  jmethodID pushArgToStack = env->GetStaticMethodID(clsFunc, "pushArgToStack",
+      "(Ljava/lang/Object;)V");
+
+  jobject jretValue = env->CallStaticObjectMethod(clsFunc, invokeRegisteredCbFunc,
+      reinterpret_cast<jobject>(resourceHandle), jargs);
+
+  TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
+  const int prevNumStrArg = e->tvmFuncArgPushedStrs.size();
+  const int prevNumBytesArg = e->tvmFuncArgPushedBytes.size();
+
+  // convert returned (java) TVMValue to (C) TVMValue
+  env->CallStaticVoidMethod(clsFunc, pushArgToStack, jretValue);
+
+  TVMValue retValue = e->tvmFuncArgValues.back();
+  e->tvmFuncArgValues.pop_back();
+
+  int retCode = e->tvmFuncArgTypes.back();
+  e->tvmFuncArgTypes.pop_back();
+
+  // set back the return value
+  TVMCFuncSetReturn(ret, &retValue, &retCode, 1);
+
+  // release allocated strings.
+  if (e->tvmFuncArgPushedStrs.size() > prevNumStrArg) {
+    const auto &pairArg = e->tvmFuncArgPushedStrs.back();
+    env->ReleaseStringUTFChars(pairArg.first, pairArg.second);
+    env->DeleteGlobalRef(pairArg.first);
+    e->tvmFuncArgPushedStrs.pop_back();
+  }
+  // release allocated bytes.
+  if (e->tvmFuncArgPushedBytes.size() > prevNumBytesArg) {
+    const auto &pairArg = e->tvmFuncArgPushedBytes.back();
+    env->ReleaseByteArrayElements(pairArg.first,
+        reinterpret_cast<jbyte *>(const_cast<char *>(pairArg.second->data)), 0);
+    env->DeleteGlobalRef(pairArg.first);
+    delete pairArg.second;
+    e->tvmFuncArgPushedBytes.pop_back();
+  }
+
+  env->DeleteLocalRef(clsFunc);
+  env->DeleteLocalRef(tvmValueCls);
+
+  return 0;
+}
+
+// Free callback function
+extern "C" void funcFreeCallback(void *resourceHandle) {
+  JNIEnv *env;
+  int jniStatus = _jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (jniStatus == JNI_EDETACHED) {
+    _jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr);
+  } else {
+    CHECK(jniStatus == JNI_OK);
+  }
+  env->DeleteGlobalRef(reinterpret_cast<jobject>(resourceHandle));
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCreateFromCFunc(
+  JNIEnv *env, jobject obj, jobject jfunction, jobject jretHandle) {
+  TVMFunctionHandle out;
+  int ret = TVMFuncCreateFromCFunc(reinterpret_cast<TVMPackedCFunc>(&funcInvokeCallback),
+                                   reinterpret_cast<void *>(env->NewGlobalRef(jfunction)),
+                                   reinterpret_cast<TVMPackedCFuncFinalizer>(&funcFreeCallback),
+                                   &out);
+  setLongField(env, jretHandle, reinterpret_cast<jlong>(out));
+  return ret;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncRegisterGlobal(
+  JNIEnv *env, jobject obj, jstring jname, jlong jhandle, jint joverride) {
+  const char *name = env->GetStringUTFChars(jname, 0);
+  int ret = TVMFuncRegisterGlobal(
+      name, reinterpret_cast<TVMFunctionHandle>(jhandle), reinterpret_cast<int>(joverride));
+  env->ReleaseStringUTFChars(jname, name);
   return ret;
 }
 
@@ -223,14 +337,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayAlloc(
 
   jlong *shapeArray = env->GetLongArrayElements(jshape, NULL);
   int ret = TVMArrayAlloc(
-    reinterpret_cast<const tvm_index_t*>(shapeArray),
-    ndim,
-    static_cast<int>(jdtypeCode),
-    static_cast<int>(jdtypeBits),
-    static_cast<int>(jdtypeLanes),
-    static_cast<int>(jdeviceType),
-    static_cast<int>(jdeviceId),
-    &out);
+      reinterpret_cast<const tvm_index_t*>(shapeArray),
+      ndim,
+      static_cast<int>(jdtypeCode),
+      static_cast<int>(jdtypeBits),
+      static_cast<int>(jdtypeLanes),
+      static_cast<int>(jdeviceType),
+      static_cast<int>(jdeviceId),
+      &out);
   env->ReleaseLongArrayElements(jshape, shapeArray, 0);
 
   setLongField(env, jret, reinterpret_cast<jlong>(out));
