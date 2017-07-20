@@ -221,7 +221,7 @@ extern "C" int funcInvokeCallback(TVMValue *args,
       "(Ljava/lang/Object;)V");
 
   jobject jretValue = env->CallStaticObjectMethod(clsFunc, invokeRegisteredCbFunc,
-      (jobject)(size_t) resourceHandle, jargs);
+      reinterpret_cast<jobject>(resourceHandle), jargs);
 
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
   const int prevNumStrArg = e->tvmFuncArgPushedStrs.size();
@@ -271,7 +271,7 @@ extern "C" void funcFreeCallback(void *resourceHandle) {
   } else {
     CHECK(jniStatus == JNI_OK);
   }
-  env->DeleteGlobalRef((jobject)(size_t) resourceHandle);
+  env->DeleteGlobalRef(reinterpret_cast<jobject>(resourceHandle));
 }
 
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCreateFromCFunc(
