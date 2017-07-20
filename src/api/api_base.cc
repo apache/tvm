@@ -30,7 +30,7 @@ TVM_REGISTER_API("_save_json")
 
 TVM_REGISTER_API("_load_json")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = NodeRef(LoadJSON_(args[0]));
+    *ret = LoadJSON<NodeRef>(args[0]);
   });
 
 TVM_REGISTER_API("_nop")

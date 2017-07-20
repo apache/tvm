@@ -8,10 +8,6 @@
 #include <ir/IRPrinter.h>
 #include <memory>
 
-namespace dmlc {
-DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
-}  // namespace dmlc
-
 namespace tvm {
 
 using Halide::IR::RangeNode;

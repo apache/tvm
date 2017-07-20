@@ -1,13 +1,18 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file saveload_json.cc
- * \brief Utilities to save/load TVM objects.
+ * \file reflection.cc
+ * \brief Utilities to save/load/construct TVM objects
  */
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/container.h>
+#include <tvm/packed_func_ext.h>
 #include <dmlc/json.h>
 #include <string>
+
+namespace dmlc {
+DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
+}  // namespace dmlc
 
 namespace tvm {
 
@@ -333,5 +338,76 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
   }
   return nodes.at(jgraph.root);
 }
+
+class NodeAttrSetter : public AttrVisitor {
+ public:
+  std::string type_key;
+  std::unordered_map<std::string, runtime::TVMArgValue> attrs;
+
+  template<typename T>
+  void SetValue(const char* key, T* value) {
+    auto it = attrs.find(key);
+    if (it == attrs.end()) {
+      LOG(FATAL) << type_key << ": require field " << key;
+    }
+    *value = it->second.operator T();
+    attrs.erase(it);
+  }
+  void Visit(const char* key, double* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, int64_t* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, int* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, bool* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, std::string* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, Type* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, NodeRef* value) final {
+    SetValue(key, value);
+  }
+};
+
+// API function to make node.
+// args format:
+//    type_key, key1, value1, ..., key_n, value_n
+void MakeNode(runtime::TVMArgs args, runtime::TVMRetValue* rv) {
+  NodeAttrSetter setter;
+  setter.type_key = args[0].operator std::string();
+  CHECK_EQ(args.size() % 2, 1);
+  for (int i = 1; i < args.size(); i += 2) {
+    setter.attrs.emplace(
+        args[i].operator std::string(),
+        runtime::TVMArgValue(args.values[i + 1], args.type_codes[i + 1]));
+  }
+  auto* f = dmlc::Registry<NodeFactoryReg>::Find(setter.type_key);
+  CHECK(f != nullptr)
+      << "Node type \'" << setter.type_key << "\' is not registered in TVM";
+  std::shared_ptr<Node> n = f->body();
+  n->VisitAttrs(&setter);
+  if (setter.attrs.size() != 0) {
+    std::ostringstream os;
+    os << setter.type_key << " does not contain field ";
+    for (const auto &kv : setter.attrs) {
+      os << " " << kv.first;
+    }
+    LOG(FATAL) << os.str();
+  }
+  *rv = NodeRef(n);
+}
+
+TVM_REGISTER_GLOBAL("make._Node")
+.set_body(MakeNode);
 
 }  // namespace tvm
