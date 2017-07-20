@@ -334,7 +334,7 @@ LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
  * \param f The function to be lowered.
  * \return Transformed function.
  */
-LoweredFunc LowerPackedCall(LoweredFunc f);
+LoweredFunc LowerTVMBuiltin(LoweredFunc f);
 
 /*!
  * \brief Combine context function calls.

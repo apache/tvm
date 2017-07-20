@@ -17,7 +17,7 @@ def lower(s, args, name="mydot"):
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
-    fapi = tvm.ir_pass.LowerPackedCall(fapi)
+    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     return fapi
 
 

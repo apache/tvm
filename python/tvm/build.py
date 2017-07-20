@@ -321,7 +321,7 @@ def build(sch,
     device = "cpu" if target.startswith("llvm") or target == "stackvm" else target
     device_type = ndarray.context(device, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
-    fhost = [ir_pass.LowerPackedCall(x) for x in fhost]
+    fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
 
     if fdevice:

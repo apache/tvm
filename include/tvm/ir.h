@@ -208,6 +208,22 @@ namespace intrinsic {
  */
 constexpr const char* tvm_address_of = "tvm_address_of";
 /*!
+ * \brief Get head access address with memory access pattern info.
+ *
+ *  This operator also marks range of the memory access
+ *  The offset and extent are in unit of the DType(including vectorization factor).
+ *  rw_mask is a bit_mask setting whether the access is a read(1) or write(2).
+ *  The access is assume to happen in the current expression.
+ *
+ *  PtrType tvm_access_ptr(Expr dtype, DType* data,
+ *                         int offset, int extent,
+ *                         int rw_mask) {
+ *    // DType == dtype.type();
+ *    return &data[offset];
+ *  }
+ */
+constexpr const char* tvm_access_ptr = "tvm_access_ptr";
+/*!
  * \brief tvm_tuple is not an actual function and cannot codegen.
  *  It is used to represent tuple structure in value field of AttrStmt,
  *  for the sake of giving hint to optimization.

@@ -32,7 +32,7 @@ def test_add_pipeline():
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0, True)
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
-    fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
+    fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
         if not tvm.module.enabled(host):

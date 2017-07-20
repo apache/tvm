@@ -22,12 +22,22 @@ using Halide::Internal::mul_would_overflow;
  * \brief Compute the expression with the given binary op.
  * \param lhs The left operand
  * \param rhs The right operand
+ * \tparam Op the computation operator
  * \return The result.
  */
 template<typename OP>
 inline Expr ComputeExpr(Expr lhs, Expr rhs) {
   return OP::make(lhs, rhs);
 }
+
+/*!
+ * \brief Compute an reduction with Op
+ * \param values The input values.
+ * \tparam Op The computation operator
+ * \return The result.
+ */
+template<typename Op>
+inline Expr ComputeReduce(const Array<Expr>& values);
 
 template<typename T>
 inline bool GetConst(Expr e, T* out);
@@ -126,6 +136,16 @@ inline Expr ComputeExpr<ir::Max>(Expr a, Expr b) {
 template<>
 inline Expr ComputeExpr<ir::Min>(Expr a, Expr b) {
   return Halide::Internal::Interval::make_min(a, b);
+}
+
+template<typename Op>
+inline Expr ComputeReduce(const Array<Expr>& values) {
+  CHECK_NE(values.size(), 0U);
+  Expr res = values[0];
+  for (size_t i = 1; i < values.size(); ++i) {
+    res = ComputeExpr<Op>(res, values[i]);
+  }
+  return res;
 }
 
 }  // namespace arith

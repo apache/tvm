@@ -89,29 +89,21 @@ void ArgBinder::BindBuffer(const Buffer& arg,
                  << ", provided_alignment=" << value->data_alignment;
   }
   // bind pointer and offset.
-  if (is_zero(arg->elem_offset) && !is_zero(value->elem_offset)) {
-    // If target buffer only accepts pointer, try to fold offset into pointer.
-    Expr addr = AddressOffset(value->data, value->dtype, value->elem_offset);
-    if (Bind_(arg->data, addr, arg_name + ".data", true)) {
-      int offset_factor = arg->data_alignment * 8 / (arg->dtype.bits() * arg->dtype.lanes());
-      if (offset_factor > 1) {
-        Expr offset = value->elem_offset;
-        Expr factor = make_const(offset.type(), offset_factor);
-        Expr zero = make_zero(offset.type());
-        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
-      }
-    }
-  } else {
-    this->Bind(arg->data, value->data, arg_name + ".data");
-    if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
-      if (arg->offset_factor > 1) {
-        Expr offset = value->elem_offset;
-        Expr factor = make_const(offset.type(), arg->offset_factor);
-        Expr zero = make_zero(offset.type());
-        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
-      }
+  if (is_zero(arg->elem_offset)) {
+    CHECK(is_zero(value->elem_offset))
+        << "Trying to bind a Buffer with offset into one without offset";
+  }
+
+  this->Bind(arg->data, value->data, arg_name + ".data");
+  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
+    if (arg->offset_factor > 1) {
+      Expr offset = value->elem_offset;
+      Expr factor = make_const(offset.type(), arg->offset_factor);
+      Expr zero = make_zero(offset.type());
+      BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
     }
   }
+
   if (arg->shape.size() < value->shape.size()) {
     CHECK(fuzzy_match) << "Argument " << arg_name << " size mismatch";
     size_t diff = value->shape.size() - arg->shape.size();

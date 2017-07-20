@@ -299,10 +299,18 @@ void VerifyTensorizeBody(
   for (size_t i = 0; i < body.size(); ++i) {
     Expr lhs = CanonicalSimplify(body[i]);
     Expr rhs = CanonicalSimplify(intrin_compute->body[i]);
+    if (lhs.type() != rhs.type()) {
+      LOG(FATAL)
+          << "Failed to match the data type with TensorIntrin "
+          << intrin->name << "'s declaration "
+          << " provided=" << lhs.type()
+          << ", intrin=" << rhs.type();
+    }
     CHECK(Equal(lhs, rhs))
-        << "Failed to match the compute with TensorIntrin declaration "
-        << " provided:" << lhs
-        << ", intrin:" << rhs;
+        << "Failed to match the compute with TensorIntrin "
+        << intrin->name << "'s declaration "
+        << " provided= " << lhs
+        << ", intrin=  " << rhs;
   }
 }
 

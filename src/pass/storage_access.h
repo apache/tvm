@@ -26,6 +26,7 @@ enum AccessType {
   kSync,
   kAlloc
 };
+
 /*! \brief The access entry */
 struct AccessEntry {
   /*! \brief The buffer variable, if any */
@@ -44,6 +45,7 @@ struct AccessEntry {
               StorageScope scope)
       : buffer(buffer), index(index), type(type), scope(scope) {}
 };
+
 /*! \brief The access info about a statment */
 struct StmtEntry {
   /*! \brief The statement */
@@ -51,6 +53,7 @@ struct StmtEntry {
   /*! \brief access patterns in the statement */
   std::vector<AccessEntry> access;
 };
+
 }  // namespace storage
 }  // namespace ir
 }  // namespace tvm
