@@ -18,7 +18,6 @@
 package ml.dmlc.tvm;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -340,85 +339,5 @@ public class Function extends TVMValue {
   private static synchronized void freeCallback(int fid) {
     funcTable.remove(fid);
     freeFuncId.offer(fid);
-  }
-
-  /**
-   * TODO: Test register cb, will remove.
-   * @param args arguments.
-   */
-  public static void main(String[] args) {
-    System.out.println("Register ...");
-    Function.register("xyz", new Callback() {
-      @Override public Object invoke(TVMValue... args) {
-        long res = 0L;
-        for (TVMValue arg : args) {
-          res += arg.asLong();
-        }
-        return res;
-      }
-    });
-    System.out.println("Get registered function ...");
-    Function func = Function.getFunction("xyz");
-    System.out.println("Call registered function ...");
-    TVMValue res = func.pushArg(10).pushArg(20).invoke();
-    System.out.println("Result = " + res.asLong());
-    res.release();
-    func.release();
-
-    System.out.println("Register str function ...");
-    Function.register("str", new Callback() {
-      @Override public Object invoke(TVMValue... args) {
-        String res = "";
-        for (TVMValue arg : args) {
-          res += arg.asString();
-        }
-        return res;
-      }
-    });
-    Function func2 = Function.getFunction("str");
-    TVMValue res2 = func2.pushArg("Hello").pushArg(" ").pushArg("World!").invoke();
-    System.out.println("Result = " + res2.asString());
-    res2.release();
-    func2.release();
-
-    System.out.println("Register bytes function ...");
-    Function.register("bytes", new Callback() {
-      @Override public Object invoke(TVMValue... args) {
-        byte[] bt = new byte[2];
-        for (TVMValue arg : args) {
-          bt[0] = arg.asBytes()[0];
-        }
-        System.out.println("In bytes callback java function 3");
-        bt[1] = 2;
-        return bt;
-      }
-    });
-    Function func3 = Function.getFunction("bytes");
-    TVMValue res3 = func3.pushArg(new byte[]{1}).invoke();
-    System.out.println("Result = " + Arrays.toString(res3.asBytes()));
-    res3.release();
-    func3.release();
-
-    System.out.println("Register array function ...");
-    final long[] shape = new long[]{2, 1};
-    Function.register("ndarray", new Callback() {
-      @Override public Object invoke(TVMValue... args) {
-        double sum = 0.0;
-        for (TVMValue arg : args) {
-          NDArray arr = NDArray.empty(shape, new TVMType("float32"));
-          arg.asNDArray().copyTo(arr);
-          sum += arr.asFloatArray()[0];
-          arr.release();
-        }
-        return sum;
-      }
-    });
-    Function func4 = Function.getFunction("ndarray");
-    NDArray arr = NDArray.empty(shape, new TVMType("float32"));
-    arr.copyFrom(new float[]{2f, 3f});
-    TVMValue res4 = func4.pushArg(arr).pushArg(arr).invoke();
-    System.out.println("Result = " + res4.asDouble());
-    res4.release();
-    func4.release();
   }
 }
