@@ -192,7 +192,7 @@ public class Function extends TVMValue {
    * @param arg NDArray.
    * @return this
    */
-  public Function pushArg(NDArray arg) {
+  public Function pushArg(NDArrayBase arg) {
     Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.ARRAY_HANDLE.id);
     return this;
   }
@@ -252,8 +252,8 @@ public class Function extends TVMValue {
       Base._LIB.tvmFuncPushArgString((String) arg);
     } else if (arg instanceof byte[]) {
       Base._LIB.tvmFuncPushArgBytes((byte[]) arg);
-    } else if (arg instanceof NDArray) {
-      Base._LIB.tvmFuncPushArgHandle(((NDArray) arg).handle, TypeCode.ARRAY_HANDLE.id);
+    } else if (arg instanceof NDArrayBase) {
+      Base._LIB.tvmFuncPushArgHandle(((NDArrayBase) arg).handle, TypeCode.ARRAY_HANDLE.id);
     } else if (arg instanceof Module) {
       Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, TypeCode.MODULE_HANDLE.id);
     } else if (arg instanceof Function) {
@@ -398,5 +398,27 @@ public class Function extends TVMValue {
     System.out.println("Result = " + Arrays.toString(res3.asBytes()));
     res3.release();
     func3.release();
+
+    System.out.println("Register array function ...");
+    final long[] shape = new long[]{2, 1};
+    Function.register("ndarray", new Callback() {
+      @Override public Object invoke(TVMValue... args) {
+        double sum = 0.0;
+        for (TVMValue arg : args) {
+          NDArray arr = NDArray.empty(shape, new TVMType("float32"));
+          arg.asNDArray().copyTo(arr);
+          sum += arr.asFloatArray()[0];
+          arr.release();
+        }
+        return sum;
+      }
+    });
+    Function func4 = Function.getFunction("ndarray");
+    NDArray arr = NDArray.empty(shape, new TVMType("float32"));
+    arr.copyFrom(new float[]{2f, 3f});
+    TVMValue res4 = func4.pushArg(arr).pushArg(arr).invoke();
+    System.out.println("Result = " + res4.asDouble());
+    res4.release();
+    func4.release();
   }
 }

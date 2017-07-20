@@ -25,46 +25,16 @@ import java.util.List;
 /**
  * Lightweight NDArray class of TVM runtime.
  */
-public class NDArray {
-  public final long handle;
-  private final boolean isView;
+public class NDArray extends NDArrayBase {
   private final TVMType dtype;
 
-  private boolean isReleased = false;
-
   NDArray(long handle, boolean isView, TVMType dtype) {
-    this.handle = handle;
-    this.isView = isView;
+    super(handle, isView);
     this.dtype = dtype;
   }
 
-  NDArray(long handle) {
-    this(handle, false, new TVMType("float32", 1));
-  }
-
-  NDArray(long handle, boolean isView) {
-    this(handle, isView, new TVMType("float32", 1));
-  }
-
   @Override protected void finalize() throws Throwable {
-    release();
     super.finalize();
-  }
-
-  /**
-   * Release the NDArray memory.
-   * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy
-   * and `finalize()` is not guaranteed to be called when GC happens.
-   * </p>
-   */
-  public void release() {
-    if (!isReleased) {
-      if (!isView) {
-        Base.checkCall(Base._LIB.tvmArrayFree(handle));
-        isReleased = true;
-      }
-    }
   }
 
   /**
@@ -366,7 +336,7 @@ public class NDArray {
    */
   public byte[] internal() {
     NDArray tmp = NDArray.empty(shape(), dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromTo(handle, tmp.handle));
+    copyTo(tmp);
 
     int arrLength = dtype.numOfBytes * (int) size();
     byte[] arr = new byte[arrLength];

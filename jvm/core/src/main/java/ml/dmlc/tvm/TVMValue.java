@@ -47,6 +47,10 @@ public class TVMValue {
     throw new UnsupportedOperationException();
   }
 
+  public NDArrayBase asNDArray() {
+    throw new UnsupportedOperationException();
+  }
+
   public String asString() {
     throw new UnsupportedOperationException();
   }
