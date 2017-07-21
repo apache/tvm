@@ -80,7 +80,7 @@ cdef BuildDoc(nn_uint num_args,
         type_info = arg_types[i]
         ret = '%s : %s' % (key, type_info)
         if len(arg_descs[i]) != 0:
-            ret += '\n    ' + arg_descs[i]
+            ret += '\n    ' + py_str(arg_descs[i])
         param_str.append(ret)
     doc_str = ('Parameters\n' +
                '----------\n' +
