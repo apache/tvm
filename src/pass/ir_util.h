@@ -100,9 +100,12 @@ inline Expr AddressOffset(Var handle, Type dtype, int offset) {
  * \param offset the offset index.
  */
 inline Expr AddressOffset(Var handle, Type dtype, Expr offset) {
+  if (dtype.lanes() != 1) {
+    offset = offset * make_const(offset.type(), dtype.lanes());
+  }
   return Call::make(
       Handle(), intrinsic::tvm_address_of,
-      {Load::make(dtype, handle, offset * make_const(offset.type(), dtype.lanes()),
+      {Load::make(dtype, handle, offset,
                   const_true(dtype.lanes()))},
       Call::PureIntrinsic);
 }

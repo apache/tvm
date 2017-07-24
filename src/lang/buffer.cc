@@ -6,6 +6,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
@@ -129,6 +130,19 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           n->scope,
                           n->data_alignment,
                           0);
+}
+
+Expr Buffer::access_ptr(int access_mask, Type ptr_type) const {
+  const BufferNode* self = operator->();
+  Expr e_dtype = make_zero(self->dtype);
+  Expr extent = (self->strides.size() == self->shape.size() ?
+                 arith::ComputeExpr<ir::Mul>(self->strides[0], self->shape[0]):
+                 arith::ComputeReduce<ir::Mul>(self->shape));
+  Array<Expr> acc_args{
+    e_dtype, self->data, self->elem_offset,
+        extent, make_const(Int(32), access_mask)};
+  return ir::Call::make(
+      ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::Call::Intrinsic);
 }
 
 Buffer BufferNode::make(Var data,
