@@ -6,6 +6,7 @@
 #ifndef TVM_TARGET_INFO_H_
 #define TVM_TARGET_INFO_H_
 
+#include <string>
 #include "./base.h"
 #include "./expr.h"
 
@@ -35,6 +36,13 @@ struct MemoryInfoNode : public Node {
 
 /*! \brief Defines memory info */
 TVM_DEFINE_NODE_REF(MemoryInfo, MemoryInfoNode);
+
+/*!
+ * \brief get memory info given scope
+ * \param scope The scope name.
+ * \return info The memory info.
+ */
+MemoryInfo GetMemoryInfo(const std::string& scope);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_INFO_H_

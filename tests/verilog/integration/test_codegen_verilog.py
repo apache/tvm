@@ -39,7 +39,7 @@ def test_add_pipeline():
     s[C].bind(px, tvm.thread_axis("pipeline"))
     fapi = lower(s, [A, B, C], "myadd")
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
-    fsplits[0] = tvm.ir_pass.LowerPackedCall(fsplits[0])
+    fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
     print("------")
 
     def check_target(device, host="stackvm"):

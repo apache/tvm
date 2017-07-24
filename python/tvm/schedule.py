@@ -1,11 +1,12 @@
 """The computation schedule api of TVM."""
 from __future__ import absolute_import as _abs
+from ._ffi.base import string_types
 from ._ffi.node import NodeBase, register_node
+from ._ffi.function import _init_api
 from . import _api_internal
 from . import tensor as _tensor
 from . import expr as _expr
 from . import container as _container
-from ._ffi.function import _init_api
 
 @register_node
 class Buffer(NodeBase):
@@ -21,7 +22,49 @@ class Buffer(NodeBase):
     --------
     decl_buffer : Declare a buffer
     """
-    pass
+    READ = 1
+    WRITE = 2
+
+    def access_ptr(self, access_mask, ptr_type="handle"):
+        """Get an access pointer to the head of buffer
+
+        This is the recommended method to get buffer data
+        ptress when interacting with external functions.
+
+        Parameters
+        ----------
+        access_mask : int
+            The access pattern MASK. Indicate whether the
+            access will read or write to the data content.
+
+
+        ptr_type : str, optional
+            The data type of the result pointer. Do not specify
+            unless we want to cast pointer to specific type.
+
+        Examples
+        --------
+        .. code-block:: python
+          import tvm.schedule.Buffer
+
+          # Get access ptr for read
+          buffer.access_ptr("r")
+          # Get access ptr for read/write with bitmask
+          buffer.access_ptr(Buffer.READ | Buffer.WRITE)
+          # Get access ptr for read/write with str flag
+          buffer.access_ptr("rw")
+        """
+        if isinstance(access_mask, string_types):
+            mask = 0
+            for value in access_mask:
+                if value == "r":
+                    mask = mask | Buffer.READ
+                elif value == "w":
+                    mask = mask | Buffer.WRITE
+                else:
+                    raise ValueError("Unknown access_mask %s" % access_mask)
+            access_mask = mask
+        return _api_internal._BufferAccessPtr(self, access_mask, ptr_type)
 
 
 @register_node

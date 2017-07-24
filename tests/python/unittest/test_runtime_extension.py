@@ -25,7 +25,7 @@ def test_dltensor_compatible():
         A[i + 1] = A[i] + 1
     stmt = ib.get()
     fapi = tvm.ir_pass.MakeAPI(stmt, "arange", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerPackedCall(fapi)
+    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     f = tvm.codegen.build_module(fapi, "stackvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     aview = MyTensorView(a)

@@ -17,20 +17,26 @@ def intrin_gemv(m, n):
     k = tvm.reduce_axis((0, n), name='k')
     z = tvm.compute((m,), lambda i:
                     tvm.sum(w[i, k] * x[k], axis=k), name='z')
-    Wb = tvm.decl_buffer(w.shape, w.dtype, name="W",
+    Wb = tvm.decl_buffer(w.shape, w.dtype,
+                         name="W",
+                         offset_factor=16,
                          strides=[tvm.var('ldw'), 1])
     def intrin_func(ins, outs):
         ww, xx = ins
         zz = outs[0]
+        ww_ptr = ww.access_ptr("r")
+        xx_ptr = xx.access_ptr("r")
+        zz_ptr = zz.access_ptr("w")
         body = tvm.call_packed(
-            "gemv", ww.data, xx.data, zz.data, n, ww.strides[0])
+            "gemv", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         reset = tvm.call_packed(
-            "fill_zero", outs[0].data, n)
+            "fill_zero", zz_ptr, n)
         update = tvm.call_packed(
-            "gemv_add", ww.data, xx.data, zz.data, n, ww.strides[0])
+            "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, reset, update
 
-    with tvm.build_config(data_alignment=16):
+    with tvm.build_config(data_alignment=16,
+                          offset_factor=16):
         return tvm.decl_tensor_intrin(z.op, intrin_func,
                                       binds={w: Wb})
 
@@ -92,6 +98,7 @@ def test_tensorize_matmul():
                                  tvm.ir_pass.CanonicalSimplify(gemv.op.body[0]))
         stmt = tvm.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
+
 
     def check_rfactor(factor, rfactor):
         s = tvm.create_schedule(C.op)

@@ -156,6 +156,12 @@ TVM_REGISTER_API("_Buffer")
                             args[8]);
   });
 
+TVM_REGISTER_API("_BufferAccessPtr")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator Buffer()
+        .access_ptr(args[1], args[2]);
+  });
+
 TVM_REGISTER_API("_Tensor")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = TensorNode::make(args[0],

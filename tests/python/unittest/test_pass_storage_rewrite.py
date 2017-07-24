@@ -30,6 +30,39 @@ def test_storage_share():
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 2
 
+
+def test_storage_combine():
+    n = 8
+    A = tvm.placeholder((4,), name='A')
+    num_stage = 5
+    B = A
+    stages = []
+    for t in range(num_stage):
+        B = tvm.compute((n, ), lambda i: B[i] + (t+1), name='A%d' % t)
+        stages.append(B)
+
+    s = tvm.create_schedule(B.op)
+    for S in stages[:-1]:
+        s[S].set_scope("global:tag")
+
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.ir_pass.StorageRewrite(stmt)
+    num_alloc = [0]
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
+            assert (n.extents[0].value == 16)
+    tvm.ir_pass.PostOrderVisit(stmt, verify)
+    assert num_alloc[0] == 1
+
+
 def test_storage_share_gpu():
     m = tvm.var('m')
     A = [tvm.placeholder((m), name='A')]
@@ -67,5 +100,6 @@ def test_storage_share_gpu():
 
 
 if __name__ == "__main__":
+    test_storage_combine()
     test_storage_share_gpu()
     test_storage_share()

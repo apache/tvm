@@ -8,11 +8,13 @@
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/target_info.h>
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
 #include "./ir_util.h"
 #include "./storage_access.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace ir {
@@ -187,11 +189,13 @@ class StoragePlanRewriter : public IRMutator {
       std::vector<Stmt> nest;
       for (StorageEntry* e : attach_map_.at(nullptr)) {
         CHECK_EQ(e->scope.rank, 0);
-        nest.emplace_back(AttrStmt::make(
-            e->alloc_var, attr::storage_scope,
-            StringImm::make(e->scope.to_string()),
-            Evaluate::make(0)));
-        nest.push_back(e->new_alloc);
+        if (e->new_alloc.defined()) {
+          nest.emplace_back(AttrStmt::make(
+              e->alloc_var, attr::storage_scope,
+              StringImm::make(e->scope.to_string()),
+              Evaluate::make(0)));
+          nest.push_back(e->new_alloc);
+        }
       }
       stmt = MergeNest(nest, stmt);
     }
@@ -202,21 +206,53 @@ class StoragePlanRewriter : public IRMutator {
     op = stmt.as<Store>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return stmt;
-    return Store::make(it->second->alloc_var, op->value, op->index, op->predicate);
+    return Store::make(it->second->alloc_var,
+                       op->value,
+                       RemapIndex(op->value.type(), op->index, it->second),
+                       op->predicate);
   }
   Expr Mutate_(const Load* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Load>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
-    return Load::make(op->type, it->second->alloc_var, op->index, op->predicate);
+    return Load::make(op->type,
+                      it->second->alloc_var,
+                      RemapIndex(op->type, op->index, it->second),
+                      op->predicate);
   }
   Expr Mutate_(const Variable* op, const Expr& e) final {
     auto it = alloc_map_.find(op);
     if (it != alloc_map_.end()) {
+      if (it->second->elem_offset != 0) {
+        LOG(WARNING) << "Use a merged buffer variable address, could cause error";
+      }
       return it->second->alloc_var;
     } else {
       return e;
+    }
+  }
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      CHECK_EQ(op->args.size(), 5U);
+      Type dtype = op->args[0].type();
+      const Variable* buffer = op->args[1].as<Variable>();
+      auto it = alloc_map_.find(buffer);
+       if (it == alloc_map_.end()) return IRMutator::Mutate_(op, e);
+       const StorageEntry* e = it->second;
+       Expr offset = Mutate(op->args[2]);
+       Expr extent = Mutate(op->args[3]);
+       CHECK_EQ(e->elem_type, dtype.element_of());
+       CHECK_EQ(e->elem_offset % dtype.lanes(), 0);
+       if (e->elem_offset != 0) {
+         offset = make_const(offset.type(), e->elem_offset / dtype.lanes()) + offset;
+       }
+       return Call::make(
+           op->type, op->name,
+           {op->args[0], e->alloc_var, offset, extent, op->args[4]},
+           op->call_type);
+    } else {
+      return IRMutator::Mutate_(op, e);
     }
   }
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
@@ -270,63 +306,132 @@ class StoragePlanRewriter : public IRMutator {
     // For shared/local memory it is beginning of the thread extent.
     // for global memory it is nullptr, means beginning of everything.
     const Node* attach_scope_{nullptr};
-    // The constant size of the buffer in bytes, only used if it is constant.
-    size_t const_size{0};
+    // The constant size of the buffer in bits, only used if it is constant
+    size_t const_nbits{0};
     // The storage scope.
     StorageScope scope;
     // Allocs that shares this entry.
     std::vector<const Allocate*> allocs;
+    // The children of this entry, not including itself.
+    std::vector<StorageEntry*> merged_children;
+    // The replacement allocation, if any.
+    Stmt new_alloc;
     // The var expr of new allocation.
     VarExpr alloc_var;
-    // The replacement allocation
-    Stmt new_alloc;
+    // The allocation element type.
+    Type elem_type;
+    // This is non-zero if this allocate is folded into another one
+    // the address becomes alloc_var + sizeof(elem_type) * elem_offset;
+    size_t elem_offset{0};
   };
+  // Remap the index
+  Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
+    CHECK_EQ(dtype.element_of(), e->elem_type);
+    if (e->elem_offset == 0) return index;
+    return make_const(index.type(), e->elem_offset) + index;
+  }
   // Prepare the new allocations
   void PrepareNewAlloc() {
     for (size_t i = 0; i < alloc_vec_.size(); ++i) {
       StorageEntry* e = alloc_vec_[i].get();
-      // find the element with the most amount of bytes.
-      Type t = e->allocs[0]->type;
-      for (const Allocate* op : e->allocs) {
-        if (op->type.bytes() * op->type.lanes() > t.bytes() * t.lanes()) {
-          t = op->type;
-        }
-      }
-      // Get the allocation size;
-      e->alloc_var = e->allocs[0]->buffer_var;
-      if (e->allocs.size() == 1) {
-        // simply use the original allocation.
-        e->new_alloc = Allocate::make(
-            e->alloc_var, t, e->allocs[0]->extents,
-            e->allocs[0]->condition, Evaluate::make(0));
-      } else {
-        // Build a merged allocation.
-        int alloc_unit = t.bytes() * t.lanes();
-        Expr combo_size;
-        for (const Allocate* op : e->allocs) {
-          // Get the size
-          Expr sz = op->extents[0];
-          for (size_t i = 1; i < op->extents.size(); ++i) {
-            sz = sz * op->extents[i];
-          }
-          int bytes = op->type.bytes() * op->type.lanes();
-          if (alloc_unit != bytes) {
-            sz = (sz * make_const(sz.type(), bytes) +
-                  make_const(sz.type(), alloc_unit - 1)) /
-                make_const(sz.type(), alloc_unit);
-          }
-          if (combo_size.defined()) {
-            combo_size = max(combo_size, sz);
-          } else {
-            combo_size = sz;
-          }
-        }
-        combo_size = ir::Simplify(combo_size);
-        e->new_alloc = Allocate::make(
-            e->alloc_var, t, {combo_size}, const_true(),
-            Evaluate::make(0));
-      }
       attach_map_[e->attach_scope_].push_back(e);
+    }
+    // find allocation via attach map.
+    for (auto &kv : attach_map_) {
+      // find the element with the most amount of bytes.
+      std::vector<StorageEntry*>& vec = kv.second;
+      // try to find merge, for tagged memory
+      for (size_t i = 0; i < vec.size(); ++i) {
+        StorageEntry* e = vec[i];
+        if (e->scope.tag.length() != 0) {
+          CHECK_NE(e->const_nbits, 0U)
+              << "Special tagged memory must be const size";
+          for (size_t j = 0; j < i; ++j) {
+            if (e->scope == vec[j]->scope) {
+              vec[j]->merged_children.push_back(e);
+              break;
+            }
+          }
+        }
+      }
+      // Start allocation
+      for (size_t i = 0; i < vec.size(); ++i) {
+        StorageEntry* e = vec[i];
+        // already merged
+        if (e->elem_offset != 0) continue;
+        if (e->merged_children.size() != 0) {
+          NewAllocTagMerged(e); continue;
+        }
+        // Get the allocation size;
+        e->alloc_var = e->allocs[0]->buffer_var;
+        Type alloc_type = e->allocs[0]->type;
+        for (const Allocate* op : e->allocs) {
+          if (op->type.lanes() > alloc_type.lanes()) {
+            alloc_type = op->type;
+          }
+        }
+        if (e->allocs.size() == 1) {
+          // simply use the original allocation.
+          e->new_alloc = Allocate::make(
+              e->alloc_var, alloc_type, e->allocs[0]->extents,
+              e->allocs[0]->condition, Evaluate::make(0));
+        } else {
+          // Build a merged allocation
+          Expr combo_size;
+          for (const Allocate* op : e->allocs) {
+            Expr sz = arith::ComputeReduce<Mul>(op->extents);
+            if (alloc_type.lanes() != op->type.lanes()) {
+              sz = (sz * make_const(sz.type(), op->type.lanes()) +
+                    make_const(sz.type(), alloc_type.lanes() - 1)) /
+                  make_const(sz.type(), alloc_type.lanes());
+            }
+            if (combo_size.defined()) {
+              combo_size = max(combo_size, sz);
+            } else {
+              combo_size = sz;
+            }
+          }
+          combo_size = ir::Simplify(combo_size);
+          e->new_alloc = Allocate::make(
+              e->alloc_var, alloc_type, {combo_size}, const_true(),
+              Evaluate::make(0));
+        }
+      }
+    }
+  }
+  // New allocation for merged data
+  void NewAllocTagMerged(StorageEntry* e) {
+    CHECK_NE(e->scope.tag.length(), 0U);
+    // allocate with element type.
+    CHECK_NE(e->const_nbits, 0U);
+    MemoryInfo info = GetMemoryInfo(e->scope.to_string());
+    size_t align = 1;
+    if (info.defined()) {
+      align = (info->max_simd_bits + e->elem_type.bits() - 1) / e->elem_type.bits();
+    }
+    size_t total_elem = e->const_nbits / e->elem_type.bits();
+    if (total_elem % align != 0) {
+      total_elem += align  - (total_elem % align);
+    }
+    e->alloc_var = e->allocs[0]->buffer_var;
+    for (StorageEntry* child : e->merged_children) {
+      CHECK_NE(e->const_nbits, 0U);
+      CHECK_NE(total_elem, 0U);
+      size_t num_elem = child->const_nbits / child->elem_type.bits();
+      child->elem_offset = total_elem;
+      child->alloc_var = e->alloc_var;
+      total_elem += num_elem;
+      if (total_elem % align != 0) {
+        total_elem += align  - (total_elem % align);
+      }
+    }
+    Expr alloc_size = make_const(e->allocs[0]->extents[0].type(), total_elem);
+    e->new_alloc = Allocate::make(
+        e->alloc_var, e->elem_type, {alloc_size}, const_true(),
+        Evaluate::make(0));
+    if (info.defined()) {
+      CHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
+          << "Allocation exceed bound of memory tag " << e->scope.to_string();
     }
   }
   // Find the free location of each varaible.
@@ -382,12 +487,13 @@ class StoragePlanRewriter : public IRMutator {
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const Allocate* op,
                          const StorageScope& scope,
-                         size_t const_size) {
+                         size_t const_nbits) {
     // Re-use not successful, allocate a new buffer.
     std::unique_ptr<StorageEntry> entry(new StorageEntry());
     entry->attach_scope_ = thread_scope_;
     entry->scope = scope;
-    entry->const_size = const_size;
+    entry->elem_type = op->type.element_of();
+    entry->const_nbits = const_nbits;
     StorageEntry* e = entry.get();
     alloc_vec_.emplace_back(std::move(entry));
     return e;
@@ -397,31 +503,35 @@ class StoragePlanRewriter : public IRMutator {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const size_t match_range = 16;
-    size_t const_size = static_cast<size_t>(
-        op->constant_allocation_size()) * op->type.bytes() * op->type.lanes();
+    size_t const_nbits = static_cast<size_t>(
+        op->constant_allocation_size() * op->type.bits() * op->type.lanes());
     if (scope.rank > 1 || op->type.is_handle()) {
-      return NewAlloc(op, scope, const_size);
+      return NewAlloc(op, scope, const_nbits);
     }
-    // disable reuse of small arrays
-    if (const_size > 0  && const_size <= 32) {
-      return NewAlloc(op, scope, const_size);
+    // disable reuse of small arrays, they will be lowered to registers in LLVM
+    if (const_nbits > 0  &&
+        const_nbits <= 32 &&
+        scope.tag.length() == 0) {
+      return NewAlloc(op, scope, const_nbits);
     }
-    if (const_size != 0) {
+    if (const_nbits != 0) {
       // constant allocation.
-      auto begin = const_free_map_.lower_bound(const_size / match_range);
-      auto mid = const_free_map_.lower_bound(const_size);
-      auto end = const_free_map_.upper_bound(const_size * match_range);
+      auto begin = const_free_map_.lower_bound(const_nbits / match_range);
+      auto mid = const_free_map_.lower_bound(const_nbits);
+      auto end = const_free_map_.upper_bound(const_nbits * match_range);
       for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
-        if (it->second->scope != scope) continue;
-        e->const_size = std::max(const_size, e->const_size);
+        if (e->scope != scope) continue;
+        if (e->elem_type != op->type.element_of()) continue;
+        e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
       }
       for (auto it = mid; it != begin;) {
         --it;
         StorageEntry *e = it->second;
-        if (it->second->scope != scope) continue;
+        if (e->scope != scope) continue;
+        if (e->elem_type != op->type.element_of()) continue;
         const_free_map_.erase(it);
         return e;
       }
@@ -431,11 +541,12 @@ class StoragePlanRewriter : public IRMutator {
            it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
         if (e->scope != scope) continue;
+        if (e->elem_type != op->type.element_of()) continue;
         sym_free_list_.erase(it);
         return e;
       }
     }
-    return NewAlloc(op, scope, const_size);
+    return NewAlloc(op, scope, const_nbits);
   }
   // simulated free.
   void Free(const Variable* var) {
@@ -445,10 +556,10 @@ class StoragePlanRewriter : public IRMutator {
     // Disable sharing of local memory.
     if (e->scope.rank > 1 || e->allocs[0]->type.is_handle()) return;
     // disable reuse of small arrays
-    if (e->const_size > 0 && e->const_size <= 32) return;
+    if (e->const_nbits > 0 && e->const_nbits <= 32) return;
     // normal free.
-    if (e->const_size != 0) {
-      const_free_map_.insert({e->const_size, e});
+    if (e->const_nbits != 0) {
+      const_free_map_.insert({e->const_nbits, e});
     } else {
       sym_free_list_.push_back(e);
     }

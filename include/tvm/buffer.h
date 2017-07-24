@@ -17,6 +17,12 @@ namespace tvm {
 // Internal node container Buffer
 class BufferNode;
 
+/*! \brief memory access kind */
+enum class AccessMask : int {
+  kRead = 1,
+  kWrite = 2
+};
+
 /*!
  * \brief Buffer is a symbolic n-darray structure.
  *  It is a composition of primitive symbolic types,
@@ -54,6 +60,12 @@ class Buffer : public NodeRef {
    * \return the result buffer.
    */
   Buffer MakeSlice(Array<Expr> begins, Array<Expr> extents) const;
+  /*!
+   * \brief Get access ptr to the entire buffer.
+   * \param access_mask The access mask
+   * \param ptr_type The type of the pointer.
+   */
+  Expr access_ptr(int access_mask, Type ptr_type = Handle()) const;
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

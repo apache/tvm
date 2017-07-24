@@ -17,7 +17,7 @@ namespace runtime {
 struct StorageScope {
   /*! \brief The rank of the storage */
   int rank{0};
-  /*! \brief tag for special memory, if any */
+  /*! \brief tag for special purpose memory. */
   std::string tag;
   // comparator
   inline bool operator==(const StorageScope& other) const {

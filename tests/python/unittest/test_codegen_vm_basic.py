@@ -20,7 +20,7 @@ def test_stack_vm_basic():
     Ab = tvm.decl_buffer((n, ), tvm.float32)
     stmt = tvm.make.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerPackedCall(fapi)
+    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     run_jit(fapi, lambda f: f(a))
 
 
@@ -42,7 +42,7 @@ def test_stack_vm_loop():
 
     stmt = ib.get()
     fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerPackedCall(fapi)
+    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     def check(f):
         f(a)
@@ -65,7 +65,7 @@ def test_stack_vm_cond():
 
     stmt = ib.get()
     fapi = tvm.ir_pass.MakeAPI(stmt, "test", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerPackedCall(fapi)
+    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)
