@@ -73,12 +73,12 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 # Reduction Factoring and Parallelization
 # ---------------------------------------
 # One problem of building a reduction is that we cannot simply
-# parallelize over the reduction axis. We need to devide the computation
-# of the reduction, store the local reduction result in a temporal array.
-# Before doing a reduction over the temp array.
+# parallelize over the reduction axis. We need to divide the computation
+# of the reduction, store the local reduction result in a temporal array
+# before doing a reduction over the temp array.
 #
 # The rfactor primitive does such rewrite of the computation.
-# In the following schedule, the result of B is write written to a temporary
+# In the following schedule, the result of B is written to a temporary
 # result B.rf. The factored dimension becomes the first dimension of B.rf.
 #
 s = tvm.create_schedule(B.op)

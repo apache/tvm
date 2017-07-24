@@ -299,6 +299,27 @@ class Stage(NodeBase):
         """
         return _api_internal._StageFuse(self, inner, outer)
 
+    def fuse_axes(self, axes):
+        """Fuse the given axes and return a single fused_axis
+
+        The axes should be consecutive and the fusing order will be:
+        fused_axis = fuse(...fuse(fuse(axis[-1], axis[-2]), axis[-3]), axis[0])
+
+        Parameters
+        ----------
+        axes : list of IterVar or tuple of IterVar
+            The axes to fuse, the inner type should be
+
+        Returns
+        -------
+        fused_axis : IterVar
+            The fused variable of iteration.
+        """
+        fused_axis = axes[-1]
+        for i in range(len(axes) - 2, -1, -1):
+            fused_axis = self.fuse(fused_axis, axes[i])
+        return fused_axis
+
     def set_scope(self, scope):
         """Set the thread scope of this stage
 
