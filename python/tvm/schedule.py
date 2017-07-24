@@ -56,10 +56,10 @@ class Buffer(NodeBase):
         """
         if isinstance(access_mask, string_types):
             mask = 0
-            for ch in access_mask:
-                if ch == "r":
+            for value in access_mask:
+                if value == "r":
                     mask = mask | Buffer.READ
-                elif ch == "w":
+                elif value == "w":
                     mask = mask | Buffer.WRITE
                 else:
                     raise ValueError("Unknown access_mask %s" % access_mask)
