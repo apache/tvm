@@ -113,6 +113,7 @@ struct BinaryExpr {
   }
 };
 
+
 template<typename T>
 inline Expr Binary_(const T* op,
                     const Expr& e,
@@ -282,6 +283,7 @@ class Canonical::Internal : public IRMutator {
   }
   // IntImm
   Expr Mutate_(const IntImm* op, const Expr& e) final {
+    if (op->type != Int(32)) return e;
     auto it = cache_intimm_.find(op->value);
     if (it != cache_intimm_.end()) {
       return it->second;

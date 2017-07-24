@@ -239,17 +239,18 @@ class StoragePlanRewriter : public IRMutator {
       const Variable* buffer = op->args[1].as<Variable>();
       auto it = alloc_map_.find(buffer);
        if (it == alloc_map_.end()) return IRMutator::Mutate_(op, e);
-       const StorageEntry* e = it->second;
+       const StorageEntry* se = it->second;
        Expr offset = Mutate(op->args[2]);
        Expr extent = Mutate(op->args[3]);
-       CHECK_EQ(e->elem_type, dtype.element_of());
-       CHECK_EQ(e->elem_offset % dtype.lanes(), 0);
-       if (e->elem_offset != 0) {
-         offset = make_const(offset.type(), e->elem_offset / dtype.lanes()) + offset;
+       CHECK_EQ(se->elem_type, dtype.element_of())
+           << " buffer=" << buffer->name_hint;
+       CHECK_EQ(se->elem_offset % dtype.lanes(), 0);
+       if (se->elem_offset != 0) {
+         offset = make_const(offset.type(), se->elem_offset / dtype.lanes()) + offset;
        }
        return Call::make(
            op->type, op->name,
-           {op->args[0], e->alloc_var, offset, extent, op->args[4]},
+           {op->args[0], se->alloc_var, offset, extent, op->args[4]},
            op->call_type);
     } else {
       return IRMutator::Mutate_(op, e);

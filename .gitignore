@@ -127,9 +127,11 @@ jvm/*/*/target/
 !default.perspectivev3
 xcuserdata/
 
+.emscripten*
+.m2
+
 ## Other
 *.moved-aside
 *.xccheckout
 *.xcscmblueprint
 .DS_Store
-
