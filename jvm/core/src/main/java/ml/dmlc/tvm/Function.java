@@ -34,7 +34,7 @@ public class Function extends TVMValue {
    * @param name full function name.
    * @return TVM function.
    */
-  static Function getFunction(final String name) {
+  public static Function getFunction(final String name) {
     for (String fullName : listGlobalFuncNames()) {
       if (fullName.equals(name)) {
         return getGlobalFunc(fullName, true, false);

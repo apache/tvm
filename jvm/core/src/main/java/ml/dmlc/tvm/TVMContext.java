@@ -17,12 +17,12 @@
 
 package ml.dmlc.tvm;
 
+import ml.dmlc.tvm.rpc.RPC;
+
 import java.util.HashMap;
 import java.util.Map;
 
 public class TVMContext {
-  private static final int RPC_SESS_MASK = 128;
-
   private static final Map<Integer, String> MASK2STR = new HashMap<Integer, String>();
   private static final Map<String, Integer> STR2MASK = new HashMap<String, Integer>();
 
@@ -169,9 +169,9 @@ public class TVMContext {
   }
 
   @Override public String toString() {
-    if (deviceType >= RPC_SESS_MASK) {
-      int tblId = deviceType / RPC_SESS_MASK - 1;
-      int devType = deviceType % RPC_SESS_MASK;
+    if (deviceType >= RPC.RPC_SESS_MASK) {
+      int tblId = deviceType / RPC.RPC_SESS_MASK - 1;
+      int devType = deviceType % RPC.RPC_SESS_MASK;
       return String.format("remote[%d]:%s(%d)", tblId, MASK2STR.get(devType), deviceId);
     }
     return String.format("%s(%d)", MASK2STR.get(deviceType), deviceId);
