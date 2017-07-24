@@ -436,7 +436,6 @@ Symbol Symbol::GetInternals() const {
 }
 
 Symbol Symbol::GetChildren() const {
-  static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol ret;
   std::unordered_set<Node*> visited;
   for (const auto& p : this->outputs) {
