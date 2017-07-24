@@ -1,17 +1,20 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- *  Lower calls to packed function.
- * \file lower_packed_call.cc
+ *  Lower TVM related buildin intrinsics such as packed call.
+ * \file lower_tvm_buildin.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include <tvm/target_info.h>
 #include <unordered_set>
 #include "./ir_util.h"
 #include "../arithmetic/compute_expr.h"
-
+#include "../runtime/thread_storage_scope.h"
 namespace tvm {
 namespace ir {
+
+using runtime::StorageScope;
 
 inline Expr ConstInt32(size_t index) {
   CHECK_LE(index, std::numeric_limits<int>::max());
@@ -25,7 +28,7 @@ inline Expr StackAlloca(std::string type, size_t num) {
 
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
-class PackedCallBuilder : public IRMutator {
+class BuiltinLower : public IRMutator {
  public:
   Stmt Build(Stmt stmt) {
     stack_shape_ = Var("stack_shape", Handle());
@@ -49,6 +52,7 @@ class PackedCallBuilder : public IRMutator {
     }
     return stmt;
   }
+
   Stmt Mutate(Stmt stmt) final {
     stmt = IRMutator::Mutate(stmt);
     CHECK_EQ(run_shape_stack_, 0);
@@ -65,6 +69,14 @@ class PackedCallBuilder : public IRMutator {
     // Lower allocate to device allocate when needed.
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Allocate>();
+    // For special memory, remove allocate.
+    auto it = storage_info_.find(op->buffer_var.get());
+    if (it != storage_info_.end() && it->second.scope.tag.length() != 0) {
+      ++it->second.alloc_count;
+      CHECK_LE(it->second.alloc_count, 1)
+          << "Double allocation of " << it->second.scope.to_string();
+      return op->body;
+    }
     // Get constant allocation bound.
     int64_t dev_type;
     int64_t nbytes = GetVectorBytes(op->type);
@@ -127,12 +139,25 @@ class PackedCallBuilder : public IRMutator {
       CHECK(!device_type_.defined());
       device_type_ = op->value;
       return Mutate(op->body);
+    } else if (op->attr_key == attr::storage_scope) {
+      const Variable* buf = op->node.as<Variable>();
+      StorageScope scope = StorageScope::make(op->value.as<StringImm>()->value);
+      StorageEntry e;
+      e.scope = scope;
+      if (scope.tag.length() != 0) {
+        e.info = GetMemoryInfo(op->value.as<StringImm>()->value);
+        CHECK(e.info.defined()) << "Cannot find memory info of " << scope.to_string();
+      }
+      storage_info_[buf] = e;
+      return IRMutator::Mutate_(op, s);
     } else {
       return IRMutator::Mutate_(op, s);
     }
   }
   Expr Mutate_(const Call* op, const Expr &e) final {
-    if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      return MakeAccessPtr(op, e);
+    } else if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
       return MakeCallPacked(op, e);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_shape)) {
       return MakeShape(op, e);
@@ -142,6 +167,7 @@ class PackedCallBuilder : public IRMutator {
       return IRMutator::Mutate_(op, e);
     }
   }
+
   Expr Convert(Type t, Expr e) {
     if (e.type() != t) {
       return Cast::make(t, e);
@@ -254,6 +280,33 @@ class PackedCallBuilder : public IRMutator {
         Int(32), intrinsic::tvm_call_packed_lowered,
         packed_args, Call::Intrinsic);
   }
+  // tvm_access_ptr
+  Expr MakeAccessPtr(const Call* op, const Expr& e) {
+    // Specially handle the buffer packed intrinsic
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Call>();
+    CHECK_EQ(op->args.size(), 5U);
+    Type dtype = op->args[0].type();
+    const Variable* buffer = op->args[1].as<Variable>();
+    Expr offset = op->args[2];
+    auto it = storage_info_.find(buffer);
+    if (it != storage_info_.end() && it->second.scope.tag.length() != 0) {
+      return MakeTaggedAccessPtr(
+          op->type, dtype, offset,
+          it->second.info.defined() ? it->second.info->unit_bits : 8);
+    }
+    CHECK(op->type.is_handle());
+    // Change to address_of
+    return AddressOffset(Var(op->args[1].node_), dtype, offset);
+  }
+
+  Expr MakeTaggedAccessPtr(Type ptr_type, Type dtype,
+                           Expr offset, int unit_bits) {
+    int dtype_bits = dtype.bits() * dtype.lanes();
+    CHECK_EQ(unit_bits % dtype_bits, 0);
+    return Convert(ptr_type,
+                   ir::Simplify(offset / make_const(offset.type(), unit_bits / dtype_bits)));
+  }
 
  private:
   bool IsArrayHandle(const Expr& arg) {
@@ -284,11 +337,22 @@ class PackedCallBuilder : public IRMutator {
   uint64_t max_shape_stack_{0};
   uint64_t max_array_stack_{0};
   uint64_t max_arg_stack_{0};
+  // The storage entry.
+  struct StorageEntry {
+    // Whether it is tagged memory.
+    StorageScope scope;
+    // The memory info if any.
+    MemoryInfo info;
+    // Allocation counter
+    int alloc_count{0};
+  };
+  // The storage scope of each buffer
+  std::unordered_map<const Variable*, StorageEntry> storage_info_;
 };
 
-LoweredFunc LowerPackedCall(LoweredFunc f) {
+LoweredFunc LowerTVMBuiltin(LoweredFunc f) {
   auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
-  n->body = PackedCallBuilder().Build(n->body);
+  n->body = BuiltinLower().Build(n->body);
   return LoweredFunc(n);
 }
 
