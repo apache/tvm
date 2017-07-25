@@ -308,7 +308,7 @@ class StoragePlanRewriter : public IRMutator {
     // for global memory it is nullptr, means beginning of everything.
     const Node* attach_scope_{nullptr};
     // The constant size of the buffer in bits, only used if it is constant
-    size_t const_nbits{0};
+    uint64_t const_nbits{0};
     // The storage scope.
     StorageScope scope;
     // Allocs that shares this entry.
@@ -323,7 +323,7 @@ class StoragePlanRewriter : public IRMutator {
     Type elem_type;
     // This is non-zero if this allocate is folded into another one
     // the address becomes alloc_var + sizeof(elem_type) * elem_offset;
-    size_t elem_offset{0};
+    uint64_t elem_offset{0};
   };
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
@@ -410,7 +410,7 @@ class StoragePlanRewriter : public IRMutator {
     if (info.defined()) {
       align = (info->max_simd_bits + e->elem_type.bits() - 1) / e->elem_type.bits();
     }
-    size_t total_elem = e->const_nbits / e->elem_type.bits();
+    uint64_t total_elem = e->const_nbits / e->elem_type.bits();
     if (total_elem % align != 0) {
       total_elem += align  - (total_elem % align);
     }
@@ -426,7 +426,8 @@ class StoragePlanRewriter : public IRMutator {
         total_elem += align  - (total_elem % align);
       }
     }
-    Expr alloc_size = make_const(e->allocs[0]->extents[0].type(), total_elem);
+    Expr alloc_size = make_const(e->allocs[0]->extents[0].type(),
+                                 total_elem);
     e->new_alloc = Allocate::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
         Evaluate::make(0));
@@ -503,8 +504,8 @@ class StoragePlanRewriter : public IRMutator {
                           const StorageScope& scope) {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
-    const size_t match_range = 16;
-    size_t const_nbits = static_cast<size_t>(
+    const uint64_t match_range = 16;
+    uint64_t const_nbits = static_cast<uint64_t>(
         op->constant_allocation_size() * op->type.bits() * op->type.lanes());
     if (scope.rank > 1 || op->type.is_handle()) {
       return NewAlloc(op, scope, const_nbits);
@@ -575,7 +576,7 @@ class StoragePlanRewriter : public IRMutator {
   // The allocation assign map
   std::unordered_map<const Variable*, StorageEntry*> alloc_map_;
   // constant size free map.
-  std::multimap<size_t, StorageEntry*> const_free_map_;
+  std::multimap<uint64_t, StorageEntry*> const_free_map_;
   // symbolic free list, for non constant items.
   std::list<StorageEntry*> sym_free_list_;
   // The allocations
