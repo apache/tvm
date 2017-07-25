@@ -64,7 +64,10 @@ class GEMM(object):
         self.k = tvm.reduce_axis((0, N), 'k')
         self.A = tvm.placeholder((N, N), name = 'A')
         self.B = tvm.placeholder((N, N), name = 'B')
-        self.C = tvm.compute(self.A.shape, lambda x, y: tvm.sum(self.A[x, self.k] * self.B[self.k, y], axis = self.k), name = 'C')
+        self.C = tvm.compute(
+                    self.A.shape,
+                    lambda x, y: tvm.sum(self.A[x, self.k] * self.B[self.k, y], axis = self.k),
+                    name = 'C')
 
     def build(self, show_ir = False):
         # The default schedule
@@ -189,7 +192,9 @@ class GEMMopt3(object):
         A = tvm.placeholder((N, N), name = 'A')
         B = tvm.placeholder((N, N), name = 'B')
         packedB = tvm.compute((N / bn, N, bn), lambda x, y, z: B[y, x * bn + z], name = 'packedB')
-        C = tvm.compute(A.shape, lambda x, y: tvm.sum(A[x, k] * packedB[y / bn, k, y % bn], axis = k), name = 'C')
+        C = tvm.compute(A.shape,
+                        lambda x, y: tvm.sum(A[x, k] * packedB[y / bn, k, y % bn], axis = k),
+                        name = 'C')
 
         s = tvm.create_schedule(C.op)
         yo, xo, yi, xi = s[C].tile(C.op.axis[1], C.op.axis[0], bn, bn)
