@@ -382,9 +382,6 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
   static auto& vec_op =
     nnvm::Op::GetAttr<FTVMVectorizedOp>("FTVMVectorizedOp");
 
-  const auto& origin_params =
-    src.GetAttr<std::vector<std::string>>("origin_params");
-
   std::unordered_map<nnvm::Node*, nnvm::NodePtr> mirror_map;
   std::unordered_map<nnvm::Node*, std::vector<nnvm::NodePtr> > transformed;
 
