@@ -24,3 +24,4 @@ List of Contributors
   - To contributors: please add your name to the list.
 - [Qiao Zhang](https://github.com/zhangqiaorjc)
 - [Yizhi Liu](https://github.com/javelinjs)
+- [Jian Weng](https://github.com/were)
