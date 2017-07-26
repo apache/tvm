@@ -1,7 +1,7 @@
 """
 How to optimize GEMM on CPU
 =============
-**Author**: `Jian Weng <https://github.com/were>_`
+**Author**: `Jian Weng <https://github.com/were>`_
 
 (TL;DR) TVM provides abstract interfaces which allows users to depict an algorithm and the
 algorithm's implementing organization (the so-called schedule) separately. Typically, writing
@@ -21,16 +21,13 @@ There are two important optmizations on intense computation applications execute
        transform the data access pattern in the loop body in uniform pattern so that the LLVM
        backend can lower it to SIMD.
 
-Actually, all the methodologies used in this tutorial is a subset of tricks mentioned in this [repo]
-(https://github.com/flame/how-to-optimize-gemm).
+Actually, all the methodologies used in this tutorial is a subset of tricks mentioned in this
+`repo <https://github.com/flame/how-to-optimize-gemm>`_. Some of them have been applied by TVM
+abstraction automatically, but some of them cannot be simply applied due to TVM constraints.
 
 All the experiment results mentioned below, are executed on 2013's 15' MacBook equiped
 Intel i7-2760QM CPU. The cache line size should be 64 bytes for all the x86 CPU.
 """
-
-import tvm
-import numpy
-import time
 
 ###############################################################################
 # Preparation and Baseline
@@ -39,7 +36,11 @@ import time
 # We use 1024x1024 float32 matrix in demonstration. Before actually demonstrating,
 # we first define these variables. Then we write a baseline implementation,
 # the simplest way to write a matrix mulplication in TVM.
-###############################################################################
+#
+
+import tvm
+import numpy
+import time
 
 # The size of the squre matrix
 N = 1024
@@ -50,25 +51,19 @@ a =  tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 b = tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 # The expected answer
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
-class GEMM(object):
-    def __init__(self, N):
-        self.k = tvm.reduce_axis((0, N), 'k')
-        self.A = tvm.placeholder((N, N), name = 'A')
-        self.B = tvm.placeholder((N, N), name = 'B')
-        self.C = tvm.compute(
-                    self.A.shape,
-                    lambda x, y: tvm.sum(self.A[x, self.k] * self.B[self.k, y], axis = self.k),
-                    name = 'C')
 
-    def build(self, show_ir = False):
-        # The default schedule
-        s = tvm.create_schedule(self.C.op)
-        if show_ir:
-            print(tvm.lower(s, [A, B, C], simple_mode=True))
-        return tvm.build(s, [self.A, self.B, self.C], name = 'mmult')
+# Algorithm
+k = tvm.reduce_axis((0, N), 'k')
+A = tvm.placeholder((N, N), name = 'A')
+B = tvm.placeholder((N, N), name = 'B')
+C = tvm.compute(
+           A.shape,
+           lambda x, y: tvm.sum(A[x, k] * B[k, y], axis = k),
+           name = 'C')
 
-baseline = GEMM(N)
-func = baseline.build()
+# Default schedule
+s = tvm.create_schedule(C.op)
+func = tvm.build(s, [A, B, C], name = 'mmult')
 assert func
 evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 1)
 c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
@@ -81,61 +76,33 @@ print('Baseline: %f' % evaluator(a, b, c).mean)
 # block by block. The memory access inside the block is a small neighbourhood which is with high
 # meomry locality. In this tutorial, I pick up 8, a relatively small value (8 ints < 64 bytes),
 # as the blocking size.
-################################################################################################
+#
 
 bn = 8
-
-class GEMMopt1(GEMM):
-    def __init__(self, N, bn):
-        super(GEMMopt1, self).__init__(N)
-        self.bn = bn
-
-    def build(self, show_ir = False):
-        s = tvm.create_schedule(self.C.op)
-        # Blocking by loop tiling
-        yo, xo, yi, xi = s[self.C].tile(self.C.op.axis[1], self.C.op.axis[0], self.bn, self.bn)
-        # Hoist reduction domain outside the blocking loop
-        s[self.C].reorder(yo, xo, self.k, yi, xi)
-        return tvm.build(s, [self.A, self.B, self.C], name = 'mmult')
-
-baseline = GEMMopt1(N, bn)
-func = baseline.build()
+# Blocking by loop tiling
+yo, xo, yi, xi = s[C].tile(C.op.axis[1], C.op.axis[0], bn, bn)
+# Hoist reduction domain outside the blocking loop
+s[C].reorder(yo, xo, k, yi, xi)
+func = tvm.build(s, [A, B, C], name = 'mmult')
 assert func
 # By simply tiling the loop 8x8, and hoisting k outside the blocking loops, we can get nearly 4x
 # speedup compared with the baseline.
 evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
 c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
-print('Opt1:%f' % evaluator(a, b, c).mean)
+print('Opt1: %f' % evaluator(a, b, c).mean)
 
 ###################################################################################################
 # Vectorization
 # -------------
 # Another important trick is vectorization. When the memory access pattern is uniform, the compiler
 # can dectect this pattern and pass the continuous memory to vector processor. In TVM, we can use
-# `vectorize` interface to tell the compiler this pattern, so that we can accelerate it vastly.
-###################################################################################################
+# `vectorize` interface to hint the compiler this pattern, so that we can accelerate it vastly.
+#
 
-class GEMMopt2(GEMM):
-    def __init__(self, N, bn):
-        super(GEMMopt2, self).__init__(N)
-        self.bn = bn
-
-    def build(self, show_ir = False):
-        s = tvm.create_schedule(self.C.op)
-        yo, xo, yi, xi = s[self.C].tile(self.C.op.axis[1], self.C.op.axis[0], self.bn, self.bn)
-        s[self.C].reorder(yo, xo, self.k, yi, xi)
-        # Actually, in the tutorial 'optimize gemm step by step', they used matrixization --- every
-        # time a flattened matrix is passed to vector processor. But in TVM, right now, it is
-        # hard to benefit from matrixization. This is mainly caused by some compiler's internal
-        # constraints which disables some flexibility in organizing the algorithm.
-
-        # After trying different schedule, we finally found that we can benefit from vectorizing 
-        # the row loop most, i.e. yi.
-        s[self.C].vectorize(yi)
-        return tvm.build(s, [self.A, self.B, self.C], name = 'mmult')
-
-baseline = GEMMopt2(N, bn)
-func = baseline.build()
+# After trying different schedule, we finally found that we can benefit from vectorizing 
+# the row loop most, i.e. yi.
+s[C].vectorize(yi)
+func = tvm.build(s, [A, B, C], name = 'mmult')
 assert func
 # We can get almost another 4x speedup compared with the previous schedule.
 evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
@@ -149,7 +116,7 @@ print('Opt2: %f' % evaluator(a, b, c).mean)
 # array to convert the continuous access pattern on certain dimension to a sequential pattern after
 # flattening. For the convienience of drawing a figure, we use 4x4 blocking as an example to
 # demonstrate array packing:
-###################################################################################################
+#
 
 # First we observe memory access pattern of AB=C:
 # A:                   B:                          C:
@@ -191,44 +158,39 @@ print('Opt2: %f' % evaluator(a, b, c).mean)
 # D |||| **** **** ****          D ||||     ****     ****     ****
 # E |||| **** **** ****          E ||||     ****     ****     ****
 # F |||| **** **** ****          F ||||     ****     ****     ****
+
+###################################################################################################
 # We reorder a 16x16 array to a [16/4][16][4] array so that the access pattern of B will be
 # sequential when grabing the corresponding value from the packed array.
+#
 
-class GEMMopt3(object):
-    def __init__(self, N, bn):
-        # We need to rewrite the algorithm to implement array packing. Some careful observation is
-        # required to pack the array and grab the correct corresponding value from the packed array.
-        k = tvm.reduce_axis((0, N), 'k')
-        A = tvm.placeholder((N, N), name = 'A')
-        B = tvm.placeholder((N, N), name = 'B')
-        packedB = tvm.compute((N / bn, N, bn), lambda x, y, z: B[y, x * bn + z], name = 'packedB')
-        C = tvm.compute(A.shape,
-                        lambda x, y: tvm.sum(A[x, k] * packedB[y / bn, k, y % bn], axis = k),
-                        name = 'C')
+# We have to re-write the algorithm slightly.
+packedB = tvm.compute((N / bn, N, bn), lambda x, y, z: B[y, x * bn + z], name = 'packedB')
+C = tvm.compute(A.shape,
+                lambda x, y: tvm.sum(A[x, k] * packedB[y / bn, k, y % bn], axis = k),
+                name = 'C')
 
-        s = tvm.create_schedule(C.op)
-        yo, xo, yi, xi = s[C].tile(C.op.axis[1], C.op.axis[0], bn, bn)
-        s[C].reorder(yo, xo, k, yi, xi)
-        s[C].vectorize(yi)
+# Same schedule
+s = tvm.create_schedule(C.op)
+yo, xo, yi, xi = s[C].tile(C.op.axis[1], C.op.axis[0], bn, bn)
+s[C].reorder(yo, xo, k, yi, xi)
+s[C].vectorize(yi)
 
-        self.func = tvm.build(s, [A, B, C], name = 'mmult')
-
-    def build(self, show_ir = False):
-        if show_ir:
-            print(tvm.lower(s, [A, B, C], simple_mode=True))
-        assert self.func
-        return self.func
-
-baseline = GEMMopt3(N, bn)
-func = baseline.build()
+func = tvm.build(s, [A, B, C], name = 'mmult')
 assert func
 # We can accelerate it almost 3x compared with the previous schedule.
 evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
 c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
 print('Opt3: %f' % evaluator(a, b, c).mean)
 
-# However, we can still get 90% performance compared with numpy.
-# TODO(Jian Weng): Catch up with the performance of numpy. Further observation is required.
+##################################################################################################
+# Summary
+# -------
+# After applying three main tricks, we can getnerly 90% performance of numpy. Further observation is
+# required to catch up with the performance of numpy.
+#
+
+# TODO(Jian Weng): Catch up with the performance of numpy.
 now = time.clock()
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
 print("Numpy: %f" % (time.clock() - now))
