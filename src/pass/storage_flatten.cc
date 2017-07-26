@@ -117,7 +117,6 @@ class StorageFlattener : public IRMutator {
           Array<Expr>(), Expr(),
           key.GetName(), skey.to_string(),
           align, 0);
-
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);
       buf_map_[key].released = true;
@@ -239,7 +238,8 @@ class StorageFlattener : public IRMutator {
     CHECK(buffer && tensor);
     CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
     TensorKey key{tensor->op, tensor->value_index};
-    CHECK(buf_map_.count(key));
+    CHECK(buf_map_.count(key))
+        << "Cannot find buffer of " << tensor->op << " value=" << tensor->value_index;
     const BufferEntry& be = buf_map_.at(key);
     CHECK(!be.released);
     CHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);

@@ -181,6 +181,19 @@ class SchedulePostProc : public IRMutator {
           return this->Mutate(op->body);
         }
       }
+    } else if (op->attr_key == ir::attr::buffer_bind_scope) {
+      Array<NodeRef> tuple(op->node.node_);
+      Tensor tensor(tuple[1].node_);
+      auto it = replace_op_.find(tensor->op.get());
+      if (it != replace_op_.end()) {
+        if (it->second.defined()) {
+          return AttrStmt::make(
+              Array<NodeRef>{tuple[0], it->second.output(tensor->value_index)},
+              op->attr_key, op->value, Mutate(op->body));
+        } else {
+          return this->Mutate(op->body);
+        }
+      }
     }
     return IRMutator::Mutate_(op, s);
   }
