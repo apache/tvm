@@ -370,38 +370,6 @@ nnvm::NodePtr CreateLayoutTransformNode(const std::string& src,
   return n;
 }
 
-nnvm::Graph
-OfflineParams(std::vector<nnvm::NodeEntry>& outputs,
-              const std::vector<std::string>& origin_params) {
-  std::vector<nnvm::NodeEntry> trans_outputs;
-  std::vector<std::string> offline_params;
-
-  nnvm::NodeEntryMap<nnvm::NodePtr> entry_var;
-  auto do_offline = [&] (const nnvm::NodePtr& n) {
-    return n->op() &&
-           (n->op()->name == "layout_transform") &&
-           n->inputs[0].node->is_variable();
-  };
-  DFSVisit(outputs, [&](nnvm::NodePtr node) {
-    for (nnvm::NodeEntry& e : node->inputs) {
-      if (do_offline(e.node)) {
-        if (!entry_var.count(e)) {
-          trans_outputs.emplace_back(e);
-          offline_params.emplace_back(e.node->attrs.name);
-          nnvm::NodePtr var = nnvm::Node::Create();
-          var->attrs.name = e.node->attrs.name;
-          entry_var[e] = var;
-        }
-        e = nnvm::NodeEntry{entry_var[e], 0, 0};
-      }
-    }
-  });
-  nnvm::Graph g;
-  g.outputs = trans_outputs;
-  g.attrs["offline_params"] = std::make_shared<any>(std::move(offline_params));
-  return g;
-}
-
 /*!
  * \brief A simple layout transform pass that will
  *  insert layout transform nodes automatically.
@@ -499,9 +467,6 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
   }
 
   nnvm::Graph ret;
-  nnvm::Graph trans_graph = OfflineParams(outputs, origin_params);
-
-  ret.attrs["trans_graph"] = std::make_shared<any>(std::move(trans_graph));
   ret.outputs = std::move(outputs);
   return ret;
 }
