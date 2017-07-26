@@ -1,6 +1,6 @@
 """
 How to optimize GEMM on CPU
-=============
+===========================
 **Author**: `Jian Weng <https://github.com/were>`_
 
 (TL;DR) TVM provides abstract interfaces which allows users to depict an algorithm and the
