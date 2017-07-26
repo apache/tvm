@@ -82,6 +82,19 @@ using FTVMInputsLayoutInfo  = FTVMLayoutInfo;
  */
 using FTVMOutputsLayoutInfo = FTVMLayoutInfo;
 
+/*! \brief Parameters of layout transform operator */
+struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
+  std::string src_layout;
+  std::string dst_layout;
+  DMLC_DECLARE_PARAMETER(LayoutTransformParam) {
+    DMLC_DECLARE_FIELD(src_layout);
+    DMLC_DECLARE_FIELD(dst_layout);
+  }
+};
+
+/*! \brief Transform from normal operator to vectorized operator */
+using FTVMVectorizedOp = std::function<nnvm::NodePtr (nnvm::NodePtr)>;
+
 // The storage result of op
 enum OpPatternKind : int {
   // Elementwise operation
