@@ -32,6 +32,15 @@ import tvm
 import numpy
 import time
 
+###############################################################################
+# Preparation and Baseline
+# ------------------------
+# In this tutorial we assume all the matrix tensors are squre and fix-bounded.
+# We use 1024x1024 float32 matrix in demonstration. Before actually demonstrating,
+# we first define these variables. Then we write a baseline implementation,
+# the simplest way to write a matrix mulplication in TVM.
+###############################################################################
+
 # The size of the squre matrix
 N = 1024
 # The default tensor type in tvm
@@ -41,24 +50,6 @@ a =  tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 b = tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 # The expected answer
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
-
-# (TL;DR) Before actually discussing about those acceleration tricks, we first define a timer
-# function and random generate two square matrix so that we can observe the enhancement easily 
-# in later discussion.
-def timer(mmult, cnt = 10):
-    global N, dtype, a, b, answer
-    res = 0
-    c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
-    #When first-time executing the module, it will take extra time to allocate memory.
-    for i in xrange(cnt + 1):
-        now = time.clock()
-        mmult(a, b, c)
-        if i:
-            res += time.clock() - now
-    numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
-    print str(res / float(cnt)) + 's executed!'
-
-# This is the baseline, the simplest way to write a matrix mulplication in TVM.
 class GEMM(object):
     def __init__(self, N):
         self.k = tvm.reduce_axis((0, N), 'k')
@@ -72,19 +63,26 @@ class GEMM(object):
     def build(self, show_ir = False):
         # The default schedule
         s = tvm.create_schedule(self.C.op)
+        if show_ir:
+            print(tvm.lower(s, [A, B, C], simple_mode=True))
         return tvm.build(s, [self.A, self.B, self.C], name = 'mmult')
 
 baseline = GEMM(N)
 func = baseline.build()
 assert func
-# It is too time consuming to run the baseline 10 times, so we just run it once!
-print 'Baseline:',
-timer(func, 1)
+evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 1)
+c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
+print('Baseline: %f' % evaluator(a, b, c).mean)
 
+################################################################################################
+# Blocking
+# --------
 # A important trick to enhance the cache hit rate is blocking --- data chunck will be computed
 # block by block. The memory access inside the block is a small neighbourhood which is with high
 # meomry locality. In this tutorial, I pick up 8, a relatively small value (8 ints < 64 bytes),
 # as the blocking size.
+################################################################################################
+
 bn = 8
 
 class GEMMopt1(GEMM):
@@ -105,12 +103,18 @@ func = baseline.build()
 assert func
 # By simply tiling the loop 8x8, and hoisting k outside the blocking loops, we can get nearly 4x
 # speedup compared with the baseline.
-print 'Opt1:',
-timer(func, 5)
+evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
+c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
+print('Opt1:%f' % evaluator(a, b, c).mean)
 
+###################################################################################################
+# Vectorization
+# -------------
 # Another important trick is vectorization. When the memory access pattern is uniform, the compiler
 # can dectect this pattern and pass the continuous memory to vector processor. In TVM, we can use
-# vectorize interface to tell the compiler this pattern, so that we can accelerate it vastly.
+# `vectorize` interface to tell the compiler this pattern, so that we can accelerate it vastly.
+###################################################################################################
+
 class GEMMopt2(GEMM):
     def __init__(self, N, bn):
         super(GEMMopt2, self).__init__(N)
@@ -134,13 +138,19 @@ baseline = GEMMopt2(N, bn)
 func = baseline.build()
 assert func
 # We can get almost another 4x speedup compared with the previous schedule.
-print 'Opt2:',
-timer(func)
+evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
+c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
+print('Opt2: %f' % evaluator(a, b, c).mean)
 
+###################################################################################################
+# Array Packing
+# -------------
 # Another important trick is array packing. This trick is to reorder the storage dimension of the
 # array to convert the continuous access pattern on certain dimension to a sequential pattern after
 # flattening. For the convienience of drawing a figure, we use 4x4 blocking as an example to
 # demonstrate array packing:
+###################################################################################################
+
 # First we observe memory access pattern of AB=C:
 # A:                   B:                          C:
 # ---- ---- ---- ----    |||| **** **** **** ****    ++++ **** **** **** ****
@@ -205,7 +215,7 @@ class GEMMopt3(object):
 
     def build(self, show_ir = False):
         if show_ir:
-            print tvm.lower(s, [A, B, C], simple_mode=True)
+            print(tvm.lower(s, [A, B, C], simple_mode=True))
         assert self.func
         return self.func
 
@@ -213,12 +223,13 @@ baseline = GEMMopt3(N, bn)
 func = baseline.build()
 assert func
 # We can accelerate it almost 3x compared with the previous schedule.
-print 'Opt3:',
-timer(func, 10)
+evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
+c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
+print('Opt3: %f' % evaluator(a, b, c).mean)
 
 # However, we can still get 90% performance compared with numpy.
 # TODO(Jian Weng): Catch up with the performance of numpy. Further observation is required.
 now = time.clock()
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
-print "Numpy:", time.clock() - now
+print("Numpy: %f" % (time.clock() - now))
 
