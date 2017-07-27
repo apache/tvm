@@ -1,8 +1,7 @@
 import os
 
 import tvm
-from tvm.contrib import cc_compiler as cc
-from tvm.contrib import util
+from tvm.contrib import cc, util
 
 def test_add(target_dir):
     n = tvm.var("n")
@@ -27,4 +26,3 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit(-1)
     test_add(sys.argv[1])
-
