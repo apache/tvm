@@ -114,54 +114,20 @@ print('Opt2: %f' % evaluator(a, b, c).mean)
 # -------------
 # Another important trick is array packing. This trick is to reorder the storage dimension of the
 # array to convert the continuous access pattern on certain dimension to a sequential pattern after
-# flattening. For the convienience of drawing a figure, we use 4x4 blocking as an example to
-# demonstrate array packing:
+# flattening.
+#
+# .. image:: https://github.com/were/web-data/raw/tvm_tutorial/tvm/tutorial/array-packing.png
+#      :align: center
+#      :scale: 100%
 #
 
-# First we observe memory access pattern of AB=C:
-# A:                   B:                          C:
-# ---- ---- ---- ----    |||| **** **** **** ****    ++++ **** **** **** ****
-# ---- ---- ---- ----    |||| **** **** **** ****    ++++ **** **** **** ****
-# ---- ---- ---- ----    |||| **** **** **** ****    ++++ **** **** **** ****
-# ---- ---- ---- ----    |||| **** **** **** ****    ++++ **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# **** **** **** ****    |||| **** **** **** ****    **** **** **** **** ****
-# We access A sequentially, but for B, we access it continuous on dimension of rows. Thus, what we 
-# want to do is to put this dimension to the inner most dimension. For 1x1 blocking, it is simply
-# to transpose the matrix B. However, here is 4x4 case, array B is packed in this fashion:
-# B:
-#   0123 4567 89AB CDEF        0:  1234  1: 1234  2: 1234  3: 1234
-# 0 |||| **** **** ****          0 ||||     ****     ****     ****
-# 1 |||| **** **** ****          1 ||||     ****     ****     ****
-# 2 |||| **** **** ****          2 ||||     ****     ****     ****
-# 3 |||| **** **** ****          3 ||||     ****     ****     ****
-# 4 |||| **** **** ****          4 ||||     ****     ****     ****
-# 5 |||| **** **** ****          5 ||||     ****     ****     ****
-# 6 |||| **** **** ****          6 ||||     ****     ****     ****
-# 7 |||| **** **** ****  ->      7 ||||     ****     ****     ****
-# 8 |||| **** **** ****          8 ||||     ****     ****     ****
-# 9 |||| **** **** ****          9 ||||     ****     ****     ****
-# A |||| **** **** ****          A ||||     ****     ****     ****
-# B |||| **** **** ****          B ||||     ****     ****     ****
-# C |||| **** **** ****          C ||||     ****     ****     ****
-# D |||| **** **** ****          D ||||     ****     ****     ****
-# E |||| **** **** ****          E ||||     ****     ****     ****
-# F |||| **** **** ****          F ||||     ****     ****     ****
 
 ###################################################################################################
-# We reorder a 16x16 array to a [16/4][16][4] array so that the access pattern of B will be
-# sequential when grabing the corresponding value from the packed array.
+# Just as it is shown in the figure above, after blocking the computations, we can observe the array
+# access pattern of B (after flattening), which is regular but discontinuous. We expect that after
+# some transformation we can get continuous access pattern. We can reorder a [16][16] array to 
+# a [16/4][16][4] array, so that the access pattern of B will be sequential when grabing 
+# the corresponding value from the packed array.
 #
 
 # We have to re-write the algorithm slightly.
@@ -186,12 +152,14 @@ print('Opt3: %f' % evaluator(a, b, c).mean)
 ##################################################################################################
 # Summary
 # -------
-# After applying three main tricks, we can getnerly 90% performance of numpy. Further observation is
+# After applying three main tricks, we can almost 90% performance of numpy. Further observation is
 # required to catch up with the performance of numpy.
 #
 
 # TODO(Jian Weng): Catch up with the performance of numpy.
+_a = a.asnumpy()
+_b = b.asnumpy()
 now = time.clock()
-answer = numpy.dot(a.asnumpy(), b.asnumpy())
+answer = numpy.dot(_a, _b)
 print("Numpy: %f" % (time.clock() - now))
 
