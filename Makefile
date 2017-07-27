@@ -208,11 +208,9 @@ doc:
 	doxygen docs/Doxyfile
 
 install: lib/libtvm.so lib/libtvm_runtime.so lib/libtvm.a
-	mkdir -p include
-	cp -R include/tvm $(DESTDIR)$(PREFIX)/include
-	cp lib/libtvm.so $(DESTDIR)$(PREFIX)/lib
+	mkdir -p $(DESTDIR)$(PREFIX)/include/tvm/runtime
+	cp -R include/tvm/runtime/. $(DESTDIR)$(PREFIX)/include/tvm/runtime
 	cp lib/libtvm_runtime.so $(DESTDIR)$(PREFIX)/lib
-	cp lib/libtvm.a $(DESTDIR)$(PREFIX)/lib
 
 # Cython build
 cython:

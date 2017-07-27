@@ -156,10 +156,9 @@ add_library(libtvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(libtvm_runtime SHARED ${RUNTIME_SRCS})
 target_link_libraries(libtvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(libtvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
-install(TARGETS libtvm DESTINATION lib)
 install(TARGETS libtvm_runtime DESTINATION lib)
 install(
-  DIRECTORY "include/." DESTINATION "include"
+  DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
   FILES_MATCHING
   PATTERN "*.h"
 )
