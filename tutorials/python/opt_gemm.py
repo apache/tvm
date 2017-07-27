@@ -116,7 +116,7 @@ print('Opt2: %f' % evaluator(a, b, c).mean)
 # array to convert the continuous access pattern on certain dimension to a sequential pattern after
 # flattening.
 #
-# .. image:: https://github.com/were/web-data/raw/tvm_tutorial/tvm/tutorial/array-packing.png
+# .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/array-packing.png
 #      :align: center
 #      :scale: 100%
 #
