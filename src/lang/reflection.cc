@@ -59,6 +59,7 @@ class NodeIndexer : public AttrVisitor {
   void Visit(const char* key, int* value) final {}
   void Visit(const char* key, bool* value) final {}
   void Visit(const char* key, std::string* value) final {}
+  void Visit(const char* key, void** value) final {}
   void Visit(const char* key, Type* value) final {}
   void Visit(const char* key, NodeRef* value) final {
     MakeIndex(value->node_.get());
@@ -148,6 +149,9 @@ class JSONAttrGetter : public AttrVisitor {
   void Visit(const char* key, std::string* value) final {
     node_->attrs[key] = *value;
   }
+  void Visit(const char* key, void** value) final {
+    LOG(FATAL) << "not allowed to serialize a pointer";
+  }
   void Visit(const char* key, Type* value) final {
     node_->attrs[key] = Type2String(*value);
   }
@@ -222,6 +226,9 @@ class JSONAttrSetter : public AttrVisitor {
   }
   void Visit(const char* key, std::string* value) final {
     *value = GetValue(key);
+  }
+  void Visit(const char* key, void** value) final {
+    LOG(FATAL) << "not allowed to deserialize a pointer";
   }
   void Visit(const char* key, Type* value) final {
     std::string stype = GetValue(key);
@@ -369,6 +376,9 @@ class NodeAttrSetter : public AttrVisitor {
     SetValue(key, value);
   }
   void Visit(const char* key, std::string* value) final {
+    SetValue(key, value);
+  }
+  void Visit(const char* key, void** value) final {
     SetValue(key, value);
   }
   void Visit(const char* key, Type* value) final {

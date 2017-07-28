@@ -523,12 +523,12 @@ nnvm::Graph PruneGraph(nnvm::Graph src) {
     if (can_be_pruned) {
       pruned.emplace(n.get());
     } else {
-      // scan again to find edge nodes
+      // scan again to find edge nodes, skip variables
       for (auto& e : n->inputs) {
-        if (pruned.count(e.node.get())) {
+        if (!e.node->is_variable() && pruned.count(e.node.get())) {
           if (!entry_var.count(e)) {
             nnvm::NodePtr var = nnvm::Node::Create();
-            var->attrs.name = e.node->attrs.name + "_" + std::to_string(e.index);
+            var->attrs.name = e.node->attrs.name + "_output" + std::to_string(e.index);
             entry_var.emplace(e, var);
           }
           e = nnvm::NodeEntry{entry_var.at(e), 0, 0};
@@ -542,6 +542,7 @@ nnvm::Graph PruneGraph(nnvm::Graph src) {
   std::vector<std::string> output_names;
   output_names.reserve(entry_var.size());
   for (auto kv : entry_var) {
+    if (kv.first.node->is_variable()) continue;
     pre_graph.outputs.emplace_back(kv.first);
     output_names.emplace_back(kv.second->attrs.name);
   }
