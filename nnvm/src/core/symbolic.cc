@@ -473,6 +473,9 @@ bool Symbol::GetAttr(const std::string& key, std::string* out) const {
   if (key == "name") {
     *out = node->attrs.name;
     return true;
+  } else if (key == "op_name") {
+    *out = node->attrs.op->name;
+    return true;
   }
   auto it = node->attrs.dict.find(key);
   if (it == node->attrs.dict.end()) return false;
