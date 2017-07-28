@@ -45,6 +45,15 @@ def test_copy():
                 name='exp', gpu=1, attr={"kk": "1"})
     assert y.__copy__().debug_str() == y.debug_str()
 
+
+def test_op_name():
+    x = sym.Variable('x')
+    y = sym.exp(x)
+    op_name = y.attr("op_name")
+    op_func = sym.__dict__[op_name]
+    z = op_func(x)
+
+
 def test_control_dep():
     x = sym.Variable('x')
     y = sym.conv2d(data=x, name='conv')
@@ -53,6 +62,7 @@ def test_control_dep():
     t._add_control_deps([z, y])
 
 if __name__ == "__main__":
+    test_op_name()
     test_copy()
     test_default_input()
     test_compose()
