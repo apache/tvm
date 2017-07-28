@@ -1,9 +1,9 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file target_info.cc
+ * \file graph_handle.cc
  */
-#include <tvm/graph.h>
 #include <tvm/packed_func_ext.h>
+#include "./graph_handle.h"
 
 namespace tvm {
 

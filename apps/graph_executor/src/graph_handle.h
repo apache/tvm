@@ -3,12 +3,11 @@
  * \file graph.h
  * \brief Data structure about computational graph.
  */
-#ifndef TVM_GRAPH_H_
-#define TVM_GRAPH_H_
+#ifndef TVM_GRAPH_HANDLE_H_
+#define TVM_GRAPH_HANDLE_H_
 
 #include <string>
-#include "./base.h"
-#include "./expr.h"
+#include <tvm/base.h>
 
 namespace tvm {
 
@@ -31,4 +30,4 @@ struct GraphHandleNode : public Node {
 TVM_DEFINE_NODE_REF(GraphHandle, GraphHandleNode);
 
 }  // namespace tvm
-#endif  // TVM_GRAPH_H_
+#endif  // TVM_GRAPH_HANDLE_H_
