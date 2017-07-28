@@ -27,5 +27,5 @@ from .tensor_intrin import decl_tensor_intrin
 from .node import register_node
 from .ndarray import register_extension
 from .schedule import create_schedule
-from .build import build, lower, build_config
+from .build import build, lower, build_config, BuildConfig
 from .tag import tag_scope
