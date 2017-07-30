@@ -57,6 +57,9 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
       ++ref_count[e.node_id];
     }
   }
+  for (const auto& e : idx.outputs()) {
+    ++ref_count[e.node_id];
+  }
   // Pattern fo the subgraph
   std::vector<TOpPattern> pattern_vec(idx.num_nodes(),  kExtern);
   // Whether node can be fused to parent.
@@ -218,6 +221,7 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       nnvm::Op::GetAttr<FTVMCompute>("FTVMCompute");
   static auto& fschedule =
       nnvm::Op::GetAttr<FTVMSchedule>("FTVMSchedule");
+  std::unordered_map<uint32_t, std::vector<Operation>> group_ops;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
@@ -244,11 +248,19 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
         uint32_t eid = idx.entry_id(nid, index);
         tensor_vec[eid] = out[index];
       }
+      group_ops[root_id].push_back(out[0]->op);
     } else {
       // Work on schedule
       fe.outputs = out;
-      fe.schedule = fschedule[inode.source->op()](
+      Schedule root_schedule = fschedule[inode.source->op()](
           inode.source->attrs, fe.outputs, target);
+      // inline all other ops in the group
+      if (group_ops.count(root_id)) {
+        for (const Operation& op : group_ops.at(root_id)) {
+          root_schedule[op].compute_inline();
+        }
+      }
+      fe.schedule = root_schedule;
       std::ostringstream os;
       os << inode.source->attrs.name + "_id" << nid;
       fe.func_name = os.str();
