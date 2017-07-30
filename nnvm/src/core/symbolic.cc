@@ -281,13 +281,13 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     CHECK_EQ(kv.second->outputs.size(), 1U)
         << "Keyword Argument " << kv.first << " is a tuple, single value is required";
   }
+  // assign new name
+  if (!name.empty()) outputs[0].node->attrs.name = name;
 
   // Atomic functor composition.
   if (IsAtomic(outputs)) {
     Node* n = outputs[0].node.get();
     uint32_t n_req = n->num_inputs();
-    // assign new name
-    if (!name.empty()) n->attrs.name = name;
 
     if (n_req != kVarg) {
       n->inputs.resize(n_req);
