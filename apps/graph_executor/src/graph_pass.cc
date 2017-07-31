@@ -21,7 +21,8 @@ using nnvm::IndexedGraph;
 // The single fuse rule.
 enum class FuseRule {
   kUknown,
-  kFuseToParent,
+  kFuseBody,
+  kFuseTail,
   kRealize
 };
 
@@ -73,52 +74,43 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
       fuse_vec[nid] = FuseRule::kRealize; continue;
     }
     TOpPattern pt = op_pattern.get(inode.source->op(), kExtern);
-    if (pt <= kBroadcast) {
-      // Looking for fusable bcast pattern
-      bool ewise = inode.source->num_outputs() == 1;
-      for (const auto& e : inode.inputs) {
-        if (fuse_vec[e.node_id] == FuseRule::kUknown) {
-          if (pattern_vec[e.node_id] == kBroadcast) {
-            ewise = false;
-            fuse_vec[e.node_id] = FuseRule::kFuseToParent;
-          } else if (pattern_vec[e.node_id] == kElemWise) {
-            fuse_vec[e.node_id] = FuseRule::kFuseToParent;
-          }
-        }
-        if (ewise) {
-          TShape oshape = shape_vec[idx.entry_id(nid, 0)];
-          if (oshape != shape_vec[idx.entry_id(e)]) ewise = false;
-        }
+
+    bool fuse = true, edge = true;
+    for (const auto& e : inode.inputs) {
+      if (fuse_vec[e.node_id] == FuseRule::kFuseTail) {
+        fuse = false;
+        break;
       }
-      pt = ewise ? kElemWise : kBroadcast;
-    } else if (pt == kComplex) {
-      for (const auto& e : inode.inputs) {
-        if (fuse_vec[e.node_id] == FuseRule::kUknown) {
-          if (pattern_vec[e.node_id] <= kBroadcast) {
-            fuse_vec[e.node_id] = FuseRule::kFuseToParent;
-          }
-        }
+      if (!idx[e.node_id].source->is_variable()) {
+        edge = false;
       }
     }
     pattern_vec[nid] = pt;
-    if (ref_count[nid] > 1) {
+    if (pt <= kBroadcast && fuse && !edge) {
+      if (ref_count[nid] <= 1) {
+        fuse_vec[nid] = FuseRule::kFuseBody;
+      } else {
+        fuse_vec[nid] = FuseRule::kFuseTail;
+      }
+    } else {
       fuse_vec[nid] = FuseRule::kRealize;
     }
   }
   // point to the group root id of each node
   std::vector<int> group_vec(idx.num_nodes(), -1);
-  for (uint32_t i = idx.num_nodes(); i != 0; --i) {
-    uint32_t nid = i - 1;
+  for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (group_vec[nid] == -1) {
       group_vec[nid] = nid;
     }
-    // propagate the group id.
-    for (const auto& e : inode.inputs) {
-      if (fuse_vec[e.node_id] == FuseRule::kFuseToParent) {
-        CHECK(group_vec[e.node_id] == -1||
-              group_vec[e.node_id] == group_vec[nid]);
-        group_vec[e.node_id] = group_vec[nid];
+    if (fuse_vec[nid] == FuseRule::kFuseBody ||
+        fuse_vec[nid] == FuseRule::kFuseTail) {
+      // propagate the group id.
+      for (const auto& e : inode.inputs) {
+        if (!idx[e.node_id].source->is_variable()) {
+          CHECK(group_vec[e.node_id] != -1);
+          group_vec[nid] = group_vec[e.node_id];
+        }
       }
     }
   }
@@ -210,7 +202,9 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
             shape, TVMType2Type(dltype_vec[idx.entry_id(e)]),
             os_name.str());
         fe.imap[e] = data;
-        fe.inputs.push_back(e);
+        // assume that fuse segment only has one output
+        CHECK_EQ(e.index, 0);
+        fe.inputs.push_back({static_cast<uint32_t>(group_vec[e.node_id]), 0, 0});
         fe.placeholder.push_back(data);
       }
     }
@@ -222,6 +216,10 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
   static auto& fschedule =
       nnvm::Op::GetAttr<FTVMSchedule>("FTVMSchedule");
   std::unordered_map<uint32_t, std::vector<Operation>> group_ops;
+  std::vector<int> tail(idx.num_nodes(), -1);
+  for (int nid = 0; nid < idx.num_nodes(); ++nid) {
+    tail[group_vec[nid]] = std::max(tail[group_vec[nid]], nid);
+  }
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
@@ -243,27 +241,22 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
     Array<Tensor> out = fcompute[inode.source->op()](
         inode.source->attrs, inputs);
     CHECK_EQ(out.size(), inode.source->num_outputs());
-    if (nid != root_id) {
-      for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
-        uint32_t eid = idx.entry_id(nid, index);
-        tensor_vec[eid] = out[index];
-      }
-      group_ops[root_id].push_back(out[0]->op);
-    } else {
+
+    // use root_id's schedule, schedule on tail, inline all other nodes besides tail
+    if (nid == tail[group_vec[nid]]) {
       // Work on schedule
       fe.outputs = out;
-      Schedule root_schedule = fschedule[inode.source->op()](
+      Schedule root_schedule = fschedule[idx[root_id].source->op()](
           inode.source->attrs, fe.outputs, target);
-      // inline all other ops in the group
-      if (group_ops.count(root_id)) {
-        for (const Operation& op : group_ops.at(root_id)) {
-          root_schedule[op].compute_inline();
-        }
-      }
       fe.schedule = root_schedule;
       std::ostringstream os;
       os << inode.source->attrs.name + "_id" << nid;
       fe.func_name = os.str();
+    } else {
+      for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
+        uint32_t eid = idx.entry_id(nid, index);
+        tensor_vec[eid] = out[index];
+      }
     }
   }
   static const PackedFunc& flower = GetPackedFunc("tvm_graph.lower");
@@ -292,37 +285,42 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       nnvm::NodePtr np = nnvm::Node::Create();
       np->attrs = inode.source->attrs;
       old_new[nid] = np;
-    } else {
-      int root_id = group_vec[nid];
-      if (nid != root_id) continue;
-      FuseEntry& fe = fuse_vec[root_id];
-      nnvm::NodePtr np = nnvm::Node::Create();
-      np->attrs.op = tvm_op;
-      np->attrs.name = inode.source->attrs.name;
-      np->attrs.dict["num_inputs"] = std::to_string(fe.inputs.size());
-      np->attrs.dict["num_outputs"] = std::to_string(fe.outputs.size());
-      np->attrs.dict["func_name"] = fuse_vec[nid].func_name;
-      np->attrs.dict["flatten_data"] = std::to_string(pattern_vec[nid] == kElemWise);
-      np->op()->attr_parser(&(np->attrs));
-      for (const auto& e : fe.inputs) {
-        auto it = old_new.find(e.node_id);
-        CHECK(it != old_new.end())
-            << "cannot find node_id=" << e.node_id;
-        np->inputs.emplace_back(
-            nnvm::NodeEntry{it->second, e.index, e.version});
-      }
-      for (const uint32_t node_id : inode.control_deps) {
-        auto it = old_new.find(node_id);
-        CHECK(it != old_new.end());
-        np->control_deps.emplace_back(it->second);
-      }
-      old_new[nid] = np;
     }
   }
+  for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
+    const auto& inode = idx[nid];
+    if (inode.source->is_variable()) continue;
+    int root_id = group_vec[nid];
+    if (nid != root_id) continue;
+    FuseEntry& fe = fuse_vec[root_id];
+    nnvm::NodePtr np = nnvm::Node::Create();
+    np->attrs.op = tvm_op;
+    np->attrs.name = inode.source->attrs.name;
+    np->attrs.dict["num_inputs"] = std::to_string(fe.inputs.size());
+    np->attrs.dict["num_outputs"] = std::to_string(fe.outputs.size());
+    np->attrs.dict["func_name"] = fuse_vec[nid].func_name;
+    np->attrs.dict["flatten_data"] = std::to_string(pattern_vec[nid] == kElemWise);
+    np->op()->attr_parser(&(np->attrs));
+    for (const auto& e : fe.inputs) {
+      auto it = old_new.find(e.node_id);
+      CHECK(it != old_new.end())
+          << "cannot find node_id=" << e.node_id;
+      np->inputs.emplace_back(
+          nnvm::NodeEntry{it->second, e.index, e.version});
+    }
+    for (const uint32_t node_id : inode.control_deps) {
+      auto it = old_new.find(node_id);
+      CHECK(it != old_new.end());
+      np->control_deps.emplace_back(it->second);
+    }
+    old_new[nid] = np;
+  }
+
   nnvm::Graph ret;
   for (const auto& e : idx.outputs()) {
-    auto it = old_new.find(e.node_id);
-    CHECK(it != old_new.end());
+    auto it = old_new.find(group_vec[e.node_id]);
+    CHECK(it != old_new.end())
+        << "cannot find node_id=" << e.node_id;
     ret.outputs.emplace_back(
         nnvm::NodeEntry{it->second, e.index, e.version});
   }
