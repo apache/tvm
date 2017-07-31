@@ -16,6 +16,7 @@ tvm_option(USE_RPC "Build with RPC" OFF)
 tvm_option(USE_LLVM "Build with LLVM" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
+tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 
 include_directories("include")
 include_directories("HalideIR/src")
@@ -139,20 +140,23 @@ elseif(DMLC_CORE_PATH)
   include_directories(${DMLC_CORE_PATH}/include)
 endif()
 
-# Set library output directories
-if(MSVC)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/lib)
-else()
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
-    set(CMAKE_SHARED_LIBRARY_PREFIX "")
-endif()
-
 list(APPEND RUNTIME_SRCS ${GROUP_Include})
-add_library(libtvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
-add_library(libtvm_runtime SHARED ${RUNTIME_SRCS})
-target_link_libraries(libtvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(libtvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
+add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
+install(TARGETS tvm_runtime DESTINATION lib)
+if (INSTALL_DEV)
+  install(TARGETS tvm DESTINATION lib)
+  install(
+    DIRECTORY "include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+else(INSTALL_DEV)
+  install(
+    DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+endif(INSTALL_DEV)
