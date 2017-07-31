@@ -3,8 +3,8 @@ Intrinsics and Math Functions
 =============================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
-While tvm support basic arithmetic operations. In many cases
-usually we will need more complicated buildin functions.
+While TVM supports basic arithmetic operations. In many cases
+usually we will need more complicated builtin functions.
 For example :code:`exp` to take the exponetial of the function.
 
 These functions are target system dependent and may have different
@@ -135,7 +135,7 @@ print(fcuda.imported_modules[0].get_source())
 ######################################################################
 # Summary
 # -------
-# - TVM call call extern target dependent math function.
+# - TVM can call extern target dependent math function.
 # - Use intrinsic to defined a unified interface for the functions.
 # - For more intrinsics available in tvm, take a look at :any:`tvm.intrin`
 # - You can customize the intrinsic behavior by defining your own rules.

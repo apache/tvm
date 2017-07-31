@@ -3,12 +3,12 @@ External Tensor Functions
 =========================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
-While tvm support transparent code generation, sometimes
+While TVM supports transparent code generation, sometimes
 it is also helpful to incorporate manual written code into
 the pipeline. For example, we might want to use cuDNN for
 some of the convolution kernels and define the rest of the stages.
 
-TVM support these black box function calls natively.
+TVM supports these black box function calls natively.
 Specfically, tvm support all the tensor functions that are DLPack compatible.
 Which means we can call any function with POD types(pointer, int, float)
 or pointer to DLTensor as argument.
@@ -27,12 +27,12 @@ from tvm.contrib import cblas
 # of output tensors. In the second argument we provide the list of inputs.
 #
 # User will need to provide a function describing how to compute the result.
-# The compute function takes list of symbolic are placeholder for the inputs,
+# The compute function takes list of symbolic placeholder for the inputs,
 # list of symbolic placeholder for the outputs and returns the executing statement.
 #
 # In this case we simply call a registered tvm function, which invokes a CBLAS call.
-# TVM do not control internal of the extern array function and treats it as blackbox.
-# We can further mix schedulable TVM calls that add a bias to term to the result.
+# TVM does not control internal of the extern array function and treats it as blackbox.
+# We can further mix schedulable TVM calls that add a bias term to the result.
 #
 n = 1024
 l = 128
@@ -103,7 +103,7 @@ np.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1, rtol=1e-5)
 ######################################################################
 # Summary
 # -------
-# - TVM call extern tensor function via :any:`tvm.extern`
+# - TVM calls extern tensor function via :any:`tvm.extern`
 # - Use contrib wrappers for short sugars of extern tensor calls.
 # - We can hook front-end function as extern tensor callbacks.
 #
