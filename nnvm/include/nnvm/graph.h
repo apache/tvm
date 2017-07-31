@@ -71,7 +71,7 @@ class Graph {
 };
 
 /*!
- * \brief Auxililary data structure to index a graph.
+ * \brief Auxiliary data structure to index a graph.
  *  It maps Nodes in the graph to consecutive integers node_id.
  *  It also maps IndexedGraph::NodeEntry to consecutive integer entry_id.
  *  This allows storing properties of Node and NodeEntry into
