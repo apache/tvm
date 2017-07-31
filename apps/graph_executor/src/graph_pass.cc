@@ -21,8 +21,7 @@ using nnvm::IndexedGraph;
 // The single fuse rule.
 enum class FuseRule {
   kUknown,
-  kFuseBody,
-  kFuseTail,
+  kFuse,
   kRealize
 };
 
@@ -59,12 +58,14 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
     }
   }
   for (const auto& e : idx.outputs()) {
-    ++ref_count[e.node_id];
+    ref_count[e.node_id] += 2;
   }
   // Pattern fo the subgraph
   std::vector<TOpPattern> pattern_vec(idx.num_nodes(),  kExtern);
   // Whether node can be fused to parent.
   std::vector<FuseRule> fuse_vec(idx.num_nodes(), FuseRule::kUknown);
+  // Master node id of fusion segment.
+  std::vector<int> master_vec(idx.num_nodes(), -1);
   // Operator pattern
   static auto& op_pattern = nnvm::Op::GetAttr<TOpPattern>("TOpPattern");
 
@@ -75,46 +76,80 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
     }
     TOpPattern pt = op_pattern.get(inode.source->op(), kExtern);
 
-    bool fuse = true, edge = true;
-    for (const auto& e : inode.inputs) {
-      if (fuse_vec[e.node_id] == FuseRule::kFuseTail) {
-        fuse = false;
-        break;
+    if (pt <= kBroadcast) {
+      // multiple complex inputs, fuse current node into one of them;
+      for (const auto& e : inode.inputs) {
+        if (master_vec[e.node_id] != -1) {
+          master_vec[nid] = master_vec[e.node_id];
+          break;
+        }
       }
-      if (!idx[e.node_id].source->is_variable()) {
-        edge = false;
+      bool ewise = inode.source->num_outputs() == 1;
+      for (const auto& e : inode.inputs) {
+        if (fuse_vec[e.node_id] == FuseRule::kUknown) {
+          if (master_vec[e.node_id] != -1 &&
+              master_vec[e.node_id] != master_vec[nid]) {
+            fuse_vec[e.node_id] = FuseRule::kRealize;
+          } else {
+            if (pattern_vec[e.node_id] == kBroadcast) {
+              ewise = false;
+              fuse_vec[e.node_id] = FuseRule::kFuse;
+            } else if (pattern_vec[e.node_id] == kElemWise) {
+              fuse_vec[e.node_id] = FuseRule::kFuse;
+            } else if (pattern_vec[e.node_id] == kComplex){
+              ewise = false;
+              CHECK_EQ(master_vec[e.node_id], master_vec[nid]);
+              fuse_vec[e.node_id] = FuseRule::kFuse;
+            }
+          }
+        }
+        if (ewise) {
+          TShape oshape = shape_vec[idx.entry_id(nid, 0)];
+          if (oshape != shape_vec[idx.entry_id(e)]) ewise = false;
+        }
+      }
+      pt = ewise ? kElemWise : kBroadcast;
+    } else {
+      master_vec[nid] = nid;
+      for (const auto& e : inode.inputs) {
+        if (fuse_vec[e.node_id] == FuseRule::kUknown) {
+          fuse_vec[e.node_id] = FuseRule::kRealize;
+          if (master_vec[e.node_id] == -1) {
+            master_vec[e.node_id] = nid;
+          }
+        }
       }
     }
+
     pattern_vec[nid] = pt;
-    if (pt <= kBroadcast && fuse && !edge) {
-      if (ref_count[nid] <= 1) {
-        fuse_vec[nid] = FuseRule::kFuseBody;
-      } else {
-        fuse_vec[nid] = FuseRule::kFuseTail;
-      }
-    } else {
+    if (ref_count[nid] > 1) {
       fuse_vec[nid] = FuseRule::kRealize;
+      if (master_vec[nid] == -1) {
+        master_vec[nid] = nid;
+      }
     }
   }
+
+
   // point to the group root id of each node
   std::vector<int> group_vec(idx.num_nodes(), -1);
-  for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
+  for (uint32_t i = idx.num_nodes(); i != 0; --i) {
+    uint32_t nid = i - 1;
     const auto& inode = idx[nid];
     if (group_vec[nid] == -1) {
       group_vec[nid] = nid;
     }
-    if (fuse_vec[nid] == FuseRule::kFuseBody ||
-        fuse_vec[nid] == FuseRule::kFuseTail) {
-      // propagate the group id.
-      for (const auto& e : inode.inputs) {
-        if (!idx[e.node_id].source->is_variable()) {
-          CHECK(group_vec[e.node_id] != -1);
-          group_vec[nid] = group_vec[e.node_id];
-        }
+    // propagate the group id.
+    for (const auto& e : inode.inputs) {
+      if (fuse_vec[e.node_id] == FuseRule::kFuse) {
+        CHECK(group_vec[e.node_id] == -1||
+              group_vec[e.node_id] == group_vec[nid]);
+        group_vec[e.node_id] = group_vec[nid];
       }
     }
   }
   g.attrs["group_root"] = std::make_shared<any>(std::move(group_vec));
+  g.attrs["master"] = std::make_shared<any>(std::move(master_vec));
   g.attrs["pattern"] = std::make_shared<any>(std::move(pattern_vec));
   g.attrs["dltype"] = std::make_shared<any>(std::move(dltype_vec));
   return g;
@@ -167,6 +202,7 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
   const DLTypeVector& dltype_vec = g.GetAttr<DLTypeVector>("dltype");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
   const std::vector<int>& group_vec = g.GetAttr<std::vector<int> >("group_root");
+  const std::vector<int>& master_vec = g.GetAttr<std::vector<int> >("master");
   const std::vector<TOpPattern>& pattern_vec =
       g.GetAttr<std::vector<TOpPattern> >("pattern");
   std::string target = g.GetAttr<std::string>("target");
@@ -215,11 +251,6 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       nnvm::Op::GetAttr<FTVMCompute>("FTVMCompute");
   static auto& fschedule =
       nnvm::Op::GetAttr<FTVMSchedule>("FTVMSchedule");
-  std::unordered_map<uint32_t, std::vector<Operation>> group_ops;
-  std::vector<int> tail(idx.num_nodes(), -1);
-  for (int nid = 0; nid < idx.num_nodes(); ++nid) {
-    tail[group_vec[nid]] = std::max(tail[group_vec[nid]], nid);
-  }
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
@@ -242,21 +273,20 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
         inode.source->attrs, inputs);
     CHECK_EQ(out.size(), inode.source->num_outputs());
 
-    // use root_id's schedule, schedule on tail, inline all other nodes besides tail
-    if (nid == tail[group_vec[nid]]) {
-      // Work on schedule
-      fe.outputs = out;
-      Schedule root_schedule = fschedule[idx[root_id].source->op()](
-          inode.source->attrs, fe.outputs, target);
-      fe.schedule = root_schedule;
-      std::ostringstream os;
-      os << inode.source->attrs.name + "_id" << nid;
-      fe.func_name = os.str();
-    } else {
+    // schedule on root node, and use master's schedule
+    if (nid != root_id) {
       for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
         uint32_t eid = idx.entry_id(nid, index);
         tensor_vec[eid] = out[index];
       }
+    } else {
+      int master = master_vec[root_id];
+      fe.outputs = out;
+      fe.schedule = fschedule[idx[master].source->op()](
+          inode.source->attrs, fe.outputs, target);
+      std::ostringstream os;
+      os << inode.source->attrs.name + "_id" << nid;
+      fe.func_name = os.str();
     }
   }
   static const PackedFunc& flower = GetPackedFunc("tvm_graph.lower");
