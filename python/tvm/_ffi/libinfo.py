@@ -2,7 +2,6 @@
 from __future__ import absolute_import
 import sys
 import os
-import platform
 
 
 def find_lib_path(name=None, search_path=None):
