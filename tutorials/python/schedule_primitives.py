@@ -30,7 +30,7 @@ m = tvm.var('m')
 
 ######################################################################
 # A schedule can be created from a list of ops, by default the
-# schedule compute tensor in a serial manner in a row-major order.
+# schedule computes tensor in a serial manner in a row-major order.
 
 # declare a matrix element-wise multiply
 A = tvm.placeholder((m, n), name='A')
@@ -182,7 +182,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # tvm, which permits users schedule the computation easily and
 # flexibly.
 #
-# In order to get an good performance kernel implementation, the
+# In order to get a good performance kernel implementation, the
 # general workflow often is:
 #
 # - Describe your computation via series of operations.

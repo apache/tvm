@@ -84,7 +84,7 @@ s = tvm.create_schedule(C.op)
 bx, tx = s[C].split(C.op.axis[0], factor=64)
 
 ######################################################################
-# Finally we bind the iteratio axis bx and tx to threads in the GPU
+# Finally we bind the iteration axis bx and tx to threads in the GPU
 # compute grid. These are GPU specific constructs that allows us
 # to generate code that runs on GPU.
 #
@@ -120,7 +120,7 @@ fadd_cuda = tvm.build(s, [A, B, C], "cuda", target_host="llvm", name="myadd")
 # The array API is based on `DLPack <https://github.com/dmlc/dlpack>`_ standard.
 #
 # - We first create a gpu context.
-# - Then tvm.nd.array copies the data to cpu.
+# - Then tvm.nd.array copies the data to gpu.
 # - fadd runs the actual computation.
 # - asnumpy() copies the gpu array back to cpu and we can use this to verify correctness
 #
@@ -153,9 +153,9 @@ print(dev_module.get_source())
 #   to pass only single shape argument to the kernel, as you will find in
 #   the printed device code. This is one form of specialization.
 #
-#   On the host side, TVM will automatically generate check codes
+#   On the host side, TVM will automatically generate check code
 #   that checks the constraints in the parameters. So if you pass
-#   arrays with different shape into the fadd, an error will be raised.
+#   arrays with different shapes into the fadd, an error will be raised.
 #
 #   We can do more specializations. For example, we can write
 #   :code:`n = tvm.convert(1024)` instead of :code:`n = tvm.var("n")`,
@@ -166,7 +166,7 @@ print(dev_module.get_source())
 ######################################################################
 # Save Compiled Module
 # --------------------
-# Besides runtime compilation, we can save the compiled module into
+# Besides runtime compilation, we can save the compiled modules into
 # file and load them back later. This is called ahead of time compilation.
 #
 # The following code first does the following step:
@@ -210,7 +210,7 @@ np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # Pack Everything into One Library
 # --------------------------------
 # In the above example, we store the device and host code seperatedly.
-# TVM also support export everything as one shared library.
+# TVM also supports export everything as one shared library.
 # Under the hood, we pack the device modules into binary blobs and link
 # them together with the host code.
 # Currently we support packing of Metal, OpenCL and CUDA modules.
@@ -225,7 +225,7 @@ np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 #
 #   The compiled modules of TVM do not depend on the TVM compiler.
 #   Instead, it only depends on a minimum runtime library.
-#   TVM runtime library wraps the device drivers and provide
+#   TVM runtime library wraps the device drivers and provides
 #   thread-safe and device agnostic call into the compiled functions.
 #
 #   This means you can call the compiled TVM function from any thread,

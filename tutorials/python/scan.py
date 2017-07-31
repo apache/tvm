@@ -81,7 +81,7 @@ np.testing.assert_allclose(b.asnumpy(), np.cumsum(a_np, axis=0))
 # computation stage in s_update. It is possible to use multiple
 # Tensor stages in the scan cell.
 #
-# The following lines demonstrates a scan with two stage operations
+# The following lines demonstrate a scan with two stage operations
 # in the scan cell.
 #
 m = tvm.var("m")
@@ -108,7 +108,7 @@ print(tvm.lower(s, [X, s_scan], simple_mode=True))
 # ---------------
 # For complicated applications like RNN, we might need more than one
 # recurrent state. Scan support multiple recurrent states.
-# The following example demonstrate how we can build recurrence with two states.
+# The following example demonstrates how we can build recurrence with two states.
 #
 m = tvm.var("m")
 n = tvm.var("n")
