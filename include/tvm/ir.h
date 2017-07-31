@@ -108,6 +108,7 @@ struct Reduce : public ExprNode<Reduce> {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
+    v->Visit("combiner", &combiner);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
