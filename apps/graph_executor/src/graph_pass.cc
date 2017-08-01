@@ -275,8 +275,9 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
         tensor_vec[eid] = out[index];
       }
     } else {
-      int master = master_vec[root_id];
       fe.outputs = out;
+      int master = master_vec[root_id];
+      CHECK_GE(master, 0);
       fe.schedule = fschedule[idx[master].source->op()](
           inode.source->attrs, fe.outputs, target);
       std::ostringstream os;
