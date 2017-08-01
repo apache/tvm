@@ -281,7 +281,7 @@ class Stage(NodeBase):
             outer, inner = _api_internal._StageSplitByFactor(self, parent, factor)
         return outer, inner
 
-    def fuse(self, inner, outer):
+    def fuse(self, outer, inner):
         """Fuse inner and outer to a single iteration variable.
 
         Parameters
@@ -294,10 +294,10 @@ class Stage(NodeBase):
 
         Returns
         -------
-        inner : IterVar
+        fused : IterVar
             The fused variable of iteration.
         """
-        return _api_internal._StageFuse(self, inner, outer)
+        return _api_internal._StageFuse(self, outer, inner)
 
     def set_scope(self, scope):
         """Set the thread scope of this stage
