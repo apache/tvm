@@ -21,7 +21,7 @@ using nnvm::IndexedGraph;
 // The single fuse rule.
 enum class FuseRule {
   kUknown,
-  kFuse,
+  kFuseToMaster,
   kRealize
 };
 
@@ -68,6 +68,7 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
   std::vector<int> master_vec(idx.num_nodes(), -1);
   // Operator pattern
   static auto& op_pattern = nnvm::Op::GetAttr<TOpPattern>("TOpPattern");
+  auto same_shape = [&] (uint32_t leid, uint32_t reid) { return shape_vec[leid] == shape_vec[reid]; };
 
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
@@ -77,43 +78,42 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
     TOpPattern pt = op_pattern.get(inode.source->op(), kExtern);
 
     if (pt <= kBroadcast) {
-      // multiple complex inputs, fuse current node into one of them;
-      for (const auto& e : inode.inputs) {
-        if (master_vec[e.node_id] != -1) {
-          master_vec[nid] = master_vec[e.node_id];
-          break;
-        }
-      }
+      int chosen_master = -1;
       bool ewise = inode.source->num_outputs() == 1;
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
-          if (master_vec[e.node_id] != -1 &&
-              master_vec[e.node_id] != master_vec[nid]) {
-            ewise = false;
-            fuse_vec[e.node_id] = FuseRule::kRealize;
-          } else {
-            TOpPattern ipt = pattern_vec[e.node_id];
-            if (ipt != kElemWise) {
-              ewise = false;
-            }
-            if (ipt != kExtern) {
-              fuse_vec[e.node_id] = FuseRule::kFuse;
-            }
+          TOpPattern ipt = pattern_vec[e.node_id];
+          if (ipt != kElemWise) ewise = false;
+          switch (ipt) {
+            case kElemWise:
+            case kBroadcast:
+              if (master_vec[e.node_id] == -1) {
+                fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
+                break;
+              }
+            case kComplex:
+              if (chosen_master == -1 && same_shape(idx.entry_id(nid, 0), idx.entry_id(e))) {
+                chosen_master = master_vec[e.node_id];
+                fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
+                break;
+              }
+            default:
+              fuse_vec[e.node_id] = FuseRule::kRealize;
           }
         }
         if (ewise) {
-          TShape oshape = shape_vec[idx.entry_id(nid, 0)];
-          if (oshape != shape_vec[idx.entry_id(e)]) ewise = false;
+          if (!same_shape(idx.entry_id(nid, 0), idx.entry_id(e))) ewise = false;
         }
       }
       pt = ewise ? kElemWise : kBroadcast;
+      master_vec[nid] = chosen_master;
     } else {
       master_vec[nid] = nid;
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
           fuse_vec[e.node_id] = FuseRule::kRealize;
           if (master_vec[e.node_id] == -1) {
-            master_vec[e.node_id] = nid;
+            master_vec[e.node_id] = e.node_id;
           }
         }
       }
@@ -139,7 +139,7 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
     }
     // propagate the group id.
     for (const auto& e : inode.inputs) {
-      if (fuse_vec[e.node_id] == FuseRule::kFuse) {
+      if (fuse_vec[e.node_id] == FuseRule::kFuseToMaster) {
         CHECK(group_vec[e.node_id] == -1||
               group_vec[e.node_id] == group_vec[nid]);
         group_vec[e.node_id] = group_vec[nid];
