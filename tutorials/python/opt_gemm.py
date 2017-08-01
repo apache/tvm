@@ -95,11 +95,11 @@ print('Opt1: %f' % evaluator(a, b, c).mean)
 # Vectorization
 # -------------
 # Another important trick is vectorization. When the memory access pattern is uniform, the compiler
-# can dectect this pattern and pass the continuous memory to vector processor. In TVM, we can use
+# can detect this pattern and pass the continuous memory to vector processor. In TVM, we can use
 # `vectorize` interface to hint the compiler this pattern, so that we can accelerate it vastly.
 #
 
-# After trying different schedule, we finally found that we can benefit from vectorizing 
+# After trying different schedule, we finally found that we can benefit from vectorizing
 # the row loop most, i.e. yi.
 s[C].vectorize(yi)
 func = tvm.build(s, [A, B, C], name = 'mmult')

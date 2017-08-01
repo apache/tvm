@@ -17,6 +17,6 @@ See also [This Issue](https://github.com/dmlc/tvm/issues/151)
 
 TVM's relation to libDNN cuDNN
 ------------------------------
-TVM can incoporate these library as external calls. One goal of TVM is to be able to
+TVM can incorporate these library as external calls. One goal of TVM is to be able to
 generate high performing kernels. We will evolve TVM an incremental manner as
 we learn from the technics of manual kernel crafting and add these as primitives in DSL.
