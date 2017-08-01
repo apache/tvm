@@ -218,7 +218,7 @@ Stage& Stage::split_by_nparts(
   return *this;
 }
 
-Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT(*)
+Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT(*)
   StageNode* self = operator->();
   CHECK(outer->iter_type == kDataPar ||
         outer->iter_type == kCommReduce ||
@@ -227,7 +227,7 @@ Stage& Stage::fuse(IterVar inner, IterVar outer, IterVar* p_target) {  // NOLINT
   CHECK(inner->iter_type == kDataPar ||
         inner->iter_type == kCommReduce ||
         inner->iter_type == kOrdered)
-      << "Cannot fuse " << IterVarType2String(outer->iter_type);
+      << "Cannot fuse " << IterVarType2String(inner->iter_type);
 
   IterVarType iter_type = outer->iter_type;
   if (inner->iter_type > iter_type) iter_type = inner->iter_type;

@@ -61,7 +61,7 @@ def schedule_depthwise_conv2d_map(op):
         # split and bind
         bx, bxi = s[Output].split(Output.op.axis[1], factor=channel_multiplier)
         s[Output].reorder(Output.op.axis[2], Output.op.axis[3], bxi)
-        bx = s[Output].fuse(bx, Output.op.axis[0])
+        bx = s[Output].fuse(Output.op.axis[0], bx)
         s[Output].bind(bx, block_x)
         by1, y1i = s[Output].split(Output.op.axis[2], factor=blocking_h)
         tvx, vxi = s[Output].split(y1i, nparts=num_vthread_x)
@@ -70,7 +70,7 @@ def schedule_depthwise_conv2d_map(op):
         tvy, vyi = s[Output].split(y2i, nparts=num_vthread_y)
         ty, yi = s[Output].split(vyi, nparts=num_thread)
         s[Output].reorder(by1, by2, tvx, tvy, tx, ty, xi, yi)
-        by = s[Output].fuse(by2, by1)
+        by = s[Output].fuse(by1, by2)
         s[Output].bind(tvx, thread_vx)
         s[Output].bind(tvy, thread_vy)
         s[Output].bind(tx, thread_x)
