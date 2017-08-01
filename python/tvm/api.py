@@ -700,10 +700,10 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
                 # there are two way to use this {0} reducer:
                 # mode 1, accept (expr, axis, where) to produce an Reduce Expr
-                B = tvm.compute((m,), lambda i: {0}(A[i, k], axis=k), name="B")
+                B = tvm.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
 
                 # mode 2, simply use it with multiple Exprs:
-                {0}_res = {0}(m, n)
+                {0}_res = tvm.{0}(m, n)
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
