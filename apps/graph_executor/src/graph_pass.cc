@@ -58,6 +58,7 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
     }
   }
   for (const auto& e : idx.outputs()) {
+    // this line will realize all the outputs
     ref_count[e.node_id] += 2;
   }
   // Pattern fo the subgraph
@@ -147,7 +148,7 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
     }
   }
   g.attrs["group_root"] = std::make_shared<any>(std::move(group_vec));
-  g.attrs["master"] = std::make_shared<any>(std::move(master_vec));
+  g.attrs["group_master"] = std::make_shared<any>(std::move(master_vec));
   g.attrs["pattern"] = std::make_shared<any>(std::move(pattern_vec));
   g.attrs["dltype"] = std::make_shared<any>(std::move(dltype_vec));
   return g;
@@ -200,7 +201,7 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
   const DLTypeVector& dltype_vec = g.GetAttr<DLTypeVector>("dltype");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
   const std::vector<int>& group_vec = g.GetAttr<std::vector<int> >("group_root");
-  const std::vector<int>& master_vec = g.GetAttr<std::vector<int> >("master");
+  const std::vector<int>& master_vec = g.GetAttr<std::vector<int> >("group_master");
   const std::vector<TOpPattern>& pattern_vec =
       g.GetAttr<std::vector<TOpPattern> >("pattern");
   std::string target = g.GetAttr<std::string>("target");
@@ -312,8 +313,6 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       np->attrs = inode.source->attrs;
       old_new[nid] = np;
     } else {
-      const auto& inode = idx[nid];
-      if (inode.source->is_variable()) continue;
       int root_id = group_vec[nid];
       if (nid != root_id) continue;
       FuseEntry& fe = fuse_vec[root_id];
