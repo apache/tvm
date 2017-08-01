@@ -348,7 +348,7 @@ constexpr const char* tvm_thread_context = "tvm_thread_context";
  */
 constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
 /*!
- * \brief See pesudo code
+ * \brief See pseudo code
  *
  *  int tvm_storage_sync(std::string storage_scope) {
  *     __sync(storage_scope);

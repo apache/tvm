@@ -90,7 +90,8 @@ find_package(CUDA)
     list(APPEND TVM_LINKER_LIBS ${CUDA_NVRTC_LIB})
   else(MSVC)
     find_library(CUDA_NVRTC_LIB nvrtc
-      ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
+      ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+      ${CUDA_TOOLKIT_ROOT_DIR}/lib)
     list(APPEND TVM_LINKER_LIBS ${CUDA_NVRTC_LIB})
   endif(MSVC)
   add_definitions(-DTVM_CUDA_RUNTIME=1)
