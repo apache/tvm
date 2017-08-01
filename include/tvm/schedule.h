@@ -123,12 +123,12 @@ class Stage : public NodeRef {
   Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
-   * \param inner The inner domain to be fused
    * \param outer The outer domain to be fused.
+   * \param inner The inner domain to be fused
    * \param p_target The result target domain.
    * \return reference to self.
    */
-  Stage& fuse(IterVar inner, IterVar outer, IterVar* p_target);  // NOLINT(*)
+  Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
   /*!
    * \brief Reorder the iteration
    * \param order The order of iteration variable.
