@@ -72,7 +72,7 @@ def test_fuse():
 
     s = tvm.create_schedule(T.op)
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
-    fused = s[T].fuse(yo, xo)
+    fused = s[T].fuse(xo, yo)
     assert any(isinstance(x, tvm.schedule.Fuse) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused, xi, yi)
 
