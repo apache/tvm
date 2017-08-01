@@ -90,7 +90,6 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
             shape_vec[idx.entry_id(nid, 0)] == shape_vec[idx.entry_id(e)]) {
             chosen_master = master_vec[e.node_id];
             fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
-            pattern_vec[nid] = kComplex;
           } else {
             fuse_vec[e.node_id] = FuseRule::kRealize;
           }
@@ -101,8 +100,12 @@ nnvm::Graph GraphPartition(nnvm::Graph g) {
           }
         }
       }
-      pt = ewise ? kElemWise : kBroadcast;
       master_vec[nid] = chosen_master;
+      if (chosen_master != -1) {
+        pt = kComplex;
+      } else {
+        pt = ewise ? kElemWise : kBroadcast;
+      }
     } else {
       master_vec[nid] = nid;
       for (const auto& e : inode.inputs) {
