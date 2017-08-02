@@ -93,7 +93,7 @@ struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
 };
 
 /*! \brief Transform from normal operator to vectorized operator */
-using FTVMVectorizedOp = std::function<nnvm::NodePtr (nnvm::NodePtr)>;
+using FTVMVectorizedOp = std::function<nnvm::NodePtr (const nnvm::Node*)>;
 
 // The storage result of op
 enum OpPatternKind : int {

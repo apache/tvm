@@ -373,9 +373,26 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
 NNVM_REGISTER_PASS(GraphFuse)
 .set_body(GraphFuse);
 
+inline LayoutInfo DefaultLayout() {
+  return {"default", "default"};
+}
 
-inline bool IsIdentityLayout(const LayoutInfo& layout) {
-  if (layout.src == "" && layout.dst == "") return true;
+inline bool IsDefaultLayout(const LayoutInfo& layout) {
+  // default input layout will try to realize the previous output layout;
+  // default output layout will do nothing;
+  if (layout.src == "default" && layout.dst == "default") return true;
+  return false;
+}
+
+inline bool IsMapLayout(const LayoutInfo& layout) {
+  // postpone the input layout transform
+  if (layout.src == "map" && layout.dst == "map") return true;
+  return false;
+}
+
+inline bool CompareLayouts(const LayoutInfo& lhs,
+                           const LayoutInfo& rhs) {
+  if (lhs.src == rhs.src && lhs.dst == rhs.dst) return true;
   return false;
 }
 
@@ -384,6 +401,7 @@ inline bool IsPairedLayouts(const LayoutInfo& in,
   if (in.src == out.dst && in.dst == out.src) return true;
   return false;
 }
+
 
 inline LayoutInfo GetLayout(const nnvm::OpMap<FTVMLayoutInfo>& layouts,
                             const nnvm::NodePtr& n, int idx) {
@@ -408,92 +426,131 @@ nnvm::NodePtr CreateLayoutTransformNode(const std::string& src,
  *  insert layout transform nodes automatically.
  */
 nnvm::Graph LayoutTransform(nnvm::Graph src) {
-  static auto& ilayouts =
+  static auto& op_ilayouts =
     nnvm::Op::GetAttr<FTVMInputsLayoutInfo>("FTVMInputsLayoutInfo");
-  static auto& olayouts =
+  static auto& op_olayouts =
     nnvm::Op::GetAttr<FTVMOutputsLayoutInfo>("FTVMOutputsLayoutInfo");
-  static auto& vec_op =
+  static auto& op_vecop =
     nnvm::Op::GetAttr<FTVMVectorizedOp>("FTVMVectorizedOp");
 
-  std::unordered_map<nnvm::Node*, nnvm::NodePtr> mirror_map;
-  std::unordered_map<nnvm::Node*, std::vector<nnvm::NodePtr> > transformed;
+  const IndexedGraph& idx = src.indexed_graph();
+  std::vector<std::vector<LayoutInfo> > ilayouts_vec(idx.num_nodes(), {});
+  std::vector<std::vector<LayoutInfo> > olayouts_vec(idx.num_nodes(), {});
+  std::vector<nnvm::NodePtr> mirror_vec(idx.num_nodes(), nullptr);
+  std::vector<std::vector<nnvm::NodePtr> > otransformed_vec(idx.num_nodes(), {});
 
-  DFSVisit(src.outputs, [&](const nnvm::NodePtr& n) {
-      nnvm::NodePtr new_node = nnvm::Node::Create();
-      *new_node = *n;
-      if (new_node->is_variable()) {
-        mirror_map[n.get()] = new_node;
-        return;
-      }
+  for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
+    const auto& inode = idx[nid];
+    nnvm::NodePtr new_node = nnvm::Node::Create();
+    *new_node = *(inode.source);
+    if (new_node->is_variable()) {
+      ilayouts_vec[nid] = {DefaultLayout()};
+      olayouts_vec[nid] = {DefaultLayout()};
+      mirror_vec[nid] = new_node;
+      continue;
+    }
 
-      if (vec_op.count(n->op())) {
-        new_node = vec_op[n->op()](n);
-        new_node->inputs.resize(new_node->num_inputs());
-      }
+    if (op_vecop.count(inode.source->op())) {
+      new_node = op_vecop[inode.source->op()](inode.source);
+      new_node->inputs.resize(new_node->num_inputs());
+    }
 
-      if (olayouts.count(new_node->op())) {
-        std::vector<nnvm::NodePtr> tnodes(n->num_outputs(), nullptr);
-        std::vector<LayoutInfo> layouts = olayouts[new_node->op()](new_node->attrs);
-        for (uint32_t i = 0; i < n->num_outputs(); ++i) {
-          const LayoutInfo& layout = layouts[i];
-          if (!IsIdentityLayout(layout)) {
-            tnodes[i] = CreateLayoutTransformNode(layout.src, layout.dst);
-            tnodes[i]->attrs.name = new_node->attrs.name + "_" + layout.dst;
-            tnodes[i]->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
+    if (op_olayouts.count(new_node->op())) {
+      olayouts_vec[nid] = op_olayouts[new_node->op()](new_node->attrs);
+    } else {
+      olayouts_vec[nid] =
+        std::vector<LayoutInfo>(inode.source->num_outputs(), DefaultLayout());
+    }
+
+    if (op_ilayouts.count(new_node->op())) {
+      ilayouts_vec[nid] = op_ilayouts[new_node->op()](new_node->attrs);
+    } else {
+      ilayouts_vec[nid] =
+        std::vector<LayoutInfo>(inode.source->num_inputs(), DefaultLayout());
+    }
+
+    bool map_layout = false;
+    if (inode.source->num_outputs() == 1) {
+      CHECK_GT(inode.inputs.size(), 0);
+      LayoutInfo base_ilayout = ilayouts_vec[nid][0];
+      if (IsMapLayout(base_ilayout)) {
+        map_layout = true;
+        const auto& base_e = inode.inputs[0];
+        LayoutInfo base_olayout = olayouts_vec[base_e.node_id][base_e.index];
+
+        for (size_t j = 0; j < inode.inputs.size(); ++j) {
+          CHECK(IsMapLayout(ilayouts_vec[nid][j]));
+          const auto& e = inode.inputs[j];
+          if (!CompareLayouts(olayouts_vec[e.node_id][e.index], base_olayout)) {
+            map_layout = false;
+            break;
           }
         }
-        transformed.emplace(n.get(), std::move(tnodes));
-      }
 
-      for (size_t idx = 0; idx < n->inputs.size(); ++idx) {
-        const nnvm::NodeEntry& e = n->inputs[idx];
-        const nnvm::NodePtr& in = mirror_map.at(e.node.get());
-        new_node->inputs[idx] =
-          nnvm::NodeEntry{in, e.index, e.version};
-
-        bool otrans = olayouts.count(in->op());
-        bool itrans = ilayouts.count(new_node->op());
-        if (otrans && itrans) {
-          LayoutInfo ilayout = GetLayout(ilayouts, new_node, idx);
-          LayoutInfo olayout = GetLayout(olayouts, in, e.index);
-          if (IsPairedLayouts(olayout, ilayout)) {
-            continue;
+        if (map_layout) {
+          olayouts_vec[nid][0] = base_olayout;
+        } else {
+          for (size_t j = 0; j < inode.inputs.size(); ++j) {
+            ilayouts_vec[nid][j] = DefaultLayout();
+            olayouts_vec[nid][0] = DefaultLayout();
           }
         }
-
-        if (otrans) {
-          nnvm::NodePtr tnode = transformed.at(in.get())[e.index];
-          if (tnode.get()) {
-            new_node->inputs[idx] =
-              nnvm::NodeEntry{tnode, 0, 0};
-          }
-        }
-
-        if (itrans) {
-          LayoutInfo layout = GetLayout(ilayouts, new_node, idx);
-          if (!IsIdentityLayout(layout)) {
-            nnvm::NodePtr tnode =
-              CreateLayoutTransformNode(layout.src, layout.dst);
-            tnode->attrs.name = n->inputs[idx].node->attrs.name + "_" + layout.dst;
-            tnode->inputs.emplace_back(new_node->inputs[idx]);
-            new_node->inputs[idx] = nnvm::NodeEntry{tnode, 0, 0};
-          }
-        }
-      }
-      mirror_map[n.get()] = std::move(new_node);
-    });
-
-  std::vector<nnvm::NodeEntry> outputs;
-  for (const auto& e : src.outputs) {
-    if (olayouts.count(e.node->op())) {
-      nnvm::NodePtr tnode = transformed.at(e.node.get())[e.index];
-      if (tnode.get()) {
-        outputs.emplace_back(nnvm::NodeEntry{tnode, 0, 0});
-        continue;
       }
     }
-    outputs.emplace_back(
-      nnvm::NodeEntry{mirror_map.at(e.node.get()), e.index, e.version});
+
+    std::vector<nnvm::NodePtr> tnodes(inode.source->num_outputs(), nullptr);
+    for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
+      const std::vector<LayoutInfo>& olayouts = olayouts_vec[nid];
+      const LayoutInfo& olayout = olayouts[i];
+      if (!IsDefaultLayout(olayout)) {
+        PrintLayout(olayout);
+        tnodes[i] = CreateLayoutTransformNode(olayout.src, olayout.dst);
+        tnodes[i]->attrs.name = new_node->attrs.name + "_" + olayout.dst;
+        tnodes[i]->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
+      }
+    }
+    otransformed_vec[nid] = std::move(tnodes);
+
+    for (size_t i = 0; i < inode.inputs.size(); ++i) {
+      const auto& e = inode.inputs[i];
+      const nnvm::NodePtr& in = mirror_vec[e.node_id];
+      new_node->inputs[i] =
+        nnvm::NodeEntry{in, e.index, e.version};
+
+      if (map_layout) break;
+
+      LayoutInfo ilayout = ilayouts_vec[nid][i];
+      LayoutInfo olayout = olayouts_vec[e.node_id][e.index];
+      if (IsPairedLayouts(olayout, ilayout)) continue;
+
+      if (!IsDefaultLayout(olayout)) {
+        nnvm::NodePtr tnode = otransformed_vec[e.node_id][e.index];
+        CHECK(tnode.get());
+        new_node->inputs[i] = nnvm::NodeEntry{tnode, 0, 0};
+      }
+
+      if (!IsDefaultLayout(ilayout)) {
+        nnvm::NodePtr tnode =
+          CreateLayoutTransformNode(ilayout.src, ilayout.dst);
+        tnode->attrs.name =
+          idx[e.node_id].source->attrs.name + "_" + ilayout.dst;
+        tnode->inputs.emplace_back(new_node->inputs[i]);
+        new_node->inputs[i] = nnvm::NodeEntry{tnode, 0, 0};
+      }
+    }
+    mirror_vec[nid] = new_node;
+  }
+
+  std::vector<nnvm::NodeEntry> outputs;
+  for (const auto& e : idx.outputs()) {
+    if (!IsDefaultLayout(olayouts_vec[e.node_id][e.index])) {
+      nnvm::NodePtr tnode = otransformed_vec[e.node_id][e.index];
+      CHECK(tnode.get());
+      outputs.emplace_back(nnvm::NodeEntry{tnode, 0, 0});
+    } else {
+      outputs.emplace_back(
+        nnvm::NodeEntry{mirror_vec[e.node_id], e.index, e.version});
+    }
   }
 
   nnvm::Graph ret;
