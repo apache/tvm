@@ -378,8 +378,8 @@ inline LayoutInfo DefaultLayout() {
 }
 
 inline bool IsDefaultLayout(const LayoutInfo& layout) {
-  // default input layout will try to realize the previous output layout;
-  // default output layout will do nothing;
+  // default input layout will try to realize the previous
+  // output layout, default output layout will do nothing
   if (layout.src == "default" && layout.dst == "default") return true;
   return false;
 }
@@ -390,23 +390,12 @@ inline bool IsMapLayout(const LayoutInfo& layout) {
   return false;
 }
 
-inline bool CompareLayouts(const LayoutInfo& lhs,
-                           const LayoutInfo& rhs) {
-  if (lhs.src == rhs.src && lhs.dst == rhs.dst) return true;
-  return false;
-}
-
 inline bool IsPairedLayouts(const LayoutInfo& in,
                             const LayoutInfo& out) {
   if (in.src == out.dst && in.dst == out.src) return true;
   return false;
 }
 
-
-inline LayoutInfo GetLayout(const nnvm::OpMap<FTVMLayoutInfo>& layouts,
-                            const nnvm::NodePtr& n, int idx) {
-  return layouts[n->op()](n->attrs)[idx];
-}
 
 nnvm::NodePtr CreateLayoutTransformNode(const std::string& src,
                                         const std::string& dst) {
@@ -481,7 +470,7 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
         for (size_t j = 0; j < inode.inputs.size(); ++j) {
           CHECK(IsMapLayout(ilayouts_vec[nid][j]));
           const auto& e = inode.inputs[j];
-          if (!CompareLayouts(olayouts_vec[e.node_id][e.index], base_olayout)) {
+          if (olayouts_vec[e.node_id][e.index] != base_olayout) {
             map_layout = false;
             break;
           }
@@ -503,7 +492,6 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
       const std::vector<LayoutInfo>& olayouts = olayouts_vec[nid];
       const LayoutInfo& olayout = olayouts[i];
       if (!IsDefaultLayout(olayout)) {
-        PrintLayout(olayout);
         tnodes[i] = CreateLayoutTransformNode(olayout.src, olayout.dst);
         tnodes[i]->attrs.name = new_node->attrs.name + "_" + olayout.dst;
         tnodes[i]->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
@@ -517,7 +505,7 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
       new_node->inputs[i] =
         nnvm::NodeEntry{in, e.index, e.version};
 
-      if (map_layout) break;
+      if (map_layout) continue;
 
       LayoutInfo ilayout = ilayouts_vec[nid][i];
       LayoutInfo olayout = olayouts_vec[e.node_id][e.index];

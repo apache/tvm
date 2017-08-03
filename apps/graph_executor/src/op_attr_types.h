@@ -62,6 +62,14 @@ struct LayoutInfo {
   Layout dst;
 };
 
+inline bool operator==(const LayoutInfo& lhs, const LayoutInfo& rhs) {
+  return lhs.src == rhs.src && lhs.dst == rhs.dst;
+}
+
+inline bool operator!=(const LayoutInfo& lhs, const LayoutInfo& rhs) {
+  return !(lhs == rhs);
+}
+
 /*!
  * \brief Layout info of the node.
  * \param attrs The attribute of the node.
