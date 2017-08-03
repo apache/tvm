@@ -52,43 +52,12 @@ using FTVMSchedule = std::function<
            const Array<Tensor>& outs,
            const std::string& target)>;
 
-/*!
- * \brief Layout transform information,
- *  from source layout to destination layout.
- */
-struct LayoutInfo {
-  using Layout = std::string;
-  Layout src;
-  Layout dst;
-};
+using TLayoutInfo = std::string;
 
-inline bool operator==(const LayoutInfo& lhs, const LayoutInfo& rhs) {
-  return lhs.src == rhs.src && lhs.dst == rhs.dst;
-}
-
-inline bool operator!=(const LayoutInfo& lhs, const LayoutInfo& rhs) {
-  return !(lhs == rhs);
-}
-
-/*!
- * \brief Layout info of the node.
- * \param attrs The attribute of the node.
- * \return layouts A vector of inputs/outputs layout info.
- */
-using FTVMLayoutInfo = std::function<
-  std::vector<LayoutInfo>(const NodeAttrs& attrs)>;
-/*!
- * \brief Inputs layout info of the node.
- * \param attrs The attribute of the node.
- * \return layouts A vector of inputs layout info.
- */
-using FTVMInputsLayoutInfo  = FTVMLayoutInfo;
-/*!
- * \brief Outputs layout info of the node.
- * \param attrs The attribute of the node.
- * \return layouts A vector of outputs layout info.
- */
-using FTVMOutputsLayoutInfo = FTVMLayoutInfo;
+using FTVMLayoutProducerConsumer = std::function<bool (const NodeAttrs& attrs,
+                                                       std::vector<TLayoutInfo> *consumer,
+                                                       std::vector<TLayoutInfo> *producer)>;
+const TLayoutInfo& GetDefaultLayout();
 
 /*! \brief Parameters of layout transform operator */
 struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {

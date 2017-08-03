@@ -373,32 +373,10 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
 NNVM_REGISTER_PASS(GraphFuse)
 .set_body(GraphFuse);
 
-inline LayoutInfo DefaultLayout() {
-  return {"default", "default"};
+const TLayoutInfo& GetDefaultLayout() {
+  static TLayoutInfo default_layout = "default";
+  return default_layout;
 }
-
-inline bool IsDefaultLayout(const LayoutInfo& layout) {
-  // default input layout will try to realize the previous
-  // output layout, default output layout will do nothing
-  if (layout.src == "default" && layout.dst == "default") return true;
-  return false;
-}
-
-inline bool IsMapOp(const nnvm::Node* node) {
-}
-
-inline bool IsMapLayout(const LayoutInfo& layout) {
-  // postpone the input layout transform
-  if (layout.src == "map" && layout.dst == "map") return true;
-  return false;
-}
-
-inline bool IsPairedLayouts(const LayoutInfo& in,
-                            const LayoutInfo& out) {
-  if (in.src == out.dst && in.dst == out.src) return true;
-  return false;
-}
-
 
 nnvm::NodePtr CreateLayoutTransformNode(const std::string& src,
                                         const std::string& dst) {
@@ -418,21 +396,20 @@ nnvm::NodePtr CreateLayoutTransformNode(const std::string& src,
  *  insert layout transform nodes automatically.
  */
 nnvm::Graph LayoutTransform(nnvm::Graph src) {
-  static auto& op_ilayouts =
-    nnvm::Op::GetAttr<FTVMInputsLayoutInfo>("FTVMInputsLayoutInfo");
-  static auto& op_olayouts =
-    nnvm::Op::GetAttr<FTVMOutputsLayoutInfo>("FTVMOutputsLayoutInfo");
+  static auto& op_layout_producer_consumer =
+    nnvm::Op::GetAttr<FTVMLayoutProducerConsumer>("FTVMLayoutProducerConsumer");
   static auto& op_vecop =
     nnvm::Op::GetAttr<FTVMVectorizedOp>("FTVMVectorizedOp");
   static auto& op_pattern = nnvm::Op::GetAttr<TOpPattern>("TOpPattern");
 
   const ShapeVector& shape_vec = src.GetAttr<ShapeVector>("shape");
+  const std::vector<TLayoutInfo>& input_layouts =
+    src.GetAttr<std::vector<TLayoutInfo>>("layout");
 
   const IndexedGraph& idx = src.indexed_graph();
-  std::vector<LayoutInfo> ilayouts_vec(idx.num_node_entries(), DefaultLayout());
-  std::vector<LayoutInfo> olayouts_vec(idx.num_node_entries(), DefaultLayout());
+  std::vector<TLayoutInfo> olayout_vec(idx.num_node_entries(), GetDefaultLayout());
+  std::vector<std::vector<TLayoutInfo>> ilayout_vec(idx.num_nodes());
   std::vector<nnvm::NodePtr> mirror_vec(idx.num_nodes(), nullptr);
-  std::vector<std::vector<nnvm::NodePtr> > otransformed_vec(idx.num_nodes());
 
   // use op pattern to decide whether an op is map
   auto is_map_op = [&](size_t nid) {
@@ -454,6 +431,11 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
     nnvm::NodePtr new_node = nnvm::Node::Create();
     *new_node = *(inode.source);
     if (new_node->is_variable()) {
+      auto input_iter = std::find(
+        idx.input_nodes().cbegin(), idx.input_nodes().cend(), nid);
+      CHECK(input_iter != idx.input_nodes().cend());
+      size_t input_id = std::distance(idx.input_nodes().cbegin(), input_iter);
+      olayout_vec[idx.entry_id(nid, 0)] = input_layouts[input_id];
       mirror_vec[nid] = new_node;
       continue;
     }
@@ -463,52 +445,38 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
       new_node->inputs.resize(new_node->num_inputs());
     }
 
-    // set up output layouts
-    if (op_olayouts.count(new_node->op())) {
-      std::vector<LayoutInfo> olayouts =
-        op_olayouts[new_node->op()](new_node->attrs);
-      CHECK_EQ(olayouts.size(), inode.source->num_outputs());
-      for (size_t i = 0; i < inode.source->num_outputs(); ++i) {
-        olayouts_vec[idx.entry_id(nid, i)] = olayouts[i];
-      }
-    }
+    // set up output and input layouts
+    if (op_layout_producer_consumer.count(new_node->op())) {
+      std::vector<TLayoutInfo> olayouts(new_node->num_outputs(), GetDefaultLayout());
+      std::vector<TLayoutInfo> ilayouts(new_node->num_inputs(), GetDefaultLayout());
+      CHECK(op_layout_producer_consumer[new_node->op()](new_node->attrs, &ilayouts, &olayouts))
+        << "Layout producer consumer fail";
 
-    // set up input layouts
-    if (op_ilayouts.count(new_node->op())) {
-      std::vector<LayoutInfo> ilayouts =
-        op_ilayouts[new_node->op()](new_node->attrs);
-      CHECK_EQ(ilayouts.size(), inode.source->num_inputs());
-      for (size_t i = 0; i < inode.source->num_inputs(); ++i) {
-        ilayouts_vec[idx.entry_id(inode.inputs[i])] = ilayouts[i];
+      CHECK_EQ(olayouts.size(), new_node->num_outputs());
+      for (size_t i = 0; i < new_node->num_outputs(); ++i) {
+        olayout_vec[idx.entry_id(nid, i)] = olayouts[i];
       }
+      CHECK_EQ(ilayouts.size(), new_node->num_inputs());
+      ilayout_vec[nid] = ilayouts;
+    } else {
+      ilayout_vec[nid] = {new_node->num_inputs(), GetDefaultLayout()};
     }
 
     bool map_layout = is_map_op(nid);
     if (map_layout) {
-      const LayoutInfo& layout = olayouts_vec[idx.entry_id(inode.inputs[0])];
+      const TLayoutInfo& layout = olayout_vec[idx.entry_id(inode.inputs[0])];
       for (const auto& e : inode.inputs) {
-        if (olayouts_vec[idx.entry_id(e)] != layout) {
+        if (olayout_vec[idx.entry_id(e)] != layout) {
           map_layout = false;
           break;
         }
       }
       if (map_layout) {
         for (size_t i = 0; i < inode.source->num_outputs(); ++i) {
-          olayouts_vec[idx.entry_id(nid, i)] = layout;
+          olayout_vec[idx.entry_id(nid, i)] = layout;
         }
       }
     }
-
-    std::vector<nnvm::NodePtr> tnodes(inode.source->num_outputs(), nullptr);
-    for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
-      const LayoutInfo& olayout = olayouts_vec[idx.entry_id(nid, i)];
-      if (!IsDefaultLayout(olayout)) {
-        tnodes[i] = CreateLayoutTransformNode(olayout.src, olayout.dst);
-        tnodes[i]->attrs.name = new_node->attrs.name + "_" + olayout.dst;
-        tnodes[i]->inputs.emplace_back(nnvm::NodeEntry{new_node, i, 0});
-      }
-    }
-    otransformed_vec[nid] = std::move(tnodes);
 
     for (size_t i = 0; i < inode.inputs.size(); ++i) {
       const auto& e = inode.inputs[i];
@@ -518,33 +486,28 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
 
       if (map_layout) continue;
 
-      LayoutInfo ilayout = ilayouts_vec[idx.entry_id(e)];
-      LayoutInfo olayout = olayouts_vec[idx.entry_id(e)];
-      if (IsPairedLayouts(olayout, ilayout)) continue;
+      TLayoutInfo olayout = olayout_vec[idx.entry_id(e)];
+      TLayoutInfo ilayout = ilayout_vec[nid][i];
+      if (olayout == ilayout) continue;
 
-      if (!IsDefaultLayout(olayout)) {
-        nnvm::NodePtr tnode = otransformed_vec[e.node_id][e.index];
-        CHECK(tnode.get());
-        new_node->inputs[i] = nnvm::NodeEntry{tnode, 0, 0};
-      }
-
-      if (!IsDefaultLayout(ilayout)) {
-        nnvm::NodePtr tnode =
-          CreateLayoutTransformNode(ilayout.src, ilayout.dst);
-        tnode->attrs.name =
-          idx[e.node_id].source->attrs.name + "_" + ilayout.dst;
-        tnode->inputs.emplace_back(new_node->inputs[i]);
-        new_node->inputs[i] = nnvm::NodeEntry{tnode, 0, 0};
-      }
+      nnvm::NodePtr tnode = CreateLayoutTransformNode(olayout, ilayout);
+      tnode->attrs.name =
+        idx[e.node_id].source->attrs.name + "_" + ilayout;
+      tnode->inputs.emplace_back(new_node->inputs[i]);
+      new_node->inputs[i] = nnvm::NodeEntry{tnode, 0, 0};
     }
     mirror_vec[nid] = new_node;
   }
 
   std::vector<nnvm::NodeEntry> outputs;
   for (const auto& e : idx.outputs()) {
-    if (!IsDefaultLayout(olayouts_vec[idx.entry_id(e)])) {
-      nnvm::NodePtr tnode = otransformed_vec[e.node_id][e.index];
-      CHECK(tnode.get());
+    TLayoutInfo olayout = olayout_vec[idx.entry_id(e)];
+    if (olayout != GetDefaultLayout()) {
+      nnvm::NodePtr tnode = CreateLayoutTransformNode(olayout, GetDefaultLayout());
+      tnode->attrs.name =
+        idx[e.node_id].source->attrs.name + "_default";
+      tnode->inputs.emplace_back(
+        nnvm::NodeEntry{mirror_vec[e.node_id], e.index, e.version});
       outputs.emplace_back(nnvm::NodeEntry{tnode, 0, 0});
     } else {
       outputs.emplace_back(
