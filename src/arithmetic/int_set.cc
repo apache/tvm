@@ -565,8 +565,20 @@ IntSet EvalSet(Range r,
   IntSet ext_set = m.Eval(r->extent).cover_interval();
   const Interval& ei = ext_set.as<IntervalSet>()->i;
   if (!ei.has_upper_bound()) return IntSet::everything();
-  ext_set = IntervalSet::make(0, ComputeExpr<Sub>(ei.max, 1));
+  ext_set = IntervalSet::make(make_zero(ei.max.type()), ComputeExpr<Sub>(ei.max, 1));
   return Combine<Add>(min_set, ext_set);
+}
+
+IntSet EvalSet(IntSet s,
+               const std::unordered_map<const Variable*, IntSet>& dom_map) {
+  IntSetEvaluator m(dom_map);
+  s = s.cover_interval();
+  const IntervalSet* s_int = s.as<IntervalSet>();
+  Expr vmax = s_int->i.has_upper_bound() ?
+      m.Eval(s_int->i.max).cover_interval().max() : s_int->i.max;
+  Expr vmin = s_int->i.has_lower_bound() ?
+      m.Eval(s_int->i.min).cover_interval().min() : s_int->i.min;
+  return IntervalSet::make(vmin, vmax);
 }
 
 class SubExprIntSetEvaluator : public IntSetEvaluator {
