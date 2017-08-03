@@ -71,16 +71,19 @@ void StorageAccessVisitor::Visit_(const AttrStmt* op) {
     IRVisitor::Visit_(op);
   } else if (op->attr_key == attr::thread_extent) {
     IterVar iv(op->node.node_);
-    bool in_dev = true;
-    std::swap(in_dev, in_device_env_);
     env_threads_.push_back(iv);
-    scope_.push_back(std::vector<StmtEntry>());
-    IRVisitor::Visit_(op);
+    if (!in_device_env_) {
+      in_device_env_ = true;
+      scope_.push_back(std::vector<StmtEntry>());
+      IRVisitor::Visit_(op);
+      // no need to take the result as the thread barrier automatically syncs.
+      Summarize(std::move(scope_.back()), nullptr);
+      in_device_env_ = false;
+      scope_.pop_back();
+    } else {
+      IRVisitor::Visit_(op);
+    }
     env_threads_.CopyOnWrite()->data.pop_back();
-    // no need to take the result as the thread barrier automatically syncs.
-    Summarize(std::move(scope_.back()), nullptr);
-    std::swap(in_dev, in_device_env_);
-    scope_.pop_back();
   } else {
     IRVisitor::Visit_(op);
   }
@@ -104,8 +107,6 @@ void StorageAccessVisitor::Visit_(const For* op) {
         e.touched = arith::EvalSet(e.touched, relax_map);
       }
     }
-  }
-  if (!s.access.empty()) {
     scope_.back().emplace_back(std::move(s));
   }
 }
