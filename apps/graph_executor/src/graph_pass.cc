@@ -423,10 +423,10 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
     nnvm::Op::GetAttr<FTVMVectorizedOp>("FTVMVectorizedOp");
 
   const IndexedGraph& idx = src.indexed_graph();
-  std::vector<std::vector<LayoutInfo> > ilayouts_vec(idx.num_nodes(), {});
-  std::vector<std::vector<LayoutInfo> > olayouts_vec(idx.num_nodes(), {});
+  std::vector<std::vector<LayoutInfo> > ilayouts_vec(idx.num_nodes());
+  std::vector<std::vector<LayoutInfo> > olayouts_vec(idx.num_nodes());
   std::vector<nnvm::NodePtr> mirror_vec(idx.num_nodes(), nullptr);
-  std::vector<std::vector<nnvm::NodePtr> > otransformed_vec(idx.num_nodes(), {});
+  std::vector<std::vector<nnvm::NodePtr> > otransformed_vec(idx.num_nodes());
 
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
