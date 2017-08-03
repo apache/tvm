@@ -196,6 +196,17 @@ IntSet EvalSet(Expr e,
  */
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
+
+/*!
+ * \brief Find an symbolic integer set that contains is union over
+ *  all the possible conditional values in dom_map.
+ *
+ * \param s The initial set.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values.
+ */
+IntSet EvalSet(IntSet s,
+               const std::unordered_map<const Variable*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
