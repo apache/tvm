@@ -52,11 +52,21 @@ using FTVMSchedule = std::function<
            const Array<Tensor>& outs,
            const std::string& target)>;
 
+/*! \brief Layout Information. */
 using TLayoutInfo = std::string;
 
+/*!
+ * \brief The producer consumer function of node layout
+ * \param attrs The attribute of the node.
+ * \param consumer The layouts that the node consume.
+ * \param producer The layouts that the node produce.
+ * \return bool The success flag.
+ */
 using FTVMLayoutProducerConsumer = std::function<bool (const NodeAttrs& attrs,
                                                        std::vector<TLayoutInfo> *consumer,
                                                        std::vector<TLayoutInfo> *producer)>;
+
+/*! \brief The default layout. */
 const TLayoutInfo& GetDefaultLayout();
 
 /*! \brief Parameters of layout transform operator */

@@ -404,11 +404,11 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
 
   const ShapeVector& shape_vec = src.GetAttr<ShapeVector>("shape");
   const std::vector<TLayoutInfo>& input_layouts =
-    src.GetAttr<std::vector<TLayoutInfo>>("layout");
+    src.GetAttr<std::vector<TLayoutInfo> >("layout");
 
   const IndexedGraph& idx = src.indexed_graph();
   std::vector<TLayoutInfo> olayout_vec(idx.num_node_entries(), GetDefaultLayout());
-  std::vector<std::vector<TLayoutInfo>> ilayout_vec(idx.num_nodes());
+  std::vector<std::vector<TLayoutInfo> > ilayout_vec(idx.num_nodes());
   std::vector<nnvm::NodePtr> mirror_vec(idx.num_nodes(), nullptr);
 
   // use op pattern to decide whether an op is map
@@ -554,7 +554,7 @@ NNVM_REGISTER_OP(layout_transform)
 
 
 nnvm::Graph PruneGraph(nnvm::Graph src) {
-  const auto& params = src.GetAttr<std::unordered_set<std::string>>("params");
+  const auto& params = src.GetAttr<std::unordered_set<std::string> >("params");
 
   std::unordered_set<nnvm::Node*> pruned;
   nnvm::NodeEntryMap<nnvm::NodePtr> entry_var;
