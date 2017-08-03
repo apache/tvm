@@ -6,6 +6,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/arithmetic.h>
+#include <tvm/ir_functor_ext.h>
 #include <arithmetic/Interval.h>
 #include <unordered_map>
 #include "./compute_expr.h"
@@ -423,80 +424,129 @@ inline IntSet Combine(const IntSet& a, const IntSet &b) {
   return CombineSets<OP>(a, b);
 }
 
-// Evaluator to evalute the epxression.
-class IntSetEvaluator {
+class IntSetEvaluator :
+      public ExprFunctor<IntSet(const Expr&, const Expr&)> {
  public:
-  explicit IntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
-      : dom_map(dom_map) {}
-
-  inline virtual IntSet Eval(Expr expr) {
-    static const FType& f = vtable();
-    if (f.can_dispatch(expr)) {
-      return f(expr, expr, this);
-    } else {
-      LOG(WARNING) << "cannot evaluate set type " << expr->type_key();
-      return IntSet::nothing();
-    }
+  explicit IntSetEvaluator(
+      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      bool eval_vec = false)
+      : dom_map_(dom_map), eval_vec_(eval_vec) {}
+  // Evaluate.
+  IntSet Eval(const Expr& e) {
+    return this->VisitExpr(e, e);
   }
-
-  using FType = tvm::IRFunctor<IntSet (const NodeRef&, const Expr&, IntSetEvaluator *)>;
-  static FType& vtable() {  // NOLINT(*)
-    static FType inst; return inst;
+  IntSet VisitExpr_(const IntImm* op, const Expr& e) final {
+    return IntSet::single_point(e);
   }
-
-  const std::unordered_map<const Variable*, IntSet>& dom_map;
-};
-
-inline IntSet ConstOp(const NodeRef&, const Expr& e, IntSetEvaluator* m) {
-  return IntSet::single_point(e);
-}
-
-TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
-.set_dispatch<IntImm>(ConstOp)
-.set_dispatch<UIntImm>(ConstOp)
-.set_dispatch<FloatImm>(ConstOp);
-
-TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
-.set_dispatch<Variable>([](const Variable* op, const Expr& e, IntSetEvaluator* m) {
-    auto it = m->dom_map.find(op);
-    if (it != m->dom_map.end()) {
+  IntSet VisitExpr_(const UIntImm* op, const Expr& e) final {
+    return IntSet::single_point(e);
+  }
+  IntSet VisitExpr_(const Variable* op, const Expr& e) final {
+    auto it = dom_map_.find(op);
+    if (it != dom_map_.end()) {
       return it->second;
     } else {
       return IntSet::single_point(e);
     }
-  });
-
-// binary operator
-template<typename T>
-inline IntSet Binary(const T* op, const Expr& e, IntSetEvaluator* m) {
-  IntSet a = m->Eval(op->a);
-  IntSet b = m->Eval(op->b);
-  if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
-    return IntSet::single_point(e);
   }
-  return Combine<T>(a, b);
-}
+  IntSet VisitExpr_(const Add* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Sub* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Mul* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Div* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Mod* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Min* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Max* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const EQ* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const NE* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const LT* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const LE* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const GT* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const GE* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const And* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Or* op, const Expr& e) final {
+    return Binary(op, e);
+  }
+  IntSet VisitExpr_(const Ramp* op, const Expr& e) final {
+    CHECK(eval_vec_);
+    IntSet base = Eval(op->base);
+    int vstride;
+    if (GetConstInt(op->stride, &vstride)) {
+      Type t = op->base.type();
+      if (vstride > 0) {
+        return Combine<Add>(
+            base,
+            IntSet::interval(make_zero(t),
+                             make_const(t, vstride * op->lanes -1)));
+      } else {
+        return Combine<Add>(
+            base,
+            IntSet::interval(make_const(t, vstride * op->lanes + 1),
+                             make_zero(t)));
+      }
+    }
+    LOG(WARNING) << "cannot evaluate set on expression " << e;
+    return IntSet::everything();
+  }
+  IntSet VisitExpr_(const Broadcast* op, const Expr& e) final {
+    CHECK(eval_vec_);
+    return Eval(op->value);
+  }
+  IntSet VisitExprDefault_(const Node* op, const Expr& e) final {
+    LOG(WARNING) << "cannot evaluate set type " << e->type_key();
+    return IntSet::everything();
+  }
 
-TVM_STATIC_IR_FUNCTOR(IntSetEvaluator, vtable)
-.set_dispatch<Add>(Binary<Add>)
-.set_dispatch<Sub>(Binary<Sub>)
-.set_dispatch<Mul>(Binary<Mul>)
-.set_dispatch<Div>(Binary<Div>)
-.set_dispatch<Mod>(Binary<Mod>)
-.set_dispatch<Min>(Binary<Min>)
-.set_dispatch<Max>(Binary<Max>)
-.set_dispatch<EQ>(Binary<EQ>)
-.set_dispatch<NE>(Binary<NE>)
-.set_dispatch<LT>(Binary<LT>)
-.set_dispatch<LE>(Binary<LE>)
-.set_dispatch<GT>(Binary<GT>)
-.set_dispatch<GE>(Binary<GE>)
-.set_dispatch<And>(Binary<And>)
-.set_dispatch<Or>(Binary<Or>);
+ private:
+  template<typename T>
+  inline IntSet Binary(const T* op, const Expr& e) {
+    IntSet a = this->Eval(op->a);
+    IntSet b = this->Eval(op->b);
+    if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
+      return IntSet::single_point(e);
+    }
+    return Combine<T>(a, b);
+  }
+
+  const std::unordered_map<const Variable*, IntSet>& dom_map_;
+  bool eval_vec_{false};
+};
 
 IntSet EvalSet(Expr e,
                const std::unordered_map<const Variable*, IntSet>& dom_map) {
-  return IntSetEvaluator(dom_map).Eval(e);
+  return IntSetEvaluator(dom_map, false).Eval(e);
+}
+
+IntSet IntSet::vector(Expr x) {
+  std::unordered_map<const Variable*, IntSet> dmap;
+  return IntSetEvaluator(dmap, true).Eval(x);
 }
 
 IntSet EvalSet(Expr e,
@@ -521,12 +571,13 @@ IntSet EvalSet(Range r,
 
 class SubExprIntSetEvaluator : public IntSetEvaluator {
  public:
-  explicit SubExprIntSetEvaluator(const std::unordered_map<const Variable*, IntSet>& dom_map)
+  explicit SubExprIntSetEvaluator(
+      const std::unordered_map<const Variable*, IntSet>& dom_map)
       : IntSetEvaluator(dom_map) {}
 
-  inline IntSet Eval(Expr expr) override {
-    IntSet ret = IntSetEvaluator::Eval(expr);
-    expr_map[expr] = ret;
+  IntSet VisitExpr(const Expr& n, const Expr& e) final {
+    IntSet ret = IntSetEvaluator::VisitExpr(n, e);
+    expr_map[n] = ret;
     return ret;
   }
 
