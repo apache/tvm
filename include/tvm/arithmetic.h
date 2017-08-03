@@ -94,6 +94,12 @@ class IntSet : public NodeRef {
    */
   static IntSet single_point(Expr point);
   /*!
+   * \brief construct a integer set from vector expression.
+   * \param vec The vector expression, can also be single point.
+   * \return The result set containing the indices in the vector.
+   */
+  static IntSet vector(Expr vec);
+  /*!
    * \brief Construct a set representing a range.
    * \param r The range
    * \return constructed set.
