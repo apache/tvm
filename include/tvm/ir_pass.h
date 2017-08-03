@@ -319,7 +319,7 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
  * \param stmt The stmt to be trasnformed.
  * \param storage_scope The storage scope considered.
  */
-LoweredFunc StorageSync(LoweredFunc stmt, std::string storage_scope);
+LoweredFunc ThreadSync(LoweredFunc stmt, std::string storage_scope);
 
 /*!
  * \brief Lower cross thread alleduce in the stmt.

@@ -299,8 +299,8 @@ def build(sch,
     for func in flist:
         if func.func_type == container.LoweredFunc.MixedFunc:
             if BuildConfig.current.detect_global_barrier:
-                func = ir_pass.StorageSync(func, "global")
-            func = ir_pass.StorageSync(func, "shared")
+                func = ir_pass.ThreadSync(func, "global")
+            func = ir_pass.ThreadSync(func, "shared")
             warp_size = 32 if target == "cuda" else 1
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]
