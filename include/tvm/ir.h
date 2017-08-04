@@ -143,6 +143,8 @@ namespace attr {
 constexpr const char* thread_extent = "thread_extent";
 /*! \brief Mark launching of a virtual thread. */
 constexpr const char* virtual_thread = "virtual_thread";
+/*! \brief Mark region is processed by a co-proccesor */
+constexpr const char* coproc_scope = "coproc_scope";
 /*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
 /*!
