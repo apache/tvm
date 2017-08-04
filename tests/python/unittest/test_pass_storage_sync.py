@@ -23,7 +23,7 @@ def test_storage_sync():
     f = tvm.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 0, True)
     flist = tvm.ir_pass.SplitHostDevice(f)
     f = flist[1]
-    f = tvm.ir_pass.StorageSync(f, "shared")
+    f = tvm.ir_pass.ThreadSync(f, "shared")
     print(f.body)
 
 if __name__ == "__main__":

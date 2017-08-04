@@ -24,7 +24,16 @@ def test_make_node():
     assert AA.op == A.op
     assert AA.value_index == A.value_index
 
+def test_make_sum():
+    A = tvm.placeholder((2, 10), name='A')
+    k = tvm.reduce_axis((0,10), "k")
+    B = tvm.compute((2,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
+    json_str = tvm.save_json(B)
+    BB = tvm.load_json(json_str)
+    assert B.op.body[0].combiner.handle.value  != 0
+    assert BB.op.body[0].combiner.handle.value != 0
 
 if __name__ == "__main__":
     test_make_node()
     test_const_saveload_json()
+    test_make_sum()

@@ -89,7 +89,7 @@ REGISTER_PASS4(Inline);
 REGISTER_PASS3(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS4(UnrollLoop);
-REGISTER_PASS2(StorageSync);
+REGISTER_PASS2(ThreadSync);
 REGISTER_PASS5(MakeAPI);
 REGISTER_PASS2(BindDeviceType);
 REGISTER_PASS1(SplitHostDevice);

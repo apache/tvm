@@ -36,7 +36,7 @@ print(tvm.lower(s, [A0, A1, B0, B1], simple_mode=True))
 #
 # Describe Reduction with Collaborative Inputs
 # --------------------------------------------
-# Sometimes, we requires multiple inputs to express some reduction
+# Sometimes, we require multiple inputs to express some reduction
 # operators, and the inputs will collaborate together, e.g. :code:`argmax`.
 # In the reduction procedure, :code:`argmax` need to compare the value of
 # operands, also need to keep the index of operand. It can be expressed

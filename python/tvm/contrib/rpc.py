@@ -90,12 +90,13 @@ def _listen_loop(sock):
 
 
 def _connect_proxy_loop(addr, key):
+    key = "server:" + key
     while True:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(addr)
         sock.sendall(struct.pack('@i', RPC_MAGIC))
         sock.sendall(struct.pack('@i', len(key)))
-        sock.sendall(key)
+        sock.sendall(key.encode("utf-8"))
         magic = struct.unpack('@i', _recvall(sock, 4))[0]
         if magic == RPC_MAGIC + 1:
             raise RuntimeError("key: %s has already been used in proxy" % key)

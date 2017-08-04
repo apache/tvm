@@ -94,6 +94,12 @@ class IntSet : public NodeRef {
    */
   static IntSet single_point(Expr point);
   /*!
+   * \brief construct a integer set from vector expression.
+   * \param vec The vector expression, can also be single point.
+   * \return The result set containing the indices in the vector.
+   */
+  static IntSet vector(Expr vec);
+  /*!
    * \brief Construct a set representing a range.
    * \param r The range
    * \return constructed set.
@@ -190,6 +196,17 @@ IntSet EvalSet(Expr e,
  */
 IntSet EvalSet(Range r,
                const Map<IterVar, IntSet>& dom_map);
+
+/*!
+ * \brief Find an symbolic integer set that contains is union over
+ *  all the possible conditional values in dom_map.
+ *
+ * \param s The initial set.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values.
+ */
+IntSet EvalSet(IntSet s,
+               const std::unordered_map<const Variable*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *

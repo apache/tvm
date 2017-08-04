@@ -51,6 +51,9 @@ struct APIAttrGetter : public AttrVisitor {
   void Visit(const char* key, bool* value) final {
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }
+  void Visit(const char* key, void** value) final {
+    if (skey == key) *ret = static_cast<void*>(value[0]);
+  }
   void Visit(const char* key, Type* value) final {
     if (skey == key) *ret = value[0];
   }
@@ -81,6 +84,9 @@ struct APIAttrDir : public AttrVisitor {
     names->push_back(key);
   }
   void Visit(const char* key, int* value) final {
+    names->push_back(key);
+  }
+  void Visit(const char* key, void** value) final {
     names->push_back(key);
   }
   void Visit(const char* key, Type* value) final {

@@ -5,6 +5,14 @@ def test_basic():
     assert s.min().value == 2
     assert s.max().value == 3
 
+def test_vector():
+    base = 10
+    stride = 3
+    lanes = 2
+    s = tvm.arith.intset_vector(tvm.make.Ramp(base, stride, lanes))
+    assert s.min().value == base
+    assert s.max().value == base + stride * lanes - 1
+
 def test_deduce():
     a = tvm.var('a')
     b = tvm.var('b')
@@ -59,5 +67,6 @@ def test_check():
 
 if __name__ == "__main__":
     test_basic()
+    test_vector()
     test_deduce()
     test_check()
