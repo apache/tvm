@@ -55,6 +55,8 @@ USE_BLAS = none
 USE_NNPACK = 0
 # NNPACK_PATH = none
 
+USE_CUDNN = 0
+
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable.
 # CUDA_PATH = /usr/local/cuda
