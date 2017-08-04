@@ -27,14 +27,16 @@ class StorageAccessVisitor : public IRVisitor {
     kRead,
     kWrite,
     kSync,
-    kAlloc
+    kAlloc,
+    // acquired version of read, only need to handle WAR dep.
+    kReadAcquire
   };
   /*! \brief An access entry */
   struct AccessEntry {
     /*! \brief The thread index that access this entry */
     Array<IterVar> threads;
     /*! \brief The buffer variable, if any */
-    const Variable* buffer{nullptr};
+    VarExpr buffer;
     /*! \brief The access data type */
     Type dtype;
     /*! \brief The touched access range */
@@ -104,6 +106,8 @@ class StorageAccessVisitor : public IRVisitor {
    * \return The scope of the final buffer array.
    */
   StorageScope GetScope(const Variable* buf) const;
+  // access scope
+  std::vector<std::vector<StmtEntry> > scope_;
 
  private:
   // whether access appending is enabled.
@@ -116,8 +120,6 @@ class StorageAccessVisitor : public IRVisitor {
   StmtEntry curr_stmt_;
   // The involving threads
   Array<IterVar> env_threads_;
-  // access scope
-  std::vector<std::vector<StmtEntry> > scope_;
   // The storage scope of each buffer
   std::unordered_map<const Variable*, StorageScope> storage_scope_;
 };

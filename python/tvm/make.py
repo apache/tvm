@@ -77,4 +77,24 @@ def stmt_seq(*args):
         ret = value if ret is None else Block(ret, value)
     return ret if ret else Evaluate(0)
 
+
+def stmt_list(stmt):
+    """Make list of stmt from blocks.
+
+    Parameters
+    ----------
+    stmt : A block statement
+
+    Returns
+    -------
+    stmt_list : list of Stmt
+         The unpacked list of statements
+    """
+    if isinstance(stmt, _stmt.Block):
+        return stmt_list(stmt.first) + stmt_list(stmt.rest)
+    elif isinstance(stmt, _stmt.ProducerConsumer):
+        return stmt_list(stmt.body)
+    return [stmt]
+
+
 _init_api("tvm.make")
