@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ml.dmlc.tvm.rpc;
 
 import ml.dmlc.tvm.Function;
@@ -13,39 +30,88 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class Server extends ServerSocket {
-  private final ConnectionThread connectionThread;
-  private SocketFileDescriptorGetter socketFdGetter = new SocketFileDescriptorGetter() {
-    @Override public int get(Socket socket) {
-      try {
-        InputStream is = socket.getInputStream();
-        FileDescriptor fd = ((FileInputStream) is).getFD();
-        return SharedSecrets.getJavaIOFileDescriptorAccess().get(fd);
-      } catch (IOException e) {
-        e.printStackTrace();
-        return -1;
-      }
-    }
-  };
+/**
+ * RPC Server.
+ */
+public class Server {
+  private final Loop serverLoop;
+  private static SocketFileDescriptorGetter defaultSocketFdGetter
+      = new SocketFileDescriptorGetter() {
+          @Override public int get(Socket socket) {
+            try {
+              InputStream is = socket.getInputStream();
+              FileDescriptor fd = ((FileInputStream) is).getFD();
+              return SharedSecrets.getJavaIOFileDescriptorAccess().get(fd);
+            } catch (IOException e) {
+              e.printStackTrace();
+              return -1;
+            }
+          }
+        };
 
+  /**
+   * Start a standalone server.
+   * @param serverPort Port.
+   * @param socketFdGetter Method to get system file descriptor of the server socket.
+   * @throws IOException if failed to bind localhost:port.
+   */
+  public Server(int serverPort, SocketFileDescriptorGetter socketFdGetter) throws IOException {
+    serverLoop = new ListenLoop(serverPort, socketFdGetter);
+  }
+
+
+  /**
+   * Start a standalone server.
+   * Use sun.misc.SharedSecrets.getJavaIOFileDescriptorAccess
+   * to get file descriptor for the socket.
+   * @param serverPort Port.
+   * @throws IOException if failed to bind localhost:port.
+   */
   public Server(int serverPort) throws IOException {
-    super(serverPort);
-    connectionThread = new ConnectionThread(this, socketFdGetter);
+    this(serverPort, defaultSocketFdGetter);
   }
 
+  /**
+   * Start a server connected to proxy.
+   * @param proxyHost The proxy server host.
+   * @param proxyPort The proxy server port.
+   * @param key The key to identify the server.
+   * @param socketFdGetter Method to get system file descriptor of the server socket.
+   */
+  public Server(String proxyHost, int proxyPort, String key,
+      SocketFileDescriptorGetter socketFdGetter) {
+    serverLoop = new ConnectProxyLoop(proxyHost, proxyPort, key, socketFdGetter);
+  }
+
+  /**
+   * Start a server connected to proxy.
+   * Use sun.misc.SharedSecrets.getJavaIOFileDescriptorAccess
+   * to get file descriptor for the socket.
+   * @param proxyHost The proxy server host.
+   * @param proxyPort The proxy server port.
+   * @param key The key to identify the server.
+   */
+  public Server(String proxyHost, int proxyPort, String key) {
+    this(proxyHost, proxyPort, key, defaultSocketFdGetter);
+  }
+
+  /**
+   * Start the server.
+   */
   public void start() {
-    connectionThread.start();
+    serverLoop.start();
   }
 
+  /**
+   * Stop the server.
+   */
   public void terminate() {
-    connectionThread.terminate();
-  }
-
-  public void registerFilDescriptorGetter(SocketFileDescriptorGetter getter) {
-    socketFdGetter = getter;
+    serverLoop.interrupt();
+    serverLoop.terminate();
   }
 
   public static interface SocketFileDescriptorGetter {
@@ -63,7 +129,6 @@ public class Server extends ServerSocket {
 
     @Override public void run() {
       int sockFd = socketFdGetter.get(socket);
-      System.err.println("Socket fd = " + sockFd);
       if (sockFd != -1) {
         File tempDir = null;
         try {
@@ -95,17 +160,12 @@ public class Server extends ServerSocket {
         @Override public Object invoke(TVMValue... args) {
           return tempDir + File.separator + args[0].asString();
         }
-      });
+      }, true);
 
       Function.register("tvm.contrib.rpc.server.load_module", new Function.Callback() {
         @Override public Object invoke(TVMValue... args) {
           String filename = args[0].asString();
           String path = tempDir + File.separator + filename;
-          // Try create a shared library in remote.
-          if (path.endsWith(".o")) {
-            System.err.println("Create shared library based on " + path);
-            // TODO(yizhi): create .so
-          }
           System.err.println("Load module from " + path);
           return Module.load(path);
         }
@@ -115,26 +175,98 @@ public class Server extends ServerSocket {
     }
   }
 
-  static class ConnectionThread extends Thread {
-    private final ServerSocket server;
-    private final SocketFileDescriptorGetter socketFileDescriptorGetter;
-    private volatile boolean running = true;
+  abstract static class Loop extends Thread {
+    public abstract void terminate();
+  }
 
-    public ConnectionThread(Server server, SocketFileDescriptorGetter sockFdGetter)
-        throws IOException {
-      this.server = server;
-      this.socketFileDescriptorGetter = sockFdGetter;
+  static class ConnectProxyLoop extends Loop {
+    private volatile boolean running = true;
+    private final String host;
+    private final int port;
+    private final String key;
+    private final SocketFileDescriptorGetter socketFileDescriptorGetter;
+    private Socket waitingSocket = null;
+
+    public ConnectProxyLoop(String host, int port, String key,
+        SocketFileDescriptorGetter sockFdGetter) {
+      this.host = host;
+      this.port = port;
+      this.key = "server:" + key;
+      socketFileDescriptorGetter = sockFdGetter;
     }
 
-    public void terminate() {
-      this.running = false;
+    @Override public void terminate() {
+      running = false;
+      if (waitingSocket != null) {
+        try {
+          waitingSocket.close();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
     }
 
     @Override public void run() {
       while (running) {
-        Socket socket = null;
         try {
-          socket = server.accept();
+          Socket socket = new Socket(host, port);
+          waitingSocket = socket;
+          InputStream in = socket.getInputStream();
+          OutputStream out = socket.getOutputStream();
+          out.write(toBytes(RPC.RPC_MAGIC));
+          out.write(toBytes(key.length()));
+          out.write(toBytes(key));
+          int magic = wrapBytes(recvAll(in, 4)).getInt();
+          final String address = host + ":" + port;
+          if (magic == RPC.RPC_MAGIC + 1) {
+            throw new RuntimeException(
+                String.format("key: %s has already been used in proxy", key));
+          } else if (magic == RPC.RPC_MAGIC + 2) {
+            System.err.println("RPCProxy do not have matching client key " + key);
+          } else if (magic != RPC.RPC_MAGIC) {
+            throw new RuntimeException(address + " is not RPC Proxy");
+          }
+          System.err.println("RPCProxy connected to " + address);
+
+          waitingSocket = null;
+          // TODO(yizhi): use ExecutorService, i.e., ThreadPool
+          Thread processThread = new Thread(new ServerLoop(socket, socketFileDescriptorGetter));
+          processThread.setDaemon(true);
+          processThread.start();
+        } catch (SocketException e) {
+          // when terminates, this is what we expect, do nothing.
+        } catch (IOException e) {
+          e.printStackTrace();
+          terminate();
+        }
+      }
+    }
+  }
+
+  static class ListenLoop extends Loop {
+    private final ServerSocket server;
+    private final SocketFileDescriptorGetter socketFileDescriptorGetter;
+    private volatile boolean running = true;
+
+    public ListenLoop(int serverPort, SocketFileDescriptorGetter sockFdGetter)
+        throws IOException {
+      this.server = new ServerSocket(serverPort);
+      this.socketFileDescriptorGetter = sockFdGetter;
+    }
+
+    @Override public void terminate() {
+      this.running = false;
+      try {
+        server.close();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+
+    @Override public void run() {
+      while (running) {
+        try {
+          Socket socket = server.accept();
           InputStream in = socket.getInputStream();
           OutputStream out = socket.getOutputStream();
           int magic = wrapBytes(recvAll(in, 4)).getInt();
@@ -155,22 +287,24 @@ public class Server extends ServerSocket {
           Thread processThread = new Thread(new ServerLoop(socket, socketFileDescriptorGetter));
           processThread.setDaemon(true);
           processThread.start();
+        } catch (SocketException e) {
+          // when terminates, this is what we expect, do nothing.
         } catch (IOException e) {
           e.printStackTrace();
           terminate();
         }
       }
     }
+  }
 
-    private byte[] recvAll(final InputStream in, final int nBytes) throws IOException {
-      byte[] res = new byte[nBytes];
-      int nRead = 0;
-      while (nRead < nBytes) {
-        int chunk = in.read(res, nRead, Math.min(nBytes - nRead, 1024));
-        nRead += chunk;
-      }
-      return res;
+  private static byte[] recvAll(final InputStream in, final int numBytes) throws IOException {
+    byte[] res = new byte[numBytes];
+    int numRead = 0;
+    while (numRead < numBytes) {
+      int chunk = in.read(res, numRead, Math.min(numBytes - numRead, 1024));
+      numRead += chunk;
     }
+    return res;
   }
 
   private static void closeQuietly(Socket socket) {
@@ -195,6 +329,14 @@ public class Server extends ServerSocket {
     ByteBuffer bb = ByteBuffer.allocate(4);
     bb.order(ByteOrder.LITTLE_ENDIAN);
     return bb.putInt(number).array();
+  }
+
+  private static byte[] toBytes(String str) {
+    byte[] bytes = new byte[str.length()];
+    for (int i = 0; i < str.length(); ++i) {
+      bytes[i] = (byte) str.charAt(i);
+    }
+    return bytes;
   }
 
   private static String decodeToStr(byte[] bytes) {
