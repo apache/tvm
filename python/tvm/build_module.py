@@ -193,6 +193,7 @@ def lower(sch,
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
     stmt = ir_pass.StorageRewrite(stmt)
+    stmt = ir_pass.CoProcSync(stmt)
     cfg = BuildConfig.current
     stmt = ir_pass.UnrollLoop(
         stmt,

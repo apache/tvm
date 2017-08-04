@@ -24,7 +24,26 @@ def test_storage_sync():
     flist = tvm.ir_pass.SplitHostDevice(f)
     f = flist[1]
     f = tvm.ir_pass.ThreadSync(f, "shared")
-    print(f.body)
+    body_list = tvm.make.stmt_list(f.body.body.body.body)
+    assert(body_list[1].value.name == "tvm_storage_sync")
+
+
+def test_coproc_sync():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    cp = tvm.thread_axis((0, 1), "cop")
+    A = ib.allocate("float32", n, name="A", scope="global")
+    with ib.for_range(0, n, name="i") as i:
+        A[i] = A[i] + 1
+        with ib.for_range(0, 10, name="j") as j:
+            ib.scope_attr(cp, "coproc_scope", 1)
+            A[j] = A[j] + 2
+    body = ib.get()
+    body = tvm.ir_pass.CoProcSync(body)
+    body = body.body.body.body
+    assert(tvm.make.stmt_list(body)[-1].value.name == "cop.coproc_sync")
+
 
 if __name__ == "__main__":
+    test_coproc_sync()
     test_storage_sync()

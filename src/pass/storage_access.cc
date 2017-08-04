@@ -14,7 +14,7 @@ void StorageAccessVisitor::Visit_(const Load* op) {
     CHECK(allow_append_);
     AccessEntry e;
     e.threads = env_threads();
-    e.buffer = buf;
+    e.buffer = op->buffer_var;
     e.dtype = op->type.element_of();
     e.touched = arith::IntSet::vector(op->index);
     e.type = kRead;
@@ -34,7 +34,7 @@ void StorageAccessVisitor::Visit_(const Store* op) {
   if (Enabled(buf, scope)) {
     AccessEntry e;
     e.threads = env_threads();
-    e.buffer = buf;
+    e.buffer = op->buffer_var;
     e.dtype = op->value.type().element_of();
     e.touched = arith::IntSet::vector(op->index);
     e.type = kWrite;
@@ -69,6 +69,11 @@ void StorageAccessVisitor::Visit_(const AttrStmt* op) {
     storage_scope_[buf] =
         StorageScope::make(op->value.as<StringImm>()->value);
     IRVisitor::Visit_(op);
+  } else if (op->attr_key == attr::coproc_scope) {
+    IterVar iv(op->node.node_);
+    env_threads_.push_back(iv);
+    IRVisitor::Visit_(op);
+    env_threads_.CopyOnWrite()->data.pop_back();
   } else if (op->attr_key == attr::thread_extent) {
     IterVar iv(op->node.node_);
     env_threads_.push_back(iv);
@@ -102,11 +107,13 @@ void StorageAccessVisitor::Visit_(const For* op) {
     relax_map[op->loop_var.get()] = arith::IntSet::range(
         Range::make_by_min_extent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
-      if (e.buffer != nullptr) {
+      if (e.buffer.defined()) {
         CHECK(e.touched.defined());
         e.touched = arith::EvalSet(e.touched, relax_map);
       }
     }
+  }
+  if (!s.access.empty()) {
     scope_.back().emplace_back(std::move(s));
   }
 }
@@ -148,7 +155,7 @@ void StorageAccessVisitor::Visit_(const Call* op) {
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = buffer;
+      e.buffer = VarExpr(op->args[1].node_);
       e.touched = arith::IntSet::range(
           Range::make_by_min_extent(offset, extent));
       e.scope = scope;

@@ -250,6 +250,14 @@ Stmt StorageRewrite(Stmt stmt);
 Stmt LoopPartition(Stmt stmt);
 
 /*!
+ * \brief Detect and insert sync points to co-processor.
+ *
+ * \param stmt The stmt to be trasnformed
+ * \return Transformed stmt.
+ */
+Stmt CoProcSync(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
