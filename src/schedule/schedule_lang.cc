@@ -340,6 +340,19 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
+Stage& Stage::pragma(IterVar var, const std::string& pragma_type) {   // NOLINT(*)
+  if (pragma_type == "unroll") {
+    this->unroll(var);
+  } else if (pragma_type == "vectorize") {
+    this->vectorize(var);
+  } else {
+    UpdateIterVarAttr(operator->(), var, [pragma_type](IterVarAttrNode* n) {
+        n->pragmas.push_back(ir::StringImm::make(pragma_type));
+      });
+  }
+  return *this;
+}
+
 Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   StageNode *self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();

@@ -30,6 +30,7 @@ def test_schedule_create():
     assert isinstance(s_loaded, tvm.schedule.Schedule)
     assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 
+
 def test_reorder():
     m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
@@ -91,6 +92,21 @@ def test_vectorize():
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
+
+def test_pragma():
+    m = 100
+    A = tvm.placeholder((m,), name='A')
+    T = tvm.compute((m,), lambda i: A[i])
+
+    s = tvm.create_schedule(T.op)
+    xo, xi = s[T].split(T.op.axis[0], factor=10)
+    s[T].pragma(xo, "pragma1")
+    s[T].pragma(xi, "vectorize")
+    VECTORIZE = tvm.schedule.IterVar.Vectorized
+    assert s[T].iter_var_attrs[xo].pragmas[0].value == "pragma1"
+    assert s[T].iter_var_attrs[xi].iter_type == VECTORIZE
+
+
 def test_rfactor():
     n = tvm.var('n')
     k1 = tvm.reduce_axis((0, n), name="k1")
@@ -141,6 +157,7 @@ def test_tensor_intrin():
 
 
 if __name__ == "__main__":
+    test_pragma()
     test_tensor_intrin()
     test_rfactor()
     test_schedule_create()
