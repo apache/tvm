@@ -50,3 +50,16 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.load_module")
   });
 }  // namespace contrib
 }  // namespace tvm
+
+// dummy parallel runtime
+int TVMBackendParallelLaunch(
+    FTVMParallelLambda flambda,
+    void* cdata,
+    int num_task) {
+  TVMAPISetLastError("Parallel is not supported in Web runtime");
+  return -1;
+}
+
+int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
+  return 0;
+}

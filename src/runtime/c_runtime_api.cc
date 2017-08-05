@@ -14,8 +14,6 @@
 #include <algorithm>
 #include <string>
 #include <cstdlib>
-#include <thread>
-#include <mutex>
 #include "./runtime_base.h"
 
 namespace tvm {
@@ -158,24 +156,6 @@ struct TVMRuntimeEntry {
   std::string ret_str;
   std::string last_error;
   TVMByteArray ret_bytes;
-  // threads used in parallel for
-  std::vector<std::thread> par_threads;
-  // errors created in parallel for.
-  std::vector<std::string> par_errors;
-  // number of parallel threads
-  int num_par_threads{1};
-
-  TVMRuntimeEntry() {
-    const char *val = getenv("TVM_NUM_THREADS");
-    if (val == nullptr) {
-      val = getenv("OMP_NUM_THREADS");
-    }
-    if (val != nullptr) {
-      num_par_threads = atoi(val);
-    } else {
-      num_par_threads = std::thread::hardware_concurrency() / 2;
-    }
-  }
 };
 
 typedef dmlc::ThreadLocalStore<TVMRuntimeEntry> TVMAPIRuntimeStore;
@@ -252,46 +232,6 @@ int TVMBackendFreeWorkspace(int device_type,
   ctx.device_id = device_id;
   DeviceAPIManager::Get(ctx)->FreeWorkspace(ctx, ptr);
   return 0;
-}
-
-int TVMBackendParallelFor(
-    int64_t begin,
-    int64_t end,
-    int (*lambda)(int64_t begin, int64_t end, void* env),
-    void* env) {
-  TVMRuntimeEntry* rt = TVMAPIRuntimeStore::Get();
-  int nthread = rt->num_par_threads;
-  rt->par_threads.resize(nthread);
-  rt->par_errors.clear();
-  rt->par_errors.resize(nthread);
-  int64_t step = (end - begin + nthread - 1) / nthread;
-  auto fexec = [lambda, env, begin, end, step, rt](int i) {
-    int64_t ibegin = std::min(end, begin + step * i);
-    int64_t iend = std::min(end, begin + step * (i + 1));
-    int rv = (*lambda)(ibegin, iend, env);
-    if (rv != 0) {
-      std::ostringstream os;
-      os << "Thread " << i << " error:" << TVMGetLastError();
-      rt->par_errors[i] = os.str();
-    }
-  };
-  for (int i = 0; i < nthread; ++i) {
-    rt->par_threads[i] = std::thread(fexec, i);
-  }
-  int ret = 0;
-  for (int i = 0; i < nthread; ++i) {
-    rt->par_threads[i].join();
-    if (rt->par_errors[i].length() != 0) ret = -1;
-  }
-  if (ret == 0) return ret;
-  std::ostringstream os;
-  for (int i = 0; i < nthread; ++i) {
-    if (rt->par_errors[i].length() != 0) {
-      os << rt->par_errors[i] << '\n';
-    }
-  }
-  rt->last_error = os.str();
-  return -1;
 }
 
 int TVMFuncFree(TVMFunctionHandle func) {
