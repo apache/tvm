@@ -78,7 +78,7 @@ class Module(ModuleBase):
         file_name : str
             The name of the shared library.
 
-        fcompile : function(target, file_list, **kwargs), optional
+        fcompile : function(target, file_list, kwargs), optional
             Compilation function to use create dynamic library.
 
         kwargs : dict, optiona;
