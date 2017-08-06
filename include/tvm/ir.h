@@ -166,6 +166,8 @@ constexpr const char* device_context_type = "device_context_type";
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
+/*! \brief Mark region is guarded by the pragma */
+constexpr const char* pragma_scope = "pragma_scope";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope

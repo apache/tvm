@@ -26,7 +26,7 @@ class Buffer(NodeBase):
     WRITE = 2
 
     def access_ptr(self, access_mask, ptr_type="handle"):
-        """Get an access pointer to the head of buffer
+        """Get an access pointer to the head of buffer.
 
         This is the recommended method to get buffer data
         ptress when interacting with external functions.
@@ -37,7 +37,6 @@ class Buffer(NodeBase):
             The access pattern MASK. Indicate whether the
             access will read or write to the data content.
 
-
         ptr_type : str, optional
             The data type of the result pointer. Do not specify
             unless we want to cast pointer to specific type.
@@ -45,8 +44,8 @@ class Buffer(NodeBase):
         Examples
         --------
         .. code-block:: python
-          import tvm.schedule.Buffer
 
+          import tvm.schedule.Buffer
           # Get access ptr for read
           buffer.access_ptr("r")
           # Get access ptr for read/write with bitmask
@@ -464,6 +463,48 @@ class Stage(NodeBase):
             The iteration to be parallelized.
         """
         _api_internal._StageParallel(self, var)
+
+    def pragma(self, var, pragma_type):
+        """Annotate the iteration with pragma
+
+        This will translate to a pragma_scope surrounding
+        the corresponding loop generated.
+        Useful to support experimental features and extensions.
+
+        Parameters
+        ----------
+        var : IterVar
+            The iteration to be anotated
+
+        pragma_type : str
+             The pragma string to be annotated
+
+        Note
+        ----
+        Most pragmas are advanced/experimental features
+        and may subject to change. List of supported pragmas:
+
+        - **parallel_launch_point**
+
+          Specify to launch parallel threads outside the
+          specified iteration loop. By default the threads
+          launch at the point of parallel construct.
+          This pragma moves the launching point to even outer scope.
+          The threads are launched once and reused across multiple
+          parallel constructs as BSP style program.
+
+        - **parallel_barrier_when_finish**
+
+          Insert a synchronization barrier between working threads
+          after the specified loop iteration finishes.
+
+        - **parallel_stride_pattern**
+
+          Hint parallel loop to execute in strided pattern.
+          :code:`for (int i = task_id; i < end; i += num_task)`
+
+        """
+        _api_internal._StagePragma(self, var, pragma_type)
 
     def prefetch(self, tensor, var, offset):
         """Prefetch the specified variable

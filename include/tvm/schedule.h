@@ -181,6 +181,15 @@ class Stage : public NodeRef {
    */
   Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
+   * \brief Annotate the iteration with pragma
+   *
+   * \param var The axis to be parallelized.
+   * \param pragma_type The pragma type.
+   *
+   * \return reference to self.
+   */
+  Stage& pragma(IterVar var, const std::string& pragma_type);   // NOLINT(*)
+  /*!
    * \brief Fetch data in advance.
    * \param domain the tensor to be prefetched
    * \param var the iteration point at which to apply prefetching
@@ -487,6 +496,10 @@ class IterVarAttrNode : public Node {
    *   when the axis is marked as Tensorized
    */
   TensorIntrin tensor_intrin;
+  /*!
+   * \brief Additional pragmas, array of StringImm
+   */
+  Array<Expr> pragmas;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("iter_type", &iter_type);
@@ -494,6 +507,7 @@ class IterVarAttrNode : public Node {
     v->Visit("prefetch_data", &prefetch_data);
     v->Visit("prefetch_offset", &prefetch_offset);
     v->Visit("tensor_intrin", &tensor_intrin);
+    v->Visit("pragmas", &pragmas);
   }
 
   static constexpr const char* _type_key = "IterVarAttr";
