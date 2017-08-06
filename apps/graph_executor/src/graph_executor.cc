@@ -155,7 +155,6 @@ void GraphExecutor::SetupNameIndex() {
   s.outputs = graph_.outputs;
   std::vector<std::string> input_names = s.ListInputNames(nnvm::Symbol::kAll);
   for (size_t i = 0; i < input_names.size(); ++i) {
-    LOG(INFO) << "input " << input_names[i] << ": " << i;
     name_idx_[input_names[i]] = i;
   }
 }
