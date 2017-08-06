@@ -17,8 +17,8 @@ def test_compile():
     na = tvm.nd.array(np.ones(shape).astype(dtype))
     nb = tvm.nd.array(np.ones(shape).astype(dtype))
     # set inputs
-    set_input(0, na)
-    set_input(1, nb)
+    set_input('x', na)
+    set_input('y', nb)
     # execute
     run()
     # get outputs
