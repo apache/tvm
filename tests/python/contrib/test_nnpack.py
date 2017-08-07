@@ -100,10 +100,7 @@ def np_conv(na, nw, padding, stride=1):
     return nb
 
 def test_convolution_inference():
-    f32 = 'float32'
-    ctx = tvm.cpu(0)
-    conv_infer = tvm.get_global_func("tvm.contrib.nnpack.convolution_inference")
-
+    BATCH = 32
     IH = 48
     IW = 48
     IC = 16
@@ -111,50 +108,88 @@ def test_convolution_inference():
     K = 3
     PAD = 1
     STRIDE = 1
-    OH = (IH + 2*PAD - K) / STRIDE + 1
-    OW = (IW + 2*PAD - K) / STRIDE + 1
 
-    na = np.random.uniform(size=(IC, IH, IW)).astype(f32)
-    nb = np.random.uniform(size=(OC, IC, K, K)).astype(f32)
-    nc = np.zeros((OC, ), dtype=f32)
-    ta = tvm.nd.array(na, ctx)
-    tb = tvm.nd.array(nb, ctx)
-    tc = tvm.nd.array(nc, ctx)
-    td = tvm.nd.array(np.zeros((OC, OH, OW), dtype=f32), ctx)
-    conv_infer(ta, tb, tc, td, PAD, PAD, PAD, PAD, STRIDE, STRIDE)
-
-    nd = np_conv(np.reshape(na, (1, IC, IH, IW)), nb, PAD, STRIDE)
-    np.testing.assert_allclose(
-        td.asnumpy(), nd.reshape(IC, IH, IW), rtol=1e-5)
-
-
-def test_convolution_output():
-    f32 = 'float32'
-    ctx = tvm.cpu(0)
-    conv_output = tvm.get_global_func("tvm.contrib.nnpack.convolution_output")
-
-    BATCH = 1
-    IH = 5
-    IW = 5
-    IC = 2
-    OC = 2
-    K = 3
-    PAD = 1
     OH = (IH + 2*PAD - K) + 1
     OW = (IW + 2*PAD - K) + 1
+    dshape = (IC, IH, IW)
+    kshape = (OC, IC, K, K)
+    bshape = (OC, )
+    oshape = (OC, OH, OW)
 
-    na = np.random.uniform(size=(BATCH, IC, IH, IW)).astype(f32)
-    nb = np.random.uniform(size=(OC, IC, K, K)).astype(f32)
-    nc = np.zeros((OC, ), dtype=f32)
-    ta = tvm.nd.array(na, ctx)
-    tb = tvm.nd.array(nb, ctx)
-    tc = tvm.nd.array(nc, ctx)
-    td = tvm.nd.array(np.zeros((BATCH, OC, OH, OW), dtype=f32), ctx)
-    conv_output(ta, tb, tc, td, PAD, PAD, PAD, PAD)
+    data = tvm.placeholder(dshape, name='data')
+    kernel = tvm.placeholder(kshape, name='kernel')
+    bias = tvm.placeholder(bshape, name='bias')
+    output = nnpack.convolution_inference(data, kernel, bias,
+        [PAD, PAD, PAD, PAD], [STRIDE, STRIDE])
+    s = tvm.create_schedule(output.op)
 
-    nd = np_conv(na, nb, PAD)
-    np.testing.assert_allclose(td.asnumpy(), nd, rtol=1e-5)
+    def verify(target="llvm"):
+        if not tvm.module.enabled(target):
+            print("skip because %s is not enabled..." % target)
+            return
+        if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
+            print("skip because extern function is not avalable")
+            return
+        ctx = tvm.cpu(0)
+        f = tvm.build(s, [data, kernel, bias, output], target)
 
+        na = np.random.uniform(size=dshape).astype(data.dtype)
+        nb = np.random.uniform(size=kshape).astype(kernel.dtype)
+        nc = np.zeros(bshape, dtype=bias.dtype)
+        ta = tvm.nd.array(na, ctx)
+        tb = tvm.nd.array(nb, ctx)
+        tc = tvm.nd.array(nc, ctx)
+        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
+        f(ta, tb, tc, td)
+        nd = np_conv(np.reshape(na, (1, IC, IH, IW)), nb, PAD, STRIDE)
+        np.testing.assert_allclose(
+            td.asnumpy(), nd.reshape(IC, IH, IW), rtol=1e-5)
+    verify()
+
+def test_convolution_output():
+    BATCH = 32
+    IH = 48
+    IW = 48
+    IC = 16
+    OC = 16
+    K = 3
+    PAD = 1
+
+    OH = (IH + 2*PAD - K) + 1
+    OW = (IW + 2*PAD - K) + 1
+    dshape = (BATCH, IC, IH, IW)
+    kshape = (OC, IC, K, K)
+    bshape = (OC, )
+    oshape = (BATCH, OC, OH, OW)
+
+    data = tvm.placeholder(dshape, name='data')
+    kernel = tvm.placeholder(kshape, name='kernel')
+    bias = tvm.placeholder(bshape, name='bias')
+    output = nnpack.convolution_output(data, kernel, bias, [PAD, PAD, PAD, PAD])
+    s = tvm.create_schedule(output.op)
+
+    def verify(target="llvm"):
+        if not tvm.module.enabled(target):
+            print("skip because %s is not enabled..." % target)
+            return
+        if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
+            print("skip because extern function is not avalable")
+            return
+        ctx = tvm.cpu(0)
+        f = tvm.build(s, [data, kernel, bias, output], target)
+
+        na = np.random.uniform(size=dshape).astype(data.dtype)
+        nb = np.random.uniform(size=kshape).astype(kernel.dtype)
+        nc = np.zeros(bshape, dtype=bias.dtype)
+        ta = tvm.nd.array(na, ctx)
+        tb = tvm.nd.array(nb, ctx)
+        tc = tvm.nd.array(nc, ctx)
+        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
+        f(ta, tb, tc, td)
+        nd = np_conv(na, nb, PAD)
+        np.testing.assert_allclose(
+            td.asnumpy(), nd, rtol=1e-5)
+    verify()
 
 if __name__ == "__main__":
     import nose
