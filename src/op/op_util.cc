@@ -70,6 +70,10 @@ MakeLoopNest(const Stage& stage,
                               << it_attr->iter_type
                               << " in the iter_var_attrs";
         }
+        for (Expr p : it_attr->pragmas) {
+          nest[i + 1].emplace_back(
+              AttrStmt::make(iv, ir::attr::pragma_scope, p, no_op));
+        }
       }
       if (is_one(dom->extent)) {
         nest[i + 1].emplace_back(

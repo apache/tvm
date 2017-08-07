@@ -108,6 +108,7 @@ struct Reduce : public ExprNode<Reduce> {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
+    v->Visit("combiner", &combiner);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
@@ -142,6 +143,8 @@ namespace attr {
 constexpr const char* thread_extent = "thread_extent";
 /*! \brief Mark launching of a virtual thread. */
 constexpr const char* virtual_thread = "virtual_thread";
+/*! \brief Mark region is processed by a co-proccesor */
+constexpr const char* coproc_scope = "coproc_scope";
 /*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
 /*!
@@ -163,6 +166,8 @@ constexpr const char* device_context_type = "device_context_type";
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
+/*! \brief Mark region is guarded by the pragma */
+constexpr const char* pragma_scope = "pragma_scope";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope
@@ -347,7 +352,7 @@ constexpr const char* tvm_thread_context = "tvm_thread_context";
  */
 constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
 /*!
- * \brief See pesudo code
+ * \brief See pseudo code
  *
  *  int tvm_storage_sync(std::string storage_scope) {
  *     __sync(storage_scope);

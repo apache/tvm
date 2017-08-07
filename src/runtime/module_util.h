@@ -40,30 +40,21 @@ void ImportModuleBlob(const char* mblob, std::vector<Module>* module_list);
  */
 template<typename FLookup>
 void InitContextFunctions(FLookup flookup) {
-  if (auto *fp = reinterpret_cast<decltype(&TVMFuncCall)*>
-      (flookup("__TVMFuncCall"))) {
-    *fp = TVMFuncCall;
-  }
-  if (auto *fp = reinterpret_cast<decltype(&TVMAPISetLastError)*>
-      (flookup("__TVMAPISetLastError"))) {
-    *fp = TVMAPISetLastError;
-  }
-  if (auto *fp = reinterpret_cast<decltype(&TVMBackendGetFuncFromEnv)*>
-      (flookup("__TVMBackendGetFuncFromEnv"))) {
-    *fp = TVMBackendGetFuncFromEnv;
-  }
-  if (auto *fp = reinterpret_cast<decltype(&TVMBackendAllocWorkspace)*>
-      (flookup("__TVMBackendAllocWorkspace"))) {
-    *fp = TVMBackendAllocWorkspace;
-  }
-  if (auto *fp = reinterpret_cast<decltype(&TVMBackendFreeWorkspace)*>
-      (flookup("__TVMBackendFreeWorkspace"))) {
-    *fp = TVMBackendFreeWorkspace;
-  }
-  if (auto *fp = reinterpret_cast<decltype(&TVMBackendParallelFor)*>
-      (flookup("__TVMBackendParallelFor"))) {
-    *fp = TVMBackendParallelFor;
-  }
+  #define TVM_INIT_CONTEXT_FUNC(FuncName)                     \
+    if (auto *fp = reinterpret_cast<decltype(&FuncName)*>     \
+      (flookup("__" #FuncName))) {                            \
+      *fp = FuncName;                                         \
+    }
+  // Initialize the functions
+  TVM_INIT_CONTEXT_FUNC(TVMFuncCall);
+  TVM_INIT_CONTEXT_FUNC(TVMAPISetLastError);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendParallelLaunch);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendParallelBarrier);
+
+  #undef TVM_INIT_CONTEXT_FUNC
 }
 }  // namespace runtime
 }  // namespace tvm

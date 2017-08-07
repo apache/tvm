@@ -28,8 +28,13 @@ def test_llvm_add_pipeline():
     C = tvm.compute(A.shape, lambda *i: T(*i), name='C')
     s = tvm.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
-    s[C].parallel(xo)
+    xo1, xo2 = s[C].split(xo, factor=13)
+    s[C].parallel(xo2)
+    s[C].pragma(xo1, "parallel_launch_point")
+    s[C].pragma(xo2, "parallel_stride_pattern")
+    s[C].pragma(xo2, "parallel_barrier_when_finish")
     s[C].vectorize(xi)
+
     def check_llvm():
         if not tvm.module.enabled("llvm"):
             return
@@ -167,9 +172,9 @@ def test_multiple_func():
 
 
 if __name__ == "__main__":
+    test_llvm_add_pipeline()
     test_llvm_intrin()
     test_multiple_func()
-    test_llvm_add_pipeline()
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()
     test_llvm_temp_space()

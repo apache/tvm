@@ -38,7 +38,7 @@ def _schedule_conv2d_hwcn(op, sch):
     thread_yz = tvm.thread_axis((0, vthread), "vthread", name="vy")
 
     hi, wi, fi, ni = sch[Out].op.axis
-    bz = sch[Out].fuse(wi, hi)
+    bz = sch[Out].fuse(hi, wi)
     by, fi = sch[Out].split(fi, factor=block_factor)
     bx, ni = sch[Out].split(ni, factor=block_factor)
     tyz, fi = sch[Out].split(fi, nparts=vthread)
@@ -60,7 +60,7 @@ def _schedule_conv2d_hwcn(op, sch):
     ry, rx, rc = sch[BL].op.reduce_axis
     rco, rci = sch[BL].split(rc, factor=step)
     sch[BL].reorder(rco, ry, rx, rci, fi, ni)
-    fuse_index = sch[BL].fuse(rx, ry)
+    fuse_index = sch[BL].fuse(ry, rx)
     fuse_index = sch[BL].fuse(fuse_index, rco)
     rx = fuse_index
 

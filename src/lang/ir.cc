@@ -97,6 +97,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   return Expr(n);
 }
 
+TVM_REGISTER_NODE_TYPE(CommReducerNode);
 TVM_REGISTER_NODE_TYPE(Reduce);
 TVM_REGISTER_NODE_TYPE(AttrStmt);
 

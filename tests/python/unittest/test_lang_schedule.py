@@ -30,6 +30,7 @@ def test_schedule_create():
     assert isinstance(s_loaded, tvm.schedule.Schedule)
     assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 
+
 def test_reorder():
     m = tvm.var('m')
     A = tvm.placeholder((m,), name='A')
@@ -72,7 +73,7 @@ def test_fuse():
 
     s = tvm.create_schedule(T.op)
     xo, yo, xi, yi = s[T].tile(T.op.axis[0], T.op.axis[1], x_factor=10, y_factor=5)
-    fused = s[T].fuse(yo, xo)
+    fused = s[T].fuse(xo, yo)
     assert any(isinstance(x, tvm.schedule.Fuse) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused, xi, yi)
 
@@ -90,6 +91,21 @@ def test_vectorize():
     VECTORIZE = tvm.schedule.IterVar.Vectorized
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
+
+
+def test_pragma():
+    m = 100
+    A = tvm.placeholder((m,), name='A')
+    T = tvm.compute((m,), lambda i: A[i])
+
+    s = tvm.create_schedule(T.op)
+    xo, xi = s[T].split(T.op.axis[0], factor=10)
+    s[T].pragma(xo, "pragma1")
+    s[T].pragma(xi, "vectorize")
+    VECTORIZE = tvm.schedule.IterVar.Vectorized
+    assert s[T].iter_var_attrs[xo].pragmas[0].value == "pragma1"
+    assert s[T].iter_var_attrs[xi].iter_type == VECTORIZE
+
 
 def test_rfactor():
     n = tvm.var('n')
@@ -141,6 +157,7 @@ def test_tensor_intrin():
 
 
 if __name__ == "__main__":
+    test_pragma()
     test_tensor_intrin()
     test_rfactor()
     test_schedule_create()

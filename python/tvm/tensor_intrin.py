@@ -6,7 +6,7 @@ from . import expr as _expr
 from . import stmt as _stmt
 from . import make as _make
 from . import tensor as _tensor
-from .build import BuildConfig
+from .build_module import BuildConfig
 from ._ffi.node import NodeBase, register_node
 
 @register_node

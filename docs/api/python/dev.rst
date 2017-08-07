@@ -45,7 +45,7 @@ tvm.ir_pass
    tvm.ir_pass.StorageFlatten
    tvm.ir_pass.VectorizeLoop
    tvm.ir_pass.UnrollLoop
-   tvm.ir_pass.StorageSync
+   tvm.ir_pass.ThreadSync
    tvm.ir_pass.StorageRewrite
    tvm.ir_pass.MakeAPI
    tvm.ir_pass.SplitHostDevice

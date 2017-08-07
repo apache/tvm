@@ -52,35 +52,35 @@ using FTVMSchedule = std::function<
            const Array<Tensor>& outs,
            const std::string& target)>;
 
-/*!
- * \brief Layout transform information,
- *  from source layout to destination layout.
- */
-struct LayoutInfo {
-  using Layout = std::string;
-  Layout src;
-  Layout dst;
-};
+/*! \brief Layout Information. */
+using TLayoutInfo = std::string;
 
 /*!
- * \brief Layout info of the node.
+ * \brief The producer consumer function of node layout
  * \param attrs The attribute of the node.
- * \return layouts A vector of inputs/outputs layout info.
+ * \param ilayouts The input layouts that the node request.
+ * \param olayouts The output layouts that the node produce.
+ * \return bool The success flag.
  */
-using FTVMLayoutInfo = std::function<
-  std::vector<LayoutInfo>(const NodeAttrs& attrs)>;
-/*!
- * \brief Inputs layout info of the node.
- * \param attrs The attribute of the node.
- * \return layouts A vector of inputs layout info.
- */
-using FTVMInputsLayoutInfo  = FTVMLayoutInfo;
-/*!
- * \brief Outputs layout info of the node.
- * \param attrs The attribute of the node.
- * \return layouts A vector of outputs layout info.
- */
-using FTVMOutputsLayoutInfo = FTVMLayoutInfo;
+using FTVMLayoutRequest = std::function<bool (const NodeAttrs& attrs,
+                                              std::vector<TLayoutInfo> *ilayouts,
+                                              std::vector<TLayoutInfo> *olayouts)>;
+
+/*! \brief The default layout. */
+const TLayoutInfo& GetDefaultLayout();
+
+/*! \brief Parameters of layout transform operator */
+struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
+  std::string src_layout;
+  std::string dst_layout;
+  DMLC_DECLARE_PARAMETER(LayoutTransformParam) {
+    DMLC_DECLARE_FIELD(src_layout);
+    DMLC_DECLARE_FIELD(dst_layout);
+  }
+};
+
+/*! \brief Transform from normal operator to vectorized operator */
+using FTVMVectorizedOp = std::function<nnvm::NodePtr (const nnvm::Node*)>;
 
 // The storage result of op
 enum OpPatternKind : int {

@@ -364,6 +364,12 @@ TVM_REGISTER_API("_StageParallel")
         .parallel(args[1]);
   });
 
+TVM_REGISTER_API("_StagePragma")
+  .set_body([](TVMArgs args, TVMRetValue* ret) {
+    args[0].operator Stage()
+        .pragma(args[1], args[2]);
+  });
+
 TVM_REGISTER_API("_StagePrefetch")
   .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator Stage()

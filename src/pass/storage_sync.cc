@@ -15,142 +15,29 @@
 namespace tvm {
 namespace ir {
 
-using namespace storage;
-
-class StorageSyncPlanner : public IRVisitor {
+class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
-  explicit StorageSyncPlanner(StorageScope sync_scope)
-    : sync_scope_(sync_scope) {}
-  void Visit_(const Load* op) final {
-    if (!in_device_env_) return;
-    CHECK(allow_load_);
-    const Variable* buf = op->buffer_var.as<Variable>();
-    StorageScope s = GetScope(buf);
-    if (s == sync_scope_) {
-      curr_stmt_.access.emplace_back(
-          AccessEntry(buf, op->index, kRead, s));
-    }
-  }
-  void Visit_(const Store* op) final {
-    if (!in_device_env_) return;
-    allow_load_ = true;
-    CHECK_EQ(curr_stmt_.access.size(), 0U);
-    curr_stmt_.stmt = op;
-    const Variable* buf = op->buffer_var.as<Variable>();
-    StorageScope s = GetScope(buf);
-    if (s == sync_scope_) {
-      curr_stmt_.access.emplace_back(
-          AccessEntry(buf, op->index, kWrite, s));
-    }
-    // traverse child
-    IRVisitor::Visit_(op);
-    // push to the scope
-    scope_.back().push_back(curr_stmt_);
-    // clear access entry.
-    curr_stmt_.access.clear();
-    allow_load_ = false;
-  }
-  void Visit_(const Evaluate* op) final {
-    if (!in_device_env_) return;
-    if (const Call* call = op->value.as<Call>()) {
-      if (call->is_intrinsic(intrinsic::tvm_storage_sync)) {
-        const std::string& s = call->args[0].as<StringImm>()->value;
-        if (s != "warp") {
-          StorageScope scope = StorageScope::make(s);
-          if (scope.rank <= sync_scope_.rank) {
-            CHECK_EQ(curr_stmt_.access.size(), 0U);
-            curr_stmt_.access.emplace_back(
-                AccessEntry(nullptr, Expr(), kSync, scope));
-            // push to the scope
-            scope_.back().push_back(curr_stmt_);
-            curr_stmt_.access.clear();
-          }
-        }
-      }
-    }
-  }
-  void Visit_(const AttrStmt* op) final {
-    if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
-      storage_scope_[buf] =
-          StorageScope::make(op->value.as<StringImm>()->value);
-      IRVisitor::Visit_(op);
-    } else if (op->attr_key == attr::thread_extent && !in_device_env_) {
-      in_device_env_ = true;
-      CHECK_EQ(scope_.size(), 0U);
-      scope_.push_back(std::vector<StmtEntry>());
-      IRVisitor::Visit_(op);
-      this->PlanSync(false);
-      in_device_env_ = false;
-      scope_.pop_back();
-    } else {
-      IRVisitor::Visit_(op);
-    }
-  }
-  void Visit_(const For* op) final {
-    if (in_device_env_) {
-      scope_.push_back(std::vector<StmtEntry>());
-      IRVisitor::Visit_(op);
-      StmtEntry s; s.stmt = op;
-      s.access = PlanSync(true);
-      scope_.pop_back();
-      scope_.back().emplace_back(std::move(s));
-    } else {
-      IRVisitor::Visit_(op);
-    }
-  }
-  void Visit_(const Call* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-      const Load *l = op->args[0].as<Load>();
-      IRVisitor::Visit_(l);
-    } else {
-      IRVisitor::Visit_(op);
-    }
-  }
-  void Visit_(const IfThenElse* op) final {
-    if (in_device_env_) {
-      ++condition_counter_;
-      this->Visit(op->condition);
-      scope_.push_back(std::vector<StmtEntry>());
-      this->Visit(op->then_case);
+  explicit ThreadSyncPlanner(StorageScope sync_scope)
+      : sync_scope_(sync_scope) {}
 
-      StmtEntry s; s.stmt = op;
-      s.access = PlanSync(false);
-      scope_.pop_back();
-      if (op->else_case.defined()) {
-        scope_.push_back(std::vector<StmtEntry>());
-        auto v = PlanSync(false);
-        scope_.pop_back();
-        s.access.insert(s.access.end(), v.begin(), v.end());
-      }
-      scope_.back().emplace_back(std::move(s));
-      --condition_counter_;
-    } else {
-      IRVisitor::Visit_(op);
-    }
-  }
-
-  // The syncs inserted before each statement
+    // The syncs inserted before each statement
   std::unordered_set<const Node*> syncs_inserted_;
 
- private:
-  // Get storage scope of buffer.
-  StorageScope GetScope(const Variable* buf) const {
-    auto it = storage_scope_.find(buf);
-    StorageScope s; s.rank = 0;
-    if (it == storage_scope_.end()) return s;
-    return it->second;
+ protected:
+  bool Enabled(const Variable* buf,
+               const StorageScope& scope) const final {
+    return in_device_env() && scope == sync_scope_;
   }
   // Plan the sync
-  std::vector<AccessEntry> PlanSync(bool is_loop) {
-    // unsynced reads and writes
+  std::vector<AccessEntry> Summarize(
+      std::vector<StmtEntry> seq, const For* loop) final {
+    // Unsynced reads and writes
     std::vector<AccessEntry> reads;
     std::vector<AccessEntry> writes;
-    const std::vector<StmtEntry>& seq = scope_.back();
 
     // if it is a loop, rotate two times to consider effect of loop.
     size_t max_seq = seq.size();
-    if (is_loop) max_seq *= 2;
+    if (loop != nullptr) max_seq *= 2;
     // simulation based approach to find dependenceies
     for (size_t i = 0; i < max_seq; ++i) {
       const StmtEntry& s = seq[i % seq.size()];
@@ -189,7 +76,7 @@ class StorageSyncPlanner : public IRVisitor {
         }
       }
       if (sync_before_stmt) {
-        CHECK_EQ(condition_counter_, 0)
+        CHECK_EQ(condition_counter(), 0)
             << "Cannot insert syncs inside condition";
         syncs_inserted_.insert(s.stmt);
       }
@@ -198,12 +85,17 @@ class StorageSyncPlanner : public IRVisitor {
     int sync_count = 0;
     // head are before first sync, tail are after last sync
     std::vector<AccessEntry> head, tail;
+    AccessEntry esync;
+    esync.threads = this->env_threads();
+    esync.type = kSync;
+    esync.scope = sync_scope_;
+
     for (const StmtEntry& s : seq) {
       if (syncs_inserted_.count(s.stmt)) {
         if (sync_count != 0) {
           tail.clear();
         } else {
-          head.push_back(AccessEntry(nullptr, Expr(), kSync, sync_scope_));
+          head.push_back(esync);
         }
         ++sync_count;
       }
@@ -212,7 +104,7 @@ class StorageSyncPlanner : public IRVisitor {
           if (sync_count != 0) {
             tail.clear();
           } else {
-            head.push_back(AccessEntry(nullptr, Expr(), kSync, sync_scope_));
+            head.push_back(esync);
           }
           ++sync_count;
         } else {
@@ -227,35 +119,36 @@ class StorageSyncPlanner : public IRVisitor {
     head.insert(head.end(), tail.begin(), tail.end());
     return head;
   }
+
+ private:
   // find conflicting entry in vec.
   bool FindConflict(const std::vector<AccessEntry>& vec,
                     const AccessEntry& e) {
     for (const AccessEntry& x : vec) {
-      if (x.buffer == e.buffer &&
-          !e.index.same_as(x.index)) return true;
+      if (x.buffer.same_as(e.buffer)) {
+        // Assumes no race between threads
+        // Same index value means no conflicts
+        // TODO(tqchen) more standard set based testing.
+        if (e.touched.is_single_point() &&
+            x.touched.is_single_point()) {
+          if (Equal(e.touched.point_value(),
+                    x.touched.point_value())) continue;
+        }
+        return true;
+      }
     }
     return false;
   }
-  // Whether we are inside condition.
-  int condition_counter_{0};
-  // whether load is enabled.
-  bool in_device_env_{false};
-  // whether load is enabled.
-  bool allow_load_{false};
-  // the current free stmt entry.
-  StmtEntry curr_stmt_;
-  // access scope
-  std::vector<std::vector<StmtEntry> > scope_;
-  // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageScope> storage_scope_;
-  // The sync scope we care about.
+
+ private:
+  // synchronization scope
   StorageScope sync_scope_;
 };
 
-class StorageSyncInserter : public IRMutator {
+class ThreadSyncInserter : public IRMutator {
  public:
-  StorageSyncInserter(StorageScope sync_scope,
-                      const std::unordered_set<const Node*>& syncs)
+  ThreadSyncInserter(StorageScope sync_scope,
+                     const std::unordered_set<const Node*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
   Stmt Mutate(Stmt stmt) final {
@@ -389,18 +282,202 @@ class StorageSyncInserter : public IRMutator {
   Expr is_lead_;
 };
 
-Stmt StorageSync(Stmt stmt, std::string storage_scope) {
+Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::make(storage_scope);
-  StorageSyncPlanner planner(sync_scope);
+  ThreadSyncPlanner planner(sync_scope);
   planner.Visit(stmt);
-  return StorageSyncInserter(sync_scope, planner.syncs_inserted_).Mutate(stmt);
+  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_).Mutate(stmt);
 }
 
-LoweredFunc StorageSync(LoweredFunc f, std::string storage_scope) {
+LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {
   CHECK_NE(f->func_type, kHostFunc);
   auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
-  n->body = StorageSync(f->body, storage_scope);
+  n->body = ThreadSync(f->body, storage_scope);
   return LoweredFunc(n);
+}
+
+// Visitor to find touched set by co-processor scope.
+class CoProcTouchedBuffer : public IRVisitor {
+ public:
+  void Visit_(const Load* op) final {
+    if (in_scope_) {
+      touched_.insert(op->buffer_var.get());
+    }
+    IRVisitor::Visit_(op);
+  }
+  void Visit_(const Store* op) final {
+    if (in_scope_) {
+      touched_.insert(op->buffer_var.get());
+    }
+    IRVisitor::Visit_(op);
+  }
+  void Visit_(const Call* op) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      const Variable* buffer = op->args[1].as<Variable>();
+      touched_.insert(buffer);
+    }
+    IRVisitor::Visit_(op);
+  }
+  void Visit_(const AttrStmt* op) final {
+    if (op->attr_key == attr::coproc_scope && !in_scope_) {
+      in_scope_ = true;
+      IRVisitor::Visit_(op);
+      in_scope_ = false;
+    } else {
+      IRVisitor::Visit_(op);
+    }
+  }
+
+  std::unordered_set<const Variable*> touched_;
+
+ private:
+  bool in_scope_{false};
+};
+
+// Synchronization planning with co-processor.
+class CoProcSyncPlanner : public StorageAccessVisitor {
+ public:
+  void Plan(const Stmt& stmt) {
+    CoProcTouchedBuffer visitor;
+    visitor.Visit(stmt);
+    touched_ = std::move(visitor.touched_);
+    if (!touched_.empty()) {
+      this->Visit(stmt);
+      PlanWriteSync(scope_.back(), nullptr, true);
+    }
+  }
+
+  // Write synchronization to be inserted before or after stmt.
+  std::unordered_map<const Node*, std::vector<Stmt> > write_sync_;
+
+ protected:
+  bool Enabled(const Variable* buf,
+               const StorageScope& scope) const final {
+    return touched_.count(buf) && scope == global_scope_;
+  }
+
+  // Plan the sync
+  std::vector<AccessEntry> Summarize(
+      std::vector<StmtEntry> seq, const For* loop) final {
+    return PlanWriteSync(seq, loop, false);
+  }
+
+ private:
+  // Plan write synchronization if write is not coherent
+  std::vector<AccessEntry> PlanWriteSync(
+      std::vector<StmtEntry> seq, const For* loop,
+      bool force_sync_at_end) {
+    // detect write barriers
+    // access by the co-processor.
+    std::vector<AccessEntry> co_access;
+    bool contain_sync = false;
+
+    auto find_conflict = [&](const AccessEntry& acc) {
+      for (const AccessEntry& x : co_access) {
+        if (x.buffer.same_as(acc.buffer) &&
+            ((acc.type == kRead && x.type == kWrite) ||
+             acc.type == kWrite)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    for (size_t i = 0; i < seq.size(); ++i) {
+      const StmtEntry& s = seq[i];
+      bool sync_write = false;
+      for (const AccessEntry& acc : s.access) {
+        if (acc.threads.size() == 0 && find_conflict(acc)) {
+          sync_write = true; break;
+        }
+        if (acc.type == kSync) {
+          co_access.clear();
+          contain_sync = true;
+        }
+      }
+      if (sync_write) {
+        CHECK_NE(i, 0U);
+        write_sync_[seq[i - 1].stmt] = GetWriteSync(co_access);
+        co_access.clear();
+        contain_sync = true;
+      }
+      for (const AccessEntry& acc : s.access) {
+        if (acc.threads.size() != 0) {
+          co_access.push_back(acc);
+        }
+      }
+    }
+    bool sync_at_end = force_sync_at_end;
+    if (loop != nullptr && !sync_at_end) {
+      // loop carray dependency
+      for (size_t i = 0; i < seq.size(); ++i) {
+        const StmtEntry& s = seq[i];
+        for (const AccessEntry& acc : s.access) {
+          if (acc.threads.size() == 0 && find_conflict(acc)) {
+            sync_at_end = true; break;
+          }
+        }
+        if (write_sync_.count(s.stmt) || sync_at_end) break;
+      }
+    }
+    if (sync_at_end && co_access.size() != 0) {
+      CHECK_NE(seq.size(), 0);
+      contain_sync = true;
+      write_sync_[seq.back().stmt] = GetWriteSync(co_access);
+      co_access.clear();
+    }
+    if (contain_sync) {
+      AccessEntry e;
+      e.type = kSync;
+      e.scope = global_scope_;
+      co_access.insert(co_access.begin(), e);
+    }
+    return co_access;
+  }
+  // Add write Synchronization
+  std::vector<Stmt> GetWriteSync(const std::vector<AccessEntry>& co_access) {
+    // Does not consider memory coherence, need runtime.
+    CHECK_NE(co_access.size(), 0U);
+    CHECK_EQ(co_access[0].threads.size(), 1U);
+    std::string sync_name = co_access[0].threads[0]->var->name_hint + ".coproc_sync";
+    std::vector<Stmt> stmts;
+    stmts.emplace_back(
+      Evaluate::make(Call::make(
+          Int(32),
+          sync_name,
+          {}, Call::Intrinsic)));
+    return stmts;
+  }
+  std::unordered_set<const Variable*> touched_;
+  StorageScope global_scope_ = StorageScope::make("global");
+};
+
+class CoProcSyncInserter : public IRMutator {
+ public:
+  explicit CoProcSyncInserter(
+      const std::unordered_map<const Node*, std::vector<Stmt> >& write_sync)
+      : write_sync_(write_sync) {}
+
+  Stmt Mutate(Stmt stmt) final {
+    stmt = IRMutator::Mutate(stmt);
+    auto it = write_sync_.find(stmt.get());
+    if (it != write_sync_.end()) {
+      stmt = Block::make(stmt, MergeSeq(it->second));
+    }
+    return stmt;
+  }
+
+ private:
+  const std::unordered_map<const Node*, std::vector<Stmt> >& write_sync_;
+};
+
+Stmt CoProcSync(Stmt stmt) {
+  CoProcSyncPlanner planner;
+  planner.Plan(stmt);
+  if (planner.write_sync_.size() != 0) {
+    return CoProcSyncInserter(planner.write_sync_).Mutate(stmt);
+  } else {
+    return stmt;
+  }
 }
 
 }  // namespace ir
