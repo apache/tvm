@@ -41,30 +41,36 @@ class TVMType(ctypes.Structure):
         2 : 'float',
         4 : 'handle'
     }
-    def __init__(self, type_str, lanes=1):
+    def __init__(self, type_str):
         super(TVMType, self).__init__()
         if isinstance(type_str, np.dtype):
             type_str = str(type_str)
-        if type_str.startswith("int"):
+        arr = type_str.split("x")
+        head = arr[0]
+        self.lanes = int(arr[1]) if len(arr) > 1 else 1
+        bits = 32
+
+        if head.startswith("int"):
             self.type_code = 0
-            bits = int(type_str[3:])
-        elif type_str.startswith("uint"):
+            head = head[3:]
+        elif head.startswith("uint"):
             self.type_code = 1
-            bits = int(type_str[4:])
-        elif type_str.startswith("float"):
+            head = head[4:]
+        elif head.startswith("float"):
             self.type_code = 2
-            bits = int(type_str[5:])
-        elif type_str.startswith("handle"):
+            head = head[5:]
+        elif head.startswith("handle"):
             self.type_code = 4
             bits = 64
+            head = ""
         else:
             raise ValueError("Donot know how to handle type %s" % type_str)
 
-        bits = 32 if bits == 0 else bits
+        bits = int(head) if head else bits
         if (bits & (bits - 1)) != 0 or bits < 8:
             raise ValueError("Donot know how to handle type %s" % type_str)
         self.bits = bits
-        self.lanes = lanes
+
 
     def __repr__(self):
         x = "%s%d" % (TVMType.CODE2STR[self.type_code], self.bits)

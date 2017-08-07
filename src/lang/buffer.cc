@@ -61,13 +61,14 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   return base;
 }
 
-// Buffer access offset.
 inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
   Expr offset = ElemOffset(n, index);
   if (n->dtype.lanes() != 1) {
     offset = offset * make_const(offset.type(), n->dtype.lanes());
+    return ir::Ramp::make(offset, make_const(offset.type(), 1), n->dtype.lanes());
+  } else {
+    return offset;
   }
-  return offset;
 }
 
 Expr Buffer::MakeLoad(Array<Expr> index) const {
