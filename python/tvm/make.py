@@ -44,6 +44,11 @@ def static_cast(dtype, expr):
 
     expr : Expr
         The expression to be casted.
+
+    Returns
+    -------
+    casted : Expr
+        The casted expression.
     """
     target_type = TVMType(dtype)
     src_type = TVMType(expr.dtype)
