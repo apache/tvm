@@ -16,6 +16,11 @@ namespace ir {
 
 inline Expr BroadcastTo(Expr e, int lanes) {
   if (e.type().lanes() == lanes) return e;
+  if (const Broadcast* op = e.as<Broadcast>()) {
+    if (lanes % op->lanes == 0) {
+      return Broadcast::make(op->value, lanes);
+    }
+  }
   CHECK_EQ(e.type().lanes(), 1)
       << "Cannot broadcast lane=" << e.type().lanes()
       << " to " << lanes;
@@ -79,6 +84,27 @@ class Vectorizer : public IRMutator {
     return AddSubVec(op, e);
   }
   Expr Mutate_(const Mul* op, const Expr &e) final {
+    Expr a = this->Mutate(op->a);
+    Expr b = this->Mutate(op->b);
+    if (a.same_as(op->a) &&
+        b.same_as(op->b)) {
+      return e;
+    } else {
+      int lanes = std::max(a.type().lanes(), b.type().lanes());
+      if (lanes != 1) {
+        const Ramp* b_ramp = b.as<Ramp>();
+        const Ramp* a_ramp = a.as<Ramp>();
+        if (a_ramp && b.type().lanes() == 1 && can_prove(b > 0)) {
+          return Ramp::make(
+              a_ramp->base * b, a_ramp->stride * b, a_ramp->lanes);
+        }
+        if (b_ramp && a.type().lanes() == 1 && can_prove(a > 0)) {
+          return Ramp::make(
+              b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
+        }
+      }
+      return Mul::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+    }
     return BinaryVec(op, e);
   }
   Expr Mutate_(const Div* op, const Expr &e) final {
@@ -113,6 +139,27 @@ class Vectorizer : public IRMutator {
   }
   Expr Mutate_(const Or* op, const Expr &e) final {
     return BinaryVec(op, e);
+  }
+  Expr Mutate_(const Ramp* op, const Expr &e) final {
+    Expr base = this->Mutate(op->base);
+    Expr stride = this->Mutate(op->stride);
+    if (base.type().lanes() > 1 && stride.type().lanes() == 1) {
+      const Ramp* base_ramp = base.as<Ramp>();
+      if (can_prove(base_ramp->stride == stride * make_const(stride.type(), op->lanes))) {
+        return Ramp::make(base_ramp->base, stride, op->lanes * base_ramp->lanes);
+      }
+    }
+    int lanes = std::max(base.type().lanes(), stride.type().lanes());
+    base = BroadcastTo(base, lanes);
+    stride = BroadcastTo(stride, lanes);
+    Array<Expr> elems;
+    for (size_t i = 0; i < lanes; ++i) {
+      elems.push_back(
+          Ramp::make(Shuffle::make_extract_element(base, i),
+                     Shuffle::make_extract_element(stride, i),
+                     op->lanes));
+    }
+    return Shuffle::make_concat(elems);
   }
   Expr Mutate_(const Select *op, const Expr& e) final {
     Expr cond = this->Mutate(op->condition);

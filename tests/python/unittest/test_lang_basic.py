@@ -31,6 +31,15 @@ def test_let():
     stmt = tvm.make.LetStmt(
         x, 10, tvm.make.Evaluate(x + 1));
 
+def test_cast():
+    x = tvm.var('x', dtype="float32")
+    y = x.astype("int32")
+    z = x.astype("float32x4")
+    assert isinstance(y, tvm.expr.Cast)
+    assert isinstance(z, tvm.expr.Broadcast)
+    assert z.lanes == 4
+
+
 def test_attr():
     x = tvm.var('x')
     y = tvm.var('y')
@@ -116,6 +125,7 @@ def test_all():
 
 
 if __name__ == "__main__":
+    test_cast()
     test_attr()
     test_const()
     test_make()
