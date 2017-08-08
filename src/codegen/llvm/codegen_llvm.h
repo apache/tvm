@@ -197,6 +197,9 @@ class CodeGenLLVM :
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
+  // Lazy entry for function call.
+  llvm::FunctionType* ftype_tvm_static_init_callback_{nullptr};
+  llvm::FunctionType* ftype_tvm_static_init_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
   /*! \brief native vector bits of current targetx*/
@@ -241,6 +244,12 @@ class CodeGenLLVM :
   llvm::Value* CreateVecFlip(llvm::Value* vec);
   llvm::Value* CreateVecConcat(std::vector<llvm::Value*> vecs);
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
+  llvm::Value* PackClosureData(const Array<Var>& fields);
+  void UnpackClosureData(llvm::Value*cdata,
+                         const Array<Var>& fields,
+                         std::unordered_map<const Variable*, llvm::Value*>* vmap);
+  // Create static initialization
+  void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task);
   // Create serial for
