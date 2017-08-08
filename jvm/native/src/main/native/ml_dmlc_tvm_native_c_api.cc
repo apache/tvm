@@ -158,26 +158,32 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
 
   TVMValue retVal;
   int retTypeCode;
-  int ret = TVMFuncCall(reinterpret_cast<TVMFunctionHandle>(jhandle),
-    &e->tvmFuncArgValues[0], &e->tvmFuncArgTypes[0], numArgs, &retVal, &retTypeCode);
 
-  for (auto iter = e->tvmFuncArgPushedStrs.cbegin();
-        iter != e->tvmFuncArgPushedStrs.cend(); iter++) {
-    env->ReleaseStringUTFChars(iter->first, iter->second);
-    env->DeleteGlobalRef(iter->first);
-  }
-  for (auto iter = e->tvmFuncArgPushedBytes.cbegin();
-        iter != e->tvmFuncArgPushedBytes.cend(); iter++) {
-    env->ReleaseByteArrayElements(iter->first,
-        reinterpret_cast<jbyte *>(const_cast<char *>(iter->second->data)), 0);
-    env->DeleteGlobalRef(iter->first);
-    delete iter->second;
-  }
+  // function can be invoked recursively,
+  // thus we copy the pushed arguments here.
+  auto argValues = e->tvmFuncArgValues;
+  auto argTypes = e->tvmFuncArgTypes;
+  auto pushedStrs = e->tvmFuncArgPushedStrs;
+  auto pushedBytes = e->tvmFuncArgPushedBytes;
 
   e->tvmFuncArgPushedStrs.clear();
   e->tvmFuncArgPushedBytes.clear();
   e->tvmFuncArgTypes.clear();
   e->tvmFuncArgValues.clear();
+
+  int ret = TVMFuncCall(reinterpret_cast<TVMFunctionHandle>(jhandle),
+    &argValues[0], &argTypes[0], numArgs, &retVal, &retTypeCode);
+
+  for (auto iter = pushedStrs.cbegin(); iter != pushedStrs.cend(); iter++) {
+    env->ReleaseStringUTFChars(iter->first, iter->second);
+    env->DeleteGlobalRef(iter->first);
+  }
+  for (auto iter = pushedBytes.cbegin(); iter != pushedBytes.cend(); iter++) {
+    env->ReleaseByteArrayElements(iter->first,
+        reinterpret_cast<jbyte *>(const_cast<char *>(iter->second->data)), 0);
+    env->DeleteGlobalRef(iter->first);
+    delete iter->second;
+  }
 
   // return TVMValue object to Java
   jclass refTVMValueCls = env->FindClass("ml/dmlc/tvm/Base$RefTVMValue");
