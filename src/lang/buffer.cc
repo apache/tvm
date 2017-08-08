@@ -61,28 +61,38 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   return base;
 }
 
-inline Expr BufferOffset(const BufferNode* n, Array<Expr> index) {
+inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, Type dtype) {
   Expr offset = ElemOffset(n, index);
   if (n->dtype.lanes() != 1) {
-    offset = offset * make_const(offset.type(), n->dtype.lanes());
-    return ir::Ramp::make(offset, make_const(offset.type(), 1), n->dtype.lanes());
+    offset = offset * make_const(offset.type(), dtype.lanes());
+  }
+  if (dtype.lanes() != 1) {
+    return ir::Ramp::make(offset, make_const(offset.type(), 1), dtype.lanes());
   } else {
     return offset;
   }
 }
 
-Expr Buffer::MakeLoad(Array<Expr> index) const {
+Expr Buffer::vload(Array<Expr> begin, Type dtype) const {
   const BufferNode* n = operator->();
+  CHECK(dtype.element_of() == n->dtype.element_of() &&
+        dtype.lanes() % n->dtype.lanes() == 0)
+      << "Cannot load " << dtype
+      << " from buffer of " << n->dtype;
   return ir::Load::make(
-      n->dtype, n->data, BufferOffset(n, index),
-      const_true(n->dtype.lanes()));
+      dtype, n->data, BufferOffset(n, begin, dtype),
+      const_true(dtype.lanes()));
 }
 
-Stmt Buffer::MakeStore(Array<Expr> index, Expr value) const {
+Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
   const BufferNode* n = operator->();
-  CHECK_EQ(value.type(), n->dtype);
-  return ir::Store::make(n->data, value, BufferOffset(n, index),
-                         const_true(n->dtype.lanes()));
+  Type dtype = value.type();
+  CHECK(dtype.element_of() == n->dtype.element_of() &&
+        dtype.lanes() % n->dtype.lanes() == 0)
+      << "Cannot load " << dtype
+      << " from buffer of " << n->dtype;
+  return ir::Store::make(n->data, value, BufferOffset(n, begin, dtype),
+                         const_true(dtype.lanes()));
 }
 
 Buffer Buffer::MakeStrideView() const {
