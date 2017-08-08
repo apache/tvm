@@ -104,6 +104,14 @@ void CodeGenLLVM::Init(const std::string& module_name,
       llvm::FunctionType::get(t_int_, {
           t_int_, t_tvm_parallel_group_env_->getPointerTo()}
         , false);
+  ftype_tvm_static_init_callback_ =
+      llvm::FunctionType::get(t_int_, {t_void_p_}, false);
+  ftype_tvm_static_init_ =
+      llvm::FunctionType::get(t_int_, {
+          t_void_p_->getPointerTo(),
+          ftype_tvm_static_init_callback_->getPointerTo(),
+          t_void_p_, t_int_}
+        , false);
   // initialize TVM runtime API
   if (system_lib) {
     // We will need this in environment for backward registration.
@@ -802,30 +810,44 @@ void CodeGenLLVM::CreateComputeScope(const AttrStmt* op) {
   builder_->SetInsertPoint(compute_call_end);
 }
 
-void CodeGenLLVM::CreateParallelLaunch(const Stmt& body, int num_task) {
-  using llvm::BasicBlock;
-  Array<Var> vfields = ir::UndefinedVars(body, {});
+llvm::Value* CodeGenLLVM::PackClosureData(const Array<Var>& vfields) {
   std::vector<llvm::Type*> fields;
   for (Var v : vfields) {
     auto it = var_map_.find(v.get());
     CHECK(it != var_map_.end());
     fields.push_back(it->second->getType());
   }
-  // closure data
   llvm::StructType* tcdata = llvm::StructType::create(fields);
+  llvm::Value* cdata = builder_->CreateAlloca(tcdata, ConstInt32(1));
+  llvm::Value* zero = ConstInt32(0);
+  for (size_t i = 0; i < vfields.size(); ++i) {
+    builder_->CreateStore(
+          var_map_.at(vfields[i].get()),
+          builder_->CreateInBoundsGEP(cdata, {zero, ConstInt32(i)}));
+  }
+  return cdata;
+}
+
+void CodeGenLLVM::UnpackClosureData(llvm::Value* cdata,
+                                    const Array<Var>& vfields,
+                                    std::unordered_map<const Variable*, llvm::Value*>* vmap) {
+  for (size_t i = 0; i < vfields.size(); ++i) {
+    (*vmap)[vfields[i].get()] =
+        builder_->CreateLoad(builder_->CreateInBoundsGEP(
+            cdata, {ConstInt32(0), ConstInt32(i)}));
+  }
+}
+
+void CodeGenLLVM::CreateParallelLaunch(const Stmt& body, int num_task) {
+  using llvm::BasicBlock;
+  // closure data
   llvm::Function* f = llvm::Function::Create(
       ftype_tvm_parallel_lambda_,
       llvm::Function::PrivateLinkage,
       "__tvm_parallel_lambda", module_.get());
   // allocate and setup the closure, call the closure.
-  llvm::Value* cdata = builder_->CreateAlloca(tcdata, ConstInt32(1));
-  llvm::Value* zero = ConstInt32(0);
-
-  for (size_t i = 0; i < vfields.size(); ++i) {
-    builder_->CreateStore(
-        var_map_.at(vfields[i].get()),
-        builder_->CreateInBoundsGEP(cdata, {zero, ConstInt32(i)}));
-  }
+  Array<Var> vfields = ir::UndefinedVars(body, {});
+  llvm::Value* cdata = PackClosureData(vfields);
   BasicBlock* par_launch_end = CheckCallSuccess(
       builder_->CreateCall(
           RuntimeTVMParallelLaunch(),
@@ -836,15 +858,10 @@ void CodeGenLLVM::CreateParallelLaunch(const Stmt& body, int num_task) {
   auto it = f->arg_begin();
   llvm::Value* task_id = &(*it++);
   llvm::Value* penv = &(*it++);
-  cdata = &(*it++);
-  cdata = builder_->CreatePointerCast(cdata, tcdata->getPointerTo());
+  cdata = builder_->CreatePointerCast(&(*it++), cdata->getType());
   // setup new variable map, swap it with current var context.
   std::unordered_map<const Variable*, llvm::Value*> new_vmap;
-  for (size_t i = 0; i < vfields.size(); ++i) {
-    new_vmap[vfields[i].get()] =
-        builder_->CreateLoad(builder_->CreateInBoundsGEP(
-            cdata, {zero, ConstInt32(i)}));
-  }
+  UnpackClosureData(cdata, vfields, &new_vmap);
   // setup parallel env
   ParallelEnv par_env;
   par_env.task_id = Var("task_id", Int(32));
@@ -852,7 +869,7 @@ void CodeGenLLVM::CreateParallelLaunch(const Stmt& body, int num_task) {
   new_vmap[par_env.task_id.get()] = task_id;
   new_vmap[par_env.num_task.get()] = builder_->CreateLoad(
       builder_->CreateInBoundsGEP(
-          penv, {zero, ConstInt32(1)}));
+          penv, {ConstInt32(0), ConstInt32(1)}));
   par_env.penv = penv;
   std::swap(function_, f);
   std::swap(parallel_env_, par_env);
@@ -866,6 +883,52 @@ void CodeGenLLVM::CreateParallelLaunch(const Stmt& body, int num_task) {
   CHECK(par_env.hit_parallel_loop)
       << "Cannot find parallel loop within parallel launch";
   builder_->SetInsertPoint(par_launch_end);
+}
+
+void CodeGenLLVM::CreateStaticInit(const std::string& init_fname, const Stmt& body) {
+  using llvm::BasicBlock;
+  // closure data
+  llvm::Function* f = llvm::Function::Create(
+      ftype_tvm_static_init_callback_,
+      llvm::Function::PrivateLinkage,
+      "__tvm_static_init_lambda", module_.get());
+  llvm::GlobalVariable* gv = new llvm::GlobalVariable(
+      *module_, t_void_p_, false,
+      llvm::GlobalValue::PrivateLinkage, 0,
+      "__tvm_static_handle");
+  gv->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
+  gv->setInitializer(llvm::Constant::getNullValue(t_void_p_));
+  llvm::Function* finit = module_->getFunction(init_fname);
+  if (finit == nullptr) {
+    finit = llvm::Function::Create(
+        ftype_tvm_static_init_, llvm::Function::ExternalLinkage, init_fname, module_.get());
+  }
+  // allocate and setup the closure, call the closure.
+  Array<Var> vfields = ir::UndefinedVars(body, {});
+  llvm::Value* cdata = PackClosureData(vfields);
+  llvm::Value* nbytes = ConstInt32(data_layout_->getTypeAllocSize(
+      llvm::cast<llvm::PointerType>(cdata->getType())->getElementType()));
+  BasicBlock* init_end = CheckCallSuccess(
+      builder_->CreateCall(
+          finit,
+          {gv, f, builder_->CreatePointerCast(cdata, t_void_p_), nbytes}));
+  // Setup the closure function.
+  BasicBlock *lambda_entry = BasicBlock::Create(*ctx_, "entry", f);
+  builder_->SetInsertPoint(lambda_entry);
+  auto it = f->arg_begin();
+  cdata = builder_->CreatePointerCast(&(*it++), cdata->getType());
+  // setup new variable map, swap it with current var context.
+  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  UnpackClosureData(cdata, vfields, &new_vmap);
+  CHECK(parallel_env_.penv == nullptr);
+  std::swap(function_, f);
+  std::swap(var_map_, new_vmap);
+  this->VisitStmt(body);
+  builder_->CreateRet(ConstInt32(0));
+  // swap the var map back, now we are back on track.
+  std::swap(var_map_, new_vmap);
+  std::swap(function_, f);
+  builder_->SetInsertPoint(init_end);
 }
 
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin,
@@ -1626,6 +1689,8 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
     alloc_storage_info_[v].alignment =
         static_cast<int>(op->value.as<IntImm>()->value);
     this->VisitStmt(op->body);
+  } else if (op->attr_key == ir::attr::coproc_uop_scope) {
+    this->CreateStaticInit(op->value.as<StringImm>()->value, op->body);
   } else  if (op->attr_key == ir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (op->attr_key == ir::attr::pragma_scope) {
