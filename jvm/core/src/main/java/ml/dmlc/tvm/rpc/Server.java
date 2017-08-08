@@ -33,12 +33,13 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * RPC Server.
  */
 public class Server {
-  private final Loop serverLoop;
   private static SocketFileDescriptorGetter defaultSocketFdGetter
       = new SocketFileDescriptorGetter() {
           @Override public int get(Socket socket) {
@@ -52,6 +53,10 @@ public class Server {
             }
           }
         };
+  private static final int DEFAULT_THREAD_NUMBER_IN_A_POOL = 20;
+
+  private final Loop serverLoop;
+  private final ExecutorService threadPool;
 
   /**
    * Start a standalone server.
@@ -60,9 +65,9 @@ public class Server {
    * @throws IOException if failed to bind localhost:port.
    */
   public Server(int serverPort, SocketFileDescriptorGetter socketFdGetter) throws IOException {
-    serverLoop = new ListenLoop(serverPort, socketFdGetter);
+    threadPool = setupThreadPool();
+    serverLoop = new ListenLoop(serverPort, threadPool, socketFdGetter);
   }
-
 
   /**
    * Start a standalone server.
@@ -84,7 +89,8 @@ public class Server {
    */
   public Server(String proxyHost, int proxyPort, String key,
       SocketFileDescriptorGetter socketFdGetter) {
-    serverLoop = new ConnectProxyLoop(proxyHost, proxyPort, key, socketFdGetter);
+    threadPool = setupThreadPool();
+    serverLoop = new ConnectProxyLoop(proxyHost, proxyPort, key, threadPool, socketFdGetter);
   }
 
   /**
@@ -97,6 +103,13 @@ public class Server {
    */
   public Server(String proxyHost, int proxyPort, String key) {
     this(proxyHost, proxyPort, key, defaultSocketFdGetter);
+  }
+
+  private ExecutorService setupThreadPool() {
+    final String workerThreadNumber = System.getProperty("rpc.server.thread.number");
+    final int numThread = (workerThreadNumber == null)
+        ? DEFAULT_THREAD_NUMBER_IN_A_POOL : Integer.parseInt(workerThreadNumber);
+    return Executors.newFixedThreadPool(numThread);
   }
 
   /**
@@ -112,6 +125,7 @@ public class Server {
   public void terminate() {
     serverLoop.interrupt();
     serverLoop.terminate();
+    threadPool.shutdown();
   }
 
   public static interface SocketFileDescriptorGetter {
@@ -184,14 +198,17 @@ public class Server {
     private final String host;
     private final int port;
     private final String key;
+    private final ExecutorService workerPool;
     private final SocketFileDescriptorGetter socketFileDescriptorGetter;
     private Socket waitingSocket = null;
 
     public ConnectProxyLoop(String host, int port, String key,
+        ExecutorService workerPool,
         SocketFileDescriptorGetter sockFdGetter) {
       this.host = host;
       this.port = port;
       this.key = "server:" + key;
+      this.workerPool = workerPool;
       socketFileDescriptorGetter = sockFdGetter;
     }
 
@@ -229,10 +246,7 @@ public class Server {
           System.err.println("RPCProxy connected to " + address);
 
           waitingSocket = null;
-          // TODO(yizhi): use ExecutorService, i.e., ThreadPool
-          Thread processThread = new Thread(new ServerLoop(socket, socketFileDescriptorGetter));
-          processThread.setDaemon(true);
-          processThread.start();
+          workerPool.execute(new ServerLoop(socket, socketFileDescriptorGetter));
         } catch (SocketException e) {
           // when terminates, this is what we expect, do nothing.
         } catch (IOException e) {
@@ -245,12 +259,14 @@ public class Server {
 
   static class ListenLoop extends Loop {
     private final ServerSocket server;
+    private final ExecutorService workerPool;
     private final SocketFileDescriptorGetter socketFileDescriptorGetter;
     private volatile boolean running = true;
 
-    public ListenLoop(int serverPort, SocketFileDescriptorGetter sockFdGetter)
-        throws IOException {
+    public ListenLoop(int serverPort, ExecutorService workerPool,
+        SocketFileDescriptorGetter sockFdGetter) throws IOException {
       this.server = new ServerSocket(serverPort);
+      this.workerPool = workerPool;
       this.socketFileDescriptorGetter = sockFdGetter;
     }
 
@@ -282,11 +298,7 @@ public class Server {
             out.write(toBytes(RPC.RPC_MAGIC));
           }
           System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
-
-          // TODO(yizhi): use ExecutorService, i.e., ThreadPool
-          Thread processThread = new Thread(new ServerLoop(socket, socketFileDescriptorGetter));
-          processThread.setDaemon(true);
-          processThread.start();
+          workerPool.execute(new ServerLoop(socket, socketFileDescriptorGetter));
         } catch (SocketException e) {
           // when terminates, this is what we expect, do nothing.
         } catch (IOException e) {

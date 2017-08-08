@@ -47,11 +47,11 @@ public class RPCTest {
   }
 
   @Test
-  public void test_rpc_addone() {
+  public void test_addone() {
     if (!Module.enabled("rpc")) {
       return;
     }
-    Function.register("rpc.test.addone", new Function.Callback() {
+    Function.register("test.rpc.addone", new Function.Callback() {
         @Override public Object invoke(TVMValue... args) {
           return args[0].asLong() + 1L;
         }
@@ -62,7 +62,7 @@ public class RPCTest {
     try {
       server = startServer(port);
       RPCSession client = Client.connect("localhost", port.value);
-      Function func = client.getFunction("rpc.test.addone");
+      Function func = client.getFunction("test.rpc.addone");
       assertEquals(11L, func.call(10).asLong());
     } finally {
       if (server != null) {
@@ -72,11 +72,11 @@ public class RPCTest {
   }
 
   @Test
-  public void test_rpc_strcat() {
+  public void test_strcat() {
     if (!Module.enabled("rpc")) {
       return;
     }
-    Function.register("rpc.test.strcat", new Function.Callback() {
+    Function.register("test.rpc.strcat", new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         return args[0].asString() + ":" + args[1].asLong();
       }
@@ -87,8 +87,34 @@ public class RPCTest {
     try {
       server = startServer(port);
       RPCSession client = Client.connect("localhost", port.value);
-      Function func = client.getFunction("rpc.test.strcat");
+      Function func = client.getFunction("test.rpc.strcat");
       assertEquals("abc:11", func.call("abc", 11L).asString());
+    } finally {
+      if (server != null) {
+        server.terminate();
+      }
+    }
+  }
+
+  @Test
+  public void test_connect_proxy_server() {
+    String proxyHost = System.getProperty("test.rpc.proxy.host");
+    int proxyPort = Integer.parseInt(System.getProperty("test.rpc.proxy.port"));
+
+    Function.register("test.rpc.proxy.addone", new Function.Callback() {
+      @Override public Object invoke(TVMValue... tvmValues) {
+        return tvmValues[0].asLong() + 1L;
+      }
+    });
+
+    Server server = null;
+    try {
+      server = new Server(proxyHost, proxyPort, "x1");
+      server.start();
+
+      RPCSession client = Client.connect(proxyHost, proxyPort, "x1");
+      Function f1 = client.getFunction("test.rpc.proxy.addone");
+      assertEquals(11L, f1.call(10L).asLong());
     } finally {
       if (server != null) {
         server.terminate();
