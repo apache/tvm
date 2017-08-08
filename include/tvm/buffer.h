@@ -58,7 +58,7 @@ class Buffer : public NodeRef {
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
    */
-  Expr vload(Array<Expr> begins, Type dtype) const;
+  Expr vload(Array<Expr> begin, Type dtype) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
