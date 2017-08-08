@@ -594,8 +594,70 @@ class StoragePlanRewriter : public IRMutator {
   std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
 };
 
+// Turn alloc into vector alloc
+// if all its access is the same vector type.
+class VectorAllocRewriter : public IRMutator {
+ public:
+  Expr Mutate_(const Load* op, const Expr& e) final {
+    UpdateTypeMap(op->buffer_var.get(), op->type);
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Stmt Mutate_(const Store* op, const Stmt& s) final {
+    UpdateTypeMap(op->buffer_var.get(), op->value.type());
+    return IRMutator::Mutate_(op, s);
+  }
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      Type dtype = op->args[0].type();
+      const Variable* buffer = op->args[1].as<Variable>();
+      UpdateTypeMap(buffer, dtype);
+    }
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Allocate>();
+    const auto& tvec = acc_map_[op->buffer_var.get()];
+
+    if (tvec.size() == 1 &&
+        tvec[0].element_of() == op->type.element_of() &&
+        tvec[0].lanes() % op->type.lanes() == 0 &&
+        tvec[0].lanes() != op->type.lanes()) {
+      int factor = tvec[0].lanes() / op->type.lanes();
+      Array<Expr> extents = op->extents;
+      arith::ModularEntry me = EvalModular(
+          extents[extents.size() - 1],
+          std::unordered_map<const Variable*, arith::ModularEntry>());
+      if (me.base % factor == 0 && me.coeff % factor == 0) {
+        extents.Set(extents.size() - 1,
+                    extents[extents.size() - 1] / make_const(extents[0].type(), factor));
+        return Allocate::make(
+            op->buffer_var, tvec[0], extents,
+            op->condition, op->body);
+      }
+    }
+    return stmt;
+  }
+
+
+ private:
+  void UpdateTypeMap(const Variable* buffer, Type t) {
+    auto& tvec = acc_map_[buffer];
+    if (std::find(tvec.begin(), tvec.end(), t) == tvec.end()) {
+      tvec.push_back(t);
+    }
+  }
+  // Internal access map
+  std::unordered_map<const Variable*,
+                     std::vector<Type> > acc_map_;
+};
+
+
 Stmt StorageRewrite(Stmt stmt) {
-  return StoragePlanRewriter().Rewrite(stmt);
+  stmt = StoragePlanRewriter().Rewrite(stmt);
+  return VectorAllocRewriter().Mutate(stmt);
 }
 }  // namespace ir
 }  // namespace tvm
