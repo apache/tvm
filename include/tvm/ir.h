@@ -145,6 +145,11 @@ constexpr const char* thread_extent = "thread_extent";
 constexpr const char* virtual_thread = "virtual_thread";
 /*! \brief Mark region is processed by a co-proccesor */
 constexpr const char* coproc_scope = "coproc_scope";
+/*!
+ * \brief Mark region creates coprocessor micro ops,
+ *  can be reused if corresponding variable is independent.
+ */
+constexpr const char* coproc_uop_scope = "coproc_uop_scope";
 /*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
 /*!

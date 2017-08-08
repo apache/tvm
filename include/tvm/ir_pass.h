@@ -258,6 +258,15 @@ Stmt LoopPartition(Stmt stmt);
 Stmt CoProcSync(Stmt stmt);
 
 /*!
+ * \brief Lift common attrs with attr_key to outer scope.
+ *
+ * \param stmt The stmt to be trasnformed
+ * \param attr_key The attribute key to be checked.
+ * \return Transformed stmt.
+ */
+Stmt LiftAttrScope(Stmt stmt, std::string attr_key);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
