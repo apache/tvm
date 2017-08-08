@@ -110,6 +110,23 @@ TVM_DLL int TVMBackendParallelLaunch(FTVMParallelLambda flambda,
  */
 TVM_DLL int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
 
+
+/*!
+ * \brief Simple static initialization fucntion.
+ *  Run f once and set handle to be not null.
+ *  This function is mainly used for test purpose.
+ *
+ * \param handle An global address to indicate f
+ * \param f The function to be ran
+ * \param cdata The closure data to pass to the function.
+ * \param nbytes Number of bytes in the closure data.
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMBackendRunOnce(void** handle,
+                              int (*f)(void*),
+                              void *cdata,
+                              int nbytes);
+
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif
