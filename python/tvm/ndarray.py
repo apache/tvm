@@ -126,8 +126,6 @@ def array(arr, ctx=cpu(0)):
     """
     if not isinstance(arr, _np.ndarray):
         arr = _np.array(arr)
-    ret = empty(arr.shape, arr.dtype, ctx)
-    ret[:] = arr
-    return ret
+    return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
 
 _set_class_ndarray(NDArray)

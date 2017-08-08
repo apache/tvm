@@ -33,19 +33,6 @@ class Buffer : public NodeRef {
   Buffer() {}
   explicit Buffer(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
-   * \brief Generate a load expression loading the index location of buffer.
-   * \param index The index to the buffer.
-   * \return The load expression.
-   */
-  Expr MakeLoad(Array<Expr> index) const;
-  /*!
-   * \brief Generate a store statement.
-   * \param index The index to the buffer.
-   * \param value The value to be stored.
-   * \return The load expression.
-   */
-  Stmt MakeStore(Array<Expr> index, Expr value) const;
-  /*!
    * \brief Return a new buffer that is equivalent with current one
    *  but always add stride field.
    * \return The strided version of the buffer.
@@ -66,6 +53,18 @@ class Buffer : public NodeRef {
    * \param ptr_type The type of the pointer.
    */
   Expr access_ptr(int access_mask, Type ptr_type = Handle()) const;
+  /*!
+   * \brief Create an Expr that does a vector load at begin index.
+   * \param begin The beginning index
+   * \param dtype The data type to be loaded.
+   */
+  Expr vload(Array<Expr> begin, Type dtype) const;
+  /*!
+   * \brief Create a Stmt that does a vector store at begin index.
+   * \param begin The beginning index
+   * \param value The value to be stored.
+   */
+  Stmt vstore(Array<Expr> begin, Expr value) const;
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

@@ -9,10 +9,8 @@ def test_add_pipeline():
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
         ib = tvm.ir_builder.create()
-        dout = ib.buffer_ptr(outs[0])
-        din = ib.buffer_ptr(ins[0])
-        with ib.for_range(0, n) as i:
-            dout[i] = din[i] + 1
+        with ib.for_range(0, n/2) as i:
+            ib.emit(outs[0].vstore(i*2, ins[0].vload(i*2, "float32x2") + tvm.const(1, "float32x2")))
         return ib.get()
 
     C = tvm.extern(A.shape, [A], extern_generator, name='C')

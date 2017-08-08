@@ -142,17 +142,22 @@ class NDArrayBase(_NDArrayBase):
             if value.handle is not self.handle:
                 value.copyto(self)
         elif isinstance(value, (np.ndarray, np.generic)):
-            self._sync_copyfrom(value)
+            self.copyfrom(value)
         else:
             raise TypeError('type %s not supported' % str(type(value)))
 
-    def _sync_copyfrom(self, source_array):
+    def copyfrom(self, source_array):
         """Peform an synchronize copy from the array.
 
         Parameters
         ----------
         source_array : array_like
             The data source we should like to copy from.
+
+        Returns
+        -------
+        arr : NDArray
+            Reference to self.
         """
         if not isinstance(source_array, np.ndarray):
             try:
@@ -160,13 +165,21 @@ class NDArrayBase(_NDArrayBase):
             except:
                 raise TypeError('array must be an array_like data,' +
                                 'type %s is not supported' % str(type(source_array)))
-        source_array = np.ascontiguousarray(source_array, dtype=self.dtype)
-        if source_array.shape != self.shape:
-            raise ValueError('array shape do not match the shape of NDArray')
+        t = TVMType(self.dtype)
+        shape, dtype = self.shape, self.dtype
+        if t.lanes > 1:
+            shape = shape + (t.lanes,)
+            t.lanes = 1
+            dtype = str(t)
+        source_array = np.ascontiguousarray(source_array, dtype=dtype)
+        if source_array.shape != shape:
+            raise ValueError("array shape do not match the shape of NDArray {0} vs {1}".format(
+                source_array.shape, shape))
         assert source_array.flags['C_CONTIGUOUS']
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(np.prod(source_array.shape) * source_array.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
+        return self
 
     def asnumpy(self):
         """Convert this array to numpy array
@@ -176,7 +189,13 @@ class NDArrayBase(_NDArrayBase):
         np_arr : numpy.ndarray
             The corresponding numpy array.
         """
-        np_arr = np.empty(self.shape, dtype=self.dtype)
+        t = TVMType(self.dtype)
+        shape, dtype = self.shape, self.dtype
+        if t.lanes > 1:
+            shape = shape + (t.lanes,)
+            t.lanes = 1
+            dtype = str(t)
+        np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags['C_CONTIGUOUS']
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(np.prod(np_arr.shape) * np_arr.dtype.itemsize)
@@ -188,7 +207,7 @@ class NDArrayBase(_NDArrayBase):
 
         Parameters
         ----------
-        target : tvm.NDArray
+        target : NDArray
             The target array to be copied, must have same shape as this array.
         """
         if isinstance(target, TVMContext):

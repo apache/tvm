@@ -97,10 +97,11 @@ class ExprOp(object):
         return _make.EQ(self, other)
 
     def astype(self, dtype):
-        """Cast the expression to other type
+        """Cast the expression to other type.
+
         Parameters
         ----------
-        dtype : str, optional
+        dtype : str
             The type of new expression
 
         Returns
@@ -108,7 +109,7 @@ class ExprOp(object):
         expr : Expr
             Expression with new type
         """
-        return _make.Cast(dtype, self)
+        return _make.static_cast(dtype, self)
 
 
 class Expr(NodeBase, ExprOp):
