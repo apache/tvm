@@ -31,7 +31,7 @@ def get_reduce_out_shape(src_shape, axis=None, keepdims=False):
     else:
         dst_shape = []
         for i in range(len(src_shape)):
-            if not (i in real_axis):
+            if i not in real_axis:
                 dst_shape.append(src_shape[i])
     return dst_shape
 
@@ -86,7 +86,7 @@ def reduce(data, axis=None, keepdims=False, func=tvm.sum):
     reduce_axes = [tvm.reduce_axis((0, data.shape[i]), "k%d" %i) for i in real_axis]
     if keepdims:
         target_shape = [tvm.convert(1) if i in real_axis else tvm.convert(data.shape[i])
-                         for i in range(ndim)]
+                        for i in range(ndim)]
     else:
         target_shape = []
         for i in range(ndim):
@@ -100,7 +100,7 @@ def reduce(data, axis=None, keepdims=False, func=tvm.sum):
                       name=data.name + "_red")
     return out
 
-
+# pylint: disable=redefined-builtin
 def sum(data, axis=None, keepdims=False):
     """Sum of array elements over a given axis or a list of axes
 
@@ -122,8 +122,9 @@ def sum(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
+# pylint: enable=redefined-builtin
 
-
+# pylint: disable=redefined-builtin
 def max(data, axis=None, keepdims=False):
     """Maximum of array elements over a given axis or a list of axes
 
@@ -145,8 +146,10 @@ def max(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
+# pylint: enable=redefined-builtin
 
 
+# pylint: disable=redefined-builtin
 def min(data, axis=None, keepdims=False):
     """Minimum of array elements over a given axis or a list of axes
 
@@ -168,3 +171,4 @@ def min(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return reduce(data, axis=axis, keepdims=keepdims, func=tvm.min)
+# pylint: enable=redefined-builtin

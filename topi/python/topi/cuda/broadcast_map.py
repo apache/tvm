@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,unused-variable
 """Schedule for broadcast operators"""
 from __future__ import absolute_import as _abs
 import tvm

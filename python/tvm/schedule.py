@@ -347,7 +347,7 @@ class Stage(NodeBase):
         Parameters
         ----------
         axes : list of IterVar or tuple of IterVar
-            The axes to fuse, the inner type should be
+            The axes to fuse, from outer to inner, i.e axes=[axis[0], axis[1], axis[2]]
 
         Returns
         -------

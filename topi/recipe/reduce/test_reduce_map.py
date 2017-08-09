@@ -67,7 +67,7 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
 
     for _ in range(2):
         fcuda(data_tvm, out_tvm)
-    np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 2E-4, 2E-4)
+    np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 4E-4, 4E-4)
 
 if __name__ == "__main__":
     test_reduce_map(in_shape=(128, 24, 128, 24),
