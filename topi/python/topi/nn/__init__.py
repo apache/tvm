@@ -1,4 +1,4 @@
-# pylint: disable=wildcard-import
+# pylint: disable=wildcard-import,redefined-builtin
 """Neural network operators"""
 from __future__ import absolute_import as _abs
 
