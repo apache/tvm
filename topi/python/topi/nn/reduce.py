@@ -1,3 +1,4 @@
+# pylint: disable=redefined-builtin,consider-using-enumerate
 """Reduce operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -100,7 +101,7 @@ def reduce(data, axis=None, keepdims=False, func=tvm.sum):
                       name=data.name + "_red")
     return out
 
-# pylint: disable=redefined-builtin
+
 def sum(data, axis=None, keepdims=False):
     """Sum of array elements over a given axis or a list of axes
 
@@ -122,9 +123,8 @@ def sum(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
-# pylint: enable=redefined-builtin
 
-# pylint: disable=redefined-builtin
+
 def max(data, axis=None, keepdims=False):
     """Maximum of array elements over a given axis or a list of axes
 
@@ -146,10 +146,8 @@ def max(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
-# pylint: enable=redefined-builtin
 
 
-# pylint: disable=redefined-builtin
 def min(data, axis=None, keepdims=False):
     """Minimum of array elements over a given axis or a list of axes
 
@@ -171,4 +169,3 @@ def min(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return reduce(data, axis=axis, keepdims=keepdims, func=tvm.min)
-# pylint: enable=redefined-builtin

@@ -1,4 +1,4 @@
-# pylint: disable=no-member
+# pylint: disable=no-member,consider-using-enumerate
 """Broadcast operators"""
 from __future__ import absolute_import as _abs
 import tvm

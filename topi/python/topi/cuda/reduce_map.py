@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable,too-many-locals
+# pylint: disable=invalid-name,unused-variable,too-many-locals,len-as-condition
 """Schedule for reduce operators"""
 from __future__ import absolute_import as _abs
 import tvm
