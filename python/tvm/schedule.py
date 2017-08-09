@@ -65,6 +65,46 @@ class Buffer(NodeBase):
             access_mask = mask
         return _api_internal._BufferAccessPtr(self, access_mask, ptr_type)
 
+    def vload(self, begin, dtype=None):
+        """Generate an Expr that loads dtype from begin index.
+
+        Parameters
+        ----------
+        begin : Array of Expr
+            The beginning index in unit of Buffer.dtype
+
+        dtype : str
+            The data type to be loaded,
+            can be vector type which have lanes that is multiple of Buffer.dtype
+
+        Returns
+        -------
+        load : Expr
+            The corresponding load expression.
+        """
+        begin = (begin,) if isinstance(begin, (int, _expr.Expr)) else begin
+        dtype = dtype if dtype else self.dtype
+        return _api_internal._BufferVLoad(self, begin, dtype)
+
+    def vstore(self, begin, value):
+        """Generate a Stmt that store value into begin index.
+
+        Parameters
+        ----------
+        begin : Array of Expr
+            The beginning index in unit of Buffer.dtype
+
+        value : Expr
+            The value to be stored.
+
+        Returns
+        -------
+        store : Stmt
+            The corresponding store stmt.
+        """
+        begin = (begin,) if isinstance(begin, (int, _expr.Expr)) else begin
+        return _api_internal._BufferVStore(self, begin, value)
+
 
 @register_node
 class Split(NodeBase):

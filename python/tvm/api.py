@@ -10,6 +10,7 @@ from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
+from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
@@ -545,22 +546,6 @@ def reduce_axis(dom, name="rv"):
         An iteration variable representing the value.
     """
     return _IterVar(dom, name, 2)
-
-def cast(dtype, expr):
-    """Cast an expression to other type
-    Parameters
-    ----------
-    dtype : str, optional
-        The type of new expression
-    expr : Expr
-        The expression
-
-    Returns
-    -------
-    expr : Expr
-        Expression with new type
-    """
-    return _make.Cast(dtype, expr)
 
 
 def select(cond, t, f):

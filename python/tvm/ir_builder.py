@@ -9,6 +9,7 @@ from . import ir_pass as _pass
 from . import container as _container
 from ._ffi.base import string_types
 from ._ffi.node import NodeGeneric
+from ._ffi.runtime_ctypes import TVMType
 from .expr import Call as _Call
 
 class WithScope(object):
@@ -56,7 +57,14 @@ class BufferVar(NodeGeneric):
     def asnode(self):
         return self._buffer_var
 
+    @property
+    def dtype(self):
+        return self._content_type
+
     def __getitem__(self, index):
+        t = TVMType(self._content_type)
+        if t.lanes > 1:
+            index = _make.Ramp(index * t.lanes, 1, t.lanes)
         return _make.Load(self._content_type, self._buffer_var, index)
 
     def __setitem__(self, index, value):
@@ -65,6 +73,9 @@ class BufferVar(NodeGeneric):
             raise ValueError(
                 "data type does not match content type %s vs %s" % (
                     value.dtype, self._content_type))
+        t = TVMType(self._content_type)
+        if t.lanes > 1:
+            index = _make.Ramp(index * t.lanes, 1, t.lanes)
         self._builder.emit(_make.Store(self._buffer_var, value, index))
 
 

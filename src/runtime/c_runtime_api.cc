@@ -234,6 +234,17 @@ int TVMBackendFreeWorkspace(int device_type,
   return 0;
 }
 
+int TVMBackendRunOnce(void** handle,
+                      int (*f)(void*),
+                      void* cdata,
+                      int nbytes) {
+  if (*handle == nullptr) {
+    *handle = reinterpret_cast<void*>(1);
+    return (*f)(cdata);
+  }
+  return 0;
+}
+
 int TVMFuncFree(TVMFunctionHandle func) {
   API_BEGIN();
   delete static_cast<PackedFunc*>(func);

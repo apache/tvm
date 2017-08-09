@@ -100,6 +100,7 @@ REGISTER_PASS1(InjectPrefetch);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
 REGISTER_PASS2(SplitPipeline);
+REGISTER_PASS2(LiftAttrScope);
 REGISTER_PASS1(NarrowChannelAccess);
 REGISTER_PASS2(LowerThreadAllreduce);
 REGISTER_PASS2(LowerIntrin);

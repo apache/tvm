@@ -24,13 +24,14 @@ class BuildConfig(object):
     """
     current = None
     defaults = {
-        'auto_unroll_max_step': 0,
-        'auto_unroll_min_depth': 1,
-        'unroll_explicit': True,
-        'detect_global_barrier': False,
-        'offset_factor': 0,
-        'data_alignment': -1,
-        'restricted_func': True
+        "auto_unroll_max_step": 0,
+        "auto_unroll_min_depth": 1,
+        "unroll_explicit": True,
+        "detect_global_barrier": False,
+        "offset_factor": 0,
+        "data_alignment": -1,
+        "restricted_func": True,
+        "add_lower_pass": None
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -93,6 +94,9 @@ def build_config(**kwargs):
         That is each buffer argument to the function are guaranteed
         not to overlap. This enables more optimization.
         Corresponds to restricted keyword in C99
+
+    add_lower_pass: list of function(Stmt->Stmt), default=None
+        Additional lowering passes to be applied before make_api.
 
     Returns
     -------
@@ -200,6 +204,9 @@ def lower(sch,
         cfg.auto_unroll_max_step,
         cfg.auto_unroll_min_depth,
         cfg.unroll_explicit)
+    if cfg.add_lower_pass:
+        for f in cfg.add_lower_pass:
+            stmt = f(stmt)
     stmt = ir_pass.Simplify(stmt)
     if simple_mode:
         return stmt

@@ -20,18 +20,21 @@
       <id>osx-x86_64-cpu</id>
       <properties>
         <platform>osx-x86_64-cpu</platform>
+        <libtvm.so.filename>libtvm_runtime.dylib</libtvm.so.filename>
       </properties>
     </profile>
     <profile>
       <id>linux-x86_64-cpu</id>
       <properties>
         <platform>linux-x86_64-cpu</platform>
+        <libtvm.so.filename>libtvm_runtime.so</libtvm.so.filename>
       </properties>
     </profile>
     <profile>
       <id>linux-x86_64-gpu</id>
       <properties>
         <platform>linux-x86_64-gpu</platform>
+        <libtvm.so.filename>libtvm_runtime.so</libtvm.so.filename>
       </properties>
     </profile>
   </profiles>
@@ -88,7 +91,7 @@
           <threadCount>1</threadCount>
           <argLine>
             -Djava.library.path=${project.parent.basedir}/native/${platform}/target
-            -Dlibtvm.so.path=${project.parent.basedir}/../lib/libtvm_runtime.so
+            -Dlibtvm.so.path=${project.parent.basedir}/../lib/${libtvm.so.filename}
           </argLine>
         </configuration>
         <executions>
