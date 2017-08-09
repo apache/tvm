@@ -6,8 +6,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include "../arithmetic/compute_expr.h"
 #include <iterator>
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
