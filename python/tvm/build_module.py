@@ -330,11 +330,18 @@ def build(sch,
     device_type = ndarray.context(device, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
+    if not target_host and fdevice:
+        target_host = "llvm" if module.enabled("llvm") else "stackvm"
+
+    if fdevice:
+        fdevice = [ir_pass.LowerIntrin(x, target) for x in fdevice]
+        fhost = [ir_pass.LowerIntrin(x, target_host) for x in fhost]
+    else:
+        fhost = [ir_pass.LowerIntrin(x, target) for x in fhost]
+
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
 
     if fdevice:
-        if not target_host:
-            target_host = "llvm" if module.enabled("llvm") else "stackvm"
         mhost = codegen.build_module(fhost, target_host)
         if target:
             mdev = codegen.build_module(fdevice, target)
