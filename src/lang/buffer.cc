@@ -73,7 +73,7 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
   const Expr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
   while (1) {
-    auto mult_ptr = inner->as<Mul>();
+    mult_ptr = inner->as<Mul>();
     if (mult_ptr) {
       inner = &(mult_ptr->a);
       mult_outer = mult_ptr->b * mult_outer;
@@ -110,9 +110,9 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
         return std::make_pair(false, Expr());
       }
     } else if (inner_mult_ptr) {
-      has_mult_inner = true;
       mult_inner = has_mult_inner ? inner_mult_ptr->b * mult_inner : inner_mult_ptr->b;
       search_ptr = &(inner_mult_ptr->a);
+      has_mult_inner = true;
     } else if (inner_add_ptr) {
       if (has_mult_inner) {
         return std::make_pair(false, Expr());
