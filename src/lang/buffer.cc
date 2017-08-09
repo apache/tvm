@@ -2,8 +2,8 @@
  *  Copyright (c) 2016 by Contributors
  * \file buffer.cc
  */
-#include <iterator>
 #include <tvm/buffer.h>
+#include <iterator>
 #include <tvm/runtime/device_api.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
@@ -80,7 +80,7 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
     } else {
       break;
     }
-  };
+  }
   // 2. Search for the pattern c / (...) * (...) + c % (...)
   // We match the search element with Add, Mul and Div.
   //   If Add is found, we need to continue our search for the rhs
@@ -124,7 +124,7 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
       LOG(FATAL) << "Unexpected search result!";
       break;
     }
-  };
+  }
   return std::make_pair(false, Expr());
 }
 
@@ -189,7 +189,7 @@ inline Expr opt_merge_mul_mod(const Expr &base) {
   while (search_mod_it != mod_exprs.end()) {
     std::list<Expr>::iterator mult_it = mult_exprs.begin();
     bool inner_find_opt = false;
-    while(mult_it != mult_exprs.end()) {
+    while (mult_it != mult_exprs.end()) {
       std::pair<bool, Expr> ret = _merge_mul_mod(*mult_it,
                                                  search_mod_it->first,
                                                  search_mod_it->second);
@@ -214,7 +214,7 @@ inline Expr opt_merge_mul_mod(const Expr &base) {
     if (!inner_find_opt) {
       ++search_mod_it;
     }
-  };
+  }
   if (!find_opt) {
     return base;
   }
