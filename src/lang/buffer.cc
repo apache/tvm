@@ -3,10 +3,10 @@
  * \file buffer.cc
  */
 #include <tvm/buffer.h>
-#include <iterator>
 #include <tvm/runtime/device_api.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
+#include <iterator>
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
