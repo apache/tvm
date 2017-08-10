@@ -20,15 +20,17 @@ def _schedule_reduce(op, sch):
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
     # Fuse and refactor the reduce axis
-    fused_reduce = sch[data_out].fuse_axes([sch[data_out].op.reduce_axis[i]
-                                            for i in range(len(sch[data_out].op.reduce_axis))])
+    fused_reduce = sch[data_out].fuse(itervars=
+                                      [sch[data_out].op.reduce_axis[i]
+                                       for i in range(len(sch[data_out].op.reduce_axis))])
     ko, ki = sch[data_out].split(fused_reduce, factor=num_thread)
     data_out_rf = sch.rfactor(data_out, ki)
     sch[data_out_rf].compute_at(sch[data_out], sch[data_out].op.reduce_axis[0])
     if not all_reduce:
         # Fuse and split the axis
-        fused_outer = sch[data_out].fuse_axes([sch[data_out].op.axis[i]
-                                               for i in range(len(sch[data_out].op.axis))])
+        fused_outer = sch[data_out].fuse(itervars=
+                                         [sch[data_out].op.axis[i]
+                                          for i in range(len(sch[data_out].op.axis))])
         bx, outer_in = sch[data_out].split(fused_outer, factor=num_thread)
 
         # Bind the axes to threads and blocks

@@ -14,8 +14,9 @@ def _schedule_broadcast_to(op, sch):
     xo, vi = sch[data_out].split(sch[data_out].op.axis[len(sch[data_out].op.axis) - 1],
                                  factor=4)
     sch[data_out].vectorize(vi)
-    fused_axis = sch[data_out].fuse_axes([sch[data_out].op.axis[i]
-                                          for i in range(len(sch[data_out].op.axis) - 1)] + [xo])
+    fused_axis = sch[data_out].fuse(itervars=
+                                    [sch[data_out].op.axis[i]
+                                     for i in range(len(sch[data_out].op.axis) - 1)] + [xo])
     bx, tx = sch[data_out].split(fused_axis, factor=num_thread)
 
     sch[data_out].bind(bx, block_x)
