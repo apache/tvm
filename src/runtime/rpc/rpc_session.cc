@@ -749,6 +749,9 @@ void RPCSession::ServerLoop() {
   TVMRetValue rv;
   CHECK(HandleUntilReturnEvent(&rv, false, nullptr) == RPCCode::kShutdown);
   LOG(INFO) << "Shutdown...";
+  if (const auto* f = Registry::Get("tvm.contrib.rpc.server.shutdown")) {
+    (*f)();
+  }
   channel_.reset(nullptr);
 }
 
