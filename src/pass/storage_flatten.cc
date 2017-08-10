@@ -8,6 +8,7 @@
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
+#include <tvm/target_info.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "./ir_util.h"
@@ -110,6 +111,12 @@ class StorageFlattener : public IRMutator {
       // use small alignment for small arrays
       int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
       int align = GetTempAllocaAlignment(op->type, const_size);
+      if (skey.tag.length() != 0) {
+        MemoryInfo info = GetMemoryInfo(skey.to_string());
+        if (info.defined()) {
+          align = (info->max_simd_bits + op->type.bits() - 1) / op->type.bits();
+        }
+      }
 
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
