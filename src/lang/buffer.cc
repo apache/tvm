@@ -72,7 +72,7 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
   Expr mult_outer = mult_ptr->b;
   const Expr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
-  while (1) {
+  while (true) {
     mult_ptr = inner->as<Mul>();
     if (mult_ptr) {
       inner = &(mult_ptr->a);
@@ -92,7 +92,7 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
   bool has_mult_inner = false;  // whether mult_inner is empty
   Expr no_opt_sum;  // Sum of the exprs that cannot be optimized
   bool has_no_opt_sum = false;  // Whether no_opt_sum is empty
-  while (1) {
+  while (true) {
     auto inner_div_ptr = search_ptr->as<Div>();
     auto inner_mult_ptr = search_ptr->as<Mul>();
     auto inner_add_ptr = search_ptr->as<Add>();
