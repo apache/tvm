@@ -22,16 +22,11 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
     mode = mode.substr(0, pos);
   }
   std::string build_f_name = "codegen.build_" + mode;
-  // Lower intrinsic functions
-  Array<LoweredFunc> func_list;
-  for (LoweredFunc f : funcs) {
-    func_list.push_back(ir::LowerIntrin(f, target));
-  }
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   CHECK(bf != nullptr)
       << "Target " << target << " is not enabled";
-  runtime::Module m = (*bf)(func_list, target);
+  runtime::Module m = (*bf)(funcs, target);
   return m;
 }
 
