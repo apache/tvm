@@ -279,9 +279,9 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       int master = master_vec[root_id];
       CHECK_GE(master, 0);
       fe.schedule = fschedule[idx[master].source->op()](
-          inode.source->attrs, fe.outputs, target);
+          idx[master].source->attrs, fe.outputs, target);
       std::ostringstream os;
-      os << inode.source->attrs.name + "_id" << nid;
+      os << idx[master].source->attrs.name + "_id" << nid;
       fe.func_name = os.str();
     }
   }

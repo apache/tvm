@@ -96,9 +96,11 @@ def test_llvm_vadd_pipeline():
         B = tvm.compute((n,), lambda i: A[i], name='B')
         C = tvm.compute((n,), lambda i: B[i] + tvm.const(1, A.dtype), name='C')
         s = tvm.create_schedule(C.op)
-        xo, xi = s[C].split(C.op.axis[0], factor=2)
+        xo, xi = s[C].split(C.op.axis[0], nparts=2)
+        _, xi = s[C].split(xi, factor=2)
         s[C].parallel(xo)
         s[C].vectorize(xi)
+        s[B].compute_at(s[C], xo)
         xo, xi = s[B].split(B.op.axis[0], factor=2)
         s[B].vectorize(xi)
         # build and invoke the kernel.
@@ -112,6 +114,7 @@ def test_llvm_vadd_pipeline():
         np.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + 1)
     check_llvm(64, 2)
+    check_llvm(512, 2)
 
 
 def test_llvm_madd_pipeline():
