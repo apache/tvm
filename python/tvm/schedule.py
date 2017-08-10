@@ -326,7 +326,7 @@ class Stage(NodeBase):
         1. When the outer and inner are given, the outer and inner are fused together
         2. When the itervars are given,
          the itervars should be consecutive and the fusing order will be
-        fused = fuse(...fuse(fuse(itervars[-1], itervars[-2]), itervars[-3]), itervars[0])
+        fused = fuse(...fuse(fuse(itervars[0], itervars[1]), itervars[2]),..., itervars[-1])
 
         Parameters
         ----------
