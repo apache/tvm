@@ -328,7 +328,7 @@ class Stage(NodeBase):
 
         Parameters
         ----------
-        *args : list of IterVars
+        args : list of IterVars
             Itervars that proceeds each other
 
         Returns
