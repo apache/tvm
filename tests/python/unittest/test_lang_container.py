@@ -20,8 +20,6 @@ def test_map():
     dd = dict(amap.items())
     assert a in dd
     assert b in dd
-    assert dd[a] == 2
-    assert dd[b] == 3
     assert a + 1 not in amap
 
 def test_map_save_load_json():
