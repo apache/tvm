@@ -31,6 +31,10 @@ ADD_CFLAGS =
 # whether enable CUDA during compile
 USE_CUDA = 0
 
+# add the path to CUDA library to link and compile flag
+# if you have already add them to environment variable.
+# CUDA_PATH = /usr/local/cuda
+
 # whether enable OpenCL during compile
 USE_OPENCL = 0
 
@@ -52,9 +56,9 @@ USE_RPC = 0
 # Whether use BLAS, choices: openblas, atlas, blas, apple
 USE_BLAS = none
 
+# Whether use NNPack
 USE_NNPACK = 0
 # NNPACK_PATH = none
 
-# add the path to CUDA library to link and compile flag
-# if you have already add them to environment variable.
-# CUDA_PATH = /usr/local/cuda
+# Whether use CuDNN
+USE_CUDNN = 0
