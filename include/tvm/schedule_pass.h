@@ -35,10 +35,16 @@ Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
 
 /*!
  * \brief To automatically inline the element-wise operations.
+ * By default only pure element-wise operations are inlined
+ *   (no scaling, shifting of transposition on thr RHS accesses).
+ * One can also relax that check to permit inlining operations that only
+ *   exhibit injective writes (i.e. no reduction or sequential loops). Note
+ *   that in this case, guarantees about contiguity, transpose, stride,
+ *   alignemnt and memory footprint in general do not hold.
  *
  * \param sch The schedule to be inlined.
  */
-void AutoInlineElemWise(Schedule sch);
+void AutoInlineElemWise(Schedule sch, bool relaxElemWiseCondition = false);
 
 }  // namespace schedule
 }  // namespace tvm

@@ -52,9 +52,19 @@ bool IsElemWise(const Operation& op) {
   return false;
 }
 
-void AutoInlineElemWise(Schedule sch) {
+bool IsInjective(const Operation& op) {
+  if (const ComputeOpNode* compute = op.as<ComputeOpNode>()) {
+    return compute->reduce_axis.size() == 0;
+  }
+  return false;
+}
+
+void AutoInlineElemWise(Schedule sch, bool relaxElemWiseCondition) {
   for (Stage s : sch->stages) {
-    if (!s.is_scheduled() && IsElemWise(s->op) && !s->is_output) {
+    if (!s.is_scheduled() &&
+        (IsElemWise(s->op) ||
+         (relaxElemWiseCondition && IsInjective(s->op))) &&
+        !s->is_output) {
       s.compute_inline();
     }
   }
