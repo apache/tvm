@@ -312,7 +312,7 @@ class CoProcTouchedBuffer : public IRVisitor {
     IRVisitor::Visit_(op);
   }
   void Visit_(const Call* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr) && in_scope_) {
       const Variable* buffer = op->args[1].as<Variable>();
       touched_.insert(buffer);
     }
