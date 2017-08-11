@@ -66,21 +66,66 @@ TVM_DLL void* TVMBackendAllocWorkspace(int device_type,
 TVM_DLL int TVMBackendFreeWorkspace(int device_type,
                                     int device_id,
                                     void* ptr);
+
 /*!
- * \brief Backend function for running parallel for loop.
+ * \brief Environment for TVM parallel task.
+ */
+typedef struct {
+  /*!
+   * \brief Auxiliary used for synchronization
+   */
+  void* sync_handle;
+  /*! \brief total amount of task */
+  int32_t num_task;
+} TVMParallelGroupEnv;
+
+/*!
+ * \brief The callback function to execute a parallel lambda
+ * \param task_id the task id of the function.
+ * \param penv The parallel environment backs the execution.
+ * \param cdata The supporting closure data.
+ */
+typedef int (*FTVMParallelLambda)(
+    int task_id, TVMParallelGroupEnv* penv, void* cdata);
+
+/*!
+ * \brief Backend function for running parallel jobs.
  *
- * \param begin The start of iteration.
- * \param end The end of iteration.
- * \param lambda The lambda function to be executed.
- * \param env The environment of lambda function.
+ * \param flambda The parallel function to be launched.
+ * \param cdata The closure data.
+ * \param num_task Number of tasks to launch, can be 0, means launch
+ *           with all available threads.
  *
  * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMBackendParallelFor(
-    int64_t begin,
-    int64_t end,
-    int (*lambda)(int64_t begin, int64_t end, void* env),
-    void* env);
+TVM_DLL int TVMBackendParallelLaunch(FTVMParallelLambda flambda,
+                                     void* cdata,
+                                     int num_task);
+
+/*!
+ * \brief BSP barrrier between parallel threads
+ * \param task_id the task id of the function.
+ * \param penv The parallel environment backs the execution.
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
+
+
+/*!
+ * \brief Simple static initialization fucntion.
+ *  Run f once and set handle to be not null.
+ *  This function is mainly used for test purpose.
+ *
+ * \param handle An global address to indicate f
+ * \param f The function to be ran
+ * \param cdata The closure data to pass to the function.
+ * \param nbytes Number of bytes in the closure data.
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMBackendRunOnce(void** handle,
+                              int (*f)(void*),
+                              void *cdata,
+                              int nbytes);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

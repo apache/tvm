@@ -24,13 +24,14 @@ class BuildConfig(object):
     """
     current = None
     defaults = {
-        'auto_unroll_max_step': 0,
-        'auto_unroll_min_depth': 1,
-        'unroll_explicit': True,
-        'detect_global_barrier': False,
-        'offset_factor': 0,
-        'data_alignment': -1,
-        'restricted_func': True
+        "auto_unroll_max_step": 0,
+        "auto_unroll_min_depth": 1,
+        "unroll_explicit": True,
+        "detect_global_barrier": False,
+        "offset_factor": 0,
+        "data_alignment": -1,
+        "restricted_func": True,
+        "add_lower_pass": None
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -93,6 +94,9 @@ def build_config(**kwargs):
         That is each buffer argument to the function are guaranteed
         not to overlap. This enables more optimization.
         Corresponds to restricted keyword in C99
+
+    add_lower_pass: list of function(Stmt->Stmt), default=None
+        Additional lowering passes to be applied before make_api.
 
     Returns
     -------
@@ -193,12 +197,16 @@ def lower(sch,
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
     stmt = ir_pass.StorageRewrite(stmt)
+    stmt = ir_pass.CoProcSync(stmt)
     cfg = BuildConfig.current
     stmt = ir_pass.UnrollLoop(
         stmt,
         cfg.auto_unroll_max_step,
         cfg.auto_unroll_min_depth,
         cfg.unroll_explicit)
+    if cfg.add_lower_pass:
+        for f in cfg.add_lower_pass:
+            stmt = f(stmt)
     stmt = ir_pass.Simplify(stmt)
     if simple_mode:
         return stmt
@@ -299,8 +307,8 @@ def build(sch,
     for func in flist:
         if func.func_type == container.LoweredFunc.MixedFunc:
             if BuildConfig.current.detect_global_barrier:
-                func = ir_pass.StorageSync(func, "global")
-            func = ir_pass.StorageSync(func, "shared")
+                func = ir_pass.ThreadSync(func, "global")
+            func = ir_pass.ThreadSync(func, "shared")
             warp_size = 32 if target == "cuda" else 1
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]
@@ -322,11 +330,18 @@ def build(sch,
     device_type = ndarray.context(device, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
+    if not target_host and fdevice:
+        target_host = "llvm" if module.enabled("llvm") else "stackvm"
+
+    if fdevice:
+        fdevice = [ir_pass.LowerIntrin(x, target) for x in fdevice]
+        fhost = [ir_pass.LowerIntrin(x, target_host) for x in fhost]
+    else:
+        fhost = [ir_pass.LowerIntrin(x, target) for x in fhost]
+
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
 
     if fdevice:
-        if not target_host:
-            target_host = "llvm" if module.enabled("llvm") else "stackvm"
         mhost = codegen.build_module(fhost, target_host)
         if target:
             mdev = codegen.build_module(fdevice, target)

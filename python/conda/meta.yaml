@@ -1,0 +1,32 @@
+{% set version = "0.1.dev" %}
+
+package:
+  name: tvm
+  version: {{ version }}
+
+source:
+  path: ../..
+
+build:
+  number: 1
+  skip: True  # [win]
+  script_env:
+    - CONDA_CUDA_HOME
+
+requirements:
+  build:
+    - llvmdev ==4.0.0
+    - python >=3
+    - numpy
+    - setuptools
+    - nose
+    - decorator
+  run:
+    - python >=3
+    - numpy
+    - decorator
+
+about:
+  home: https://github.com/dmlc/tvm
+  license: Apache2
+  summary: a low level domain specific language for compiling tensor computation pipelines

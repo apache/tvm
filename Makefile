@@ -10,12 +10,7 @@ endif
 
 include $(config)
 
-.PHONY: clean all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
-
-BUILD_TARGETS ?= lib/libtvm.so lib/libtvm_runtime.so
-all: ${BUILD_TARGETS}
-runtime: lib/libtvm_runtime.so
-web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
+.PHONY: clean install installdev all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
 
 ifndef DMLC_CORE_PATH
   DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core
@@ -122,12 +117,15 @@ endif
 
 ifeq ($(OS),Windows_NT)
 	JVM_PKG_PROFILE := windows
+	SHARED_LIBRARY_SUFFIX := dll
 else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S), Darwin)
 		JVM_PKG_PROFILE := osx-x86_64
+		SHARED_LIBRARY_SUFFIX := dylib
 	else
 		JVM_PKG_PROFILE := linux-x86_64
+		SHARED_LIBRARY_SUFFIX := so
 	endif
 endif
 
@@ -142,6 +140,11 @@ else ifeq ($(USE_METAL), 1)
 else
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
 endif
+
+BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
+all: ${BUILD_TARGETS}
+runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
+web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
 
 include tests/cpp/unittest.mk
 
@@ -166,6 +169,14 @@ build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
+
+lib/libtvm.dylib: $(ALL_DEP) $(RUNTIME_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+lib/libtvm_runtime.dylib: $(RUNTIME_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
@@ -207,6 +218,18 @@ lint: cpplint pylint jnilint
 doc:
 	doxygen docs/Doxyfile
 
+install: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
+	mkdir -p $(DESTDIR)$(PREFIX)/include/tvm/runtime
+	cp -R include/tvm/runtime/. $(DESTDIR)$(PREFIX)/include/tvm/runtime
+	cp lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) $(DESTDIR)$(PREFIX)/lib
+
+installdev: lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) lib/libtvm.a
+	mkdir -p $(DESTDIR)$(PREFIX)/include
+	cp -R include/tvm $(DESTDIR)$(PREFIX)/include
+	cp lib/libtvm.$(SHARED_LIBRARY_SUFFIX) $(DESTDIR)$(PREFIX)/lib
+	cp lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) $(DESTDIR)$(PREFIX)/lib
+	cp lib/libtvm.a $(DESTDIR)$(PREFIX)/lib
+
 # Cython build
 cython:
 	cd python; python setup.py build_ext --inplace
@@ -218,7 +241,7 @@ cython3:
 	cd python; python3 setup.py build_ext --inplace
 
 cyclean:
-	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.cpp
+	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.dylib python/tvm/*/*/*.cpp
 
 jvmpkg:
 	(cd $(ROOTDIR)/jvm; \

@@ -8,6 +8,7 @@
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
+#include <tvm/target_info.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "./ir_util.h"
@@ -75,7 +76,7 @@ class StorageFlattener : public IRMutator {
     const BufferEntry& e = it->second;
     CHECK(!e.released)
         << "Read a buffer that is already out of scope";
-    return e.buffer.MakeStore(e.RelIndex(op->args), op->value);
+    return e.buffer.vstore(e.RelIndex(op->args), op->value);
   }
 
   Stmt Mutate_(const Realize* op, const Stmt& s) final {
@@ -110,6 +111,12 @@ class StorageFlattener : public IRMutator {
       // use small alignment for small arrays
       int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
       int align = GetTempAllocaAlignment(op->type, const_size);
+      if (skey.tag.length() != 0) {
+        MemoryInfo info = GetMemoryInfo(skey.to_string());
+        if (info.defined()) {
+          align = (info->max_simd_bits + op->type.bits() - 1) / op->type.bits();
+        }
+      }
 
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
@@ -165,7 +172,7 @@ class StorageFlattener : public IRMutator {
       const BufferEntry& e = it->second;
       CHECK(!e.released)
           << "Read a buffer that is already out of scope";
-      return e.buffer.MakeLoad(e.RelIndex(op->args));
+      return e.buffer.vload(e.RelIndex(op->args), e.buffer->dtype);
     } else {
       return expr;
     }
@@ -216,7 +223,7 @@ class StorageFlattener : public IRMutator {
         stmt = For::make(
             vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
       } else {
-        Expr load = e.buffer.MakeLoad(e.RelIndex(args));
+        Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
         Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
         stmt = Evaluate::make(prefetch);

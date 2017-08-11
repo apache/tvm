@@ -10,6 +10,7 @@ from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
+from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
@@ -546,22 +547,6 @@ def reduce_axis(dom, name="rv"):
     """
     return _IterVar(dom, name, 2)
 
-def cast(dtype, expr):
-    """Cast an expression to other type
-    Parameters
-    ----------
-    dtype : str, optional
-        The type of new expression
-    expr : Expr
-        The expression
-
-    Returns
-    -------
-    expr : Expr
-        Expression with new type
-    """
-    return _make.Cast(dtype, expr)
-
 
 def select(cond, t, f):
     """Construct a select branch
@@ -700,10 +685,10 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
                 # there are two way to use this {0} reducer:
                 # mode 1, accept (expr, axis, where) to produce an Reduce Expr
-                B = tvm.compute((m,), lambda i: {0}(A[i, k], axis=k), name="B")
+                B = tvm.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
 
                 # mode 2, simply use it with multiple Exprs:
-                {0}_res = {0}(m, n)
+                {0}_res = tvm.{0}(m, n)
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer

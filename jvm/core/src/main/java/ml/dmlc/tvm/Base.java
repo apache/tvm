@@ -80,7 +80,18 @@ final class Base {
     if (tvmLibFilename == null || !new File(tvmLibFilename).isFile()
         || _LIB.nativeLibInit(tvmLibFilename) != 0) {
       try {
-        NativeLibraryLoader.extractResourceFileToTempDir("libtvm_runtime.so", new Action() {
+        String runtimeLibname;
+        String os = System.getProperty("os.name");
+        // ref: http://lopica.sourceforge.net/os.html
+        if (os.startsWith("Linux")) {
+          runtimeLibname = "libtvm_runtime.so";
+        } else if (os.startsWith("Mac")) {
+          runtimeLibname = "libtvm_runtime.dylib";
+        } else {
+          // TODO(yizhi) support windows later
+          throw new UnsatisfiedLinkError("Windows not supported currently");
+        }
+        NativeLibraryLoader.extractResourceFileToTempDir(runtimeLibname, new Action() {
           @Override public void invoke(File target) {
             System.err.println("Loading tvm runtime from " + target.getPath());
             checkCall(_LIB.nativeLibInit(target.getPath()));

@@ -47,7 +47,8 @@ class ContextCallCombiner final : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->attr_key == attr::thread_extent) {
+    if (op->attr_key == attr::thread_extent ||
+        op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
       std::map<Expr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);

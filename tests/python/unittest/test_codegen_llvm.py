@@ -28,8 +28,13 @@ def test_llvm_add_pipeline():
     C = tvm.compute(A.shape, lambda *i: T(*i), name='C')
     s = tvm.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
-    s[C].parallel(xo)
+    xo1, xo2 = s[C].split(xo, factor=13)
+    s[C].parallel(xo2)
+    s[C].pragma(xo1, "parallel_launch_point")
+    s[C].pragma(xo2, "parallel_stride_pattern")
+    s[C].pragma(xo2, "parallel_barrier_when_finish")
     s[C].vectorize(xi)
+
     def check_llvm():
         if not tvm.module.enabled("llvm"):
             return
@@ -83,6 +88,35 @@ def test_llvm_flip_pipeline():
     check_llvm(128, 1)
 
 
+def test_llvm_vadd_pipeline():
+    def check_llvm(n, lanes):
+        if not tvm.module.enabled("llvm"):
+            return
+        A = tvm.placeholder((n,), name='A', dtype="float32x%d" % lanes)
+        B = tvm.compute((n,), lambda i: A[i], name='B')
+        C = tvm.compute((n,), lambda i: B[i] + tvm.const(1, A.dtype), name='C')
+        s = tvm.create_schedule(C.op)
+        xo, xi = s[C].split(C.op.axis[0], nparts=2)
+        _, xi = s[C].split(xi, factor=2)
+        s[C].parallel(xo)
+        s[C].vectorize(xi)
+        s[B].compute_at(s[C], xo)
+        xo, xi = s[B].split(B.op.axis[0], factor=2)
+        s[B].vectorize(xi)
+        # build and invoke the kernel.
+        f = tvm.build(s, [A, C], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.empty((n,), A.dtype).copyfrom(
+            np.random.uniform(size=(n, lanes)))
+        c = tvm.nd.empty((n,), C.dtype, ctx)
+        f(a, c)
+        np.testing.assert_allclose(
+            c.asnumpy(), a.asnumpy() + 1)
+    check_llvm(64, 2)
+    check_llvm(512, 2)
+
+
 def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
         if not tvm.module.enabled("llvm"):
@@ -108,6 +142,7 @@ def test_llvm_madd_pipeline():
     check_llvm(4, 0, 1)
     with tvm.build_config(restricted_func=False):
         check_llvm(4, 0, 3)
+
 
 def test_llvm_temp_space():
     nn = 1024
@@ -167,9 +202,10 @@ def test_multiple_func():
 
 
 if __name__ == "__main__":
+    test_llvm_vadd_pipeline()
+    test_llvm_add_pipeline()
     test_llvm_intrin()
     test_multiple_func()
-    test_llvm_add_pipeline()
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()
     test_llvm_temp_space()

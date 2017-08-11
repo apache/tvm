@@ -16,6 +16,11 @@ TVM_REGISTER_API("arith.intset_single_point")
     *ret = IntSet::single_point(args[0]);
   });
 
+TVM_REGISTER_API("arith.intset_vector")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = IntSet::vector(args[0]);
+  });
+
 TVM_REGISTER_API("arith.intset_interval")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = IntSet::interval(args[0], args[1]);

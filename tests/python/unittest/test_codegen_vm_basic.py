@@ -74,7 +74,27 @@ def test_stack_vm_cond():
         np.testing.assert_equal(a.asnumpy(), y)
     run_jit(fapi, check)
 
+def test_vm_parallel():
+    dtype = 'int64'
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), dtype)
+    i = tvm.var('i')
+    ib = tvm.ir_builder.create()
+    A = ib.buffer_ptr(Ab)
+    with ib.for_range(0, n, "i", for_type="parallel") as i:
+        A[i] = A[i] + 1
+    stmt = ib.get()
+    fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
+    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    def check(f):
+        a = tvm.nd.array(np.zeros(10, dtype=dtype))
+        f(a)
+        np.testing.assert_equal(a.asnumpy(), np.ones(a.shape[0]))
+    run_jit(fapi, check)
+
+
 if __name__ == "__main__":
+    test_vm_parallel()
+    test_stack_vm_loop()
     test_stack_vm_basic()
     test_stack_vm_cond()
-    test_stack_vm_loop()

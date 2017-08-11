@@ -9,7 +9,7 @@ algorithm in high-performance schedule breaks the algorithm's readability and mo
 trying various seemingly promising schedules is time-consuming. With the help of TVM, we can
 try these schedules efficiently to enhance the performance.
 
-In this tutorial, we will demonstrate how squre matrix multiplication is optimized step by step by
+In this tutorial, we will demonstrate how square matrix multiplication is optimized step by step by
 writing TVM.
 
 There are two important optmizations on intense computation applications executed on CPU:
@@ -25,14 +25,14 @@ Actually, all the methodologies used in this tutorial is a subset of tricks ment
 `repo <https://github.com/flame/how-to-optimize-gemm>`_. Some of them have been applied by TVM
 abstraction automatically, but some of them cannot be simply applied due to TVM constraints.
 
-All the experiment results mentioned below, are executed on 2013's 15' MacBook equiped
+All the experiment results mentioned below, are executed on 2013's 15' MacBook equiped with
 Intel i7-2760QM CPU. The cache line size should be 64 bytes for all the x86 CPU.
 """
 
 ###############################################################################
 # Preparation and Baseline
 # ------------------------
-# In this tutorial we assume all the matrix tensors are squre and fix-bounded.
+# In this tutorial we assume all the matrix tensors are square and fix-bounded.
 # We use 1024x1024 float32 matrix in demonstration. Before actually demonstrating,
 # we first define these variables. Then we write a baseline implementation,
 # the simplest way to write a matrix mulplication in TVM.
@@ -42,12 +42,12 @@ import tvm
 import numpy
 import time
 
-# The size of the squre matrix
+# The size of the square matrix
 N = 1024
 # The default tensor type in tvm
 dtype = "float32"
 # Random generated tensor for testing
-a =  tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
+a = tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 b = tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 # The expected answer
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
@@ -95,11 +95,11 @@ print('Opt1: %f' % evaluator(a, b, c).mean)
 # Vectorization
 # -------------
 # Another important trick is vectorization. When the memory access pattern is uniform, the compiler
-# can dectect this pattern and pass the continuous memory to vector processor. In TVM, we can use
+# can detect this pattern and pass the continuous memory to vector processor. In TVM, we can use
 # `vectorize` interface to hint the compiler this pattern, so that we can accelerate it vastly.
 #
 
-# After trying different schedule, we finally found that we can benefit from vectorizing 
+# After trying different schedule, we finally found that we can benefit from vectorizing
 # the row loop most, i.e. yi.
 s[C].vectorize(yi)
 func = tvm.build(s, [A, B, C], name = 'mmult')
@@ -152,8 +152,8 @@ print('Opt3: %f' % evaluator(a, b, c).mean)
 ##################################################################################################
 # Summary
 # -------
-# After applying three main tricks, we can almost 90% performance of numpy. Further observation is
-# required to catch up with the performance of numpy.
+# After applying three main tricks, we can achieve almost 90% performance of numpy.
+# Further observation is required to catch up with the performance of numpy.
 #
 
 # TODO(Jian Weng): Catch up with the performance of numpy.

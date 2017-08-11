@@ -189,12 +189,17 @@ class CodeGenLLVM :
   llvm::StructType* t_tvm_type_{nullptr};
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
-  llvm::FunctionType* ftype_tvm_par_for_lambda_{nullptr};
+  llvm::StructType* t_tvm_parallel_group_env_{nullptr};
+  llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
   llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
-  llvm::FunctionType* ftype_tvm_parallel_for_{nullptr};
+  llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
+  llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
+  // Lazy entry for function call.
+  llvm::FunctionType* ftype_tvm_static_init_callback_{nullptr};
+  llvm::FunctionType* ftype_tvm_static_init_{nullptr};
   // The acting body
   llvm::BasicBlock* block_{nullptr};
   /*! \brief native vector bits of current targetx*/
@@ -203,13 +208,22 @@ class CodeGenLLVM :
   std::unordered_map<const Variable*, StorageInfo> alloc_storage_info_;
 
  private:
+  // the parallel group information
+  struct ParallelEnv {
+    VarExpr task_id;
+    VarExpr num_task;
+    bool stride_pattern{false};
+    bool hit_parallel_loop{false};
+    llvm::Value* penv{nullptr};
+  };
   // Get runtime functions
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   llvm::Value* RuntimeTVMFuncCall();
   llvm::Value* RuntimeTVMGetFuncFromEnv();
   llvm::Value* RuntimeTVMAPISetLastError();
-  llvm::Value* RuntimeTVMParallelFor();
+  llvm::Value* RuntimeTVMParallelLaunch();
+  llvm::Value* RuntimeTVMParallelBarrier();
   // comparison op
   llvm::Value* GetVarValue(const Variable* v) const;
   llvm::Value* CreateLT(Type t, llvm::Value* a, llvm::Value* b);
@@ -230,10 +244,18 @@ class CodeGenLLVM :
   llvm::Value* CreateVecFlip(llvm::Value* vec);
   llvm::Value* CreateVecConcat(std::vector<llvm::Value*> vecs);
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
-  // Create parallel for.
-  void CreateParallelFor(const For* op);
+  llvm::Value* PackClosureData(const Array<Var>& fields);
+  void UnpackClosureData(llvm::Value*cdata,
+                         const Array<Var>& fields,
+                         std::unordered_map<const Variable*, llvm::Value*>* vmap);
+  // Create static initialization
+  void CreateStaticInit(const std::string& init_fname, const Stmt& body);
+  // Create parallel launch
+  void CreateParallelLaunch(const Stmt& body, int num_task);
   // Create serial for
-  void CreateSerialFor(llvm::Value* begin, llvm::Value* end,
+  void CreateSerialFor(llvm::Value* begin,
+                       llvm::Value* end,
+                       llvm::Value* stride,
                        const VarExpr& loop_var, const Stmt& body);
   // Create a new compute scope.
   void CreateComputeScope(const AttrStmt* op);
@@ -262,14 +284,18 @@ class CodeGenLLVM :
   llvm::GlobalVariable* gv_tvm_func_call_{nullptr};
   llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
   llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
-  llvm::GlobalVariable* gv_tvm_parallel_for_{nullptr};
+  llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
+  llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
   std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
   llvm::Function* f_tvm_api_set_last_error_{nullptr};
-  llvm::Function* f_tvm_parallel_for_{nullptr};
+  llvm::Function* f_tvm_parallel_launch_{nullptr};
+  llvm::Function* f_tvm_parallel_barrier_{nullptr};
   llvm::Function* f_tvm_register_system_symbol_{nullptr};
+  // Current parallel environment scope.
+  ParallelEnv parallel_env_;
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.

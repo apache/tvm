@@ -20,7 +20,7 @@ import numpy as np
 # Assume we want to compute sum of rows as our example.
 # In numpy semantics this can be written as :code:`B = numpy.sum(A, axis=1)`
 #
-# The following lines describes the row sum operation.
+# The following lines describe the row sum operation.
 # To create a reduction formula, we declare a reduction axis using
 # :any:`tvm.reduce_axis`. :any:`tvm.reduce_axis` takes in the range of reductions.
 # :any:`tvm.sum` takes in the expression to be reduced as well as the reduction
@@ -65,8 +65,8 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # If we are building a GPU kernel, we can bind the rows of B to GPU threads.
-s[B.op].bind(xo, tvm.thread_axis("blockIdx.x"))
-s[B.op].bind(xi, tvm.thread_axis("threadIdx.x"))
+s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
 print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
@@ -96,18 +96,18 @@ print(s[B].op.body)
 # Cross Thread Reduction
 # ----------------------
 # We can now parallelize over the factored axis.
-# Here mark the reduction axis of B is marked to be a thread.
-# tvm allow reduction axis to be marked as thread if it is the only
+# Here the reduction axis of B is marked to be a thread.
+# TVM allows reduction axis to be marked as thread if it is the only
 # axis in reduction and cross thread reduction is possible in the device.
 #
 # This is indeed the case after the factoring.
 # We can directly compute BF at the reduction axis as well.
-# The final generated kernel will divides the rows by blockIdx.x and threadIdx.y
+# The final generated kernel will divide the rows by blockIdx.x and threadIdx.y
 # columns by threadIdx.x and finally do a cross thread reduction over threadIdx.x
 #
 xo, xi = s[B].split(s[B].op.axis[0], factor=32)
-s[B.op].bind(xo, tvm.thread_axis("blockIdx.x"))
-s[B.op].bind(xi, tvm.thread_axis("threadIdx.y"))
+s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+s[B].bind(xi, tvm.thread_axis("threadIdx.y"))
 s[B].bind(s[B].op.reduce_axis[0], tvm.thread_axis("threadIdx.x"))
 s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
 fcuda = tvm.build(s, [A, B], "cuda")

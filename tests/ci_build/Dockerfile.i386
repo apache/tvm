@@ -1,4 +1,4 @@
-FROM ioft/i386-ubuntu:14.04
+FROM ioft/i386-ubuntu:16.04
 
 RUN apt-get update --fix-missing
 

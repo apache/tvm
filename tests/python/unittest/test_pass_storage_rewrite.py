@@ -98,8 +98,35 @@ def test_storage_share_gpu():
     assert alloc_stats["global"] == 2
     assert alloc_stats["shared"] == num_stage
 
+def test_parallel_alloc():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i", for_type="parallel") as i:
+        with ib.for_range(0, 10, name="j") as j:
+            A = ib.allocate("float32", n, name="A", scope="global")
+            A[j] = A[j] + 2
+
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+    assert (isinstance(body.body.body, tvm.stmt.Allocate))
+
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="t") as i:
+        ib.scope_attr(
+            tvm.const(1) , "pragma_scope", tvm.make.StringImm("parallel_launch_point"))
+        with ib.for_range(0, n, name="i", for_type="parallel") as i:
+            with ib.for_range(0, 10, name="j") as j:
+                A = ib.allocate("float32", n, name="A", scope="global")
+                A[j] = A[j] + 2
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+    assert(isinstance(body.body.body.body, tvm.stmt.Allocate))
+
+
 
 if __name__ == "__main__":
+    test_parallel_alloc()
     test_storage_combine()
     test_storage_share_gpu()
     test_storage_share()

@@ -30,7 +30,7 @@ class NativeLibraryLoader {
 
   static {
     try {
-      tempDir = File.createTempFile("tvm", "");
+      tempDir = File.createTempFile("tvm4j", "");
       if (!tempDir.delete() || !tempDir.mkdir()) {
         throw new IOException("Couldn't create directory " + tempDir.getAbsolutePath());
       }

@@ -13,14 +13,16 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "./ir_util.h"
-#include "./storage_access.h"
 #include "../arithmetic/compute_expr.h"
+#include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace ir {
 
-using namespace storage;
+using runtime::StorageScope;
+
 // Find a linear pattern of storage acess
+// Used for liveness analysis.
 // Composite scopes(loop/thread_launch/IfThen) is represented by two points:
 // before_scope -> scope_body -> after_scope
 //
@@ -33,24 +35,32 @@ using namespace storage;
 // The storage need to be kept alive between allocate and last access.
 // The free point is only inserted at the same scope of allocate.
 //
-class StorageAccessPatternFinder final : public IRVisitor {
+class LinearAccessPatternFinder final : public IRVisitor {
  public:
+  /*! \brief record the touch hist of statment. */
+  struct StmtEntry {
+    // The statment
+    const Node* stmt;
+    // Scope used for allocation.
+    StorageScope alloc_scope;
+    // The buffer variables this statment touched.
+    std::vector<const Variable*> touched;
+  };
+
   // Get linear access pattern.
   std::vector<StmtEntry> GetLinearSeq(const Stmt& s) {
     this->Visit(s);
     return std::move(linear_seq_);
   }
   void Visit_(const Allocate* op) final {
-    CHECK(!in_parallel_env_)
-        << "Allocation inside parallel is not yet handled.";
     size_t level = scope_.size();
     const Variable* buf = op->buffer_var.get();
     CHECK(!alloc_scope_level_.count(buf));
     alloc_scope_level_[buf] = level;
     StmtEntry e;
     e.stmt = op;
-    e.access.emplace_back(
-        AccessEntry(buf, Expr(), kAlloc, GetScope(buf)));
+    e.alloc_scope = GetScope(buf);
+    e.touched.push_back(buf);
     linear_seq_.emplace_back(std::move(e));
     IRVisitor::Visit_(op);
   }
@@ -62,12 +72,11 @@ class StorageAccessPatternFinder final : public IRVisitor {
     const Variable* buf = op->buffer_var.get();
     auto it = alloc_scope_level_.find(buf);
     if (it != alloc_scope_level_.end()) {
-      scope_[it->second].access.emplace_back(
-        AccessEntry(buf, op->index, kWrite, GetScope(buf)));
+      scope_[it->second].touched.push_back(buf);
     }
     StmtEntry e = scope_.back();
     scope_.pop_back();
-    if (e.access.size() != 0) {
+    if (e.touched.size() != 0) {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
@@ -78,7 +87,7 @@ class StorageAccessPatternFinder final : public IRVisitor {
     IRVisitor::Visit_(op);
     StmtEntry e = scope_.back();
     scope_.pop_back();
-    if (e.access.size() != 0) {
+    if (e.touched.size() != 0) {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
@@ -91,8 +100,7 @@ class StorageAccessPatternFinder final : public IRVisitor {
     if (it != alloc_scope_level_.end()) {
       CHECK_LT(it->second, scope_.size())
           << "Load memory in places other than store.";
-      scope_[it->second].access.emplace_back(
-          AccessEntry(buf, op->index, kRead, GetScope(buf)));
+      scope_[it->second].touched.push_back(buf);
     }
   }
   void Visit_(const Call* op) final {
@@ -108,8 +116,7 @@ class StorageAccessPatternFinder final : public IRVisitor {
     auto it = alloc_scope_level_.find(buf);
     if (it != alloc_scope_level_.end()) {
       CHECK_LT(it->second, scope_.size()) << " buf=" << buf->name_hint;
-      scope_[it->second].access.emplace_back(
-          AccessEntry(buf, Expr(), kOpaque, GetScope(buf)));
+      scope_[it->second].touched.push_back(buf);
     }
   }
   template<typename T>
@@ -121,7 +128,7 @@ class StorageAccessPatternFinder final : public IRVisitor {
     linear_seq_.push_back(e);
     IRVisitor::Visit_(op);
     // after scope.
-    e.access = std::move(scope_.back().access);
+    e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
     linear_seq_.push_back(e);
   }
@@ -131,6 +138,9 @@ class StorageAccessPatternFinder final : public IRVisitor {
       in_thread_env_ = true;
       VisitNewScope(op);
       in_thread_env_ = false;
+    } else if (op->attr_key == attr::pragma_scope &&
+               op->value.as<StringImm>()->value == "parallel_launch_point") {
+      VisitNewScope(op);
     } else if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       storage_scope_[buf] =
@@ -140,17 +150,11 @@ class StorageAccessPatternFinder final : public IRVisitor {
       IRVisitor::Visit_(op);
     }
   }
-  void Visit_(const For* op) final {
-    if (op->for_type == ForType::Parallel) {
-      bool in_par = in_parallel_env_;
-      in_parallel_env_ = true;
-      VisitNewScope(op);
-      in_parallel_env_ = in_par;
-    } else {
-      VisitNewScope(op);
-    }
-  }
   void Visit_(const IfThenElse* op) final {
+    VisitNewScope(op);
+  }
+
+  void Visit_(const For* op) final {
     VisitNewScope(op);
   }
 
@@ -163,8 +167,6 @@ class StorageAccessPatternFinder final : public IRVisitor {
   }
   // Whether already in thread env.
   bool in_thread_env_{false};
-  // Whether already in parallel env.
-  bool in_parallel_env_{false};
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;
   // The scope stack.
@@ -178,9 +180,11 @@ class StorageAccessPatternFinder final : public IRVisitor {
 // Planner to plan and rewrite memory allocation.
 class StoragePlanRewriter : public IRMutator {
  public:
+  using StmtEntry = LinearAccessPatternFinder::StmtEntry;
+
   Stmt Rewrite(Stmt stmt) {
     std::vector<StmtEntry> seq =
-        StorageAccessPatternFinder().GetLinearSeq(stmt);
+       LinearAccessPatternFinder().GetLinearSeq(stmt);
     this->FindFreeLocation(seq);
     this->PlanMemory(seq);
     this->PrepareNewAlloc();
@@ -256,27 +260,22 @@ class StoragePlanRewriter : public IRMutator {
       return IRMutator::Mutate_(op, e);
     }
   }
+
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     CHECK(op->attr_key != attr::virtual_thread)
         << "InjectVirtualThread before StoragePlan";
     if (op->attr_key == attr::storage_scope) {
       return this->Mutate(op->body);
-    } else if (op->attr_key == attr::thread_extent) {
-      // remake all the allocation at the thread extent.
+    } else if (op->attr_key == attr::thread_extent ||
+               op->attr_key == attr::pragma_scope) {
+      // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
-        std::vector<Stmt> nest;
-        for (StorageEntry* e : attach_map_.at(op)) {
-          nest.emplace_back(AttrStmt::make(
-              e->alloc_var, attr::storage_scope,
-              StringImm::make(e->scope.to_string()),
-              Evaluate::make(0)));
-          nest.push_back(e->new_alloc);
-        }
+        auto& svec = attach_map_[op];
         Stmt stmt = IRMutator::Mutate_(op, s);
         op = stmt.as<AttrStmt>();
-        Stmt body = MergeNest(nest, op->body);
         return AttrStmt::make(
-            op->node, op->attr_key, op->value, body);
+            op->node, op->attr_key, op->value,
+            MakeAttach(svec, op->body));
       } else {
         return IRMutator::Mutate_(op, s);
       }
@@ -294,8 +293,19 @@ class StoragePlanRewriter : public IRMutator {
   Stmt Mutate_(const For* op, const Stmt& s) final {
     CHECK(op->for_type != ForType::Vectorized)
         << "VectorizeLoop before LiftStorageAlloc";
-    return IRMutator::Mutate_(op, s);
+    // remake all the allocation at the attach scope.
+    if (attach_map_.count(op)) {
+      auto& svec = attach_map_[op];
+      Stmt stmt = IRMutator::Mutate_(op, s);
+      op = stmt.as<For>();
+      return For::make(
+          op->loop_var, op->min, op->extent, op->for_type, op->device_api,
+          MakeAttach(svec, op->body));
+    } else {
+      return IRMutator::Mutate_(op, s);
+    }
   }
+
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
     return this->Mutate(op->body);
   }
@@ -325,6 +335,18 @@ class StoragePlanRewriter : public IRMutator {
     // the address becomes alloc_var + sizeof(elem_type) * elem_offset;
     uint64_t elem_offset{0};
   };
+  Stmt MakeAttach(const std::vector<StorageEntry*>& svec,
+                  Stmt body) {
+    std::vector<Stmt> nest;
+    for (StorageEntry* e : svec) {
+      nest.emplace_back(AttrStmt::make(
+          e->alloc_var, attr::storage_scope,
+          StringImm::make(e->scope.to_string()),
+          Evaluate::make(0)));
+      nest.push_back(e->new_alloc);
+    }
+    return MergeNest(nest, body);
+  }
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
     CHECK_EQ(dtype.element_of(), e->elem_type);
@@ -442,39 +464,57 @@ class StoragePlanRewriter : public IRMutator {
     std::unordered_set<const Variable*> touched;
     for (size_t i = seq.size(); i != 0; --i) {
       const StmtEntry& s = seq[i - 1];
-      for (const AccessEntry& e : s.access) {
-        if (!touched.count(e.buffer)) {
-          touched.insert(e.buffer);
-          free_loc_[i - 1].push_back(e.buffer);
+      for (const Variable* buffer : s.touched) {
+        if (!touched.count(buffer)) {
+          touched.insert(buffer);
+          free_loc_[i - 1].push_back(buffer);
         }
       }
     }
   }
+  void PlanNewScope(const Node* op) {
+    if (thread_scope_ != nullptr) {
+      CHECK(thread_scope_ == op);
+      // erase all memory atatched to this scope.
+      for (auto it = const_free_map_.begin(); it != const_free_map_.end();) {
+        if (it->second->attach_scope_ == op) {
+          it = const_free_map_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+      for (auto it = sym_free_list_.begin(); it != sym_free_list_.end();) {
+        if ((*it)->attach_scope_ == op) {
+          it = sym_free_list_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+      thread_scope_ = nullptr;
+    } else {
+      thread_scope_ = op;
+    }
+  }
+
   // Memory plan algorithm
   void PlanMemory(const std::vector<StmtEntry>& seq) {
     for (size_t i = 0; i < seq.size(); ++i) {
       const StmtEntry& s = seq[i];
       if (s.stmt->is_type<AttrStmt>()) {
         const auto* op = static_cast<const AttrStmt*>(s.stmt);
-        CHECK_EQ(op->attr_key, attr::thread_extent);
-        if (thread_scope_ != nullptr) {
-          CHECK(thread_scope_ == op);
-          // erase all non-global memory from constant free map.
-          for (auto it = const_free_map_.begin();
-               it != const_free_map_.end();) {
-            if (it->second->scope.rank != 0) {
-              it = const_free_map_.erase(it);
-            } else {
-              ++it;
-            }
+        CHECK(op->attr_key == attr::thread_extent ||
+              op->attr_key == attr::pragma_scope);
+        PlanNewScope(op);
+      } else if (s.stmt->is_type<For>()) {
+        const auto* op = static_cast<const For*>(s.stmt);
+        if (op->for_type == ForType::Parallel) {
+          if (thread_scope_ == nullptr || thread_scope_ == op) {
+            PlanNewScope(op);
           }
-          thread_scope_ = nullptr;
-        } else {
-          thread_scope_ = op;
         }
       } else if (s.stmt->is_type<Allocate>()) {
         const auto* op = static_cast<const Allocate*>(s.stmt);
-        StorageEntry* e = this->FindAlloc(op, s.access[0].scope);
+        StorageEntry* e = this->FindAlloc(op, thread_scope_, s.alloc_scope);
         e->allocs.emplace_back(op);
         alloc_map_[op->buffer_var.get()] = e;
       }
@@ -488,11 +528,12 @@ class StoragePlanRewriter : public IRMutator {
   }
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const Allocate* op,
+                         const Node* attach_scope,
                          const StorageScope& scope,
                          size_t const_nbits) {
     // Re-use not successful, allocate a new buffer.
     std::unique_ptr<StorageEntry> entry(new StorageEntry());
-    entry->attach_scope_ = thread_scope_;
+    entry->attach_scope_ = attach_scope;
     entry->scope = scope;
     entry->elem_type = op->type.element_of();
     entry->const_nbits = const_nbits;
@@ -501,6 +542,7 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
   StorageEntry* FindAlloc(const Allocate* op,
+                          const Node* attach_scope,
                           const StorageScope& scope) {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
@@ -508,13 +550,13 @@ class StoragePlanRewriter : public IRMutator {
     uint64_t const_nbits = static_cast<uint64_t>(
         op->constant_allocation_size() * op->type.bits() * op->type.lanes());
     if (scope.rank > 1 || op->type.is_handle()) {
-      return NewAlloc(op, scope, const_nbits);
+      return NewAlloc(op, attach_scope, scope, const_nbits);
     }
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     if (const_nbits > 0  &&
         const_nbits <= 32 &&
         scope.tag.length() == 0) {
-      return NewAlloc(op, scope, const_nbits);
+      return NewAlloc(op, attach_scope, scope, const_nbits);
     }
     if (const_nbits != 0) {
       // constant allocation.
@@ -523,6 +565,7 @@ class StoragePlanRewriter : public IRMutator {
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
       for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
+        if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->type.element_of()) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
@@ -532,6 +575,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = mid; it != begin;) {
         --it;
         StorageEntry *e = it->second;
+        if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->type.element_of()) continue;
         const_free_map_.erase(it);
@@ -542,13 +586,14 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = sym_free_list_.begin();
            it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
+        if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->type.element_of()) continue;
         sym_free_list_.erase(it);
         return e;
       }
     }
-    return NewAlloc(op, scope, const_nbits);
+    return NewAlloc(op, attach_scope, scope, const_nbits);
   }
   // simulated free.
   void Free(const Variable* var) {
@@ -583,8 +628,70 @@ class StoragePlanRewriter : public IRMutator {
   std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
 };
 
+// Turn alloc into vector alloc
+// if all its access is the same vector type.
+class VectorAllocRewriter : public IRMutator {
+ public:
+  Expr Mutate_(const Load* op, const Expr& e) final {
+    UpdateTypeMap(op->buffer_var.get(), op->type);
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Stmt Mutate_(const Store* op, const Stmt& s) final {
+    UpdateTypeMap(op->buffer_var.get(), op->value.type());
+    return IRMutator::Mutate_(op, s);
+  }
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      Type dtype = op->args[0].type();
+      const Variable* buffer = op->args[1].as<Variable>();
+      UpdateTypeMap(buffer, dtype);
+    }
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Allocate>();
+    const auto& tvec = acc_map_[op->buffer_var.get()];
+
+    if (tvec.size() == 1 &&
+        tvec[0].element_of() == op->type.element_of() &&
+        tvec[0].lanes() % op->type.lanes() == 0 &&
+        tvec[0].lanes() != op->type.lanes()) {
+      int factor = tvec[0].lanes() / op->type.lanes();
+      Array<Expr> extents = op->extents;
+      arith::ModularEntry me = EvalModular(
+          extents[extents.size() - 1],
+          std::unordered_map<const Variable*, arith::ModularEntry>());
+      if (me.base % factor == 0 && me.coeff % factor == 0) {
+        extents.Set(extents.size() - 1,
+                    extents[extents.size() - 1] / make_const(extents[0].type(), factor));
+        return Allocate::make(
+            op->buffer_var, tvec[0], extents,
+            op->condition, op->body);
+      }
+    }
+    return stmt;
+  }
+
+
+ private:
+  void UpdateTypeMap(const Variable* buffer, Type t) {
+    auto& tvec = acc_map_[buffer];
+    if (std::find(tvec.begin(), tvec.end(), t) == tvec.end()) {
+      tvec.push_back(t);
+    }
+  }
+  // Internal access map
+  std::unordered_map<const Variable*,
+                     std::vector<Type> > acc_map_;
+};
+
+
 Stmt StorageRewrite(Stmt stmt) {
-  return StoragePlanRewriter().Rewrite(stmt);
+  stmt = StoragePlanRewriter().Rewrite(stmt);
+  return VectorAllocRewriter().Mutate(stmt);
 }
 }  // namespace ir
 }  // namespace tvm
