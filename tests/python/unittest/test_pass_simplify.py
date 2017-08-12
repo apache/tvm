@@ -27,6 +27,16 @@ def test_basic():
     assert str(ret.value) == "(m - 1)"
 
 
+def test_canonical():
+    x = tvm.var("x")
+    z = tvm.const(3)
+    ret = tvm.ir_pass.CanonicalSimplify(x / (z*z) - x / (z*z))
+    assert(tvm.ir_pass.Equal(ret, 0))
+
+    ret = tvm.ir_pass.CanonicalSimplify(x / (z+z) - x / (z+z))
+    assert(tvm.ir_pass.Equal(ret, 0))
+
 if __name__ == "__main__":
     test_basic()
     test_simplify()
+    test_canonical()
