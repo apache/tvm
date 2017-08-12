@@ -52,6 +52,32 @@ bool IsElemWise(const Operation& op) {
   return false;
 }
 
+void AutoInlineElemWise(Schedule sch) {
+  for (Stage s : sch->stages) {
+    if (!s.is_scheduled() && IsElemWise(s->op) && !s->is_output) {
+      s.compute_inline();
+    }
+  }
+}
+
+bool IsBroadcast(const Operation& op) {
+  if (const ComputeOpNode* compute = op.as<ComputeOpNode>()) {
+    if (compute->reduce_axis.size()) {
+      return false;
+    }
+    // TODO(nicolasvasilache): Implement Me
+  }
+  return false;
+}
+
+void AutoInlineBroadcast(Schedule sch) {
+  for (Stage s : sch->stages) {
+    if (!s.is_scheduled() && IsBroadcast(s->op) && !s->is_output) {
+      s.compute_inline();
+    }
+  }
+}
+
 bool IsInjective(const Operation& op) {
   if (const ComputeOpNode* compute = op.as<ComputeOpNode>()) {
     return compute->reduce_axis.size() == 0;
@@ -59,12 +85,9 @@ bool IsInjective(const Operation& op) {
   return false;
 }
 
-void AutoInlineElemWise(Schedule sch, bool relaxElemWiseCondition) {
+void AutoInlineInjective(Schedule sch) {
   for (Stage s : sch->stages) {
-    if (!s.is_scheduled() &&
-        (IsElemWise(s->op) ||
-         (relaxElemWiseCondition && IsInjective(s->op))) &&
-        !s->is_output) {
+    if (!s.is_scheduled() && IsInjective(s->op) && !s->is_output) {
       s.compute_inline();
     }
   }
