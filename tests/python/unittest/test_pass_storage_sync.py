@@ -29,10 +29,6 @@ def test_storage_sync():
 
 
 def test_coproc_sync():
-    ib = tvm.ir_builder.create()
-    n = tvm.var("n")
-    cp = tvm.thread_axis((0, 1), "cop")
-
     @tvm.register_func("tvm.info.mem.global.cache")
     def meminfo_cache():
         return tvm.make.node(
@@ -41,6 +37,9 @@ def test_coproc_sync():
             max_simd_bits=32,
             max_num_bits=128,
             head_address=tvm.call_extern("handle", "global_cache"))
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    cp = tvm.thread_axis((0, 1), "cop")
     A = ib.allocate("float32", 128, name="A", scope="global.cache")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
