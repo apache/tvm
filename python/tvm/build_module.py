@@ -207,9 +207,10 @@ def lower(sch,
         for f in cfg.add_lower_pass:
             stmt = f(stmt)
     stmt = ir_pass.Simplify(stmt)
+    stmt = ir_pass.LowerStorageAccessInfo(stmt)
+    stmt = ir_pass.RemoveNoOp(stmt)
     if simple_mode:
         return stmt
-    stmt = ir_pass.LowerStorageAccessInfo(stmt)
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
 

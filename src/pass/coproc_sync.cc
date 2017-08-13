@@ -204,10 +204,12 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   void PlanReadBarrier(Stmt stmt) {
     read_barrier_ = true;
     this->Visit(stmt);
+    PlanReadBarrier(scope_.back(), nullptr);
   }
   void PlanWriteBarrier(Stmt stmt) {
     read_barrier_ = false;
     this->Visit(stmt);
+    PlanWriteBarrier(scope_.back(), nullptr);
   }
 
   std::unordered_map<const Node*, std::vector<Stmt> > barrier_before_;
@@ -245,7 +247,6 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
         write_set.erase(it);
       }
     };
-
     for (size_t i = 0; i < seq.size(); ++i) {
       const StmtEntry& s = seq[i];
       for (const AccessEntry& acc : s.access) {
@@ -291,7 +292,6 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
       const StmtEntry& s = seq[i - 1];
       for (const AccessEntry& acc : s.access) {
         if (acc.threads.size() == 0 && acc.type == kWrite) {
-          CHECK_NE(i, seq.size());
           fupdate(i, acc);
           write_seq.push_back(acc);
         }
