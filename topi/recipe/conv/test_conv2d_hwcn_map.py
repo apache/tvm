@@ -12,7 +12,7 @@ USE_MANUAL_CODE = False
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
+    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_37"])
     return ptx
 
 def write_code(code, fname):
@@ -43,8 +43,8 @@ def test_conv2d_hwcn_map():
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
     B = topi.nn.conv2d_hwcn(A, W, stride, padding)
     C = topi.nn.relu(B)
-    s1 = topi.cuda.schedule_conv2d_hwcn_map(B.op)
-    s2 = topi.cuda.schedule_conv2d_hwcn_map(C.op)
+    s1 = topi.cuda.schedule_conv2d_hwcn([B])
+    s2 = topi.cuda.schedule_conv2d_hwcn([C])
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     w_np = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)

@@ -1,18 +1,16 @@
 # pylint: disable=invalid-name
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
-import math
 
 
-@tvm.register_func("topi.schedule.cuda.conv2d_nchw")
 def schedule_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw.
+    """Schedule for conv2d_nchw and any element-wise operations.
 
     Parameters
     ----------
-    outs: Array<Tensor>
-        The computation graph description of conv2d_nchw in the format 
-        of a list of tensors. 
+    outs: Array of Tensor
+        The computation graph description of conv2d_nchw
+        in the format of an array of tensors.
 
     Returns
     -------
@@ -21,18 +19,14 @@ def schedule_conv2d_nchw(outs):
     """
     def schedule_conv2d_small_batch(outs):
         batch_size = tvm.ir_pass.Simplify(outs[0].op.output(0).shape[0]).value
-        if(batch_size > 1):
+        if batch_size > 1:
             raise RuntimeError("Batch size: %d is too large for this schedule" % batch_size)
         s = tvm.create_schedule([x.op for x in outs])
         return s
 
     s = schedule_conv2d_small_batch(outs)
     def schedule(temp, Filter, Output):
-        out_height = tvm.ir_pass.Simplify(Output.shape[2]).value
-        out_width = tvm.ir_pass.Simplify(Output.shape[3]).value
-        channel_multiplier = tvm.ir_pass.Simplify(Filter.shape[1]).value
-
-        block_h = out_width
+        block_h = tvm.ir_pass.Simplify(Output.shape[3]).value
         block_w = tvm.ir_pass.Simplify(temp.shape[1]).value
         if block_h % 48 == 0:
             block_h = 48
@@ -44,10 +38,10 @@ def schedule_conv2d_nchw(outs):
             block_w = 32
 
         s[temp].compute_inline()
-        
-        temp_S   = s.cache_read(temp, "shared", [Output])
+
+        temp_S = s.cache_read(temp, "shared", [Output])
         Filter_S = s.cache_read(Filter, "shared", [Output])
-        
+ 
         if outs[0].op in s.outputs:
             Out = Output
             Out_L = s.cache_write(Out, "local")
@@ -57,18 +51,16 @@ def schedule_conv2d_nchw(outs):
             Out_L = Output
 
         # sheduler params
-        tile = 8
         num_thread = 8
-        step = 16
         vthread = 2
         out_filter = tvm.ir_pass.Simplify(Filter.shape[0]).value
         in_filter = tvm.ir_pass.Simplify(Filter.shape[1]).value
         opart2 = out_filter/8
-        ofactor=out_filter
-        wfactor=block_h
-        ifactor=in_filter/4
-        sfactor=max(1, ofactor/(opart2*2))
-        spart = int(math.ceil(wfactor/vthread))
+        ofactor = out_filter
+        wfactor = block_h
+        ifactor = in_filter/4
+        sfactor = max(1, ofactor/(opart2*2))
+        spart = int(float(wfactor)/vthread)
 
         block_x = tvm.thread_axis("blockIdx.x")
         block_y = tvm.thread_axis("blockIdx.y")
@@ -82,9 +74,9 @@ def schedule_conv2d_nchw(outs):
         ooc, ioc = s[Out].split(oc, factor=ofactor)
         ow, iw = s[Out].split(w, factor=wfactor)
         ow = s[Out].fuse(ow, h)
-        oioc, iioc = s[Out].split(ioc, nparts = vthread)
+        oioc, iioc = s[Out].split(ioc, nparts=vthread)
         oiw, iiw = s[Out].split(iw, nparts=vthread)
-        oiioc, iiioc = s[Out].split(iioc, nparts = opart2)
+        oiioc, iiioc = s[Out].split(iioc, nparts=opart2)
         s[Out].reorder(i, ooc, ow, oioc, oiw, oiioc, iiw, iiioc)
         s[Out].bind(iiioc, thread_x)
         s[Out].bind(iiw, thread_y)
@@ -107,28 +99,28 @@ def schedule_conv2d_nchw(outs):
 
         s[temp_S].compute_at(s[Out_L], dw)
         s[Filter_S].compute_at(s[Out_L], dw)
-        
+
         #schedule temp_S shared mem load
         i, ic, h, w = s[temp_S].op.axis
-        oic, iic = s[temp_S].split(ic, factor=sfactor)
-        ow, iw = s[temp_S].split(w, factor=spart)
+        _, iic = s[temp_S].split(ic, factor=sfactor)
+        _, iw = s[temp_S].split(w, factor=spart)
         s[temp_S].bind(iic, thread_x)
         s[temp_S].bind(iw, thread_y)
-        
+
         #schedule Filter_S shared mem load
         i, oc, h, w = s[Filter_S].op.axis
-        ooc, ioc = s[Filter_S].split(oc, factor=sfactor)
-        oi, ii = s[Filter_S].split(i, factor=spart)
+        _, ioc = s[Filter_S].split(oc, factor=sfactor)
+        _, ii = s[Filter_S].split(i, factor=spart)
         s[Filter_S].bind(ioc, thread_x)
         s[Filter_S].bind(ii, thread_y)
-        
+
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
         if 'ewise' in OP.tag or 'bcast' in OP.tag:
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if str(tensor.op.input_tensors) != str([]):
+                if tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule conv2d
         if 'conv2d_nchw' in OP.tag:

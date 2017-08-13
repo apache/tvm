@@ -3,22 +3,21 @@
 import tvm
 
 
-@tvm.register_func("topi.schedule.cuda.conv2d_hwcn")
 def schedule_conv2d_hwcn(outs):
-    """Schedule for conv2d_hwcn.
+    """Schedule for conv2d_hwcn and any element-wise operations.
 
     Parameters
     ----------
-    outs: Array<Tensor>
+    outs: Array of Tensor
         The computation graph description of conv2d_hwcn in the format
-        of a list of tensors.
+        of an array of tensors.
 
     Returns
     -------
     s: Schedule
         The computation schedule for conv2d_hwcn.
     """
-    s = tvm.create_schedule([x.op for x in outs])
+    sch = tvm.create_schedule([x.op for x in outs])
     def schedule(Apad, W, B):
 
         sch[Apad].compute_inline()
@@ -27,8 +26,8 @@ def schedule_conv2d_hwcn(outs):
         AL = sch.cache_read(AA, "local", [B])
         WL = sch.cache_read(WW, "local", [B])
 
-        if op in sch.outputs:
-            Out = op.output(0)
+        if outs[0].op in sch.outputs:
+            Out = B
             BL = sch.cache_write(Out, "local")
         else:
             Out = sch.outputs[0].output(0)
@@ -99,20 +98,20 @@ def schedule_conv2d_hwcn(outs):
         sch[WW].bind(tx, thread_x)
         sch[WW].vectorize(fi)
 
-        def traverse(operator):
-            if operator.tag == 'ewise' or operator.tag == 'scale_shift':
-                if operator not in sch.outputs:
-                    sch[operator].compute_inline()
-                for tensor in operator.input_tensors:
-                    if tensor.op.input_tensors:
-                        traverse(tensor.op)
-            elif operator.tag == 'conv2d_hwcn':
-                Apad = op.input_tensors[0]
-                W = op.input_tensors[1]
-                B = op.output(0)
-                schedule(Apad, W, B)
-            else:
-                raise RuntimeError("Unsupported operator: %s" % operator.tag)
+    def traverse(operator):
+        if operator.tag == 'ewise' or operator.tag == 'scale_shift':
+            if operator not in sch.outputs:
+                sch[operator].compute_inline()
+            for tensor in operator.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        elif operator.tag == 'conv2d_hwcn':
+            Apad = operator.input_tensors[0]
+            W = operator.input_tensors[1]
+            B = operator.output(0)
+            schedule(Apad, W, B)
+        else:
+            raise RuntimeError("Unsupported operator: %s" % operator.tag)
 
     traverse(outs[0].op)
     return sch
