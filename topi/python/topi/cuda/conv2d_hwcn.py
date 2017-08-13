@@ -26,7 +26,7 @@ def schedule_conv2d_hwcn(outs):
         AL = sch.cache_read(AA, "local", [B])
         WL = sch.cache_read(WW, "local", [B])
 
-        if outs[0].op in sch.outputs:
+        if B.op in sch.outputs:
             Out = B
             BL = sch.cache_write(Out, "local")
         else:

@@ -44,7 +44,7 @@ def schedule_conv2d_nchw(outs):
         temp_S = s.cache_read(temp, "shared", [Output])
         Filter_S = s.cache_read(Filter, "shared", [Output])
 
-        if outs[0].op in s.outputs:
+        if Output.op in s.outputs:
             Out = Output
             Out_L = s.cache_write(Out, "local")
         else:
