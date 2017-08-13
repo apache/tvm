@@ -1,28 +1,32 @@
 # pylint: disable=invalid-name
-"""Schedule for conv2d_nchw with auto fusion, optimized for batch_size(n)=1."""
+"""Schedule for conv2d_nchw with auto fusion"""
 import tvm
 import math
 
 
 @tvm.register_func("topi.schedule.cuda.conv2d_nchw")
-def schedule_conv2d_nchw(outs, target):
+def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw.
 
     Parameters
     ----------
-    outs: tvm.Array<tvm::Tensor>
+    outs: Array<Tensor>
         The computation graph description of conv2d_nchw in the format 
         of a list of tensors. 
-
-    traget: str
-        Compilation target ('cuda' for gpu)
 
     Returns
     -------
     s: Schedule
         The computation schedule for conv2d_nchw.
     """
-    s = tvm.create_schedule([x.op for x in outs])
+    def schedule_conv2d_small_batch(outs):
+        batch_size = tvm.ir_pass.Simplify(outs[0].op.output(0).shape[0]).value
+        if(batch_size > 1):
+            raise RuntimeError("Batch size: %d is too large for this schedule" % batch_size)
+        s = tvm.create_schedule([x.op for x in outs])
+        return s
+
+    s = schedule_conv2d_small_batch(outs)
     def schedule(temp, Filter, Output):
         out_height = tvm.ir_pass.Simplify(Output.shape[2]).value
         out_width = tvm.ir_pass.Simplify(Output.shape[3]).value

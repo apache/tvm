@@ -3,24 +3,20 @@
 import tvm
 
 
-
 @tvm.register_func("topi.schedule.cuda.conv2d_hwcn")
-def schedule_conv2d_hwcn(outs, target):
-    """Schedule for conv2d_nchw.
+def schedule_conv2d_hwcn(outs):
+    """Schedule for conv2d_hwcn.
 
     Parameters
     ----------
-    outs: tvm.Array<tvm::Tensor>
-        The computation graph description of conv2d_nchw in the format
+    outs: Array<Tensor>
+        The computation graph description of conv2d_hwcn in the format
         of a list of tensors.
-
-    traget: str
-        Compilation target ('cuda' for gpu)
 
     Returns
     -------
     s: Schedule
-        The computation schedule for conv2d_nchw.
+        The computation schedule for conv2d_hwcn.
     """
     s = tvm.create_schedule([x.op for x in outs])
     def schedule(Apad, W, B):
