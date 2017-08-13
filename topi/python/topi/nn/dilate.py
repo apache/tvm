@@ -1,7 +1,9 @@
+# pylint: disable=invalid-name
 """Dilation operators"""
 from __future__ import absolute_import as _abs
-from .util import get_const_tuple
 import tvm
+
+from .util import get_const_tuple
 
 @tvm.tag_scope(tag="dilation")
 def dilate_nchw(Input, stride_h, stride_w):
