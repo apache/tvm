@@ -153,7 +153,6 @@ class ThreadSyncInserter : public IRMutator {
 
   Stmt Mutate(Stmt stmt) final {
     if (syncs_.size() == 0) return stmt;
-    stmt = IRMutator::Mutate(stmt);
     if (syncs_.count(stmt.get())) {
       Stmt barrier;
       if (sync_scope_.rank == 0) {
@@ -164,7 +163,11 @@ class ThreadSyncInserter : public IRMutator {
                            {StringImm::make(sync_scope_.to_string())},
                            Call::Intrinsic));
       }
+      // Mutate after query, to avoid stmt change.
+      stmt = IRMutator::Mutate(stmt);
       stmt = Block::make(barrier, stmt);
+    } else {
+      stmt = IRMutator::Mutate(stmt);
     }
     return stmt;
   }
@@ -294,202 +297,6 @@ LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {
   auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
   n->body = ThreadSync(f->body, storage_scope);
   return LoweredFunc(n);
-}
-
-// Visitor to find touched set by co-processor scope.
-class CoProcTouchedBuffer : public IRVisitor {
- public:
-  void Visit_(const Load* op) final {
-    if (in_scope_) {
-      touched_.insert(op->buffer_var.get());
-    }
-    IRVisitor::Visit_(op);
-  }
-  void Visit_(const Store* op) final {
-    if (in_scope_) {
-      touched_.insert(op->buffer_var.get());
-    }
-    IRVisitor::Visit_(op);
-  }
-  void Visit_(const Call* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr) && in_scope_) {
-      const Variable* buffer = op->args[1].as<Variable>();
-      touched_.insert(buffer);
-    }
-    IRVisitor::Visit_(op);
-  }
-  void Visit_(const AttrStmt* op) final {
-    if (op->attr_key == attr::coproc_scope && !in_scope_) {
-      in_scope_ = true;
-      IterVar iv(op->node.node_);
-      coproc_.insert(iv);
-      IRVisitor::Visit_(op);
-      in_scope_ = false;
-    } else {
-      IRVisitor::Visit_(op);
-    }
-  }
-
-  std::unordered_set<const Variable*> touched_;
-  std::unordered_set<IterVar> coproc_;
-
- private:
-  bool in_scope_{false};
-};
-
-// Synchronization planning with co-processor.
-class CoProcSyncPlanner : public StorageAccessVisitor {
- public:
-  void Plan(const Stmt& stmt) {
-    CoProcTouchedBuffer visitor;
-    visitor.Visit(stmt);
-    touched_ = std::move(visitor.touched_);
-    if (!touched_.empty()) {
-      this->Visit(stmt);
-      PlanWriteSync(scope_.back(), nullptr, true);
-      CHECK_EQ(visitor.coproc_.size(), 1U);
-      if (write_sync_.size() == 0) {
-        write_sync_[stmt.get()] = GetWriteSync(
-            (*visitor.coproc_.begin())->var->name_hint + ".coproc_sync");
-      }
-    }
-  }
-
-  // Write synchronization to be inserted before or after stmt.
-  std::unordered_map<const Node*, std::vector<Stmt> > write_sync_;
-
- protected:
-  bool Enabled(const Variable* buf,
-               const StorageScope& scope) const final {
-    return touched_.count(buf) && scope == global_scope_;
-  }
-
-  // Plan the sync
-  std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) final {
-    return PlanWriteSync(seq, loop, false);
-  }
-
- private:
-  // Plan write synchronization if write is not coherent
-  std::vector<AccessEntry> PlanWriteSync(
-      std::vector<StmtEntry> seq, const For* loop,
-      bool force_sync_at_end) {
-    // detect write barriers
-    // access by the co-processor.
-    std::vector<AccessEntry> co_access;
-    bool contain_sync = false;
-
-    auto find_conflict = [&](const AccessEntry& acc) {
-      for (const AccessEntry& x : co_access) {
-        if (x.buffer.same_as(acc.buffer) &&
-            ((acc.type == kRead && x.type == kWrite) ||
-             acc.type == kWrite)) {
-          return true;
-        }
-      }
-      return false;
-    };
-    for (size_t i = 0; i < seq.size(); ++i) {
-      const StmtEntry& s = seq[i];
-      bool sync_write = false;
-      for (const AccessEntry& acc : s.access) {
-        if (acc.threads.size() == 0 && find_conflict(acc)) {
-          sync_write = true; break;
-        }
-        if (acc.type == kSync) {
-          co_access.clear();
-          contain_sync = true;
-        }
-      }
-      if (sync_write) {
-        CHECK_NE(i, 0U);
-        write_sync_[seq[i - 1].stmt] = GetWriteSync(co_access);
-        co_access.clear();
-        contain_sync = true;
-      }
-      for (const AccessEntry& acc : s.access) {
-        if (acc.threads.size() != 0) {
-          co_access.push_back(acc);
-        }
-      }
-    }
-    bool sync_at_end = force_sync_at_end;
-    if (loop != nullptr && !sync_at_end) {
-      // loop carray dependency
-      for (size_t i = 0; i < seq.size(); ++i) {
-        const StmtEntry& s = seq[i];
-        for (const AccessEntry& acc : s.access) {
-          if (acc.threads.size() == 0 && find_conflict(acc)) {
-            sync_at_end = true; break;
-          }
-        }
-        if (write_sync_.count(s.stmt) || sync_at_end) break;
-      }
-    }
-    if (sync_at_end && co_access.size() != 0) {
-      CHECK_NE(seq.size(), 0);
-      contain_sync = true;
-      write_sync_[seq.back().stmt] = GetWriteSync(co_access);
-      co_access.clear();
-    }
-    if (contain_sync) {
-      AccessEntry e;
-      e.type = kSync;
-      e.scope = global_scope_;
-      co_access.insert(co_access.begin(), e);
-    }
-    return co_access;
-  }
-  // Add write Synchronization
-  std::vector<Stmt> GetWriteSync(const std::vector<AccessEntry>& co_access) {
-    // Does not consider memory coherence, need runtime.
-    CHECK_NE(co_access.size(), 0U);
-    CHECK_EQ(co_access[0].threads.size(), 1U);
-    return GetWriteSync(co_access[0].threads[0]->var->name_hint + ".coproc_sync");
-  }
-
-  std::vector<Stmt> GetWriteSync(std::string sync_name) {
-    std::vector<Stmt> stmts;
-    stmts.emplace_back(
-      Evaluate::make(Call::make(
-          Int(32),
-          sync_name,
-          {}, Call::Intrinsic)));
-    return stmts;
-  }
-
-  std::unordered_set<const Variable*> touched_;
-  StorageScope global_scope_ = StorageScope::make("global");
-};
-
-class CoProcSyncInserter : public IRMutator {
- public:
-  explicit CoProcSyncInserter(
-      const std::unordered_map<const Node*, std::vector<Stmt> >& write_sync)
-      : write_sync_(write_sync) {}
-
-  Stmt Mutate(Stmt stmt) final {
-    stmt = IRMutator::Mutate(stmt);
-    auto it = write_sync_.find(stmt.get());
-    if (it != write_sync_.end()) {
-      stmt = Block::make(stmt, MergeSeq(it->second));
-    }
-    return stmt;
-  }
-
- private:
-  const std::unordered_map<const Node*, std::vector<Stmt> >& write_sync_;
-};
-
-Stmt CoProcSync(Stmt stmt) {
-  CoProcSyncPlanner planner;
-  planner.Plan(stmt);
-  if (planner.write_sync_.size() != 0) {
-    return CoProcSyncInserter(planner.write_sync_).Mutate(stmt);
-  } else {
-    return stmt;
-  }
 }
 
 }  // namespace ir
