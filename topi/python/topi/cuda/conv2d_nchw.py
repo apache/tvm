@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
 
@@ -18,6 +18,7 @@ def schedule_conv2d_nchw(outs):
         The computation schedule for conv2d_nchw.
     """
     def schedule_conv2d_small_batch(outs):
+        """Create schedule for tensors or return error if batch size is larager than 1"""
         batch_size = tvm.ir_pass.Simplify(outs[0].op.output(0).shape[0]).value
         if batch_size > 1:
             raise RuntimeError("Batch size: %d is too large for this schedule" % batch_size)
@@ -26,6 +27,7 @@ def schedule_conv2d_nchw(outs):
 
     s = schedule_conv2d_small_batch(outs)
     def schedule(temp, Filter, Output):
+        """Schedule conv2d_nchw"""
         block_h = tvm.ir_pass.Simplify(Output.shape[3]).value
         block_w = tvm.ir_pass.Simplify(temp.shape[1]).value
         if block_h % 48 == 0:
@@ -41,7 +43,7 @@ def schedule_conv2d_nchw(outs):
 
         temp_S = s.cache_read(temp, "shared", [Output])
         Filter_S = s.cache_read(Filter, "shared", [Output])
- 
+
         if outs[0].op in s.outputs:
             Out = Output
             Out_L = s.cache_write(Out, "local")
@@ -115,6 +117,7 @@ def schedule_conv2d_nchw(outs):
         s[Filter_S].bind(ii, thread_y)
 
     def traverse(OP):
+        """Traverse operators from computation graph"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if 'ewise' in OP.tag or 'bcast' in OP.tag:
             if OP not in s.outputs:

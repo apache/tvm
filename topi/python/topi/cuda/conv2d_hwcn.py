@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, too-many-locals, too-many-statements
 """Schedule for conv2d_hwcn with auto fusion"""
 import tvm
 
@@ -19,7 +19,7 @@ def schedule_conv2d_hwcn(outs):
     """
     sch = tvm.create_schedule([x.op for x in outs])
     def schedule(Apad, W, B):
-
+        """Schedule conv2d_hwcn"""
         sch[Apad].compute_inline()
         AA = sch.cache_read(Apad, "shared", [B])
         WW = sch.cache_read(W, "shared", [B])
@@ -99,6 +99,7 @@ def schedule_conv2d_hwcn(outs):
         sch[WW].vectorize(fi)
 
     def traverse(operator):
+        """Traverse operators from computation graph"""
         if operator.tag == 'ewise' or operator.tag == 'scale_shift':
             if operator not in sch.outputs:
                 sch[operator].compute_inline()
