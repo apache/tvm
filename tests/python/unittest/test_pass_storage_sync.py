@@ -32,16 +32,31 @@ def test_coproc_sync():
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
     cp = tvm.thread_axis((0, 1), "cop")
-    A = ib.allocate("float32", n, name="A", scope="global")
+
+    @tvm.register_func("tvm.info.mem.global.cache")
+    def meminfo_cache():
+        return tvm.make.node(
+            "MemoryInfo",
+            unit_bits=8,
+            max_simd_bits=32,
+            max_num_bits=128,
+            head_address=tvm.call_extern("handle", "global_cache"))
+    A = ib.allocate("float32", 128, name="A", scope="global.cache")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
-        with ib.for_range(0, 10, name="j") as j:
-            ib.scope_attr(cp, "coproc_scope", 1)
-            A[j] = A[j] + 2
-    body = ib.get()
-    body = tvm.ir_pass.CoProcSync(body)
-    body = body.body.body.body
-    assert(tvm.make.stmt_list(body)[-1].value.name == "cop.coproc_sync")
+        with ib.for_range(0, 8, name="k") as k:
+            with ib.for_range(0, 10, name="j") as j:
+                ib.scope_attr(cp, "coproc_scope", 1)
+                A[j] = A[j + k * 10] + 2
+    stmt = ib.get()
+    stmt = tvm.ir_pass.CoProcSync(stmt)
+    body = stmt.body.body.body
+    blist = tvm.make.stmt_list(body)
+    assert(blist[1].value.name == "cop.coproc_read_barrier")
+    assert(blist[1].value.args[3].value == 80)
+    assert(blist[-2].value.name == "cop.coproc_sync")
+    assert(blist[-1].value.name == "cop.coproc_write_barrier")
+    assert(blist[-1].value.args[3].value == 10)
 
 
 if __name__ == "__main__":
