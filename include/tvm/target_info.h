@@ -23,11 +23,17 @@ struct MemoryInfoNode : public Node {
   int max_num_bits;
   /*! \brief maximum number of bits to be used in simd op */
   int max_simd_bits;
+  /*!
+   * \brief head address of the buffer, if visible to CPU
+   *  This address can be None.
+   */
+  Expr head_address;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("unit_bits", &unit_bits);
     v->Visit("max_num_bits", &max_num_bits);
     v->Visit("max_simd_bits", &max_simd_bits);
+    v->Visit("head_address", &head_address);
   }
 
   static constexpr const char* _type_key = "MemoryInfo";
