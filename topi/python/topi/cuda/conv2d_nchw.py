@@ -3,29 +3,10 @@
 import tvm
 
 
-def schedule_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw and any element-wise operations.
+def schedule_conv2d_small_batch(outs):
+    """Create schedule for tensors or return error if batch size is larager than 1"""
+    s = tvm.create_schedule([x.op for x in outs])
 
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of conv2d_nchw
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for conv2d_nchw.
-    """
-    def schedule_conv2d_small_batch(outs):
-        """Create schedule for tensors or return error if batch size is larager than 1"""
-        batch_size = tvm.ir_pass.Simplify(outs[0].op.output(0).shape[0]).value
-        if batch_size > 1:
-            raise RuntimeError("Batch size: %d is too large for this schedule" % batch_size)
-        s = tvm.create_schedule([x.op for x in outs])
-        return s
-
-    s = schedule_conv2d_small_batch(outs)
     def schedule(temp, Filter, Output):
         """Schedule conv2d_nchw"""
         block_h = tvm.ir_pass.Simplify(Output.shape[3]).value
@@ -55,15 +36,14 @@ def schedule_conv2d_nchw(outs):
         # sheduler params
         num_thread = 8
         vthread = 2
-        out_filter = tvm.ir_pass.Simplify(Filter.shape[0]).value
+        out_filter = min(64, tvm.ir_pass.Simplify(Filter.shape[0]).value)
         in_filter = tvm.ir_pass.Simplify(Filter.shape[1]).value
         opart2 = out_filter/8
         ofactor = out_filter
         wfactor = block_h
         ifactor = in_filter/4
         sfactor = max(1, ofactor/(opart2*2))
-        spart = int(float(wfactor)/vthread)
-
+        spart = (wfactor + vthread-1) // vthread
         block_x = tvm.thread_axis("blockIdx.x")
         block_y = tvm.thread_axis("blockIdx.y")
         block_z = tvm.thread_axis("blockIdx.z")
@@ -134,3 +114,22 @@ def schedule_conv2d_nchw(outs):
 
     traverse(outs[0].op)
     return s
+
+def schedule_conv2d_nchw(outs):
+    """Schedule for conv2d_nchw and any element-wise operations.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of conv2d_nchw
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for conv2d_nchw.
+    """
+    batch_size = tvm.ir_pass.Simplify(outs[0].op.output(0).shape[0]).value
+    if batch_size > 1:
+        raise RuntimeError("Batch size: %d is too large for this schedule" % batch_size)
+    return  schedule_conv2d_small_batch(outs)
