@@ -3,7 +3,7 @@ import topi
 import numpy as np
 from scipy import signal
 from topi.nn.util import get_const_tuple
-from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
+from topi.cuda.depthwise_conv2d_nchw import schedule_depthwise_conv2d_nchw
 
 def depthwise_conv2d_map_with_workload(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
     in_width = in_height
@@ -17,13 +17,13 @@ def depthwise_conv2d_map_with_workload(batch, in_channel, in_height, channel_mul
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d(Input, Filter, Stride, padding)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, Stride, padding)
     ScaleShift = topi.nn.scale_shift(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule
-    s1 = schedule_depthwise_conv2d_map(DepthwiseConv2d.op)
-    s2 = schedule_depthwise_conv2d_map(ScaleShift.op)
-    s3 = schedule_depthwise_conv2d_map(Relu.op)
+    s1 = schedule_depthwise_conv2d_nchw(DepthwiseConv2d.op)
+    s2 = schedule_depthwise_conv2d_nchw(ScaleShift.op)
+    s3 = schedule_depthwise_conv2d_nchw(Relu.op)
 
     def depthwise_conv2d_map_scipy(input_np, filter_np, scale_np, shift_np):
         out_shape = get_const_tuple(DepthwiseConv2d.shape)
@@ -95,6 +95,8 @@ def depthwise_conv2d_map_with_workload(batch, in_channel, in_height, channel_mul
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
+
+
 
 
 def test_depthwise_conv2d_map():

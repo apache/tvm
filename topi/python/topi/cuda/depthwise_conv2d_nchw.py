@@ -1,10 +1,10 @@
 # pylint: disable=invalid-name
-"""Schedule for depthwise_conv2d with auto fusion"""
+"""Schedule for depthwise_conv2d nchw with auto fusion"""
 import tvm
 from ..nn.util import get_const_tuple
 
-def schedule_depthwise_conv2d_map(op):
-    """Schedule for depthwise_conv2d map ops.
+def schedule_depthwise_conv2d_nchw(op):
+    """Schedule for depthwise_conv2d nchw forward ops.
 
     This include scale-shift and relu.
 
@@ -106,7 +106,7 @@ def schedule_depthwise_conv2d_map(op):
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
-        if OP.tag == 'depthwise_conv2d':
+        if OP.tag == 'depthwise_conv2d_nchw':
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
             DepthwiseConv2d = OP.output(0)
