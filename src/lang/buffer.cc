@@ -89,9 +89,7 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
   //      and returns the optimization result.
   const Expr* search_ptr = inner;
   Expr mult_inner;  // The inner multiplication factor
-  bool has_mult_inner = false;  // whether mult_inner is empty
   Expr no_opt_sum;  // Sum of the exprs that cannot be optimized
-  bool has_no_opt_sum = false;  // Whether no_opt_sum is empty
   while (true) {
     auto inner_div_ptr = search_ptr->as<Div>();
     auto inner_mult_ptr = search_ptr->as<Mul>();
@@ -99,26 +97,24 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
       return std::make_pair(false, Expr());
     } else if (inner_div_ptr) {
-      Expr overall_mult = has_mult_inner ? mult_inner * mult_outer : mult_outer;
+      Expr overall_mult = mult_inner.get() ? mult_inner * mult_outer : mult_outer;
       if (Equal(overall_mult, inner_div_ptr->b)
           && Equal(overall_mult, mod_r_expr)
           && Equal(inner_div_ptr->a, mod_l_expr)) {
         // Found!
-        Expr ret = has_no_opt_sum ? no_opt_sum * mult_outer + mod_l_expr : mod_l_expr;
+        Expr ret = no_opt_sum.get() ? no_opt_sum * mult_outer + mod_l_expr : mod_l_expr;
         return std::make_pair(true, ret);
       } else {
         return std::make_pair(false, Expr());
       }
     } else if (inner_mult_ptr) {
-      mult_inner = has_mult_inner ? inner_mult_ptr->b * mult_inner : inner_mult_ptr->b;
+      mult_inner = mult_inner.get() ? inner_mult_ptr->b * mult_inner : inner_mult_ptr->b;
       search_ptr = &(inner_mult_ptr->a);
-      has_mult_inner = true;
     } else if (inner_add_ptr) {
-      if (has_mult_inner) {
+      if (mult_inner.get()) {
         return std::make_pair(false, Expr());
       }
-      no_opt_sum = has_no_opt_sum ? no_opt_sum + inner_add_ptr->a : inner_add_ptr->a;
-      has_no_opt_sum = true;
+      no_opt_sum = no_opt_sum.get() ? no_opt_sum + inner_add_ptr->a : inner_add_ptr->a;
       search_ptr = &(inner_add_ptr->b);
     } else {
       LOG(FATAL) << "Unexpected search result!";
@@ -136,7 +132,6 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
                                       std::list<Expr>* mult_exprs,
                                       std::list<std::pair<Expr, Expr> >* mod_exprs,
                                       Expr* no_opt_sum,
-                                      bool* has_no_opt_sum,
                                       bool* has_mult,
                                       bool* has_mod) {
   using namespace Halide::Internal;
@@ -153,8 +148,7 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
       *has_mult = true;
       mult_exprs->emplace_back(*ele);
     } else {
-      *no_opt_sum = *has_no_opt_sum ? *no_opt_sum + *ele : *ele;
-      *has_no_opt_sum = true;
+      *no_opt_sum = no_opt_sum->get() ? *no_opt_sum + *ele : *ele;
     }
   }
 }
@@ -174,15 +168,15 @@ inline Expr MergeMulMod(const Expr &base) {
   //                     a list that contain all the elements that match Mod.
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
-  std::vector<const Expr*> eles = ExprSplitAddition(base);
+  Expr simplified_base = Simplify(base);
+  std::vector<const Expr*> eles = ExprSplitAddition(simplified_base);
   std::list<Expr> mult_exprs;
   std::list<std::pair<Expr, Expr> > mod_exprs;
   Expr no_opt_sum;
-  bool has_no_opt_sum = false;
   bool has_mult;
   bool has_mod;
   MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs,
-                            &no_opt_sum, &has_no_opt_sum, &has_mult, &has_mod);
+                            &no_opt_sum, &has_mult, &has_mod);
   bool find_opt = false;
   std::list<std::pair<Expr, Expr> >::iterator search_mod_it = mod_exprs.begin();
   // 2. Exhaustive Search
@@ -201,9 +195,11 @@ inline Expr MergeMulMod(const Expr &base) {
         mult_exprs.erase(mult_it);
         std::vector<const Expr*> ret_eles = ExprSplitAddition(ret.second);
         MergeMulModInsertElements(ret_eles, &mult_exprs, &mod_exprs,
-                                  &no_opt_sum, &has_no_opt_sum, &has_mult, &has_mod);
+                                  &no_opt_sum, &has_mult, &has_mod);
         if (has_mult) {
           search_mod_it = mod_exprs.begin();
+        } else if (has_mod && search_mod_it == mod_exprs.end()) {
+          search_mod_it--;
         }
         break;
       } else {
@@ -216,13 +212,14 @@ inline Expr MergeMulMod(const Expr &base) {
     }
   }
   if (!find_opt) {
-    return base;
+    return simplified_base;
   }
-  for (const Expr& ele : mult_exprs) {
-    no_opt_sum = has_no_opt_sum ? no_opt_sum + ele : ele;
+  for (std::list<Expr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
+    no_opt_sum = no_opt_sum.get() ? no_opt_sum + *it : *it;
   }
-  for (const std::pair<Expr, Expr>& ele : mod_exprs) {
-    no_opt_sum = has_no_opt_sum ? no_opt_sum + ele.first % ele.second : ele.first % ele.second;
+  for (std::list<std::pair<Expr, Expr> >::iterator it = mod_exprs.begin();
+                                                   it != mod_exprs.end(); ++it) {
+    no_opt_sum = no_opt_sum.get() ? no_opt_sum + it->first % it->second : it->first % it->second;
   }
   return no_opt_sum;
 }
