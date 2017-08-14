@@ -28,7 +28,7 @@ def _schedule_reduce(op, sch):
     if not all_reduce:
         # Fuse and split the axis
         fused_outer = sch[data_out].fuse(*[sch[data_out].op.axis[i]
-                                          for i in range(len(sch[data_out].op.axis))])
+                                           for i in range(len(sch[data_out].op.axis))])
         bx, outer_in = sch[data_out].split(fused_outer, factor=num_thread)
 
         # Bind the axes to threads and blocks
