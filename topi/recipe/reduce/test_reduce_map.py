@@ -37,16 +37,16 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
     A = tvm.placeholder(shape=in_shape, name="A")
     if type == "sum":
         TASK = "sum_map_id%d" %test_id
-        B = topi.nn.sum(A, axis=axis, keepdims=keepdims)
+        B = topi.sum(A, axis=axis, keepdims=keepdims)
     elif type == "max":
         TASK = "max_map_id%d" %test_id
-        B = topi.nn.max(A, axis=axis, keepdims=keepdims)
+        B = topi.max(A, axis=axis, keepdims=keepdims)
     elif type == "min":
         TASK = "min_map_id%d" %test_id
-        B = topi.nn.min(A, axis=axis, keepdims=keepdims)
+        B = topi.min(A, axis=axis, keepdims=keepdims)
     else:
         raise NotImplementedError
-    s = topi.cuda.schedule_reduce_map(B.op)
+    s = topi.cuda.schedule_reduce(B.op)
     with tvm.build_config(auto_unroll_max_step=16,
                           auto_unroll_min_depth=0):
         fcuda = tvm.build(s, [A, B], "cuda", name="sum")

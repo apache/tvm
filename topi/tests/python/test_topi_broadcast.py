@@ -7,7 +7,7 @@ import topi
 def verify_broadcast_to_ele(in_shape, out_shape):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.nn.broadcast_to(A, out_shape)
+    B = topi.broadcast_to(A, out_shape)
     s = topi.cuda.schedule_broadcast_to(B.op)
     def check_device(device):
         if not tvm.module.enabled(device):

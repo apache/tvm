@@ -37,8 +37,8 @@ def test_broadcast_to(in_shape, out_shape):
            + "o" + "_".join([str(ele) for ele in out_shape])
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.nn.broadcast_to(A, out_shape)
-    s = topi.cuda.schedule_broadcast_map(B.op)
+    B = topi.broadcast_to(A, out_shape)
+    s = topi.cuda.schedule_broadcast_to(B.op)
     fcuda = tvm.build(s, [A, B], "cuda", name="broadcast_to")
 
     data_npy = np.random.uniform(size=in_shape).astype(A.dtype)

@@ -8,11 +8,11 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
     if type == "sum":
-        B = topi.nn.sum(A, axis=axis, keepdims=keepdims)
+        B = topi.sum(A, axis=axis, keepdims=keepdims)
     elif type == "max":
-        B = topi.nn.max(A, axis=axis, keepdims=keepdims)
+        B = topi.max(A, axis=axis, keepdims=keepdims)
     elif type == "min":
-        B = topi.nn.min(A, axis=axis, keepdims=keepdims)
+        B = topi.min(A, axis=axis, keepdims=keepdims)
     else:
         raise NotImplementedError
     s = topi.cuda.schedule_reduce(B.op)
