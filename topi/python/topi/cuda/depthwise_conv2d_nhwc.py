@@ -20,13 +20,8 @@ def schedule_depthwise_conv2d_nhwc(op):
         The computation schedule for the op.
     """
     s = tvm.create_schedule(op)
-    def schedule_depthwise_conv2d(PaddedInput, Filter, DepthwiseConv2d):
+    def schedule_depthwise_conv2d(temp, Filter, Output):
 
-        temp = PaddedInput
-        Filter = Filter
-        Output = DepthwiseConv2d
-
-        s = tvm.create_schedule(Output.op)
         s[temp].compute_inline()
 
         FS = s.cache_read(Filter, "shared", [Output])
@@ -53,7 +48,6 @@ def schedule_depthwise_conv2d_nhwc(op):
         s[FS].compute_at(s[Output], fused)
         fused = s[FS].fuse(fi,ci)
         s[FS].bind(fused, thread_x)
-        return s
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
