@@ -6,17 +6,22 @@
 #ifndef TOPI_EWISE_H_
 #define TOPI_EWISE_H_
 
-#include <tvm/tvm.h>
+#include <string>
+
+#include "topi/tags.h"
+#include "tvm/tvm.h"
 
 namespace topi {
 using namespace tvm;
 
 // Unary intrinsic operators
-#define TOPI_DECLARE_UNARY_OP(OpName)                   \
-  inline Tensor OpName(const Tensor& x) {               \
-    return compute(x->shape, [&](const Array<Var>& i) { \
-        return ::tvm::OpName(x(i));                     \
-      }, "tensor", "ewise");                            \
+#define TOPI_DECLARE_UNARY_OP(OpName)                           \
+  inline Tensor OpName(const Tensor& x,                         \
+                       std::string name = "tensor",             \
+                       std::string tag = kElementWise) {        \
+    return compute(x->shape, [&](const Array<Var>& i) {         \
+        return ::tvm::OpName(x(i));                             \
+      }, name, tag);                                            \
   }
 
 TOPI_DECLARE_UNARY_OP(exp);
