@@ -62,7 +62,7 @@ def schedule_reduce(op):
             for tensor in operator.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
-        elif operator.tag == 'reduce':
+        elif operator.tag == 'comm_reduce':
             _schedule_reduce(operator, sch)
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
