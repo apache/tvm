@@ -197,7 +197,6 @@ def lower(sch,
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
     stmt = ir_pass.StorageRewrite(stmt)
-    stmt = ir_pass.CoProcSync(stmt)
     cfg = BuildConfig.current
     stmt = ir_pass.UnrollLoop(
         stmt,
@@ -208,6 +207,8 @@ def lower(sch,
         for f in cfg.add_lower_pass:
             stmt = f(stmt)
     stmt = ir_pass.Simplify(stmt)
+    stmt = ir_pass.LowerStorageAccessInfo(stmt)
+    stmt = ir_pass.RemoveNoOp(stmt)
     if simple_mode:
         return stmt
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)

@@ -12,7 +12,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->stream << "mem-info("
               << "unit_bits=" << op->unit_bits << ", "
               << "max_num_bits=" << op->max_num_bits << ", "
-              << "max_simd_bits=" << op->max_simd_bits << ")";
+              << "max_simd_bits=" << op->max_simd_bits << ", "
+              << "head_address=" << op->head_address << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(MemoryInfoNode);

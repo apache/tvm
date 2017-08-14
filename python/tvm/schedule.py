@@ -524,6 +524,11 @@ class Stage(NodeBase):
         Most pragmas are advanced/experimental features
         and may subject to change. List of supported pragmas:
 
+        - **debug_skip_region**
+
+          Force skip the region marked by the axis and turn it into no-op.
+          This is useful for debug purposes.
+
         - **parallel_launch_point**
 
           Specify to launch parallel threads outside the

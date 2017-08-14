@@ -86,7 +86,6 @@ class StorageFlattener : public IRMutator {
       return this->Mutate(op->body);
     } else {
       // create a buffer entry
-      // TODO(tqchen) allow permutation and inference of index dimension.
       BufferEntry e;
       e.bounds = op->bounds;
       Array<Expr> shape;
