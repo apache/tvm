@@ -228,7 +228,6 @@ inline Expr MergeMulMod(const Expr &base) {
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
 inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
-  using namespace Halide::Internal;
   Expr base = n->elem_offset;
   if (n->strides.size() == 0) {
     CHECK_EQ(n->shape.size(), index.size());
