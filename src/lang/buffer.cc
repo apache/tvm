@@ -36,7 +36,6 @@ Buffer decl_buffer(Array<Expr> shape,
 
 // Split the given expression w.r.t the add operator
 inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
-  using namespace Halide::Internal;
   std::vector<const Expr*> ret;
   std::stack<const Expr*> split_buffer;
   split_buffer.push(&expr);
