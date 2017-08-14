@@ -34,22 +34,22 @@ Buffer decl_buffer(Array<Expr> shape,
       0, 0);
 }
 
-// Split the given expression by the add operator
-inline std::vector<Expr> _expr_add_split(const Expr &expr) {
+// Split the given expression w.r.t the add operator
+inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
   using namespace Halide::Internal;
-  std::vector<Expr> ret;
-  auto expr_add_match = expr.as<Add>();
-  if (expr_add_match) {
-    auto l_ret = _expr_add_split(expr_add_match->a);
-    auto r_ret = _expr_add_split(expr_add_match->b);
-    ret.insert(ret.end(),
-               std::make_move_iterator(l_ret.begin()),
-               std::make_move_iterator(l_ret.end()));
-    ret.insert(ret.end(),
-               std::make_move_iterator(r_ret.begin()),
-               std::make_move_iterator(r_ret.end()));
-  } else {
-    ret.emplace_back(expr);
+  std::vector<const Expr*> ret;
+  std::stack<const Expr*> split_buffer;
+  split_buffer.push(&expr);
+  while (!split_buffer.empty()) {
+    const Expr* top_ele = split_buffer.top();
+    split_buffer.pop();
+    auto expr_add_match = top_ele->as<Add>();
+    if (expr_add_match) {
+      split_buffer.push(&expr_add_match->b);
+      split_buffer.push(&expr_add_match->a);
+    } else {
+      ret.emplace_back(top_ele);
+    }
   }
   return ret;
 }
@@ -62,12 +62,12 @@ inline std::vector<Expr> _expr_add_split(const Expr &expr) {
 // If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c)
 // Currently the we will not search the add/mult combinations exhaustively
 //   as it will take too much computation.
-inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
-                                            const Expr &mod_l_expr,
-                                            const Expr &mod_r_expr) {
+inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
+                                              const Expr &mod_l_expr,
+                                              const Expr &mod_r_expr) {
   using namespace Halide::Internal;
   using namespace ir;
-  auto mult_ptr = mult_expr.as<Mul>();
+  const Mul* mult_ptr = mult_expr.as<Mul>();
   if (!mult_ptr) return std::make_pair(false, Expr());
   Expr mult_outer = mult_ptr->b;
   const Expr* inner = &(mult_ptr->a);
@@ -132,28 +132,28 @@ inline std::pair<bool, Expr> _merge_mul_mod(const Expr &mult_expr,
 // If the element is found to match Mul, it will be pushed to the mult_exprs.
 // If the element it found to match Mod, it will be pused to the mod_exprs.
 // Otherwise, the elements will be added to the no_opt_sum variable
-inline void _merge_mul_mod_insert_eles(const std::vector<Expr>& eles,
-                                       std::list<Expr>* mult_exprs,
-                                       std::list<std::pair<Expr, Expr> >* mod_exprs,
-                                       Expr* no_opt_sum,
-                                       bool* has_no_opt_sum,
-                                       bool* has_mult,
-                                       bool* has_mod) {
+inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
+                                      std::list<Expr>* mult_exprs,
+                                      std::list<std::pair<Expr, Expr> >* mod_exprs,
+                                      Expr* no_opt_sum,
+                                      bool* has_no_opt_sum,
+                                      bool* has_mult,
+                                      bool* has_mod) {
   using namespace Halide::Internal;
   using namespace ir;
   *has_mult = false;
   *has_mod = false;
-  for (const Expr& ele : eles) {
-    auto mod_ptr = ele.as<Mod>();
-    auto mult_ptr = ele.as<Mul>();
+  for (const Expr* ele : eles) {
+    auto mod_ptr = ele->as<Mod>();
+    auto mult_ptr = ele->as<Mul>();
     if (mod_ptr) {
       *has_mod = true;
       mod_exprs->emplace_back(std::make_pair(std::move(mod_ptr->a), std::move(mod_ptr->b)));
     } else if (mult_ptr) {
       *has_mult = true;
-      mult_exprs->emplace_back(ele);
+      mult_exprs->emplace_back(*ele);
     } else {
-      *no_opt_sum = *has_no_opt_sum ? *no_opt_sum + ele : ele;
+      *no_opt_sum = *has_no_opt_sum ? *no_opt_sum + *ele : *ele;
       *has_no_opt_sum = true;
     }
   }
@@ -166,7 +166,7 @@ inline void _merge_mul_mod_insert_eles(const std::vector<Expr>& eles,
 // The search will be performed repeatively until no pattern is found.
 // Return: a pair with (false, Expr()) if cannot be optimized.
 //         a pair with (true, optimized_expr) if can be optimized
-inline Expr opt_merge_mul_mod(const Expr &base) {
+inline Expr MergeMulMod(const Expr &base) {
   using namespace Halide::Internal;
   using namespace ir;
   // 1. Prepare the lists.
@@ -174,15 +174,15 @@ inline Expr opt_merge_mul_mod(const Expr &base) {
   //                     a list that contain all the elements that match Mod.
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
-  std::vector<Expr> eles = _expr_add_split(base);
+  std::vector<const Expr*> eles = ExprSplitAddition(base);
   std::list<Expr> mult_exprs;
   std::list<std::pair<Expr, Expr> > mod_exprs;
   Expr no_opt_sum;
   bool has_no_opt_sum = false;
   bool has_mult;
   bool has_mod;
-  _merge_mul_mod_insert_eles(eles, &mult_exprs, &mod_exprs,
-                             &no_opt_sum, &has_no_opt_sum, &has_mult, &has_mod);
+  MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs,
+                            &no_opt_sum, &has_no_opt_sum, &has_mult, &has_mod);
   bool find_opt = false;
   std::list<std::pair<Expr, Expr> >::iterator search_mod_it = mod_exprs.begin();
   // 2. Exhaustive Search
@@ -190,18 +190,18 @@ inline Expr opt_merge_mul_mod(const Expr &base) {
     std::list<Expr>::iterator mult_it = mult_exprs.begin();
     bool inner_find_opt = false;
     while (mult_it != mult_exprs.end()) {
-      std::pair<bool, Expr> ret = _merge_mul_mod(*mult_it,
-                                                 search_mod_it->first,
-                                                 search_mod_it->second);
+      std::pair<bool, Expr> ret = MergeMulModInner(*mult_it,
+                                                   search_mod_it->first,
+                                                   search_mod_it->second);
       if (ret.first) {
         inner_find_opt = true;
         auto temp_mod_it = search_mod_it;
         ++search_mod_it;
         mod_exprs.erase(temp_mod_it);
         mult_exprs.erase(mult_it);
-        std::vector<Expr> ret_eles = _expr_add_split(ret.second);
-        _merge_mul_mod_insert_eles(ret_eles, &mult_exprs, &mod_exprs,
-                                   &no_opt_sum, &has_no_opt_sum, &has_mult, &has_mod);
+        std::vector<const Expr*> ret_eles = ExprSplitAddition(ret.second);
+        MergeMulModInsertElements(ret_eles, &mult_exprs, &mod_exprs,
+                                  &no_opt_sum, &has_no_opt_sum, &has_mult, &has_mod);
         if (has_mult) {
           search_mod_it = mod_exprs.begin();
         }
@@ -240,9 +240,9 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
     } else {
       base = base + index[0];
     }
-    base = opt_merge_mul_mod(base);
+    base = MergeMulMod(base);
     for (size_t i = 1; i < index.size(); ++i) {
-      base = opt_merge_mul_mod(base * n->shape[i] + index[i]);
+      base = MergeMulMod(base * n->shape[i] + index[i]);
     }
   } else {
     CHECK_EQ(n->strides.size(), index.size());
