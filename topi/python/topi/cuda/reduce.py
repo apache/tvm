@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 
+
 def _schedule_reduce(op, sch):
     data_in = op.input_tensors[0]
     data_out = op.output(0)
@@ -40,8 +41,8 @@ def _schedule_reduce(op, sch):
     return sch
 
 
-def schedule_reduce_map(op):
-    """Schedule for reduce map ops + ewise + scale_shift ops.
+def schedule_reduce(op):
+    """Schedule for reduce ops + ewise + scale_shift ops.
 
     Parameters
     ----------

@@ -15,7 +15,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         B = topi.nn.min(A, axis=axis, keepdims=keepdims)
     else:
         raise NotImplementedError
-    s = topi.cuda.schedule_reduce_map(B.op)
+    s = topi.cuda.schedule_reduce(B.op)
 
     def check_device(device):
         if not tvm.module.enabled(device):

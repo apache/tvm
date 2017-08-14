@@ -23,8 +23,8 @@ def _schedule_broadcast_to(op, sch):
     return sch
 
 
-def schedule_broadcast_map(op):
-    """Schedule for broadcast map ops + ewise + scale_shift ops.
+def schedule_broadcast_to(op):
+    """Schedule for broadcast_to ops + ewise + scale_shift ops.
 
     Parameters
     ----------

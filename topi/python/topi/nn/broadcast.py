@@ -21,6 +21,7 @@ def _get_bcast_info(original_shape, target_shape):
     ----------
     original_shape : tuple of tvm.expr.IntImm
         The original shape before broadcasting
+
     target_shape : tuple
         The target shape
 
@@ -57,6 +58,7 @@ def broadcast_to(data, shape):
     Parameters
     ----------
     data : tvm.Tensor
+
     shape : list or tuple
 
     Returns

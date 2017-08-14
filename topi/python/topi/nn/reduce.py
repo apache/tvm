@@ -44,14 +44,17 @@ def reduce(data, axis=None, keepdims=False, func=tvm.sum):
     Parameters
     ----------
     data : tvm.Tensor
+
     axis : None or int or tuple of int
         Axis or axes along which a sum is performed.
         The default, axis=None, will sum all of the elements of the input array.
         If axis is negative it counts from the last to the first axis.
+
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
          with size one.
         With this option, the result will broadcast correctly against the input array.
+
     func : function
         functions like tvm.sum, tvm.max, tvm.min
 
@@ -109,10 +112,12 @@ def sum(data, axis=None, keepdims=False):
     ----------
     data : tvm.Tensor
         The input tvm tensor
+
     axis : None or int or tuple of int
         Axis or axes along which a sum is performed.
         The default, axis=None, will sum all of the elements of the input array.
         If axis is negative it counts from the last to the first axis.
+
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
          with size one.
@@ -132,10 +137,12 @@ def max(data, axis=None, keepdims=False):
     ----------
     data : tvm.Tensor
         The input tvm tensor
+
     axis : None or int or tuple of int
         Axis or axes along which a sum is performed.
         The default, axis=None, will sum all of the elements of the input array.
         If axis is negative it counts from the last to the first axis.
+
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
          with size one.
@@ -155,10 +162,12 @@ def min(data, axis=None, keepdims=False):
     ----------
     data : tvm.Tensor
         The input tvm tensor
+
     axis : None or int or tuple of int
         Axis or axes along which a sum is performed.
         The default, axis=None, will sum all of the elements of the input array.
         If axis is negative it counts from the last to the first axis.
+
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
          with size one.
