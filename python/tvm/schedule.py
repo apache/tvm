@@ -336,7 +336,7 @@ class Stage(NodeBase):
         fused : IterVar
             The fused variable of iteration.
         """
-        assert len(args) >= 1, "Length of the arguments must be larger than 2 for fuse."
+        assert len(args) >= 1, "Length of the arguments must be >=1 for fuse."
         fused = args[0]
         for i in range(1, len(args)):
             fused = _api_internal._StageFuse(self, fused, args[i])
