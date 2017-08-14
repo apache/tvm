@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, line-too-long, unused-variable
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -59,7 +59,7 @@ def conv2d_nchw(Input, Filter, stride, padding):
             tvm.all(yy >= pad_top, yy - pad_top < in_height,
                     xx >= pad_left, xx - pad_left < in_width),
             Input[nn, cc, yy - pad_top, xx - pad_left], tvm.const(0.)),
-            name='temp')
+        name='temp')
     rc = tvm.reduce_axis((0, in_channel), name='rc')
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
@@ -68,7 +68,7 @@ def conv2d_nchw(Input, Filter, stride, padding):
         lambda nn, ff, yy, xx: tvm.sum(
             temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx] * Filter[ff, rc, ry, rx],
             axis=[rc, ry, rx]))
-    
+
 @tvm.tag_scope(tag="conv2d_hwcn")
 def conv2d_hwcn(Input, Filter, stride, padding):
     """Convolution operator in HWCN layout.
