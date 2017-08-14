@@ -247,12 +247,12 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   } else {
     CHECK_EQ(n->strides.size(), index.size());
     if (is_zero(base)) {
-      base = index[0] * n->strides[0];
+      base = MergeMulMod(index[0] * n->strides[0]);
     } else {
-      base = base + index[0] * n->strides[0];
+      base = MergeMulMod(base + index[0] * n->strides[0]);
     }
     for (size_t i = 1; i < index.size(); ++i) {
-      base = base + index[i] * n->strides[i];
+      base = MergeMulMod(base + index[i] * n->strides[i]);
     }
   }
   return base;
