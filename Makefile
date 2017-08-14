@@ -268,6 +268,11 @@ jvmpkg:
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
 			-Dcurrent_libdir="$(ROOTDIR)/lib" $(JVM_TEST_ARGS))
+jvminstall:
+	(cd $(ROOTDIR)/jvm; \
+		mvn install -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
+			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
+			-Dcurrent_libdir="$(ROOTDIR)/lib" $(JVM_TEST_ARGS))
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
