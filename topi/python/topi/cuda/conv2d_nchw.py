@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
+from .. import util
 
 
 def schedule_conv2d_small_batch(outs):
@@ -9,8 +10,8 @@ def schedule_conv2d_small_batch(outs):
 
     def schedule(temp, Filter, Output):
         """Schedule conv2d_nchw"""
-        block_h = tvm.ir_pass.Simplify(Output.shape[3]).value
-        block_w = tvm.ir_pass.Simplify(temp.shape[1]).value
+        block_h = util.get_const_int(Output.shape[3])
+        block_w = util.get_const_int(temp.shape[1])
         if block_h % 48 == 0:
             block_h = 48
         elif block_h % 32 == 0:
@@ -36,8 +37,8 @@ def schedule_conv2d_small_batch(outs):
         # sheduler params
         num_thread = 8
         vthread = 2
-        out_filter = min(64, tvm.ir_pass.Simplify(Filter.shape[0]).value)
-        in_filter = tvm.ir_pass.Simplify(Filter.shape[1]).value
+        out_filter = min(64, util.get_const_int(Filter.shape[0]))
+        in_filter = util.get_const_int(Filter.shape[1])
         opart2 = out_filter//8
         ofactor = out_filter
         wfactor = block_h
@@ -129,7 +130,8 @@ def schedule_conv2d_nchw(outs):
     s: Schedule
         The computation schedule for conv2d_nchw.
     """
-    batch_size = tvm.ir_pass.Simplify(outs[0].op.output(0).shape[0]).value
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    batch_size = util.get_const_int(outs[0].op.output(0).shape[0])
     if batch_size > 1:
         raise RuntimeError("Batch size: %d is too large for this schedule" % batch_size)
     return  schedule_conv2d_small_batch(outs)
