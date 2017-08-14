@@ -37,8 +37,8 @@ def get_reduce_out_shape(src_shape, axis=None, keepdims=False):
     return dst_shape
 
 
-@tvm.tag_scope(tag="reduce")
-def reduce(data, axis=None, keepdims=False, func=tvm.sum):
+@tvm.tag_scope(tag="comm_reduce")
+def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum):
     """Reducing the data
 
     Parameters
@@ -127,7 +127,7 @@ def sum(data, axis=None, keepdims=False):
     -------
     ret : tvm.Tensor
     """
-    return reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
 
 
 def max(data, axis=None, keepdims=False):
@@ -152,7 +152,7 @@ def max(data, axis=None, keepdims=False):
     -------
     ret : tvm.Tensor
     """
-    return reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
 
 
 def min(data, axis=None, keepdims=False):
@@ -177,4 +177,4 @@ def min(data, axis=None, keepdims=False):
     -------
     ret : tvm.Tensor
     """
-    return reduce(data, axis=axis, keepdims=keepdims, func=tvm.min)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.min)
