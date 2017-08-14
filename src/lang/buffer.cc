@@ -36,7 +36,7 @@ Buffer decl_buffer(Array<Expr> shape,
 
 // Split the given expression w.r.t the add operator
 inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
-  using namespace Halide::Internal;
+  using namespace ir;
   std::vector<const Expr*> ret;
   std::stack<const Expr*> split_buffer;
   split_buffer.push(&expr);
@@ -65,7 +65,6 @@ inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
 inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
                                               const Expr &mod_l_expr,
                                               const Expr &mod_r_expr) {
-  using namespace Halide::Internal;
   using namespace ir;
   const Mul* mult_ptr = mult_expr.as<Mul>();
   if (!mult_ptr) return std::make_pair(false, Expr());
@@ -134,7 +133,6 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
                                       Expr* no_opt_sum,
                                       bool* has_mult,
                                       bool* has_mod) {
-  using namespace Halide::Internal;
   using namespace ir;
   *has_mult = false;
   *has_mod = false;
@@ -161,7 +159,6 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
 // Return: a pair with (false, Expr()) if cannot be optimized.
 //         a pair with (true, optimized_expr) if can be optimized
 inline Expr MergeMulMod(const Expr &base) {
-  using namespace Halide::Internal;
   using namespace ir;
   // 1. Prepare the lists.
   // We store two lists, a list that contain all the elements that match Mul and
