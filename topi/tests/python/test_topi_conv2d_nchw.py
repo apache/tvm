@@ -6,19 +6,19 @@ import topi
 from topi.util import get_const_tuple
 
 
-def verify_conv2d_hwcn_map(batch, in_channel, in_size, num_filter, kernel, stride, padding):
+def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
-    A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
-    W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    B = topi.nn.conv2d_hwcn(A, W, stride, padding)
+    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+    B = topi.nn.conv2d_nchw(A, W, stride, padding)
     C = topi.nn.relu(B)
-    s1 = topi.cuda.schedule_conv2d_hwcn([B])
-    s2 = topi.cuda.schedule_conv2d_hwcn([C])
+    s1 = topi.cuda.schedule_conv2d_nchw([B])
+    s2 = topi.cuda.schedule_conv2d_nchw([C])
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     w_np = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-    b_np = topi.testing.conv2d_hwcn_python(a_np, w_np, stride, padding)
+    b_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
     c_np = np.maximum(b_np, 0)
 
     def check_device(device):
@@ -44,16 +44,18 @@ def verify_conv2d_hwcn_map(batch, in_channel, in_size, num_filter, kernel, strid
         check_device(device)
 
 
-def test_conv2d_hwcn_map():
-    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "SAME")
-    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "SAME")
-    verify_conv2d_hwcn_map(4, 128, 16, 128, 5, 2, "SAME")
-    verify_conv2d_hwcn_map(4, 128, 16, 256, 5, 2, "SAME")
-    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "VALID")
-    verify_conv2d_hwcn_map(1, 256, 32, 256, 3, 1, "VALID")
-    verify_conv2d_hwcn_map(4, 128, 16, 128, 5, 2, "VALID")
-    verify_conv2d_hwcn_map(4, 128, 16, 256, 5, 2, "VALID")
-
+def test_conv2d_nchw():
+    verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
+    verify_conv2d_nchw(1, 64, 56, 64, 1, 1, 0)
+    verify_conv2d_nchw(1, 64, 56, 128, 3, 2, 1)
+    verify_conv2d_nchw(1, 64, 56, 128, 1, 2, 0)
+    verify_conv2d_nchw(1, 128, 28, 128, 3, 1, 1)
+    verify_conv2d_nchw(1, 128, 28, 256, 3, 2, 1)
+    verify_conv2d_nchw(1, 128, 28, 256, 1, 2, 0)
+    verify_conv2d_nchw(1, 256, 14, 256, 3, 1, 1)
+    verify_conv2d_nchw(1, 256, 14, 512, 3, 2, 1)
+    verify_conv2d_nchw(1, 256, 14, 512, 1, 2, 0)
+    verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
 
 if __name__ == "__main__":
-    test_conv2d_hwcn_map()
+    test_conv2d_nchw()

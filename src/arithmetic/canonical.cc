@@ -191,6 +191,9 @@ class Canonical::Internal : public IRMutator {
     ret_entry_.max_level = stack_.back().max_level;
     stack_.pop_back();
     CHECK(expr.defined());
+    if (const IntImm* op = expr.as<IntImm>()) {
+      return Mutate_(op, expr);
+    }
     return expr;
   }
   // call produce to get a cache entry.

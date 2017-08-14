@@ -95,7 +95,7 @@ class AttrScopeLifter : public IRMutator {
   }
 
   Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
-    if (!op->then_case.defined()) {
+    if (!op->else_case.defined()) {
       return IRMutator::Mutate_(op, s);
     }
     Stmt then_case = this->Mutate(op->then_case);

@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
-from ..nn.util import get_const_tuple
+from ..util import get_const_tuple
 
 def schedule_depthwise_conv2d_map(op):
     """Schedule for depthwise_conv2d map ops.
@@ -103,7 +103,7 @@ def schedule_depthwise_conv2d_map(op):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if str(tensor.op.input_tensors) != str([]):
+                if tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
         if OP.tag == 'depthwise_conv2d':

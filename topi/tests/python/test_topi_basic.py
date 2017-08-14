@@ -1,5 +1,13 @@
 import tvm
 import topi
+from topi import util
+
+
+def test_util():
+    x = tvm.const(100)
+    assert util.get_const_int(x) == 100
+    assert util.get_const_tuple((x, x)) == (100, 100)
+
 
 def test_ewise():
     m = tvm.var('m')
@@ -19,4 +27,5 @@ def test_ewise():
 
 
 if __name__ == "__main__":
+    test_util()
     test_ewise()

@@ -4,16 +4,16 @@ import numpy as np
 import scipy.signal
 
 
-def conv2d_hwcn_python(a_np, w_np, stride, padding):
+def conv2d_nchw_python(a_np, w_np, stride, padding):
     """Convolution operator in HWCN layout.
 
     Parameters
     ----------
     a_np : numpy.ndarray
-        4-D with shape [in_height, in_width, in_channel, batch]
+        4-D with shape [batch, in_channel, in_height, in_width]
 
     w_np : numpy.ndarray
-        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+        4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
@@ -24,10 +24,10 @@ def conv2d_hwcn_python(a_np, w_np, stride, padding):
     Returns
     -------
     b_np : np.ndarray
-        4-D with shape [out_height, out_width, out_channel, batch]
+        4-D with shape [batch, out_channel, out_height, out_width]
     """
-    in_height, in_width, in_channel, batch = a_np.shape
-    kernel_h, kernel_w, _, num_filter = w_np.shape
+    batch, in_channel, in_height, in_width = a_np.shape
+    num_filter, _, kernel_h, kernel_w = w_np.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -48,20 +48,17 @@ def conv2d_hwcn_python(a_np, w_np, stride, padding):
     out_channel = num_filter
     out_height = (in_height - kernel_h + pad_h) // stride_h + 1
     out_width = (in_width - kernel_w + pad_w) // stride_w + 1
-    # change the layout from HWCN to NCHW
-    at = a_np.transpose((3, 2, 0, 1))
-    wt = w_np.transpose((3, 2, 0, 1))
-    bt = np.zeros((batch, out_channel, out_height, out_width))
+    b_np = np.zeros((batch, out_channel, out_height, out_width))
     # computation
     for n in range(batch):
         for f in range(out_channel):
             for c in range(in_channel):
                 if pad_h > 0:
                     apad = np.zeros((in_height + pad_h, in_width + pad_w))
-                    apad[pad_top:-pad_bottom, pad_left:-pad_right] = at[n, c]
+                    apad[pad_top:-pad_bottom, pad_left:-pad_right] = a_np[n, c]
                 else:
-                    apad = at[n, c]
+                    apad = a_np[n, c]
                 out = scipy.signal.convolve2d(
-                    apad, np.rot90(np.rot90(wt[f, c])), mode='valid')
-                bt[n, f] += out[::stride, ::stride]
-    return bt.transpose((2, 3, 1, 0))
+                    apad, np.rot90(np.rot90(w_np[f, c])), mode='valid')
+                b_np[n, f] += out[::stride, ::stride]
+    return b_np

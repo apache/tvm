@@ -1,10 +1,73 @@
-# pylint: disable=invalid-name, line-too-long, unused-variable
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
 import numpy as np
-from .util import get_const_tuple
+from ..util import get_const_tuple
 
+
+@tvm.tag_scope(tag="conv2d_nchw")
+def conv2d_nchw(Input, Filter, stride, padding):
+    """Convolution operator in HWCN layout.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    Filter : tvm.Tensor
+        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(padding, int) or padding in ['VALID', 'SAME']
+    batch, in_channel, in_height, in_width = get_const_tuple(Input.shape)
+    num_filter, channel, kernel_h, kernel_w = get_const_tuple(Filter.shape)
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+    # compute the padding size
+    if isinstance(padding, int):
+        pad_h = pad_w = padding * 2
+    elif padding == 'VALID':
+        pad_h = 0
+        pad_w = 0
+    else: # 'SAME'
+        pad_h = kernel_h - 1
+        pad_w = kernel_w - 1
+    pad_top = int(np.ceil(float(pad_h) / 2))
+    pad_left = int(np.ceil(float(pad_w) / 2))
+    # compute the output shape
+    out_channel = num_filter
+    out_height = (in_height - kernel_h + pad_h) // stride_h + 1
+    out_width = (in_width - kernel_w + pad_w) // stride_w + 1
+    # compute graph
+    temp = tvm.compute(
+        (batch, in_channel, in_height + pad_h, in_width + pad_w),
+        lambda nn, cc, yy, xx: tvm.select(
+            tvm.all(yy >= pad_top, yy - pad_top < in_height,
+                    xx >= pad_left, xx - pad_left < in_width),
+            Input[nn, cc, yy - pad_top, xx - pad_left], tvm.const(0.)),
+        name='temp')
+    rc = tvm.reduce_axis((0, in_channel), name='rc')
+    ry = tvm.reduce_axis((0, kernel_h), name='ry')
+    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    return tvm.compute(
+        (batch, out_channel, out_height, out_width),
+        lambda nn, ff, yy, xx: tvm.sum(
+            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx] * Filter[ff, rc, ry, rx],
+            axis=[rc, ry, rx]))
 
 @tvm.tag_scope(tag="conv2d_hwcn")
 def conv2d_hwcn(Input, Filter, stride, padding):

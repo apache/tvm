@@ -2,7 +2,7 @@ import tvm
 import topi
 import numpy as np
 from scipy import signal
-from topi.nn.util import get_const_tuple
+from topi.util import get_const_tuple
 from topi.cuda.depthwise_conv2d_map import schedule_depthwise_conv2d_map
 
 def depthwise_conv2d_map_with_workload(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
