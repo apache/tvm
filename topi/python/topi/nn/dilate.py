@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, line-too-long
+# pylint: disable=invalid-name
 """Dilation operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -22,58 +22,23 @@ def dilate(Input, strides):
         n-D, the same layout as Input.
     """
     n = len(Input.shape)
-    assert n <= 5, \
-        "Dimension of input tensor cannot exceed 5"
     assert len(strides) == n, \
         "Input dimension and strides size dismatch : %d vs %d" %(n, len(strides))
     output_size = ()
     for i in range(n):
         output_size += (tvm.ir_pass.Simplify((Input.shape[i]-1)*strides[i]+1),)
 
-    if n == 5:
-        Output = tvm.compute(
-            (output_size),
-            lambda *i: tvm.select(
-                tvm.all((i[0]%strides[0]).equal(0),
-                        (i[1]%strides[1]).equal(0),
-                        (i[2]%strides[2]).equal(0),
-                        (i[3]%strides[3]).equal(0),
-                        (i[4]%strides[4]).equal(0)),
-                Input(i[0]/strides[0], i[1]/strides[1], i[2]/strides[2], i[3]/strides[3], i[4]/strides[4]),
-                tvm.const(0.0, Input.dtype)), name='DilatedInput')
-    elif n == 4:
-        Output = tvm.compute(
-            (output_size),
-            lambda *i: tvm.select(
-                tvm.all((i[0]%strides[0]).equal(0),
-                        (i[1]%strides[1]).equal(0),
-                        (i[2]%strides[2]).equal(0),
-                        (i[3]%strides[3]).equal(0)),
-                Input(i[0]/strides[0], i[1]/strides[1], i[2]/strides[2], i[3]/strides[3]),
-                tvm.const(0.0, Input.dtype)), name='DilatedInput')
-    elif n == 3:
-        Output = tvm.compute(
-            (output_size),
-            lambda *i: tvm.select(
-                tvm.all((i[0]%strides[0]).equal(0),
-                        (i[1]%strides[1]).equal(0),
-                        (i[2]%strides[2]).equal(0)),
-                Input(i[0]/strides[0], i[1]/strides[1], i[2]/strides[2]),
-                tvm.const(0.0, Input.dtype)), name='DilatedInput')
-    elif n == 2:
-        Output = tvm.compute(
-            (output_size),
-            lambda *i: tvm.select(
-                tvm.all((i[0]%strides[0]).equal(0),
-                        (i[1]%strides[1]).equal(0)),
-                Input(i[0]/strides[0], i[1]/strides[1]),
-                tvm.const(0.0, Input.dtype)), name='DilatedInput')
-    else: # n == 1
-        Output = tvm.compute(
-            (output_size),
-            lambda *i: tvm.select(
-                tvm.all((i[0]%strides[0]).equal(0)),
-                Input(i[0]/strides[0]),
-                tvm.const(0.0, Input.dtype)), name='DilatedInput')
+    def _dilate(data, *indices):
+        not_zero = (indices[0]%strides[0]).equal(0)
+        index_tuple = ()
+        for i in range(n):
+            index_tuple += (indices[i]/strides[i],)
+            not_zero = tvm.all(not_zero, (indices[i]%strides[i]).equal(0))
+        return tvm.select(not_zero, data[index_tuple], tvm.const(0.0, data.dtype))
+
+    Output = tvm.compute(
+        (output_size),
+        lambda *indices: _dilate(Input, *indices),
+        name='DilatedInput')
 
     return Output
