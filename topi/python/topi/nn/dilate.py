@@ -3,63 +3,30 @@
 from __future__ import absolute_import as _abs
 import tvm
 
-from .util import get_const_tuple
 
 @tvm.tag_scope(tag="dilation")
-def dilate_nchw(Input, stride_h, stride_w):
+def dilate(Input, strides):
     """Dilate Input with zeros.
 
     Parameters
     ----------
     Input : tvm.Tensor
-        Input tensor, layout is NCHW.
+        4-D, can be any layout.
 
-    stride_h : int
-        Dilation extent on H dimension, 1 means no dilation.
-
-    stride_w : int
-        Dilation extent on W dimension, 1 means no dilation.
+    strides : list/tuple of 4 ints
+        Dilation stride on each dimension, 1 means no dilation.
 
     Returns
     -------
     Output : tvm.Tensor
-        Output tensor, layout is NCHW.
+        4-D, the same layout as Input.
     """
-    N, C, H, W = get_const_tuple(Input.shape)
+    A, B, C, D = Input.shape
+    sa, sb, sc, sd = strides
     Output = tvm.compute(
-        (N, C, (H-1)*stride_h+1, (W-1)*stride_w+1),
-        lambda n, c, h, w: tvm.select(
-            tvm.all(tvm.make.EQ(h%stride_h, 0), tvm.make.EQ(w%stride_w, 0)),
-            Input(n, c, h/stride_h, w/stride_w), tvm.const(0.0)),
-        name='DilatedInput')
-    return Output
-
-
-@tvm.tag_scope(tag="dilation")
-def dilate_nhwc(Input, stride_h, stride_w):
-    """Dilate Input with zeros.
-
-    Parameters
-    ----------
-    Input : tvm.Tensor
-        Input tensor, layout is NHWC.
-
-    stride_h : int
-        Dilation extent on H dimension, 1 means no dilation.
-
-    stride_w : int
-        Dilation extent on W dimension, 1 means no dilation.
-
-    Returns
-    -------
-    Output : tvm.Tensor
-        Output tensor, layout is NHWC.
-    """
-    N, H, W, C = get_const_tuple(Input.shape)
-    Output = tvm.compute(
-        (N, (H-1)*stride_h+1, (W-1)*stride_w+1, C),
-        lambda n, h, w, c: tvm.select(
-            tvm.all(tvm.make.EQ(h%stride_h, 0), tvm.make.EQ(w%stride_w, 0)),
-            Input(n, h/stride_h, w/stride_w, c), tvm.const(0.0)),
+        ((A-1)*sa+1, (B-1)*sb+1, (C-1)*sc+1, (D-1)*sd+1),
+        lambda a, b, c, d: tvm.select(
+            tvm.all((a%sa).equal(0), (b%sb).equal(0), (c%sc).equal(0), (d%sd).equal(0)),
+            Input(a/sa, b/sb, c/sc, d/sd), tvm.const(0.0, Input.dtype)),
         name='DilatedInput')
     return Output
