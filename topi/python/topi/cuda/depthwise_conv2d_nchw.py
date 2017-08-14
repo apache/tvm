@@ -99,7 +99,7 @@ def schedule_depthwise_conv2d_nchw(op):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if OP.tag == 'ewise' or OP.tag == 'scale_shift':
+        if OP.tag == 'ewise' or OP.tag == 'scale_shift_nchw':
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:

@@ -19,7 +19,7 @@ def depthwise_conv2d_map_with_workload_nchw(batch, in_channel, in_height, channe
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, Stride, padding)
-    ScaleShift = topi.nn.scale_shift(DepthwiseConv2d, Scale, Shift)
+    ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule
     s1 = schedule_depthwise_conv2d_nchw(DepthwiseConv2d.op)
@@ -110,7 +110,7 @@ def depthwise_conv2d_map_with_workload_nhwc(batch, in_channel, in_height, channe
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter, Stride, padding)
-    ScaleShift = topi.nn.scale_shift(DepthwiseConv2d, Scale, Shift)
+    ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule
     s1 = schedule_depthwise_conv2d_nhwc(DepthwiseConv2d.op)
@@ -155,8 +155,9 @@ def depthwise_conv2d_map_with_workload_nhwc(batch, in_channel, in_height, channe
         ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
-        #f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
-        #f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
+        print(tvm.lower(s2, [Input, Filter, Scale, Shift, ScaleShift], simple_mode=True))
+        f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
+        f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
         # prepare data
         input_np = np.random.uniform(size=get_const_tuple(Input.shape)).astype(Input.dtype)
         filter_np = np.random.uniform(size=get_const_tuple(Filter.shape)).astype(Filter.dtype)
@@ -173,16 +174,16 @@ def depthwise_conv2d_map_with_workload_nhwc(batch, in_channel, in_height, channe
         timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1)
         tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm).mean
         # launch kernel 2 (depthwise_conv2d + scale_shift)
-        #timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=1)
-        #tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm).mean
+        timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=1)
+        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm).mean
         # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
-        #timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
-        #tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
+        timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
+        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
         # correctness with scipy
         depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy = depthwise_conv2d_map_scipy(input_np, filter_np, scale_np, shift_np)
         np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
-        #np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        #np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
+        np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
     check_device("opencl")
     check_device("cuda")
@@ -190,9 +191,8 @@ def depthwise_conv2d_map_with_workload_nhwc(batch, in_channel, in_height, channe
 
 
 def test_depthwise_conv2d_map():
-
+    print("testing nchw layout")
     depthwise_conv2d_map_with_workload_nchw(1, 728, 64, 1, 3, 1, "SAME")
-    """
     depthwise_conv2d_map_with_workload_nchw(1, 728, 32, 1, 3, 1, "SAME")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 64, 2, 5, 2, "SAME")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 32, 2, 5, 2, "SAME")
@@ -200,7 +200,7 @@ def test_depthwise_conv2d_map():
     depthwise_conv2d_map_with_workload_nchw(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 64, 2, 5, 2, "VALID")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 32, 2, 5, 2, "VALID")
-    """
+    print("testing nhwc layout")
     depthwise_conv2d_map_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME")
     depthwise_conv2d_map_with_workload_nhwc(1, 728, 32, 1, 3, 1, "SAME")
     depthwise_conv2d_map_with_workload_nhwc(4, 256, 64, 2, 5, 2, "SAME")
