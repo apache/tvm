@@ -267,6 +267,15 @@ Stmt CoProcSync(Stmt stmt);
 Stmt LiftAttrScope(Stmt stmt, std::string attr_key);
 
 /*!
+ * \brief Lower attached storage access information.
+ * Do this pass after all storage access analysis finish.
+ *
+ * \param stmt The stmt to be trasnformed
+ * \return Transformed stmt.
+ */
+Stmt LowerStorageAccessInfo(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :

@@ -2,7 +2,12 @@
  *  Copyright (c) 2017 by Contributors
  * \file storage_access.cc
  */
+#include <tvm/ir_pass.h>
+#include <tvm/ir_mutator.h>
+#include <tvm/target_info.h>
+#include "./ir_util.h"
 #include "./storage_access.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace ir {
@@ -191,5 +196,110 @@ StorageScope StorageAccessVisitor::GetScope(const Variable* buf) const {
   if (it == storage_scope_.end()) return s;
   return it->second;
 }
+
+class StorageAccessInfoLower : public IRMutator {
+ public:
+  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
+    // Lower allocate to device allocate when needed.
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Allocate>();
+    // For special memory, remove allocate, or use head expr
+    auto it = storage_info_.find(op->buffer_var.get());
+    if (it != storage_info_.end() && it->second.info.defined()) {
+      const MemoryInfo& info = it->second.info;
+      ++it->second.alloc_count;
+      CHECK_LE(it->second.alloc_count, 1)
+          << "Double allocation of " << it->second.scope.to_string();
+      if (info->head_address.defined()) {
+        return Allocate::make(
+            op->buffer_var, op->type, op->extents, op->condition,
+            op->body, info->head_address, "nop");
+      }
+      return op->body;
+    } else {
+      return stmt;
+    }
+  }
+  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+    if (op->attr_key == attr::storage_scope) {
+      const Variable* buf = op->node.as<Variable>();
+      StorageScope scope = StorageScope::make(op->value.as<StringImm>()->value);
+      StorageEntry e;
+      e.scope = scope;
+      if (scope.tag.length() != 0) {
+        e.info = GetMemoryInfo(op->value.as<StringImm>()->value);
+        CHECK(e.info.defined()) << "Cannot find memory info of " << scope.to_string();
+      }
+      storage_info_[buf] = e;
+      return IRMutator::Mutate_(op, s);
+
+    } else {
+      return IRMutator::Mutate_(op, s);
+    }
+  }
+
+  Expr Mutate_(const Call* op, const Expr &e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      return MakeAccessPtr(op, e);
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+
+ private:
+  // tvm_access_ptr
+  Expr MakeAccessPtr(const Call* op, const Expr& e) {
+    // Specially handle the buffer packed intrinsic
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Call>();
+    CHECK_EQ(op->args.size(), 5U);
+    Type dtype = op->args[0].type();
+    const Variable* buffer = op->args[1].as<Variable>();
+    Var buffer_var(op->args[1].node_);
+    Expr offset = op->args[2];
+    auto it = storage_info_.find(buffer);
+    if (it != storage_info_.end() && it->second.info.defined()) {
+      return MakeTaggedAccessPtr(
+          op->type, buffer_var, dtype, offset,
+          it->second.info);
+    }
+    CHECK(op->type.is_handle());
+    // Change to address_of
+    return AddressOffset(buffer_var, dtype, offset);
+  }
+
+  Expr MakeTaggedAccessPtr(Type ptr_type,
+                           Var buffer_var,
+                           Type dtype,
+                           Expr offset,
+                           const MemoryInfo& info) {
+    if (ptr_type.is_handle()) {
+      CHECK(info->head_address.defined())
+          << buffer_var << " is not adddressable.";
+      return AddressOffset(buffer_var, dtype, offset);
+    }
+    int dtype_bits = dtype.bits() * dtype.lanes();
+    CHECK_EQ(info->unit_bits % dtype_bits, 0);
+    return cast(ptr_type,
+                   ir::Simplify(offset / make_const(
+                       offset.type(), info->unit_bits / dtype_bits)));
+  }
+  // The storage entry.
+  struct StorageEntry {
+    // Whether it is tagged memory.
+    StorageScope scope;
+    // The memory info if any.
+    MemoryInfo info;
+    // Allocation counter
+    int alloc_count{0};
+  };
+  // The storage scope of each buffer
+  std::unordered_map<const Variable*, StorageEntry> storage_info_;
+};
+
+Stmt LowerStorageAccessInfo(Stmt stmt) {
+  return StorageAccessInfoLower().Mutate(stmt);
+}
+
 }  // namespace ir
 }  // namespace tvm

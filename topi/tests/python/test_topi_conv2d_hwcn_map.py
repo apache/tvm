@@ -3,7 +3,7 @@ import os
 import numpy as np
 import tvm
 import topi
-from topi.nn.util import get_const_tuple
+from topi.util import get_const_tuple
 
 
 def verify_conv2d_hwcn_map(batch, in_channel, in_size, num_filter, kernel, stride, padding):

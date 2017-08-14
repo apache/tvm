@@ -30,8 +30,8 @@ def test_make_sum():
     B = tvm.compute((2,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
     json_str = tvm.save_json(B)
     BB = tvm.load_json(json_str)
-    assert B.op.body[0].combiner.handle.value  != 0
-    assert BB.op.body[0].combiner.handle.value != 0
+    assert B.op.body[0].combiner is not None
+    assert BB.op.body[0].combiner is not None
 
 if __name__ == "__main__":
     test_make_node()
