@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 import numpy as np
-from .util import get_const_tuple
+from ..util import get_const_tuple
 
 
 @tvm.tag_scope(tag="conv2d_hwcn")
