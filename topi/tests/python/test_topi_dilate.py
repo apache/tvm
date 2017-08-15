@@ -14,9 +14,7 @@ def test_dilate():
         input_np = np.random.uniform(size=input_size).astype(Input.dtype)
         output_np = topi.testing.dilate_python(input_np, strides)
         input_tvm = tvm.nd.array(input_np, ctx=ctx)
-        output_size = ()
-        for i in range(len(input_size)):
-            output_size += (tvm.ir_pass.Simplify(Output.shape[i]).value,)
+        output_size = topi.util.get_const_tuple(Output.shape)
         output_tvm = tvm.nd.array(np.zeros(shape=output_size).astype(Output.dtype), ctx=ctx)
         f = tvm.build(schedule, [Input, Output], target)
         f(input_tvm, output_tvm)

@@ -15,3 +15,4 @@ from .broadcast import *
 from . import nn
 from . import cuda
 from . import testing
+from . import util
