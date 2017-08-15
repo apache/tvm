@@ -320,7 +320,7 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
                                          int stride_h = 1,
                                          int stride_w = 1,
                                          std::string name = "tensor",
-                                         std::string tag = kDepthwiseConv2d_nhwc) {
+                                         std::string tag = kDepthwiseConv2dNHWC) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[1];
@@ -337,7 +337,7 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
   auto kw = tvm::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
-               : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
+               : pad(I, {tvm::Expr(0), pad_h, pad_w, tvm::Expr(0)});
   auto l = [&](tvm::Var b, tvm::Var h, tvm::Var w, tvm::Var o) {
     return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, i / pCM) *
                         W(kh, kw, i / pCM, o % pCM),
