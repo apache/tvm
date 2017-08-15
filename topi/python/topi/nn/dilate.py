@@ -6,35 +6,39 @@ from .. import util
 
 
 @tvm.tag_scope(tag="dilation")
-def dilate(Input, strides):
-    """Dilate Input with zeros.
+def dilate(data, strides, name="DilatedInput"):
+    """Dilate data with zeros.
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    data : tvm.Tensor
         n-D, can be any layout.
 
     strides : list / tuple of n ints
         Dilation stride on each dimension, 1 means no dilation.
 
+    name : str, optional
+        The name prefix operators generated
+
     Returns
     -------
     Output : tvm.Tensor
-        n-D, the same layout as Input.
+        n-D, the same layout as data.
     """
-    n = len(Input.shape)
-    assert len(strides) == n, \
-        "Input dimension and strides size dismatch : %d vs %d" %(n, len(strides))
-    output_size = ()
-    for i in range(n):
-        output_size += (tvm.ir_pass.Simplify((Input.shape[i]-1)*strides[i]+1),)
+    n = len(data.shape)
+    if len(strides) != n:
+        raise ValueError("data dimension and strides size dismatch : %d vs %d" % (
+            n, len(strides)))
 
-    def _dilate(data, *indices):
+    out_shape = tuple(
+        tvm.ir_pass.Simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
+
+    def _dilate(*indices):
         not_zero = []
         index_tuple = []
         for i in range(n):
             if not util.equal_const_int(strides[i], 1):
-                index_tuple.append(indices[i]/strides[i])
+                index_tuple.append(indices[i] / strides[i])
                 not_zero.append((indices[i] % strides[i]).equal(0))
             else:
                 index_tuple.append(indices[i])
@@ -43,9 +47,4 @@ def dilate(Input, strides):
             return tvm.select(not_zero, data(*index_tuple), tvm.const(0.0, data.dtype))
         return data(*index_tuple)
 
-    Output = tvm.compute(
-        output_size,
-        lambda *indices: _dilate(Input, *indices),
-        name='DilatedInput')
-
-    return Output
+    return tvm.compute(out_shape, _dilate, name=name)

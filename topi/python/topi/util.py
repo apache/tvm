@@ -63,3 +63,19 @@ def get_const_tuple(in_tuple):
             raise ValueError("Element of input tuple should be const int")
         out_tuple = out_tuple + (elem.value, )
     return out_tuple
+
+
+def simplify(expr):
+    """Simplify the expression if it is Expr, directly return if it is int.
+
+    Parameters
+    ----------
+    expr : Expr or int
+        The input.
+
+    Returns
+    -------
+    out : Expr or int
+        The simplified output
+    """
+    return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.Expr) else expr
