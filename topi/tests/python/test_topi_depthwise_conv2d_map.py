@@ -155,7 +155,6 @@ def depthwise_conv2d_map_with_workload_nhwc(batch, in_channel, in_height, channe
         ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
-        print(tvm.lower(s2, [Input, Filter, Scale, Shift, ScaleShift],simple_mode=True))
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
         f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
         # prepare data
@@ -191,9 +190,9 @@ def depthwise_conv2d_map_with_workload_nhwc(batch, in_channel, in_height, channe
 
 
 def test_depthwise_conv2d_map():
+    
     print("testing nchw layout")
-    depthwise_conv2d_map_with_workload_nchw(1, 728, 64, 1, 3, 1, "SAME")
-    """ 
+    depthwise_conv2d_map_with_workload_nchw(1, 728, 64, 1, 3, 1, "SAME") 
     depthwise_conv2d_map_with_workload_nchw(1, 728, 32, 1, 3, 1, "SAME")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 64, 2, 5, 2, "SAME")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 32, 2, 5, 2, "SAME")
@@ -201,7 +200,6 @@ def test_depthwise_conv2d_map():
     depthwise_conv2d_map_with_workload_nchw(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 64, 2, 5, 2, "VALID")
     depthwise_conv2d_map_with_workload_nchw(4, 256, 32, 2, 5, 2, "VALID")
-    """
     print("testing nhwc layout")
     depthwise_conv2d_map_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME")
     depthwise_conv2d_map_with_workload_nhwc(1, 728, 32, 1, 3, 1, "SAME")

@@ -23,12 +23,13 @@ def schedule_depthwise_conv2d_nhwc(op):
     def schedule_depthwise_conv2d(temp, Filter, DepthwiseConv2d):
 
         s[temp].compute_inline()
+        FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
         if DepthwiseConv2d.op in s.outputs:
             Output = DepthwiseConv2d
+            CL = s.cache_write(DepthwiseConv2d, "local")
         else:
             Output = op.output(0)
-            #s[DepthwiseConv2d].set_scope("local")
-        #FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
+            s[DepthwiseConv2d].set_scope("local")
        
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis("threadIdx.x")
@@ -47,11 +48,16 @@ def schedule_depthwise_conv2d_nhwc(op):
 
         s[Output].bind(fused, block_x)
         s[Output].bind(xic, thread_x)
-
-        #yi, xi, ci, fi = s[FS].op.axis
-        #s[FS].compute_at(s[Output], fused)
-        #fused = s[FS].fuse(fi,ci)
-        #s[FS].bind(fused, thread_x)
+        
+        if DepthwiseConv2d.op in s.outputs:
+            s[CL].compute_at(s[Output], xic)
+        else:
+            s[DepthwiseConv2d].compute_at(s[Output], xic)
+        
+        yi, xi, ci, fi = s[FS].op.axis
+        s[FS].compute_at(s[Output], fused)
+        fused = s[FS].fuse(fi,ci)
+        s[FS].bind(fused, thread_x)
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
