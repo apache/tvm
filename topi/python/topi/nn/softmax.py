@@ -19,9 +19,8 @@ def softmax(x):
     assert len(x.shape) == 2, "only support 2-dim softmax"
     m, n = x.shape
     k = tvm.reduce_axis((0, n), name='k')
-    max_elem = tvm.compute((m, ), lambda i: \
-        tvm.max(x[i, k]), axis=k)
-    expsum = tvm.compute((m, ), lambda i: \
-        tvm.sum(tvm.exp(x[i, k] - max_elem[i]), axis=k))
-    return tvm.compute(x.shape, lambda i, j: \
-        tvm.exp(x[i, j] - max_elem[i]) / expsum[i])
+    max_elem = tvm.compute((m, ), lambda i: tvm.max(x[i, k], axis=k))
+    expsum = tvm.compute(
+        (m, ), lambda i: tvm.sum(tvm.exp(x[i, k] - max_elem[i]), axis=k))
+    return tvm.compute(
+        x.shape, lambda i, j: tvm.exp(x[i, j] - max_elem[i]) / expsum[i])

@@ -49,7 +49,7 @@ def test_depthwise_conv2d_nchw():
     # Placeholder
     Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
     Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
-    Stride = tvm.nd.array(np.array([stride_h, stride_w]))
+    Stride = [stride_h, stride_w]
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # Declare
@@ -138,7 +138,7 @@ def test_depthwise_conv2d_nhwc():
     # Placeholder
     Input = tvm.placeholder((batch, in_height, in_width, in_channel), name='Input')
     Filter = tvm.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
-    Stride = tvm.nd.array(np.array([stride_h, stride_w]))
+    Stride = [stride_h, stride_w]
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # Declare

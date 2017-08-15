@@ -145,12 +145,10 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
         b, h, w, c = s[Output].op.axis
 
-        h_val = tvm.ir_pass.Simplify(Output.shape[1]).value
-        b_val = tvm.ir_pass.Simplify(Output.shape[0]).value
         ic_val = tvm.ir_pass.Simplify(temp.shape[3]).value
         xoc, xic = s[Output].split(c, factor=ic_val)
         s[Output].reorder(xoc, b, h, w, xic)
-        xo, yo, xi, yi = s[Output].tile(h, w, x_factor=2, y_factor=2)
+        xo, yo, _, _ = s[Output].tile(h, w, x_factor=2, y_factor=2)
         fused = s[Output].fuse(yo, xo)
         fused = s[Output].fuse(fused, b)
         fused = s[Output].fuse(fused, xoc)
@@ -163,7 +161,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
         else:
             s[DepthwiseConv2d].compute_at(s[Output], xic)
 
-        yi, xi, ci, fi = s[FS].op.axis
+        _, _, ci, fi = s[FS].op.axis
         s[FS].compute_at(s[Output], fused)
         fused = s[FS].fuse(fi, ci)
         s[FS].bind(fused, thread_x)

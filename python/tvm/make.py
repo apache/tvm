@@ -52,10 +52,11 @@ def static_cast(dtype, expr):
     """
     target_type = TVMType(dtype)
     src_type = TVMType(expr.dtype)
-    if target_type.type_code == src_type.type_code\
-       and src_type.lanes == 1\
-       and target_type.lanes > 1:
-        return Broadcast(expr, target_type.lanes)
+    if target_type.type_code == src_type.type_code and src_type.bits == target_type.bits:
+        if src_type.lanes == target_type.lanes:
+            return expr
+        elif src_type.lanes == 1 and target_type.lanes > 1:
+            return Broadcast(expr, target_type.lanes)
     return Cast(dtype, expr)
 
 

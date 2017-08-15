@@ -287,7 +287,7 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
                                          int stride_h = 1,
                                          int stride_w = 1,
                                          std::string name = "tensor",
-                                         std::string tag = kDepthwiseConv2d) {
+                                         std::string tag = kDepthwiseConv2d_nchw) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
