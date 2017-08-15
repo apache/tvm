@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 
-@tvm.tag_scope(tag="scale_shift_nchw")
+@tvm.tag_scope(tag="bcast_scale_shift_nchw")
 def scale_shift_nchw(Input, Scale, Shift):
     """Batch normalization operator in inference.
 
@@ -25,7 +25,7 @@ def scale_shift_nchw(Input, Scale, Shift):
     """
     return tvm.compute(Input.shape, lambda b, c, i, j: Input[b, c, i, j] * Scale[c] + Shift[c], name='ScaleShift')
 
-@tvm.tag_scope(tag="scale_shift_nhwc")
+@tvm.tag_scope(tag="bcast_scale_shift_nhwc")
 def scale_shift_nhwc(Input, Scale, Shift):
     """Batch normalization operator in inference.
 
