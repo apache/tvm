@@ -165,7 +165,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
         yi, xi, ci, fi = s[FS].op.axis
         s[FS].compute_at(s[Output], fused)
-        fused = s[FS].fuse(fi,ci)
+        fused = s[FS].fuse(fi, ci)
         s[FS].bind(fused, thread_x)
 
     def traverse(OP):
