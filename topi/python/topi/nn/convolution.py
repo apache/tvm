@@ -89,7 +89,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
 
     Returns
     -------
-    Output : tvm.Tensor
+    output : tvm.Tensor
         4-D with shape [out_height, out_width, out_channel, batch]
     """
     assert isinstance(stride, int) or len(stride) == 2
