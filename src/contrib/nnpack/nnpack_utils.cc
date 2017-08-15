@@ -1,3 +1,7 @@
+/*!
+ *  Copyright (c) 2017 by Contributors
+ * \file Use external nnpack library call.
+ */
 #include "./nnpack_utils.h"
 
 namespace tvm {
