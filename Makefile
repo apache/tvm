@@ -106,6 +106,7 @@ endif
 
 include make/contrib/cblas.mk
 include make/contrib/nnpack.mk
+include make/contrib/cudnn.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
