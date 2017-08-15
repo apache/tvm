@@ -153,7 +153,7 @@ class Vectorizer : public IRMutator {
     base = BroadcastTo(base, lanes);
     stride = BroadcastTo(stride, lanes);
     Array<Expr> elems;
-    for (size_t i = 0; i < lanes; ++i) {
+    for (int i = 0; i < lanes; ++i) {
       elems.push_back(
           Ramp::make(Shuffle::make_extract_element(base, i),
                      Shuffle::make_extract_element(stride, i),
