@@ -1,13 +1,14 @@
-/*
+/*!
  *  Copyright (c) 2017 by Contributors
  * \brief Detail broadcast.
- * \file broadcast.h
+ * \file topi/detail/broadcast.h
  */
 #ifndef TOPI_DETAIL_BROADCAST_H_
 #define TOPI_DETAIL_BROADCAST_H_
 
 #include <algorithm>
 #include <deque>
+#include <string>
 
 #include "tvm/ir_pass.h"
 #include "tvm/tvm.h"
@@ -90,15 +91,21 @@ inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
 
 
 template <typename FBinaryExpr>
-inline tvm::Tensor WithBroadcast(FBinaryExpr op, const tvm::Tensor& A,
-                                 const tvm::Tensor& B) {
+inline tvm::Tensor WithBroadcast(FBinaryExpr op,
+                                 const tvm::Tensor& A,
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),
               B(InputIndexFromBroadcast(ovars, B, bh.vars2, bh.all_vars)));
   };
   return tvm::compute(
-      tvm::Array<tvm::Expr>(bh.common_shape.begin(), bh.common_shape.end()), l);
+      tvm::Array<tvm::Expr>(bh.common_shape.begin(), bh.common_shape.end()),
+      l,
+      name,
+      tag);
 }
 
 }  // namespace detail
