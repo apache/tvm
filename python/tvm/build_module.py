@@ -4,6 +4,8 @@ This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
+import warnings
+
 from . import api
 from . import tensor
 from . import schedule
@@ -324,29 +326,28 @@ def build(sch,
             raise ValueError("unknown function type %d" % func.func_type)
 
     if not target.startswith("llvm") and target != "stackvm" and not fdevice:
-        raise ValueError(
+        warnings.warn(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
 
     device = "cpu" if target.startswith("llvm") or target == "stackvm" else target
     device_type = ndarray.context(device, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
-    if not target_host and fdevice:
-        target_host = "llvm" if module.enabled("llvm") else "stackvm"
 
-    if fdevice:
-        fdevice = [ir_pass.LowerIntrin(x, target) for x in fdevice]
-        fhost = [ir_pass.LowerIntrin(x, target_host) for x in fhost]
-    else:
-        fhost = [ir_pass.LowerIntrin(x, target) for x in fhost]
+    if not target_host:
+        if device == "cpu":
+            target_host = target
+            assert not fdevice
+        else:
+            target_host = "llvm" if module.enabled("llvm") else "stackvm"
 
+    target_device = target
+    fdevice = [ir_pass.LowerIntrin(x, target_device) for x in fdevice]
+    fhost = [ir_pass.LowerIntrin(x, target_host) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
+    mhost = codegen.build_module(fhost, target_host)
 
     if fdevice:
-        mhost = codegen.build_module(fhost, target_host)
-        if target:
-            mdev = codegen.build_module(fdevice, target)
-            mhost.import_module(mdev)
-        return mhost
-    else:
-        return codegen.build_module(fhost, target)
+        mdev = codegen.build_module(fdevice, target_device)
+        mhost.import_module(mdev)
+    return mhost

@@ -2,6 +2,42 @@
 from __future__ import absolute_import as _abs
 import tvm
 
+@tvm.tag_scope(tag='ewise')
+def identity(x):
+    """Take identity of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    # pylint: disable=unnecessary-lambda
+    return tvm.compute(x.shape, lambda *i: x(*i))
+
+
+@tvm.tag_scope(tag='ewise')
+def negation(x):
+    """Take negation of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    # pylint: disable=unnecessary-lambda
+    return tvm.compute(x.shape, lambda *i: -x(*i))
+
+
 @tvm.tag_scope(tag="ewise")
 def exp(x):
     """Take exponential of input x.
