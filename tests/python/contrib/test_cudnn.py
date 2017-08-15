@@ -40,16 +40,17 @@ def test_conv2d():
                              conv_mode=1,
                              tensor_format=0,
                              algo=1)
+    yshape = [x.value for x in Y.shape]
     s = tvm.create_schedule(Y.op)
     
     def verify():
         ctx = tvm.gpu(0)
         f = tvm.build(s, [X, W, Y], "cuda", target_host="llvm", name="conv2d")
-        x = tvm.nd.array(np.random.uniform(-1, 1, X.shape, dtype=np.float32),
+        x = tvm.nd.array(np.random.uniform(-1, 1, xshape).astype(np.float32),
                          ctx)
-        w = tvm.nd.array(np.random.uniform(-1, 1, W.shape, dtype=np.float32),
+        w = tvm.nd.array(np.random.uniform(-1, 1, wshape).astype(np.float32),
                          ctx)
-        y = tvm.nd.array(np.random.uniform(-1, 1, Y.shape, dtype=np.float32),
+        y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32),
                          ctx)
         f(x, w, y)
     
