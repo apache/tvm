@@ -41,20 +41,22 @@ def _schedule_reduce(op, sch):
     return sch
 
 
-def schedule_reduce(op):
+def schedule_reduce(outs):
     """Schedule for reduce ops + ewise + scale_shift ops.
 
     Parameters
     ----------
-    op: tvm.tensor.Operation
-        The symbolic description of the operation, should be reduce or
-        reduce followed by a sequence of one-to-one-mapping operators.
+    outs: Array of Tensor
+          The computation graph description of reduce in the format
+          of an array of tensors.
 
     Returns
     -------
     sch: Schedule
         The computation schedule for the op.
     """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    sch = tvm.create_schedule([x.op for x in outs])
     def traverse(operator):
         if operator.tag == 'ewise' or operator.tag == 'scale_shift':
             if operator not in sch.outputs:
@@ -67,6 +69,5 @@ def schedule_reduce(op):
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 
-    sch = tvm.create_schedule(op)
-    traverse(op)
+    traverse(outs[0].op)
     return sch
