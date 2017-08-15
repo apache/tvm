@@ -1,7 +1,7 @@
-# TVM Operator Inventory
+# TOPI: TVM Operator Inventory
 
-topi is the operator collection library for TVM intended at sharing the effort of crafting and
-optimizing tvm generated kernels. The goal:
+TOPI is the operator collection library for TVM intended at sharing the effort of crafting
+and optimizing tvm generated kernels. The goal:
 
 - Provide sugars for operator declaration
 - Give common primitives for fused op creation.
@@ -20,6 +20,7 @@ optimizing tvm generated kernels. The goal:
 - Deliberately assert the requirements
   - Some kernels have requirements on shape and data layout, assert them
 - Data layout aware, if not specified in argument or in function, assume NCHW by default.
+
 
 ## Testcase
 - Add testcases to testout the schedule and dataflow in the TOPI workflow

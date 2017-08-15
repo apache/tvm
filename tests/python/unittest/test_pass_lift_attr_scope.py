@@ -11,9 +11,10 @@ def test_coproc_lift():
         with ib.for_range(0, 10, name="j") as j:
             ib.scope_attr(cp, "coproc_uop_scope", value)
             A[i] = A[i] + 1
-        with ib.for_range(0, 10, name="j") as j:
-            ib.scope_attr(cp, "coproc_uop_scope", value)
-            A[j] = A[j] + 2
+        with ib.if_scope(i.equal(0)):
+            with ib.for_range(0, 10, name="j") as j:
+                ib.scope_attr(cp, "coproc_uop_scope", value)
+                A[j] = A[j] + 2
     body = ib.get()
     body = tvm.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
     assert body.body.body.node == cp

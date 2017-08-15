@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, line-too-long, unused-variable
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Convolution in python"""
 import numpy as np
 import scipy.signal
