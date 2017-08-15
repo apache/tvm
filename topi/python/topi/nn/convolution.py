@@ -152,7 +152,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding):
             (PaddedInput[b, c/channel_multiplier, i*stride_h + di, j*stride_w + dj] *
              Filter[c/channel_multiplier, c%channel_multiplier, di, dj]),
             axis=[di, dj]),
-        name='DepthwiseConv2d', tag="depthwise_conv2d")
+        name='DepthwiseConv2d', tag="depthwise_conv2d_nchw")
     return Output
 
 def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
@@ -188,8 +188,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
 
     # padding stage
-    pad_before = [0, 0, pad_top, pad_left]
-    pad_after = [0, 0, pad_down, pad_right]
+    pad_before = [0, pad_top, pad_left, 0]
+    pad_after = [0, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
     # depthconv stage
     di = tvm.reduce_axis((0, filter_height), name='di')
@@ -198,7 +198,7 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
         (batch, out_height, out_width, out_channel),
         lambda b, i, j, c: tvm.sum(
             (PaddedInput[b, i*stride_h + di, j*stride_w + dj, c/channel_multiplier] *
-             Filter[di, dj, c/channel_multiplier, c%channel_multiplie]),
+             Filter[di, dj, c/channel_multiplier, c%channel_multiplier]),
             axis=[di, dj]),
-        name='DepthwiseConv2d', tag="depthwise_conv2d")
+        name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
     return Output

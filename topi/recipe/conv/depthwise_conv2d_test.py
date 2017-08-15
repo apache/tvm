@@ -13,7 +13,7 @@ USE_MANUAL_CODE = False
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
+    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_37"]) # 37 for k80(ec2 instance)
     return ptx
 
 def write_code(code, fname):
@@ -60,7 +60,6 @@ def test_depthwise_conv2d_nchw():
     s1 = schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
     s2 = schedule_depthwise_conv2d_nchw(ScaleShift)
     s3 = schedule_depthwise_conv2d_nchw(Relu)
-
     input_np = np.random.uniform(size=get_const_tuple(Input.shape)).astype(Input.dtype)
     filter_np = np.random.uniform(size=get_const_tuple(Filter.shape)).astype(Filter.dtype)
     scale_np = np.random.uniform(size=(in_channel * channel_multiplier)).astype(Scale.dtype)
@@ -80,6 +79,7 @@ def test_depthwise_conv2d_nchw():
         filter_tvm = tvm.nd.array(filter_np, ctx)
         scale_tvm = tvm.nd.array(scale_np, ctx)
         shift_tvm = tvm.nd.array(shift_np, ctx)
+
         depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape),dtype=DepthwiseConv2d.dtype), ctx)
         scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)

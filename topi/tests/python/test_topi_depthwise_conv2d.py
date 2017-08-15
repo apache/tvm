@@ -25,7 +25,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     s2 = schedule_depthwise_conv2d_nchw(ScaleShift)
     s3 = schedule_depthwise_conv2d_nchw(Relu)
 
-    print(tvm.lower(s2, [Input, Filter, Scale, Shift, ScaleShift], simple_mode=True))
     input_np = np.random.uniform(size=get_const_tuple(Input.shape)).astype(Input.dtype)
     filter_np = np.random.uniform(size=get_const_tuple(Filter.shape)).astype(Filter.dtype)
     scale_np = np.random.uniform(size=get_const_tuple(Scale.shape)).astype(Scale.dtype)
