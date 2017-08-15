@@ -1,4 +1,4 @@
-/*
+/*!
  *  Copyright (c) 2017 by Contributors
  * \brief NN op constructions
  * \file nn.h
@@ -7,7 +7,9 @@
 #define TOPI_NN_H_
 
 #include <algorithm>
+#include <string>
 
+#include "topi/tags.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
 #include "tvm/tvm.h"
@@ -27,17 +29,65 @@ tvm::Expr Map(const tvm::Array<tvm::Expr>& exprs, T op) {
 
 }  // namespace detail
 
+/*!
+ * \brief Creates an operation that performs a rectified linear unit
+ *
+ * \param t The input tensor
+ * \param threshold The relu threshold (default 0)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the relu operation
+ */
 template <typename T>
-inline tvm::Tensor relu(const tvm::Tensor& x, T threshold = static_cast<T>(0)) {
+inline tvm::Tensor relu(const tvm::Tensor& t,
+                        T threshold = static_cast<T>(0),
+                        std::string name = "tensor",
+                        std::string tag = kElementWise) {
   return tvm::compute(
-      x->shape,
-      [&](const tvm::Array<tvm::Var>& i) { return tvm::max(x(i), threshold); },
-      "tensor", "ewise");
+      t->shape,
+      [&](const tvm::Array<tvm::Var>& i) { return tvm::max(t(i), threshold); },
+      name,
+      tag);
 }
 
-inline tvm::Tensor pad(
-    const tvm::Tensor& t, const tvm::Array<tvm::Expr>& pad_before,
-    tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>()) {
+/*!
+ * \brief Creates an operation that performs padding
+ *
+ * \param t The input tensor
+ * \param pad_before An Array of Expr describing the padding before the
+ * respective iterator
+ * \param pad_after An Array of Expr describing the padding after the
+ * respective iterator
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the relu operation
+ *
+ * \note
+ *  The pad_after Array must either be empty or have the same length as
+ *  pad_before
+ *  When pad_after is empty, it takes the same values as pad_before (symmetric
+ *  padding)
+ *  The pad Array applies from the leading dimensions and skips missing
+ *  trailing dimensions:
+ *
+ *      pad(t(i, j, k), {1}, {0}) returns the equivalent operation for
+ *          the following pseudocode:
+ *              for i in [1, t.shape[0] + 2]:
+ *                  for i in [1, t.shape[0] + 2]:
+ *                      for i in [1, t.shape[0] + 2]:
+ *                         name(i,j,k) =
+ *                             (1 <= i <= t.shape[0] + 1) ?
+ *                                 t(i-1, j, k) : 0;
+ *
+ *
+ */
+inline tvm::Tensor pad(const tvm::Tensor& t,
+                       const tvm::Array<tvm::Expr>& pad_before,
+                       tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
+                       std::string name = "tensor",
+                       std::string tag = kElementWise) {
   if (pad_after.size() < pad_before.size()) {
     for (int i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
@@ -74,14 +124,30 @@ inline tvm::Tensor pad(
     }
     return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), 0);
   };
-  return tvm::compute(output_shape, l, "tensor", "ewise");
+  return tvm::compute(output_shape, l, name, tag);
 }
 
-// Returns a compute that calculates a row-major matrix multiplication:
-//   A(i, k) * B(k, j), if trans_a == trans_b
-//   the usual transposed combinations, otherwise
-inline tvm::Tensor matmult(const tvm::Tensor& A, const tvm::Tensor& B,
-                           bool trans_a = false, bool trans_b = false) {
+/*!
+ * \brief Creates an operation that calculates a matrix multiplication
+ *  (row-major notation):
+ *      A(i, k) * B(k, j), if trans_a == trans_b
+ *          the usual transposed combinations, otherwise
+ *
+ * \param A The matrix A
+ * \param B The matrix B
+ * \param trans_a Is A's layout transposed?
+ * \param trans_b Is B's layout transposed?
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the matmult operation
+ */
+inline tvm::Tensor matmult(const tvm::Tensor& A,
+                           const tvm::Tensor& B,
+                           bool trans_a = false,
+                           bool trans_b = false,
+                           std::string name = "tensor",
+                           std::string tag = kMatMult) {
   tvm::Array<tvm::Expr> output_shape{A->shape[trans_a ? 1 : 0],
                                      B->shape[trans_b ? 0 : 1]};
   auto k = tvm::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
@@ -89,12 +155,37 @@ inline tvm::Tensor matmult(const tvm::Tensor& A, const tvm::Tensor& B,
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]),
                     {k});
   };
-  return tvm::compute(output_shape, l);
+  return tvm::compute(output_shape, l, name, tag);
 }
 
-inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I, const tvm::Tensor& W,
-                               int pad_h = 0, int pad_w = 0, int stride_h = 1,
-                               int stride_w = 1) {
+/*!
+ * \brief Creates an operation that performs a 2-D convolution with an
+ * NCHW-layout
+ *
+ * \param I The 4-D input tensor
+ * \param W The 4-D weight tensor
+ * \param pad_h A static constant padding amount applied to the height of the
+ * image, before and after (symmetric padding)
+ * \param pad_w A static constant padding amount applied to the width of the
+ * image, before and after (symmetric padding)
+ * \param stride_h A static constant striding amount applied to the height of
+ * the image, before and after (symmetric padding)
+ * \param stride_w A static constant strindingamount applied to the width of
+ * the image, before and after (symmetric padding)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the 2-D convolution operation (NCHW
+ * layout)
+ */
+inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
+                               const tvm::Tensor& W,
+                               int pad_h = 0,
+                               int pad_w = 0,
+                               int stride_h = 1,
+                               int stride_w = 1,
+                               std::string name = "tensor",
+                               std::string tag = kConv2dNCHW) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
@@ -116,12 +207,36 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I, const tvm::Tensor& W,
         T(b, i, stride_h * h + kh, stride_w * w + kw) * W(i, o, kh, kw),
         {i, kh, kw});
   };
-  return tvm::compute(output_shape, l);
+  return tvm::compute(output_shape, l, name, tag);
 }
 
-inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I, const tvm::Tensor& W,
-                               int pad_h = 0, int pad_w = 0, int stride_h = 1,
-                               int stride_w = 1) {
+/*!
+ * \brief Creates an operation for 2-D convolution layer with an HWCN-layout
+ *
+ * \param I The 4-D input tensor
+ * \param W The 4-D weight tensor
+ * \param pad_h A static constant padding amount applied to the height of the
+ * image, before and after (symmetric padding)
+ * \param pad_w A static constant padding amount applied to the width of the
+ * image, before and after (symmetric padding)
+ * \param stride_h A static constant striding amount applied to the height of
+ * the image, before and after (symmetric padding)
+ * \param stride_w A static constant strindingamount applied to the width of
+ * the image, before and after (symmetric padding)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the 2-D convolution operation
+ * (HWCN layout)
+ */
+inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I,
+                               const tvm::Tensor& W,
+                               int pad_h = 0,
+                               int pad_w = 0,
+                               int stride_h = 1,
+                               int stride_w = 1,
+                               std::string name = "tensor",
+                               std::string tag = kConv2dHWCN) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
@@ -129,8 +244,8 @@ inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I, const tvm::Tensor& W,
   tvm::Array<tvm::Expr> output_shape{
       (I->shape[2] - W->shape[2] + 2 * pad_h) / stride_h + 1,  // H
       (I->shape[3] - W->shape[3] + 2 * pad_w) / stride_w + 1,  // W
-      I->shape[2],                                            // B
-      W->shape[3]                                             // O
+      I->shape[2],                                             // B
+      W->shape[3]                                              // O
   };
   auto i = tvm::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
   auto kh = tvm::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
@@ -141,13 +256,38 @@ inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I, const tvm::Tensor& W,
         T(stride_h * h + kh, stride_w * w + kw, i, b) * W(kh, kw, i, o),
         {i, kh, kw});
   };
-  return tvm::compute(output_shape, l);
+  return tvm::compute(output_shape, l, name, tag);
 }
 
+
+/*!
+ * \brief Creates an operation that performs a 2-D depthwise convolution with
+ * an NCHW-layout
+ *
+ * \param I The 4-D input tensor
+ * \param W The 4-D weight tensor
+ * \param pad_h A static constant padding amount applied to the height of the
+ * image, before and after (symmetric padding)
+ * \param pad_w A static constant padding amount applied to the width of the
+ * image, before and after (symmetric padding)
+ * \param stride_h A static constant striding amount applied to the height of
+ * the image, before and after (symmetric padding)
+ * \param stride_w A static constant strindingamount applied to the width of
+ * the image, before and after (symmetric padding)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the 2-D depthwise convolution operation
+ * (NCHW layout)
+ */
 inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
-                                         const tvm::Tensor& W, int pad_h = 0,
-                                         int pad_w = 0, int stride_h = 1,
-                                         int stride_w = 1) {
+                                         const tvm::Tensor& W,
+                                         int pad_h = 0,
+                                         int pad_w = 0,
+                                         int stride_h = 1,
+                                         int stride_w = 1,
+                                         std::string name = "tensor",
+                                         std::string tag = kDepthwiseConv2d) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
@@ -170,13 +310,37 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
                         W(i / pCM, o % pCM, kh, kw),
                     {i, kh, kw});
   };
-  return tvm::compute(output_shape, l);
+  return tvm::compute(output_shape, l, name, tag);
 }
 
+/*!
+ * \brief Creates an operation that performs a 2-D group convolution with
+ * an NGCHW-layout
+ *
+ * \param I The 5-D input tensor
+ * \param W The 5-D weight tensor
+ * \param pad_h A static constant padding amount applied to the height of the
+ * image, before and after (symmetric padding)
+ * \param pad_w A static constant padding amount applied to the width of the
+ * image, before and after (symmetric padding)
+ * \param stride_h A static constant striding amount applied to the height of
+ * the image, before and after (symmetric padding)
+ * \param stride_w A static constant strindingamount applied to the width of
+ * the image, before and after (symmetric padding)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the 2-D groupconvolution operation
+ * (NCHW layout)
+ */
 inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
-                                      const tvm::Tensor& W, int pad_h = 0,
-                                      int pad_w = 0, int stride_h = 1,
-                                      int stride_w = 1) {
+                                      const tvm::Tensor& W,
+                                      int pad_h = 0,
+                                      int pad_w = 0,
+                                      int stride_h = 1,
+                                      int stride_w = 1,
+                                      std::string name = "tensor",
+                                      std::string tag = kGroupConv2d) {
   CHECK_EQ(5, I->shape.size());
   CHECK_EQ(5, W->shape.size());
   auto pH = I->shape[2];
@@ -195,12 +359,17 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::Expr(0), tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
-  auto l = [&](tvm::Var b, tvm::Var g, tvm::Var o, tvm::Var h, tvm::Var w) {
+  auto l = [&](tvm::Array<tvm::Var> args) {
+    tvm::Var b = args[0];
+    tvm::Var g = args[1];
+    tvm::Var o = args[2];
+    tvm::Var h = args[3];
+    tvm::Var w = args[4];
     return tvm::sum(
         I(b, g, i, stride_h * h + kh, stride_w * w + kw) * W(g, i, o, kh, kw),
         {i, kh, kw});
   };
-  return tvm::compute(output_shape, l);
+  return tvm::compute(output_shape, l, name, tag);
 }
 
 }  // namespace topi

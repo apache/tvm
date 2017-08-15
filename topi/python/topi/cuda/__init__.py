@@ -6,3 +6,5 @@ from .depthwise_conv2d_nhwc import schedule_depthwise_conv2d_nhwc
 from .depthwise_conv2d_nchw import schedule_depthwise_conv2d_nchw
 from .conv2d_nchw import schedule_conv2d_nchw
 from .conv2d_hwcn import schedule_conv2d_hwcn
+from .reduction import schedule_reduce
+from .broadcast import schedule_broadcast_to

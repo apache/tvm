@@ -1,5 +1,5 @@
 #include <tvm/tvm.h>
-#include <topi/ewise.h>
+#include <topi/elemwise.h>
 #include <gtest/gtest.h>
 
 namespace topi {
