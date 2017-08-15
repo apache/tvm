@@ -4,23 +4,25 @@
 [Installation](docs/how_to/install.md) |
 [Documentation](http://docs.tvmlang.org) |
 [Tutorials](http://tutorials.tvmlang.org) |
+[Operator Inventory](topi) |
 [FAQ](docs/faq.md) |
 [Contributors](CONTRIBUTORS.md) |
 [Release Notes](NEWS.md)
 
-TVM
-===
+TVM: Tensor IR Stack for Deep Learning Systems
+==============================================
+TVM is a Tensor intermediate representation(IR) stack for deep learning systems. It is designed to close the gap between the
+productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
+TVM works with deep learning frameworks to provide end to end compilation to different backends.
 
-TVM is a low level domain specific language(DSL) for compiling tensor computation pipelines.
-It is designed to compile multi-dimensional tensor algebra pipelines which
-are crucial to deep learning frameworks.
+License
+-------
+© Contributors, 2017. Licensed under an [Apache-2.0](https://github.com/dmlc/tvm/blob/master/LICENSE) license.
 
 Contribute to TVM
 -----------------
-Your help is very valuable to make the package better for everyone.
+TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
+
 - [Contributor Guide](docs/how_to/contribute.md)
 - Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md)
 - Please also update [NEWS.md](NEWS.md) on changes and improvements in API and codes.
-
-## Documentation
-The current documentation can be build locally via sphinx. See [docs](docs) folder for details.
