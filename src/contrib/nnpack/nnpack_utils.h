@@ -2,6 +2,8 @@
  *  Copyright (c) 2017 by Contributors
  * \file Use external nnpack library call.
  */
+#ifndef TVM_CONTRIB_NNPACK_NNPACK_UTILS_H_
+#define TVM_CONTRIB_NNPACK_NNPACK_UTILS_H_
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/thread_local.h>
@@ -19,3 +21,4 @@ struct NNPackThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<NNPackThreadLocalEntry> NNPackThreadLocalStore;
 }  // namespace contrib
 }  // namespace tvm
+#endif  // TVM_CONTRIB_NNPACK_NNPACK_UTILS_H_
