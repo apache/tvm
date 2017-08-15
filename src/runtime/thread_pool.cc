@@ -11,6 +11,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <atomic>
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <cstring>
