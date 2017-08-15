@@ -41,6 +41,7 @@ def find_lib_path(name=None, search_path=None):
 
     # Default cmake build directory
     dll_path.append(os.path.join(source_dir, "build"))
+    dll_path.append(os.path.join(source_dir, "build", "Release"))
     # Default mkae build directory
     dll_path.append(os.path.join(source_dir, "lib"))
 
@@ -57,8 +58,10 @@ def find_lib_path(name=None, search_path=None):
         runtime_dll_path = []
     else:
         if sys.platform.startswith('win32'):
-            lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path]
-            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dll') for p in dll_path]
+            lib_dll_path = [os.path.join(p, 'libtvm.dll') for p in dll_path] +\
+                           [os.path.join(p, 'tvm.dll') for p in dll_path]
+            runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dll') for p in dll_path] +\
+                               [os.path.join(p, 'tvm_runtime.dll') for p in dll_path]
         elif sys.platform.startswith('darwin'):
             lib_dll_path = [os.path.join(p, 'libtvm.dylib') for p in dll_path]
             runtime_dll_path = [os.path.join(p, 'libtvm_runtime.dylib') for p in dll_path]
