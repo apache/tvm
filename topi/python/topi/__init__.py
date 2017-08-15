@@ -7,6 +7,8 @@ optimizing tvm generated kernels.
 from __future__ import absolute_import as _abs
 
 from .math import *
+from .reduction import *
+from .broadcast import *
 from . import nn
 from . import cuda
 from . import testing
