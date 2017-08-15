@@ -33,6 +33,12 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var, eps, fix_gamma):
     -------
     output : tvm.Tensor
         4-D with shape [batch, channel, height, width]
+
+    mean : tvm.Tensor
+        1-D with shape [channel]
+
+    var : tvm.Tensor
+        1-D with shape [channel]
     """
     assert len(data.shape) == 4, "only support 4-dim batch norm"
     batch, channel, height, width = data.shape
