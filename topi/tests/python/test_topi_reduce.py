@@ -39,7 +39,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=ctx)
         for _ in range(1):
             foo(data_tvm, out_tvm)
-        np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 4E-4, 4E-4)
+        np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 5E-4, 5E-4)
 
     check_device("opencl")
     check_device("cuda")
