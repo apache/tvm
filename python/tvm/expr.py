@@ -50,6 +50,12 @@ class ExprOp(object):
     def __rtruediv__(self, other):
         return self.__rdiv__(other)
 
+    def __floordiv__(self, other):
+        return self.__div__(other)
+
+    def __rfloordiv__(self, other):
+        return self.__rdiv__(other)
+
     def __mod__(self, other):
         return _make.Mod(self, other)
 
