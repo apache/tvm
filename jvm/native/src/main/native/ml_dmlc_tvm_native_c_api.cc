@@ -279,7 +279,7 @@ extern "C" int funcInvokeCallback(TVMValue *args,
 // Free callback function
 extern "C" void funcFreeCallback(void *resourceHandle) {
   JNIEnv *env;
-  int jniStatus = _jvm->GetEnv((void **)(&env), JNI_VERSION_1_6);
+  int jniStatus = _jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
   if (jniStatus == JNI_EDETACHED) {
   #ifdef TVM4J_ANDROID
     _jvm->AttachCurrentThread(&env, nullptr);

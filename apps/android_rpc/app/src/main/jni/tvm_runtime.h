@@ -20,16 +20,4 @@
 #include "../src/runtime/rpc/rpc_server_env.cc"                                                                                       
 #include "../src/runtime/rpc/rpc_module.cc"
 #include "../src/runtime/rpc/rpc_socket_impl.cc"
-
-// dummy parallel runtime
-int TVMBackendParallelLaunch(
-    FTVMParallelLambda flambda,
-    void* cdata,
-    int num_task) {
-  TVMAPISetLastError("Parallel is not supported in Web runtime");
-  return -1;
-}
-
-int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
-  return 0;
-}
+#include "../src/runtime/thread_pool.cc"
