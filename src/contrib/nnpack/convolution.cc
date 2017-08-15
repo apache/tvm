@@ -6,6 +6,7 @@
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
 #include <nnpack.h>
+#include "./nnpack_utils.h"
 
 namespace tvm {
 namespace contrib {
@@ -13,6 +14,7 @@ using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
     nnp_initialize();
     DLTensor* input  = args[0];
     DLTensor* kernel = args[1];
@@ -61,13 +63,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
                               NULL,
                               nnp_activation_identity,
                               NULL,
-                              NULL,
+                              entry->threadpool,
                               NULL);
   });
 
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_output")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
     nnp_initialize();
     DLTensor* input  = args[0];
     DLTensor* kernel = args[1];
@@ -112,9 +115,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_output")
                            static_cast<float*>(kernel->data),
                            static_cast<float*>(bias->data),
                            static_cast<float*>(output->data),
+                           NULL,
+                           NULL,
                            nnp_activation_identity,
                            NULL,
-                           NULL,
+                           entry->threadpool,
                            NULL);
   });
 }  // namespace contrib
