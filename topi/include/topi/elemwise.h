@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file ewise.h
+ * \file elemwise.h
  * \brief Elementwise op constructions
  */
-#ifndef TOPI_EWISE_H_
-#define TOPI_EWISE_H_
+#ifndef TOPI_ELEMWISE_H_
+#define TOPI_ELEMWISE_H_
 
 #include <string>
 
@@ -30,4 +30,4 @@ TOPI_DECLARE_UNARY_OP(sigmoid);
 TOPI_DECLARE_UNARY_OP(sqrt);
 
 }  // namespace topi
-#endif  // TOPI_EWISE_H_
+#endif  // TOPI_ELEMWISE_H_
