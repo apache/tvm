@@ -482,6 +482,14 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     PrintBinaryIntrinsitc(op, " << ", os, this);
   } else if (op->is_intrinsic(Call::shift_right)) {
     PrintBinaryIntrinsitc(op, " >> ", os, this);
+  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    os << "(";
+    PrintExpr(op->args[0], os);
+    os << " ? ";
+    PrintExpr(op->args[1], os);
+    os << " : ";
+    PrintExpr(op->args[2], os);
+    os << ")";
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);

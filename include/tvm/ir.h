@@ -218,6 +218,14 @@ namespace intrinsic {
  */
 constexpr const char* tvm_address_of = "tvm_address_of";
 /*!
+ * \brief Same as select, used for unsafe memory access.
+ *
+ *  Type tvm_if_then_else(cond, a, b) {
+ *    return cond ? a : b;
+ *  }
+ */
+constexpr const char* tvm_if_then_else = "tvm_if_then_else";
+/*!
  * \brief Get head access address with memory access pattern info.
  *
  *  This operator also marks range of the memory access
