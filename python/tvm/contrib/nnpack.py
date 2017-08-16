@@ -3,6 +3,18 @@ from __future__ import absolute_import as _abs
 
 from .. import api as _api
 from .. import intrin as _intrin
+from .._ffi.function import _init_api
+
+def config(nthreads):
+    """Configure the nnpack library.
+
+    Parameters
+    ----------
+    nthreads : int
+        The threads number of nnpack thread pool, must be a nonnegative.
+
+    """
+    _Config(nthreads)
 
 def fully_connected_inference(lhs, rhs):
     """Create an extern op that compute fully connected of 1D tensor lhs and
@@ -84,8 +96,8 @@ def convolution_inference(data, kernel, bias, padding, stride):
     assert isinstance(stride, list) and len(stride) == 2
     _, input_height, input_width = data.shape
     output_channels, _, kernel_height, kernel_width = kernel.shape
-    output_height = (input_height + padding[0] + padding[1] - kernel_height) + 1
-    output_width = (input_width + padding[0] + padding[1] - kernel_width) + 1
+    output_height = (input_height + padding[0] + padding[1] - kernel_height) / stride[0] + 1
+    output_width = (input_width + padding[0] + padding[1] - kernel_width) / stride[1] + 1
 
     return _api.extern(
         (output_channels, output_height, output_width), [data, kernel, bias],
@@ -131,3 +143,5 @@ def convolution_output(data, kernel, bias, padding):
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.convolution_output", ins[0], ins[1], ins[2],
             outs[0], padding[0], padding[1], padding[2], padding[3]), name="C")
+
+_init_api("tvm.contrib.nnpack")
