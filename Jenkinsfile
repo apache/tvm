@@ -81,6 +81,7 @@ stage('Build') {
         init_git()
         sh """
            cp make/config.mk .
+           echo USE_CUDNN=1 >> config.mk
            echo USE_CUDA=1 >> config.mk
            echo USE_OPENCL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk

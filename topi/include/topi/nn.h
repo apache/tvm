@@ -287,7 +287,7 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
                                          int stride_h = 1,
                                          int stride_w = 1,
                                          std::string name = "tensor",
-                                         std::string tag = kDepthwiseConv2d) {
+                                         std::string tag = kDepthwiseConv2dNCHW) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
@@ -309,6 +309,39 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
     return tvm::sum(T(b, i / pCM, stride_h * h + kh, stride_w * w + kw) *
                         W(i / pCM, o % pCM, kh, kw),
                     {i, kh, kw});
+  };
+  return tvm::compute(output_shape, l, name, tag);
+}
+
+inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
+                                         const tvm::Tensor& W,
+                                         int pad_h = 0,
+                                         int pad_w = 0,
+                                         int stride_h = 1,
+                                         int stride_w = 1,
+                                         std::string name = "tensor",
+                                         std::string tag = kDepthwiseConv2dNHWC) {
+  CHECK_EQ(4, I->shape.size());
+  CHECK_EQ(4, W->shape.size());
+  auto pH = I->shape[1];
+  auto pW = I->shape[2];
+  auto pCM = W->shape[1];  // channel_multiplier
+  tvm::Array<tvm::Expr> output_shape{
+      I->shape[0],                                            // B
+      (I->shape[1] - W->shape[1] + 2 * pad_h) / stride_h + 1,  // H
+      (I->shape[2] - W->shape[2] + 2 * pad_w) / stride_w + 1,   // W
+      W->shape[3],                                            // O
+  };
+  auto i = tvm::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
+  auto kh = tvm::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
+  auto kw = tvm::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
+  auto T = (pad_h == 0 && pad_w == 0)
+               ? I
+               : pad(I, {tvm::Expr(0), pad_h, pad_w, tvm::Expr(0)});
+  auto l = [&](tvm::Var b, tvm::Var h, tvm::Var w, tvm::Var o) {
+    return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, i / pCM) *
+                        W(kh, kw, i / pCM, o % pCM),
+                    {kh, kw, i});
   };
   return tvm::compute(output_shape, l, name, tag);
 }
