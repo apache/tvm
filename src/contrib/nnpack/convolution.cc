@@ -14,7 +14,7 @@ using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     nnp_initialize();
     DLTensor* input  = args[0];
     DLTensor* kernel = args[1];
@@ -70,7 +70,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_output")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     nnp_initialize();
     DLTensor* input  = args[0];
     DLTensor* kernel = args[1];

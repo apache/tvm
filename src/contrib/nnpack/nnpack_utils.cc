@@ -8,9 +8,15 @@ namespace tvm {
 namespace contrib {
 using namespace runtime;
 
+typedef dmlc::ThreadLocalStore<NNPackThreadLocalEntry> NNPackThreadLocalStore;
+
+NNPackThreadLocalEntry* NNPackThreadLocalEntry::ThreadLocal() {
+  return NNPackThreadLocalStore::Get();
+}
+
 TVM_REGISTER_GLOBAL("contrib.nnpack._Config")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     size_t nthreads = args[0];
     if (entry->threadpool != NULL &&
         pthreadpool_get_threads_count(entry->threadpool) != nthreads) {

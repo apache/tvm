@@ -16,7 +16,7 @@ using namespace runtime;
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     nnp_initialize();
     DLTensor* A = args[0];
     DLTensor* B = args[1];
@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    NNPackThreadLocalEntry *entry = NNPackThreadLocalStore::Get();
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     nnp_initialize();
     DLTensor* A = args[0];
     DLTensor* B = args[1];

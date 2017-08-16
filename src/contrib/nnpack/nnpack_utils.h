@@ -16,9 +16,8 @@ using namespace runtime;
 
 struct NNPackThreadLocalEntry {
   pthreadpool_t threadpool{NULL};
+  static NNPackThreadLocalEntry* ThreadLocal();
 };
-
-typedef dmlc::ThreadLocalStore<NNPackThreadLocalEntry> NNPackThreadLocalStore;
 }  // namespace contrib
 }  // namespace tvm
 #endif  // TVM_CONTRIB_NNPACK_NNPACK_UTILS_H_
