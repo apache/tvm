@@ -267,6 +267,13 @@ Stmt CoProcSync(Stmt stmt);
 Stmt LiftAttrScope(Stmt stmt, std::string attr_key);
 
 /*!
+ * \brief Detect and rewrite unsafe select that contains memory access.
+ * \param stmt The statment to be rewritten.
+ * \return Transformed stmt.
+ */
+Stmt RewriteUnsafeSelect(Stmt stmt);
+
+/*!
  * \brief Lower attached storage access information.
  * Do this pass after all storage access analysis finish.
  *

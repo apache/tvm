@@ -201,7 +201,28 @@ def test_multiple_func():
     check_llvm()
 
 
+def test_llvm_select():
+    def check_llvm(n, offset):
+        if not tvm.module.enabled("llvm"):
+            return
+        A = tvm.placeholder((n, ), name='A')
+        C = tvm.compute((n,), lambda i: tvm.select(i >= offset, A[i], 0.0), name='C')
+        s = tvm.create_schedule(C.op)
+        # build and invoke the kernel.
+        f = tvm.build(s, [A, C], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
+        c = tvm.nd.empty((n,), A.dtype, ctx)
+        f(a, c)
+        c_np = a.asnumpy()
+        c_np[:offset] = 0
+        np.testing.assert_allclose(c.asnumpy(), c_np)
+    check_llvm(64, 8)
+
+
 if __name__ == "__main__":
+    test_llvm_select()
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()

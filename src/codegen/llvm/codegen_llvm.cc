@@ -1028,6 +1028,31 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     llvm::Value* ptr = MakeValue(op->args[0]);
     return builder_->CreateICmpEQ(
         ptr, llvm::Constant::getNullValue(ptr->getType()));
+  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    using llvm::BasicBlock;
+    CHECK_EQ(op->args.size(), 3U);
+    llvm::Value* cond = MakeValue(op->args[0]);
+    BasicBlock* then_block = BasicBlock::Create(
+        *ctx_, "if_then", function_);
+    BasicBlock* else_block = BasicBlock::Create(
+        *ctx_, "if_else", function_);
+    BasicBlock* end_block = BasicBlock::Create(
+        *ctx_, "if_end", function_);
+    builder_->CreateCondBr(cond, then_block, else_block);
+    // Then
+    builder_->SetInsertPoint(then_block);
+    llvm::Value* then_value = MakeValue(op->args[1]);
+    builder_->CreateBr(end_block);
+    builder_->SetInsertPoint(else_block);
+    // else
+    llvm::Value* else_value = MakeValue(op->args[2]);
+    builder_->CreateBr(end_block);
+    builder_->SetInsertPoint(end_block);
+    // phi
+    llvm::PHINode* phi = builder_->CreatePHI(then_value->getType(), 2);
+    phi->addIncoming(then_value, then_block);
+    phi->addIncoming(else_value, else_block);
+    return phi;
   } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
     int kind = op->args[2].as<IntImm>()->value;
