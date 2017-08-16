@@ -3,9 +3,8 @@
 import tvm
 from ..util import get_const_tuple
 
-
-def schedule_depthwise_conv2d(outs):
-    """Schedule for depthwise_conv2d.
+def schedule_depthwise_conv2d_nchw(outs):
+    """Schedule for depthwise_conv2d nchw forward.
 
     Parameters
     ----------
@@ -16,7 +15,7 @@ def schedule_depthwise_conv2d(outs):
     Returns
     -------
     s: Schedule
-        The computation schedule for depthwise_conv2d.
+        The computation schedule for depthwise_conv2d nchw.
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
@@ -105,7 +104,78 @@ def schedule_depthwise_conv2d(outs):
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
-        if OP.tag == 'depthwise_conv2d':
+        if OP.tag == 'depthwise_conv2d_nchw':
+            PaddedInput = OP.input_tensors[0]
+            Filter = OP.input_tensors[1]
+            DepthwiseConv2d = OP.output(0)
+            _schedule(PaddedInput, Filter, DepthwiseConv2d)
+
+    traverse(outs[0].op)
+    return s
+
+def schedule_depthwise_conv2d_nhwc(outs):
+    """Schedule for depthwise_conv2d nhwc forward.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of depthwise_conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for depthwise_conv2d nhwc.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    def _schedule(temp, Filter, DepthwiseConv2d):
+
+        s[temp].compute_inline()
+        FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
+        if DepthwiseConv2d.op in s.outputs:
+            Output = DepthwiseConv2d
+            CL = s.cache_write(DepthwiseConv2d, "local")
+        else:
+            Output = outs[0].op.output(0)
+            s[DepthwiseConv2d].set_scope("local")
+
+        block_x = tvm.thread_axis("blockIdx.x")
+        thread_x = tvm.thread_axis("threadIdx.x")
+
+        b, h, w, c = s[Output].op.axis
+
+        ic_val = tvm.ir_pass.Simplify(temp.shape[3]).value
+        xoc, xic = s[Output].split(c, factor=ic_val)
+        s[Output].reorder(xoc, b, h, w, xic)
+        xo, yo, _, _ = s[Output].tile(h, w, x_factor=2, y_factor=2)
+        fused = s[Output].fuse(yo, xo)
+        fused = s[Output].fuse(fused, b)
+        fused = s[Output].fuse(fused, xoc)
+
+        s[Output].bind(fused, block_x)
+        s[Output].bind(xic, thread_x)
+
+        if DepthwiseConv2d.op in s.outputs:
+            s[CL].compute_at(s[Output], xic)
+        else:
+            s[DepthwiseConv2d].compute_at(s[Output], xic)
+
+        _, _, ci, fi = s[FS].op.axis
+        s[FS].compute_at(s[Output], fused)
+        fused = s[FS].fuse(fi, ci)
+        s[FS].bind(fused, thread_x)
+
+    def traverse(OP):
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+            if OP not in s.outputs:
+                s[OP].compute_inline()
+            for tensor in OP.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        # schedule depthwise_conv2d
+        if OP.tag == 'depthwise_conv2d_nhwc':
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
             DepthwiseConv2d = OP.output(0)
