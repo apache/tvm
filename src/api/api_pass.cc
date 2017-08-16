@@ -85,6 +85,7 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
 
 REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
+REGISTER_PASS1(RewriteUnsafeSelect);
 REGISTER_PASS4(Inline);
 REGISTER_PASS3(StorageFlatten);
 REGISTER_PASS1(VectorizeLoop);
