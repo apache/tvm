@@ -137,6 +137,13 @@ endif()
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/CMakeLists.txt)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include)
+  if (INSTALL_DEV)
+    install(
+      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include/." DESTINATION "include"
+      FILES_MATCHING
+      PATTERN "*.h"
+    )
+  endif()
 elseif(DMLC_CORE_PATH)
   include_directories(${DMLC_CORE_PATH}/include)
 endif()
@@ -151,6 +158,21 @@ if (INSTALL_DEV)
   install(TARGETS tvm DESTINATION lib)
   install(
     DIRECTORY "include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+  install(
+    DIRECTORY "topi/include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+  install(
+    DIRECTORY "HalideIR/src/." DESTINATION "include/HalideIR"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+  install(
+    DIRECTORY "dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
   )
