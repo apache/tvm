@@ -77,6 +77,15 @@ file(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
 
 if(USE_CUDA)
 find_package(CUDA)
+# Find CUDA doesn't find all the libraries we need, add the extra ones
+find_library(CUDA_CUDA_LIBRARIES cuda
+  PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs)
+find_library(CUDA_NVRTC_LIBRARIES nvrtc
+  PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs)
+  set(CUDA_CUDA_LIBRARY ${CUDA_CUDA_LIBRARIES})
+
   find_package(CUDA QUIET REQUIRED)
   message(STATUS "Build with CUDA support...")
 	include_directories(${CUDA_INCLUDE_DIRS})
