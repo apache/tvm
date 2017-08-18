@@ -39,10 +39,10 @@ def schedule_conv2d_small_batch(outs):
         vthread = 2
         out_filter = min(64, util.get_const_int(Filter.shape[0]))
         in_filter = util.get_const_int(Filter.shape[1])
-        opart2 = max(1, out_filter//8)
-        ofactor = out_filter
-        wfactor = block_h
-        ifactor = max(8, in_filter//4)
+        opart2 = 4
+        ofactor = 64
+        wfactor = 56
+        ifactor = 8
         sfactor = max(1, ofactor//(opart2*2))
         spart = max(1, (wfactor + vthread-1) // vthread)
         block_x = tvm.thread_axis("blockIdx.x")

@@ -7,7 +7,7 @@ from .pad import pad, _spatial2d_pad_option
 
 
 def conv2d_nchw(Input, Filter, stride, padding):
-    """Convolution operator in HWCN layout.
+    """Convolution operator in NCHW layout.
 
     Parameters
     ----------
