@@ -23,7 +23,8 @@ Index
    topi.nn.scale_shift
    topi.nn.conv2d_nchw
    topi.nn.conv2d_hwcn
-   topi.nn.depthwise_conv2d
+   topi.nn.depthwise_conv2d_nchw
+   topi.nn.depthwise_conv2d_nhwc
 
 
 **List of schedules**
@@ -32,7 +33,8 @@ Index
 
    topi.cuda.schedule_conv2d_nchw
    topi.cuda.schedule_conv2d_hwcn
-   topi.cuda.schedule_depthwise_conv2d
+   topi.cuda.schedule_depthwise_conv2d_nchw
+   topi.cuda.schedule_depthwise_conv2d_nhwc
    topi.cuda.schedule_reduce
    topi.cuda.schedule_broadcast_to
 
@@ -56,7 +58,9 @@ topi.nn
 .. autofunction:: topi.nn.scale_shift
 .. autofunction:: topi.nn.conv2d_nchw
 .. autofunction:: topi.nn.conv2d_hwcn
-.. autofunction:: topi.nn.depthwise_conv2d
+.. autofunction:: topi.nn.depthwise_conv2d_nchw
+.. autofunction:: topi.nn.depthwise_conv2d_nhwc
+
 
 topi.cuda
 ~~~~~~~~~
@@ -64,6 +68,7 @@ topi.cuda
 
 .. autofunction:: topi.cuda.schedule_conv2d_nchw
 .. autofunction:: topi.cuda.schedule_conv2d_hwcn
-.. autofunction:: topi.cuda.schedule_depthwise_conv2d
+.. autofunction:: topi.cuda.schedule_depthwise_conv2d_nchw
+.. autofunction:: topi.cuda.schedule_depthwise_conv2d_nhwc
 .. autofunction:: topi.cuda.schedule_reduce
 .. autofunction:: topi.cuda.schedule_broadcast_to

@@ -1,3 +1,6 @@
+TVM: Tensor IR Stack for Deep Learning Systems
+==============================================
+
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=dmlc/tvm/master)](http://mode-gpu.cs.washington.edu:8080/job/dmlc/job/tvm/job/master/)
 
@@ -9,11 +12,10 @@
 [Contributors](CONTRIBUTORS.md) |
 [Release Notes](NEWS.md)
 
-TVM: Tensor IR Stack for Deep Learning Systems
-==============================================
 TVM is a Tensor intermediate representation(IR) stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
 TVM works with deep learning frameworks to provide end to end compilation to different backends.
+Checkout our [announcement](http://tvmlang.org/2017/08/17/tvm-release-announcement.html) for more details.
 
 License
 -------

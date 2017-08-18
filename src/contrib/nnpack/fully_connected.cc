@@ -5,8 +5,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
-
 #include <nnpack.h>
+#include "./nnpack_utils.h"
 
 namespace tvm {
 namespace contrib {
@@ -16,6 +16,7 @@ using namespace runtime;
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     nnp_initialize();
     DLTensor* A = args[0];
     DLTensor* B = args[1];
@@ -37,12 +38,13 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
                                   static_cast<float*>(A->data),
                                   static_cast<float*>(B->data),
                                   static_cast<float*>(C->data),
-                                  NULL);
+                                  entry->threadpool);
   });
 
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
+    NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
     nnp_initialize();
     DLTensor* A = args[0];
     DLTensor* B = args[1];
@@ -66,7 +68,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
                                static_cast<float*>(A->data),
                                static_cast<float*>(B->data),
                                static_cast<float*>(C->data),
-                               NULL,
+                               entry->threadpool,
                                NULL);
   });
 

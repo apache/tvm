@@ -81,7 +81,7 @@ size_t InferTensorizeRegion(
   for (const auto& kv : in_dom) {
     Array<Range> vec;
     const Tensor& t = kv.first;
-    for (int i = 0; i < t.ndim(); ++i) {
+    for (size_t i = 0; i < t.ndim(); ++i) {
       Range r = arith::Union(kv.second.data.at(i)).cover_range(none);
       CHECK(r.defined()) << "cannot deduce region of tensorized scope for input " << t;
       vec.push_back(std::move(r));
@@ -333,7 +333,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   CHECK_EQ(inputs.size(), intrin->inputs.size())
       << "Tensorize failed: input size mismatch ";
   // input binding
-  for (int i = 0; i < intrin->inputs.size(); ++i) {
+  for (size_t i = 0; i < intrin->inputs.size(); ++i) {
     Tensor tensor = inputs[i];
     Buffer buffer = intrin->buffers[i];
     Array<NodeRef> bind_spec{buffer, tensor};
