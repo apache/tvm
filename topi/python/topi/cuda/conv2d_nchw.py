@@ -37,8 +37,6 @@ def schedule_conv2d_small_batch(outs):
         # sheduler params
         num_thread = 8
         vthread = 2
-        out_filter = min(64, util.get_const_int(Filter.shape[0]))
-        in_filter = util.get_const_int(Filter.shape[1])
         opart2 = 4
         ofactor = 64
         wfactor = 56
