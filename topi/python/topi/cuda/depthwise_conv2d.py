@@ -20,9 +20,16 @@ def schedule_depthwise_conv2d_nchw(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     def _schedule(PaddedInput, Filter, DepthwiseConv2d):
+        """
+        in_height = tvm.ir_pass.Simplify(PaddedInput.shape[2]).value
+        in_width = tvm.ir_pass.Simplify(PaddedInput.shape[3]).value
+        filter_height = tvm.ir_pass.Simplify(Filter.shape[2]).value
+        filter_width = tvm.ir_pass.Simplify(Filter.shape[3]).value
         out_shape = get_const_tuple(DepthwiseConv2d.shape)
         out_height = out_shape[2]
         out_width = out_shape[3]
+        stride_h = (in_height - filter_height) // (out_height - 1)
+        stride_w = (in_width - filter_width) // (out_width - 1)
         channel_multiplier = get_const_tuple(Filter.shape)[1]
         s[PaddedInput].compute_inline()
         IS = s.cache_read(PaddedInput, "shared", [DepthwiseConv2d])
@@ -42,14 +49,91 @@ def schedule_depthwise_conv2d_nchw(outs):
         num_vthread_y = 1
         blocking_h = out_height
         blocking_w = out_width
-        if out_height % 32 == 0:
+        if out_height % 32 == 0 or out_height*stride_h > 96:
             blocking_h = 32
             num_thread_x = 2
             num_vthread_x = 2
-        if out_width % 32 == 0:
+        if out_width % 32 == 0 or out_width*stride_w > 96:
             blocking_w = 32
             num_thread_y = 16
             num_vthread_y = 2
+        block_x = tvm.thread_axis("blockIdx.x")
+        block_y = tvm.thread_axis("blockIdx.y")
+        thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
+        thread_y = tvm.thread_axis((0, num_thread_y), "threadIdx.y")
+        thread_vx = tvm.thread_axis((0, num_vthread_x), "vthread", name="vx")
+        thread_vy = tvm.thread_axis((0, num_vthread_y), "vthread", name="vy")
+        # split and bind
+        bx, bxi = s[Output].split(Output.op.axis[1], factor=channel_multiplier)
+        s[Output].reorder(Output.op.axis[2], Output.op.axis[3], bxi)
+        bx = s[Output].fuse(Output.op.axis[0], bx)
+        s[Output].bind(bx, block_x)
+        by1, y1i = s[Output].split(Output.op.axis[2], factor=blocking_h)
+        tvx, vxi = s[Output].split(y1i, nparts=num_vthread_x)
+        tx, xi = s[Output].split(vxi, nparts=num_thread_x)
+        by2, y2i = s[Output].split(Output.op.axis[3], factor=blocking_w)
+        tvy, vyi = s[Output].split(y2i, nparts=num_vthread_y)
+        ty, yi = s[Output].split(vyi, nparts=num_thread_y)
+        s[Output].reorder(by1, by2, tvx, tvy, tx, ty, xi, yi)
+        by = s[Output].fuse(by1, by2)
+        s[Output].bind(tvx, thread_vx)
+        s[Output].bind(tvy, thread_vy)
+        s[Output].bind(tx, thread_x)
+        s[Output].bind(ty, thread_y)
+        s[Output].bind(by, block_y)
+        # local memory load
+        s[IL].compute_at(s[Output], ty)
+        s[FL].compute_at(s[Output], ty)
+        if DepthwiseConv2d.op in s.outputs:
+            s[CL].compute_at(s[Output], ty)
+        else:
+            s[DepthwiseConv2d].compute_at(s[Output], ty)
+        # input's shared memory load
+        s[IS].compute_at(s[Output], by)
+        tx, xi = s[IS].split(IS.op.axis[2], nparts=num_thread_x)
+        ty, yi = s[IS].split(IS.op.axis[3], nparts=num_thread_y)
+        s[IS].bind(tx, thread_x)
+        s[IS].bind(ty, thread_y)
+        # filter's shared memory load
+        s[FS].compute_at(s[Output], by)
+        s[FS].reorder(FS.op.axis[2], FS.op.axis[3], FS.op.axis[1])
+        tx, xi = s[FS].split(FS.op.axis[2], nparts=num_thread_x)
+        ty, yi = s[FS].split(FS.op.axis[3], nparts=num_thread_y)
+        s[FS].bind(tx, thread_x)
+        s[FS].bind(ty, thread_y)
+        """
+        """Schedule for depthwise_conv2d declared in topi.nn.conv"""
+        in_height = tvm.ir_pass.Simplify(PaddedInput.shape[2]).value
+        in_width = tvm.ir_pass.Simplify(PaddedInput.shape[3]).value
+        filter_height = tvm.ir_pass.Simplify(Filter.shape[2]).value
+        filter_width = tvm.ir_pass.Simplify(Filter.shape[3]).value
+        out_height = tvm.ir_pass.Simplify(DepthwiseConv2d.shape[2]).value
+        out_width = tvm.ir_pass.Simplify(DepthwiseConv2d.shape[3]).value
+        stride_h = (in_height - filter_height) // (out_height - 1)
+        stride_w = (in_width - filter_width) // (out_width - 1)
+        channel_multiplier = tvm.ir_pass.Simplify(Filter.shape[1]).value
+        s[PaddedInput].compute_inline()
+        IS = s.cache_read(PaddedInput, "shared", [DepthwiseConv2d])
+        FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
+        IL = s.cache_read(IS, "local", [DepthwiseConv2d])
+        FL = s.cache_read(FS, "local", [DepthwiseConv2d])
+        if DepthwiseConv2d.op in s.outputs:
+            Output = DepthwiseConv2d
+            CL = s.cache_write(DepthwiseConv2d, "local")
+        else:
+            Output = outs[0].op.output(0)
+            s[DepthwiseConv2d].set_scope("local")
+        # schedule parameters
+        num_thread_x = 8
+        num_thread_y = 8
+        num_vthread_x = 1
+        num_vthread_y = 1
+        blocking_h = out_height
+        blocking_w = out_width
+        if out_height % 32 == 0 or out_height*stride_h > 96:
+            blocking_h = 32
+        if out_width % 32 == 0 or out_width*stride_w > 96:
+            blocking_w = 32
         block_x = tvm.thread_axis("blockIdx.x")
         block_y = tvm.thread_axis("blockIdx.y")
         thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
@@ -180,6 +264,73 @@ def schedule_depthwise_conv2d_nhwc(outs):
             Filter = OP.input_tensors[1]
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
+
+    traverse(outs[0].op)
+    return s
+
+
+def schedule_depthwise_conv2d_back_input_nhwc(outs):
+    """Schedule for depthwise_conv2d nhwc backward wrt input.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of depthwise_conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for depthwise_conv2d nhwc.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _schedule(Padded_out_grad, Filter, In_grad):
+        s[Padded_out_grad].compute_inline()
+
+        if In_grad.op in s.outputs:
+            Output = In_grad
+            CL = s.cache_write(In_grad, "local")
+        else:
+            Output = outs[0].op.output(0)
+            s[In_grad].set_scope("local")
+
+        block_x = tvm.thread_axis("blockIdx.x")
+        thread_x = tvm.thread_axis("threadIdx.x")
+        b, h, w, c = In_grad.op.axis
+
+        fused_wc = s[In_grad].fuse(w,c)
+
+        fused_hwc = s[In_grad].fuse(h,fused_wc)
+        xoc, xic = s[In_grad].split(fused_hwc, factor=128)
+        fused = s[In_grad].fuse(b, xoc)
+        #fused = s[In_grad].fuse(b, fused)
+
+        s[In_grad].bind(fused, block_x)
+        s[In_grad].bind(xic, thread_x)
+
+        if In_grad.op in s.outputs:
+            s[CL].compute_at(s[Output], xic)
+        else:
+            s[In_grad].compute_at(s[Output], xic)
+
+
+
+    def traverse(OP):
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+            if OP not in s.outputs:
+                s[OP].compute_inline()
+            for tensor in OP.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        # schedule depthwise_conv2d
+        if OP.tag == 'depthwise_conv2d_back_input_nhwc':
+            Padded_out_grad = OP.input_tensors[0]
+            Filter = OP.input_tensors[1]
+            In_grad = OP.output(0)
+            _schedule(Padded_out_grad, Filter, In_grad)
 
     traverse(outs[0].op)
     return s
