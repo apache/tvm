@@ -191,7 +191,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
     }
   } else if (from_dev_type == kCPU && to_dev_type == kMetal) {
     id<MTLBuffer> to_buf = (__bridge id<MTLBuffer>)(to);
-    if (to_buf.storageMode == MTLStorageModeShared) {
+    if (to_buf.storageMode != MTLStorageModeShared) {
       id<MTLBuffer> temp = MetalThreadEntry::ThreadLocal()
           ->GetTempBuffer(ctx_to, size);
       memcpy([temp contents],
