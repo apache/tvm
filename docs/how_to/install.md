@@ -46,6 +46,13 @@ This specifies an out of source build using the MSVC 12 64 bit generator. Open t
 
 ### Customized Building
 
+Install prerequisites first: 
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python gcc libtinfo-dev
+```
+
 The configuration of tvm can be modified by ```config.mk```
 - First copy ```make/config.mk``` to the project root, on which
   any local modification will be ignored by git, then modify the according flags.
