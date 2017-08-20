@@ -92,13 +92,13 @@ stage('Build') {
            echo USE_RPC=1 >> config.mk
            echo USE_BLAS=openblas >> config.mk
            """
-        make('gpu', '-j4')
+        make('gpu', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm40.so"
         sh "echo LLVM_CONFIG=llvm-config-5.0 >> config.mk"
-        make('gpu', '-j4')
+        make('gpu', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm50.so"
         sh "echo LLVM_CONFIG=llvm-config-6.0 >> config.mk"
-        make('gpu', '-j4')
+        make('gpu', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm60.so"
         pack_lib('gpu', tvm_multilib)
       }
@@ -114,7 +114,7 @@ stage('Build') {
            echo USE_OPENCL=0 >> config.mk
            echo USE_RPC=0 >> config.mk
            """
-        make('cpu', '-j4')
+        make('cpu', '-j2')
         pack_lib('cpu', tvm_lib)
       }
     }
@@ -130,13 +130,13 @@ stage('Build') {
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
            """
-        make('i386', '-j4')
+        make('i386', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm40.so"
         sh "echo LLVM_CONFIG=llvm-config-5.0 >> config.mk"
-        make('i386', '-j4')
+        make('i386', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm50.so"
         sh "echo LLVM_CONFIG=llvm-config-6.0 >> config.mk"
-        make('i386', '-j4')
+        make('i386', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm60.so"
         pack_lib('i386', tvm_multilib)
       }
