@@ -97,7 +97,9 @@ GetLLVMTargetMachine(const std::string& target_str, bool allow_null) {
   }
   // set target option
   llvm::TargetOptions opt;
+  #if TVM_LLVM_VERSION < 50
   opt.LessPreciseFPMADOption = true;
+  #endif
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
   opt.UnsafeFPMath = true;
   opt.NoInfsFPMath = true;

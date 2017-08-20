@@ -244,7 +244,11 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
   if (is_restricted_) {
     for (size_t i = 0; i < f->args.size(); ++i) {
       if (f->args[i].type().is_handle()) {
+#if TVM_LLVM_VERSION >= 50
+        function_->addParamAttr(i, llvm::Attribute::NoAlias);
+#else
         function_->setDoesNotAlias(i + 1);
+#endif
       }
     }
   }
@@ -301,7 +305,12 @@ void CodeGenLLVM::Optimize() {
   // place optimization pass
   llvm::PassManagerBuilder builder;
   builder.OptLevel = 3;
+
+#if TVM_LLVM_VERSION >= 50
+  builder.Inliner = llvm::createFunctionInliningPass(builder.OptLevel, 0, false);
+#else
   builder.Inliner = llvm::createFunctionInliningPass(builder.OptLevel, 0);
+#endif
   builder.LoopVectorize = true;
   builder.SLPVectorize = true;
   // pass manager
@@ -795,7 +804,11 @@ void CodeGenLLVM::CreateComputeScope(const AttrStmt* op) {
     new_vmap[var.get()] = v;
     if (var.type().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
+#if TVM_LLVM_VERSION >= 50
+      fcompute->addParamAttr(idx + 1, llvm::Attribute::NoAlias);
+#else
       fcompute->setDoesNotAlias(idx + 1);
+#endif
     }
   }
   std::swap(function_, fcompute);

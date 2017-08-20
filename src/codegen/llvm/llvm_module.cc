@@ -47,8 +47,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     std::lock_guard<std::mutex> lock(mutex_);
     const std::string& fname = (name == runtime::symbol::tvm_module_main ?
                                 entry_func_ : name);
+
     BackendPackedCFunc faddr =
-        reinterpret_cast<BackendPackedCFunc>(ee_->getFunctionAddress(fname));
+        reinterpret_cast<BackendPackedCFunc>(GetFunctionAddr(fname));
     if (faddr == nullptr) return PackedFunc();
     return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         int ret = (*faddr)(
@@ -163,17 +164,33 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     ee_->runStaticConstructorsDestructors(false);
     // setup context address.
     entry_func_ =
-        reinterpret_cast<const char*>(
-            ee_->getGlobalValueAddress(runtime::symbol::tvm_module_main));
+        reinterpret_cast<const char*>(GetGlobalAddr(runtime::symbol::tvm_module_main));
     if (void** ctx_addr = reinterpret_cast<void**>(
-            ee_->getGlobalValueAddress(runtime::symbol::tvm_module_ctx))) {
+            GetGlobalAddr(runtime::symbol::tvm_module_ctx))) {
       *ctx_addr = this;
     }
     runtime::InitContextFunctions([this](const char *name) {
-        auto value =  ee_->getGlobalValueAddress(name);
-        return value;
+        return GetGlobalAddr(name);
       });
   }
+  // Get global address from execution engine.
+  uint64_t GetGlobalAddr(const std::string& name) {
+    // first verifies if GV exists.
+    if (mptr_->getGlobalVariable(name) != nullptr) {
+      return ee_->getGlobalValueAddress(name);
+    } else {
+      return 0;
+    }
+  }
+  uint64_t GetFunctionAddr(const std::string& name) {
+    // first verifies if GV exists.
+    if (mptr_->getFunction(name) != nullptr) {
+      return ee_->getFunctionAddress(name);
+    } else {
+      return 0;
+    }
+  }
+
   // The target configuration string
   std::string target_;
   // Name of entry function.

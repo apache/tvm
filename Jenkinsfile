@@ -4,7 +4,11 @@
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
 // tvm libraries
-tvm_lib = 'lib/libtvm.so, lib/libtvm_runtime.so, config.mk'
+tvm_runtime = "lib/libtvm_runtime.so, config.mk"
+tvm_lib = "lib/libtvm.so, " + tvm_runtime
+// LLVM upstream lib
+tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, " + tvm_runtime
+
 // command to start a docker container
 docker_run = 'tests/ci_build/ci_build.sh'
 // timeout in minutes
@@ -56,7 +60,7 @@ def make(docker_type, make_flag) {
 }
 
 // pack libraries for later use
-def pack_lib(name, libs=tvm_lib) {
+def pack_lib(name, libs) {
   sh """
      echo "Packing ${libs} into ${name}"
      echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
@@ -66,7 +70,7 @@ def pack_lib(name, libs=tvm_lib) {
 
 
 // unpack libraries saved before
-def unpack_lib(name, libs=tvm_lib) {
+def unpack_lib(name, libs) {
   unstash name
   sh """
      echo "Unpacked ${libs} from ${name}"
@@ -88,8 +92,15 @@ stage('Build') {
            echo USE_RPC=1 >> config.mk
            echo USE_BLAS=openblas >> config.mk
            """
-        make('gpu', '-j4')
-        pack_lib('gpu')
+        make('gpu', '-j2')
+        sh "mv lib/libtvm.so lib/libtvm_llvm40.so"
+        sh "echo LLVM_CONFIG=llvm-config-5.0 >> config.mk"
+        make('gpu', '-j2')
+        sh "mv lib/libtvm.so lib/libtvm_llvm50.so"
+        sh "echo LLVM_CONFIG=llvm-config-6.0 >> config.mk"
+        make('gpu', '-j2')
+        sh "mv lib/libtvm.so lib/libtvm_llvm60.so"
+        pack_lib('gpu', tvm_multilib)
       }
     }
   },
@@ -103,8 +114,8 @@ stage('Build') {
            echo USE_OPENCL=0 >> config.mk
            echo USE_RPC=0 >> config.mk
            """
-        make('cpu', '-j4')
-        pack_lib('cpu')
+        make('cpu', '-j2')
+        pack_lib('cpu', tvm_lib)
       }
     }
   },
@@ -119,8 +130,15 @@ stage('Build') {
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
            """
-        make('i386', '-j4')
-        pack_lib('i386')
+        make('i386', '-j2')
+        sh "mv lib/libtvm.so lib/libtvm_llvm40.so"
+        sh "echo LLVM_CONFIG=llvm-config-5.0 >> config.mk"
+        make('i386', '-j2')
+        sh "mv lib/libtvm.so lib/libtvm_llvm50.so"
+        sh "echo LLVM_CONFIG=llvm-config-6.0 >> config.mk"
+        make('i386', '-j2')
+        sh "mv lib/libtvm.so lib/libtvm_llvm60.so"
+        pack_lib('i386', tvm_multilib)
       }
     }
   },
@@ -145,7 +163,7 @@ stage('Build') {
             sh "${docker_run} emscripten ./tests/scripts/task_web_build.sh"
          }
         }
-        pack_lib('weblib')
+        pack_lib('weblib', tvm_lib)
       }
     }
   }
@@ -156,7 +174,13 @@ stage('Unit Test') {
     node('GPU' && 'linux') {
       ws('workspace/tvm/ut-python-gpu') {
         init_git()
-        unpack_lib('gpu', tvm_lib)
+        unpack_lib('gpu', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} gpu ./tests/scripts/task_python_unittest.sh"
+        }
+        // Test on the lastest mainline.
+        sh "cp lib/libtvm_llvm60.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_unittest.sh"
         }
@@ -167,9 +191,15 @@ stage('Unit Test') {
     node('CPU' && 'linux') {
       ws('workspace/tvm/ut-python-i386') {
         init_git()
-        unpack_lib('i386', tvm_lib)
+        unpack_lib('i386', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} i386 ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} i386 ./tests/scripts/task_python_integration.sh"
+        }
+        // Test on llvm 5.0
+        sh "cp lib/libtvm_llvm50.so lib/libtvm.so"
+        timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} i386 ./tests/scripts/task_python_integration.sh"
         }
       }
@@ -190,7 +220,8 @@ stage('Unit Test') {
     node('GPU' && 'linux') {
       ws('workspace/tvm/ut-java') {
         init_git()
-        unpack_lib('gpu', tvm_lib)
+        unpack_lib('gpu', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_java_unittest.sh"
         }
@@ -204,7 +235,8 @@ stage('Integration Test') {
     node('GPU' && 'linux') {
       ws('workspace/tvm/it-python-gpu') {
         init_git()
-        unpack_lib('gpu')
+        unpack_lib('gpu', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} gpu ./tests/scripts/task_python_topi.sh"
@@ -216,7 +248,7 @@ stage('Integration Test') {
     node('emcc') {
       ws('workspace/tvm/it-weblib') {
         init_git()
-        unpack_lib('weblib')
+        unpack_lib('weblib', tvm_lib)
         sh "${docker_run} emscripten echo testing javascript..."
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} emscripten ./tests/scripts/task_web_test.sh"
@@ -228,7 +260,8 @@ stage('Integration Test') {
     node('GPU' && 'linux') {
       ws('workspace/tvm/docs-python-gpu') {
         init_git()
-        unpack_lib('gpu')
+        unpack_lib('gpu', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_docs.sh"
         }
