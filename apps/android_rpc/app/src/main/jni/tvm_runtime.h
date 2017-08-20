@@ -21,3 +21,7 @@
 #include "../src/runtime/rpc/rpc_module.cc"
 #include "../src/runtime/rpc/rpc_socket_impl.cc"
 #include "../src/runtime/thread_pool.cc"
+#ifdef TVM_OPENCL_RUNTIME
+#include "../src/runtime/opencl/opencl_device_api.cc"
+#include "../src/runtime/opencl/opencl_module.cc"
+#endif
