@@ -137,3 +137,6 @@ xcuserdata/
 *.xcscmblueprint
 .DS_Store
 tags
+
+*.swp
+*.swo

@@ -92,7 +92,7 @@ ifdef ROCM_PATH
 endif
 
 ifeq ($(USE_ROCM), 1)
-	CFLAGS += -DTVM_ROCM_RUNTIME=1
+	CFLAGS += -DTVM_ROCM_RUNTIME=1 -D__HIP_PLATFORM_HCC__=1
 	LDFLAGS += -lhip_hcc
 	RUNTIME_DEP += $(ROCM_OBJ)
 else
