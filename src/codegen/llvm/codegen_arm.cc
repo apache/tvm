@@ -4,19 +4,19 @@
  * \brief ARM specific code generator
  */
 #ifdef TVM_LLVM_VERSION
-#include "./codegen_llvm.h"
+#include "./codegen_cpu.h"
 
 namespace tvm {
 namespace codegen {
 
 // ARM specific code generator, this is used as an example on
 // how to override behavior llvm code generator for specific target
-class CodeGenARM final : public CodeGenLLVM {
+class CodeGenARM final : public CodeGenCPU {
  public:
   void InitTarget(llvm::TargetMachine* tm) final {
     // set native vector bits.
     native_vector_bits_ = 16 * 8;
-    CodeGenLLVM::InitTarget(tm);
+    CodeGenCPU::InitTarget(tm);
   }
 };
 
