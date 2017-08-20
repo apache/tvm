@@ -20,11 +20,34 @@ ifndef DLPACK_PATH
   DLPACK_PATH = $(ROOTDIR)/dlpack
 endif
 
+UNAME_S := $(shell uname -s)
+
+# The flags
+LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
+LDFLAGS = -pthread -lm -ldl
+INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
+CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
+FRAMEWORKS =
+OBJCFLAGS = -fno-objc-arc
+EMCC_FLAGS= -s RESERVED_FUNCTION_POINTERS=2 -s NO_EXIT_RUNTIME=1 -s MAIN_MODULE=1 -DDMLC_LOG_STACK_TRACE=0\
+	 -std=c++11 -Oz $(INCLUDE_FLAGS)
+
+# llvm configuration
+ifdef LLVM_CONFIG
+	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
+	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
+	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)
+	LLVM_CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
+else
+	LLVM_VERSION=00
+endif
+
 # The source code dependencies
 LIB_HALIDEIR = HalideIR/lib/libHalideIR.a
 
-CC_SRC = $(filter-out src/contrib/%.cc src/runtime/%.cc,\
+CC_SRC = $(filter-out src/contrib/%.cc src/runtime/%.cc src/codgen/llvm/%.cc,\
              $(wildcard src/*/*.cc src/*/*/*.cc))
+LLVM_SRC = $(wildcard src/codegen/llvm/*.cc src/codegen/llvm/*/*.cc)
 METAL_SRC = $(wildcard src/runtime/metal/*.mm)
 CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
@@ -33,30 +56,20 @@ RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
 
 # Objectives
+LLVM_BUILD = build/llvm${LLVM_VERSION}
+LLVM_OBJ = $(patsubst src/%.cc, ${LLVM_BUILD}/%.o, $(LLVM_SRC))
 METAL_OBJ = $(patsubst src/%.mm, build/%.o, $(METAL_SRC))
 CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
-CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC))
+CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
 RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
 CONTRIB_OBJ =
-
-UNAME_S := $(shell uname -s)
 
 # Deps
 ALL_DEP = $(CC_OBJ) $(CONTRIB_OBJ) $(LIB_HALIDEIR)
 RUNTIME_DEP = $(RUNTIME_OBJ)
-
-# The flags
-LDFLAGS = -pthread -lm -ldl
-INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
-CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
-LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
-FRAMEWORKS =
-OBJCFLAGS = -fno-objc-arc
-EMCC_FLAGS= -s RESERVED_FUNCTION_POINTERS=2 -s NO_EXIT_RUNTIME=1 -s MAIN_MODULE=1 -DDMLC_LOG_STACK_TRACE=0\
-	 -std=c++11 -Oz $(INCLUDE_FLAGS)
 
 # Dependency specific rules
 ifdef CUDA_PATH
@@ -111,14 +124,6 @@ ifeq ($(USE_RPC), 1)
 	RUNTIME_DEP += $(RPC_OBJ)
 endif
 
-# llvm configuration
-ifdef LLVM_CONFIG
-	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
-	LLVM_INCLUDE=$(filter -I%, $(shell $(LLVM_CONFIG) --cxxflags))
-	LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)
-	LLVM_CFLAGS += $(LLVM_INCLUDE) -DTVM_LLVM_VERSION=$(LLVM_VERSION)
-endif
-
 include make/contrib/cblas.mk
 include make/contrib/nnpack.mk
 include make/contrib/cudnn.mk
@@ -169,11 +174,10 @@ test: $(TEST)
 include verilog/verilog.mk
 verilog: $(VER_LIBS)
 
-
 # Special rules for LLVM related modules.
-build/codegen/llvm/%.o: src/codegen/llvm/%.cc
+${LLVM_BUILD}/codegen/llvm/%.o: src/codegen/llvm/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(LLVM_CFLAGS) -MM -MT build/codegen/llvm/$*.o $< >build/codegen/llvm/$*.d
+	$(CXX) $(CFLAGS) $(LLVM_CFLAGS) -MM -MT ${LLVM_BUILD}/codegen/llvm/$*.o $< >${LLVM_BUILD}/codegen/llvm/$*.d
 	$(CXX) -c $(CFLAGS) $(LLVM_CFLAGS) -c $< -o $@
 
 build/runtime/metal/%.o: src/runtime/metal/%.mm

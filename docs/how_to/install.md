@@ -50,7 +50,7 @@ The configuration of tvm can be modified by ```config.mk```
 - First copy ```make/config.mk``` to the project root, on which
   any local modification will be ignored by git, then modify the according flags.
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
-  - LLVM 4.0 is needed for build with LLVM
+  - LLVM 4.0 or higher is needed for build with LLVM
   - By default CUDA and OpenCL code generator do not require llvm.
 
 ## Python Package Installation
