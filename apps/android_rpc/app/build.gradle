@@ -1,0 +1,46 @@
+apply plugin: 'com.android.application'
+
+task buildJni(type: Exec, description: 'Build JNI libs') {
+    commandLine 'sh', 'src/main/jni/build.sh'
+}
+
+tasks.withType(JavaCompile) {
+    compileTask -> compileTask.dependsOn buildJni
+}
+
+android {
+    compileSdkVersion 26
+    buildToolsVersion "26.0.1"
+    defaultConfig {
+        applicationId "ml.dmlc.tvm.tvmrpc"
+        minSdkVersion 17
+        targetSdkVersion 26
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets {
+        main {
+            jni.srcDirs = []
+            jniLibs.srcDirs = ['src/main/libs']
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    compile 'com.android.support:appcompat-v7:26.0.1'
+    compile 'com.android.support.constraint:constraint-layout:1.0.2'
+    compile 'com.android.support:design:26.0.1'
+    compile 'ml.dmlc.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    testCompile 'junit:junit:4.12'
+}
