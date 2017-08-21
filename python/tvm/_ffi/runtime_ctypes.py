@@ -97,7 +97,8 @@ class TVMContext(ctypes.Structure):
         2 : 'gpu',
         4 : 'opencl',
         8 : 'metal',
-        9 : 'vpi'
+        9 : 'vpi',
+        10: 'rocm',
     }
     STR2MASK = {
         'cpu': 1,

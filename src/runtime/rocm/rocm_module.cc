@@ -245,18 +245,6 @@ Module ROCMModuleCreate(
   return Module(n);
 }
 
-// Load module from module.
-Module ROCMModuleLoadFile(const std::string& file_name,
-                          const std::string& format) {
-  std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
-  std::string fmt = GetFileFormat(file_name, format);
-  std::string meta_file = GetMetaFilePath(file_name);
-  LoadBinaryFromFile(file_name, &data);
-  LoadMetaDataFromFile(meta_file, &fmap);
-  return ROCMModuleCreate(data, fmt, fmap, std::string());
-}
-
 Module ROCMModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string data;
