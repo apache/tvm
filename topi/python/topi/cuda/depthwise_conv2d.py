@@ -209,13 +209,6 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
     def _schedule(Padded_out_grad, Filter, In_grad):
         s[Padded_out_grad].compute_inline()
 
-        if In_grad.op in s.outputs:
-            Output = In_grad
-            CL = s.cache_write(In_grad, "local")
-        else:
-            Output = outs[0].op.output(0)
-            s[In_grad].set_scope("local")
-
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis("threadIdx.x")
         b, h, w, c = In_grad.op.axis
@@ -230,27 +223,12 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
         s[In_grad].bind(fused, block_x)
         s[In_grad].bind(xic, thread_x)
 
-        if In_grad.op in s.outputs:
-            s[CL].compute_at(s[Output], xic)
-        else:
-            s[In_grad].compute_at(s[Output], xic)
-
-
-
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
-            if OP not in s.outputs:
-                s[OP].compute_inline()
-            for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
-                    traverse(tensor.op)
-        # schedule depthwise_conv2d
         if OP.tag == 'depthwise_conv2d_back_input_nhwc':
             Padded_out_grad = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
             Dialate_out_grad = Padded_out_grad.op.input_tensors[0]
-            print(Dialate_out_grad)
             s[Dialate_out_grad].compute_inline()
             In_grad = OP.output(0)
             _schedule(Padded_out_grad, Filter, In_grad)

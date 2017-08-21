@@ -8,6 +8,7 @@ import topi
 from topi.util import get_const_tuple
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_back_input_nhwc #, schedule_depthwise_conv2d_back_nhwc
 
+import tensorflow as tf
 TASK = "depthwise_conv2d"
 USE_MANUAL_CODE = False
 
@@ -31,20 +32,21 @@ def tvm_callback_cuda_postproc(code):
 
 def test_depthwise_conv2d_back_input_nhwc():
     """You may test different settings."""
-    batch = 1
-    in_channel = 16
-    in_height = 32
-    in_width = 32
+    batch = 3
+    in_channel = 100
+    in_height = 37
+    in_width = 37
 
     channel_multiplier = 2
-    filter_height = 5
-    filter_width = 5
+    filter_height = 3
+    filter_width = 3
 
-    stride_h = 3
-    stride_w = 3
+    stride_h = 1
+    stride_w = 1
 
-    padding_h = 2
-    padding_w = 2
+    padding_tf = 'VALID' # please change here accordingly
+    padding_h = 0
+    padding_w = 0
 
     out_height = np.int((in_height+2*padding_h-filter_height)/stride_h+1)
     out_width = np.int((in_width+2*padding_w-filter_width)/stride_w+1)
@@ -84,7 +86,7 @@ def test_depthwise_conv2d_back_input_nhwc():
                                                                       filter=filter_tf,
                                                                       out_backprop=out_backprop_tf,
                                                                       strides=[1,stride_h,stride_w,1],
-                                                                      padding='SAME')
+                                                                      padding=padding_tf)
 
         config = tf.ConfigProto()
         sess = tf.Session(config=tf.ConfigProto())
@@ -93,11 +95,6 @@ def test_depthwise_conv2d_back_input_nhwc():
 
     np.testing.assert_allclose(output_tf, in_backprop_tvm.asnumpy(), rtol=1e-5)
     print "success"
-
-
-
-
-
 
 '''
 def test_depthwise_conv2d_nchw():
