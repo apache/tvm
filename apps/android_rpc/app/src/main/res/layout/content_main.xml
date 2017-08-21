@@ -61,17 +61,19 @@
         android:orientation="horizontal"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content">
-        <Button android:id="@+id/connect"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentBottom="true"
-                android:text="@string/button_connect"
-                android:onClick="connectProxy" />
-        <Button android:id="@+id/disconnect"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentBottom="true"
-                android:text="@string/button_disconnect"
-                android:onClick="disconnect" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/label_connect"/>
+        <Switch
+            android:id="@+id/switch_connect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:switchMinWidth="55dp"
+            android:paddingLeft="10dip"
+            android:checked="false"
+            android:textOff="@string/switch_off"
+            android:textOn="@string/switch_on" />
     </LinearLayout>
+
 </LinearLayout>

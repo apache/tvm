@@ -7,7 +7,8 @@ import subprocess
 def create_shared(output,
                   objects,
                   options=None,
-                  cc="g++"):
+                  cc="g++",
+                  cross_compile=False):
     """Create shared library.
 
     Parameters
@@ -23,12 +24,19 @@ def create_shared(output,
 
     cc : str, optional
         The compile string.
+
+    cross_compile : bool, optional
+        Do not add additional compile options
+        (except for those specfied in argument 'options')
+        if it is cross compiling.
     """
     cmd = [cc]
-    cmd += ["-shared", "-fPIC"]
+    if not cross_compile:
+        cmd += ["-shared", "-fPIC"]
 
-    if sys.platform == "darwin":
-        cmd += ["-undefined", "dynamic_lookup"]
+        if sys.platform == "darwin":
+            cmd += ["-undefined", "dynamic_lookup"]
+
     cmd += ["-o", output]
 
     if isinstance(objects, str):

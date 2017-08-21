@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">TVM Rpc</string>
+    <string name="app_name">TVM RPC</string>
 
     <string name="input_address">Enter the proxy server address</string>
     <string name="input_port">Enter the proxy server port</string>
@@ -8,8 +8,8 @@
     <string name="label_address">Address</string>
     <string name="label_port">Port</string>
     <string name="label_key">Key</string>
+    <string name="label_connect">Connect to Proxy</string>
 
-    <string name="button_send">Send</string>
-    <string name="button_connect">Connect to Proxy</string>
-    <string name="button_disconnect">Disconnect</string>
+    <string name="switch_on">Connected</string>
+    <string name="switch_off">Disconnected</string>
 </resources>
