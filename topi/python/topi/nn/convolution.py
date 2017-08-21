@@ -121,8 +121,8 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding):
     stride : tuple of two ints
         The spatial stride along height and width
 
-    padding : str
-        'VALID' or 'SAME'
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
 
     Returns
     -------
@@ -169,8 +169,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     Stride : tvm.Tensor
         1-D of size 2
 
-    padding : str
-        'VALID' or 'SAME'
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
 
     Returns
     -------
