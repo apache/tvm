@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, unused-variable 
+# pylint: disable=invalid-name, unused-variable, trailing-whitespace 
 """Schedule for softmax operator"""
 import tvm
 
