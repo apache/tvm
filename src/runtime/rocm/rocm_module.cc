@@ -79,7 +79,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
     if (hip_source_.length() != 0) {
       return hip_source_;
     }
-    return ""; 
+    return "";
   }
 
   // get a CUfunction from primary context in device_id
@@ -164,7 +164,7 @@ class ROCMWrappedFunc {
     }
     hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
-    // HIP supports only extra_args. 
+    // HIP supports only extra_args.
     ROCM_DRIVER_CALL(hipModuleLaunchKernel(
         fcache_[device_id],
         wl.grid_dim(0),
