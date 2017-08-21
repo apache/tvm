@@ -34,15 +34,15 @@ You can edit `make/config.mk` to change the compile options, and then build by
 
 ### Building on Windows
 
-TVM support build via MSVC using cmake. To build with Visual Studio 2015 use cmake.
-Make sure you have a recent version of cmake added to your path and then from the tvm directory:
+TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**. In order to generate the VS solution file use cmake,
+make sure you have a recent version of cmake added to your path and then from the tvm directory:
 
 ```bash
 mkdir build
 cd build
-cmake .. -G"Visual Studio 14 2015 Win64"
+cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
 ```
-This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio.
+This will generate the VS project using the MSVC 14 64 bit generator. Open the .sln file in the build directory and build with Visual Studio.
 
 ### Customized Building
 
