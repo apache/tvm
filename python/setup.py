@@ -1,10 +1,14 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-"""Setup tvm package."""
+# pylint: disable=invalid-name, exec-used
+"""Setup TVM package."""
 from __future__ import absolute_import
 import os
+import shutil
 import sys
-import setuptools
+import sysconfig
+import platform
+
+from setuptools import find_packages
+from setuptools.dist import Distribution
 
 # need to use distutils.core for correct placement of cython dll
 if "--inplace" in sys.argv:
@@ -14,19 +18,26 @@ else:
     from setuptools import setup
     from setuptools.extension import Extension
 
+# We can not import `mxnet.info.py` in setup.py directly since mxnet/__init__.py
+# Will be invoked which introduces dependences
 CURRENT_DIR = os.path.dirname(__file__)
-libinfo_py = os.path.join(CURRENT_DIR, 'tvm/_ffi/libinfo.py')
+libinfo_py = os.path.join(CURRENT_DIR, './tvm/_ffi/libinfo.py')
 libinfo = {'__file__': libinfo_py}
-exec(compile(open(libinfo_py, 'rb').read(), libinfo_py, 'exec'), libinfo, libinfo)
+exec(compile(open(libinfo_py, "rb").read(), libinfo_py, 'exec'), libinfo, libinfo)
 
 LIB_PATH = libinfo['find_lib_path']()
-print(LIB_PATH)
+_, LIB_NAME = os.path.split(LIB_PATH[0])
 __version__ = libinfo['__version__']
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
     if os.name == 'nt':
         print("WARNING: Cython is not supported on Windows, will compile without cython module")
+        return []
+    sys_cflags = sysconfig.get_config_var("CFLAGS")
+
+    if "i386" in sys_cflags and "x86_64" in sys_cflags:
+        print("WARNING: Cython library may not be compiled correctly with both i386 and x64")
         return []
     try:
         from Cython.Build import cythonize
@@ -61,20 +72,35 @@ def config_cython():
         print("WARNING: Cython is not installed, will compile without cython module")
         return []
 
-setuptools.setup(
-    name='tvm',
-    version=__version__,
-    description='A domain specific language(DSL) for tensor computations.',
-    install_requires=[
+class BinaryDistribution(Distribution):
+    def has_ext_modules(self):
+        return True
+
+    def is_pure(self):
+        return False
+
+# For bdist_wheel only
+if "bdist_wheel" in sys.argv:
+    shutil.copy(LIB_PATH[0], os.path.join(CURRENT_DIR, 'tvm'))
+    fo = open("MANIFEST.in", "w")
+    fo.write("include tvm/%s\n" % LIB_NAME)
+    fo.close()
+
+setup(name='tvm',
+      version=__version__,
+      description='A domain specific language(DSL) for tensor computations.',
+      zip_safe=False,
+      install_requires=[
         'numpy',
         'decorator',
         ],
-    zip_safe=False,
-    packages=[
-        'tvm', 'tvm.contrib',
-        'tvm._ffi', 'tvm._ffi._ctypes',
-        'tvm._ffi._cy2', 'tvm._ffi._cy3'
-    ],
-    data_files=[('tvm', [LIB_PATH[0]])],
-    url='https://github.com/dmlc/tvm',
-    ext_modules=config_cython())
+      packages=find_packages(),
+      include_package_data=True,
+      distclass=BinaryDistribution,
+      url='https://github.com/dmlc/tvm',
+      ext_modules=config_cython())
+
+# clean up
+if "bdist_wheel" in sys.argv:
+    os.remove("MANIFEST.in")
+    os.remove("tvm/%s" % LIB_NAME)
