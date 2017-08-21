@@ -34,7 +34,7 @@ You can edit `make/config.mk` to change the compile options, and then build by
 
 ### Building on Windows
 
-TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**. In order to generate the VS solution file use cmake,
+TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**. In order to generate the VS solution file using cmake,
 make sure you have a recent version of cmake added to your path and then from the tvm directory:
 
 ```bash
