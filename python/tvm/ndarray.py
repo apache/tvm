@@ -104,6 +104,23 @@ def vpi(dev_id=0):
     """
     return TVMContext(9, dev_id)
 
+
+def rocm(dev_id=0):
+    """Construct a rocm device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
+    """
+    return TVMContext(10, dev_id)
+
+
 cl = opencl
 mtl = metal
 

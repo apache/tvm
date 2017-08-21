@@ -131,7 +131,7 @@ ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
   return ROCMThreadStore::Get();
 }
 
-TVM_REGISTER_GLOBAL("device_api.gpu")
+TVM_REGISTER_GLOBAL("device_api.rocm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = ROCMDeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);
