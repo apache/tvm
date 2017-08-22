@@ -18,6 +18,12 @@ TVM_REGISTER_API("schedule.AutoInlineElemWise")
     AutoInlineElemWise(args[0]);
   });
 
+
+TVM_REGISTER_API("schedule.AutoInlineInjective")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    AutoInlineInjective(args[0]);
+  });
+
 #define REGISTER_SCHEDULE_PASS1(PassName)                         \
   TVM_REGISTER_API("schedule."#PassName)                          \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
