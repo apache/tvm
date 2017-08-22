@@ -7,6 +7,7 @@
 #define NNVM_BASE_H_
 
 #include <dmlc/base.h>
+#include <dmlc/common.h>
 #include <dmlc/any.h>
 #include <dmlc/memory.h>
 #include <dmlc/logging.h>
