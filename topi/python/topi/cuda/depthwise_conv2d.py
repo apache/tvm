@@ -20,17 +20,12 @@ def schedule_depthwise_conv2d_nchw(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     def _schedule(PaddedInput, Filter, DepthwiseConv2d):
-        in_height = tvm.ir_pass.Simplify(PaddedInput.shape[2]).value
-        in_width = tvm.ir_pass.Simplify(PaddedInput.shape[3]).value
-        filter_height = tvm.ir_pass.Simplify(Filter.shape[2]).value
-        filter_width = tvm.ir_pass.Simplify(Filter.shape[3]).value
+        in_shape = get_const_tuple(PaddedInput.shape)
         out_shape = get_const_tuple(DepthwiseConv2d.shape)
         in_height = in_shape[2]
         in_width = in_shape[3]
         out_height = out_shape[2]
         out_width = out_shape[3]
-        stride_h = (in_height - filter_height) // (out_height - 1)
-        stride_w = (in_width - filter_width) // (out_width - 1)
         channel_multiplier = get_const_tuple(Filter.shape)[1]
         s[PaddedInput].compute_inline()
         IS = s.cache_read(PaddedInput, "shared", [DepthwiseConv2d])
@@ -50,7 +45,7 @@ def schedule_depthwise_conv2d_nchw(outs):
         num_vthread_x = 1
         blocking_h = out_height
         blocking_w = out_width
-        if out_height % 32 == 0 or out_height*stride_h > 96:
+        if out_height % 32 == 0 or in_height >= 108:
             blocking_h = 32
         if out_width % 32 == 0:
             blocking_w = 32
