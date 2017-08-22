@@ -1,8 +1,9 @@
+# pylint: disable=invalid-name
 """TVM operator softmax compute."""
 from __future__ import absolute_import
 import tvm
 
-@tvm.tag_scope(tag='softmax')
+@tvm.tag_scope(tag='softmax_output')
 def softmax(x):
     """Perform softmax activation on the data
 
