@@ -91,6 +91,8 @@ stage('Build') {
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
            echo USE_BLAS=openblas >> config.mk
+           echo USE_ROCM=1 >> config.mk
+           echo ROCM_PATH=/opt/rocm >> config.mk
            """
         make('gpu', '-j2')
         sh "mv lib/libtvm.so lib/libtvm_llvm40.so"

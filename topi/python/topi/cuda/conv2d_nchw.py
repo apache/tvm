@@ -115,7 +115,7 @@ def schedule_conv2d_small_batch(outs):
     return s
 
 def schedule_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw and any element-wise operations.
+    """Schedule for conv2d_nchw.
 
     Parameters
     ----------
