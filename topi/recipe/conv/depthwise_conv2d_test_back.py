@@ -131,7 +131,6 @@ def test_depthwise_conv2d_back_weight_nhwc():
 
     schedule = schedule_depthwise_conv2d_back_weight_nhwc(Weight_grad)
 
-    #print(tvm.lower(schedule,[Input, Out_grad, Weight_grad], simple_mode=True))
     f = tvm.build(schedule, [Input, Out_grad, Weight_grad], 'cuda')
     ctx = tvm.gpu(0)
 
