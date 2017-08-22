@@ -97,7 +97,7 @@ def test_depthwise_conv2d_back_input_nhwc():
     np.testing.assert_allclose(output_tf, in_backprop_tvm.asnumpy(), rtol=1e-5)
     print "success"
 
-def test_depthwise_conv2d_back_filter_nhwc():
+def test_depthwise_conv2d_back_weight_nhwc():
     batch = 3
     in_channel = 1024
     in_height = 37
@@ -112,7 +112,7 @@ def test_depthwise_conv2d_back_filter_nhwc():
 
     padding_h = 1
     padding_w = 1
-    padding_tf = 'VALID' # please change here accordingly
+    padding_tf = 'SAME' # please change here accordingly
 
     out_height = np.int((in_height+2*padding_h-filter_height)/stride_h+1)
     out_width = np.int((in_width+2*padding_w-filter_width)/stride_w+1)
@@ -154,7 +154,7 @@ def test_depthwise_conv2d_back_filter_nhwc():
                                                                       filter_sizes=filter_shape_tf,
                                                                       out_backprop=out_backprop_tf,
                                                                       strides=[1,stride_h,stride_w,1],
-                                                                      padding='SAME')
+                                                                      padding=padding_tf)
 
         config = tf.ConfigProto()
         sess = tf.Session(config=tf.ConfigProto())
@@ -166,4 +166,4 @@ def test_depthwise_conv2d_back_filter_nhwc():
 
 if __name__ == "__main__":
     test_depthwise_conv2d_back_input_nhwc()
-    test_depthwise_conv2d_back_filter_nhwc()
+    test_depthwise_conv2d_back_weight_nhwc()
