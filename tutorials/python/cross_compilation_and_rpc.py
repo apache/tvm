@@ -30,7 +30,6 @@ from tvm.contrib import rpc, util
 # To get started, clone tvm repo from github. It is important to clone
 # the submodules along, with --recursive option (Assuming you are in 
 # your home directory): 
-# ).
 #
 #   .. code-block:: bash
 # 
