@@ -48,7 +48,7 @@ from tvm.contrib import rpc, util
 #
 #     cd tvm
 #     cp make/config.mk .
-#     vi config.mk
+#     echo USE_RPC=1>> config.mk
 #
 #   Also make sure that you have set :code:`USE_RPC=1` in your
 #   :code:`config.mk`. We don't need LLVM when building runtime, so
