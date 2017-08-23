@@ -2,6 +2,7 @@
 """Convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
+import topi
 from ..util import simplify
 from .pad import pad, _spatial2d_pad_option
 
@@ -202,3 +203,120 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
     return Output
+
+
+# convolution and depthwise convolution backward
+def depthwise_conv2d_back_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding):
+    """Depthwise convolution nhwc backward wrt input operator.
+
+    Parameters
+    ----------
+    Filter : tvm.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
+
+    Out_grad : tvm.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+
+    stride : tvm.Tensor
+        1-D of size 2
+
+    padding : str
+        'VALID' or 'SAME'
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+    """
+
+
+    # mem layout is b, h, w, c
+    batch, in_h, in_w, in_c = ishape
+    _, out_h, out_w, out_c = oshape
+
+    channel_multiplier = Filter.shape[3].value
+    filter_h = Filter.shape[0].value
+    filter_w = Filter.shape[1].value
+
+    stride_h, stride_w = stride
+    # pad_h, pad_w = padding
+
+    Dilated_out_grad = topi.nn.dilate(Out_grad, [1,stride_h,stride_w,1], name='Dilated_out_grad')
+
+    pad_h = (in_h + filter_h - 1) - Dilated_out_grad.shape[1].value
+    pad_w = (in_w + filter_w - 1) - Dilated_out_grad.shape[2].value
+
+    pad_top = (pad_h + 1) // 2
+    pad_bottom = pad_h - pad_top
+    pad_left = (pad_w + 1) // 2
+    pad_right = pad_w - pad_left
+
+    Padded_out_grad = topi.nn.pad(Dilated_out_grad, [0,pad_top,pad_left,0], [0,pad_bottom,pad_right,0], name='Padded_out_grad')
+
+    dh = tvm.reduce_axis((0, filter_h), name='dh')
+    dw = tvm.reduce_axis((0, filter_w), name='dw')
+    dc = tvm.reduce_axis((0, channel_multiplier), name='dc')
+
+    In_grad = tvm.compute(
+        (batch, in_h, in_w, in_c),
+        lambda b, h, w, c: tvm.sum(Padded_out_grad[b, h+dh, w+dw, c*channel_multiplier + dc] * Filter[filter_h-1-dh, filter_w-1-dw, c, dc],
+            axis=[dh, dw, dc]), tag='depthwise_conv2d_back_input_nhwc')
+
+    return In_grad
+
+def depthwise_conv2d_back_weight_nhwc(Input, Out_grad, oshape, fshape, stride, padding):
+    """Depthwise convolution nhwc forward operator.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    Out_grad : tvm.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+
+    stride : tvm.Tensor
+        1-D of size 2
+
+    padding : str
+        'VALID' or 'SAME'
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+    """
+
+    # mem layout is b, h, w, c
+    # this is the output (In_grad) dimensions
+    batch, out_h, out_w, out_c = oshape
+    filter_h, filter_w, _, channel_multiplier = fshape # output of this function
+
+    # this is input (Out_grad) dimensions
+    in_h = Input.shape[1].value
+    in_w = Input.shape[2].value
+    in_c = Input.shape[3].value
+    stride_h, stride_w = stride
+
+    Dilated_input = topi.nn.dilate(Input, [1,stride_h,stride_w,1], name='Dilated_in_grad')
+
+    pad_h = (in_h + filter_h - 1) - Dilated_input.shape[1].value
+    pad_w = (in_w + filter_w - 1) - Dilated_input.shape[2].value
+
+    pad_top = (pad_h + 1) // 2
+    pad_bottom = pad_h - pad_top
+    pad_left = (pad_w + 1) // 2
+    pad_right = pad_w - pad_left
+
+    Padded_in = topi.nn.pad(Dilated_input, [0,pad_top,pad_left,0], [0,pad_bottom,pad_right,0], name='Padded_in')
+
+    dh = tvm.reduce_axis((0, in_h), name='dh')
+    dw = tvm.reduce_axis((0, in_w), name='dw')
+    db = tvm.reduce_axis((0, batch), name='db')
+
+    Weight_grad = tvm.compute(
+        (filter_h, filter_w, in_c, channel_multiplier),
+        lambda fh, fw, c, m: tvm.sum(Out_grad[db, dh, dw, c*channel_multiplier+m%channel_multiplier] * Padded_in[db,fh*stride_h+dh,fw*stride_w+dw,c],
+            axis=[db, dh, dw]), tag='depthwise_conv2d_back_filter_nhwc')
+
+    return Weight_grad
