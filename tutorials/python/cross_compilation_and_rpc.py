@@ -6,8 +6,8 @@ Cross Compilation and RPC
 This tutorial introduces cross compilation and remote device
 execution with RPC in TVM.
 
-With cross compilation and RPC, you can compile program on your
-local machine then run it on remote device. It is useful when the
+With cross compilation and RPC, you can **compile program on your
+local machine then run it on remote device**. It is useful when the
 resource of remote device is limited, like Raspberry Pi and mobile
 platforms, so you do not wish to put the compilation procedure on
 the device in order to save time and space.
@@ -21,22 +21,21 @@ import numpy as np
 from tvm.contrib import rpc, util
 
 ######################################################################
-# Set Up RPC Server on Device
+# Build TVM Runtime on Device
 # ---------------------------
-# To set up a TVM RPC server on the board, we have prepared a script
-# so you only need to run this command after following the
-# installation guide to install TVM on your device:
 #
-# .. code-block:: bash
+# There're some prerequisites: similar as compiling TVM on your
+# local machine, we need build runtime on remote device.
 #
-#   python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
+# To get started, clone tvm repo from github. It is important to clone
+# the submodules along, with --recursive option (Assuming you are in 
+# your home directory): 
+# ).
 #
-# In the following code block, we simply start an RPC server on the
-# same machine, for demonstration. This line can be omitted if we
-# started an remote server.
-#
-server = rpc.Server(host='0.0.0.0', port=9090)
-
+#   .. code-block:: bash
+# 
+#     git clone --recursive https://github.com/dmlc/tvm
+# 
 ######################################################################
 # .. note::
 #
@@ -47,11 +46,65 @@ server = rpc.Server(host='0.0.0.0', port=9090)
 #
 #   .. code-block:: bash
 #
-#     make runtime
+#     cd tvm
+#     cp make/config.mk .
+#     vi config.mk
 #
 #   Also make sure that you have set :code:`USE_RPC=1` in your
-#   :code:`config.mk`.
+#   :code:`config.mk`. We don't need LLVM when building runtime, so
+#   :code:`LLVM_CONFIG = llvm-config` in :code:`config.mk`is commented
+#   out by default. After that, build runtime!
 #
+#   .. code-block:: bash
+#
+#     make runtime
+#
+######################################################################
+# After success of buildind runtime, we need set environment varibles
+# in :code:`~/.bashrc` file of yourself account or :code:`/etc/profile`
+# of system enviroment variables. Assuming your TVM directory is in
+# :code:`~/tvm` and set environment variables below your account.
+#
+#   .. code-block:: bash
+#
+#    vi ~/.bashrc
+#
+# We need edit :code:`~/.bashrc` using :code:`vi ~/.bashrc` and add
+# lines below (Assuming your TVM directory is in :code:`~/tvm`):
+#
+#   .. code-block:: bash
+#
+#    export TVM_HOME=~/tvm
+#    export PATH=$PATH:$TVM_HOME/lib
+#    export PYTHONPATH=$PYTHONPATH:$TVM_HOME/python
+#
+# To enable updated :code:`~/.bashrc`, execute :code:`source ~/.bashrc`.
+
+######################################################################
+# Set Up RPC Server on Device
+# ---------------------------
+# To set up a TVM RPC server on the Raspberry Pi (our remote device),
+# we have prepared a one-line script so you only need to run this
+# command after following the installation guide to install TVM on
+# your device:
+#
+# .. code-block:: bash
+#
+#   python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
+#
+# After executing command above, if you see these lines below, it's
+# successful to start RPC server on your device.
+#
+# .. code-block:: bash
+# 
+# Loading runtime library /home/YOURNAME/code/tvm/lib/libtvm_runtime.so... exec only
+# INFO:root:RPCServer: bind to 0.0.0.0:9090
+#
+# In the following code block, we simply start an RPC server on the
+# same machine, for demonstration. This line can be omitted if we
+# started an remote server.
+#
+server = rpc.Server(host='0.0.0.0', port=9090)
 
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
