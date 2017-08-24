@@ -6,7 +6,7 @@ import os
 
 def create_shared(output,
                   objects,
-                  options="-shared -fPIC"):
+                  options=None):
     """Create shared library.
 
     Parameters
@@ -32,8 +32,8 @@ def create_shared(output,
     else:
         cmd += objects
 
-    if options:
-        cmd += options.split()
+    options = options if options else ["-shared", "-fPIC"]
+    cmd += options
 
     args = ' '.join(cmd)
     proc = subprocess.Popen(
