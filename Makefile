@@ -87,8 +87,8 @@ else
 endif
 
 ifdef ROCM_PATH
-	CFLAGS += -I$(ROCM_PATH)/hip/include
-	LDFLAGS += -L$(ROCM_PATH)/hip/lib
+	CFLAGS += -I$(ROCM_PATH)/hip/include -I$(ROCM_PATH)/hsa/include
+	LDFLAGS += -L$(ROCM_PATH)/hip/lib -L$(ROCM_PATH)/hsa/lib
 endif
 
 ifeq ($(USE_ROCM), 1)

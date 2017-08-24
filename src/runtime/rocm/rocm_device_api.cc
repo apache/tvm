@@ -11,6 +11,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <hip/hip_runtime_api.h>
+#include <hsa/hsa.h>
 #include "./rocm_common.h"
 
 namespace tvm {
@@ -25,7 +26,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     int value = 0;
     switch (kind) {
       case kExist:
-        value = 1024;
+        value = (hsa_init() == HSA_STATUS_SUCCESS);
         break;
       case kMaxThreadsPerBlock: {
         value = 1024;

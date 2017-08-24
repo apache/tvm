@@ -52,34 +52,11 @@ class ROCMModuleNode : public runtime::ModuleNode {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;
 
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    std::string fmt = GetFileFormat(file_name, format);
-    std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "cpp") {
-      CHECK_NE(hip_source_.length(), 0);
-      SaveMetaDataToFile(meta_file, fmap_);
-      SaveBinaryToFile(file_name, hip_source_);
-    } else {
-      CHECK_EQ(fmt, fmt_)
-          << "Can only save to format=" << fmt_;
-      SaveMetaDataToFile(meta_file, fmap_);
-      SaveBinaryToFile(file_name, data_);
-    }
-  }
 
   void SaveToBinary(dmlc::Stream* stream) final {
     stream->Write(fmt_);
     stream->Write(fmap_);
     stream->Write(data_);
-  }
-
-  std::string GetSource(const std::string& format) final {
-    if (format == fmt_) return data_;
-    if (hip_source_.length() != 0) {
-      return hip_source_;
-    }
-    return "";
   }
 
   // get a CUfunction from primary context in device_id
@@ -190,33 +167,6 @@ class ROCMWrappedFunc {
   ThreadAxisConfig thread_axis_cfg_;
 };
 
-class ROCMPrepGlobalBarrier {
- public:
-  ROCMPrepGlobalBarrier(ROCMModuleNode* m,
-                        std::shared_ptr<ModuleNode> sptr)
-      : m_(m), sptr_(sptr) {
-    std::fill(pcache_.begin(), pcache_.end(), nullptr);
-  }
-
-  void operator()(const TVMArgs& args, TVMRetValue* rv) const {
-    int device_id;
-    ROCM_CALL(hipGetDevice(&device_id));
-    if (pcache_[device_id] == 0) {
-      pcache_[device_id] = m_->GetGlobal(
-          device_id, runtime::symbol::tvm_global_barrier_state, sizeof(unsigned));
-    }
-//    ROCM_DRIVER_CALL(hipMemsetD32(pcache_[device_id], 0, 1));
-    ROCM_DRIVER_CALL(hipMemset(pcache_[device_id], 0, 1));
-  }
-
- private:
-  // internal module
-  ROCMModuleNode* m_;
-  // the resource holder
-  std::shared_ptr<ModuleNode> sptr_;
-  // mark as mutable, to enable lazy initialization
-  mutable std::array<hipDeviceptr_t, kMaxNumGPUs> pcache_;
-};
 
 PackedFunc ROCMModuleNode::GetFunction(
       const std::string& name,
@@ -224,9 +174,7 @@ PackedFunc ROCMModuleNode::GetFunction(
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
-  if (name == symbol::tvm_prepare_global_barrier) {
-    return PackedFunc(ROCMPrepGlobalBarrier(this, sptr_to_self));
-  }
+
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
