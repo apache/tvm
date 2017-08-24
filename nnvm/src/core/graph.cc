@@ -59,7 +59,6 @@ IndexedGraph::IndexedGraph(const Graph &g) {
   }
 
   static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
-  std::unordered_set<uint32_t> mutable_inputs;
   // setup array view
   // input_entries_ and control_rptr must not change after this step.
   const NodeEntry* iptr = dmlc::BeginPtr(input_entries_);
