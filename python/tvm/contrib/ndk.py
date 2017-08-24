@@ -26,4 +26,25 @@ def create_shared(output,
         raise RuntimeError("Require environment variable TVM_NDK_CC"
                            " to be the NDK standalone compiler")
     compiler = os.environ["TVM_NDK_CC"]
-    cc.create_shared(output, objects, options, cc=compiler, cross_compile=True)
+    cmd = [compiler]
+    cmd += ["-o", output]
+
+    if isinstance(objects, str):
+        cmd += [objects]
+    else:
+        cmd += objects
+
+    if options:
+        cmd += options
+
+    args = ' '.join(cmd)
+    proc = subprocess.Popen(
+        args, shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+
+    if proc.returncode != 0:
+        msg = "Compilation error:\n"
+        msg += out
+        raise RuntimeError(msg)

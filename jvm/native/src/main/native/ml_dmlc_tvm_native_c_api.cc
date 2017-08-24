@@ -20,7 +20,7 @@
 #include "jni_helper_func.h"
 
 JavaVM *_jvm;
-void *_tvmHandle;
+void *_tvmHandle = nullptr;
 struct TVMFuncArgsThreadLocalEntry {
   std::vector<TVMValue> tvmFuncArgValues;
   std::vector<int> tvmFuncArgTypes;

@@ -18,25 +18,14 @@
 package ml.dmlc.tvm.tvmrpc;
 
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
 
-import java.net.Socket;
-
-import ml.dmlc.tvm.rpc.Server;
-
 public class MainActivity extends AppCompatActivity {
-  static final Server.SocketFileDescriptorGetter socketFdGetter
-      = new Server.SocketFileDescriptorGetter() {
-        @Override
-        public int get(Socket socket) {
-          return ParcelFileDescriptor.fromSocket(socket).getFd();
-        }
-      };
+  private RPCProcessor tvmServerWorker = new RPCProcessor();
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +33,9 @@ public class MainActivity extends AppCompatActivity {
     setContentView(R.layout.activity_main);
     Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
+
+    tvmServerWorker.setDaemon(true);
+    tvmServerWorker.start();
 
     Switch switchConnect = findViewById(R.id.switch_connect);
     switchConnect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -58,7 +50,11 @@ public class MainActivity extends AppCompatActivity {
     });
   }
 
-  private Server tvmServer;
+  @Override
+  protected void onDestroy() {
+    super.onDestroy();
+    tvmServerWorker.disconnect();
+  }
 
   private void connectProxy() {
     EditText edProxyAddress = findViewById(R.id.input_address);
@@ -69,18 +65,11 @@ public class MainActivity extends AppCompatActivity {
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
     final String key = edAppKey.getText().toString();
 
-    if (tvmServer != null) {
-      tvmServer.terminate();
-    }
-
-    tvmServer = new Server(proxyHost, proxyPort, key, socketFdGetter);
-    tvmServer.start();
+    tvmServerWorker.connect(proxyHost, proxyPort, key);
   }
 
   private void disconnect() {
-    if (tvmServer != null) {
-      tvmServer.terminate();
-      System.err.println("Disconnected.");
-    }
+    tvmServerWorker.disconnect();
+    System.err.println("Disconnected.");
   }
 }
