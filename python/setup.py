@@ -82,25 +82,32 @@ class BinaryDistribution(Distribution):
 # For bdist_wheel only
 if "bdist_wheel" in sys.argv:
     shutil.copy(LIB_PATH[0], os.path.join(CURRENT_DIR, 'tvm'))
-    fo = open("MANIFEST.in", "w")
-    fo.write("include tvm/%s\n" % LIB_NAME)
-    fo.close()
+    with open("MANIFEST.in", "w") as fo:
+        fo.write("include tvm/%s\n" % LIB_NAME)
+    setup_kwargs = {
+        "include_package_data": False
+    }
+else:
+    setup_kwargs = {
+        "include_package_data": True,
+        "data_files": [('tvm', [LIB_PATH[0]])]
+    }
 
 setup(name='tvm',
       version=__version__,
-      description='A domain specific language(DSL) for tensor computations.',
+      description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
       zip_safe=False,
       install_requires=[
         'numpy',
         'decorator',
         ],
       packages=find_packages(),
-      include_package_data=True,
       distclass=BinaryDistribution,
       url='https://github.com/dmlc/tvm',
-      ext_modules=config_cython())
+      ext_modules=config_cython(),
+      **setup_kwargs)
 
-# clean up
+# Wheel cleanup
 if "bdist_wheel" in sys.argv:
     os.remove("MANIFEST.in")
     os.remove("tvm/%s" % LIB_NAME)
