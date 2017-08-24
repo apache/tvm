@@ -29,6 +29,7 @@ inline std::string DeviceName(int type) {
     case kGPU: return "gpu";
     case kOpenCL: return "opencl";
     case kMetal: return "metal";
+    case kROCM: return "rocm";
     case kVPI: return "vpi";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
