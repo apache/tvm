@@ -212,15 +212,11 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
         thread_x = tvm.thread_axis("threadIdx.x")
         b, h, w, c = In_grad.op.axis
 
-        fused_wc = s[In_grad].fuse(w,c)
-
-        fused_hwc = s[In_grad].fuse(h,fused_wc)
-        xoc, xic = s[In_grad].split(fused_hwc, factor=128)
-        fused = s[In_grad].fuse(b, xoc)
-        #fused = s[In_grad].fuse(b, fused)
+        fused_hw = s[In_grad].fuse(h, w)
+        fused = s[In_grad].fuse(b, fused_hw)
 
         s[In_grad].bind(fused, block_x)
-        s[In_grad].bind(xic, thread_x)
+        s[In_grad].bind(c, thread_x)
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -259,19 +255,15 @@ def schedule_depthwise_conv2d_back_weight_nhwc(outs):
         thread_x = tvm.thread_axis("threadIdx.x")
         b, h, w, c = In_grad.op.axis
 
-        fused_wc = s[In_grad].fuse(w,c)
-
-        fused_hwc = s[In_grad].fuse(h,fused_wc)
-        xoc, xic = s[In_grad].split(fused_hwc, factor=128)
-        fused = s[In_grad].fuse(b, xoc)
-        #fused = s[In_grad].fuse(b, fused)
+        fused_hw = s[In_grad].fuse(h, w)
+        fused = s[In_grad].fuse(b, fused_hw)
 
         s[In_grad].bind(fused, block_x)
-        s[In_grad].bind(xic, thread_x)
+        s[In_grad].bind(c, thread_x)
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if OP.tag == 'depthwise_conv2d_back_filter_nhwc':
+        if OP.tag == 'depthwise_conv2d_back_weight_nhwc':
             Out_grad = OP.input_tensors[0]
             Padded_in_grad = OP.input_tensors[1]
             Dilate_in_grad = Padded_in_grad.op.input_tensors[0]

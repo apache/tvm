@@ -95,7 +95,7 @@ setup(name='tvm',
         'decorator',
         ],
       packages=find_packages(),
-      include_package_data=False,
+      include_package_data=True,
       distclass=BinaryDistribution,
       url='https://github.com/dmlc/tvm',
       ext_modules=config_cython())
