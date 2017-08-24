@@ -1,14 +1,12 @@
 """Util to invoke NDK compiler toolchain."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
-import sys
 import subprocess
 import os
-from . import cc
 
 def create_shared(output,
                   objects,
-                  options=["-shared", "-fPIC"]):
+                  options="-shared -fPIC"):
     """Create shared library.
 
     Parameters
@@ -35,7 +33,7 @@ def create_shared(output,
         cmd += objects
 
     if options:
-        cmd += options
+        cmd += options.split()
 
     args = ' '.join(cmd)
     proc = subprocess.Popen(
