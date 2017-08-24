@@ -107,7 +107,8 @@ class TVMContext(ctypes.Structure):
         'cl': 4,
         'opencl': 4,
         'metal': 8,
-        'vpi': 9
+        'vpi': 9,
+        'rocm': 10
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()

@@ -64,7 +64,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     hipStream_t hip_stream = static_cast<hipStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
-    if (ctx_from.device_type == kGPU && ctx_to.device_type == kGPU) {
+    if (ctx_from.device_type == kROCM && ctx_to.device_type == kROCM) {
       ROCM_CALL(hipSetDevice(ctx_from.device_id));
       if (ctx_from.device_id == ctx_to.device_id) {
         GPUCopy(from, to, size, hipMemcpyDeviceToDevice, hip_stream);
@@ -73,10 +73,10 @@ class ROCMDeviceAPI final : public DeviceAPI {
                             from, ctx_from.device_id,
                             size, hip_stream);
       }
-    } else if (ctx_from.device_type == kGPU && ctx_to.device_type == kCPU) {
+    } else if (ctx_from.device_type == kROCM && ctx_to.device_type == kCPU) {
       ROCM_CALL(hipSetDevice(ctx_from.device_id));
       GPUCopy(from, to, size, hipMemcpyDeviceToHost, hip_stream);
-    } else if (ctx_from.device_type == kCPU && ctx_to.device_type == kGPU) {
+    } else if (ctx_from.device_type == kCPU && ctx_to.device_type == kROCM) {
       ROCM_CALL(hipSetDevice(ctx_to.device_id));
       GPUCopy(from, to, size, hipMemcpyHostToDevice, hip_stream);
     } else {
