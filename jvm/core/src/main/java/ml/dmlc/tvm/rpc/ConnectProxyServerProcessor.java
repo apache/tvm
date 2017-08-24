@@ -59,7 +59,7 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
   @Override public void run() {
     try {
       SocketAddress address = new InetSocketAddress(host, port);
-      currSocket.connect(address);
+      currSocket.connect(address, 6000);
       InputStream in = currSocket.getInputStream();
       OutputStream out = currSocket.getOutputStream();
       out.write(Utils.toBytes(RPC.RPC_MAGIC));
@@ -83,10 +83,7 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
       }
     } catch (Throwable e) {
       e.printStackTrace();
-      try {
-        Thread.sleep(1000);
-      } catch (InterruptedException ie) {
-      }
+      throw new RuntimeException(e);
     } finally {
       terminate();
     }

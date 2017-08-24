@@ -17,6 +17,9 @@
 
 package ml.dmlc.tvm.tvmrpc;
 
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.os.ParcelFileDescriptor;
 
 import java.net.Socket;
@@ -34,6 +37,7 @@ class RPCProcessor extends Thread {
 
   private boolean running = false;
   private ConnectProxyServerProcessor currProcessor;
+  private final Handler uiHandler;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -43,9 +47,14 @@ class RPCProcessor extends Thread {
         }
       };
 
+  RPCProcessor(Handler uiHandler) {
+    this.uiHandler = uiHandler;
+  }
+
   @Override public void run() {
     while (true) {
       synchronized (this) {
+        currProcessor = null;
         while (!running) {
           try {
             this.wait();
@@ -54,7 +63,18 @@ class RPCProcessor extends Thread {
         }
         currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
       }
-      currProcessor.run();
+      try {
+        currProcessor.run();
+      } catch (Throwable e) {
+        disconnect();
+        // turn connect switch off.
+        Message message = new Message();
+        message.what = MainActivity.MSG_RPC_ERROR;
+        Bundle bundle = new Bundle();
+        bundle.putString(MainActivity.MSG_RPC_ERROR_DATA_KEY, e.getMessage());
+        message.setData(bundle);
+        uiHandler.sendMessage(message);
+      }
     }
   }
 
@@ -62,9 +82,11 @@ class RPCProcessor extends Thread {
    * Disconnect from the proxy server.
    */
   synchronized void disconnect() {
-    running = false;
-    if (currProcessor != null) {
-      currProcessor.terminate();
+    if (running) {
+      running = false;
+      if (currProcessor != null) {
+        currProcessor.terminate();
+      }
     }
   }
 
