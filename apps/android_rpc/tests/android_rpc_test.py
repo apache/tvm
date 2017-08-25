@@ -66,7 +66,7 @@ def test_rpc_module():
     a_np = np.random.uniform(size=1024).astype(A.dtype)
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-    time_f = f2.time_evaluator(f1.entry_name, ctx, number=10)
+    time_f = f2.time_evaluator(f2.entry_name, ctx, number=10)
     cost = time_f(a, b).mean
     print('%g secs/op' % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)

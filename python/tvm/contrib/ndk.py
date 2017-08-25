@@ -17,7 +17,7 @@ def create_shared(output,
     objects : list
         List of object files.
 
-    options : str
+    options : list of str, optional
         The additional options.
     """
     if "TVM_NDK_CC" not in os.environ:
@@ -35,9 +35,8 @@ def create_shared(output,
     options = options if options else ["-shared", "-fPIC"]
     cmd += options
 
-    args = ' '.join(cmd)
     proc = subprocess.Popen(
-        args, shell=True,
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
