@@ -39,22 +39,23 @@ include $(NNVM_PLUGINS)
 # specify tensor path
 .PHONY: clean all test lint doc cython cython3 cyclean
 
-all: lib/libnnvm.a lib/libnnvm_example.so
-
-SRC = $(wildcard src/*.cc src/*/*.cc)
-ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-ALL_DEP = $(ALL_OBJ) $(PLUGIN_OBJ)
-
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S), Darwin)
+	SHARED_LIBRARY_SUFFIX := dylib
 	WHOLE_ARCH= -all_load
 	NO_WHOLE_ARCH= -noall_load
 else
+	SHARED_LIBRARY_SUFFIX := so
 	WHOLE_ARCH= --whole-archive
 	NO_WHOLE_ARCH= --no-whole-archive
 endif
 
+all: lib/libnnvm.a lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX)
+
+SRC = $(wildcard src/*.cc src/*/*.cc)
+ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
+ALL_DEP = $(ALL_OBJ) $(PLUGIN_OBJ)
 
 include tests/cpp/unittest.mk
 
@@ -74,7 +75,7 @@ lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libnnvm_example.so: example/src/operator.cc lib/libnnvm.a
+lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX): example/src/operator.cc lib/libnnvm.a
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cc, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
 
@@ -85,7 +86,7 @@ cython3:
 	cd python; python3 setup.py build_ext --inplace
 
 cyclean:
-	rm -rf python/nnvm/*/*.so python/nnvm/*/*.cpp
+	rm -rf python/nnvm/*/*.so python/nnvm/*/*.dylib python/nnvm/*/*.cpp
 
 lint:
 	python2 dmlc-core/scripts/lint.py nnvm cpp include src
