@@ -212,11 +212,14 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
         thread_x = tvm.thread_axis("threadIdx.x")
         b, h, w, c = In_grad.op.axis
 
-        fused_hw = s[In_grad].fuse(h, w)
-        fused = s[In_grad].fuse(b, fused_hw)
+        fused_wc = s[In_grad].fuse(w,c)
+
+        fused_hwc = s[In_grad].fuse(h,fused_wc)
+        xoc, xic = s[In_grad].split(fused_hwc, factor=128)
+        fused = s[In_grad].fuse(b, xoc)
 
         s[In_grad].bind(fused, block_x)
-        s[In_grad].bind(c, thread_x)
+        s[In_grad].bind(xic, thread_x)
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -248,18 +251,38 @@ def schedule_depthwise_conv2d_back_weight_nhwc(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
-    def _schedule(Out_grad, Padded_in_grad, In_grad):
+    def _schedule(Out_grad, Padded_in_grad, Weight_grad):
         s[Padded_in_grad].compute_inline()
 
         block_x = tvm.thread_axis("blockIdx.x")
+        #block_y = tvm.thread_axis("blockIdx.y")
         thread_x = tvm.thread_axis("threadIdx.x")
-        b, h, w, c = In_grad.op.axis
+        thread_y = tvm.thread_axis("threadIdx.y")
 
-        fused_hw = s[In_grad].fuse(h, w)
-        fused = s[In_grad].fuse(b, fused_hw)
+        db, dh, dw = Weight_grad.op.reduce_axis
+        fh, fw, c, m = Weight_grad.op.axis
 
-        s[In_grad].bind(fused, block_x)
-        s[In_grad].bind(c, thread_x)
+        fused_cm = s[Weight_grad].fuse(c, m)
+        xo, xi = s[Weight_grad].split(fused_cm, factor=32)
+
+        s[Weight_grad].reorder(xo, fh, fw, xi)
+        fused_hw = s[Weight_grad].fuse(fh, fw)
+        fused_xohw = s[Weight_grad].fuse(xo, fused_hw)
+        #fused_hwxi = s[Weight_grad].fuse(fused_xohw, xi)
+        #yo, yi = s[Weight_grad].split(fused_hwxi, factor=256)
+
+        s[Weight_grad].bind(fused_xohw, block_x)
+        s[Weight_grad].bind(xi, thread_x)
+
+
+        #fused_dhdw = s[Weight_grad].fuse(dh, dw)
+        #fused_dbdhdw = s[Weight_grad].fuse(db, fused_dhdw)
+        ko, ki = s[Weight_grad].split(dw, factor=32)
+        s[Weight_grad].bind(ki, thread_x)
+        #BF = s.rfactor(Weight_grad, ki)
+        #s[BF].compute_at(s[Weight_grad], ko)
+
+
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
