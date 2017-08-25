@@ -26,12 +26,12 @@ class ROCMDeviceAPI final : public DeviceAPI {
     int value = 0;
     switch (kind) {
       case kExist: {
-        if(hsa_init() == HSA_STATUS_SUCCESS) {
+        if (hsa_init() == HSA_STATUS_SUCCESS) {
           int dev;
           ROCM_CALL(hipGetDeviceCount(&dev));
           value = dev > ctx.device_id ? 1 : 0;
           hsa_shut_down();
-        }else{
+        } else {
           value = 0;
         }
         break;
