@@ -31,7 +31,13 @@ def find_lib_path():
     api_path = os.path.join(base_path, '../../lib/')
     cmake_build_path = os.path.join(base_path, '../../build/Release/')
     dll_path = [base_path, api_path, cmake_build_path]
-    if os.name == 'nt':
+
+    if sys.platform.startswith('linux') and os.environ.get('LD_LIBRARY_PATH', None):
+        dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
+    elif sys.platform.startswith('darwin') and os.environ.get('DYLD_LIBRARY_PATH', None):
+        dll_path.extend([p.strip() for p in os.environ['DYLD_LIBRARY_PATH'].split(":")])
+
+    if sys.platform.startswith('win32'):
         vs_configuration = 'Release'
         if platform.architecture()[0] == '64bit':
             dll_path.append(os.path.join(curr_path, '../../build', vs_configuration))
@@ -39,12 +45,12 @@ def find_lib_path():
         else:
             dll_path.append(os.path.join(curr_path, '../../build', vs_configuration))
             dll_path.append(os.path.join(curr_path, '../../windows', vs_configuration))
-    elif os.name == "posix" and os.environ.get('LD_LIBRARY_PATH', None):
-        dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
-    if os.name == 'nt':
         dll_path = [os.path.join(p, '%s.dll' % lib_name) for p in dll_path]
+    elif sys.platform.startswith('darwin'):
+        dll_path = [os.path.join(p, '%s.dylib' % lib_name) for p in dll_path]
     else:
         dll_path = [os.path.join(p, '%s.so' % lib_name) for p in dll_path]
+
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
     if len(lib_path) == 0:
         raise RuntimeError('Cannot find the files.\n' +
