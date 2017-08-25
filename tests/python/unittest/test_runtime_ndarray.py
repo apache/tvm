@@ -6,6 +6,7 @@ def enabled_ctx_list():
                 ('gpu', tvm.gpu(0)),
                 ('cl', tvm.opencl(0)),
                 ('metal', tvm.metal(0)),
+                ('rocm', tvm.rocm(0)),
                 ('vpi', tvm.vpi(0))]
     for k, v  in ctx_list:
         assert tvm.context(k, 0) == v

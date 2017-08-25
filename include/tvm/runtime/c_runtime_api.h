@@ -58,7 +58,9 @@ typedef enum {
   /*! \brief Metal buffer. */
   kMetal = 8,
   /*! \brief Simulated on board RAM */
-  kVPI = 9
+  kVPI = 9,
+  /*! \brief ROCm buffer */
+  kROCM = 10
 } TVMDeviceExtType;
 
 /*!
