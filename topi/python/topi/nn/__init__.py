@@ -11,3 +11,4 @@ from .fully_connected import *
 from .mapping import *
 from .pooling import *
 from .softmax import *
+from .relu import *

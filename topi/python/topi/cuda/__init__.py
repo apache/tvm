@@ -8,3 +8,4 @@ from .depthwise_conv2d import schedule_depthwise_conv2d_nchw, schedule_depthwise
 from .reduction import schedule_reduce
 from .broadcast import schedule_broadcast_to
 from .softmax import schedule_softmax
+from .relu import schedule_relu
