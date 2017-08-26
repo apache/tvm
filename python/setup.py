@@ -85,7 +85,7 @@ if "bdist_wheel" in sys.argv:
     with open("MANIFEST.in", "w") as fo:
         fo.write("include tvm/%s\n" % LIB_NAME)
     setup_kwargs = {
-        "include_package_data": False
+        "include_package_data": True
     }
 else:
     setup_kwargs = {
