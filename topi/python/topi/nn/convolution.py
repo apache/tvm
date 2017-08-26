@@ -29,7 +29,6 @@ def conv2d_nchw(Input, Filter, stride, padding):
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     assert isinstance(stride, int) or len(stride) == 2
-    assert isinstance(padding, int) or padding in ['VALID', 'SAME']
     batch, in_channel, in_height, in_width = Input.shape
     num_filter, channel, kernel_h, kernel_w = Filter.shape
     if isinstance(stride, int):
