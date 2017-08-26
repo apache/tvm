@@ -16,7 +16,7 @@ from . import node
 from . import ir_builder
 
 from . import ndarray as nd
-from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi
+from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi, rocm
 
 from ._ffi.runtime_ctypes import TypeCode
 from ._ffi.function import Function
