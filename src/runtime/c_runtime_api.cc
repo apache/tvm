@@ -30,6 +30,7 @@ inline std::string DeviceName(int type) {
     case kOpenCL: return "opencl";
     case kMetal: return "metal";
     case kVPI: return "vpi";
+    case kROCM: return "rocm";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
 }
