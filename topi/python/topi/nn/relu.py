@@ -10,12 +10,12 @@ def relu(a):
     Parameters
     ----------
     data : tvm.Tensor
-        2-D input data
+        Nd Input data
 
     Returns
     -------
     output : tvm.Tensor
-        2-D output with same shape
+        Output with same shape
     """
     return tvm.compute(a.shape, lambda *i: \
         tvm.select((a(*i) < 0.0), 0.0, a(*i)), name='relu')

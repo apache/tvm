@@ -8,10 +8,10 @@ from topi.util import get_const_tuple
 def verify_relu(m, n):
     A = tvm.placeholder((m, n), name='A')
     B = topi.nn.relu(A)
-    s = topi.cuda.schedule_relu(B)
+    s = topi.cuda.schedule_elemwise(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = topi.testing.relu_python(a_np)
+    b_np = a_np * (a_np > 0)
 
     def check_device(device):
         if not tvm.module.enabled(device):
