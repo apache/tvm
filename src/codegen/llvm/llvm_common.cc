@@ -113,10 +113,7 @@ GetLLVMTargetMachine(const std::string& target_str,
     opt.FloatABIType = llvm::FloatABI::Hard;
   }
   llvm::TargetMachine* tm = target->createTargetMachine(
-      target_triple, cpu, attr, opt,
-      llvm::Reloc::PIC_,
-      llvm::CodeModel::Default,
-      llvm::CodeGenOpt::Aggressive);
+      target_triple, cpu, attr, opt, llvm::Reloc::PIC_);
   return tm;
 }
 
