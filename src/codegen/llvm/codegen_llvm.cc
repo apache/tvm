@@ -62,6 +62,7 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
   data_layout_.reset(new llvm::DataLayout(module_.get()));
+  target_machine_ = tm;
   // initialize native vector bits
   std::string target = tm->getTarget().getName();
   if (target == "x86-64") {
@@ -86,6 +87,10 @@ void CodeGenLLVM::InitFuncState() {
 }
 
 void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
+  AddFunctionInternal(f, false);
+}
+
+void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
   this->InitFuncState();
   is_restricted_ = f->is_restricted;
   CHECK(!module_->getFunction(f->name))
@@ -103,7 +108,9 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
       arg_type.push_back(LLVMType(t));
     }
   }
-  llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, arg_type, false);
+
+  llvm::FunctionType* ftype = llvm::FunctionType::get(
+      ret_void ? t_void_ : t_int_, arg_type, false);
   // setup the function.
   function_ = llvm::cast<llvm::Function>(module_->getOrInsertFunction(f->name, ftype));
   function_->setCallingConv(llvm::CallingConv::C);
@@ -129,8 +136,13 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
 
   llvm::BasicBlock* block = llvm::BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(block);
+
   this->VisitStmt(f->body);
-  builder_->CreateRet(ConstInt32(0));
+  if (ret_void) {
+    builder_->CreateRetVoid();
+  } else {
+    builder_->CreateRet(ConstInt32(0));
+  }
 }
 
 void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
@@ -155,6 +167,9 @@ class MPassManager : public llvm::legacy::PassManager {
   }
 };
 
+void CodeGenLLVM::InitPassManagerBuilder(llvm::PassManagerBuilder* builder) {
+}
+
 void CodeGenLLVM::Optimize() {
   // place optimization pass
   llvm::PassManagerBuilder builder;
@@ -167,6 +182,12 @@ void CodeGenLLVM::Optimize() {
 #endif
   builder.LoopVectorize = true;
   builder.SLPVectorize = true;
+  this->InitPassManagerBuilder(&builder);
+
+#if TVM_LLVM_VERSION >= 50
+  target_machine_->adjustPassManager(builder);
+#endif
+
   // pass manager
   FPassManager fpass(module_.get());
   MPassManager mpass;
@@ -313,23 +334,29 @@ llvm::Value* CodeGenLLVM::CreateCast(Type from, Type to, llvm::Value* value) {
   }
 }
 
+llvm::CallInst* CodeGenLLVM::CreateCallExtern(
+    llvm::Type* ret,
+    const std::string& name,
+    const std::vector<llvm::Value*>& arg_values) {
+  std::vector<llvm::Type*> arg_types;
+  for (llvm::Value* v : arg_values) {
+    arg_types.push_back(v->getType());
+  }
+  llvm::FunctionType* ftype = llvm::FunctionType::get(ret, arg_types, false);
+  llvm::Function* f = module_->getFunction(name);
+  if (f == nullptr) {
+    f = llvm::Function::Create(
+        ftype, llvm::Function::ExternalLinkage, name, module_.get());
+  }
+  return builder_->CreateCall(f, arg_values);
+}
+
 llvm::Value* CodeGenLLVM::CreateCallExtern(const Call* op) {
   std::vector<llvm::Value*> arg_values(op->args.size());
   for (size_t i = 0; i < op->args.size(); ++i) {
     arg_values[i] = MakeValue(op->args[i]);
   }
-  std::vector<llvm::Type*> arg_types;
-  for (llvm::Value* v : arg_values) {
-    arg_types.push_back(v->getType());
-  }
-  llvm::FunctionType* ftype = llvm::FunctionType::get(
-      LLVMType(op->type), arg_types, false);
-  llvm::Function* f = module_->getFunction(op->name);
-  if (f == nullptr) {
-    f = llvm::Function::Create(
-        ftype, llvm::Function::ExternalLinkage, op->name, module_.get());
-  }
-  return builder_->CreateCall(f, arg_values);
+  return CreateCallExtern(LLVMType(op->type), op->name, arg_values);
 }
 
 llvm::Value* CodeGenLLVM::CreateScalarizedCall(
@@ -437,6 +464,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     auto id = static_cast<llvm::Intrinsic::ID>(op->args[0].as<UIntImm>()->value);
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id);
     return builder_->CreateCall(f, arg_values);
+  } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
+    return CreateStorageSync(op);
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     CHECK_EQ(op->args.size(), 2U);
     return builder_->CreateAnd(
@@ -510,7 +539,18 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   return nullptr;
 }
 
-int CodeGenLLVM::NativeVectorBits(const std::string& storage_scope) const {
+// Get the corresponding thread index
+llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) {
+  LOG(FATAL) << "Donot support threading " << iv;
+  return nullptr;
+}
+
+llvm::Value* CodeGenLLVM::CreateStorageSync(const Call* op) {
+  LOG(FATAL) << "Donot support storage sync in CPU mode";
+  return nullptr;
+}
+
+int CodeGenLLVM::NativeVectorBits(const runtime::StorageScope& storage_scope) const {
   // By default, we ask the buffer to be aligned to 64 bytes
   return native_vector_bits_;
 }
@@ -855,7 +895,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
           ramp->base, make_const(ramp->base.type(), offset));
       llvm::Value* ptr = CreateBufferPtr(t.element_of(), buf, MakeValue(base));
       llvm::Type* vtype = llvm::VectorType::get(
-          LLVMType(t.element_of()), lanes)->getPointerTo();
+          LLVMType(t.element_of()), lanes)->getPointerTo(
+              ptr->getType()->getPointerAddressSpace());
       llvm::LoadInst* inst = builder_->CreateAlignedLoad(
           builder_->CreatePointerCast(ptr, vtype), alignment);
       AddAliasInfo(inst, op->buffer_var.get(),
@@ -971,7 +1012,8 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
           ramp->base, make_const(ramp->base.type(), offset));
       llvm::Value* ptr = CreateBufferPtr(t.element_of(), buf, MakeValue(base));
       llvm::Type* vtype = llvm::VectorType::get(
-          LLVMType(t.element_of()), lanes)->getPointerTo();
+          LLVMType(t.element_of()), lanes)->getPointerTo(
+              ptr->getType()->getPointerAddressSpace());
       llvm::StoreInst* inst = builder_->CreateAlignedStore(
           CreateVecSlice(value, offset, lanes),
           builder_->CreatePointerCast(ptr, vtype), alignment);
@@ -1069,17 +1111,28 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
     }
     info.alignment = alloca->getAlignment();
   }
-  buf = builder_->CreatePointerCast(buf, LLVMType(op->type)->getPointerTo());
+  buf = builder_->CreatePointerCast(
+      buf, LLVMType(op->type)->getPointerTo(
+          buf->getType()->getPointerAddressSpace()));
   CHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
-  if (op->attr_key == ir::attr::storage_scope) {
+  if (op->attr_key == ir::attr::thread_extent) {
+    IterVar iv(op->node.node_);
+    if (iv->thread_tag.length() != 0) {
+      if (!var_map_.count(iv->var.get())) {
+        var_map_[iv->var.get()] = GetThreadIndex(iv);
+      }
+    }
+    this->VisitStmt(op->body);
+  } else if (op->attr_key == ir::attr::storage_scope) {
     const Variable* v = op->node.as<Variable>();
     CHECK(v);
-    alloc_storage_info_[v].scope = op->value.as<StringImm>()->value;
+    alloc_storage_info_[v].scope = runtime::StorageScope::make(
+        op->value.as<StringImm>()->value);
     this->VisitStmt(op->body);
   } else if (op->attr_key == ir::attr::storage_alignment) {
     const Variable* v = op->node.as<Variable>();
