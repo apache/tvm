@@ -22,7 +22,6 @@ def schedule_elemwise(outs):
     tvm.schedule.AutoInlineInjective(s)
 
     x = outs[0]
-    num_dim = len(x.shape)
     fused = s[x].fuse(*x.op.axis)
     num_thread = 64
     bx, tx = s[x].split(fused, factor=num_thread)

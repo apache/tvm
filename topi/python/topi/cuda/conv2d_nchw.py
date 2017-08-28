@@ -41,6 +41,9 @@ def schedule_conv2d_small_batch(outs):
         ofactor = 64
         wfactor = 56
         ifactor = 8
+        if tvm.ir_pass.Simplify(Filter.shape[0]).value==64:
+            opart2=8
+            ifactor=16
         sfactor = max(1, ofactor//(opart2*2))
         spart = max(1, (wfactor + vthread-1) // vthread)
         block_x = tvm.thread_axis("blockIdx.x")
@@ -74,10 +77,10 @@ def schedule_conv2d_small_batch(outs):
         ic, dh, dw = s[Out_L].op.reduce_axis
         oic, iic = s[Out_L].split(ic, factor=ifactor)
         s[Out_L].reorder(oic, dh, dw, iic, h, w)
+
         fuse_index = s[Out_L].fuse(dw, dh)
         fuse_index = s[Out_L].fuse(fuse_index, oic)
         dw = fuse_index
-
         s[temp_S].compute_at(s[Out_L], dw)
         s[Filter_S].compute_at(s[Out_L], dw)
 
