@@ -23,9 +23,7 @@ def schedule_elemwise(outs):
 
     x = outs[0]
     num_dim = len(x.shape)
-    fused = x.op.axis[0]
-    for i in range(1, num_dim):
-        fused = s[x].fuse(fused, x.op.axis[i])
+    fused = s[x].fuse(*x.op.axis)
     num_thread = 64
     bx, tx = s[x].split(fused, factor=num_thread)
     s[x].bind(bx, tvm.thread_axis("blockIdx.x"))
