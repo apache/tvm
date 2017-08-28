@@ -16,6 +16,7 @@
 #include <vector>
 #include <string>
 #include "./llvm_common.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace codegen {
@@ -116,22 +117,29 @@ class CodeGenLLVM :
   void VisitStmt_(const Block* op) override;
   void VisitStmt_(const Evaluate* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
-  // create intrinstic given call
-  virtual llvm::Value* CreateIntrinsic(const Call* op);
-  // create extern function call
-  virtual llvm::Value* CreateCallExtern(const Call* op);
-  // Scalarize e by iterating elements of e.
-  // f is a callback that takes index and v.
-  virtual void Scalarize(const Expr& e,
-                         std::function<void(int i, llvm::Value* v)> f);
+
  protected:
   /*! \brief The storage information */
   struct StorageInfo {
     /*! \brief The storage scope */
-    std::string scope;
+    runtime::StorageScope scope;
     /*! \brief The alignment of allocation */
     int alignment{0};
   };
+  // create intrinstic given call
+  virtual llvm::Value* CreateIntrinsic(const Call* op);
+  // create extern function call
+  virtual llvm::Value* CreateCallExtern(const Call* op);
+  // Get the corresponding thread index
+  virtual llvm::Value* GetThreadIndex(const IterVar& iv);
+  // Get the corresponding thread index
+  virtual llvm::Value* CreateStorageSync(const Call* op);
+  // apply optimization on the module.
+  virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
+  // Scalarize by iterating elements of e.
+  // f is a callback that takes index and v.
+  virtual void Scalarize(const Expr& e,
+                         std::function<void(int i, llvm::Value* v)> f);
   // Initialize target
   virtual void InitTarget(llvm::TargetMachine* tm);
   // Add module startup function if needed.
@@ -139,7 +147,12 @@ class CodeGenLLVM :
   // apply optimization on the module.
   virtual void Optimize();
   // Get the maximim storage align bits of buffer pointer given storage scope.
-  virtual int NativeVectorBits(const std::string& storage_scope) const;
+  virtual int NativeVectorBits(const runtime::StorageScope& storage_scope) const;
+  void AddFunctionInternal(const LoweredFunc& f, bool ret_void);
+  // Create extern call
+  llvm::CallInst* CreateCallExtern(llvm::Type* ret,
+                                   const std::string& name,
+                                   const std::vector<llvm::Value*>& value);
   /*!
    * \param t The original type.
    * \return LLVM type of t
@@ -192,6 +205,8 @@ class CodeGenLLVM :
   std::unique_ptr<llvm::DataLayout> data_layout_;
   // Internal metabuilder
   std::unique_ptr<llvm::MDBuilder> md_builder_;
+  // llvm target machine
+  llvm::TargetMachine* target_machine_{nullptr};
   // llvm context
   llvm::LLVMContext* ctx_{nullptr};
   // helpful data types
