@@ -255,30 +255,48 @@ def schedule_depthwise_conv2d_back_weight_nhwc(outs):
         s[Padded_in_grad].compute_inline()
 
         block_x = tvm.thread_axis("blockIdx.x")
-        #block_y = tvm.thread_axis("blockIdx.y")
-        thread_x = tvm.thread_axis("threadIdx.x")
         thread_y = tvm.thread_axis("threadIdx.y")
+        thread_x = tvm.thread_axis("threadIdx.x")
 
         db, dh, dw = Weight_grad.op.reduce_axis
         fh, fw, c, m = Weight_grad.op.axis
 
-        fused_cm = s[Weight_grad].fuse(c, m)
-        xo, xi = s[Weight_grad].split(fused_cm, factor=32)
+        fused_dhdw = s[Weight_grad].fuse(dh, dw)
+        fused_dbdhdw = s[Weight_grad].fuse(db, fused_dhdw)
+        ko, ki = s[Weight_grad].split(fused_dbdhdw, factor=16)
+        BF = s.rfactor(Weight_grad, ki)
 
-        s[Weight_grad].reorder(xo, fh, fw, xi)
-        fused_hw = s[Weight_grad].fuse(fh, fw)
-        fused_xohw = s[Weight_grad].fuse(xo, fused_hw)
-        #fused_hwxi = s[Weight_grad].fuse(fused_xohw, xi)
-        #yo, yi = s[Weight_grad].split(fused_hwxi, factor=256)
+        fused_cm = s[Weight_grad].fuse(s[Weight_grad].op.axis[2], s[Weight_grad].op.axis[3])
+        fused_fwcm = s[Weight_grad].fuse(s[Weight_grad].op.axis[1], fused_cm)
+        fused_fwcm = s[Weight_grad].fuse(s[Weight_grad].op.axis[0], fused_fwcm)
 
-        s[Weight_grad].bind(fused_xohw, block_x)
-        s[Weight_grad].bind(xi, thread_x)
+        #fused_fwcm = s[Weight_grad].op.axis[2]
+        xo, xi = s[Weight_grad].split(fused_fwcm, factor=32) #s[Weight_grad].op.axis[2], factor=32)
+        #s[Weight_grad].reorder(xo, fh, fw, xi)
+
+        #fused_hw = s[Weight_grad].fuse(fh, fw)
+        #fused_xohw = s[Weight_grad].fuse(xo, fused_hw)
+
+        s[Weight_grad].bind(xi, thread_y)
+        s[Weight_grad].bind(xo, block_x)
+
+
+        #s[Weight_grad].fuse(xi, dw)
+        #fused_dhdw = s[Weight_grad].fuse(dh, dw)
+
+        print("@@@@@@@@@@@@@@@@@@",s[Weight_grad].op.reduce_axis)
+        s[Weight_grad].bind(s[Weight_grad].op.reduce_axis[0], thread_x)
+        s[BF].compute_at(s[Weight_grad], s[Weight_grad].op.reduce_axis[0]) #s[Weight_grad].op.reduce_axis[0])
+
+        #s[Weight_grad].bind(xi, thread_y)
+        #s[Weight_grad].bind(fused_xohw, block_x)
+
 
 
         #fused_dhdw = s[Weight_grad].fuse(dh, dw)
         #fused_dbdhdw = s[Weight_grad].fuse(db, fused_dhdw)
-        ko, ki = s[Weight_grad].split(dw, factor=32)
-        s[Weight_grad].bind(ki, thread_x)
+        #ko, ki = s[Weight_grad].split(dw, factor=32)
+        #s[Weight_grad].bind(ki, thread_x)
         #BF = s.rfactor(Weight_grad, ki)
         #s[BF].compute_at(s[Weight_grad], ko)
 
