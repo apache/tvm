@@ -202,6 +202,7 @@ class Stage : public NodeRef {
    *
    *  Such that stride[axis] == k * factor + offset for some k.
    *
+   * \param axis The dimension to be specified for alignment.
    * \param factor The factor multiple of alignment
    * \param offset The required offset factor.
    * \return reference to self

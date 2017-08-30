@@ -104,7 +104,7 @@ class OperationNode : public FunctionBaseNode {
   /*!
    * \brief Build the Realize statement that realizes
    *   the op's output tensors.
-   * \param Stage the op's stage.
+   * \param stage the op's stage.
    * \param realize_map The realization domain map of the operators.
    * \param body The body that is going to get
    * \return A realization statement that wraps body.
