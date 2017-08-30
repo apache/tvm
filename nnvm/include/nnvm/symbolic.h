@@ -124,7 +124,7 @@ class Symbol {
                       const std::unordered_map<std::string, const Symbol*>& kwargs,
                       const std::string& name) const;
   /*!
-   * \brief Add control flow depenencies to the operators in symbols.
+   * \brief Add control flow dependencies to the operators in symbols.
    *
    *  For grouped symbol, an error will be raised. This mutates current symbolic Node.
    *
