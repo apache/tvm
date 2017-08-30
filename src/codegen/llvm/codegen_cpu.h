@@ -24,7 +24,6 @@ class CodeGenCPU : public CodeGenLLVM {
             bool dynamic_lookup) override;
   void AddFunction(const LoweredFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
-
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const For* op) override;
@@ -60,7 +59,8 @@ class CodeGenCPU : public CodeGenLLVM {
     VarExpr task_id;
     VarExpr num_task;
     bool stride_pattern{false};
-    bool hit_parallel_loop{false};
+    bool in_parallel_loop{false};
+    int parallel_loop_count{0};
     llvm::Value* penv{nullptr};
   };
   // Get runtime functions

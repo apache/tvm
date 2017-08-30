@@ -138,9 +138,6 @@ class LinearAccessPatternFinder final : public IRVisitor {
       in_thread_env_ = true;
       VisitNewScope(op);
       in_thread_env_ = false;
-    } else if (op->attr_key == attr::pragma_scope &&
-               op->value.as<StringImm>()->value == "parallel_launch_point") {
-      VisitNewScope(op);
     } else if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       storage_scope_[buf] =
