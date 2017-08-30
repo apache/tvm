@@ -104,13 +104,13 @@ class OperationNode : public FunctionBaseNode {
   /*!
    * \brief Build the Realize statement that realizes
    *   the op's output tensors.
-   * \param self The reference to self.
+   * \param stage the op's stage.
    * \param realize_map The realization domain map of the operators.
    * \param body The body that is going to get
    * \return A realization statement that wraps body.
    */
   virtual Stmt BuildRealize(
-      const Operation& self,
+      const Stage& stage,
       const std::unordered_map<IterVar, Range>& realize_map,
       const Stmt& body) const = 0;
   /*!
@@ -155,7 +155,7 @@ class PlaceholderOpNode : public OperationNode {
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
-      const Operation& self,
+      const Stage& stage,
       const std::unordered_map<IterVar, Range>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
@@ -206,7 +206,7 @@ class ComputeOpNode : public OperationNode {
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
-      const Operation& self,
+      const Stage& stage,
       const std::unordered_map<IterVar, Range>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
@@ -277,7 +277,7 @@ class ScanOpNode : public OperationNode {
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
-      const Operation& self,
+      const Stage& stage,
       const std::unordered_map<IterVar, Range>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
@@ -340,7 +340,7 @@ class ExternOpNode : public OperationNode {
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
       std::unordered_map<IterVar, Range>* out_dom_map) const final;
   Stmt BuildRealize(
-      const Operation& self,
+      const Stage& stage,
       const std::unordered_map<IterVar, Range>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(

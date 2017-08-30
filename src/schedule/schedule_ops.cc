@@ -33,7 +33,7 @@ Stmt MakePipeline(const Stage& s,
     consumer = ProducerConsumer::make(s->op, false, consumer);
     pipeline = Block::make(producer, consumer);
   }
-  pipeline = s->op->BuildRealize(s->op, dom_map, pipeline);
+  pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.
   pipeline = AttrStmt::make(
       s->op, ir::attr::realize_scope,
@@ -189,6 +189,18 @@ class SchedulePostProc : public IRMutator {
         if (it->second.defined()) {
           return AttrStmt::make(
               Array<NodeRef>{tuple[0], it->second.output(tensor->value_index)},
+              op->attr_key, op->value, Mutate(op->body));
+        } else {
+          return this->Mutate(op->body);
+        }
+      }
+    } else if (op->attr_key == ir::attr::buffer_dim_align) {
+      Tensor tensor(op->node.node_);
+      auto it = replace_op_.find(tensor->op.get());
+      if (it != replace_op_.end()) {
+        if (it->second.defined()) {
+          return AttrStmt::make(
+              it->second.output(tensor->value_index),
               op->attr_key, op->value, Mutate(op->body));
         } else {
           return this->Mutate(op->body);

@@ -28,14 +28,13 @@ from tvm.contrib import rpc, util
 # local machine, we need build runtime on remote device.
 #
 # To get started, clone tvm repo from github. It is important to clone
-# the submodules along, with --recursive option (Assuming you are in 
-# your home directory): 
+# the submodules along, with --recursive option (Assuming you are in
+# your home directory):
 #
 #   .. code-block:: bash
-# 
+#
 #     git clone --recursive https://github.com/dmlc/tvm
-# 
-######################################################################
+#
 # .. note::
 #
 #   Usually device has limited resources and we only need to build
@@ -51,14 +50,13 @@ from tvm.contrib import rpc, util
 #
 #   Also make sure that you have set :code:`USE_RPC=1` in your
 #   :code:`config.mk`. We don't need LLVM when building runtime, so
-#   :code:`LLVM_CONFIG = llvm-config` in :code:`config.mk`is commented
+#   :code:`LLVM_CONFIG = llvm-config` in :code:`config.mk` is commented
 #   out by default. After that, build runtime!
 #
 #   .. code-block:: bash
 #
 #     make runtime
 #
-######################################################################
 # After success of buildind runtime, we need set environment varibles
 # in :code:`~/.bashrc` file of yourself account or :code:`/etc/profile`
 # of system enviroment variables. Assuming your TVM directory is in
@@ -95,7 +93,7 @@ from tvm.contrib import rpc, util
 # successful to start RPC server on your device.
 #
 #    .. code-block:: bash
-# 
+#
 #    Loading runtime library /home/YOURNAME/code/tvm/lib/libtvm_runtime.so... exec only
 #    INFO:root:RPCServer: bind to 0.0.0.0:9090
 #

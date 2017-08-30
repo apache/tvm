@@ -183,6 +183,13 @@ constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
 constexpr const char* scan_init_scope = "scan_init_scope";
 /*!
+ * \brief Mark alignment of buffer dimension
+ *  stmt.node is Tensor
+ *  stmt.value is tvm_tuple(dim, align, offset)
+ *  This gives hint to require stride of dim to be k * align + offset.
+ */
+constexpr const char* buffer_dim_align = "buffer_dim_align";
+/*!
  * \brief Bind the buffer specification to the region of the op
  *  When this scope occurs, the stmt.node is a Array<NodeRef> = [buffer, tensor]
  *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
