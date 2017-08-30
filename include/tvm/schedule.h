@@ -198,6 +198,16 @@ class Stage : public NodeRef {
    */
   Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
   /*!
+   * \brief Set alignment requirement for specific dimension.
+   *
+   *  Such that stride[axis] == k * factor + offset for some k.
+   *
+   * \param factor The factor multiple of alignment
+   * \param offset The required offset factor.
+   * \return reference to self
+   */
+  Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
@@ -496,6 +506,10 @@ class IterVarAttrNode : public Node {
    *   when the axis is marked as Tensorized
    */
   TensorIntrin tensor_intrin;
+  /*! \brief Alignment factor of buffer dimension */
+  int dim_align_factor{0};
+  /*! \brief Alignment offset of buffer dimension */
+  int dim_align_offset{0};
   /*!
    * \brief Additional pragmas, array of StringImm
    */
@@ -507,6 +521,8 @@ class IterVarAttrNode : public Node {
     v->Visit("prefetch_data", &prefetch_data);
     v->Visit("prefetch_offset", &prefetch_offset);
     v->Visit("tensor_intrin", &tensor_intrin);
+    v->Visit("dim_align_factor", &dim_align_factor);
+    v->Visit("dim_align_offset", &dim_align_offset);
     v->Visit("pragmas", &pragmas);
   }
 
