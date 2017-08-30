@@ -20,7 +20,6 @@ Index
    topi.min
    topi.nn.relu
    topi.nn.dilate
-   topi.nn.scale_shift
    topi.nn.conv2d_nchw
    topi.nn.conv2d_hwcn
    topi.nn.depthwise_conv2d_nchw
@@ -55,7 +54,6 @@ topi.nn
 ~~~~~~~
 .. autofunction:: topi.nn.relu
 .. autofunction:: topi.nn.dilate
-.. autofunction:: topi.nn.scale_shift
 .. autofunction:: topi.nn.conv2d_nchw
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
