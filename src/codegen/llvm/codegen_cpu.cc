@@ -404,7 +404,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   std::swap(var_map_, new_vmap);
   std::swap(parallel_env_, par_env);
   std::swap(function_, f);
-  CHECK(par_env.hit_parallel_loop)
+  CHECK_NE(par_env.parallel_loop_count, 0)
       << "Cannot find parallel loop within parallel launch";
   builder_->SetInsertPoint(par_launch_end);
 }
@@ -679,7 +679,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
     } else if (pname == "parallel_barrier_when_finish") {
       CHECK(parallel_env_.penv != nullptr)
           << "Cannot run barrier without parallel environment";
-      CHECK(!parallel_env_.hit_parallel_loop)
+      CHECK(!parallel_env_.in_parallel_loop)
           << "Cannot not place within parallel loop as the workload may differ, "
           << " place it between parallel and parallel_launch_point";
       this->VisitStmt(op->body);
@@ -713,9 +713,9 @@ void CodeGenCPU::VisitStmt_(const For* op) {
       Type t = op->extent.type();
       Expr num_task = cast(t, parallel_env_.num_task);
       Expr task_id = cast(t, parallel_env_.task_id);
-      CHECK(!parallel_env_.hit_parallel_loop)
+      CHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
-      parallel_env_.hit_parallel_loop = true;
+      parallel_env_.in_parallel_loop = true;
       if (parallel_env_.stride_pattern) {
         CreateSerialFor(MakeValue(task_id),
                         MakeValue(op->extent),
@@ -732,6 +732,8 @@ void CodeGenCPU::VisitStmt_(const For* op) {
                         op->loop_var,
                         op->body);
       }
+      parallel_env_.in_parallel_loop = false;
+      ++parallel_env_.parallel_loop_count;
     }
   } else {
     LOG(FATAL) << "cannot handle for type " << op->for_type;
