@@ -91,8 +91,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         case 2: intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_z; break;
         default: LOG(FATAL) << "unknown thread idx";
       }
-    }
-    else {
+    } else {
       CHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0: intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_x; break;
