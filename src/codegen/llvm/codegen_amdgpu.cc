@@ -92,17 +92,15 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         default: LOG(FATAL) << "unknown thread idx";
       }
     }
-    /*
     else {
       CHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
-        case 0: intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_x; break;
-        case 1: intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_y; break;
-        case 2: intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_z; break;
+        case 0: intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_x; break;
+        case 1: intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_y; break;
+        case 2: intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_z; break;
         default: LOG(FATAL) << "unknown thread idx";
       }
     }
-    */
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
     return builder_->CreateCall(f, {});
   }
