@@ -3,7 +3,6 @@ TVM: Tensor IR Stack for Deep Learning Systems
 
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=dmlc/tvm/master)](http://mode-gpu.cs.washington.edu:8080/job/dmlc/job/tvm/job/master/)
-bdyunmu
 [Installation](docs/how_to/install.md) |
 [Documentation](http://docs.tvmlang.org) |
 [Tutorials](http://tutorials.tvmlang.org) |
