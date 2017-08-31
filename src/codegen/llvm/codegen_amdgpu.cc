@@ -147,16 +147,19 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
     cg->AddFunction(f);
   }
   std::unique_ptr<llvm::Module> module = cg->Finish();
-  llvm::SmallString<8> data;
-  llvm::raw_svector_ostream dest(data);
-  dest.SetUnbuffered();
+  llvm::SmallString<8> data_hsaco, data_ll;
+  llvm::raw_svector_ostream dest_hsaco(data_hsaco), dest_ll(data_ll);
+  dest_hsaco.SetUnbuffered();
+  dest_ll.SetUnbuffered();
   llvm::legacy::PassManager pass;
   CHECK(tm->addPassesToEmitFile(
-      pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      pass, dest_hsaco, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
   pass.run(*module);
-  std::string hsaco(data.begin(), data.end());
-  return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), "");
+  module->print(dest_ll, nullptr);
+  std::string hsaco(data_hsaco.begin(), data_hsaco.end());
+  std::string ll(data_ll.begin(), data_ll.end());
+  return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
 
 TVM_REGISTER_API("codegen.build_rocm")
