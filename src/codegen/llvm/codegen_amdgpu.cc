@@ -22,11 +22,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     // annotate as kernel function
+/*
     module_->getOrInsertNamedMetadata("nvvm.annotations")
         ->addOperand(llvm::MDNode::get(*ctx_, {
               llvm::ValueAsMetadata::get(function_),
               llvm::MDString::get(*ctx_, "kernel"),
               llvm::ValueAsMetadata::get(ConstInt32(1)) }));
+*/
   }
 
   void VisitStmt_(const Allocate* op) final {
@@ -81,7 +83,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const IterVar& iv) final {
     runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
-    llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
+    llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
         case 0: intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_x; break;
@@ -136,11 +138,15 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(1) << target;
   CHECK(target.length(
-) >= 5 &&
-        target.substr(0, 5) == "rocm");
-  llvm::TargetMachine* tm = GetLLVMTargetMachine(
-      " -mcpu=gfx900" +
-      target.substr(5, target.length() - 5));
+) >= 4 &&
+        target.substr(0, 4) == "rocm");
+  std::string triple("amdgcn-amd-amdhsa-hcc");
+  std::string error;
+  auto llvmTarget = llvm::TargetRegistry::lookupTarget(triple, error);
+  auto features = "";
+  llvm::TargetOptions opt;
+  auto RM = llvm::Optional<llvm::Reloc::Model>();
+  llvm::TargetMachine* tm = llvmTarget->createTargetMachine(triple, "gfx900", features, opt, RM);
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
@@ -160,7 +166,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), "");
 }
 
-TVM_REGISTER_API("codegen.build_amdgcn")
+TVM_REGISTER_API("codegen.build_rocm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildAMDGPU(args[0], args[1]);
   });
