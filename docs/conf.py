@@ -172,8 +172,14 @@ intersphinx_mapping = {
     'matplotlib': ('http://matplotlib.org/', None),
 }
 
-examples_dirs = ['../tutorials/python']
+from sphinx_gallery.sorting import ExplicitOrder
+
+examples_dirs = ['../tutorials/']
 gallery_dirs = ['tutorials']
+subsection_order = ExplicitOrder(
+    ['../tutorials/language',
+     '../tutorials/optimize',
+     '../tutorials/deployment'])
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
@@ -200,6 +206,7 @@ sphinx_gallery_conf = {
     'numpy': 'http://docs.scipy.org/doc/numpy-1.9.1'},
     'examples_dirs': examples_dirs,
     'gallery_dirs': gallery_dirs,
+    'subsection_order': subsection_order,
     'find_mayavi_figures': False,
     'filename_pattern': '.py',
     'expected_failing_examples': []

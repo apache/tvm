@@ -52,6 +52,7 @@ MakeBoundCheck(const Stage& stage,
                bool skip_ivar_domain,
                const std::unordered_set<IterVar>& skip_iter,
                const std::unordered_map<IterVar, Expr>& value_map);
+
 /*!
  * \brief Create a nest of if checking the predicates.
  *

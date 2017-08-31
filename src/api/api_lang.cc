@@ -388,6 +388,12 @@ TVM_REGISTER_API("_StagePrefetch")
       .prefetch(args[1], args[2], args[3]);
   });
 
+TVM_REGISTER_API("_StageStorageAlign")
+  .set_body([](TVMArgs args, TVMRetValue *ret) {
+    args[0].operator Stage()
+      .storage_align(args[1], args[2], args[3]);
+  });
+
 TVM_REGISTER_API("_ScheduleNormalize")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
