@@ -60,8 +60,8 @@ class ROCMModuleNode : public runtime::ModuleNode {
   }
 
   std::string GetSource(const std::string& format) final {
-    if(format == fmt_) return data_;
-    if(fmt_ == "hsaco") LOG(WARNING)<<"HSACO"; return data_;
+    if (format == fmt_) { return data_; }
+    if (fmt_ == "hsaco") { return data_; }
     return "";
   }
 
