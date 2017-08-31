@@ -569,4 +569,24 @@ class Stage(NodeBase):
         """
         _api_internal._StagePrefetch(self, tensor, var, offset)
 
+    def storage_align(self, axis, factor, offset):
+        """Set alignment requirement for specific axis
+
+        This ensures that stride[axis] == k * factor + offset for some k.
+        This is useful to set memory layout to for more friendly memory
+        access pattern. For example, we can set alignment to be
+        factor=2, offset=1 to avoid bank conflict for thread access on
+        higher dimension in GPU shared memory.
+
+        Parameters
+        ----------
+        axis : IterVar
+            The axis dimension to be aligned.
+        factor : int
+            The factor in alignment specification.
+        offset : int
+            The offset in the alignment specification.
+        """
+        _api_internal._StageStorageAlign(self, axis, factor, offset)
+
 _init_api("tvm.schedule")

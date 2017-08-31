@@ -14,5 +14,11 @@ def test_basic():
     assert m[1].value == 5
     assert tvm.ir_pass.Simplify(m[0] - (b * 6 + 7 + 1)).value == 0
 
+    m = tvm.arith.DetectLinearEquation(a * b + 7, a)
+    assert m[1] == b
+
+    m = tvm.arith.DetectLinearEquation(b * 7, a)
+    assert m[1].value == 0
+
 if __name__ == "__main__":
     test_basic()

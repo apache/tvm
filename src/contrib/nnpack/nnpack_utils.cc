@@ -17,7 +17,7 @@ NNPackThreadLocalEntry* NNPackThreadLocalEntry::ThreadLocal() {
 TVM_REGISTER_GLOBAL("contrib.nnpack._Config")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
-    size_t nthreads = args[0];
+    size_t nthreads = args[0].operator uint64_t();
     if (entry->threadpool != NULL &&
         pthreadpool_get_threads_count(entry->threadpool) != nthreads) {
       pthreadpool_destroy(entry->threadpool);

@@ -226,17 +226,17 @@ void ScanOpNode::GatherBound(
 }
 
 Stmt ScanOpNode::BuildRealize(
-    const Operation& self,
+    const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
     const Stmt& body) const {
-  CHECK_EQ(self.operator->(), this);
+  CHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
   Range tdom = Range::make_by_min_extent(
       0, ir::Simplify(sdom->extent + sdom->min));
   Stmt ret = body;
   size_t sp_idx = 0;
   for (size_t i = 0; i < update.size(); ++i) {
-    Tensor t = self.output(i);
+    Tensor t = stage->op.output(i);
     CHECK_EQ(static_cast<size_t>(t->value_index), i);
     Halide::Internal::Region bounds;
     bounds.push_back(tdom);

@@ -110,7 +110,7 @@ class DSLAPIImpl : public DSLAPI {
     *out_index = static_cast<int>(Node::TypeKey2Index(type_key));
   }
   void NodeGetTypeIndex(NodeHandle handle,
-                          int* out_index) const final {
+                        int* out_index) const final {
     *out_index = static_cast<int>(
         (*static_cast<TVMAPINode*>(handle))->type_index());
   }

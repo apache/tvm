@@ -198,19 +198,35 @@ void ComputeOpNode::GatherBound(
 }
 
 Stmt ComputeOpNode::BuildRealize(
-    const Operation& self,
+    const Stage& stage,
     const std::unordered_map<IterVar, Range>& realize_map,
     const Stmt& realize_body) const {
-  CHECK_EQ(self.operator->(), this);
+  CHECK_EQ(stage->op.get(), this);
   Halide::Internal::Region bounds;
   for (IterVar iv : this->axis) {
     bounds.push_back(realize_map.at(iv));
   }
   Stmt realize = realize_body;
-  for (int i = self->num_outputs(); i > 0; --i) {
-    Tensor t = self.output(i-1);
+  for (int i = this->num_outputs(); i > 0; --i) {
+    Tensor t = stage->op.output(i-1);
     realize = ir::Realize::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
+    // alignment requirement, only useful for compute
+    for (size_t i = 0; i < this->axis.size(); ++i) {
+      auto it = stage->iter_var_attrs.find(this->axis[i]);
+      if (it != stage->iter_var_attrs.end()) {
+        IterVarAttr attr = (*it).second;
+        if (attr->dim_align_factor != 0) {
+          Array<Expr> tuple = {static_cast<int>(i),
+                               attr->dim_align_factor,
+                               attr->dim_align_offset};
+          realize = ir::AttrStmt::make(
+              t, ir::attr::buffer_dim_align,
+              Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
+              realize);
+        }
+      }
+    }
   }
   return realize;
 }
@@ -304,7 +320,7 @@ enum class ComputeType {
 };
 
 ComputeType DetectComputeType(const ComputeOpNode* self,
-                                const Stage& stage) {
+                              const Stage& stage) {
   // Verify correctness of leaf nest.
   int normal_red = 0, thread_red = 0, tensorize = 0;
 

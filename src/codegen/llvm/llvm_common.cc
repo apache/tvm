@@ -37,53 +37,56 @@ void InitializeLLVM() {
 }
 
 llvm::TargetMachine*
-GetLLVMTargetMachine(const std::string& target_str, bool allow_null) {
+GetLLVMTargetMachine(const std::string& target_str,
+                     bool allow_null) {
   // setup target triple
-  CHECK(target_str.length() >= 4 &&
-        target_str.substr(0, 4) == "llvm")
-      << "llvm target must starts with llvm";
+  size_t start = 0;
+  if (target_str.length() >= 4 &&
+      target_str.substr(0, 4) == "llvm") {
+    start = 4;
+  }
   // simple parser
   std::string target_triple = "";
   std::string cpu = "generic";
   std::string attr = "";
   bool soft_float_abi = false;
   std::string key, value;
-  if (target_str.length() > 5) {
-    std::istringstream is(target_str.substr(5, target_str.length() - 5));
-    while (is >> key) {
-      if (key == "--system-lib" || key == "-system-lib") {
-        continue;
-      }
-      size_t pos = key.find('=');
-      if (pos != std::string::npos) {
-        CHECK_GE(key.length(), pos + 1)
-            << "inavlid argument " << key;
-        value = key.substr(pos + 1, key.length() - 1);
-        key = key.substr(0, pos);
+  std::istringstream is(target_str.substr(start, target_str.length() - start));
+
+  while (is >> key) {
+    if (key == "--system-lib" || key == "-system-lib") {
+      continue;
+    }
+    size_t pos = key.find('=');
+    if (pos != std::string::npos) {
+      CHECK_GE(key.length(), pos + 1)
+          << "inavlid argument " << key;
+      value = key.substr(pos + 1, key.length() - 1);
+      key = key.substr(0, pos);
+    } else {
+      CHECK(is >> value)
+          << "Unspecified value for option " << key;
+    }
+    if (key == "-target" ||
+        key == "-mtriple") {
+      target_triple = value;
+    } else if (key == "-mcpu") {
+      cpu = value;
+    } else if (key == "-mattr") {
+      attr = value;
+    } else if (key == "-mfloat-abi") {
+      if (value == "hard") {
+        soft_float_abi = false;
+      } else if (value == "soft") {
+        soft_float_abi = true;
       } else {
-        CHECK(is >> value)
-            << "Unspecified value for option " << key;
+        LOG(FATAL) << "invalid -mfloat-abi option " << value;
       }
-      if (key == "-target" ||
-          key == "-mtriple") {
-        target_triple = value;
-      } else if (key == "-mcpu") {
-        cpu = value;
-      } else if (key == "-mattr") {
-        attr = value;
-      } else if (key == "-mfloat-abi") {
-        if (value == "hard") {
-          soft_float_abi = false;
-        } else if (value == "soft") {
-          soft_float_abi = true;
-        } else {
-          LOG(FATAL) << "invalid -mfloat-abi option " << value;
-        }
-      } else {
-        LOG(FATAL) << "unknown option " << key;
-      }
+    } else {
+      LOG(FATAL) << "unknown option " << key;
     }
   }
+
   if (target_triple.length() == 0 ||
       target_triple == "default") {
     target_triple = llvm::sys::getDefaultTargetTriple();
@@ -109,9 +112,8 @@ GetLLVMTargetMachine(const std::string& target_str, bool allow_null) {
   } else {
     opt.FloatABIType = llvm::FloatABI::Hard;
   }
-  auto rmodel = llvm::Reloc::PIC_;
-  llvm::TargetMachine* tm =
-      target->createTargetMachine(target_triple, cpu, attr, opt, rmodel);
+  llvm::TargetMachine* tm = target->createTargetMachine(
+      target_triple, cpu, attr, opt, llvm::Reloc::PIC_);
   return tm;
 }
 

@@ -61,6 +61,36 @@ def test_llvm_add_pipeline():
         check_llvm()
 
 
+def test_llvm_persist_parallel():
+    n = 128
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name='B')
+    C = tvm.compute(A.shape, lambda *i: B(*i) + 2, name='C')
+    s = tvm.create_schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], factor=8)
+    xo1, xo2 = s[C].split(xo, nparts=1)
+    s[B].compute_at(s[C], xo1)
+    s[B].parallel(s[B].op.axis[0])
+    s[B].pragma(s[B].op.axis[0], "parallel_barrier_when_finish")
+    s[C].parallel(xi)
+    s[C].pragma(xo1, "parallel_launch_point")
+    s[C].pragma(xi, "parallel_stride_pattern")
+
+    def check_llvm():
+        if not tvm.module.enabled("llvm"):
+            return
+        # BUILD and invoke the kernel.
+        f = tvm.build(s, [A, C], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        f(a, c)
+        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 3)
+
+    check_llvm()
+
+
 def test_llvm_flip_pipeline():
     def check_llvm(nn, base):
         if not tvm.module.enabled("llvm"):
@@ -222,6 +252,7 @@ def test_llvm_select():
 
 
 if __name__ == "__main__":
+    test_llvm_persist_parallel()
     test_llvm_select()
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()

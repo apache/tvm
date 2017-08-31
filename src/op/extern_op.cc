@@ -106,13 +106,13 @@ void ExternOpNode::GatherBound(
 }
 
 Stmt ExternOpNode::BuildRealize(
-    const Operation& self,
+    const Stage& stage,
     const std::unordered_map<IterVar, Range>& realize_map,
     const Stmt& body) const {
-  CHECK_EQ(self.operator->(), this);
+  CHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
-    Tensor t = self.output(k);
+    Tensor t = stage->op.output(k);
     Halide::Internal::Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
