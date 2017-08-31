@@ -96,6 +96,8 @@ def test_gemm():
     s[BB].bind(ty, thread_y)
     s[BB].bind(tx, thread_x)
     s[BB].vectorize(xi)
+    s[AA].double_buffer()
+    s[BB].double_buffer()
     # correctness
     def check_device(device):
         if not tvm.module.enabled(device):

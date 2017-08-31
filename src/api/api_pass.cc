@@ -101,6 +101,7 @@ REGISTER_PASS1(CoProcSync);
 REGISTER_PASS1(LowerStorageAccessInfo);
 REGISTER_PASS1(InjectVirtualThread);
 REGISTER_PASS1(InjectPrefetch);
+REGISTER_PASS2(InjectDoubleBuffer);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
 REGISTER_PASS2(SplitPipeline);
