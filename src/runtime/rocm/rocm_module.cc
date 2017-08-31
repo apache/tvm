@@ -59,6 +59,12 @@ class ROCMModuleNode : public runtime::ModuleNode {
     stream->Write(data_);
   }
 
+  std::string GetSource(const std::string& format) final {
+    if(format == fmt_) return data_;
+    if(fmt_ == "hsaco") LOG(WARNING)<<"HSACO"; return data_;
+    return "";
+  }
+
   // get a CUfunction from primary context in device_id
   hipFunction_t GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);

@@ -140,13 +140,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(target.length(
 ) >= 4 &&
         target.substr(0, 4) == "rocm");
-  std::string triple("amdgcn-amd-amdhsa-hcc");
-  std::string error;
-  auto llvmTarget = llvm::TargetRegistry::lookupTarget(triple, error);
-  auto features = "";
-  llvm::TargetOptions opt;
-  auto RM = llvm::Optional<llvm::Reloc::Model>();
-  llvm::TargetMachine* tm = llvmTarget->createTargetMachine(triple, "gfx900", features, opt, RM);
+  llvm::TargetMachine* tm = GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx900" + target.substr(4, target.length() - 4));
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
