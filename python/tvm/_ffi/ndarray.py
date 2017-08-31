@@ -59,6 +59,8 @@ def context(dev_type, dev_id=0):
         if dev_type not in TVMContext.STR2MASK:
             if dev_type.find("nvptx") != -1:
                 dev_type = "cuda"
+            if dev_type.find("rocm") != -1:
+                dev_type = "rocm"
         if dev_type not in TVMContext.STR2MASK:
             raise ValueError("Unknown device type %s" % dev_type)
         dev_type = TVMContext.STR2MASK[dev_type]
