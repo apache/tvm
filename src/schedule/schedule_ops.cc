@@ -27,6 +27,10 @@ Stmt MakePipeline(const Stage& s,
   if (producer.defined()) {
     producer = ProducerConsumer::make(s->op, true, producer);
   }
+  if (s->double_buffer) {
+    producer = AttrStmt::make(
+        s->op, ir::attr::double_buffer_scope, 1, producer);
+  }
   Stmt pipeline = producer;
 
   if (consumer.defined() && !is_no_op(consumer)) {
@@ -170,7 +174,8 @@ class SchedulePostProc : public IRMutator {
         thread_extent_scope_.erase(op->node.get());
         return ret;
       }
-    } else if (op->attr_key == ir::attr::realize_scope) {
+    } else if (op->attr_key == ir::attr::realize_scope ||
+               op->attr_key == ir::attr::double_buffer_scope) {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {

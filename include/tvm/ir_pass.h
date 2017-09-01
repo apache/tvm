@@ -232,6 +232,14 @@ Stmt InjectVirtualThread(Stmt stmt);
 Stmt InjectPrefetch(Stmt stmt);
 
 /*!
+ * \brief Inject double buffer into stmt.
+ * \param stmt The statment to be transformed.
+ * \param split_loop Whether split the loop containing double buffering.
+ * \return Transformed stmt.
+ */
+Stmt InjectDoubleBuffer(Stmt stmt, bool split_loop);
+
+/*!
  * \brief Rewrite storage allocation pattern.
  *  Moves the allocation to outer most possible scope.
  *  Trying to share space between allocations to make
