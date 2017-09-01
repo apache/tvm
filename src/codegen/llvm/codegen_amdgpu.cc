@@ -15,12 +15,12 @@
 namespace tvm {
 namespace codegen {
 
-// NVPTX code generator.
+// AMDGPU code generator.
 class CodeGenAMDGPU : public CodeGenLLVM {
  public:
   void AddFunction(const LoweredFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true);
+    CodeGenLLVM::AddFunctionInternal(f, true, AMDGPU);
     // annotate as kernel function
 /*
     module_->getOrInsertNamedMetadata("nvvm.annotations")
@@ -169,5 +169,5 @@ TVM_REGISTER_API("codegen.build_rocm")
 
 }  // namespace codegen
 }  // namespace tvm
-#endif   // TVM_CUDA_RUNTIME
+#endif   // TVM_ROCM_RUNTIME
 #endif  // TVM_LLVM_VERSION

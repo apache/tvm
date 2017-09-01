@@ -85,11 +85,8 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
-<<<<<<< a45d3b01f7900010a9694c2b606dad22ddbe1768
-=======
     check_device("nvptx -mcpu=sm_20")
     check_device("rocm")
->>>>>>> added initial llvm codegen for amdgpu
     check_device("metal")
     check_device("opencl")
     check_device("cuda")

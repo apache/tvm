@@ -90,7 +90,7 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
   AddFunctionInternal(f, false);
 }
 
-void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
+void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void, CGDeviceType dev_type) {
   this->InitFuncState();
   is_restricted_ = f->is_restricted;
   CHECK(!module_->getFunction(f->name))
@@ -100,7 +100,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
     Type t = arg.type();
     if (t.is_handle() && f->handle_data_type.count(arg)) {
       arg_type.push_back(
-          LLVMType(f->handle_data_type[arg].type())->getPointerTo());
+          LLVMType(f->handle_data_type[arg].type())->getPointerTo(dev_type == AMDGPU ? 1 : 0));
       if (!is_restricted_) {
         alias_var_set_.insert(arg.get());
       }
@@ -113,7 +113,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
       ret_void ? t_void_ : t_int_, arg_type, false);
   // setup the function.
   function_ = llvm::cast<llvm::Function>(module_->getOrInsertFunction(f->name, ftype));
-  function_->setCallingConv(llvm::CallingConv::C);
+  function_->setCallingConv(dev_type == AMDGPU ? llvm::CallingConv::AMDGPU_KERNEL : llvm::CallingConv::C);
   // set handle argument to be non alias.
   if (is_restricted_) {
     for (size_t i = 0; i < f->args.size(); ++i) {
