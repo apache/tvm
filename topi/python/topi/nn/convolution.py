@@ -106,98 +106,131 @@ def conv2d_hwcn(Input, Filter, stride, padding):
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
 
-def depthwise_conv2d_nchw(Input, Filter, stride, padding):
-    """Depthwise convolution nchw forward operator.
+def spatial_pack_conv2d(data, kernel, wkl, sch):
+    assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
+    H, W = wkl.height, wkl.width
+    CI = wkl.in_filter
+    CO = wkl.out_filter
+    HK, WK = wkl.hkernel, wkl.wkernel
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
 
-    Parameters
-    ----------
-    Input : tvm.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
+    HCAT, WCAT = HK-1, WK-1
 
-    Filter : tvm.Tensor
-        4-D with shape [in_channel, channel_multiplier, filter_height, filter_width]
+    VH = sch.vh
+    VW = sch.vw
+    VC = sch.vc
+    UNROLL = sch.unroll
 
-    stride : tuple of two ints
-        The spatial stride along height and width
+    TH = H + 2*HPAD
+    TW = W + 2*WPAD
+    OH = (H + 2*HPAD - HK) / HSTR + 1
+    OW = (W + 2*WPAD - WK) / WSTR + 1
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    dshape = (1, CI, H, W)
+    dpshape = (1, CI, TH, TW)
+    dvshape = (1, TH/(VH*HSTR), TW/(VW*WSTR), CI, VH*HSTR+HCAT, VW*WSTR+WCAT)
 
-    Returns
-    -------
-    Output : tvm.Tensor
-        4-D with shape [batch, out_channel, out_height, out_width]
-    """
-    batch, in_channel, in_height, in_width = Input.shape
-    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
-    stride_h, stride_w = stride
+    kshape = (CO, CI, HK, WK)
+    kvshape = (CO/VC, CI, HK, WK, VC)
 
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
-        padding, (filter_height, filter_width))
-    out_channel = simplify(in_channel * channel_multiplier)
-    out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
+    ovshape = (1, CO/VC, OH/VH, OW/VW, VH, VW, VC)
+    oshape = (1, CO, OH, OW)
 
-    # padding stage
-    pad_before = [0, 0, pad_top, pad_left]
-    pad_after = [0, 0, pad_down, pad_right]
-    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    # depthconv stage
-    di = tvm.reduce_axis((0, filter_height), name='di')
-    dj = tvm.reduce_axis((0, filter_width), name='dj')
-    Output = tvm.compute(
-        (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j: tvm.sum(
-            (PaddedInput[b, c/channel_multiplier, i*stride_h + di, j*stride_w + dj] *
-             Filter[c/channel_multiplier, c%channel_multiplier, di, dj]),
-            axis=[di, dj]),
-        name='DepthwiseConv2d', tag="depthwise_conv2d_nchw")
-    return Output
+    DOPAD = (HPAD != 0 and WPAD != 0)
+    if DOPAD:
+        data_pad = tvm.compute(dpshape, lambda n, ci, h, w:
+            tvm.select(
+                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
+                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
+                0.0,
+                data[n, ci, h - HPAD, w - WPAD]), name='data_pad')
+    else:
+        data_pad = data
 
-def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
-    """Depthwise convolution nhwc forward operator.
+    data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
+        data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
 
-    Parameters
-    ----------
-    Input : tvm.Tensor
-        4-D with shape [batch, in_height, in_width, in_channel]
+    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc:
+        kernel[co*VC+vc][ci][dh][dw], name='kernel_vec')
 
-    Filter : tvm.Tensor
-        4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
+    ci = tvm.reduce_axis((0, CI), name='ci')
+    dh = tvm.reduce_axis((0, HK), name='dh')
+    dw = tvm.reduce_axis((0, WK), name='dw')
 
-    Stride : tvm.Tensor
-        1-D of size 2
+    output_vec = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw] *
+                kernel_vec[co, ci, dh, dw, vc],
+                axis=[ci, dh, dw]), name='conv')
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    output = tvm.compute(oshape, lambda n, co, h, w: \
+        output_vec[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
+        name='output', tag='spatial_conv_output')
 
-    Returns
-    -------
-    Output : tvm.Tensor
-        4-D with shape [batch, out_height, out_width, out_channel]
-    """
-    batch, in_height, in_width, in_channel = Input.shape
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
-    stride_h, stride_w = stride
+    return output
 
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
-        padding, (filter_height, filter_width))
-    out_channel = simplify(in_channel * channel_multiplier)
-    out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
 
-    # padding stage
-    pad_before = [0, pad_top, pad_left, 0]
-    pad_after = [0, pad_down, pad_right, 0]
-    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    # depthconv stage
-    di = tvm.reduce_axis((0, filter_height), name='di')
-    dj = tvm.reduce_axis((0, filter_width), name='dj')
-    Output = tvm.compute(
-        (batch, out_height, out_width, out_channel),
-        lambda b, i, j, c: tvm.sum(
-            (PaddedInput[b, i*stride_h + di, j*stride_w + dj, c/channel_multiplier] *
-             Filter[di, dj, c/channel_multiplier, c%channel_multiplier]),
-            axis=[di, dj]),
-        name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
-    return Output
+def im2col_pack_conv2d(data, kernel, wkl, sch):
+    assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
+    N = 1
+    H, W = wkl.height, wkl.width
+    CI = wkl.in_filter
+    CO = wkl.out_filter
+    HK, WK = wkl.hkernel, wkl.wkernel
+    HPAD, WPAD = wkl.hpad, wkl.hpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+
+    OH = (H + 2*HPAD - HK) / HSTR + 1
+    OW = (W + 2*WPAD - WK) / WSTR + 1
+
+    P = sch.vp
+    Q = sch.vq
+    UNROLL = sch.unroll
+
+    dshape  = (N, CI, H, W)
+    dpshape = (N, CI, H+2*HPAD, W+2*WPAD)
+    dcshape = (N, OH, OW, CI, HK, WK)
+    dvshape = (N, OH * OW / P, CI, HK, WK, P)
+
+    kshape  = (CO, CI, HK, WK)
+    kvshape = (CO / Q, CI, HK, WK, Q)
+
+    ovshape = (N, CO/Q, OH * OW / P, P, Q)
+    oshape  = (N, CO, OH, OW)
+
+    ############### declaration
+
+    DO_PAD = (wkl.hpad != 0 and wkl.wpad != 0)
+    if DO_PAD:
+        data_pad = tvm.compute(dpshape, lambda n, ci, h, w:
+            tvm.select(
+                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
+                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
+                0.0,
+                data[n, ci, h - HPAD, w - WPAD]), name='data_pad')
+    else:
+        data_pad = data
+
+    data_col = tvm.compute(dcshape,
+        lambda n, oh, ow, ci, hk, wk: data_pad[n][ci][oh*HSTR+hk][ow*WSTR+wk], name='data_col')
+
+    data_vec = tvm.compute(dvshape, lambda n, im, ci, hk, wk, vim: \
+        data_col[n][(im*P+vim)/OW][(im*P+vim)%OW][ci][hk][wk], name='data_vec')
+
+
+    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc:
+        kernel[co*Q+vc][ci][dh][dw], name='kernel_vec')
+
+    ci = tvm.reduce_axis((0, CI), name='ci')
+    hk = tvm.reduce_axis((0, HK), name='hk')
+    wk = tvm.reduce_axis((0, WK), name='wk')
+
+    conv = tvm.compute(ovshape, lambda n, co, im, vim, vco: \
+        tvm.sum(data_vec[n][im][ci][hk][wk][vim]*kernel_vec[co][ci][hk][wk][vco], axis=[ci, hk, wk]),
+        name='conv')
+
+    output = tvm.compute(oshape, lambda n, co, h, w: \
+        conv[n][co/Q][(h*OW+w)/P][(h*OW+w)%P][co%Q],
+        name='output_vec', tag='im2col_conv_output')
+
+    return output
