@@ -113,7 +113,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void, CGDev
       ret_void ? t_void_ : t_int_, arg_type, false);
   // setup the function.
   function_ = llvm::cast<llvm::Function>(module_->getOrInsertFunction(f->name, ftype));
-  function_->setCallingConv(dev_type == AMDGPU ? \ 
+  function_->setCallingConv(dev_type == AMDGPU ?
     llvm::CallingConv::AMDGPU_KERNEL : llvm::CallingConv::C);
   // set handle argument to be non alias.
   if (is_restricted_) {
