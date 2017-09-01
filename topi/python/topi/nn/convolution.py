@@ -2,6 +2,7 @@
 """Convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from collections import namedtuple
 from ..util import simplify
 from .pad import pad, _spatial2d_pad_option
 
@@ -150,15 +151,21 @@ spatial_schedules = [
 
 
 def get_workload(data, kernel, stride, padding):
-    _, CI, H, W = data.shape
-    CO, _, HK, WK = kernel.shape
-    HPAD, WPAD = pdding
-    HSTR, WSTR = stride
+    _, CI, H, W = map(lambda x: x.value, data.shape)
+    CO, _, HK, WK = map(lambda x: x.value, kernel.shape)
+    if isinstance(padding, list):
+        HPAD, WPAD = padding
+    else:
+        HPAD, WPAD = padding, padding
+    if isinstance(stride, list):
+        HSTR, WSTR = stride
+    else:
+        HSTR, WSTR = stride, stride
     return Workload(H, W, CI, CO, HK, WK, HPAD, WPAD, HSTR, WSTR)
 
 def get_schedule(wkl):
     if wkl not in workloads:
-        raise ValueError, "no schedule for such workload: ", wkl
+        raise ValueError, "no schedule for such workload: {}".format(wkl)
     idx = workloads.index(wkl)
     return spatial_schedules[idx]
 
@@ -201,7 +208,7 @@ def conv2d_spatial(data, kernel, stride, padding):
                 tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
                             tvm.make.Or((w < WPAD), (w >= W + WPAD))),
                 0.0,
-                data[n, ci, h - HPAD, w - WPAD]), name='data_pad')
+                data[n, ci, h - HPAD, w - WPAD]), name='data_pad', tag='pad')
     else:
         data_pad = data
 
@@ -220,8 +227,8 @@ def conv2d_spatial(data, kernel, stride, padding):
                 kernel_vec[co, ci, dh, dw, vc],
                 axis=[ci, dh, dw]), name='conv')
 
-    output_unpack = tvm.compute(oshape, lambda n, co, h, w: \
-        output_vec[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
+    output = tvm.compute(oshape, lambda n, co, h, w: \
+        conv[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
         name='output_unpack', tag='spatial_conv2d_output')
 
     return output
