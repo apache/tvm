@@ -67,6 +67,9 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.fma")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log>);
 
