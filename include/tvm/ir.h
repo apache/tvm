@@ -178,6 +178,14 @@ constexpr const char* pragma_scope = "pragma_scope";
  *  run prefetch of Tensor on the current loop scope
  */
 constexpr const char* prefetch_scope = "prefetch_scope";
+/*!
+ * \brief Marks production of double buffer data
+ */
+constexpr const char* double_buffer_scope = "double_buffer_scope";
+/*!
+ * \brief Marks region used by double buffer write
+ */
+constexpr const char* double_buffer_write = "double_buffer_write";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
