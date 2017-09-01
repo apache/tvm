@@ -16,17 +16,34 @@ namespace ir {
 class IntrinInjecter : public IRMutator {
  public:
   explicit IntrinInjecter(std::string target) {
-    patterns_.push_back("tvm.intrin.rule." + target + ".");
-    if (!strncmp(target.c_str(), "llvm", 4) && target != "llvm") {
-      patterns_.push_back("tvm.intrin.rule.llvm.");
-    }
+    std::istringstream is(target);
+    std::string starget;
+    is >> starget;
+    patterns_.push_back("tvm.intrin.rule." + starget + ".");
     patterns_.push_back("tvm.intrin.rule.default.");
+    fma_ = runtime::Registry::Get(patterns_[0] + "fma");
   }
 
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
       Expr r = ApplyPattern(op->name, e);
+      if (r.defined()) return r;
+    }
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Expr Mutate_(const Add* op, const Expr& e) final {
+    if (fma_ == nullptr || !op->type.is_float()) {
+      return IRMutator::Mutate_(op, e);
+    }
+    if (const Mul* mb = op->b.as<Mul>()) {
+      Expr r = (*fma_)(Call::make(
+          op->type, "fma", {mb->a, mb->b, op->a}, Call::PureIntrinsic));
+      if (r.defined()) return r;
+    } else if (const Mul* ma = op->a.as<Mul>()) {
+      Expr r = (*fma_)(Call::make(
+          op->type, "fma", {ma->a, ma->b, op->b}, Call::PureIntrinsic));
       if (r.defined()) return r;
     }
     return IRMutator::Mutate_(op, e);
@@ -54,6 +71,7 @@ class IntrinInjecter : public IRMutator {
   }
   // patterns
   std::vector<std::string> patterns_;
+  const PackedFunc* fma_{nullptr};
 };
 
 LoweredFunc
