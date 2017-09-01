@@ -7,6 +7,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/ir_mutator.h>
 #include <tvm/api_registry.h>
 
 namespace tvm {
@@ -88,6 +89,7 @@ REGISTER_PASS1(VerifySSA);
 REGISTER_PASS1(RewriteUnsafeSelect);
 REGISTER_PASS4(Inline);
 REGISTER_PASS3(StorageFlatten);
+REGISTER_PASS4(IRTransform);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS4(UnrollLoop);
 REGISTER_PASS2(ThreadSync);
@@ -99,6 +101,7 @@ REGISTER_PASS1(CoProcSync);
 REGISTER_PASS1(LowerStorageAccessInfo);
 REGISTER_PASS1(InjectVirtualThread);
 REGISTER_PASS1(InjectPrefetch);
+REGISTER_PASS2(InjectDoubleBuffer);
 REGISTER_PASS1(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
 REGISTER_PASS2(SplitPipeline);

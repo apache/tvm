@@ -60,6 +60,7 @@ final class Base {
   public static final LibInfo _LIB = new LibInfo();
 
   static {
+    boolean loadNativeRuntimeLib = true;
     try {
       try {
         tryLoadLibraryOS("tvm4j");
@@ -72,34 +73,49 @@ final class Base {
         NativeLibraryLoader.loadLibrary("tvm4j");
       }
     } catch (Throwable e) {
-      System.err.println("[ERROR] Couldn't find native library tvm4j");
-      throw new RuntimeException(e);
+      System.err.println("[WARN] Couldn't find native library tvm4j.");
+      e.printStackTrace();
+      System.err.println("Try to load tvm4j (runtime packed version) ...");
+      try {
+        System.loadLibrary("tvm4j_runtime_packed");
+        // if tvm runtime is packed in libtvm4j, we do not need to dlopen libtvm_runtime.so.
+        loadNativeRuntimeLib = false;
+      } catch (UnsatisfiedLinkError errFull) {
+        System.err.println("[ERROR] Couldn't find native library tvm4j_runtime_packed.");
+        throw new RuntimeException(errFull);
+      }
     }
 
-    String tvmLibFilename = System.getProperty("libtvm.so.path");
-    if (tvmLibFilename == null || !new File(tvmLibFilename).isFile()
-        || _LIB.nativeLibInit(tvmLibFilename) != 0) {
-      try {
-        String runtimeLibname;
-        String os = System.getProperty("os.name");
-        // ref: http://lopica.sourceforge.net/os.html
-        if (os.startsWith("Linux")) {
-          runtimeLibname = "libtvm_runtime.so";
-        } else if (os.startsWith("Mac")) {
-          runtimeLibname = "libtvm_runtime.dylib";
-        } else {
-          // TODO(yizhi) support windows later
-          throw new UnsatisfiedLinkError("Windows not supported currently");
-        }
-        NativeLibraryLoader.extractResourceFileToTempDir(runtimeLibname, new Action() {
-          @Override public void invoke(File target) {
-            System.err.println("Loading tvm runtime from " + target.getPath());
-            checkCall(_LIB.nativeLibInit(target.getPath()));
+    System.err.println("libtvm4j loads successfully.");
+
+    if (loadNativeRuntimeLib) {
+      String tvmLibFilename = System.getProperty("libtvm.so.path");
+      if (tvmLibFilename == null || !new File(tvmLibFilename).isFile()
+          || _LIB.nativeLibInit(tvmLibFilename) != 0) {
+        try {
+          String runtimeLibname;
+          String os = System.getProperty("os.name");
+          // ref: http://lopica.sourceforge.net/os.html
+          if (os.startsWith("Linux")) {
+            runtimeLibname = "libtvm_runtime.so";
+          } else if (os.startsWith("Mac")) {
+            runtimeLibname = "libtvm_runtime.dylib";
+          } else {
+            // TODO(yizhi) support windows later
+            throw new UnsatisfiedLinkError(os + " not supported currently");
           }
-        });
-      } catch (IOException e) {
-        throw new RuntimeException(e);
+          NativeLibraryLoader.extractResourceFileToTempDir(runtimeLibname, new Action() {
+            @Override public void invoke(File target) {
+              System.err.println("Loading tvm runtime from " + target.getPath());
+              checkCall(_LIB.nativeLibInit(target.getPath()));
+            }
+          });
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
       }
+    } else {
+      _LIB.nativeLibInit(null);
     }
 
     Runtime.getRuntime().addShutdownHook(new Thread() {

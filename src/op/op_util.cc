@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2017 by Contributors
+ *  Copyright (c) 2017 by5A Contributors
  * \brief Utility to make loop nest.
  * \file op_util.cc
  */

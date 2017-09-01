@@ -33,6 +33,7 @@ class BuildConfig(object):
         "offset_factor": 0,
         "data_alignment": -1,
         "restricted_func": True,
+        "double_buffer_split_loop": True,
         "add_lower_pass": None
     }
     def __init__(self, **kwargs):
@@ -96,6 +97,10 @@ def build_config(**kwargs):
         That is each buffer argument to the function are guaranteed
         not to overlap. This enables more optimization.
         Corresponds to restricted keyword in C99
+
+    double_buffer_split_loop: bool, default=True
+        Whether split the loop containing double buffer so
+        that the buffer fetching won't contain condition.
 
     add_lower_pass: list of function(Stmt->Stmt), default=None
         Additional lowering passes to be applied before make_api.
@@ -187,6 +192,7 @@ def lower(sch,
        Then the Stmt before make api is returned.
     """
     binds, arg_list = get_binds(args, binds)
+    cfg = BuildConfig.current
     # normalize schedule first
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
@@ -198,8 +204,8 @@ def lower(sch,
         stmt = ir_pass.LoopPartition(stmt)
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
+    stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
     stmt = ir_pass.StorageRewrite(stmt)
-    cfg = BuildConfig.current
     stmt = ir_pass.UnrollLoop(
         stmt,
         cfg.auto_unroll_max_step,

@@ -4,6 +4,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/expr.h>
+#include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
@@ -53,6 +54,18 @@ class StorageFlattener : public IRMutator {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
+    } else if (op->attr_key == attr::double_buffer_scope) {
+      Operation func(op->node.node_);
+      Stmt body = Mutate(op->body);
+      for (int i = 0; i < func->num_outputs(); ++i) {
+        TensorKey key{func, i};
+        auto it = buf_map_.find(key);
+        CHECK(it != buf_map_.end())
+            << "Cannot find allocated buffer for " << key.f;
+        body = AttrStmt::make(
+            it->second.buffer->data, op->attr_key, op->value, body);
+      }
+      return body;
     } else if (op->attr_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
@@ -62,6 +75,19 @@ class StorageFlattener : public IRMutator {
       return stmt;
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
+    } else if (op->attr_key == attr::buffer_dim_align) {
+      Tensor tensor(op->node.node_);
+      const Call* tuple = op->value.as<Call>();
+      CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
+      TensorKey key{tensor->op, tensor->value_index};
+      auto& vinfo = dim_align_[key];
+      int dim = tuple->args[0].as<IntImm>()->value;
+      if (static_cast<size_t>(dim) >= vinfo.size()) {
+        vinfo.resize(dim + 1);
+      }
+      vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
+      vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
+      return this->Mutate(op->body);
     }
     return IRMutator::Mutate_(op, s);
   }
@@ -116,20 +142,45 @@ class StorageFlattener : public IRMutator {
           align = (info->max_simd_bits + op->type.bits() - 1) / op->type.bits();
         }
       }
-
+      Array<Expr> strides;
+      if (dim_align_.count(key) != 0) {
+        std::vector<Expr> rstrides;
+        const std::vector<DimAlignInfo>& avec = dim_align_[key];
+        Expr stride = make_const(shape[0].type(), 1);
+        for (size_t i = shape.size(); i != 0; --i) {
+          size_t dim = i - 1;
+          if (dim < avec.size() && avec[dim].align_factor != 0) {
+            Expr factor = make_const(stride.type(), avec[dim].align_factor);
+            Expr offset = make_const(stride.type(), avec[dim].align_offset);
+            stride = stride + (factor + offset - stride % factor) % factor;
+            stride = ir::Simplify(stride);
+          }
+          rstrides.push_back(stride);
+          stride = arith::ComputeExpr<Mul>(stride, shape[dim]);
+        }
+        strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
+      }
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
-          op->type, shape,
-          Array<Expr>(), Expr(),
+          op->type, shape, strides, Expr(),
           key.GetName(), skey.to_string(),
           align, 0);
+
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);
       buf_map_[key].released = true;
+      Stmt ret;
 
-      Stmt ret = Allocate::make(
-          e.buffer->data, e.buffer->dtype, e.buffer->shape,
-          make_const(Bool(e.buffer->dtype.lanes()), true), body);
+      if (strides.size() != 0) {
+        ret = Allocate::make(
+            e.buffer->data, e.buffer->dtype,
+            {arith::ComputeExpr<Mul>(e.buffer->strides[0], e.buffer->shape[0])},
+            make_const(Bool(e.buffer->dtype.lanes()), true), body);
+      } else {
+        ret = Allocate::make(
+            e.buffer->data, e.buffer->dtype, e.buffer->shape,
+            make_const(Bool(e.buffer->dtype.lanes()), true), body);
+      }
       ret = AttrStmt::make(
           e.buffer->data, attr::storage_scope,
           StringImm::make(e.buffer->scope), ret);
@@ -283,7 +334,11 @@ class StorageFlattener : public IRMutator {
     }
     return body;
   }
-
+  // The buffer entry in the flatten map
+  struct DimAlignInfo {
+    int align_factor{0};
+    int align_offset{0};
+  };
   // The buffer entry in the flatten map
   struct BufferEntry {
     // the buffer of storage
@@ -294,7 +349,6 @@ class StorageFlattener : public IRMutator {
     bool external{false};
     // Whether we are out of allocation bounds and buffer get released.
     bool released{false};
-    // TODO(tqchen) allow permutation and inference of index dimension.
     // relative index
     inline Array<Expr> RelIndex(Array<Expr> args) const {
       if (bounds.size() != 0) {
@@ -314,6 +368,9 @@ class StorageFlattener : public IRMutator {
   std::unordered_map<const Variable*, Expr> var_remap_;
   // Buffer map
   std::unordered_map<TensorKey, BufferEntry> buf_map_;
+  // Dimension alignment
+  std::unordered_map<TensorKey, std::vector<DimAlignInfo> > dim_align_;
+  // Storage scope
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;

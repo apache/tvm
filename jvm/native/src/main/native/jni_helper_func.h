@@ -181,6 +181,7 @@ jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
     default:
       LOG(FATAL) << "Do NOT know how to handle return type code " << tcode;
   }
+  return NULL;
 }
 
 #endif  // TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_

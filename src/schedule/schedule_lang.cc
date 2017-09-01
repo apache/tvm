@@ -296,10 +296,15 @@ Stage& Stage::tile(IterVar x_parent, IterVar y_parent,
 }
 
 template<typename FUpdate>
-inline void UpdateIterVarAttr(StageNode* self, IterVar var, FUpdate fupdate) {
-  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-  FindLeafVar(all_vars, leaf_vars, var);
+inline void UpdateIterVarAttr(StageNode* self,
+                              IterVar var,
+                              FUpdate fupdate,
+                              bool need_leaf = true) {
+  if (need_leaf) {
+    ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+    ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+    FindLeafVar(all_vars, leaf_vars, var);
+  }
   auto it = self->iter_var_attrs.find(var);
   std::shared_ptr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
@@ -368,6 +373,22 @@ Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   n->prefetch_data.push_back(tensor);
   n->prefetch_offset.push_back(offset);
   self->iter_var_attrs.Set(var, IterVarAttr(n));
+  return *this;
+}
+
+Stage& Stage::storage_align(IterVar axis, int factor, int offset) {
+  StageNode *self = operator->();
+  UpdateIterVarAttr(self, axis, [factor, offset](IterVarAttrNode* n) {
+      n->dim_align_factor = factor;
+      n->dim_align_offset = offset;
+    }, false);
+  return *this;
+}
+
+Stage& Stage::double_buffer() {
+  StageNode *self = operator->();
+  CHECK(!self->is_output) << "Cannot apply double buffer on output";
+  self->double_buffer = true;
   return *this;
 }
 

@@ -87,12 +87,12 @@ else
 endif
 
 ifdef ROCM_PATH
-	CFLAGS += -I$(ROCM_PATH)/hip/include
-	LDFLAGS += -L$(ROCM_PATH)/hip/lib
+	CFLAGS += -I$(ROCM_PATH)/include
+	LDFLAGS += -L$(ROCM_PATH)/lib
 endif
 
 ifeq ($(USE_ROCM), 1)
-	CFLAGS += -DTVM_ROCM_RUNTIME=1
+	CFLAGS += -DTVM_ROCM_RUNTIME=1 -D__HIP_PLATFORM_HCC__=1
 	LDFLAGS += -lhip_hcc
 	RUNTIME_DEP += $(ROCM_OBJ)
 else
@@ -266,6 +266,11 @@ cyclean:
 jvmpkg:
 	(cd $(ROOTDIR)/jvm; \
 		mvn clean package -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
+			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
+			-Dcurrent_libdir="$(ROOTDIR)/lib" $(JVM_TEST_ARGS))
+jvminstall:
+	(cd $(ROOTDIR)/jvm; \
+		mvn install -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(CFLAGS)" -Dldflags="$(LDFLAGS)" \
 			-Dcurrent_libdir="$(ROOTDIR)/lib" $(JVM_TEST_ARGS))
 

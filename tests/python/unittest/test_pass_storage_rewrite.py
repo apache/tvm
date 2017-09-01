@@ -121,7 +121,7 @@ def test_parallel_alloc():
                 A[j] = A[j] + 2
     body = ib.get()
     body = tvm.ir_pass.StorageRewrite(body)
-    assert(isinstance(body.body.body.body, tvm.stmt.Allocate))
+    assert(isinstance(body.body.body.body.body, tvm.stmt.Allocate))
 
 
 
