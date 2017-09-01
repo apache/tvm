@@ -106,15 +106,72 @@ def conv2d_hwcn(Input, Filter, stride, padding):
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
 
-def spatial_pack_conv2d(data, kernel, wkl, sch):
+
+workload_entity = ['height', 'width', 'in_filter', 'out_filter',
+            'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride']
+Workload = namedtuple('Workload', workload_entity)
+
+schedule1_entity = ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll']
+Schedule1 = namedtuple('Schedule1', schedule1_entity)
+
+schedule2_entity = ['vp', 'vq', 'ba', 'bc', 'unroll']
+Schedule2 = namedtuple('Schedule2', schedule2_entity)
+
+# workloads of resnet18 on imagenet
+workloads = [
+    Workload(224, 224,   3,  64, 7, 7, 3, 3, 2, 2),
+    Workload( 56,  56,  64,  64, 3, 3, 1, 1, 1, 1),
+    Workload( 56,  56,  64,  64, 1, 1, 0, 0, 1, 1),
+    Workload( 56,  56,  64, 128, 3, 3, 1, 1, 2, 2),
+    Workload( 56,  56,  64, 128, 1, 1, 0, 0, 2, 2),
+    Workload( 28,  28, 128, 128, 3, 3, 1, 1, 1, 1),
+    Workload( 28,  28, 128, 256, 3, 3, 1, 1, 2, 2),
+    Workload( 28,  28, 128, 256, 1, 1, 0, 0, 2, 2),
+    Workload( 14,  14, 256, 256, 3, 3, 1, 1, 1, 1),
+    Workload( 14,  14, 256, 512, 3, 3, 1, 1, 2, 2),
+    Workload( 14,  14, 256, 512, 1, 1, 0, 0, 2, 2),
+    Workload(  7,   7, 512, 512, 3, 3, 1, 1, 1, 1),
+]
+
+spatial_schedules = [
+    Schedule1( 1,  8,  4,  1,  4,  True),
+    Schedule1( 1,  7,  4,  2,  4,  True),
+    Schedule1( 1,  4,  8,  4,  1,  True),
+    Schedule1( 1,  4,  4,  1, 16, False),
+    Schedule1( 1,  4,  8,  4,  8, False),
+    Schedule1( 1,  7,  4,  3,  8,  True),
+    Schedule1( 1,  2,  8,  1,  8,  True),
+    Schedule1( 2,  1, 16,  1,  4,  True),
+    Schedule1( 1,  7,  4,  1,  1,  True),
+    Schedule1( 1,  1,  8,  4, 16, False),
+    Schedule1( 1,  1, 16,  1,  8, False),
+    Schedule1( 1,  1,  4,  1, 16,  True),
+]
+
+
+def get_workload(data, kernel, stride, padding):
+    _, CI, H, W = data.shape
+    CO, _, HK, WK = kernel.shape
+    HPAD, WPAD = pdding
+    HSTR, WSTR = stride
+    return Workload(H, W, CI, CO, HK, WK, HPAD, WPAD, HSTR, WSTR)
+
+def get_schedule(wkl):
+    if wkl not in workloads:
+        raise ValueError, "no schedule for such workload: ", wkl
+    idx = workloads.index(wkl)
+    return spatial_schedules[idx]
+
+def conv2d_spatial(data, kernel, stride, padding):
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
-    H, W = wkl.height, wkl.width
-    CI = wkl.in_filter
-    CO = wkl.out_filter
+    wkl = get_workload(data, kernel, stride, padding)
+    sch = get_schedule(wkl)
+
+    H, W  = wkl.height, wkl.width
+    CI, CO = wkl.in_filter, wkl.out_filter
     HK, WK = wkl.hkernel, wkl.wkernel
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
-
     HCAT, WCAT = HK-1, WK-1
 
     VH = sch.vh
@@ -158,19 +215,19 @@ def spatial_pack_conv2d(data, kernel, wkl, sch):
     dh = tvm.reduce_axis((0, HK), name='dh')
     dw = tvm.reduce_axis((0, WK), name='dw')
 
-    output_vec = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+    conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
         tvm.sum(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw] *
                 kernel_vec[co, ci, dh, dw, vc],
                 axis=[ci, dh, dw]), name='conv')
 
-    output = tvm.compute(oshape, lambda n, co, h, w: \
+    output_unpack = tvm.compute(oshape, lambda n, co, h, w: \
         output_vec[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
-        name='output', tag='spatial_conv_output')
+        name='output_unpack', tag='spatial_conv2d_output')
 
     return output
 
 
-def im2col_pack_conv2d(data, kernel, wkl, sch):
+def conv2d_im2col(data, kernel, wkl, sch):
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     N = 1
     H, W = wkl.height, wkl.width

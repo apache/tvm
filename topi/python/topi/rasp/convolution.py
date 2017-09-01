@@ -2,11 +2,16 @@
 from __future__ import absolute_import as _abs
 import tvm
 
+def schedule_spatial_conv2d(data, data_vec,
+                            kernel, kernel_vec,
+                            conv_out, output):
 
-def spatial_schedule(s, conv_out, wkl, sch, outs):
+    # no stride and padding info here
+    wkl = get_workload(data, kernel, stride, padding)
+    sch = get_schedule(wkl)
+
     H, W = wkl.height, wkl.width
-    CI = wkl.in_filter
-    CO = wkl.out_filter
+    CI, CO = wkl.in_filter, wkl.out_filter
     HK, WK = wkl.hkernel, wkl.wkernel
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
@@ -113,7 +118,7 @@ def spatial_schedule(s, conv_out, wkl, sch, outs):
     return s
 
 
-def im2col_schedule(s, conv_out, wkl, sch, outs):
+def schedule_conv2d_im2col(s, conv_out, wkl, sch, outs):
     H, W = wkl.height, wkl.width
     CI = wkl.in_filter
     CO = wkl.out_filter
@@ -229,4 +234,32 @@ def im2col_schedule(s, conv_out, wkl, sch, outs):
     s[B0].pragma(paxis, "parallel_stride_pattern")
     s[B0].pragma(oaxis, "parallel_barrier_when_finish")
 
+    return s
+
+def schedule_convolution(outs):
+    """Create schedule for tensors or return error if batch size is larager than 1"""
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def traverse(op):
+        """Traverse operators from computation graph"""
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if 'ewise' in op.tag or 'bcast' in op.tag:
+            if op not in s.outputs:
+                s[op].compute_inline()
+            for tensor in op.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        # schedule conv2d
+        if 'spatial_conv2d_output' in op.tag:
+            output = op.output(0)
+            conv_out = op.input_tensors[0]
+            data_vec = conv_out.op.input_tensors[0]
+            kernel_vec = conv_out.op.input_tensors[1]
+            data = data_vec.op.input_tensors[0]
+            kernel = kernel_vec.op.input_tensors[0]
+
+            schedule_spatial_conv2d(data, data_vec, kernel, kernel_vec,
+                conv_out, output)
+
+    traverse(outs[0].op)
     return s
