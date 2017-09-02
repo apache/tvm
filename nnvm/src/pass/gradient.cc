@@ -112,6 +112,13 @@ Graph Gradient(Graph src) {
     output_grads[ys[i].node.get()][ys[i].index].grads = { ograd };
   }
 
+  // Check that all xs are reachable from ys
+  for (size_t i = 0; i < xs.size(); ++i) {
+    CHECK(output_grads.find(xs[i].node.get()) != output_grads.end())
+        << "Cannot differentiate with respect to the " << i+1 << "-th variable "
+        << "because it is unreachable from the outputs.";
+  }
+
   // construct mirror reduece memory strategy if needed
   std::unordered_map<Node*, NodePtr> mirror_map;
   if (mirror_fun != nullptr) {
