@@ -1,20 +1,39 @@
+# pylint: disable=invalid-name,unused-variable,invalid-name
 """Convolution schedule on raspberry pi"""
 from __future__ import absolute_import as _abs
 import tvm
-from ..conv_utils import *
+from .. import target as _target
+from ..nn.convolution import CONV_SCHEDULES, SpatialSchedule, Im2ColSchedule
+from ..nn.convolution import _get_workload, _get_schedule, _infer_pad, _infer_stride
 
-def schedule_spatial_conv2d(s, data, data_pad, data_vec,
-                            kernel, kernel_vec,
-                            conv_out, output, last):
+# pylint: disable=bad-whitespace
+CONV_SCHEDULES[_target.rasp()] = [
+    SpatialSchedule( 1,  8,  4,  1,  4,  True),
+    SpatialSchedule( 1,  7,  4,  2,  4,  True),
+    SpatialSchedule( 1,  4,  8,  4,  1,  True),
+    SpatialSchedule( 1,  4,  4,  1, 16, False),
+    SpatialSchedule( 1,  4,  8,  4,  8, False),
+    SpatialSchedule( 1,  7,  4,  3,  8,  True),
+    SpatialSchedule( 1,  2,  8,  1,  8,  True),
+    SpatialSchedule( 2,  1, 16,  1,  4,  True),
+    SpatialSchedule( 1,  7,  4,  1,  1,  True),
+    Im2ColSchedule(7, 4, 1, 16,  True),
+    Im2ColSchedule(7, 4, 1,  8, False),
+    Im2ColSchedule(7, 4, 1, 16, False),
+]
+# pylint: enable=bad-whitespace
 
+def _schedule_spatial_conv2d(s, data, data_pad, data_vec,
+                             kernel, kernel_vec,
+                             conv_out, output, last):
     # no stride and padding info here
-    padding = infer_pad(data, data_pad)
+    padding = _infer_pad(data, data_pad)
     if data_pad is None:
-        stride = infer_stride(data, kernel, output)
+        stride = _infer_stride(data, kernel, output)
     else:
-        stride = infer_stride(data_pad, kernel, output)
-    wkl = get_workload(data, kernel, stride, padding)
-    sch = get_schedule(wkl, 'rasp')
+        stride = _infer_stride(data_pad, kernel, output)
+    wkl = _get_workload(data, kernel, stride, padding)
+    sch = _get_schedule(wkl, 'rasp')
 
     H, W = wkl.height, wkl.width
     CI, CO = wkl.in_filter, wkl.out_filter
@@ -110,8 +129,18 @@ def schedule_spatial_conv2d(s, data, data_pad, data_vec,
 
     return s
 
+def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
+                            kernel, kernel_vec,
+                            conv_out, output, last):
+    # no stride and padding info here
+    padding = _infer_pad(data, data_pad)
+    if data_pad is None:
+        stride = _infer_stride(data, kernel, output)
+    else:
+        stride = _infer_stride(data_pad, kernel, output)
+    wkl = _get_workload(data, kernel, stride, padding)
+    sch = _get_schedule(wkl, 'rasp')
 
-def schedule_conv2d_im2col(s, conv_out, wkl, sch, outs):
     H, W = wkl.height, wkl.width
     CI = wkl.in_filter
     CO = wkl.out_filter
@@ -126,24 +155,10 @@ def schedule_conv2d_im2col(s, conv_out, wkl, sch, outs):
     Q = sch.vq
     UNROLL = sch.unroll
 
-    output_vec = conv_out
-    conv = output_vec.op.input_tensors[0]
-    kernel_vec = conv.op.input_tensors[1]
-    kernel = kernel_vec.op.input_tensors[0]
-    data_vec = conv.op.input_tensors[0]
-    data_col = data_vec.op.input_tensors[0]
-    if DOPAD:
-        data_pad = data_col.op.input_tensors[0]
-        data = data_pad.op.input_tensors[0]
-    else:
-        data_pad = None
-        data = data_col.op.input_tensors[0]
-    last = outs[0]
-
     A, B, C = data, kernel, last
     A0, A1, A2 = data_pad, data_col, data_vec
     B0 = kernel_vec
-    C0, C1 = conv, output_vec
+    C0, C1 = conv_out, output
 
     CC = s.cache_write(C0, "global")
     AA = s.cache_read(A2, "global", [CC])
@@ -230,7 +245,7 @@ def schedule_conv2d_im2col(s, conv_out, wkl, sch, outs):
     return s
 
 def schedule_convolution(outs):
-    """Create schedule for tensors or return error if batch size is larager than 1"""
+    """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
@@ -242,8 +257,7 @@ def schedule_convolution(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
-        # schedule conv2d
-        if 'spatial_conv2d_output' in op.tag:
+        if 'spatial_conv_output' in op.tag:
             output = op.output(0)
             conv_out = op.input_tensors[0]
             kernel_vec = conv_out.op.input_tensors[1]
@@ -255,8 +269,25 @@ def schedule_convolution(outs):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
-            schedule_spatial_conv2d(s, data, data_pad, data_vec,
-                kernel, kernel_vec, conv_out, output, outs[0])
+            _schedule_spatial_conv2d(s, data, data_pad, data_vec,
+                                     kernel, kernel_vec,
+                                     conv_out, output, outs[0])
+
+        if 'im2col_conv_output' in op.tag:
+            output = op.output(0)
+            conv_out = op.input_tensors[0]
+            kernel_vec = conv_out.op.input_tensors[1]
+            kernel = kernel_vec.op.input_tensors[0]
+            data_vec = conv_out.op.input_tensors[0]
+            data_col = data_vec.op.input_tensors[0]
+            data = data_col.op.input_tensors[0]
+            data_pad = None
+            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+                data_pad = data
+                data = data_pad.op.input_tensors[0]
+            _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
+                                    kernel, kernel_vec,
+                                    conv_out, output, outs[0])
 
     traverse(outs[0].op)
     return s

@@ -1,11 +1,249 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 """Convolution operators"""
 from __future__ import absolute_import as _abs
-import tvm
 from collections import namedtuple
+import tvm
+from .. import target as _target
 from ..util import simplify
 from .pad import pad, _spatial2d_pad_option
-from ..conv_utils import *
+
+workload_entity = ['height', 'width', 'in_filter', 'out_filter',
+                   'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride']
+Workload = namedtuple('Workload', workload_entity)
+
+spatial_schedule_entity = ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll']
+SpatialSchedule = namedtuple('SpatialSchedule', spatial_schedule_entity)
+
+im2col_schedule_entity = ['vp', 'vq', 'ba', 'bc', 'unroll']
+Im2ColSchedule = namedtuple('Im2ColSchedule', im2col_schedule_entity)
+
+# workloads of resnet18 on imagenet
+# pylint: disable=bad-whitespace
+workloads = [
+    Workload(224, 224,   3,  64, 7, 7, 3, 3, 2, 2),
+    Workload( 56,  56,  64,  64, 3, 3, 1, 1, 1, 1),
+    Workload( 56,  56,  64,  64, 1, 1, 0, 0, 1, 1),
+    Workload( 56,  56,  64, 128, 3, 3, 1, 1, 2, 2),
+    Workload( 56,  56,  64, 128, 1, 1, 0, 0, 2, 2),
+    Workload( 28,  28, 128, 128, 3, 3, 1, 1, 1, 1),
+    Workload( 28,  28, 128, 256, 3, 3, 1, 1, 2, 2),
+    Workload( 28,  28, 128, 256, 1, 1, 0, 0, 2, 2),
+    Workload( 14,  14, 256, 256, 3, 3, 1, 1, 1, 1),
+    Workload( 14,  14, 256, 512, 3, 3, 1, 1, 2, 2),
+    Workload( 14,  14, 256, 512, 1, 1, 0, 0, 2, 2),
+    Workload(  7,   7, 512, 512, 3, 3, 1, 1, 1, 1),
+]
+# pylint: enable=bad-whitespace
+
+CONV_SCHEDULES = {}
+
+def _get_workload(data, kernel, stride, padding):
+    _, CI, IH, IW = [x.value for x in data.shape]
+    CO, _, KH, KW = [x.value for x in kernel.shape]
+    if isinstance(padding, (tuple, list)):
+        HPAD, WPAD = padding
+    else:
+        HPAD, WPAD = padding, padding
+    if isinstance(stride, (tuple, list)):
+        HSTR, WSTR = stride
+    else:
+        HSTR, WSTR = stride, stride
+    return Workload(IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+
+def _get_schedule(wkl, target=None):
+    if wkl not in workloads:
+        raise ValueError("no schedule for such workload: {}".format(wkl))
+    idx = workloads.index(wkl)
+    if target is None:
+        target = _target.current_target()
+    else:
+        target = _target.Target(target)
+    assert target in CONV_SCHEDULES, "no schedule for such target"
+    sch = CONV_SCHEDULES[target][idx]
+    return sch
+
+def _infer_pad(data, data_pad):
+    if data_pad is None:
+        return 0, 0
+    _, _, IH, IW = [x.value for x in data.shape]
+    _, _, TH, TW = [x.value for x in data_pad.shape]
+    hpad = (TH - IH) / 2
+    wpad = (TW - IW) / 2
+    return hpad, wpad
+
+def _infer_stride(data, kernel, out):
+    _, _, IH, IW = [x.value for x in data.shape]
+    _, _, KH, KW = [x.value for x in kernel.shape]
+    _, _, OH, OW = [x.value for x in out.shape]
+    hstride = (IH - KH) / (OH - 1)
+    wstride = (IW - KW) / (OW - 1)
+    return hstride, wstride
+
+def _conv2d_spatial(data, kernel, stride, padding):
+    assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
+    wkl = _get_workload(data, kernel, stride, padding)
+    sch = _get_schedule(wkl)
+
+    H, W = wkl.height, wkl.width
+    CI, CO = wkl.in_filter, wkl.out_filter
+    KH, KW = wkl.hkernel, wkl.wkernel
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+    HCAT, WCAT = KH-1, KW-1
+
+    VH = sch.vh
+    VW = sch.vw
+    VC = sch.vc
+    UNROLL = sch.unroll
+
+    TH = H + 2*HPAD
+    TW = W + 2*WPAD
+    OH = (H + 2*HPAD - KH) / HSTR + 1
+    OW = (W + 2*WPAD - KW) / WSTR + 1
+
+    dshape = (1, CI, H, W)
+    dpshape = (1, CI, TH, TW)
+    dvshape = (1, TH/(VH*HSTR), TW/(VW*WSTR), CI, VH*HSTR+HCAT, VW*WSTR+WCAT)
+
+    kshape = (CO, CI, KH, KW)
+    kvshape = (CO/VC, CI, KH, KW, VC)
+
+    ovshape = (1, CO/VC, OH/VH, OW/VW, VH, VW, VC)
+    oshape = (1, CO, OH, OW)
+
+    DOPAD = (HPAD != 0 and WPAD != 0)
+    if DOPAD:
+        data_pad = tvm.compute(dpshape, lambda n, ci, h, w: \
+            tvm.select(
+                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
+                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
+                0.0,
+                data[n, ci, h - HPAD, w - WPAD]), name='data_pad', tag='pad')
+    else:
+        data_pad = data
+
+    data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw: \
+        data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
+
+    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc: \
+        kernel[co*VC+vc][ci][dh][dw], name='kernel_vec')
+
+    ci = tvm.reduce_axis((0, CI), name='ci')
+    dh = tvm.reduce_axis((0, KH), name='dh')
+    dw = tvm.reduce_axis((0, KW), name='dw')
+
+    conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw] *
+                kernel_vec[co, ci, dh, dw, vc],
+                axis=[ci, dh, dw]), name='conv')
+
+    output = tvm.compute(oshape, lambda n, co, h, w:
+                         conv[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
+                         name='output_unpack', tag='spatial_conv_output')
+
+    return output
+
+
+def _conv2d_im2col(data, kernel, stride, padding):
+    assert data.shape[0].value == 1, "im2col pack convolution only support batch size=1"
+    wkl = _get_workload(data, kernel, stride, padding)
+    sch = _get_schedule(wkl)
+
+    N = 1
+    H, W = wkl.height, wkl.width
+    CI = wkl.in_filter
+    CO = wkl.out_filter
+    KH, KW = wkl.hkernel, wkl.wkernel
+    HPAD, WPAD = wkl.hpad, wkl.hpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+
+    OH = (H + 2*HPAD - KH) / HSTR + 1
+    OW = (W + 2*WPAD - KW) / WSTR + 1
+
+    P = sch.vp
+    Q = sch.vq
+    UNROLL = sch.unroll
+
+    dshape = (N, CI, H, W)
+    dpshape = (N, CI, H+2*HPAD, W+2*WPAD)
+    dcshape = (N, OH, OW, CI, KH, KW)
+    dvshape = (N, OH * OW / P, CI, KH, KW, P)
+
+    kshape = (CO, CI, KH, KW)
+    kvshape = (CO / Q, CI, KH, KW, Q)
+
+    ovshape = (N, CO/Q, OH * OW / P, P, Q)
+    oshape = (N, CO, OH, OW)
+
+    ############### declaration
+
+    DO_PAD = (wkl.hpad != 0 and wkl.wpad != 0)
+    if DO_PAD:
+        data_pad = tvm.compute(dpshape, lambda n, ci, h, w: \
+            tvm.select(
+                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
+                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
+                0.0,
+                data[n, ci, h - HPAD, w - WPAD]), name='data_pad', tag='pad')
+    else:
+        data_pad = data
+
+    data_col = tvm.compute(dcshape, lambda n, oh, ow, ci, hk, wk: \
+        data_pad[n][ci][oh*HSTR+hk][ow*WSTR+wk], name='data_col')
+
+    data_vec = tvm.compute(dvshape, lambda n, im, ci, hk, wk, vim: \
+        data_col[n][(im*P+vim)/OW][(im*P+vim)%OW][ci][hk][wk], name='data_vec')
+
+
+    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc: \
+        kernel[co*Q+vc][ci][dh][dw], name='kernel_vec')
+
+    ci = tvm.reduce_axis((0, CI), name='ci')
+    hk = tvm.reduce_axis((0, KH), name='hk')
+    wk = tvm.reduce_axis((0, KW), name='wk')
+
+    conv = tvm.compute(ovshape, lambda n, co, im, vim, vco: \
+        tvm.sum(data_vec[n][im][ci][hk][wk][vim] * kernel_vec[co][ci][hk][wk][vco],
+                axis=[ci, hk, wk]), name='conv')
+
+    output = tvm.compute(oshape, lambda n, co, h, w: \
+                         conv[n][co/Q][(h*OW+w)/P][(h*OW+w)%P][co%Q],
+                         name='output_vec', tag='im2col_conv_output')
+
+    return output
+
+
+CONV_SCHEDULE_FUNC = {SpatialSchedule: _conv2d_spatial, Im2ColSchedule: _conv2d_im2col}
+
+def convolution(data, kernel, stride, padding):
+    """Convolution operator.
+
+    Parameters
+    ----------
+    input : tvm.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    filter : tvm.Tensor
+        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or a list/tuple of two ints
+        Padding size, or [pad_height, pad_width]
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    if _target.current_target() == _target.rasp():
+        assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
+        wkl = _get_workload(data, kernel, stride, padding)
+        sch = _get_schedule(wkl)
+        return CONV_SCHEDULE_FUNC[type(sch)](data, kernel, stride, padding)
+    else:
+        raise ValueError("no schedule for such target {}".format(_target.current_target()))
 
 
 def conv2d_nchw(Input, Filter, stride, padding):
@@ -107,134 +345,3 @@ def conv2d_hwcn(Input, Filter, stride, padding):
             axis=[ry, rx, rc]),
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
-
-
-def conv2d_spatial(data, kernel, stride, padding):
-    assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
-    wkl = get_workload(data, kernel, stride, padding)
-    sch = get_schedule(wkl)
-
-    H, W  = wkl.height, wkl.width
-    CI, CO = wkl.in_filter, wkl.out_filter
-    HK, WK = wkl.hkernel, wkl.wkernel
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    HCAT, WCAT = HK-1, WK-1
-
-    VH = sch.vh
-    VW = sch.vw
-    VC = sch.vc
-    UNROLL = sch.unroll
-
-    TH = H + 2*HPAD
-    TW = W + 2*WPAD
-    OH = (H + 2*HPAD - HK) / HSTR + 1
-    OW = (W + 2*WPAD - WK) / WSTR + 1
-
-    dshape = (1, CI, H, W)
-    dpshape = (1, CI, TH, TW)
-    dvshape = (1, TH/(VH*HSTR), TW/(VW*WSTR), CI, VH*HSTR+HCAT, VW*WSTR+WCAT)
-
-    kshape = (CO, CI, HK, WK)
-    kvshape = (CO/VC, CI, HK, WK, VC)
-
-    ovshape = (1, CO/VC, OH/VH, OW/VW, VH, VW, VC)
-    oshape = (1, CO, OH, OW)
-
-    DOPAD = (HPAD != 0 and WPAD != 0)
-    if DOPAD:
-        data_pad = tvm.compute(dpshape, lambda n, ci, h, w:
-            tvm.select(
-                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
-                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
-                0.0,
-                data[n, ci, h - HPAD, w - WPAD]), name='data_pad', tag='pad')
-    else:
-        data_pad = data
-
-    data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-        data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
-
-    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc:
-        kernel[co*VC+vc][ci][dh][dw], name='kernel_vec')
-
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    dh = tvm.reduce_axis((0, HK), name='dh')
-    dw = tvm.reduce_axis((0, WK), name='dw')
-
-    conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw] *
-                kernel_vec[co, ci, dh, dw, vc],
-                axis=[ci, dh, dw]), name='conv')
-
-    output = tvm.compute(oshape, lambda n, co, h, w: \
-        conv[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
-        name='output_unpack', tag='spatial_conv2d_output')
-
-    return output
-
-
-def conv2d_im2col(data, kernel, wkl, sch):
-    assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
-    N = 1
-    H, W = wkl.height, wkl.width
-    CI = wkl.in_filter
-    CO = wkl.out_filter
-    HK, WK = wkl.hkernel, wkl.wkernel
-    HPAD, WPAD = wkl.hpad, wkl.hpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-
-    OH = (H + 2*HPAD - HK) / HSTR + 1
-    OW = (W + 2*WPAD - WK) / WSTR + 1
-
-    P = sch.vp
-    Q = sch.vq
-    UNROLL = sch.unroll
-
-    dshape  = (N, CI, H, W)
-    dpshape = (N, CI, H+2*HPAD, W+2*WPAD)
-    dcshape = (N, OH, OW, CI, HK, WK)
-    dvshape = (N, OH * OW / P, CI, HK, WK, P)
-
-    kshape  = (CO, CI, HK, WK)
-    kvshape = (CO / Q, CI, HK, WK, Q)
-
-    ovshape = (N, CO/Q, OH * OW / P, P, Q)
-    oshape  = (N, CO, OH, OW)
-
-    ############### declaration
-
-    DO_PAD = (wkl.hpad != 0 and wkl.wpad != 0)
-    if DO_PAD:
-        data_pad = tvm.compute(dpshape, lambda n, ci, h, w:
-            tvm.select(
-                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
-                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
-                0.0,
-                data[n, ci, h - HPAD, w - WPAD]), name='data_pad')
-    else:
-        data_pad = data
-
-    data_col = tvm.compute(dcshape,
-        lambda n, oh, ow, ci, hk, wk: data_pad[n][ci][oh*HSTR+hk][ow*WSTR+wk], name='data_col')
-
-    data_vec = tvm.compute(dvshape, lambda n, im, ci, hk, wk, vim: \
-        data_col[n][(im*P+vim)/OW][(im*P+vim)%OW][ci][hk][wk], name='data_vec')
-
-
-    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc:
-        kernel[co*Q+vc][ci][dh][dw], name='kernel_vec')
-
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    hk = tvm.reduce_axis((0, HK), name='hk')
-    wk = tvm.reduce_axis((0, WK), name='wk')
-
-    conv = tvm.compute(ovshape, lambda n, co, im, vim, vco: \
-        tvm.sum(data_vec[n][im][ci][hk][wk][vim]*kernel_vec[co][ci][hk][wk][vco], axis=[ci, hk, wk]),
-        name='conv')
-
-    output = tvm.compute(oshape, lambda n, co, h, w: \
-        conv[n][co/Q][(h*OW+w)/P][(h*OW+w)%P][co%Q],
-        name='output_vec', tag='im2col_conv_output')
-
-    return output

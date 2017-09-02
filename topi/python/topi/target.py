@@ -1,11 +1,14 @@
+"""Target management API of topi"""
+
 from __future__ import absolute_import
 
 class Target(object):
+    """A Target describes the target type on which computation should be carried on"""
+    default_target = None
     str2type = {'x86': 1, 'cuda': 2, 'rasp': 3}
     type2str = {1: 'x86', 2: 'cuda', 3: 'rasp'}
     def __init__(self, target_type):
         """Constructs a context."""
-        default_target = None
         if isinstance(target_type, Target):
             self.target_typeid = target_type.target_typeid
         else:
@@ -44,13 +47,17 @@ class Target(object):
 Target.default_target = Target('x86')
 
 def x86():
+    """Returns a x86 target."""
     return Target('x86')
 
 def cuda():
+    """Returns a cuda target."""
     return Target('cuda')
 
 def rasp():
+    """Returns a rasp target."""
     return Target('rasp')
 
 def current_target():
+    """Returns the current target."""
     return Target.default_target
