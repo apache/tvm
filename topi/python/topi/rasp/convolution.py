@@ -3,25 +3,35 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import target as _target
-from ..nn.convolution import SpatialSchedule, Im2ColSchedule
-from ..nn.convolution import _CONV_DECLARATION, _CONV_SCHEDULE, _SCH_TO_DECL_FUNC
+from ..nn.convolution import SpatialPack, Im2ColPack
+from ..nn.convolution import _CONV_DECLARATION, _CONV_SCHEDULE
+from ..nn.convolution import _WORKLOADS, _SCH_TO_DECL_FUNC
 from ..nn.convolution import _get_workload, _get_schedule
 from ..nn.util import infer_pad, infer_stride
 
-_CONV_SCHEDULE[_target.rasp()] = [
-    SpatialSchedule(1, 8, 4, 1, 4, True),
-    SpatialSchedule(1, 7, 4, 2, 4, True),
-    SpatialSchedule(1, 4, 8, 4, 1, True),
-    SpatialSchedule(1, 4, 4, 1, 16, False),
-    SpatialSchedule(1, 4, 8, 4, 8, False),
-    SpatialSchedule(1, 7, 4, 3, 8, True),
-    SpatialSchedule(1, 2, 8, 1, 8, True),
-    SpatialSchedule(2, 1, 16, 1, 4, True),
-    SpatialSchedule(1, 7, 4, 1, 1, True),
-    Im2ColSchedule(7, 4, 1, 16, True),
-    Im2ColSchedule(7, 4, 1, 8, False),
-    Im2ColSchedule(7, 4, 1, 16, False),
+_SCHEDULES = [
+    SpatialPack(1, 8, 4, 1, 4, True),
+    SpatialPack(1, 7, 4, 2, 4, True),
+    SpatialPack(1, 4, 8, 4, 1, True),
+    SpatialPack(1, 4, 4, 1, 16, False),
+    SpatialPack(1, 4, 8, 4, 8, False),
+    SpatialPack(1, 7, 4, 3, 8, True),
+    SpatialPack(1, 2, 8, 1, 8, True),
+    SpatialPack(2, 1, 16, 1, 4, True),
+    SpatialPack(1, 7, 4, 1, 1, True),
+    Im2ColPack(7, 4, 1, 16, True),
+    Im2ColPack(7, 4, 1, 8, False),
+    Im2ColPack(7, 4, 1, 16, False),
 ]
+
+def _schedule_conv2d(wkl):
+    if wkl not in _WORKLOADS:
+        raise ValueError("no schedule for such workload: {}".format(wkl))
+    idx = _WORKLOADS.index(wkl)
+    sch = _SCHEDULES[idx]
+    return sch
+
+_CONV_SCHEDULE[_target.rasp()] = _schedule_conv2d
 
 def _declaration_conv2d(data, kernel, stride, padding, layout):
     assert layout == 'NCHW', "only support NCHW convolution on rasp"

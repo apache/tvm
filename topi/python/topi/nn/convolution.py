@@ -14,15 +14,15 @@ Workload = namedtuple('Workload',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
 # schedule description of spatial
-SpatialSchedule = namedtuple('SpatialSchedule',
-                             ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll'])
+SpatialPack = namedtuple('SpatialPack',
+                         ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll'])
 
 # schedule description of im2col
-Im2ColSchedule = namedtuple('Im2ColSchedule',
-                            ['vp', 'vq', 'ba', 'bc', 'unroll'])
+Im2ColPack = namedtuple('Im2ColPack',
+                        ['vp', 'vq', 'ba', 'bc', 'unroll'])
 
 # workloads of resnet18 on imagenet
-workloads = [
+_WORKLOADS = [
     Workload(224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
     Workload(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
     Workload(56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
@@ -55,10 +55,13 @@ def convolution(data, kernel, stride, padding, layout='NCHW'):
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
-        Stride size, or [stride_height, stride_width]
+        stride size, or [stride_height, stride_width]
 
     padding : int or a list/tuple of two ints
-        Padding size, or [pad_height, pad_width]
+        padding size, or [pad_height, pad_width]
+
+    layout : str
+        layout of data
 
     Returns
     -------
@@ -93,19 +96,16 @@ def _get_workload(data, kernel, stride, padding):
     return Workload(IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 def _get_schedule(wkl, target=None):
-    if wkl not in workloads:
-        raise ValueError("no schedule for such workload: {}".format(wkl))
-    idx = workloads.index(wkl)
     if target is None:
         target = _target.current_target()
     else:
         target = _target.Target(target)
     assert target in _CONV_SCHEDULE, "no schedule for such target: {}".format(target)
-    sch = _CONV_SCHEDULE[target][idx]
-    return sch
+    return _CONV_SCHEDULE[target](wkl)
 
 
-def _conv2d_spatial(data, kernel, stride, padding):
+def _spatial_pack(data, kernel, stride, padding):
+    """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     wkl = _get_workload(data, kernel, stride, padding)
     sch = _get_schedule(wkl)
@@ -139,12 +139,7 @@ def _conv2d_spatial(data, kernel, stride, padding):
 
     DOPAD = (HPAD != 0 and WPAD != 0)
     if DOPAD:
-        data_pad = tvm.compute(dpshape, lambda n, ci, h, w: \
-            tvm.select(
-                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
-                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
-                0.0,
-                data[n, ci, h - HPAD, w - WPAD]), name='data_pad', tag='pad')
+        data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
     else:
         data_pad = data
 
@@ -170,7 +165,8 @@ def _conv2d_spatial(data, kernel, stride, padding):
     return output
 
 
-def _conv2d_im2col(data, kernel, stride, padding):
+def _im2col_pack(data, kernel, stride, padding):
+    """ Compute convolution with im2col pack layout. """
     assert data.shape[0].value == 1, "im2col pack convolution only support batch size=1"
     wkl = _get_workload(data, kernel, stride, padding)
     sch = _get_schedule(wkl)
@@ -205,12 +201,7 @@ def _conv2d_im2col(data, kernel, stride, padding):
 
     DO_PAD = (wkl.hpad != 0 and wkl.wpad != 0)
     if DO_PAD:
-        data_pad = tvm.compute(dpshape, lambda n, ci, h, w: \
-            tvm.select(
-                tvm.make.Or(tvm.make.Or((h < HPAD), (h >= H + HPAD)),
-                            tvm.make.Or((w < WPAD), (w >= W + WPAD))),
-                0.0,
-                data[n, ci, h - HPAD, w - WPAD]), name='data_pad', tag='pad')
+        data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
     else:
         data_pad = data
 
@@ -341,6 +332,6 @@ def conv2d_hwcn(Input, Filter, stride, padding):
 
 # map from schedule type to declaration function
 _SCH_TO_DECL_FUNC = {
-    SpatialSchedule: _conv2d_spatial,
-    Im2ColSchedule: _conv2d_im2col,
+    SpatialPack: _spatial_pack,
+    Im2ColPack: _im2col_pack,
 }
