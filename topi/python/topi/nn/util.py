@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
 from __future__ import absolute_import
+from ..util import simplify
 
 def infer_pad(data, data_pad):
     """Infer the padding from stages in reverse.
@@ -22,11 +23,11 @@ def infer_pad(data, data_pad):
     """
     if data_pad is None:
         return 0, 0
-    _, _, IH, IW = [x.value for x in data.shape]
-    _, _, TH, TW = [x.value for x in data_pad.shape]
+    _, _, IH, IW = data.shape
+    _, _, TH, TW = data_pad.shape
     hpad = (TH - IH) // 2
     wpad = (TW - IW) // 2
-    return hpad, wpad
+    return simplify(hpad).value, simplify(wpad).value
 
 def infer_stride(data, kernel, out):
     """Infer the stride from stages in reverse.
@@ -49,12 +50,12 @@ def infer_stride(data, kernel, out):
     wstride : int
         stride size on width
     """
-    _, _, IH, IW = [x.value for x in data.shape]
-    _, _, KH, KW = [x.value for x in kernel.shape]
-    _, _, OH, OW = [x.value for x in out.shape]
+    _, _, IH, IW = data.shape
+    _, _, KH, KW = kernel.shape
+    _, _, OH, OW = out.shape
     hstride = (IH - KH) // (OH - 1)
     wstride = (IW - KW) // (OW - 1)
-    return hstride, wstride
+    return simplify(hstride).value, simplify(wstride).value
 
 
 def get_pad_tuple(padding, kernel):
