@@ -107,6 +107,8 @@ class Node {
    *  Gives operation must be performed before this operation.
    */
   std::vector<NodePtr> control_deps;
+  /*! \brief additional fields for this node */
+  any info;
   /*! \brief destructor of node */
   ~Node();
   /*! \return operator in this node */
