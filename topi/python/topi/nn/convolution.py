@@ -5,6 +5,7 @@ import tvm
 from collections import namedtuple
 from ..util import simplify
 from .pad import pad, _spatial2d_pad_option
+from ..conv_utils import *
 
 
 def conv2d_nchw(Input, Filter, stride, padding):
@@ -107,67 +108,6 @@ def conv2d_hwcn(Input, Filter, stride, padding):
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
 
-
-workload_entity = ['height', 'width', 'in_filter', 'out_filter',
-            'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride']
-Workload = namedtuple('Workload', workload_entity)
-
-schedule1_entity = ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll']
-Schedule1 = namedtuple('Schedule1', schedule1_entity)
-
-schedule2_entity = ['vp', 'vq', 'ba', 'bc', 'unroll']
-Schedule2 = namedtuple('Schedule2', schedule2_entity)
-
-# workloads of resnet18 on imagenet
-workloads = [
-    Workload(224, 224,   3,  64, 7, 7, 3, 3, 2, 2),
-    Workload( 56,  56,  64,  64, 3, 3, 1, 1, 1, 1),
-    Workload( 56,  56,  64,  64, 1, 1, 0, 0, 1, 1),
-    Workload( 56,  56,  64, 128, 3, 3, 1, 1, 2, 2),
-    Workload( 56,  56,  64, 128, 1, 1, 0, 0, 2, 2),
-    Workload( 28,  28, 128, 128, 3, 3, 1, 1, 1, 1),
-    Workload( 28,  28, 128, 256, 3, 3, 1, 1, 2, 2),
-    Workload( 28,  28, 128, 256, 1, 1, 0, 0, 2, 2),
-    Workload( 14,  14, 256, 256, 3, 3, 1, 1, 1, 1),
-    Workload( 14,  14, 256, 512, 3, 3, 1, 1, 2, 2),
-    Workload( 14,  14, 256, 512, 1, 1, 0, 0, 2, 2),
-    Workload(  7,   7, 512, 512, 3, 3, 1, 1, 1, 1),
-]
-
-spatial_schedules = [
-    Schedule1( 1,  8,  4,  1,  4,  True),
-    Schedule1( 1,  7,  4,  2,  4,  True),
-    Schedule1( 1,  4,  8,  4,  1,  True),
-    Schedule1( 1,  4,  4,  1, 16, False),
-    Schedule1( 1,  4,  8,  4,  8, False),
-    Schedule1( 1,  7,  4,  3,  8,  True),
-    Schedule1( 1,  2,  8,  1,  8,  True),
-    Schedule1( 2,  1, 16,  1,  4,  True),
-    Schedule1( 1,  7,  4,  1,  1,  True),
-    Schedule1( 1,  1,  8,  4, 16, False),
-    Schedule1( 1,  1, 16,  1,  8, False),
-    Schedule1( 1,  1,  4,  1, 16,  True),
-]
-
-
-def get_workload(data, kernel, stride, padding):
-    _, CI, H, W = map(lambda x: x.value, data.shape)
-    CO, _, HK, WK = map(lambda x: x.value, kernel.shape)
-    if isinstance(padding, list):
-        HPAD, WPAD = padding
-    else:
-        HPAD, WPAD = padding, padding
-    if isinstance(stride, list):
-        HSTR, WSTR = stride
-    else:
-        HSTR, WSTR = stride, stride
-    return Workload(H, W, CI, CO, HK, WK, HPAD, WPAD, HSTR, WSTR)
-
-def get_schedule(wkl):
-    if wkl not in workloads:
-        raise ValueError, "no schedule for such workload: {}".format(wkl)
-    idx = workloads.index(wkl)
-    return spatial_schedules[idx]
 
 def conv2d_spatial(data, kernel, stride, padding):
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"

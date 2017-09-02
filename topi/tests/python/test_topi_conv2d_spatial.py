@@ -9,9 +9,10 @@ from topi.util import get_const_tuple
 def verify_conv2d_spatial(batch, in_size, in_channel, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-    B = topi.nn.conv2d_spatial(A, W, stride, padding)
+    with topi.target.rasp():
+        A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
+        W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+        B = topi.nn.conv2d_spatial(A, W, stride, padding)
     s = topi.rasp.schedule_convolution([B])
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)

@@ -15,5 +15,6 @@ from .broadcast import *
 from . import nn
 from . import cuda
 from . import rasp
+from . import target
 from . import testing
 from . import util
