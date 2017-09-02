@@ -3,35 +3,44 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import target as _target
-from ..nn.convolution import CONV_SCHEDULES, SpatialSchedule, Im2ColSchedule
-from ..nn.convolution import _get_workload, _get_schedule, _infer_pad, _infer_stride
+from ..nn.convolution import SpatialSchedule, Im2ColSchedule
+from ..nn.convolution import _CONV_DECLARATION, _CONV_SCHEDULE, _SCH_TO_DECL_FUNC
+from ..nn.convolution import _get_workload, _get_schedule
+from ..nn.util import infer_pad, infer_stride
 
-# pylint: disable=bad-whitespace
-CONV_SCHEDULES[_target.rasp()] = [
-    SpatialSchedule( 1,  8,  4,  1,  4,  True),
-    SpatialSchedule( 1,  7,  4,  2,  4,  True),
-    SpatialSchedule( 1,  4,  8,  4,  1,  True),
-    SpatialSchedule( 1,  4,  4,  1, 16, False),
-    SpatialSchedule( 1,  4,  8,  4,  8, False),
-    SpatialSchedule( 1,  7,  4,  3,  8,  True),
-    SpatialSchedule( 1,  2,  8,  1,  8,  True),
-    SpatialSchedule( 2,  1, 16,  1,  4,  True),
-    SpatialSchedule( 1,  7,  4,  1,  1,  True),
-    Im2ColSchedule(7, 4, 1, 16,  True),
-    Im2ColSchedule(7, 4, 1,  8, False),
+_CONV_SCHEDULE[_target.rasp()] = [
+    SpatialSchedule(1, 8, 4, 1, 4, True),
+    SpatialSchedule(1, 7, 4, 2, 4, True),
+    SpatialSchedule(1, 4, 8, 4, 1, True),
+    SpatialSchedule(1, 4, 4, 1, 16, False),
+    SpatialSchedule(1, 4, 8, 4, 8, False),
+    SpatialSchedule(1, 7, 4, 3, 8, True),
+    SpatialSchedule(1, 2, 8, 1, 8, True),
+    SpatialSchedule(2, 1, 16, 1, 4, True),
+    SpatialSchedule(1, 7, 4, 1, 1, True),
+    Im2ColSchedule(7, 4, 1, 16, True),
+    Im2ColSchedule(7, 4, 1, 8, False),
     Im2ColSchedule(7, 4, 1, 16, False),
 ]
-# pylint: enable=bad-whitespace
+
+def _declaration_conv2d(data, kernel, stride, padding, layout):
+    assert layout == 'NCHW', "only support NCHW convolution on rasp"
+    assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
+    wkl = _get_workload(data, kernel, stride, padding)
+    sch = _get_schedule(wkl)
+    return _SCH_TO_DECL_FUNC[type(sch)](data, kernel, stride, padding)
+
+_CONV_DECLARATION[_target.rasp()] = _declaration_conv2d
 
 def _schedule_spatial_conv2d(s, data, data_pad, data_vec,
                              kernel, kernel_vec,
                              conv_out, output, last):
     # no stride and padding info here
-    padding = _infer_pad(data, data_pad)
+    padding = infer_pad(data, data_pad)
     if data_pad is None:
-        stride = _infer_stride(data, kernel, output)
+        stride = infer_stride(data, kernel, output)
     else:
-        stride = _infer_stride(data_pad, kernel, output)
+        stride = infer_stride(data_pad, kernel, output)
     wkl = _get_workload(data, kernel, stride, padding)
     sch = _get_schedule(wkl, 'rasp')
 
@@ -133,11 +142,11 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
                             kernel, kernel_vec,
                             conv_out, output, last):
     # no stride and padding info here
-    padding = _infer_pad(data, data_pad)
+    padding = infer_pad(data, data_pad)
     if data_pad is None:
-        stride = _infer_stride(data, kernel, output)
+        stride = infer_stride(data, kernel, output)
     else:
-        stride = _infer_stride(data_pad, kernel, output)
+        stride = infer_stride(data_pad, kernel, output)
     wkl = _get_workload(data, kernel, stride, padding)
     sch = _get_schedule(wkl, 'rasp')
 

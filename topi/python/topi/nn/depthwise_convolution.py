@@ -2,8 +2,9 @@
 """Depthwise Convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from .pad import pad
+from .util import get_pad_tuple
 from ..util import simplify
-from .pad import pad, _spatial2d_pad_option
 
 
 def depthwise_conv2d_nchw(Input, Filter, stride, padding):
@@ -32,7 +33,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding):
     filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
     stride_h, stride_w = stride
 
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
     out_channel = simplify(in_channel * channel_multiplier)
     out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
@@ -80,7 +81,7 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
     stride_h, stride_w = stride
 
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
     out_channel = simplify(in_channel * channel_multiplier)
     out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)

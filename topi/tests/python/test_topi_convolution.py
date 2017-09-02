@@ -6,7 +6,7 @@ import topi
 from topi.util import get_const_tuple
 
 
-def verify_conv2d_spatial(batch, in_size, in_channel, num_filter, kernel, stride, padding):
+def verify_convolution(batch, in_size, in_channel, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
     with topi.target.rasp():
@@ -27,18 +27,8 @@ def verify_conv2d_spatial(batch, in_size, in_channel, num_filter, kernel, stride
     func(a, w, b)
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-def test_conv2d_nchw():
-    verify_conv2d_spatial(1, 56,  64, 64,  3, 1, 1)
-    verify_conv2d_spatial(1, 56,  64, 64,  1, 1, 0)
-    verify_conv2d_spatial(1, 56,  64, 128, 3, 2, 1)
-    verify_conv2d_spatial(1, 56,  64, 128, 1, 2, 0)
-    verify_conv2d_spatial(1, 28, 128, 128, 3, 1, 1)
-    verify_conv2d_spatial(1, 28, 128, 256, 3, 2, 1)
-    verify_conv2d_spatial(1, 28, 128, 256, 1, 2, 0)
-    verify_conv2d_spatial(1, 14, 256, 256, 3, 1, 1)
-    verify_conv2d_spatial(1, 14, 256, 512, 3, 2, 1)
-    verify_conv2d_spatial(1, 14, 256, 512, 1, 2, 0)
-    verify_conv2d_spatial(1, 7,  512, 512, 3, 1, 1)
+def test_convolution():
+    verify_convolution(1, 56,  64, 64,  3, 1, 1)
 
 if __name__ == "__main__":
-    test_conv2d_nchw()
+    test_convolution()

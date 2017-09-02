@@ -3,39 +3,81 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
-from .. import target as _target
+from .pad import pad
+from .util import get_pad_tuple
 from ..util import simplify
-from .pad import pad, _spatial2d_pad_option
+from .. import target as _target
 
-workload_entity = ['height', 'width', 'in_filter', 'out_filter',
-                   'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride']
-Workload = namedtuple('Workload', workload_entity)
+# workload description of convolution
+Workload = namedtuple('Workload',
+                      ['height', 'width', 'in_filter', 'out_filter',
+                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
-spatial_schedule_entity = ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll']
-SpatialSchedule = namedtuple('SpatialSchedule', spatial_schedule_entity)
+# schedule description of spatial
+SpatialSchedule = namedtuple('SpatialSchedule',
+                             ['vh', 'vw', 'vc', 'ba', 'bc', 'unroll'])
 
-im2col_schedule_entity = ['vp', 'vq', 'ba', 'bc', 'unroll']
-Im2ColSchedule = namedtuple('Im2ColSchedule', im2col_schedule_entity)
+# schedule description of im2col
+Im2ColSchedule = namedtuple('Im2ColSchedule',
+                            ['vp', 'vq', 'ba', 'bc', 'unroll'])
 
 # workloads of resnet18 on imagenet
-# pylint: disable=bad-whitespace
 workloads = [
-    Workload(224, 224,   3,  64, 7, 7, 3, 3, 2, 2),
-    Workload( 56,  56,  64,  64, 3, 3, 1, 1, 1, 1),
-    Workload( 56,  56,  64,  64, 1, 1, 0, 0, 1, 1),
-    Workload( 56,  56,  64, 128, 3, 3, 1, 1, 2, 2),
-    Workload( 56,  56,  64, 128, 1, 1, 0, 0, 2, 2),
-    Workload( 28,  28, 128, 128, 3, 3, 1, 1, 1, 1),
-    Workload( 28,  28, 128, 256, 3, 3, 1, 1, 2, 2),
-    Workload( 28,  28, 128, 256, 1, 1, 0, 0, 2, 2),
-    Workload( 14,  14, 256, 256, 3, 3, 1, 1, 1, 1),
-    Workload( 14,  14, 256, 512, 3, 3, 1, 1, 2, 2),
-    Workload( 14,  14, 256, 512, 1, 1, 0, 0, 2, 2),
-    Workload(  7,   7, 512, 512, 3, 3, 1, 1, 1, 1),
+    Workload(224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
+    Workload(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
+    Workload(56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
+    Workload(56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
+    Workload(56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
+    Workload(28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
+    Workload(28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
+    Workload(28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
+    Workload(14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
+    Workload(14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
+    Workload(14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
+    Workload(7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
 ]
-# pylint: enable=bad-whitespace
 
-CONV_SCHEDULES = {}
+# platform specific schedule
+_CONV_SCHEDULE = {}
+
+# platform specific declaration
+_CONV_DECLARATION = {}
+
+def convolution(data, kernel, stride, padding, layout='NCHW'):
+    """Convolution operator.
+
+    Parameters
+    ----------
+    input : tvm.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    filter : tvm.Tensor
+        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or a list/tuple of two ints
+        Padding size, or [pad_height, pad_width]
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    # search platform specified declaration first
+    target = _target.current_target()
+    if target in _CONV_DECLARATION:
+        return _CONV_DECLARATION[target](data, kernel, stride, padding, layout)
+
+    # default declaration
+    if layout == 'NCHW':
+        conv2d_nchw(data, kernel, stride, padding)
+    elif layout == 'HWCN':
+        conv2d_hwcn(data, kernel, stride, padding)
+    else:
+        raise ValueError("not support this layout {} yet".format(layout))
+
 
 def _get_workload(data, kernel, stride, padding):
     _, CI, IH, IW = [x.value for x in data.shape]
@@ -58,26 +100,10 @@ def _get_schedule(wkl, target=None):
         target = _target.current_target()
     else:
         target = _target.Target(target)
-    assert target in CONV_SCHEDULES, "no schedule for such target"
-    sch = CONV_SCHEDULES[target][idx]
+    assert target in _CONV_SCHEDULE, "no schedule for such target: {}".format(target)
+    sch = _CONV_SCHEDULE[target][idx]
     return sch
 
-def _infer_pad(data, data_pad):
-    if data_pad is None:
-        return 0, 0
-    _, _, IH, IW = [x.value for x in data.shape]
-    _, _, TH, TW = [x.value for x in data_pad.shape]
-    hpad = (TH - IH) / 2
-    wpad = (TW - IW) / 2
-    return hpad, wpad
-
-def _infer_stride(data, kernel, out):
-    _, _, IH, IW = [x.value for x in data.shape]
-    _, _, KH, KW = [x.value for x in kernel.shape]
-    _, _, OH, OW = [x.value for x in out.shape]
-    hstride = (IH - KH) / (OH - 1)
-    wstride = (IW - KW) / (OW - 1)
-    return hstride, wstride
 
 def _conv2d_spatial(data, kernel, stride, padding):
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
@@ -213,39 +239,6 @@ def _conv2d_im2col(data, kernel, stride, padding):
     return output
 
 
-CONV_SCHEDULE_FUNC = {SpatialSchedule: _conv2d_spatial, Im2ColSchedule: _conv2d_im2col}
-
-def convolution(data, kernel, stride, padding):
-    """Convolution operator.
-
-    Parameters
-    ----------
-    input : tvm.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
-
-    filter : tvm.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
-
-    stride : int or a list/tuple of two ints
-        Stride size, or [stride_height, stride_width]
-
-    padding : int or a list/tuple of two ints
-        Padding size, or [pad_height, pad_width]
-
-    Returns
-    -------
-    output : tvm.Tensor
-        4-D with shape [batch, out_channel, out_height, out_width]
-    """
-    if _target.current_target() == _target.rasp():
-        assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
-        wkl = _get_workload(data, kernel, stride, padding)
-        sch = _get_schedule(wkl)
-        return CONV_SCHEDULE_FUNC[type(sch)](data, kernel, stride, padding)
-    else:
-        raise ValueError("no schedule for such target {}".format(_target.current_target()))
-
-
 def conv2d_nchw(Input, Filter, stride, padding):
     """Convolution operator in NCHW layout.
 
@@ -275,7 +268,7 @@ def conv2d_nchw(Input, Filter, stride, padding):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
     out_channel = num_filter
@@ -326,7 +319,7 @@ def conv2d_hwcn(Input, Filter, stride, padding):
     else:
         stride_h, stride_w = stride
 
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
     out_channel = num_filter
@@ -345,3 +338,9 @@ def conv2d_hwcn(Input, Filter, stride, padding):
             axis=[ry, rx, rc]),
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
+
+# map from schedule type to declaration function
+_SCH_TO_DECL_FUNC = {
+    SpatialSchedule: _conv2d_spatial,
+    Im2ColSchedule: _conv2d_im2col,
+}
