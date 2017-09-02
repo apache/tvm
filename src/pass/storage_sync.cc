@@ -34,13 +34,10 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
     // Unsynced reads and writes
     std::vector<AccessEntry> reads;
     std::vector<AccessEntry> writes;
-
     // if it is a loop, rotate two times to consider effect of loop.
-    size_t max_seq = seq.size();
-    if (loop != nullptr) max_seq *= 2;
     // simulation based approach to find dependenceies
-    for (size_t i = 0; i < max_seq; ++i) {
-      const StmtEntry& s = seq[i % seq.size()];
+    for (size_t i = 0; i < seq.size(); ++i) {
+      const StmtEntry& s = seq[i];
       // check if sync before statement is needed.
       bool sync_before_stmt = (syncs_inserted_.count(s.stmt) != 0);
       // Apply the syncs added already.
@@ -50,11 +47,11 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
       for (const AccessEntry& acc : s.access) {
         if (acc.type == kRead) {
-          if (FindConflict(writes, acc)) {
+          if (FindConflict(writes, acc, false)) {
             sync_before_stmt = true; break;
           }
         } else if (acc.type == kWrite) {
-          if (FindConflict(reads, acc)) {
+          if (FindConflict(reads, acc, false)) {
             sync_before_stmt = true; break;
           }
         } else if (acc.type == kSync) {
@@ -79,6 +76,33 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         CHECK_EQ(condition_counter(), 0)
             << "Cannot insert syncs inside condition";
         syncs_inserted_.insert(s.stmt);
+      }
+    }
+    if (loop != nullptr) {
+      for (size_t i = 0; i < seq.size(); ++i) {
+        const StmtEntry& s = seq[i];
+        if (syncs_inserted_.count(s.stmt) != 0) break;
+        if (reads.empty() && writes.empty()) break;
+        bool sync_before_stmt = false;
+        for (const AccessEntry& acc : s.access) {
+          if (acc.type == kRead) {
+            if (FindConflict(writes, acc, true)) {
+              sync_before_stmt = true; break;
+            }
+          } else if (acc.type == kWrite) {
+            if (FindConflict(reads, acc, true)) {
+              sync_before_stmt = true; break;
+            }
+          } else if (acc.type == kSync) {
+            reads.clear(); writes.clear();
+          }
+        }
+        if (sync_before_stmt) {
+          CHECK_EQ(condition_counter(), 0)
+              << "Cannot insert syncs inside condition";
+          syncs_inserted_.insert(s.stmt);
+          break;
+        }
       }
     }
     // return the exposed entries, remove unecessary ones.
@@ -117,13 +141,20 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
     }
     head.insert(head.end(), tail.begin(), tail.end());
+    if (loop != nullptr) {
+      // clear double buffer flag after a loop is finished.
+      for (AccessEntry& e : head) {
+        e.double_buffer_write = false;
+      }
+    }
     return head;
   }
 
  private:
   // find conflicting entry in vec.
   bool FindConflict(const std::vector<AccessEntry>& vec,
-                    const AccessEntry& e) {
+                    const AccessEntry& e,
+                    bool loop_carry) {
     for (const AccessEntry& x : vec) {
       if (x.buffer.same_as(e.buffer)) {
         // Assumes no race between threads
@@ -134,6 +165,9 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
           if (Equal(e.touched.point_value(),
                     x.touched.point_value())) continue;
         }
+        if (x.double_buffer_write &&
+            e.type == kRead &&
+            !loop_carry) continue;
         return true;
       }
     }

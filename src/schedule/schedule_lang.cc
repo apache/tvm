@@ -385,6 +385,13 @@ Stage& Stage::storage_align(IterVar axis, int factor, int offset) {
   return *this;
 }
 
+Stage& Stage::double_buffer() {
+  StageNode *self = operator->();
+  CHECK(!self->is_output) << "Cannot apply double buffer on output";
+  self->double_buffer = true;
+  return *this;
+}
+
 Stage CopyStage(const Stage& s) {
   std::shared_ptr<StageNode> n =
       std::make_shared<StageNode>(*s.operator->());

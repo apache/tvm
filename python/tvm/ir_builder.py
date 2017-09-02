@@ -268,6 +268,21 @@ class IRBuilder(object):
             self.emit(_make.IfThenElse(prev.condition, prev.then_case, self._pop_seq()))
         return WithScope(None, _exit_cb)
 
+    def new_scope(self):
+        """Create new scope,
+
+        this is useful to set boundary of attr and allocate.
+
+        Returns
+        -------
+        new_scope : WithScope
+           The result new scope.
+        """
+        self._seq_stack.append([])
+        def _exit_cb():
+            self.emit(self._pop_seq())
+        return WithScope(None, _exit_cb)
+
     def allocate(self, dtype, shape, name="buf", scope=None):
         """Create a allocate statement.
 

@@ -74,6 +74,24 @@ void StorageAccessVisitor::Visit_(const AttrStmt* op) {
     storage_scope_[buf] =
         StorageScope::make(op->value.as<StringImm>()->value);
     IRVisitor::Visit_(op);
+  } else if (op->attr_key == attr::double_buffer_write) {
+    CHECK(double_buffer_write_ == nullptr);
+    double_buffer_write_ = op->node.as<Variable>();
+    scope_.push_back(std::vector<StmtEntry>());
+    IRVisitor::Visit_(op);
+    StmtEntry s;
+    s.stmt = op;
+    s.access = Summarize(std::move(scope_.back()), nullptr);
+    scope_.pop_back();
+    if (!s.access.empty()) {
+      for (AccessEntry& e : s.access) {
+        if (e.type == kWrite && e.buffer.get() == double_buffer_write_) {
+          e.double_buffer_write = true;
+        }
+      }
+      scope_.back().emplace_back(std::move(s));
+    }
+    double_buffer_write_ = nullptr;
   } else if (op->attr_key == attr::coproc_scope) {
     IterVar iv(op->node.node_);
     env_threads_.push_back(iv);

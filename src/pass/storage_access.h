@@ -45,6 +45,8 @@ class StorageAccessVisitor : public IRVisitor {
     AccessType type;
     /*! \brief The storage scope */
     StorageScope scope;
+    /*! \brief Whether the access is double buffer write */
+    bool double_buffer_write{false};
   };
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {
@@ -116,6 +118,8 @@ class StorageAccessVisitor : public IRVisitor {
   bool in_device_env_{false};
   // Whether we are inside condition.
   int condition_counter_{0};
+  // The current double buffer write scope.
+  const Variable* double_buffer_write_{nullptr};
   // the current free stmt entry.
   StmtEntry curr_stmt_;
   // The involving threads

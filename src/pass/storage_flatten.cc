@@ -4,6 +4,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/expr.h>
+#include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
@@ -53,6 +54,18 @@ class StorageFlattener : public IRMutator {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
+    } else if (op->attr_key == attr::double_buffer_scope) {
+      Operation func(op->node.node_);
+      Stmt body = Mutate(op->body);
+      for (int i = 0; i < func->num_outputs(); ++i) {
+        TensorKey key{func, i};
+        auto it = buf_map_.find(key);
+        CHECK(it != buf_map_.end())
+            << "Cannot find allocated buffer for " << key.f;
+        body = AttrStmt::make(
+            it->second.buffer->data, op->attr_key, op->value, body);
+      }
+      return body;
     } else if (op->attr_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
@@ -127,6 +140,8 @@ class StorageFlattener : public IRMutator {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
         if (info.defined()) {
           align = (info->max_simd_bits + op->type.bits() - 1) / op->type.bits();
+          CHECK_LE(const_size * op->type.bits(), info->max_num_bits)
+              << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
       Array<Expr> strides;
