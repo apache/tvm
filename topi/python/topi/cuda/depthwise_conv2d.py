@@ -270,37 +270,13 @@ def schedule_depthwise_conv2d_back_weight_nhwc(outs):
         fused_fwcm = s[Weight_grad].fuse(s[Weight_grad].op.axis[1], fused_cm)
         fused_fwcm = s[Weight_grad].fuse(s[Weight_grad].op.axis[0], fused_fwcm)
 
-        #fused_fwcm = s[Weight_grad].op.axis[2]
-        xo, xi = s[Weight_grad].split(fused_fwcm, factor=32) #s[Weight_grad].op.axis[2], factor=32)
-        #s[Weight_grad].reorder(xo, fh, fw, xi)
+        xo, xi = s[Weight_grad].split(fused_fwcm, factor=32)
 
-        #fused_hw = s[Weight_grad].fuse(fh, fw)
-        #fused_xohw = s[Weight_grad].fuse(xo, fused_hw)
-
-        s[Weight_grad].bind(xi, thread_y)
+        s[Weight_grad].bind(xi, thread_x)
         s[Weight_grad].bind(xo, block_x)
 
-
-        #s[Weight_grad].fuse(xi, dw)
-        #fused_dhdw = s[Weight_grad].fuse(dh, dw)
-
-        print("@@@@@@@@@@@@@@@@@@",s[Weight_grad].op.reduce_axis)
-        s[Weight_grad].bind(s[Weight_grad].op.reduce_axis[0], thread_x)
-        s[BF].compute_at(s[Weight_grad], s[Weight_grad].op.reduce_axis[0]) #s[Weight_grad].op.reduce_axis[0])
-
-        #s[Weight_grad].bind(xi, thread_y)
-        #s[Weight_grad].bind(fused_xohw, block_x)
-
-
-
-        #fused_dhdw = s[Weight_grad].fuse(dh, dw)
-        #fused_dbdhdw = s[Weight_grad].fuse(db, fused_dhdw)
-        #ko, ki = s[Weight_grad].split(dw, factor=32)
-        #s[Weight_grad].bind(ki, thread_x)
-        #BF = s.rfactor(Weight_grad, ki)
-        #s[BF].compute_at(s[Weight_grad], ko)
-
-
+        s[Weight_grad].bind(s[Weight_grad].op.reduce_axis[0], thread_y)
+        s[BF].compute_at(s[Weight_grad], s[Weight_grad].op.reduce_axis[0])
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
