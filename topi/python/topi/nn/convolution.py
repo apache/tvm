@@ -65,7 +65,7 @@ def convolution(data, kernel, stride, padding, layout='NCHW'):
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    # search platform specified declaration first
+    # search platform specific declaration first
     target = _target.current_target()
     if target in _CONV_DECLARATION:
         return _CONV_DECLARATION[target](data, kernel, stride, padding, layout)
@@ -124,17 +124,17 @@ def _conv2d_spatial(data, kernel, stride, padding):
 
     TH = H + 2*HPAD
     TW = W + 2*WPAD
-    OH = (H + 2*HPAD - KH) / HSTR + 1
-    OW = (W + 2*WPAD - KW) / WSTR + 1
+    OH = (H + 2*HPAD - KH) // HSTR + 1
+    OW = (W + 2*WPAD - KW) // WSTR + 1
 
     dshape = (1, CI, H, W)
     dpshape = (1, CI, TH, TW)
-    dvshape = (1, TH/(VH*HSTR), TW/(VW*WSTR), CI, VH*HSTR+HCAT, VW*WSTR+WCAT)
+    dvshape = (1, TH//(VH*HSTR), TW//(VW*WSTR), CI, VH*HSTR+HCAT, VW*WSTR+WCAT)
 
     kshape = (CO, CI, KH, KW)
     kvshape = (CO/VC, CI, KH, KW, VC)
 
-    ovshape = (1, CO/VC, OH/VH, OW/VW, VH, VW, VC)
+    ovshape = (1, CO // VC, OH // VH, OW // VW, VH, VW, VC)
     oshape = (1, CO, OH, OW)
 
     DOPAD = (HPAD != 0 and WPAD != 0)
@@ -164,7 +164,7 @@ def _conv2d_spatial(data, kernel, stride, padding):
                 axis=[ci, dh, dw]), name='conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w:
-                         conv[n][co/VC][h/VH][w/VW][h%VH][w%VW][co%VC],
+                         conv[n][co//VC][h/VH][w//VW][h%VH][w%VW][co%VC],
                          name='output_unpack', tag='spatial_conv_output')
 
     return output
@@ -183,8 +183,8 @@ def _conv2d_im2col(data, kernel, stride, padding):
     HPAD, WPAD = wkl.hpad, wkl.hpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
 
-    OH = (H + 2*HPAD - KH) / HSTR + 1
-    OW = (W + 2*WPAD - KW) / WSTR + 1
+    OH = (H + 2*HPAD - KH) // HSTR + 1
+    OW = (W + 2*WPAD - KW) // WSTR + 1
 
     P = sch.vp
     Q = sch.vq
@@ -193,12 +193,12 @@ def _conv2d_im2col(data, kernel, stride, padding):
     dshape = (N, CI, H, W)
     dpshape = (N, CI, H+2*HPAD, W+2*WPAD)
     dcshape = (N, OH, OW, CI, KH, KW)
-    dvshape = (N, OH * OW / P, CI, KH, KW, P)
+    dvshape = (N, OH * OW // P, CI, KH, KW, P)
 
     kshape = (CO, CI, KH, KW)
-    kvshape = (CO / Q, CI, KH, KW, Q)
+    kvshape = (CO // Q, CI, KH, KW, Q)
 
-    ovshape = (N, CO/Q, OH * OW / P, P, Q)
+    ovshape = (N, CO // Q, OH * OW // P, P, Q)
     oshape = (N, CO, OH, OW)
 
     ############### declaration
@@ -218,7 +218,7 @@ def _conv2d_im2col(data, kernel, stride, padding):
         data_pad[n][ci][oh*HSTR+hk][ow*WSTR+wk], name='data_col')
 
     data_vec = tvm.compute(dvshape, lambda n, im, ci, hk, wk, vim: \
-        data_col[n][(im*P+vim)/OW][(im*P+vim)%OW][ci][hk][wk], name='data_vec')
+        data_col[n][(im*P+vim)//OW][(im*P+vim)%OW][ci][hk][wk], name='data_vec')
 
 
     kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, vc: \
@@ -233,7 +233,7 @@ def _conv2d_im2col(data, kernel, stride, padding):
                 axis=[ci, hk, wk]), name='conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w: \
-                         conv[n][co/Q][(h*OW+w)/P][(h*OW+w)%P][co%Q],
+                         conv[n][co//Q][(h*OW+w)//P][(h*OW+w)%P][co%Q],
                          name='output_vec', tag='im2col_conv_output')
 
     return output
