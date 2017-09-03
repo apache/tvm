@@ -19,7 +19,7 @@ def test_double_buffer():
             C[j] = B[j] + 1
 
     stmt = ib.get()
-    stmt = tvm.ir_pass.InjectDoubleBuffer(stmt, True)
+    stmt = tvm.ir_pass.InjectDoubleBuffer(stmt, 2)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert isinstance(stmt.body.body, tvm.stmt.Allocate)
     assert stmt.body.body.extents[0].value == 2
@@ -30,7 +30,7 @@ def test_double_buffer():
         if isinstance(op, tvm.expr.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
     tvm.ir_pass.PostOrderVisit(f.body, count_sync)
-    assert count[0] == 2
+    assert count[0] == 4
 
 
 if __name__ == "__main__":

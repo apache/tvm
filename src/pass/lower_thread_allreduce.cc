@@ -261,6 +261,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     if (in_warp_seq.size() != 0) {
       Stmt warp_body = MergeSeq(in_warp_seq);
       seq.emplace_back(IfThenElse::make(in_warp_cond, warp_body));
+      seq.emplace_back(SyncThread("shared"));
     }
     return MergeSeq(seq);
   }
