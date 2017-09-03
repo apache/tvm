@@ -55,10 +55,7 @@ typedef int64_t tvm_index_t;
 
 /*! \brief Extension device types in TVM */
 typedef enum {
-  /*! \brief Metal buffer. */
-  kMetal = 8,
-  /*! \brief Simulated on board RAM */
-  kVPI = 9,
+  // AddExtraTVMType which is not in DLPack here
 } TVMDeviceExtType;
 
 /*!

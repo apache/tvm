@@ -589,4 +589,13 @@ class Stage(NodeBase):
         """
         _api_internal._StageStorageAlign(self, axis, factor, offset)
 
+    def double_buffer(self):
+        """Compute the current stage via double buffering.
+
+        This can only be applied to intermediate stage.
+        This will double the storage cost of the current stage.
+        Can be useful to hide load latency.
+        """
+        _api_internal._StageDoubleBuffer(self)
+
 _init_api("tvm.schedule")
