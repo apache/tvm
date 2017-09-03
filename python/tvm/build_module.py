@@ -33,7 +33,7 @@ class BuildConfig(object):
         "offset_factor": 0,
         "data_alignment": -1,
         "restricted_func": True,
-        "double_buffer_split_loop": True,
+        "double_buffer_split_loop": 1,
         "add_lower_pass": None
     }
     def __init__(self, **kwargs):
@@ -99,9 +99,10 @@ def build_config(**kwargs):
         not to overlap. This enables more optimization.
         Corresponds to restricted keyword in C99
 
-    double_buffer_split_loop: bool, default=True
-        Whether split the loop containing double buffer so
-        that the buffer fetching won't contain condition.
+    double_buffer_split_loop: int, default=2
+        Whether split the loop with factor. If it is zero, no splitting will happen.
+        It it is bigger than one, the logic will do a split with factor equals the integer
+        and unroll the inner loop. This allows the buffer fetching won't contain condition.
 
     add_lower_pass: list of tuiple (phase, function(Stmt->Stmt)), default=None
         phase contains an integer on which optimization pass we apply the pass.
