@@ -234,10 +234,10 @@ Stmt InjectPrefetch(Stmt stmt);
 /*!
  * \brief Inject double buffer into stmt.
  * \param stmt The statment to be transformed.
- * \param split_loop Whether split the loop containing double buffering.
+ * \param split_loop Loop splitting factor.
  * \return Transformed stmt.
  */
-Stmt InjectDoubleBuffer(Stmt stmt, bool split_loop);
+Stmt InjectDoubleBuffer(Stmt stmt, int split_loop);
 
 /*!
  * \brief Rewrite storage allocation pattern.
