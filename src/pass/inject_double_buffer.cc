@@ -123,7 +123,7 @@ class DoubleBufferInjector : public IRMutator {
         Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.type());
         std::unordered_map<const Variable*, Expr> vmap;
         std::vector<Stmt> loop_seq;
-        for (size_t i = 0; i < split_loop_; ++i) {
+        for (int32_t i = 0; i < split_loop_; ++i) {
           vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.type(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
@@ -133,7 +133,7 @@ class DoubleBufferInjector : public IRMutator {
         // tail
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite().Mutate(old_loop->body);
-        for (size_t i = 0; i < split_loop_; ++i) {
+        for (int32_t i = 0; i < split_loop_; ++i) {
           Expr idx = tail_base + make_const(tail_base.type(), i);
           vmap[old_loop->loop_var.get()] = idx;
           tail_seq.emplace_back(
@@ -238,7 +238,7 @@ class DoubleBufferInjector : public IRMutator {
     std::string scope;
   };
   // Whether split loop
-  int split_loop_;
+  int32_t split_loop_;
   // Whether we are inside double buffer scope.
   bool in_double_buffer_scope_{false};
   // The current loop next
