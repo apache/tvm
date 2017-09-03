@@ -140,6 +140,8 @@ class BuiltinLower : public IRMutator {
       return MakeShape(op, e);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_array)) {
       return MakeArray(op, e);
+    } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
+      return make_zero(op->type);
     } else {
       return IRMutator::Mutate_(op, e);
     }
