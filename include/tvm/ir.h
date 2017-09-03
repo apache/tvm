@@ -257,6 +257,11 @@ constexpr const char* tvm_if_then_else = "tvm_if_then_else";
  */
 constexpr const char* tvm_access_ptr = "tvm_access_ptr";
 /*!
+ * \brief Return a unique context id, used for hint of workspace separation.
+ *  Different context id ganrantees not having overlapping workspace.
+ */
+constexpr const char* tvm_context_id = "tvm_context_id";
+/*!
  * \brief tvm_tuple is not an actual function and cannot codegen.
  *  It is used to represent tuple structure in value field of AttrStmt,
  *  for the sake of giving hint to optimization.

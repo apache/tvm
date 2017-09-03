@@ -69,7 +69,7 @@ class DoubleBufferInjector : public IRMutator {
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
-      it->second.size = arith::ComputeReduce<Mul>(op->extents);
+      it->second.stride = arith::ComputeReduce<Mul>(op->extents) * op->type.lanes();
       Stmt stmt = IRMutator::Mutate_(op, s);
       op = stmt.as<Allocate>();
       Array<Expr> new_extents{make_const(op->extents[0].type(), 2)};
@@ -126,10 +126,10 @@ class DoubleBufferInjector : public IRMutator {
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       CHECK(in_double_buffer_scope_);
-      CHECK(e.size.defined());
+      CHECK(e.stride.defined());
       return Store::make(op->buffer_var,
                          op->value,
-                         e.switch_write_var * e.size + op->index,
+                         e.switch_write_var * e.stride + op->index,
                          op->predicate);
     } else {
       return stmt;
@@ -142,11 +142,11 @@ class DoubleBufferInjector : public IRMutator {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      CHECK(e.size.defined());
+      CHECK(e.stride.defined());
       CHECK(e.switch_read_var.defined());
       return Load::make(op->type,
                         op->buffer_var,
-                        e.switch_read_var * e.size + op->index,
+                        e.switch_read_var * e.stride + op->index,
                         op->predicate);
     } else {
       return expr;
@@ -194,7 +194,7 @@ class DoubleBufferInjector : public IRMutator {
   // Storage entry for those who need double buffering.
   struct StorageEntry {
     // The size of the buffer
-    Expr size;
+    Expr stride;
     // The loop we need
     const For* loop{nullptr};
     // The switch variable.

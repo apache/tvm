@@ -130,22 +130,29 @@ class VTInjector : public IRMutator {
   // constructor
   VTInjector(Var var,
              int num_threads,
-             std::unordered_set<const Variable*> touched_var)
-      : var_(var), num_threads_(num_threads), touched_var_(touched_var) {
+             const std::unordered_set<const Variable*>& touched_var,
+             bool allow_share)
+      : var_(var), num_threads_(num_threads),
+        touched_var_(touched_var), allow_share_(allow_share) {
   }
   // Inject VTLoop when needed.
   Stmt Mutate(Stmt stmt) final {
     CHECK(!visit_touched_var_)
         << stmt->type_key() << stmt;
     stmt = IRMutator::Mutate(stmt);
-    if (visit_touched_var_) {
-      if (!vt_loop_injected_) return InjectVTLoop(stmt, false);
+    if (visit_touched_var_ || trigger_base_inject_) {
+      if (!vt_loop_injected_)  {
+        return InjectVTLoop(stmt, false);
+      }
       visit_touched_var_ = false;
+      trigger_base_inject_ = false;
     }
     return stmt;
   }
   // Variable
   Expr Mutate_(const Variable *op, const Expr& e) final {
+    CHECK(!alloc_remap_.count(op))
+        << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
@@ -161,14 +168,42 @@ class VTInjector : public IRMutator {
     if (touched_var_.count(op->buffer_var.get())) {
       visit_touched_var_ = true;
     }
-    auto it = touched_alloc_.find(op->buffer_var.get());
-    if (it != touched_alloc_.end()) {
+    auto it = alloc_remap_.find(op->buffer_var.get());
+    if (it != alloc_remap_.end()) {
       return Load::make(op->type, op->buffer_var,
                         RewriteIndex(op->index, it->second),
                         op->predicate);
     } else {
       return expr;
     }
+  }
+  // Expression.
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      CHECK_EQ(op->args.size(), 5U);
+      Type dtype = op->args[0].type();
+      const Variable* buffer = op->args[1].as<Variable>();
+      auto it = alloc_remap_.find(buffer);
+      if (it == alloc_remap_.end()) return IRMutator::Mutate_(op, e);
+      visit_touched_var_ = true;
+      Expr offset = Mutate(op->args[2]);
+      Expr extent = Mutate(op->args[3]);
+      Expr stride = arith::ComputeExpr<Div>(
+          it->second, make_const(offset.type(), dtype.lanes()));
+      offset = stride * var_ + offset;
+      return Call::make(
+          op->type, op->name,
+          {op->args[0], op->args[1], offset, extent, op->args[4]},
+          op->call_type);
+    } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
+      return allow_share_ ? e : var_;
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+  Stmt Mutate_(const Evaluate* op, const Stmt& s) final {
+    trigger_base_inject_ = !allow_share_;
+    return IRMutator::Mutate_(op, s);
   }
   // Store
   Stmt Mutate_(const Store* op, const Stmt& s) final {
@@ -177,8 +212,9 @@ class VTInjector : public IRMutator {
     if (touched_var_.count(op->buffer_var.get())) {
       visit_touched_var_ = true;
     }
-    auto it = touched_alloc_.find(op->buffer_var.get());
-    if (it != touched_alloc_.end()) {
+    trigger_base_inject_ = !allow_share_;
+    auto it = alloc_remap_.find(op->buffer_var.get());
+    if (it != alloc_remap_.end()) {
       return Store::make(op->buffer_var,
                          op->value,
                          RewriteIndex(op->index, it->second),
@@ -190,7 +226,10 @@ class VTInjector : public IRMutator {
   // Attribute
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     Expr value = Mutate(op->value);
-    if (visit_touched_var_) {
+    if (visit_touched_var_ && !vt_loop_injected_) {
+      return InjectVTLoop(s, true);
+    } else if (!allow_share_ && !vt_loop_injected_ &&
+               op->attr_key == attr::coproc_uop_scope) {
       return InjectVTLoop(s, true);
     } else {
       Stmt body = Mutate(op->body);
@@ -299,24 +338,19 @@ class VTInjector : public IRMutator {
     visit_touched_var_ = false;
 
     Stmt body;
-    if (touched_var_.count(op->buffer_var.get())) {
+    // always rewrite if not allow sharing.
+    if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      Expr stride = extents[0];
-      for (size_t i = 1; i < extents.size(); ++i) {
-        stride = arith::ComputeExpr<Mul>(stride, extents[i]);
-      }
-      if (op->type.lanes() != 0) {
-        stride = stride * op->type.lanes();
-      }
+      Expr stride = arith::ComputeReduce<Mul>(op->extents) * op->type.lanes();
       Array<Expr> other;
-      other.push_back(num_threads_);
+      other.push_back(make_const(op->extents[0].type(), num_threads_));
       for (Expr e : extents) {
         other.push_back(e);
       }
       extents = other;
       changed = true;
       // mark this buffer get touched.
-      touched_alloc_[op->buffer_var.get()] = stride;
+      alloc_remap_[op->buffer_var.get()] = stride;
       // Mutate the body.
       body = Mutate(op->body);
     } else {
@@ -340,6 +374,7 @@ class VTInjector : public IRMutator {
     CHECK(!vt_loop_injected_);
     // reset the flags
     visit_touched_var_ = false;
+    trigger_base_inject_ = false;
     vt_loop_injected_ = true;
     if (before_mutation) {
       stmt = this->Mutate(stmt);
@@ -359,7 +394,8 @@ class VTInjector : public IRMutator {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->type);
       stmt = Substitute(stmt, {{var_, idx}});
-      return For::make(idx, 0, num_threads_,
+      return For::make(idx, make_zero(idx.type()),
+                       make_const(idx.type(), num_threads_),
                        ForType::Serial, DeviceAPI::None, stmt);
     }
   }
@@ -373,12 +409,16 @@ class VTInjector : public IRMutator {
   bool vt_loop_injected_{false};
   // whether current expression get touched.
   bool visit_touched_var_{false};
+  // Trigger base stmt
+  bool trigger_base_inject_{false};
   // the counter of loops in after mutation.
   int max_loop_depth_{0};
   // The variables that get touched.
-  std::unordered_set<const Variable*> touched_var_;
+  const std::unordered_set<const Variable*>& touched_var_;
+  // Whether allow shareding.
+  bool allow_share_;
   // The allocations that get touched -> extent
-  std::unordered_map<const Variable*, Expr> touched_alloc_;
+  std::unordered_map<const Variable*, Expr> alloc_remap_;
 };
 
 
@@ -389,10 +429,11 @@ class VirtualThreadInjector : public IRMutator {
     op = stmt.as<AttrStmt>();
     if (op->attr_key == attr::virtual_thread) {
       IterVar iv(op->node.node_);
+      bool allow_share = iv->thread_tag == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImm>()->value);
       VarTouchedAnalysis vs;
       auto touched = vs.TouchedVar(op->body, iv->var.get());
-      VTInjector injecter(iv->var, nthread, touched);
+      VTInjector injecter(iv->var, nthread, touched, allow_share);
       return injecter.Mutate(op->body);
     } else {
       return stmt;
