@@ -26,7 +26,7 @@ UNAME_S := $(shell uname -s)
 LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
 LDFLAGS = -pthread -lm -ldl
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
-CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
+CFLAGS = -std=c++11 -g -DDEBUG -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
 EMCC_FLAGS= -s RESERVED_FUNCTION_POINTERS=2 -s NO_EXIT_RUNTIME=1 -s MAIN_MODULE=1 -DDMLC_LOG_STACK_TRACE=0\
