@@ -93,8 +93,8 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nhwc(4, 256, 32, 2, 5, 2, 2)
     depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, 0)
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, 0)
-    depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, 0)
-    depthwise_conv2d_with_workload_nhwc(4, 256, 32, 2, 5, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(4, 256, 65, 2, 5, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(4, 256, 33, 2, 5, 2, 0)
 
 if __name__ == "__main__":
     test_depthwise_conv2d()
