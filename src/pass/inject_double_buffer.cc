@@ -34,9 +34,21 @@ class DoubleBufferDetector : public IRVisitor {
   std::unordered_set<const Variable*> touched_;
 };
 
+
+class StripDoubleBufferWrite : public IRMutator {
+ public:
+  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+    if (op->attr_key == attr::double_buffer_write) {
+      return Mutate(op->body);
+    } else {
+      return IRMutator::Mutate_(op, s);
+    }
+  }
+};
+
 class DoubleBufferInjector : public IRMutator {
  public:
-  explicit DoubleBufferInjector(bool split_loop)
+  explicit DoubleBufferInjector(int split_loop)
       : split_loop_(split_loop) {}
 
   Stmt Inject(const Stmt& stmt) {
@@ -97,17 +109,38 @@ class DoubleBufferInjector : public IRMutator {
     auto it = loop_pre_.find(op);
     if (it != loop_pre_.end()) {
       const For* old_loop = stmt.as<For>();
-      if (split_loop_) {
+      if (split_loop_ != 0) {
+        // Explicitly unroll the loop
+        CHECK(split_loop_ % 2 == 0 || split_loop_ == 1)
+            << "It is better to split with multiple of 2";
+        CHECK(is_zero(old_loop->min));
+        Expr zero = old_loop->min;
         Expr new_ext = arith::ComputeExpr<Sub>(
             old_loop->extent, make_const(old_loop->loop_var.type(), 1));
-        Stmt loop = For::make(
-            old_loop->loop_var, old_loop->min, new_ext,
-            old_loop->for_type, old_loop->device_api,
-            old_loop->body);
+        Expr factor = make_const(new_ext.type(), split_loop_);
+        Expr outer_ext = arith::ComputeExpr<Div>(new_ext, factor);
+        Expr tail_base = arith::ComputeExpr<Mul>(outer_ext, factor);
+        Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.type());
         std::unordered_map<const Variable*, Expr> vmap;
-        vmap[old_loop->loop_var.get()] = new_ext;
-        Stmt end = Substitute(old_loop->body, vmap);
-        stmt = Block::make(loop, end);
+        std::vector<Stmt> loop_seq;
+        for (size_t i = 0; i < split_loop_; ++i) {
+          vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.type(), i);
+          loop_seq.emplace_back(Substitute(old_loop->body, vmap));
+        }
+        Stmt loop = For::make(
+            outer_var, zero, outer_ext, old_loop->for_type, old_loop->device_api,
+            MergeSeq(loop_seq));
+        // tail
+        std::vector<Stmt> tail_seq;
+        Stmt tail_body = StripDoubleBufferWrite().Mutate(old_loop->body);
+        for (size_t i = 0; i < split_loop_; ++i) {
+          Expr idx = tail_base + make_const(tail_base.type(), i);
+          vmap[old_loop->loop_var.get()] = idx;
+          tail_seq.emplace_back(
+              IfThenElse::make(idx < old_loop->extent,
+                               Substitute(tail_body, vmap)));
+        }
+        stmt = Block::make(loop, MergeSeq(tail_seq));
       }
       stmt = Block::make(MergeSeq(it->second), stmt);
     }
@@ -205,7 +238,7 @@ class DoubleBufferInjector : public IRMutator {
     std::string scope;
   };
   // Whether split loop
-  bool split_loop_;
+  int split_loop_;
   // Whether we are inside double buffer scope.
   bool in_double_buffer_scope_{false};
   // The current loop next
@@ -219,7 +252,7 @@ class DoubleBufferInjector : public IRMutator {
 };
 
 
-Stmt InjectDoubleBuffer(Stmt stmt, bool split_loop) {
+Stmt InjectDoubleBuffer(Stmt stmt, int split_loop) {
   return DoubleBufferInjector(split_loop).Inject(stmt);
 }
 }  // namespace ir
