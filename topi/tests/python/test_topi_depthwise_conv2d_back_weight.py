@@ -35,19 +35,20 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     Weight_grad = topi.nn.depthwise_conv2d_back_weight_nhwc(Input, Out_grad, oshape, fshape, stride, padding)
 
     # schedule
-    schedule = schedule_depthwise_conv2d_back_weight_nhwc(Weight_grad)
+    # schedule = schedule_depthwise_conv2d_back_weight_nhwc(Weight_grad)
+    schedule = tvm.create_schedule(Weight_grad.op)
 
     out_backprop_np = np.random.uniform(size=(batch, out_height, out_width, out_channel)).astype(Out_grad.dtype)
     input_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(Input.dtype)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        ctx = tvm.context(device, 0)
+        # if not tvm.module.enabled(device):
+        #     print("Skip because %s is not enabled" % device)
+        #     return
+        ctx = tvm.cpu(0)
 
         # build the kernels
-        f = tvm.build(schedule, [Input, Out_grad, Weight_grad], device)
+        f = tvm.build(schedule, [Input, Out_grad, Weight_grad], 'llvm')
 
         # prepare data
         out_backprop_tvm = tvm.nd.array(out_backprop_np, ctx)
@@ -90,12 +91,12 @@ def test_depthwise_conv2d():
     print("testing nhwc")
     depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, 1)
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, 1)
-    depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 1, 2) # stride should be 2
-    depthwise_conv2d_with_workload_nhwc(4, 256, 32, 2, 5, 1, 2) # stride should be 2
+    depthwise_conv2d_with_workload_nhwc(4, 256, 65, 2, 5, 2, 2) # stride should be 2
+    depthwise_conv2d_with_workload_nhwc(4, 256, 33, 2, 5, 2, 2) # stride should be 2
     depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, 0)
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, 0)
-    depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, 0)
-    depthwise_conv2d_with_workload_nhwc(4, 256, 32, 2, 5, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(4, 256, 65, 2, 5, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(4, 256, 33, 2, 5, 2, 0)
 
 if __name__ == "__main__":
     test_depthwise_conv2d()
