@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
 from __future__ import absolute_import
-from ..util import simplify
+from ..util import get_const_int
 
 def infer_pad(data, data_pad):
     """Infer the padding from stages in reverse.
@@ -27,7 +27,7 @@ def infer_pad(data, data_pad):
     _, _, TH, TW = data_pad.shape
     hpad = (TH - IH) // 2
     wpad = (TW - IW) // 2
-    return simplify(hpad).value, simplify(wpad).value
+    return get_const_int(hpad), get_const_int(wpad)
 
 def infer_stride(data, kernel, out):
     """Infer the stride from stages in reverse.
@@ -55,7 +55,7 @@ def infer_stride(data, kernel, out):
     _, _, OH, OW = out.shape
     hstride = (IH - KH) // (OH - 1)
     wstride = (IW - KW) // (OW - 1)
-    return simplify(hstride).value, simplify(wstride).value
+    return get_const_int(hstride), get_const_int(wstride)
 
 
 def get_pad_tuple(padding, kernel):
