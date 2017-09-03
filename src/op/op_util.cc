@@ -106,7 +106,8 @@ MakeLoopNest(const Stage& stage,
                              it_attr->prefetch_offset[j], no_op));
         }
       }
-    } else if (bind_iv->thread_tag == "vthread") {
+    } else if (bind_iv->thread_tag == "vthread" ||
+               bind_iv->thread_tag == "cthread") {
       // virtual thread
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
