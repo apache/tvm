@@ -458,7 +458,7 @@ class Stage(NodeBase):
             Outer axis of y dimension
         x_inner : IterVar
             Inner axis of x dimension
-        p_y_inner : IterVar
+        y_inner : IterVar
             Inner axis of y dimension
         """
         x_outer, y_outer, x_inner, y_inner = _api_internal._StageTile(
