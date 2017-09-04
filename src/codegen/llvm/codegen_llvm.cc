@@ -1151,7 +1151,7 @@ void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
   // TODO(tqchen) move these pattern to a generic scope info visitor.
   if (const EQ* eq = op->condition.as<EQ>()) {
     const Mod* mod = eq->a.as<Mod>();
-    int64_t factor, offset;
+    int64_t factor = 0, offset = 0;
     if (mod && arith::GetConst(eq->b, &offset)) {
       const Variable *var = mod->a.as<Variable>();
       if (var && arith::GetConst(mod->b, &factor)) {
