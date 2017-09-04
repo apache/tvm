@@ -40,6 +40,24 @@ m = 235
 bias = tvm.var('bias', dtype=tvm.float32)
 A = tvm.placeholder((n, l), name='A')
 B = tvm.placeholder((l, m), name='B')
+ctx = tvm.cpu(0)
+C = cblas.matmul(A, B)
+#D = tvm.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+s = tvm.create_schedule(C.op)
+
+func = tvm.build(s,[A,B,C], name = 'pagerank')
+assert func
+evaluator = func.time_evaluator(func.entry_name,tvm.cpu(0),number = 1)
+N	= 100
+aa	= tvm.nd.array(np.random.randint(2,size=(n,l)).astype("float32"),tvm.cpu(0))
+bb	= tvm.nd.array(np.random.rand(l,m).astype("float32"),tvm.cpu(0))
+cc	= tvm.nd.array(np.random.rand(n,m).astype("float32"),tvm.cpu(0))
+evaluator(aa,bb,cc)
+
+
+
+
+"""
 C = tvm.extern((n, m), [A, B],
                lambda ins, outs: tvm.call_packed(
                    "tvm.contrib.cblas.matmul",
@@ -61,7 +79,7 @@ bb = 10.0
 f(a, b, d, bb)
 np.testing.assert_allclose(
     d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 10, rtol=1e-5)
-
+"""
 ######################################################################
 # Extern Contrib Wrappers
 # -----------------------
