@@ -3,6 +3,7 @@ import os
 import numpy as np
 import tvm
 import topi
+from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 
@@ -13,11 +14,21 @@ def verify_convolution(batch, in_size, in_channel, num_filter, kernel, stride, p
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
         B = topi.nn.convolution(A, W, stride, padding)
+
     s = topi.rasp.schedule_convolution([B])
 
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    w_np = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-    b_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
+    a_shape = get_const_tuple(A.shape)
+    w_shape = get_const_tuple(W.shape)
+    dtype = A.dtype
+
+    @memoize("topi.tests.test_topi_convolution.verify_convolution")
+    def get_ref_data():
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        w_np = np.random.uniform(size=w_shape).astype(dtype)
+        b_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
+        return a_np, w_np, b_np
+
+    a_np, w_np, b_np = get_ref_data()
 
     ctx = tvm.cpu(0)
     a = tvm.nd.array(a_np, ctx)

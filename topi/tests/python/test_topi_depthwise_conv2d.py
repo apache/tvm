@@ -3,7 +3,9 @@ import topi
 import numpy as np
 from scipy import signal
 from topi.util import get_const_tuple
+from tvm.contrib.pickle_memoize import memoize
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nchw, schedule_depthwise_conv2d_nhwc
+
 
 def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
     in_width = in_height
@@ -25,11 +27,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     s2 = schedule_depthwise_conv2d_nchw(ScaleShift)
     s3 = schedule_depthwise_conv2d_nchw(Relu)
 
-    input_np = np.random.uniform(size=get_const_tuple(Input.shape)).astype(Input.dtype)
-    filter_np = np.random.uniform(size=get_const_tuple(Filter.shape)).astype(Filter.dtype)
-    scale_np = np.random.uniform(size=get_const_tuple(Scale.shape)).astype(Scale.dtype)
-    shift_np = np.random.uniform(size=get_const_tuple(Shift.shape)).astype(Shift.dtype)
-
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
@@ -39,7 +36,35 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
         f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
-        # prepare data
+
+        # Prepare pod type for test data closure
+        dtype = Input.dtype
+        input_shape = get_const_tuple(Input.shape)
+        filter_shape = get_const_tuple(Filter.shape)
+        scale_shape = get_const_tuple(Scale.shape)
+        shift_shape = get_const_tuple(Shift.shape)
+        scale_shift_shape = get_const_tuple(ScaleShift.shape)
+
+        # Use memoize, pickle the test data for next time use.
+        @memoize("topi.tests.test_topi_depthwise_conv2d.nchw")
+        def get_ref_data():
+            input_np = np.random.uniform(size=input_shape).astype(dtype)
+            filter_np = np.random.uniform(size=filter_shape).astype(dtype)
+            scale_np = np.random.uniform(size=scale_shape).astype(dtype)
+            shift_np = np.random.uniform(size=shift_shape).astype(dtype)
+            # correctness with scipy
+            depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(
+                input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+            scale_shift_scipy = np.zeros(shape=scale_shift_shape)
+            for c in range(in_channel * channel_multiplier):
+                scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
+                relu_scipy = np.maximum(scale_shift_scipy, 0)
+            return (input_np, filter_np, scale_np, shift_np,
+                    depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy)
+        # Get the test data
+        (input_np, filter_np, scale_np, shift_np,
+         depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy) = get_ref_data()
+
         input_tvm = tvm.nd.array(input_np, ctx)
         filter_tvm = tvm.nd.array(filter_np, ctx)
         scale_tvm = tvm.nd.array(scale_np, ctx)
@@ -56,12 +81,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
         timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
         tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
-        # correctness with scipy
-        depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
-        scale_shift_scipy = np.zeros(shape=get_const_tuple(ScaleShift.shape))
-        for c in range(in_channel * channel_multiplier):
-            scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
-        relu_scipy = np.maximum(scale_shift_scipy, 0)
         np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
@@ -90,11 +109,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     s2 = schedule_depthwise_conv2d_nhwc(ScaleShift)
     s3 = schedule_depthwise_conv2d_nhwc(Relu)
 
-    input_np = np.random.uniform(size=get_const_tuple(Input.shape)).astype(Input.dtype)
-    filter_np = np.random.uniform(size=get_const_tuple(Filter.shape)).astype(Filter.dtype)
-    scale_np = np.random.uniform(size=get_const_tuple(Scale.shape)).astype(Scale.dtype)
-    shift_np = np.random.uniform(size=get_const_tuple(Shift.shape)).astype(Shift.dtype)
-
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
@@ -104,6 +118,35 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
         f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
+
+        # Prepare pod type for test data closure
+        dtype = Input.dtype
+        input_shape = get_const_tuple(Input.shape)
+        filter_shape = get_const_tuple(Filter.shape)
+        scale_shape = get_const_tuple(Scale.shape)
+        shift_shape = get_const_tuple(Shift.shape)
+        scale_shift_shape = get_const_tuple(ScaleShift.shape)
+
+        # Use memoize, pickle the test data for next time use.
+        @memoize("topi.tests.test_topi_depthwise_conv2d.nhwc")
+        def get_ref_data():
+            input_np = np.random.uniform(size=input_shape).astype(dtype)
+            filter_np = np.random.uniform(size=filter_shape).astype(dtype)
+            scale_np = np.random.uniform(size=scale_shape).astype(dtype)
+            shift_np = np.random.uniform(size=shift_shape).astype(dtype)
+            # correctness with scipy
+            depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nhwc(
+                input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+            scale_shift_scipy = np.zeros(shape=scale_shift_shape)
+            for c in range(in_channel * channel_multiplier):
+                scale_shift_scipy[:,:,:,c] = depthwise_conv2d_scipy[:,:,:,c] * scale_np[c] + shift_np[c]
+                relu_scipy = np.maximum(scale_shift_scipy, 0)
+            return (input_np, filter_np, scale_np, shift_np,
+                    depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy)
+        # Get the test data
+        (input_np, filter_np, scale_np, shift_np,
+         depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy) = get_ref_data()
+
         # prepare data
         input_tvm = tvm.nd.array(input_np, ctx)
         filter_tvm = tvm.nd.array(filter_np, ctx)
@@ -121,11 +164,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
         timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
         tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
-        # correctness with scipy
-        depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nhwc(input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
-        scale_shift_scipy = np.zeros(shape=get_const_tuple(ScaleShift.shape))
-        for c in range(in_channel * channel_multiplier):
-            scale_shift_scipy[:,:,:,c] = depthwise_conv2d_scipy[:,:,:,c] * scale_np[c] + shift_np[c]
         relu_scipy = np.maximum(scale_shift_scipy, 0)
         np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
