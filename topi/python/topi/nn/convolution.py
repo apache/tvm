@@ -251,9 +251,9 @@ def depthwise_conv2d_back_input_nhwc(Filter, Out_grad, oshape, ishape, stride, p
     pad_right = pad_w - pad_left
 
     if padding[0] == 0:
-        pad_top = in_h - Dilated_out_grad.shape[1].value
+        pad_top = filter_h - 1
         pad_bottom = 0
-        pad_left = in_w - Dilated_out_grad.shape[2].value
+        pad_left = filter_w - 1
         pad_right = 0
 
     Padded_out_grad = topi.nn.pad(Dilated_out_grad, \
