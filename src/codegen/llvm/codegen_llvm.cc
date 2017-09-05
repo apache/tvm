@@ -195,8 +195,7 @@ void CodeGenLLVM::Optimize() {
   target_machine_->adjustPassManager(builder);
 #endif
 
-  if(target_machine_->getTarget().getName() == std::string("amdgcn")) {
-
+  if (target_machine_->getTarget().getName() == std::string("amdgcn")) {
     llvm::legacy::FunctionPassManager amdgcnFPM(module_.get());
     llvm::legacy::PassManager amdgcnMPM;
     builder.populateFunctionPassManager(amdgcnFPM);
