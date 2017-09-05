@@ -253,7 +253,7 @@ def register_extension(cls):
 
     .. code-block:: python
 
-       @tvm.register_dltensor
+       @tvm.register_extension
        class MyTensor(object):
            def __init__(self):
                self.handle = _LIB.NewDLTensor()
