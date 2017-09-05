@@ -55,8 +55,8 @@ def memoize(key):
 
     Returns
     -------
-    fregister : function
-        Register function.
+    fmemoize : function
+        The decorator function to perform memoization.
     """
     def _register(f):
         """Registration function"""
