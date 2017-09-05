@@ -20,7 +20,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
  public:
   void AddFunction(const LoweredFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true, AMDGPU);
+    CodeGenLLVM::AddFunctionInternal(f, true);
     // annotate as kernel function
 /*
     module_->getOrInsertNamedMetadata("nvvm.annotations")

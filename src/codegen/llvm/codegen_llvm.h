@@ -23,13 +23,6 @@ namespace codegen {
 
 using namespace ir;
 
-/*!
- * \brief select codegen path for a device
- */
-enum CGDeviceType {
-  OTHERS = 0,
-  AMDGPU,
-};
 
 /*!
  * \brief A base class to generate a LLVM.
@@ -156,7 +149,7 @@ class CodeGenLLVM :
   virtual void Optimize();
   // Get the maximim storage align bits of buffer pointer given storage scope.
   virtual int NativeVectorBits(const runtime::StorageScope& storage_scope) const;
-  void AddFunctionInternal(const LoweredFunc& f, bool ret_void, CGDeviceType dev_type = OTHERS);
+  void AddFunctionInternal(const LoweredFunc& f, bool ret_void);
   // Create extern call
   llvm::CallInst* CreateCallExtern(llvm::Type* ret,
                                    const std::string& name,

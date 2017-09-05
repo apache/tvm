@@ -77,6 +77,9 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
                    << " for target " << target;
     }
   }
+  if (target == "amdgcn") {
+    LOG(WARNING)<< target;
+  }
 }
 
 void CodeGenLLVM::InitFuncState() {
@@ -90,7 +93,8 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
   AddFunctionInternal(f, false);
 }
 
-void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void, CGDeviceType dev_type) {
+void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
+  bool isTargetAMD = target_machine_->getTarget().getName() == std::string("amdgcn");
   this->InitFuncState();
   is_restricted_ = f->is_restricted;
   CHECK(!module_->getFunction(f->name))
@@ -100,7 +104,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void, CGDev
     Type t = arg.type();
     if (t.is_handle() && f->handle_data_type.count(arg)) {
       arg_type.push_back(
-          LLVMType(f->handle_data_type[arg].type())->getPointerTo(dev_type == AMDGPU ? 1 : 0));
+          LLVMType(f->handle_data_type[arg].type())->getPointerTo(isTargetAMD ? 1 : 0));
       if (!is_restricted_) {
         alias_var_set_.insert(arg.get());
       }
@@ -113,7 +117,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void, CGDev
       ret_void ? t_void_ : t_int_, arg_type, false);
   // setup the function.
   function_ = llvm::cast<llvm::Function>(module_->getOrInsertFunction(f->name, ftype));
-  function_->setCallingConv(dev_type == AMDGPU ?
+  function_->setCallingConv(isTargetAMD ?
     llvm::CallingConv::AMDGPU_KERNEL : llvm::CallingConv::C);
   // set handle argument to be non alias.
   if (is_restricted_) {
@@ -164,7 +168,9 @@ class MPassManager : public llvm::legacy::PassManager {
  public:
   // override add to allow messaging
   void add(llvm::Pass* p) final {
-    llvm::legacy::PassManager::add(p);
+    if (std::string(p->getPassName()) != "amdgcn") {
+      llvm::legacy::PassManager::add(p);
+    }
   }
 };
 
@@ -189,18 +195,34 @@ void CodeGenLLVM::Optimize() {
   target_machine_->adjustPassManager(builder);
 #endif
 
-  // pass manager
-  FPassManager fpass(module_.get());
-  MPassManager mpass;
-  builder.populateFunctionPassManager(fpass);
-  builder.populateModulePassManager(mpass);
+  if(target_machine_->getTarget().getName() == std::string("amdgcn")) {
 
-  fpass.doInitialization();
-  for (auto it = module_->begin(); it != module_->end(); ++it) {
-    fpass.run(*it);
+    llvm::legacy::FunctionPassManager amdgcnFPM(module_.get());
+    llvm::legacy::PassManager amdgcnMPM;
+    builder.populateFunctionPassManager(amdgcnFPM);
+    builder.populateModulePassManager(amdgcnMPM);
+
+    amdgcnFPM.doInitialization();
+    for (auto it = module_->begin(); it != module_->end(); ++it) {
+      amdgcnFPM.run(*it);
+    }
+    amdgcnFPM.doFinalization();
+    amdgcnMPM.run(*module_);
+
+  } else {
+    // pass manager
+    FPassManager fpass(module_.get());
+    MPassManager mpass;
+    builder.populateFunctionPassManager(fpass);
+    builder.populateModulePassManager(mpass);
+
+    fpass.doInitialization();
+    for (auto it = module_->begin(); it != module_->end(); ++it) {
+      fpass.run(*it);
+    }
+    fpass.doFinalization();
+    mpass.run(*module_);
   }
-  fpass.doFinalization();
-  mpass.run(*module_);
 }
 
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
@@ -1057,6 +1079,13 @@ void CodeGenLLVM::VisitStmt_(const For* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const IfThenElse* op) {
+  LOG(WARNING) << "VisitStmt_ IfThenElse";
+  llvm::SmallString<8> ll;
+  llvm::raw_svector_ostream dest(ll);
+  dest.SetUnbuffered();
+  module_->print(dest, nullptr);
+  std::string str(ll.begin(), ll.end());
+//  LOG(WARNING) << str;
   using llvm::BasicBlock;
   BasicBlock* then_block = BasicBlock::Create(
       *ctx_, "if_then", function_);
