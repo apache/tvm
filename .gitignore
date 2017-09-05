@@ -127,7 +127,7 @@ jvm/*/*/target/
 *.perspectivev3
 !default.perspectivev3
 xcuserdata/
-.pkl_memoize_cache
+.pkl_memoize_*
 
 .emscripten*
 .m2

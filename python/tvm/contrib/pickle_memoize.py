@@ -1,7 +1,7 @@
 """Memoize result of function via pickle, used for cache testcases."""
 # pylint: disable=broad-except,superfluous-parens
 import os
-
+import sys
 import atexit
 from decorator import decorate
 from .._ffi.base import string_types
@@ -20,9 +20,10 @@ class Cache(object):
     """
     cache_by_key = {}
     def __init__(self, key):
-        if not os.path.exists(".pkl_memoize_cache"):
-            os.mkdir(".pkl_memoize_cache")
-        self.path = os.path.join(".pkl_memoize_cache", key)
+        cache_dir = ".pkl_memoize_py{0}".format(sys.version_info[0])
+        if not os.path.exists(cache_dir):
+            os.mkdir(cache_dir)
+        self.path = os.path.join(cache_dir, key)
         if os.path.exists(self.path):
             try:
                 self.cache = pickle.load(open(self.path, "rb"))
