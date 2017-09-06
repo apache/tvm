@@ -55,6 +55,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 
 def test_conv2d_nchw():
+    verify_conv2d_nchw(1, 3, 224, 64, 7, 3, 2)
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
     verify_conv2d_nchw(1, 64, 56, 64, 1, 1, 0)
     verify_conv2d_nchw(1, 64, 56, 128, 3, 2, 1)
