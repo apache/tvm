@@ -77,9 +77,6 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
                    << " for target " << target;
     }
   }
-  if (target == "amdgcn") {
-    LOG(WARNING)<< target;
-  }
 }
 
 void CodeGenLLVM::InitFuncState() {
@@ -168,9 +165,7 @@ class MPassManager : public llvm::legacy::PassManager {
  public:
   // override add to allow messaging
   void add(llvm::Pass* p) final {
-    if (std::string(p->getPassName()) != "amdgcn") {
-      llvm::legacy::PassManager::add(p);
-    }
+    llvm::legacy::PassManager::add(p);
   }
 };
 
@@ -195,33 +190,18 @@ void CodeGenLLVM::Optimize() {
   target_machine_->adjustPassManager(builder);
 #endif
 
-  if (target_machine_->getTarget().getName() == std::string("amdgcn")) {
-    llvm::legacy::FunctionPassManager amdgcnFPM(module_.get());
-    llvm::legacy::PassManager amdgcnMPM;
-    builder.populateFunctionPassManager(amdgcnFPM);
-    builder.populateModulePassManager(amdgcnMPM);
+  // pass manager
+  FPassManager fpass(module_.get());
+  MPassManager mpass;
+  builder.populateFunctionPassManager(fpass);
+  builder.populateModulePassManager(mpass);
 
-    amdgcnFPM.doInitialization();
-    for (auto it = module_->begin(); it != module_->end(); ++it) {
-      amdgcnFPM.run(*it);
-    }
-    amdgcnFPM.doFinalization();
-    amdgcnMPM.run(*module_);
-
-  } else {
-    // pass manager
-    FPassManager fpass(module_.get());
-    MPassManager mpass;
-    builder.populateFunctionPassManager(fpass);
-    builder.populateModulePassManager(mpass);
-
-    fpass.doInitialization();
-    for (auto it = module_->begin(); it != module_->end(); ++it) {
-      fpass.run(*it);
-    }
-    fpass.doFinalization();
-    mpass.run(*module_);
+  fpass.doInitialization();
+  for (auto it = module_->begin(); it != module_->end(); ++it) {
+    fpass.run(*it);
   }
+  fpass.doFinalization();
+  mpass.run(*module_);
 }
 
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
@@ -1078,13 +1058,6 @@ void CodeGenLLVM::VisitStmt_(const For* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const IfThenElse* op) {
-  LOG(WARNING) << "VisitStmt_ IfThenElse";
-  llvm::SmallString<8> ll;
-  llvm::raw_svector_ostream dest(ll);
-  dest.SetUnbuffered();
-  module_->print(dest, nullptr);
-  std::string str(ll.begin(), ll.end());
-//  LOG(WARNING) << str;
   using llvm::BasicBlock;
   BasicBlock* then_block = BasicBlock::Create(
       *ctx_, "if_then", function_);

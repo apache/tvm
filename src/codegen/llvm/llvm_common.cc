@@ -112,7 +112,6 @@ GetLLVMTargetMachine(const std::string& target_str,
   } else {
     opt.FloatABIType = llvm::FloatABI::Hard;
   }
-  LOG(WARNING) << "CPU: " << cpu;
   llvm::TargetMachine* tm = target->createTargetMachine(
       target_triple, cpu, attr, opt, llvm::Reloc::PIC_);
   return tm;
