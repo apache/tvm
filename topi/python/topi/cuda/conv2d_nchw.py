@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, trailing-whitespace, too-many-arguments
+#pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, too-many-arguments
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
 from .. import util
@@ -109,7 +109,7 @@ def conv2d_56_64_128(s, temp_S, Filter_S, Out, Out_L, flag):
     _, ioc = s[Filter_S].split(oc, factor=sfactor)
     _, ii = s[Filter_S].split(i, factor=spart)
     s[Filter_S].bind(ioc, thread_x)
-    s[Filter_S].bind(ii, thread_y) 
+    s[Filter_S].bind(ii, thread_y)
 
 def conv2d_14_256_256(s, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
