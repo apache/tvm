@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, trailing-whitespace
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
 from .. import util
@@ -34,13 +34,15 @@ def schedule_conv2d_small_batch(outs):
             s[Output].set_scope("local")
             Out_L = Output
 
-        if util.get_const_int(Filter.shape[3])==7:
+        flag = util.get_const_int(Filter.shape[0])+util.get_const_int(Filter.shape[1])
+
+        if util.get_const_int(Filter.shape[3]) == 7:
             # sheduler params
-            ofactor=16
-            hfactor=2
+            ofactor = 16
+            hfactor = 2
             ow_size = util.get_const_int(Output.shape[3])
             num_thread = ow_size*hfactor
-            vthread=hfactor
+            vthread = hfactor
             block_x = tvm.thread_axis("blockIdx.x")
             thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
             thread_xz = tvm.thread_axis((0, vthread), "vthread", name="vx")
@@ -76,7 +78,7 @@ def schedule_conv2d_small_batch(outs):
             w = s[Filter_S].fuse(fuse_index, oc)
             tx, ii = s[Filter_S].split(w, nparts=num_thread)
             s[Filter_S].bind(tx, thread_x)
-        elif util.get_const_int(Filter.shape[0])+util.get_const_int(Filter.shape[1]) >128 and util.get_const_int(Filter.shape[0])+util.get_const_int(Filter.shape[1]) < 512:
+        elif 128 < flag < 512:
             # sheduler params
             num_thread = 8
             vthread = 2
@@ -84,8 +86,8 @@ def schedule_conv2d_small_batch(outs):
             ofactor = 64
             wfactor = 28
             ifactor = 8
-            if util.get_const_int(Filter.shape[0])+util.get_const_int(Filter.shape[1]) >256:
-                wfactor=14
+            if flag > 256:
+                wfactor = 14
             sfactor = max(1, ofactor//(opart2*2))
             spart = max(1, (wfactor + vthread-1) // vthread)
             block_x = tvm.thread_axis("blockIdx.x")
@@ -137,9 +139,8 @@ def schedule_conv2d_small_batch(outs):
             _, ioc = s[Filter_S].split(oc, factor=sfactor)
             _, ii = s[Filter_S].split(i, factor=spart)
             s[Filter_S].bind(ioc, thread_x)
-            s[Filter_S].bind(ii, thread_y)
-        
-        elif util.get_const_int(Filter.shape[0])+util.get_const_int(Filter.shape[1]) >= 512:
+            s[Filter_S].bind(ii, thread_y) 
+        elif flag >= 512:
             # sheduler params
             vthread_x = util.get_const_int(Output.shape[3])
             num_thread_x = 64
@@ -172,7 +173,6 @@ def schedule_conv2d_small_batch(outs):
             ic = s[temp_S].fuse(w, ic)
             _, iic = s[temp_S].split(ic, factor=num_thread_x)
             s[temp_S].bind(iic, thread_x)
-#            s[temp_S].storage_align(w, factor=3, offset=1)
 
             #schedule Filter_S shared mem load
             i, oc, h, w = s[Filter_S].op.axis
@@ -186,12 +186,12 @@ def schedule_conv2d_small_batch(outs):
             ofactor = 64
             wfactor = 56
             ifactor = 8
-            if util.get_const_int(Filter.shape[0])==64:
-                opart2=8
-                ifactor=16
+            if util.get_const_int(Filter.shape[0]) == 64:
+                opart2 = 8
+                ifactor = 16
             sfactor = max(1, ofactor//(opart2*2))
             spart = max(1, (wfactor + vthread-1) // vthread)
-            
+ 
             block_x = tvm.thread_axis("blockIdx.x")
             block_y = tvm.thread_axis("blockIdx.y")
             block_z = tvm.thread_axis("blockIdx.z")
