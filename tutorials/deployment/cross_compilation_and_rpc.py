@@ -87,15 +87,15 @@ from tvm.contrib import rpc, util
 #
 #   .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
+#     python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
 #
 # After executing command above, if you see these lines below, it's
 # successful to start RPC server on your device.
 #
 #    .. code-block:: bash
 #
-#    Loading runtime library /home/YOURNAME/code/tvm/lib/libtvm_runtime.so... exec only
-#    INFO:root:RPCServer: bind to 0.0.0.0:9090
+#      Loading runtime library /home/YOURNAME/code/tvm/lib/libtvm_runtime.so... exec only
+#      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
 # In the following code block, we simply start an RPC server on the
 # same machine, for demonstration. This line can be omitted if we
