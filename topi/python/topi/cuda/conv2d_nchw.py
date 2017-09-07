@@ -111,11 +111,14 @@ def conv2d_56_64_128(s, temp_S, Filter_S, Out, Out_L, flag):
     s[Filter_S].bind(ioc, thread_x)
     s[Filter_S].bind(ii, thread_y)
 
-def conv2d_14_256_256(s, temp_S, Filter_S, Out, Out_L):
+def conv2d_14_256_256(s, Filter, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
     # sheduler params
     vthread_x = util.get_const_int(Out.shape[3])
     num_thread_x = 64
+    ofactor = 8
+    if util.get_const_int(Filter.shape[3]) == 1:
+        ofactor=64
     block_x = tvm.thread_axis("blockIdx.x")
     thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
     thread_xz = tvm.thread_axis((0, vthread_x), "vthread", name="vx")
@@ -133,7 +136,7 @@ def conv2d_14_256_256(s, temp_S, Filter_S, Out, Out_L):
     # schedule Out_L local write
     i, oc, h, w = s[Out_L].op.axis
     ic, dh, dw = s[Out_L].op.reduce_axis
-    oic, iic = s[Out_L].split(ic, factor=8)
+    oic, iic = s[Out_L].split(ic, ofactor)
     s[Out_L].reorder(oic, dh, dw, iic, h, w)
 
     s[temp_S].compute_at(s[Out_L], oic)
@@ -150,6 +153,7 @@ def conv2d_14_256_256(s, temp_S, Filter_S, Out, Out_L):
     i, oc, h, w = s[Filter_S].op.axis
     _, ii = s[Filter_S].split(i, factor=num_thread_x)
     s[Filter_S].bind(ii, thread_x)
+    s[Filter_S].storage_align(s[Filter_S].op.axis[0], 2, 1)
 
 def conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
@@ -255,7 +259,7 @@ def schedule_conv2d_small_batch(outs):
         elif 128 < flag < 512:
             conv2d_56_64_128(s, temp_S, Filter_S, Out, Out_L, flag)
         elif flag >= 512:
-            conv2d_14_256_256(s, temp_S, Filter_S, Out, Out_L)
+            conv2d_14_256_256(s, Filter, temp_S, Filter_S, Out, Out_L)
         else:
             conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L)
 
