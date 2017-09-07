@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file codegen_nvptx.cc
- * \brief NVPTX code generator.
+ * \file codegen_amdgpu.cc
+ * \brief AMDGPU code generator.
  */
 #ifdef TVM_LLVM_VERSION
 #if TVM_ROCM_RUNTIME
@@ -21,14 +21,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   void AddFunction(const LoweredFunc& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
-    // annotate as kernel function
-/*
-    module_->getOrInsertNamedMetadata("nvvm.annotations")
-        ->addOperand(llvm::MDNode::get(*ctx_, {
-              llvm::ValueAsMetadata::get(function_),
-              llvm::MDString::get(*ctx_, "kernel"),
-              llvm::ValueAsMetadata::get(ConstInt32(1)) }));
-*/
+    function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
   }
 
   void VisitStmt_(const Allocate* op) final {
@@ -124,6 +117,10 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     // Additional optimization hook to tweak the builder.
   }
 
+  unsigned GetGlobalAddressSpace() {
+    return 1;
+  }
+
  protected:
   void InitTarget(llvm::TargetMachine* tm) final {
     // Maximum vector lane = float4
@@ -159,6 +156,8 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
       pass, dest_hsaco, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
   pass.run(*module);
+
+  LOG(WARNING) << printdest_ll;
 
   std::string hsaco(data_hsaco.begin(), data_hsaco.end());
   std::string ll(data_ll.begin(), data_ll.end());

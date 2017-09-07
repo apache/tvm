@@ -91,7 +91,6 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
 }
 
 void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
-  bool isTargetAMD = target_machine_->getTarget().getName() == std::string("amdgcn");
   this->InitFuncState();
   is_restricted_ = f->is_restricted;
   CHECK(!module_->getFunction(f->name))
@@ -101,7 +100,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
     Type t = arg.type();
     if (t.is_handle() && f->handle_data_type.count(arg)) {
       arg_type.push_back(
-          LLVMType(f->handle_data_type[arg].type())->getPointerTo(isTargetAMD ? 1 : 0));
+          LLVMType(f->handle_data_type[arg].type())->getPointerTo(GetGlobalAddressSpace()));
       if (!is_restricted_) {
         alias_var_set_.insert(arg.get());
       }
@@ -114,8 +113,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
       ret_void ? t_void_ : t_int_, arg_type, false);
   // setup the function.
   function_ = llvm::cast<llvm::Function>(module_->getOrInsertFunction(f->name, ftype));
-  function_->setCallingConv(isTargetAMD ?
-    llvm::CallingConv::AMDGPU_KERNEL : llvm::CallingConv::C);
+  function_->setCallingConv(llvm::CallingConv::C);
   // set handle argument to be non alias.
   if (is_restricted_) {
     for (size_t i = 0; i < f->args.size(); ++i) {
@@ -555,6 +553,10 @@ llvm::Value* CodeGenLLVM::CreateStorageSync(const Call* op) {
 int CodeGenLLVM::NativeVectorBits(const runtime::StorageScope& storage_scope) const {
   // By default, we ask the buffer to be aligned to 64 bytes
   return native_vector_bits_;
+}
+
+unsigned CodeGenLLVM::GetGlobalAddressSpace() {
+  return 0;
 }
 
 void CodeGenLLVM::GetAlignment(
