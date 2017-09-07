@@ -188,7 +188,27 @@ def test_schedule_cache_relayout2():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+
+def test_schedule_cache_relayout3():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m*4, n), name='A')
+    B = tvm.placeholder((m*4, n), name='B')
+    k = tvm.reduce_axis((0, n), "k")
+    C = tvm.compute((A.shape[0],),
+                    lambda i: tvm.sum(A(i, k) * B(i, k), axis=k), name='C')
+    s = tvm.create_schedule(C.op)
+    x = C.op.axis[0]
+    xo, xi = s[C].split(x, factor=4)
+    CC = s.cache_write(C, "global")
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
 if __name__ == "__main__":
+    test_schedule_cache_relayout4()
+    test_schedule_cache_relayout3()
     test_schedule_cache_relayout2()
     test_schedule_cache_relayout1()
     test_schedule_const_bound()
