@@ -205,7 +205,6 @@ Module ROCMModuleCreate(
     std::string hip_source) {
   std::shared_ptr<ROCMModuleNode> n =
       std::make_shared<ROCMModuleNode>(data, fmt, fmap, hip_source);
-  LOG(WARNING) << hip_source;
   return Module(n);
 }
 

@@ -148,7 +148,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   llvm::raw_svector_ostream dest_hsaco(data_hsaco), dest_ll(data_ll);
   dest_hsaco.SetUnbuffered();
   dest_ll.SetUnbuffered();
-  module->print(dest_ll, nullptr);
+//  module->print(dest_ll, nullptr);
   std::string printdest_ll(data_ll.begin(), data_ll.end());
 
   llvm::legacy::PassManager pass;
@@ -157,24 +157,11 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
       pass, dest_hsaco, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 
-  auto FileName = "/tmp/output.o";
-  std::error_code EC;
-  llvm::raw_fd_ostream dest(FileName, EC, llvm::sys::fs::F_None);
-
-  llvm::legacy::PassManager p;
-  auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
-
-  if (tm->addPassesToEmitFile(p, dest, FileType)) {
-    LOG(FATAL) << "Couldn't dump to file";
-  }
-
-  p.run(*module);
-  dest.flush();
-
-
   pass.run(*module);
+  module->print(dest_ll, nullptr);
   std::string hsaco(data_hsaco.begin(), data_hsaco.end());
   std::string ll(data_ll.begin(), data_ll.end());
+  LOG(WARNING) << ll;
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
 
