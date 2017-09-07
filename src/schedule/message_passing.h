@@ -46,6 +46,20 @@ void PassUpIndex(const Stage& stage,
                  bool allow_missing = false);
 
 /*!
+ * \param Downward inference of index of each IterVar.
+ *  given index assignement of roots.
+ *
+ * \param stage The stage to operate on.
+ * \param dom_map The domain map of each iteration variable's domain.
+ * \param p_state The index state of each IterVar.
+ * \param allow_missing Whether allow missing value.
+ */
+void PassDownIndex(const Stage& stage,
+                   const Map<IterVar, Range>& dom_map,
+                   std::unordered_map<IterVar, Expr>* p_state,
+                   bool allow_missing = false);
+
+/*!
  * \param Upward inference of domain set of each IterVar.
  *  given domain assignment of the leaves,
  *
@@ -76,6 +90,24 @@ void PassUpBitMaskOr(const Stage& stage,
 void PassDownBitMaskOr(const Stage& stage,
                        std::unordered_map<IterVar, int>* p_state,
                        bool allow_missing = false);
+
+/*!
+ * \brief Create boundary check predicates given remapped value of root
+ * \param stage The stage we operate on
+ * \param dom_map The domain map of each value.
+ * \param value_map The value map of the root iter var.
+ * \param skip_ivar_domain Whether we skip check for IterVar's original domain.
+ * \param skip_iter The set of variables to skip bound condition.
+ * \return List of predicates that we need to check.
+ */
+std::vector<Expr>
+MakeBoundCheck(
+    const Stage& stage,
+    const Map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Expr>& value_map,
+    bool skip_ivar_domain,
+    const std::unordered_set<IterVar>& skip_iter);
+
 }  // namespace schedule
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_MESSAGE_PASSING_H_

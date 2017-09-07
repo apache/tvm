@@ -13,6 +13,7 @@
 #include <vector>
 #include "../pass/ir_util.h"
 #include "../pass/arg_binder.h"
+#include "../schedule/message_passing.h"
 
 namespace tvm {
 namespace op {
@@ -36,22 +37,6 @@ MakeLoopNest(const Stage& stage,
              bool new_loop_var,
              const std::unordered_set<IterVar>& skip_iter,
              std::unordered_map<IterVar, Expr>* p_value_map);
-/*!
- * \brief Create boundary check condition for given stage.
- *
- * \param stage The stage to create a loop nest.
- * \param dom_map The range of each iter var.
- * \param skip_ivar_domain Whether we can skip check for IterVar's original domain.
- * \param skip_iter Whether skip certain iteration.
- * \param value_map The result value of each IterVar.
- * \return List of predicates that we need to check.
- */
-std::vector<Expr>
-MakeBoundCheck(const Stage& stage,
-               const Map<IterVar, Range>& dom_map,
-               bool skip_ivar_domain,
-               const std::unordered_set<IterVar>& skip_iter,
-               const std::unordered_map<IterVar, Expr>& value_map);
 
 /*!
  * \brief Create a nest of if checking the predicates.

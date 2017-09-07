@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include "./message_passing.h"
 #include "../pass/ir_util.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
@@ -37,6 +38,22 @@ class VarReplacer : public ir::IRMutator {
  private:
   const std::unordered_map<const Variable*, Expr>& vsub_;
 };
+
+Expr InjectPredicate(const Array<Expr>& predicates,
+                     Expr body) {
+  using ir::Reduce;
+  using ir::Select;
+  if (predicates.size() == 0) return body;
+  const Reduce* reduce = body.as<Reduce>();
+  if (reduce) {
+    std::shared_ptr<Reduce> n = std::make_shared<Reduce>(*reduce);
+    n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates);
+    return Expr(n);
+  }
+  return Select::make(arith::ComputeReduce<ir::And>(predicates),
+                      body,
+                      make_zero(body.type()));
+}
 
 // Replace data flow appears in all stages given the tensor change.
 // Also update vmap if subsequent dataflow need to be replaced.
@@ -99,6 +116,109 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   return cache;
 }
 
+
+// Cache write and relayout the data according to loop pattern
+Tensor CacheWriteWithReLayout(Schedule sch,
+                              const Tensor& tensor,
+                              const std::string& scope) {
+  sch->InvalidateCache();
+  Stage orig_stage = sch[tensor->op];
+  const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
+
+  std::unordered_set<IterVar> red_axis;
+  for (IterVar iv : compute->reduce_axis) {
+    red_axis.insert(iv);
+  }
+  std::unordered_map<IterVar, Range> dom_map;
+  Array<IterVar> new_axis;
+
+  for (IterVar iv : compute->axis) {
+    dom_map[iv] = iv->dom;
+  }
+  schedule::PassDownDomain(orig_stage, &dom_map, true);
+  std::unordered_map<const Variable*, Expr> vsub;
+  std::unordered_map<const Variable*, Expr> vsub2newvar;
+  std::vector<Expr> predicates;
+  {
+    // The source->cache
+    std::unordered_map<IterVar, Expr> value_map;
+    for (IterVar iv : orig_stage->leaf_iter_vars) {
+      if (red_axis.count(iv)) continue;
+      CHECK_EQ(iv->iter_type, kDataPar)
+          << "Can only relayout with in data parallel dimensions";
+      Range dom = dom_map.at(iv);
+      IterVar new_iv = IterVarNode::make(
+          dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
+      new_axis.push_back(new_iv);
+      if (is_one(dom->min)) {
+        value_map[iv] = dom->min;
+      } else {
+        value_map[iv] = iv->var;
+        vsub2newvar[iv->var.get()] = new_iv->var;
+      }
+    }
+    // skip reduction iteration.
+    std::unordered_set<IterVar> skip_bound_check;
+    for (IterVar iv : compute->reduce_axis) {
+      skip_bound_check.insert(iv);
+    }
+    schedule::PassUpIndex(orig_stage, dom_map, &value_map, true);
+    predicates = schedule::MakeBoundCheck(
+        orig_stage, dom_map, value_map, true, skip_bound_check);
+    // The root axis
+    for (IterVar iv : compute->axis) {
+      vsub[iv->var.get()] = value_map.at(iv);
+    }
+  }
+  Expr body = VarReplacer(vsub).Mutate(compute->body[tensor->value_index]);
+  body = InjectPredicate(predicates, body);
+  body = VarReplacer(vsub2newvar).Mutate(body);
+  // The reader args
+  Array<Expr> args;
+  {
+    // cache->compute
+    std::unordered_map<IterVar, Expr> value_map;
+    for (IterVar iv : compute->axis) {
+      value_map[iv] = iv->var;
+    }
+    schedule::PassDownIndex(orig_stage, dom_map, &value_map, true);
+    for (IterVar iv : orig_stage->leaf_iter_vars) {
+      if (red_axis.count(iv)) continue;
+      args.push_back(value_map.at(iv));
+    }
+  }
+  Operation cache_op = ComputeOpNode::make(
+      compute->name + "." + scope, compute->tag, new_axis, {body});
+  Tensor cache_tensor = cache_op.output(0);
+  Operation orig_new_op = ComputeOpNode::make(
+      compute->name, compute->tag, compute->axis,
+      {cache_tensor(args)});
+  // The replace of the dataflow
+  std::unordered_map<Tensor, Tensor> vmap;
+  vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
+  ReplaceDataFlow(sch->stages, &vmap);
+  // mutate orig stage
+  orig_stage->op = orig_new_op;
+  orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
+  orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
+  orig_stage->relations = Array<IterVarRelation>();
+  // create schedule for new cached stage.
+  ArrayNode* stages = sch->stages.CopyOnWrite();
+  size_t pos = FindNodeRef(stages, orig_stage);
+  Stage cache_stage = Stage(cache_op);
+  cache_stage.set_scope(scope);
+  CHECK_LT(pos, stages->data.size());
+  stages->data.insert(stages->data.begin() + pos,
+                      cache_stage.node_);
+  sch->stage_map.Set(cache_op, cache_stage);
+  // Update group
+  cache_stage->group = orig_stage->group;
+  if (cache_stage->group.defined()) {
+    ++cache_stage->group->num_child_stages;
+  }
+  return cache_tensor;
+}
+
 Tensor Schedule::cache_write(const Tensor& tensor,
                              const std::string& scope) {
   (*this)->InvalidateCache();
@@ -106,51 +226,10 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
   CHECK(compute)
       << "cache write only take ComputeOp as writers";
-  CHECK_EQ(orig_stage->relations.size(), 0U)
-      << "Create cache_write before doing split/fuse/reorder";
-  compute = orig_stage->op.as<ComputeOpNode>();
-  CHECK(compute);
-  Array<Expr> args;
-  Array<IterVar> new_axis;
-  std::unordered_map<const Variable*, Expr> vsub;
-  for (IterVar iv : compute->axis) {
-    args.push_back(iv->var);
-    IterVar new_iv = IterVarNode::make(
-        iv->dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
-    new_axis.push_back(new_iv);
-    vsub[iv->var.get()] = new_iv->var;
-  }
-  VarReplacer repl(vsub);
-  Expr body = repl.Mutate(compute->body[tensor->value_index]);
-  Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, compute->tag, new_axis, {body});
-  Tensor cache_tensor = cache_op.output(0);
-  Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->tag, compute->axis,
-      {cache_tensor(args)});
+  CHECK_EQ(compute->num_outputs(), 1)
+      << "cache write only support single output ComputeOp";
 
-  std::unordered_map<Tensor, Tensor> vmap;
-  vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
-  ReplaceDataFlow((*this)->stages, &vmap);
-  // mutate orig stage
-  orig_stage->op = orig_new_op;
-  orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
-  orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
-  // create schedule for new cached stage.
-  ArrayNode* stages = (*this)->stages.CopyOnWrite();
-  size_t pos = FindNodeRef(stages, orig_stage);
-  Stage cache_stage = Stage(cache_op);
-  cache_stage.set_scope(scope);
-  CHECK_LT(pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + pos,
-                      cache_stage.node_);
-  (*this)->stage_map.Set(cache_op, cache_stage);
-  // Update group
-  cache_stage->group = orig_stage->group;
-  if (cache_stage->group.defined()) {
-    ++cache_stage->group->num_child_stages;
-  }
-  return cache_tensor;
+  return CacheWriteWithReLayout(*this, tensor, scope);
 }
 
 void RebaseNonZeroMinLoop(const Schedule& sch) {
@@ -295,16 +374,23 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   touch_map[axis] = 1;
   schedule::PassUpBitMaskOr(reduce_stage, &touch_map, true);
   schedule::PassDownBitMaskOr(reduce_stage, &touch_map, true);
+  // skip reduction iteration.
+  std::unordered_set<IterVar> skip_bound_check;
   // Verify normal axis are not touched.
   for (IterVar iv : compute_op->axis) {
     CHECK(!touch_map.count(iv))
         << "Factor axis touches normal axis.";
+    skip_bound_check.insert(iv);
   }
   // Get the replace index
   std::unordered_map<IterVar, Range> dom_map;
   std::unordered_map<IterVar, Expr> value_map;
   for (IterVar iv : compute_op->reduce_axis) {
-    if (touch_map.count(iv)) dom_map[iv] = iv->dom;
+    if (touch_map.count(iv)) {
+      dom_map[iv] = iv->dom;
+    } else {
+      skip_bound_check.insert(iv);
+    }
   }
   schedule::PassDownDomain(reduce_stage, &dom_map, true);
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
@@ -318,6 +404,9 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     }
   }
   schedule::PassUpIndex(reduce_stage, dom_map, &value_map, true);
+  std::vector<Expr> predicates = schedule::MakeBoundCheck(
+      reduce_stage, dom_map, value_map, true, skip_bound_check);
+
   // Get the factored op node.
   auto n = std::make_shared<ComputeOpNode>();
   n->name = compute_op->name + ".rf";
@@ -339,8 +428,11 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   int idx = tensor->value_index;
   const Reduce* reduce = compute_op->body[idx].as<Reduce>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
-  Expr predicate = reduce->condition;
+  predicates.push_back(reduce->condition);
+  Expr predicate = arith::ComputeReduce<ir::And>(predicates);
+
   std::unordered_map<const Variable*, Expr> vsub;
+
   for (IterVar iv : compute_op->reduce_axis) {
     if (!touch_map.count(iv)) {
       n->reduce_axis.push_back(iv);
@@ -348,16 +440,9 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       CHECK(value_map.count(iv));
       Expr index = value_map.at(iv);
       vsub[iv->var.get()] = index;
-      if (!index.same_as(iv->var)) {
-        Expr cond = (index < dom_map.at(iv)->extent);
-        if (is_one(predicate)) {
-          predicate = cond;
-        } else {
-          predicate = predicate && cond;
-        }
-      }
     }
   }
+
   // Copy touched axis.
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv) && !iv.same_as(axis)) {
@@ -453,4 +538,5 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   reduce_stage->relations = Array<IterVarRelation>();
   return factor_tensors;
 }
+
 }  // namespace tvm

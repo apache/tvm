@@ -383,8 +383,9 @@ ComputeLoopNest ComputeLoopNest::make(
   // make main loop nest
   ret.main_nest = op::MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap);
-  ret.main_predicates = op::MakeBoundCheck(stage, dom_map, false,
-      std::unordered_set<IterVar>(), ret.main_vmap);
+  ret.main_predicates = schedule::MakeBoundCheck(
+      stage, dom_map, ret.main_vmap, false,
+      std::unordered_set<IterVar>());
   for (auto& e : ret.main_predicates) {
     e = likely(e);
   }
@@ -424,8 +425,8 @@ ComputeLoopNest ComputeLoopNest::make(
     ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
         skip_iter, &(ret.init_vmap));
-    ret.init_predicates = op::MakeBoundCheck(
-        stage, dom_map, true, skip_iter, ret.init_vmap);
+    ret.init_predicates = schedule::MakeBoundCheck(
+        stage, dom_map, ret.init_vmap, true, skip_iter);
     for (auto& e : ret.init_predicates) {
       e = likely(e);
     }
