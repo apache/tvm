@@ -248,6 +248,14 @@ class Schedule(NodeBase):
         This will mutate the body of the tensor.
         A new cache stage will created before feed into the tensor.
 
+        This function can be used to support data layout transformation.
+        If there is a split/fuse/reorder on the data parallel axis of tensor
+        before cache_write is called. The intermediate cache stores
+        the data in the layout as the iteration order of leave axis.
+        The data will be transformed back to the original layout in the original tensor.
+        User can further call compute_inline to inline the original layout and keep
+        the data stored in the transformed layout.
+
         Parameters
         ----------
         tensor : Tensor
