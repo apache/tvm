@@ -38,7 +38,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       if (constant_size % 4 == 0 && info.alignment == 0) {
         info.alignment = GetTempAllocaAlignment(op->type, constant_size);
       }
-      // maximum necessary alignment in the NV devices
+      // maximum necessary alignment in the AMD devices
       if (info.alignment > 16) {
         info.alignment = 16;
       }
