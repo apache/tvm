@@ -164,8 +164,8 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   llvm::legacy::PassManager p;
   auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
 
-  if(tm->addPassesToEmitFile(p, dest, FileType)) {
-   LOG(FATAL) << "Couldn't dump to file";
+  if (tm->addPassesToEmitFile(p, dest, FileType)) {
+    LOG(FATAL) << "Couldn't dump to file";
   }
 
   p.run(*module);
