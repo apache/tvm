@@ -69,6 +69,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
   hipFunction_t GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
+
     if (module_[device_id] == nullptr) {
       ROCM_DRIVER_CALL(hipModuleLoadData(&(module_[device_id]), data_.c_str()));
     }
@@ -146,7 +147,9 @@ class ROCMWrappedFunc {
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
+
     hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
+
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     void* config[] = {
       HIP_LAUNCH_PARAM_BUFFER_POINTER, &packed_args,
@@ -187,7 +190,6 @@ PackedFunc ROCMModuleNode::GetFunction(
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
-
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;

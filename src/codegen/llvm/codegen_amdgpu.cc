@@ -144,7 +144,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
     cg->AddFunction(f);
   }
   std::unique_ptr<llvm::Module> module = cg->Finish();
-  llvm::SmallString<8> data_hsaco, data_ll;
+  llvm::SmallString<8> data_hsaco, data_ll, data_isa;
   llvm::raw_svector_ostream dest_hsaco(data_hsaco), dest_ll(data_ll);
   dest_hsaco.SetUnbuffered();
   dest_ll.SetUnbuffered();
@@ -152,13 +152,27 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::string printdest_ll(data_ll.begin(), data_ll.end());
 
   llvm::legacy::PassManager pass;
+  // (TODO) adityaatluri: Generate CGFT_AssemblyFile for debugging kernels
   CHECK(tm->addPassesToEmitFile(
-      pass, dest_hsaco, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      pass, dest_hsaco, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
+
+  auto FileName = "/tmp/output.o";
+  std::error_code EC;
+  llvm::raw_fd_ostream dest(FileName, EC, llvm::sys::fs::F_None);
+
+  llvm::legacy::PassManager p;
+  auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
+
+  if(tm->addPassesToEmitFile(p, dest, FileType)) {
+   LOG(FATAL) << "Couldn't dump to file";
+  }
+
+  p.run(*module);
+  dest.flush();
+
+
   pass.run(*module);
-
-  LOG(WARNING) << printdest_ll;
-
   std::string hsaco(data_hsaco.begin(), data_hsaco.end());
   std::string ll(data_ll.begin(), data_ll.end());
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
