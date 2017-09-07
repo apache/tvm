@@ -67,7 +67,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         # launch kernel (depthwise_conv2d backward nhwc wrt input)
         timer = f.time_evaluator(f.entry_name, ctx, number=1)
         tcost = timer(filter_tvm, out_backprop_tvm, in_backprop_tvm).mean
-
+        '''
         # correctness with tensorflow
         with tf.device('/gpu:0'):
             out_backprop_tf = tf.placeholder(tf.float32, oshape)
@@ -78,32 +78,48 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
                                                                           out_backprop=out_backprop_tf,
                                                                           strides=[1,stride_h,stride_w,1],
                                                                           padding=padding_tf)
-
+  
             config = tf.ConfigProto()
             sess = tf.Session(config=tf.ConfigProto())
             sess.run(tf.global_variables_initializer())
             output_tf = sess.run(depth_conv_out, feed_dict={out_backprop_tf:out_backprop_np, filter_tf:filter_np})
-
+        '''
+        print(out_backprop_np.shape)
+        Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1])
+        if padding_h == 0 and padding_w == 0:
+            pad_top = filter_height - 1
+            pad_left = filter_width - 1
+            padded_out_grad = np.zeros((batch, Dilated_out_grad.shape[1]+pad_top, Dilated_out_grad.shape[2]+pad_left, out_channel))
+            padded_out_grad[:,pad_top:, pad_left:, :] = Dilated_out_grad
+            print(padded_out_grad.shape)
+            output_np = np.zeros((batch, in_height, in_width, in_channel))
+            for b in range(batch):
+                for c in range(in_channel):
+                    for m in range(channel_multiplier):
+                        output_np[b, :, :, c] += signal.convolve2d(Dilated_out_grad[b, :, :, c*channel_multiplier+m], \
+                        np.rot90(filter_np[:, :, c, m], 2), \
+                        mode='same')#[pad_top::stride_h, padding_w:(padding_w+stride_w*filter_width+1):stride_w] 
+        
         print("in_shape[%d,%d,%d,%d] filter[%d,%d,%d,%d] stride[%d,%d] padding[%d,%d] NHWC %.6f" %
                 (batch, in_height, in_width, in_channel,
                  filter_height, filter_width, in_channel, channel_multiplier,
                  stride_h, stride_w, padding_h, padding_w,
                  tcost*1000))
 
-        np.testing.assert_allclose(output_tf, in_backprop_tvm.asnumpy(), rtol=1e-5)
+        np.testing.assert_allclose(output_np, in_backprop_tvm.asnumpy(), rtol=1e-5)
         print("success")
     check_device("cuda")
 
 def test_depthwise_conv2d():
     print("testing nhwc")
-    depthwise_conv2d_with_workload_nhwc(64, 728, 64, 1, 3, 2, 1)
-    depthwise_conv2d_with_workload_nhwc(64, 728, 32, 1, 3, 2, 1)
-    depthwise_conv2d_with_workload_nhwc(64, 256, 64, 2, 5, 2, 2)
-    depthwise_conv2d_with_workload_nhwc(64, 256, 32, 2, 5, 2, 2)
-    depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 2, 0)
-    depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 2, 0)
-    depthwise_conv2d_with_workload_nhwc(64, 256, 65, 2, 5, 2, 0)
-    depthwise_conv2d_with_workload_nhwc(64, 256, 33, 2, 5, 2, 0)
+    #depthwise_conv2d_with_workload_nhwc(64, 728, 64, 1, 3, 1, 1)
+    #depthwise_conv2d_with_workload_nhwc(64, 728, 32, 1, 3, 1, 1)
+    #depthwise_conv2d_with_workload_nhwc(64, 256, 64, 2, 5, 1, 2)
+    #depthwise_conv2d_with_workload_nhwc(64, 256, 32, 2, 5, 1, 2)
+    depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(64, 256, 65, 2, 5, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(64, 256, 33, 2, 5, 1, 0)
 
 if __name__ == "__main__":
     test_depthwise_conv2d()
