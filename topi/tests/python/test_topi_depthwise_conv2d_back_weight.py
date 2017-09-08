@@ -57,7 +57,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         weight_backprop_tvm = tvm.nd.array(np.zeros((filter_height, filter_width, in_channel, channel_multiplier), dtype=Weight_grad.dtype), ctx)
 
         # launch kernel (depthwise_conv2d backward nhwc wrt input)
-        timer = f.time_evaluator(f.entry_name, ctx, number=0)
+        timer = f.time_evaluator(f.entry_name, ctx, number=1)
         tcost = timer(input_tvm, out_backprop_tvm, weight_backprop_tvm).mean
         
         Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1])
