@@ -66,7 +66,6 @@ The learnable parameters include both ``weight`` and ``bias``.
 If ``use_bias`` is set to be false, then the ``bias`` term is ignored.
 
 )code" NNVM_ADD_FILELINE)
-.set_support_level(1)
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("weight", "2D Tensor", "Weight matrix.")
 .add_argument("bias", "1D Tensor", "Bias parameter.")
@@ -79,7 +78,17 @@ If ``use_bias`` is set to be false, then the ``bias`` term is ignored.
   })
 .set_attr<FListInputNames>("FListInputNames", DenseListInputNames)
 .set_attr<FInferShape>("FInferShape", DenseInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>);
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_support_level(1);
 
+// relu
+NNVM_REGISTER_ELEMWISE_UNARY_OP(relu)
+.describe(R"code(Computes rectified linear.
+
+.. math::
+   max(input, 0)
+
+)code" NNVM_ADD_FILELINE)
+.set_support_level(1);
 }  // namespace top
 }  // namespace nnvm
