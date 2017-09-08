@@ -1,7 +1,6 @@
 import tvm
 import topi
 import numpy as np
-import tensorflow as tf
 import os
 from tvm.contrib import nvcc
 from scipy import signal
@@ -28,11 +27,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
     ishape = [batch, in_height, in_width, in_channel]
     oshape = [batch, out_height, out_width, out_channel]
-
-    # tensorflow special
-    padding_tf = 'SAME'
-    if padding_h == 0:
-        padding_tf = 'VALID'
 
     # placeholder
     Out_grad = tvm.placeholder(oshape, name='Out_grad')
