@@ -1,6 +1,15 @@
 import nnvm.symbol as sym
 from nnvm import NNVMError
 
+def test_dense():
+    x = sym.Variable('x')
+    y = sym.dense(x)
+    assert y.list_input_names() == ['x']
+
+
+
+
+
 def test_compose():
     x = sym.Variable('x')
     z = sym.Variable('z')
