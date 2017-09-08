@@ -66,23 +66,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         # launch kernel (depthwise_conv2d backward nhwc wrt input)
         timer = f.time_evaluator(f.entry_name, ctx, number=0)
         tcost = timer(input_tvm, out_backprop_tvm, weight_backprop_tvm).mean
-        ''' 
-        # check with tensorflow
-        with tf.device('/gpu:0'):
-            out_backprop_tf = tf.placeholder(tf.float32, [batch, out_height, out_width, out_channel])
-            filter_shape_tf = tf.constant([filter_height, filter_width, in_channel, channel_multiplier])
-            in_tf = tf.placeholder(tf.float32, [batch, in_height, in_width, in_channel])
-            depth_conv_out = tf.nn.depthwise_conv2d_native_backprop_filter(input=in_tf,
-                                                                           filter_sizes=filter_shape_tf,
-                                                                           out_backprop=out_backprop_tf,
-                                                                           strides=[1,stride_h,stride_w,1],
-                                                                           padding=padding_tf)
-
-            config = tf.ConfigProto()
-            sess = tf.Session(config=tf.ConfigProto())
-            sess.run(tf.global_variables_initializer())
-            output_tf = sess.run(depth_conv_out, feed_dict={out_backprop_tf:out_backprop_np, in_tf:input_np})
-        '''
+        
         Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1])
         if padding_h == 0 and padding_w == 0:
             output_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
@@ -91,29 +75,24 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
                     for b in range(batch):
                         output_np[:, :, c, m] += signal.convolve2d(input_np[b, :, :, c], \
                             np.rot90(Dilated_out_grad[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
-                            mode='valid') #[padding_h:(padding_h+stride_h*filter_height):stride_h, padding_w:(padding_w+stride_w*filter_width):stride_w]
+                            mode='valid')[0:filter_height, 0:filter_width]
 
         if padding_h > 0 or padding_w > 0:
             output_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
-            pad_top_tvm = np.int(np.ceil(float(padding_h) / 2))
-            pad_left_tvm = np.int(np.ceil(float(padding_w) / 2))
-            pad_top_scipy = np.int(np.ceil(float(filter_height - 1) / 2))
-            pad_left_scipy = np.int(np.ceil(float(filter_width - 1) / 2))
-            index_h = 7#(input_np.shape[1] - filter_height)/stride_h
-            index_w = 7#(input_np.shape[2] - filter_width)/stride_w
+            index_h = (input_np.shape[1] - filter_height + (input_np.shape[1]+stride_h)%2)/2
+            index_w = (input_np.shape[2] - filter_width + (input_np.shape[2]+stride_w)%2)/2
             for c in range(in_channel):
                 for m  in range(channel_multiplier):
                     for b in range(batch):
                          output_np[:,:,c,m] += signal.convolve2d(input_np[b, :, :, c], \
                             np.rot90(Dilated_out_grad[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
-                            mode='same')[index_h:(input_np.shape[1]-index_h), index_w:(input_np.shape[2]-index_w)]
+                            mode='same')[index_h:(index_h+filter_height), index_w:(index_w+filter_width)]
         
         print("in_shape[%d,%d,%d,%d] filter[%d,%d,%d,%d] stride[%d,%d] padding[%d,%d] NHWC %.6f" %
                 (batch, in_height, in_width, in_channel,
                  filter_height, filter_width, in_channel, channel_multiplier,
                  stride_h, stride_w, padding_h, padding_w,
                  tcost*1000))
-        
         np.testing.assert_allclose(output_np, weight_backprop_tvm.asnumpy(), rtol=1e-4)
         print("success")
 
@@ -121,22 +100,22 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
 def test_depthwise_conv2d():
     print("testing nhwc")
-    #depthwise_conv2d_with_workload_nhwc(17, 64, 17, 1, 3, 2, 1)
-    #depthwise_conv2d_with_workload_nhwc(17, 32, 17, 1, 3, 2, 1)
-    #depthwise_conv2d_with_workload_nhwc(18, 64, 17, 2, 5, 1, 2)
-    #depthwise_conv2d_with_workload_nhwc(18, 32, 17, 2, 5, 1, 2)
-    #depthwise_conv2d_with_workload_nhwc(17, 64, 17, 1, 3, 1, 0)
-    #depthwise_conv2d_with_workload_nhwc(17, 32, 17, 1, 3, 1, 0)
-    #depthwise_conv2d_with_workload_nhwc(18, 64, 17, 2, 5, 1, 0)
-    #depthwise_conv2d_with_workload_nhwc(18, 32, 17, 2, 5, 1, 0)
-    
-    depthwise_conv2d_with_workload_nhwc(17, 64, 18, 1, 3, 2, 1)
+    depthwise_conv2d_with_workload_nhwc(17, 32, 17, 1, 3, 1, 1)
+    depthwise_conv2d_with_workload_nhwc(17, 32, 18, 1, 3, 1, 1)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 17, 2, 5, 1, 2)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 18, 2, 5, 1, 2)
+    depthwise_conv2d_with_workload_nhwc(17, 32, 17, 1, 3, 2, 1)
     depthwise_conv2d_with_workload_nhwc(17, 32, 18, 1, 3, 2, 1)
-    #depthwise_conv2d_with_workload_nhwc(18, 64, 18, 2, 5, 2, 2)
-    #depthwise_conv2d_with_workload_nhwc(18, 32, 18, 2, 5, 2, 2)
-    #depthwise_conv2d_with_workload_nhwc(17, 64, 18, 1, 3, 1, 0)
-    #depthwise_conv2d_with_workload_nhwc(17, 32, 18, 1, 3, 1, 0)
-    #depthwise_conv2d_with_workload_nhwc(18, 64, 18, 2, 5, 2, 0)
-    #depthwise_conv2d_with_workload_nhwc(18, 32, 18, 2, 5, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 17, 2, 5, 2, 2)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 18, 2, 5, 2, 2)
+    
+    depthwise_conv2d_with_workload_nhwc(17, 32, 64, 1, 3, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(17, 32, 65, 1, 3, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 64, 2, 5, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 65, 2, 5, 1, 0)
+    depthwise_conv2d_with_workload_nhwc(17, 32, 64, 1, 3, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(17, 32, 65, 1, 3, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 64, 2, 5, 2, 0)
+    depthwise_conv2d_with_workload_nhwc(18, 32, 65, 2, 5, 2, 0)
 if __name__ == "__main__":
     test_depthwise_conv2d()
