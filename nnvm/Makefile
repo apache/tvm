@@ -53,9 +53,11 @@ endif
 
 all: lib/libnnvm.a lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX)
 
-SRC = $(wildcard src/*.cc src/*/*.cc)
+SRC = $(wildcard src/*.cc src/c_api/*.cc src/core/*.cc src/pass/*.cc)
+SRC_TOP = $(wildcard src/top/*.cc)
 ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-ALL_DEP = $(ALL_OBJ) $(PLUGIN_OBJ)
+TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_TOP))
+ALL_DEP = $(ALL_OBJ)
 
 include tests/cpp/unittest.mk
 
@@ -66,18 +68,13 @@ build/src/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-build/plugin/%.o: plugin/%.cc
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/plugin/$*.o $< >build/plugin/$*.d
-	$(CXX) -c $(CFLAGS) -c $< -o $@
-
 lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX): example/src/operator.cc lib/libnnvm.a
+lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cc, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
 
 cython:
 	cd python; python setup.py build_ext --inplace
@@ -89,7 +86,7 @@ cyclean:
 	rm -rf python/nnvm/*/*.so python/nnvm/*/*.dylib python/nnvm/*/*.cpp
 
 lint:
-	python2 dmlc-core/scripts/lint.py nnvm cpp include src
+	python dmlc-core/scripts/lint.py nnvm cpp include src
 
 doc:
 	doxygen docs/Doxyfile

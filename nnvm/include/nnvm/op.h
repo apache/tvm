@@ -109,6 +109,12 @@ class Op {
    */
   uint32_t num_outputs = 1;
   /*!
+   * \brief support level of the operator,
+   *  The lower the more priority it contains.
+   *  This is in analogies to BLAS levels.
+   */
+  uint32_t support_level = 10;
+  /*!
    * \brief get number of outputs given information about the node.
    * \param attrs The attribute of the node
    * \return number of outputs.
@@ -183,6 +189,12 @@ class Op {
    * \return reference to self.
    */
   inline Op& set_num_inputs(uint32_t n);  // NOLINT(*)
+  /*!
+   * \brief Set the support level of op.
+   * \param level The support level.
+   * \return reference to self.
+   */
+  inline Op& set_support_level(uint32_t level);  // NOLINT(*)
   /*!
    * \brief Set the get_num_outputs function.
    * \param fn The function to be set.
@@ -476,6 +488,11 @@ inline Op& Op::add_arguments(const std::vector<ParamFieldInfo> &args) {
 
 inline Op& Op::set_num_inputs(uint32_t n) {  // NOLINT(*)
   this->num_inputs = n;
+  return *this;
+}
+
+inline Op& Op::set_support_level(uint32_t n) {  // NOLINT(*)
+  this->support_level = n;
   return *this;
 }
 
