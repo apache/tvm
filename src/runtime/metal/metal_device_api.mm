@@ -205,6 +205,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
                size:size];
       [encoder endEncoding];
       [cb commit];
+      [cb waitUntilCompleted];
     } else {
       memcpy(static_cast<char*>([to_buf contents]) + to_offset,
              static_cast<const char*>(from) + from_offset,

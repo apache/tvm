@@ -1,8 +1,9 @@
 """TVM operator pooling compute."""
 from __future__ import absolute_import
 import tvm
+from .pad import pad
+from .util import get_pad_tuple
 from .. import util
-from .pad import pad, _spatial2d_pad_option
 
 def max_pool(data, kernel, stride, padding):
     """Perform max pooling on the data
@@ -32,7 +33,7 @@ def max_pool(data, kernel, stride, padding):
     stride_height, stride_width = stride
     batch, channel, height, width = data.shape
 
-    pad_top, pad_left, pad_down, pad_right = _spatial2d_pad_option(
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_height, kernel_width))
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]

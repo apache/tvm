@@ -274,7 +274,7 @@ Stmt ScanOpNode::BuildProvide(
   nest[begin_scan].push_back(init);
   nest.push_back(
       op::MakeIfNest(
-          op::MakeBoundCheck(stage, dom_map, false, empty, vmap)));
+          schedule::MakeBoundCheck(stage, dom_map, vmap, false, empty)));
   return MergeNest(nest, provide);
 }
 }  // namespace tvm

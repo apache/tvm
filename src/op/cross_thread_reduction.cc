@@ -21,9 +21,9 @@ Stmt MakeCrossThreadReduction(
   std::unordered_map<IterVar, Expr> value_map;
   auto nest = op::MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map);
-  auto conds = op::MakeBoundCheck(
-      stage, dom_map, false,
-      std::unordered_set<IterVar>(), value_map);
+  auto conds = schedule::MakeBoundCheck(
+      stage, dom_map, value_map, false,
+      std::unordered_set<IterVar>());
 
   size_t size = self->body.size();
   CHECK_GT(size, 0);

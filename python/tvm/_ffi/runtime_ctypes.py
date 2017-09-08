@@ -65,10 +65,7 @@ class TVMType(ctypes.Structure):
             head = ""
         else:
             raise ValueError("Donot know how to handle type %s" % type_str)
-
         bits = int(head) if head else bits
-        if (bits & (bits - 1)) != 0 or bits < 8:
-            raise ValueError("Donot know how to handle type %s" % type_str)
         self.bits = bits
 
 

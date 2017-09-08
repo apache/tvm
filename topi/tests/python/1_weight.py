@@ -1,6 +1,6 @@
 import tvm
-import topi
 import os
+import topi
 import numpy as np
 import tensorflow as tf
 from tvm.contrib import nvcc

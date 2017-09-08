@@ -3,6 +3,7 @@ import os
 import numpy as np
 import tvm
 import topi
+from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 
@@ -16,10 +17,19 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
     s1 = topi.cuda.schedule_conv2d_nchw([B])
     s2 = topi.cuda.schedule_conv2d_nchw([C])
 
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    w_np = np.random.uniform(size=get_const_tuple(W.shape)).astype(W.dtype)
-    b_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
-    c_np = np.maximum(b_np, 0)
+    a_shape = get_const_tuple(A.shape)
+    w_shape = get_const_tuple(W.shape)
+    dtype = A.dtype
+
+    @memoize("topi.tests.test_topi_conv2d.verify_con2d_nchw")
+    def get_ref_data():
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        w_np = np.random.uniform(size=w_shape).astype(dtype)
+        b_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
+        c_np = np.maximum(b_np, 0)
+        return a_np, w_np, b_np, c_np
+
+    a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -45,6 +55,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 
 def test_conv2d_nchw():
+    verify_conv2d_nchw(1, 3, 224, 64, 7, 3, 2)
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
     verify_conv2d_nchw(1, 64, 56, 64, 1, 1, 0)
     verify_conv2d_nchw(1, 64, 56, 128, 3, 2, 1)
