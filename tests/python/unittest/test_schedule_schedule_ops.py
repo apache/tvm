@@ -207,7 +207,6 @@ def test_schedule_cache_relayout3():
 
 
 if __name__ == "__main__":
-    test_schedule_cache_relayout4()
     test_schedule_cache_relayout3()
     test_schedule_cache_relayout2()
     test_schedule_cache_relayout1()
