@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <utility>
 #include "./op_common.h"
 
 namespace nnvm {
@@ -83,6 +84,17 @@ inline bool ElemwiseType(const nnvm::NodeAttrs& attrs,
     attrs, in_attrs, out_attrs, -1);
 }
 
+#define NNVM_REGISTER_ELEMWISE_UNARY_OP(name)                       \
+  NNVM_REGISTER_OP(name)                                            \
+  .set_num_inputs(1)                                                \
+  .set_num_outputs(1)                                               \
+  .set_attr<nnvm::FInferShape>("FInferShape", ElemwiseShape<1, 1>)  \
+  .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)     \
+  .set_attr<nnvm::FInplaceOption>("FInplaceOption",                 \
+    [](const NodeAttrs& attrs){                                     \
+      return std::vector<std::pair<int, int> >{{0, 0}};             \
+    })                                                              \
+  .add_argument("data", "Tensor", "The input tensor.")
 }  // namespace top
 }  // namespace nnvm
 #endif  // NNVM_TOP_ELEMWISE_OP_COMMON_H_

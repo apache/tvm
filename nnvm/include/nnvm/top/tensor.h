@@ -9,6 +9,14 @@
 namespace nnvm {
 namespace top {
 
+struct ConcatParam : public dmlc::Parameter<ConcatParam> {
+  int dim;
+  DMLC_DECLARE_PARAMETER(ConcatParam) {
+    DMLC_DECLARE_FIELD(dim).set_range(0,  4).set_default(1)
+    .describe("the axis to be concated.");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 
