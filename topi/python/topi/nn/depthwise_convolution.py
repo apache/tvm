@@ -209,15 +209,14 @@ def depthwise_conv2d_back_weight_nhwc(Input, Out_grad, oshape, fshape, stride, p
                             [0, pad_bottom, pad_right, 0], \
                             name='Padded_in')
 
-    # dh = tvm.reduce_axis((0, Dilated_out_grad.shape[1].value), name='dh')
-    # dw = tvm.reduce_axis((0, Dilated_out_grad.shape[2].value), name='dw')
     dh = tvm.reduce_axis((0, Out_grad.shape[1].value), name='dh')
     dw = tvm.reduce_axis((0, Out_grad.shape[2].value), name='dw')
     db = tvm.reduce_axis((0, batch), name='db')
 
     Weight_grad = tvm.compute(
         (filter_h, filter_w, in_c, channel_multiplier), lambda fh, fw, c, m: tvm.sum(
-            Dilated_out_grad[db, dh*stride_h, dw*stride_w, c*channel_multiplier+m%channel_multiplier] *
+            Dilated_out_grad[db, dh*stride_h, dw*stride_w,
+                             c*channel_multiplier+m%channel_multiplier] *
             Padded_in[db, fh+dh*stride_h, fw+dw*stride_w, c],
             axis=[db, dh, dw]),
         tag='depthwise_conv2d_back_weight_nhwc')
