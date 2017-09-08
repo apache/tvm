@@ -27,4 +27,9 @@ using dmlc::get;
 
 }  // namespace nnvm
 
+// describe op registration point
+#define NNVM_STRINGIZE_DETAIL(x) #x
+#define NNVM_STRINGIZE(x) NNVM_STRINGIZE_DETAIL(x)
+#define NNVM_DESCRIBE(...) describe(__VA_ARGS__ "\n\nFrom:" __FILE__ ":" NNVM_STRINGIZE(__LINE__))
+#define NNVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" NNVM_STRINGIZE(__LINE__)
 #endif  // NNVM_BASE_H_
