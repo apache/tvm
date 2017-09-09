@@ -28,6 +28,7 @@
 #include <llvm/IR/MDBuilder.h>
 
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/IPO.h>
