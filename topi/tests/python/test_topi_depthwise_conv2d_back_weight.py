@@ -5,7 +5,7 @@ import numpy as np
 from tvm.contrib import nvcc
 from scipy import signal
 from topi.util import get_const_tuple
-from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_back_weight_nhwc
+from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_weight_nhwc
 
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding_h):
     in_width = in_height
@@ -28,10 +28,10 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     padding = [padding_h, padding_w]
 
     # declare
-    Weight_grad = topi.nn.depthwise_conv2d_back_weight_nhwc(Input, Out_grad, oshape, fshape, stride, padding)
+    Weight_grad = topi.nn.depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, stride, padding)
 
     # schedule
-    schedule = schedule_depthwise_conv2d_back_weight_nhwc(Weight_grad)
+    schedule = schedule_depthwise_conv2d_backward_weight_nhwc(Weight_grad)
     out_backprop_np = np.random.uniform(size=(batch, out_height, out_width, out_channel)).astype(Out_grad.dtype)
     input_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(Input.dtype)
 
@@ -104,5 +104,6 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nhwc(17, 32, 65, 1, 3, 2, 0)
     depthwise_conv2d_with_workload_nhwc(18, 32, 64, 2, 5, 2, 0)
     depthwise_conv2d_with_workload_nhwc(18, 32, 65, 2, 5, 2, 0)
+
 if __name__ == "__main__":
     test_depthwise_conv2d()

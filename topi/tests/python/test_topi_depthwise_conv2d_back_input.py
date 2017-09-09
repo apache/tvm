@@ -5,7 +5,7 @@ import os
 from tvm.contrib import nvcc
 from scipy import signal
 from topi.util import get_const_tuple
-from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_back_input_nhwc
+from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
 
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding_h):
     in_width = in_height
@@ -28,10 +28,10 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     padding = [padding_h, padding_w]
 
     # declare
-    In_grad = topi.nn.depthwise_conv2d_back_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding)
+    In_grad = topi.nn.depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding)
 
     # schedule
-    schedule = schedule_depthwise_conv2d_back_input_nhwc(In_grad)
+    schedule = schedule_depthwise_conv2d_backward_input_nhwc(In_grad)
 
     out_backprop_np = np.random.uniform(size=(batch, out_height, out_width, out_channel)).astype(Out_grad.dtype)
     filter_np = np.random.uniform(size=(filter_height, filter_width, in_channel, channel_multiplier)).astype(Filter.dtype)

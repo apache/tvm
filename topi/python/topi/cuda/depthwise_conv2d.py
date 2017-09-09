@@ -188,7 +188,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
     return s
 
 
-def schedule_depthwise_conv2d_back_input_nhwc(outs):
+def schedule_depthwise_conv2d_backward_input_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc backward wrt input.
 
     Parameters
@@ -222,7 +222,7 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if OP.tag == 'depthwise_conv2d_back_input_nhwc':
+        if OP.tag == 'depthwise_conv2d_backward_input_nhwc':
             Padded_out_grad = OP.input_tensors[0]
             Dilate_out_grad = Padded_out_grad.op.input_tensors[0]
             s[Dilate_out_grad].compute_inline()
@@ -232,8 +232,8 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
     traverse(outs[0].op)
     return s
 
-def schedule_depthwise_conv2d_back_weight_nhwc(outs):
-    """Schedule for depthwise_conv2d nhwc backward wrt filter.
+def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
+    """Schedule for depthwise_conv2d nhwc backward wrt weight.
 
     Parameters
     ----------
@@ -275,7 +275,7 @@ def schedule_depthwise_conv2d_back_weight_nhwc(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if OP.tag == 'depthwise_conv2d_back_weight_nhwc':
+        if OP.tag == 'depthwise_conv2d_backward_weight_nhwc':
             Dilate_out_grad = OP.input_tensors[0]
             Padded_in = OP.input_tensors[1]
             s[Dilate_out_grad].compute_inline()
