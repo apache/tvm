@@ -210,7 +210,7 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
 
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis("threadIdx.x")
-        b, h, w, c = In_grad.op.axis
+        _, h, w, c = In_grad.op.axis
 
         fused_wc = s[In_grad].fuse(w, c)
 
