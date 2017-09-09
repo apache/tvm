@@ -3,17 +3,13 @@ from nnvm import NNVMError
 
 def test_dense():
     x = sym.Variable('x')
-    y = sym.dense(x)
-    assert y.list_input_names() == ['x']
-
-
-
-
+    y = sym.dense(x, units=30, name="fc")
+    assert y.list_input_names() == ["x", "fc_weight", "fc_bias"]
 
 def test_compose():
     x = sym.Variable('x')
     z = sym.Variable('z')
-    y = sym.exp(sym.add(x, x, name='add', gpu=2),
+    y = sym.exp(sym.elemwise_add(x, x, name='add', gpu=2),
                 name='exp', gpu=1, attr={"kk": "1"})
 
     assert y.list_input_names() == ['x']
@@ -25,24 +21,12 @@ def test_compose():
 
 def test_default_input():
     x = sym.Variable('x')
-    y = sym.conv2d(data=x, name='conv')
-    assert y.list_input_names() == ['x', 'conv_weight']
+    y = sym.dense(data=x, units=30, name='fc', use_bias=False)
+    assert y.list_input_names() == ['x', 'fc_weight']
     tname = [z.list_output_names()[0] for z in y.list_input_variables()]
     assert tname == y.list_input_names()
     try:
-        z = sym.add(x)
-        assert False
-    except NNVMError:
-        pass
-
-def test_mutate_input():
-    x = sym.Variable('x')
-    y = sym.conv2d(data=x, name='conv')
-    z = sym.assign(x, y)
-    t = sym.add(z, x)
-
-    try:
-        z = sym.assign(z, z)
+        z = sym.elemwise_add(x)
         assert False
     except NNVMError:
         pass
@@ -50,7 +34,7 @@ def test_mutate_input():
 def test_copy():
     x = sym.Variable('x')
     z = sym.Variable('z')
-    y = sym.exp(sym.add(x, x, name='add', gpu=2),
+    y = sym.exp(sym.elemwise_add(x, x, name='add', gpu=2),
                 name='exp', gpu=1, attr={"kk": "1"})
     assert y.__copy__().debug_str() == y.debug_str()
 
@@ -62,18 +46,8 @@ def test_op_name():
     op_func = sym.__dict__[op_name]
     z = op_func(x)
 
-
-def test_control_dep():
-    x = sym.Variable('x')
-    y = sym.conv2d(data=x, name='conv')
-    z = sym.assign(x, y)
-    t = sym.add(x, x)
-    t._add_control_deps([z, y])
-
 if __name__ == "__main__":
     test_op_name()
     test_copy()
     test_default_input()
     test_compose()
-    test_mutate_input()
-    test_control_dep()

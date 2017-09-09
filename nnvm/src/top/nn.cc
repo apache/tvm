@@ -73,7 +73,7 @@ If ``use_bias`` is set to be false, then the ``bias`` term is ignored.
 .set_attr_parser(ParamParser<DenseParam>)
 .set_num_outputs(1)
 .set_num_inputs([](const NodeAttrs& attrs) {
-    const DenseParam& param = nnvm::get<DenseParam>(attrs.parsed);
+    const DenseParam& param = get<DenseParam>(attrs.parsed);
     return param.use_bias ? 3 : 2;
   })
 .set_attr<FListInputNames>("FListInputNames", DenseListInputNames)
@@ -90,5 +90,121 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(relu)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1);
+
+// dropout
+DMLC_REGISTER_PARAMETER(DropoutParam);
+
+NNVM_REGISTER_OP(dropout)
+.describe(R"(Applies dropout operation to input array.
+
+- During training, each element of the input is set to zero with probability p.
+  The whole array is rescaled by :math:`1/(1-p)` to keep the expected
+  sum of the input unchanged.
+
+)" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input to which dropout will be applied")
+.set_num_inputs(1)
+.set_num_outputs(2)
+.set_attr_parser(ParamParser<DropoutParam>)
+.set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 2>)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 2>)
+.set_attr<FNumVisibleOutputs>("FNumVisibleOutputs", [](const NodeAttrs& attrs) {
+    return 1;
+  })
+.set_attr<FListOutputNames>("FListOutputNames", [](const NodeAttrs& attrs) {
+    return std::vector<std::string>{"output", "mask"};
+  })
+.set_support_level(1);
+
+// batchnorm
+DMLC_REGISTER_PARAMETER(BatchNormParam);
+
+NNVM_REGISTER_OP(batch_norm)
+.describe(R"(Batch normalization layer (Ioffe and Szegedy, 2014).
+Normalizes the input at each batch, i.e. applies a transformation
+that maintains the mean activation close to 0 and the activation
+standard deviation close to 1.
+
+.. math::
+
+  data\_mean[i] = mean(data[:,i,:,...]) \\
+  data\_var[i] = var(data[:,i,:,...])
+
+Then compute the normalized output, which has the same shape as input, as following:
+
+.. math::
+
+  out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}} * gamma[i] + beta[i]
+
+Both *mean* and *var* returns a scalar by treating the input as a vector.
+
+Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta`` have shape *(k,)*.
+
+Besides the inputs and the outputs, this operator accepts two auxiliary
+states, ``moving_mean`` and ``moving_var``, which are *k*-length
+vectors. They are global statistics for the whole dataset, which are updated
+by::
+
+  moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+  moving_var = moving_var * momentum + data_var * (1 - momentum)
+
+The parameter ``axis`` specifies which axis of the input shape denotes
+the 'channel' (separately normalized groups).  The default is 1.  Specifying -1 sets the channel
+axis to be the last item in the input shape.
+)" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input to which dropout will be applied")
+.add_argument("gamma", "Tensor", "The gamma scale factor")
+.add_argument("beta", "Tensor", "The beta offset factor")
+.add_argument("moving_mean", "Tensor", "running mean of input")
+.add_argument("moving_var", "Tensor", "running variance of input")
+.set_num_inputs(5)
+.set_num_outputs(3)
+.set_attr_parser(ParamParser<BatchNormParam>)
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+    return std::vector<std::string>{"data", "gamma", "beta", "moving_mean", "moving_var"};
+  })
+.set_attr<FListOutputNames>("FListOutputNames", [](const NodeAttrs& attrs) {
+    return std::vector<std::string>{"output", "mean", "var"};
+  })
+.set_attr<FNumVisibleOutputs>("FNumVisibleOutputs", [](const NodeAttrs& attrs) {
+    return 1;
+  })
+.set_attr<FMutateInputs>("FListMutateInputs", [](const NodeAttrs& attrs) {
+    return std::vector<uint32_t>{3, 4};
+  })
+.set_support_level(1);
+
+// softmax
+DMLC_REGISTER_PARAMETER(SoftmaxParam);
+
+NNVM_REGISTER_OP(softmax)
+.describe(R"code(Computes softmax.
+
+.. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+)code" NNVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr_parser(ParamParser<SoftmaxParam>)
+.set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(1);
+
+// log_softmax
+DMLC_REGISTER_PARAMETER(LogSoftmaxParam);
+
+NNVM_REGISTER_OP(log_softmax)
+.describe(R"code(Computes softmax.
+
+.. math:: \text{log_softmax}(x)_i = \log \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+)code" NNVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr_parser(ParamParser<LogSoftmaxParam>)
+.set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(1);
+
 }  // namespace top
 }  // namespace nnvm

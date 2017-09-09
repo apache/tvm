@@ -57,7 +57,7 @@ inline bool ElemwiseAttr(const nnvm::NodeAttrs& attrs,
 }
 
 template<int n_in, int n_out>
-inline bool ElemwiseShape(const nnvm::NodeAttrs& attrs,
+inline bool ElemwiseShape(const NodeAttrs& attrs,
                           std::vector<TShape> *in_attrs,
                           std::vector<TShape> *out_attrs) {
   if (n_in != -1) {
@@ -71,7 +71,7 @@ inline bool ElemwiseShape(const nnvm::NodeAttrs& attrs,
 }
 
 template<int n_in, int n_out>
-inline bool ElemwiseType(const nnvm::NodeAttrs& attrs,
+inline bool ElemwiseType(const NodeAttrs& attrs,
                          std::vector<int> *in_attrs,
                          std::vector<int> *out_attrs) {
   if (n_in != -1) {
@@ -88,13 +88,28 @@ inline bool ElemwiseType(const nnvm::NodeAttrs& attrs,
   NNVM_REGISTER_OP(name)                                            \
   .set_num_inputs(1)                                                \
   .set_num_outputs(1)                                               \
-  .set_attr<nnvm::FInferShape>("FInferShape", ElemwiseShape<1, 1>)  \
-  .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)     \
-  .set_attr<nnvm::FInplaceOption>("FInplaceOption",                 \
+  .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)        \
+  .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)           \
+  .set_attr<FInplaceOption>("FInplaceOption",                       \
     [](const NodeAttrs& attrs){                                     \
       return std::vector<std::pair<int, int> >{{0, 0}};             \
     })                                                              \
   .add_argument("data", "Tensor", "The input tensor.")
+
+
+#define NNVM_REGISTER_ELEMWISE_BINARY_OP(name)                      \
+  NNVM_REGISTER_OP(name)                                            \
+  .set_num_inputs(2)                                                \
+  .set_num_outputs(1)                                               \
+  .set_attr<FInferShape>("FInferShape", ElemwiseShape<2, 1>)        \
+  .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)           \
+  .set_attr<FInplaceOption>("FInplaceOption",                       \
+    [](const NodeAttrs& attrs) {                                    \
+      return std::vector<std::pair<int, int> >{{0, 0}, {1, 0}};     \
+    })                                                              \
+  .add_argument("lhs", "NDArray-or-Symbol", "first input")          \
+  .add_argument("rhs", "NDArray-or-Symbol", "second input")
+
 }  // namespace top
 }  // namespace nnvm
 #endif  // NNVM_TOP_ELEMWISE_OP_COMMON_H_
