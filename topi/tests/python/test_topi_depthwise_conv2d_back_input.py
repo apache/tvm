@@ -7,13 +7,6 @@ from scipy import signal
 from topi.util import get_const_tuple
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_back_input_nhwc
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '7'
-
-@tvm.register_func
-def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_30"]) # 37 for k80(ec2 instance)
-    return ptx
-
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding_h):
     in_width = in_height
     filter_channel = in_channel
