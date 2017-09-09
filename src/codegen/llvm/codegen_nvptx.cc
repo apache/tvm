@@ -147,14 +147,16 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   llvm::raw_svector_ostream dest_ptx(data_ptx), dest_ll(data_ll);
   dest_ptx.SetUnbuffered();
   dest_ll.SetUnbuffered();
+  // print ll
+  module->print(dest_ll, nullptr);
+  std::string ll(data_ll.begin(), data_ll.end());
+  // emit ptx
   llvm::legacy::PassManager pass;
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
   pass.run(*module);
-  module->print(dest_ll, nullptr);
   std::string ptx(data_ptx.begin(), data_ptx.end());
-  std::string ll(data_ll.begin(), data_ll.end());
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
 }
 
