@@ -97,33 +97,33 @@ Example::
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(1);
 
-// concat TODO(eric): change name(concat->concatenate) and argument(dim->axis)
-DMLC_REGISTER_PARAMETER(ConcatParam);
+// concatenate
+DMLC_REGISTER_PARAMETER(ConcatenateParam);
 
-inline bool ConcatInferShape(const nnvm::NodeAttrs& attrs,
-                             std::vector<TShape> *in_shape,
-                             std::vector<TShape> *out_shape) {
-  const ConcatParam& param = nnvm::get<ConcatParam>(attrs.parsed);
+inline bool ConcatenateInferShape(const nnvm::NodeAttrs& attrs,
+                                  std::vector<TShape> *in_shape,
+                                  std::vector<TShape> *out_shape) {
+  const ConcatenateParam& param = nnvm::get<ConcatenateParam>(attrs.parsed);
   TShape dshape;
   dim_t size = 0;
   bool has_zero = false;
   for (size_t i = 0; i < in_shape->size(); ++i) {
     TShape tmp = (*in_shape)[i];
     if (tmp.ndim()) {
-      CHECK_LT(static_cast<dim_t>(param.dim), tmp.ndim())
-          << "concat dim " << param.dim << " out of range of input shape " << tmp;
-      has_zero = tmp[param.dim] == 0 || has_zero;
-      size += tmp[param.dim];
-      tmp[param.dim] = 0;
+      CHECK_LT(static_cast<dim_t>(param.axis), tmp.ndim())
+          << "concat dim " << param.axis << " out of range of input shape " << tmp;
+      has_zero = tmp[param.axis] == 0 || has_zero;
+      size += tmp[param.axis];
+      tmp[param.axis] = 0;
       shape_assign(&dshape, tmp);
     }
   }
 
   TShape tmp = (*out_shape)[0];
   if (tmp.ndim()) {
-    CHECK_LT(static_cast<dim_t>(param.dim), tmp.ndim())
-        << "concat dim " << param.dim << " out of range of input shape " << tmp;
-    tmp[param.dim] = 0;
+    CHECK_LT(static_cast<dim_t>(param.axis), tmp.ndim())
+        << "concat dim " << param.axis << " out of range of input shape " << tmp;
+    tmp[param.axis] = 0;
     shape_assign(&dshape, tmp);
   }
 
@@ -133,12 +133,12 @@ inline bool ConcatInferShape(const nnvm::NodeAttrs& attrs,
     SHAPE_ASSIGN_CHECK(*in_shape, i, dshape);
   }
 
-  if (!has_zero) dshape[param.dim] = size;
+  if (!has_zero) dshape[param.axis] = size;
   SHAPE_ASSIGN_CHECK(*out_shape, 0, dshape);
   return dshape.Size() != 0;
 }
 
-NNVM_REGISTER_OP(concat)
+NNVM_REGISTER_OP(concatenate)
 .describe(R"code(Joins input arrays along a given axis.
 
 The dimensions of the input arrays should be the same except the axis along
@@ -152,31 +152,80 @@ Example::
    y = [[3,3],[4,4],[5,5]]
    z = [[6,6], [7,7],[8,8]]
 
-   concat(x,y,z,dim=0) = [[ 1.,  1.],
-                          [ 2.,  2.],
-                          [ 3.,  3.],
-                          [ 4.,  4.],
-                          [ 5.,  5.],
-                          [ 6.,  6.],
-                          [ 7.,  7.],
-                          [ 8.,  8.]]
+   concatenate(x,y,z,dim=0) = [[ 1.,  1.],
+                               [ 2.,  2.],
+                               [ 3.,  3.],
+                               [ 4.,  4.],
+                               [ 5.,  5.],
+                               [ 6.,  6.],
+                               [ 7.,  7.],
+                               [ 8.,  8.]]
 
    Note that you cannot concat x,y,z along dimension 1 since dimension
    0 is not the same for all the input arrays.
 
-   concat(y,z,dim=1) = [[ 3.,  3.,  6.,  6.],
-                         [ 4.,  4.,  7.,  7.],
-                         [ 5.,  5.,  8.,  8.]]
+   concatenate(y,z,dim=1) = [[ 3.,  3.,  6.,  6.],
+                             [ 4.,  4.,  7.,  7.],
+                             [ 5.,  5.,  8.,  8.]]
 
 )code" NNVM_ADD_FILELINE)
-.add_argument("data", "Tensor-or-Tensor[]", "List of arrays to concatenate")
-.set_attr<FInferShape>("FInferShape", ConcatInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.add_arguments(ConcatParam::__FIELDS__())
+.set_num_outputs(1)
 .set_num_inputs(nnvm::kVarg)
+.set_attr_parser(ParamParser<ConcatenateParam>)
+.add_argument("data", "Tensor-or-Tensor[]", "List of arrays to concatenate")
+.set_attr<FInferShape>("FInferShape", ConcatenateInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.add_arguments(ConcatenateParam::__FIELDS__())
 .set_support_level(1);
 
+NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_add)
+.describe(R"code(Element-wise add
 
+)code")
+.set_support_level(1);
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_sub)
+.describe(R"code(Element-wise substraction
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(1);
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_mul)
+.describe(R"code(Element-wise multiplication
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(1);
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_div)
+.describe(R"code(Element-wise multiplication
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(1);
+
+// cast
+DMLC_REGISTER_PARAMETER(CastParam);
+
+inline bool CastInferType(const nnvm::NodeAttrs& attrs,
+                          std::vector<int> *in_attrs,
+                          std::vector<int> *out_attrs) {
+  const CastParam& param = nnvm::get<CastParam>(attrs.parsed);
+  CHECK_EQ(out_attrs->size(), 1U);
+  TYPE_ASSIGN_CHECK(*out_attrs, 0, param.dtype);
+  return true;
+}
+
+NNVM_REGISTER_OP(cast)
+.describe(R"code(Cast the content of input to dtype.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data array")
+.set_attr_parser(ParamParser<CastParam>)
+.set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
+.set_attr<FInferType>("FInferType", CastInferType)
+.add_arguments(CastParam::__FIELDS__())
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_support_level(1);
 
 }  // namespace top
 }  // namespace nnvm
