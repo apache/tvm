@@ -68,19 +68,21 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     CHECK_EQ(ecode.value(), 0) << "Cannot open file: " << file_name
                                << " " << ecode.message();
     if (fmt == "o" || fmt == "obj") {
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
       llvm::legacy::PassManager pass;
       CHECK(tm_);
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
-      pass.run(*mptr_);
+      pass.run(*m);
     } else if (fmt == "s" || fmt == "asm") {
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
       llvm::legacy::PassManager pass;
       CHECK(tm_);
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
-      pass.run(*mptr_);
+      pass.run(*m);
     } else if (fmt == "ll") {
       mptr_->print(dest, nullptr);
     } else if (fmt == "bc") {
