@@ -66,8 +66,8 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
         if padding_h > 0 or padding_w > 0:
             output_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
-            index_h = (input_np.shape[1] - filter_height + (input_np.shape[1]+stride_h)%2)/2
-            index_w = (input_np.shape[2] - filter_width + (input_np.shape[2]+stride_w)%2)/2
+            index_h = int((input_np.shape[1] - filter_height + (input_np.shape[1]+stride_h)%2)/2)
+            index_w = int((input_np.shape[2] - filter_width + (input_np.shape[2]+stride_w)%2)/2)
             for c in range(in_channel):
                 for m  in range(channel_multiplier):
                     for b in range(batch):
