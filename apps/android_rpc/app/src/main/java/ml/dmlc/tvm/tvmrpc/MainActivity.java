@@ -78,9 +78,11 @@ public class MainActivity extends AppCompatActivity {
       @Override
       public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         if (isChecked) {
+          enableInputView(false);
           connectProxy();
         } else {
           disconnect();
+          enableInputView(true);
         }
       }
     });
@@ -107,5 +109,14 @@ public class MainActivity extends AppCompatActivity {
   private void disconnect() {
     tvmServerWorker.disconnect();
     System.err.println("Disconnected.");
+  }
+
+  private void enableInputView(boolean enable) {
+    EditText edProxyAddress = findViewById(R.id.input_address);
+    EditText edProxyPort = findViewById(R.id.input_port);
+    EditText edAppKey = findViewById(R.id.input_key);
+    edProxyAddress.setEnabled(enable);
+    edProxyPort.setEnabled(enable);
+    edAppKey.setEnabled(enable);
   }
 }
