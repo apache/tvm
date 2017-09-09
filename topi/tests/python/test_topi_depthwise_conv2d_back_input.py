@@ -56,10 +56,10 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         tcost = timer(filter_tvm, out_backprop_tvm, in_backprop_tvm).mean
         Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1]) 
         if padding_h > 0 and padding_w > 0:
-            pad_top = (filter_height - 1)/2
-            pad_left = (filter_width - 1)/2
-            pad_bottom = (filter_height - 1)/2
-            pad_right = (filter_width - 1)/2
+            pad_top = int((filter_height - 1)/2)
+            pad_left = int((filter_width - 1)/2)
+            pad_bottom = int((filter_height - 1)/2)
+            pad_right = int((filter_width - 1)/2)
             
             padded_out_grad = np.zeros((batch, Dilated_out_grad.shape[1]+pad_top+pad_bottom, Dilated_out_grad.shape[2]+pad_left+pad_right, out_channel))
             padded_out_grad[:, pad_top:-pad_bottom, pad_left:-pad_right, :] = Dilated_out_grad
@@ -77,10 +77,10 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
                         mode='same')[(pad_top):-(pad_bottom), (pad_left):-(pad_right)] 
         
         if padding_h == 0 and padding_w == 0:
-            pad_top = (filter_height - 1)/2
-            pad_left = (filter_width - 1)/2
-            pad_bottom = (filter_height - 1)/2
-            pad_right = (filter_width - 1)/2
+            pad_top = int((filter_height - 1)/2)
+            pad_left = int((filter_width - 1)/2)
+            pad_bottom = int((filter_height - 1)/2)
+            pad_right = int((filter_width - 1)/2)
             if stride_h % 2 == 0: # it pads an addition row to pad_right and pad_bottom
                 pad_bottom += (in_height+stride_h+1)%2
             if stride_w % 2 == 0:
