@@ -216,9 +216,8 @@ def schedule_depthwise_conv2d_back_input_nhwc(outs):
 
         fused_hwc = s[In_grad].fuse(h, fused_wc)
         xoc, xic = s[In_grad].split(fused_hwc, factor=128)
-        fused = s[In_grad].fuse(b, xoc)
 
-        s[In_grad].bind(fused, block_x)
+        s[In_grad].bind(xoc, block_x)
         s[In_grad].bind(xic, thread_x)
 
     def traverse(OP):
