@@ -1,8 +1,7 @@
 import tvm
 import topi
 import numpy as np
-import os
-from tvm.contrib import nvcc
+from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
 from topi.util import get_const_tuple
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
@@ -33,9 +32,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     # schedule
     schedule = schedule_depthwise_conv2d_backward_input_nhwc(In_grad)
 
-    out_backprop_np = np.random.uniform(size=(batch, out_height, out_width, out_channel)).astype(Out_grad.dtype)
-    filter_np = np.random.uniform(size=(filter_height, filter_width, in_channel, channel_multiplier)).astype(Filter.dtype)
-
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
@@ -44,6 +40,57 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
         # build the kernels
         f = tvm.build(schedule, [Filter, Out_grad, In_grad], device)
+
+        # Use memoize, pickle the test data for next time use.
+        @memoize("topi.tests.test_topi_depthwise_conv2d_backward_input")
+        def get_ref_data():
+            out_backprop_np = np.random.uniform(size=(batch, out_height, out_width, out_channel)).astype(Out_grad.dtype)
+            filter_np = np.random.uniform(size=(filter_height, filter_width, in_channel, channel_multiplier)).astype(Filter.dtype)
+            
+            Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1]) 
+            if padding_h > 0 and padding_w > 0:
+                pad_top = int((filter_height - 1)/2)
+                pad_left = int((filter_width - 1)/2)
+                pad_bottom = int((filter_height - 1)/2)
+                pad_right = int((filter_width - 1)/2)
+            
+                padded_out_grad = np.zeros((batch, Dilated_out_grad.shape[1]+pad_top+pad_bottom, Dilated_out_grad.shape[2]+pad_left+pad_right, out_channel))
+                padded_out_grad[:, pad_top:-pad_bottom, pad_left:-pad_right, :] = Dilated_out_grad
+
+                if stride_h % 2 == 0: # it pads an addition row to pad_right and pad_bottom
+                    pad_top -= (in_height+stride_h+1)%2
+                if stride_w % 2 == 0:
+                    pad_left -= (in_width+stride_w+1)%2
+                output_np = np.zeros((batch, in_height, in_width, in_channel))
+                for b in range(batch):
+                    for c in range(in_channel):
+                        for m in range(channel_multiplier):
+                            output_np[b, :, :, c] += signal.convolve2d(padded_out_grad[b, :, :, c*channel_multiplier+m], \
+                            filter_np[:, :, c, m], \
+                            mode='same')[(pad_top):-(pad_bottom), (pad_left):-(pad_right)] 
+        
+            if padding_h == 0 and padding_w == 0:
+                pad_top = int((filter_height - 1)/2)
+                pad_left = int((filter_width - 1)/2)
+                pad_bottom = int((filter_height - 1)/2)
+                pad_right = int((filter_width - 1)/2)
+                if stride_h % 2 == 0: # it pads an addition row to pad_right and pad_bottom
+                    pad_bottom += (in_height+stride_h+1)%2
+                if stride_w % 2 == 0:
+                    pad_right += (in_width+stride_w+1)%2
+                padded_out_grad = np.zeros((batch, Dilated_out_grad.shape[1]+pad_top+pad_bottom, Dilated_out_grad.shape[2]+pad_left+pad_right, out_channel))
+                padded_out_grad[:, pad_top:-pad_bottom, pad_left:-pad_right, :] = Dilated_out_grad
+                output_np = np.zeros((batch, in_height, in_width, in_channel))
+                for b in range(batch):
+                    for c in range(in_channel):
+                        for m in range(channel_multiplier):
+                            output_np[b, :, :, c] += signal.convolve2d(padded_out_grad[b, :, :, c*channel_multiplier+m], \
+                            filter_np[:, :, c, m], \
+                            mode='same')
+            
+            return out_backprop_np, filter_np, output_np
+        
+        out_backprop_np, filter_np, output_np = get_ref_data()
 
         # prepare data
         out_backprop_tvm = tvm.nd.array(out_backprop_np, ctx)
@@ -54,46 +101,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         # launch kernel (depthwise_conv2d backward nhwc wrt input)
         timer = f.time_evaluator(f.entry_name, ctx, number=1)
         tcost = timer(filter_tvm, out_backprop_tvm, in_backprop_tvm).mean
-        Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1]) 
-        if padding_h > 0 and padding_w > 0:
-            pad_top = int((filter_height - 1)/2)
-            pad_left = int((filter_width - 1)/2)
-            pad_bottom = int((filter_height - 1)/2)
-            pad_right = int((filter_width - 1)/2)
-            
-            padded_out_grad = np.zeros((batch, Dilated_out_grad.shape[1]+pad_top+pad_bottom, Dilated_out_grad.shape[2]+pad_left+pad_right, out_channel))
-            padded_out_grad[:, pad_top:-pad_bottom, pad_left:-pad_right, :] = Dilated_out_grad
 
-            if stride_h % 2 == 0: # it pads an addition row to pad_right and pad_bottom
-                pad_top -= (in_height+stride_h+1)%2
-            if stride_w % 2 == 0:
-                pad_left -= (in_width+stride_w+1)%2
-            output_np = np.zeros((batch, in_height, in_width, in_channel))
-            for b in range(batch):
-                for c in range(in_channel):
-                    for m in range(channel_multiplier):
-                        output_np[b, :, :, c] += signal.convolve2d(padded_out_grad[b, :, :, c*channel_multiplier+m], \
-                        filter_np[:, :, c, m], \
-                        mode='same')[(pad_top):-(pad_bottom), (pad_left):-(pad_right)] 
-        
-        if padding_h == 0 and padding_w == 0:
-            pad_top = int((filter_height - 1)/2)
-            pad_left = int((filter_width - 1)/2)
-            pad_bottom = int((filter_height - 1)/2)
-            pad_right = int((filter_width - 1)/2)
-            if stride_h % 2 == 0: # it pads an addition row to pad_right and pad_bottom
-                pad_bottom += (in_height+stride_h+1)%2
-            if stride_w % 2 == 0:
-                pad_right += (in_width+stride_w+1)%2
-            padded_out_grad = np.zeros((batch, Dilated_out_grad.shape[1]+pad_top+pad_bottom, Dilated_out_grad.shape[2]+pad_left+pad_right, out_channel))
-            padded_out_grad[:, pad_top:-pad_bottom, pad_left:-pad_right, :] = Dilated_out_grad
-            output_np = np.zeros((batch, in_height, in_width, in_channel))
-            for b in range(batch):
-                for c in range(in_channel):
-                    for m in range(channel_multiplier):
-                        output_np[b, :, :, c] += signal.convolve2d(padded_out_grad[b, :, :, c*channel_multiplier+m], \
-                        filter_np[:, :, c, m], \
-                        mode='same') 
         
         print("in_shape[%d,%d,%d,%d] filter[%d,%d,%d,%d] stride[%d,%d] padding[%d,%d] NHWC %.6f" %
                 (batch, in_height, in_width, in_channel,
