@@ -1,8 +1,7 @@
 import tvm
-import os
 import topi
 import numpy as np
-from tvm.contrib import nvcc
+from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
 from topi.util import get_const_tuple
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_weight_nhwc
@@ -32,8 +31,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 
     # schedule
     schedule = schedule_depthwise_conv2d_backward_weight_nhwc(Weight_grad)
-    out_backprop_np = np.random.uniform(size=(batch, out_height, out_width, out_channel)).astype(Out_grad.dtype)
-    input_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(Input.dtype)
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -44,44 +41,50 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         # build the kernels
         f = tvm.build(schedule, [Input, Out_grad, Weight_grad], device)
 
+        # Prepare pod type for test data closure
+        dtype = Out_grad.dtype
+        out_grad_shape = get_const_tuple(Out_grad.shape)
+        in_shape = get_const_tuple(Input.shape)
+        
+        @memoize("topi.tests.test_topi_depthwise_conv2d_backward_weight.nhwc")
+        def get_ref_data():
+            out_backprop_np = np.random.uniform(size=out_grad_shape).astype(dtype)
+            input_np = np.random.uniform(size=in_shape).astype(dtype)
+
+            Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1])
+            if padding_h == 0 and padding_w == 0:
+                weight_grad_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
+                for c in range(in_channel):
+                    for m  in range(channel_multiplier):
+                        for b in range(batch):
+                            weight_grad_np[:, :, c, m] += signal.convolve2d(input_np[b, :, :, c], \
+                                np.rot90(Dilated_out_grad[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
+                                mode='valid')[0:filter_height, 0:filter_width]
+
+            if padding_h > 0 or padding_w > 0:
+                weight_grad_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
+                index_h = int((input_np.shape[1] - filter_height + (input_np.shape[1]+stride_h)%2)/2)
+                index_w = int((input_np.shape[2] - filter_width + (input_np.shape[2]+stride_w)%2)/2)
+                for c in range(in_channel):
+                    for m  in range(channel_multiplier):
+                        for b in range(batch):
+                            weight_grad_np[:,:,c,m] += signal.convolve2d(input_np[b, :, :, c], \
+                                np.rot90(Dilated_out_grad[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
+                                mode='same')[index_h:(index_h+filter_height), index_w:(index_w+filter_width)]
+            return (out_backprop_np, input_np, weight_grad_np)
+            
+        (out_backprop_np, input_np, weight_grad_np) = get_ref_data()
+        
         # prepare data
         out_backprop_tvm = tvm.nd.array(out_backprop_np, ctx)
         input_tvm = tvm.nd.array(input_np, ctx)
-
         weight_backprop_tvm = tvm.nd.array(np.zeros((filter_height, filter_width, in_channel, channel_multiplier), dtype=Weight_grad.dtype), ctx)
 
         # launch kernel (depthwise_conv2d backward nhwc wrt input)
         timer = f.time_evaluator(f.entry_name, ctx, number=1)
         tcost = timer(input_tvm, out_backprop_tvm, weight_backprop_tvm).mean
         
-        Dilated_out_grad = topi.testing.dilate_python(out_backprop_np, [1, stride_h, stride_w, 1])
-        if padding_h == 0 and padding_w == 0:
-            output_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
-            for c in range(in_channel):
-                for m  in range(channel_multiplier):
-                    for b in range(batch):
-                        output_np[:, :, c, m] += signal.convolve2d(input_np[b, :, :, c], \
-                            np.rot90(Dilated_out_grad[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
-                            mode='valid')[0:filter_height, 0:filter_width]
-
-        if padding_h > 0 or padding_w > 0:
-            output_np = np.zeros((filter_height, filter_width, in_channel, channel_multiplier))
-            index_h = int((input_np.shape[1] - filter_height + (input_np.shape[1]+stride_h)%2)/2)
-            index_w = int((input_np.shape[2] - filter_width + (input_np.shape[2]+stride_w)%2)/2)
-            for c in range(in_channel):
-                for m  in range(channel_multiplier):
-                    for b in range(batch):
-                         output_np[:,:,c,m] += signal.convolve2d(input_np[b, :, :, c], \
-                            np.rot90(Dilated_out_grad[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
-                            mode='same')[index_h:(index_h+filter_height), index_w:(index_w+filter_width)]
-        
-        print("in_shape[%d,%d,%d,%d] filter[%d,%d,%d,%d] stride[%d,%d] padding[%d,%d] NHWC %.6f" %
-                (batch, in_height, in_width, in_channel,
-                 filter_height, filter_width, in_channel, channel_multiplier,
-                 stride_h, stride_w, padding_h, padding_w,
-                 tcost*1000))
-        np.testing.assert_allclose(output_np, weight_backprop_tvm.asnumpy(), rtol=1e-4)
-        print("success")
+        np.testing.assert_allclose(weight_grad_np, weight_backprop_tvm.asnumpy(), rtol=1e-4)
 
     check_device("cuda")
 

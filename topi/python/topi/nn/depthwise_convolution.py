@@ -108,21 +108,21 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
 # convolution and depthwise convolution backward
 def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding):
     """Depthwise convolution nhwc backward wrt input operator.
-    
+
     Parameters
     ----------
     Filter : tvm.Tensor
         4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
-   
+
     Out_grad : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
-    
+
     stride : tuple
         1-D of size 2
-    
+
     padding : tuple
         1-D of size 2
-    
+
     Returns
     -------
     Output : tvm.Tensor
@@ -176,21 +176,21 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
 
 def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, stride, padding):
     """Depthwise convolution nhwc forward operator.
-    
+
     Parameters
     ----------
     Input : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    
+
     Out_grad : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
-    
+
     stride : tuple
         1-D of size 2
-    
+
     padding : tuple
         1-D of size 2
-    
+
     Returns
     -------
     Output : tvm.Tensor
