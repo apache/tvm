@@ -228,6 +228,8 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
             s[Dilate_out_grad].compute_inline()
             In_grad = OP.output(0)
             _schedule(Padded_out_grad, In_grad)
+        else:
+            raise ValueError("Memory layouts other than NHWC are not supported.")
 
     traverse(outs[0].op)
     return s
@@ -282,6 +284,7 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
             s[Padded_in].compute_inline()
             Weight_grad = OP.output(0)
             _schedule(Weight_grad)
-
+        else:
+            raise ValueError("Memory layouts other than NHWC are not supported.")
     traverse(outs[0].op)
     return s
