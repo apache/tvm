@@ -27,6 +27,8 @@ class IntVec(object):
         self.handle = handle
 
     def __del__(self):
+        # You can also call your own customized
+        # deleter if you can free it via your own FFI.
         tvm.nd.free_extension_handle(self.handle, 17)
 
     @property
