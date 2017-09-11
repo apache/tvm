@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 from collections import namedtuple
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
-from .contrib import cc as _cc, util as _util
+from .contrib import cc as _cc, tar as _tar, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean"])
 
@@ -100,7 +100,11 @@ class Module(ModuleBase):
             with open(path_cc, "w") as f:
                 f.write(_PackImportsToC(self, is_system_lib))
             files.append(path_cc)
-        fcompile = fcompile if fcompile else _cc.create_shared
+        if not fcompile:
+            if file_name.endswith(".tar"):
+                fcompile = _tar.tar
+            else:
+                fcompile = _cc.create_shared
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number):
