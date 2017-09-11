@@ -50,7 +50,7 @@ Install prerequisites first:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python gcc libtinfo-dev
+sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev
 ```
 
 The configuration of tvm can be modified by ```config.mk```
