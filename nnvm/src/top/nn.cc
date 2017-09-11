@@ -35,20 +35,23 @@ inline bool DenseInferShape(const nnvm::NodeAttrs& attrs,
     CHECK_EQ(in_shape->size(), 2U) << "Input:[data, weight]";
   }
   CHECK_EQ(out_shape->size(), 1U);
-  TShape dshape = (*in_shape)[DenseParam::kData];
-  TShape oshape = (*out_shape)[0];
-  // require data to be known
-  if (dshape.ndim() ==  0) return false;
-  dim_t num_input;
-  num_input = dshape.ProdShape(1, dshape.ndim());
-  SHAPE_ASSIGN_CHECK(*in_shape, DenseParam::kWeight, TShape({param.units, num_input}));
-  if (param.use_bias) {
-    SHAPE_ASSIGN_CHECK(*in_shape, DenseParam::kBias, TShape({param.units}));
+  if ((*out_shape)[0].ndim() != 0) {
+    // reverse infer
+    TShape dshape = (*out_shape)[0];
+    dshape[dshape.ndim() - 1] = 0;
+    NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, DenseParam::kData, dshape);
   }
-  SHAPE_ASSIGN_CHECK(*out_shape, 0, TShape({dshape[0], param.units}));
-  if (oshape.ndim() != 0) {
-    dshape[0] = oshape[0];
-    SHAPE_ASSIGN_CHECK(*in_shape, DenseParam::kData, dshape);
+  dim_t num_inputs = 0;
+  if ((*in_shape)[DenseParam::kData].ndim() != 0) {
+    TShape oshape = (*in_shape)[DenseParam::kData];
+    num_inputs = oshape[oshape.ndim() - 1];
+    oshape[oshape.ndim() - 1] = param.units;
+    NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  }
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, DenseParam::kWeight,
+                          TShape({param.units, num_inputs}));
+  if (param.use_bias) {
+    NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, DenseParam::kBias, TShape({param.units}));
   }
   return true;
 }

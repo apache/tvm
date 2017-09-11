@@ -13,29 +13,6 @@
 
 namespace nnvm {
 namespace top {
-
-/*! \brief exception throwed by InferShape error */
-struct InferShapeError : public dmlc::Error {
-  /*! \brief analyze message */
-  std::string msg;
-  /*! \brief corresponding input index */
-  int index;
-  // constructor
-  InferShapeError(const std::string& msg_, int index)
-    : dmlc::Error(msg_), msg(msg_), index(index) {}
-};
-
-/*! \brief exception throwed by InferShape error */
-struct InferTypeError : public dmlc::Error {
-  /*! \brief analyze message */
-  std::string msg;
-  /*! \brief corresponding input index */
-  int index;
-  // constructor
-  InferTypeError(const std::string& msg_, int index)
-    : dmlc::Error(msg_), msg(msg_), index(index) {}
-};
-
 /*!
  * \brief Parse keyword arguments as PType arguments and save to parsed
  * \tparam PType the arameter type.
@@ -128,41 +105,88 @@ inline bool type_assign(int *y, const int& x) {
   return true;
 }
 
+template<typename AttrType>
+inline std::string attr_assign_error_msg(const NodeAttrs& attrs,
+                                         int index, bool is_input,
+                                         const AttrType& expected,
+                                         const AttrType& actual,
+                                         const char* attr_name) {
+  static const auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
+  static const auto& flist_outputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
+  const auto& flist = is_input ? flist_inputs : flist_outputs;
+  std::string name;
+  if (flist.count(attrs.op)) {
+    name = flist[attrs.op](attrs)[index];
+  } else {
+    name = (is_input ? "data" : "output") + std::to_string(index);
+  }
+  std::ostringstream msg;
+  msg << "Operator " << attrs.op->name << "(";
+  for (const auto& kv : attrs.dict) msg << kv.first << "=" << kv.second << ", ";
+  msg << "name=" << attrs.name << ") expects " << name << "\'s " << attr_name
+      << " to be " << expected << ", but got " << actual << ".";
+  return msg.str();
+}
+
 /*!
  * \brief macro assign shape to out if out is unknown otherwise check consistency
  *  Use macro so we can see the error file more clearly
- * \param shape_array the shape array to store the result
+ * \param inputs the shape array to store the result
  * \param index the index of in the array
  * \param shape the inferred shape
  */
-#define SHAPE_ASSIGN_CHECK(shape_array, index, shape)                   \
-  {                                                                     \
-    if (!shape_assign(&(shape_array)[index], TShape(shape))) {          \
-      std::ostringstream os;                                            \
-      os << "Shape inconsistent, Provided=" << (shape_array)[index] << ',' \
-         << " inferred shape=" << shape;                                \
-      throw InferShapeError(os.str(), index);                           \
-    }                                                                   \
+#define NNVM_ASSIGN_INPUT_SHAPE(attrs, inputs, index, shape)             \
+  {                                                                      \
+    if (!shape_assign(&(inputs)[index], TShape(shape))) {                \
+      LOG(FATAL) << attr_assign_error_msg(attrs, index, true, shape,     \
+                                          (inputs)[index], "shape");     \
+    }                                                                    \
+  }
+
+/*!
+ * \brief macro assign shape to out if out is unknown otherwise check consistency
+ *  Use macro so we can see the error file more clearly
+ * \param inputs the shape array to store the result
+ * \param index the index of in the array
+ * \param shape the inferred shape
+ */
+#define NNVM_ASSIGN_OUTPUT_SHAPE(attrs, outputs, index, shape)           \
+  {                                                                      \
+    if (!shape_assign(&(outputs)[index], TShape(shape))) {               \
+      LOG(FATAL) << attr_assign_error_msg(attrs, index, false, shape,    \
+                                          (outputs)[index], "shape");    \
+    }                                                                    \
   }
 
 /*!
  * \brief macro assign type to out if out is unknown (-1) otherwise check consistency
  *  Use macro so we can see the error file more clearly
- * \param type_array the type array to store the result
+ * \param inputs the type array to store the result
  * \param index the index of in the array
  * \param type the inferred type
  */
-#define TYPE_ASSIGN_CHECK(type_array, index, type)                      \
-  {                                                                     \
-    if (!type_assign(&(type_array)[index], type)) {                     \
-      std::ostringstream os;                                            \
-      os << "Type inconsistent, Provided="                              \
-         << type_string((type_array)[index]) << ','                     \
-         << " inferred type=" << type_string(type);                     \
-      throw InferTypeError(os.str(), index);                            \
-    }                                                                   \
+#define NNVM_ASSIGN_INPUT_TYPE(attrs, inputs, index, type)               \
+  {                                                                      \
+    if (!type_assign(&(inputs)[index], type)) {                          \
+      LOG(FATAL) << attr_assign_error_msg(attrs, index, true, type,      \
+                                          (inputs)[index], "type");      \
+    }                                                                    \
   }
 
+/*!
+ * \brief macro assign type to out if out is unknown (-1) otherwise check consistency
+ *  Use macro so we can see the error file more clearly
+ * \param inputs the type array to store the result
+ * \param index the index of in the array
+ * \param type the inferred type
+ */
+#define NNVM_ASSIGN_OUTPUT_TYPE(attrs, outputs, index, type)             \
+  {                                                                      \
+    if (!type_assign(&(outputs)[index], type)) {                         \
+      LOG(FATAL) << attr_assign_error_msg(attrs, index, false, type,     \
+                                          (outputs)[index], "type");     \
+    }                                                                    \
+  }
 
 // simply return the shape as same
 inline bool SameShape(const NodeAttrs& attrs,
