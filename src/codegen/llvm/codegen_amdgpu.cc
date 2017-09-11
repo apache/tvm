@@ -156,7 +156,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::string Error;
   auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
 
-  if(!Target) {
+  if (!Target) {
     LOG(WARNING) << Error;
   }
 
@@ -227,8 +227,6 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   LOG(WARNING) << ll;
   LOG(WARNING) << isa;
-  
-
 
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
