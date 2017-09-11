@@ -12,6 +12,14 @@
 #include "../../pass/ir_util.h"
 #include "../../runtime/rocm/rocm_module.h"
 
+namespace llvm {
+  extern "C" void LLVMInitializeAMDGPUTargetInfo();
+  extern "C" void LLVMInitializeAMDGPUTarget();
+  extern "C" void LLVMInitializeAMDGPUTargetMC();
+  extern "C" void LLVMInitializeAMDGPUAsmParser();
+  extern "C" void LLVMInitializeAMDGPUAsmPrinter();
+}
+
 namespace tvm {
 namespace codegen {
 
@@ -134,34 +142,94 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(target.length(
 ) >= 4 &&
         target.substr(0, 4) == "rocm");
-  llvm::TargetMachine* tm = \
-    GetLLVMTargetMachine("-mtriple=amdgcn--amdhsa -mcpu=gfx900" + \
+//  llvm::TargetMachine* tm = \
+    GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx900" + \
     target.substr(4, target.length() - 4));
+  auto TargetTriple = std::string("amdgcn-amd-amdhsa-hcc");
+
+  llvm::LLVMInitializeAMDGPUTargetInfo();
+  llvm::LLVMInitializeAMDGPUTarget();
+  llvm::LLVMInitializeAMDGPUTargetMC();
+  llvm::LLVMInitializeAMDGPUAsmParser();
+  llvm::LLVMInitializeAMDGPUAsmPrinter();
+
+  std::string Error;
+  auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
+
+  if(!Target) {
+    LOG(WARNING) << Error;
+  }
+
+  auto GPU = "gfx900";
+  auto Features = "";
+
+  llvm::TargetOptions opt;
+  auto RM = llvm::Optional<llvm::Reloc::Model>();
+  auto tm = Target->createTargetMachine(TargetTriple, GPU, Features, opt, RM);
+
+
+  LOG(WARNING) << target;
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
   for (LoweredFunc f :  funcs) {
     cg->AddFunction(f);
   }
+
   std::unique_ptr<llvm::Module> module = cg->Finish();
-  llvm::SmallString<8> data_hsaco, data_ll, data_isa;
-  llvm::raw_svector_ostream dest_hsaco(data_hsaco), dest_ll(data_ll);
-  dest_hsaco.SetUnbuffered();
+
+  llvm::SmallString<8> dataObj, data_ll, dataAsm;
+  llvm::raw_svector_ostream destObj(dataObj), dest_ll(data_ll), destAsm(dataAsm);
+  destObj.SetUnbuffered();
   dest_ll.SetUnbuffered();
-//  module->print(dest_ll, nullptr);
-  std::string printdest_ll(data_ll.begin(), data_ll.end());
-
-  llvm::legacy::PassManager pass;
-  // (TODO) adityaatluri: Generate CGFT_AssemblyFile for debugging kernels
-  CHECK(tm->addPassesToEmitFile(
-      pass, dest_hsaco, llvm::TargetMachine::CGFT_ObjectFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-
-  pass.run(*module);
+  destAsm.SetUnbuffered();
   module->print(dest_ll, nullptr);
-  std::string hsaco(data_hsaco.begin(), data_hsaco.end());
+  std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(module.get());
+  std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(module.get());
+  std::unique_ptr<llvm::Module> mAsmFile = llvm::CloneModule(module.get());
+  std::unique_ptr<llvm::Module> mObjFile = llvm::CloneModule(module.get());
+  llvm::legacy::PassManager pass;
+
+  auto fnAsm = "output.s";
+  auto fnObj = "output.co";
+  std::error_code EC;
+  llvm::raw_fd_ostream destAsmFile(fnAsm, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream destObjFile(fnObj, EC, llvm::sys::fs::F_None);
+
+  CHECK(tm->addPassesToEmitFile(
+            pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+            << "Cannot emit target CGFT_ObjectFile";
+
+  CHECK(tm->addPassesToEmitFile(
+            pass, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+            << "Cannot emit target CGFT_AssemblyFile";
+
+  CHECK(tm->addPassesToEmitFile(
+            pass, destObjFile, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+            << "Cannot emit target CGFT_ObjectFile";
+
+  CHECK(tm->addPassesToEmitFile(
+            pass, destAsmFile, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+            << "Cannot emit target CGFT_AssemblyFile";
+
+
+  pass.run(*mAsm);
+  pass.run(*mObj);
+  pass.run(*mAsmFile);
+  pass.run(*mObjFile);
+
+  destAsmFile.flush();
+  destObjFile.flush();
+
   std::string ll(data_ll.begin(), data_ll.end());
+  std::string hsaco(dataObj.begin(), dataObj.end());
+  std::string isa(dataAsm.begin(), dataAsm.end());
+
   LOG(WARNING) << ll;
+  LOG(WARNING) << isa;
+  
+
+
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
 
