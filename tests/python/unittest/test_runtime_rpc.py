@@ -86,6 +86,55 @@ def test_rpc_remote_module():
         cost = time_f(a, b).mean
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+    def check_remote_link_cl():
+        """Test function to run remote code such as cl
+
+        This is not enabled because there is forking issue
+        of TVM runtime when server launches after OpenCL
+        runtime initializes. We leave it as an example
+        on how to do rpc when we want to do linking on remote.
+        """
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
+        if not tvm.module.enabled("opencl"):
+            print("Skip because opencl is not enabled")
+            return
+        temp = util.tempdir()
+        ctx = remote.cl(0)
+        s = tvm.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], factor=32)
+        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
+        # Option 1: save modules separately and rely on remote compiler
+        path_o = temp.relpath("myadd.o")
+        path_cl = temp.relpath("myadd.cl")
+        path_json = temp.relpath("myadd.tvm_meta.json")
+        f.save(path_o)
+        f.imported_modules[0].save(path_cl)
+        remote.upload(path_o)
+        remote.upload(path_cl)
+        # upload meta data
+        remote.upload(path_json)
+        fhost = remote.load_module("myadd.o")
+        fdev = remote.load_module("myadd.cl")
+        fhost.import_module(fdev)
+        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        fhost(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        # Option 2: export library as a tar ball then handled by remote compiler
+        path_tar = temp.relpath("myadd.tar")
+        f.export_library(path_tar)
+        remote.upload(path_tar)
+        fhost = remote.load_module("myadd.tar")
+        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        fhost(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
     check_remote()
 
 def test_rpc_return_func():
@@ -101,8 +150,8 @@ def test_rpc_return_func():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_rpc_remote_module()
     test_rpc_return_func()
     test_rpc_file_exchange()
     test_rpc_array()
-    test_rpc_remote_module()
     test_rpc_simple()

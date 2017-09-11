@@ -940,6 +940,13 @@ void RPCModuleLoad(TVMArgs args, TVMRetValue *rv) {
   *rv = static_cast<void*>(new Module(m));
 }
 
+void RPCModuleImport(TVMArgs args, TVMRetValue *rv) {
+  void* pmod = args[0];
+  void* cmod = args[1];
+  static_cast<Module*>(pmod)->Import(
+      *static_cast<Module*>(cmod));
+}
+
 void RPCModuleFree(TVMArgs args, TVMRetValue *rv) {
   void* mhandle = args[0];
   delete static_cast<Module*>(mhandle);
@@ -1006,6 +1013,7 @@ void RPCSession::EventHandler::HandlePackedCall() {
     case RPCCode::kDevStreamSync: CallHandler(RPCDevStreamSync); break;
     case RPCCode::kCopyAmongRemote: CallHandler(RPCCopyAmongRemote); break;
     case RPCCode::kModuleLoad: CallHandler(RPCModuleLoad); break;
+    case RPCCode::kModuleImport: CallHandler(RPCModuleImport); break;
     case RPCCode::kModuleFree: CallHandler(RPCModuleFree); break;
     case RPCCode::kModuleGetFunc: CallHandler(RPCModuleGetFunc); break;
     case RPCCode::kModuleGetSource: CallHandler(RPCModuleGetSource); break;

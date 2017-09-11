@@ -15,11 +15,10 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     # placeholder
     Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
     Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
-    Stride = [stride_h, stride_w]
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, Stride, padding)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, stride=[stride_h, stride_w], padding=padding)
     ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule
@@ -97,11 +96,10 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     # placeholder
     Input = tvm.placeholder((batch, in_height, in_width, in_channel), name='Input')
     Filter = tvm.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
-    Stride = [stride_h, stride_w]
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter, Stride, padding)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter, stride=[stride_h, stride_w], padding=padding)
     ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule

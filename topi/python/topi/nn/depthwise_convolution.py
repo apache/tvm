@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
-"""Depthwise Convolution operators"""
+"""Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
 import tvm
 
@@ -57,6 +57,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding):
         name='DepthwiseConv2d', tag="depthwise_conv2d_nchw")
     return Output
 
+
 def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     """Depthwise convolution nhwc forward operator.
 
@@ -68,8 +69,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     Filter : tvm.Tensor
         4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
 
-    Stride : tvm.Tensor
-        1-D of size 2
+    stride : tuple of two ints
+        The spatial stride along height and width
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
@@ -105,7 +106,7 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
     return Output
 
-# convolution and depthwise convolution backward
+
 def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding):
     """Depthwise convolution nhwc backward wrt input operator.
 
@@ -117,49 +118,35 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
     Out_grad : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
 
-    stride : tuple
-        1-D of size 2
+    stride : tuple of two ints
+        The spatial stride along height and width
 
-    padding : tuple
-        1-D of size 2
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
 
     Returns
     -------
     Output : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
     """
-
-
-    # mem layout is b, h, w, c
     batch, in_h, in_w, in_c = ishape
     _, out_h, out_w, out_c = oshape
-
-    channel_multiplier = Filter.shape[3].value
-    filter_h = Filter.shape[0].value
-    filter_w = Filter.shape[1].value
-
+    filter_h, filter_w, _, channel_multiplier = Filter.shape
     stride_h, stride_w = stride
-    # pad_h, pad_w = padding
 
     dilated_out_grad = dilate(Out_grad, [1, stride_h, stride_w, 1], name='dilated_out_grad')
 
-    pad_h = (in_h + filter_h - 1) - dilated_out_grad.shape[1].value
-    pad_w = (in_w + filter_w - 1) - dilated_out_grad.shape[2].value
-
-    pad_top = (pad_h + 1) // 2
-    pad_bottom = pad_h - pad_top
-    pad_left = (pad_w + 1) // 2
-    pad_right = pad_w - pad_left
-
-    if padding[0] == 0:
-        pad_top = filter_h - 1
-        pad_bottom = 0
-        pad_left = filter_w - 1
-        pad_right = 0
+    # padding params in forward propagation
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
+    # padding params in backward propagation
+    bpad_top = filter_h - 1 - fpad_top
+    bpad_bottom = (filter_h - 1 - fpad_bottom) + (stride_h - 1)
+    bpad_left = filter_w - 1 - fpad_left
+    bpad_right = (filter_w - 1 - fpad_right) + (stride_w - 1)
 
     padded_out_grad = pad(dilated_out_grad, \
-                                  [0, pad_top, pad_left, 0], \
-                                  [0, pad_bottom, pad_right, 0], \
+                                  [0, bpad_top, bpad_left, 0], \
+                                  [0, bpad_bottom, bpad_right, 0], \
                                   name='padded_out_grad')
 
     dh = tvm.reduce_axis((0, filter_h), name='dh')
@@ -174,8 +161,9 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
 
     return In_grad
 
+
 def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, stride, padding):
-    """Depthwise convolution nhwc forward operator.
+    """Depthwise convolution nhwc backward wrt weight operator.
 
     Parameters
     ----------
@@ -185,39 +173,31 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
     Out_grad : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
 
-    stride : tuple
-        1-D of size 2
+    stride : tuple of two ints
+        The spatial stride along height and width
 
-    padding : tuple
-        1-D of size 2
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
 
     Returns
     -------
     Output : tvm.Tensor
         4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
     """
-
-    # mem layout is b, h, w, c
-    # this is the output (In_grad) dimensions
     batch, out_h, out_w, out_c = oshape
-    filter_h, filter_w, _, channel_multiplier = fshape # output of this function
+    filter_h, filter_w, _, channel_multiplier = fshape
 
-    # this is input (Out_grad) dimensions
-    in_h = Input.shape[1].value
-    in_w = Input.shape[2].value
     in_c = Input.shape[3].value
     stride_h, stride_w = stride
 
     dilated_out_grad = dilate(Out_grad, [1, stride_h, stride_w, 1], name='dilated_out_grad')
 
-    pad_h, pad_w = padding
-    pad_top = pad_bottom = pad_h
-    pad_left = pad_right = pad_w
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (filter_h, filter_w))
 
     padded_in = pad(Input, \
-                            [0, pad_top, pad_left, 0], \
-                            [0, pad_bottom, pad_right, 0], \
-                            name='padded_in')
+                        [0, pad_top, pad_left, 0], \
+                        [0, pad_bottom, pad_right, 0], \
+                        name='padded_in')
 
     dh = tvm.reduce_axis((0, Out_grad.shape[1].value), name='dh')
     dw = tvm.reduce_axis((0, Out_grad.shape[2].value), name='dw')
