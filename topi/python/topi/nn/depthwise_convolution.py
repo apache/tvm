@@ -106,7 +106,6 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
     return Output
 
-
 def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding):
     """Depthwise convolution nhwc backward wrt input operator.
 

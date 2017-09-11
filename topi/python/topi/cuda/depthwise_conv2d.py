@@ -195,12 +195,13 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
     ----------
     outs: Array of Tensor
         The computation graph description of depthwise_conv2d
-        in the format of an array of tensors.
+        backward wrt inputs in the format of an array of tensors.
 
     Returns
     -------
     s: Schedule
-        The computation schedule for depthwise_conv2d nhwc.
+        The computation schedule for depthwise_conv2d backward
+        wrt input with layout nhwc.
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
@@ -212,9 +213,7 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
         thread_x = tvm.thread_axis("threadIdx.x")
         _, h, w, c = In_grad.op.axis
 
-        fused_wc = s[In_grad].fuse(w, c)
-
-        fused_hwc = s[In_grad].fuse(h, fused_wc)
+        fused_hwc = s[In_grad].fuse(h, w, c)
         xoc, xic = s[In_grad].split(fused_hwc, factor=128)
 
         s[In_grad].bind(xoc, block_x)
@@ -224,8 +223,8 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
         # inline all one-to-one-mapping operators except the last stage (output)
         if OP.tag == 'depthwise_conv2d_backward_input_nhwc':
             Padded_out_grad = OP.input_tensors[0]
-            Dilate_out_grad = Padded_out_grad.op.input_tensors[0]
-            s[Dilate_out_grad].compute_inline()
+            Dilated_out_grad = Padded_out_grad.op.input_tensors[0]
+            s[Dilated_out_grad].compute_inline()
             In_grad = OP.output(0)
             _schedule(Padded_out_grad, In_grad)
         else:
@@ -246,7 +245,8 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
     Returns
     -------
     s: Schedule
-        The computation schedule for depthwise_conv2d nhwc.
+        The computation schedule for depthwise_conv2d backward
+        wrt weight with layout nhwc.
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
@@ -258,14 +258,11 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
 
         db, dh, dw = Weight_grad.op.reduce_axis
 
-        fused_dhdw = s[Weight_grad].fuse(dh, dw)
-        fused_dbdhdw = s[Weight_grad].fuse(db, fused_dhdw)
+        fused_dbdhdw = s[Weight_grad].fuse(db, dh, dw)
         _, ki = s[Weight_grad].split(fused_dbdhdw, factor=8)
         BF = s.rfactor(Weight_grad, ki)
 
-        fused_cm = s[Weight_grad].fuse(s[Weight_grad].op.axis[2], s[Weight_grad].op.axis[3])
-        fused_fwcm = s[Weight_grad].fuse(s[Weight_grad].op.axis[1], fused_cm)
-        fused_fwcm = s[Weight_grad].fuse(s[Weight_grad].op.axis[0], fused_fwcm)
+        fused_fwcm = s[Weight_grad].fuse(*s[Weight_grad].op.axis)
 
         xo, xi = s[Weight_grad].split(fused_fwcm, factor=32)
 
@@ -278,9 +275,9 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
         if OP.tag == 'depthwise_conv2d_backward_weight_nhwc':
-            Dilate_out_grad = OP.input_tensors[0]
+            Dilated_out_grad = OP.input_tensors[0]
             Padded_in = OP.input_tensors[1]
-            s[Dilate_out_grad].compute_inline()
+            s[Dilated_out_grad].compute_inline()
             s[Padded_in].compute_inline()
             Weight_grad = OP.output(0)
             _schedule(Weight_grad)
