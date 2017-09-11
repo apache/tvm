@@ -7,6 +7,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <unordered_set>
+#include <cstring>
 #include "./file_util.h"
 
 namespace tvm {
@@ -27,7 +28,7 @@ PackedFunc Module::GetFunction(
 
 void Module::Import(Module other) {
   // specially handle rpc
-  if (!strcmp((*this)->type_key(), "rpc")) {
+  if (!std::strcmp((*this)->type_key(), "rpc")) {
     static const PackedFunc* fimport_ = nullptr;
     if (fimport_ == nullptr) {
       fimport_ = runtime::Registry::Get("contrib.rpc._ImportRemoteModule");

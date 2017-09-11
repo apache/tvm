@@ -5,6 +5,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <memory>
+#include <cstring>
 #include "./rpc_session.h"
 
 namespace tvm {
@@ -170,8 +171,8 @@ TVM_REGISTER_GLOBAL("contrib.rpc._ImportRemoteModule")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module parent = args[0];
     Module child = args[1];
-    CHECK(!strcmp(parent->type_key(), "rpc") &&
-          !strcmp(child->type_key(), "rpc"));
+    CHECK(!std::strcmp(parent->type_key(), "rpc") &&
+          !std::strcmp(child->type_key(), "rpc"));
     auto* pmod = static_cast<RPCModuleNode*>(parent.operator->());
     auto* cmod = static_cast<RPCModuleNode*>(child.operator->());
     CHECK(pmod->sess().get() == cmod->sess().get())
