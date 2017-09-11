@@ -18,6 +18,7 @@ cdef enum TVMTypeCode:
     kFuncHandle = 10
     kStr = 11
     kBytes = 12
+    kExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
     ctypedef struct DLDataType:

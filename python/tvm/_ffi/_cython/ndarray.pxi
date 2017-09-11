@@ -43,9 +43,14 @@ cdef c_make_array(void* chandle, is_view):
 
 cdef _TVM_COMPATS = ()
 
-def _reg_extension(cls):
+cdef _TVM_EXT_RET = {}
+
+def _reg_extension(cls, fcreate):
     global _TVM_COMPATS
     _TVM_COMPATS += (cls,)
+    if fcreate:
+        _TVM_EXT_RET[cls._tvm_tcode] = fcreate
+
 
 def _make_array(handle, is_view):
     cdef unsigned long long ptr
