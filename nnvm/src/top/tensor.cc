@@ -64,7 +64,7 @@ inline bool FlattenInferShape(const nnvm::NodeAttrs& attrs,
   for (uint32_t i = 1; i < dshape.ndim(); ++i) {
     target_dim *= dshape[i];
   }
-  SHAPE_ASSIGN_CHECK(*out_attrs, 0, TShape({dshape[0], target_dim}));
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, TShape({dshape[0], target_dim}));
   return true;
 }
 
@@ -130,11 +130,11 @@ inline bool ConcatenateInferShape(const nnvm::NodeAttrs& attrs,
   if (dshape.ndim() == 0) return false;
 
   for (size_t i = 0; i < in_shape->size(); ++i) {
-    SHAPE_ASSIGN_CHECK(*in_shape, i, dshape);
+    NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, i, dshape);
   }
 
   if (!has_zero) dshape[param.axis] = size;
-  SHAPE_ASSIGN_CHECK(*out_shape, 0, dshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, dshape);
   return dshape.Size() != 0;
 }
 
@@ -210,7 +210,7 @@ inline bool CastInferType(const nnvm::NodeAttrs& attrs,
                           std::vector<int> *out_attrs) {
   const CastParam& param = nnvm::get<CastParam>(attrs.parsed);
   CHECK_EQ(out_attrs->size(), 1U);
-  TYPE_ASSIGN_CHECK(*out_attrs, 0, param.dtype);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, param.dtype);
   return true;
 }
 
