@@ -26,6 +26,16 @@ PackedFunc Module::GetFunction(
 }
 
 void Module::Import(Module other) {
+  // specially handle rpc
+  if (!strcmp((*this)->type_key(), "rpc")) {
+    static const PackedFunc* fimport_ = nullptr;
+    if (fimport_ == nullptr) {
+      fimport_ = runtime::Registry::Get("contrib.rpc._ImportRemoteModule");
+      CHECK(fimport_ != nullptr);
+    }
+    (*fimport_)(*this, other);
+    return;
+  }
   // cyclic detection.
   std::unordered_set<const ModuleNode*> visited{other.node_.get()};
   std::vector<const ModuleNode*> stack{other.node_.get()};

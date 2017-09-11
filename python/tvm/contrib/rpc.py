@@ -15,7 +15,7 @@ import socket
 import struct
 import logging
 import multiprocessing
-from . import util, cc
+from . import util, cc, tar
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
 from .._ffi.ndarray import context as _context
@@ -37,10 +37,16 @@ def _server_env():
         """Load module from remote side."""
         path = temp.relpath(file_name)
         # Try create a shared library in remote
-        if path.endswith('.o'):
-            logging.info('Create shared library based on %s', path)
-            cc.create_shared(path + '.so', path)
-            path += '.so'
+        if path.endswith(".o"):
+            logging.info("Create shared library based on %s", path)
+            cc.create_shared(path + ".so", path)
+            path += ".so"
+        elif path.endswith(".tar"):
+            tar_temp = util.tempdir()
+            tar.untar(path, tar_temp.temp_dir)
+            files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
+            cc.create_shared(path + ".so", files)
+            path += ".so"
         m = _load_module(path)
         logging.info("load_module %s", path)
         return m
@@ -63,7 +69,7 @@ def _recvall(sock, nbytes):
         chunk = sock.recv(min(nbytes - nread, 1024))
         nread += len(chunk)
         res.append(chunk)
-    return b''.join(res)
+    return b"".join(res)
 
 
 def _listen_loop(sock):
@@ -71,16 +77,16 @@ def _listen_loop(sock):
     while True:
         conn, addr = sock.accept()
         logging.info("RPCServer: connection from %s", addr)
-        magic = struct.unpack('@i', _recvall(conn, 4))[0]
+        magic = struct.unpack("@i", _recvall(conn, 4))[0]
         if magic != RPC_MAGIC:
             conn.close()
             continue
-        keylen = struct.unpack('@i', _recvall(conn, 4))[0]
+        keylen = struct.unpack("@i", _recvall(conn, 4))[0]
         key = py_str(_recvall(conn, keylen))
         if not key.startswith("client:"):
-            conn.sendall(struct.pack('@i', RPC_MAGIC + 2))
+            conn.sendall(struct.pack("@i", RPC_MAGIC + 2))
         else:
-            conn.sendall(struct.pack('@i', RPC_MAGIC))
+            conn.sendall(struct.pack("@i", RPC_MAGIC))
         logging.info("Connection from %s", addr)
         process = multiprocessing.Process(target=_serve_loop, args=(conn, addr))
         process.deamon = True
@@ -94,10 +100,10 @@ def _connect_proxy_loop(addr, key):
     while True:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(addr)
-        sock.sendall(struct.pack('@i', RPC_MAGIC))
-        sock.sendall(struct.pack('@i', len(key)))
+        sock.sendall(struct.pack("@i", RPC_MAGIC))
+        sock.sendall(struct.pack("@i", len(key)))
         sock.sendall(key.encode("utf-8"))
-        magic = struct.unpack('@i', _recvall(sock, 4))[0]
+        magic = struct.unpack("@i", _recvall(sock, 4))[0]
         if magic == RPC_MAGIC + 1:
             raise RuntimeError("key: %s has already been used in proxy" % key)
         elif magic == RPC_MAGIC + 2:
@@ -321,7 +327,7 @@ def connect(url, port, key=""):
     try:
         sess = _Connect(url, port, key)
     except NameError:
-        raise RuntimeError('Please compile with USE_RPC=1')
+        raise RuntimeError("Please compile with USE_RPC=1")
     return RPCSession(sess)
 
 _init_api("tvm.contrib.rpc")

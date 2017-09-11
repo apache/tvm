@@ -83,6 +83,10 @@ class RPCModuleNode final : public ModuleNode {
     return WrapRemote(handle);
   }
 
+  void* module_handle() const {
+    return module_handle_;
+  }
+
  private:
   PackedFunc WrapRemote(RPCFuncHandle handle) {
     if (handle == nullptr) return PackedFunc();
@@ -160,6 +164,21 @@ TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteModule")
     std::shared_ptr<RPCModuleNode> n =
         std::make_shared<RPCModuleNode>(mhandle, sess);
     *rv = Module(n);
+  });
+
+TVM_REGISTER_GLOBAL("contrib.rpc._ImportRemoteModule")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Module parent = args[0];
+    Module child = args[1];
+    CHECK(!strcmp(parent->type_key(), "rpc") &&
+          !strcmp(child->type_key(), "rpc"));
+    auto* pmod = static_cast<RPCModuleNode*>(parent.operator->());
+    auto* cmod = static_cast<RPCModuleNode*>(child.operator->());
+    CHECK(pmod->sess().get() == cmod->sess().get())
+        << "Import of remote module need to belong to same session.";
+    pmod->sess()->CallRemote(RPCCode::kModuleImport,
+                             pmod->module_handle(),
+                             cmod->module_handle());
   });
 
 TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
