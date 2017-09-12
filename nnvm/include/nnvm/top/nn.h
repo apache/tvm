@@ -12,6 +12,20 @@
 namespace nnvm {
 namespace top {
 
+enum LayoutFlag {
+  kNCHW = 0,
+  kNHWC,
+  kCHWN,
+
+  kNCW = 1 << 3,
+  kNWC,
+  kCWN,
+
+  kNCDHW = 1 << 5,
+  kNDHWC,
+  kCDHWN
+};
+
 struct DenseParam : public dmlc::Parameter<DenseParam> {
   int units;
   bool use_bias;
@@ -82,6 +96,145 @@ struct LogSoftmaxParam : public dmlc::Parameter<LogSoftmaxParam> {
   DMLC_DECLARE_PARAMETER(LogSoftmaxParam) {
     DMLC_DECLARE_FIELD(axis).set_default(-1)
       .describe("The axis to sum over when computing softmax.");
+  }
+};
+
+struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
+  int channels;
+  TShape kernel_size;
+  TShape strides;
+  TShape padding;
+  TShape dilation;
+  int groups;
+  int layout;
+  bool use_bias;
+
+  DMLC_DECLARE_PARAMETER(Conv2DParam) {
+    DMLC_DECLARE_FIELD(channels)
+      .describe("The dimensionality of the output space"
+                "i.e. the number of output channels in the convolution.");
+    DMLC_DECLARE_FIELD(kernel_size)
+      .describe("Specifies the dimensions of the convolution window.");
+    DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "on both sides for padding number of points");
+    DMLC_DECLARE_FIELD(dilation).set_default(TShape({1, 1}))
+      .describe("Specifies the dilation rate to use for dilated convolution.");
+    DMLC_DECLARE_FIELD(groups).set_default(1)
+      .describe("Controls the connections between inputs and outputs."
+                "At groups=1, all inputs are convolved to all outputs."
+                "At groups=2, the operation becomes equivalent to having two convolution"
+                "layers side by side, each seeing half the input channels, and producing"
+                "half the output channels, and both subsequently concatenated.");
+    DMLC_DECLARE_FIELD(layout)
+      .add_enum("NCHW", kNCHW)
+      .add_enum("NHWC", kNHWC)
+      .set_default(kNCHW)
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    DMLC_DECLARE_FIELD(use_bias).set_default(true)
+      .describe("Whether the layer uses a bias vector.");
+  }
+};
+
+
+struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
+  int channels;
+  TShape kernel_size;
+  TShape strides;
+  TShape padding;
+  TShape output_padding;
+  TShape dilation;
+  int groups;
+  int layout;
+  bool use_bias;
+
+  DMLC_DECLARE_PARAMETER(Conv2DTransposeParam) {
+    DMLC_DECLARE_FIELD(channels)
+      .describe("The dimensionality of the output space"
+                "i.e. the number of output channels in the convolution.");
+    DMLC_DECLARE_FIELD(kernel_size)
+      .describe("Specifies the dimensions of the convolution window.");
+    DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    DMLC_DECLARE_FIELD(output_padding).set_default(TShape({0, 0}))
+      .describe("Zero-padding added to one side of the output.");
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "on both sides for padding number of points");
+    DMLC_DECLARE_FIELD(dilation).set_default(TShape({1, 1}))
+      .describe("Specifies the dilation rate to use for dilated convolution.");
+    DMLC_DECLARE_FIELD(groups).set_default(1)
+      .describe("Controls the connections between inputs and outputs."
+                "At groups=1, all inputs are convolved to all outputs."
+                "At groups=2, the operation becomes equivalent to having two convolution"
+                "layers side by side, each seeing half the input channels, and producing"
+                "half the output channels, and both subsequently concatenated.");
+    DMLC_DECLARE_FIELD(layout)
+      .add_enum("NCHW", kNCHW)
+      .add_enum("NHWC", kNHWC)
+      .set_default(kNCHW)
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    DMLC_DECLARE_FIELD(use_bias).set_default(true)
+      .describe("Whether the layer uses a bias vector.");
+  }
+};
+
+struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
+  TShape pool_size;
+  TShape strides;
+  TShape padding;
+  int groups;
+  int layout;
+  bool ceil_mode;
+
+  DMLC_DECLARE_PARAMETER(Pool2DParam) {
+    DMLC_DECLARE_FIELD(pool_size)
+      .describe("Size of the pooling windows..");
+    DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "on both sides for padding number of points");
+    DMLC_DECLARE_FIELD(groups).set_default(1)
+      .describe("Controls the connections between inputs and outputs."
+                "At groups=1, all inputs are convolved to all outputs."
+                "At groups=2, the operation becomes equivalent to having two convolution"
+                "layers side by side, each seeing half the input channels, and producing"
+                "half the output channels, and both subsequently concatenated.");
+    DMLC_DECLARE_FIELD(layout)
+      .add_enum("NCHW", kNCHW)
+      .add_enum("NHWC", kNHWC)
+      .set_default(kNCHW)
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    DMLC_DECLARE_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+  }
+};
+
+
+struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
+  int layout;
+
+  DMLC_DECLARE_PARAMETER(GlobalPool2DParam) {
+    DMLC_DECLARE_FIELD(layout)
+      .add_enum("NCHW", kNCHW)
+      .add_enum("NHWC", kNHWC)
+      .set_default(kNCHW)
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
   }
 };
 
