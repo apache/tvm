@@ -7,6 +7,7 @@
 #if TVM_ROCM_RUNTIME
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include "./codegen_llvm.h"
 #include "../build_common.h"
 #include "../../pass/ir_util.h"
