@@ -7,8 +7,8 @@
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
 #include <nnvm/top/nn.h>
-#include "./op_common.h"
-#include "./elemwise_op_common.h"
+#include "../op_common.h"
+#include "../elemwise_op_common.h"
 
 namespace nnvm {
 namespace top {
@@ -126,6 +126,25 @@ NNVM_REGISTER_OP(dropout)
 // batchnorm
 DMLC_REGISTER_PARAMETER(BatchNormParam);
 
+inline bool BatchNormInferShape(const nnvm::NodeAttrs& attrs,
+                                std::vector<TShape> *in_shape,
+                                std::vector<TShape> *out_shape) {
+  CHECK_EQ(in_shape->size(), 5U)
+      << "Input:[data, gamma, beta, moving_mean, moving_var]";
+  CHECK_EQ(out_shape->size(), 3U);
+  const TShape &dshape = in_shape->at(0);
+  if (dshape.ndim() == 0) return false;
+  TShape bshape({dshape[1]});
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 1, bshape);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 2, bshape);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 3, bshape);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 4, bshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, dshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 1, bshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 2, bshape);
+  return true;
+}
+
 NNVM_REGISTER_OP(batch_norm)
 .describe(R"(Batch normalization layer (Ioffe and Szegedy, 2014).
 Normalizes the input at each batch, i.e. applies a transformation
@@ -167,6 +186,8 @@ axis to be the last item in the input shape.
 .set_num_inputs(5)
 .set_num_outputs(3)
 .set_attr_parser(ParamParser<BatchNormParam>)
+.set_attr<FInferShape>("FInferShape", BatchNormInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<5, 3>)
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
     return std::vector<std::string>{"data", "gamma", "beta", "moving_mean", "moving_var"};
   })
@@ -198,8 +219,6 @@ NNVM_REGISTER_OP(softmax)
 .set_support_level(1);
 
 // log_softmax
-DMLC_REGISTER_PARAMETER(LogSoftmaxParam);
-
 NNVM_REGISTER_OP(log_softmax)
 .describe(R"code(Computes softmax.
 
@@ -208,7 +227,23 @@ NNVM_REGISTER_OP(log_softmax)
 )code" NNVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_num_outputs(1)
-.set_attr_parser(ParamParser<LogSoftmaxParam>)
+.set_attr_parser(ParamParser<SoftmaxParam>)
+.set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(1);
+
+// leaky_rlu
+DMLC_REGISTER_PARAMETER(LeakyReLUParam);
+
+NNVM_REGISTER_OP(leaky_relu)
+.describe(R"code(Leaky version of a Rectified Linear Unit.
+
+`y = x > 0 ? x : alpha * x`
+
+)code" NNVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr_parser(ParamParser<LeakyReLUParam>)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1);

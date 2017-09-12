@@ -40,6 +40,24 @@ struct CastParam : public dmlc::Parameter<CastParam> {
   }
 };
 
+struct ReshapeParam : public dmlc::Parameter<ReshapeParam> {
+  Tuple<int64_t> shape;
+
+  DMLC_DECLARE_PARAMETER(ReshapeParam) {
+    DMLC_DECLARE_FIELD(shape);
+  }
+};
+
+struct ScalarParam : public dmlc::Parameter<ScalarParam> {
+  double scalar;
+
+  DMLC_DECLARE_PARAMETER(ScalarParam) {
+    DMLC_DECLARE_FIELD(scalar);
+  }
+};
+
+
+
 }  // namespace top
 }  // namespace nnvm
 

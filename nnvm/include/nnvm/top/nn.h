@@ -54,15 +54,15 @@ struct DropoutParam : public dmlc::Parameter<DropoutParam> {
 
 struct BatchNormParam : public dmlc::Parameter<BatchNormParam> {
   int axis;
-  float epsilon;
-  float momentum;
+  double epsilon;
+  double momentum;
   bool center;
   bool scale;
 
   DMLC_DECLARE_PARAMETER(BatchNormParam) {
     DMLC_DECLARE_FIELD(axis).set_default(1)
       .describe("Specify which shape axis the channel is specified.");
-    DMLC_DECLARE_FIELD(epsilon).set_default(1e-5f)
+    DMLC_DECLARE_FIELD(epsilon).set_default(1e-5)
         .describe("Small float added to variance to avoid dividing by zero.");
     DMLC_DECLARE_FIELD(center).set_default(true)
         .describe("If True, add offset of `beta` to normalized tensor."
@@ -81,21 +81,23 @@ struct BatchNormParam : public dmlc::Parameter<BatchNormParam> {
   static const constexpr int kMovingVariance = 4;
 };
 
+
+// Shared by softmax and log_softmax
 struct SoftmaxParam : public dmlc::Parameter<SoftmaxParam> {
   int axis;
 
   DMLC_DECLARE_PARAMETER(SoftmaxParam) {
     DMLC_DECLARE_FIELD(axis).set_default(-1)
-      .describe("The axis to sum over when computing softmax.");
+        .describe("The axis to sum over when computing softmax.");
   }
 };
 
-struct LogSoftmaxParam : public dmlc::Parameter<LogSoftmaxParam> {
-  int axis;
+struct LeakyReLUParam : public dmlc::Parameter<LeakyReLUParam> {
+  double alpha;
 
-  DMLC_DECLARE_PARAMETER(LogSoftmaxParam) {
-    DMLC_DECLARE_FIELD(axis).set_default(-1)
-      .describe("The axis to sum over when computing softmax.");
+  DMLC_DECLARE_PARAMETER(LeakyReLUParam) {
+    DMLC_DECLARE_FIELD(alpha).set_lower_bound(0.0).set_default(0.25)
+        .describe("slope coefficient for the negative half axis.");
   }
 };
 

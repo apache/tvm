@@ -51,10 +51,10 @@ else
 	NO_WHOLE_ARCH= --no-whole-archive
 endif
 
-all: lib/libnnvm.a lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX)
+all: lib/libnnvm.a lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX)
 
 SRC = $(wildcard src/*.cc src/c_api/*.cc src/core/*.cc src/pass/*.cc)
-SRC_TOP = $(wildcard src/top/*.cc)
+SRC_TOP = $(wildcard src/top/*.cc, src/top/*/*.cc)
 ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_TOP))
 ALL_DEP = $(ALL_OBJ)
@@ -72,7 +72,7 @@ lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libnnvm_example.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
+lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
 

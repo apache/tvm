@@ -37,22 +37,22 @@ if [ ${TASK} == "python_test" ]; then
     make clean
     make -j all || exit -1
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        python -m nose tests/python/ || exit -1
-        python3 -m nose tests/python/ || exit -1
+        python -m nose tests/python/unittest/ || exit -1
+        python3 -m nose tests/python/unittest/ || exit -1
     else
-        nosetests tests/python/ || exit -1
-        nosetests3 tests/python/ || exit -1
+        nosetests tests/python/unittest/ || exit -1
+        nosetests3 tests/python/unittest/ || exit -1
     fi
 
     make cython || exit -1
     make cython3 || exit -1
 
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        python -m nose tests/python/ || exit -1
-        python3 -m nose tests/python/ || exit -1
+        python -m nose tests/python/unittest/ || exit -1
+        python3 -m nose tests/python/unittest/ || exit -1
     else
-        nosetests tests/python/ || exit -1
-        nosetests3 tests/python/ || exit -1
+        nosetests tests/python/unittest/ || exit -1
+        nosetests3 tests/python/unittest/ || exit -1
     fi
     exit 0
 fi
