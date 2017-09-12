@@ -1,9 +1,19 @@
 """Utility for ROCm backend"""
-import sys, subprocess
+import subprocess
 from . import util
 from ..api import register_func
 
 def rocm_link(in_file, out_file):
+    """Link relocatable ELF object to shared ELF object using lld
+
+    Parameters
+    ----------
+    in_file : str
+        Input file name (relocatable ELF object file)
+
+    out_file : str
+        Output file name (shared ELF object file)
+    """
     cmd = ["ld.lld"]
     cmd += ["-shared"]
     cmd += [in_file]
@@ -14,7 +24,7 @@ def rocm_link(in_file, out_file):
         args, shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
+    proc.communicate()
 
 @register_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
