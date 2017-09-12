@@ -1,7 +1,22 @@
 """Utility for ROCm backend"""
+import sys, subprocess
 from . import util
+from ..api import register_func
 
-@tvm.register_func("tvm_callback_rocm_link")
+def rocm_link(in_file, out_file):
+    cmd = ["ld.lld"]
+    cmd += ["-shared"]
+    cmd += [in_file]
+    cmd += ["-o"]
+    cmd += [out_file]
+    args = ' '.join(cmd)
+    proc = subprocess.Popen(
+        args, shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+
+@register_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
     """Links object file generated from LLVM to HSA Code Object
 
@@ -16,9 +31,11 @@ def callback_rocm_link(obj_bin):
         The HSA Code Object
     """
     tmp_dir = util.tempdir()
-    tmp_obj = tmp_dir.reloath("rocm_kernel.o")
-    tmp_cobj = tmp_dir.reloath("rocm_kernel.co")
+    tmp_obj = tmp_dir.relpath("rocm_kernel.o")
+    tmp_cobj = tmp_dir.relpath("rocm_kernel.co")
+    rocm_link(tmp_obj, tmp_cobj)
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(obj_bin))
+    rocm_link(tmp_obj, tmp_cobj)
     cobj_bin = bytearray(open(tmp_cobj, "rb").read())
     return cobj_bin
