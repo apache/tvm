@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <memory>
+#include <array>
 #include "./runtime_base.h"
 
 namespace tvm {
@@ -21,7 +22,16 @@ struct Registry::Manager {
   // and the resource can become invalid because of indeterminstic order of destruction.
   // The resources will only be recycled during program exit.
   std::unordered_map<std::string, Registry*> fmap;
+  // vtable for extension type
+  std::array<ExtTypeVTable, kExtEnd> ext_vtable;
+  // mutex
   std::mutex mutex;
+
+  Manager() {
+    for (auto& x : ext_vtable) {
+      x.destroy = nullptr;
+    }
+  }
 
   static Manager* Global() {
     static Manager inst;
@@ -78,6 +88,24 @@ std::vector<std::string> Registry::ListNames() {
   return keys;
 }
 
+ExtTypeVTable* ExtTypeVTable::Get(int type_code) {
+  CHECK(type_code > kExtBegin && type_code < kExtEnd);
+  Registry::Manager* m = Registry::Manager::Global();
+  ExtTypeVTable* vt = &(m->ext_vtable[type_code]);
+  CHECK(vt->destroy != nullptr)
+      << "Extension type not registered";
+  return vt;
+}
+
+ExtTypeVTable* ExtTypeVTable::RegisterInternal(
+    int type_code, const ExtTypeVTable& vt) {
+  CHECK(type_code > kExtBegin && type_code < kExtEnd);
+  Registry::Manager* m = Registry::Manager::Global();
+  std::lock_guard<std::mutex>(m->mutex);
+  ExtTypeVTable* pvt = &(m->ext_vtable[type_code]);
+  pvt[0] = vt;
+  return pvt;
+}
 }  // namespace runtime
 }  // namespace tvm
 
@@ -92,6 +120,11 @@ struct TVMFuncThreadLocalEntry {
 /*! \brief Thread local store that can be used to hold return values. */
 typedef dmlc::ThreadLocalStore<TVMFuncThreadLocalEntry> TVMFuncThreadLocalStore;
 
+int TVMExtTypeFree(void* handle, int type_code) {
+  API_BEGIN();
+  tvm::runtime::ExtTypeVTable::Get(type_code)->destroy(handle);
+  API_END();
+}
 
 int TVMFuncRegisterGlobal(
     const char* name, TVMFunctionHandle f, int override) {
