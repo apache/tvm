@@ -53,7 +53,10 @@ mxnet_source_group("Source\\core"   GLOB "src/core/*.cc")
 mxnet_source_group("Source\\pass"   GLOB "src/pass/*.cc")
 
 
-FILE(GLOB_RECURSE SOURCE "src/*.cc" "src/*.h" "include/*.h")
+FILE(GLOB_RECURSE SOURCE
+   src/c_api/*.cc
+   src/core/*.cc
+   src/pass/*.cc)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/CMakeLists.txt)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include)

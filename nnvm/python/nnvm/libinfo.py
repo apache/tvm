@@ -26,7 +26,7 @@ def find_lib_path():
     if hasattr(__builtin__, "NNVM_LIBRARY_NAME"):
         lib_name = __builtin__.NNVM_LIBRARY_NAME
     else:
-        lib_name = "libnnvm_example"
+        lib_name = "libnnvm_top"
 
     api_path = os.path.join(base_path, '../../lib/')
     cmake_build_path = os.path.join(base_path, '../../build/Release/')
