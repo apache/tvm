@@ -192,11 +192,6 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::unique_ptr<llvm::Module> mObjFile = llvm::CloneModule(module.get());
   llvm::legacy::PassManager pass;
 
-  auto fnAsm = "output.s";
-  auto fnObj = "output.co";
-  std::error_code EC;
-  llvm::raw_fd_ostream destAsmFile(fnAsm, EC, llvm::sys::fs::F_None);
-  llvm::raw_fd_ostream destObjFile(fnObj, EC, llvm::sys::fs::F_None);
 
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
