@@ -16,13 +16,20 @@ namespace top {
 // dense
 DMLC_REGISTER_PARAMETER(DenseParam);
 
-inline std::vector<std::string> DenseListInputNames(const NodeAttrs& attrs) {
-  const DenseParam& param = nnvm::get<DenseParam>(attrs.parsed);
+template<typename ParamType>
+inline std::vector<std::string> UseBiasListInputNames(const NodeAttrs& attrs) {
+  const ParamType& param = nnvm::get<ParamType>(attrs.parsed);
   if (param.use_bias) {
     return {"data", "weight", "bias"};
   } else {
     return {"data", "weight"};
   }
+}
+
+template<typename ParamType>
+inline uint32_t UseBiasNumInputs(const NodeAttrs& attrs) {
+  const ParamType& param = get<ParamType>(attrs.parsed);
+  return param.use_bias ? 3 : 2;
 }
 
 inline bool DenseInferShape(const nnvm::NodeAttrs& attrs,
@@ -35,8 +42,8 @@ inline bool DenseInferShape(const nnvm::NodeAttrs& attrs,
     CHECK_EQ(in_shape->size(), 2U) << "Input:[data, weight]";
   }
   CHECK_EQ(out_shape->size(), 1U);
+  // reverse infer
   if ((*out_shape)[0].ndim() != 0) {
-    // reverse infer
     TShape dshape = (*out_shape)[0];
     dshape[dshape.ndim() - 1] = 0;
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, DenseParam::kData, dshape);
@@ -57,7 +64,7 @@ inline bool DenseInferShape(const nnvm::NodeAttrs& attrs,
 }
 
 NNVM_REGISTER_OP(dense)
-.NNVM_DESCRIBE(R"code(Applies a linear transformation: :math:`Y = XW^T + b`.
+.describe(R"code(Applies a linear transformation: :math:`Y = XW^T + b`.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
 - **weight**: `(units, input_dim)`
@@ -75,11 +82,8 @@ If ``use_bias`` is set to be false, then the ``bias`` term is ignored.
 .add_arguments(DenseParam::__FIELDS__())
 .set_attr_parser(ParamParser<DenseParam>)
 .set_num_outputs(1)
-.set_num_inputs([](const NodeAttrs& attrs) {
-    const DenseParam& param = get<DenseParam>(attrs.parsed);
-    return param.use_bias ? 3 : 2;
-  })
-.set_attr<FListInputNames>("FListInputNames", DenseListInputNames)
+.set_num_inputs(UseBiasNumInputs<DenseParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<DenseParam>)
 .set_attr<FInferShape>("FInferShape", DenseInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_support_level(1);
@@ -208,6 +212,209 @@ NNVM_REGISTER_OP(log_softmax)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1);
+
+
+DMLC_REGISTER_PARAMETER(Conv2DParam);
+
+inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
+                             std::vector<TShape> *in_shape,
+                             std::vector<TShape> *out_shape) {
+  const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
+  if (param.use_bias) {
+    CHECK_EQ(in_shape->size(), 3U) << "Input:[data, weight, bias]";
+  } else {
+    CHECK_EQ(in_shape->size(), 2U) << "Input:[data, weight]";
+  }
+  CHECK_EQ(out_shape->size(), 1U);
+  return true;
+}
+
+NNVM_REGISTER_OP(conv2d)
+.describe(R"code(2D convolution layer (e.g. spatial convolution over images).
+
+This layer creates a convolution kernel that is convolved
+with the layer input to produce a tensor of
+outputs. If `use_bias` is True,
+a bias vector is created and added to the outputs.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, in_channels, height, width) if `layout` is `NCHW`.
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
+- **bias**: (channels,)
+- **out**:  This depends on the `layout` parameter. Output is 4D array of shape
+            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_argument("weight", "4D Tensor", "Weight matrix.")
+.add_argument("bias", "1D Tensor", "Bias parameter.")
+.add_arguments(Conv2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
+.set_attr<FInferShape>("FInferShape", Conv2DInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_support_level(2);
+
+
+DMLC_REGISTER_PARAMETER(Conv2DTransposeParam);
+
+inline bool Conv2DTransposeInferShape(const nnvm::NodeAttrs& attrs,
+                             std::vector<TShape> *in_shape,
+                             std::vector<TShape> *out_shape) {
+  const Conv2DTransposeParam& param = nnvm::get<Conv2DTransposeParam>(attrs.parsed);
+  if (param.use_bias) {
+    CHECK_EQ(in_shape->size(), 3U) << "Input:[data, weight, bias]";
+  } else {
+    CHECK_EQ(in_shape->size(), 2U) << "Input:[data, weight]";
+  }
+  CHECK_EQ(out_shape->size(), 1U);
+  return true;
+}
+
+NNVM_REGISTER_OP(conv2d_transpose)
+.describe(R"code(Transposed 2D convolution layer (sometimes called Deconvolution).
+
+The need for transposed convolutions generally arises
+from the desire to use a transformation going in the opposite direction
+of a normal convolution, i.e., from something that has the shape of the
+output of some convolution to something that has the shape of its input
+while maintaining a connectivity pattern that is compatible with
+said convolution.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, in_channels, height, width) if `layout` is `NCHW`.
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
+- **bias**: (channels,)
+- **out**:  This depends on the `layout` parameter. Output is 4D array of shape
+            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+
+            out_height and out_width are calculated as::
+                out_height = (height-1)*strides[0]-2*padding[0]+kernel_size[0]+output_padding[0]
+                out_width = (width-1)*strides[1]-2*padding[1]+kernel_size[1]+output_padding[1]
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_argument("weight", "4D Tensor", "Weight matrix.")
+.add_argument("bias", "1D Tensor", "Bias parameter.")
+.add_arguments(Conv2DTransposeParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DTransposeParam>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DTransposeParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DTransposeParam>)
+.set_attr<FInferShape>("FInferShape", Conv2DTransposeInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_support_level(2);
+
+
+DMLC_REGISTER_PARAMETER(Pool2DParam);
+
+inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
+                           std::vector<TShape> *in_shape,
+                           std::vector<TShape> *out_shape) {
+  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
+  CHECK_EQ(in_shape->size(), 1U);
+  CHECK_EQ(out_shape->size(), 1U);
+  return true;
+}
+
+NNVM_REGISTER_OP(max_pool2d)
+.describe(R"code(Max pooling operation for one dimensional data.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **out**: This depends on the `layout` parameter. Output is 4D array of shape
+           (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
+           out_height and out_width are calculated as::
+               out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
+               out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
+           When `ceil_mode` is `True`, ceil will be used instead of floor in this
+           equation.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_arguments(Pool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Pool2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", Pool2DInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(2);
+
+
+NNVM_REGISTER_OP(avg_pool2d)
+.describe(R"code(Average pooling operation for one dimensional data.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **out**: This depends on the `layout` parameter. Output is 4D array of shape
+           (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
+           out_height and out_width are calculated as::
+               out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
+               out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
+           When `ceil_mode` is `True`, ceil will be used instead of floor in this
+           equation.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_arguments(Pool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Pool2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", Pool2DInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(2);
+
+
+DMLC_REGISTER_PARAMETER(GlobalPool2DParam);
+
+inline bool GlobalPool2DInferShape(const nnvm::NodeAttrs& attrs,
+                                   std::vector<TShape> *in_shape,
+                                   std::vector<TShape> *out_shape) {
+  const GlobalPool2DParam& param = nnvm::get<GlobalPool2DParam>(attrs.parsed);
+  CHECK_EQ(in_shape->size(), 1U);
+  CHECK_EQ(out_shape->size(), 1U);
+  return true;
+}
+
+NNVM_REGISTER_OP(global_max_pool2d)
+.describe(R"code(Global max pooling operation for 2D data.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **out**: This depends on the `layout` parameter. Output is 4D array of shape
+           (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_arguments(GlobalPool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<GlobalPool2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", GlobalPool2DInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(2);
+
+
+NNVM_REGISTER_OP(global_avg_pool2d)
+.describe(R"code(Global average pooling operation for 2D data.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **out**: This depends on the `layout` parameter. Output is 4D array of shape
+           (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_arguments(GlobalPool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<GlobalPool2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", GlobalPool2DInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(2);
+
 
 }  // namespace top
 }  // namespace nnvm
