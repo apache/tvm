@@ -167,6 +167,50 @@ inline std::string TVMType2String(TVMType t);
   << TypeCode2Str(T) << " but get " << TypeCode2Str(CODE)      \
 
 /*!
+ * \brief Type traits to mark if a class is tvm extension type.
+ *
+ * To enable extension type in C++ must be register () ed via marco.
+ * TVM_REGISTER_EXT_TYPE(TypeName) after defining this with this traits.
+ *
+ * Extension class can be passed and returned via PackedFunc in all tvm runtime.
+ * Internally extension class is stored as T*.
+ *
+ * \tparam T the typename
+ */
+template<typename T>
+struct extension_class_info {
+  static const int code = 0;
+};
+
+/*!
+ * \brief Runtime function table about extension type.
+ */
+class ExtTypeVTable {
+ public:
+  /*! \brief function to be called to delete a handle */
+  void (*destroy)(void* handle);
+  /*! \brief function to be called when clone a handle */
+  void* (*clone)(void* handle);
+  /*!
+   * \brief Register type
+   * \tparam T The type to be register.
+   * \return The registered vtable.
+   */
+  template <typename T>
+  static inline ExtTypeVTable* Register_();
+  /*!
+   * \brief Get a vtable based on type code.
+   * \param type_code The type code
+   * \return The registered vtable.
+   */
+  static ExtTypeVTable* Get(int type_code);
+
+ private:
+  // Internal registration function.
+  static ExtTypeVTable* RegisterInternal(int type_code, const ExtTypeVTable& vt);
+};
+
+/*!
  * \brief Internal base class to
  *  handle conversion to POD values.
  */
@@ -208,6 +252,11 @@ class TVMPODValue_ {
   operator TVMContext() const {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
+  }
+  template<typename TExtension>
+  const TExtension& AsExtension() const {
+    CHECK_LT(type_code_, kExtEnd);
+    return static_cast<TExtension*>(value_.v_handle)[0];
   }
   int type_code() const {
     return type_code_;
@@ -291,11 +340,13 @@ class TVMArgValue : public TVMPODValue_ {
   const TVMValue& value() const {
     return value_;
   }
-  // NodeRef related extenstions: in tvm/packed_func_ext.h
-  template<typename TNodeRef,
+  // Deferred extension handler.
+  template<typename TNodeRef>
+  inline TNodeRef AsNodeRef() const;
+  template<typename T,
            typename = typename std::enable_if<
-             std::is_class<TNodeRef>::value>::type>
-  inline operator TNodeRef() const;
+             std::is_class<T>::value>::type>
+  inline operator T() const;
   template<typename TNodeRef,
            typename = typename std::enable_if<
              std::is_class<TNodeRef>::value>::type>
@@ -433,8 +484,16 @@ class TVMRetValue : public TVMPODValue_ {
     this->Assign(other);
     return *this;
   }
-  TVMRetValue& operator=(TVMArgValue other) {
+  TVMRetValue& operator=(const TVMArgValue& other) {
     this->Assign(other);
+    return *this;
+  }
+  template<typename T,
+           typename = typename std::enable_if<
+             extension_class_info<T>::code != 0>::type>
+  TVMRetValue& operator=(const T& other) {
+    this->SwitchToClass<T>(
+        extension_class_info<T>::code, other);
     return *this;
   }
   /*!
@@ -463,12 +522,14 @@ class TVMRetValue : public TVMPODValue_ {
     return value_;
   }
   // NodeRef related extenstions: in tvm/packed_func_ext.h
+  template<typename T,
+           typename = typename std::enable_if<
+             std::is_class<T>::value>::type>
+  inline operator T() const;
+  template<typename TNodeRef>
+  inline TNodeRef AsNodeRef() const;
   inline TVMRetValue& operator=(const NodeRef& other);
   inline TVMRetValue& operator=(const std::shared_ptr<Node>& other);
-  template<typename TNodeRef,
-           typename = typename std::enable_if<
-             std::is_class<TNodeRef>::value>::type>
-  inline operator TNodeRef() const;
   // type related
   inline operator Halide::Type() const;
   inline TVMRetValue& operator=(const Halide::Type& other);
@@ -499,13 +560,20 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       default: {
-        SwitchToPOD(other.type_code());
-        value_ = other.value_;
+        if (other.type_code() < kExtBegin) {
+          SwitchToPOD(other.type_code());
+          value_ = other.value_;
+        } else {
+          this->Clear();
+          type_code_ = other.type_code();
+          value_.v_handle =
+              (*(ExtTypeVTable::Get(other.type_code())->clone))(
+                  other.value().v_handle);
+        }
         break;
       }
     }
   }
-
   // get the internal container.
   void SwitchToPOD(int type_code) {
     if (type_code_ != type_code) {
@@ -530,6 +598,9 @@ class TVMRetValue : public TVMPODValue_ {
       case kFuncHandle: delete ptr<PackedFunc>(); break;
       case kModuleHandle: delete ptr<Module>(); break;
       case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
+    }
+    if (type_code_ > kExtBegin) {
+      (*(ExtTypeVTable::Get(type_code_)->destroy))(value_.v_handle);
     }
     type_code_ = kNull;
   }
@@ -619,24 +690,28 @@ inline PackedFunc::FType PackedFunc::body() const {
 
 // internal namespace
 namespace detail {
-template<bool stop, std::size_t I, typename F, typename ...Args>
+
+template<bool stop, std::size_t I, typename F>
 struct for_each_dispatcher {
-  static void run(std::tuple<Args...>& args, const F& f) {  // NOLINT(*)
-    f(I, std::get<I>(args));
-    for_each_dispatcher<(I + 1) == sizeof...(Args), (I+1), F, Args...>::run(args, f);
+  template<typename T, typename ...Args>
+  static void run(const F& f, T&& value, Args&&... args) {  // NOLINT(*)
+    f(I, std::forward<T>(value));
+    for_each_dispatcher<sizeof...(Args) == 0, (I+1), F>
+        ::run(f, std::forward<Args>(args)...);
   }
 };
 
-template<std::size_t I, typename F, typename ...Args>
-struct for_each_dispatcher<true, I, F, Args...>  {
-  static void run(std::tuple<Args...>& args, const F& f) {}  // NOLINT(*)
+template<std::size_t I, typename F>
+struct for_each_dispatcher<true, I, F>  {
+  static void run(const F& f) {}  // NOLINT(*)
 };
-}  // namespace detail
 
 template<typename F, typename ...Args>
-inline void for_each(std::tuple<Args...>& args, const F& f) {  // NOLINT(*)
-  detail::for_each_dispatcher<sizeof...(Args) == 0, 0, F, Args...>::run(args, f);
+inline void for_each(const F& f, Args&&... args) {  // NOLINT(*)
+  for_each_dispatcher<sizeof...(Args) == 0, 0, F>
+      ::run(f, std::forward<Args>(args)...);
 }
+}  // namespace detail
 
 /* \brief argument settter to PackedFunc */
 class TVMArgsSetter {
@@ -645,7 +720,8 @@ class TVMArgsSetter {
       : values_(values), type_codes_(type_codes) {}
   // setters for POD types
   template<typename T,
-           typename = typename std::enable_if<std::is_integral<T>::value>::type>
+           typename = typename std::enable_if<
+             std::is_integral<T>::value>::type>
   void operator()(size_t i, T value) const {
     values_[i].v_int64 = static_cast<int64_t>(value);
     type_codes_[i] = kInt;
@@ -691,23 +767,23 @@ class TVMArgsSetter {
   // setters for container type
   // They must be reference(instead of const ref)
   // to make sure they are alive in the tuple(instead of getting converted)
-  void operator()(size_t i, std::string& value) const {  // NOLINT(*)
+  void operator()(size_t i, const std::string& value) const {  // NOLINT(*)
     values_[i].v_str = value.c_str();
     type_codes_[i] = kStr;
   }
-  void operator()(size_t i, TVMByteArray& value) const {  // NOLINT(*)
-    values_[i].v_handle = &value;
+  void operator()(size_t i, const TVMByteArray& value) const {  // NOLINT(*)
+    values_[i].v_handle = const_cast<TVMByteArray*>(&value);
     type_codes_[i] = kBytes;
   }
-  void operator()(size_t i, PackedFunc& value) const {  // NOLINT(*)
-    values_[i].v_handle = &value;
+  void operator()(size_t i, const PackedFunc& value) const {  // NOLINT(*)
+    values_[i].v_handle = const_cast<PackedFunc*>(&value);
     type_codes_[i] = kFuncHandle;
   }
-  void operator()(size_t i, Module& value) const {  // NOLINT(*)
-    values_[i].v_handle = &value;
+  void operator()(size_t i, const Module& value) const {  // NOLINT(*)
+    values_[i].v_handle = const_cast<Module*>(&value);
     type_codes_[i] = kModuleHandle;
   }
-  void operator()(size_t i, TVMRetValue& value) const {  // NOLINT(*)
+  void operator()(size_t i, const TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {
       values_[i].v_str = value.ptr<std::string>()->c_str();
       type_codes_[i] = kStr;
@@ -717,8 +793,13 @@ class TVMArgsSetter {
       type_codes_[i] = value.type_code();
     }
   }
+  // extension
+  template<typename T,
+           typename = typename std::enable_if<
+             extension_class_info<T>::code != 0>::type>
+  inline void operator()(size_t i, const T& value) const;
   // NodeRef related extenstions: in tvm/packed_func_ext.h
-  inline void operator()(size_t i, NodeRef& other) const;  // NOLINT(*)
+  inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
   inline void operator()(size_t i, const Halide::Type& t) const;
 
  private:
@@ -728,32 +809,79 @@ class TVMArgsSetter {
   int* type_codes_;
 };
 
-class TVMArgsGetter {
- public:
-  explicit TVMArgsGetter(TVMArgs args)
-      : args_(args) {}
-
-  template<typename T>
-  inline void operator()(size_t i, T& target) const {  // NOLINT(*)
-    target = args_[i].operator T();
-  }
- private:
-  TVMArgs args_;
-};
-
 template<typename... Args>
 inline TVMRetValue PackedFunc::operator()(Args&& ...args) const {
-  auto targs = std::make_tuple(std::forward<Args>(args)...);
   const int kNumArgs = sizeof...(Args);
   const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
   TVMValue values[kArraySize];
   int type_codes[kArraySize];
-  for_each(targs, TVMArgsSetter(values, type_codes));
+  detail::for_each(TVMArgsSetter(values, type_codes),
+                   std::forward<Args>(args)...);
   TVMRetValue rv;
   body_(TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
 }
 
+// extension and node type handling
+namespace detail {
+template<typename T, typename TSrc, bool is_ext>
+struct TVMValueCast {
+  static T Apply(const TSrc* self) {
+    return self->template AsNodeRef<T>();
+  }
+};
+
+template<typename T, typename TSrc>
+struct TVMValueCast<T, TSrc, true> {
+  static T Apply(const TSrc* self) {
+    return self->template AsExtension<T>();
+  }
+};
+}  // namespace detail
+
+template<typename T, typename>
+inline TVMArgValue::operator T() const {
+  return detail::
+      TVMValueCast<T, TVMArgValue, extension_class_info<T>::code != 0>
+      ::Apply(this);
+}
+
+template<typename T, typename>
+inline TVMRetValue::operator T() const {
+  return detail::
+      TVMValueCast<T, TVMRetValue, extension_class_info<T>::code != 0>
+      ::Apply(this);
+}
+
+template<typename T, typename>
+inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
+  static_assert(extension_class_info<T>::code != 0,
+                "Need to have extesion code");
+  type_codes_[i] = extension_class_info<T>::code;
+  values_[i].v_handle = const_cast<T*>(&value);
+}
+
+// extension type handling
+template<typename T>
+struct ExtTypeInfo {
+  static void destroy(void* handle) {
+    delete static_cast<T*>(handle);
+  }
+  static void* clone(void* handle) {
+    return new T(*static_cast<T*>(handle));
+  }
+};
+
+template<typename T>
+inline ExtTypeVTable* ExtTypeVTable::Register_() {
+  const int code = extension_class_info<T>::code;
+  static_assert(code != 0,
+                "require extension_class_info traits to be declared with non-zero code");
+  ExtTypeVTable vt;
+  vt.clone = ExtTypeInfo<T>::clone;
+  vt.destroy = ExtTypeInfo<T>::destroy;
+  return ExtTypeVTable::RegisterInternal(code, vt);
+}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_
