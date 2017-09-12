@@ -3,16 +3,13 @@ import numpy as np
 
 @tvm.register_extension
 class MyTensorView(object):
+    _tvm_tcode = tvm.TypeCode.ARRAY_HANDLE
     def __init__(self, arr):
         self.arr = arr
 
     @property
     def _tvm_handle(self):
         return self.arr._tvm_handle
-
-    @property
-    def _tvm_tcode(self):
-        return tvm.TypeCode.ARRAY_HANDLE
 
 def test_dltensor_compatible():
     dtype = 'int64'

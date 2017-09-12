@@ -75,7 +75,17 @@ typedef enum {
   kModuleHandle = 9U,
   kFuncHandle = 10U,
   kStr = 11U,
-  kBytes = 12U
+  kBytes = 12U,
+  // Extension codes for other frameworks to integrate TVM PackedFunc.
+  // To make sure each framework's id do not conflict, use first and
+  // last sections to mark ranges.
+  // Open an issue at the repo if you need a section of code.
+  kExtBegin = 15U,
+  kNNVMFirst = 16U,
+  kNNVMLast = 20U,
+  // The following section of code is used for non-reserved types.
+  kExtReserveEnd = 64U,
+  kExtEnd = 128U
 } TVMTypeCode;
 
 /*!
@@ -192,6 +202,14 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
                               TVMFunctionHandle *out);
 
 /*!
+ * \brief Free front-end extension type resource.
+ * \param handle The extension handle.
+ * \param type_code The type of of the extension type.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMExtTypeFree(void* handle, int type_code);
+
+/*!
  * \brief Free the Module
  * \param mod The module to be freed.
  *
@@ -200,6 +218,7 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
  *  Or if this module is imported by another active module.
  *
  *  The all functions remains valid until TVMFuncFree is called.
+ * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMModFree(TVMModuleHandle mod);
 

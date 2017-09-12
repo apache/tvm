@@ -24,6 +24,7 @@ class TypeCode(object):
     FUNC_HANDLE = 10
     STR = 11
     BYTES = 12
+    EXT_BEGIN = 15
 
 class TVMByteArray(ctypes.Structure):
     """Temp data structure for byte array."""
