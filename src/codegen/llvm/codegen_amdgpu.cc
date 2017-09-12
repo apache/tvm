@@ -8,6 +8,7 @@
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/registry.h>
 #include "./codegen_llvm.h"
 #include "../build_common.h"
 #include "../../pass/ir_util.h"
@@ -228,6 +229,9 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   LOG(WARNING) << ll;
   LOG(WARNING) << isa;
+  
+  const auto* f = Registry::Get("tvm_callback_rocm_link”);
+  CHECK(f != nullptr) << “Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm”;
 
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
