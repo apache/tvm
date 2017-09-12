@@ -149,7 +149,7 @@ class RPCSession::EventHandler {
   TVMContext StripSessMask(TVMContext ctx) {
     int dev_type = ctx.device_type;
     CHECK_EQ(dev_type / kRPCSessMask, rpc_sess_table_index_ + 1)
-        << "Can only TVMContext related to the same remote sesstion";
+        << "Can not pass in local context or context with a different remote session";
     ctx.device_type = static_cast<DLDeviceType>(dev_type % kRPCSessMask);
     return ctx;
   }
