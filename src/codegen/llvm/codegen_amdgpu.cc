@@ -201,7 +201,10 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
+  pass.run(*mObj);
+  std::string obj(dataObj.begin(), dataObj.end());
 
+/*
   CHECK(tm->addPassesToEmitFile(
             pass, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
             << "Cannot emit target CGFT_AssemblyFile";
@@ -229,16 +232,16 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   LOG(WARNING) << ll;
   LOG(WARNING) << isa;
+*/
 
   const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
   CHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
-  std::string obj_blob;
   TVMByteArray arr;
-  arr.data = &obj_blob[0];
-  arr.size = obj_blob.length();
+  arr.data = &obj[0];
+  arr.size = obj.length();
 
-  std::string hso = (*f)(obj_blob);
+  std::string hsaco = (*f)(arr), ll;
 
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }

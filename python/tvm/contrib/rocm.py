@@ -1,8 +1,4 @@
-# tvm.contrib.rocm
-"""Utility to convert object file to HSA Code Object
-The object file received from LLVM PassManager is relocatable ELF object.
-The routine in this file uses lld to convert it to shared ELF object.
-"""
+"""Utility for ROCm backend"""
 from . import util
 
 @tvm.register_func("tvm_callback_rocm_link")
@@ -11,12 +7,12 @@ def callback_rocm_link(obj_bin):
 
     Parameters
     ----------
-    obj_bin : str
+    obj_bin : bytearray
         The object file
 
     Return
     ------
-    cobj_bin : str
+    cobj_bin : bytearray
         The HSA Code Object
     """
     tmp_dir = util.tempdir()
