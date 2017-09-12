@@ -229,8 +229,9 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   LOG(WARNING) << ll;
   LOG(WARNING) << isa;
-  const auto* f = Registry::Get("tvm_callback_rocm_link");
-  CHECK(f != nullptr) << “Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm”;
+
+  const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
+  CHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
   std::string obj_blob;
   TVMByteArray arr;
