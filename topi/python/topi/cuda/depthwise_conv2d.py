@@ -195,7 +195,7 @@ def schedule_depthwise_conv2d_backward_input_nhwc(outs):
     ----------
     outs: Array of Tensor
         The computation graph description of depthwise_conv2d
-        backward wrt inputs in the format of an array of tensors.
+        backward wrt input in the format of an array of tensors.
 
     Returns
     -------
@@ -240,7 +240,7 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
     ----------
     outs: Array of Tensor
         The computation graph description of depthwise_conv2d
-        in the format of an array of tensors.
+        backward wrt weight in the format of an array of tensors.
 
     Returns
     -------
@@ -275,9 +275,7 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
         if OP.tag == 'depthwise_conv2d_backward_weight_nhwc':
-            Dilated_out_grad = OP.input_tensors[0]
             Padded_in = OP.input_tensors[1]
-            s[Dilated_out_grad].compute_inline()
             s[Padded_in].compute_inline()
             Weight_grad = OP.output(0)
             _schedule(Weight_grad)
