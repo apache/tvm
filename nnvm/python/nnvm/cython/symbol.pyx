@@ -213,5 +213,6 @@ def _init_symbol_module(symbol_class, root_namespace):
         function = _make_atomic_symbol_function(handle, op_names[i])
         if function.__name__.startswith('_'):
             setattr(module_internal, function.__name__, function)
+            setattr(module_obj, function.__name__, function)
         else:
             setattr(module_obj, function.__name__, function)
