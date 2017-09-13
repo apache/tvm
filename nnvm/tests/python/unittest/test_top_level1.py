@@ -7,11 +7,16 @@ def test_fullc():
     x3 = sym.softmax(x2)
     assert x2.list_input_names() == ['x', 'dense_weight', 'dense_bias']
 
-def test_concatenate():
+def test_concatenate_split():
     x = sym.Variable('x')
     y = sym.Variable('y')
     y = sym.concatenate(x, y)
     assert y.list_input_names() == ['x', 'y']
+    z = sym.split(y, indices_or_sections=10)
+    assert len(z.list_output_names()) == 10
+    z = sym.split(y, indices_or_sections=[10, 20])
+    assert len(z.list_output_names()) == 2
+
 
 def test_unary():
     x = sym.Variable('x')
@@ -29,7 +34,7 @@ def test_batchnorm():
 
 
 if __name__ == "__main__":
-    test_concatenate()
+    test_concatenate_split()
     test_fullc()
     test_unary()
     test_batchnorm()
