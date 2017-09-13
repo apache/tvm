@@ -132,7 +132,6 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 };
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
-  CHECK(1) << target;
   CHECK(target.length(
 ) >= 4 &&
         target.substr(0, 4) == "rocm");
@@ -167,36 +166,6 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
             << "Cannot emit target CGFT_ObjectFile";
   pass.run(*mObj);
   std::string obj(dataObj.begin(), dataObj.end());
-
-/*
-  CHECK(tm->addPassesToEmitFile(
-            pass, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-            << "Cannot emit target CGFT_AssemblyFile";
-
-  CHECK(tm->addPassesToEmitFile(
-            pass, destObjFile, llvm::TargetMachine::CGFT_ObjectFile) == 0)
-            << "Cannot emit target CGFT_ObjectFile";
-
-  CHECK(tm->addPassesToEmitFile(
-            pass, destAsmFile, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-            << "Cannot emit target CGFT_AssemblyFile";
-
-
-  pass.run(*mAsm);
-  pass.run(*mObj);
-  pass.run(*mAsmFile);
-  pass.run(*mObjFile);
-
-  destAsmFile.flush();
-  destObjFile.flush();
-
-  std::string ll(data_ll.begin(), data_ll.end());
-  std::string hsaco(dataObj.begin(), dataObj.end());
-  std::string isa(dataAsm.begin(), dataAsm.end());
-
-  LOG(WARNING) << ll;
-  LOG(WARNING) << isa;
-*/
 
   const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
   CHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
