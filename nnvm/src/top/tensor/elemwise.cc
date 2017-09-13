@@ -17,17 +17,17 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(sigmoid)
 .describe(R"code(Computes sigmoid.
 
 .. math::
-   y = 1 / (1 + exp(-x))
+  Y = 1 / (1 + exp(-X))
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1);
 
 // tanh
 NNVM_REGISTER_ELEMWISE_UNARY_OP(tanh)
-.describe(R"code(Returns the hyperbolic tangent of the input array, computed element-wise.
+.describe(R"code(Computes hyperbolic tangent.
 
 .. math::
-   tanh(x) = sinh(x) / cosh(x)
+   Y = sinh(X) / cosh(X)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1);
@@ -100,6 +100,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__add_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__sub_scalar__)
@@ -107,6 +108,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__sub_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__rsub_scalar__)
@@ -114,6 +116,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__rsub_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__mul_scalar__)
@@ -121,6 +124,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__mul_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__div_scalar__)
@@ -128,6 +132,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__div_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__rdiv_scalar__)
@@ -135,6 +140,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__rdiv_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__pow_scalar__)
@@ -142,6 +148,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__pow_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__rpow_scalar__)
@@ -149,6 +156,7 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(__rpow_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_attr_parser(ParamParser<ScalarParam>)
+.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
 

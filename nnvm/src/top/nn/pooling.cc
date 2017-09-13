@@ -61,8 +61,10 @@ NNVM_REGISTER_OP(max_pool2d)
 - **out**: This depends on the `layout` parameter. Output is 4D array of shape
            (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
            out_height and out_width are calculated as::
+
                out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
                out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
+
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
 
@@ -85,8 +87,10 @@ NNVM_REGISTER_OP(avg_pool2d)
 - **out**: This depends on the `layout` parameter. Output is 4D array of shape
            (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
            out_height and out_width are calculated as::
+
                out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
                out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
+
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
 

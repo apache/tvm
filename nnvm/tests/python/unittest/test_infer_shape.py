@@ -38,7 +38,7 @@ def test_concatenate():
 
 def test_split():
     x1 = sym.Variable("x", shape=(10, 20))
-    z = sym.split(x1, indices_or_sections=[11, 9], name="y")
+    z = sym.split(x1, indices_or_sections=[11], name="y")
     sdict = infer_shape(z)
     assert(sdict["y"][0] == [10, 11])
     assert(sdict["y"][1] == [10, 9])
@@ -195,6 +195,59 @@ def test_reshape():
     check((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
     check((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
 
+
+# Level 4
+def test_transpose():
+    def check(in_shape, out_shape, **kwargs):
+        x = sym.Variable("x", shape=in_shape)
+        y = sym.transpose(x, name="y", **kwargs)
+        sdict = infer_shape(y)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+
+    check((4, 1), (1, 4))
+    check((0, 1, 2, 3), (1, 2, 3, 0), axes=(1, 2, 3, 0))
+
+
+def test_broadcast_to():
+    def check(in_shape, tshape, out_shape):
+        x = sym.Variable("x", shape=in_shape)
+        y = sym.broadcast_to(x, shape=tshape, name="y")
+        sdict = infer_shape(y)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+
+    check((4, 1), (0, 4), (4, 4))
+    check((4, 1, 5), (0, 4, 5), (4, 4, 5))
+
+
+def test_broadcast_binary():
+    def check(lhs_shape, rhs_shape, out_shape):
+        x = sym.Variable("x", shape=lhs_shape)
+        y = sym.Variable("y", shape=rhs_shape)
+        z = sym.broadcast_add(x, y, name="y")
+        sdict = infer_shape(z)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+
+    check((4, 1), (4), (4, 4))
+    check((5, 1, 1), (1, 4, 4), (5, 4, 4))
+    check((6, 1, 4), (5, 4), (6, 5, 4))
+
+
+def test_reduce():
+    def check(in_shape, out_shape, **kwargs):
+        x = sym.Variable("x", shape=in_shape)
+        y = sym.sum(x, name="y", **kwargs)
+        sdict = infer_shape(y)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+
+    check((4, 5), (4,), axis=1)
+    check((4, 5), (4, 1), axis=1, keepdims=True)
+    check((4, 5), (1, 5), axis=0, keepdims=True)
+    check((4, 5), (1, 1), axis=(), keepdims=True)
+    check((4, 5), (1,), axis=())
+    check((4, 5, 10), (5,), axis=(0, 2))
+    check((4, 5, 10), (1, 5, 1), axis=(0, 2), keepdims=True)
+
+
 if __name__ == "__main__":
     test_dense()
     test_concatenate()
@@ -206,3 +259,7 @@ if __name__ == "__main__":
     test_max_pool2d()
     test_global_pool2d()
     test_reshape()
+    test_broadcast_to()
+    test_broadcast_binary()
+    test_reduce()
+    test_transpose()
