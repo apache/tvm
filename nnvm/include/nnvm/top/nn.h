@@ -8,20 +8,20 @@
 
 #include <dmlc/base.h>
 #include <dmlc/parameter.h>
+#include <nnvm/tuple.h>
 
 namespace nnvm {
 namespace top {
 
+// Layout flag in spatial conv and pooling.
 enum LayoutFlag {
-  kNCHW = 0,
+  kNCHW,
   kNHWC,
   kCHWN,
-
-  kNCW = 1 << 3,
+  kNCW,
   kNWC,
   kCWN,
-
-  kNCDHW = 1 << 5,
+  kNCDHW,
   kNDHWC,
   kCDHWN
 };
@@ -101,7 +101,7 @@ struct LeakyReLUParam : public dmlc::Parameter<LeakyReLUParam> {
   }
 };
 
-struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
+struct ConvParam : public dmlc::Parameter<ConvParam> {
   int channels;
   TShape kernel_size;
   TShape strides;
@@ -111,7 +111,7 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
   int layout;
   bool use_bias;
 
-  DMLC_DECLARE_PARAMETER(Conv2DParam) {
+  DMLC_DECLARE_PARAMETER(ConvParam) {
     DMLC_DECLARE_FIELD(channels)
       .describe("The dimensionality of the output space"
                 "i.e. the number of output channels in the convolution.");
@@ -141,10 +141,14 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
     DMLC_DECLARE_FIELD(use_bias).set_default(true)
       .describe("Whether the layer uses a bias vector.");
   }
+  // constants
+  static const constexpr int kData = 0;
+  static const constexpr int kWeight = 1;
+  static const constexpr int kBias = 2;
 };
 
 
-struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
+struct ConvTransposeParam : public dmlc::Parameter<ConvTransposeParam> {
   int channels;
   TShape kernel_size;
   TShape strides;
@@ -155,7 +159,7 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
   int layout;
   bool use_bias;
 
-  DMLC_DECLARE_PARAMETER(Conv2DTransposeParam) {
+  DMLC_DECLARE_PARAMETER(ConvTransposeParam) {
     DMLC_DECLARE_FIELD(channels)
       .describe("The dimensionality of the output space"
                 "i.e. the number of output channels in the convolution.");
@@ -187,9 +191,14 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
     DMLC_DECLARE_FIELD(use_bias).set_default(true)
       .describe("Whether the layer uses a bias vector.");
   }
+  // constants
+  static const constexpr int kData = 0;
+  static const constexpr int kWeight = 1;
+  static const constexpr int kBias = 2;
 };
 
-struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
+
+struct PoolParam : public dmlc::Parameter<PoolParam> {
   TShape pool_size;
   TShape strides;
   TShape padding;
@@ -197,7 +206,7 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
   int layout;
   bool ceil_mode;
 
-  DMLC_DECLARE_PARAMETER(Pool2DParam) {
+  DMLC_DECLARE_PARAMETER(PoolParam) {
     DMLC_DECLARE_FIELD(pool_size)
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
@@ -225,10 +234,10 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
 };
 
 
-struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
+struct GlobalPoolParam : public dmlc::Parameter<GlobalPoolParam> {
   int layout;
 
-  DMLC_DECLARE_PARAMETER(GlobalPool2DParam) {
+  DMLC_DECLARE_PARAMETER(GlobalPoolParam) {
     DMLC_DECLARE_FIELD(layout)
       .add_enum("NCHW", kNCHW)
       .add_enum("NHWC", kNHWC)
