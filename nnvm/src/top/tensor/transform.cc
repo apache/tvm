@@ -7,6 +7,7 @@
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
 #include <nnvm/top/tensor.h>
+#include <cctype>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 
@@ -31,7 +32,7 @@ inline bool FlattenInferShape(const NodeAttrs& attrs,
 }
 
 NNVM_REGISTER_OP(flatten)
-.describe(R"code(Flattens the input array into a 2-D array by collapsing the higher dimensions.
+.describe(R"code(Flattens the input into a 2-D array.
 
 For an input array with shape ``(d1, d2, ..., dk)``, `flatten` operation reshapes
 the input array into an output array of shape ``(d1, d2*...*dk)``.
@@ -134,15 +135,27 @@ Example::
 .set_num_outputs(1)
 .set_num_inputs(kVarg)
 .set_attr_parser(ParamParser<ConcatenateParam>)
+.add_arguments(ConcatenateParam::__FIELDS__())
 .add_argument("data", "Tensor-or-Tensor[]", "List of arrays to concatenate")
 .set_attr<FInferShape>("FInferShape", ConcatenateInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.add_arguments(ConcatenateParam::__FIELDS__())
 .set_support_level(1);
 
 
 // concatenate
 DMLC_REGISTER_PARAMETER(SplitParam);
+
+inline void SplitParamParser(nnvm::NodeAttrs* attrs) {
+  SplitParam param;
+  param.Init(attrs->dict);
+  if (!std::isdigit(attrs->dict.at("indices_or_sections")[0])) {
+    param.equal_split = false;
+  } else {
+    CHECK_EQ(param.indices_or_sections.ndim(), 1);
+    param.equal_split = true;
+  }
+  attrs->parsed = std::move(param);
+}
 
 inline bool SplitInferShape(const NodeAttrs& attrs,
                             std::vector<TShape>* in_shape,
@@ -151,7 +164,7 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
   const TShape& dshape = (*in_shape)[0];
   if (dshape.ndim() == 0) return false;
 
-  if (param.indices_or_sections.ndim() == 1) {
+  if (param.equal_split) {
     int num_outputs = param.indices_or_sections[0];
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
     CHECK_LT(param.axis, dshape.ndim());
@@ -164,30 +177,30 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
       NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
     }
   } else {
-    dim_t num_outputs = param.indices_or_sections.ndim();
+    dim_t num_outputs = param.indices_or_sections.ndim() + 1;
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
     CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
-    CHECK_EQ(oshape[param.axis] % num_outputs, 0)
-        << "indices_or_sections need to be able to divide input.shape[axis]";
     dim_t total = 0;
-    for (size_t i = 0; i < out_shape->size(); ++i) {
-      oshape[param.axis] = param.indices_or_sections[i];
+    for (size_t i = 1; i < num_outputs; ++i) {
+      oshape[param.axis] = param.indices_or_sections[i - 1];
       total += oshape[param.axis];
-      NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
+      NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i - 1, oshape);
     }
-    CHECK_EQ(total, dshape[param.axis])
+    CHECK_LT(total, dshape[param.axis])
         << "The sum of sections must match the input.shape[axis]";
+    oshape[param.axis] = dshape[param.axis] - total;
+    NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, num_outputs - 1, oshape);
   }
   return true;
 }
 
 inline uint32_t SplitNumOutputs(const NodeAttrs& attrs) {
   const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
-  if (param.indices_or_sections.ndim() == 1) {
+  if (param.equal_split) {
     return static_cast<uint32_t>(param.indices_or_sections[0]);
   } else {
-    return static_cast<uint32_t>(param.indices_or_sections.ndim());
+    return static_cast<uint32_t>(param.indices_or_sections.ndim()) + 1;
   }
 }
 
@@ -199,12 +212,12 @@ along which to split the array.
 
 )code" NNVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attr_parser(ParamParser<SplitParam>)
+.set_attr_parser(SplitParamParser)
 .set_num_outputs(SplitNumOutputs)
+.add_arguments(SplitParam::__FIELDS__())
 .add_argument("data", "Tensor", "List of arrays to concatenate")
 .set_attr<FInferShape>("FInferShape", SplitInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.add_arguments(SplitParam::__FIELDS__())
 .set_support_level(1);
 
 // cast
@@ -225,9 +238,9 @@ NNVM_REGISTER_OP(cast)
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Input data array")
 .set_attr_parser(ParamParser<CastParam>)
+.add_arguments(CastParam::__FIELDS__())
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", CastInferType)
-.add_arguments(CastParam::__FIELDS__())
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_support_level(1);
@@ -377,10 +390,77 @@ The significance of each is explained below:
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_attr_parser(ParamParser<ReshapeParam>)
+.add_arguments(ReshapeParam::__FIELDS__())
 .set_attr<FInferShape>("FInferShape", ReshapeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(3);
+
+// tranpose
+DMLC_REGISTER_PARAMETER(TransposeParam);
+
+inline bool TransposeShape(const nnvm::NodeAttrs& attrs,
+                           std::vector<TShape>* in_attrs,
+                           std::vector<TShape>* out_attrs) {
+  const TransposeParam& param = nnvm::get<TransposeParam>(attrs.parsed);
+  CHECK_EQ(in_attrs->size(), 1U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const TShape& shp = (*in_attrs)[0];
+  if (shp.ndim() == 0) return false;
+
+  TShape ret(shp.ndim());
+  if (param.axes.ndim() == 0) {
+    for (dim_t i = 0; i < shp.ndim(); ++i) {
+      ret[i] = shp[shp.ndim() - 1 - i];
+    }
+  } else {
+    CHECK_EQ(shp.ndim(), param.axes.ndim());
+    for (size_t i = 0; i < shp.ndim(); ++i) {
+      CHECK(param.axes[i] < shp.ndim());
+      ret[i] = shp[param.axes[i]];
+    }
+  }
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, ret);
+  return true;
+}
+
+NNVM_REGISTER_OP(transpose)
+.describe(R"code(Permutes the dimensions of an array.
+
+Examples::
+
+  x = [[ 1, 2],
+       [ 3, 4]]
+
+  transpose(x) = [[ 1.,  3.],
+                  [ 2.,  4.]]
+
+  x = [[[ 1.,  2.],
+        [ 3.,  4.]],
+
+       [[ 5.,  6.],
+        [ 7.,  8.]]]
+
+  transpose(x) = [[[ 1.,  5.],
+                   [ 3.,  7.]],
+
+                  [[ 2.,  6.],
+                   [ 4.,  8.]]]
+
+  transpose(x, axes=(1,0,2)) = [[[ 1.,  2.],
+                                 [ 5.,  6.]],
+
+                                [[ 3.,  4.],
+                                 [ 7.,  8.]]]
+)code" NNVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr_parser(ParamParser<TransposeParam>)
+.add_arguments(TransposeParam::__FIELDS__())
+.set_attr<nnvm::FInferShape>("FInferShape", TransposeShape)
+.set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
+.add_argument("data", "Tensor", "Source input")
+.set_support_level(4);
 
 }  // namespace top
 }  // namespace nnvm

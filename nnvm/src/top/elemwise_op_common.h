@@ -107,8 +107,8 @@ inline bool ElemwiseType(const NodeAttrs& attrs,
     [](const NodeAttrs& attrs) {                                    \
       return std::vector<std::pair<int, int> >{{0, 0}, {1, 0}};     \
     })                                                              \
-  .add_argument("lhs", "NDArray-or-Symbol", "first input")          \
-  .add_argument("rhs", "NDArray-or-Symbol", "second input")
+  .add_argument("lhs", "Tensor", "first input")                     \
+  .add_argument("rhs", "Tensor", "second input")
 
 }  // namespace top
 }  // namespace nnvm
