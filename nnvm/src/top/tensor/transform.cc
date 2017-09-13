@@ -15,8 +15,8 @@ namespace top {
 
 // flatten
 inline bool FlattenInferShape(const NodeAttrs& attrs,
-                              std::vector<TShape> *in_attrs,
-                              std::vector<TShape> *out_attrs) {
+                              std::vector<TShape>* in_attrs,
+                              std::vector<TShape>* out_attrs) {
   CHECK_EQ(in_attrs->size(), 1U) << "Input: [data]";
   CHECK_EQ(out_attrs->size(), 1U);
   const TShape &dshape = (*in_attrs)[0];
@@ -25,7 +25,8 @@ inline bool FlattenInferShape(const NodeAttrs& attrs,
   for (uint32_t i = 1; i < dshape.ndim(); ++i) {
     target_dim *= dshape[i];
   }
-  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, TShape({dshape[0], target_dim}));
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0,
+                           TShape({dshape[0], target_dim}));
   return true;
 }
 
@@ -62,8 +63,8 @@ Example::
 DMLC_REGISTER_PARAMETER(ConcatenateParam);
 
 inline bool ConcatenateInferShape(const NodeAttrs& attrs,
-                                  std::vector<TShape> *in_shape,
-                                  std::vector<TShape> *out_shape) {
+                                  std::vector<TShape>* in_shape,
+                                  std::vector<TShape>* out_shape) {
   const ConcatenateParam& param = nnvm::get<ConcatenateParam>(attrs.parsed);
   TShape dshape;
   dim_t size = 0;
@@ -140,12 +141,78 @@ Example::
 .set_support_level(1);
 
 
+// concatenate
+DMLC_REGISTER_PARAMETER(SplitParam);
+
+inline bool SplitInferShape(const NodeAttrs& attrs,
+                            std::vector<TShape>* in_shape,
+                            std::vector<TShape>* out_shape) {
+  const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
+  const TShape& dshape = (*in_shape)[0];
+  if (dshape.ndim() == 0) return false;
+
+  if (param.indices_or_sections.ndim() == 1) {
+    int num_outputs = param.indices_or_sections[0];
+    CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
+    CHECK_LT(param.axis, dshape.ndim());
+    TShape oshape = dshape;
+    CHECK_EQ(oshape[param.axis] % num_outputs, 0)
+        << "indices_or_sections need to be able to divide input.shape[axis]";
+    oshape[param.axis] /= num_outputs;
+
+    for (size_t i = 0; i < out_shape->size(); ++i) {
+      NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
+    }
+  } else {
+    dim_t num_outputs = param.indices_or_sections.ndim();
+    CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
+    CHECK_LT(param.axis, dshape.ndim());
+    TShape oshape = dshape;
+    CHECK_EQ(oshape[param.axis] % num_outputs, 0)
+        << "indices_or_sections need to be able to divide input.shape[axis]";
+    dim_t total = 0;
+    for (size_t i = 0; i < out_shape->size(); ++i) {
+      oshape[param.axis] = param.indices_or_sections[i];
+      total += oshape[param.axis];
+      NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
+    }
+    CHECK_EQ(total, dshape[param.axis])
+        << "The sum of sections must match the input.shape[axis]";
+  }
+  return true;
+}
+
+inline uint32_t SplitNumOutputs(const NodeAttrs& attrs) {
+  const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
+  if (param.indices_or_sections.ndim() == 1) {
+    return static_cast<uint32_t>(param.indices_or_sections[0]);
+  } else {
+    return static_cast<uint32_t>(param.indices_or_sections.ndim());
+  }
+}
+
+NNVM_REGISTER_OP(split)
+.describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
+
+**Note** that `indices_or_sections` should evenly divide the length of the axis
+along which to split the array.
+
+)code" NNVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attr_parser(ParamParser<SplitParam>)
+.set_num_outputs(SplitNumOutputs)
+.add_argument("data", "Tensor", "List of arrays to concatenate")
+.set_attr<FInferShape>("FInferShape", SplitInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.add_arguments(SplitParam::__FIELDS__())
+.set_support_level(1);
+
 // cast
 DMLC_REGISTER_PARAMETER(CastParam);
 
 inline bool CastInferType(const NodeAttrs& attrs,
-                          std::vector<int> *in_attrs,
-                          std::vector<int> *out_attrs) {
+                          std::vector<int>* in_attrs,
+                          std::vector<int>* out_attrs) {
   const CastParam& param = nnvm::get<CastParam>(attrs.parsed);
   CHECK_EQ(out_attrs->size(), 1U);
   NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, param.dtype);
@@ -170,8 +237,8 @@ NNVM_REGISTER_OP(cast)
 DMLC_REGISTER_PARAMETER(ReshapeParam);
 
 inline bool ReshapeInferShape(const NodeAttrs& attrs,
-                              std::vector<TShape> *in_attrs,
-                              std::vector<TShape> *out_attrs) {
+                              std::vector<TShape>* in_attrs,
+                              std::vector<TShape>* out_attrs) {
   const ReshapeParam& param = nnvm::get<ReshapeParam>(attrs.parsed);
   CHECK_GT(param.shape.ndim(), 0);
   CHECK_EQ(in_attrs->size(), 1U) << "Input: [data]";

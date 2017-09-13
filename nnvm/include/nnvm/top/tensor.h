@@ -6,6 +6,10 @@
 #ifndef NNVM_TOP_TENSOR_H_
 #define NNVM_TOP_TENSOR_H_
 
+#include <dmlc/base.h>
+#include <dmlc/parameter.h>
+#include <nnvm/tuple.h>
+
 namespace nnvm {
 namespace top {
 
@@ -14,6 +18,19 @@ struct ConcatenateParam : public dmlc::Parameter<ConcatenateParam> {
   DMLC_DECLARE_PARAMETER(ConcatenateParam) {
     DMLC_DECLARE_FIELD(axis).set_lower_bound(0).set_default(1)
     .describe("the axis to be concated.");
+  }
+};
+
+struct SplitParam : public dmlc::Parameter<SplitParam> {
+  // numpy convention, only support indices, not support list.
+  Tuple<int> indices_or_sections;
+  int axis;
+
+  DMLC_DECLARE_PARAMETER(SplitParam) {
+    DMLC_DECLARE_FIELD(indices_or_sections)
+        .describe("Number of outputs to be splitted");
+    DMLC_DECLARE_FIELD(axis).set_lower_bound(0).set_default(1)
+        .describe("the axis to be splitted.");
   }
 };
 
@@ -55,8 +72,6 @@ struct ScalarParam : public dmlc::Parameter<ScalarParam> {
     DMLC_DECLARE_FIELD(scalar);
   }
 };
-
-
 
 }  // namespace top
 }  // namespace nnvm
