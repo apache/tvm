@@ -85,6 +85,8 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
+    check_device("nvptx -mcpu=sm_20")
+    check_device("rocm")
     check_device("metal")
     check_device("opencl")
     check_device("cuda")
