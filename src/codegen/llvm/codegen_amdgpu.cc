@@ -14,14 +14,6 @@
 #include "../../pass/ir_util.h"
 #include "../../runtime/rocm/rocm_module.h"
 
-namespace llvm {
-  extern "C" void LLVMInitializeAMDGPUTargetInfo();
-  extern "C" void LLVMInitializeAMDGPUTarget();
-  extern "C" void LLVMInitializeAMDGPUTargetMC();
-  extern "C" void LLVMInitializeAMDGPUAsmParser();
-  extern "C" void LLVMInitializeAMDGPUAsmPrinter();
-}
-
 namespace tvm {
 namespace codegen {
 
@@ -144,33 +136,10 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(target.length(
 ) >= 4 &&
         target.substr(0, 4) == "rocm");
-//  llvm::TargetMachine* tm = \
+  llvm::TargetMachine* tm = \
     GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx900" + \
     target.substr(4, target.length() - 4));
-  auto TargetTriple = std::string("amdgcn-amd-amdhsa-hcc");
 
-  llvm::LLVMInitializeAMDGPUTargetInfo();
-  llvm::LLVMInitializeAMDGPUTarget();
-  llvm::LLVMInitializeAMDGPUTargetMC();
-  llvm::LLVMInitializeAMDGPUAsmParser();
-  llvm::LLVMInitializeAMDGPUAsmPrinter();
-
-  std::string Error;
-  auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
-
-  if (!Target) {
-    LOG(WARNING) << Error;
-  }
-
-  auto GPU = "gfx900";
-  auto Features = "";
-
-  llvm::TargetOptions opt;
-  auto RM = llvm::Optional<llvm::Reloc::Model>();
-  auto tm = Target->createTargetMachine(TargetTriple, GPU, Features, opt, RM);
-
-
-  LOG(WARNING) << target;
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
