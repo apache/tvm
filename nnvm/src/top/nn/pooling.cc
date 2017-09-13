@@ -14,12 +14,12 @@
 namespace nnvm {
 namespace top {
 
-DMLC_REGISTER_PARAMETER(PoolParam);
+DMLC_REGISTER_PARAMETER(Pool2DParam);
 
 inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
                              std::vector<TShape>* in_shape,
                              std::vector<TShape>* out_shape) {
-  const PoolParam& param = nnvm::get<PoolParam>(attrs.parsed);
+  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
   CHECK_EQ(in_shape->size(), 1U);
   CHECK_EQ(out_shape->size(), 1U);
 
@@ -68,8 +68,8 @@ NNVM_REGISTER_OP(max_pool2d)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_arguments(PoolParam::__FIELDS__())
-.set_attr_parser(ParamParser<PoolParam>)
+.add_arguments(Pool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Pool2DParam>)
 .set_num_outputs(1)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", Pool2DInferShape)
@@ -92,8 +92,8 @@ NNVM_REGISTER_OP(avg_pool2d)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_arguments(PoolParam::__FIELDS__())
-.set_attr_parser(ParamParser<PoolParam>)
+.add_arguments(Pool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Pool2DParam>)
 .set_num_outputs(1)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", Pool2DInferShape)
@@ -101,12 +101,12 @@ NNVM_REGISTER_OP(avg_pool2d)
 .set_support_level(2);
 
 
-DMLC_REGISTER_PARAMETER(GlobalPoolParam);
+DMLC_REGISTER_PARAMETER(GlobalPool2DParam);
 
 inline bool GlobalPool2DInferShape(const nnvm::NodeAttrs& attrs,
                                    std::vector<TShape>* in_shape,
                                    std::vector<TShape>* out_shape) {
-  const GlobalPoolParam& param = nnvm::get<GlobalPoolParam>(attrs.parsed);
+  const GlobalPool2DParam& param = nnvm::get<GlobalPool2DParam>(attrs.parsed);
   CHECK_EQ(in_shape->size(), 1U);
   CHECK_EQ(out_shape->size(), 1U);
   TShape dshape = (*in_shape)[0];
@@ -129,8 +129,8 @@ NNVM_REGISTER_OP(global_max_pool2d)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_arguments(GlobalPoolParam::__FIELDS__())
-.set_attr_parser(ParamParser<GlobalPoolParam>)
+.add_arguments(GlobalPool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<GlobalPool2DParam>)
 .set_num_outputs(1)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", GlobalPool2DInferShape)
@@ -148,8 +148,8 @@ NNVM_REGISTER_OP(global_avg_pool2d)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_arguments(GlobalPoolParam::__FIELDS__())
-.set_attr_parser(ParamParser<GlobalPoolParam>)
+.add_arguments(GlobalPool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<GlobalPool2DParam>)
 .set_num_outputs(1)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", GlobalPool2DInferShape)

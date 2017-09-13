@@ -101,7 +101,7 @@ struct LeakyReLUParam : public dmlc::Parameter<LeakyReLUParam> {
   }
 };
 
-struct ConvParam : public dmlc::Parameter<ConvParam> {
+struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
   int channels;
   TShape kernel_size;
   TShape strides;
@@ -111,7 +111,7 @@ struct ConvParam : public dmlc::Parameter<ConvParam> {
   int layout;
   bool use_bias;
 
-  DMLC_DECLARE_PARAMETER(ConvParam) {
+  DMLC_DECLARE_PARAMETER(Conv2DParam) {
     DMLC_DECLARE_FIELD(channels)
       .describe("The dimensionality of the output space"
                 "i.e. the number of output channels in the convolution.");
@@ -148,7 +148,7 @@ struct ConvParam : public dmlc::Parameter<ConvParam> {
 };
 
 
-struct ConvTransposeParam : public dmlc::Parameter<ConvTransposeParam> {
+struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
   int channels;
   TShape kernel_size;
   TShape strides;
@@ -159,7 +159,7 @@ struct ConvTransposeParam : public dmlc::Parameter<ConvTransposeParam> {
   int layout;
   bool use_bias;
 
-  DMLC_DECLARE_PARAMETER(ConvTransposeParam) {
+  DMLC_DECLARE_PARAMETER(Conv2DTransposeParam) {
     DMLC_DECLARE_FIELD(channels)
       .describe("The dimensionality of the output space"
                 "i.e. the number of output channels in the convolution.");
@@ -198,7 +198,7 @@ struct ConvTransposeParam : public dmlc::Parameter<ConvTransposeParam> {
 };
 
 
-struct PoolParam : public dmlc::Parameter<PoolParam> {
+struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
   TShape pool_size;
   TShape strides;
   TShape padding;
@@ -206,7 +206,7 @@ struct PoolParam : public dmlc::Parameter<PoolParam> {
   int layout;
   bool ceil_mode;
 
-  DMLC_DECLARE_PARAMETER(PoolParam) {
+  DMLC_DECLARE_PARAMETER(Pool2DParam) {
     DMLC_DECLARE_FIELD(pool_size)
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
@@ -234,10 +234,10 @@ struct PoolParam : public dmlc::Parameter<PoolParam> {
 };
 
 
-struct GlobalPoolParam : public dmlc::Parameter<GlobalPoolParam> {
+struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
   int layout;
 
-  DMLC_DECLARE_PARAMETER(GlobalPoolParam) {
+  DMLC_DECLARE_PARAMETER(GlobalPool2DParam) {
     DMLC_DECLARE_FIELD(layout)
       .add_enum("NCHW", kNCHW)
       .add_enum("NHWC", kNHWC)
