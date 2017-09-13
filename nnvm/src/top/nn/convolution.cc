@@ -15,12 +15,12 @@ namespace nnvm {
 namespace top {
 
 // conv2d
-DMLC_REGISTER_PARAMETER(ConvParam);
+DMLC_REGISTER_PARAMETER(Conv2DParam);
 
 inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
                              std::vector<TShape>* in_shape,
                              std::vector<TShape>* out_shape) {
-  const ConvParam& param = nnvm::get<ConvParam>(attrs.parsed);
+  const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
   if (param.use_bias) {
     CHECK_EQ(in_shape->size(), 3U) << "Input:[data, weight, bias]";
   } else {
@@ -51,10 +51,10 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   wshape = ConvertLayout(wshape, kNCHW, param.layout);
   wshape[0] *= param.groups;
 
-  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, ConvParam::kWeight, wshape);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
   if (param.use_bias) {
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape,
-                            ConvParam::kBias, TShape({param.channels}));
+                            Conv2DParam::kBias, TShape({param.channels}));
   }
   // dilation
   dim_t dilated_ksize_y = 1 + (param.kernel_size[0] - 1) * param.dilation[0];
@@ -79,7 +79,7 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   if (oshape[3] && param.strides[1] == 1) {
     dshape[3] = oshape[3] + dilated_ksize_x - 1 - 2 * param.padding[1];
   }
-  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, ConvParam::kData,
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kData,
                           ConvertLayout(dshape, kNCHW, param.layout));
   // Check whether the kernel sizes are valid
   if (dshape[2] != 0) {
@@ -112,29 +112,29 @@ a bias vector is created and added to the outputs.
 .add_argument("data", "4D Tensor", "Input data.")
 .add_argument("weight", "4D Tensor", "Weight matrix.")
 .add_argument("bias", "1D Tensor", "Bias parameter.")
-.add_arguments(ConvParam::__FIELDS__())
-.set_attr_parser(ParamParser<ConvParam>)
+.add_arguments(Conv2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DParam>)
 .set_num_outputs(1)
-.set_num_inputs(UseBiasNumInputs<ConvParam>)
-.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<ConvParam>)
+.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_support_level(2);
 
 
-DMLC_REGISTER_PARAMETER(ConvTransposeParam);
+DMLC_REGISTER_PARAMETER(Conv2DTransposeParam);
 
-inline bool ConvTransposeInferShape(const nnvm::NodeAttrs& attrs,
-                                    std::vector<TShape>* in_shape,
-                                    std::vector<TShape>* out_shape) {
-  const ConvTransposeParam& param = nnvm::get<ConvTransposeParam>(attrs.parsed);
+inline bool Conv2DTransposeInferShape(const nnvm::NodeAttrs& attrs,
+                                      std::vector<TShape>* in_shape,
+                                      std::vector<TShape>* out_shape) {
+  const Conv2DTransposeParam& param = nnvm::get<Conv2DTransposeParam>(attrs.parsed);
   if (param.use_bias) {
     CHECK_EQ(in_shape->size(), 3U) << "Input:[data, weight, bias]";
   } else {
     CHECK_EQ(in_shape->size(), 2U) << "Input:[data, weight]";
   }
   CHECK_EQ(out_shape->size(), 1U);
-  const TShape& dshape = (*in_shape)[ConvTransposeParam::kData];
+  const TShape& dshape = (*in_shape)[Conv2DTransposeParam::kData];
   if (dshape.ndim() ==  0) return false;
   TShape dshape_nchw = ConvertLayout(dshape, param.layout, kNCHW);
 
@@ -154,11 +154,11 @@ inline bool ConvTransposeInferShape(const nnvm::NodeAttrs& attrs,
                  param.kernel_size[0], param.kernel_size[1]});
   wshape = ConvertLayout(wshape, kNCHW, param.layout);
 
-  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, ConvTransposeParam::kWeight, wshape);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DTransposeParam::kWeight, wshape);
 
   if (param.use_bias) {
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape,
-                            ConvTransposeParam::kBias,
+                            Conv2DTransposeParam::kBias,
                             TShape({param.channels}));
   }
   // dilation
@@ -201,12 +201,12 @@ said convolution.
 .add_argument("data", "4D Tensor", "Input data.")
 .add_argument("weight", "4D Tensor", "Weight matrix.")
 .add_argument("bias", "1D Tensor", "Bias parameter.")
-.add_arguments(ConvTransposeParam::__FIELDS__())
-.set_attr_parser(ParamParser<ConvTransposeParam>)
+.add_arguments(Conv2DTransposeParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DTransposeParam>)
 .set_num_outputs(1)
-.set_num_inputs(UseBiasNumInputs<ConvTransposeParam>)
-.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<ConvTransposeParam>)
-.set_attr<FInferShape>("FInferShape", ConvTransposeInferShape)
+.set_num_inputs(UseBiasNumInputs<Conv2DTransposeParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DTransposeParam>)
+.set_attr<FInferShape>("FInferShape", Conv2DTransposeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_support_level(2);
 
