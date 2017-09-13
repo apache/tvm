@@ -156,10 +156,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   module->print(dest_ll, nullptr);
   std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(module.get());
   std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(module.get());
-  std::unique_ptr<llvm::Module> mAsmFile = llvm::CloneModule(module.get());
-  std::unique_ptr<llvm::Module> mObjFile = llvm::CloneModule(module.get());
   llvm::legacy::PassManager pass;
-
 
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
@@ -174,7 +171,8 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   arr.data = &obj[0];
   arr.size = obj.length();
 
-  std::string hsaco = (*f)(arr), ll;
+  std::string hsaco = (*f)(arr);
+  std::string ll(data_ll.begin(), data_ll.end());
 
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
