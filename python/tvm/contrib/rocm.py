@@ -1,5 +1,4 @@
 """Utility for ROCm backend"""
-import sys
 import subprocess
 from . import util
 from ..api import register_func
@@ -23,9 +22,9 @@ def rocm_link(in_file, out_file):
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
-        sys.stderr.write("Linking error using ld.lld:\n")
-        sys.stderr.write(str(out))
-        sys.stderr.flush()
+        msg = "Linking error using ld.lld:\n"
+        msg += str(out)
+        raise RuntimeError(msg)
 
 @register_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
