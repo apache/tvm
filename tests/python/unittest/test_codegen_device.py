@@ -82,6 +82,7 @@ def test_add_pipeline():
     check_target("cuda", host="llvm")
     check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
+    check_target("rocm", host="llvm")
 
 if __name__ == "__main__":
     test_add_pipeline()

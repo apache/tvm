@@ -100,7 +100,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
     Type t = arg.type();
     if (t.is_handle() && f->handle_data_type.count(arg)) {
       arg_type.push_back(
-          LLVMType(f->handle_data_type[arg].type())->getPointerTo());
+          LLVMType(f->handle_data_type[arg].type())->getPointerTo(GetGlobalAddressSpace()));
       if (!is_restricted_) {
         alias_var_set_.insert(arg.get());
       }
@@ -553,6 +553,10 @@ llvm::Value* CodeGenLLVM::CreateStorageSync(const Call* op) {
 int CodeGenLLVM::NativeVectorBits(const runtime::StorageScope& storage_scope) const {
   // By default, we ask the buffer to be aligned to 64 bytes
   return native_vector_bits_;
+}
+
+unsigned CodeGenLLVM::GetGlobalAddressSpace() {
+  return 0;
 }
 
 void CodeGenLLVM::GetAlignment(
