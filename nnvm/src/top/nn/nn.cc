@@ -163,6 +163,9 @@ by::
 The parameter ``axis`` specifies which axis of the input shape denotes
 the 'channel' (separately normalized groups).  The default is 1.  Specifying -1 sets the channel
 axis to be the last item in the input shape.
+
+.. note::
+    This operator can be optimized away for inference.
 )" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Input to which dropout will be applied")
 .add_argument("gamma", "Tensor", "The gamma scale factor")
@@ -197,6 +200,8 @@ NNVM_REGISTER_OP(softmax)
 
 .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
 
+.. note::
+    This operator can be optimized away for inference.
 )code" NNVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_num_outputs(1)
@@ -208,10 +213,12 @@ NNVM_REGISTER_OP(softmax)
 
 // log_softmax
 NNVM_REGISTER_OP(log_softmax)
-.describe(R"code(Computes softmax.
+.describe(R"code(Computes log softmax.
 
 .. math:: \text{log_softmax}(x)_i = \log \frac{exp(x_i)}{\sum_j exp(x_j)}
 
+.. note::
+    This operator can be optimized away for inference.
 )code" NNVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_num_outputs(1)
