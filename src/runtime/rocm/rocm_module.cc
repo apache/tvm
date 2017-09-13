@@ -133,7 +133,8 @@ class ROCMWrappedFunc {
   // invoke the function with void arguments
   void operator()(TVMArgs args,
                   TVMRetValue* rv,
-                  void** void_args) const {
+                  void* packed_args,
+                  size_t packed_nbytes) const {
     int device_id;
     ROCM_CALL(hipGetDevice(&device_id));
     if (fcache_[device_id] == nullptr) {
@@ -141,6 +142,11 @@ class ROCMWrappedFunc {
     }
     hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+    void* config[] = {
+      HIP_LAUNCH_PARAM_BUFFER_POINTER, &packed_args,
+      HIP_LAUNCH_PARAM_BUFFER_SIZE, &packed_nbytes,
+      HIP_LAUNCH_PARAM_END
+    };
     // HIP supports only extra_args.
     ROCM_DRIVER_CALL(hipModuleLaunchKernel(
         fcache_[device_id],
@@ -150,7 +156,8 @@ class ROCMWrappedFunc {
         wl.block_dim(0),
         wl.block_dim(1),
         wl.block_dim(2),
-        0, strm, void_args, 0));
+        0, strm, nullptr,
+        reinterpret_cast<void**>(&config)));
   }
 
  private:
@@ -180,7 +187,7 @@ PackedFunc ROCMModuleNode::GetFunction(
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+  return PackFuncPackedArg(f, info.arg_types);
 }
 
 Module ROCMModuleCreate(

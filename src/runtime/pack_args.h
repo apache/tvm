@@ -15,6 +15,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <vector>
+#include <cstring>
 
 namespace tvm {
 namespace runtime {
@@ -31,7 +32,7 @@ union ArgUnion {
  * \brief Create a packed function from void addr types.
  *
  * \param f with signiture (TVMArgs args, TVMRetValue* rv, void* void_args)
- * \param arg_types The arguments that wish to get from
+ * \param arg_types The arguments type information.
  * \tparam F the function type
  *
  * \return The wrapped packed function.
@@ -42,13 +43,24 @@ inline PackedFunc PackFuncVoidAddr(F f, const std::vector<TVMType>& arg_types);
  * \brief Create a packed function that from function only packs buffer arguments.
  *
  * \param f with signiture (TVMArgs args, TVMRetValue* rv, ArgUnion* pack_args)
- * \param arg_types The arguments that wish to get from
+ * \param arg_types The arguments type information.
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template<typename F>
 inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<TVMType>& arg_types);
+/*!
+ * \brief Create a packed function that from function that takes a packed arguments.
+ *
+ * \param f with signature (TVMArgs args, TVMRetValue* rv, void* pack_args, size_t nbytes)
+ * \param arg_types The arguments that wish to get from
+ * \tparam F the function type
+ *
+ * \return The wrapped packed function.
+ */
+template<typename F>
+inline PackedFunc PackFuncPackedArg(F f, const std::vector<TVMType>& arg_types);
 /*!
  * \brief Extract number of buffer argument from the argument types.
  * \param arg_types The argument types.
@@ -179,6 +191,56 @@ inline PackedFunc PackFuncNonBufferArg_(
   };
   return PackedFunc(ret);
 }
+
+template<int N, typename F>
+inline PackedFunc PackFuncPackedArg_(
+    F f, const std::vector<ArgConvertCode>& codes) {
+  int num_args = static_cast<int>(codes.size());
+  auto ret = [f, codes, num_args](TVMArgs args, TVMRetValue* ret) {
+    TempArray<uint64_t, N> pack_(num_args);
+    int32_t* pack = reinterpret_cast<int32_t*>(pack_.data());
+    int32_t* ptr = pack;
+    static_assert(sizeof(TVMValue) == 8, "invariant");
+    static_assert(sizeof(void*) % sizeof(int32_t) == 0, "invariant");
+    for (int i = 0; i < num_args; ++i) {
+      switch (codes[i]) {
+        case HANDLE_TO_HANDLE: {
+          std::memcpy(ptr, &(args.values[i].v_handle), sizeof(void*));
+          ptr += sizeof(void*) / sizeof(int32_t);
+          break;
+        }
+        case INT64_TO_INT64:
+        case FLOAT64_TO_FLOAT64: {
+          std::memcpy(ptr, &args.values[i], sizeof(TVMValue));
+          ptr += 2;
+          break;
+        }
+        case INT64_TO_INT32: {
+          *ptr = static_cast<int32_t>(args.values[i].v_int64);
+          ++ptr;
+          break;
+        }
+        case INT64_TO_UINT32 : {
+          *reinterpret_cast<uint32_t*>(ptr) =
+              static_cast<uint32_t>(args.values[i].v_int64);
+          ++ptr;
+          break;
+        }
+        case FLOAT64_TO_FLOAT32: {
+          *reinterpret_cast<float*>(ptr) =
+              static_cast<float>(args.values[i].v_float64);
+          ++ptr;
+          break;
+        }
+        default: {
+          LOG(FATAL) << "not reached"; break;
+        }
+      }
+    }
+    f(args, ret, pack, (ptr - pack) * sizeof(int32_t));
+  };
+  return PackedFunc(ret);
+}
 }  // namespace detail
 
 template<typename F>
@@ -226,6 +288,21 @@ inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<TVMType>& arg_type
     return detail::PackFuncNonBufferArg_<4>(f, base, codes);
   } else {
     return detail::PackFuncNonBufferArg_<0>(f, base, codes);
+  }
+}
+
+template<typename F>
+inline PackedFunc PackFuncPackedArg(F f, const std::vector<TVMType>& arg_types) {
+  std::vector<detail::ArgConvertCode> codes;
+  for (size_t i = 0; i < arg_types.size(); ++i) {
+    codes.push_back(detail::GetArgConvertCode(arg_types[i]));
+  }
+  size_t nargs = codes.size();
+  // specialization
+  if (nargs <= 4) {
+    return detail::PackFuncPackedArg_<4>(f, codes);
+  } else {
+    return detail::PackFuncPackedArg_<0>(f, codes);
   }
 }
 }  // namespace runtime
