@@ -1,4 +1,5 @@
 """Utility for ROCm backend"""
+import sys
 import subprocess
 from . import util
 from ..api import register_func
@@ -14,17 +15,18 @@ def rocm_link(in_file, out_file):
     out_file : str
         Output file name (shared ELF object file)
     """
-    cmd = ["ld.lld"]
-    cmd += ["-shared"]
-    cmd += [in_file]
-    cmd += ["-o"]
-    cmd += [out_file]
-    args = ' '.join(cmd)
+    args = "ld.lld -shared " + in_file + " -o " + out_file
+    print args
     proc = subprocess.Popen(
         args, shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
-    proc.communicate()
+    (out, _) = proc.communicate()
+
+    if proc.returncode != 0:
+        sys.stderr.write("Linking error using ld.lld:\n")
+        sys.stderr.write(str(out))
+        sys.stderr.flush()
 
 @register_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
@@ -43,7 +45,6 @@ def callback_rocm_link(obj_bin):
     tmp_dir = util.tempdir()
     tmp_obj = tmp_dir.relpath("rocm_kernel.o")
     tmp_cobj = tmp_dir.relpath("rocm_kernel.co")
-    rocm_link(tmp_obj, tmp_cobj)
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(obj_bin))
     rocm_link(tmp_obj, tmp_cobj)
