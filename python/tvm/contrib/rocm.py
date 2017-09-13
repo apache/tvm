@@ -14,9 +14,9 @@ def rocm_link(in_file, out_file):
     out_file : str
         Output file name (shared ELF object file)
     """
-    args = "ld.lld -shared " + in_file + " -o " + out_file
+    args = ["ld.lld", "-shared", in_file, "-o", out_file]
     proc = subprocess.Popen(
-        args, shell=True,
+        args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
