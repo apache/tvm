@@ -138,3 +138,7 @@ xcuserdata/
 *.xcscmblueprint
 .DS_Store
 tags
+
+# vim temporary files
+*.swp
+*.swo
