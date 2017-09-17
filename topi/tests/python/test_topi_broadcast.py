@@ -76,7 +76,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
         for _ in range(1):
             foo(lhs_nd, rhs_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     check_device("opencl")
     check_device("cuda")
