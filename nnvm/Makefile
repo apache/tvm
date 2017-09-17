@@ -11,6 +11,7 @@ include $(config)
 
 export LDFLAGS = -pthread -lm
 export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
+CFLAGS += -Itvm/include -Itvm/dlpack/include
 
 ifdef DMLC_CORE_PATH
   CFLAGS += -I$(DMLC_CORE_PATH)/include
@@ -51,10 +52,10 @@ else
 	NO_WHOLE_ARCH= --no-whole-archive
 endif
 
-all: lib/libnnvm.a lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX)
+all: lib/libnnvm.a lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX) lib/libnnvm_top_runtime.$(SHARED_LIBRARY_SUFFIX)
 
 SRC = $(wildcard src/*.cc src/c_api/*.cc src/core/*.cc src/pass/*.cc)
-SRC_TOP = $(wildcard src/top/*.cc, src/top/*/*.cc)
+SRC_TOP = $(wildcard src/top/*.cc, src/top/*/*.cc src/runtime/*.cc)
 ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_TOP))
 ALL_DEP = $(ALL_OBJ)
@@ -75,6 +76,10 @@ lib/libnnvm.a: $(ALL_DEP)
 lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
+
+lib/libnnvm_top_runtime.$(SHARED_LIBRARY_SUFFIX): deploy/nnvm_runtime.cc
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cc, $^) $(LDFLAGS)
 
 cython:
 	cd python; python setup.py build_ext --inplace
