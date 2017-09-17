@@ -86,7 +86,9 @@ def test_llvm_persist_parallel():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(c.asnumpy(), np.sqrt(a.asnumpy() + 1) * 2 + 2)
+        np.testing.assert_allclose(c.asnumpy(),
+                                   np.sqrt(a.asnumpy() + 1) * 2 + 2,
+                                   rtol=1e-5)
 
     check_llvm()
 
