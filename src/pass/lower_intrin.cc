@@ -40,11 +40,11 @@ class IntrinInjecter : public IRMutator {
     if (const Mul* mb = op->b.as<Mul>()) {
       Expr r = (*fma_)(Call::make(
           op->type, "fma", {mb->a, mb->b, op->a}, Call::PureIntrinsic));
-      if (r.defined()) return r;
+      if (r.defined()) return this->Mutate(r);
     } else if (const Mul* ma = op->a.as<Mul>()) {
       Expr r = (*fma_)(Call::make(
           op->type, "fma", {ma->a, ma->b, op->b}, Call::PureIntrinsic));
-      if (r.defined()) return r;
+      if (r.defined()) return this->Mutate(r);
     }
     return IRMutator::Mutate_(op, e);
   }
