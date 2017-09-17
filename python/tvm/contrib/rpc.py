@@ -228,6 +228,7 @@ class RPCSession(object):
         ctx = _context(dev_type, dev_id)
         encode = (self._tbl_index + 1) * RPC_SESS_MASK
         ctx.device_type += encode
+        ctx._rpc_sess = self
         return ctx
 
     def cpu(self, dev_id=0):
