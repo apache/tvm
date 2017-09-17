@@ -195,7 +195,7 @@ class Tuple {
    * \return the ostream
    */
   friend std::ostream &operator<<(std::ostream &os, const Tuple<ValueType> &t) {
-    os << '(';
+    os << '[';
     const ValueType* begin = t.begin();
     const ValueType* end = t.end();
     for (const ValueType* it = begin; it != end; ++it) {
@@ -204,7 +204,7 @@ class Tuple {
     }
     // python style tuple
     if (t.ndim() == 1) os << ',';
-    os << ')';
+    os << ']';
     return os;
   }
   /*!
@@ -235,7 +235,7 @@ class Tuple {
     while (isspace(is.peek())) {
       is.get();
     }
-    if (is.peek() == ')') {
+    if (is.peek() == ')' || is.peek() == ']') {
       is.get();
       return is;
     }
