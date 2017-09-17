@@ -65,7 +65,7 @@ def test_llvm_persist_parallel():
     n = 128
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name='B')
-    C = tvm.compute(A.shape, lambda *i: B(*i) + 2, name='C')
+    C = tvm.compute(A.shape, lambda *i: tvm.sqrt(B(*i)) * 2 + 2, name='C')
     s = tvm.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=8)
     xo1, xo2 = s[C].split(xo, nparts=1)
@@ -86,7 +86,7 @@ def test_llvm_persist_parallel():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 3)
+        np.testing.assert_allclose(c.asnumpy(), np.sqrt(a.asnumpy() + 1) * 2 + 2)
 
     check_llvm()
 
