@@ -3,8 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 
-def _schedule_broadcast_to(op, sch):
-    data_in = op.input_tensors[0]
+def _schedule_broadcast(op, sch):
     data_out = op.output(0)
 
     num_thread = 512
@@ -47,7 +46,39 @@ def schedule_broadcast_to(outs):
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
         elif operator.tag == 'broadcast_to':
-            _schedule_broadcast_to(operator, sch)
+            _schedule_broadcast(operator, sch)
+        else:
+            raise RuntimeError("Unsupported operator: %s" % operator.tag)
+
+    traverse(outs[0].op)
+    return sch
+
+
+def schedule_broadcast_binary_op(outs):
+    """Schedule for broadcast_binary ops + element-wise ops.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of broadcast_binary in the format
+          of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    sch = tvm.create_schedule([x.op for x in outs])
+    def traverse(operator):
+        if operator.tag == 'ewise' or operator.tag == 'scale_shift':
+            if operator not in sch.outputs:
+                sch[operator].compute_inline()
+            for tensor in operator.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        elif operator.tag == 'broadcast_binary_op':
+            _schedule_broadcast(operator, sch)
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 

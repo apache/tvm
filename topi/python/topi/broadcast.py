@@ -2,6 +2,7 @@
 """Broadcast operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from .util import get_const_tuple, equal_const_int
 
 def _get_bcast_info(original_shape, target_shape):
     """Get the broadcasting info.
@@ -35,17 +36,47 @@ def _get_bcast_info(original_shape, target_shape):
     original_shape = original_shape[::-1]
     target_shape = target_shape[::-1]
     for i in range(len(original_shape)):
-        if not isinstance(original_shape[i], tvm.expr.IntImm):
-            raise ValueError("Element of original_shape tuple should be IntImm")
-        if tvm.ir_pass.Equal(tvm.convert(target_shape[i]), original_shape[i]):
+        if equal_const_int(original_shape[i], target_shape[i]):
             bcast_info[i] = 0
-        elif tvm.ir_pass.Equal(original_shape[i], tvm.convert(1)):
+        elif equal_const_int(original_shape[i], 1):
             bcast_info[i] = 1
         else:
             raise ValueError("Original Shape: {} cannot be broadcast to  {}"
                              .format(original_shape[::-1], target_shape[::-1]))
     bcast_info = bcast_info[::-1]
     return bcast_info
+
+
+def _get_binary_op_bcast_shape(lhs_shape, rhs_shape):
+    """Get the shape after binary broadcasting.
+
+    We will strictly follow the broadcasting rule in numpy.
+
+    Parameters
+    ----------
+    lhs_shape : tuple
+    rhs_shape : tuple
+
+    Returns
+    -------
+    ret_shape : tuple
+    """
+    ret_shape = []
+    if len(lhs_shape) > len(rhs_shape):
+        lhs_shape, rhs_shape = rhs_shape, lhs_shape
+    for ptr in range(len(rhs_shape)):
+        if ptr < len(lhs_shape):
+            l_val, r_val = lhs_shape[len(lhs_shape) - 1 - ptr], \
+                           rhs_shape[len(rhs_shape) - 1 - ptr]
+            assert(l_val == 1 or r_val == 1 or l_val == r_val),\
+                "Shape is NOT broadcastable, lhs=%s, rhs=%s"\
+                %(str(lhs_shape), str(rhs_shape))
+            ret_shape.append(max(l_val, r_val))
+        else:
+            ret_shape.append(rhs_shape[len(rhs_shape) - 1 - ptr])
+    ret_shape = ret_shape[::-1]
+    return ret_shape
+
 
 
 @tvm.tag_scope(tag="broadcast_to")
@@ -80,3 +111,133 @@ def broadcast_to(data, shape):
                                                        bcast_info,
                                                        *args), name=data.name + "_broadcast")
     return ret
+
+
+@tvm.tag_scope(tag="broadcast_binary_op")
+def broadcast_binary_op(lhs, rhs, func, name="bop"):
+    """Binary operands that will automatically broadcast the inputs
+
+    We follows the numpy broadcasting rule.
+    See also https://docs.scipy.org/doc/numpy/user/basics.broadcasting.html
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+    func : function
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    def _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info, func, *args):
+        lhs_indices = []
+        rhs_indices = []
+        for i in range(len(args)):
+            if lhs_bcast_info[i] == 0:
+                lhs_indices.append(args[i])
+            elif lhs_bcast_info[i] == 1:
+                lhs_indices.append(0)
+            if rhs_bcast_info[i] == 0:
+                rhs_indices.append(args[i])
+            elif rhs_bcast_info[i] == 1:
+                rhs_indices.append(0)
+        return func(lhs[tuple(lhs_indices)], rhs[tuple(rhs_indices)])
+    ret_shape = _get_binary_op_bcast_shape(get_const_tuple(lhs.shape), get_const_tuple(rhs.shape))
+    lhs_bcast_info = _get_bcast_info(original_shape=lhs.shape, target_shape=ret_shape)
+    rhs_bcast_info = _get_bcast_info(original_shape=rhs.shape, target_shape=ret_shape)
+    ret = tvm.compute([tvm.convert(ele) for ele in ret_shape],
+                      lambda *args: _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info,
+                                                    func, *args),
+                      name=lhs.name + "_" + rhs.name + "_" + name)
+    return ret
+
+
+def broadcast_add(lhs, rhs):
+    """Binary addition with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return broadcast_binary_op(lhs, rhs, lambda a, b: a + b, "add")
+
+
+def broadcast_mul(lhs, rhs):
+    """Binary multiplication with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return broadcast_binary_op(lhs, rhs, lambda a, b: a * b, "mul")
+
+
+def broadcast_div(lhs, rhs):
+    """Binary division with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return broadcast_binary_op(lhs, rhs, lambda a, b: a / b, "div")
+
+
+def broadcast_sub(lhs, rhs):
+    """Binary subtraction with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return broadcast_binary_op(lhs, rhs, lambda a, b: a - b, "sub")
+
+
+def broadcast_maximum(lhs, rhs):
+    """Take element-wise maximum of two tensors with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return broadcast_binary_op(lhs, rhs, tvm.max, "maximum")
+
+
+def broadcast_minimum(lhs, rhs):
+    """Take element-wise minimum of two tensors with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+    rhs : tvm.Tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return broadcast_binary_op(lhs, rhs, tvm.min, "minimum")
