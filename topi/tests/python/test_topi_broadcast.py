@@ -71,9 +71,9 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
             out_npy = np.minimum(lhs_npy, rhs_npy)
         else:
             raise NotImplementedError
-        lhs_nd = tvm.nd.array(lhs_npy, tvm.gpu())
-        rhs_nd = tvm.nd.array(rhs_npy, tvm.gpu())
-        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), tvm.gpu())
+        lhs_nd = tvm.nd.array(lhs_npy, ctx)
+        rhs_nd = tvm.nd.array(rhs_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
         for _ in range(1):
             foo(lhs_nd, rhs_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
