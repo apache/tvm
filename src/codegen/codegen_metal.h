@@ -27,6 +27,9 @@ class CodeGenMetal final : public CodeGenC {
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
+
+ private:
+  int thread_index_bits_{32};
 };
 }  // namespace codegen
 }  // namespace tvm
