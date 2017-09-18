@@ -194,7 +194,6 @@ class RPCSession(object):
     def __init__(self, sess):
         self._sess = sess
         self._tbl_index = _SessTableIndex(sess)
-        self._module_handle = _ModuleHandle(sess)
         self._remote_funcs = {}
 
     def get_function(self, name):
