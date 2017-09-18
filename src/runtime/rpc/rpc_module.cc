@@ -182,6 +182,14 @@ TVM_REGISTER_GLOBAL("contrib.rpc._ImportRemoteModule")
                              cmod->module_handle());
   });
 
+TVM_REGISTER_GLOBAL("contrib.rpc._ModuleHandle")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Module m = args[0];
+    std::string tkey = m->type_key();
+    CHECK_EQ(tkey, "rpc");
+    *rv = static_cast<RPCModuleNode*>(m.operator->())->module_handle();
+  });
+
 TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
