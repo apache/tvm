@@ -163,7 +163,11 @@ inline TNodeRef TVMRetValue::AsNodeRef() const {
       "Conversion only works for NodeRef");
   if (type_code_ == kNull) return TNodeRef();
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  return TNodeRef(*ptr<std::shared_ptr<Node> >());
+  std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
+  CHECK(NodeTypeChecker<TNodeRef>::Check(sptr.get()))
+      << "Expected type " << NodeTypeName<TNodeRef>()
+      << " but get " << sptr->type_key();
+  return TNodeRef(sptr);
 }
 
 inline void TVMArgsSetter::operator()(size_t i, const NodeRef& other) const {  // NOLINT(*)
