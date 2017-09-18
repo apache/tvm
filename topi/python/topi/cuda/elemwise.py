@@ -2,6 +2,17 @@
 """Schedule for element wise operator"""
 import tvm
 
+
+def _schedule_elemwise(op, sch):
+    x = op.output(0)
+    fused = sch[x].fuse(*sch[x].op.axis)
+    num_thread = 512
+    bx, tx = sch[x].split(fused, factor=num_thread)
+    sch[x].bind(bx, tvm.thread_axis("blockIdx.x"))
+    sch[x].bind(tx, tvm.thread_axis("threadIdx.x"))
+    return sch
+
+
 def schedule_elemwise(outs):
     """Schedule for element wise op.
 
@@ -20,12 +31,4 @@ def schedule_elemwise(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     tvm.schedule.AutoInlineInjective(s)
-
-    x = outs[0]
-    fused = s[x].fuse(*x.op.axis)
-    num_thread = 64
-    bx, tx = s[x].split(fused, factor=num_thread)
-    s[x].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[x].bind(tx, tvm.thread_axis("threadIdx.x"))
-
-    return s
+    return _schedule_elemwise(outs[0].op, s)

@@ -8,7 +8,7 @@ def verify_broadcast_to_ele(in_shape, out_shape):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.broadcast_to(A, out_shape)
-    s = topi.cuda.schedule_broadcast_to(B)
+    s = topi.cuda.schedule_broadcast(B)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
@@ -47,7 +47,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
         C = topi.broadcast_minimum(A, B)
     else:
         raise NotImplementedError
-    s = topi.cuda.schedule_broadcast_binary_op(C)
+    s = topi.cuda.schedule_broadcast(C)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
