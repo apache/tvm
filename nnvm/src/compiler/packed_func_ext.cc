@@ -71,11 +71,12 @@ GetAttrDict(const NodeAttrs& attrs) {
 
 TVM_REGISTER_GLOBAL("nnvm._register_compute")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    PackedFunc f = args[1];
+    // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
+    PackedFunc* f = new PackedFunc(args[1].operator PackedFunc());
     Op& op = ::dmlc::Registry<nnvm::Op>::Get()->__REGISTER_OR_GET__(args[0]);
     auto fcompute = [f](const NodeAttrs& attrs, const Array<Tensor>& inputs)
         -> Array<Tensor> {
-      TVMRetValue ret = f(GetAttrDict(attrs), inputs);
+      TVMRetValue ret = (*f)(GetAttrDict(attrs), inputs);
       if ((*ret.ptr<std::shared_ptr<tvm::Node> >())->derived_from<tvm::TensorNode>()) {
         return {ret.operator Tensor()};
       } else {
@@ -87,12 +88,13 @@ TVM_REGISTER_GLOBAL("nnvm._register_compute")
 
 TVM_REGISTER_GLOBAL("nnvm._register_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    PackedFunc f = args[1];
+        // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
+    PackedFunc* f = new PackedFunc(args[1].operator PackedFunc());
     Op& op = ::dmlc::Registry<nnvm::Op>::Get()->__REGISTER_OR_GET__(args[0]);
     auto fschedule = [f](const NodeAttrs& attrs,
                          const Array<Tensor>& outs,
                          const std::string& target) {
-      return f(GetAttrDict(attrs), outs, target).operator Schedule();
+      return (*f)(GetAttrDict(attrs), outs, target).operator Schedule();
     };
     op.set_attr<FTVMSchedule>("FTVMSchedule", fschedule, args[2]);
   });
