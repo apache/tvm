@@ -132,13 +132,14 @@ Example::
                              [ 5.,  5.,  8.,  8.]]
 
 )code" NNVM_ADD_FILELINE)
-.set_num_outputs(1)
-.set_num_inputs(kVarg)
-.set_attr_parser(ParamParser<ConcatenateParam>)
-.add_arguments(ConcatenateParam::__FIELDS__())
 .add_argument("data", "Tensor-or-Tensor[]", "List of arrays to concatenate")
+.add_arguments(ConcatenateParam::__FIELDS__())
+.set_attr_parser(ParamParser<ConcatenateParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ConcatenateParam>)
 .set_attr<FInferShape>("FInferShape", ConcatenateInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_num_outputs(1)
+.set_num_inputs(kVarg)
 .set_support_level(1);
 
 
@@ -204,6 +205,7 @@ inline uint32_t SplitNumOutputs(const NodeAttrs& attrs) {
   }
 }
 
+// Intentionally not add ParamGetAttrDict for indices_or_sections.
 NNVM_REGISTER_OP(split)
 .describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
 
@@ -211,13 +213,13 @@ NNVM_REGISTER_OP(split)
 along which to split the array.
 
 )code" NNVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_attr_parser(SplitParamParser)
-.set_num_outputs(SplitNumOutputs)
-.add_arguments(SplitParam::__FIELDS__())
 .add_argument("data", "Tensor", "List of arrays to concatenate")
+.add_arguments(SplitParam::__FIELDS__())
+.set_attr_parser(SplitParamParser)
 .set_attr<FInferShape>("FInferShape", SplitInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_num_inputs(1)
+.set_num_outputs(SplitNumOutputs)
 .set_support_level(1);
 
 // cast
@@ -237,8 +239,9 @@ NNVM_REGISTER_OP(cast)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Input data array")
-.set_attr_parser(ParamParser<CastParam>)
 .add_arguments(CastParam::__FIELDS__())
+.set_attr_parser(ParamParser<CastParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<CastParam>)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", CastInferType)
 .set_num_inputs(1)
@@ -387,13 +390,14 @@ The significance of each is explained below:
   - input shape = (2,3,4), shape = (2,-4,-1,3,-2), output shape = (2,1,3,4)
 
 )code" NNVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_num_outputs(1)
-.set_attr_parser(ParamParser<ReshapeParam>)
+.add_argument("data", "Tensor", "Input data.")
 .add_arguments(ReshapeParam::__FIELDS__())
+.set_attr_parser(ParamParser<ReshapeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ReshapeParam>)
 .set_attr<FInferShape>("FInferShape", ReshapeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.add_argument("data", "Tensor", "Input data.")
+.set_num_inputs(1)
+.set_num_outputs(1)
 .set_support_level(3);
 
 // tranpose
@@ -453,13 +457,14 @@ Examples::
                                 [[ 3.,  4.],
                                  [ 7.,  8.]]]
 )code" NNVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_num_outputs(1)
-.set_attr_parser(ParamParser<TransposeParam>)
+.add_argument("data", "Tensor", "Source input")
 .add_arguments(TransposeParam::__FIELDS__())
+.set_attr_parser(ParamParser<TransposeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<TransposeParam>)
 .set_attr<nnvm::FInferShape>("FInferShape", TransposeShape)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
-.add_argument("data", "Tensor", "Source input")
+.set_num_inputs(1)
+.set_num_outputs(1)
 .set_support_level(4);
 
 }  // namespace top

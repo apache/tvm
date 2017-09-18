@@ -72,6 +72,18 @@ template<typename AttrType>
 using FInferNodeEntryAttr = std::function<bool (const NodeAttrs& attrs,
                                                 std::vector<AttrType> *in_attrs,
                                                 std::vector<AttrType> *out_attrs)>;
+
+/*!
+ * \brief Get attribute dictionary from node.
+ *
+ * \param attrs The attributes of the node.
+ * \return The attribute dict.
+ * \note Register under "FUpdateAttrDict"
+ */
+using FGetAttrDict = std::function<
+  std::unordered_map<std::string, std::string>
+  (const NodeAttrs& attrs)>;
+
 /*!
  * \brief Shape inference function.
  *  Update the shapes given the input shape information.

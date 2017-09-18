@@ -1,15 +1,18 @@
 # coding: utf-8
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-import
 """ ctypes library of nnvm and helper functions """
 from __future__ import absolute_import
 
 import sys
-import os
 import ctypes
 import numpy as np
 from . import libinfo
 
-__all__ = ['NNNetError']
+try:
+    import tvm
+except ImportError:
+    pass
+
 #----------------------------
 # library loading
 #----------------------------
@@ -181,7 +184,7 @@ def ctypes2docstring(num_args, arg_names, arg_types, arg_descs, remove_dup=True)
         param_keys.add(key)
         type_info = py_str(arg_types[i])
         ret = '%s : %s' % (key, type_info)
-        if len(arg_descs[i]) != 0:
+        if arg_descs[i]:
             ret += '\n    ' + py_str(arg_descs[i])
         param_str.append(ret)
     doc_str = ('Parameters\n' +

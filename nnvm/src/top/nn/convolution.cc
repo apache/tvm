@@ -114,11 +114,12 @@ a bias vector is created and added to the outputs.
 .add_argument("bias", "1D Tensor", "Bias parameter.")
 .add_arguments(Conv2DParam::__FIELDS__())
 .set_attr_parser(ParamParser<Conv2DParam>)
-.set_num_outputs(1)
-.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(2);
 
 
@@ -203,11 +204,12 @@ said convolution.
 .add_argument("bias", "1D Tensor", "Bias parameter.")
 .add_arguments(Conv2DTransposeParam::__FIELDS__())
 .set_attr_parser(ParamParser<Conv2DTransposeParam>)
-.set_num_outputs(1)
-.set_num_inputs(UseBiasNumInputs<Conv2DTransposeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DTransposeParam>)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DTransposeParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DTransposeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DTransposeParam>)
 .set_support_level(2);
 
 }  // namespace top
