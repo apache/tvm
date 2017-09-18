@@ -37,6 +37,19 @@ inline void ParamParser(nnvm::NodeAttrs* attrs) {
   attrs->parsed = std::move(param);
 }
 
+/*!
+ * \brief Parse keyword arguments as PType arguments and save to parsed
+ * \tparam PType the arameter type.
+ * \param attrs The attributes.
+ */
+template<typename PType>
+inline std::unordered_map<std::string, std::string>
+ParamGetAttrDict(const nnvm::NodeAttrs& attrs) {
+  std::unordered_map<std::string, std::string> dict = attrs.dict;
+  nnvm::get<PType>(attrs.parsed).UpdateDict(&dict);
+  return dict;
+}
+
 /*! \brief check if shape is empty or contains unkown (0) dim. */
 inline bool shape_is_none(const TShape& x) {
   return x.ndim() == 0 || x.Size() == 0;

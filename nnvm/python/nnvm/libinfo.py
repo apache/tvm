@@ -52,7 +52,7 @@ def find_lib_path():
         dll_path = [os.path.join(p, '%s.so' % lib_name) for p in dll_path]
 
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
-    if len(lib_path) == 0:
+    if not lib_path:
         raise RuntimeError('Cannot find the files.\n' +
                            'List of candidates:\n' + str('\n'.join(dll_path)))
     return lib_path
