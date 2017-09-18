@@ -3,27 +3,11 @@
 from __future__ import absolute_import as _abs
 import tvm
 
-def _schedule_broadcast(op, sch):
-    data_out = op.output(0)
-
-    num_thread = 512
-    block_x = tvm.thread_axis("blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-
-    xo, vi = sch[data_out].split(sch[data_out].op.axis[len(sch[data_out].op.axis) - 1],
-                                 factor=4)
-    sch[data_out].vectorize(vi)
-    fused_axis = sch[data_out].fuse(*[sch[data_out].op.axis[i]
-                                      for i in range(len(sch[data_out].op.axis) - 1)] + [xo])
-    bx, tx = sch[data_out].split(fused_axis, factor=num_thread)
-
-    sch[data_out].bind(bx, block_x)
-    sch[data_out].bind(tx, thread_x)
-    return sch
+from .elemwise import _schedule_elemwise
 
 
-def schedule_broadcast_to(outs):
-    """Schedule for broadcast_to ops + element-wise ops.
+def schedule_broadcast(outs):
+    """Schedule for broadcasting ops (broadcast_to + broadcast binary) + element-wise ops.
 
     Parameters
     ----------
@@ -45,40 +29,8 @@ def schedule_broadcast_to(outs):
             for tensor in operator.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
-        elif operator.tag == 'broadcast_to':
-            _schedule_broadcast(operator, sch)
-        else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
-
-    traverse(outs[0].op)
-    return sch
-
-
-def schedule_broadcast_binary_op(outs):
-    """Schedule for broadcast_binary ops + element-wise ops.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of broadcast_binary in the format
-          of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    sch = tvm.create_schedule([x.op for x in outs])
-    def traverse(operator):
-        if operator.tag == 'ewise' or operator.tag == 'scale_shift':
-            if operator not in sch.outputs:
-                sch[operator].compute_inline()
-            for tensor in operator.input_tensors:
-                if tensor.op.input_tensors:
-                    traverse(tensor.op)
-        elif operator.tag == 'broadcast_binary_op':
-            _schedule_broadcast(operator, sch)
+        elif operator.tag == 'broadcast_to' or operator.tag == 'broadcast_binary_op':
+            _schedule_elemwise(operator, sch)
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 

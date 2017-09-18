@@ -38,7 +38,7 @@ def test_broadcast_to(in_shape, out_shape):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.broadcast_to(A, out_shape)
-    s = topi.cuda.schedule_broadcast_to(B)
+    s = topi.cuda.schedule_broadcast(B)
     fcuda = tvm.build(s, [A, B], "cuda", name="broadcast_to")
 
     data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
@@ -72,7 +72,7 @@ def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
         C = topi.broadcast_minimum(A, B)
     else:
         raise NotImplementedError
-    s = topi.cuda.schedule_broadcast_binary_op(C)
+    s = topi.cuda.schedule_broadcast(C)
     fcuda = tvm.build(s, [A, B, C], "cuda", name="broadcast_binary" + "_" + typ)
 
     lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
