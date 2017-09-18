@@ -6,13 +6,11 @@ def infer_shape(sym):
     g = graph.create(sym)
     g._set_json_attr("shape_attr_key", "shape")
     g = g.apply("InferShape")
-    jgraph = json.loads(g.apply("SaveJSON").json_attr("json"))
-    jnodes = jgraph["nodes"]
-    jnode_row_ptr = jgraph["node_row_ptr"]
     sdict = {}
     vshape = g.json_attr("shape")
-    for i, n in enumerate(jnodes):
-        begin, end = jnode_row_ptr[i], jnode_row_ptr[i + 1]
+    entry_ptr = g.index.entry_ptr
+    for i, n in enumerate(g.index.nodes):
+        begin, end = entry_ptr[i], entry_ptr[i + 1]
         sdict[n["name"]] = vshape[begin:end]
     return sdict
 

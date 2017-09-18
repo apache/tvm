@@ -95,70 +95,60 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(copy)
 // unary scalar op
 DMLC_REGISTER_PARAMETER(ScalarParam);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__add_scalar__)
+#define NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(op)                        \
+  NNVM_REGISTER_ELEMWISE_UNARY_OP(op)                                   \
+  .add_arguments(ScalarParam::__FIELDS__())                             \
+  .set_attr_parser(ParamParser<ScalarParam>)                            \
+  .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ScalarParam>)
+
+
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__add_scalar__)
 .describe(R"code(Tensor add scalar
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__sub_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__sub_scalar__)
 .describe(R"code(Tensor substract scalar
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__rsub_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rsub_scalar__)
 .describe(R"code(scalar substract Tensor
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__mul_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__mul_scalar__)
 .describe(R"code(Tensor multiplies scalar
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__div_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__div_scalar__)
 .describe(R"code(Tensor divides scalar
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__rdiv_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rdiv_scalar__)
 .describe(R"code(scalar divides Tensor
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__pow_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__pow_scalar__)
 .describe(R"code(Tensor power scalar
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
 
-NNVM_REGISTER_ELEMWISE_UNARY_OP(__rpow_scalar__)
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rpow_scalar__)
 .describe(R"code(scalar power Tensor
 
 )code"  NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<ScalarParam>)
-.add_arguments(ScalarParam::__FIELDS__())
 .set_support_level(3);
-
 
 }  // namespace top
 }  // namespace nnvm

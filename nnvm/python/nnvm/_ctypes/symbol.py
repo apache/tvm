@@ -1,5 +1,6 @@
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access, too-many-arguments, too-many-lines
+# pylint: disable=invalid-name, protected-access, too-many-arguments, too-many-lines,
+# pylint: disable=len-as-condition, consider-iterating-dictionary
 """Symbolic configuration API."""
 from __future__ import absolute_import as _abs
 
@@ -7,7 +8,7 @@ import copy
 import ctypes
 import sys
 from .._base import _LIB
-from .._base import c_array, c_str, nn_uint, py_str, string_types
+from .._base import c_array, c_str, nn_uint, py_str
 from .._base import SymbolHandle, OpHandle
 from .._base import check_call, ctypes2docstring
 from ..name import NameManager

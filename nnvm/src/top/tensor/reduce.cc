@@ -90,15 +90,17 @@ inline void AxesParamParser(nnvm::NodeAttrs* attrs) {
   attrs->parsed = std::move(param);
 }
 
-#define NNVM_REGISTER_REDUCE_OP(op)                             \
-  NNVM_REGISTER_OP(op)                                          \
-  .set_num_inputs(1)                                            \
-  .set_num_outputs(1)                                           \
-  .set_attr_parser(AxesParamParser<ReduceParam>)                \
-  .set_attr<FInferShape>("FInferShape", ReduceShape)            \
-  .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)       \
-  .add_argument("data", "Tensor", "The input")                  \
-  .add_arguments(ReduceParam::__FIELDS__())
+#define NNVM_REGISTER_REDUCE_OP(op)                                     \
+  NNVM_REGISTER_OP(op)                                                  \
+  .add_argument("data", "Tensor", "The input")                          \
+  .add_arguments(ReduceParam::__FIELDS__())                             \
+  .set_attr_parser(AxesParamParser<ReduceParam>)                        \
+  .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ReduceParam>) \
+  .set_attr<FInferShape>("FInferShape", ReduceShape)                    \
+  .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)               \
+  .set_num_inputs(1)                                                    \
+  .set_num_outputs(1)                                                   \
+
 
 
 NNVM_REGISTER_REDUCE_OP(sum)

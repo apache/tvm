@@ -11,7 +11,7 @@ include $(config)
 
 export LDFLAGS = -pthread -lm
 export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
-CFLAGS += -Itvm/include -Itvm/dlpack/include
+CFLAGS += -Itvm/include -Itvm/dlpack/include -Itvm/HalideIR/src
 
 ifdef DMLC_CORE_PATH
   CFLAGS += -I$(DMLC_CORE_PATH)/include
@@ -38,7 +38,7 @@ PLUGIN_OBJ =
 include $(NNVM_PLUGINS)
 
 # specify tensor path
-.PHONY: clean all test lint doc cython cython3 cyclean
+.PHONY: clean all test lint pylint doc cython cython3 cyclean
 
 UNAME_S := $(shell uname -s)
 
@@ -55,7 +55,7 @@ endif
 all: lib/libnnvm.a lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX) lib/libnnvm_top_runtime.$(SHARED_LIBRARY_SUFFIX)
 
 SRC = $(wildcard src/*.cc src/c_api/*.cc src/core/*.cc src/pass/*.cc)
-SRC_TOP = $(wildcard src/top/*.cc, src/top/*/*.cc src/runtime/*.cc)
+SRC_TOP = $(wildcard src/top/*/*.cc src/runtime/*.cc src/compiler/*.cc src/compiler/*/*.cc)
 ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_TOP))
 ALL_DEP = $(ALL_OBJ)
@@ -90,8 +90,11 @@ cython3:
 cyclean:
 	rm -rf python/nnvm/*/*.so python/nnvm/*/*.dylib python/nnvm/*/*.cpp
 
-lint:
+lint: pylint
 	python dmlc-core/scripts/lint.py nnvm cpp include src
+
+pylint:
+	pylint python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 doc:
 	doxygen docs/Doxyfile

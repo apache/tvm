@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name, unused-import
 """Symbolic configuration API."""
 from __future__ import absolute_import as _abs
 import sys as _sys
@@ -7,27 +8,33 @@ import ctypes as _ctypes
 from numbers import Number as _Number
 from . import _base
 from ._base import _LIB, check_call as _check_call
-from . import _symbol_internal as _internal
 from .attribute import AttrScope
+from . import _symbol_internal as _internal
 
 # Use different verison of SymbolBase
 # When possible, use cython to speedup part of computation.
 
 try:
     if int(_os.environ.get("MXNET_ENABLE_CYTHON", True)) == 0:
-        from ._ctypes.symbol import SymbolBase,  _init_symbol_module
+        from ._ctypes.symbol import SymbolBase, _init_symbol_module
     elif _sys.version_info >= (3, 0):
-        from ._cy3.symbol import SymbolBase,  _init_symbol_module
+        from ._cy3.symbol import SymbolBase, _init_symbol_module
     else:
-        from ._cy2.symbol import SymbolBase,  _init_symbol_module
+        from ._cy2.symbol import SymbolBase, _init_symbol_module
 except ImportError:
-    from ._ctypes.symbol import SymbolBase,  _init_symbol_module
+    from ._ctypes.symbol import SymbolBase, _init_symbol_module
 
 
 class Symbol(SymbolBase):
     """Symbol is basic operation unit for symbolic graph compostion."""
     # disable dictionary storage, also do not have parent type.
     __slots__ = []
+
+    _tvm_tcode = 16
+
+    @property
+    def _tvm_handle(self):
+        return self.handle.value
 
     def __add__(self, other):
         if isinstance(other, Symbol):
@@ -148,8 +155,7 @@ class Symbol(SymbolBase):
             self.handle, _base.c_str(key), _ctypes.byref(ret), _ctypes.byref(success)))
         if success.value != 0:
             return _base.py_str(ret.value)
-        else:
-            return None
+        return None
 
     def list_attr(self, recursive=False):
         """Get all attributes from the symbol.

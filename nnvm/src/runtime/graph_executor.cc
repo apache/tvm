@@ -312,23 +312,34 @@ NNVM_REGISTER_OP(tvm_op)
     return param.num_outputs;
   });
 
-TVM_REGISTER_GLOBAL("nnvm.tvm.create_executor")
+tvm::runtime::Module RuntimeCreate(std::string sym_json,
+                                   tvm::runtime::Module m,
+                                   int device_type,
+                                   int device_id) {
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id   = device_id;
+  // load graph from json string
+  nnvm::Graph g;
+  g.attrs["json"] = std::make_shared<nnvm::any>(sym_json);
+  g = nnvm::ApplyPass(std::move(g), "LoadJSON");
+  std::shared_ptr<GraphExecutor> exec = std::make_shared<GraphExecutor>();
+  exec->Init(g, m, ctx);
+  return tvm::runtime::Module(exec);
+}
+
+TVM_REGISTER_GLOBAL("nnvm.runtime.create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    std::string sym_json = args[0];
-    std::string param_blob = args[1];
-    tvm::runtime::Module m = args[2];
-    TVMContext ctx;
-    ctx.device_type = static_cast<DLDeviceType>(args[3].operator int());
-    ctx.device_id   = args[4];
-    // load graph from json string
-    nnvm::Graph g;
-    g.attrs["json"] = std::make_shared<nnvm::any>(sym_json);
-    g = nnvm::ApplyPass(std::move(g), "LoadJSON");
-    std::shared_ptr<GraphExecutor> exec = std::make_shared<GraphExecutor>();
-    exec->Init(g, m, ctx);
-    // load params form stream of string
-    exec->LoadParams(std::move(param_blob));
-    *rv = tvm::runtime::Module(exec);
+    *rv = RuntimeCreate(args[0], args[1], args[2], args[3]);
   });
+
+TVM_REGISTER_GLOBAL("nnvm.runtime.remote_create")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    void* mhandle = args[1];
+    *rv = RuntimeCreate(args[0],
+                        *static_cast<tvm::runtime::Module*>(mhandle),
+                        args[2], args[3]);
+  });
+
 }  // namespace runtime
 }  // namespace nnvm

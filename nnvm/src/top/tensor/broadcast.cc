@@ -61,13 +61,14 @@ The dimension which you do not want to change can also be kept as `0` which mean
 So with `shape=(2,0)`, we will obtain the same result as in the above example.
 
 )code" NNVM_ADD_FILELINE)
-.set_attr_parser(ParamParser<BroadcastToParam>)
+.add_argument("data", "Tensor", "Input data.")
 .add_arguments(BroadcastToParam::__FIELDS__())
-.set_num_inputs(1)
-.set_num_outputs(1)
+.set_attr_parser(ParamParser<BroadcastToParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<BroadcastToParam>)
 .set_attr<FInferShape>("FInferShape", BroadcastToInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.add_argument("data", "Tensor", "Input data.")
+.set_num_inputs(1)
+.set_num_outputs(1)
 .set_support_level(4);
 
 // binary broadcast op
