@@ -1,8 +1,11 @@
+# pylint: disable=invalid-name
 """Utilities to access graph attributes"""
 from __future__ import absolute_import as _abs
 
-def set_shape(g, shape):
-    """Set the shape of graph nodes in the graph attribute.
+import tvm
+
+def set_shape_inputs(g, shape):
+    """Set the shape of input graph nodes in the graph attribute.
 
     Parameters
     ----------
@@ -17,20 +20,24 @@ def set_shape(g, shape):
     g : Graph
         The updated graph with updated shape.
     """
-    index = g.index
-    list_shape = [[]] * index.num_node_entries
-    for k, v in shape.items():
-        list_shape[index.entry_id(k)] = v
-    g._set_json_attr("shape", list_shape, 'list_shape')
+    list_shape = [
+        shape.get(name, ()) for name in g.index.input_names]
+    g._set_json_attr("shape_inputs", list_shape, 'list_shape')
     return g
 
 
-DTYPE_DICT = {
+DTYPE_TO_TCODE = {
+    "default": -1,
     "float32": 0
 }
 
-def set_dtype(g, dtype):
-    """Set the dtype of graph nodes
+TCODE_TO_DTYPE = {
+    -1: None,
+    0: "float32"
+}
+
+def set_dtype_inputs(g, dtype):
+    """Set the dtype inputs of graph nodes
 
     Parameters
     ----------
@@ -45,12 +52,37 @@ def set_dtype(g, dtype):
     g : Graph
         The updated graph with updated dtype.
     """
-    index = g.index
     if isinstance(dtype, dict):
-        list_dtype = [-1] * index.num_node_entries
-        for k, v in dtype.items():
-            list_dtype[index.entry_id(k)] = DTYPE_DICT[v]
+        list_dtype = [
+            DTYPE_TO_TCODE[dtype.get(name, "default")]
+            for name in g.index.input_names]
     else:
-        list_dtype = [DTYPE_DICT[dtype]] * index.num_node_entries
-    g._set_json_attr("dtype", list_dtype, "list_int")
+        list_dtype = [DTYPE_TO_TCODE[dtype]] * len(g.index.input_names)
+    g._set_json_attr("dtype_inputs", list_dtype, "list_int")
     return g
+
+
+def set_layout_inputs(g, layout):
+    """Set the layout inputs of graph nodes
+
+    Parameters
+    ----------
+    g : Graph
+        The input graph
+
+    layout : dict of str to str or str
+        The input layout
+
+    Returns
+    -------
+    g : Graph
+        The updated graph with updated dtype.
+    """
+    list_shape = [
+        layout.get(name, "default") for name in g.index.input_names]
+    g._set_json_attr("layout_inputs", list_shape, 'list_str')
+    return g
+
+
+_move_out_module = tvm.get_global_func("nnvm.graph_attr._move_module")
+_move_out_graph = tvm.get_global_func("nnvm.graph_attr._move_graph")

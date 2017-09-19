@@ -104,5 +104,19 @@ TVM_REGISTER_GLOBAL("nnvm._register_pattern")
     Op& op = ::dmlc::Registry<nnvm::Op>::Get()->__REGISTER_OR_GET__(args[0]);
     op.set_attr<TOpPattern>("TOpPattern", args[1].operator int(), args[2]);
   });
+
+TVM_REGISTER_GLOBAL("nnvm.graph_attr._move_module")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    const nnvm::Graph& g = args[0].AsExtension<Graph>();
+    *rv = const_cast<nnvm::Graph*>(&g)->
+        MoveCopyAttr<tvm::runtime::Module>(args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("nnvm.graph_attr._move_graph")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    const nnvm::Graph& g = args[0].AsExtension<Graph>();
+    *rv = const_cast<nnvm::Graph*>(&g)->
+        MoveCopyAttr<nnvm::Graph>(args[1]);
+  });
 }  // namespace compiler
 }  // namespace nnvm
