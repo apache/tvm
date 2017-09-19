@@ -140,7 +140,7 @@ def array(arr, ctx=cpu(0)):
     ret : NDArray
         The created array
     """
-    if not isinstance(arr, _np.ndarray):
+    if not isinstance(arr, (_np.ndarray, NDArray)):
         arr = _np.array(arr)
     return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
 
