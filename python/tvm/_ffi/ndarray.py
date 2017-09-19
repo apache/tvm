@@ -165,6 +165,10 @@ class NDArrayBase(_NDArrayBase):
         arr : NDArray
             Reference to self.
         """
+        if isinstance(source_array, NDArrayBase):
+            source_array.copyto(self)
+            return self
+
         if not isinstance(source_array, np.ndarray):
             try:
                 source_array = np.array(source_array, dtype=self.dtype)
@@ -186,6 +190,14 @@ class NDArrayBase(_NDArrayBase):
         nbytes = ctypes.c_size_t(np.prod(source_array.shape) * source_array.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
         return self
+
+    def __repr__(self):
+        res = "<tvm.NDArray shape={0}, {1}>\n".format(self.shape, self.context)
+        res += self.asnumpy().__repr__()
+        return res
+
+    def __str__(self):
+        return str(self.asnumpy())
 
     def asnumpy(self):
         """Convert this array to numpy array
