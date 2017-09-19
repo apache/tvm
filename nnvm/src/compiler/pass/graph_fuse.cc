@@ -381,13 +381,5 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
 
 NNVM_REGISTER_PASS(GraphFuse)
 .set_body(GraphFuse);
-
-
-TVM_REGISTER_GLOBAL("nnvm.compiler._move_module")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-    const nnvm::Graph& g = args[0].AsExtension<Graph>();
-    *rv = const_cast<nnvm::Graph*>(&g)->
-        MoveCopyAttr<tvm::runtime::Module>("module");
-  });
 }  // namespace compiler
 }  // namespace nnvm

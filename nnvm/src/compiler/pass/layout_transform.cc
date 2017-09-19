@@ -44,7 +44,7 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
 
   const ShapeVector& shape_vec = src.GetAttr<ShapeVector>("shape");
   const std::vector<TLayoutInfo>& input_layouts =
-    src.GetAttr<std::vector<TLayoutInfo> >("layout");
+      src.GetAttr<std::vector<TLayoutInfo> >("layout_inputs");
 
   const IndexedGraph& idx = src.indexed_graph();
   std::vector<TLayoutInfo> produce_vec(idx.num_node_entries(), GetDefaultLayout());

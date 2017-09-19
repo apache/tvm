@@ -24,6 +24,8 @@ class GraphIndex(object):
         self.nodes = jgraph["nodes"]
         self.entry_ptr = jgraph["node_row_ptr"]
         self._name2nodeid = {n["name"]: i for i, n in enumerate(self.nodes)}
+        self.input_names = graph.symbol.list_input_names()
+        self.output_entries = jgraph["heads"]
 
     @property
     def num_nodes(self):
@@ -66,6 +68,10 @@ class GraphIndex(object):
         index : int
             The entry index
         """
+        if isinstance(key, (list, tuple)):
+            if len(key) != 3:
+                raise ValueError("Expect entry index to be tuple of 3 elems")
+            key, value_index, _ = key
         idx = self.node_id(key) if isinstance(key, str) else key
         assert value_index < self.entry_ptr[idx + 1]
         return self.entry_ptr[idx] + value_index

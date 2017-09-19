@@ -30,7 +30,7 @@ ifneq ($(ADD_CFLAGS), NONE)
 endif
 
 ifneq ($(ADD_LDFLAGS), NONE)
-	LFFLAGS += $(ADD_LDFLAGS)
+	LDFLAGS += $(ADD_LDFLAGS)
 endif
 
 # plugin
@@ -46,6 +46,7 @@ ifeq ($(UNAME_S), Darwin)
 	SHARED_LIBRARY_SUFFIX := dylib
 	WHOLE_ARCH= -all_load
 	NO_WHOLE_ARCH= -noall_load
+	LDFLAGS += -undefined dynamic_lookup
 else
 	SHARED_LIBRARY_SUFFIX := so
 	WHOLE_ARCH= --whole-archive

@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file prune_graph.cc
- * \brief Prune the graph to do constant folding.
+ * \file precompute_prune.cc
+ * \brief Split the graph into a pre-compute graph and a execution graph.
  *
- *  This pass breaks the graph into pre-compute graph
- *  and the execution graph.
+ *  The pre-compute graph outputs parameters that can be taken
+ *  by execution graph during execution phase.
  */
 #include <nnvm/graph.h>
 #include <nnvm/op_attr_types.h>
@@ -16,11 +16,15 @@
 namespace nnvm {
 namespace compiler {
 
-nnvm::Graph PruneGraph(nnvm::Graph src) {
-  const auto& params = src.GetAttr<std::unordered_set<std::string> >("params");
+nnvm::Graph PrecomputePrune(nnvm::Graph src) {
+  const auto& plist
+      = src.GetAttr<std::vector<std::string> >("param_name_list");
+  std::unordered_set<std::string> params(plist.begin(), plist.end());
 
   std::unordered_set<nnvm::Node*> pruned;
   nnvm::NodeEntryMap<nnvm::NodePtr> entry_var;
+  std::unordered_set<std::string> unique_name;
+
   DFSVisit(src.outputs, [&](const nnvm::NodePtr& n) {
     bool can_be_pruned = true;
     if (n->is_variable()) {
@@ -45,7 +49,12 @@ nnvm::Graph PruneGraph(nnvm::Graph src) {
             nnvm::NodePtr var = nnvm::Node::Create();
             var->attrs.name = e.node->attrs.name + "_output" + std::to_string(e.index);
             entry_var.emplace(e, var);
+            CHECK(!unique_name.count(var->attrs.name));
+            unique_name.insert(var->attrs.name);
           }
+          // TODO(ziheng): this pass now mutates the original graph structure
+          // This might not be a good thing, change to copy the structure instead
+          //
           e = nnvm::NodeEntry{entry_var.at(e), 0, 0};
         }
       }
@@ -56,21 +65,21 @@ nnvm::Graph PruneGraph(nnvm::Graph src) {
   pre_graph.outputs.reserve(entry_var.size());
   std::vector<std::string> output_names;
   output_names.reserve(entry_var.size());
+
   for (auto kv : entry_var) {
     if (kv.first.node->is_variable()) continue;
     pre_graph.outputs.emplace_back(kv.first);
     output_names.emplace_back(kv.second->attrs.name);
   }
-
-  pre_graph.attrs["pruned_params"] =
-    std::make_shared<dmlc::any>(std::move(output_names));
-  src.attrs["pre_graph"] =
-    std::make_shared<dmlc::any>(std::move(pre_graph));
+  // new parameter list
+  pre_graph.attrs["output_names"] =
+      std::make_shared<dmlc::any>(std::move(output_names));
+  src.attrs["precompute_graph"] =
+      std::make_shared<dmlc::any>(std::move(pre_graph));
   return src;
 }
 
-NNVM_REGISTER_PASS(PruneGraph)
-.set_body(PruneGraph);
-
+NNVM_REGISTER_PASS(PrecomputePrune)
+.set_body(PrecomputePrune);
 }  // namespace compiler
 }  // namespace nnvm

@@ -68,6 +68,21 @@ class AttrDict(object):
         """
         return int(self[key])
 
+    def get_float(self, key):
+        """Get float from attr dict
+
+        Parameters
+        ----------
+        key : str
+            The attr key
+
+        Returns
+        -------
+        value : float
+            The result value
+        """
+        return float(self[key])
+
     def get_bool(self, key):
         """Get bool from attr dict
 
