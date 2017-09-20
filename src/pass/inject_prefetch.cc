@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file inject_prefetch.cc
  */
+// Inject prefetch op in HalideIR
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
