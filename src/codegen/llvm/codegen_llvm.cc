@@ -755,7 +755,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const NE* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const And* op) {
-  return builder_->CreateAdd(MakeValue(op->a), MakeValue(op->b));
+  return builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const Or* op) {
