@@ -1,8 +1,9 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- *  Loop unrolling.
+ *  Loop unrolling as in Halide pipeline.
  * \file unroll_loop.cc
  */
+// Unrolls the loop as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
