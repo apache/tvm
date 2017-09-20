@@ -5,7 +5,7 @@ def test_dense():
     x1 = sym.dense(x, units=3, name="dense")
     x2 = sym.flatten(x1)
     x3 = sym.softmax(x2)
-    assert x2.list_input_names() == ['x', 'dense_weight', 'dense_bias']
+    assert x3.list_input_names() == ['x', 'dense_weight', 'dense_bias']
 
 
 def test_concatenate_split():
