@@ -23,7 +23,6 @@ def compute_conv2d(attrs, inputs):
         out = topi.broadcast_add(out, bias)
     return out
 
-
 @reg.register_schedule("conv2d")
 def schedule_conv2d(_, outs, target):
     """Schedule definition of conv2d"""
@@ -33,3 +32,22 @@ def schedule_conv2d(_, outs, target):
     return tvm.create_schedule([x.op for x in outs])
 
 reg.register_pattern("conv2d", OpPattern.COMPLEX)
+
+
+# softmax
+@reg.register_compute("softmax")
+def compute_softmax(attrs, inputs):
+    """Compute definition of softmax"""
+    axis = attrs.get_int("axis")
+    assert axis == -1, "only support axis == -1 for now"
+    return topi.nn.softmax(inputs[0])
+
+@reg.register_schedule("softmax")
+def schedule_softmax(_, outs, target):
+    """Schedule definition of softmax"""
+    if target == "cuda":
+        return topi.cuda.schedule_softmax(outs)
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+reg.register_pattern("softmax", OpPattern.COMPLEX)
