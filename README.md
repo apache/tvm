@@ -28,3 +28,12 @@ TVM adopts apache committer model, we aim to create an open source project that 
 - [Contributor Guide](docs/how_to/contribute.md)
 - Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md)
 - Please also update [NEWS.md](NEWS.md) on changes and improvements in API and codes.
+
+Acknowledgement
+---------------
+We learnt a lot from the following projects when building TVM.
+- [Halide](https://github.com/halide/Halide): TVM uses [HalideIR](https://github.com/dmlc/HalideIR) as data structure for
+  arithematic simplification and low level lowering. HalideIR is derived from Halide.
+  We also learns from Halide when implementing the lowering pipeline in TVM.
+- [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
+- [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.

@@ -242,6 +242,8 @@ class CodeGenLLVM :
   std::unordered_map<const Variable*, arith::ModularEntry> align_map_;
   // set of var that are not restricted(can alias)
   std::unordered_set<const Variable*> alias_var_set_;
+  // set of volatile buffer.
+  std::unordered_set<const Variable*> volatile_buf_;
 };
 }  // namespace codegen
 }  // namespace tvm
