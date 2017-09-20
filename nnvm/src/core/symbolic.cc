@@ -491,7 +491,7 @@ bool Symbol::GetAttr(const std::string& key, std::string* out) const {
     if (node->attrs.op != nullptr) {
       *out = node->attrs.op->name;
     } else {
-      *out = "null";  // use null in consistant with json
+      *out = "null";  // use null with json
     }
     return true;
   }
