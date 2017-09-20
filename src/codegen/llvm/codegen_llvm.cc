@@ -3,6 +3,7 @@
  * \file codegen_llvm.cc
  */
 #ifdef TVM_LLVM_VERSION
+// Part of the code are adapted from Halide's CodeGen_LLVM
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -492,6 +493,7 @@ llvm::Value* CodeGenLLVM::CreateBufferPtr(
   if (btype != ptype) {
     buffer = builder_->CreatePointerCast(buffer, ptype);
   }
+
   return builder_->CreateInBoundsGEP(buffer, index);
 }
 
