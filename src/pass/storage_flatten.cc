@@ -2,6 +2,8 @@
  *  Copyright (c) 2016 by Contributors
  * \file storage_flatten.cc
  */
+// Flattens storage from multi-dimensional array to 1D
+// buffer access as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
