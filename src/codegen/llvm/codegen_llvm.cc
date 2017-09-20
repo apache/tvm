@@ -268,7 +268,7 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
   }
   int base = 0, width = 0;
   // create meta-data for alias analysis
-  // Use a group of binary tree ranges.
+  // Use a group of binary tree ranges of memory banks.
   if (index.defined()) {
     const Ramp* ramp = index.as<Ramp>();
     if (ramp) {
