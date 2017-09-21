@@ -13,7 +13,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/operation.h>
 #include <tvm/lowered_func.h>
-#include "../../runtime/graph_executor.h"
+#include "../runtime/graph_executor.h"
 
 namespace nnvm {
 namespace compiler {

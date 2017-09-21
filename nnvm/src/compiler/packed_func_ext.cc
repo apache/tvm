@@ -8,6 +8,7 @@
 #include <nnvm/op.h>
 #include <nnvm/compiler/packed_func_ext.h>
 #include <nnvm/compiler/op_attr_types.h>
+#include "./node_attr.h"
 
 namespace tvm {
 namespace runtime {
@@ -18,7 +19,6 @@ TVM_REGISTER_EXT_TYPE(nnvm::compiler::AttrDict);
 
 }  // namespace runtime
 }  // namespace tvm
-
 
 namespace nnvm {
 namespace compiler {
@@ -58,17 +58,6 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._dict_keys")
   });
 
 // custom version of TVM compute
-inline std::unordered_map<std::string, std::string>
-GetAttrDict(const NodeAttrs& attrs) {
-  static auto& fgetdict = nnvm::Op::GetAttr<FGetAttrDict>("FGetAttrDict");
-  if (fgetdict.count(attrs.op)) {
-    return fgetdict[attrs.op](attrs);
-  } else {
-    return attrs.dict;
-  }
-}
-
-
 TVM_REGISTER_GLOBAL("nnvm._register_compute")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -105,14 +94,14 @@ TVM_REGISTER_GLOBAL("nnvm._register_pattern")
     op.set_attr<TOpPattern>("TOpPattern", args[1].operator int(), args[2]);
   });
 
-TVM_REGISTER_GLOBAL("nnvm.graph_attr._move_module")
+TVM_REGISTER_GLOBAL("nnvm.graph._move_module")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     const nnvm::Graph& g = args[0].AsExtension<Graph>();
     *rv = const_cast<nnvm::Graph*>(&g)->
         MoveCopyAttr<tvm::runtime::Module>(args[1]);
   });
 
-TVM_REGISTER_GLOBAL("nnvm.graph_attr._move_graph")
+TVM_REGISTER_GLOBAL("nnvm.graph._move_graph")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     const nnvm::Graph& g = args[0].AsExtension<Graph>();
     *rv = const_cast<nnvm::Graph*>(&g)->

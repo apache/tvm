@@ -128,6 +128,33 @@ class Node {
   static NodePtr Create();
 };
 
+/*!
+ * \brief Quick utilities make node.
+ * \param op_name The name of operator
+ * \param node_name The name of the node
+ * \param inputs The input entries
+ * \param attrs The attributes
+ * \return The created node entry.
+ */
+inline NodeEntry MakeNode(
+    const char* op_name,
+    std::string node_name,
+    std::vector<NodeEntry> inputs,
+    std::unordered_map<std::string, std::string> attrs =
+    std::unordered_map<std::string, std::string>()) {
+  NodePtr p = Node::Create();
+  p->attrs.op = nnvm::Op::Get(op_name);
+  p->attrs.name = std::move(node_name);
+  if (attrs.size() != 0) {
+    p->attrs.dict = attrs;
+    if (p->attrs.op->attr_parser) {
+      p->attrs.op->attr_parser(&(p->attrs));
+    }
+  }
+  p->inputs = std::move(inputs);
+  return NodeEntry{p, 0, 0};
+}
+
 // implementation of functions.
 inline const Op* Node::op() const {
   return this->attrs.op;
