@@ -192,6 +192,8 @@ void CodeGenMetal::PrintStorageScope(
     os << "device";
   } else if (scope == "shared") {
     os << "threadgroup";
+  } else {
+    os << "thread";
   }
 }
 
