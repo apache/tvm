@@ -484,7 +484,11 @@ bool Symbol::GetAttr(const std::string& key, std::string* out) const {
     *out = node->attrs.name;
     return true;
   } else if (key == "op_name") {
-    *out = node->attrs.op->name;
+    if (node->attrs.op != nullptr) {
+      *out = node->attrs.op->name;
+    } else {
+      *out = "null";  // use null in consistant with json
+    }
     return true;
   }
   auto it = node->attrs.dict.find(key);
