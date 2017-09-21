@@ -5,14 +5,80 @@
  */
 #include <nnvm/graph.h>
 #include <nnvm/pass.h>
+#include <nnvm/tuple.h>
 #include <iostream>
 
 namespace nnvm {
 namespace pass {
 
+using AttrPrinter = std::function<void(uint32_t index, std::ostream& os)>;  // NOLINT(*)
+
+template<typename T>
+AttrPrinter GetVectorPrinter_(const T& vec) {
+  return [&vec](uint32_t index, std::ostream& os) {  // NOLINT(*)
+    os << vec[index];
+  };
+}
+
+AttrPrinter GetVectorPrinter(const Graph& graph,
+                             const std::string& key) {
+  auto it = graph.attrs.find(key);
+  CHECK(it != graph.attrs.end())
+      << "Cannot find " << key << " in graph attr";
+  const any& value = *(it->second);
+  if (value.type() == typeid(std::vector<TShape>)) {
+    return GetVectorPrinter_(
+        nnvm::get<std::vector<TShape> >(value));
+  } else if (value.type() == typeid(std::vector<int>)) {
+    return GetVectorPrinter_(
+        nnvm::get<std::vector<int> >(value));
+  } else if (value.type() == typeid(std::vector<std::string>)) {
+    return GetVectorPrinter_(
+        nnvm::get<std::vector<std::string> >(value));
+  } else {
+    LOG(FATAL) << "Cannot handle type " << value.type().name();
+    return nullptr;
+  }
+}
+
+
 // print the graph ir in readable format
-void PrintGraphIR_(Graph src, std::ostream& os) { // NOLINT(*)
+void PrintGraphIR_(Graph src,
+                   const std::vector<std::string>& join_entry_attrs,
+                   const std::vector<std::string>& join_node_attrs,
+                   std::ostream& os) { // NOLINT(*)
   const IndexedGraph& idx = src.indexed_graph();
+  std::vector<std::function<void(uint32_t, std::ostream&)> > trigger;  // NOLINT(*)
+
+  for (const std::string& key : join_entry_attrs) {
+    AttrPrinter fp = GetVectorPrinter(src, key);
+    auto fprint = [&idx, key, fp](
+        uint32_t nid, std::ostream& os) {  // NOLINT(*)
+      const IndexedGraph::Node& inode = idx[nid];
+      os << ", " << key << "=";
+      if (inode.source->num_outputs() != 1) {
+        os << '[';
+        for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
+          if (i != 0) os << ", ";
+          fp(idx.entry_id(nid, i), os);
+        }
+        os << ']';
+      } else {
+        fp(idx.entry_id(nid, 0), os);
+      }
+    };
+    trigger.push_back(fprint);
+  }
+  for (const std::string& key : join_node_attrs) {
+    AttrPrinter fp = GetVectorPrinter(src, key);
+    auto fprint = [&idx, key, fp](
+        uint32_t nid, std::ostream& os) {  // NOLINT(*)
+      os << key << "=";
+      fp(idx.entry_id(nid, 0), os);
+    };
+    trigger.push_back(fprint);
+  }
+
   os << "Graph(";
   if (idx.input_nodes().size() < 4) {
     for (size_t i = 0; i < idx.input_nodes().size(); ++i) {
@@ -79,6 +145,10 @@ void PrintGraphIR_(Graph src, std::ostream& os) { // NOLINT(*)
       }
       os << "]";
     }
+    // additional attribute trigger
+    for (const auto& fp : trigger) {
+      fp(nid, os);
+    }
     os << "\n";
   }
   os << "  ret ";
@@ -112,7 +182,16 @@ void PrintGraphIR_(Graph src, std::ostream& os) { // NOLINT(*)
 // save a graph to json
 Graph PrintGraphIR(Graph src) {
   std::ostringstream os;
-  PrintGraphIR_(src, os);
+  std::vector<std::string> join_entry_attrs, join_node_attrs;
+  if (src.attrs.count("join_entry_attrs") != 0) {
+    join_entry_attrs = src.MoveCopyAttr<std::vector<std::string> >(
+        "join_entry_attrs");
+  }
+  if (src.attrs.count("join_node_attrs") != 0) {
+    join_node_attrs = src.MoveCopyAttr<std::vector<std::string> >(
+        "join_node_attrs");
+  }
+  PrintGraphIR_(src, join_entry_attrs, join_node_attrs, os);
   Graph ret;
   ret.attrs["graphir"] = std::make_shared<any>(os.str());
   return ret;

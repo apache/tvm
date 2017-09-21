@@ -67,6 +67,8 @@ Graph InferAttr(Graph &&ret,
     shape_attr_key = ret.GetAttr<std::string>(attr_key_name);
     // erase the provided arguments
     ret.attrs.erase(attr_key_name);
+  } else {
+    shape_attr_key = attr_name;
   }
   // Temp space for shape inference.
   std::vector<AttrType> ishape, oshape;

@@ -99,8 +99,19 @@ def test_plan_memory():
     assert (storage_id[jnode_row_ptr[nindex["add2"]]] ==
             storage_id[jnode_row_ptr[nindex["reshapek"]]])
 
+def test_print_graph_ir():
+    x = sym.Variable("x", shape=(1, 1, 10, 20))
+    y = sym.conv2d(x + 1, name="y", channels=10, kernel_size=(3,3))
+    g = graph.create(y)
+    g = g.apply("InferShape")
+    ir1 = g.ir()
+    ir2 = g.ir(join_entry_attrs=["shape"])
+    assert("y_bias" in ir1)
+    assert("shape=" in ir2)
+
 
 if __name__ == "__main__":
+    test_print_graph_ir()
     test_json_pass_with_attr()
     test_graph_json_attr()
     test_json_pass()
