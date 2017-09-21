@@ -177,8 +177,23 @@ class Graph(object):
             self._index = GraphIndex(self)
         return self._index
 
-    def graphir(self):
-        """Get text form of graph ir."""
+    def ir(self, join_entry_attrs=None, join_node_attrs=None):
+        """Get text form of graph ir.
+
+        Parameters
+        ----------
+        join_entry_attrs : list of str
+            List of graph NodeEntry attribute to be
+            printed along each operator.
+
+        join_node_attrs : list of str
+            List of graph node attribute to be
+            printed along each operator.
+        """
+        if join_entry_attrs:
+            self._set_json_attr("join_entry_attrs", join_entry_attrs, "list_str")
+        if join_node_attrs:
+            self._set_json_attr("join_node_attrs", join_node_attrs, "list_str")
         return self.apply("PrintGraphIR").json_attr("graphir")
 
     def apply(self, passes):
