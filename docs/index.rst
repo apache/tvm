@@ -16,5 +16,6 @@ Contents
    faq
    how_to/contribute
    api/python/index
+   dev/index
    api_links
    genindex
