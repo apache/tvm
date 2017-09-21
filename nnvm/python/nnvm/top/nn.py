@@ -10,7 +10,7 @@ from ..compiler import OpPattern
 
 # relu
 @reg.register_compute("relu")
-def compute_relu(attrs, inputs):
+def compute_relu(_, inputs):
     """Compute definition of relu"""
     return topi.nn.relu(inputs[0])
 
@@ -72,8 +72,7 @@ def schedule_conv2d(attrs, outs, target):
     if target == "cuda":
         if groups == 1:
             return topi.cuda.schedule_conv2d_nchw(outs)
-        else:
-            return topi.cuda.schedule_depthwise_conv2d_nchw(outs)
+        return topi.cuda.schedule_depthwise_conv2d_nchw(outs)
     # naive schedule
     return tvm.create_schedule([x.op for x in outs])
 

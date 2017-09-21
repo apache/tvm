@@ -11,6 +11,7 @@
 #include <nnvm/top/nn.h>
 #include <string>
 #include <vector>
+#include <utility>
 #include <algorithm>
 
 namespace nnvm {

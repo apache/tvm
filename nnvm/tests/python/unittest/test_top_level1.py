@@ -1,4 +1,5 @@
 import nnvm.symbol as sym
+import nnvm.graph as graph
 
 def test_dense():
     x = sym.Variable('x')
