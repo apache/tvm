@@ -35,7 +35,8 @@ Index
    topi.cuda.schedule_depthwise_conv2d_nchw
    topi.cuda.schedule_depthwise_conv2d_nhwc
    topi.cuda.schedule_reduce
-   topi.cuda.schedule_broadcast_to
+   topi.cuda.schedule_elemwise
+   topi.cuda.schedule_broadcast
 
 
 topi
@@ -69,4 +70,5 @@ topi.cuda
 .. autofunction:: topi.cuda.schedule_depthwise_conv2d_nchw
 .. autofunction:: topi.cuda.schedule_depthwise_conv2d_nhwc
 .. autofunction:: topi.cuda.schedule_reduce
-.. autofunction:: topi.cuda.schedule_broadcast_to
+.. autofunction:: topi.cuda.schedule_broadcast
+.. autofunction:: topi.cuda.schedule_elemwise
