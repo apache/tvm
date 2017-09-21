@@ -38,7 +38,7 @@ def test_simplify_batchnorm():
         graph_attr.set_shape_inputs(g, ishape)
         g1 = g.apply("InferShape").apply("SimplifyBatchNormInference")
         # Some prints for debug
-        # print(g1.graphir())
+        # print(g1.ir())
         # assert graph equals as expected
         graph_pass.check_graph_equal(g1, g2)
 
