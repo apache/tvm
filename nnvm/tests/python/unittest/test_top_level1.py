@@ -25,6 +25,7 @@ def test_unary():
     x = sym.log(x)
     x = sym.sigmoid(x)
     x = sym.tanh(x)
+    x = sym.relu(x)
     assert x.list_input_names() == ['x']
 
 
