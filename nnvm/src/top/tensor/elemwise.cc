@@ -12,6 +12,16 @@
 
 namespace nnvm {
 namespace top {
+// undefined op
+NNVM_REGISTER_ELEMWISE_UNARY_OP(__undef__)
+.describe(R"code(undefined op.
+
+Used to produce invalide node during optimization.
+
+)code" NNVM_ADD_FILELINE)
+.set_num_outputs(1)
+.set_num_inputs(0);
+
 // sigmoid
 NNVM_REGISTER_ELEMWISE_UNARY_OP(sigmoid)
 .describe(R"code(Computes sigmoid.
@@ -48,6 +58,16 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(log)
 
 .. math::
    log(x)
+
+)code" NNVM_ADD_FILELINE)
+.set_support_level(1);
+
+// sqrt
+NNVM_REGISTER_ELEMWISE_UNARY_OP(sqrt)
+.describe(R"code(Returns the sqrt input array, computed element-wise.
+
+.. math::
+   \sqrt(x)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1);

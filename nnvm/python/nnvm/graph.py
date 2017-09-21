@@ -177,6 +177,10 @@ class Graph(object):
             self._index = GraphIndex(self)
         return self._index
 
+    def graphir(self):
+        """Get text form of graph ir."""
+        return self.apply("PrintGraphIR").json_attr("graphir")
+
     def apply(self, passes):
         """Apply passes to the graph
 
