@@ -8,6 +8,15 @@ import topi.cuda
 from ..compiler import registry as reg
 from ..compiler import OpPattern
 
+def schedule_elemwise(_, outs, target):
+    """Generic schedule for elemwise operation"""
+    if target == "cuda":
+        return topi.cuda.schedule_elemwise(outs)
+    assert target.startswith("llvm")
+    s = tvm.create_schedule([x.op for x in outs])
+    tvm.schedule.AutoInlineInjective(s)
+    return s
+
 def _schedule_broadcast(_, outs, target):
     """Generic schedule for binary bcast"""
     if target == "cuda":
@@ -35,6 +44,24 @@ reg.register_compute("exp",
                      lambda _, x: topi.exp(x[0]))
 reg.register_pattern("exp", OpPattern.ELEM_WISE)
 reg.register_schedule("exp", _fschedule_broadcast)
+
+# log
+reg.register_compute("log",
+                     lambda _, x: topi.log(x[0]))
+reg.register_pattern("log", OpPattern.ELEM_WISE)
+reg.register_schedule("log", _fschedule_broadcast)
+
+# tanh
+reg.register_compute("tanh",
+                     lambda _, x: topi.tanh(x[0]))
+reg.register_pattern("tanh", OpPattern.ELEM_WISE)
+reg.register_schedule("tanh", _fschedule_broadcast)
+
+# sigmoid
+reg.register_compute("sigmoid",
+                     lambda _, x: topi.sigmoid(x[0]))
+reg.register_pattern("sigmoid", OpPattern.ELEM_WISE)
+reg.register_schedule("sigmoid", _fschedule_broadcast)
 
 # add scalar
 reg.register_compute("__add_scalar__",
