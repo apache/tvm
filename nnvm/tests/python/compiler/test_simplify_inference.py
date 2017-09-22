@@ -30,12 +30,13 @@ def test_simplify_batchnorm():
         for i in range(nstep):
             y1 = sym.batch_norm(
                 y1 + 1, gamma, beta, moving_mean, moving_var, epsilon=eps, axis=axis)
+            y1 = sym.dropout(y1)
             y2 = simple_bn(y2 + 1, gamma, beta, moving_mean, moving_var,
                            epsilon=eps, axis=axis, shape=ishape["x"])
         g = nnvm.graph.create(y1)
         g2 = nnvm.graph.create(y2)
         graph_attr.set_shape_inputs(g, ishape)
-        g1 = g.apply("InferShape").apply("SimplifyBatchNormInference")
+        g1 = g.apply("InferShape").apply("SimplifyInference")
         # Some prints for debug
         # print(g1.ir())
         # assert graph equals as expected
