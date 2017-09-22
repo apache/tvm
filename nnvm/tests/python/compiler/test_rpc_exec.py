@@ -19,7 +19,7 @@ def test_rpc_executor():
     tmp = util.tempdir()
     lib_name  = tmp.relpath("net.o")
 
-    graph, lib = nnvm.compiler.build(z, "llvm", shape_dict)
+    graph, lib, _ = nnvm.compiler.build(z, "llvm", shape_dict)
     # save module
     lib.save(lib_name)
     remote = rpc.connect(host, port)

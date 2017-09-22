@@ -26,7 +26,7 @@ def test_relu():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    graph, lib = nnvm.compiler.build(y, default_target(), {"x": dshape})
+    graph, lib, _ = nnvm.compiler.build(y, default_target(), {"x": dshape})
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
@@ -48,7 +48,7 @@ def test_exp():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    graph, lib = nnvm.compiler.build(y, default_target(), {"x": dshape})
+    graph, lib, _ = nnvm.compiler.build(y, default_target(), {"x": dshape})
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
@@ -70,7 +70,8 @@ def test_log():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    graph, lib = nnvm.compiler.build(y, default_target(), {"x": dshape})
+    with nnvm.compiler.build_config(opt_level=1):
+        graph, lib, _ = nnvm.compiler.build(y, default_target(), {"x": dshape})
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
@@ -92,7 +93,8 @@ def test_tanh():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    graph, lib = nnvm.compiler.build(y, default_target(), {"x": dshape})
+    with nnvm.compiler.build_config(opt_level=1):
+        graph, lib, _ = nnvm.compiler.build(y, default_target(), {"x": dshape})
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
@@ -114,7 +116,7 @@ def test_sigmoid():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    graph, lib = nnvm.compiler.build(y, default_target(), {"x": dshape})
+    graph, lib, _ = nnvm.compiler.build(y, default_target(), {"x": dshape})
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
@@ -136,7 +138,8 @@ def test_softmax():
     dtype = "float32"
     dshape = (10, 1000)
     oshape = dshape
-    graph, lib = nnvm.compiler.build(y, default_target(), {"x": dshape})
+    with nnvm.compiler.build_config(opt_level=1):
+        graph, lib, _ = nnvm.compiler.build(y, default_target(), {"x": dshape})
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]

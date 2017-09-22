@@ -41,6 +41,11 @@ DLDataType GetDLType(int type_flag) {
 nnvm::Graph GraphFusePartition(nnvm::Graph g) {
   // setup ref counter
   const IndexedGraph& idx = g.indexed_graph();
+  int opt_level = 2;
+  if (g.attrs.count("opt_level") != 0) {
+    opt_level = g.MoveCopyAttr<int>("opt_level");
+  }
+
   // Get attributes from the graph
   const ShapeVector& shape_vec = g.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
@@ -65,7 +70,7 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
     // this line will realize all the outputs
     ref_count[e.node_id] += 2;
   }
-  // Pattern fo the subgraph
+  // Pattern for the subgraph
   std::vector<TOpPattern> pattern_vec(idx.num_nodes(),  kExtern);
   // Whether node can be fused to parent.
   std::vector<FuseRule> fuse_vec(idx.num_nodes(), FuseRule::kUknown);
@@ -123,7 +128,7 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
     }
 
     pattern_vec[nid] = pt;
-    if (ref_count[nid] > 1) {
+    if (ref_count[nid] > 1 || opt_level < 1) {
       fuse_vec[nid] = FuseRule::kRealize;
       if (master_vec[nid] == -1) {
         master_vec[nid] = nid;
