@@ -206,6 +206,25 @@ def sqrt(x):
     return call_pure_intrin(x.dtype, "sqrt", x)
 
 
+def power(x, y):
+    """x power y
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        The exponent
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "pow", x, y)
+
+
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
     """Register an intrinsic function generation rule.
