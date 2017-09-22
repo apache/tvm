@@ -40,7 +40,7 @@ def test_log_pow_llvm():
     # graph
     n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: tvm.pow(tvm.log(A(*i)), 2.0), name='B')
+    B = tvm.compute(A.shape, lambda *i: tvm.power(tvm.log(A(*i)), 2.0), name='B')
     s = tvm.create_schedule(B.op)
     # create iter var and assign them tags.
     bx, tx = s[B].split(B.op.axis[0], factor=32)

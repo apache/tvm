@@ -206,7 +206,7 @@ def sqrt(x):
     return call_pure_intrin(x.dtype, "sqrt", x)
 
 
-def pow(x, y):
+def power(x, y):
     """x power y
 
     Parameters
