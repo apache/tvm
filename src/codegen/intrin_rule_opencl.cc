@@ -21,6 +21,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.tanh")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.sqrt")
 .set_body(DispatchExtern<FloatDirect>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.pow")
+.set_body(DispatchExtern<FloatDirect>);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
