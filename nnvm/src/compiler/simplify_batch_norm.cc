@@ -21,7 +21,7 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
                        nnvm::NodeEntry beta,
                        nnvm::NodeEntry moving_mean,
                        nnvm::NodeEntry moving_var,
-                       int data_dim) {
+                       TShape dshape) {
   CHECK(attrs.op);
   static const  Op* bn_op = Op::Get("batch_norm");
   CHECK(attrs.op == bn_op);
@@ -57,19 +57,12 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
     shift = MakeNode(
         "elemwise_add", bn_name + "_add_beta", {shift, beta});
   }
-  // reshape to nhwc
+  // use broaodcast to reshape
   std::ostringstream oshape;
-  oshape << "(";
-  for (int i = 0; i < data_dim; ++i) {
-    if (i != 0) oshape << ", ";
-    if (i == param.axis) {
-      oshape << "-1";
-    } else {
-      oshape << "1";
-    }
+  for (dim_t i = 0; i < dshape.ndim(); ++i) {
+    dshape[i] = (i != param.axis) ? 1 : -1;
   }
-  oshape << ")";
-
+  oshape << dshape;
   scale = MakeNode("reshape", bn_name + "_sc_reshape",
                    {scale}, {{"shape", oshape.str()}});
   shift = MakeNode("reshape", bn_name + "_sh_reshape",
@@ -98,7 +91,7 @@ Graph SimplifyBatchNormInference(nnvm::Graph src) {
           n->inputs[2],
           n->inputs[3],
           n->inputs[4],
-          shape_vec[idx.entry_id(nid, 0)].ndim());
+          shape_vec[idx.entry_id(nid, 0)]);
       return true;
     } else {
       return false;

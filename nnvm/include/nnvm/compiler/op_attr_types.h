@@ -44,11 +44,14 @@ using TOpPattern = int;
  * \brief Computation description interface
  * \param attrs The attribute of the node.
  * \param inputs The input tensors(placeholders)
+ * \param out_info Tensors holding shape/type information about output,
+ &                 these are always placeholders.
  * \return The output description of the tensor.
  */
 using FTVMCompute = std::function<
-  Array<Tensor>
-  (const NodeAttrs& attrs, const Array<Tensor>& inputs)>;
+  Array<Tensor>(const NodeAttrs& attrs,
+                const Array<Tensor>& inputs,
+                const Array<Tensor>& out_info)>;
 
 /*!
  * \brief Build the computation schedule for
