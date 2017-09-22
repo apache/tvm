@@ -5,10 +5,8 @@ import topi
 import nnvm.symbol as sym
 import nnvm.compiler
 import nnvm.runtime
+from nnvm.testing.config import test_ctx_list
 
-def ctx_list():
-    res = [("llvm", tvm.cpu(0)), ("cuda", tvm.gpu(0))]
-    return [x for x in res if x[1].exist]
 
 def test_conv2d():
     x = sym.Variable("x")
@@ -19,7 +17,7 @@ def test_conv2d():
     kshape = (10, 3, 3, 3)
     oshape = (1, 10, 18, 18)
     shape_dict = {"x": dshape}
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         m = nnvm.runtime.create(graph, lib, ctx)
         # get member functions
@@ -42,29 +40,25 @@ def test_conv2d():
 def test_grouped_conv2d():
     x = sym.Variable("x")
     y = sym.conv2d(x, channels=32, kernel_size=(3, 3), groups=32,
-                   name="y", use_bias=False, padding=(1,1))
+                   name="y", padding=(1,1))
     dtype = "float32"
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
     oshape = (1, 32, 18, 18)
     shape_dict = {"x": dshape}
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
         # set input
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
-        set_input("x", data)
-        set_input("y_weight", kernel)
-        # execute
-        run()
+        bias = tvm.nd.array(np.random.uniform(size=kshape[0]).astype(dtype))
+        m.run(x=data, y_weight=kernel, y_bias=bias)
         # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         c_np = topi.testing.depthwise_conv2d_python_nchw(
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
+        c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
         np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 

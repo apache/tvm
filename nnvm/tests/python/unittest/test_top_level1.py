@@ -19,6 +19,11 @@ def test_concatenate_split():
     z = sym.split(y, indices_or_sections=[10, 20])
     assert len(z.list_output_names()) == 3
 
+def test_expand_dims():
+    x = sym.Variable('x')
+    y = sym.expand_dims(x, axis=1, num_newaxis=2)
+    assert y.list_input_names() == ['x']
+
 
 def test_unary():
     x = sym.Variable('x')
@@ -39,6 +44,7 @@ def test_batchnorm():
 
 if __name__ == "__main__":
     test_concatenate_split()
+    test_expand_dims()
     test_dense()
     test_unary()
     test_batchnorm()

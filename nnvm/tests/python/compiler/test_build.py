@@ -40,9 +40,6 @@ def test_compile():
         assert graph.index.num_nodes == 4
         verify(graph, lib)
 
-
-
-
 def test_run():
     x = sym.Variable("x")
     y = sym.Variable("y")
