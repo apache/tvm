@@ -2,8 +2,9 @@
 from __future__ import absolute_import as _abs
 import tvm
 from ..util import equal_const_int
+from .. import tag
 
-@tvm.tag_scope(tag="pad")
+@tvm.tag_scope(tag=tag.INJECTIVE+",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     """Dilate Input with zeros.
 

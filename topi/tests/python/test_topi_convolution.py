@@ -16,7 +16,6 @@ def verify_convolution(batch, in_size, in_channel, num_filter, kernel, stride, p
         B = topi.nn.convolution(A, W, stride, padding)
 
     s = topi.rasp.schedule_convolution([B])
-
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype

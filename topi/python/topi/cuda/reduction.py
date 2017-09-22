@@ -2,7 +2,7 @@
 """Schedule for reduce operators"""
 from __future__ import absolute_import as _abs
 import tvm
-
+from .. import tag
 
 def _schedule_reduce(op, sch):
     data_in = op.input_tensors[0]
@@ -42,7 +42,7 @@ def _schedule_reduce(op, sch):
 
 
 def schedule_reduce(outs):
-    """Schedule for reduce ops + ewise + scale_shift ops.
+    """Schedule for inject->reduce->bcast ops.
 
     Parameters
     ----------
@@ -58,7 +58,7 @@ def schedule_reduce(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     sch = tvm.create_schedule([x.op for x in outs])
     def traverse(operator):
-        if operator.tag == 'ewise' or operator.tag == 'scale_shift':
+        if tag.is_injective(operator.tag):
             if operator not in sch.outputs:
                 sch[operator].compute_inline()
             for tensor in operator.input_tensors:

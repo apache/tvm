@@ -1,8 +1,9 @@
 """Elementwise operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from . import tag
 
-@tvm.tag_scope(tag='ewise')
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def identity(x):
     """Take identity of input x.
 
@@ -20,9 +21,9 @@ def identity(x):
     return tvm.compute(x.shape, lambda *i: x(*i))
 
 
-@tvm.tag_scope(tag='ewise')
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def negative(x):
-    """Take negative of input x.
+    """Take negation of input x.
 
     Parameters
     ----------
@@ -38,7 +39,7 @@ def negative(x):
     return tvm.compute(x.shape, lambda *i: -x(*i))
 
 
-@tvm.tag_scope(tag="ewise")
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def exp(x):
     """Take exponential of input x.
 
@@ -55,7 +56,7 @@ def exp(x):
     return tvm.compute(x.shape, lambda *i: tvm.exp(x(*i)))
 
 
-@tvm.tag_scope(tag="ewise")
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def tanh(x):
     """Take hyperbolic tanh of input x.
 
@@ -72,7 +73,7 @@ def tanh(x):
     return tvm.compute(x.shape, lambda *i: tvm.tanh(x(*i)))
 
 
-@tvm.tag_scope(tag="ewise")
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def log(x):
     """Take logarithm of input x.
 
@@ -89,7 +90,7 @@ def log(x):
     return tvm.compute(x.shape, lambda *i: tvm.log(x(*i)))
 
 
-@tvm.tag_scope(tag="ewise")
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def sqrt(x):
     """Take square root of input x.
 
@@ -106,7 +107,7 @@ def sqrt(x):
     return tvm.compute(x.shape, lambda *i: tvm.sqrt(x(*i)))
 
 
-@tvm.tag_scope(tag="ewise")
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def sigmoid(x):
     """Take sigmoid tanh of input x.
 

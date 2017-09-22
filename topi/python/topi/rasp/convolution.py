@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import target as _target
+from .. import tag
 from ..nn.convolution import SpatialPack, Im2ColPack
 from ..nn.convolution import _CONV_DECLARATION, _CONV_SCHEDULE
 from ..nn.convolution import _WORKLOADS, _SCH_TO_DECL_FUNC
@@ -270,7 +271,7 @@ def schedule_convolution(outs):
     def traverse(op):
         """Traverse operators from computation graph"""
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in op.tag or 'bcast' in op.tag:
+        if tag.is_broadcast(op.tag):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:

@@ -1,8 +1,9 @@
 """TVM operator flatten compute."""
 from __future__ import absolute_import
 import tvm
+from .. import tag
 
-@tvm.tag_scope(tag='flatten')
+@tvm.tag_scope(tag=tag.INJECTIVE)
 def flatten(data):
     """Flattens the input array into a 2-D array by collapsing the higher dimensions.
 

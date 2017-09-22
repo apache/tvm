@@ -1,9 +1,8 @@
-# pylint: disable=invalid-name, unused-variable, trailing-whitespace, no-member
-"""Schedule for element wise operator"""
+# pylint: disable=invalid-name, unused-variable,
+"""Schedule for composition of injective operator"""
 import tvm
 
-
-def _schedule_elemwise(op, sch):
+def _schedule_injective(op, sch):
     x = op.output(0)
     fused = sch[x].fuse(*sch[x].op.axis)
     num_thread = 512
@@ -13,8 +12,8 @@ def _schedule_elemwise(op, sch):
     return sch
 
 
-def schedule_elemwise(outs):
-    """Schedule for element wise op.
+def schedule_injective(outs):
+    """Schedule for injective op.
 
     Parameters
     ----------
@@ -31,4 +30,7 @@ def schedule_elemwise(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     tvm.schedule.AutoInlineInjective(s)
-    return _schedule_elemwise(outs[0].op, s)
+    return _schedule_injective(outs[0].op, s)
+
+schedule_elemwise = schedule_injective
+schedule_broadcast = schedule_injective

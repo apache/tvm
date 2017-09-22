@@ -2,6 +2,7 @@
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
 from ..util import get_const_tuple
+from .. import tag
 
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
@@ -100,7 +101,7 @@ def schedule_depthwise_conv2d_nchw(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+        if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
@@ -171,7 +172,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+        if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:

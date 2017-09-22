@@ -3,9 +3,9 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import util
+from .. import tag
 
-
-@tvm.tag_scope(tag="dilation")
+@tvm.tag_scope(tag=tag.INJECTIVE)
 def dilate(data, strides, name="DilatedInput"):
     """Dilate data with zeros.
 
