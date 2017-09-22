@@ -34,6 +34,16 @@ def test_concatenate():
     assert(sdict["concat"][0] == [20, 20])
 
 
+def test_expand_dims():
+    x = sym.Variable("x", shape=(10, 20))
+    y = sym.expand_dims(x, axis=1, name="y")
+    sdict = infer_shape(y)
+    assert(sdict["y"][0] == [10, 1, 20])
+    y = sym.expand_dims(x, axis=-1, name="y", num_newaxis=2)
+    sdict = infer_shape(y)
+    assert(sdict["y"][0] == [10, 20, 1, 1])
+
+
 def test_split():
     x1 = sym.Variable("x", shape=(10, 20))
     z = sym.split(x1, indices_or_sections=[11], name="y")
@@ -247,6 +257,7 @@ def test_reduce():
 
 
 if __name__ == "__main__":
+    test_expand_dims()
     test_dense()
     test_concatenate()
     test_split()

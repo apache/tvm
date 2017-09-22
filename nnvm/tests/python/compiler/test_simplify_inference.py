@@ -12,8 +12,10 @@ def test_simplify_batchnorm():
             sym.elemwise_mul(sym.negative(moving_mean), scale), beta)
         shape = [-1 if i == axis else 1 for i in range(len(shape))]
         # for 2D
-        scale = sym.reshape(scale, shape=shape)
-        shift = sym.reshape(shift, shape=shape)
+        num_newaxis=len(shape) - axis - 1
+        if num_newaxis:
+            scale = sym.expand_dims(scale, axis=axis, num_newaxis=num_newaxis)
+            shift = sym.expand_dims(shift, axis=axis, num_newaxis=num_newaxis)
         return x * scale + shift
 
 
@@ -25,7 +27,7 @@ def test_simplify_batchnorm():
         gamma = sym.Variable("gamma")
         moving_var = sym.Variable("moving_var")
         moving_mean = sym.Variable("moving_mean")
-        y1, y2 = x, x
+        y1, y2 = x, sym.Variable("xx") + 1
         ishape = {"x": tuple(10 for i in range(dim))}
         for i in range(nstep):
             y1 = sym.batch_norm(
@@ -44,6 +46,7 @@ def test_simplify_batchnorm():
 
     check(2, 1, 1)
     check(4, 0, 3)
+    check(4, 1, 2)
 
 if __name__ == "__main__":
     test_simplify_batchnorm()

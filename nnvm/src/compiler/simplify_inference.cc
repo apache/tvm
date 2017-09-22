@@ -58,16 +58,15 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
     shift = MakeNode(
         "elemwise_add", bn_name + "_add_beta", {shift, beta});
   }
-  // use broaodcast to reshape
-  std::ostringstream oshape;
-  for (dim_t i = 0; i < dshape.ndim(); ++i) {
-    dshape[i] = (i != param.axis) ? 1 : -1;
+  // use expand dims to pad lower dims to 1
+  int num_pad_axis = static_cast<int>(dshape.ndim() - param.axis) - 1;
+  if (num_pad_axis != 0) {
+    std::unordered_map<std::string, std::string> kwargs{
+      {"axis", std::to_string(param.axis)},
+      {"num_newaxis", std::to_string(num_pad_axis)}};
+    scale = MakeNode("expand_dims", bn_name + "_sc_expand", {scale}, kwargs);
+    shift = MakeNode("expand_dims", bn_name + "_sh_expand", {shift}, kwargs);
   }
-  oshape << dshape;
-  scale = MakeNode("reshape", bn_name + "_sc_reshape",
-                   {scale}, {{"shape", oshape.str()}});
-  shift = MakeNode("reshape", bn_name + "_sh_reshape",
-                   {shift}, {{"shape", oshape.str()}});
   NodeEntry out = MakeNode("broadcast_mul", bn_name + "_a_mul_data",
                            {data, scale});
   out = MakeNode("broadcast_add", bn_name + "_out",

@@ -115,6 +115,18 @@ reg.register_compute("__rdiv_scalar__",
 reg.register_pattern("__rdiv_scalar__", OpPattern.ELEM_WISE)
 reg.register_schedule("__rdiv_scalar__", _fschedule_broadcast)
 
+# pow_scalar
+reg.register_compute("__pow_scalar__",
+                     _compute_binary_scalar(tvm.power))
+reg.register_pattern("__pow_scalar__", OpPattern.ELEM_WISE)
+reg.register_schedule("__pow_scalar__", _fschedule_broadcast)
+
+# rpow_scalar
+reg.register_compute("__rpow_scalar__",
+                     _compute_binary_scalar(lambda x, y: tvm.power(y, x)))
+reg.register_pattern("__rpow_scalar__", OpPattern.ELEM_WISE)
+reg.register_schedule("__rpow_scalar__", _fschedule_broadcast)
+
 # elemwise_add
 reg.register_compute("elemwise_add", _compute_binary(topi.broadcast_add))
 reg.register_pattern("elemwise_add", OpPattern.BROADCAST)

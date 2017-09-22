@@ -59,7 +59,7 @@ def infer_dtype(graph, **dtype):
 
 _deep_compare = tvm.get_global_func("nnvm.graph.DeepCompare")
 
-def check_graph_equal(grapha, graphb):
+def check_graph_equal(grapha, graphb, compare_variable_attrs=False):
     """Check if two graphs have equal structure.
 
     Parameters
@@ -70,11 +70,16 @@ def check_graph_equal(grapha, graphb):
     graphb : Graph
         The second graph
 
+    compare_variable_attrs : bool, optional
+        Whether we want to compare attributes(names) on variables.
+        Usually it is safe to skip it unless we want input name
+        to exactly match
+
     Raises
     ------
     ValueError
         ValueError is raised with error message when graph not equal
     """
-    err = _deep_compare(grapha, graphb)
+    err = _deep_compare(grapha, graphb, compare_variable_attrs)
     if err:
         raise ValueError("Graph compare error: " + err)
