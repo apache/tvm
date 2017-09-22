@@ -261,7 +261,7 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
     if (inode.source->is_variable()) continue;
     int root_id = group_vec[nid];
     FuseEntry& fe = fuse_vec[root_id];
-    Array<Tensor> inputs;
+    Array<Tensor> inputs, out_info;
     // input loading
     for (const auto& e : inode.inputs) {
       if (group_vec[e.node_id] != root_id) {
@@ -274,11 +274,21 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
         inputs.push_back(t);
       }
     }
+    // output hint
+    for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
+      Array<Expr> shape;
+      for (int64_t x : shape_vec[idx.entry_id(nid, i)]) {
+        CHECK_LE(x, static_cast<int64_t>(std::numeric_limits<int>::max()));
+        shape.push_back(make_const(Int(32), x));
+      }
+      out_info.push_back(
+          placeholder(shape,
+                      TVMType2Type(dltype_vec[idx.entry_id(nid, i)])));
+    }
     // get default
     Array<Tensor> out = fcompute[inode.source->op()](
-        inode.source->attrs, inputs);
+        inode.source->attrs, inputs, out_info);
     CHECK_EQ(out.size(), inode.source->num_outputs());
-
     // schedule on root node, and use master's schedule
     if (nid != root_id) {
       for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
@@ -312,6 +322,7 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
       }
     }
   }
+
   tvm::runtime::Module module = fbuild(funcs, target);
   // Final step: Remap the node, with given attribute
   const nnvm::Op* tvm_op = nnvm::Op::Get("tvm_op");

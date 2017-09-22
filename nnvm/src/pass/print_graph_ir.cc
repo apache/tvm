@@ -73,7 +73,7 @@ void PrintGraphIR_(Graph src,
     AttrPrinter fp = GetVectorPrinter(src, key);
     auto fprint = [&idx, key, fp](
         uint32_t nid, std::ostream& os) {  // NOLINT(*)
-      os << key << "=";
+      os << ", " << key << "=";
       fp(idx.entry_id(nid, 0), os);
     };
     trigger.push_back(fprint);

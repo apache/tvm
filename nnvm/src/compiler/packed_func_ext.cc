@@ -67,9 +67,11 @@ TVM_REGISTER_GLOBAL("nnvm._register_compute")
     // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
     PackedFunc* f = new PackedFunc(args[1].operator PackedFunc());
     Op& op = ::dmlc::Registry<nnvm::Op>::Get()->__REGISTER_OR_GET__(args[0]);
-    auto fcompute = [f](const NodeAttrs& attrs, const Array<Tensor>& inputs)
+    auto fcompute = [f](const NodeAttrs& attrs,
+                        const Array<Tensor>& inputs,
+                        const Array<Tensor>& out_info)
         -> Array<Tensor> {
-      TVMRetValue ret = (*f)(GetAttrDict(attrs), inputs);
+      TVMRetValue ret = (*f)(GetAttrDict(attrs), inputs, out_info);
       if ((*ret.ptr<std::shared_ptr<tvm::Node> >())->derived_from<tvm::TensorNode>()) {
         return {ret.operator Tensor()};
       } else {
