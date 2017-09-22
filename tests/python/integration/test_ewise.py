@@ -36,11 +36,11 @@ def test_exp():
     check_device("opencl")
 
 
-def test_log_llvm():
+def test_log_pow_llvm():
     # graph
     n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: tvm.log(A(*i)), name='B')
+    B = tvm.compute(A.shape, lambda *i: tvm.pow(tvm.log(A(*i)), 2.0), name='B')
     s = tvm.create_schedule(B.op)
     # create iter var and assign them tags.
     bx, tx = s[B].split(B.op.axis[0], factor=32)
@@ -50,6 +50,8 @@ def test_log_llvm():
 
     flog = tvm.build(s, [A, B],
                      "llvm", name="mylog")
+    flog.export_library("xx.so")
+    flog = tvm.module.load("xx.so")
     ctx = tvm.cpu(0)
     # launch the kernel.
     n = 1028
@@ -57,7 +59,7 @@ def test_log_llvm():
     b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
     flog(a, b)
     np.testing.assert_allclose(
-        b.asnumpy(), np.log(a.asnumpy()), rtol=1e-5)
+        b.asnumpy(), np.power(np.log(a.asnumpy()), 2.0), rtol=1e-5)
 
 
 def test_add():
@@ -106,6 +108,6 @@ def test_add():
 
 
 if __name__ == "__main__":
-    test_log_llvm()
+    test_log_pow_llvm()
     test_exp()
     test_add()

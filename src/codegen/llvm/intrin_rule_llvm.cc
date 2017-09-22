@@ -76,6 +76,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.pow")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::pow>);
+
 }  // namespace llvm
 }  // namespace codegen
 }  // namespace tvm
