@@ -50,8 +50,6 @@ def test_log_pow_llvm():
 
     flog = tvm.build(s, [A, B],
                      "llvm", name="mylog")
-    flog.export_library("xx.so")
-    flog = tvm.module.load("xx.so")
     ctx = tvm.cpu(0)
     # launch the kernel.
     n = 1028
