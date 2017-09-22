@@ -27,7 +27,7 @@ def schedule_fully_connected(outs):
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
     k = Out.op.reduce_axis[0]
-    ko, ki = s[Out].split(k, factor=num_thread)
+    _, ki = s[Out].split(k, factor=num_thread)
     OutF = s.rfactor(Out, ki)
     s[Out].bind(s[Out].op.axis[0], block_x)
     s[Out].bind(s[Out].op.axis[1], block_y)
@@ -65,7 +65,6 @@ def schedule_fully_connected_with_bias(outs):
     thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
 
     i, j = s[Out].op.axis
-    k = s[temp].op.reduce_axis
     by, ty = s[Out].split(i, factor=num_thread)
     bx, tx = s[Out].split(j, factor=num_thread)
     s[Out].reorder(by, bx, ty, tx)
