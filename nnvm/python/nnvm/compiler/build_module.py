@@ -2,6 +2,7 @@
 """Namespace for building operators."""
 from __future__ import absolute_import as _abs
 
+import logging
 import tvm
 from . import graph_attr, graph_util
 from .. import graph as _graph
@@ -74,6 +75,7 @@ def build_config(**kwargs):
 @tvm.register_func("nnvm.compiler.lower")
 def _lower(sch, inputs, func_name):
     f = tvm.lower(sch, inputs, name=func_name)
+    logging.debug("lower function %s", func_name)
     return f if isinstance(
         f, (tvm.container.Array, tuple, list)) else [f]
 

@@ -90,7 +90,7 @@ def compute_conv2d(attrs, inputs, _):
         raise ValueError("not support arbitrary group number for now")
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
-        bias = topi.broadcast_to(bias, (1, bias.shape[0], 1, 1))
+        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
         out = topi.broadcast_add(out, bias)
     return out
 

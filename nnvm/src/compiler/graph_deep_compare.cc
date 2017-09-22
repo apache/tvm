@@ -16,7 +16,9 @@ namespace compiler {
 // not considering the graph attributes
 // return non-empty error message if the graph mismatch.
 // the comparator won't match name of intermediate node.
-std::string DeepCompare(Graph a, Graph b) {
+// compare_var_attr
+std::string DeepCompare(Graph a, Graph b,
+                        bool compare_variable_attr) {
   const IndexedGraph& idxa = a.indexed_graph();
   const IndexedGraph& idxb = b.indexed_graph();
   std::ostringstream err;
@@ -50,6 +52,10 @@ std::string DeepCompare(Graph a, Graph b) {
     if (anode.source->op() != bnode.source->op()) {
       err << "Node mismatch ";
       return err.str();
+    }
+    if (anode.source->is_variable()) {
+      CHECK(bnode.source->is_variable());
+      if (!compare_variable_attr) continue;
     }
     AttrDict adict = GetAttrDict(anode.source->attrs);
     AttrDict bdict = GetAttrDict(bnode.source->attrs);
@@ -107,7 +113,7 @@ std::string DeepCompare(Graph a, Graph b) {
 
 TVM_REGISTER_GLOBAL("nnvm.graph.DeepCompare")
 .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue *rv) {
-    *rv = DeepCompare(args[0], args[1]);
+    *rv = DeepCompare(args[0], args[1], args[2]);
   });
 }  // namespace compiler
 }  // namespace nnvm

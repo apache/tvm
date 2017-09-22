@@ -3,11 +3,21 @@
 from __future__ import absolute_import
 
 import tvm
+import topi
 from .tensor import _fschedule_broadcast
 from ..compiler import registry as reg
 from ..compiler import OpPattern
 
 # Need add reshape, transpose
+@reg.register_compute("expand_dims")
+def compute_expand_dims(attrs, inputs, out_info):
+    """Compute definition of expand_dims"""
+    return topi.expand_dims(
+        inputs[0], attrs.get_int("axis"),
+        num_newaxis=attrs.get_int("num_newaxis"))
+reg.register_pattern("expand_dims", OpPattern.BROADCAST)
+reg.register_schedule("expand_dims", _fschedule_broadcast)
+
 
 def _flatten_index(indices, shape):
     """flatten the index to 1D"""

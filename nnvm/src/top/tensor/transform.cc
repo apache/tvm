@@ -142,8 +142,51 @@ Example::
 .set_num_inputs(kVarg)
 .set_support_level(1);
 
+// expand_dims
+DMLC_REGISTER_PARAMETER(ExpandDimsParam);
 
-// concatenate
+inline bool ExpandDimsInferShape(const NodeAttrs& attrs,
+                                 std::vector<TShape>* in_shape,
+                                 std::vector<TShape>* out_shape) {
+  const ExpandDimsParam& param = nnvm::get<ExpandDimsParam>(attrs.parsed);
+  CHECK_EQ(in_shape->size(), 1U);
+  const TShape& dshape = in_shape->at(0);
+  int ndim = static_cast<int>(dshape.ndim());
+  CHECK(param.axis >= -ndim - 1 && param.axis <= ndim);
+  int axis = param.axis < 0 ? ndim + param.axis + 1 : param.axis;
+  std::vector<dim_t> oshape;
+  for (int i = 0; i < axis; ++i) {
+    oshape.push_back(dshape[i]);
+  }
+  for (int i = 0; i < param.num_newaxis; ++i) {
+    oshape.push_back(1);
+  }
+  for (int i = axis; i < ndim; ++i) {
+    oshape.push_back(dshape[i]);
+  }
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0,
+                           TShape(oshape.begin(), oshape.end()));
+  return true;
+}
+
+NNVM_REGISTER_OP(expand_dims)
+.describe(R"code(Inserts a new axis of size 1 into the array shape
+
+For example, given ``x`` with shape ``(2,3,4)``, then ``expand_dims(x, axis=1)``
+will return a new array with shape ``(2,1,3,4)``.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input tensor")
+.add_arguments(ExpandDimsParam::__FIELDS__())
+.set_attr_parser(ParamParser<ExpandDimsParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ExpandDimsParam>)
+.set_attr<FInferShape>("FInferShape", ExpandDimsInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_support_level(1);
+
+// split
 DMLC_REGISTER_PARAMETER(SplitParam);
 
 inline void SplitParamParser(nnvm::NodeAttrs* attrs) {

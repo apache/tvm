@@ -1,15 +1,10 @@
 import numpy as np
-
 import tvm
 import topi
 import nnvm.symbol as sym
 import nnvm.compiler
 import nnvm.runtime
-
-def ctx_list():
-    res = [("llvm", tvm.cpu(0)), ("cuda", tvm.gpu(0))]
-    return [x for x in res if x[1].exist]
-
+from nnvm.testing.config import test_ctx_list
 
 def test_relu():
     x = sym.Variable("x")
@@ -17,7 +12,7 @@ def test_relu():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
         # get member functions
@@ -40,7 +35,7 @@ def test_exp():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
         # get member functions
@@ -63,7 +58,7 @@ def test_log():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
@@ -87,7 +82,7 @@ def test_tanh():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
@@ -111,7 +106,7 @@ def test_sigmoid():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
         # get member functions
@@ -134,7 +129,7 @@ def test_softmax():
     dtype = "float32"
     dshape = (10, 1000)
     oshape = dshape
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
@@ -187,7 +182,7 @@ def test_batchnorm():
     y = sym.batch_norm(
         x, gamma, beta, moving_mean, moving_var, epsilon=eps)
 
-    for target, ctx in ctx_list():
+    for target, ctx in test_ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, "llvm", {"x": shape})
         m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
         x_np = np.random.uniform(size=shape).astype(dtype)

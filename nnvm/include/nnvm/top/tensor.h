@@ -21,6 +21,17 @@ struct ConcatenateParam : public dmlc::Parameter<ConcatenateParam> {
   }
 };
 
+struct ExpandDimsParam : public dmlc::Parameter<ExpandDimsParam> {
+  int axis;
+  int num_newaxis;
+  DMLC_DECLARE_PARAMETER(ExpandDimsParam) {
+    DMLC_DECLARE_FIELD(axis)
+    .describe("the axis to be expanded.");
+    DMLC_DECLARE_FIELD(num_newaxis).set_lower_bound(1).set_default(1)
+    .describe("Number of new axis to be inserted.");
+  }
+};
+
 struct SplitParam : public dmlc::Parameter<SplitParam> {
   // numpy convention, only support indices, not support list.
   Tuple<int> indices_or_sections;
