@@ -29,7 +29,7 @@ def test_conv2d():
     kshape = (10, 3, 3, 3)
     oshape = (1, 10, 18, 18)
     shape_dict = {"x": dshape}
-    graph, lib = nnvm.compiler.build(y, default_target(), shape_dict)
+    graph, lib, _ = nnvm.compiler.build(y, default_target(), shape_dict)
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
@@ -57,7 +57,7 @@ def test_grouped_conv2d():
     kshape = (32, 1, 3, 3)
     oshape = (1, 32, 18, 18)
     shape_dict = {"x": dshape}
-    graph, lib = nnvm.compiler.build(y, default_target(), shape_dict)
+    graph, lib, _ = nnvm.compiler.build(y, default_target(), shape_dict)
     m = nnvm.runtime.create(graph, lib, default_ctx())
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]

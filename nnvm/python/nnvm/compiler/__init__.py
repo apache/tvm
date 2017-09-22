@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import tvm
 
 from . import build_module
-from . build_module import build, precompute_prune, _run_graph
+from . build_module import build, optimize, build_config
 
 from .. import symbol as _symbol
 from .. import graph as _graph

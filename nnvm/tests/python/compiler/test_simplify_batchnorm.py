@@ -1,7 +1,7 @@
 """Unittest cases for simplify batch_norm"""
 import nnvm
 from nnvm import symbol as sym
-from nnvm.compiler import graph_pass, graph_attr
+from nnvm.compiler import graph_util, graph_attr
 
 def test_simplify_batchnorm():
     def simple_bn(x, gamma, beta, moving_mean, moving_var,
@@ -40,7 +40,7 @@ def test_simplify_batchnorm():
         # Some prints for debug
         # print(g1.ir())
         # assert graph equals as expected
-        graph_pass.check_graph_equal(g1, g2)
+        graph_util.check_graph_equal(g1, g2)
 
     check(2, 1, 1)
     check(4, 0, 3)

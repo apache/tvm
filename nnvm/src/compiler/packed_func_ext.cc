@@ -21,6 +21,10 @@ TVM_REGISTER_EXT_TYPE(nnvm::compiler::AttrDict);
 }  // namespace tvm
 
 namespace nnvm {
+DMLC_JSON_ENABLE_ANY(int, int);
+}  // namespace nnvm
+
+namespace nnvm {
 namespace compiler {
 
 using tvm::Tensor;

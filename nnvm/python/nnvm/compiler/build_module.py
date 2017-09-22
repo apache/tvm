@@ -3,9 +3,73 @@
 from __future__ import absolute_import as _abs
 
 import tvm
-from . import graph_attr, graph_pass
+from . import graph_attr, graph_util
 from .. import graph as _graph
 from .. import runtime
+
+OPT_PASS_LEVEL = {
+    "SimplifyBatchNormInference": 2,
+    "PrecomputePrune": 2,
+    "OpFusion": 1
+}
+
+# List of optimization pass and level when switch on
+class BuildConfig(object):
+    """Configuration scope to set a build config option.
+
+    Parameters
+    ----------
+    kwargs
+        Keyword arguments of configurations to set.
+    """
+    current = None
+    defaults = {
+        "opt_level": 2,
+    }
+    def __init__(self, **kwargs):
+        self._old_scope = None
+        for k, _ in kwargs.items():
+            if k not in BuildConfig.defaults:
+                raise ValueError(
+                    "invalid argument %s, candidates are %s" % (k, BuildConfig.defaults.keys()))
+        self._attr = kwargs
+
+    def __getattr__(self, name):
+        if name not in self._attr:
+            return BuildConfig.defaults[name]
+        return self._attr[name]
+
+    def __enter__(self):
+        # pylint: disable=protected-access
+        self._old_scope = BuildConfig.current
+        attr = BuildConfig.current._attr.copy()
+        attr.update(self._attr)
+        self._attr = attr
+        BuildConfig.current = self
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        assert self._old_scope
+        BuildConfig.current = self._old_scope
+
+
+BuildConfig.current = BuildConfig()
+
+def build_config(**kwargs):
+    """Configure the build behavior by setting config variables.
+
+    Parameters
+    ----------
+    opt_level: int, default=2
+        Optimization level. See OPT_PASS_LEVEL for level of each pass.
+
+    Returns
+    -------
+    config: BuildConfig
+        The build configuration
+    """
+    return BuildConfig(**kwargs)
+
 
 @tvm.register_func("nnvm.compiler.lower")
 def _lower(sch, inputs, func_name):
@@ -19,23 +83,45 @@ def _build(funcs, target):
     return tvm.build(funcs, target=target)
 
 
-def optimize(graph):
-    """Perform graph optimization
+def _update_shape_dtype(shape, dtype, params):
+    """Update shape dtype given params information"""
+    if not params:
+        return shape, dtype
+    shape = shape.copy()
+    shape.update({k : v.shape for k, v in params.items()})
+    if isinstance(dtype, str):
+        for k, v in params.items():
+            if v.dtype != dtype:
+                raise ValueError(
+                    "%s: dtype not expected %s vs %s" % (k, dtype, v.dtype))
+    else:
+        dtype = dtype.copy()
+        dtype.update({k : str(v.dtype) for k, v in params.items()})
+    return shape, dtype
+
+
+def optimize(graph, shape, dtype="float32"):
+    """Perform target and parameter invariant graph optimization.
 
     Parameters
     ----------
     graph : Graph
-        The graph to be used in lowering.
+        The graph to be used in optimized.
 
     Returns
     -------
     graph : Graph
-        The optimized execution graph.
+        The optimized graph.
     """
+    # pylint: disable=unused-argument
+    cfg = BuildConfig.current
+    if cfg.opt_level >= OPT_PASS_LEVEL["SimplifyBatchNormInference"]:
+        graph = graph_attr.set_shape_inputs(graph, shape)
+        graph = graph.apply(["InferShape", "SimplifyBatchNormInference"])
     return graph
 
 
-def build(graph, target, shape, dtype="float32"):
+def build(graph, target, shape, dtype="float32", params=None):
     """Build graph into runtime library.
 
     This is the final step of graph compilation.
@@ -54,6 +140,11 @@ def build(graph, target, shape, dtype="float32"):
     dtype : str or dict of str to str
         The input types to the graph
 
+    params : dict of str to NDArray
+        Input parameetrs to the graph that do not change
+        during inference time. Used for pre-compute
+        folding optimization.
+
     Returns
     -------
     graph : Graph
@@ -61,20 +152,33 @@ def build(graph, target, shape, dtype="float32"):
 
     libmod : tvm.Module
         The modue that comes with the execution graph
+
+    params : dict of str to NDArray
+        The updated parameters of graph if params is passed.
+        This can be different from the params passed in.
     """
     if not isinstance(target, str):
         raise TypeError("require target to be str")
     if not isinstance(shape, dict):
         raise TypeError("require shape to be dict")
-
+    cfg = BuildConfig.current
     graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
+    shape, dtype = _update_shape_dtype(shape, dtype, params)
+    # Apply optimization
+    graph = optimize(graph, shape, dtype)
+    # Precompute prune
+    if params and cfg.opt_level >= OPT_PASS_LEVEL["PrecomputePrune"]:
+        graph, params = precompute_prune(graph, params)
+        shape, dtype = _update_shape_dtype(shape, dtype, params)
+    # Operator Fusion and generatiom
     graph = graph_attr.set_shape_inputs(graph, shape)
     graph = graph_attr.set_dtype_inputs(graph, dtype)
     graph._set_json_attr("target", target, "str")
+    graph._set_json_attr("opt_level", cfg.opt_level, "int")
     graph = graph.apply("InferShape").apply("InferType")
     graph = graph.apply("GraphFusePartition").apply("GraphFuse")
     libmod = graph_attr._move_out_module(graph, "module")
-    return graph, libmod
+    return graph, libmod, params
 
 
 def _run_graph(graph, params):
@@ -98,9 +202,9 @@ def _run_graph(graph, params):
     dtype = {k : v.dtype for k, v in params.items()}
     target = "llvm"
     ctx = tvm.cpu(0)
-    _, oshape = graph_pass.infer_shape(graph, **shape)
-    _, odtype = graph_pass.infer_dtype(graph, **dtype)
-    graph, libmod = build(graph, target, shape, dtype)
+    _, oshape = graph_util.infer_shape(graph, **shape)
+    _, odtype = graph_util.infer_dtype(graph, **dtype)
+    graph, libmod, _ = build(graph, target, shape, dtype)
     m = runtime.create(graph, libmod, ctx)
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
     for k, v in params.items():
