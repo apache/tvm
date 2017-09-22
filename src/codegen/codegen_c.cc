@@ -142,6 +142,10 @@ std::string CodeGenC::GetBufferRef(
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
       os << '(';
+      if (scope.length() != 0) {
+        PrintStorageScope(scope, os);
+      }
+      os << ' ';
       PrintType(t.element_of(), os);
       os << "*)";
     }
