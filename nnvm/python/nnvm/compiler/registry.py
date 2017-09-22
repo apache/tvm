@@ -5,8 +5,10 @@ import tvm
 class OpPattern(object):
     ELEM_WISE = 0
     BROADCAST = 1
+    # Complex means we can fuse elemwise to it
     COMPLEX = 2
-    EXTERN = 2
+    # Extern means the op is not fusable
+    EXTERN = 3
 
 _register_compute = tvm.get_global_func("nnvm._register_compute")
 _register_schedule = tvm.get_global_func("nnvm._register_schedule")

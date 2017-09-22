@@ -1,30 +1,37 @@
+# pylint: disable=invalid-name, unused-argument
 """Definition of nn ops"""
 from __future__ import absolute_import
 
 import tvm
 import topi
 from topi.util import get_const_int
-from .tensor import schedule_elemwise
+from .tensor import _fschedule_broadcast
 from ..compiler import registry as reg
 from ..compiler import OpPattern
 
 # relu
 @reg.register_compute("relu")
-def compute_relu(_, inputs):
+def compute_relu(attrs, inputs, _):
     """Compute definition of relu"""
     return topi.nn.relu(inputs[0])
 
-@reg.register_schedule("relu")
-def schedule_relu(_, outs, target):
-    """Schedule definition of relu"""
-    return schedule_elemwise(_, outs, target)
-
+reg.register_schedule("relu", _fschedule_broadcast)
 reg.register_pattern("relu", OpPattern.ELEM_WISE)
+
+
+# flatten
+@reg.register_compute("flatten")
+def compute_flatten(attrs, inputs, _):
+    """Compute definition of flatten"""
+    return topi.nn.flatten(inputs[0])
+
+reg.register_schedule("flatten", _fschedule_broadcast)
+reg.register_pattern("flatten", OpPattern.COMPLEX)
 
 
 # softmax
 @reg.register_compute("softmax")
-def compute_softmax(attrs, inputs):
+def compute_softmax(attrs, inputs, _):
     """Compute definition of softmax"""
     axis = attrs.get_int("axis")
     assert axis == -1, "only support axis == -1 for now"
@@ -38,12 +45,34 @@ def schedule_softmax(_, outs, target):
     # naive schedule
     return tvm.create_schedule([x.op for x in outs])
 
-reg.register_pattern("softmax", OpPattern.COMPLEX)
+# Mark softmax as extern as we do not fuse it in call cases
+reg.register_pattern("softmax", OpPattern.EXTERN)
+
+
+# dense
+@reg.register_compute("dense")
+def compute_dense(attrs, inputs, _):
+    """Compute definition of dense"""
+    if attrs.get_bool("use_bias"):
+        return topi.nn.fully_connected_with_bias(
+            inputs[0], inputs[1], inputs[2])
+    return topi.nn.fully_connected(inputs[0], inputs[1])
+
+@reg.register_schedule("dense")
+def schedule_dense(_, outs, target):
+    """Schedule definition of dense"""
+    if target == "cuda":
+        raise ValueError("fully_connected not yet implemented")
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+# register extern for now, change me when fusion is enabled.
+reg.register_pattern("dense", OpPattern.EXTERN)
 
 
 # conv
 @reg.register_compute("conv2d")
-def compute_conv2d(attrs, inputs):
+def compute_conv2d(attrs, inputs, _):
     """Compute definition of conv2d"""
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")

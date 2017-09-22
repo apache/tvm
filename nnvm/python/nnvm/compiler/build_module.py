@@ -115,9 +115,12 @@ def optimize(graph, shape, dtype="float32"):
     """
     # pylint: disable=unused-argument
     cfg = BuildConfig.current
+    graph = graph_attr.set_shape_inputs(graph, shape)
+    graph = graph.apply("InferShape")
+    if graph.json_attr("shape_num_unknown_nodes"):
+        raise ValueError("InferShape fails..")
     if cfg.opt_level >= OPT_PASS_LEVEL["SimplifyBatchNormInference"]:
-        graph = graph_attr.set_shape_inputs(graph, shape)
-        graph = graph.apply(["InferShape", "SimplifyBatchNormInference"])
+        graph = graph.apply("SimplifyBatchNormInference")
     return graph
 
 
@@ -164,6 +167,12 @@ def build(graph, target, shape, dtype="float32", params=None):
     cfg = BuildConfig.current
     graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
     shape, dtype = _update_shape_dtype(shape, dtype, params)
+    # Initial pass do shape type inference
+    ishape, _ = graph_util.infer_shape(graph, **shape)
+    shape.update(zip(graph.index.input_names, ishape))
+    if not isinstance(dtype, str):
+        idtype, _ = graph_util.infer_dtype(graph, **dtype)
+        dtype.update(zip(graph.index.input_names, idtype))
     # Apply optimization
     graph = optimize(graph, shape, dtype)
     # Precompute prune
