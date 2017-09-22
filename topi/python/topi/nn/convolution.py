@@ -93,6 +93,7 @@ def _get_workload(data, kernel, stride, padding):
         HSTR, WSTR = stride, stride
     return Workload(IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
+
 def _get_schedule(wkl, target=None):
     """ Get the platform specific schedule. """
     if target is None:

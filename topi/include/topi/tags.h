@@ -8,8 +8,8 @@
 
 namespace topi {
 
-constexpr auto kElementWise = "ewise";
-constexpr auto kBroadcast = "bcast";
+constexpr auto kElementWise = "elemwise";
+constexpr auto kBroadcast = "broadcast";
 constexpr auto kMatMult = "matmult";
 constexpr auto kConv2dNCHW = "conv2d_nchw";
 constexpr auto kConv2dHWCN = "conv2d_hwcn";

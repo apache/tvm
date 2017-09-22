@@ -8,6 +8,5 @@ from .depthwise_conv2d import schedule_depthwise_conv2d_nchw, schedule_depthwise
 from .depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
 from .depthwise_conv2d import schedule_depthwise_conv2d_backward_weight_nhwc
 from .reduction import schedule_reduce
-from .broadcast import schedule_broadcast
 from .softmax import schedule_softmax
-from .elemwise import schedule_elemwise
+from .injective import schedule_injective, schedule_elemwise, schedule_broadcast

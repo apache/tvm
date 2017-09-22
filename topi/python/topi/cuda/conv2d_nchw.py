@@ -2,6 +2,7 @@
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
 from .. import util
+from .. import tag
 
 def conv2d_224_3_64(s, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
@@ -389,7 +390,7 @@ def schedule_conv2d_small_batch(outs):
     def traverse(OP):
         """Traverse operators from computation graph"""
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+        if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:

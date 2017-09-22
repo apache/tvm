@@ -1,10 +1,11 @@
 """TVM operator batch normalization compute."""
 from __future__ import absolute_import
 import tvm
+from .. import tag
 
-@tvm.tag_scope(tag='batch_norm')
-def batch_norm(data, gamma, beta, moving_mean, moving_var, eps, fix_gamma):
-    """Batch normalization operator in NCHW layout.
+@tvm.tag_scope(tag=tag.BROADCAST)
+def batch_norm_inference(data, gamma, beta, moving_mean, moving_var, eps, fix_gamma):
+    """Batch normalization inference operator in NCHW layout.
 
     Parameters
     ----------

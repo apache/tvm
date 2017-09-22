@@ -2,6 +2,7 @@
 """Broadcast operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from .import tag
 from .util import get_const_tuple, equal_const_int
 
 def _get_bcast_info(original_shape, target_shape):
@@ -113,7 +114,7 @@ def broadcast_to(data, shape):
     return ret
 
 
-@tvm.tag_scope(tag="broadcast_binary_op")
+@tvm.tag_scope(tag=tag.BROADCAST)
 def broadcast_binary_op(lhs, rhs, func, name="bop"):
     """Binary operands that will automatically broadcast the inputs
 
