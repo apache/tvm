@@ -42,7 +42,7 @@ def test_fully_connected():
     verify_fully_connected(1, 1024, 1000)
     verify_fully_connected(1, 4096, 1024)
     verify_fully_connected(4, 1024, 1000)
-    verify_fully_connected(4, 4096, 1000)
+    verify_fully_connected(4, 4096, 1024)
 
 
 def verify_fully_connected_with_bias(batch, in_dim, out_dim):
@@ -84,7 +84,7 @@ def test_fully_connected_with_bias():
     verify_fully_connected_with_bias(1, 1024, 1000)
     verify_fully_connected_with_bias(1, 4096, 1024)
     verify_fully_connected_with_bias(4, 1024, 1000)
-    verify_fully_connected_with_bias(4, 4096, 1000)
+    verify_fully_connected_with_bias(4, 4096, 1024)
 
 
 if __name__ == "__main__":

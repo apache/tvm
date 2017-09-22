@@ -7,10 +7,12 @@ from topi.util import get_const_tuple
 def verify_global_avg_pool(n, c, h, w):
     A = tvm.placeholder((n, c, h, w), name='A')
     B = topi.nn.global_avg_pool(A)
+    B = topi.nn.relu(B)
     s = topi.cuda.schedule_global_avg_pool(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = np.mean(a_np, axis=(2,3), keepdims=True)
+    b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -28,7 +30,7 @@ def verify_global_avg_pool(n, c, h, w):
 
 def test_global_avg_pool():
     verify_global_avg_pool(1, 256, 3, 3)
-    verify_global_avg_pool(4, 256, 7, 3)
+    verify_global_avg_pool(4, 256, 3, 3)
     verify_global_avg_pool(1, 1024, 7, 7)
     verify_global_avg_pool(4, 1024, 7, 7)
 
