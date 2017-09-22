@@ -21,8 +21,8 @@ def identity(x):
 
 
 @tvm.tag_scope(tag='ewise')
-def negation(x):
-    """Take negation of input x.
+def negative(x):
+    """Take negative of input x.
 
     Parameters
     ----------
