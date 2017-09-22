@@ -44,6 +44,11 @@ def _compute_binary(f):
 
 _fschedule_broadcast = tvm.convert(_schedule_broadcast)
 
+# copy
+reg.register_compute("copy", _compute_unary(topi.identity))
+reg.register_pattern("copy", OpPattern.ELEM_WISE)
+reg.register_schedule("copy", _fschedule_broadcast)
+
 # exp
 reg.register_compute("exp", _compute_unary(topi.exp))
 reg.register_pattern("exp", OpPattern.ELEM_WISE)

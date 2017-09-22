@@ -22,6 +22,7 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
                        nnvm::NodeEntry moving_mean,
                        nnvm::NodeEntry moving_var,
                        TShape dshape) {
+  CHECK_NE(dshape.ndim(), 0);
   CHECK(attrs.op);
   static const  Op* bn_op = Op::Get("batch_norm");
   CHECK(attrs.op == bn_op);
@@ -76,13 +77,14 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
   return {out, undef, undef};
 }
 
-Graph SimplifyBatchNormInference(nnvm::Graph src) {
+Graph SimplifyInference(nnvm::Graph src) {
   // Get attributes from the graph
   const IndexedGraph& idx = src.indexed_graph();
   const ShapeVector& shape_vec = src.GetAttr<ShapeVector>("shape");
   auto transform = [&](uint32_t nid, const Node* n, std::vector<NodeEntry>* ret) {
     if (n->is_variable()) return false;
     static const Op* bn_op = Op::Get("batch_norm");
+    static const Op* dropout_op = Op::Get("dropout");
     if (n->op() == bn_op) {
       *ret = BatchNormToInferUnpack(
           n->attrs,
@@ -93,6 +95,10 @@ Graph SimplifyBatchNormInference(nnvm::Graph src) {
           n->inputs[4],
           shape_vec[idx.entry_id(nid, 0)]);
       return true;
+    } else if (n->op() == dropout_op) {
+      NodeEntry undef = MakeNode("__undef__", "undef", {});
+      *ret = {n->inputs[0], undef};
+      return true;
     } else {
       return false;
     }
@@ -100,8 +106,8 @@ Graph SimplifyBatchNormInference(nnvm::Graph src) {
   return GraphTransform(src, transform);
 }
 
-NNVM_REGISTER_PASS(SimplifyBatchNormInference)
-.set_body(SimplifyBatchNormInference);
+NNVM_REGISTER_PASS(SimplifyInference)
+.set_body(SimplifyInference);
 
 }  // namespace compiler
 }  // namespace nnvm

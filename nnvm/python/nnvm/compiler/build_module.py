@@ -8,7 +8,7 @@ from .. import graph as _graph
 from .. import runtime
 
 OPT_PASS_LEVEL = {
-    "SimplifyBatchNormInference": 2,
+    "SimplifyInference": 2,
     "PrecomputePrune": 2,
     "OpFusion": 1
 }
@@ -115,12 +115,9 @@ def optimize(graph, shape, dtype="float32"):
     """
     # pylint: disable=unused-argument
     cfg = BuildConfig.current
-    graph = graph_attr.set_shape_inputs(graph, shape)
-    graph = graph.apply("InferShape")
-    if graph.json_attr("shape_num_unknown_nodes"):
-        raise ValueError("InferShape fails..")
-    if cfg.opt_level >= OPT_PASS_LEVEL["SimplifyBatchNormInference"]:
-        graph = graph.apply("SimplifyBatchNormInference")
+    if cfg.opt_level >= OPT_PASS_LEVEL["SimplifyInference"]:
+        graph = graph_attr.set_shape_inputs(graph, shape)
+        graph = graph.apply(["InferShape", "SimplifyInference"])
     return graph
 
 
