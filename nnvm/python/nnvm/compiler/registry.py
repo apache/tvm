@@ -3,12 +3,24 @@
 import tvm
 
 class OpPattern(object):
-    ELEM_WISE = 0
+    """Operator generic patterns
+
+    See Also
+    --------
+    top.tag : Contains explaination of the tag type.
+    """
+    # Elementwise operator
+    ELEMWISE = 0
+    # Broadcast operator
     BROADCAST = 1
-    # Complex means we can fuse elemwise to it
-    COMPLEX = 2
-    # Extern means the op is not fusable
-    EXTERN = 3
+    # Injective mapping
+    INJECTIVE = 2
+    # Comunication
+    COMM_REDUCE = 3
+    # Complex op, can still fuse ewise into it
+    OUT_ELEMWISE_FUSABLE = 4
+    # Not fusable opaque op
+    OPAQUE = 8
 
 _register_compute = tvm.get_global_func("nnvm._register_compute")
 _register_schedule = tvm.get_global_func("nnvm._register_schedule")

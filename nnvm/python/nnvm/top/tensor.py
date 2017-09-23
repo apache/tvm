@@ -8,13 +8,15 @@ import topi.cuda
 from ..compiler import registry as reg
 from ..compiler import OpPattern
 
-def _schedule_broadcast(_, outs, target):
+def _schedule_injective(_, outs, target):
     """Generic schedule for binary bcast"""
     if target == "cuda":
-        return topi.cuda.schedule_elemwise(outs)
+        return topi.cuda.schedule_injective(outs)
     assert target.startswith("llvm")
     s = tvm.create_schedule([x.op for x in outs])
+    x = outs[0]
     tvm.schedule.AutoInlineInjective(s)
+    s[x].fuse(s[x].op.axis)
     return s
 
 def _compute_binary_scalar(f):
@@ -42,89 +44,91 @@ def _compute_binary(f):
     return _compute
 
 
-_fschedule_broadcast = tvm.convert(_schedule_broadcast)
+_fschedule_injective = tvm.convert(_schedule_injective)
+_fschedule_broadcast = _fschedule_injective
+_fschedule_elemwise = _fschedule_injective
 
 # copy
 reg.register_compute("copy", _compute_unary(topi.identity))
-reg.register_pattern("copy", OpPattern.ELEM_WISE)
+reg.register_pattern("copy", OpPattern.ELEMWISE)
 reg.register_schedule("copy", _fschedule_broadcast)
 
 # exp
 reg.register_compute("exp", _compute_unary(topi.exp))
-reg.register_pattern("exp", OpPattern.ELEM_WISE)
+reg.register_pattern("exp", OpPattern.ELEMWISE)
 reg.register_schedule("exp", _fschedule_broadcast)
 
 # sqrt
 reg.register_compute("sqrt", _compute_unary(topi.sqrt))
-reg.register_pattern("sqrt", OpPattern.ELEM_WISE)
+reg.register_pattern("sqrt", OpPattern.ELEMWISE)
 reg.register_schedule("sqrt", _fschedule_broadcast)
 
 # log
 reg.register_compute("log", _compute_unary(topi.log))
-reg.register_pattern("log", OpPattern.ELEM_WISE)
+reg.register_pattern("log", OpPattern.ELEMWISE)
 reg.register_schedule("log", _fschedule_broadcast)
 
 # tanh
 reg.register_compute("tanh", _compute_unary(topi.tanh))
-reg.register_pattern("tanh", OpPattern.ELEM_WISE)
+reg.register_pattern("tanh", OpPattern.ELEMWISE)
 reg.register_schedule("tanh", _fschedule_broadcast)
 
 # negative
 reg.register_compute("negative", _compute_unary(topi.negative))
-reg.register_pattern("negative", OpPattern.ELEM_WISE)
+reg.register_pattern("negative", OpPattern.ELEMWISE)
 reg.register_schedule("negative", _fschedule_broadcast)
 
 # sigmoid
 reg.register_compute("sigmoid", _compute_unary(topi.sigmoid))
-reg.register_pattern("sigmoid", OpPattern.ELEM_WISE)
+reg.register_pattern("sigmoid", OpPattern.ELEMWISE)
 reg.register_schedule("sigmoid", _fschedule_broadcast)
 
 # add_scalar
 reg.register_compute("__add_scalar__",
                      _compute_binary_scalar(lambda x, y: x + y))
-reg.register_pattern("__add_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__add_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__add_scalar__", _fschedule_broadcast)
 
 # sub_calar
 reg.register_compute("__sub_scalar__",
                      _compute_binary_scalar(lambda x, y: x - y))
-reg.register_pattern("__sub_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__sub_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__sub_scalar__", _fschedule_broadcast)
 
 # rsub_scalar
 reg.register_compute("__rsub_scalar__",
                      _compute_binary_scalar(lambda x, y: y - x))
-reg.register_pattern("__rsub_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__rsub_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__rsub_scalar__", _fschedule_broadcast)
 
 # mul_scalar
 reg.register_compute("__mul_scalar__",
                      _compute_binary_scalar(lambda x, y: x * y))
-reg.register_pattern("__mul_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__mul_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__mul_scalar__", _fschedule_broadcast)
 
 # div_scalar
 reg.register_compute("__div_scalar__",
                      _compute_binary_scalar(lambda x, y: x / y))
-reg.register_pattern("__div_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__div_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__div_scalar__", _fschedule_broadcast)
 
 # rdiv_scalar
 reg.register_compute("__rdiv_scalar__",
                      _compute_binary_scalar(lambda x, y: y / x))
-reg.register_pattern("__rdiv_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__rdiv_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__rdiv_scalar__", _fschedule_broadcast)
 
 # pow_scalar
 reg.register_compute("__pow_scalar__",
                      _compute_binary_scalar(tvm.power))
-reg.register_pattern("__pow_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__pow_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__pow_scalar__", _fschedule_broadcast)
 
 # rpow_scalar
 reg.register_compute("__rpow_scalar__",
                      _compute_binary_scalar(lambda x, y: tvm.power(y, x)))
-reg.register_pattern("__rpow_scalar__", OpPattern.ELEM_WISE)
+reg.register_pattern("__rpow_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__rpow_scalar__", _fschedule_broadcast)
 
 # elemwise_add

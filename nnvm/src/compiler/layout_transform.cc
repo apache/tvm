@@ -52,7 +52,7 @@ nnvm::Graph LayoutTransform(nnvm::Graph src) {
 
   // use op pattern to decide whether an op is map
   auto is_map_op = [&](size_t nid) {
-    TOpPattern pt = op_pattern.get(idx[nid].source->op(), kExtern);
+    TOpPattern pt = op_pattern.get(idx[nid].source->op(), kOpaque);
     bool is_map = (pt <= kBroadcast);
     if (pt == kBroadcast) {
       for (const auto& e : idx[nid].inputs) {
