@@ -71,7 +71,7 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
     ref_count[e.node_id] += 2;
   }
   // Pattern for the subgraph
-  std::vector<TOpPattern> pattern_vec(idx.num_nodes(),  kExtern);
+  std::vector<TOpPattern> pattern_vec(idx.num_nodes(),  kOpaque);
   // Whether node can be fused to parent.
   std::vector<FuseRule> fuse_vec(idx.num_nodes(), FuseRule::kUknown);
   // Master node id of fusion segment.
@@ -84,19 +84,21 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
     if (inode.source->is_variable()) {
       fuse_vec[nid] = FuseRule::kRealize; continue;
     }
-    TOpPattern pt = op_pattern.get(inode.source->op(), kExtern);
+    TOpPattern pt = op_pattern.get(inode.source->op(), kOpaque);
 
     if (pt <= kBroadcast) {
+      // Try to check if we can fuse to the master.
       int chosen_master = -1;
       bool ewise = inode.source->num_outputs() == 1;
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
           TOpPattern ipt = pattern_vec[e.node_id];
           if (ipt != kElemWise) ewise = false;
-          if (ipt <= kBroadcast) {
+          if (ipt <= kInjective) {
             fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
-          } else if (ipt == kComplex && chosen_master == -1 &&
-            shape_vec[idx.entry_id(nid, 0)] == shape_vec[idx.entry_id(e)]) {
+          } else if (ipt == kOutEWiseFusable &&
+                     chosen_master == -1 &&
+                     shape_vec[idx.entry_id(nid, 0)] == shape_vec[idx.entry_id(e)]) {
             chosen_master = master_vec[e.node_id];
             fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
           } else {
@@ -111,11 +113,27 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
       }
       master_vec[nid] = chosen_master;
       if (chosen_master != -1) {
-        pt = kComplex;
+        pt = kOutEWiseFusable;
       } else {
         pt = ewise ? kElemWise : kBroadcast;
       }
+    } else if (pt == kInjective || pt == kCommReduce) {
+      // fuse to the comm reduce or injective
+      for (const auto& e : inode.inputs) {
+        if (fuse_vec[e.node_id] == FuseRule::kUknown) {
+          TOpPattern ipt = pattern_vec[e.node_id];
+          if (ipt <= kInjective) {
+            fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
+          } else {
+            fuse_vec[e.node_id] = FuseRule::kRealize;
+          }
+        }
+      }
+      if (pt == kCommReduce) {
+        master_vec[nid] = nid;
+      }
     } else {
+      // realize
       master_vec[nid] = nid;
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
@@ -135,7 +153,6 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
       }
     }
   }
-
 
   // point to the group root id of each node
   std::vector<int> group_vec(idx.num_nodes(), -1);

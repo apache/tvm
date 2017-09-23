@@ -25,16 +25,23 @@ using ::tvm::Tensor;
 using ::tvm::Schedule;
 
 /*! \brief operator pattern used in graph fusion */
-enum OpPatternKind : int {
+enum OpPatternKind {
   // Elementwise operation
   kElemWise = 0,
-  // Broadcast operation
+  // Broadcasting operator, can always map output axis to the input in order.
+  // for example :code:`out[i, ax1, j, ax2] = input[i, j]`.
+  // Note that the axis need to be in order so transpose is not a bcast operator.
   kBroadcast = 1,
-  // Complex operation, can fuse bcast in input/outputs
+  // Injective operator, can always injectively map output axis to a single input axis.
+  // All injective operator can still be safely fused to injective and reduction.
+  kInjective = 2,
+  // Communicative reduction operator.
+  kCommReduce = 3,
+  // Complex operation, can still fuse elemwise operations into its output.
   // but cannot chain another complex op
-  kComplex = 2,
-  // Extern operation, cannot fuse anything.
-  kExtern = 3
+  kOutEWiseFusable = 4,
+  // Opaque operation, cannot fuse anything.
+  kOpaque = 8
 };
 
 /*! \brief the operator pattern */

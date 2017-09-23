@@ -1,7 +1,8 @@
-NNVM Core Primitives
-====================
+NNVM Core Tensor Operators
+==========================
 
-**Level 1: Basic Ops**
+**Level 1: Basic Operators**
+This level enables fully connected multi-layer perceptron.
 
 .. autosummary::
    :nosignatures:
@@ -12,12 +13,14 @@ NNVM Core Primitives
    nnvm.symbol.sigmoid
    nnvm.symbol.exp
    nnvm.symbol.log
+   nnvm.symbol.sqrt
    nnvm.symbol.elemwise_add
    nnvm.symbol.elemwise_sub
    nnvm.symbol.elemwise_mul
    nnvm.symbol.elemwise_div
    nnvm.symbol.flatten
    nnvm.symbol.concatenate
+   nnvm.symbol.expand_dims
    nnvm.symbol.split
    nnvm.symbol.dropout
    nnvm.symbol.batch_norm
@@ -26,6 +29,8 @@ NNVM Core Primitives
 
 
 **Level 2: Convolutions**
+
+This level enables typical convnet models.
 
 .. autosummary::
    :nosignatures:
@@ -78,12 +83,14 @@ NNVM Core Primitives
 .. autofunction:: nnvm.symbol.sigmoid
 .. autofunction:: nnvm.symbol.exp
 .. autofunction:: nnvm.symbol.log
+.. autofunction:: nnvm.symbol.sqrt
 .. autofunction:: nnvm.symbol.elemwise_add
 .. autofunction:: nnvm.symbol.elemwise_sub
 .. autofunction:: nnvm.symbol.elemwise_mul
 .. autofunction:: nnvm.symbol.elemwise_div
 .. autofunction:: nnvm.symbol.flatten
 .. autofunction:: nnvm.symbol.concatenate
+.. autofunction:: nnvm.symbol.expand_dims
 .. autofunction:: nnvm.symbol.split
 .. autofunction:: nnvm.symbol.dropout
 .. autofunction:: nnvm.symbol.batch_norm
