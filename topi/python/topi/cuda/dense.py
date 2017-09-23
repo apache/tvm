@@ -50,9 +50,11 @@ def schedule_dense(outs):
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule dense
-        if OP.tag == 'dense':
+        elif OP.tag == 'dense':
             Dense = OP.output(0)
             _schedule(Dense)
+        else:
+            raise RuntimeError("Unsupported operator: %s" % OP.tag)
 
     traverse(outs[0].op)
     return s

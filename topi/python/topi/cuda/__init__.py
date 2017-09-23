@@ -11,4 +11,4 @@ from .reduction import schedule_reduce
 from .softmax import schedule_softmax
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
 from .dense import schedule_dense
-from .pooling import schedule_global_avg_pool
+from .pooling import schedule_global_pool

@@ -4,14 +4,17 @@ import tvm
 import topi
 from topi.util import get_const_tuple
 
-def verify_global_avg_pool(n, c, h, w):
+def verify_global_pool(n, c, h, w, pool_type):
     A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.global_avg_pool(A)
+    B = topi.nn.global_pool(A, pool_type=pool_type)
     B = topi.nn.relu(B)
-    s = topi.cuda.schedule_global_avg_pool(B)
+    s = topi.cuda.schedule_global_pool(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = np.mean(a_np, axis=(2,3), keepdims=True)
+    if pool_type == 'avg':
+        b_np = np.mean(a_np, axis=(2,3), keepdims=True)
+    elif pool_type =='max':
+        b_np = np.max(a_np, axis=(2,3), keepdims=True)
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
@@ -28,12 +31,12 @@ def verify_global_avg_pool(n, c, h, w):
     for device in ['cuda', 'opencl', 'metal']:
         check_device(device)
 
-def test_global_avg_pool():
-    verify_global_avg_pool(1, 256, 3, 3)
-    verify_global_avg_pool(4, 256, 3, 3)
-    verify_global_avg_pool(1, 1024, 7, 7)
-    verify_global_avg_pool(4, 1024, 7, 7)
+def test_global_pool():
+    verify_global_pool(1, 1024, 7, 7, 'avg')
+    verify_global_pool(4, 1024, 7, 7, 'avg')
+    verify_global_pool(1, 1024, 7, 7, 'max')
+    verify_global_pool(4, 1024, 7, 7, 'max')
 
 
 if __name__ == "__main__":
-    test_global_avg_pool()
+    test_global_pool()

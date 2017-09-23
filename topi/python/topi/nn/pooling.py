@@ -4,6 +4,7 @@ import tvm
 from .pad import pad
 from .util import get_pad_tuple
 from .. import util
+from .. import tag
 
 def max_pool(data, kernel, stride, padding):
     """Perform max pooling on the data
@@ -51,14 +52,16 @@ def max_pool(data, kernel, stride, padding):
         tag="max_pool")
 
 
-@tvm.tag_scope(tag='global_avg_pool')
-def global_avg_pool(data):
-    """Perform global average pooling on the data
+def global_pool(data, pool_type):
+    """Perform global pooling on the data
 
     Parameters
     ----------
     data : tvm.Tensor
         4-D with shape [batch, channel, in_height, in_width]
+
+    pool_type : str
+        Pool type, 'max' or 'avg'
 
     Returns
     -------
@@ -71,7 +74,16 @@ def global_avg_pool(data):
     dheight = tvm.reduce_axis((0, height))
     dwidth = tvm.reduce_axis((0, width))
 
-    tsum = tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
-        tvm.sum(data[n, c, dheight, dwidth], axis=[dheight, dwidth]))
-    return tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
-        tsum[n, c, h, w] / (height*width))
+    if pool_type == 'max':
+        return tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
+                            tvm.max(data[n, c, dheight, dwidth], axis=[dheight, dwidth]), \
+                            tag="global_pool_max")
+    elif pool_type == 'avg':
+        tsum = tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
+                            tvm.sum(data[n, c, dheight, dwidth], axis=[dheight, dwidth]), \
+                            tag="global_pool_sum")
+        return tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
+                            tsum[n, c, h, w] / (height*width), \
+                            tag=tag.ELEMWISE)
+    else:
+        raise ValueError("Pool type should be 'avg' or 'max'.")

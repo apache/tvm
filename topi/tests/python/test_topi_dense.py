@@ -47,13 +47,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
 
 def test_dense():
     verify_dense(1, 1024, 1000, use_bias=True)
-    verify_dense(1, 4096, 1024, use_bias=True)
-    verify_dense(4, 1024, 1000, use_bias=True)
-    verify_dense(4, 4096, 1024, use_bias=True)
     verify_dense(1, 1024, 1000, use_bias=False)
-    verify_dense(1, 4096, 1024, use_bias=False)
-    verify_dense(4, 1024, 1000, use_bias=False)
-    verify_dense(4, 4096, 1024, use_bias=False)
 
 
 if __name__ == "__main__":
