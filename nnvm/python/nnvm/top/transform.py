@@ -4,11 +4,11 @@ from __future__ import absolute_import
 
 import tvm
 import topi
-from .tensor import _fschedule_broadcast
+from .tensor import _fschedule_broadcast, _fschedule_injective
 from ..compiler import registry as reg
 from ..compiler import OpPattern
 
-# Need add reshape, transpose
+# Need add reshape
 @reg.register_compute("expand_dims")
 def compute_expand_dims(attrs, inputs, out_info):
     """Compute definition of expand_dims"""
@@ -17,6 +17,16 @@ def compute_expand_dims(attrs, inputs, out_info):
         num_newaxis=attrs.get_int("num_newaxis"))
 reg.register_pattern("expand_dims", OpPattern.BROADCAST)
 reg.register_schedule("expand_dims", _fschedule_broadcast)
+
+
+@reg.register_compute("transpose")
+def compute_transpose(attrs, inputs, out_info):
+    """Compute definition of expand_dims"""
+    axes = attrs.get_int_tuple("axes")
+    axes = tuple(axes) if axes else None
+    return topi.transpose(inputs[0], axes)
+reg.register_pattern("transpose", OpPattern.INJECTIVE)
+reg.register_schedule("transpose", _fschedule_injective)
 
 
 def _flatten_index(indices, shape):
@@ -38,4 +48,4 @@ def compute_reshape(attrs, inputs, out_info):
     x = inputs[0]
     return tvm.compute(oshape, lambda *i: x(_flatten_index(i, oshape)))
 reg.register_pattern("reshape", OpPattern.INJECTIVE)
-reg.register_schedule("reshape", _fschedule_broadcast)
+reg.register_schedule("reshape", _fschedule_injective)

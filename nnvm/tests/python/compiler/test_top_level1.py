@@ -8,7 +8,8 @@ from nnvm.testing.config import test_ctx_list
 
 def test_relu():
     x = sym.Variable("x")
-    y = sym.relu(x)
+    y = sym.leaky_relu(x, alpha=0.3) - 0.2
+    y = sym.relu(y)
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     oshape = dshape
@@ -16,17 +17,12 @@ def test_relu():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
         # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        set_input("x", data)
-        # execute
-        run()
-        # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
-        y_np = np.maximum(data.asnumpy(), 0.0)
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        data = (data < 0) * data * 0.3 + (data>0) * data - 0.2
+        data = (data > 0) * data
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        np.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
 
 
 def test_exp():
@@ -157,17 +153,18 @@ def test_dense():
         "dense_weight" : (3, 100),
         "dense_bias" : (3,),
     }
-    graph, lib, _ = nnvm.compiler.build(y, "llvm", shape)
-    m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
-    x_np = np.random.uniform(size=shape["x"]).astype(dtype)
-    w_np = np.random.uniform(size=shape["dense_weight"]).astype(dtype)
-    b_np = np.random.uniform(size=shape["dense_bias"]).astype(dtype)
-    res = tvm.nd.empty((10, 3))
-    m.run(x=x_np, dense_weight=w_np, dense_bias=b_np)
-    m.get_output(0, res)
-    res_np = np.dot(x_np, w_np.T) + b_np
-    np.testing.assert_allclose(
-        res.asnumpy(), res_np, atol=1e-5, rtol=1e-5)
+    for target, ctx in test_ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape)
+        m = nnvm.runtime.create(graph, lib, ctx)
+        x_np = np.random.uniform(size=shape["x"]).astype(dtype)
+        w_np = np.random.uniform(size=shape["dense_weight"]).astype(dtype)
+        b_np = np.random.uniform(size=shape["dense_bias"]).astype(dtype)
+        res = tvm.nd.empty((10, 3))
+        m.run(x=x_np, dense_weight=w_np, dense_bias=b_np)
+        m.get_output(0, res)
+        res_np = np.dot(x_np, w_np.T) + b_np
+        np.testing.assert_allclose(
+            res.asnumpy(), res_np, atol=1e-5, rtol=1e-5)
 
 
 def test_batchnorm():

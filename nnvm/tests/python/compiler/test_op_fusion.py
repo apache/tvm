@@ -56,6 +56,27 @@ def test_conv_ewise_injective():
         np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
+def test_injective_reduce_injective():
+    x = sym.Variable("x")
+    x = sym.flatten(x) + 1
+    y = sym.sum(x, axis=1)
+    dtype = "float32"
+    dshape = (32, 1, 18, 18)
+    shape_dict = {"x": dshape}
+
+    for target, ctx in test_ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
+        m = nnvm.runtime.create(graph, lib, ctx)
+        assert graph.index.num_nodes == 2
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        c_np = np.sum(data.reshape(32, 18 * 18) + 1, axis=1)
+        # get output
+        out = m.get_output(0, tvm.nd.empty(c_np.shape, dtype))
+        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+
+
 if __name__ == "__main__":
+    test_injective_reduce_injective()
     test_ewise_injective()
     test_conv_ewise_injective()

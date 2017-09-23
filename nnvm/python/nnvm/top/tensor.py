@@ -19,9 +19,10 @@ def _schedule_injective(_, outs, target):
     s[x].fuse(s[x].op.axis)
     return s
 
+
 def _compute_binary_scalar(f):
     """auxiliary function"""
-    @tvm.tag_scope("ewise")
+    @tvm.tag_scope(topi.tag.ELEMWISE)
     def _compute(attrs, x, _):
         x = x[0]
         scalar = attrs.get_float("scalar")
