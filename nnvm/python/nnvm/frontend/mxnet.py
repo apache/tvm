@@ -256,7 +256,7 @@ def _from_mxnet_impl(symbol, graph):
         Converted symbol
     """
     try:
-        from mxnet import sym as mx_sym
+        from mxnet import sym as mx_sym  # pylint: disable=import-self
     except ImportError as e:
         raise ImportError('{}. MXNet is required to parse symbols.'.format(e))
 
