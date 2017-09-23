@@ -304,7 +304,7 @@ class Schedule : public NodeRef {
    * as the first dimension. The tensor's body will be rewritten as a reduction
    * over the factored tensor.
    *
-   *  Suriana et.al. Parallel associative reductions in halide. CGO'17
+   *  P. Suriana, A. Adams and S. Kamil. Parallel associative reductions in halide. CGO'17
    *
    * \param tensor The tensor to be factored.
    * \param axis The reduction axis in tensor's schedule to be factored.
