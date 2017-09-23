@@ -1,7 +1,5 @@
 # pylint: disable=invalid-name
 """Attr dictionary object used by schedule functions"""
-
-import json
 import tvm
 
 _dict_get = tvm.get_global_func("nnvm.compiler._dict_get")
@@ -51,7 +49,7 @@ class AttrDict(object):
         tuple : tuple of int
             The result tuple
         """
-        return tuple(json.loads(self[key]))
+        return tuple(int(x) for x in self[key][1:-1].split(",") if x)
 
     def get_int(self, key):
         """Get integer from attr dict

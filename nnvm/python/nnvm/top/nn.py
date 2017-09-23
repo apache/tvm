@@ -20,9 +20,9 @@ reg.register_pattern("relu", OpPattern.ELEMWISE)
 
 # leaky_relu
 @reg.register_compute("leaky_relu")
-def compute_relu(attrs, inputs, _):
+def compute_leaky_relu(attrs, inputs, _):
     """Compute definition of relu"""
-    return topi.nn.leaky_relu(inputs[0])
+    return topi.nn.leaky_relu(inputs[0], attrs.get_float("alpha"))
 
 reg.register_schedule("leaky_relu", _fschedule_broadcast)
 reg.register_pattern("leaky_relu", OpPattern.ELEMWISE)
@@ -62,20 +62,19 @@ reg.register_pattern("softmax", OpPattern.OPAQUE)
 def compute_dense(attrs, inputs, _):
     """Compute definition of dense"""
     if attrs.get_bool("use_bias"):
-        return topi.nn.fully_connected_with_bias(
-            inputs[0], inputs[1], inputs[2])
-    return topi.nn.fully_connected(inputs[0], inputs[1])
+        return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
+    return topi.nn.dense(inputs[0], inputs[1])
 
 @reg.register_schedule("dense")
 def schedule_dense(_, outs, target):
     """Schedule definition of dense"""
     if target == "cuda":
-        raise ValueError("fully_connected not yet implemented")
+        return topi.cuda.schedule_dense(outs)
     # naive schedule
     return tvm.create_schedule([x.op for x in outs])
 
 # register extern for now, change me when fusion is enabled.
-reg.register_pattern("dense", OpPattern.OPAQUE)
+reg.register_pattern("dense", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv
