@@ -10,7 +10,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     A = tvm.placeholder((batch, in_dim), name='A')
     B = tvm.placeholder((out_dim, in_dim), name='B')
     C = tvm.placeholder((out_dim,), name='C')
-    D = topi.nn.dense(A, B, C, use_bias=use_bias)
+    D = topi.nn.dense(A, B, C if use_bias else None)
     D = topi.nn.relu(D)
     s = topi.cuda.schedule_dense(D)
     dtype = A.dtype
