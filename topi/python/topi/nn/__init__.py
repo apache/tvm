@@ -8,7 +8,7 @@ from .depthwise_convolution import *
 from .elemwise import *
 from .dilate import *
 from .flatten import *
-from .fully_connected import *
+from .dense import *
 from .mapping import *
 from .pooling import *
 from .softmax import *

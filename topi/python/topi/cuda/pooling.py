@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
 import tvm
+from .. import tag
 
 def schedule_global_avg_pool(outs):
     """Schedule for global_avg_pool.
@@ -50,7 +51,7 @@ def schedule_global_avg_pool(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+        if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
