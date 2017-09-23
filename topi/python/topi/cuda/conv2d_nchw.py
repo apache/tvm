@@ -295,7 +295,7 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
 
         i, ic, h, w = s[temp].op.axis
         ic = s[temp].fuse(ic, h, w)
-        oic, iic = s[temp].split(ic, factor = rfactor)
+        oic, iic = s[temp].split(ic, factor=rfactor)
         s[temp].bind(iic, thread_xx)
         s[temp].bind(oic, block_xx)
 
@@ -429,10 +429,10 @@ def schedule_conv2d_small_batch(outs):
             temp_G = s.cache_read(temp, "global", [Output])
             s[temp_G].compute_inline()
             i, ic, h, w = s[temp_G].op.axis
-            ow, iw = s[temp_G].split(w, factor=4)
+            s[temp_G].split(w, factor=4)
             temp_R = s.cache_write(temp_G, "global")
             temp_S = s.cache_read(temp_R, "shared", [temp_G])
-        else:     
+        else:
             s[temp].compute_inline()
             temp_S = s.cache_read(temp, "shared", [Output])
             temp_R = temp_S
