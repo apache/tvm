@@ -60,8 +60,12 @@ def schedule_reduce(outs):
     sch = tvm.create_schedule([x.op for x in outs])
 
     def traverse_before_reduce(operator):
-        if tag.is_injective(operator.tag):
+        if isinstance(operator, tvm.tensor.PlaceholderOp):
+            return
+        elif tag.is_injective(operator.tag):
             sch[operator].compute_inline()
+            for tensor in operator.input_tensors:
+                traverse_before_reduce(tensor.op)
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 
