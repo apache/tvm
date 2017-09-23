@@ -7,7 +7,7 @@ import topi
 def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
-    A1 = topi.exp(A)
+    A1 = topi.sqrt(topi.exp(A))
     if type == "sum":
         B = topi.sum(A1, axis=axis, keepdims=keepdims)
     elif type == "max":
@@ -26,7 +26,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         foo = tvm.build(s, [A, B], device, name="sum")
         # Test
         in_npy = np.random.uniform(size=in_shape).astype(np.float32)
-        in_npy_map = np.exp(in_npy)
+        in_npy_map = np.sqrt(np.exp(in_npy))
         if type == "sum":
             out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
         elif type == "max":
