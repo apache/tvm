@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 import json
@@ -155,14 +156,14 @@ def _split(attrs):
     return op_name, new_attrs
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
-                '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
-                '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
-                '__rsub_scalar__', '__sub_scalar__', '__sub_symbol__',
-                'broadcast_add', 'broadcast_div', 'broadcast_mul',
-                'broadcast_sub', 'broadcast_to', 'cast', 'elemwise_add',
-                'elemwise_div', 'elemwise_mul', 'elemwise_sub', 'exp',
-                'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
-                'relu', 'sigmoid', 'softmax', 'sum', 'tanh', 'transpose']
+                  '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
+                  '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
+                  '__rsub_scalar__', '__sub_scalar__', '__sub_symbol__',
+                  'broadcast_add', 'broadcast_div', 'broadcast_mul',
+                  'broadcast_sub', 'broadcast_to', 'cast', 'elemwise_add',
+                  'elemwise_div', 'elemwise_mul', 'elemwise_sub', 'exp',
+                  'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
+                  'relu', 'sigmoid', 'softmax', 'sum', 'tanh', 'transpose']
 
 _convert_map = {
     'null'          : _variable,
@@ -190,8 +191,8 @@ _convert_map = {
 }
 
 def _convert_symbol(op_name, attrs,
-                    identity_list=_identity_list,
-                    convert_map=_convert_map):
+                    identity_list=None,
+                    convert_map=None):
     """Convert from mxnet op to nnvm op.
     The converter must specify some conversions explicitly to
     support gluon format ops such as conv2d...
@@ -214,6 +215,8 @@ def _convert_symbol(op_name, attrs,
     (op_name, attrs)
         Converted (op_name, attrs) for nnvm.
     """
+    identity_list = identity_list if identity_list else _identity_list
+    convert_map = convert_map if convert_map else _convert_map
     if op_name in identity_list:
         pass
     elif op_name in convert_map:
