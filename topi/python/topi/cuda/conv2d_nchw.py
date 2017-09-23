@@ -4,7 +4,7 @@ import tvm
 from .. import util
 from .. import tag
 
-def conv2d_224_3_64(s, temp_S, Filter_S, Out, Out_L):
+def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
     # scheduler params
     ofactor = 16
@@ -36,10 +36,26 @@ def conv2d_224_3_64(s, temp_S, Filter_S, Out, Out_L):
     s[temp_S].compute_at(s[Out_L], ic)
     s[Filter_S].compute_at(s[Out_L], w)
 
+    num_thread1 = 512
+    thread_xx = tvm.thread_axis((0, num_thread1), "threadIdx.x")
+    block_xx = tvm.thread_axis("blockIdx.x")
+
+    i = s[temp].fuse(*s[temp].op.axis)
+    bx, tx = s[temp].split(i, factor=num_thread1)
+    s[temp].bind(tx, thread_xx)
+    s[temp].bind(bx, block_xx)
+
+    i = s[temp_R].fuse(*s[temp_R].op.axis)
+    bx, tx = s[temp_R].split(i, factor=num_thread1)
+    s[temp_R].bind(tx, thread_xx)
+    s[temp_R].bind(bx, block_xx)
+
     #schedule temp_S shared mem load
-    i, ic, h, w = s[temp_S].op.axis
-    tx, ih = s[temp_S].split(w, nparts=num_thread)
+    i, ic, h, ow, iw = s[temp_S].op.axis
+    h = s[temp_S].fuse(h, ow)
+    _, tx = s[temp_S].split(h, factor=num_thread)
     s[temp_S].bind(tx, thread_x)
+    s[temp_S].vectorize(iw)
 
     #schedule Filter_S shared mem load
     i, oc, h, w = s[Filter_S].op.axis
@@ -409,7 +425,13 @@ def schedule_conv2d_small_batch(outs):
             s[temp_G].reorder(i, oic, h, w, iic)
             temp_R = s.cache_write(temp_G, "global")
             temp_S = s.cache_read(temp_R, "shared", [temp_G])
-            
+        elif util.get_const_int(Filter.shape[3]) == 7:
+            temp_G = s.cache_read(temp, "global", [Output])
+            s[temp_G].compute_inline()
+            i, ic, h, w = s[temp_G].op.axis
+            ow, iw = s[temp_G].split(w, factor=4)
+            temp_R = s.cache_write(temp_G, "global")
+            temp_S = s.cache_read(temp_R, "shared", [temp_G])
         else:     
             s[temp].compute_inline()
             temp_S = s.cache_read(temp, "shared", [Output])
@@ -426,7 +448,7 @@ def schedule_conv2d_small_batch(outs):
             Out_L = Output
 
         if util.get_const_int(Filter.shape[3]) == 7:
-            conv2d_224_3_64(s, temp_S, Filter_S, Out, Out_L)
+            conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L)
         elif 128 < flag < 512:
             conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag)
         elif flag >= 512:
