@@ -7,12 +7,13 @@ import topi
 def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
+    A1 = topi.exp(A)
     if type == "sum":
-        B = topi.sum(A, axis=axis, keepdims=keepdims)
+        B = topi.sum(A1, axis=axis, keepdims=keepdims)
     elif type == "max":
-        B = topi.max(A, axis=axis, keepdims=keepdims)
+        B = topi.max(A1, axis=axis, keepdims=keepdims)
     elif type == "min":
-        B = topi.min(A, axis=axis, keepdims=keepdims)
+        B = topi.min(A1, axis=axis, keepdims=keepdims)
     else:
         raise NotImplementedError
     s = topi.cuda.schedule_reduce(B)
@@ -23,15 +24,15 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
         foo = tvm.build(s, [A, B], device, name="sum")
-
         # Test
-        in_npy = np.random.normal(size=in_shape).astype(np.float32)
+        in_npy = np.random.uniform(size=in_shape).astype(np.float32)
+        in_npy_map = np.exp(in_npy)
         if type == "sum":
-            out_npy = in_npy.sum(axis=axis, keepdims=keepdims)
+            out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
         elif type == "max":
-            out_npy = in_npy.max(axis=axis, keepdims=keepdims)
+            out_npy = in_npy_map.max(axis=axis, keepdims=keepdims)
         elif type == "min":
-            out_npy = in_npy.min(axis=axis, keepdims=keepdims)
+            out_npy = in_npy_map.min(axis=axis, keepdims=keepdims)
         else:
             raise NotImplementedError
 

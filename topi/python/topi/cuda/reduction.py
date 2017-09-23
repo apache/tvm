@@ -34,6 +34,7 @@ def _schedule_reduce(op, sch):
 
         # Bind the axes to threads and blocks
         sch[data_out].bind(sch[data_out].op.reduce_axis[0], thread_x)
+        sch[data_out].set_store_predicate(thread_x.equal(0))
         sch[data_out].bind(outer_in, thread_y)
         sch[data_out].bind(bx, block_x)
     else:
@@ -57,17 +58,22 @@ def schedule_reduce(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     sch = tvm.create_schedule([x.op for x in outs])
-    def traverse(operator):
+
+    def traverse_before_reduce(operator):
         if tag.is_injective(operator.tag):
-            if operator not in sch.outputs:
-                sch[operator].compute_inline()
-            for tensor in operator.input_tensors:
-                if tensor.op.input_tensors:
-                    traverse(tensor.op)
-        elif operator.tag == 'comm_reduce':
-            _schedule_reduce(operator, sch)
+            sch[operator].compute_inline()
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 
-    traverse(outs[0].op)
+    def traverse_after_reduce(operator):
+        if tag.is_broadcast(operator.tag):
+            raise RuntimeError("Not yet support ewise after reduce")
+        elif operator.tag == 'comm_reduce':
+            _schedule_reduce(operator, sch)
+            for tensor in operator.input_tensors:
+                traverse_before_reduce(tensor.op)
+        else:
+            raise RuntimeError("Unsupported operator: %s" % operator.tag)
+
+    traverse_after_reduce(outs[0].op)
     return sch
