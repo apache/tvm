@@ -56,9 +56,63 @@ def schedule_global_pool(outs):
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule global_pool
-        elif 'global_pool' in OP.tag:
+        elif OP.tag.startswith('global_pool'):
             Pool = OP.output(0)
             _schedule(Pool)
+        else:
+            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+
+    traverse(outs[0].op)
+    return s
+
+
+def schedule_pool(outs):
+    """Schedule for pool.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of pool
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for pool.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    def _schedule(PaddedInput, Pool):
+        s[PaddedInput].compute_inline()
+        num_thread = 512
+        if Pool.op in s.outputs:
+            Out = Pool
+            OL = s.cache_write(Pool, "local")
+        else:
+            Out = outs[0].op.output(0)
+            s[Pool].set_scope("local")
+        fused = s[Out].fuse(*s[Out].op.axis)
+        bx, tx = s[Out].split(fused, factor=num_thread)
+        s[Out].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[Out].bind(tx, tvm.thread_axis("threadIdx.x"))
+        if Pool.op in s.outputs:
+            s[OL].compute_at(s[Out], tx)
+        else:
+            s[Pool].compute_at(s[Out], tx)
+
+    def traverse(OP):
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if tag.is_broadcast(OP.tag):
+            if OP not in s.outputs:
+                s[OP].compute_inline()
+            for tensor in OP.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        # schedule pool
+        elif OP.tag.startswith('pool'):
+            PaddedInput = OP.input_tensors[0]
+            Pool = OP.output(0)
+            _schedule(PaddedInput, Pool)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
 
