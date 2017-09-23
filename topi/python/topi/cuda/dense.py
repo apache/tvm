@@ -21,20 +21,18 @@ def schedule_dense(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     def _schedule(Dense):
-        num_thread = 16
+        num_thread = 64
         k = Dense.op.reduce_axis[0]
         ko, kf = s[Dense].split(k, factor=num_thread)
         DenseF = s.rfactor(Dense, kf)
 
         if Dense.op in s.outputs:
             Out = Dense
-            bx, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
         else:
             Out = outs[0].op.output(0)
-            bx, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
-            s[Dense].compute_at(s[Out], ty)
-        s[Out].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[Out].bind(ty, tvm.thread_axis("threadIdx.y"))
+            s[Dense].compute_at(s[Out], s[Out].op.axis[1])
+        s[Out].bind(s[Out].op.axis[0], tvm.thread_axis("blockIdx.y"))
+        s[Out].bind(s[Out].op.axis[1], tvm.thread_axis("blockIdx.x"))
 
         tx = s[Dense].op.reduce_axis[0]
         thread_x = tvm.thread_axis("threadIdx.x")
