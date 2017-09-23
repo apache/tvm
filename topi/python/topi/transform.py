@@ -25,3 +25,30 @@ def expand_dims(a, axis, num_newaxis=1):
         idx = indices[:axis] + indices[axis + num_newaxis:]
         return a(*idx)
     return tvm.compute(new_shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def transpose(a, axes=None):
+    """Permute the dimensions of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+
+    axes: tuple of ints, optional
+        By default, reverse the dimensions.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    ndim = len(a.shape)
+    axes = axes if axes else tuple(reversed(range(ndim)))
+    new_shape = [a.shape[x] for x in axes]
+    def _compute(*indices):
+        idx = [1] * len(axes)
+        for i, k in enumerate(axes):
+            idx[k] = indices[i]
+        return a(*idx)
+    return tvm.compute(new_shape, _compute)

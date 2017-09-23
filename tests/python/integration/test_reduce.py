@@ -127,6 +127,57 @@ def test_rfactor_threads():
     check_target("metal")
     check_target("opencl")
 
+
+def test_rfactor_elemwise_threads():
+    n = 1025
+    m = 10
+    A = tvm.placeholder((m, n), name='A')
+    k = tvm.reduce_axis((0, n))
+    nthread = 16
+    B = tvm.compute((m,), lambda i: tvm.sum(A[i, k], axis=k), name='B')
+    BB = tvm.compute((m,), lambda i: B[i] + 1, name='BB')
+    C = tvm.compute((m,), lambda i: BB[i] + 1, name='C')
+    # schedule
+    s = tvm.create_schedule(C.op)
+    s[BB].compute_inline()
+    bx, ty = s[C].split(s[C].op.axis[0], factor=nthread)
+    ko, kf = s[B].split(k, factor=nthread)
+    BF = s.rfactor(B, kf)
+    s[B].compute_at(s[C], ty)
+    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
+    tx = s[B].op.reduce_axis[0]
+    thread_x = tvm.thread_axis("threadIdx.x")
+    s[B].bind(tx, thread_x)
+    s[BF].compute_at(s[B], tx)
+    # Since thread_x is shared across reductions
+    # only one of them need to do write back
+    s[B].set_store_predicate(thread_x.var.equal(0))
+    s[C].set_store_predicate(thread_x.var.equal(0))
+
+    # one line to build the function.
+    def check_target(device, host="stackvm"):
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
+            return
+        ctx = tvm.context(device, 0)
+        fapi = tvm.lower(s, args=[A, C])
+        fsum = tvm.build(fapi,
+                         target=device,
+                         name="mysum")
+        print(fsum.imported_modules[0].get_source())
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
+        b  = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        fsum(a, b)
+        res = np.sum(a.asnumpy(), axis=1) + 2
+        np.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target("cuda")
+    check_target("metal")
+    check_target("opencl")
+
 def test_argmax():
     def fcombine(x, y):
         lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
@@ -234,6 +285,7 @@ def test_rfactor_argmax():
     check_target("cuda")
 
 if __name__ == "__main__":
+    test_rfactor_elemwise_threads()
     test_rfactor_threads()
     test_rfactor()
     test_reduce_prims()
