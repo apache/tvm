@@ -37,5 +37,5 @@ def compute_reshape(attrs, inputs, out_info):
     oshape = out_info[0].shape
     x = inputs[0]
     return tvm.compute(oshape, lambda *i: x(_flatten_index(i, oshape)))
-reg.register_pattern("reshape", OpPattern.COMPLEX)
+reg.register_pattern("reshape", OpPattern.INJECTIVE)
 reg.register_schedule("reshape", _fschedule_broadcast)
