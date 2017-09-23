@@ -48,7 +48,7 @@ def transpose(a, axes=None):
     new_shape = [a.shape[x] for x in axes]
     def _compute(*indices):
         idx = [1] * len(axes)
-        for i, ax in enumerate(axes):
-            idx[ax] = indices[i]
+        for i, k in enumerate(axes):
+            idx[k] = indices[i]
         return a(*idx)
     return tvm.compute(new_shape, _compute)
