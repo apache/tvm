@@ -1,7 +1,27 @@
 NNVM Core Tensor Operators
 ==========================
 
+This page contains the list of core tensor operator primitives re-defined in NNVM.
+The core tensor operator primitives(``nnvm.top``) covers typical workloads in deep learning.
+They can represent workloads in front-end frameworks, and provide basic building blocks for optimization.
+Since deep learning is a fast evolving field and it is that possible to have operators that are not in here.
+NNVM is designed for this problem and can easily new operators without changing the core library.
+
+.. note::
+
+   Each operator node in the graph IR contains the following two kinds of parameters.
+
+   - inputs: positional list of input tensors
+   - attrs: attributes about operator(e.g. kernel_size in conv2d)
+
+   This document lists both inputs and attributes in the parameter field.  You can distinguish them by the marked type. The inputs are of type Tensor, while the rest parameters are attributes.
+   To construct the graph with NNVM python API, a user can pass in the input Tensors as positional arguments, and attributes as keyword arguments.
+
+
+Overview of Operators
+---------------------
 **Level 1: Basic Operators**
+
 This level enables fully connected multi-layer perceptron.
 
 .. autosummary::
@@ -76,7 +96,8 @@ This level enables typical convnet models.
    nnvm.symbol.broadcast_mul
    nnvm.symbol.broadcast_div
 
-
+Detailed Definitions
+--------------------
 .. autofunction:: nnvm.symbol.dense
 .. autofunction:: nnvm.symbol.relu
 .. autofunction:: nnvm.symbol.tanh
