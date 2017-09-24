@@ -335,8 +335,9 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) {
+      // only copy over name since that is sufficient.
       nnvm::NodePtr np = nnvm::Node::Create();
-      np->attrs = inode.source->attrs;
+      np->attrs.name = inode.source->attrs.name;
       old_new[nid] = np;
       continue;
     }
