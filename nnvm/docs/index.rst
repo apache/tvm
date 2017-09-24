@@ -11,4 +11,5 @@ Contents
    self
    top
    tutorials/index
+   api/python/index
    dev/index

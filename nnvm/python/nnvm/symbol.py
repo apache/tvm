@@ -1,5 +1,9 @@
 # pylint: disable=invalid-name, unused-import
-"""Symbolic configuration API."""
+"""Symbolic graph construction API.
+
+This namespace contains most of the registered operators.
+For detailed list of operators, checkout ``Core Tensor Operators``
+"""
 from __future__ import absolute_import as _abs
 import sys as _sys
 import os as _os

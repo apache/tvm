@@ -107,6 +107,23 @@ def test_softmax():
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 
+def test_log_softmax():
+    x = sym.Variable("x")
+    y = sym.log_softmax(x)
+    dtype = "float32"
+    dshape = (10, 1000)
+    oshape = dshape
+    for target, ctx in ctx_list():
+        with nnvm.compiler.build_config(opt_level=1):
+            graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
+        m = nnvm.runtime.create(graph, lib, ctx)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        y_np = topi.testing.log_softmax_python(data)
+        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+
+
 def test_dense():
     x = sym.Variable("x")
     y = sym.dense(x, units=3, name="dense")
@@ -161,6 +178,7 @@ def test_batchnorm():
 
 
 if __name__ == "__main__":
+    test_log_softmax()
     test_batchnorm()
     test_dense()
     test_relu()

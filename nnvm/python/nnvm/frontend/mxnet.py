@@ -2,6 +2,7 @@
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 import json
+import tvm
 from .. import symbol as _sym
 
 __all__ = ['from_mxnet']
@@ -288,17 +289,34 @@ def _from_mxnet_impl(symbol, graph):
     return node
 
 
-def from_mxnet(symbol):
-    """Convert from mxnet.Symbol to compatible nnvm.Symbol
+def from_mxnet(symbol, arg_params=None, aux_params=None):
+    """Convert from MXNet's model into compatible NNVM format.
 
     Parameters
     ----------
     symbol : mxnet.Symbol
         MXNet symbol
 
+    arg_params : dict of str to mx.NDArray
+        The argument parameters in mxnet
+
+    aux_params : dict of str to mx.NDArray
+        The auxiliary parameters in mxnet
+
     Returns
     -------
-    nnvm.Symbol
+    net: nnvm.Symbol
         Compatible nnvm symbol
+
+    params : dict of str to tvm.NDArray
+        The parameter dict to be used by nnvm
     """
-    return _from_mxnet_impl(symbol, {})
+    sym = _from_mxnet_impl(symbol, {})
+    params = {}
+    arg_params = arg_params if arg_params else {}
+    aux_params = aux_params if aux_params else {}
+    for k, v in arg_params.items():
+        params[k] = tvm.nd.array(v.asnumpy())
+    for k, v in aux_params.items():
+        params[k] = tvm.nd.array(v.asnumpy())
+    return sym, params

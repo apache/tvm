@@ -6,8 +6,8 @@ import tvm
 import topi
 from topi.util import get_const_int
 from .tensor import _fschedule_broadcast
-from ..compiler import registry as reg
-from ..compiler import OpPattern
+from . import registry as reg
+from .registry import OpPattern
 
 # relu
 @reg.register_compute("relu")
@@ -55,9 +55,26 @@ def schedule_softmax(_, outs, target):
     # naive schedule
     return tvm.create_schedule([x.op for x in outs])
 
-# Mark softmax as extern as we do not fuse it in call cases
 reg.register_pattern("softmax", OpPattern.OPAQUE)
 
+# log softmax
+@reg.register_compute("log_softmax")
+def compute_log_softmax(attrs, inputs, _):
+    """Compute definition of softmax"""
+    axis = attrs.get_int("axis")
+    assert axis == -1, "only support axis == -1 for now"
+    return topi.nn.log_softmax(inputs[0])
+
+@reg.register_schedule("log_softmax")
+def schedule_log_softmax(_, outs, target):
+    """Schedule definition of softmax"""
+    if target == "cuda":
+        return topi.cuda.schedule_softmax(outs)
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+# Mark softmax as extern as we do not fuse it in call cases
+reg.register_pattern("log_softmax", OpPattern.OPAQUE)
 
 # dense
 @reg.register_compute("dense")
