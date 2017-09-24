@@ -1,4 +1,8 @@
-"""Namespace for NNVM-TVM compiler toolchain"""
+"""NNVM compiler toolchain.
+
+User only need to use :any:`build` and :any:`build_config` to do the compilation.
+The other APIs are for more advanced interaction with the compiler toolchain.
+"""
 from __future__ import absolute_import
 
 import tvm
@@ -9,9 +13,6 @@ from . compile_engine import engine, graph_key
 
 from .. import symbol as _symbol
 from .. import graph as _graph
-
-from .registry import OpPattern
-from .registry import register_compute, register_schedule, register_pattern
 
 from .. import top as _top
 

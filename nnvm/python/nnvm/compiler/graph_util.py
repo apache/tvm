@@ -13,6 +13,9 @@ def infer_shape(graph, **shape):
     graph : Graph
         The graph to perform shape inference from
 
+    shape : dict of str to tuple
+        The specific input shape.
+
     Returns
     -------
     in_shape : list of tuple
@@ -37,6 +40,9 @@ def infer_dtype(graph, **dtype):
     ----------
     graph : Graph
         The graph to perform type inference from
+
+    dtype : dict of str to dtype
+        The specific input data type.
 
     Returns
     -------

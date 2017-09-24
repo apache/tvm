@@ -110,8 +110,13 @@ TVM_REGISTER_GLOBAL("nnvm.graph._move_module")
 TVM_REGISTER_GLOBAL("nnvm.graph._move_graph")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     const nnvm::Graph& g = args[0].AsExtension<Graph>();
-    *rv = const_cast<nnvm::Graph*>(&g)->
-        MoveCopyAttr<nnvm::Graph>(args[1]);
+    std::string key = args[1];
+    if (g.attrs.count(key)) {
+      *rv = const_cast<nnvm::Graph*>(&g)->
+          MoveCopyAttr<nnvm::Graph>(key);
+    } else {
+      *rv = nullptr;
+    }
   });
 }  // namespace compiler
 }  // namespace nnvm
