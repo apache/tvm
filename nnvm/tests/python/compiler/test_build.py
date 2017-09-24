@@ -55,26 +55,28 @@ def test_run():
 
 def test_precompute_prune():
     x = sym.Variable("x") + 1
+    a = sym.Variable("a")
     y = sym.Variable("y")
-    z = y + x
+    z = y + x + a
     shape = (10, 10)
     dtype = tvm.float32
     nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
+    na = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
     ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
-    params = {"x": nx}
+    params = {"x": nx, "a": na}
     graph, lib, params = nnvm.compiler.build(
         z, "llvm", shape={"y": ny.shape}, params=params)
-    assert graph.index.num_nodes == 3
+    assert graph.index.num_nodes == 4
     m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
     params["y"] = ny
     res = tvm.nd.empty(shape)
     m.run(**params)
     out = m.get_output(0, out=res)
     np.testing.assert_allclose(
-        res.asnumpy(), nx.asnumpy() + 1 + ny.asnumpy())
+        res.asnumpy(), nx.asnumpy() + 1 + ny.asnumpy() + na.asnumpy())
 
 
 if __name__ == "__main__":
+    test_precompute_prune()
     test_compile()
     test_run()
-    test_precompute_prune()

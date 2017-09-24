@@ -10,4 +10,5 @@ Contents
 
    self
    top
+   tutorials/index
    dev/index
