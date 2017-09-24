@@ -97,8 +97,8 @@ size_t GraphHash(const Graph& graph) {
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const IndexedGraph::Node& inode = idx[nid];
     // Use name instad op address so it is deterministic across runs
-    key = dmlc::HashCombine(key, inode.source->op()p);
     if (inode.source->is_variable()) continue;
+    key = dmlc::HashCombine(key, inode.source->op()->name);
     hash_temp.clear();
     for (const auto& kv : GetAttrDict(inode.source->attrs)) {
       hash_temp.push_back(dmlc::HashCombine(str_hash(kv.first), kv.second));
