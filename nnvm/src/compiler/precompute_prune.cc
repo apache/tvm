@@ -44,17 +44,17 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
     } else {
       // scan again to find edge nodes, skip variables
       for (auto& e : n->inputs) {
-        if (!e.node->is_variable() && pruned.count(e.node.get())) {
+        if (pruned.count(e.node.get())) {
           if (!entry_var.count(e)) {
             nnvm::NodePtr var = nnvm::Node::Create();
-            var->attrs.name = e.node->attrs.name + "_output" + std::to_string(e.index);
+            var->attrs.name = e.node->attrs.name;
+            if (e.node->num_outputs() != 1) {
+              var->attrs.name += "_output" + std::to_string(e.index);
+            }
             entry_var.emplace(e, var);
             CHECK(!unique_name.count(var->attrs.name));
             unique_name.insert(var->attrs.name);
           }
-          // TODO(ziheng): this pass now mutates the original graph structure
-          // This might not be a good thing, change to copy the structure instead
-          //
           e = nnvm::NodeEntry{entry_var.at(e), 0, 0};
         }
       }
@@ -67,7 +67,6 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
   output_names.reserve(entry_var.size());
 
   for (auto kv : entry_var) {
-    if (kv.first.node->is_variable()) continue;
     pre_graph.outputs.emplace_back(kv.first);
     output_names.emplace_back(kv.second->attrs.name);
   }

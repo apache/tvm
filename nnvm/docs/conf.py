@@ -15,6 +15,7 @@ import sys
 import os, subprocess
 import shlex
 import recommonmark
+import sphinx_gallery
 from recommonmark.parser import CommonMarkParser
 from recommonmark.transform import AutoStructify
 
@@ -50,7 +51,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
-    'sphinx.ext.mathjax'
+    'sphinx.ext.mathjax',
+    'sphinx_gallery.gen_gallery',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -129,7 +131,7 @@ if not on_rtd and html_theme == 'rtd':
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# html_static_path = ['_static']
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
@@ -164,8 +166,16 @@ intersphinx_mapping = {
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
     'matplotlib': ('http://matplotlib.org/', None),
+    'tvm': ('http://docs.tvmlang.org/', None),
 }
 
+
+from sphinx_gallery.sorting import ExplicitOrder
+
+examples_dirs = ['../tutorials/']
+gallery_dirs = ['tutorials']
+
+subsection_order = ExplicitOrder([])
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
@@ -180,3 +190,19 @@ def setup(app):
         'auto_doc_ref': True
             }, True)
     app.add_transform(AutoStructify)
+
+
+sphinx_gallery_conf = {
+    'backreferences_dir': 'gen_modules/backreferences',
+    'doc_module': ('tvm', 'nnvm', 'numpy'),
+'reference_url': {
+    'nnvm': None,
+    'tvm': 'http://docs.tvmlang.org',
+    'numpy': 'http://docs.scipy.org/doc/numpy-1.9.1'},
+    'examples_dirs': examples_dirs,
+    'gallery_dirs': gallery_dirs,
+    'subsection_order': subsection_order,
+    'find_mayavi_figures': False,
+    'filename_pattern': '.py',
+    'expected_failing_examples': []
+}
