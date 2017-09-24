@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <utility>
 #include <iostream>
+#include <string>
 #include "./base.h"
 
 namespace nnvm {
@@ -610,5 +611,14 @@ struct hash<nnvm::TShape> {
   }
 };
 }  // namespace std
+
+namespace dmlc {
+template<typename T>
+struct type_name_helper<nnvm::Tuple<T> > {
+  static inline std::string value() {
+    return "tuple of <" + type_name<T>() + ">";
+  }
+};
+}
 
 #endif  // NNVM_TUPLE_H_
