@@ -22,10 +22,10 @@ using ::tvm::AttrVisitor;
 
 /*! \brief Macro to make it easy to define node ref type given node */
 #define TVM_DEFINE_NODE_REF(TypeName, NodeName)                  \
-  class TypeName : public NodeRef {                              \
+  class TypeName : public ::tvm::NodeRef {                       \
    public:                                                       \
     TypeName() {}                                                 \
-    explicit TypeName(std::shared_ptr<Node> n) : NodeRef(n) {}    \
+    explicit TypeName(std::shared_ptr<::tvm::Node> n) : NodeRef(n) {}   \
     const NodeName* operator->() const {                          \
       return static_cast<const NodeName*>(node_.get());           \
     }                                                             \
