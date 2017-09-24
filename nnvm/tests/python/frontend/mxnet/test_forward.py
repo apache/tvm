@@ -23,7 +23,7 @@ def default_ctx():
     else:
         return tvm.cpu(0)
 
-def test_mxnet_frontend_impl(mx_symbol, data_shape=(2, 3, 224, 224), out_shape=(2, 1000)):
+def test_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(1, 1000)):
     def get_mxnet_output(symbol, x, dtype='float32'):
         from collections import namedtuple
         Batch = namedtuple('Batch', ['data'])
@@ -83,6 +83,5 @@ def test_forward_resnet():
 
 if __name__ == '__main__':
     test_forward_mlp()
-    # waiting for max_pool2d
-    # test_forward_vgg()
-    # test_forward_resnet()
+    test_forward_vgg()
+    test_forward_resnet()
