@@ -1,6 +1,9 @@
 # coding: utf-8
 # pylint: disable=invalid-name, protected-access, too-many-arguments, too-many-lines
-"""Symbolic configuration API."""
+"""NNVM Graph IR API.
+
+This is a developer API that is used to manipulate and transform graphs.
+"""
 from __future__ import absolute_import as _abs
 
 import ctypes

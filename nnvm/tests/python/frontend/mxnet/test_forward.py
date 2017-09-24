@@ -5,23 +5,11 @@ import tvm
 import nnvm.symbol as sym
 import nnvm.compiler
 import nnvm.runtime
+from nnvm.testing.config import ctx_list
 from nnvm import frontend
 import mxnet as mx
 import model_zoo
 
-USE_GPU=True
-
-def default_target():
-    if USE_GPU:
-        return 'cuda'
-    else:
-        return 'llvm'
-
-def default_ctx():
-    if USE_GPU:
-        return tvm.gpu(0)
-    else:
-        return tvm.cpu(0)
 
 def test_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(1, 1000)):
     def get_mxnet_output(symbol, x, dtype='float32'):
@@ -35,37 +23,28 @@ def test_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(
         args, auxs = mod.get_params()
         return out, args, auxs
 
-    def get_tvm_output(symbol, x, args, auxs, dtype='float32'):
+    def get_tvm_output(symbol, x, args, auxs, target, ctx, dtype='float32'):
+        new_sym, params = frontend.from_mxnet(symbol, args, auxs)
         dshape = x.shape
         shape_dict = {'data': dshape}
-        for k, v in args.items():
-            shape_dict[k] = v.shape
-        for k, v in auxs.items():
-            shape_dict[k] = v.shape
-        graph, lib, _ = nnvm.compiler.build(symbol, default_target(), shape_dict)
-        m = nnvm.runtime.create(graph, lib, default_ctx())
-        # get member functions
-        set_input, run, get_output = m['set_input'], m['run'], m['get_output']
+        graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
+        m = nnvm.runtime.create(graph, lib, ctx)
         # set inputs
-        set_input('data', tvm.nd.array(x.astype(dtype)))
-        for k, v in args.items():
-            set_input(k, tvm.nd.array(v.asnumpy().astype(dtype)))
-        for k, v in auxs.items():
-            set_input(k, tvm.nd.array(v.asnumpy().astype(dtype)))
-        # execute
-        run()
+        m.set_input("data", tvm.nd.array(x.astype(dtype)))
+        m.set_input(**params)
+        m.run()
         # get outputs
-        out = tvm.nd.empty(out_shape, dtype)
-        get_output(0, out)
+        out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
         return out.asnumpy()
 
     # random input
     dtype = 'float32'
     x = np.random.uniform(size=data_shape)
     mx_out, args, auxs = get_mxnet_output(mx_symbol, x, dtype)
-    new_sym = frontend.from_mxnet(mx_symbol)
-    tvm_out = get_tvm_output(new_sym, x, args, auxs, dtype)
-    np.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5)
+    assert "data" not in args
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(mx_symbol, x, args, auxs, target, ctx, dtype)
+        np.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5)
 
 def test_forward_mlp():
     mlp = model_zoo.mx_mlp

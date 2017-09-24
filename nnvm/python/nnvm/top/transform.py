@@ -5,8 +5,8 @@ from __future__ import absolute_import
 import tvm
 import topi
 from .tensor import _fschedule_broadcast, _fschedule_injective
-from ..compiler import registry as reg
-from ..compiler import OpPattern
+from . import registry as reg
+from .registry import OpPattern
 
 # Need add reshape
 @reg.register_compute("expand_dims")

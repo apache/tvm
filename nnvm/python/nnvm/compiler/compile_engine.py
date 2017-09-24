@@ -1,5 +1,8 @@
 # pylint: disable=invalid-name
-"""Compiler engine interface to internal engine"""
+"""Compiler engine interface to internal engine
+
+You can get the engine singleton at ``nnvm.compiler.engine``
+"""
 import tvm
 
 _list_cache_items = tvm.get_global_func("nnvm.compiler.ListCacheItems")
@@ -30,7 +33,10 @@ class GraphFunc(tvm.node.NodeBase):
 
 
 class Engine(object):
-    """Global singleton compilation engine."""
+    """Global singleton compilation engine.
+
+    You can get the singleton at ``nnvm.compiler.engine``
+    """
     def items(self):
         """List the available cache key value pairs.
 

@@ -24,6 +24,8 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
   std::unordered_set<nnvm::Node*> pruned;
   nnvm::NodeEntryMap<nnvm::NodePtr> entry_var;
   std::unordered_set<std::string> unique_name;
+  // number of edges that are not variable
+  int non_var_edge = 0;
 
   DFSVisit(src.outputs, [&](const nnvm::NodePtr& n) {
     bool can_be_pruned = true;
@@ -46,6 +48,9 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       for (auto& e : n->inputs) {
         if (pruned.count(e.node.get())) {
           if (!entry_var.count(e)) {
+            if (!e.node->is_variable()) {
+              ++non_var_edge;
+            }
             nnvm::NodePtr var = nnvm::Node::Create();
             var->attrs.name = e.node->attrs.name;
             if (e.node->num_outputs() != 1) {
@@ -60,6 +65,11 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       }
     }
   });
+
+  // nothing being pruned.
+  if (non_var_edge == 0) {
+    return src;
+  }
 
   nnvm::Graph pre_graph;
   pre_graph.outputs.reserve(entry_var.size());

@@ -105,6 +105,9 @@ def _update_shape_dtype(shape, dtype, params):
 def optimize(graph, shape, dtype="float32"):
     """Perform target and parameter invariant graph optimization.
 
+    This is an advanced function that usually do not need to be called.
+    Call build instead.
+
     Parameters
     ----------
     graph : Graph
@@ -126,7 +129,11 @@ def optimize(graph, shape, dtype="float32"):
 def build(graph, target, shape, dtype="float32", params=None):
     """Build graph into runtime library.
 
-    This is the final step of graph compilation.
+    The build function will optimize the graph and do the compilation.
+
+    When params is provided, the compiler might split the graph to
+    pre-compute certain values, so the final execution graph can
+    be different from the original one.
 
     Parameters
     ----------
@@ -255,8 +262,10 @@ def precompute_prune(graph, params):
     graph._set_json_attr("param_name_list", list(params.keys()), "list_str")
     graph = graph.apply("PrecomputePrune")
     pre_graph = graph_attr._move_out_graph(graph, "precompute_graph")
-    if not pre_graph.symbol.list_output_names():
+    if pre_graph is None:
         return graph, params
     out_names = pre_graph.json_attr("output_names")
+    if not pre_graph.symbol.list_output_names():
+        return graph, params
     out_arrs = _run_graph(pre_graph, params)
     return graph, dict(zip(out_names, out_arrs))

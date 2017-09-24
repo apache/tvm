@@ -10,6 +10,7 @@ class AttrDict(object):
     """Attribute dictionary in nnvm.
 
     Used by python registration of compute and schedule function.
+    AttrDict is passed as the first argument to schedule and compute function.
     """
     _tvm_tcode = 18
 
