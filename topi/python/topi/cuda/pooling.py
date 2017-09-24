@@ -32,9 +32,6 @@ def schedule_global_pool(outs):
             Out = outs[0].op.output(0)
             s[Pool].set_scope("local")
         i, c, h, w = s[Out].op.axis
-        dh, dw = s[Pool].op.reduce_axis
-        fuse_index = s[Pool].fuse(dw, dh)
-        s[Pool].unroll(fuse_index)
         by, ty = s[Out].split(i, factor=num_thread)
         bx, tx = s[Out].split(c, factor=num_thread)
         s[Out].reorder(by, bx, ty, tx)
