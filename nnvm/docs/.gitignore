@@ -1,2 +1,4 @@
 doxygen
 _build
+gen_modules
+tutorials

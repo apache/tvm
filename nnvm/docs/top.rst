@@ -1,5 +1,5 @@
-NNVM Core Tensor Operators
-==========================
+Core Tensor Operators
+=====================
 
 This page contains the list of core tensor operator primitives re-defined in NNVM.
 The core tensor operator primitives(``nnvm.top``) covers typical workloads in deep learning.
