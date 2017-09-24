@@ -63,11 +63,11 @@ class Graph {
    * \return The indexed graph.
    * \sa IndexedGraph
    */
-  const IndexedGraph& indexed_graph();
+  const IndexedGraph& indexed_graph() const;
 
  private:
   // internal structure of indexed graph
-  std::shared_ptr<const IndexedGraph> indexed_graph_;
+  mutable std::shared_ptr<const IndexedGraph> indexed_graph_;
 };
 
 /*!

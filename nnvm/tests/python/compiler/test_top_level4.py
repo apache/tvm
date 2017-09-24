@@ -4,7 +4,7 @@ import topi
 import nnvm.symbol as sym
 import nnvm.compiler
 import nnvm.runtime
-from nnvm.testing.config import test_ctx_list
+from nnvm.testing.config import ctx_list
 
 def verify_transpose(dshape, axes):
     x = sym.Variable("x")
@@ -14,7 +14,7 @@ def verify_transpose(dshape, axes):
         y = sym.transpose(x)
     y = y + 1
     dtype = "float32"
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
         # set input
@@ -29,7 +29,7 @@ def verify_reduce(dshape, fnp, fsym, **kwargs):
     x = sym.Variable("x")
     y = fsym(x + 1, **kwargs)
     dtype = "float32"
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
         # set input
@@ -54,3 +54,4 @@ def test_reduce():
 if __name__ == "__main__":
     test_reduce()
     test_tranpose()
+    print(nnvm.compiler.engine.dump())

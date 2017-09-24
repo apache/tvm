@@ -184,7 +184,7 @@ def build(graph, target, shape, dtype="float32", params=None):
     graph._set_json_attr("target", target, "str")
     graph._set_json_attr("opt_level", cfg.opt_level, "int")
     graph = graph.apply("InferShape").apply("InferType")
-    graph = graph.apply("GraphFusePartition").apply("GraphFuse")
+    graph = graph.apply("GraphFusePartition").apply("GraphFuseCompile")
     libmod = graph_attr._move_out_module(graph, "module")
     return graph, libmod, params
 

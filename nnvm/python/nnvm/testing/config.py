@@ -2,7 +2,7 @@
 import os
 import tvm
 
-def test_ctx_list():
+def ctx_list():
     """Get context list for testcases"""
     device_list = os.environ.get("NNVM_TEST_TARGETS", "")
     device_list = (device_list.split(",") if device_list
