@@ -1,6 +1,5 @@
 NNVM Documentation
 ==================
-Welcome to NNVM documentation.
 
 
 Contents
@@ -9,4 +8,6 @@ Contents
 .. toctree::
    :maxdepth: 1
 
+   self
    top
+   dev/index

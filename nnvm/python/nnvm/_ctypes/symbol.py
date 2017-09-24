@@ -138,12 +138,10 @@ def _make_atomic_symbol_function(handle, name):
 
     doc_str = ('%s\n\n' +
                '%s\n' +
-               'name : string, optional.\n' +
-               '    Name of the resulting symbol.\n\n' +
                'Returns\n' +
                '-------\n' +
-               'symbol: Symbol\n' +
-               '    The result symbol.')
+               'result: Tensor\n' +
+               '    The result Tensor.')
     doc_str = doc_str % (desc, param_str)
 
     def creator(*args, **kwargs):

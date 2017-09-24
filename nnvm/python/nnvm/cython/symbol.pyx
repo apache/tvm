@@ -122,12 +122,10 @@ cdef _make_atomic_symbol_function(OpHandle handle, string name):
     func_name = py_str(name.c_str())
     doc_str = ('%s\n\n' +
                '%s\n' +
-               'name : string, optional.\n' +
-               '    Name of the resulting symbol.\n\n' +
                'Returns\n' +
                '-------\n' +
-               'symbol: Symbol\n' +
-               '    The result symbol.')
+               'result: Tensor\n' +
+               '    The result Tensor.')
     doc_str = doc_str % (desc, param_str)
     func_hint = func_name.lower()
 
