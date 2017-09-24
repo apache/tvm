@@ -16,7 +16,6 @@ def test_relu():
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         data = (data < 0) * data * 0.3 + (data>0) * data - 0.2
@@ -34,17 +33,10 @@ def test_exp():
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        set_input("x", data)
-        # execute
-        run()
-        # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
-        y_np = np.exp(data.asnumpy())
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        y_np = np.exp(data)
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 
@@ -58,17 +50,10 @@ def test_log():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        set_input("x", data)
-        # execute
-        run()
-        # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
-        y_np = np.log(data.asnumpy())
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        y_np = np.log(data)
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 
@@ -82,17 +67,10 @@ def test_tanh():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        set_input("x", data)
-        # execute
-        run()
-        # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
-        y_np = np.sinh(data.asnumpy()) / np.cosh(data.asnumpy())
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        y_np = np.sinh(data) / np.cosh(data)
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 
@@ -105,17 +83,10 @@ def test_sigmoid():
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        set_input("x", data)
-        # execute
-        run()
-        # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
-        y_np = 1.0 / (1.0 + np.exp(-data.asnumpy()))
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        y_np = 1.0 / (1.0 + np.exp(-data))
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 
@@ -129,17 +100,10 @@ def test_softmax():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = nnvm.runtime.create(graph, lib, ctx)
-        # get member functions
-        set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        set_input("x", data)
-        # execute
-        run()
-        # get output
-        out = tvm.nd.empty(oshape, dtype)
-        get_output(0, out)
-        y_np = topi.testing.softmax_python(data.asnumpy())
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        y_np = topi.testing.softmax_python(data)
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 

@@ -202,7 +202,6 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
   TShape pool_size;
   TShape strides;
   TShape padding;
-  int groups;
   int layout;
   bool ceil_mode;
 
@@ -214,12 +213,6 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
     DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
                 "on both sides for padding number of points");
-    DMLC_DECLARE_FIELD(groups).set_default(1)
-      .describe("Controls the connections between inputs and outputs."
-                "At groups=1, all inputs are convolved to all outputs."
-                "At groups=2, the operation becomes equivalent to having two convolution"
-                "layers side by side, each seeing half the input channels, and producing"
-                "half the output channels, and both subsequently concatenated.");
     DMLC_DECLARE_FIELD(layout)
       .add_enum("NCHW", kNCHW)
       .add_enum("NHWC", kNHWC)
