@@ -180,7 +180,7 @@ void PrintGraphIR_(Graph src,
 }
 
 // save a graph to json
-Graph PrintGraphIR(Graph src) {
+Graph PrintGraphIRPass(Graph src) {
   std::ostringstream os;
   std::vector<std::string> join_entry_attrs, join_node_attrs;
   if (src.attrs.count("join_entry_attrs") != 0) {
@@ -200,7 +200,7 @@ Graph PrintGraphIR(Graph src) {
 // register pass
 NNVM_REGISTER_PASS(PrintGraphIR)
 .describe("Return a empty Graph, save ir to ret.attrs[\"graphir\"]")
-.set_body(PrintGraphIR);
+.set_body(PrintGraphIRPass);
 
 }  // namespace pass
 }  // namespace nnvm

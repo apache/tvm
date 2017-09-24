@@ -4,7 +4,7 @@ import tvm
 import topi
 from nnvm import symbol as sym
 from nnvm.compiler import graph_util, graph_attr
-from nnvm.testing.config import test_ctx_list
+from nnvm.testing import ctx_list
 
 def test_ewise_injective():
     x = sym.Variable("x")
@@ -14,7 +14,7 @@ def test_ewise_injective():
     shape_dict = {"x": dshape}
     dtype = "float32"
     target = "llvm"
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         assert graph.index.num_nodes == 2
         m = nnvm.runtime.create(graph, lib, ctx)
@@ -37,7 +37,7 @@ def test_conv_ewise_injective():
     oshape = (1, 32* 18 * 18)
     shape_dict = {"x": dshape}
 
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         m = nnvm.runtime.create(graph, lib, ctx)
         # print(graph.ir(join_entry_attrs=["shape"]))
@@ -64,7 +64,7 @@ def test_injective_reduce_injective():
     dshape = (32, 1, 18, 18)
     shape_dict = {"x": dshape}
 
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         m = nnvm.runtime.create(graph, lib, ctx)
         assert graph.index.num_nodes == 2

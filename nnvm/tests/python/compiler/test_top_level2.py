@@ -5,7 +5,7 @@ import topi
 import nnvm.symbol as sym
 import nnvm.compiler
 import nnvm.runtime
-from nnvm.testing.config import test_ctx_list
+from nnvm.testing.config import ctx_list
 
 
 def test_conv2d():
@@ -17,7 +17,7 @@ def test_conv2d():
     kshape = (10, 3, 3, 3)
     oshape = (1, 10, 18, 18)
     shape_dict = {"x": dshape}
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         m = nnvm.runtime.create(graph, lib, ctx)
         # get member functions
@@ -46,7 +46,7 @@ def test_grouped_conv2d():
     kshape = (32, 1, 3, 3)
     oshape = (1, 32, 18, 18)
     shape_dict = {"x": dshape}
-    for target, ctx in test_ctx_list():
+    for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         m = nnvm.runtime.create(graph, lib, ctx)
         # set input
