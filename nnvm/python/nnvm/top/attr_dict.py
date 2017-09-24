@@ -94,7 +94,17 @@ class AttrDict(object):
         value : bool
             The result value
         """
-        return self[key] != "False"
+        lowercase = self[key].lower()
+        if lowercase == "1":
+            return True
+        elif lowercase == "0":
+            return False
+        elif lowercase == "true":
+            return True
+        elif lowercase == "false":
+            return False
+        else:
+            raise ValueError("Wrong bool format for key %s" % key)
 
     def __repr__(self):
         return str({k : self[k] for k in self.keys()})

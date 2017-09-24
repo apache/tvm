@@ -202,8 +202,6 @@ class Tuple {
       if (it != begin) os << ',';
       os << *it;
     }
-    // python style tuple
-    if (t.ndim() == 1) os << ',';
     os << ']';
     return os;
   }
