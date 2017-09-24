@@ -9,7 +9,7 @@
 
 namespace nnvm {
 
-const IndexedGraph& Graph::indexed_graph() {
+const IndexedGraph& Graph::indexed_graph() const {
   if (indexed_graph_ == nullptr) {
     indexed_graph_.reset(new IndexedGraph(*this));
   }

@@ -41,6 +41,17 @@ inline std::string SaveJSON(Graph graph) {
   return ret.GetAttr<std::string>("json");
 }
 
+
+/*!
+ * \brief Print graph ir
+ * \param graph The graph to be printed
+ * \return The graph ir string.
+ */
+inline std::string PrintGraphIR(Graph graph) {
+  Graph ret = ApplyPass(std::move(graph), "PrintGraphIR");
+  return ret.GetAttr<std::string>("graphir");
+}
+
 /*!
  * \brief Add control flow dependencies between nodes.
  *
