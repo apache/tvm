@@ -299,7 +299,6 @@ inline void TVMOpParamParser(nnvm::NodeAttrs* attrs) {
   attrs->parsed = std::move(param);
 }
 
-DMLC_REGISTER_PARAMETER(TVMOpParam);
 
 NNVM_REGISTER_OP(tvm_op)
 .set_attr_parser(TVMOpParamParser)
@@ -328,12 +327,12 @@ tvm::runtime::Module RuntimeCreate(std::string sym_json,
   return tvm::runtime::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("nnvm.runtime.create")
+TVM_REGISTER_GLOBAL("nnvm.runtime.createx")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     *rv = RuntimeCreate(args[0], args[1], args[2], args[3]);
   });
 
-TVM_REGISTER_GLOBAL("nnvm.runtime.remote_create")
+TVM_REGISTER_GLOBAL("nnvm.runtime.remote_createx")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     void* mhandle = args[1];
     *rv = RuntimeCreate(args[0],

@@ -17,32 +17,10 @@
 #include <nnvm/pass.h>
 #include <vector>
 #include <string>
+#include "./graph_runtime.h"
 
 namespace nnvm {
 namespace runtime {
-
-/*! \brief Magic number for NDArray file */
-constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
-/*! \brief Magic number for NDArray list file  */
-constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
-
-/*! \brief DLPack compatible data types */
-using DLTypeVector = std::vector<DLDataType>;
-
-/*! \brief operator attributes about tvm op */
-struct TVMOpParam : public dmlc::Parameter<TVMOpParam> {
-  std::string func_name;
-  uint32_t num_inputs;
-  uint32_t num_outputs;
-  bool flatten_data;
-
-  DMLC_DECLARE_PARAMETER(TVMOpParam) {
-    DMLC_DECLARE_FIELD(func_name);
-    DMLC_DECLARE_FIELD(num_inputs).set_default(1);
-    DMLC_DECLARE_FIELD(num_outputs).set_default(1);
-    DMLC_DECLARE_FIELD(flatten_data).set_default(false);
-  }
-};
 
 /*!
  * \brief TVM Graph Executor.
