@@ -1,7 +1,9 @@
+# pylint: disable=invalid-name
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
+from .util import ravel_index, unravel_index
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -52,3 +54,24 @@ def transpose(a, axes=None):
             idx[k] = indices[i]
         return a(*idx)
     return tvm.compute(new_shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def reshape(a, newshape):
+    """Reshape the array
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be reshaped
+    newshape : tuple of ints
+        The new shape
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    ndim = len(a.shape)
+    a_shape = [a.shape[i] for i in range(ndim)]
+    return tvm.compute([tvm.convert(ele) for ele in newshape],
+                       lambda *indices: a(*unravel_index(ravel_index(indices, newshape), a_shape)))

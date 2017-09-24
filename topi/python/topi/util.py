@@ -79,3 +79,28 @@ def simplify(expr):
         The simplified output
     """
     return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.Expr) else expr
+
+
+def ravel_index(indices, shape):
+    """flatten the index tuple to 1D"""
+    idx = 0
+    for i, value in enumerate(shape):
+        if i != 0:
+            idx *= value
+        idx = idx + indices[i]
+    return idx
+
+
+def unravel_index(idx, shape):
+    """convert the flattened ind to the coordinate array"""
+    indices = []
+    for i in range(len(shape) - 1):
+        # We append the indices from the first to the last (not from the last to the first)
+        #  to enable the indexing optimization
+        shape_denom = shape[i + 1]
+        for j in range(i + 2, len(shape)):
+            shape_denom = shape_denom * shape[j]
+        indices.append(idx / shape_denom)
+        idx = idx % shape_denom
+    indices.append(idx)
+    return indices
