@@ -18,6 +18,7 @@ def compute_relu(attrs, inputs, _):
 reg.register_schedule("relu", _fschedule_broadcast)
 reg.register_pattern("relu", OpPattern.ELEMWISE)
 
+
 # leaky_relu
 @reg.register_compute("leaky_relu")
 def compute_leaky_relu(attrs, inputs, _):
@@ -26,6 +27,7 @@ def compute_leaky_relu(attrs, inputs, _):
 
 reg.register_schedule("leaky_relu", _fschedule_broadcast)
 reg.register_pattern("leaky_relu", OpPattern.ELEMWISE)
+
 
 # flatten
 @reg.register_compute("flatten")
@@ -73,11 +75,10 @@ def schedule_dense(_, outs, target):
     # naive schedule
     return tvm.create_schedule([x.op for x in outs])
 
-# register extern for now, change me when fusion is enabled.
 reg.register_pattern("dense", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
-# conv
+# conv2d
 @reg.register_compute("conv2d")
 def compute_conv2d(attrs, inputs, _):
     """Compute definition of conv2d"""
@@ -113,3 +114,89 @@ def schedule_conv2d(attrs, outs, target):
     return tvm.create_schedule([x.op for x in outs])
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# max_pool2d
+@reg.register_compute("max_pool2d")
+def compute_max_pool2d(attrs, inputs, _):
+    """Compute definition of max_pool2d"""
+    pool_size = attrs.get_int_tuple("pool_size")
+    strides = attrs.get_int_tuple("strides")
+    padding = attrs.get_int_tuple("padding")
+    layout = attrs["layout"]
+    ceil_mode = attrs["ceil_mode"]
+    assert layout == "NCHW", "only support nchw for now"
+    assert ceil_mode == "False", "not support ceil_mode now"
+    return topi.nn.pool(inputs[0], pool_size, strides, padding, pool_type='max')
+
+@reg.register_schedule("max_pool2d")
+def schedule_max_pool2d(_, outs, target):
+    """Schedule definition of max_pool2d"""
+    if target == "cuda":
+        return topi.cuda.schedule_pool(outs)
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+reg.register_pattern("max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool2d
+@reg.register_compute("avg_pool2d")
+def compute_avg_pool2d(attrs, inputs, _):
+    """Compute definition of avg_pool2d"""
+    pool_size = attrs.get_int_tuple("pool_size")
+    strides = attrs.get_int_tuple("strides")
+    padding = attrs.get_int_tuple("padding")
+    layout = attrs["layout"]
+    ceil_mode = attrs["ceil_mode"]
+    assert layout == "NCHW", "only support nchw for now"
+    assert ceil_mode == "False", "not support ceil_mode now"
+    return topi.nn.pool(inputs[0], pool_size, strides, padding, pool_type='avg')
+
+@reg.register_schedule("avg_pool2d")
+def schedule_avg_pool2d(_, outs, target):
+    """Schedule definition of avg_pool2d"""
+    if target == "cuda":
+        return topi.cuda.schedule_pool(outs)
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+reg.register_pattern("avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# global_max_pool2d
+@reg.register_compute("global_max_pool2d")
+def compute_global_max_pool2d(attrs, inputs, _):
+    """Compute definition of global_max_pool2d"""
+    layout = attrs["layout"]
+    assert layout == "NCHW", "only support nchw for now"
+    return topi.nn.global_pool(inputs[0], pool_type='max')
+
+@reg.register_schedule("global_max_pool2d")
+def schedule_global_max_pool2d(_, outs, target):
+    """Schedule definition of global_max_pool2d"""
+    if target == "cuda":
+        return topi.cuda.schedule_global_pool(outs)
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+reg.register_pattern("global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# global_avg_pool2d
+@reg.register_compute("global_avg_pool2d")
+def compute_global_avg_pool2d(attrs, inputs, _):
+    """Compute definition of global_avg_pool2d"""
+    layout = attrs["layout"]
+    assert layout == "NCHW", "only support nchw for now"
+    return topi.nn.global_pool(inputs[0], pool_type='avg')
+
+@reg.register_schedule("global_avg_pool2d")
+def schedule_global_avg_pool2d(_, outs, target):
+    """Schedule definition of global_avg_pool2d"""
+    if target == "cuda":
+        return topi.cuda.schedule_global_pool(outs)
+    # naive schedule
+    return tvm.create_schedule([x.op for x in outs])
+
+reg.register_pattern("global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
