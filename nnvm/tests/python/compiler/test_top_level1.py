@@ -1,9 +1,9 @@
 import numpy as np
 import tvm
+from tvm.contrib import graph_runtime
 import topi
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 from nnvm.testing.config import ctx_list
 
 def test_relu():
@@ -15,7 +15,7 @@ def test_relu():
     oshape = dshape
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         data = (data < 0) * data * 0.3 + (data>0) * data - 0.2
@@ -32,7 +32,7 @@ def test_exp():
     oshape = dshape
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -49,7 +49,7 @@ def test_log():
     for target, ctx in ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -66,7 +66,7 @@ def test_tanh():
     for target, ctx in ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -82,7 +82,7 @@ def test_sigmoid():
     oshape = dshape
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -99,7 +99,7 @@ def test_softmax():
     for target, ctx in ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -116,7 +116,7 @@ def test_log_softmax():
     for target, ctx in ctx_list():
         with nnvm.compiler.build_config(opt_level=1):
             graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -136,7 +136,7 @@ def test_dense():
     }
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         x_np = np.random.uniform(size=shape["x"]).astype(dtype)
         w_np = np.random.uniform(size=shape["dense_weight"]).astype(dtype)
         b_np = np.random.uniform(size=shape["dense_bias"]).astype(dtype)
@@ -162,7 +162,7 @@ def test_batchnorm():
 
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, "llvm", {"x": shape})
-        m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
+        m = graph_runtime.create(graph, lib, tvm.cpu(0))
         x_np = np.random.uniform(size=shape).astype(dtype)
         mean_np = np.random.uniform(size=shape[1]).astype(dtype)
         var_np = np.random.uniform(size=shape[1]).astype(dtype)

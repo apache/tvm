@@ -1,10 +1,10 @@
 import numpy as np
 
 import tvm
+from tvm.contrib import graph_runtime
 import topi
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 from nnvm.testing.config import ctx_list
 
 
@@ -19,7 +19,7 @@ def test_conv2d():
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
         bias = tvm.nd.array(np.random.uniform(size=kshape[0]).astype(dtype))
@@ -42,7 +42,7 @@ def test_grouped_conv2d():
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
         bias = tvm.nd.array(np.random.uniform(size=kshape[0]).astype(dtype))
@@ -63,7 +63,7 @@ def test_max_pool2d():
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -80,7 +80,7 @@ def test_avg_pool2d():
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -97,7 +97,7 @@ def test_global_max_pool2d():
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
@@ -114,7 +114,7 @@ def test_global_avg_pool2d():
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))

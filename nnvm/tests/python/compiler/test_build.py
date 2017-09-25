@@ -1,9 +1,9 @@
 import numpy as np
 
 import tvm
+from tvm.contrib import graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 from nnvm.compiler.build_module import _run_graph, precompute_prune
 
 def test_compile():
@@ -14,7 +14,7 @@ def test_compile():
     dtype = tvm.float32
     shape_dict = {"x": shape, "y": shape}
     def verify(graph, lib):
-        m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
+        m = graph_runtime.create(graph, lib, tvm.cpu(0))
         # get member functions
         set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
         na = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
@@ -67,7 +67,7 @@ def test_precompute_prune():
     graph, lib, params = nnvm.compiler.build(
         z, "llvm", shape={"y": ny.shape}, params=params)
     assert graph.index.num_nodes == 4
-    m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
+    m = graph_runtime.create(graph, lib, tvm.cpu(0))
     params["y"] = ny
     res = tvm.nd.empty(shape)
     m.run(**params)

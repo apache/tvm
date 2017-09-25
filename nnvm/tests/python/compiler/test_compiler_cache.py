@@ -1,8 +1,8 @@
 import numpy as np
 import tvm
+from tvm.contrib import graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 
 def test_compile_cache():
     x = sym.Variable("x")
@@ -12,7 +12,7 @@ def test_compile_cache():
     dtype = tvm.float32
     shape_dict = {"x": shape, "y": shape}
     def verify(graph, lib):
-        m = nnvm.runtime.create(graph, lib, tvm.cpu(0))
+        m = graph_runtime.create(graph, lib, tvm.cpu(0))
         # get member functions
         na = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
         nb = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
