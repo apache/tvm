@@ -53,6 +53,7 @@ CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
+GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
 
 # Objectives
@@ -63,6 +64,7 @@ CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
+GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
 RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
 CONTRIB_OBJ =
@@ -122,6 +124,10 @@ endif
 
 ifeq ($(USE_RPC), 1)
 	RUNTIME_DEP += $(RPC_OBJ)
+endif
+
+ifeq ($(USE_GRAPH_RUNTIME), 1)
+	RUNTIME_DEP += $(GRAPH_OBJ)
 endif
 
 include make/contrib/cblas.mk

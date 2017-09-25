@@ -45,7 +45,10 @@ USE_OPENCL = 0
 USE_METAL = 0
 
 # Whether enable RPC during compile
-USE_RPC = 0
+USE_RPC = 1
+
+# Whether enable tiny embedded graph runtime.
+USE_GRAPH_RUNTIME = 1
 
 # whether build with LLVM support
 # Requires LLVM version >= 4.0
