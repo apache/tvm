@@ -156,6 +156,37 @@ class GraphRuntime : public ModuleNode {
     // control deps
     std::vector<uint32_t> control_deps;
     // JSON Loader
+    void LoadAttrs(dmlc::JSONReader *reader, TVMOpParam* param) {
+      int bitmask = 0;
+      std::string key, value;
+      reader->BeginObject();
+      while (reader->NextObjectItem(&key)) {
+        if (key == "func_name") {
+          reader->Read(&value);
+          param->func_name = value;
+          bitmask |= 1;
+        } else if (key == "num_inputs") {
+          reader->Read(&value);
+          std::istringstream is(value);
+          is >> param->num_inputs;
+          bitmask |= 2;
+        } else if (key == "num_outputs") {
+          reader->Read(&value);
+          std::istringstream is(value);
+          is >> param->num_outputs;
+          bitmask |= 4;
+        } else if (key == "flatten_data") {
+          reader->Read(&value);
+          std::istringstream is(value);
+          is >> param->flatten_data;
+          bitmask |= 8;
+        } else {
+          reader->Read(&value);
+        }
+      }
+      CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
+    }
+    // JSON Loader
     void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
       std::unordered_map<std::string, std::string> dict;
@@ -172,8 +203,7 @@ class GraphRuntime : public ModuleNode {
           reader->Read(&inputs);
           bitmask |= 4;
         } else if (key == "attr" || key == "attrs") {
-          reader->Read(&dict);
-          param.Init(dict);
+          this->LoadAttrs(reader, &param);
         } else if (key == "control_deps") {
           reader->Read(&control_deps);
         } else {
@@ -263,6 +293,8 @@ class GraphRuntime : public ModuleNode {
         } else if (key == "attrs") {
           reader->Read(&attrs_);
           bitmask |= 16;
+        } else {
+          LOG(FATAL) << "key " << key << " is not supported";
         }
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
@@ -320,7 +352,6 @@ class GraphRuntime : public ModuleNode {
   std::vector<std::function<void()> > op_execs_;
 };
 
-DMLC_REGISTER_PARAMETER(TVMOpParam);
 
 bool GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
   uint64_t header, reserved;
