@@ -93,6 +93,7 @@ def concatenate(a_tuple, axis=0):
     -------
     ret : tvm.Tensor
     """
+    assert isinstance(a_tuple, (list, tuple))
     if axis < 0:
         axis += len(a_tuple[0].shape)
     assert axis < len(a_tuple[0].shape)
@@ -105,7 +106,7 @@ def concatenate(a_tuple, axis=0):
         ind = indices[axis]
         for i in range(len(a_tuple) - 1):
             ind -= axis_sizes[i]
-            ret = tvm.select(ind >= axis_sizes[i],
+            ret = tvm.select(ind >= 0,
                              a_tuple[i + 1](*(indices[0:axis] + (ind,) + indices[axis + 1:])),
                              ret)
         return ret

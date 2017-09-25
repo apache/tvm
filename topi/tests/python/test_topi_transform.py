@@ -72,7 +72,7 @@ def verify_reshape(src_shape, dst_shape):
 def verify_concatenate(shapes, axis):
     tensor_l = []
     for i, shape in enumerate(shapes):
-        tensor_l = tvm.placeholder(shape, name="A" + str(i))
+        tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
     out_tensor = topi.concatenate(a_tuple=tensor_l, axis=axis)
     s = topi.cuda.schedule_injective(out_tensor)
     def check_device(device):
@@ -125,3 +125,4 @@ if __name__ == "__main__":
     test_tranpose()
     test_expand_dims()
     test_reshape()
+    test_concatenate()
