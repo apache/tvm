@@ -1,4 +1,4 @@
-"""Minimum graph runtime that executes nnvm graph containing TVM PackedFunc."""
+"""Minimum graph runtime that executes graph containing TVM PackedFunc."""
 from . import rpc
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
@@ -6,12 +6,14 @@ from .. import ndarray as nd
 
 
 def create(graph_json_str, libmod, ctx):
-    """Create a runtime executor module given the graph and module.
+    """Create a runtime executor module given a graph and module.
 
     Parameters
     ----------
     graph_json_str : str or graph class
         The graph to be deployed in json format output by nnvm graph.
+        The graph can only contain one operator(tvm_op) that
+        points to the name of PackedFunc in the libmod.
 
     libmod : tvm.Module
         The module of the corresponding function
@@ -51,7 +53,7 @@ class GraphModule(object):
 
     Parameters
     ----------
-    module : tvm.Module
+    module : Module
         The interal tvm module that holds the actual graph functions.
 
     ctx : TVMContext
@@ -59,7 +61,7 @@ class GraphModule(object):
 
     Attributes
     ----------
-    module : tvm.Module
+    module : Module
         The interal tvm module that holds the actual graph functions.
 
     ctx : TVMContext
@@ -112,7 +114,7 @@ class GraphModule(object):
         index : int
             The input index
 
-        out : tvm.NDArray
+        out : NDArray
             The output array container
         """
         self._get_output(index, out)
