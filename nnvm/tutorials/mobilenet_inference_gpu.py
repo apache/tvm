@@ -8,10 +8,9 @@ This is an example of using NNVM to compile MobileNet model and deploy its infer
 To begin with, we import nnvm(for compilation) and TVM(for deployment).
 """
 import tvm
+from tvm.contrib import nvcc, graph_runtime
 import nnvm.compiler
-import nnvm.runtime
 import nnvm.testing
-from tvm.contrib import nvcc
 
 ######################################################################
 # Register the NVCC Compiler Option
@@ -56,7 +55,7 @@ net, params = nnvm.testing.mobilenet.get_workload(
 #
 # To compile the graph, we call the build function with the graph
 # configuration and parameters.
-# When parameters are provided, NNVM will pre-compute certain part of the graph if possible, 
+# When parameters are provided, NNVM will pre-compute certain part of the graph if possible,
 # the new parameter set returned as the third return value.
 
 graph, lib, params = nnvm.compiler.build(
@@ -66,12 +65,14 @@ graph, lib, params = nnvm.compiler.build(
 # Run the Compiled Module
 # -----------------------
 #
-# To deploy the module, we call :any:`nnvm.runtime.create` passing in the graph the lib and context.
+# To deploy the module, we call :any:`tvm.contrib.graph_runtime.create` passing in the graph the lib and context.
 # Thanks to TVM, we can deploy the compiled module to many platforms and languages.
 # The deployment module is designed to contain minimum dependencies.
 # This example runs on the same machine.
+#
+# Note that the code below no longer depends on NNVM, and only relies TVM's runtime to run(deploy).
 
-module = nnvm.runtime.create(graph, lib, ctx)
+module = graph_runtime.create(graph, lib, ctx)
 # set input
 module.set_input(**params)
 # run

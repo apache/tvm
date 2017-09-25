@@ -1,9 +1,9 @@
 import numpy as np
 import tvm
+from tvm.contrib import graph_runtime
 import topi
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 from nnvm.testing.config import ctx_list
 
 def verify_transpose(dshape, axes):
@@ -16,7 +16,7 @@ def verify_transpose(dshape, axes):
     dtype = "float32"
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         # set input
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         m.run(x=data)
@@ -31,7 +31,7 @@ def verify_reduce(dshape, fnp, fsym, **kwargs):
     dtype = "float32"
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         # set input
         data = np.random.uniform(size=dshape).astype(dtype)
         out_np = fnp(data + 1, **kwargs)

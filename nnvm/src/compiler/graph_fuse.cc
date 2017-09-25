@@ -14,10 +14,30 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/lowered_func.h>
 #include "./compile_engine.h"
-#include "../runtime/graph_executor.h"
+#include "../../tvm/src/runtime/graph/graph_runtime.h"
 
 namespace nnvm {
 namespace compiler {
+
+using tvm::runtime::TVMOpParam;
+
+// parser
+inline void TVMOpParamParser(nnvm::NodeAttrs* attrs) {
+  TVMOpParam param;
+  param.Init(attrs->dict);
+  attrs->parsed = std::move(param);
+}
+
+NNVM_REGISTER_OP(tvm_op)
+.set_attr_parser(TVMOpParamParser)
+.set_num_inputs([](const NodeAttrs& attrs) {
+    const TVMOpParam& param = nnvm::get<TVMOpParam>(attrs.parsed);
+    return param.num_inputs;
+  })
+.set_num_outputs([](const NodeAttrs& attrs) {
+    const TVMOpParam& param = nnvm::get<TVMOpParam>(attrs.parsed);
+    return param.num_outputs;
+  });
 
 using namespace tvm;
 

@@ -1,8 +1,7 @@
-from tvm.contrib import util, rpc
 import tvm
+from tvm.contrib import util, rpc, graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 import numpy as np
 
 def test_rpc_executor():
@@ -29,7 +28,7 @@ def test_rpc_executor():
     rlib = remote.load_module("net.o")
 
     # Create remotemodule
-    m = nnvm.runtime.create(graph, rlib, remote.cpu(0))
+    m = graph_runtime.create(graph, rlib, remote.cpu(0))
     # get member functions
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
     na = tvm.nd.array(np.ones(shape).astype(dtype), ctx)
