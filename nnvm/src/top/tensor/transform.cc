@@ -225,15 +225,17 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
     CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
-    dim_t total = 0;
-    for (size_t i = 1; i < num_outputs; ++i) {
-      oshape[param.axis] = param.indices_or_sections[i - 1];
-      total += oshape[param.axis];
-      NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i - 1, oshape);
+    dim_t begin = 0;
+    for (size_t i = 0; i < num_outputs - 1; ++i) {
+      CHECK_GT(param.indices_or_sections[i], begin)
+          << "indices_or_sections need to be a sorted ascending list";
+      oshape[param.axis] = param.indices_or_sections[i] - begin;
+      begin = param.indices_or_sections[i];
+      NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
     }
-    CHECK_LT(total, dshape[param.axis])
+    CHECK_LT(begin, dshape[param.axis])
         << "The sum of sections must match the input.shape[axis]";
-    oshape[param.axis] = dshape[param.axis] - total;
+    oshape[param.axis] = dshape[param.axis] - begin;
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, num_outputs - 1, oshape);
   }
   return true;
@@ -256,11 +258,11 @@ NNVM_REGISTER_OP(split)
 along which to split the array.
 
 )code" NNVM_ADD_FILELINE)
-.add_argument("data", "Tensor", "List of arrays to concatenate")
+.add_argument("data", "Tensor", "Array to be splitted")
 .add_arguments(SplitParam::__FIELDS__())
 .set_attr_parser(SplitParamParser)
 .set_attr<FInferShape>("FInferShape", SplitInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, -1>)
 .set_num_inputs(1)
 .set_num_outputs(SplitNumOutputs)
 .set_support_level(1);
