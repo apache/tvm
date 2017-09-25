@@ -114,7 +114,12 @@ def test_reshape():
 def test_concatenate():
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
     verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
-t
+    verify_concatenate([(5, 6, 7, 3),
+                        (16, 6, 7, 3),
+                        (12, 6, 7, 3),
+                        (8, 6, 7, 3),
+                        (2, 6, 7, 3)], 0)
+
 
 if __name__ == "__main__":
     test_tranpose()

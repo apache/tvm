@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
-from .util import ravel_index, unravel_index, get_const_int
+from .util import ravel_index, unravel_index
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
