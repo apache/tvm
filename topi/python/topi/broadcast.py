@@ -80,7 +80,7 @@ def _get_binary_op_bcast_shape(lhs_shape, rhs_shape):
 
 
 
-@tvm.tag_scope(tag="broadcast_to")
+@tvm.tag_scope(tag=tag.BROADCAST)
 def broadcast_to(data, shape):
     """Broadcast the src to the target shape
 
@@ -97,20 +97,20 @@ def broadcast_to(data, shape):
     -------
     ret : tvm.Tensor
     """
-    def _bcast_to_arg_eval(data, bcast_info, *args):
+    def _bcast_to_arg_eval(data, bcast_info, *indices):
         indices_tuple = []
-        for i in range(len(args)):
+        for i, ind in enumerate(indices):
             if bcast_info[i] == 0:
-                indices_tuple.append(args[i])
+                indices_tuple.append(ind)
             elif bcast_info[i] == 1:
                 indices_tuple.append(0)
         return data[tuple(indices_tuple)]
     original_shape = data.shape
     bcast_info = _get_bcast_info(original_shape=original_shape, target_shape=shape)
-    ret = tvm.compute([tvm.convert(ele) for ele in shape],
-                      lambda *args: _bcast_to_arg_eval(data,
-                                                       bcast_info,
-                                                       *args), name=data.name + "_broadcast")
+    ret = tvm.compute(shape,
+                      lambda *indices: _bcast_to_arg_eval(data,
+                                                          bcast_info,
+                                                          *indices), name=data.name + "_broadcast")
     return ret
 
 
@@ -131,25 +131,25 @@ def broadcast_binary_op(lhs, rhs, func, name="bop"):
     -------
     ret : tvm.Tensor
     """
-    def _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info, func, *args):
+    def _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info, func, *indices):
         lhs_indices = []
         rhs_indices = []
-        for i in range(len(args)):
+        for i, ind in enumerate(indices):
             if lhs_bcast_info[i] == 0:
-                lhs_indices.append(args[i])
+                lhs_indices.append(ind)
             elif lhs_bcast_info[i] == 1:
                 lhs_indices.append(0)
             if rhs_bcast_info[i] == 0:
-                rhs_indices.append(args[i])
+                rhs_indices.append(ind)
             elif rhs_bcast_info[i] == 1:
                 rhs_indices.append(0)
         return func(lhs[tuple(lhs_indices)], rhs[tuple(rhs_indices)])
     ret_shape = _get_binary_op_bcast_shape(get_const_tuple(lhs.shape), get_const_tuple(rhs.shape))
     lhs_bcast_info = _get_bcast_info(original_shape=lhs.shape, target_shape=ret_shape)
     rhs_bcast_info = _get_bcast_info(original_shape=rhs.shape, target_shape=ret_shape)
-    ret = tvm.compute([tvm.convert(ele) for ele in ret_shape],
-                      lambda *args: _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info,
-                                                    func, *args),
+    ret = tvm.compute(ret_shape,
+                      lambda *indices: _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info,
+                                                       func, *indices),
                       name=lhs.name + "_" + rhs.name + "_" + name)
     return ret
 

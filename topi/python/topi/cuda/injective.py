@@ -30,7 +30,9 @@ def schedule_injective(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     tvm.schedule.AutoInlineInjective(s)
-    return _schedule_injective(outs[0].op, s)
+    for out in outs:
+        _schedule_injective(out.op, s)
+    return s
 
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective
