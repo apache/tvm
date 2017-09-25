@@ -17,7 +17,7 @@ UNROLL_WLOAD = True
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     """Use nvcc compiler for better perf."""
-    ptx =  nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
+    ptx =  nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 def write_code(code, fname):
