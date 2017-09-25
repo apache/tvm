@@ -8,6 +8,7 @@
 
 #include <nnvm/graph.h>
 #include <vector>
+#include <string>
 #include "../../tvm/src/runtime/graph/graph_runtime.h"
 
 namespace nnvm {
