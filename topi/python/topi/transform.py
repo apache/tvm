@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
-from .util import ravel_index, unravel_index
+from .util import ravel_index, unravel_index, get_const_int
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -75,3 +75,37 @@ def reshape(a, newshape):
     a_shape = [a.shape[i] for i in range(ndim)]
     return tvm.compute(newshape,
                        lambda *indices: a(*unravel_index(ravel_index(indices, newshape), a_shape)))
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def concatenate(a_tuple, axis=0):
+    """Join a sequence of arrays along an existing axis.
+
+    Parameters
+    ----------
+    a_tuple : tuple of tvm.Tensor
+        The arrays to concatenate
+    axis : int, optional
+        The axis along which the arrays will be joined. Default is 0.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    if axis < 0:
+        axis += len(a_tuple[0].shape)
+    assert axis < len(a_tuple[0].shape)
+    axis_sizes = [a_tuple[i].shape[axis] for i in range(len(a_tuple))]
+    out_shape = [a_tuple[0].shape[i] for i in range(0, axis)] + [sum(axis_sizes)]\
+                + [a_tuple[0].shape[i] for i in range(axis + 1, len(a_tuple[0].shape))]
+
+    def _compute(*indices):
+        ret = a_tuple[0](*indices)
+        ind = indices[axis]
+        for i in range(len(a_tuple) - 1):
+            ind -= axis_sizes[i]
+            ret = tvm.select(ind >= axis_sizes[i],
+                             a_tuple[i + 1](*(indices[0:axis] + (ind,) + indices[axis + 1:])),
+                             ret)
+        return ret
+    return tvm.compute(out_shape, _compute)

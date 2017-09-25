@@ -56,12 +56,36 @@ def verify_reshape(src_shape, dst_shape):
             print("Skip because %s is not enabled" % device)
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
-        foo = tvm.build(s, [A, B], device, name="tranpose")
+        foo = tvm.build(s, [A, B], device, name="reshape")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.reshape(data_npy, newshape=dst_shape)
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.empty(dst_shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
+        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    check_device("cuda")
+    check_device("opencl")
+    check_device("metal")
+
+
+def verify_concatenate(shapes, axis):
+    tensor_l = []
+    for i, shape in enumerate(shapes):
+        tensor_l = tvm.placeholder(shape, name="A" + str(i))
+    out_tensor = topi.concatenate(a_tuple=tensor_l, axis=axis)
+    s = topi.cuda.schedule_injective(out_tensor)
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
+        data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
+        out_npy = np.concatenate(data_npys, axis=axis)
+        data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
+        out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor.dtype)
+        foo(*(data_nds + [out_nd]))
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     check_device("cuda")
@@ -85,6 +109,12 @@ def test_reshape():
     verify_reshape((4, 2, 3, 4), (2, 4, 12))
     verify_reshape((4, 2, 3, 4), (2, 48))
     verify_reshape((16, ), (2, 2, 2, 2))
+
+
+def test_concatenate():
+    verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
+    verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
+t
 
 if __name__ == "__main__":
     test_tranpose()
