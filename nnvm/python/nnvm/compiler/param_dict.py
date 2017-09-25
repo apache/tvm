@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 """Helper utility to save parameter dict"""
 import tvm
 

@@ -177,7 +177,52 @@ def test_batchnorm():
             res.asnumpy(), res_np, atol=1e-5, rtol=1e-5)
 
 
+def verify_concatenate(ishape, axis):
+    x = [sym.Variable("x%d" % i) for i in range(len(ishape))]
+    y = sym.concatenate(*x, axis=axis) + 1
+    dtype = "float32"
+    for target, ctx in ctx_list():
+        # set input
+        data = []
+        for i, shape in enumerate(ishape):
+            data.append(np.random.uniform(size=shape).astype(dtype))
+        pdict = {"x%d" % i :  v for i, v in enumerate(data)}
+        shape = {"x%d" % i :  v.shape for i, v in enumerate(data)}
+        graph, lib, _ = nnvm.compiler.build(y, target, shape)
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(**pdict)
+        out_np = np.concatenate(data, axis=axis) + 1
+        out = m.get_output(0, tvm.nd.empty(out_np.shape))
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def test_concatenate():
+    verify_concatenate([(2, 3, 4), (1, 3, 4)], axis=0)
+    verify_concatenate([(2, 4), (2, 7)], axis=1)
+
+
+def verify_split(ishape, indices_or_sections, axis):
+    x = sym.Variable("x")
+    y = sym.split(x, indices_or_sections=indices_or_sections, axis=axis)
+    dtype = "float32"
+    x_np = np.random.uniform(size=ishape).astype(dtype)
+    res = np.split(x_np, indices_or_sections, axis=axis)
+    for target, ctx in ctx_list():
+        # set input
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        for i, arr  in enumerate(res):
+            out = m.get_output(i, tvm.nd.empty(arr.shape))
+            np.testing.assert_allclose(out.asnumpy(), arr, atol=1e-5, rtol=1e-5)
+
+def test_split():
+    verify_split((2, 3), 2, axis=0)
+    verify_split((5, 3), [3], axis=0)
+    verify_split((5, 9, 3), [3, 4], axis=1)
+
 if __name__ == "__main__":
+    test_split()
+    test_concatenate()
     test_log_softmax()
     test_batchnorm()
     test_dense()
