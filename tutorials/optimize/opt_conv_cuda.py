@@ -36,10 +36,10 @@ stride = 1
 # Algorithm
 A = tvm.placeholder((in_size, in_size, in_channel, batch), name='A')
 W = tvm.placeholder((kernel, kernel, in_channel, out_channel), name='W')
-out_size = (in_size - kernel + pad) // stride + 1
+out_size = (in_size - kernel + 2*pad) // stride + 1
 # Pad input
 Apad = tvm.compute(
-    (in_size + pad, in_size + pad, in_channel, batch),
+    (in_size + 2*pad, in_size + 2*pad, in_channel, batch),
     lambda yy, xx, cc, nn: tvm.select(
         tvm.all(yy >= pad, yy - pad < in_size,
                 xx >= pad, xx - pad < in_size),
