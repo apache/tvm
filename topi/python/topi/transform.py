@@ -85,6 +85,7 @@ def concatenate(a_tuple, axis=0):
     ----------
     a_tuple : tuple of tvm.Tensor
         The arrays to concatenate
+
     axis : int, optional
         The axis along which the arrays will be joined. Default is 0.
 
