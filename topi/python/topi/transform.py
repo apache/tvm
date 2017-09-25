@@ -156,5 +156,5 @@ def split(ary, indices_or_sections, axis=0):
         out_shapes.append([ary.shape[i] for i in range(axis)] + [out_axis_size] +\
                           [ary.shape[i] for i in range(axis + 1, len(ary.shape))])
     return [tvm.compute(out_shape,
-                        lambda bid=begin_id, *indices: _compute(bid, *indices), name="s%d" %i)
+                        lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
             for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]
