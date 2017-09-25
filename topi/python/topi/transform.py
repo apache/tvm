@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
-from .util import ravel_index, unravel_index
+from .util import ravel_index, unravel_index, get_const_int
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -111,3 +111,49 @@ def concatenate(a_tuple, axis=0):
                              ret)
         return ret
     return tvm.compute(out_shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def split(ary, indices_or_sections, axis=0):
+    """Split an array into multiple sub-arrays.
+
+    Parameters
+    ----------
+    ary : tvm.Tensor
+
+    indices_or_sections : int or 1-D array
+
+    axis : int
+
+    Returns
+    -------
+    ret : tuple of tvm.Tensor
+    """
+    def _compute(begin, *indices):
+        real_indices = indices[:axis] + (indices[axis] + begin, ) + indices[axis + 1:]
+        return ary(*real_indices)
+
+    if axis < 0:
+        axis += len(ary.shape)
+    src_axis_size = get_const_int(ary.shape[axis])
+    if isinstance(indices_or_sections, int):
+        assert indices_or_sections > 0
+        assert src_axis_size % indices_or_sections == 0
+        seg_size = src_axis_size // indices_or_sections
+        begin_ids = [seg_size * i for i in range(indices_or_sections)]
+    elif isinstance(indices_or_sections, (tuple, list)):
+        assert tuple(indices_or_sections) == tuple(sorted(indices_or_sections)),\
+            "Should be sorted, recieved %s" %str(indices_or_sections)
+        begin_ids = [0] + list(indices_or_sections)
+    else:
+        raise NotImplementedError
+    out_shapes = []
+    for i in range(len(begin_ids)):
+        if i == len(begin_ids) - 1:
+            out_axis_size = src_axis_size - begin_ids[i]
+        else:
+            out_axis_size = begin_ids[i + 1] - begin_ids[i]
+        out_shapes.append([ary.shape[i] for i in range(axis)] + [out_axis_size] +\
+                          [ary.shape[i] for i in range(axis + 1, len(ary.shape))])
+    return [tvm.compute(out_shape, lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
+            for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]

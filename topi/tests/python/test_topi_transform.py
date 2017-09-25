@@ -93,6 +93,28 @@ def verify_concatenate(shapes, axis):
     check_device("metal")
 
 
+def verify_split(src_shape, indices_or_sections, axis):
+    A = tvm.placeholder(shape=src_shape, name="A")
+    tensor_l = topi.split(A, indices_or_sections, axis=axis)
+    s = topi.cuda.schedule_injective(tensor_l)
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        foo = tvm.build(s, [A] + tensor_l, device, name="split")
+        data_npy = np.random.normal(size=src_shape).astype(A.dtype)
+        out_npys = np.split(data_npy, indices_or_sections, axis=axis)
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys]
+        foo(*([data_nd] + out_nds))
+        for out_nd, out_npy in zip(out_nds, out_npys):
+            np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    check_device("cuda")
+    check_device("opencl")
+    check_device("metal")
+
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
@@ -121,8 +143,15 @@ def test_concatenate():
                         (2, 6, 7, 3)], 0)
 
 
+def test_split():
+    verify_split((2, 12, 3), 3, 1)
+    verify_split((2, 12, 3), [2, 4], 1)
+    verify_split((10, 12, 24), [5, 7, 9], -1)
+
 if __name__ == "__main__":
     test_tranpose()
     test_expand_dims()
     test_reshape()
     test_concatenate()
+    test_split()
+
