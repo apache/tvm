@@ -82,25 +82,51 @@ def simplify(expr):
 
 
 def ravel_index(indices, shape):
-    """flatten the index tuple to 1D"""
-    idx = 0
+    """Flatten the index tuple to 1D
+
+    Parameters
+    ----------
+    indices : tuple of int or tvm.expr.IntImm
+        The input coordinates
+
+    shape : tuple of int
+        Shape of the tensor.
+
+    Returns
+    -------
+    idx : int or Expr
+        The index after flattening
+    """
+    assert len(indices) == len(shape)
+    assert len(shape) > 0
+    idx = None
     for i, value in enumerate(shape):
         if i != 0:
-            idx *= value
-        idx = idx + indices[i]
+            idx = idx * value + indices[i]
+        else:
+            idx = indices[i]
     return idx
 
 
 def unravel_index(idx, shape):
-    """convert the flattened ind to the coordinate array"""
+    """Convert the flattened ind to the coordinate array
+
+    Parameters
+    ----------
+    idx : int or tvm.expr.IntImm
+        The 1D index
+
+    shape : tuple of int
+        Shape of the tensor
+
+    Returns
+    -------
+    indices : tuple of int or tvm.expr.IntImm
+        Corresponding coordinate of the 1D index
+    """
     indices = []
-    for i in range(len(shape) - 1):
-        # We append the indices from the first to the last (not from the last to the first)
-        #  to enable the indexing optimization
-        shape_denom = shape[i + 1]
-        for j in range(i + 2, len(shape)):
-            shape_denom = shape_denom * shape[j]
-        indices.append(idx / shape_denom)
-        idx = idx % shape_denom
-    indices.append(idx)
+    for i in range(len(shape) - 1, -1, -1):
+        indices.append(idx % shape[i])
+        idx = idx // shape[i]
+    indices = indices[::-1]
     return indices

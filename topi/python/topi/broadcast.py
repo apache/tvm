@@ -107,7 +107,7 @@ def broadcast_to(data, shape):
         return data[tuple(indices_tuple)]
     original_shape = data.shape
     bcast_info = _get_bcast_info(original_shape=original_shape, target_shape=shape)
-    ret = tvm.compute([tvm.convert(ele) for ele in shape],
+    ret = tvm.compute(shape,
                       lambda *indices: _bcast_to_arg_eval(data,
                                                           bcast_info,
                                                           *indices), name=data.name + "_broadcast")
@@ -147,7 +147,7 @@ def broadcast_binary_op(lhs, rhs, func, name="bop"):
     ret_shape = _get_binary_op_bcast_shape(get_const_tuple(lhs.shape), get_const_tuple(rhs.shape))
     lhs_bcast_info = _get_bcast_info(original_shape=lhs.shape, target_shape=ret_shape)
     rhs_bcast_info = _get_bcast_info(original_shape=rhs.shape, target_shape=ret_shape)
-    ret = tvm.compute([tvm.convert(ele) for ele in ret_shape],
+    ret = tvm.compute(ret_shape,
                       lambda *indices: _inner_arg_eval(lhs, rhs, lhs_bcast_info, rhs_bcast_info,
                                                        func, *indices),
                       name=lhs.name + "_" + rhs.name + "_" + name)

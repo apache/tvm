@@ -73,5 +73,5 @@ def reshape(a, newshape):
     """
     ndim = len(a.shape)
     a_shape = [a.shape[i] for i in range(ndim)]
-    return tvm.compute([tvm.convert(ele) for ele in newshape],
+    return tvm.compute(newshape,
                        lambda *indices: a(*unravel_index(ravel_index(indices, newshape), a_shape)))
