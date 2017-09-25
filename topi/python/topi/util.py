@@ -97,14 +97,12 @@ def ravel_index(indices, shape):
     idx : int or Expr
         The index after flattening
     """
-    assert len(indices) == len(shape)
-    assert len(shape) > 0
     idx = None
-    for i, value in enumerate(shape):
+    for i, (shape_val, ind) in enumerate(zip(shape, indices)):
         if i != 0:
-            idx = idx * value + indices[i]
+            idx = idx * shape_val + ind
         else:
-            idx = indices[i]
+            idx = ind
     return idx
 
 
