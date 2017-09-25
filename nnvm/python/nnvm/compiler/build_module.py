@@ -4,9 +4,9 @@ from __future__ import absolute_import as _abs
 
 import logging
 import tvm
+from tvm.contrib import graph_runtime
 from . import graph_attr, graph_util
 from .. import graph as _graph
-from .. import runtime
 
 OPT_PASS_LEVEL = {
     "SimplifyInference": 2,
@@ -220,7 +220,7 @@ def _run_graph(graph, params):
     _, oshape = graph_util.infer_shape(graph, **shape)
     _, odtype = graph_util.infer_dtype(graph, **dtype)
     graph, libmod, _ = build(graph, target, shape, dtype)
-    m = runtime.create(graph, libmod, ctx)
+    m = graph_runtime.create(graph, libmod, ctx)
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
     for k, v in params.items():
         set_input(k, tvm.nd.array(v))

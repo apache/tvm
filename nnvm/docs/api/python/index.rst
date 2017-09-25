@@ -10,7 +10,6 @@ For user
 
    compiler
    frontend
-   runtime
    symbol
    graph
    top
