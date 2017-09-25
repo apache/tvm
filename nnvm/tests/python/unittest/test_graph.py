@@ -10,6 +10,9 @@ def test_json_pass():
     ret._set_json_attr('json', ret.json_attr('json'))
     g2 = ret.apply('LoadJSON')
     assert g2.apply('SaveJSON').json_attr('json') == ret.json_attr('json')
+    json = g.json()
+    g2 = graph.load_json(json)
+    assert json == g2.json()
 
 
 def test_json_pass_with_attr():

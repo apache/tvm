@@ -12,7 +12,7 @@ from ._base import _LIB
 from ._base import c_array, c_str, nn_uint, py_str, string_types
 from ._base import GraphHandle, SymbolHandle
 from ._base import check_call
-from .symbol import Symbol, Group as _Group
+from .symbol import Variable, Symbol, Group as _Group
 
 class GraphIndex(object):
     """Index for quickly accessing graph attributes.
@@ -174,9 +174,19 @@ class Graph(object):
         check_call(_LIB.NNGraphGetSymbol(self.handle, ctypes.byref(shandle)))
         return Symbol(shandle)
 
+    def json(self):
+        """Get JSON representation of the graph
+
+        Returns
+        -------
+        json : str
+            JSON representation of the graph
+        """
+        return self.apply("SaveJSON").json_attr("json")
+
     def _tvm_graph_json(self):
         """Get TVM graph json"""
-        return self.apply("SaveJSON").json_attr("json")
+        return self.json()
 
     @property
     def index(self):
@@ -223,6 +233,24 @@ class Graph(object):
         npass = nn_uint(len(passes))
         check_call(_LIB.NNGraphApplyPasses(self.handle, npass, cpass, ctypes.byref(ghandle)))
         return Graph(ghandle)
+
+
+def load_json(json_str):
+    """Create a new graph by loading from json
+
+    Parameters
+    ----------
+    json_str : str
+        The json string
+
+    Returns
+    -------
+    graph : Graph
+        The loaded graph
+    """
+    ret = create(Variable("x"))
+    ret._set_json_attr("json", json_str)
+    return ret.apply("LoadJSON")
 
 
 def create(symbol):
