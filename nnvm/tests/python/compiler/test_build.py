@@ -70,7 +70,8 @@ def test_precompute_prune():
     m = graph_runtime.create(graph, lib, tvm.cpu(0))
     params["y"] = ny
     res = tvm.nd.empty(shape)
-    m.run(**params)
+    m["load_params"](nnvm.compiler.save_param_dict(params))
+    m.run()
     out = m.get_output(0, out=res)
     np.testing.assert_allclose(
         res.asnumpy(), nx.asnumpy() + 1 + ny.asnumpy() + na.asnumpy())

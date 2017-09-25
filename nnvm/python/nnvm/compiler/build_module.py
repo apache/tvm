@@ -9,7 +9,7 @@ from . import graph_attr, graph_util
 from .. import graph as _graph
 
 OPT_PASS_LEVEL = {
-    "SimplifyInference": 2,
+    "SimplifyInference": 0,
     "PrecomputePrune": 2,
     "OpFusion": 1
 }
@@ -26,6 +26,7 @@ class BuildConfig(object):
     current = None
     defaults = {
         "opt_level": 2,
+        "add_pass": None,
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -53,6 +54,23 @@ class BuildConfig(object):
         assert self._old_scope
         BuildConfig.current = self._old_scope
 
+    def pass_enabled(self, pass_name):
+        """Get whether pass is enabled.
+
+        Parameters
+        ----------
+        pass_name : str
+            The optimization pass name
+
+        Returns
+        -------
+        enabled : bool
+            Whether pass is enabled.
+        """
+        if self.add_pass and pass_name in self.add_pass:
+            return True
+        return self.opt_level >= OPT_PASS_LEVEL[pass_name]
+
 
 BuildConfig.current = BuildConfig()
 
@@ -63,6 +81,9 @@ def build_config(**kwargs):
     ----------
     opt_level: int, default=2
         Optimization level. See OPT_PASS_LEVEL for level of each pass.
+
+    add_pass: set of str
+        Optimization pass to be added regardless of optimization level.
 
     Returns
     -------
@@ -120,7 +141,7 @@ def optimize(graph, shape, dtype="float32"):
     """
     # pylint: disable=unused-argument
     cfg = BuildConfig.current
-    if cfg.opt_level >= OPT_PASS_LEVEL["SimplifyInference"]:
+    if cfg.pass_enabled("SimplifyInference"):
         graph = graph_attr.set_shape_inputs(graph, shape)
         graph = graph.apply(["InferShape", "SimplifyInference"])
     return graph
@@ -182,14 +203,17 @@ def build(graph, target, shape, dtype="float32", params=None):
     # Apply optimization
     graph = optimize(graph, shape, dtype)
     # Precompute prune
-    if params and cfg.opt_level >= OPT_PASS_LEVEL["PrecomputePrune"]:
+    if params and cfg.pass_enabled("PrecomputePrune"):
         graph, params = precompute_prune(graph, params)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
     # Operator Fusion and generatiom
     graph = graph_attr.set_shape_inputs(graph, shape)
     graph = graph_attr.set_dtype_inputs(graph, dtype)
     graph._set_json_attr("target", target, "str")
-    graph._set_json_attr("opt_level", cfg.opt_level, "int")
+    if cfg.pass_enabled("OpFusion"):
+        graph._set_json_attr("opt_level", 1, "int")
+    else:
+        graph._set_json_attr("opt_level", 0, "int")
     graph = graph.apply("InferShape").apply("InferType")
     graph = graph.apply("GraphFusePartition").apply("GraphFuseCompile")
     libmod = graph_attr._move_out_module(graph, "module")

@@ -15,46 +15,10 @@
 #include <tvm/lowered_func.h>
 #include <dmlc/parameter.h>
 #include "./compile_engine.h"
-#include "../../tvm/src/runtime/graph/graph_runtime.h"
+#include "./graph_runtime.h"
 
 namespace nnvm {
 namespace compiler {
-
-
-struct TVMOpParam : public dmlc::Parameter<TVMOpParam> {
-  std::string func_name;
-  uint32_t num_inputs;
-  uint32_t num_outputs;
-  uint32_t flatten_data;
-
-  DMLC_DECLARE_PARAMETER(TVMOpParam) {
-    DMLC_DECLARE_FIELD(func_name);
-    DMLC_DECLARE_FIELD(num_inputs).set_default(1);
-    DMLC_DECLARE_FIELD(num_outputs).set_default(1);
-    DMLC_DECLARE_FIELD(flatten_data).set_default(0);
-  }
-};
-
-DMLC_REGISTER_PARAMETER(TVMOpParam);
-
-// parser
-inline void TVMOpParamParser(nnvm::NodeAttrs* attrs) {
-  TVMOpParam param;
-  param.Init(attrs->dict);
-  attrs->parsed = std::move(param);
-}
-
-NNVM_REGISTER_OP(tvm_op)
-.set_attr_parser(TVMOpParamParser)
-.set_num_inputs([](const NodeAttrs& attrs) {
-    const TVMOpParam& param = nnvm::get<TVMOpParam>(attrs.parsed);
-    return param.num_inputs;
-  })
-.set_num_outputs([](const NodeAttrs& attrs) {
-    const TVMOpParam& param = nnvm::get<TVMOpParam>(attrs.parsed);
-    return param.num_outputs;
-  });
-
 using namespace tvm;
 
 // The single fuse rule.
