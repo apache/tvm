@@ -19,6 +19,8 @@
 #include "../../src/runtime/rpc/rpc_server_env.cc"
 #include "../../src/runtime/rpc/rpc_socket_impl.cc"
 #include "../../src/runtime/rpc/rpc_module.cc"
+// Graph runtime
+#include "../../src/runtime/graph/graph_runtime.cc"
 // Metal
 #include "../../src/runtime/metal/metal_module.mm"
 #include "../../src/runtime/metal/metal_device_api.mm"
