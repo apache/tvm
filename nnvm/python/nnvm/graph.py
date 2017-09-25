@@ -174,6 +174,10 @@ class Graph(object):
         check_call(_LIB.NNGraphGetSymbol(self.handle, ctypes.byref(shandle)))
         return Symbol(shandle)
 
+    def _tvm_graph_json(self):
+        """Get TVM graph json"""
+        return self.apply("SaveJSON").json_attr("json")
+
     @property
     def index(self):
         if not self._index:

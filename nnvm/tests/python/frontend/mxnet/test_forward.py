@@ -2,9 +2,9 @@ import numpy as np
 
 import topi
 import tvm
+from tvm.contrib import graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
-import nnvm.runtime
 from nnvm.testing.config import ctx_list
 from nnvm import frontend
 import mxnet as mx
@@ -28,7 +28,7 @@ def test_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(
         dshape = x.shape
         shape_dict = {'data': dshape}
         graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         # set inputs
         m.set_input("data", tvm.nd.array(x.astype(dtype)))
         m.set_input(**params)

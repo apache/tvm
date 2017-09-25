@@ -2,6 +2,7 @@ import nnvm
 import numpy as np
 import tvm
 import topi
+from tvm.contrib import graph_runtime
 from nnvm import symbol as sym
 from nnvm.compiler import graph_util, graph_attr
 from nnvm.testing import ctx_list
@@ -17,7 +18,7 @@ def test_ewise_injective():
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
         assert graph.index.num_nodes == 2
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         x_np = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty((10, 6)))
@@ -39,7 +40,7 @@ def test_conv_ewise_injective():
 
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         # print(graph.ir(join_entry_attrs=["shape"]))
         assert graph.index.num_nodes == 5
         # set input
@@ -66,7 +67,7 @@ def test_injective_reduce_injective():
 
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = nnvm.runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, ctx)
         assert graph.index.num_nodes == 2
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
