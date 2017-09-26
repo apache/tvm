@@ -39,11 +39,8 @@ def create_shared(output,
     if options:
         cmd += options
 
-    args = ' '.join(cmd)
     proc = subprocess.Popen(
-        args, shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:

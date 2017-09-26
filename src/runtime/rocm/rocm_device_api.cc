@@ -44,6 +44,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
         value = 64;
         break;
       }
+      case kComputeVersion: return;
     }
     *rv = value;
   }

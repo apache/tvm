@@ -1,12 +1,16 @@
 # pylint: disable=invalid-name
 """Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
-import sys
+
 import subprocess
 from . import util
+from .. import ndarray as nd
 
-def compile_cuda(code, target="ptx", arch=None,
-                 options=None, path_target=None):
+def compile_cuda(code,
+                 target="ptx",
+                 arch=None,
+                 options=None,
+                 path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -39,32 +43,32 @@ def compile_cuda(code, target="ptx", arch=None,
 
     with open(temp_code, "w") as out_file:
         out_file.write(code)
-    if target == "cubin" and arch is None:
-        raise ValueError("arch(sm_xy) must be passed for generating cubin")
+
+    if arch is None:
+        if nd.gpu(0).exist:
+            # auto detect the compute arch argument
+            arch = "sm_" + "".join(nd.gpu(0).compute_version.split('.'))
+        else:
+            raise ValueError("arch(sm_xy) is not passed, and we cannot detect it from env")
 
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
-    if arch:
-        cmd += ["-arch", arch]
+    cmd += ["-arch", arch]
     cmd += ["-o", file_target]
 
     if options:
         cmd += options
     cmd += [temp_code]
-    args = ' '.join(cmd)
 
     proc = subprocess.Popen(
-        args, shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
-        sys.stderr.write("Compilation error:\n")
-        sys.stderr.write(str(out))
-        sys.stderr.flush()
-        cubin = None
-    else:
-        cubin = bytearray(open(file_target, "rb").read())
-    return cubin
+        msg = "Compilation error:\n"
+        msg += out
+        raise RuntimeError(msg)
+
+    return bytearray(open(file_target, "rb").read())

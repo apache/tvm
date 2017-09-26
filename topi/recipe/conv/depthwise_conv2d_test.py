@@ -13,7 +13,7 @@ USE_MANUAL_CODE = False
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_37"]) # 37 for k80(ec2 instance)
+    ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 def write_code(code, fname):

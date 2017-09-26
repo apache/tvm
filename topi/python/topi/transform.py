@@ -143,7 +143,7 @@ def split(ary, indices_or_sections, axis=0):
         begin_ids = [seg_size * i for i in range(indices_or_sections)]
     elif isinstance(indices_or_sections, (tuple, list)):
         assert tuple(indices_or_sections) == tuple(sorted(indices_or_sections)),\
-            "Should be sorted, recieved %s" %str(indices_or_sections)
+            "Should be sorted, recieved %s" % str(indices_or_sections)
         begin_ids = [0] + list(indices_or_sections)
     else:
         raise NotImplementedError

@@ -131,6 +131,20 @@ class TVMContext(ctypes.Structure):
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 2)
 
+    @property
+    def compute_version(self):
+        """Get compute verison number in string.
+
+        Currently used to get compute capability of CUDA device.
+
+        Returns
+        -------
+        version : str
+            The version string in `major.minor` format.
+        """
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 3)
+
     def sync(self):
         """Synchronize until jobs finished at the context."""
         check_call(_LIB.TVMSynchronize(self.device_type, self.device_id, None))
