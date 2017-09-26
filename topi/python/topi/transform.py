@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
-from .util import ravel_index, unravel_index, get_const_int
+from .util import ravel_index, unravel_index, get_const_int, get_const_tuple
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -75,6 +75,57 @@ def reshape(a, newshape):
     a_shape = [a.shape[i] for i in range(ndim)]
     return tvm.compute(newshape,
                        lambda *indices: a(*unravel_index(ravel_index(indices, newshape), a_shape)))
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def squeeze(a, axis=None):
+    """Remove single-dimensional entries from the shape of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+
+    axis : None or int or tuple of ints, optional
+        Selects a subset of the single-dimensional entries in the shape.
+        If an axis is selected with shape entry greater than one, an error is raised.
+
+    Returns
+    -------
+    squeezed : tvm.Tensor
+    """
+    a_ndim = len(a.shape)
+    a_shape = get_const_tuple(a.shape)
+    if axis is None:
+        axis = []
+        for i, ele in enumerate(a_shape):
+            if ele == 1:
+                axis.append(i)
+    else:
+        if isinstance(axis, int):
+            axis = axis + a_ndim if axis < 0 else axis
+            assert a_shape[axis] == 1
+            axis = [axis]
+        else:
+            axis = [ele + a_ndim if ele < 0 else ele for ele in axis]
+            for ele in axis:
+                assert a_shape[ele] == 1
+    out_shape = []
+    search_axis = set(axis)
+    for i, a_dim in enumerate(a_shape):
+        if i not in search_axis:
+            out_shape.append(a_dim)
+    def _compute(*indices):
+        real_indices = []
+        flag = 0
+        for i in range(a_ndim):
+            if i not in search_axis:
+                real_indices.append(indices[i - flag])
+            else:
+                real_indices.append(0)
+                flag += 1
+        return a(*real_indices)
+
+    return tvm.compute(out_shape, _compute)
 
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
