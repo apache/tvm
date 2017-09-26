@@ -19,7 +19,6 @@
 a simple multilayer perceptron
 """
 import mxnet as mx
-import nnvm
 
 def get_symbol(num_classes=10, **kwargs):
     data = mx.symbol.Variable('data')
@@ -30,15 +29,4 @@ def get_symbol(num_classes=10, **kwargs):
     act2 = mx.symbol.Activation(data = fc2, name='relu2', act_type="relu")
     fc3  = mx.symbol.FullyConnected(data = act2, name='fc3', num_hidden=num_classes)
     mlp  = mx.symbol.softmax(data = fc3, name = 'softmax')
-    return mlp
-
-def get_symbol_nnvm(num_classes=10, **kwargs):
-    data = nnvm.symbol.Variable('data')
-    data = nnvm.sym.flatten(data=data)
-    fc1  = nnvm.symbol.dense(data = data, name='fc1', units=128)
-    act1 = nnvm.symbol.relu(data = fc1, name='relu1')
-    fc2  = nnvm.symbol.dense(data = act1, name = 'fc2', units = 64)
-    act2 = nnvm.symbol.relu(data = fc2, name='relu2')
-    fc3  = nnvm.symbol.dense(data = act2, name='fc3', units=num_classes)
-    mlp  = nnvm.symbol.softmax(data = fc3, name = 'softmax')
     return mlp
