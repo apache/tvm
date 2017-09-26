@@ -54,7 +54,7 @@ def set_dtype_inputs(g, dtype):
     """
     if isinstance(dtype, dict):
         list_dtype = [
-            DTYPE_TO_TCODE[dtype.get(name, "default")]
+            DTYPE_TO_TCODE[str(dtype.get(name, "default"))]
             for name in g.index.input_names]
     else:
         list_dtype = [DTYPE_TO_TCODE[dtype]] * len(g.index.input_names)

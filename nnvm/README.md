@@ -9,10 +9,10 @@ NNVM is a reusable computational graph compilation stack for deep learning syste
 - Optimize computation graphs to improve performance.
 - Compile into executable modules and deploy to different hardware backends with minimum dependency.
 
-NNVM is designed to add new frontend, operators and graph optimizations in a decentralized fashion without changing the core interface. NNVM is part of [TVM stack](https://github.com/dmlc/tvm). NNVM compiler toolchain can target hardware backends supported by TVM.
+NNVM is designed to add new frontend, operators and graph optimizations in a decentralized fashion without changing the core interface. It is part of [TVM stack](https://github.com/dmlc/tvm). The compiler toolchain can target hardware backends supported by TVM.
 The compiled module can be deployed to server, mobile, embedded devices and browsers with minimum dependency, in languages including c++, python, javascript, java, objective-c.
 
-The following code snippet demonstrates the general workflow of nnvm compiler toolchain.
+The following code snippet demonstrates the general workflow of nnvm.
 
 ```python
 import tvm

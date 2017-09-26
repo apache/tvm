@@ -17,19 +17,24 @@ import nnvm.testing
 # ---------------------------------
 # NNVM optimizes the graph and relies on TVM to generate fast GPU code.
 # To get the maximum performance, we need to enable nvcc's compiler hook.
-# This gives better performance than nvrtc mode.
+# This usually gives better performance than nvrtc mode.
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
+    ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 ######################################################################
 # Prepare the Benchmark
 # ---------------------
 # We construct a standard imagenet inference benchmark.
-# We use nnvm's testing utility to produce the model description and random parameters so that the example does not
-# depend on a specific front-end framework.
+# NNVM needs two things to compile a deep learning model:
+#
+# - net: the graph representation of the computation
+# - params: a dictionary of str to parameters
+#
+# We use nnvm's testing utility to produce the model description and random parameters
+# so that the example does not depend on a specific front-end framework.
 #
 # .. note::
 #
@@ -48,11 +53,6 @@ net, params = nnvm.testing.mobilenet.get_workload(
 ######################################################################
 # Compile the Graph
 # -----------------
-# NNVM needs two things to compile a deep learning model:
-#
-# - net: the graph representation of the computation
-# - params: a dictionary of str to parameters
-#
 # To compile the graph, we call the build function with the graph
 # configuration and parameters.
 # When parameters are provided, NNVM will pre-compute certain part of the graph if possible (e.g. simplify batch normalization to scale shift),
