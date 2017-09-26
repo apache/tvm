@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
-"""Convolution operators"""
+"""Conv2D operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
@@ -8,7 +8,7 @@ from .util import get_pad_tuple
 from ..util import simplify
 from .. import target as _target
 
-# workload description of convolution
+# workload description of conv2d
 Workload = namedtuple('Workload',
                       ['height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
@@ -43,8 +43,8 @@ _CONV_SCHEDULE = {}
 # platform specific declaration
 _CONV_DECLARATION = {}
 
-def convolution(data, kernel, stride, padding, layout='NCHW'):
-    """Convolution operator.
+def conv2d(data, kernel, stride, padding, layout='NCHW'):
+    """Conv2D operator.
 
     Parameters
     ----------

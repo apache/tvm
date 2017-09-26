@@ -1,13 +1,13 @@
 # pylint: disable=invalid-name,unused-variable,invalid-name
-"""Convolution schedule on raspberry pi"""
+"""Conv2D schedule on raspberry pi"""
 from __future__ import absolute_import as _abs
 import tvm
 from .. import target as _target
 from .. import tag
-from ..nn.convolution import SpatialPack, Im2ColPack
-from ..nn.convolution import _CONV_DECLARATION, _CONV_SCHEDULE
-from ..nn.convolution import _WORKLOADS, _SCH_TO_DECL_FUNC
-from ..nn.convolution import _get_workload, _get_schedule
+from ..nn.conv2d import SpatialPack, Im2ColPack
+from ..nn.conv2d import _CONV_DECLARATION, _CONV_SCHEDULE
+from ..nn.conv2d import _WORKLOADS, _SCH_TO_DECL_FUNC
+from ..nn.conv2d import _get_workload, _get_schedule
 from ..nn.util import infer_pad, infer_stride
 
 _SCHEDULES = [
@@ -264,7 +264,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
 
     return s
 
-def schedule_convolution(outs):
+def schedule_conv2d(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
 
