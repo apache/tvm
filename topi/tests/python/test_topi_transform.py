@@ -78,7 +78,7 @@ def verify_squeeze(src_shape, axis):
             print("Skip because %s is not enabled" % device)
             return
         ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
-        foo = tvm.build(s, [A, B], device, name="reshape")
+        foo = tvm.build(s, [A, B], device, name="squeeze")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.squeeze(data_npy, axis=axis)
         data_nd = tvm.nd.array(data_npy, ctx)
