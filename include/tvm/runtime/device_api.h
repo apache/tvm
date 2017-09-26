@@ -18,7 +18,8 @@ namespace runtime {
 enum DeviceAttrKind : int {
   kExist = 0,
   kMaxThreadsPerBlock = 1,
-  kWarpSize = 2
+  kWarpSize = 2,
+  kComputeVersion = 3
 };
 
 /*! \brief Number of bytes each allocation must align to */

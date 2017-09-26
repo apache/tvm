@@ -40,6 +40,17 @@ class CUDADeviceAPI final : public DeviceAPI {
             &value, cudaDevAttrWarpSize, ctx.device_id));
         break;
       }
+      case kComputeVersion: {
+        std::ostringstream os;
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrComputeCapabilityMajor, ctx.device_id));
+        os << value << ".";
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrComputeCapabilityMinor, ctx.device_id));
+        os << value;
+        *rv = os.str();
+        return;
+      }
     }
     *rv = value;
   }
