@@ -1,9 +1,9 @@
 """
-Compile MobileNet Inference on GPU
+Compile ImageNet Inference on GPU
 ==================================
 **Author**: `Yuwei Hu <https://huyuwei.github.io/>`_
 
-This is an example of using NNVM to compile MobileNet model and deploy its inference on GPU.
+This is an example of using NNVM to compile MobileNet/ResNet model and deploy its inference on GPU.
 
 To begin with, we import nnvm(for compilation) and TVM(for deployment).
 """
@@ -39,7 +39,7 @@ def tvm_callback_cuda_compile(code):
 # .. note::
 #
 #   In a typical workflow, we can get this pair from :any:`nnvm.frontend`
-#
+# Example: /nnvm-top/tests/python/frontend/mxnet/test_forward.py  
 target = "cuda"
 ctx = tvm.gpu(0)
 batch_size = 1
@@ -47,6 +47,9 @@ num_classes = 1000
 image_shape = (3, 224, 224)
 data_shape = (batch_size,) + image_shape
 out_shape = (batch_size, num_classes)
+# To use ResNet to do inference, run the following instead
+#net, params = nnvm.testing.resnet.get_workload(
+#    batch_size=1, image_shape=image_shape)
 net, params = nnvm.testing.mobilenet.get_workload(
     batch_size=1, image_shape=image_shape)
 
