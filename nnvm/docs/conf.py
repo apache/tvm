@@ -16,6 +16,7 @@ import os, subprocess
 import shlex
 import recommonmark
 import sphinx_gallery
+from tvm.contrib import rpc, graph_runtime
 from recommonmark.parser import CommonMarkParser
 from recommonmark.transform import AutoStructify
 
