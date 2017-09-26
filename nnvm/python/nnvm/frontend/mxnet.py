@@ -58,12 +58,12 @@ def _pooling(attrs):
 def _batch_norm(attrs):
     if _parse_bool_str(attrs, 'output_mean_var'):
         _raise_not_supported('output_mean_var', 'batch_norm')
-    if _parse_bool_str(attrs, 'fix_gamma'):
-        _warn_not_used('fix_gamma', 'batch_norm')
+    # if _parse_bool_str(attrs, 'fix_gamma'):
+    #     _warn_not_used('fix_gamma', 'batch_norm')
     if _parse_bool_str(attrs, 'use_global_stats'):
         _warn_not_used('use_global_stats', 'batch_norm')
-    if _parse_bool_str(attrs, 'momentum'):
-        _warn_not_used('momentum', 'batch_norm')
+    # if _parse_bool_str(attrs, 'momentum'):
+    #     _warn_not_used('momentum', 'batch_norm')
     op_name, new_attrs = 'batch_norm', {}
     new_attrs['axis'] = attrs.get('axis', 1)
     new_attrs['epsilon'] = attrs.get('eps', 0.001)

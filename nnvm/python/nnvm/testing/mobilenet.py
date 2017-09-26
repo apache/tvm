@@ -2,11 +2,8 @@
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 
-import numpy as np
-import tvm
-from .. compiler import graph_util
-from .. import graph
 from .. import symbol as sym
+from . utils import create_workload
 
 def conv_block(data, name, channels,
                kernel_size=(3, 3), strides=(1, 1), padding=(1, 1),
@@ -104,22 +101,5 @@ def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224), dtype=
     params : dict of str to NDArray
         The parameters.
     """
-    image_shape = (3, 224, 224)
-    data_shape = (batch_size,) + image_shape
     net = mobile_net(num_classes=num_classes, alpha=1.0, is_shallow=False)
-    params = {}
-    g = graph.create(net)
-    input_shapes, _ = graph_util.infer_shape(g, data=data_shape)
-    shape_dict = dict(zip(g.index.input_names, input_shapes))
-    for k, v in shape_dict.items():
-        if k == "data":
-            continue
-        # Specially generate non-negative parameters.
-        if k.endswith("gamma"):
-            init = np.random.uniform(0.9, 1, size=v)
-        elif k.endswith("var"):
-            init = np.random.uniform(0.9, 1, size=v)
-        else:
-            init = np.random.uniform(-0.1, 0.1, size=v)
-        params[k] = tvm.nd.array(init.astype(dtype), ctx=tvm.cpu(0))
-    return net, params
+    return create_workload(net, batch_size, image_shape, dtype)

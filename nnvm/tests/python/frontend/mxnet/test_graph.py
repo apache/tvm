@@ -14,21 +14,21 @@ def compare_graph(sym1, sym2, ishape=(2, 3, 224, 224)):
 
 def test_mlp():
     mx_sym = model_zoo.mx_mlp
-    from_mx_sym = nnvm.frontend.from_mxnet(mx_sym)
+    from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
     nnvm_sym = model_zoo.nnvm_mlp
     compare_graph(from_mx_sym, nnvm_sym)
 
 def test_vgg():
     for n in [11, 13, 16, 19]:
         mx_sym = model_zoo.mx_vgg[n]
-        from_mx_sym = nnvm.frontend.from_mxnet(mx_sym)
+        from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
         nnvm_sym = model_zoo.nnvm_vgg[n]
         compare_graph(from_mx_sym, nnvm_sym)
 
 def test_resnet():
     for n in [18, 34, 50, 101]:
         mx_sym = model_zoo.mx_resnet[n]
-        from_mx_sym = nnvm.frontend.from_mxnet(mx_sym)
+        from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
         nnvm_sym = model_zoo.nnvm_resnet[n]
         compare_graph(from_mx_sym, nnvm_sym)
 
