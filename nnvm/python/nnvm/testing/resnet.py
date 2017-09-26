@@ -40,7 +40,8 @@ def residual_unit(data, num_filter, stride, dim_match, name, bottle_neck=True):
     stride : tuple
         Stride used in convolution
     dim_match : Boolean
-        True means channel number between input and output is the same, otherwise means differ
+        True means channel number between input and output is the same,
+        otherwise means differ
     name : str
         Base name of the operators
     """
@@ -146,7 +147,7 @@ def resnet(units, num_stages, filter_list, num_classes, image_shape,
         fc1 = sym.cast(data=fc1, dtype=np.float32)
     return sym.softmax(data=fc1, name='softmax')
 
-def get_symbol(num_classes, num_layers=50, image_shape=(3, 224, 224), dtype='float32'):
+def get_symbol(num_classes, num_layers=50, image_shape=(3, 224, 224), dtype='float32', **kwargs):
     """
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
@@ -198,8 +199,8 @@ def get_symbol(num_classes, num_layers=50, image_shape=(3, 224, 224), dtype='flo
                   bottle_neck=bottle_neck,
                   dtype=dtype)
 
-def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224),
-                 dtype="float32", **kwargs):
+def get_workload(batch_size=1, num_classes=1000, num_layers=18,
+                 image_shape=(3, 224, 224), dtype="float32", **kwargs):
     """Get benchmark workload for resnet
 
     Parameters
@@ -209,6 +210,9 @@ def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224),
 
     num_classes : int, optional
         Number of claseses
+
+    num_layers : int, optional
+        Number of layers
 
     image_shape : tuple, optional
         The input image shape
@@ -227,6 +231,6 @@ def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224),
     params : dict of str to NDArray
         The parameters.
     """
-    net = get_symbol(num_classes=num_classes, image_shape=image_shape,
-                     dtype=dtype, **kwargs)
+    net = get_symbol(num_classes=num_classes, num_layers=num_layers,
+                     image_shape=image_shape, dtype=dtype, **kwargs)
     return create_workload(net, batch_size, image_shape, dtype)
