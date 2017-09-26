@@ -69,6 +69,28 @@ def verify_reshape(src_shape, dst_shape):
     check_device("metal")
 
 
+def verify_squeeze(src_shape, axis):
+    A = tvm.placeholder(shape=src_shape, name="A")
+    B = topi.squeeze(A, axis=axis)
+    s = topi.cuda.schedule_injective(B)
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        foo = tvm.build(s, [A, B], device, name="squeeze")
+        data_npy = np.random.normal(size=src_shape).astype(A.dtype)
+        out_npy = np.squeeze(data_npy, axis=axis)
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=B.dtype)
+        foo(data_nd, out_nd)
+        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    check_device("cuda")
+    check_device("opencl")
+    check_device("metal")
+
+
 def verify_concatenate(shapes, axis):
     tensor_l = []
     for i, shape in enumerate(shapes):
@@ -133,6 +155,12 @@ def test_reshape():
     verify_reshape((16, ), (2, 2, 2, 2))
 
 
+def test_squeeze():
+    verify_squeeze((1, 2, 3, 4), 0)
+    verify_squeeze((1, 2, 1, 4), None)
+    verify_squeeze((1, 1, 1, 4), (1, 2))
+
+
 def test_concatenate():
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
     verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
@@ -152,6 +180,7 @@ if __name__ == "__main__":
     test_tranpose()
     test_expand_dims()
     test_reshape()
+    test_squeeze()
     test_concatenate()
     test_split()
 
