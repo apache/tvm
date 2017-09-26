@@ -72,6 +72,7 @@ class GraphModule(object):
         self._set_input = module["set_input"]
         self._run = module["run"]
         self._get_output = module["get_output"]
+        self._load_params = module["load_params"]
         self.ctx = ctx
 
     def set_input(self, key=None, value=None, **params):
@@ -119,6 +120,16 @@ class GraphModule(object):
         """
         self._get_output(index, out)
         return out
+
+    def load_params(self, params_bytes):
+        """Load parameters from serialized byte array of parameter dict.
+
+        Parameters
+        ----------
+        params_bytes : bytearray
+            The serialized parameter dict.
+        """
+        self._load_params(bytearray(params_bytes))
 
     def __getitem__(self, key):
         """Get internal module function
