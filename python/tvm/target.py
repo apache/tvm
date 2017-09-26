@@ -1,4 +1,4 @@
-"""Target management API of topi"""
+"""Target management API of tvm"""
 
 from __future__ import absolute_import
 
