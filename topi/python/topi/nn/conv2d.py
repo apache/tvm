@@ -3,10 +3,10 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+from tvm import target as _target
 from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
-from .. import target as _target
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
@@ -75,9 +75,9 @@ def conv2d(data, kernel, stride, padding, layout='NCHW'):
 
     # default declaration
     if layout == 'NCHW':
-        conv2d_nchw(data, kernel, stride, padding)
+        return conv2d_nchw(data, kernel, stride, padding)
     elif layout == 'HWCN':
-        conv2d_hwcn(data, kernel, stride, padding)
+        return conv2d_hwcn(data, kernel, stride, padding)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 

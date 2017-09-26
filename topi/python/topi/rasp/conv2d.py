@@ -2,7 +2,7 @@
 """Conv2D schedule on raspberry pi"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import target as _target
+from tvm import target as _target
 from .. import tag
 from ..nn.conv2d import SpatialPack, Im2ColPack
 from ..nn.conv2d import _CONV_DECLARATION, _CONV_SCHEDULE
