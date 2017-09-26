@@ -25,7 +25,6 @@ Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun. "Identity Mappings in Deep Re
 '''
 import mxnet as mx
 import numpy as np
-import nnvm
 
 def residual_unit(data, num_filter, stride, dim_match, name, bottle_neck=True, bn_mom=0.9, workspace=256, memonger=False):
     """Return ResNet Unit symbol for building ResNet
@@ -86,65 +85,6 @@ def residual_unit(data, num_filter, stride, dim_match, name, bottle_neck=True, b
             shortcut._set_attr(mirror_stage='True')
         return conv2 + shortcut
 
-def residual_unit_nnvm(data, num_filter, stride, dim_match, name, bottle_neck=True, bn_mom=0.9, workspace=256, memonger=False):
-    """Return ResNet Unit symbol for building ResNet
-    Parameters
-    ----------
-    data : str
-        Input data
-    num_filter : int
-        Number of output channels
-    bnf : int
-        Bottle neck channels factor with regard to num_filter
-    stride : tuple
-        Stride used in convolution
-    dim_match : Boolean
-        True means channel number between input and output is the same, otherwise means differ
-    name : str
-        Base name of the operators
-    workspace : int
-        Workspace used in convolution operator
-    """
-    if bottle_neck:
-        # the same as https://github.com/facebook/fb.resnet.torch#notes, a bit difference with origin paper
-        bn1 = nnvm.sym.batch_norm(data=data, epsilon=2e-5, name=name + '_bn1')
-        act1 = nnvm.sym.relu(data=bn1, name=name + '_relu1')
-        conv1 = nnvm.sym.conv2d(data=act1, channels=int(num_filter*0.25), kernel_size=(1,1), strides=(1,1), padding=(0,0),
-                                   use_bias=False, name=name + '_conv1')
-        bn2 = nnvm.sym.batch_norm(data=conv1, epsilon=2e-5, name=name + '_bn2')
-        act2 = nnvm.sym.relu(data=bn2, name=name + '_relu2')
-        conv2 = nnvm.sym.conv2d(data=act2, channels=int(num_filter*0.25), kernel_size=(3,3), strides=stride, padding=(1,1),
-                                   use_bias=False, name=name + '_conv2')
-        bn3 = nnvm.sym.batch_norm(data=conv2, epsilon=2e-5, name=name + '_bn3')
-        act3 = nnvm.sym.relu(data=bn3, name=name + '_relu3')
-        conv3 = nnvm.sym.conv2d(data=act3, channels=num_filter, kernel_size=(1,1), strides=(1,1), padding=(0,0), use_bias=False,
-                                   name=name + '_conv3')
-        if dim_match:
-            shortcut = data
-        else:
-            shortcut = nnvm.sym.conv2d(data=act1, channels=num_filter, kernel_size=(1,1), strides=stride, use_bias=False,
-                                            name=name+'_sc')
-        if memonger:
-            shortcut._set_attr(mirror_stage='True')
-        return nnvm.sym.elemwise_add(conv3, shortcut)
-    else:
-        bn1 = nnvm.sym.batch_norm(data=data, epsilon=2e-5, name=name + '_bn1')
-        act1 = nnvm.sym.relu(data=bn1, name=name + '_relu1')
-        conv1 = nnvm.sym.conv2d(data=act1, channels=num_filter, kernel_size=(3,3), strides=stride, padding=(1,1),
-                                      use_bias=False, name=name + '_conv1')
-        bn2 = nnvm.sym.batch_norm(data=conv1, epsilon=2e-5, name=name + '_bn2')
-        act2 = nnvm.sym.relu(data=bn2, name=name + '_relu2')
-        conv2 = nnvm.sym.conv2d(data=act2, channels=num_filter, kernel_size=(3,3), strides=(1,1), padding=(1,1),
-                                      use_bias=False, name=name + '_conv2')
-        if dim_match:
-            shortcut = data
-        else:
-            shortcut = nnvm.sym.conv2d(data=act1, channels=num_filter, kernel_size=(1,1), strides=stride, use_bias=False,
-                                            name=name+'_sc')
-        if memonger:
-            shortcut._set_attr(mirror_stage='True')
-        return nnvm.sym.elemwise_add(conv2, shortcut)
-
 def resnet(units, num_stages, filter_list, num_classes, image_shape, bottle_neck=True, bn_mom=0.9, workspace=256, dtype='float32', memonger=False):
     """Return ResNet symbol of
     Parameters
@@ -202,64 +142,7 @@ def resnet(units, num_stages, filter_list, num_classes, image_shape, bottle_neck
         fc1 = mx.sym.Cast(data=fc1, dtype=np.float32)
     return mx.sym.softmax(data=fc1, name='softmax')
 
-def resnet_nnvm(units, num_stages, filter_list, num_classes, image_shape, bottle_neck=True, bn_mom=0.9, workspace=256, dtype='float32', memonger=False):
-    """Return ResNet symbol of
-    Parameters
-    ----------
-    units : list
-        Number of units in each stage
-    num_stages : int
-        Number of stage
-    filter_list : list
-        Channel size of each stage
-    num_classes : int
-        Ouput size of symbol
-    dataset : str
-        Dataset type, only cifar10 and imagenet supports
-    workspace : int
-        Workspace used in convolution operator
-    dtype : str
-        Precision (float32 or float16)
-    """
-    num_unit = len(units)
-    assert(num_unit == num_stages)
-    data = nnvm.sym.Variable(name='data')
-    if dtype == 'float32':
-        # data = nnvm.sym.identity(data=data, name='id')
-        data = data
-    else:
-        if dtype == 'float16':
-            data = nnvm.sym.cast(data=data, dtype=np.float16)
-    data = nnvm.sym.batch_norm(data=data, epsilon=2e-5, name='bn_data')
-    (nchannel, height, width) = image_shape
-    if height <= 32:            # such as cifar10
-        body = nnvm.sym.conv2d(data=data, channels=filter_list[0], kernel_size=(3, 3), strides=(1,1), padding=(1, 1),
-                                  use_bias=False, name="conv0")
-    else:                       # often expected to be 224 such as imagenet
-        body = nnvm.sym.conv2d(data=data, channels=filter_list[0], kernel_size=(7, 7), strides=(2,2), padding=(3, 3),
-                                  use_bias=False, name="conv0")
-        body = nnvm.sym.batch_norm(data=body, epsilon=2e-5, name='bn0')
-        body = nnvm.sym.relu(data=body, name='relu0')
-        body = nnvm.sym.max_pool2d(data=body, pool_size=(3, 3), strides=(2,2), padding=(1,1))
-
-    for i in range(num_stages):
-        body = residual_unit_nnvm(body, filter_list[i+1], (1 if i==0 else 2, 1 if i==0 else 2), False,
-                             name='stage%d_unit%d' % (i + 1, 1), bottle_neck=bottle_neck,
-                             memonger=memonger)
-        for j in range(units[i]-1):
-            body = residual_unit_nnvm(body, filter_list[i+1], (1,1), True, name='stage%d_unit%d' % (i + 1, j + 2),
-                                 bottle_neck=bottle_neck, memonger=memonger)
-    bn1 = nnvm.sym.batch_norm(data=body, epsilon=2e-5, name='bn1')
-    relu1 = nnvm.sym.relu(data=bn1, name='relu1')
-    # Although kernel is not used here when global_pool=True, we should put one
-    pool1 = nnvm.sym.global_avg_pool2d(data=relu1, name='pool1')
-    flat = nnvm.sym.flatten(data=pool1)
-    fc1 = nnvm.sym.dense(data=flat, units=num_classes, name='fc1')
-    if dtype == 'float16':
-        fc1 = nnvm.sym.cast(data=fc1, dtype=np.float32)
-    return nnvm.sym.softmax(data=fc1, name='softmax')
-
-def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype='float32', lib='mxnet', **kwargs):
+def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype='float32', **kwargs):
     """
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
@@ -311,12 +194,4 @@ def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype='
                   image_shape = image_shape,
                   bottle_neck = bottle_neck,
                   workspace   = conv_workspace,
-                  dtype       = dtype) if lib == 'mxnet' else \
-        resnet_nnvm(units       = units,
-                      num_stages  = num_stages,
-                      filter_list = filter_list,
-                      num_classes = num_classes,
-                      image_shape = image_shape,
-                      bottle_neck = bottle_neck,
-                      workspace   = conv_workspace,
-                      dtype       = dtype)
+                  dtype       = dtype)
