@@ -1,7 +1,6 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-variable
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
-from ..util import get_const_tuple
 from .. import tag
 
 def _schedule(s, data, data_pad, kernel, output, last):
