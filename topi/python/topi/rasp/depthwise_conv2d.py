@@ -6,6 +6,7 @@ from .. import tag
 def _schedule(s, data, data_pad, kernel, output, last):
     A, B, C = data, kernel, output
     A0 = data_pad
+    C0 = last
 
     _, c, h, w = s[C].op.axis
     dh, dw = s[C].op.reduce_axis
