@@ -256,14 +256,6 @@ def _from_mxnet_impl(symbol, graph):
     nnvm.sym.Symbol
         Converted symbol
     """
-    try:
-        from mxnet import sym as mx_sym  # pylint: disable=import-self
-    except ImportError as e:
-        raise ImportError('{}. MXNet is required to parse symbols.'.format(e))
-
-    if not isinstance(symbol, mx_sym.Symbol):
-        raise ValueError("Provided {}, while MXNet symbol is expected", type(symbol))
-
     if _is_mxnet_group_symbol(symbol):
         return [_from_mxnet_impl(s, graph) for s in symbol]
 
@@ -294,7 +286,7 @@ def from_mxnet(symbol, arg_params=None, aux_params=None):
 
     Parameters
     ----------
-    symbol : mxnet.Symbol
+    symbol : mxnet.Symbol or mxnet.gluon.HybridBlock
         MXNet symbol
 
     arg_params : dict of str to mx.NDArray
@@ -305,18 +297,36 @@ def from_mxnet(symbol, arg_params=None, aux_params=None):
 
     Returns
     -------
-    net: nnvm.Symbol
+    sym : nnvm.Symbol
         Compatible nnvm symbol
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by nnvm
     """
-    sym = _from_mxnet_impl(symbol, {})
-    params = {}
-    arg_params = arg_params if arg_params else {}
-    aux_params = aux_params if aux_params else {}
-    for k, v in arg_params.items():
-        params[k] = tvm.nd.array(v.asnumpy())
-    for k, v in aux_params.items():
-        params[k] = tvm.nd.array(v.asnumpy())
+    try:
+        import mxnet as mx  # pylint: disable=import-self
+    except ImportError as e:
+        raise ImportError('{}. MXNet is required to parse symbols.'.format(e))
+
+    if isinstance(symbol, mx.sym.Symbol):
+        sym = _from_mxnet_impl(symbol, {})
+        params = {}
+        arg_params = arg_params if arg_params else {}
+        aux_params = aux_params if aux_params else {}
+        for k, v in arg_params.items():
+            params[k] = tvm.nd.array(v.asnumpy())
+        for k, v in aux_params.items():
+            params[k] = tvm.nd.array(v.asnumpy())
+    elif isinstance(symbol, mx.gluon.HybridBlock):
+        data = mx.sym.Variable('data')
+        sym = symbol(data)
+        sym = _from_mxnet_impl(sym, {})
+        params = {}
+        for k, v in symbol.collect_params().items():
+            params[k] = tvm.nd.array(v.data().asnumpy())
+    elif isinstance(symbol, mx.gluon.Block):
+        raise NotImplementedError("The dynamic Block is not supported yet.")
+    else:
+        msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
+        raise ValueError(msg)
     return sym, params
