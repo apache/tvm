@@ -23,6 +23,17 @@ _SCHEDULES = [
     Im2ColPack(7, 4, 1, 16, True),
     Im2ColPack(7, 4, 1, 8, False),
     Im2ColPack(7, 4, 1, 16, False),
+
+    SpatialPack(2, 2, 4, 28, 1, True),
+    SpatialPack(1, 4, 8, 14, 1, False),
+    SpatialPack(1, 2, 16, 8, 1, True),
+    SpatialPack(1, 4, 8, 8, 8, True),
+    SpatialPack(2, 2, 8, 1, 1, False),
+    SpatialPack(1, 4, 8, 4, 8, False),
+    SpatialPack(2, 2, 8, 1, 4, False),
+    SpatialPack(2, 2, 8, 1, 8, False),
+    SpatialPack(1, 1, 16, 1, 4, False),
+    SpatialPack(1, 1, 4, 1, 4, True),
 ]
 
 def _schedule_conv2d(wkl):
