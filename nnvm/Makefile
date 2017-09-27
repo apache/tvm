@@ -38,7 +38,7 @@ PLUGIN_OBJ =
 include $(NNVM_PLUGINS)
 
 # specify tensor path
-.PHONY: clean all test lint pylint doc cython cython3 cyclean
+.PHONY: clean all test lint cpplint pylint doc cython cython3 cyclean
 
 UNAME_S := $(shell uname -s)
 
@@ -87,7 +87,9 @@ cython3:
 cyclean:
 	rm -rf python/nnvm/*/*.so python/nnvm/*/*.dylib python/nnvm/*/*.cpp
 
-lint: pylint
+lint: pylint cpplint
+
+cpplint:
 	python dmlc-core/scripts/lint.py nnvm cpp include src
 
 pylint:

@@ -11,21 +11,24 @@ import ctypes as _ctypes
 
 from numbers import Number as _Number
 from . import _base
-from ._base import _LIB, check_call as _check_call
+from ._base import _LIB, check_call as _check_call, _FFI_MODE
 from .attribute import AttrScope
 from . import _symbol_internal as _internal
 
 # Use different verison of SymbolBase
 # When possible, use cython to speedup part of computation.
 
+IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
+
 try:
-    if int(_os.environ.get("MXNET_ENABLE_CYTHON", True)) == 0:
-        from ._ctypes.symbol import SymbolBase, _init_symbol_module
-    elif _sys.version_info >= (3, 0):
+    if _FFI_MODE == "ctypes":
+        raise ImportError()
+    if _sys.version_info >= (3, 0):
         from ._cy3.symbol import SymbolBase, _init_symbol_module
     else:
         from ._cy2.symbol import SymbolBase, _init_symbol_module
-except ImportError:
+except IMPORT_EXCEPT:
+    # pylint: disable=wrong-import-position
     from ._ctypes.symbol import SymbolBase, _init_symbol_module
 
 
