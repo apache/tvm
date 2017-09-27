@@ -21,8 +21,8 @@ SpatialPack = namedtuple('SpatialPack',
 Im2ColPack = namedtuple('Im2ColPack',
                         ['vp', 'vq', 'ba', 'bc', 'unroll'])
 
-# workloads of resnet18 on imagenet
 _WORKLOADS = [
+    # workloads of resnet18 on imagenet
     Workload(224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
     Workload(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
     Workload(56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
@@ -35,6 +35,17 @@ _WORKLOADS = [
     Workload(14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
     Workload(14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
     Workload(7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
+    # workloads of mobile net on imagenet
+    Workload(224, 224,    3,   32, 3, 3, 1, 1, 2, 2),
+    Workload(112, 112,   32,   64, 1, 1, 0, 0, 1, 1),
+    Workload( 56,  56,   64,  128, 1, 1, 0, 0, 1, 1),
+    Workload( 56,  56,  128,  128, 1, 1, 0, 0, 1, 1),
+    Workload( 28,  28,  128,  256, 1, 1, 0, 0, 1, 1),
+    Workload( 28,  28,  256,  256, 1, 1, 0, 0, 1, 1),
+    Workload( 14,  14,  256,  512, 1, 1, 0, 0, 1, 1),
+    Workload( 14,  14,  512,  512, 1, 1, 0, 0, 1, 1),
+    Workload(  7,   7,  512, 1024, 1, 1, 0, 0, 1, 1),
+    Workload(  7,   7, 1024, 1024, 1, 1, 0, 0, 1, 1),
 ]
 
 # platform specific schedule
