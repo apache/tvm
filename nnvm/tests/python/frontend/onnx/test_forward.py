@@ -4,10 +4,10 @@ import tvm
 from tvm.contrib import graph_runtime
 from nnvm.testing.config import ctx_list
 import onnx
-import onnx_caffe2.backend
 from model_zoo import super_resolution
 
-def test_onnx_forward_impl(graph_file, data_shape, out_shape):
+def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
+    import onnx_caffe2.backend
     def get_caffe2_output(graph, x, dtype='float32'):
         prepared_backend = onnx_caffe2.backend.prepare(graph)
         W = {graph.input[-1]: x.astype(dtype)}
@@ -35,8 +35,8 @@ def test_onnx_forward_impl(graph_file, data_shape, out_shape):
         tvm_out = get_tvm_output(graph, x, target, ctx, dtype)
         np.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
-def test_super_resolution_example():
-    test_onnx_forward_impl(super_resolution[0], (1, 1, 224, 224), (1, 1, 672, 672))
+def verify_super_resolution_example():
+    verify_onnx_forward_impl(super_resolution[0], (1, 1, 224, 224), (1, 1, 672, 672))
 
 if __name__ == '__main__':
-    test_super_resolution_example()
+    verify_super_resolution_example()

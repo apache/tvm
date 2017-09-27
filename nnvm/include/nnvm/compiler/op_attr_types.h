@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file op_attr_types.h
+ * \file nnvm/compiler/op_attr_types.h
  * \brief The Expr and related elements in DataFlow construction.
  */
 #ifndef NNVM_COMPILER_OP_ATTR_TYPES_H_
