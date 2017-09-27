@@ -23,6 +23,7 @@ Implemented the following paper:
 
 Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun. "Identity Mappings in Deep Residual Networks"
 '''
+# pylint: disable=unused-argument
 import numpy as np
 from .. import symbol as sym
 from . utils import create_workload
