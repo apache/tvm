@@ -3,6 +3,9 @@ import sys
 from distutils.core import setup
 
 def config_cython():
+    # temporary disable cython for now
+    # as NNVM uses local DLL build
+    return []
     try:
         from Cython.Build import cythonize
         from distutils.extension import Extension

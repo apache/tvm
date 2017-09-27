@@ -11,7 +11,8 @@ import mxnet as mx
 import model_zoo
 
 
-def test_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(1, 1000)):
+def verify_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(1, 1000)):
+    """Use name different from test to avoid let nose pick it up"""
     def get_mxnet_output(symbol, x, dtype='float32'):
         from collections import namedtuple
         Batch = namedtuple('Batch', ['data'])
@@ -48,17 +49,17 @@ def test_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(
 
 def test_forward_mlp():
     mlp = model_zoo.mx_mlp
-    test_mxnet_frontend_impl(mlp)
+    verify_mxnet_frontend_impl(mlp)
 
 def test_forward_vgg():
     for n in [11]:
         mx_sym = model_zoo.mx_vgg[n]
-        test_mxnet_frontend_impl(mx_sym)
+        verify_mxnet_frontend_impl(mx_sym)
 
 def test_forward_resnet():
     for n in [18]:
         mx_sym = model_zoo.mx_resnet[n]
-        test_mxnet_frontend_impl(mx_sym)
+        verify_mxnet_frontend_impl(mx_sym)
 
 if __name__ == '__main__':
     test_forward_mlp()

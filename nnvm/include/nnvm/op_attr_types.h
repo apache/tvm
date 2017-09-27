@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file op_attr_types.h
+ * \file nnvm/op_attr_types.h
  * \brief Data structures that can appear in operator attributes.
  */
 #ifndef NNVM_OP_ATTR_TYPES_H_

@@ -39,7 +39,7 @@ def tvm_callback_cuda_compile(code):
 # .. note::
 #
 #   In a typical workflow, we can get this pair from :any:`nnvm.frontend`
-# Example: /nnvm-top/tests/python/frontend/mxnet/test_forward.py  
+#
 target = "cuda"
 ctx = tvm.gpu(0)
 batch_size = 1

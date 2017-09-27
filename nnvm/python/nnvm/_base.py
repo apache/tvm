@@ -3,6 +3,7 @@
 """ ctypes library of nnvm and helper functions """
 from __future__ import absolute_import
 
+import os
 import sys
 import ctypes
 import numpy as np
@@ -44,7 +45,8 @@ def _load_lib():
 __version__ = libinfo.__version__
 # library instance of nnvm
 _LIB = _load_lib()
-
+# The FFI mode of TVM
+_FFI_MODE = os.environ.get("TVM_FFI", "auto")
 
 # type definitions
 nn_uint = ctypes.c_uint
