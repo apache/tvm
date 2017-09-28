@@ -114,6 +114,8 @@ def squeeze(a, axis=None):
     for i, a_dim in enumerate(a_shape):
         if i not in search_axis:
             out_shape.append(a_dim)
+    if not out_shape:
+        out_shape.append(1)
     def _compute(*indices):
         real_indices = []
         flag = 0
