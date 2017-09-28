@@ -41,6 +41,7 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.flatten
    nnvm.symbol.concatenate
    nnvm.symbol.expand_dims
+   nnvm.symbol.squeeze
    nnvm.symbol.split
    nnvm.symbol.dropout
    nnvm.symbol.batch_norm
@@ -112,6 +113,7 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.flatten
 .. autofunction:: nnvm.symbol.concatenate
 .. autofunction:: nnvm.symbol.expand_dims
+.. autofunction:: nnvm.symbol.squeeze
 .. autofunction:: nnvm.symbol.split
 .. autofunction:: nnvm.symbol.dropout
 .. autofunction:: nnvm.symbol.batch_norm
