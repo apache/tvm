@@ -8,6 +8,7 @@ This is an example of using NNVM to compile MobileNet/ResNet model and deploy it
 To begin with, we import nnvm(for compilation) and TVM(for deployment).
 """
 import tvm
+import numpy as np
 from tvm.contrib import nvcc, graph_runtime
 import nnvm.compiler
 import nnvm.testing
@@ -64,6 +65,7 @@ net, params = nnvm.testing.mobilenet.get_workload(
 graph, lib, params = nnvm.compiler.build(
     net, target, shape={"data": data_shape}, params=params)
 
+
 ######################################################################
 # Run the Compiled Module
 # -----------------------
@@ -74,10 +76,11 @@ graph, lib, params = nnvm.compiler.build(
 # This example runs on the same machine.
 #
 # Note that the code below no longer depends on NNVM, and only relies TVM's runtime to run(deploy).
-
+data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
 module = graph_runtime.create(graph, lib, ctx)
 # set input
 module.set_input(**params)
+module.set_input("data", data)
 # run
 module.run()
 # get output
