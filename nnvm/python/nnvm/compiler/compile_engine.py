@@ -47,7 +47,7 @@ class Engine(object):
         """
         res = _list_cache_items()
         assert len(res) % 2 == 0
-        return [(res[2*i], res[2*i+1]) for i in range(len(res)/2)]
+        return [(res[2*i], res[2*i+1]) for i in range(len(res) // 2)]
 
     def clear_cache(self):
         """Clear the existing cached functions."""

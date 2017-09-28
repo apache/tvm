@@ -36,6 +36,16 @@ def compute_reshape(attrs, inputs, out_info):
 reg.register_pattern("reshape", OpPattern.INJECTIVE)
 reg.register_schedule("reshape", _fschedule_injective)
 
+# reshape
+@reg.register_compute("squeeze")
+def compute_squeeze(attrs, inputs, out_info):
+    """Compute definition of reshape"""
+    axis = attrs.get_int_tuple("axis")
+    axis = tuple(axis) if axis else None
+    return topi.squeeze(inputs[0], axis)
+reg.register_pattern("squeeze", OpPattern.INJECTIVE)
+reg.register_schedule("squeeze", _fschedule_injective)
+
 # concatenate
 @reg.register_compute("concatenate")
 def compute_concatenate(attrs, inputs, out_info):

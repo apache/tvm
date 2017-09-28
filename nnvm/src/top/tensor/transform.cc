@@ -445,6 +445,80 @@ The significance of each is explained below:
 .set_num_outputs(1)
 .set_support_level(3);
 
+// squeeze
+DMLC_REGISTER_PARAMETER(SqueezeParam);
+
+inline bool SqueezeShape(const nnvm::NodeAttrs& attrs,
+                           std::vector<TShape>* in_attrs,
+                           std::vector<TShape>* out_attrs) {
+  const SqueezeParam& param = nnvm::get<SqueezeParam>(attrs.parsed);
+  CHECK_EQ(in_attrs->size(), 1U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const TShape& shp = (*in_attrs)[0];
+  if (shp.ndim() == 0) return false;
+
+  std::vector<int64_t> oshape;
+  if (param.axis.ndim() == 0) {
+    for (dim_t i = 0; i < shp.ndim(); ++i) {
+      if(shp[i] != 1) {
+        oshape.emplace_back(shp[i]);
+      }
+    }
+  } else {
+    std::unordered_set<dim_t> axis_checker;
+    for (size_t i = 0; i < param.axis.ndim(); ++i) {
+      if(param.axis[i] < 0) {
+        int real_axis = param.axis[i] + static_cast<int>(shp.ndim());
+        CHECK(real_axis < static_cast<int>(shp.ndim()) && real_axis >= 0);
+        axis_checker.insert(real_axis);
+      }
+    }
+    for (size_t i = 0; i < shp.ndim(); ++i) {
+      if(axis_checker.find(i) == axis_checker.end()) {
+        oshape.emplace_back(shp[i]);
+      } else {
+        CHECK_EQ(shp[i], 1) << "The squeezed axis must have shape 1!"
+                            << "Want to squeeze " << i
+                            << ", which has shape" << shp[i];
+      }
+    }
+  }
+  if(oshape.size() == 0) {
+    // Handles the case where all axes are squeezed.
+    oshape.push_back(1);
+  }
+  TShape out_shape(oshape.begin(), oshape.end());
+  CHECK_EQ(out_shape.Size(), shp.Size())
+      << "Target shape size is different to source. "
+      << "Target: " << out_shape
+      << "\nSource: " << shp;
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, out_shape);
+  return true;
+}
+
+NNVM_REGISTER_OP(squeeze)
+.describe(R"code(Squeeze axises in the array.
+
+Examples::
+
+  x = [[[0], [1], [2]]]
+
+  squeeze(x) = [0, 1, 2]
+
+  squeeze(x, 0) = [[0], [1], [2]]
+
+  squeeze(x, (0, 2)) = [0, 1, 2]
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Source input")
+.add_arguments(SqueezeParam::__FIELDS__())
+.set_attr_parser(ParamParser<SqueezeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<SqueezeParam>)
+.set_attr<nnvm::FInferShape>("FInferShape", SqueezeShape)
+.set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_support_level(1);
+
 // tranpose
 DMLC_REGISTER_PARAMETER(TransposeParam);
 
