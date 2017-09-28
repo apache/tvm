@@ -220,6 +220,30 @@ def test_split():
     verify_split((5, 3), [3], axis=0)
     verify_split((5, 9, 3), [3, 4], axis=1)
 
+
+def verify_squeeze(dshape, axis):
+    x = sym.Variable("x")
+    if axis:
+        y = sym.squeeze(x, axis=axis)
+    else:
+        y = sym.squeeze(x)
+    y = y + 1
+    dtype = "float32"
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
+        m = graph_runtime.create(graph, lib, ctx)
+        # set input
+        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
+        m.run(x=data)
+        out_np = np.squeeze(data.asnumpy(), axis=axis) + 1
+        out = m.get_output(0, tvm.nd.empty(out_np.shape))
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def test_squeeze():
+    verify_squeeze((1, 3, 2, 5), None)
+    verify_squeeze((1, 3, 1), axis=0)
+    verify_squeeze((1, 3, 2, 5, 1), axis=-1)
+
 if __name__ == "__main__":
     test_split()
     test_concatenate()
@@ -232,3 +256,4 @@ if __name__ == "__main__":
     test_tanh()
     test_sigmoid()
     test_softmax()
+    test_squeeze()

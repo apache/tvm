@@ -71,7 +71,6 @@ def test_reshape():
     verify_reshape((2, 3, 4), (8, 3))
     verify_reshape((4, 7), (2, 7, 2))
 
-
 if __name__ == "__main__":
     test_reshape()
     test_reduce()

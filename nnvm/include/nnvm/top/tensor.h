@@ -79,6 +79,16 @@ struct ReshapeParam : public dmlc::Parameter<ReshapeParam> {
   }
 };
 
+struct SqueezeParam : public dmlc::Parameter<SqueezeParam> {
+  TShape axis;
+
+  DMLC_DECLARE_PARAMETER(SqueezeParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(TShape())
+    .describe("The axis to squeeze in the input tensor."
+              " If set to None, all size=1 axes will be squeezed");
+  }
+};
+
 struct ScalarParam : public dmlc::Parameter<ScalarParam> {
   double scalar;
 

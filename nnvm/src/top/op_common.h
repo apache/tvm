@@ -10,6 +10,7 @@
 #include <dmlc/parameter.h>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 namespace nnvm {
 namespace top {
