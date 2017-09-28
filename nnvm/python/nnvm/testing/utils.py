@@ -5,9 +5,10 @@ import numpy as np
 import tvm
 from ..compiler import graph_util
 from ..import graph
+from . init import Xavier
 
-
-def create_workload(net, batch_size, image_shape=(3, 224, 224), dtype="float32"):
+def create_workload(net, batch_size, image_shape=(3, 224, 224),
+                    dtype="float32", initializer=None, seed=0):
     """Helper function to create benchmark workload for input network
 
     Parameters
@@ -24,6 +25,12 @@ def create_workload(net, batch_size, image_shape=(3, 224, 224), dtype="float32")
     dtype : str, optional
         The data type
 
+    initializer : Initializer
+        The initializer used
+
+    seed : int
+        The seed used in initialization.
+
     Returns
     -------
     net : nnvm.Symbol
@@ -38,15 +45,12 @@ def create_workload(net, batch_size, image_shape=(3, 224, 224), dtype="float32")
     g = graph.create(net)
     input_shapes, _ = graph_util.infer_shape(g, data=data_shape)
     shape_dict = dict(zip(g.index.input_names, input_shapes))
+    np.random.seed(seed)
+    initializer = initializer if initializer else Xavier(magnitude=3)
     for k, v in shape_dict.items():
         if k == "data":
             continue
-        # Specially generate non-negative parameters.
-        if k.endswith("gamma"):
-            init = np.random.uniform(0.9, 1, size=v)
-        elif k.endswith("var"):
-            init = np.random.uniform(0.9, 1, size=v)
-        else:
-            init = np.random.uniform(-0.1, 0.1, size=v)
-        params[k] = tvm.nd.array(init.astype(dtype), ctx=tvm.cpu(0))
+        init_value = np.zeros(v).astype(dtype)
+        initializer(k, init_value)
+        params[k] = tvm.nd.array(init_value, ctx=tvm.cpu(0))
     return net, params
