@@ -11,7 +11,8 @@ from .. import graph as _graph
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
     "PrecomputePrune": 2,
-    "OpFusion": 1
+    "OpFusion": 1,
+    "FoldScaleAxis": 3
 }
 
 # List of optimization pass and level when switch on
@@ -144,6 +145,10 @@ def optimize(graph, shape, dtype="float32"):
     if cfg.pass_enabled("SimplifyInference"):
         graph = graph_attr.set_shape_inputs(graph, shape)
         graph = graph.apply(["InferShape", "SimplifyInference"])
+
+    if cfg.pass_enabled("FoldScaleAxis"):
+        graph = graph_attr.set_shape_inputs(graph, shape)
+        graph = graph.apply(["InferShape", "FoldScaleAxis"])
     return graph
 
 
@@ -291,5 +296,6 @@ def precompute_prune(graph, params):
     out_names = pre_graph.json_attr("output_names")
     if not pre_graph.symbol.list_output_names():
         return graph, params
-    out_arrs = _run_graph(pre_graph, params)
+    with tvm.build_config(auto_unroll_max_step=0):
+        out_arrs = _run_graph(pre_graph, params)
     return graph, dict(zip(out_names, out_arrs))

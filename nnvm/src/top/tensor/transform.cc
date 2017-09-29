@@ -460,21 +460,21 @@ inline bool SqueezeShape(const nnvm::NodeAttrs& attrs,
   std::vector<int64_t> oshape;
   if (param.axis.ndim() == 0) {
     for (dim_t i = 0; i < shp.ndim(); ++i) {
-      if(shp[i] != 1) {
+      if (shp[i] != 1) {
         oshape.emplace_back(shp[i]);
       }
     }
   } else {
     std::unordered_set<dim_t> axis_checker;
     for (size_t i = 0; i < param.axis.ndim(); ++i) {
-      if(param.axis[i] < 0) {
+      if (param.axis[i] < 0) {
         int real_axis = param.axis[i] + static_cast<int>(shp.ndim());
         CHECK(real_axis < static_cast<int>(shp.ndim()) && real_axis >= 0);
         axis_checker.insert(real_axis);
       }
     }
     for (size_t i = 0; i < shp.ndim(); ++i) {
-      if(axis_checker.find(i) == axis_checker.end()) {
+      if (axis_checker.find(i) == axis_checker.end()) {
         oshape.emplace_back(shp[i]);
       } else {
         CHECK_EQ(shp[i], 1) << "The squeezed axis must have shape 1!"
@@ -483,7 +483,7 @@ inline bool SqueezeShape(const nnvm::NodeAttrs& attrs,
       }
     }
   }
-  if(oshape.size() == 0) {
+  if (oshape.size() == 0) {
     // Handles the case where all axes are squeezed.
     oshape.push_back(1);
   }

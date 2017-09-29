@@ -46,7 +46,7 @@ def create_workload(net, batch_size, image_shape=(3, 224, 224),
     input_shapes, _ = graph_util.infer_shape(g, data=data_shape)
     shape_dict = dict(zip(g.index.input_names, input_shapes))
     np.random.seed(seed)
-    initializer = initializer if initializer else Xavier(magnitude=3)
+    initializer = initializer if initializer else Xavier()
     for k, v in shape_dict.items():
         if k == "data":
             continue

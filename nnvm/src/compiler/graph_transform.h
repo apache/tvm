@@ -20,7 +20,7 @@ namespace compiler {
  *
  * \param graph The original graph
  *
- * \param ftransform Function of (int nid, const Node* node, std::vector<NodeEntry>* out) -> bool
+ * \param ftransform Function of (int nid, const NodePtr& node, std::vector<NodeEntry>* out) -> bool
  *
  *      If empty vector is returned, it means original entries should be kept.
  *
@@ -36,7 +36,6 @@ Graph GraphTransform(Graph graph, FTransform ftransform) {
   // setup inputs and placeholder.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
-    if (inode.source->is_variable()) continue;
     bool need_copy = false;
     for (const IndexedGraph::NodeEntry& e : inode.inputs) {
       if (updated[idx.entry_id(e)]) {
@@ -57,7 +56,7 @@ Graph GraphTransform(Graph graph, FTransform ftransform) {
 
     if (!need_copy) {
       std::vector<NodeEntry> ret;
-      if (ftransform(nid, inode.source, &ret)) {
+      if (ftransform(nid, inode.weak_ref.lock(), &ret)) {
         CHECK_EQ(ret.size(), static_cast<size_t>(inode.source->num_outputs()));
         for (uint32_t i = 0 ; i < inode.source->num_outputs(); ++i) {
           updated[idx.entry_id(nid, i)] = true;
@@ -93,7 +92,7 @@ Graph GraphTransform(Graph graph, FTransform ftransform) {
         node->control_deps.push_back(selected_ptr);
       }
       std::vector<NodeEntry> ret;
-      if (ftransform(nid, node.get(), &ret)) {
+      if (ftransform(nid, node, &ret)) {
         CHECK_EQ(ret.size(), static_cast<size_t>(inode.source->num_outputs()));
         for (uint32_t i = 0 ; i < inode.source->num_outputs(); ++i) {
           updated[idx.entry_id(nid, i)] = true;

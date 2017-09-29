@@ -28,7 +28,8 @@ def verify_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape
         new_sym, params = frontend.from_mxnet(symbol, args, auxs)
         dshape = x.shape
         shape_dict = {'data': dshape}
-        graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
+        with nnvm.compiler.build_config(opt_level=3):
+            graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
         m.set_input("data", tvm.nd.array(x.astype(dtype)))

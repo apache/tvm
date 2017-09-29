@@ -16,6 +16,7 @@
 #include <dmlc/parameter.h>
 #include "./compile_engine.h"
 #include "./graph_runtime.h"
+#include "./pattern_util.h"
 
 namespace nnvm {
 namespace compiler {
@@ -56,17 +57,10 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
 
   // Reference counter of each op node
   // For now, always store result when an op is referred more than once.
-  std::vector<uint32_t> ref_count(idx.num_nodes(), 0);
-  for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
-    const auto& inode = idx[nid];
-    if (inode.source->is_variable()) continue;
-    for (const auto& e : inode.inputs) {
-      ++ref_count[e.node_id];
-    }
-  }
+  std::vector<uint32_t> ref_count = GetNodeRefCounts(idx);
   for (const auto& e : idx.outputs()) {
     // this line will realize all the outputs
-    ref_count[e.node_id] += 2;
+    ref_count[e.node_id] += 1;
   }
   // Pattern for the subgraph
   std::vector<TOpPattern> pattern_vec(idx.num_nodes(),  kOpaque);

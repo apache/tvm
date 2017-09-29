@@ -58,7 +58,7 @@ class CompileEngine {
       return it->second->graph_func;
     }
     GraphFunc f = DoLower(key->graph, key->inputs, key->target,
-                           schedule_op_key, schedule_op_attr);
+                          schedule_op_key, schedule_op_attr);
     std::shared_ptr<GraphCacheEntryNode> n = std::make_shared<GraphCacheEntryNode>();
     n->graph_func = f;
     n->use_count = 1;
