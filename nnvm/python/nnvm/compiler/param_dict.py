@@ -1,6 +1,8 @@
 # pylint: disable=invalid-name
 """Helper utility to save parameter dict"""
+import ctypes
 import tvm
+from tvm._ffi.runtime_ctypes import TVMArrayHandle
 
 _save_param_dict = tvm.get_global_func("nnvm.compiler._save_param_dict")
 _load_param_dict = tvm.get_global_func("nnvm.compiler._load_param_dict")
@@ -62,6 +64,6 @@ def load_param_dict(param_bytes):
     param_dict = {}
     for i in range(size):
         key = load_mod(1, i)
-        dltensor_handle = load_mod(2, i)
+        dltensor_handle = ctypes.cast(load_mod(2, i), TVMArrayHandle)
         param_dict[key] = tvm.nd.NDArray(dltensor_handle, False)
     return param_dict

@@ -41,7 +41,7 @@ sym, params = nnvm.frontend.from_onnx(onnx_graph)
 # Load a test image
 # ---------------------------------------------
 # A single cat dominates the examples!
-import Image
+from PIL import Image
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 with open('cat.jpg', 'w') as f:
     f.write(urllib2.urlopen(img_url).read())

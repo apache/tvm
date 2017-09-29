@@ -26,7 +26,7 @@ import numpy as np
 # In this section, we download a pretrained imagenet model and classify an image.
 from mxnet.gluon.model_zoo.vision import get_model
 from mxnet.gluon.utils import download
-import Image
+from PIL import Image
 from matplotlib import pyplot as plt
 block = get_model('resnet18_v1', pretrained=True)
 img_name = 'cat.jpg'
