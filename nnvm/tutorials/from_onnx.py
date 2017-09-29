@@ -1,6 +1,6 @@
 """
-Compiling ONNX Models with NNVM
-================================
+Compile ONNX Models
+===================
 **Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_
 
 This article is an introductory tutorial to deploy ONNX models with NNVM.

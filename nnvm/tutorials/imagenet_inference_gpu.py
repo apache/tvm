@@ -1,6 +1,6 @@
 """
-Compile ImageNet Inference on GPU
-==================================
+Compile GPU Inference
+=====================
 **Author**: `Yuwei Hu <https://huyuwei.github.io/>`_
 
 This is an example of using NNVM to compile MobileNet/ResNet model and deploy its inference on GPU.
