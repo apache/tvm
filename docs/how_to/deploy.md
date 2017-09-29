@@ -18,10 +18,11 @@ The only thing we need is to link to a TVM runtime in your target platform.
 TVM provides a minimum runtime, which costs around 300K to 600K depending on how much modules we use.
 In most cases, we can use ```libtvm_runtime.so``` that comes with the build.
 
-If somehow you find it is hard to build ```libtvm_runtime```, checkout [tvm_runtime_pack.cc](tvm_runtime_pack.cc).
+If somehow you find it is hard to build ```libtvm_runtime```, checkout [tvm_runtime_pack.cc](https://github.com/dmlc/tvm/tree/master/apps/howto_deploy/tvm_runtime_pack.cc).
 It is an example all in one file that gives you TVM runtime.
 You can compile this file using your build system and include this into your project.
 
+You can also checkout [apps](https://github.com/dmlc/tvm/tree/master/apps/) for example applications build with TVM on iOS, Android and others.
 
 Dynamic Library vs. System Module
 ---------------------------------
