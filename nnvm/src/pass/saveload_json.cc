@@ -79,7 +79,7 @@ struct JSONNode {
       // write attributes in order;
       std::map<std::string, std::string> dict(
           node->attrs.dict.begin(), node->attrs.dict.end());
-      writer->WriteObjectKeyValue("attr", dict);
+      writer->WriteObjectKeyValue("attrs", dict);
     }
     writer->WriteObjectKeyValue("inputs", inputs);
     if (control_deps.size() != 0) {
@@ -96,6 +96,7 @@ struct JSONNode {
     helper.DeclareField("op", &op_type_str);
     helper.DeclareField("name", &(node->attrs.name));
     helper.DeclareField("inputs", &inputs);
+    helper.DeclareOptionalField("attrs", &(node->attrs.dict));
     helper.DeclareOptionalField("attr", &(node->attrs.dict));
     helper.DeclareOptionalField("control_deps", &control_deps);
     // backward compatible code with mxnet graph.
@@ -257,6 +258,7 @@ NNVM_REGISTER_PASS(SaveJSON)
 
 DMLC_JSON_ENABLE_ANY(std::string, str);
 DMLC_JSON_ENABLE_ANY(std::vector<int>, list_int);
+DMLC_JSON_ENABLE_ANY(std::vector<std::string>, list_str);
 
 }  // namespace
 }  // namespace pass
