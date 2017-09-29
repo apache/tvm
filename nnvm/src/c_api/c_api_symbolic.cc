@@ -15,7 +15,8 @@ int NNListAllOpNames(nn_uint *out_size,
   API_BEGIN();
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   ret->ret_vec_str = dmlc::Registry<Op>::ListAllNames();
-  ret->ret_vec_charp.clear();
+  ret->ret_vec_charp.resize(0);
+  ret->ret_vec_charp.reserve(ret->ret_vec_str.size());
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
   }
@@ -64,7 +65,8 @@ int NNGetOpInfo(OpHandle handle,
   *description = op->description.c_str();
   *num_doc_args = static_cast<nn_uint>(op->arguments.size());
   if (return_type) *return_type = nullptr;
-  ret->ret_vec_charp.clear();
+  ret->ret_vec_charp.resize(0);
+  ret->ret_vec_charp.reserve(op->arguments.size() * 3);
   for (size_t i = 0; i < op->arguments.size(); ++i) {
     ret->ret_vec_charp.push_back(op->arguments[i].name.c_str());
   }
@@ -207,13 +209,15 @@ int NNSymbolListAttrs(SymbolHandle symbol,
       s->ListAttrs(static_cast<Symbol::ListAttrOption>(option));  // NOLINT(*)
 
   std::vector<std::string>& attr_list = ret->ret_vec_str;
-  attr_list.clear();
+  attr_list.resize(0);
+  attr_list.reserve(attr.size());
   for (const auto& kv : attr) {
     attr_list.push_back(kv.first);
     attr_list.push_back(kv.second);
   }
   *out_size = attr.size();
   ret->ret_vec_charp.clear();
+  ret->ret_vec_charp.reserve(ret->ret_vec_str.size());
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
   }
@@ -229,7 +233,8 @@ int NNSymbolListInputVariables(SymbolHandle symbol,
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   std::vector<NodePtr> vs = s->ListInputs(Symbol::ListInputOption(option));
-  ret->ret_handles.clear();
+  ret->ret_handles.resize(0);
+  ret->ret_handles.reserve(vs.size());
   for (size_t i = 0; i < vs.size(); ++i) {
     nnvm::Symbol* rs = new nnvm::Symbol();
     rs->outputs.push_back(NodeEntry{vs[i], 0, 0});
@@ -249,7 +254,8 @@ int NNSymbolListInputNames(SymbolHandle symbol,
   API_BEGIN();
   ret->ret_vec_str =
       s->ListInputNames(Symbol::ListInputOption(option));
-  ret->ret_vec_charp.clear();
+  ret->ret_vec_charp.resize(0);
+  ret->ret_vec_charp.reserve(ret->ret_vec_str.size());
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
   }
@@ -265,7 +271,8 @@ int NNSymbolListOutputNames(SymbolHandle symbol,
   NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   ret->ret_vec_str = s->ListOutputNames();
-  ret->ret_vec_charp.clear();
+  ret->ret_vec_charp.resize(0);
+  ret->ret_vec_charp.reserve(ret->ret_vec_str.size());
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
   }
