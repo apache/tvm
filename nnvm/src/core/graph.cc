@@ -28,6 +28,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       // nodes_
       IndexedGraph::Node new_node;
       new_node.source = n.get();
+      new_node.weak_ref = n;
       nodes_.emplace_back(std::move(new_node));
       // arg_nodes_
       if (n->is_variable()) {

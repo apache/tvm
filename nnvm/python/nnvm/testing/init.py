@@ -81,7 +81,6 @@ class Xavier(Initializer):
         self.factor_type = factor_type
         self.magnitude = float(magnitude)
 
-
     def _init_weight(self, name, arr):
         shape = arr.shape
         hw_scale = 1.
