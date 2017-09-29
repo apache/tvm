@@ -98,6 +98,8 @@ class IndexedGraph {
     array_view<NodeEntry> inputs;
     /*! \brief control flow dependencies to the node */
     array_view<uint32_t> control_deps;
+    /*! \brief weak reference to node */
+    std::weak_ptr<nnvm::Node> weak_ref;
   };
   /*! \return number of nodes in the graph */
   inline size_t num_nodes() const {

@@ -30,7 +30,8 @@ def separable_conv_block(data, name, depthwise_channels,
     # depthwise convolution + bn + relu
     conv1 = sym.conv2d(data=data, channels=depthwise_channels,
                        groups=depthwise_channels, kernel_size=kernel_size, strides=strides,
-                       padding=padding, use_bias=False, layout="NCHW", name=name + "_depthwise_conv1")
+                       padding=padding, use_bias=False, layout="NCHW",
+                       name=name + "_depthwise_conv1")
     bn1 = sym.batch_norm(data=conv1, epsilon=epsilon, name=name + "_bn1")
     act1 = sym.relu(data=bn1, name=name + "_relu1")
     # pointwise convolution + bn + relu

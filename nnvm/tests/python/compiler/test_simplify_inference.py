@@ -14,8 +14,8 @@ def test_simplify_batchnorm():
         # for 2D
         num_newaxis=len(shape) - axis - 1
         if num_newaxis:
-            scale = sym.expand_dims(scale, axis=axis, num_newaxis=num_newaxis)
-            shift = sym.expand_dims(shift, axis=axis, num_newaxis=num_newaxis)
+            scale = sym.expand_dims(scale, axis=1, num_newaxis=num_newaxis)
+            shift = sym.expand_dims(shift, axis=1, num_newaxis=num_newaxis)
         return x * scale + shift
 
 
@@ -39,8 +39,6 @@ def test_simplify_batchnorm():
         g2 = nnvm.graph.create(y2)
         graph_attr.set_shape_inputs(g, ishape)
         g1 = g.apply("InferShape").apply("SimplifyInference")
-        # Some prints for debug
-        # print(g1.ir())
         # assert graph equals as expected
         graph_util.check_graph_equal(g1, g2)
 

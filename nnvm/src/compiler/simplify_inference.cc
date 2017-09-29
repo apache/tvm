@@ -1,6 +1,6 @@
 /*!
  * Copyright (c) 2017 by Contributors
- * \file simplify_batch_norm.cc
+ * \file simplify_inference.cc
  * \author Ziheng Jiang
 */
 #include <nnvm/graph.h>
@@ -10,6 +10,7 @@
 #include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/top/nn.h>
 #include "./graph_transform.h"
+#include "./pattern_util.h"
 
 namespace nnvm {
 namespace compiler {
@@ -58,15 +59,9 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
     shift = MakeNode(
         "elemwise_add", bn_name + "_add_beta", {shift, beta});
   }
-  // use expand dims to pad lower dims to 1
-  int num_pad_axis = static_cast<int>(dshape.ndim() - param.axis) - 1;
-  if (num_pad_axis != 0) {
-    std::unordered_map<std::string, std::string> kwargs{
-      {"axis", std::to_string(param.axis)},
-      {"num_newaxis", std::to_string(num_pad_axis)}};
-    scale = MakeNode("expand_dims", bn_name + "_sc_expand", {scale}, kwargs);
-    shift = MakeNode("expand_dims", bn_name + "_sh_expand", {shift}, kwargs);
-  }
+  int axis = param.axis;
+  scale = ExpandBiasToMatchAxis(scale, dshape.ndim(), 1, axis);
+  shift = ExpandBiasToMatchAxis(shift, dshape.ndim(), 1, axis);
   NodeEntry out = MakeNode("broadcast_mul", bn_name + "_a_mul_data",
                            {data, scale});
   out = MakeNode("broadcast_add", bn_name + "_out",
@@ -80,7 +75,7 @@ Graph SimplifyInference(nnvm::Graph src) {
   // Get attributes from the graph
   const IndexedGraph& idx = src.indexed_graph();
   const ShapeVector& shape_vec = src.GetAttr<ShapeVector>("shape");
-  auto transform = [&](uint32_t nid, const Node* n, std::vector<NodeEntry>* ret) {
+  auto transform = [&](uint32_t nid, const NodePtr& n, std::vector<NodeEntry>* ret) {
     if (n->is_variable()) return false;
     static const Op* bn_op = Op::Get("batch_norm");
     static const Op* dropout_op = Op::Get("dropout");
