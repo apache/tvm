@@ -1,6 +1,6 @@
 """
-Compiling MXNet Models with NNVM
-================================
+Compile MXNet Models
+====================
 **Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_
 
 This article is an introductory tutorial to deploy mxnet models with NNVM.
