@@ -77,7 +77,7 @@ There are several ways to install the package:
     The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ```setup``` again)
 
     ```bash
-    export PYTHONPATH=/path/to/tvm/python:${PYTHONPATH}
+    export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:${PYTHONPATH}
     ```
 
 2. Install tvm python bindings by `setup.py`:
@@ -87,7 +87,6 @@ There are several ways to install the package:
     # NOTE: if you installed python via homebrew, --user is not needed during installaiton
     #       it will be automatically installed to your user directory.
     #       providing --user flag may trigger error during installation in such case.
-    cd python; python setup.py install --user
-    # or install tvm package system wide
-    cd python; sudo python setup.py install
+    cd python; python setup.py install --user; cd ..
+    cd topi/python; python setup.py install --user; cd ../..
     ```
