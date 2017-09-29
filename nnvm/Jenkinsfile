@@ -4,7 +4,7 @@
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
 // nnvm libraries
-nnvm_lib = "tvm/lib/libtvm.so, tvm/lib/libtvm_runtime.so, lib/libnnvm_top.so, config.mk"
+nnvm_lib = "tvm/lib/libtvm.so, tvm/lib/libtvm_runtime.so, lib/libnnvm_compiler.so"
 
 // command to start a docker container
 docker_run = 'tests/ci_build/ci_build.sh'
@@ -47,11 +47,11 @@ stage("Sanity Check") {
 def make(docker_type, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      sh "${docker_run} ${docker_type} ./tests/script/task_build.sh ${make_flag}"
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${make_flag}"
     } catch (exc) {
       echo 'Incremental compilation failed. Fall back to build from scratch'
-      sh "${docker_run} ${docker_type} ./tests/script/task_clean.sh"
-      sh "${docker_run} ${docker_type} ./tests/script/task_build.sh ${make_flag}"
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh"
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${make_flag}"
     }
   }
 }
@@ -119,7 +119,7 @@ stage('Deploy') {
       ws('workspace/nnvm/deploy-docs') {
         if (env.BRANCH_NAME == "master") {
            unpack_lib('mydocs', 'docs.tgz')
-           sh "tar xf docs.tgz -C /var/docs"
+           sh "tar xf docs.tgz -C /var/nnvm-docs"
         }
       }
     }
