@@ -226,7 +226,7 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
     CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
     dim_t begin = 0;
-    for (size_t i = 0; i < num_outputs - 1; ++i) {
+    for (dim_t i = 0; i < num_outputs - 1; ++i) {
       CHECK_GT(param.indices_or_sections[i], begin)
           << "indices_or_sections need to be a sorted ascending list";
       oshape[param.axis] = param.indices_or_sections[i] - begin;

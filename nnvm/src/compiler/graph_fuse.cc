@@ -281,7 +281,7 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
       }
     }
     // schedule on root node, and use master's schedule
-    if (nid != root_id) {
+    if (static_cast<int>(nid) != root_id) {
       for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
         uint32_t eid = idx.entry_id(nid, index);
         subgraph_vec[eid] = NodeEntry{gnode, index, 0};
@@ -300,7 +300,7 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
     int root_id = group_vec[nid];
-    if (nid != root_id) continue;
+    if (static_cast<int>(nid) != root_id) continue;
     int master = master_vec[root_id];
     FuseEntry& fe = fuse_vec[root_id];
 
@@ -336,7 +336,7 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
       continue;
     }
     int root_id = group_vec[nid];
-    if (nid != root_id) continue;
+    if (static_cast<int>(nid) != root_id) continue;
     FuseEntry& fe = fuse_vec[root_id];
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     nnvm::NodePtr np = nnvm::Node::Create();

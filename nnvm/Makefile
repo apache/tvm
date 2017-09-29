@@ -53,12 +53,12 @@ else
 	NO_WHOLE_ARCH= --no-whole-archive
 endif
 
-all: lib/libnnvm.a lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX)
+all: lib/libnnvm.a lib/libnnvm_compiler.$(SHARED_LIBRARY_SUFFIX)
 
 SRC = $(wildcard src/*.cc src/c_api/*.cc src/core/*.cc src/pass/*.cc)
-SRC_TOP = $(wildcard src/top/*/*.cc src/compiler/*.cc src/compiler/*/*.cc)
+SRC_COMPILER = $(wildcard src/top/*/*.cc src/compiler/*.cc src/compiler/*/*.cc)
 ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_TOP))
+TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_COMPILER))
 ALL_DEP = $(ALL_OBJ)
 
 include tests/cpp/unittest.mk
@@ -74,7 +74,7 @@ lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libnnvm_top.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
+lib/libnnvm_compiler.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS) -Wl,${WHOLE_ARCH} lib/libnnvm.a -Wl,${NO_WHOLE_ARCH}
 
