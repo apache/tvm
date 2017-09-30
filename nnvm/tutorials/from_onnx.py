@@ -45,8 +45,10 @@ from PIL import Image
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 with open('cat.jpg', 'w') as f:
     f.write(urllib2.urlopen(img_url).read())
-img = Image.open('cat.jpg').convert("L")  # convert to greyscale
-x = np.array(img.resize((224, 224)))[np.newaxis, np.newaxis, :, :]
+img = Image.open('cat.jpg').resize((224, 224))
+img_ycbcr = img.convert("YCbCr")  # convert to YCbCr
+img_y, img_cb, img_cr = img_ycbcr.split()
+x = np.array(img_y)[np.newaxis, np.newaxis, :, :]
 
 ######################################################################
 # Compile the model on NNVM
@@ -73,15 +75,18 @@ m.run()
 # get outputs
 output_shape = (1, 1, 672, 672)
 tvm_output = m.get_output(0, tvm.nd.empty(output_shape, dtype)).asnumpy()
-out_img = tvm_output.reshape((672, 672))
 
 ######################################################################
 # Display results
 # ---------------------------------------------
 # We put input and output image neck to neck
 from matplotlib import pyplot as plt
-canvas = np.full((672, 672*2), 255)
-canvas[0:224, 0:224] = x[0, 0, :, :]
-canvas[:, 672:] = out_img
-plt.imshow(canvas, cmap='gray')
+out_y = Image.fromarray(np.uint8((tvm_output[0, 0]).clip(0, 255)), mode='L')
+out_cb = img_cb.resize(out_y.size, Image.BICUBIC)
+out_cr = img_cr.resize(out_y.size, Image.BICUBIC)
+result = Image.merge('YCbCr', [out_y, out_cb, out_cr]).convert('RGB')
+canvas = np.full((672, 672*2, 3), 255)
+canvas[0:224, 0:224, :] = np.asarray(img)
+canvas[:, 672:, :] = np.asarray(result)
+plt.imshow(canvas.astype(np.uint8))
 plt.show()
