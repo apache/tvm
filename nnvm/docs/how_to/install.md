@@ -49,10 +49,10 @@ There are several ways to install the package:
     export PYTHONPATH=/path/to/nnvm/python:${PYTHONPATH}
     ```
 
-2. Install tvm python bindings by `setup.py`:
+2. Install nnvm python bindings by `setup.py`:
 
     ```bash
-    # install tvm package for the current user
+    # install nnvm package for the current user
     # NOTE: if you installed python via homebrew, --user is not needed during installaiton
     #       it will be automatically installed to your user directory.
     #       providing --user flag may trigger error during installation in such case.
