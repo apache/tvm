@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable
+# pylint: disable=invalid-name,unused-variable, unused-argument
 """Schedule for depthwise_conv2d with auto fusion"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
@@ -15,15 +15,15 @@ _Schedule = namedtuple('Schedule', ['vh', 'vw', 'vc', 'bc', 'unroll'])
 
 # workloads of depthwise conv mobile net on imagenet
 _WORKLOADS = [
-    _Workload(112, 112,   32, 1, 3, 3, 1, 1, 1, 1),
-    _Workload(112, 112,   64, 1, 3, 3, 1, 1, 2, 2),
-    _Workload( 56,  56,  128, 1, 3, 3, 1, 1, 1, 1),
-    _Workload( 56,  56,  128, 1, 3, 3, 1, 1, 2, 2),
-    _Workload( 28,  28,  256, 1, 3, 3, 1, 1, 1, 1),
-    _Workload( 28,  28,  256, 1, 3, 3, 1, 1, 2, 2),
-    _Workload( 14,  14,  512, 1, 3, 3, 1, 1, 1, 1),
-    _Workload( 14,  14,  512, 1, 3, 3, 1, 1, 2, 2),
-    _Workload( 14,  14, 1024, 1, 3, 3, 1, 1, 1, 1),
+    _Workload(112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
+    _Workload(112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
+    _Workload(56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
+    _Workload(56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
+    _Workload(28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
+    _Workload(28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
+    _Workload(14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
+    _Workload(14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
+    _Workload(14, 14, 1024, 1, 3, 3, 1, 1, 1, 1),
 ]
 
 _SCHEDULES = [
