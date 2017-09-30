@@ -39,7 +39,8 @@ def create_workload(net, batch_size, image_shape=(3, 224, 224),
     params : dict of str to NDArray
         The parameters.
     """
-    image_shape = (3, 224, 224)
+    if image_shape is None:
+        image_shape = (3, 224, 224)
     data_shape = (batch_size,) + image_shape
     params = {}
     g = graph.create(net)
