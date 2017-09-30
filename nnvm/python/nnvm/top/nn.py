@@ -108,7 +108,7 @@ def compute_conv2d(attrs, inputs, _):
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
-        out = topi.nn.conv2d_nchw(inputs[0], inputs[1], strides, padding)
+        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding)
     elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(inputs[0], inputs[1], strides, padding)
     else:
@@ -128,6 +128,12 @@ def schedule_conv2d(attrs, outs, target):
             return topi.cuda.schedule_conv2d_nchw(outs)
         return topi.cuda.schedule_depthwise_conv2d_nchw(outs)
     # naive schedule
+
+    if tvm.target.current_target() == tvm.target.rasp():
+        if groups == 1:
+            return topi.rasp.schedule_conv2d(outs)
+        return topi.rasp.schedule_depthwise_conv2d(outs)
+
     return tvm.create_schedule([x.op for x in outs])
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
