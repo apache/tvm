@@ -62,6 +62,24 @@ class ExprOp(object):
     def __neg__(self):
         return self.__mul__(-1)
 
+    def __lshift__(self, other):
+        return _make.Call(self.dtype, "shift_left", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __rshift__(self, other):
+        return _make.Call(self.dtype, "shift_right", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __and__(self, other):
+        return _make.Call(self.dtype, "bitwise_and", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __or__(self, other):
+        return _make.Call(self.dtype, "bitwise_or", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __xor__(self, other):
+        return _make.Call(self.dtype, "bitwise_xor", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __invert__(self):
+        return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
+
     def __lt__(self, other):
         return _make.LT(self, other)
 

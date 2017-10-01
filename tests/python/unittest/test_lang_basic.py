@@ -123,6 +123,16 @@ def test_all():
         '(((%s < %s) && (%s > (%s + 1))) && (%s < (%s*2)))' % (
             x.name, y.name, y.name, z.name, x.name, z.name)
 
+def test_bitwise():
+    x = tvm.var('x')
+    y = tvm.var('y')
+    assert str(x << y) == 'shift_left(x, y)'
+    assert str(x >> y) == 'shift_right(x, y)'
+    assert str(x & y) == 'bitwise_and(x, y)'
+    assert str(x | y) == 'bitwise_or(x, y)'
+    assert str(x ^ y) == 'bitwise_xor(x, y)'
+    assert str(~x) == 'bitwise_not(x)'
+
 
 if __name__ == "__main__":
     test_cast()
@@ -137,3 +147,4 @@ if __name__ == "__main__":
     test_dtype()
     test_any()
     test_all()
+    test_bitwise()
