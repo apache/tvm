@@ -77,8 +77,8 @@ class ExprOp(object):
     def __xor__(self, other):
         return _make.Call(self.dtype, "bitwise_xor", [self, other], Call.PureIntrinsic, None, 0)
 
-    def __invert__(self, other):
-        return _make.Call(self.dtype, "bitwise_not", [self, other], Call.PureIntrinsic, None, 0)
+    def __invert__(self):
+        return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
         return _make.LT(self, other)
