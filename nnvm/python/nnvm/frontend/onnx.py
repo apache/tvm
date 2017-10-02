@@ -367,9 +367,10 @@ def from_onnx(graph):
 
     Returns
     -------
-    nnvm.Symbol
+    sym : nnvm.Symbol
         Compatible nnvm symbol
-    dict of tvm.ndarray
+    
+    params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
