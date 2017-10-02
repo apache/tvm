@@ -171,9 +171,9 @@ def clip(x, a_min, a_max):
     ----------
     x : tvm.Tensor
         Input argument.
-    a_min : int
+    a_min : int or float
         Minimum value.
-    a_max : int
+    a_max : int or float
         Maximum value.
 
     Returns
@@ -181,7 +181,12 @@ def clip(x, a_min, a_max):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.max(tvm.min(x(*i), a_max), a_min))
+    def _compute(*indices):
+        value = x(*indices)
+        const_min = tvm.const(a_min, value.dtype)
+        const_max = tvm.const(a_max, value.dtype)
+        return tvm.max(tvm.min(value, const_max), const_min)
+    return tvm.compute(x.shape, _compute)
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
