@@ -14,5 +14,6 @@ Contents
    tutorials/index
    how_to/contribute
    how_to/deploy
+   json_spec
    api/python/index
    dev/index
