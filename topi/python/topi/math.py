@@ -122,3 +122,87 @@ def sigmoid(x):
         The result.
     """
     return tvm.compute(x.shape, lambda *i: tvm.sigmoid(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def left_shift(x, n):
+    """Take n bits left shift of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+    n : int
+        Number of bits.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: x(*i) << n)
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def right_shift(x, n):
+    """Take n bits right shift of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+    n : int
+        Number of bits.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: x(*i) >> n)
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def clip(x, a_min, a_max):
+    """Clip (limit) the values in an array. Given an interval, values
+    outside the interval are clipped to the interval edges.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+    a_min : int or float
+        Minimum value.
+    a_max : int or float
+        Maximum value.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    def _compute(*indices):
+        value = x(*indices)
+        const_min = tvm.const(a_min, value.dtype)
+        const_max = tvm.const(a_max, value.dtype)
+        return tvm.max(tvm.min(value, const_max), const_min)
+    return tvm.compute(x.shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def cast(x, dtype):
+    """Cast input to specified data type.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+    dtype : str
+        Data type.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: x(*i).astype(dtype))
