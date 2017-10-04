@@ -275,10 +275,17 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
   }
 }
 
+inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+  return (a->combiner.same_as(b->combiner)) &&
+         (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) &&
+         (a->condition.same_as(b->condition));
+}
+
 void InjectInline(ScheduleNode* sch) {
   sch->InvalidateCache();
 
-  std::vector<Array<Expr>> new_body(sch->stages.size());
+  std::vector<Array<Expr> > new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
@@ -286,7 +293,7 @@ void InjectInline(ScheduleNode* sch) {
     if (stage->attach_type == kInline) {
       stage->attach_type = kInlinedAlready;
       Array<Var> args;
-      Array<Expr> body;
+      Expr body;
       {
         // setup args
         const ComputeOpNode* compute = stage->op.as<ComputeOpNode>();
@@ -295,7 +302,9 @@ void InjectInline(ScheduleNode* sch) {
         for (auto iv : compute->axis) {
           args.push_back(iv->var);
         }
-        body = compute->body;
+        CHECK_EQ(compute->body.size(), 1U)
+            << "can only inline compute op with 1 output";
+        body = compute->body[0];
       }
       for (size_t j = i; j < sch->stages.size(); ++j) {
         Stage s = sch->stages[j];
@@ -304,10 +313,39 @@ void InjectInline(ScheduleNode* sch) {
           if (!new_body[j].size()) {
             new_body[j] = s->op.as<ComputeOpNode>()->body;
           }
-          for (size_t k = 0; k < body.size(); ++k) {
-            changed[j] = true;
-            new_body[j].Set(k, ir::Inline(ir::Evaluate::make(new_body[j][k]),
-                            stage->op, args, body[k]).as<ir::Evaluate>()->value);
+          if (new_body[j][0]->is_type<ir::Reduce>()) {
+            // specially handle reduction inline for multiplre reductions.
+            const ir::Reduce* reduce = new_body[j][0].as<ir::Reduce>();
+            for (size_t k = 1; k < new_body[j].size(); ++k) {
+              const ir::Reduce* reduce_ = new_body[j][k].as<ir::Reduce>();
+              CHECK(reduce_);
+              CHECK(ReduceEqual(reduce_, reduce))
+                  << "The Reduce inputs of ComputeOp should "
+                  << "have the same attribute except value_index";
+            }
+            Expr new_value = ir::Inline(ir::Evaluate::make(new_body[j][0]),
+                                        stage->op, args, body).as<ir::Evaluate>()->value;
+            if (!new_value.same_as(new_body[j][0])) {
+              changed[j] = true;
+              const ir::Reduce* r = new_value.as<ir::Reduce>();
+              CHECK_EQ(new_body[j].size(), r->source.size());
+              CHECK(r != nullptr);
+              for (size_t k = 0; k < new_body[j].size(); ++k) {
+                std::shared_ptr<ir::Reduce> n = std::make_shared<ir::Reduce>(*r);
+                n->value_index = static_cast<int>(k);
+                n->type = r->source[k].type();
+                new_body[j].Set(k, Expr(n));
+              }
+            }
+          } else {
+            for (size_t k = 0; k < new_body[j].size(); ++k) {
+              Expr new_value = ir::Inline(ir::Evaluate::make(new_body[j][k]),
+                                          stage->op, args, body).as<ir::Evaluate>()->value;
+              if (!new_value.same_as(new_body[j][k])) {
+                new_body[j].Set(k, new_value);
+                changed[j] = true;
+              }
+            }
           }
         }
       }

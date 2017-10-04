@@ -56,6 +56,28 @@ def test_schedule_scan():
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+def test_inline_multi_reduce():
+    def argmax_comp(x, y):
+        idx = tvm.select((x[1] >= y[1]), x[0], y[0])
+        val = tvm.select((x[1] >= y[1]), x[1], y[1])
+        return idx, val
+    def argmax_init(idx_typ, val_typ):
+        return tvm.const(-1, idx_typ), tvm.min_value(val_typ)
+
+    argmax = tvm.comm_reducer(argmax_comp, argmax_init, name='argmax')
+    m = tvm.var('m')
+    n = tvm.var('n')
+    val = tvm.placeholder((m, n), name='val', dtype='float32')
+    val2 = tvm.compute((m, n), lambda i, j: tvm.exp(val[i, j]), name='val2')
+    k = tvm.reduce_axis((0, n), 'k')
+    T_idx, T_val = tvm.compute((m, ), lambda i: argmax((k.var, val2[i, k]), axis=k), name='T')
+    s = tvm.create_schedule(T_idx.op)
+    s[val2].compute_inline()
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
 def test_auto_inline():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -207,6 +229,7 @@ def test_schedule_cache_relayout3():
 
 
 if __name__ == "__main__":
+    test_inline_multi_reduce()
     test_schedule_cache_relayout3()
     test_schedule_cache_relayout2()
     test_schedule_cache_relayout1()

@@ -98,7 +98,7 @@ Array<Tensor> compute(Array<Expr> shape,
   return outputs;
 }
 
-bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
   return (a->combiner.same_as(b->combiner)) &&
          (a->source.same_as(b->source)) &&
          (a->axis.same_as(b->axis)) &&
