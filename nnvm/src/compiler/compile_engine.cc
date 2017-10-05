@@ -189,7 +189,7 @@ class CompileEngine {
     gf->inputs = inputs;
     gf->outputs = outputs;
     static const PackedFunc& flower = GetPackedFunc("nnvm.compiler.lower");
-    gf->funcs = flower(sch, all_args, gf->func_name);
+    gf->funcs = flower(sch, all_args, gf->func_name, graph);
     return GraphFunc(gf);
   }
 
