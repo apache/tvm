@@ -95,9 +95,18 @@ def build_config(**kwargs):
 
 
 @tvm.register_func("nnvm.compiler.lower")
-def _lower(sch, inputs, func_name):
-    f = tvm.lower(sch, inputs, name=func_name)
-    logging.debug("lower function %s", func_name)
+def _lower(sch, inputs, func_name, graph):
+    import traceback
+    # pylint: disable=broad-except
+    try:
+        f = tvm.lower(sch, inputs, name=func_name)
+        logging.debug("lower function %s", func_name)
+    except Exception:
+        msg = traceback.format_exc()
+        msg += "Error during compile graph\n"
+        msg += "--------------------------\n"
+        msg += graph.ir(join_entry_attrs=["shape"])
+        raise RuntimeError(msg)
     return f if isinstance(
         f, (tvm.container.Array, tuple, list)) else [f]
 
