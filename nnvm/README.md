@@ -1,7 +1,11 @@
 # NNVM: Open Compiler for AI Frameworks
-
 [![Build Status](https://travis-ci.org/dmlc/nnvm.svg?branch=master)](https://travis-ci.org/dmlc/nnvm)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
+
+[Installation](docs/how_to/install.md) |
+[Documentation](http://nnvm.tvmlang.org) |
+[Tutorials](http://nnvm.tvmlang.org/tutorials/index.html) |
+[Release Notes](NEWS.md)
 
 NNVM compiler offers reusable computation graph optimization and compilation for deep learning systems.
 It is backed by the [TVM stack](http://tvmlang.org) and provides modules to:
@@ -49,6 +53,12 @@ rmodule.set_input(**params)
 rmodule.run()
 ```
 
-## Links
+License
+-------
+Licensed under an [Apache-2.0](https://github.com/dmlc/tvm/blob/master/LICENSE) license.
+
+
+Links
+-----
 - [TinyFlow](https://github.com/tqchen/tinyflow) on how you can use  NNVM to build a TensorFlow like API.
 - [Apache MXNet](http://mxnet.io/) uses NNVM as a backend.
