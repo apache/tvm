@@ -68,14 +68,16 @@ def test_inline_multi_reduce():
     m = tvm.var('m')
     n = tvm.var('n')
     val = tvm.placeholder((m, n), name='val', dtype='float32')
-    val2 = tvm.compute((m, n), lambda i, j: tvm.exp(val[i, j]), name='val2')
+    val1 = tvm.compute((m, n), lambda i, j: val[i, j]+1, name='val1')
+    val2 = tvm.compute((m, n), lambda i, j: tvm.exp(val1[i, j]), name='val2')
     k = tvm.reduce_axis((0, n), 'k')
     T_idx, T_val = tvm.compute((m, ), lambda i: argmax((k.var, val2[i, k]), axis=k), name='T')
     s = tvm.create_schedule(T_idx.op)
-    s[val2].compute_inline()
+    s[val1].compute_inline()
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
+
 
 
 def test_auto_inline():
