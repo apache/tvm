@@ -169,7 +169,7 @@ class CUDAWrappedFunc {
     }
     CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
-    CUDA_DRIVER_CALL(cuLaunchKernel(
+    CUresult result = cuLaunchKernel(
         fcache_[device_id],
         wl.grid_dim(0),
         wl.grid_dim(1),
@@ -177,7 +177,25 @@ class CUDAWrappedFunc {
         wl.block_dim(0),
         wl.block_dim(1),
         wl.block_dim(2),
-        0, strm, void_args, 0));
+        0, strm, void_args, 0);
+    if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) {
+      const char *msg;
+      cuGetErrorName(result, &msg);
+      std::ostringstream os;
+      os << "CUDALaunch Error: " << msg << "\n"
+         << " grid=(" << wl.grid_dim(0) << ","
+         << wl.grid_dim(1) << "," << wl.grid_dim(2) << "), "
+         << " block=(" << wl.block_dim(0) << ","
+         << wl.block_dim(1) << "," << wl.block_dim(2) << ")\n";
+      std::string cuda = m_->GetSource("");
+      if (cuda.length() != 0) {
+        os << "// func_name=" << func_name_ << "\n"
+           << "// CUDA Source\n"
+           << "// -----------\n"
+           << cuda;
+      }
+      LOG(FATAL) << os.str();
+    }
   }
 
  private:
