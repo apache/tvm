@@ -1,6 +1,6 @@
 NNVM Documentation
 ==================
-
+This is a document about NNVM and NNVM compiler.
 
 Contents
 --------
@@ -9,11 +9,11 @@ Contents
    :maxdepth: 1
 
    self
-   top
    how_to/install
    tutorials/index
+   top
+   json_spec
    how_to/contribute
    how_to/deploy
-   json_spec
    api/python/index
    dev/index
