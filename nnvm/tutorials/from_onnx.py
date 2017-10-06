@@ -19,19 +19,25 @@ import tvm
 import onnx
 import numpy as np
 
+def download(url, path, overwrite=False):
+    import urllib2, os
+    if os.path.exists(path) and not overwrite:
+        return
+    print('Downloading {} to {}.'.format(url, path))
+    with open(path, 'w') as f:
+        f.write(urllib2.urlopen(url).read())
+
 ######################################################################
 # Load pretrained ONNX model
 # ---------------------------------------------
 # The example super resolution model used here is exactly the same model in onnx tutorial
 # http://pytorch.org/tutorials/advanced/super_resolution_with_caffe2.html
 # we skip the pytorch model construction part, and download the saved onnx model
-import urllib2
 model_url = ''.join(['https://gist.github.com/zhreshold/',
                      'bcda4716699ac97ea44f791c24310193/raw/',
                      '41b443bf2b6cf795892d98edd28bacecd8eb0d8d/',
                      'super_resolution.onnx'])
-with open('super_resolution.onnx', 'w') as f:
-    f.write(urllib2.urlopen(model_url).read())
+download(model_url, 'super_resolution.onnx')
 # now you have super_resolution.onnx on disk
 onnx_graph = onnx.load('super_resolution.onnx')
 # we can load the graph as NNVM compatible model
@@ -43,9 +49,8 @@ sym, params = nnvm.frontend.from_onnx(onnx_graph)
 # A single cat dominates the examples!
 from PIL import Image
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-with open('cat.jpg', 'w') as f:
-    f.write(urllib2.urlopen(img_url).read())
-img = Image.open('cat.jpg').resize((224, 224))
+download(img_url, 'cat.png')
+img = Image.open('cat.png').resize((224, 224))
 img_ycbcr = img.convert("YCbCr")  # convert to YCbCr
 img_y, img_cb, img_cr = img_ycbcr.split()
 x = np.array(img_y)[np.newaxis, np.newaxis, :, :]
