@@ -50,20 +50,17 @@ def main():
     module = runtime.create(graph, lib, ctx)
     module.set_input(**params)
     module.set_input("data", data)
-    print('benchmark args: {}'.format(args))
-    # warm-up run
     module.run()
-    ctx.sync()
-
-    tic = time.time()
-    for _ in range(num_iter):
-        module.run()
-    ctx.sync()
-    print("average time cost of %d runs = %g ms" % (num_iter, ((time.time() - tic)*1000/num_iter)))
     out = module.get_output(0, tvm.nd.empty(out_shape))
     out.asnumpy()
 
+    print('benchmark args: {}'.format(args))
+    ftimer = module.module.time_evaluator("run", ctx, num_iter)
+    for i in range(3):
+        prof_res = ftimer()
+        print(prof_res)
+        # sleep for avoiding cpu overheat
+        time.sleep(45)
 
 if __name__ == '__main__':
     main()
-
