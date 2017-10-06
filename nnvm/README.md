@@ -1,5 +1,5 @@
 # NNVM: Open Compiler for AI Frameworks
-[![Build Status](https://travis-ci.org/dmlc/nnvm.svg?branch=master)](https://travis-ci.org/dmlc/nnvm)
+[![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=dmlc/nnvm/master)](http://mode-gpu.cs.washington.edu:8080/job/dmlc/job/nnvm/job/master/)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 
 [Installation](docs/how_to/install.md) |
