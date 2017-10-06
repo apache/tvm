@@ -109,6 +109,17 @@ void PrintGraphIR_(Graph src,
     }
   };
 
+  if (trigger.size() != 0) {
+    for (size_t i = 0; i < idx.input_nodes().size(); ++i) {
+      uint32_t nid = idx.input_nodes()[i];
+      os << "  %" << idx[nid].source->attrs.name;
+      for (const auto& fp : trigger) {
+        fp(nid, os);
+      }
+      os << '\n';
+    }
+  }
+
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
