@@ -324,7 +324,6 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
 
 def conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
-    print("here5")
     # scheduler params
     num_thread = 8
     vthread = 2
