@@ -1,4 +1,4 @@
-#pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, too-many-argument, too-many-branches
+#pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, too-many-arguments, too-many-branches
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
 from .. import util
@@ -10,7 +10,7 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L):
     ofactor = 16
     hfactor = 2
     ow_size = util.get_const_int(Out.shape[3])
-    num_thread = ow_size*hfactor
+    num_thread = ow_size * hfactor
     vthread = ofactor
     block_x = tvm.thread_axis("blockIdx.x")
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
@@ -22,7 +22,6 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L):
     s[Out].reorder(ooc, oh, ioc, ih, w)
     oc = s[Out].fuse(ooc, oh)
     w = s[Out].fuse(w, ih)
-
     s[Out].bind(w, thread_x)
     s[Out].bind(ioc, thread_xz)
     s[Out].bind(oc, block_x)
@@ -400,7 +399,7 @@ def conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L):
     s[Filter_S].bind(ii, thread_y)
 
 def schedule_conv2d_small_batch(outs):
-    """Create schedule for tensors or return error if batch size is larager than 1"""
+    """Create schedule for tensors or return error if batch size is larger than 1"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def schedule(temp, Filter, Output):
