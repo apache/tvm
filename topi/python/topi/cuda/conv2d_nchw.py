@@ -11,7 +11,7 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L):
     hfactor = 2
     ow_size = util.get_const_int(Out.shape[3])
     num_thread = ow_size * hfactor
-    vthread = min(ofactor, 1024 // num_thread)
+    vthread = ofactor
     block_x = tvm.thread_axis("blockIdx.x")
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
     thread_xz = tvm.thread_axis((0, vthread), "vthread", name="vx")
