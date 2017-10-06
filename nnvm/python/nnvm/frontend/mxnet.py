@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, import-self
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 import json
@@ -6,6 +6,14 @@ import tvm
 from .. import symbol as _sym
 
 __all__ = ['from_mxnet']
+
+def _get_mxnet_version():
+    try:
+        import mxnet as mx
+        version = mx.__version__
+    except ImportError:
+        version = '0.11.1'
+    return [int(x) for x in version.split('.')]
 
 def _required_attr(attr, key):
     assert isinstance(attr, dict)
@@ -119,6 +127,9 @@ def _dense(attrs):
     op_name, new_attrs = 'dense', {}
     new_attrs['units'] = _required_attr(attrs, 'num_hidden')
     new_attrs['use_bias'] = not _parse_bool_str(attrs, 'no_bias')
+    major, minor, micro = _get_mxnet_version()
+    if major >= 0 and minor >= 11 and micro >= 1:
+        new_attrs['flatten'] = _parse_bool_str(attrs, 'flatten', 'True')
     return op_name, new_attrs
 
 def _dropout(attrs):
@@ -276,6 +287,10 @@ def _from_mxnet_impl(symbol, graph):
         childs = symbol.get_children()
         childs = [_from_mxnet_impl(c, graph) for c in _as_list(childs)]
         childs = [x for y in childs for x in _as_list(y)]  # expand group symbol
+        if new_op == _sym.dense and 'flatten' in new_attr:
+            if new_attr['flatten']:
+                childs[0] = _sym.flatten(childs[0])
+            new_attr.pop('flatten')
         node = new_op(name=name, *childs, **new_attr)
     graph[name] = node
     return node
@@ -304,7 +319,7 @@ def from_mxnet(symbol, arg_params=None, aux_params=None):
         The parameter dict to be used by nnvm
     """
     try:
-        import mxnet as mx  # pylint: disable=import-self
+        import mxnet as mx
     except ImportError as e:
         raise ImportError('{}. MXNet is required to parse symbols.'.format(e))
 
@@ -325,7 +340,7 @@ def from_mxnet(symbol, arg_params=None, aux_params=None):
         for k, v in symbol.collect_params().items():
             params[k] = tvm.nd.array(v.data().asnumpy())
     elif isinstance(symbol, mx.gluon.Block):
-        raise NotImplementedError("The dynamic Block is not supported yet.")
+        raise NotImplementedError("Only Hybrid Blocks are supported now.")
     else:
         msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
         raise ValueError(msg)
