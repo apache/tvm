@@ -15,7 +15,7 @@ It is backed by the [TVM stack](http://tvmlang.org) and provides modules to:
 - Compile into executable modules and deploy to different hardware backends with minimum dependency.
 
 NNVM is designed to add new frontend, operators and graph optimizations in a decentralized fashion without changing the core interface.
-The compiled module can be deployed to server, mobile, embedded devices and browsers with minimum dependency, in languages including c++, python, javascript, java, objective-c.
+The compiled module can be deployed to server, mobile, embedded devices and browsers with minimum dependency, in languages including c++, python, javascript, java, objective-c. Checkout [our release announcement](http://www.tvmlang.org/2017/10/06/nnvm-compiler-announcement.html)
 
 The following code snippet demonstrates the general workflow of nnvm compiler.
 
