@@ -67,9 +67,6 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
             out_npy = _my_npy_argmin(in_npy_map, axis=axis, keepdims=keepdims)
         else:
             raise NotImplementedError
-        if type == "argmax" or type == "argmin":
-            dev_module = foo.imported_modules[0]
-            open('%s.cu' %type, 'w').write(dev_module.get_source())
         data_tvm = tvm.nd.array(in_npy, ctx=ctx)
         out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=ctx, dtype=out_dtype)
         for _ in range(1):
