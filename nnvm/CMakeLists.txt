@@ -17,6 +17,10 @@ set(nnvm_LINKER_LIBS "")
 
 add_definitions(-DNNVM_EXPORTS)
 
+# Build a shared lib (libnnvm.so) by default
+option(BUILD_SHARED_NNVM "Build a shared nnvm lib" ON)            
+option(BUILD_STATIC_NNVM "Build a static nnvm lib" OFF)
+
 # compile
 if(MSVC)
   add_definitions(-DDMLC_USE_CXX11)
@@ -64,8 +68,15 @@ elseif(DMLC_CORE_PATH)
   include_directories(${DMLC_CORE_PATH}/include)
 endif()
 
-add_library(nnvm SHARED ${SOURCE})
-target_link_libraries(nnvm ${nnvm_LINKER_LIBS})
+if(BUILD_SHARED_NNVM)
+  add_library(nnvm SHARED ${SOURCE})
+  target_link_libraries(nnvm ${nnvm_LINKER_LIBS})
+endif()
+if(BUILD_STATIC_NNVM)
+  add_library(nnvm_static STATIC ${SOURCE})
+  target_link_libraries(nnvm_static ${nnvm_LINKER_LIBS})
+  set_target_properties(nnvm_static PROPERTIES OUTPUT_NAME "nnvm")
+endif()
 
 if(INSTALL_INCLUDE_DIR)
   add_custom_command(TARGET nnvm POST_BUILD
@@ -73,6 +84,16 @@ if(INSTALL_INCLUDE_DIR)
     ${CMAKE_SOURCE_DIR}/include ${INSTALL_INCLUDE_DIR}/
     )
 endif()
+
+# ---[ Install lib, header and docs
+if(BUILD_SHARED_NNVM)
+  install(TARGETS nnvm LIBRARY DESTINATION lib) 
+endif()
+if(BUILD_STATIC_NNVM)
+  install(TARGETS nnvm_static ARCHIVE DESTINATION lib) 
+endif()
+install(DIRECTORY include DESTINATION .)
+install(DIRECTORY docs DESTINATION .)
 
 # ---[ Linter target
 if(MSVC)
