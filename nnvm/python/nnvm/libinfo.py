@@ -26,7 +26,7 @@ def find_lib_path():
     if hasattr(__builtin__, "NNVM_LIBRARY_NAME"):
         lib_name = __builtin__.NNVM_LIBRARY_NAME
     else:
-        lib_name = "libnnvm_compiler"
+        lib_name = "nnvm_compiler" if sys.platform.startswith('win32') else "libnnvm_compiler"
 
     api_path = os.path.join(base_path, '../../lib/')
     cmake_build_path = os.path.join(base_path, '../../build/Release/')
@@ -40,11 +40,11 @@ def find_lib_path():
     if sys.platform.startswith('win32'):
         vs_configuration = 'Release'
         if platform.architecture()[0] == '64bit':
-            dll_path.append(os.path.join(curr_path, '../../build', vs_configuration))
-            dll_path.append(os.path.join(curr_path, '../../windows/x64', vs_configuration))
+            dll_path.append(os.path.join(base_path, '../../build', vs_configuration))
+            dll_path.append(os.path.join(base_path, '../../windows/x64', vs_configuration))
         else:
-            dll_path.append(os.path.join(curr_path, '../../build', vs_configuration))
-            dll_path.append(os.path.join(curr_path, '../../windows', vs_configuration))
+            dll_path.append(os.path.join(base_path, '../../build', vs_configuration))
+            dll_path.append(os.path.join(base_path, '../../windows', vs_configuration))
         dll_path = [os.path.join(p, '%s.dll' % lib_name) for p in dll_path]
     elif sys.platform.startswith('darwin'):
         dll_path = [os.path.join(p, '%s.dylib' % lib_name) for p in dll_path]

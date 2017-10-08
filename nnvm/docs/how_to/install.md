@@ -34,10 +34,26 @@ The minimal building requirement is
 You can edit `make/config.mk` to change the compile options, and then build by
 `make`. If everything goes well, we can go to the specific language installation section.
 
+### Building on Windows
+
+NNVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
+In order to generate the VS solution file using cmake, make sure you have a recent version of cmake added to your path.
+NNVM compiler depend on tvm, please follow [TVM document](http://docs.tvmlang.org/how_to/install.html#building-on-windows)
+to build the TVM windows library. You can build the TVM in the submodule folder under nnvm.
+
+After tvm is built, we can then start to build nnvm, using the following command.
+
+```bash
+mkdir build
+cd build
+cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
+```
+This will generate the VS project using the MSVC 14 64 bit generator. Open the .sln file in the build directory and build with Visual Studio.
+
 ## Python Package Installation
 
-The python package is located at python
-There are several ways to install the package:
+The python package is located at python.
+There are several ways to install the package, in all these cases the TVM library must be present in the python env:
 
 1. Set the environment variable `PYTHONPATH` to tell python where to find
    the library. For example, assume we cloned `nnvm` on the home directory
