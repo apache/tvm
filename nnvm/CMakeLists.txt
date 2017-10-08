@@ -9,16 +9,26 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
 endif()
 
 include(cmake/Utils.cmake)
+if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
+  include(${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
+else()
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/config.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake)
+  endif()
+endif()
 
 # include path
 include_directories(BEFORE "include")
+include_directories("tvm/include")
+include_directories("tvm/dlpack/include")
+include_directories("tvm/HalideIR/src")
 
-set(nnvm_LINKER_LIBS "")
-
+set(NNVM_LINKER_LIBS "")
+set(NNVM_COMPILER_LINKER_LIBS "")
 add_definitions(-DNNVM_EXPORTS)
 
 # Build a shared lib (libnnvm.so) by default
-option(BUILD_SHARED_NNVM "Build a shared nnvm lib" ON)            
+option(BUILD_SHARED_NNVM "Build a shared nnvm lib" ON)
 option(BUILD_STATIC_NNVM "Build a static nnvm lib" OFF)
 
 # compile
@@ -33,15 +43,15 @@ if(MSVC)
     endif(${flag_var} MATCHES "/MD")
   endforeach(flag_var)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+  find_library(TVM_LIB tvm  
+			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/../tvm/build/Release
+			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/tvm/build/Release) 
+  message(STATUS "Build with TVM libary: " ${TVM_LIB})			    
+  list(APPEND NNVM_COMPILER_LINKER_LIBS ${TVM_LIB})
 else(MSVC)
   include(CheckCXXCompilerFlag)
-  check_cxx_compiler_flag("-std=c++0x"    SUPPORT_CXX0X)
-  check_cxx_compiler_flag("-msse2"        SUPPORT_MSSE2)
-  check_cxx_compiler_flag("-openmp"       SUPPORT_OPENMP)
-  set(CMAKE_C_FLAGS "-O3 -Wall -msse2 -Wno-unknown-pragmas -std=c++0x -fPIC")
-  if(SUPPORT_OPENMP)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
-  endif()
+  check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
+  set(CMAKE_C_FLAGS "-O3 -Wall -std=c++11 -fPIC")
   set(CMAKE_CXX_FLAGS ${CMAKE_C_FLAGS})
 endif(MSVC)
 
@@ -57,10 +67,15 @@ mxnet_source_group("Source\\core"   GLOB "src/core/*.cc")
 mxnet_source_group("Source\\pass"   GLOB "src/pass/*.cc")
 
 
-FILE(GLOB_RECURSE SOURCE
+file(GLOB_RECURSE SOURCE
    src/c_api/*.cc
    src/core/*.cc
    src/pass/*.cc)
+
+file(GLOB_RECURSE COMPILER_SRCS
+    src/compiler/*.cc
+    src/top/*.cc
+)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/CMakeLists.txt)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include)
@@ -78,6 +93,9 @@ if(BUILD_STATIC_NNVM)
   set_target_properties(nnvm_static PROPERTIES OUTPUT_NAME "nnvm")
 endif()
 
+add_library(nnvm_compiler SHARED ${COMPILER_SRCS} ${SOURCE})
+target_link_libraries(nnvm_compiler ${NNVM_COMPILER_LINKER_LIBS} ${NNVM_LINKER_LIBS})
+
 if(INSTALL_INCLUDE_DIR)
   add_custom_command(TARGET nnvm POST_BUILD
     COMMAND COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -87,10 +105,10 @@ endif()
 
 # ---[ Install lib, header and docs
 if(BUILD_SHARED_NNVM)
-  install(TARGETS nnvm LIBRARY DESTINATION lib) 
+  install(TARGETS nnvm LIBRARY DESTINATION lib)
 endif()
 if(BUILD_STATIC_NNVM)
-  install(TARGETS nnvm_static ARCHIVE DESTINATION lib) 
+  install(TARGETS nnvm_static ARCHIVE DESTINATION lib)
 endif()
 install(DIRECTORY include DESTINATION .)
 install(DIRECTORY docs DESTINATION .)
