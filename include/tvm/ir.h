@@ -62,8 +62,8 @@ struct CommReducerNode : public Node {
   /*! \brief Function call operator to combine a and b */
   Array<Expr> operator()(Array<Expr> a, Array<Expr> b) const;
   /*! \brief construct CommReducer from args, result and identity_element */
-  static CommReducer make(Array<Var> lhs, Array<Var> rhs,
-                          Array<Expr> result, Array<Expr> identity_element);
+  TVM_DLL static CommReducer make(Array<Var> lhs, Array<Var> rhs,
+                                 Array<Expr> result, Array<Expr> identity_element);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("lhs", &lhs);
@@ -100,11 +100,11 @@ struct Reduce : public ExprNode<Reduce> {
   int value_index;
 
   /*! \brief construct expr from op and rdom */
-  static Expr make(CommReducer combiner,
-                   Array<Expr> src,
-                   Array<IterVar> rdom,
-                   Expr condition,
-                   int value_index);
+  TVM_DLL static Expr make(CommReducer combiner,
+                           Array<Expr> src,
+                           Array<IterVar> rdom,
+                           Expr condition,
+                           int value_index);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);

@@ -111,21 +111,21 @@ class DeviceAPI {
    * \param ctx The context of allocation.
    * \param size The size to be allocated.
    */
-  virtual void* AllocWorkspace(TVMContext ctx, size_t size);
+  TVM_DLL virtual void* AllocWorkspace(TVMContext ctx, size_t size);
   /*!
    * \brief Free temporal workspace in backend execution.
    *
    * \param ctx The context of allocation.
    * \param ptr The pointer to be freed.
    */
-  virtual void FreeWorkspace(TVMContext ctx, void* ptr);
+  TVM_DLL virtual void FreeWorkspace(TVMContext ctx, void* ptr);
   /*!
    * \brief Get device API base don context.
    * \param ctx The context
    * \param allow_missing Whether allow missing
    * \return The corresponding device API.
    */
-  static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
+  TVM_DLL static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
 };
 
 /*! \brief The device type bigger than this is RPC device */
