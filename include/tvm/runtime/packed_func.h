@@ -203,11 +203,11 @@ class ExtTypeVTable {
    * \param type_code The type code
    * \return The registered vtable.
    */
-  static ExtTypeVTable* Get(int type_code);
+  TVM_DLL static ExtTypeVTable* Get(int type_code);
 
  private:
   // Internal registration function.
-  static ExtTypeVTable* RegisterInternal(int type_code, const ExtTypeVTable& vt);
+  TVM_DLL static ExtTypeVTable* RegisterInternal(int type_code, const ExtTypeVTable& vt);
 };
 
 /*!

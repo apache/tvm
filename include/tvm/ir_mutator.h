@@ -25,7 +25,7 @@ namespace ir {
  *       Simply following the same pattern as IRMutator and create a seperate class.
  * \sa IRFunctor
  */
-class IRMutator {
+class TVM_DLL IRMutator {
  public:
   /*!
    * \brief mutate expression
