@@ -112,9 +112,9 @@ class Range : public Halide::IR::Range {
    * \param begin The begin of the range.
    * \param end The end of the range.
    */
-  Range(Expr begin, Expr end);
+  TVM_DLL Range(Expr begin, Expr end);
 
-  static Range make_by_min_extent(Expr min, Expr extent);
+  TVM_DLL static Range make_by_min_extent(Expr min, Expr extent);
 };
 
 /*!
@@ -216,7 +216,7 @@ class IterVar : public NodeRef {
  * \param dom Optional, domain of the thread axis.
  * \param tag The thread tag of the axis.
  */
-IterVar thread_axis(Range dom, std::string tag);
+TVM_DLL IterVar thread_axis(Range dom, std::string tag);
 
 /*!
  * \brief Create a new IterVar for reduction operations.
@@ -224,12 +224,12 @@ IterVar thread_axis(Range dom, std::string tag);
  * \param dom The domain of the reduction axis.
  * \param name The name of the reduction axis.
  */
-IterVar reduce_axis(Range dom, std::string name = "rv");
+TVM_DLL IterVar reduce_axis(Range dom, std::string name = "rv");
 
 using Domain = Array<Range>;
 
 // print functions for expr
-std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
+TVM_DLL std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration
@@ -259,9 +259,9 @@ class IterVarNode : public Node {
     v->Visit("thread_tag", &thread_tag);
   }
 
-  static IterVar make(Range dom, Var var,
-                      IterVarType iter_type,
-                      std::string thread_tag = "");
+  TVM_DLL static IterVar make(Range dom, Var var,
+                              IterVarType iter_type,
+                              std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
   TVM_DECLARE_NODE_TYPE_INFO(IterVarNode, Node);

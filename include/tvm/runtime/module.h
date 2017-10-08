@@ -39,7 +39,7 @@ class Module {
    * \return The result function.
    *  This function will return PackedFunc(nullptr) if function do not exist.
    */
-  PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  TVM_DLL PackedFunc GetFunction(const std::string& name, bool query_imports = false);
   /*!
    * \brief Import another module into this module.
    * \param other The module to be imported.
@@ -47,7 +47,7 @@ class Module {
    * \note Cyclic dependency is not allowed among modules,
    *  An error will be thrown when cyclic dependency is detected.
    */
-  void Import(Module other);
+  TVM_DLL void Import(Module other);
   /*!
    * \brief Load a module from file.
    * \param file_name The name of the host function module.
@@ -55,8 +55,8 @@ class Module {
    * \note This function won't load the import relationship.
    *  Re-create import relationship by calling Import.
    */
-  static Module LoadFromFile(const std::string& file_name,
-                             const std::string& format = "");
+  TVM_DLL static Module LoadFromFile(const std::string& file_name,
+                                     const std::string& format = "");
   /*! \return internal container */
   inline ModuleNode* operator->();
   /*! \return internal container */
@@ -110,13 +110,13 @@ class ModuleNode {
    *   but not necessarily host modules.
    *   We can use this to do AOT loading of bundled device functions.
    */
-  virtual void SaveToBinary(dmlc::Stream* stream);
+  TVM_DLL virtual void SaveToBinary(dmlc::Stream* stream);
   /*!
    * \brief Get the source code of module, when available.
    * \param format Format of the source code, can be empty by default.
    * \return Possible source code when available.
    */
-  virtual std::string GetSource(const std::string& format = "");
+  TVM_DLL virtual std::string GetSource(const std::string& format = "");
   /*!
    * \brief Get a function from current environment
    *  The environment includes all the imports as well as Global functions.
@@ -124,7 +124,7 @@ class ModuleNode {
    * \param name name of the function.
    * \return The corresponding function.
    */
-  const PackedFunc* GetFuncFromEnv(const std::string& name);
+  TVM_DLL const PackedFunc* GetFuncFromEnv(const std::string& name);
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const {
     return imports_;

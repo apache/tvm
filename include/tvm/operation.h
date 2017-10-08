@@ -376,9 +376,9 @@ using FBatchCompute = std::function<Array<Expr> (const Array<Var>& i)>;
  * \param dtype the data type of the tensor.
  * \param name The name of the Tensor.
  */
-Tensor placeholder(Array<Expr> shape,
-                   Type dtype = Float(32),
-                   std::string name = "placeholder");
+TVM_DLL Tensor placeholder(Array<Expr> shape,
+                           Type dtype = Float(32),
+                           std::string name = "placeholder");
 
 /*!
  * \brief Construct a new tensor by computing over shape,
@@ -388,10 +388,10 @@ Tensor placeholder(Array<Expr> shape,
  * \param name The optional name of the tensor.
  * \param tag The optional tag of the tensor.
  */
-Tensor compute(Array<Expr> shape,
-               FCompute fcompute,
-               std::string name = "tensor",
-               std::string tag = "");
+TVM_DLL Tensor compute(Array<Expr> shape,
+                       FCompute fcompute,
+                       std::string name = "tensor",
+                       std::string tag = "");
 
 /*!
  * \brief Construct a new tensor by computing over shape,
@@ -401,10 +401,10 @@ Tensor compute(Array<Expr> shape,
  * \param name The optional name of the tensor.
  * \param tag The optional tag of the tensor.
  */
-Array<Tensor> compute(Array<Expr> shape,
-                      FBatchCompute fcompute,
-                      std::string name = "tensor",
-                      std::string tag = "");
+TVM_DLL Array<Tensor> compute(Array<Expr> shape,
+                              FBatchCompute fcompute,
+                              std::string name = "tensor",
+                              std::string tag = "");
 
 /*!
  * \brief Construct new tensors by scan.
@@ -417,12 +417,12 @@ Array<Tensor> compute(Array<Expr> shape,
  * \param name The optional name of the tensor.
  * \param tag The optional tag of the tensor.
  */
-Array<Tensor> scan(Array<Tensor> init,
-                   Array<Tensor> update,
-                   Array<Tensor> state_placeholder,
-                   Array<Tensor> inputs = Array<Tensor>(),
-                   std::string name = "scan",
-                   std::string tag = "");
+TVM_DLL Array<Tensor> scan(Array<Tensor> init,
+                           Array<Tensor> update,
+                           Array<Tensor> state_placeholder,
+                           Array<Tensor> inputs = Array<Tensor>(),
+                           std::string name = "scan",
+                           std::string tag = "");
 
 // same as compute, specialized for different fcompute function
 inline Tensor compute(Array<Expr> shape,

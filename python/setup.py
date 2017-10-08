@@ -18,7 +18,7 @@ else:
     from setuptools import setup
     from setuptools.extension import Extension
 
-# We can not import `mxnet.info.py` in setup.py directly since mxnet/__init__.py
+# We can not import `libinfo.py` in setup.py directly since __init__.py
 # Will be invoked which introduces dependences
 CURRENT_DIR = os.path.dirname(__file__)
 libinfo_py = os.path.join(CURRENT_DIR, './tvm/_ffi/libinfo.py')

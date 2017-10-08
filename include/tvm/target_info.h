@@ -48,7 +48,7 @@ TVM_DEFINE_NODE_REF(MemoryInfo, MemoryInfoNode);
  * \param scope The scope name.
  * \return info The memory info.
  */
-MemoryInfo GetMemoryInfo(const std::string& scope);
+TVM_DLL MemoryInfo GetMemoryInfo(const std::string& scope);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_INFO_H_

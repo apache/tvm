@@ -64,7 +64,7 @@ namespace ir {
  *
  * \endcode
  */
-class IRVisitor {
+class TVM_DLL IRVisitor {
  public:
   /*!
    * \brief recursively visit an IR node
