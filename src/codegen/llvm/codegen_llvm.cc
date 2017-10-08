@@ -525,27 +525,20 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(const Call* op) {
 
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   if (op->is_intrinsic("llvm_intrin")) {
-    CHECK_GE(op->args.size(), 1U);
+    CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
         op->args[0].as<UIntImm>()->value);
+    uint64_t num_signature = op->args[1].as<UIntImm>()->value;
     std::vector<llvm::Value*> arg_value;
-    std::vector<llvm::Type*> arg_type;
-    for (size_t i = 1; i < op->args.size(); ++i) {
+    std::vector<llvm::Type*> sig_type;
+    for (size_t i = 2; i < op->args.size(); ++i) {
       arg_value.push_back(MakeValue(op->args[i]));
-      arg_type.push_back(arg_value.back()->getType());
+      if (i - 2 < num_signature) {
+        sig_type.push_back(arg_value.back()->getType());
+      }
     }
     llvm::Function* f = llvm::Intrinsic::getDeclaration(
-        module_.get(), id, arg_type);
-    return builder_->CreateCall(f, arg_value);
-  } else if (op->is_intrinsic("llvm_builtin")) {
-    CHECK_GE(op->args.size(), 1U);
-    llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
-        op->args[0].as<UIntImm>()->value);
-    std::vector<llvm::Value*> arg_value;
-    for (size_t i = 1; i < op->args.size(); ++i) {
-      arg_value.push_back(MakeValue(op->args[i]));
-    }
-    llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id, {});
+        module_.get(), id, sig_type);
     return builder_->CreateCall(f, arg_value);
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     return builder_->CreateAnd(MakeValue(op->args[0]), MakeValue(op->args[1]));
