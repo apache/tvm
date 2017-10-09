@@ -198,9 +198,9 @@ add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
-install(TARGETS tvm_runtime DESTINATION lib)
+install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 if (INSTALL_DEV)
-  install(TARGETS tvm DESTINATION lib)
+  install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
   install(
     DIRECTORY "include/." DESTINATION "include"
     FILES_MATCHING
