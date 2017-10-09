@@ -9,10 +9,14 @@
 #include <nnvm/graph.h>
 #include <vector>
 #include <string>
-#include "../../tvm/src/runtime/graph/graph_runtime.h"
 
 namespace nnvm {
 namespace compiler {
+
+/*! \brief Magic number for NDArray file */
+constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
+/*! \brief Magic number for NDArray list file  */
+constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
 struct TVMOpParam : public dmlc::Parameter<TVMOpParam> {
   std::string func_name;

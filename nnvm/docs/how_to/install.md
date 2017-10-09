@@ -16,7 +16,8 @@ git submodule init
 git submodule update --recursive
 ```
 
-NNVM compiler depend on TVM and TOPI, so make sure you install them by following [TVM document](http://docs.tvmlang.org/)
+NNVM compiler depend on TVM and TOPI, so make sure you install them by following [TVM document](http://docs.tvmlang.org/).
+Note that it is necessary to build TVM with LLVM support to take full benefit of NNVM compiler.
 
 ## Contents
 - [Build the Shared Library](#build-the-shared-library)

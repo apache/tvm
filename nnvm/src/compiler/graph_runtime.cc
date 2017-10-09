@@ -15,8 +15,6 @@ namespace compiler {
 using tvm::runtime::TVMArgs;
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::PackedFunc;
-using tvm::runtime::kTVMNDArrayMagic;
-using tvm::runtime::kTVMNDArrayListMagic;
 
 DMLC_REGISTER_PARAMETER(TVMOpParam);
 
