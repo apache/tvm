@@ -307,7 +307,13 @@ class Canonical::Internal : public IRMutator {
     if (!op->is_pure()) {
       stack_.back().has_side_effect = true;
     }
-    return IRMutator::Mutate_(op, e);
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Call>();
+    if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
+      return op->args[0];
+    } else {
+      return expr;
+    }
   }
   // For
   Stmt Mutate_(const For* op, const Stmt& s) {
@@ -318,6 +324,13 @@ class Canonical::Internal : public IRMutator {
                    level_counter_);
     Stmt stmt = IRMutator::Mutate_(op, s);
     --level_counter_;
+    return stmt;
+  }
+  // IfThenElse
+  Stmt Mutate_(const IfThenElse* op, const Stmt& s) {
+    Stmt stmt  = IRMutator::Mutate_(op, s);
+    op = stmt.as<IfThenElse>();
+    if (is_one(op->condition)) return op->then_case;
     return stmt;
   }
   // AttrStmt
