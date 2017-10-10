@@ -36,6 +36,11 @@ TVM_REGISTER_API("arith.DetectLinearEquation")
     *ret = DetectLinearEquation(args[0], args[1]);
   });
 
+TVM_REGISTER_API("arith.DetectClipBound")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = DetectClipBound(args[0], args[1]);
+  });
+
 TVM_REGISTER_API("arith.DeduceBound")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DeduceBound(args[0], args[1],
