@@ -118,7 +118,7 @@ class IntSet : public NodeRef {
  * \brief Range of a linear integer function.
  *  Use to do specify the possible index values.
  *
- *  set = { base + coeff * x | x in Z }
+ *  set = { coeff * x + base | x in Z }
  *
  *  When coeff != 0, it can also be written as
  *  set = { n | n % coeff == base }
@@ -127,16 +127,17 @@ class IntSet : public NodeRef {
  *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
  */
 struct ModularEntry {
-  /*! \brief The base */
-  int base{0};
   /*! \brief linear co-efficient */
   int coeff{1};
+  /*! \brief The base */
+  int base{0};
 
   /*! \return entry represent everything */
   static ModularEntry everything() {
     // always safe to set 0 + x, so it can be everything.
     ModularEntry e;
-    e.base = 0; e.coeff = 1;
+    e.coeff = 1;
+    e.base = 0;
     return e;
   }
   /*!
@@ -157,14 +158,25 @@ struct IntSetNode : public Node {
   TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
 };
 
-
 /*!
- * \brief Detect if e can be rewritten as e = base + var * coeff
+ * \brief Detect if e can be rewritten as e = sum_{i=0}^n var[i] * coeff[i] + coeff[n]
  *  Where coeff and base are invariant of var.
  *
- * \return [base, coeff] if it is possible, empty array if it is not.
+ * \param e The expression to be detected.
+ * \param vars List of variables to be used in detection.
+ * \return [coeff[i]] if it is possible, empty array if it is not.
  */
-Array<Expr> DetectLinearEquation(Expr e, Var var);
+Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars);
+
+/*!
+ * \brief Detect if expression corresponds to clip bound of the vars
+ *
+ * \param e The expression to be detected.
+ * \param vars List of variables to be used in detection.
+ * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
+ *          return empty if the e does not match the pattern.
+ */
+Array<Expr> DetectClipBound(const Expr& e, const Array<Var>& vars);
 
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
