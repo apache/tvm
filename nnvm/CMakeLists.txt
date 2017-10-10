@@ -105,7 +105,12 @@ endif()
 
 # ---[ Install lib, header and docs
 if(BUILD_SHARED_NNVM)
-  install(TARGETS nnvm LIBRARY DESTINATION lib)
+  if(WIN32)
+    install(TARGETS nnvm RUNTIME DESTINATION bin)
+    install(TARGETS nnvm ARCHIVE DESTINATION lib)
+  else()
+    install(TARGETS nnvm LIBRARY DESTINATION lib)
+  endif()
 endif()
 if(BUILD_STATIC_NNVM)
   install(TARGETS nnvm_static ARCHIVE DESTINATION lib)
