@@ -177,7 +177,7 @@ out_shape = (batch_size, num_classes)
 # Pi, which has been proved as a good compilation configuration.
 
 if use_rasp:
-    target = "llvm -target=armv7l-none-linux-anueabihf -mcpu=cortex-a53 -mattr=+neon"
+    target = "llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
 else:
     target = "llvm"
 
