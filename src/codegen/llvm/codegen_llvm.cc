@@ -117,6 +117,7 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
       ftype, llvm::Function::ExternalLinkage,
       f->name, module_.get());
   function_->setCallingConv(llvm::CallingConv::C);
+  function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
   // set var map and align information
   auto arg_it = function_->arg_begin();
   for (size_t i = 0; i < f->args.size(); ++i, ++arg_it) {
