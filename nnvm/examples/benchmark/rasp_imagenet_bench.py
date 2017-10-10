@@ -23,7 +23,7 @@ def main():
     args = parser.parse_args()
 
     opt_level = args.opt_level
-    target = "llvm -target=armv7l-none-linux-anueabihf -mcpu=cortex-a53 -mattr=+neon"
+    target = "llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
 
     num_iter = args.num_iter
     batch_size = 1
