@@ -268,14 +268,6 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   static auto& flist_inputs = Op::GetAttr<FListInputNames>("FListInputNames");
   static auto& fset_attrs = Op::GetAttr<FSetInputVarAttrOnCompose>("FSetInputVarAttrOnCompose");
 
-  for (size_t i = 0; i < outputs.size(); ++i) {
-    if (outputs[i].node->is_variable()) {
-      CHECK_EQ(args.size(), 0) << "Variable composition only supports keyword arguments";
-      const auto it = kwargs.find(outputs[i].node->attrs.name);
-      if (it != kwargs.end()) outputs[i] = it->second->outputs[0];
-    }
-  }
-
   // parameter check.
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK_EQ(args[i]->outputs.size(), 1U)
@@ -406,6 +398,15 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
       array_view<std::string> view(dmlc::BeginPtr(arg_names) + arg_counter,
                                    dmlc::BeginPtr(arg_names) + arg_names.size());
       KeywordArgumentMismatch("Symbol.Compose", keys, arg_names);
+    }
+
+    // update outputs in case the composed variable is part of outputs.
+    for (size_t i = 0; i < outputs.size(); ++i) {
+      if (outputs[i].node->is_variable()) {
+        CHECK_EQ(args.size(), 0) << "Variable composition only supports keyword arguments";
+        const auto it = kwargs.find(outputs[i].node->attrs.name);
+        if (it != kwargs.end()) outputs[i] = it->second->outputs[0];
+      }
     }
   }
 }
