@@ -247,6 +247,10 @@ class RPCSession(object):
         """Construct remote Metal device."""
         return self.context(8, dev_id)
 
+    def ext_dev(self, dev_id=0):
+        """Construct remote extension device."""
+        return self.context(12, dev_id)
+
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder
 

@@ -345,7 +345,7 @@ def build(sch,
         else:
             raise ValueError("unknown function type %d" % func.func_type)
 
-    if not target.startswith("llvm") and target != "stackvm" and not fdevice:
+    if not target.startswith("llvm") and target not in ("stackvm", "ext_dev") and not fdevice:
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
 
