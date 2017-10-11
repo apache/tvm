@@ -136,7 +136,7 @@ else(USE_OPENCL)
 endif(USE_OPENCL)
 
 if(USE_METAL)
-  find_package(OPENCL QUIET REQUIRED)
+  find_package(OpenCL QUIET REQUIRED)
   message(STATUS "Build with Metal support")
   FIND_LIBRARY(METAL_LIB Metal)
   FIND_LIBRARY(FOUNDATION_LIB Foundation)
