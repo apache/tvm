@@ -171,8 +171,12 @@ inline TNodeRef TVMRetValue::AsNodeRef() const {
 }
 
 inline void TVMArgsSetter::operator()(size_t i, const NodeRef& other) const {  // NOLINT(*)
-  values_[i].v_handle = const_cast<std::shared_ptr<Node>*>(&(other.node_));
-  type_codes_[i] = kNodeHandle;
+  if (other.defined()) {
+    values_[i].v_handle = const_cast<std::shared_ptr<Node>*>(&(other.node_));
+    type_codes_[i] = kNodeHandle;
+  } else {
+    type_codes_[i] = kNull;
+  }
 }
 
 // type related stuffs

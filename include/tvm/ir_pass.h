@@ -240,6 +240,24 @@ Stmt InjectPrefetch(Stmt stmt);
 Stmt InjectDoubleBuffer(Stmt stmt, int split_loop);
 
 /*!
+ * \brief Inject copy intrinsics with optional pad.
+ *
+ * \param stmt The statment to be transformed.
+ * \param pragma_key The pragma key for hint of copy.
+ * \param fintrin The function with signature
+ *
+ *   Stmt fintrin(Buffer src,
+ *                Buffer dst,
+ *                Array<Expr> pad_before,
+ *                Array<Expr> pad_after,
+ *                Expr pad_value)
+ * \return Transformed stmt.
+ */
+Stmt InjectCopyIntrin(Stmt stmt,
+                      const std::string& pragma_key,
+                      const runtime::PackedFunc& fintrin);
+
+/*!
  * \brief Rewrite storage allocation pattern.
  *  Moves the allocation to outer most possible scope.
  *  Trying to share space between allocations to make

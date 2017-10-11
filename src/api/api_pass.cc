@@ -92,6 +92,7 @@ REGISTER_PASS3(StorageFlatten);
 REGISTER_PASS4(IRTransform);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS4(UnrollLoop);
+REGISTER_PASS3(InjectCopyIntrin);
 REGISTER_PASS2(ThreadSync);
 REGISTER_PASS5(MakeAPI);
 REGISTER_PASS2(BindDeviceType);
