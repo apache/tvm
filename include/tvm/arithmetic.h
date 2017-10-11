@@ -159,8 +159,8 @@ struct IntSetNode : public Node {
 };
 
 /*!
- * \brief Detect if e can be rewritten as e = sum_{i=0}^n var[i] * coeff[i] + coeff[n]
- *  Where coeff and base are invariant of var.
+ * \brief Detect if e can be rewritten as e = sum_{i=0}^{n-1} var[i] * coeff[i] + coeff[n]
+ *  Where coeff[i] and base are invariant of var[j] for all i and j.
  *
  * \param e The expression to be detected.
  * \param vars List of variables to be used in detection.

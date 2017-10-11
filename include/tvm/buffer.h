@@ -128,7 +128,7 @@ class BufferNode : public Node {
                              Type dtype,
                              Array<Expr> shape,
                              Array<Expr> strides,
-                             Expr byte_offset,
+                             Expr elem_offset,
                              std::string name,
                              std::string scope,
                              int data_alignment,
