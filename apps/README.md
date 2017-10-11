@@ -8,4 +8,4 @@ If you are interested in end to end deep learning model compilation, checkout  [
 - [extension](extension) How to extend TVM C++ api along with python API.
 - [ios_rpc](ios_rpc) iOS RPC server.
 - [android_rpc](android_rpc) Android RPC server.
-- [howto_deploy](howto_depploy) Tutorial on how to deploy TVM with minimum code dependency.
+- [howto_deploy](howto_deploy) Tutorial on how to deploy TVM with minimum code dependency.
