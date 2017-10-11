@@ -125,7 +125,7 @@ else(USE_CUDA)
 endif(USE_CUDA)
 
 if(USE_OPENCL)
-  find_package(OPENCL QUIET REQUIRED)
+  find_package(OpenCL QUIET REQUIRED)
   message(STATUS "Build with OpenCL support")
   include_directories(${OPENCL_INCLUDE_DIRS})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
