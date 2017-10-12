@@ -38,7 +38,7 @@ def global_pool(data, pool_type):
                             tvm.sum(data[n, c, dheight, dwidth], axis=[dheight, dwidth]), \
                             tag="global_pool_sum")
         return tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
-                            tsum[n, c, h, w] / (height*width), \
+                            tsum[n, c, h, w] / (height*width).astype(tsum.dtype), \
                             tag=tag.ELEMWISE)
     else:
         raise ValueError("Pool type should be 'avg' or 'max'.")

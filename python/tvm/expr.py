@@ -18,6 +18,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 from __future__ import absolute_import as _abs
 from ._ffi.node import NodeBase, register_node
 from . import make as _make
+from . import _api_internal
 
 class ExprOp(object):
     def __add__(self, other):
@@ -60,7 +61,8 @@ class ExprOp(object):
         return _make.Mod(self, other)
 
     def __neg__(self):
-        return self.__mul__(-1)
+        neg_one = _api_internal._const(-1, self.dtype)
+        return self.__mul__(neg_one)
 
     def __lshift__(self, other):
         return _make.Call(self.dtype, "shift_left", [self, other], Call.PureIntrinsic, None, 0)

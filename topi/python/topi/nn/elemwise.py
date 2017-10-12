@@ -17,7 +17,7 @@ def relu(x):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.max(x(*i), 0))
+    return tvm.compute(x.shape, lambda *i: tvm.max(x(*i), tvm.const(0, x.dtype)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
