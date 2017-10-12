@@ -50,7 +50,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="sum")
         # Test
         in_npy = np.random.uniform(size=in_shape).astype(np.float32)
@@ -76,7 +76,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
-
+    check_device("rocm")
 
 def test_reduce_map():
     verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
