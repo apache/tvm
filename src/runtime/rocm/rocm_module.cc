@@ -152,7 +152,7 @@ class ROCMWrappedFunc {
 
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     void* config[] = {
-      HIP_LAUNCH_PARAM_BUFFER_POINTER, &packed_args,
+      HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args,
       HIP_LAUNCH_PARAM_BUFFER_SIZE, &packed_nbytes,
       HIP_LAUNCH_PARAM_END
     };
