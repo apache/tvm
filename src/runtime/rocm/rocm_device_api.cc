@@ -134,7 +134,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
 typedef dmlc::ThreadLocalStore<ROCMThreadEntry> ROCMThreadStore;
 
 ROCMThreadEntry::ROCMThreadEntry()
-    : pool(kGPU, ROCMDeviceAPI::Global()) {
+    : pool(kROCM, ROCMDeviceAPI::Global()) {
 }
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
