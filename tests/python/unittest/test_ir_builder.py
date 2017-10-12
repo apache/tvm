@@ -25,7 +25,7 @@ def test_if():
     n = tvm.var("n")
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n, name="i") as i:
-        with ib.if_scope((i % 2) == 0):
+        with ib.if_scope((i % 2).equal(0)):
             A[i] = A[i] + 1
         with ib.else_scope():
             A[0] = A[i] + 2
@@ -34,6 +34,7 @@ def test_if():
     assert isinstance(body, tvm.stmt.For)
     body = body.body
     assert isinstance(body, tvm.stmt.IfThenElse)
+    assert isinstance(body.condition, tvm.expr.EQ)
     assert isinstance(body.then_case.index, tvm.expr.Var)
     assert body.else_case.index.value == 0
 
