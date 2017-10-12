@@ -55,6 +55,9 @@ typedef int64_t tvm_index_t;
 
 /*! \brief Extension device types in TVM */
 typedef enum {
+  // Extension DRAM type, used for quickly test extension device
+  // The device api can differ depending on the xpu driver registered.
+  kExtDev = 12
   // AddExtraTVMType which is not in DLPack here
 } TVMDeviceExtType;
 

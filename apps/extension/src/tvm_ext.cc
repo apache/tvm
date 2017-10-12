@@ -60,4 +60,9 @@ TVM_REGISTER_GLOBAL("tvm_ext.sym_add")
     Var b = args[1];
     *rv = a + b;
   });
+
+TVM_REGISTER_GLOBAL("device_api.ext_dev")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    *rv = (*tvm::runtime::Registry::Get("device_api.cpu"))();
+  });
 }  // namespace tvm_ext

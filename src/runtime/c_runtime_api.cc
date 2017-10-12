@@ -31,6 +31,7 @@ inline std::string DeviceName(int type) {
     case kMetal: return "metal";
     case kVPI: return "vpi";
     case kROCM: return "rocm";
+    case kExtDev: return "ext_dev";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
 }

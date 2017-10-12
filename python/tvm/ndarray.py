@@ -120,6 +120,27 @@ def vpi(dev_id=0):
     """
     return TVMContext(9, dev_id)
 
+def ext_dev(dev_id=0):
+    """Construct a extension device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
+
+    Note
+    ----
+    This API is reserved for quick testing of new
+    device by plugin device API as ext_dev.
+    """
+    return TVMContext(12, dev_id)
+
+
 cl = opencl
 mtl = metal
 
