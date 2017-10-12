@@ -90,7 +90,7 @@ class IRBuilder(object):
         n = tvm.var("n")
         A = ib.allocate("float32", n, name="A")
         with ib.for_range(0, n, name="i") as i:
-            with ib.if_scope((i % 2) == 0):
+            with ib.if_scope((i % 2).equal(0)):
                 A[i] = A[i] + 1
         # The result stmt.
         stmt = ib.get()
