@@ -1,0 +1,17 @@
+# Github owner file
+# List of code reviewers for TVM modules
+
+# Global reviewers
+*        @dmlc/tvm-committers
+
+# LLVM backends
+src/llvm/*          @aatluri
+
+# ROCM runtime
+src/runtime/rocm/*    @aatluri
+
+# JVM language
+jvm/*   @javelinjs
+
+# TOPI
+topi/python/topi/*  @Laurawly @Huyuwei
