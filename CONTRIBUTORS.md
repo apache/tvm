@@ -34,3 +34,4 @@ List of Contributors
   - To contributors: please add your name to the list.
 - [Qiao Zhang](https://github.com/zhangqiaorjc)
 - [Jian Weng](https://github.com/were)
+- [Masahiro Masuda](https://github.com/masahi)
