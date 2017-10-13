@@ -46,10 +46,15 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   }
   // translate to C program
   std::ostringstream os;
+  os << "#ifdef _WIN32\n"
+     << "#define TVM_EXPORT __declspec(dllexport)\n"
+     << "#else\n"
+     << "#define TVM_EXPORT\n"
+     << "#endif\n";
   os << "#ifdef __cplusplus\n"
      << "extern \"C\" {\n"
      << "#endif\n";
-  os << "extern const char " << runtime::symbol::tvm_dev_mblob << "[];\n";
+  os << "TVM_EXPORT extern const char " << runtime::symbol::tvm_dev_mblob << "[];\n";
   uint64_t nbytes = bin.length();
   os << "const char " << runtime::symbol::tvm_dev_mblob
      << "[" << bin.length() + sizeof(nbytes) << "] = {\n  ";
@@ -82,7 +87,6 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   os << "#ifdef __cplusplus\n"
      << "}\n"
      << "#endif\n";
-
   return os.str();
 }
 }  // namespace codegen

@@ -697,7 +697,8 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
 
 void CodeGenCPU::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
-  if (op->for_type == ForType::Serial) {
+  if (op->for_type == ForType::Serial ||
+      op->for_type == ForType::Unrolled) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {
