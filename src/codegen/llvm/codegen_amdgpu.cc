@@ -141,9 +141,9 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   tvmCtx.device_id = 0;
   TVMRetValue val;
   tvm::runtime::DeviceAPI::Get(tvmCtx)->GetAttr(tvmCtx, tvm::runtime::kExist, &val);
-  if(val.operator int() == 1) {
+  if (val.operator int() == 1) {
     tvm::runtime::DeviceAPI::Get(tvmCtx)->GetAttr(tvmCtx, tvm::runtime::kComputeVersion, &val);
-  }else{
+  } else {
     val = 803;
   }
 
