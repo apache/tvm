@@ -34,14 +34,14 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         with tvm.build_config(auto_unroll_max_step=32,
                               auto_unroll_min_depth=0,
-                              unroll_explicit=False):
+                              unroll_explicit=device == 'rocm'):
             func1 = tvm.build(s1, [A, W, B], device)
             func2 = tvm.build(s2, [A, W, C], device)
             func1(a, w, b)
@@ -49,7 +49,7 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
             np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm']:
         check_device(device)
 
 

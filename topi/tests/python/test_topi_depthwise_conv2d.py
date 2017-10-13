@@ -87,7 +87,8 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
-
+    check_device("rocm")
+    
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
     in_width = in_height
     filter_channel = in_channel
@@ -170,7 +171,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
-
+    check_device("rocm")
 
 def test_depthwise_conv2d():
     print("testing nchw")

@@ -13,7 +13,7 @@ def verify_broadcast_to_ele(in_shape, out_shape):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="broadcast_to")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = np.broadcast_to(data_npy, out_shape)
@@ -27,6 +27,7 @@ def verify_broadcast_to_ele(in_shape, out_shape):
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
+    check_device("rocm")
 
 
 def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
@@ -52,7 +53,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
         rhs_npy = np.random.uniform(size=rhs_shape).astype(A.dtype)
@@ -81,7 +82,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
-
+    check_device("rocm")
 
 def test_broadcast_to():
     verify_broadcast_to_ele((1,), (10,))
