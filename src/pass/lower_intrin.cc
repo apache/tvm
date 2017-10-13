@@ -34,22 +34,46 @@ class IntrinInjecter : public IRMutator {
   }
 
   Expr Mutate_(const Add* op, const Expr& e) final {
-    if (fma_ == nullptr || !op->type.is_float()) {
-      return IRMutator::Mutate_(op, e);
-    }
     if (const Mul* mb = op->b.as<Mul>()) {
-      Expr r = (*fma_)(Call::make(
-          op->type, "fma", {mb->a, mb->b, op->a}, Call::PureIntrinsic));
-      if (r.defined()) return this->Mutate(r);
+      Expr lhs = SwapBroadcastCast(mb->a);
+      Expr rhs = SwapBroadcastCast(mb->b);
+
+      if (fma_ != nullptr && op->type.is_float()) {
+        Expr r = (*fma_)(Call::make(
+            op->type, "fma", {lhs, rhs, op->a}, Call::PureIntrinsic));
+        if (r.defined()) return this->Mutate(r);
+      } else {
+        Expr a = this->Mutate(op->a);
+        Expr b = this->Mutate(Mul::make(lhs, rhs));
+        return Add::make(a, b);
+      }
     } else if (const Mul* ma = op->a.as<Mul>()) {
-      Expr r = (*fma_)(Call::make(
-          op->type, "fma", {ma->a, ma->b, op->b}, Call::PureIntrinsic));
-      if (r.defined()) return this->Mutate(r);
+      Expr lhs = SwapBroadcastCast(ma->a);
+      Expr rhs = SwapBroadcastCast(ma->b);
+
+      if (fma_ != nullptr && op->type.is_float()) {
+        Expr r = (*fma_)(Call::make(
+            op->type, "fma", {lhs, rhs, op->b}, Call::PureIntrinsic));
+        if (r.defined()) return this->Mutate(r);
+      } else {
+        Expr a = this->Mutate(Mul::make(lhs, rhs));
+        Expr b = this->Mutate(op->b);
+        return Add::make(a, b);
+      }
     }
     return IRMutator::Mutate_(op, e);
   }
 
  private:
+  Expr SwapBroadcastCast(Expr e) {
+    if (const Broadcast* bcast = e.as<Broadcast>()) {
+      if (const Cast* cast = bcast->value.as<Cast>()) {
+        Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
+        return Cast::make(cast->type, new_bcast);
+      }
+    }
+    return e;
+  }
   Expr ApplyPattern(const std::string& name, const Expr& e) {
     for (size_t i = 0; i < patterns_.size(); ++i) {
       std::string& p = patterns_[i];
