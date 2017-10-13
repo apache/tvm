@@ -33,7 +33,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
@@ -42,7 +42,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         f(a, b, c, d)
         np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm']:
         check_device(device)
 
 def test_dense():
