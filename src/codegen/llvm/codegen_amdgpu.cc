@@ -143,7 +143,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   llvm::TargetMachine* tm = \
     GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" + \
-    std::to_string(int(val)) + target.substr(4, target.length() - 4));
+    std::to_string(static_cast<int>(val)) + target.substr(4, target.length() - 4));
 
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
