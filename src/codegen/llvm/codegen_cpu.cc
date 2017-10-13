@@ -226,6 +226,7 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(
       name);
   gv->setAlignment(data_layout_->getTypeAllocSize(p_type));
   gv->setInitializer(llvm::Constant::getNullValue(p_type));
+  gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
   return gv;
 }
 
