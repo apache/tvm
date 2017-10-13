@@ -612,7 +612,7 @@ struct hash<nnvm::TShape> {
 
 namespace dmlc {
 // avoid low version of MSVC
-#if !defined(_MSC_VER) || _MSC_VER >= 1900
+#if !defined(_MSC_VER)
 template<typename T>
 struct type_name_helper<nnvm::Tuple<T> > {
   static inline std::string value() {
@@ -620,6 +620,5 @@ struct type_name_helper<nnvm::Tuple<T> > {
   }
 };
 #endif
-}
-
+}  // namespace dmlc
 #endif  // NNVM_TUPLE_H_
