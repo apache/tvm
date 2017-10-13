@@ -40,9 +40,7 @@ class NodeBase(_NodeBase):
         return _api_internal._raw_ptr(self)
 
     def __eq__(self, other):
-        if not isinstance(other, NodeBase):
-            return False
-        return self.__hash__() == other.__hash__()
+        return self.same_as(other)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -66,6 +64,12 @@ class NodeBase(_NodeBase):
             other.handle = None
         else:
             self.handle = None
+
+    def same_as(self, other):
+        """check object identity equality"""
+        if not isinstance(other, NodeBase):
+            return False
+        return self.__hash__() == other.__hash__()
 
 
 def register_node(type_key=None):

@@ -138,7 +138,7 @@ class ExprOp(object):
         return _make.static_cast(dtype, self)
 
 
-class Expr(NodeBase, ExprOp):
+class Expr(ExprOp, NodeBase):
     """Base class of all tvm Expressions"""
     pass
 
@@ -213,11 +213,19 @@ class Max(BinaryOpExpr):
 
 @register_node
 class EQ(CmpExpr):
-    pass
+    def __nonzero__(self):
+        return self.a.same_as(self.b)
+
+    def __bool__(self):
+        return self.__nonzero__()
 
 @register_node
 class NE(CmpExpr):
-    pass
+    def __nonzero__(self):
+        return not self.a.same_as(self.b)
+
+    def __bool__(self):
+        return self.__nonzero__()
 
 @register_node
 class LT(CmpExpr):
