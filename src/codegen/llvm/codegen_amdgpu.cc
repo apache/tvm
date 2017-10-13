@@ -135,9 +135,15 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(target.length(
 ) >= 4 &&
         target.substr(0, 4) == "rocm");
+  TVMContext tvmCtx;
+  tvmCtx.device_type = kROCM;
+  tvmCtx.device_id = 0;
+  TVMRetValue val;
+  tvm::runtime::DeviceAPI::Get(tvmCtx)->GetAttr(tvmCtx, tvm::runtime::kComputeVersion, &val);
+
   llvm::TargetMachine* tm = \
-    GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx803" + \
-    target.substr(4, target.length() - 4));
+    GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" + \
+    std::to_string(int(val)) + target.substr(4, target.length() - 4));
 
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
