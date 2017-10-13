@@ -891,7 +891,12 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
 
 void CodeGenLLVM::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
-  CHECK(op->for_type == ForType::Serial);
+  if (op->for_type == ForType::Unrolled) {
+    LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
+                 << " consider set unroll_explicit=True";
+  } else {
+    CHECK(op->for_type == ForType::Serial);
+  }
   CreateSerialFor(MakeValue(op->min), MakeValue(op->extent),
                   ConstInt32(1), op->loop_var, op->body);
 }
