@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
+from .. import generic
 
 def _schedule_reduce(op, sch, is_idx_reduce=False):
     if is_idx_reduce:
@@ -62,6 +63,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     return sch
 
 
+@generic.schedule_reduce.register(["cuda", "gpu"])
 def schedule_reduce(outs):
     """Schedule for inject->reduce->bcast ops.
 

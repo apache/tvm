@@ -5,7 +5,7 @@ from collections import namedtuple
 import tvm
 from .. import tag
 from ..nn.util import infer_pad, infer_stride, get_pad_tuple
-
+from .. import generic
 
 _Workload = namedtuple('Workload',
                        ['height', 'width', 'channel', 'multiplier',
@@ -145,7 +145,7 @@ def _schedule(s, data, data_pad, kernel, output, last):
     return s
 
 
-
+@generic.schedule_depthwise_conv2d_nchw.register(["cpu", "rasp"])
 def schedule_depthwise_conv2d(outs):
     """Schedule for depthwise_conv2d nchw forward.
 

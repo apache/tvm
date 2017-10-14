@@ -12,8 +12,6 @@ def verify_softmax(m, n):
     s = tvm.create_schedule([B.op])
     tvm.lower(s, [A, B], simple_mode=True)
 
-    s = topi.cuda.schedule_softmax(B)
-
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = topi.testing.softmax_python(a_np)
 
@@ -21,6 +19,8 @@ def verify_softmax(m, n):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_softmax(B)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
@@ -43,7 +43,6 @@ def verify_log_softmax(m, n):
     s = tvm.create_schedule([B.op])
     tvm.lower(s, [A, B], simple_mode=True)
 
-    s = topi.cuda.schedule_softmax(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = topi.testing.log_softmax_python(a_np)
@@ -52,6 +51,8 @@ def verify_log_softmax(m, n):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_softmax(B)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

@@ -6,11 +6,12 @@ import topi
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.expand_dims(A, axis, num_newaxis)
-    s = topi.cuda.schedule_broadcast(B)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_broadcast(B)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="expand_dims")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
@@ -23,17 +24,18 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
-    check_device("rocm")    
+    check_device("rocm")
 
 
 def verify_tranpose(in_shape, axes):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.transpose(A, axes)
-    s = topi.cuda.schedule_injective(B)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="tranpose")
         data_npy = np.arange(np.prod(in_shape)).reshape(in_shape).astype(A.dtype)
@@ -46,16 +48,17 @@ def verify_tranpose(in_shape, axes):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-    check_device("rocm")    
+    check_device("rocm")
 
 def verify_reshape(src_shape, dst_shape):
     A = tvm.placeholder(shape=src_shape, name="A")
     B = topi.reshape(A, dst_shape)
-    s = topi.cuda.schedule_injective(B)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="reshape")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
@@ -68,16 +71,17 @@ def verify_reshape(src_shape, dst_shape):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-    check_device("rocm")    
+    check_device("rocm")
 
 def verify_squeeze(src_shape, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
     B = topi.squeeze(A, axis=axis)
-    s = topi.cuda.schedule_injective(B)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="squeeze")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
@@ -94,18 +98,19 @@ def verify_squeeze(src_shape, axis):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-    check_device("rocm")    
+    check_device("rocm")
 
 def verify_concatenate(shapes, axis):
     tensor_l = []
     for i, shape in enumerate(shapes):
         tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
     out_tensor = topi.concatenate(a_tuple=tensor_l, axis=axis)
-    s = topi.cuda.schedule_injective(out_tensor)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
@@ -118,16 +123,17 @@ def verify_concatenate(shapes, axis):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-    check_device("rocm")    
+    check_device("rocm")
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
     tensor_l = topi.split(A, indices_or_sections, axis=axis)
-    s = topi.cuda.schedule_injective(tensor_l)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(tensor_l)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A] + tensor_l, device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
@@ -142,7 +148,7 @@ def verify_split(src_shape, indices_or_sections, axis):
     check_device("opencl")
     check_device("metal")
     check_device("rocm")
-    
+
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
@@ -190,4 +196,3 @@ if __name__ == "__main__":
     test_squeeze()
     test_concatenate()
     test_split()
-

@@ -68,7 +68,8 @@ def test_gemm():
             print("skip because %s is not enabled.." % device)
             return
 
-        f = tvm.build(s, [A, B, C], device)
+        with tvm.target.create(device):
+            f = tvm.build(s, [A, B, C])
         ctx = tvm.context(device, 0)
         # launch the kernel.
         n = nn

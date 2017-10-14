@@ -4,11 +4,12 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import target as _target
 from .. import tag
+from ..nn.conv2d import conv2d, _get_schedule
 from ..nn.conv2d import SpatialPack, Im2ColPack
-from ..nn.conv2d import _CONV_DECLARATION, _CONV_SCHEDULE
 from ..nn.conv2d import _WORKLOADS, _SCH_TO_DECL_FUNC
-from ..nn.conv2d import _get_workload, _get_schedule
+from ..nn.conv2d import _get_workload
 from ..nn.util import infer_pad, infer_stride
+from .. import generic
 
 _SCHEDULES = [
     SpatialPack(1, 8, 4, 1, 4, True),
@@ -36,6 +37,7 @@ _SCHEDULES = [
     Im2ColPack(7, 4, 1, 4, True),
 ]
 
+@_get_schedule.register("rasp")
 def _schedule_conv2d(wkl):
     if wkl not in _WORKLOADS:
         raise ValueError("no schedule for such workload: {}".format(wkl))
@@ -43,8 +45,8 @@ def _schedule_conv2d(wkl):
     sch = _SCHEDULES[idx]
     return sch
 
-_CONV_SCHEDULE[_target.rasp()] = _schedule_conv2d
 
+@conv2d.register("rasp")
 def _declaration_conv2d(data, kernel, stride, padding, layout):
     assert layout == 'NCHW', "only support NCHW convolution on rasp"
     assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
@@ -52,7 +54,6 @@ def _declaration_conv2d(data, kernel, stride, padding, layout):
     sch = _get_schedule(wkl)
     return _SCH_TO_DECL_FUNC[type(sch)](data, kernel, stride, padding)
 
-_CONV_DECLARATION[_target.rasp()] = _declaration_conv2d
 
 def _schedule_spatial_conv2d(s, data, data_pad, data_vec,
                              kernel, kernel_vec,
@@ -64,7 +65,9 @@ def _schedule_spatial_conv2d(s, data, data_pad, data_vec,
     else:
         stride = infer_stride(data_pad, kernel, output)
     wkl = _get_workload(data, kernel, stride, padding)
-    sch = _get_schedule(wkl, 'rasp')
+
+    with tvm.target.rasp():
+        sch = _get_schedule(wkl)
 
     H, W = wkl.height, wkl.width
     CI, CO = wkl.in_filter, wkl.out_filter
@@ -170,7 +173,9 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
     else:
         stride = infer_stride(data_pad, kernel, output)
     wkl = _get_workload(data, kernel, stride, padding)
-    sch = _get_schedule(wkl, 'rasp')
+
+    with _target.rasp():
+        sch = _get_schedule(wkl)
 
     H, W = wkl.height, wkl.width
     CI = wkl.in_filter
@@ -275,6 +280,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
 
     return s
 
+@generic.schedule_conv2d_nchw.register(["cpu", "rasp"])
 def schedule_conv2d(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])

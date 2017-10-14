@@ -82,6 +82,8 @@ GetLLVMTargetMachine(const std::string& target_str,
       } else {
         LOG(FATAL) << "invalid -mfloat-abi option " << value;
       }
+    } else if (key == "-device") {
+      // pass
     } else {
       LOG(FATAL) << "unknown option " << key;
     }

@@ -12,7 +12,6 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     C = tvm.placeholder((out_dim,), name='C')
     D = topi.nn.dense(A, B, C if use_bias else None)
     D = topi.nn.relu(D)
-    s = topi.cuda.schedule_dense(D)
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
@@ -33,6 +32,8 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_dense(D)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)

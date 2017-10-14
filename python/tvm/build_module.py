@@ -15,6 +15,7 @@ from . import container
 from . import module
 from . import codegen
 from . import ndarray
+from . import target as _target
 
 class BuildConfig(object):
     """Configuration scope to set a build config option.
@@ -238,7 +239,7 @@ def lower(sch,
 
 def build(sch,
           args=None,
-          target="llvm",
+          target=None,
           target_host=None,
           name="default_function",
           binds=None):
@@ -252,36 +253,10 @@ def build(sch,
     args : list of Buffer or Tensor or Var, optional
         The argument lists to the function.
 
-    target : str, optional
+    target : str or :any:`tvm.target.Target`, optional
         The target and option of the compilation.
-        When the target is llvm, you can set options like:
 
-          - **-mtriple=<target triple>** or **-target**
-
-            Specify the target triple, which is useful for cross
-            compilation.
-
-          - **-mcpu=<cpuname>**
-
-            Specify a specific chip in the current architecture to
-            generate code for. By default this is infered from the
-            target triple and autodetected to the current architecture.
-
-          - **-mattr=a1,+a2,-a3,...**
-
-            Override or control specific attributes of the target,
-            such as whether SIMD operations are enabled or not. The
-            default set of attributes is set by the current CPU.
-
-          - **-system-lib**
-
-            Build TVM system library module. System lib is a global module that contains
-            self registered functions in program startup. User can get the module using
-            :any:`tvm.module.system_lib`.
-            It is useful in environments where dynamic loading api like dlopen is banned.
-            The system lib will be available as long as the result code is linked by the program.
-
-    target_host : str, optional
+    target_host : str or :any:`tvm.target.Target` optional
         Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
         we also need host(CPU) side code to interact with the driver
@@ -301,6 +276,10 @@ def build(sch,
     -------
     f : Function, or pair of functions
        The result function.
+
+    Note
+    ----
+    See the note on :any:`tvm.target` on target string format.
     """
     if isinstance(sch, schedule.Schedule):
         if args is None:
@@ -325,6 +304,9 @@ def build(sch,
         if x.name in fname_set:
             raise ValueError("Duplicate function name %s" % x.name)
 
+    target = _target.current_target() if target is None else target
+    target = _target.create(target) if target else _target.create("llvm")
+
     fhost = []
     fdevice = []
     for func in flist:
@@ -332,7 +314,7 @@ def build(sch,
             if BuildConfig.current.detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
-            warp_size = 32 if target == "cuda" else 1
+            warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]
             fhost.append(fsplits[0])
@@ -345,29 +327,28 @@ def build(sch,
         else:
             raise ValueError("unknown function type %d" % func.func_type)
 
-    if not target.startswith("llvm") and target not in ("stackvm", "ext_dev") and not fdevice:
+    if "gpu" in target.keys and not fdevice:
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
 
-    device = "cpu" if target.startswith("llvm") or target == "stackvm" else target
-    device_type = ndarray.context(device, 0).device_type
+    device_type = ndarray.context(target.target_name, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
 
     if not target_host:
-        if device == "cpu":
+        if device_type == ndarray.cpu(0).device_type:
             target_host = target
             assert not fdevice
         else:
             target_host = "llvm" if module.enabled("llvm") else "stackvm"
-
+    target_host = _target.create(target_host)
     target_device = target
-    fdevice = [ir_pass.LowerIntrin(x, target_device) for x in fdevice]
-    fhost = [ir_pass.LowerIntrin(x, target_host) for x in fhost]
+    fdevice = [ir_pass.LowerIntrin(x, target_device.target_name) for x in fdevice]
+    fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
-    mhost = codegen.build_module(fhost, target_host)
+    mhost = codegen.build_module(fhost, str(target_host))
 
     if fdevice:
-        mdev = codegen.build_module(fdevice, target_device)
+        mdev = codegen.build_module(fdevice, str(target_device))
         mhost.import_module(mdev)
     return mhost
