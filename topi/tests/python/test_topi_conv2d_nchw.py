@@ -14,8 +14,6 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
     W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
     B = topi.nn.conv2d_nchw(A, W, stride, padding)
     C = topi.nn.relu(B)
-    s1 = topi.cuda.schedule_conv2d_nchw([B])
-    s2 = topi.cuda.schedule_conv2d_nchw([C])
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -35,6 +33,9 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s1 = topi.generic.schedule_conv2d_nchw([B])
+            s2 = topi.generic.schedule_conv2d_nchw([C])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

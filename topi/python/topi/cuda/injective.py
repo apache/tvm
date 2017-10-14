@@ -1,17 +1,21 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
+from .. import generic
 
 def _schedule_injective(op, sch):
     x = op.output(0)
     fused = sch[x].fuse(*sch[x].op.axis)
-    num_thread = 512
+    target = tvm.target.current_target()
+    target = target if target else tvm.target.cuda()
+    num_thread = target.max_num_threads
     bx, tx = sch[x].split(fused, factor=num_thread)
     sch[x].bind(bx, tvm.thread_axis("blockIdx.x"))
     sch[x].bind(tx, tvm.thread_axis("threadIdx.x"))
     return sch
 
 
+@generic.schedule_injective.register(["cuda", "gpu"])
 def schedule_injective(outs):
     """Schedule for injective op.
 

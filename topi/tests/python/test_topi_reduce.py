@@ -45,11 +45,13 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         out_dtype = "int32"
     else:
         raise NotImplementedError
-    s = topi.cuda.schedule_reduce(B)
+
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_reduce(B)
         ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="sum")
         # Test

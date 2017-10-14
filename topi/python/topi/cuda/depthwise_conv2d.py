@@ -3,7 +3,9 @@
 import tvm
 from ..util import get_const_tuple
 from .. import tag
+from .. import generic
 
+@generic.schedule_depthwise_conv2d_nchw.register(["cuda", "gpu"])
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 

@@ -14,8 +14,8 @@ def verify_conv2d(batch, in_size, in_channel, num_filter, kernel, stride, paddin
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
         B = topi.nn.conv2d(A, W, stride, padding)
+        s = topi.generic.schedule_conv2d_nchw([B])
 
-    s = topi.rasp.schedule_conv2d([B])
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype

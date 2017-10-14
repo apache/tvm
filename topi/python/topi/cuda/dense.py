@@ -3,7 +3,9 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
+from .. import generic
 
+@generic.schedule_dense.register(["cuda", "gpu"])
 def schedule_dense(outs):
     """Schedule for dense operator.
 

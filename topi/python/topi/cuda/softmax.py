@@ -1,7 +1,9 @@
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
 import tvm
+from .. import generic
 
+@generic.schedule_softmax.register(["cuda", "gpu"])
 def schedule_softmax(outs):
     """Schedule for softmax op.
 

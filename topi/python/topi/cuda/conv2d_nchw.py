@@ -3,6 +3,7 @@
 import tvm
 from .. import util
 from .. import tag
+from .. import generic
 
 def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
@@ -483,6 +484,8 @@ def schedule_conv2d_small_batch(outs):
     traverse(outs[0].op)
     return s
 
+
+@generic.schedule_conv2d_nchw.register(["cuda", "gpu"])
 def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw.
 

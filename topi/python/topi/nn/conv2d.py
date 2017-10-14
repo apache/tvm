@@ -1,9 +1,8 @@
-# pylint: disable=invalid-name, unused-variable, too-many-locals
+# pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
-from tvm import target as _target
 from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
@@ -51,9 +50,7 @@ _WORKLOADS = [
 # platform specific schedule
 _CONV_SCHEDULE = {}
 
-# platform specific declaration
-_CONV_DECLARATION = {}
-
+@tvm.target.generic_func
 def conv2d(data, kernel, stride, padding, layout='NCHW'):
     """Conv2D operator.
 
@@ -80,10 +77,6 @@ def conv2d(data, kernel, stride, padding, layout='NCHW'):
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     # search platform specific declaration first
-    target = _target.current_target()
-    if target in _CONV_DECLARATION:
-        return _CONV_DECLARATION[target](data, kernel, stride, padding, layout)
-
     # default declaration
     if layout == 'NCHW':
         return conv2d_nchw(data, kernel, stride, padding)
@@ -105,15 +98,15 @@ def _get_workload(data, kernel, stride, padding):
     return Workload(IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
-def _get_schedule(wkl, target=None):
+@tvm.target.generic_func
+def _get_schedule(wkl):
+    # pylint: disable=unreachable
     """ Get the platform specific schedule. """
-    if target is None:
-        target = _target.current_target()
-    else:
-        target = _target.Target(target)
-    assert target in _CONV_SCHEDULE, "no schedule for such target: {}".format(target)
-    return _CONV_SCHEDULE[target](wkl)
-
+    target = tvm.target.current_target()
+    raise RuntimeError(
+        "No schedule for current target:{}".format(target))
+    # This return has no use, merely to supress pylint warning
+    return wkl
 
 def _spatial_pack(data, kernel, stride, padding):
     """ Compute convolution with pack on spatial axes. """

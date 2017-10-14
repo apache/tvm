@@ -4,7 +4,7 @@ import numpy as np
 from scipy import signal
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
-from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nchw, schedule_depthwise_conv2d_nhwc
+from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nhwc
 
 
 def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
@@ -21,15 +21,18 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, stride=[stride_h, stride_w], padding=padding)
     ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
-    # schedule
-    s1 = schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
-    s2 = schedule_depthwise_conv2d_nchw(ScaleShift)
-    s3 = schedule_depthwise_conv2d_nchw(Relu)
+
 
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            # schedule
+            s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
+            s2 = topi.generic.schedule_depthwise_conv2d_nchw(ScaleShift)
+            s3 = topi.generic.schedule_depthwise_conv2d_nchw(Relu)
+
         ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
@@ -88,7 +91,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
-    
+
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
     in_width = in_height
     filter_channel = in_channel

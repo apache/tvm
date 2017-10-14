@@ -2,7 +2,9 @@
 """Schedule for pooling operators"""
 import tvm
 from .. import tag
+from .. import generic
 
+@generic.schedule_global_pool.register(["cuda", "gpu"])
 def schedule_global_pool(outs):
     """Schedule for global_pool.
 
@@ -63,6 +65,7 @@ def schedule_global_pool(outs):
     return s
 
 
+@generic.schedule_pool.register(["cuda", "gpu"])
 def schedule_pool(outs):
     """Schedule for pool.
 

@@ -12,7 +12,6 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type):
     A = tvm.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding, pool_type=pool_type)
     B = topi.nn.relu(B)
-    s = topi.cuda.schedule_pool(B)
     dtype = A.dtype
 
     a_np = np.random.uniform(size=(n, ic, ih, iw)).astype(dtype)
@@ -36,6 +35,8 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_pool(B)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
@@ -57,7 +58,6 @@ def verify_global_pool(n, c, h, w, pool_type):
     A = tvm.placeholder((n, c, h, w), name='A')
     B = topi.nn.global_pool(A, pool_type=pool_type)
     B = topi.nn.relu(B)
-    s = topi.cuda.schedule_global_pool(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     if pool_type == 'avg':
@@ -70,6 +70,8 @@ def verify_global_pool(n, c, h, w, pool_type):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_global_pool(B)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

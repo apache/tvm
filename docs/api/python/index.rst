@@ -8,6 +8,7 @@ Python API
    intrin
    tensor
    schedule
+   target
    build
    module
    ndarray

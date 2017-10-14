@@ -100,9 +100,12 @@ class TVMContext(ctypes.Structure):
         12: 'ext_dev',
     }
     STR2MASK = {
+        'llvm': 1,
+        'stackvm': 1,
         'cpu': 1,
         'gpu': 2,
         'cuda': 2,
+        'nvptx': 2,
         'cl': 4,
         'opencl': 4,
         'metal': 8,
