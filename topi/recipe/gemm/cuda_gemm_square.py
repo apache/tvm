@@ -100,11 +100,12 @@ def test_gemm():
     s[BB].double_buffer()
     # correctness
     def check_device(device):
+        print("Device %s" % device)
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         f = tvm.build(s, [A, B, C], device)
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         # launch the kernel.
         n, m, l = nn, nn, nn
         a_np = np.random.uniform(size=(n, l)).astype(A.dtype)
@@ -117,10 +118,18 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(b_np.T, a_np), rtol=1e-5)
 
-    with tvm.build_config(auto_unroll_max_step=32,
-                          auto_unroll_min_depth=0,
-                          unroll_explicit=False):
-        check_device("cuda")
+        num_flops = 2 * nn * nn * nn
+        num_runs = 10
+        timer_f = f.time_evaluator(f.entry_name, ctx, number=num_runs)
+        t = timer_f(a, b, c).mean
+        GFLOPS = num_flops / (t * 1e3) / 1e6
+        print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
+        
+    for device in ['cuda', 'opencl', 'rocm']:
+        with tvm.build_config(auto_unroll_max_step=32,
+                              auto_unroll_min_depth=0,
+                              unroll_explicit=device == 'rocm'):
+            check_device(device)
 
 if __name__ == "__main__":
     test_gemm()
