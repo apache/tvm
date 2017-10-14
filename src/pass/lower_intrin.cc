@@ -50,7 +50,7 @@ class IntrinInjecter : public IRMutator {
     // on ARM.
     if (const Broadcast* bcast = e.as<Broadcast>()) {
       if (const Cast* cast = bcast->value.as<Cast>()) {
-        if (cast->type == cast->value.type().with_bits(cast->value.type().bits() * 2)) {
+        if (cast->type.bits() == cast->value.type().bits() * 2) {
           Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
           return Cast::make(bcast->type, new_bcast);
         }
@@ -67,10 +67,10 @@ class IntrinInjecter : public IRMutator {
 
     if (fma_ != nullptr && op->type.is_float()) {
       Expr r = (*fma_)(Call::make(
-          op->type, "fma", {lhs, rhs, op->b}, Call::PureIntrinsic));
+          op->type, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
       if (r.defined()) return this->Mutate(r);
     } else {
-      if (!(lhs.same_as(a) && rhs.same_as(b))) {
+      if (!lhs.same_as(a) || !rhs.same_as(b)) {
         Expr mul = this->Mutate(Mul::make(lhs, rhs));
         return Add::make(mul, this->Mutate(c));
       }
