@@ -41,6 +41,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/IRReader/IRReader.h>
+#include <llvm/CodeGen/TargetLoweringObjectFileImpl.h>
 
 #include <utility>
 #include <string>

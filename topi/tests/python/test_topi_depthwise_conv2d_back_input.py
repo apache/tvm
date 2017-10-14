@@ -83,7 +83,7 @@ def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multipli
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
-
+    check_device("rocm")
 
 def test_topi_depthwise_conv2d_backward_input_nhwc():
     verify_depthwise_conv2d_back_input(16, 256, 56, 1, 3, 1, 1)

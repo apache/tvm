@@ -36,14 +36,14 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm']:
         check_device(device)
 
 def test_pool():
@@ -70,14 +70,14 @@ def verify_global_pool(n, c, h, w, pool_type):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm']:
         check_device(device)
 
 def test_global_pool():

@@ -11,7 +11,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="expand_dims")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = data_npy.reshape(out_shape)
@@ -23,6 +23,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
+    check_device("rocm")    
 
 
 def verify_tranpose(in_shape, axes):
@@ -33,7 +34,7 @@ def verify_tranpose(in_shape, axes):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="tranpose")
         data_npy = np.arange(np.prod(in_shape)).reshape(in_shape).astype(A.dtype)
         out_npy = data_npy.transpose(axes)
@@ -45,7 +46,7 @@ def verify_tranpose(in_shape, axes):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-
+    check_device("rocm")    
 
 def verify_reshape(src_shape, dst_shape):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -55,7 +56,7 @@ def verify_reshape(src_shape, dst_shape):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="reshape")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.reshape(data_npy, newshape=dst_shape)
@@ -67,7 +68,7 @@ def verify_reshape(src_shape, dst_shape):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-
+    check_device("rocm")    
 
 def verify_squeeze(src_shape, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -77,7 +78,7 @@ def verify_squeeze(src_shape, axis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="squeeze")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.squeeze(data_npy, axis=axis)
@@ -93,7 +94,7 @@ def verify_squeeze(src_shape, axis):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-
+    check_device("rocm")    
 
 def verify_concatenate(shapes, axis):
     tensor_l = []
@@ -105,7 +106,7 @@ def verify_concatenate(shapes, axis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
         out_npy = np.concatenate(data_npys, axis=axis)
@@ -117,7 +118,7 @@ def verify_concatenate(shapes, axis):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-
+    check_device("rocm")    
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -127,7 +128,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A] + tensor_l, device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npys = np.split(data_npy, indices_or_sections, axis=axis)
@@ -140,7 +141,8 @@ def verify_split(src_shape, indices_or_sections, axis):
     check_device("cuda")
     check_device("opencl")
     check_device("metal")
-
+    check_device("rocm")
+    
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
