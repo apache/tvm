@@ -318,6 +318,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
       // set non alias.
 #if TVM_LLVM_VERSION >= 50
       fcompute->addParamAttr(idx + 1, llvm::Attribute::NoAlias);
+      // always not inline compute function to make the code structure clean
+      fcompute->addFnAttr(llvm::Attribute::NoInline);
 #else
       fcompute->setDoesNotAlias(idx + 1);
 #endif
