@@ -161,7 +161,7 @@ def optimize(graph, shape, dtype="float32"):
     return graph
 
 
-def build(graph, target, shape, dtype="float32", params=None):
+def build(graph, target=None, shape=None, dtype="float32", params=None):
     """Build graph into runtime library.
 
     The build function will optimize the graph and do the compilation.
@@ -175,10 +175,10 @@ def build(graph, target, shape, dtype="float32", params=None):
     graph : Graph
         The graph to be used in lowering
 
-    target : str
+    target : str or :any:`tvm.target.Target`, optional
         The build target
 
-    shape : dict of str to tuple
+    shape : dict of str to tuple, optional
         The input shape to the graph
 
     dtype : str or dict of str to str
@@ -201,8 +201,12 @@ def build(graph, target, shape, dtype="float32", params=None):
         The updated parameters of graph if params is passed.
         This can be different from the params passed in.
     """
-    if not isinstance(target, str):
-        raise TypeError("require target to be str")
+    target = target if target else tvm.target.current_target()
+    if target is None:
+        raise ValueError("Target is not set in env or passed as argument.")
+    target = tvm.target.create(target)
+
+    shape = shape if shape else {}
     if not isinstance(shape, dict):
         raise TypeError("require shape to be dict")
     cfg = BuildConfig.current
@@ -223,13 +227,14 @@ def build(graph, target, shape, dtype="float32", params=None):
     # Operator Fusion and generatiom
     graph = graph_attr.set_shape_inputs(graph, shape)
     graph = graph_attr.set_dtype_inputs(graph, dtype)
-    graph._set_json_attr("target", target, "str")
+    graph._set_json_attr("target", str(target), "str")
     if cfg.pass_enabled("OpFusion"):
         graph._set_json_attr("opt_level", 1, "int")
     else:
         graph._set_json_attr("opt_level", 0, "int")
     graph = graph.apply("InferShape").apply("InferType")
-    graph = graph.apply("GraphFusePartition").apply("GraphFuseCompile")
+    with target:
+        graph = graph.apply("GraphFusePartition").apply("GraphFuseCompile")
     libmod = graph_attr._move_out_module(graph, "module")
     return graph, libmod, params
 
