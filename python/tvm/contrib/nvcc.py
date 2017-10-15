@@ -101,6 +101,7 @@ def find_cuda_path():
     raise RuntimeError("Cannot find cuda path")
 
 
+@register_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 
