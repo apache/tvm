@@ -10,15 +10,8 @@ from .registry import OpPattern
 
 def _schedule_injective(_, outs, target):
     """Generic schedule for binary bcast"""
-    if target == "cuda":
-        return topi.cuda.schedule_injective(outs)
-    assert target.startswith("llvm")
-    s = tvm.create_schedule([x.op for x in outs])
-    x = outs[0]
-    tvm.schedule.AutoInlineInjective(s)
-    s[x].fuse(s[x].op.axis)
-    return s
-
+    with tvm.target.create(target):
+        return topi.generic.schedule_injective(outs)
 
 def _compute_binary_scalar(f):
     """auxiliary function"""
@@ -174,7 +167,7 @@ reg.register_schedule("broadcast_div", _fschedule_broadcast)
 
 # broadcast_to
 @reg.register_compute("broadcast_to")
-def compute_softmax(attrs, inputs, out_info):
+def compute_broadcast_to(attrs, inputs, out_info):
     """Compute definition of softmax"""
     return topi.broadcast_to(inputs[0], shape=out_info[0].shape)
 reg.register_pattern("broadcast_to", OpPattern.BROADCAST)
