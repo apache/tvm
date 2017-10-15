@@ -8,7 +8,7 @@ import warnings
 from . import util
 from .. import ndarray as nd
 from ..api import register_func
-
+from .._ffi.base import py_str
 
 def compile_cuda(code,
                  target="ptx",
@@ -92,8 +92,9 @@ def find_cuda_path():
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
+    out = py_str(out)
     if proc.returncode == 0:
-        return os.path.abspath(os.path.join(out.strip(), "../.."))
+        return os.path.abspath(os.path.join(str(out).strip(), "../.."))
     cuda_path = "/usr/local/cuda"
     if os.path.exists(os.path.join(cuda_path, "bin/nvcc")):
         return cuda_path
@@ -125,7 +126,6 @@ def find_libdevice_path(arch):
     return os.path.join(lib_path, selected_path)
 
 
-@register_func("tvm_callback_libdevice_path")
 def callback_libdevice_path(arch):
     try:
         return find_libdevice_path(arch)
