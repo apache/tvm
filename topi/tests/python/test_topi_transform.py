@@ -21,10 +21,8 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("opencl")
-    check_device("cuda")
-    check_device("metal")
-    check_device("rocm")
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
 
 
 def verify_tranpose(in_shape, axes):
@@ -45,10 +43,9 @@ def verify_tranpose(in_shape, axes):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("cuda")
-    check_device("opencl")
-    check_device("metal")
-    check_device("rocm")
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
 
 def verify_reshape(src_shape, dst_shape):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -68,10 +65,9 @@ def verify_reshape(src_shape, dst_shape):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("cuda")
-    check_device("opencl")
-    check_device("metal")
-    check_device("rocm")
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
 
 def verify_squeeze(src_shape, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -95,10 +91,8 @@ def verify_squeeze(src_shape, axis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("cuda")
-    check_device("opencl")
-    check_device("metal")
-    check_device("rocm")
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
 
 def verify_concatenate(shapes, axis):
     tensor_l = []
@@ -120,10 +114,9 @@ def verify_concatenate(shapes, axis):
         foo(*(data_nds + [out_nd]))
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("cuda")
-    check_device("opencl")
-    check_device("metal")
-    check_device("rocm")
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -144,10 +137,9 @@ def verify_split(src_shape, indices_or_sections, axis):
         for out_nd, out_npy in zip(out_nds, out_npys):
             np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("cuda")
-    check_device("opencl")
-    check_device("metal")
-    check_device("rocm")
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
 
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
@@ -175,6 +167,7 @@ def test_squeeze():
 
 
 def test_concatenate():
+    verify_concatenate([(2,), (2,), (2,)], 0)
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
     verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
     verify_concatenate([(5, 6, 7, 3),
@@ -190,9 +183,9 @@ def test_split():
     verify_split((10, 12, 24), [5, 7, 9], -1)
 
 if __name__ == "__main__":
+    test_concatenate()
     test_tranpose()
     test_expand_dims()
     test_reshape()
     test_squeeze()
-    test_concatenate()
     test_split()

@@ -22,6 +22,7 @@ def schedule_injective(outs):
     target = tvm.target.current_target(allow_none=False)
     if target.target_name != "llvm":
         raise RuntimeError("schedule_injective not registered for '%s'" % target)
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     x = outs[0]
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)

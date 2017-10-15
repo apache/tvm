@@ -124,11 +124,11 @@ def test_gemm():
         t = timer_f(a, b, c).mean
         GFLOPS = num_flops / (t * 1e3) / 1e6
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
-        
-    for device in ['cuda', 'opencl', 'rocm']:
+
+    for device in ["cuda", "opencl", "rocm"]:
         with tvm.build_config(auto_unroll_max_step=32,
                               auto_unroll_min_depth=0,
-                              unroll_explicit=device == 'rocm'):
+                              unroll_explicit=(device != "cuda")):
             check_device(device)
 
 if __name__ == "__main__":

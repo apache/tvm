@@ -582,14 +582,16 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     builder_->CreateCondBr(MakeValue(op->args[0]), then_block, else_block);
     builder_->SetInsertPoint(then_block);
     llvm::Value* then_value = MakeValue(op->args[1]);
+    BasicBlock* then_value_block = builder_->GetInsertBlock();
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(else_block);
     llvm::Value* else_value = MakeValue(op->args[2]);
+    BasicBlock* else_value_block = builder_->GetInsertBlock();
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(end_block);
     llvm::PHINode* value = builder_->CreatePHI(then_value->getType(), 2);
-    value->addIncoming(then_value, then_block);
-    value->addIncoming(else_value, else_block);
+    value->addIncoming(then_value, then_value_block);
+    value->addIncoming(else_value, else_value_block);
     return value;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->name;
