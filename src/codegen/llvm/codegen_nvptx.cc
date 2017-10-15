@@ -130,12 +130,34 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 };
 
+inline int DetectCUDAComputeVersion() {
+  TVMContext tvm_ctx;
+  tvm_ctx.device_type = kGPU;
+  tvm_ctx.device_id = 0;
+  TVMRetValue val;
+  tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
+      tvm_ctx, tvm::runtime::kExist, &val);
+  if (val.operator int() == 1) {
+    tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
+        tvm_ctx, tvm::runtime::kComputeVersion, &val);
+    std::string version = val;
+    std::istringstream is(version);
+    double ver;
+    is >> ver;
+    return static_cast<int>(ver * 10);
+  } else {
+    return 20;
+  }
+}
+
 runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   CHECK(target.length() >= 5 &&
         target.substr(0, 5) == "nvptx");
-  llvm::TargetMachine* tm = GetLLVMTargetMachine(
-      "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_20" +
-      target.substr(5, target.length() - 5));
+  std::ostringstream config;
+  config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_"
+         << DetectCUDAComputeVersion()
+         << target.substr(5, target.length() - 5);
+  llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
