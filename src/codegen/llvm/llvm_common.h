@@ -43,6 +43,8 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/CodeGen/TargetLoweringObjectFileImpl.h>
 
+#include <llvm/Linker/Linker.h>
+
 #include <utility>
 #include <string>
 
