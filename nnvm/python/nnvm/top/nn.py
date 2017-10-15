@@ -50,10 +50,9 @@ def compute_softmax(attrs, inputs, _):
 @reg.register_schedule("softmax")
 def schedule_softmax(_, outs, target):
     """Schedule definition of softmax"""
-    if target == "cuda":
-        return topi.cuda.schedule_softmax(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_softmax(outs)
+
 
 reg.register_pattern("softmax", OpPattern.OPAQUE)
 
@@ -68,10 +67,8 @@ def compute_log_softmax(attrs, inputs, _):
 @reg.register_schedule("log_softmax")
 def schedule_log_softmax(_, outs, target):
     """Schedule definition of softmax"""
-    if target == "cuda":
-        return topi.cuda.schedule_softmax(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_softmax(outs)
 
 # Mark softmax as extern as we do not fuse it in call cases
 reg.register_pattern("log_softmax", OpPattern.OPAQUE)
@@ -87,10 +84,8 @@ def compute_dense(attrs, inputs, _):
 @reg.register_schedule("dense")
 def schedule_dense(_, outs, target):
     """Schedule definition of dense"""
-    if target == "cuda":
-        return topi.cuda.schedule_dense(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_dense(outs)
 
 reg.register_pattern("dense", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -123,18 +118,10 @@ def compute_conv2d(attrs, inputs, _):
 def schedule_conv2d(attrs, outs, target):
     """Schedule definition of conv2d"""
     groups = attrs.get_int("groups")
-    if target == "cuda":
+    with tvm.target.create(target):
         if groups == 1:
-            return topi.cuda.schedule_conv2d_nchw(outs)
-        return topi.cuda.schedule_depthwise_conv2d_nchw(outs)
-    # naive schedule
-
-    if tvm.target.current_target() == tvm.target.rasp():
-        if groups == 1:
-            return topi.rasp.schedule_conv2d(outs)
-        return topi.rasp.schedule_depthwise_conv2d(outs)
-
-    return tvm.create_schedule([x.op for x in outs])
+            return topi.generic.schedule_conv2d_nchw(outs)
+        return topi.generic.schedule_depthwise_conv2d_nchw(outs)
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -155,10 +142,8 @@ def compute_max_pool2d(attrs, inputs, _):
 @reg.register_schedule("max_pool2d")
 def schedule_max_pool2d(_, outs, target):
     """Schedule definition of max_pool2d"""
-    if target == "cuda":
-        return topi.cuda.schedule_pool(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_pool(outs)
 
 reg.register_pattern("max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -179,10 +164,8 @@ def compute_avg_pool2d(attrs, inputs, _):
 @reg.register_schedule("avg_pool2d")
 def schedule_avg_pool2d(_, outs, target):
     """Schedule definition of avg_pool2d"""
-    if target == "cuda":
-        return topi.cuda.schedule_pool(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_pool(outs)
 
 reg.register_pattern("avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -198,10 +181,8 @@ def compute_global_max_pool2d(attrs, inputs, _):
 @reg.register_schedule("global_max_pool2d")
 def schedule_global_max_pool2d(_, outs, target):
     """Schedule definition of global_max_pool2d"""
-    if target == "cuda":
-        return topi.cuda.schedule_global_pool(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_global_pool(outs)
 
 reg.register_pattern("global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -217,9 +198,7 @@ def compute_global_avg_pool2d(attrs, inputs, _):
 @reg.register_schedule("global_avg_pool2d")
 def schedule_global_avg_pool2d(_, outs, target):
     """Schedule definition of global_avg_pool2d"""
-    if target == "cuda":
-        return topi.cuda.schedule_global_pool(outs)
-    # naive schedule
-    return tvm.create_schedule([x.op for x in outs])
+    with tvm.target.create(target):
+        return topi.generic.schedule_global_pool(outs)
 
 reg.register_pattern("global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)

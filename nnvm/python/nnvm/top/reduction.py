@@ -10,14 +10,9 @@ from .registry import OpPattern
 
 def _schedule_reduce(_, outs, target):
     """Generic schedule for reduce"""
-    if target == "cuda":
-        return topi.cuda.schedule_reduce(outs)
-    assert target.startswith("llvm")
-    s = tvm.create_schedule([x.op for x in outs])
-    x = outs[0]
-    tvm.schedule.AutoInlineInjective(s)
-    s[x].fuse(s[x].op.axis)
-    return s
+    with tvm.target.create(target):
+        return topi.generic.schedule_reduce(outs)
+
 
 _fschedule_reduce = tvm.convert(_schedule_reduce)
 
