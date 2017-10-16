@@ -88,6 +88,7 @@ class Target(object):
         self.target_name = target_name
         self.options = _merge_opts([], options)
         self.device_name = ""
+        self._old_target = None
         # Parse device option
         for item in self.options:
             if item.startswith("-device="):
@@ -125,11 +126,11 @@ class Target(object):
         return self.__str__()
 
     def __enter__(self):
-        self._old_target = Target.current
         if self._old_target is not None and str(self) != str(self._old_target):
             warnings.warn(
                 "Override target '%s' with new target scope '%s'" % (
                     self._old_target, self))
+        self._old_target = Target.current
         Target.current = self
         return self
 
