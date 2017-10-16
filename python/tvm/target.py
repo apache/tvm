@@ -56,6 +56,8 @@ def _merge_opts(opts, new_opts):
     if isinstance(new_opts, str):
         new_opts = new_opts.split()
     if new_opts:
+        opt_set = set(opts)
+        new_opts = [opt for opt in new_opts if opt not in opt_set]
         return opts + new_opts
     return opts
 
