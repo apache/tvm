@@ -131,26 +131,29 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
-  CHECK(target.length(
-) >= 4 &&
-        target.substr(0, 4) == "rocm");
-
-  TVMContext tvmCtx;
-  tvmCtx.device_type = kROCM;
-  tvmCtx.device_id = 0;
+inline int DetectROCMComputeVersion() {
+  TVMContext tvm_ctx;
+  tvm_ctx.device_type = kROCM;
+  tvm_ctx.device_id = 0;
   TVMRetValue val;
-  tvm::runtime::DeviceAPI::Get(tvmCtx)->GetAttr(tvmCtx, tvm::runtime::kExist, &val);
+  tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
+      tvm_ctx, tvm::runtime::kExist, &val);
   if (val.operator int() == 1) {
-    tvm::runtime::DeviceAPI::Get(tvmCtx)->GetAttr(tvmCtx, tvm::runtime::kComputeVersion, &val);
+    tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
+    return val.operator int();
   } else {
-    val = 803;
+    return 803;
   }
+}
 
-  llvm::TargetMachine* tm = \
-    GetLLVMTargetMachine("-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" + \
-    std::to_string(val.operator int())+ target.substr(4, target.length() - 4));
-
+runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+  CHECK(target.length() >= 4 &&
+        target.substr(0, 4) == "rocm");
+  std::ostringstream config;
+  config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
+         << DetectROCMComputeVersion()
+         << target.substr(4, target.length() - 4);
+  llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
@@ -159,7 +162,6 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   }
 
   std::unique_ptr<llvm::Module> module = cg->Finish();
-
   llvm::SmallString<8> dataObj, data_ll, dataAsm;
   llvm::raw_svector_ostream destObj(dataObj), dest_ll(data_ll), destAsm(dataAsm);
   destObj.SetUnbuffered();

@@ -74,11 +74,9 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         for _ in range(1):
             foo(data_tvm, out_tvm)
         np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
+    for device in ["cuda", "opencl", "metal", "llvm", "rocm"]:
+        check_device(device)
 
-    check_device("opencl")
-    check_device("cuda")
-    check_device("metal")
-    check_device("rocm")
 
 def test_reduce_map():
     verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
