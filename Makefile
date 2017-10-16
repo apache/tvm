@@ -225,7 +225,7 @@ lib/libtvm_web_runtime.js: lib/libtvm_web_runtime.bc
 $(LIB_HALIDEIR): LIBHALIDEIR
 
 LIBHALIDEIR:
-	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
+	+ cd HalideIR; make lib/libHalideIR.a DMLC_CORE_PATH=../dmlc-core; cd $(ROOTDIR)
 
 cpplint:
 	python dmlc-core/scripts/lint.py topi cpp topi/include;
