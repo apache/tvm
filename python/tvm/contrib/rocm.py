@@ -26,6 +26,7 @@ def rocm_link(in_file, out_file):
         msg += str(out)
         raise RuntimeError(msg)
 
+
 @register_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
     """Links object file generated from LLVM to HSA Code Object
