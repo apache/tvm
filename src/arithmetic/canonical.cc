@@ -302,6 +302,13 @@ class Canonical::Internal : public IRMutator {
   Expr Mutate_(const Mod* op, const Expr& e) final {
     return Binary(op, e);
   }
+  Expr Mutate_(const And* op, const Expr& e) final {
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<And>();
+    if (is_one(op->a)) return op->b;
+    if (is_one(op->b)) return op->a;
+    return expr;
+  }
   // Call
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (!op->is_pure()) {
