@@ -3,8 +3,12 @@
 from __future__ import absolute_import as _abs
 
 import subprocess
+import os
+import warnings
 from . import util
 from .. import ndarray as nd
+from ..api import register_func
+from .._ffi.base import py_str
 
 def compile_cuda(code,
                  target="ptx",
@@ -72,3 +76,60 @@ def compile_cuda(code,
         raise RuntimeError(msg)
 
     return bytearray(open(file_target, "rb").read())
+
+
+def find_cuda_path():
+    """Utility function to find cuda path
+
+    Returns
+    -------
+    path : str
+        Path to cuda root.
+    """
+    if "CUDA_PATH" in os.environ:
+        return os.environ["CUDA_PATH"]
+    cmd = ["which", "nvcc"]
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    out = py_str(out)
+    if proc.returncode == 0:
+        return os.path.abspath(os.path.join(str(out).strip(), "../.."))
+    cuda_path = "/usr/local/cuda"
+    if os.path.exists(os.path.join(cuda_path, "bin/nvcc")):
+        return cuda_path
+    raise RuntimeError("Cannot find cuda path")
+
+
+@register_func("tvm_callback_libdevice_path")
+def find_libdevice_path(arch):
+    """Utility function to find libdevice
+
+    Parameters
+    ----------
+    arch : int
+        The compute architecture in int
+    """
+    cuda_path = find_cuda_path()
+    lib_path = os.path.join(cuda_path, "nvvm/libdevice")
+    selected_ver = 0
+    selected_path = None
+
+    for fn in os.listdir(lib_path):
+        if not fn.startswith("libdevice"):
+            continue
+        ver = int(fn.split(".")[-3].split("_")[-1])
+        if ver > selected_ver and ver <= arch:
+            selected_ver = ver
+            selected_path = fn
+    if selected_path is None:
+        raise RuntimeError("Cannot find libdevice for arch {}".format(arch))
+    return os.path.join(lib_path, selected_path)
+
+
+def callback_libdevice_path(arch):
+    try:
+        return find_libdevice_path(arch)
+    except RuntimeError:
+        warnings.warn("Cannot find libdevice path")
+        return ""

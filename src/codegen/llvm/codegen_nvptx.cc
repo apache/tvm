@@ -153,9 +153,10 @@ inline int DetectCUDAComputeVersion() {
 runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   CHECK(target.length() >= 5 &&
         target.substr(0, 5) == "nvptx");
+  int compute_ver = DetectCUDAComputeVersion();
   std::ostringstream config;
   config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_"
-         << DetectCUDAComputeVersion()
+         << compute_ver
          << target.substr(5, target.length() - 5);
   llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
@@ -163,6 +164,25 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
   for (LoweredFunc f :  funcs) {
     cg->AddFunction(f);
+  }
+
+  const auto* flibdevice_path =
+      tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
+  if (flibdevice_path != nullptr) {
+    std::string path = (*flibdevice_path)(compute_ver);
+    if (path.length() != 0) {
+      llvm::SMDiagnostic err;
+      std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
+      if (mlib.get() == nullptr) {
+        std::string msg = err.getMessage();
+        LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
+                   << "line " << err.getLineNo() << ":" << msg;
+      }
+      mlib->setTargetTriple(tm->getTargetTriple().str());
+      mlib->setDataLayout(tm->createDataLayout());
+      // TODO(tqchen) libdevice linking not yet working.
+      // cg->AddLinkModule(std::move(mlib));
+    }
   }
   std::unique_ptr<llvm::Module> module = cg->Finish();
   llvm::SmallString<8> data_ptx, data_ll;

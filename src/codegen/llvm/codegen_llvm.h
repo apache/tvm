@@ -67,6 +67,11 @@ class CodeGenLLVM :
    */
   virtual std::unique_ptr<llvm::Module> Finish();
   /*!
+   * \brief Add mod to be linked with the generated module
+   * \param mod The module to be linked.
+   */
+  void AddLinkModule(std::unique_ptr<llvm::Module>&& mod);
+  /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
    * \return created value.
@@ -227,7 +232,8 @@ class CodeGenLLVM :
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
   llvm::MDNode* md_tbaa_alias_set_{nullptr};
-
+  // modules to be linked.
+  std::vector<std::unique_ptr<llvm::Module> > link_modules_;
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */

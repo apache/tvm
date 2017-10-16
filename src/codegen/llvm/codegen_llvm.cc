@@ -147,8 +147,19 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
 
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
   this->AddStartupFunction();
+  // link modules
+  for (size_t i = 0; i < link_modules_.size(); ++i) {
+    CHECK(!llvm::Linker::linkModules(*module_, std::move(link_modules_[i])))
+        << "Failed to link modules";
+  }
+  link_modules_.clear();
+  // optimize
   this->Optimize();
   return std::move(module_);
+}
+
+void CodeGenLLVM::AddLinkModule(std::unique_ptr<llvm::Module>&& mod) {
+  link_modules_.emplace_back(std::move(mod));
 }
 
 void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
