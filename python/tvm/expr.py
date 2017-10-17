@@ -170,8 +170,8 @@ class EqualOp(NodeGeneric, ExprOp):
 class NotEqualOp(NodeGeneric, ExprOp):
     """Deferred NE operator.
 
-    This is used to support sugar that a == b can either
-    mean NodeBase.same_as or NodeBase.equal.
+    This is used to support sugar that a != b can either
+    mean not NodeBase.same_as or make.NE.
 
     Parameters
     ----------
