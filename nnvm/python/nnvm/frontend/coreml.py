@@ -246,9 +246,7 @@ def ConcatLayerParams(op, insyms, symtab):
         insyms = [insyms]
     if op.sequenceConcat:
         raise NotImplementedError("Sequence Concat not supported")
-    ret = insyms[0]
-    for i in range(1, len(insyms)):
-        ret = _sym.concat(ret, insyms[i], dim=1)
+    ret = _sym.concatenate(*insyms, dim=1)
     return ret
 
 def FlattenLayerParams(op, insym, symtab):
