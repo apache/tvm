@@ -134,6 +134,14 @@ def test_bitwise():
     assert str(~x) == 'bitwise_not(x)'
 
 
+def test_equality():
+    a = tvm.var('a')
+    b = tvm.var('b')
+    c = (a == b)
+    assert not c
+    d = (c != c)
+    assert not d
+
 if __name__ == "__main__":
     test_cast()
     test_attr()
@@ -148,3 +156,4 @@ if __name__ == "__main__":
     test_any()
     test_all()
     test_bitwise()
+    test_equality()
