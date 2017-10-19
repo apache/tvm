@@ -152,6 +152,9 @@ class EqualOp(NodeGeneric, ExprOp):
     b : Expr
         Right operand.
     """
+    # This class is not manipulated by C++. So use python's identity check function is sufficient
+    same_as = object.__eq__
+
     def __init__(self, a, b):
         self.a = a
         self.b = b
@@ -181,6 +184,9 @@ class NotEqualOp(NodeGeneric, ExprOp):
     b : Expr
         Right operand.
     """
+    # This class is not manipulated by C++. So use python's identity check function is sufficient
+    same_as = object.__eq__
+
     def __init__(self, a, b):
         self.a = a
         self.b = b
