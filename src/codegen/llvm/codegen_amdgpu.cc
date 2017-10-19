@@ -184,9 +184,9 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   TVMByteArray arr;
   arr.data = &obj[0];
   arr.size = obj.length();
+  std::string ll(data_ll.begin(), data_ll.end());
 
   std::string hsaco = (*f)(arr);
-  std::string ll(data_ll.begin(), data_ll.end());
 
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll);
 }
