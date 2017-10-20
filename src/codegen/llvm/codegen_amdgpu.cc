@@ -161,7 +161,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
     cg->AddFunction(f);
   }
 
-  //Hard coded. should move this over to python
+  // Hard coded. should move this over to python
   const std::string rocdl_dir("/opt/rocm/lib/");
   const std::vector<std::string> bitcode_files = {
       "oclc_daz_opt_on.amdgcn.bc",
@@ -175,12 +175,12 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
       "oclc_finite_only_off.amdgcn.bc",
       "oclc_finite_only_on.amdgcn.bc",
       "oclc_isa_version_803.amdgcn.bc",
-      "oclc_isa_version_900.amdgcn.bc",      
+      "oclc_isa_version_900.amdgcn.bc",
       "oclc_unsafe_math_off.amdgcn.bc",
       "oclc_unsafe_math_on.amdgcn.bc",
   };
 
-  for(auto& bitcode : bitcode_files){
+  for (auto& bitcode : bitcode_files) {
       std::string path(rocdl_dir + bitcode);
       llvm::SMDiagnostic err;
       std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
@@ -193,7 +193,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));
   }
-  
+
   std::unique_ptr<llvm::Module> module = cg->Finish();
   llvm::SmallString<8> dataObj, data_ll, dataAsm;
   llvm::raw_svector_ostream destObj(dataObj), dest_ll(data_ll), destAsm(dataAsm);
