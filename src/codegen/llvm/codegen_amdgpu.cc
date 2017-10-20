@@ -161,37 +161,22 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
     cg->AddFunction(f);
   }
 
-  // Hard coded. should move this over to python
-  const std::string rocdl_dir("/opt/rocm/lib/");
-  const std::vector<std::string> bitcode_files = {
-      "oclc_daz_opt_on.amdgcn.bc",
-      "ocml.amdgcn.bc",
-      "hc.amdgcn.bc",
-      "irif.amdgcn.bc",
-      "ockl.amdgcn.bc",
-      "oclc_correctly_rounded_sqrt_off.amdgcn.bc",
-      "oclc_correctly_rounded_sqrt_on.amdgcn.bc",
-      "oclc_daz_opt_off.amdgcn.bc",
-      "oclc_finite_only_off.amdgcn.bc",
-      "oclc_finite_only_on.amdgcn.bc",
-      "oclc_isa_version_803.amdgcn.bc",
-      "oclc_isa_version_900.amdgcn.bc",
-      "oclc_unsafe_math_off.amdgcn.bc",
-      "oclc_unsafe_math_on.amdgcn.bc",
-  };
+  const auto *find_rocm_bitcodes =
+      tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
+  Array<Expr> bitcode_files = (*find_rocm_bitcodes)();
 
-  for (auto& bitcode : bitcode_files) {
-      std::string path(rocdl_dir + bitcode);
-      llvm::SMDiagnostic err;
-      std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
-      if (mlib.get() == nullptr) {
-        std::string msg = err.getMessage();
-        LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
-                   << "line " << err.getLineNo() << ":" << msg;
-      }
-      mlib->setTargetTriple(tm->getTargetTriple().str());
-      mlib->setDataLayout(tm->createDataLayout());
-      cg->AddLinkModule(std::move(mlib));
+  for (auto &bitcode : bitcode_files) {
+    std::string path = bitcode.as<StringImm>()->value;
+    llvm::SMDiagnostic err;
+    std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
+    if (mlib.get() == nullptr) {
+      std::string msg = err.getMessage();
+      LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
+                 << "line " << err.getLineNo() << ":" << msg;
+    }
+    mlib->setTargetTriple(tm->getTargetTriple().str());
+    mlib->setDataLayout(tm->createDataLayout());
+    cg->AddLinkModule(std::move(mlib));
   }
 
   std::unique_ptr<llvm::Module> module = cg->Finish();

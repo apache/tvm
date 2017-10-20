@@ -8,7 +8,7 @@
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/api_registry.h>
-#include <map>
+#include <sstream>
 
 namespace tvm {
 namespace codegen {
@@ -18,10 +18,10 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   using namespace ir;
   const Call* call = e.as<Call>();
   CHECK(call != nullptr);
-  const std::string bit_width = std::to_string(call->type.bits());
-  const std::string ocml_intrinsic_name = "__ocml_" + call->name + "_f" + bit_width;
-  *rv = Call::make(
-        call->type, ocml_intrinsic_name, call->args, Call::PureExtern);
+  std::ostringstream intrinsic_name;
+  intrinsic_name << "__ocml_" << call->name << "_f" << call->type.bits();
+  *rv = Call::make(call->type, intrinsic_name.str(), call->args,
+                   Call::PureExtern);
 }
 
 namespace llvm {
