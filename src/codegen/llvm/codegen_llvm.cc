@@ -516,11 +516,10 @@ llvm::Value* CodeGenLLVM::GetVarValue(const Variable* v) const {
 }
 
 llvm::Value* CodeGenLLVM::CreateCallExtern(const Call* op) {
-  CHECK_GE(op->args.size(), 1U);
   std::vector<llvm::Value*> arg_value;
   std::vector<llvm::Type*> arg_type;
-  for (size_t i = 1; i < op->args.size(); ++i) {
-    arg_value.push_back(MakeValue(op->args[i + 1]));
+  for (size_t i = 0; i < op->args.size(); ++i) {
+    arg_value.push_back(MakeValue(op->args[i]));
     arg_type.push_back(arg_value.back()->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(
