@@ -161,6 +161,24 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
     cg->AddFunction(f);
   }
 
+  const auto *find_rocm_bitcodes =
+      tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
+  Array<Expr> bitcode_files = (*find_rocm_bitcodes)();
+
+  for (auto &bitcode : bitcode_files) {
+    std::string path = bitcode.as<StringImm>()->value;
+    llvm::SMDiagnostic err;
+    std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
+    if (mlib.get() == nullptr) {
+      std::string msg = err.getMessage();
+      LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
+                 << "line " << err.getLineNo() << ":" << msg;
+    }
+    mlib->setTargetTriple(tm->getTargetTriple().str());
+    mlib->setDataLayout(tm->createDataLayout());
+    cg->AddLinkModule(std::move(mlib));
+  }
+
   std::unique_ptr<llvm::Module> module = cg->Finish();
   llvm::SmallString<8> dataObj, data_ll, dataAsm;
   llvm::raw_svector_ostream destObj(dataObj), dest_ll(data_ll), destAsm(dataAsm);
