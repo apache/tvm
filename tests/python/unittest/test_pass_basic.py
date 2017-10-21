@@ -38,4 +38,7 @@ def test_expr_use_var():
 
 
 if __name__ == "__main__":
+    test_simplify()
+    test_verify_ssa()
+    test_convert_ssa()
     test_expr_use_var()
