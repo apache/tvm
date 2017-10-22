@@ -112,7 +112,6 @@ def rnn_matexp():
     def check_device(target):
         with tvm.build_config(
                 detect_global_barrier=detect_global_barrier,
-                auto_unroll_min_depth=2,
                 auto_unroll_max_step=128,
                 unroll_explicit=False):
             f = tvm.build(s, [s_scan, Whh], target)

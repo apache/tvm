@@ -3,8 +3,11 @@ TVM Change Log
 
 This file records the changes in TVM library in reverse chronological order.
 
-## 0.1rc
 
+## On onging verison
+- UnrollLoop : more robust version of unroll loop, count maximum steps that can be unrolled.
+
+## 0.1rc
 - Language runtime
     - python
     - javascript
