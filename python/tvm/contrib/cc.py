@@ -84,7 +84,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
             cl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
     except FileNotFoundError:
-        raise RuntimeError("can not found cl.exe,please run this in Vistual Studio Command Prompt.")
+        raise RuntimeError("can not found cl.exe,"
+                           "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += str(out)
@@ -109,7 +110,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
             link_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
     except FileNotFoundError:
-        raise RuntimeError("can not found link.exe,please run this in Vistual Studio Command Prompt.")
+        raise RuntimeError("can not found link.exe,"
+                           "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += str(out)
