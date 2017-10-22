@@ -79,10 +79,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
 
     temp_path = dllmain_path.replace("dllmain.cc", "")
     cl_cmd += ["-Fo:" + temp_path]
-
-    proc = subprocess.Popen(
-        cl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
+    try:
+        proc = subprocess.Popen(
+            cl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        (out, _) = proc.communicate()
+    except FileNotFoundError:
+        raise RuntimeError("can not found cl.exe,"
+                           "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += str(out)
@@ -102,9 +105,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
     link_cmd += [temp_path + "dllmain.obj"]
     link_cmd += ["-out:" + output]
 
-    proc = subprocess.Popen(
-        link_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
+    try:
+        proc = subprocess.Popen(
+            link_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        (out, _) = proc.communicate()
+    except FileNotFoundError:
+        raise RuntimeError("can not found link.exe,"
+                           "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += str(out)
