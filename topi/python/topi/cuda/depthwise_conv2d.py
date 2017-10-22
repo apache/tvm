@@ -119,6 +119,7 @@ def schedule_depthwise_conv2d_nchw(outs):
     traverse(outs[0].op)
     return s
 
+@generic.schedule_depthwise_conv2d_nhwc.register(["cuda", "gpu"])
 def schedule_depthwise_conv2d_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc forward.
 
@@ -151,8 +152,11 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
         b, h, w, c = s[Output].op.axis
 
-        ic_val = tvm.ir_pass.Simplify(temp.shape[3]).value
-        xoc, xic = s[Output].split(c, factor=ic_val)
+        num_thread = tvm.ir_pass.Simplify(temp.shape[3]).value
+        max_num_thread = tvm.target.get_max_num_threads()
+        if max_num_thread < num_thread:
+            num_thread = max_num_thread
+        xoc, xic = s[Output].split(c, factor=num_thread)
         s[Output].reorder(xoc, b, h, w, xic)
         xo, yo, _, _ = s[Output].tile(h, w, x_factor=2, y_factor=2)
         fused = s[Output].fuse(yo, xo)

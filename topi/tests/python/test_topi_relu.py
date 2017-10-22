@@ -8,7 +8,6 @@ from topi.util import get_const_tuple
 def verify_relu(m, n):
     A = tvm.placeholder((m, n), name='A')
     B = topi.nn.relu(A)
-    s = topi.cuda.schedule_elemwise(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0)
@@ -17,6 +16,8 @@ def verify_relu(m, n):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        with tvm.target.create(device):
+            s = topi.generic.schedule_elemwise(B)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
