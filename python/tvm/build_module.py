@@ -28,7 +28,7 @@ class BuildConfig(object):
     current = None
     defaults = {
         "auto_unroll_max_step": 0,
-        "auto_unroll_min_depth": 1,
+        "auto_unroll_max_depth": 4,
         "unroll_explicit": True,
         "detect_global_barrier": False,
         "offset_factor": 0,
@@ -72,10 +72,11 @@ def build_config(**kwargs):
     Parameters
     ----------
     auto_unroll_max_step: int, default=0
-        Threshold of loop extent to be automatically unrolled.
+        Threshold of number of steps in the loop to be automatically unrolled.
+        This takes inner loop count into consideration.
 
-    auto_unroll_min_depth: int, default=1
-        The minimum loop nest level before the loop can be automatically unrolled.
+    auto_unroll_max_depth: int, default=4
+        The maximum nested level of loops that can be automatically unrolled.
 
     unroll_explicit: bool, default=True
         Whether explicitly unroll the loop, if set false, the unroll hint will
@@ -221,7 +222,7 @@ def lower(sch,
     stmt = ir_pass.UnrollLoop(
         stmt,
         cfg.auto_unroll_max_step,
-        cfg.auto_unroll_min_depth,
+        cfg.auto_unroll_max_depth,
         cfg.unroll_explicit)
     for f in lower_phase1:
         stmt = f(stmt)

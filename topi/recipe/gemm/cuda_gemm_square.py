@@ -80,6 +80,7 @@ def test_gemm():
     s[CC].reorder(ko, kt, ki, yo, xo)
     s[AA].compute_at(s[CC], ko)
     s[BB].compute_at(s[CC], ko)
+    s[CC].unroll(kt)
     s[AL].compute_at(s[CC], kt)
     s[BL].compute_at(s[CC], kt)
     # Schedule for A's shared memory load
@@ -125,9 +126,8 @@ def test_gemm():
         GFLOPS = num_flops / (t * 1e3) / 1e6
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
 
-    for device in ["cuda", "opencl", "rocm"]:
-        with tvm.build_config(auto_unroll_max_step=32,
-                              auto_unroll_min_depth=0,
+    for device in ["cuda", "opencl", "rocm", "nvptx"]:
+        with tvm.build_config(auto_unroll_max_step=128,
                               unroll_explicit=(device != "cuda")):
             check_device(device)
 
