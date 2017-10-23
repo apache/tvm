@@ -16,12 +16,17 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     if len(sch[data_out].op.axis) > 0:
         all_reduce = False
         num_thread = 32
+        target = tvm.target.current_target()
+        if target and target.target_name == "opencl":
+            # without it, CL_INVALID_WORK_GROUP_SIZE occured when running test_topi_reduce.py
+            # don't know why
+            num_thread = 16
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
         thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
     else:
         all_reduce = True
-        num_thread = 512
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
     # Fuse and refactor the reduce axis

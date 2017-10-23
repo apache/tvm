@@ -32,7 +32,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
             s2 = topi.generic.schedule_depthwise_conv2d_nchw(ScaleShift)
             s3 = topi.generic.schedule_depthwise_conv2d_nchw(Relu)
-
         ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
@@ -107,14 +106,16 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule
-    s1 = schedule_depthwise_conv2d_nhwc(DepthwiseConv2d)
-    s2 = schedule_depthwise_conv2d_nhwc(ScaleShift)
-    s3 = schedule_depthwise_conv2d_nhwc(Relu)
 
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+
+        with tvm.target.create(device):
+            s1 = topi.generic.schedule_depthwise_conv2d_nhwc(DepthwiseConv2d)
+            s2 = topi.generic.schedule_depthwise_conv2d_nhwc(ScaleShift)
+            s3 = topi.generic.schedule_depthwise_conv2d_nhwc(Relu)
         ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)

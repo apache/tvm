@@ -84,7 +84,7 @@ def schedule_pool(outs):
     s = tvm.create_schedule([x.op for x in outs])
     def _schedule(PaddedInput, Pool):
         s[PaddedInput].compute_inline()
-        num_thread = 512
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         if Pool.op in s.outputs:
             Out = Pool
             OL = s.cache_write(Pool, "local")
