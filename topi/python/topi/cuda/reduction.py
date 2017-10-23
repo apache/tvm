@@ -26,7 +26,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
     else:
         all_reduce = True
-        num_thread = tvm.target.get_max_num_threads()
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
     # Fuse and refactor the reduce axis

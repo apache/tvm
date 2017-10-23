@@ -311,11 +311,3 @@ def current_target(allow_none=True):
             "Requires a current target in generic function, but it is not set. "
             "Please set it using `with TargetObject:`")
     return Target.current
-
-
-def get_max_num_threads():
-    """Returns the maximum number of threads under current target.
-    """
-    target = current_target()
-    target = target if target else cuda()
-    return target.max_num_threads

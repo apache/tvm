@@ -36,7 +36,7 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L):
     s[temp_S].compute_at(s[Out_L], ic)
     s[Filter_S].compute_at(s[Out_L], w)
 
-    num_thread1 = tvm.target.get_max_num_threads()
+    num_thread1 = tvm.target.current_target(allow_none=False).max_num_threads
     thread_xx = tvm.thread_axis((0, num_thread1), "threadIdx.x")
     block_xx = tvm.thread_axis("blockIdx.x")
 
@@ -116,7 +116,7 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
         s[temp_S].compute_at(s[Out_L], oic)
         s[Filter_S].compute_at(s[Out_L], dw)
 
-        num_thread = tvm.target.get_max_num_threads()
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         thread_xx = tvm.thread_axis((0, num_thread), "threadIdx.x")
         block_xx = tvm.thread_axis("blockIdx.x")
 
@@ -186,7 +186,7 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
         ic, dh, dw = s[Out_L].op.reduce_axis
         oic, iic = s[Out_L].split(ic, factor=ifactor)
         s[Out_L].reorder(oic, dh, dw, iic, h, w)
-        max_num_thread = tvm.target.get_max_num_threads()
+        max_num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         if util.get_const_int(Filter_S.shape[1]) == 128:
             oic = s[Out_L].fuse(dh, oic)
             s[temp_S].compute_at(s[Out_L], oic)
@@ -303,7 +303,7 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
         s[temp_S].compute_at(s[Out_L], oic)
         s[Filter_S].compute_at(s[Out_L], oic)
 
-        num_thread = tvm.target.get_max_num_threads()
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         thread_xx = tvm.thread_axis((0, num_thread), "threadIdx.x")
         block_xx = tvm.thread_axis("blockIdx.x")
 

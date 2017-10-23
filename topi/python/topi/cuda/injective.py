@@ -6,7 +6,7 @@ from .. import generic
 def _schedule_injective(op, sch):
     x = op.output(0)
     fused = sch[x].fuse(*sch[x].op.axis)
-    num_thread = tvm.target.get_max_num_threads()
+    num_thread = tvm.target.current_target(allow_none=False).max_num_threads
     bx, tx = sch[x].split(fused, factor=num_thread)
     sch[x].bind(bx, tvm.thread_axis("blockIdx.x"))
     sch[x].bind(tx, tvm.thread_axis("threadIdx.x"))
