@@ -1,4 +1,10 @@
-""" Benchmark script for performance on GPUs. For example, run the file with: `python cuda_imagenet_bench.py --model='mobilenet'`. For more details about how to set up the inference environment on GPUs, please refer to NNVM Tutorial: ImageNet Inference on the GPU """
+""" Benchmark script for performance on GPUs.
+
+For example, run the file with:
+`python gpu_imagenet_bench.py --model=mobilenet --target=cuda`.
+For more details about how to set up the inference environment on GPUs,
+please refer to NNVM Tutorial: ImageNet Inference on the GPU
+"""
 import time
 import argparse
 import numpy as np
