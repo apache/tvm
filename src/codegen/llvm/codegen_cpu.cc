@@ -317,7 +317,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
     if (var.type().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
 #if TVM_LLVM_VERSION >= 50
-      fcompute->addParamAttr(idx + 1, llvm::Attribute::NoAlias);
+      fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
 #else
       fcompute->setDoesNotAlias(idx + 1);
