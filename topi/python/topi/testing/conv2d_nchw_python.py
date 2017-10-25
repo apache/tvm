@@ -60,5 +60,5 @@ def conv2d_nchw_python(a_np, w_np, stride, padding):
                     apad = a_np[n, c]
                 out = scipy.signal.convolve2d(
                     apad, np.rot90(np.rot90(w_np[f, c])), mode='valid')
-                b_np[n, f] += out[::stride, ::stride]
+                b_np[n, f] += out[::stride_h, ::stride_w]
     return b_np

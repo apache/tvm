@@ -12,3 +12,4 @@ from .dense import *
 from .mapping import *
 from .pooling import *
 from .softmax import *
+from .conv2d_transpose import *
