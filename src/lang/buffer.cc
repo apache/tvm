@@ -310,7 +310,7 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
     // check if stride is needed.
     for (size_t i = 0; i < extents.size(); ++i) {
       if (!can_relax) {
-        if (!is_zero(begins[i]) ||
+        if (!is_zero(ir::Simplify(begins[i])) ||
             !is_zero(ir::Simplify(extents[i] - n->shape[i]))) {
           need_stride = true;
         }
