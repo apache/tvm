@@ -321,7 +321,8 @@ class StorageFlattener : public IRMutator {
     Buffer slice = be.buffer.MakeSlice(begins, extents);
     if (buffer->strides.size() == 0) {
       CHECK_EQ(slice->strides.size(), 0U)
-          << "Trying to bind compact buffer to strided one";
+          << "Trying to bind compact buffer to strided one strides="
+          << slice->strides;
     } else {
       slice = slice.MakeStrideView();
     }
