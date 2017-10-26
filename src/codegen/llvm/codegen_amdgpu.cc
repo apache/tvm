@@ -202,7 +202,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
       << "Cannot emit target CGFT_AssemblyFile";
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
-  
+
   const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
   CHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
