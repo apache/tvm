@@ -31,7 +31,8 @@ Module ROCMModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string rocm_source);
+    std::string rocm_source,
+    std::string assembly);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_ROCM_ROCM_MODULE_H_
