@@ -33,6 +33,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s1 = topi.generic.schedule_conv2d_nchw([B])
             s2 = topi.generic.schedule_conv2d_nchw([C])

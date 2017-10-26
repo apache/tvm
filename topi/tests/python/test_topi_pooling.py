@@ -35,6 +35,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_pool(B)
         ctx = tvm.context(device, 0)
@@ -70,6 +71,7 @@ def verify_global_pool(n, c, h, w, pool_type):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_global_pool(B)
         ctx = tvm.context(device, 0)

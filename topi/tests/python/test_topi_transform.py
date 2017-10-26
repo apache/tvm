@@ -10,6 +10,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(B)
         ctx = tvm.context(device, 0)
@@ -32,6 +33,7 @@ def verify_tranpose(in_shape, axes):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
@@ -54,6 +56,7 @@ def verify_reshape(src_shape, dst_shape):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
@@ -76,6 +79,7 @@ def verify_squeeze(src_shape, axis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
@@ -103,6 +107,7 @@ def verify_concatenate(shapes, axis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(out_tensor)
         ctx = tvm.context(device, 0)
@@ -125,6 +130,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(tensor_l)
         ctx = tvm.context(device, 0)

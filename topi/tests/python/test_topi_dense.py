@@ -32,6 +32,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_dense(D)
         ctx = tvm.context(device, 0)

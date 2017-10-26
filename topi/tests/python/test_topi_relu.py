@@ -16,6 +16,7 @@ def verify_relu(m, n):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_elemwise(B)
         ctx = tvm.context(device, 0)
