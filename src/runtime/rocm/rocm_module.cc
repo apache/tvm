@@ -30,8 +30,9 @@ class ROCMModuleNode : public runtime::ModuleNode {
   explicit ROCMModuleNode(std::string data,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap,
-                          std::string hip_source)
-      : data_(data), fmt_(fmt), fmap_(fmap), hip_source_(hip_source) {
+                          std::string hip_source,
+                          std::string assembly)
+    : data_(data), fmt_(fmt), fmap_(fmap), hip_source_(hip_source), assembly_(assembly) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
@@ -61,7 +62,8 @@ class ROCMModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final {
     if (format == fmt_) { return data_; }
-    if (fmt_ == "hsaco") { return data_; }
+    if (format == "llvm") { return hip_source_; }
+    if (format == "asm") { return assembly_; }
     return "";
   }
 
@@ -116,6 +118,8 @@ class ROCMModuleNode : public runtime::ModuleNode {
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // The hip source.
   std::string hip_source_;
+  // The gcn asm.
+  std::string assembly_;
   // the internal modules per GPU, to be lazily initialized.
   std::array<hipModule_t, kMaxNumGPUs> module_;
   // internal mutex when updating the module
@@ -202,9 +206,10 @@ Module ROCMModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string hip_source) {
+    std::string hip_source,
+    std::string assembly) {
   std::shared_ptr<ROCMModuleNode> n =
-      std::make_shared<ROCMModuleNode>(data, fmt, fmap, hip_source);
+    std::make_shared<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
   return Module(n);
 }
 
@@ -216,7 +221,7 @@ Module ROCMModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return ROCMModuleCreate(data, fmt, fmap, std::string());
+  return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
 
 
