@@ -29,8 +29,8 @@ namespace llvm {
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma")
-.set_body(DispatchExternOCML);
+// TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma")
+// .set_body(DispatchExternOCML);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log")
 .set_body(DispatchExternOCML);
