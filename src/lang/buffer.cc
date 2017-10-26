@@ -20,6 +20,13 @@ Array<Expr> GetStrides(Array<Expr> shape) {
   return Array<Expr>(vec.rbegin(), vec.rend());
 }
 
+Array<Expr> SimplifyArray(Array<Expr> array) {
+  for (size_t i = 0; i < array.size(); ++i) {
+    array.Set(i, ir::Simplify(array[i]));
+  }
+  return array;
+}
+
 Buffer decl_buffer(Array<Expr> shape,
                    Type dtype,
                    std::string name) {
@@ -302,6 +309,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
   const BufferNode* n = operator->();
+  begins = SimplifyArray(begins);
   Expr elem_offset = ir::Simplify(ElemOffset(n, begins));
   Array<Expr> strides = n->strides;
   if (strides.size() == 0) {
