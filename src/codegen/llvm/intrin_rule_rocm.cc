@@ -29,6 +29,8 @@ namespace llvm {
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 
+// On AMD GPU, fma is slower than mac
+// removing fma dispatch allows backend to generate faster mac instruction 
 // TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma")
 // .set_body(DispatchExternOCML);
 
