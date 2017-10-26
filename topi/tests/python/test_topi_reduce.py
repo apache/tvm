@@ -50,6 +50,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_reduce(B)
         ctx = tvm.context(device, 0)
