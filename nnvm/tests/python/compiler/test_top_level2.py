@@ -56,7 +56,8 @@ def test_grouped_conv2d():
 
 def test_max_pool2d():
     x = sym.Variable("x")
-    y = sym.max_pool2d(x, pool_size=(2,2), strides=(2,2), padding=(0,0), name="y")
+    y = sym.max_pool2d(x, pool_size=(2,2), strides=(2,2),
+                       padding=(0,0), name="y", ceil_mode=True)
     dtype = "float32"
     dshape = (1, 3, 28, 28)
     oshape = (1, 3, 14, 14)

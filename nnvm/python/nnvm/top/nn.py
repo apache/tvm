@@ -136,8 +136,8 @@ def compute_max_pool2d(attrs, inputs, _):
     layout = attrs["layout"]
     ceil_mode = attrs.get_bool("ceil_mode")
     assert layout == "NCHW", "only support nchw for now"
-    assert not ceil_mode, "not support ceil_mode now"
-    return topi.nn.pool(inputs[0], pool_size, strides, padding, pool_type='max')
+    return topi.nn.pool(inputs[0], pool_size, strides, padding,
+                        pool_type='max', ceil_mode=ceil_mode)
 
 @reg.register_schedule("max_pool2d")
 def schedule_max_pool2d(_, outs, target):
@@ -158,8 +158,8 @@ def compute_avg_pool2d(attrs, inputs, _):
     layout = attrs["layout"]
     ceil_mode = attrs.get_bool("ceil_mode")
     assert layout == "NCHW", "only support nchw for now"
-    assert not ceil_mode, "not support ceil_mode now"
-    return topi.nn.pool(inputs[0], pool_size, strides, padding, pool_type='avg')
+    return topi.nn.pool(inputs[0], pool_size, strides, padding,
+                        pool_type='avg', ceil_mode=ceil_mode)
 
 @reg.register_schedule("avg_pool2d")
 def schedule_avg_pool2d(_, outs, target):
