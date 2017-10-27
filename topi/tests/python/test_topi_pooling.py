@@ -2,17 +2,29 @@
 import numpy as np
 import tvm
 import topi
+import math
 from topi.util import get_const_tuple
 
-def verify_pool(n, ic, ih, kh, sh, padding, pool_type):
+def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     iw = ih
     kw = kh
     sw = sh
     ph, pw = padding
     A = tvm.placeholder((n, ic, ih, iw), name='A')
-    B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding, pool_type=pool_type)
+    B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
+                     pool_type=pool_type, ceil_mode=ceil_mode)
     B = topi.nn.relu(B)
     dtype = A.dtype
+
+    bshape = get_const_tuple(B.shape)
+    ashape = get_const_tuple(A.shape)
+    if ceil_mode:
+        assert bshape[2] == int(math.ceil(float(ashape[2] - kh + ph * 2) / sh) + 1)
+        assert bshape[3] == int(math.ceil(float(ashape[3] - kw + pw * 2) / sw) + 1)
+    else:
+        assert bshape[2] == int(math.floor(float(ashape[2] - kh + ph * 2) / sh) + 1)
+        assert bshape[3] == int(math.floor(float(ashape[3] - kw + pw * 2) / sw) + 1)
+
 
     a_np = np.random.uniform(size=(n, ic, ih, iw)).astype(dtype)
     pad_np = np.zeros(shape=(n, ic, ih+2*ph, iw+2*pw)).astype(dtype)
@@ -49,10 +61,12 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type):
         check_device(device)
 
 def test_pool():
-    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg')
-    verify_pool(1, 256, 31, 3, 3, [1, 1], 'avg')
-    verify_pool(1, 256, 32, 2, 2, [0, 0], 'max')
-    verify_pool(1, 256, 31, 3, 3, [1, 1], 'max')
+    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg', False)
+    verify_pool(1, 256, 31, 3, 3, [1, 2], 'avg', False)
+    verify_pool(1, 256, 32, 2, 2, [0, 0], 'max', False)
+    verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', False)
+    verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', True)
+
 
 
 def verify_global_pool(n, c, h, w, pool_type):
