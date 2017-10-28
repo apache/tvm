@@ -20,12 +20,17 @@ import onnx
 import numpy as np
 
 def download(url, path, overwrite=False):
-    import urllib2, os
-    if os.path.exists(path) and not overwrite:
+    import os
+    if os.path.isfile(path) and not overwrite:
+        print('File {} existed, skip.'.format(path))
         return
-    print('Downloading {} to {}.'.format(url, path))
-    with open(path, 'w') as f:
-        f.write(urllib2.urlopen(url).read())
+    print('Downloading from url {} to {}'.format(url, path))
+    try:
+        import urllib.request
+        urllib.request.urlretrieve(url, path)
+    except:
+        import urllib
+        urllib.urlretrieve(url, path)
 
 ######################################################################
 # Load pretrained ONNX model
@@ -35,9 +40,9 @@ def download(url, path, overwrite=False):
 # we skip the pytorch model construction part, and download the saved onnx model
 model_url = ''.join(['https://gist.github.com/zhreshold/',
                      'bcda4716699ac97ea44f791c24310193/raw/',
-                     '41b443bf2b6cf795892d98edd28bacecd8eb0d8d/',
-                     'super_resolution.onnx'])
-download(model_url, 'super_resolution.onnx')
+                     '93672b029103648953c4e5ad3ac3aadf346a4cdc/',
+                     'super_resolution_0.2.onnx'])
+download(model_url, 'super_resolution.onnx', True)
 # now you have super_resolution.onnx on disk
 onnx_graph = onnx.load('super_resolution.onnx')
 # we can load the graph as NNVM compatible model

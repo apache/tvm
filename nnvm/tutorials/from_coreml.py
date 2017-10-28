@@ -21,12 +21,17 @@ import numpy as np
 from PIL import Image
 
 def download(url, path, overwrite=False):
-    import urllib2, os
-    if os.path.exists(path) and not overwrite:
+    import os
+    if os.path.isfile(path) and not overwrite:
+        print('File {} existed, skip.'.format(path))
         return
-    print('Downloading {} to {}.'.format(url, path))
-    with open(path, 'w') as f:
-        f.write(urllib2.urlopen(url).read())
+    print('Downloading from url {} to {}'.format(url, path))
+    try:
+        import urllib.request
+        urllib.request.urlretrieve(url, path)
+    except:
+        import urllib
+        urllib.urlretrieve(url, path)
 
 ######################################################################
 # Load pretrained CoreML model
