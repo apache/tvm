@@ -1,7 +1,14 @@
 """Shared functions and classes for frontends."""
 from __future__ import absolute_import as _abs
-import warnings
+import logging
+from nnvm import sym as _sym
 from .._base import string_types
+
+def get_nnvm_op(op_name):
+    op = getattr(_sym, op_name)
+    if not op:
+        raise RuntimeError("Unable to map op_name {} to nnvm.sym".format(op_name))
+    return op
 
 class Renamer(object):
     """A simply renamer for operators.
@@ -14,8 +21,8 @@ class Renamer(object):
     def __init__(self, new_name):
         self._new_name = new_name
 
-    def __call__(self, attrs):
-        return self._new_name, attrs
+    def __call__(self, inputs, attrs, *args):
+        return get_nnvm_op(self._new_name)(*inputs, **attrs)
 
 
 class AttrConverter(object):
@@ -40,9 +47,9 @@ class AttrConverter(object):
         A list of excluded attributes that should `NOT` appear.
         Raise NotImplementedError if occured.
     disables : list
-        A list of attributes that is disabled in nnvm. Raise warnings.
+        A list of attributes that is disabled in nnvm. Log warnings.
     ignores : list
-        A list of attributes that is ignored in nnvm. Silent.
+        A list of attributes that is ignored in nnvm. Debug level logging.
     extras : dict
         A series of additional attributes should be added anyway to the returned
         attribute dict.
@@ -61,7 +68,7 @@ class AttrConverter(object):
         self._extras = extras if extras else {}
         self._custom_check = custom_check
 
-    def __call__(self, attrs):
+    def __call__(self, inputs, attrs, *args):
         # apply custom check
         if self._custom_check:
             func, msg = self._custom_check
@@ -79,9 +86,9 @@ class AttrConverter(object):
             if k in self._excludes:
                 raise NotImplementedError("Attribute {} not supported yet.".format(k))
             elif k in self._disables:
-                warnings.warn("Attribute {} is disabled in nnvm.sym.{}".format(k, op_name))
+                logging.warning("Attribute %s is disabled in nnvm.sym.%s", k, op_name)
             elif k in self._ignores:
-                pass
+                logging.debug("Attribute %s is ignored in nnvm.sym.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
@@ -97,7 +104,7 @@ class AttrConverter(object):
                 new_attrs[k] = attrs[k]
         # add extras
         new_attrs.update(self._extras)
-        return op_name, new_attrs
+        return get_nnvm_op(op_name)(*inputs, **new_attrs)
 
     def _parse_default(self, target):
         """Helper function to parse default values."""
