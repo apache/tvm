@@ -68,6 +68,7 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 256, 14, 512, 3, 2, 1)
     verify_conv2d_nchw(1, 256, 14, 512, 1, 2, 0)
     verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
+    verify_conv2d_nchw(1, 128, 122, 128, 3, 1, 1)
 
 if __name__ == "__main__":
     test_conv2d_nchw()
