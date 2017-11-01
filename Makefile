@@ -115,7 +115,7 @@ endif
 
 ifeq ($(USE_METAL), 1)
 	CFLAGS += -DTVM_METAL_RUNTIME=1
-	LDFLAGS += -lObjc
+	LDFLAGS += -lobjc
 	RUNTIME_DEP += $(METAL_OBJ)
 	FRAMEWORKS += -framework Metal -framework Foundation
 else
