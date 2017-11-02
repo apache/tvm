@@ -77,7 +77,7 @@ def test_popcount_llvm():
     b = tvm.nd.array(np.zeros(shape=n, dtype=B.dtype), ctx)
     f(a, b)
     np.testing.assert_allclose(
-        b.asnumpy(), map(lambda x: bin(x).count('1'), a.asnumpy()), rtol=1e-5)
+        b.asnumpy(), list(map(lambda x: bin(x).count('1'), a.asnumpy())), rtol=1e-5)
 
 
 def test_add():
