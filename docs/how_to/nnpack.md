@@ -29,7 +29,7 @@ The following table explains under which conditions NNPACK will work.
 ### Build/Install LLVM
 LLVM is required for CPU codegen that needs LLVM.
 Since LLVM takes long time to build from source, you can download pre-built version of LLVM from [LLVM Download Page](http://releases.llvm.org/download.html).
-For llvm 4.0 you can do th efollowing step : 
+For llvm 4.0 you can do the following step : 
 
 ```bash
 # Add llvm repository in apt source list
@@ -62,7 +62,7 @@ apt-get install -y \
 ### Build/Install NNPACK
 
 If the trained model meets some conditions of using NNPACK,
-you can build MXNet with NNPACK support.
+you can build TVM with NNPACK support.
 Follow these simple steps:  
 * Build NNPACK shared library with the following commands. _TVM_ will link NNPACK dynamically.
 
@@ -77,19 +77,14 @@ cd ninja
 ./configure.py --bootstrap
 ```
 
-Add Ninja to Path either run the following command in your terminal will temporary add ninja in your path:
+Set the environment variable PATH to tell bash where to find the ninja executable. For example, assume we cloned ninja on the home directory ~. then we can added the following line in ~/.bashrc. 
 ```bash
-export PATH="${PATH}:${PWD}/ninja"
-```
-or add the export in your bashrc: 
-```bash
-echo export PATH='${PATH}':$PWD >> ~/.bashrc
-source ~/.bashrc
+export PATH="${PATH}:~/ninja"
 ```
 
 #### Build [NNPACK](https://github.com/Maratyszcza/NNPACK)
 
-The new CMAKE version of NNPACK download [Peach](https://github.com/Maratyszcza/PeachPy) and other dependency alone
+The new CMAKE version of NNPACK download [Peach](https://github.com/Maratyszcza/PeachPy) and other dependencies alone
 
 ```bash
 git clone --recursive https://github.com/Maratyszcza/NNPACK.git
@@ -99,6 +94,7 @@ sed -i "s|gnu99|gnu99 -fPIC|g" CMakeLists.txt
 sed -i "s|gnu++11|gnu++11 -fPIC|g" CMakeLists.txt
 mkdir build
 cd build
+# Generate ninja build rule and add shared library in configuration
 cmake -G Ninja -D BUILD_SHARED_LIBS=ON ..
 ninja
 sudo ninja install
@@ -116,7 +112,7 @@ git clone --recursive https://github.com/dmlc/tvm
 
 * Set `USE_NNPACK = 1` in config.mk.
 * Set `NNPACK_PATH` to the $(YOUR_NNPACK_INSTALL_PATH)
-* Set `LLVM_CONFIG = llvm-config-4.0` in fonction of your version of llvm installed
+* Set `LLVM_CONFIG = llvm-config-4.0` depending of llvm version installed
 
 after configuration use `make` to build TVM
 
@@ -125,20 +121,26 @@ make
 make install
 ```
 
-#### TVM for python
+#### Python Package Installation
 
-The following line allow to install python binding for [tvm](https://github.com/dmlc/tvm) and [topi](https://github.com/dmlc/tvm/tree/master/topi)
+The python package for [tvm](https://github.com/dmlc/tvm) depends of [topi](https://github.com/dmlc/tvm/tree/master/topi).
+The tvm python package is located at `tvm/python` and topi python package is located in `tvm/topi/python` folder.
+There are several ways to install the package, in all these cases the TVM library and TOPI must be present in the python env:
 
-in your `$(YOUR_TVM_INSTALL_PATH)/topi/python` run the following
+1. Set the environment variable PYTHONPATH to tell python where to find the libraries. For example, assume we cloned tvm on the home directory ~. then we can added the following line in ~/.bashrc. It is recommended for developers who may change the codes. The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call setup again)
+
 ```bash
-python2 setup.py install
-python3 setup.py install
+export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:${PYTHONPATH}
 ```
 
-in your `$(YOUR_TVM_INSTALL_PATH)/python` run the following
+2. Install tvm and topi python bindings by setup.py:
+
 ```bash
-python2 setup.py install
-python3 setup.py install
+# install tvm package for the current user
+cd topi/python
+python setup.py install --user; 
+cd ../../python
+python setup.py install --user; 
 ```
 
 ### NNPACK Performance
