@@ -567,12 +567,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     } else {
       return builder_->CreateLShr(MakeValue(op->args[0]), MakeValue(op->args[1]));
     }
-  } else if (op->is_intrinsic(Call::popcount)) {
-    CHECK_EQ(op->args.size(), 1U);
-    llvm::Value* arg_value = MakeValue(op->args[0]);
-    llvm::Function *f = llvm::Intrinsic::getDeclaration(
-        module_.get(), llvm::Intrinsic::ctpop, arg_value->getType());
-    return builder_->CreateCall(f, arg_value);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
