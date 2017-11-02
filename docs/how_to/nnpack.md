@@ -15,8 +15,6 @@ These algorithms work better on some special `batch size`, `kernel size`, and `s
 so depending on the context, not all convolution, max-pooling, or fully-connected layers can be powered by NNPACK.
 When favorable conditions for running NNPACKS are not met,
 
-?? _TVM_ will fall back to the default implementation automatically.  
-
 NNPACK only supports Linux and OS X systems. Windows is not supported at present.
 The following table explains under which conditions NNPACK will work.
 
