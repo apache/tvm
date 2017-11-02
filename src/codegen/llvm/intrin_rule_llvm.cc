@@ -28,6 +28,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.pow")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.popcount")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
+
 }  // namespace llvm
 }  // namespace codegen
 }  // namespace tvm

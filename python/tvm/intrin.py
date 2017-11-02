@@ -225,6 +225,22 @@ def power(x, y):
     return call_pure_intrin(x.dtype, "pow", x, y)
 
 
+def popcount(x):
+    """Count the number of set bits in input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "popcount", x)
+
+
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
     """Register an intrinsic function generation rule.
