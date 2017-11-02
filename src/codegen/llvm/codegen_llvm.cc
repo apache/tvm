@@ -568,7 +568,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
       return builder_->CreateLShr(MakeValue(op->args[0]), MakeValue(op->args[1]));
     }
   } else if (op->is_intrinsic(Call::popcount)) {
-    CHECK(op->args.size() == 1);
+    CHECK_EQ(op->args.size(), 1U);
     llvm::Value* arg_value = MakeValue(op->args[0]);
     llvm::Function *f = llvm::Intrinsic::getDeclaration(
         module_.get(), llvm::Intrinsic::ctpop, arg_value->getType());
