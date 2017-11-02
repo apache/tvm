@@ -14,7 +14,7 @@ TEST(PackedFunc, Basic) {
   Var v = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 3);
       CHECK(args.values[0].v_float64 == 1.0);
-      CHECK(args.type_codes[0] == kFloat);
+      CHECK(args.type_codes[0] == kDLFloat);
       CHECK(args.values[1].v_handle == &a);
       CHECK(args.type_codes[1] == kArrayHandle);
       CHECK(args.values[2].v_handle == &x);

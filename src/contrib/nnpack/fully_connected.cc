@@ -29,9 +29,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
     CHECK(C->strides == nullptr);
     CHECK(B->strides == nullptr);
     CHECK(A->strides == nullptr);
-    CHECK(TypeMatch(A->dtype, kFloat, 32));
-    CHECK(TypeMatch(B->dtype, kFloat, 32));
-    CHECK(TypeMatch(C->dtype, kFloat, 32));
+    CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(B->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
     nnp_fully_connected_inference(B->shape[1],
                                   B->shape[0],
@@ -58,9 +58,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
     CHECK(C->strides == nullptr);
     CHECK(B->strides == nullptr);
     CHECK(A->strides == nullptr);
-    CHECK(TypeMatch(A->dtype, kFloat, 32));
-    CHECK(TypeMatch(B->dtype, kFloat, 32));
-    CHECK(TypeMatch(C->dtype, kFloat, 32));
+    CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(B->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
     nnp_fully_connected_output(A->shape[0],
                                B->shape[1],

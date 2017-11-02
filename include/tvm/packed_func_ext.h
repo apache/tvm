@@ -105,10 +105,10 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
 
 inline TVMArgValue::operator Halide::Expr() const {
   if (type_code_ == kNull) return Expr();
-  if (type_code_ == kInt) {
+  if (type_code_ == kDLInt) {
     return Expr(static_cast<int>(value_.v_int64));
   }
-  if (type_code_ == kFloat) {
+  if (type_code_ == kDLFloat) {
     return Expr(static_cast<float>(value_.v_float64));
   }
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);

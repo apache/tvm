@@ -62,7 +62,7 @@ JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgLong(
   value.v_int64 = static_cast<int64_t>(arg);
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
   e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kInt);
+  e->tvmFuncArgTypes.push_back(kDLInt);
 }
 
 JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgDouble(
@@ -71,7 +71,7 @@ JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgDouble(
   value.v_float64 = static_cast<double>(arg);
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
   e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kFloat);
+  e->tvmFuncArgTypes.push_back(kDLFloat);
 }
 
 JNIEXPORT void JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncPushArgString(

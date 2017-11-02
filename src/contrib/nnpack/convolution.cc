@@ -44,10 +44,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
     CHECK(kernel->strides == nullptr);
     CHECK(bias->strides == nullptr);
 
-    CHECK(TypeMatch(input->dtype, kFloat, 32));
-    CHECK(TypeMatch(kernel->dtype, kFloat, 32));
-    CHECK(TypeMatch(bias->dtype, kFloat, 32));
-    CHECK(TypeMatch(output->dtype, kFloat, 32));
+    CHECK(TypeMatch(input->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(kernel->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(bias->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(output->dtype, kDLFloat, 32));
 
     nnp_convolution_inference(nnp_convolution_algorithm_auto,
                               nnp_convolution_transform_strategy_block_based,
@@ -102,10 +102,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_output")
     CHECK(kernel->strides == nullptr);
     CHECK(bias->strides == nullptr);
 
-    CHECK(TypeMatch(input->dtype, kFloat, 32));
-    CHECK(TypeMatch(kernel->dtype, kFloat, 32));
-    CHECK(TypeMatch(bias->dtype, kFloat, 32));
-    CHECK(TypeMatch(output->dtype, kFloat, 32));
+    CHECK(TypeMatch(input->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(kernel->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(bias->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(output->dtype, kDLFloat, 32));
 
     nnp_convolution_output(nnp_convolution_algorithm_auto,
                            batch_size,

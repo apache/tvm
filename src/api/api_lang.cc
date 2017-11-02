@@ -27,9 +27,9 @@ TVM_REGISTER_API("_max_value")
 
 TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    if (args[0].type_code() == kInt) {
+    if (args[0].type_code() == kDLInt) {
       *ret = make_const(args[1], args[0].operator int64_t());
-    } else if (args[0].type_code() == kFloat) {
+    } else if (args[0].type_code() == kDLFloat) {
       *ret = make_const(args[1], args[0].operator double());
     } else {
       LOG(FATAL) << "only accept int or float";

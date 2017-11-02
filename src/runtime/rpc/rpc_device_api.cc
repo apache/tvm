@@ -55,12 +55,12 @@ class RPCDeviceAPI final : public DeviceAPI {
           static_cast<const RemoteSpace*>(to)->data, to_offset,
           size,  ctx_from, ctx_to, stream);
     } else if (from_dev_type > kRPCSessMask &&
-               to_dev_type == kCPU) {
+               to_dev_type == kDLCPU) {
       GetSess(ctx_from)->CopyFromRemote(
           static_cast<const RemoteSpace*>(from)->data, from_offset,
           to, to_offset, size,
           ctx_from);
-    } else if (from_dev_type == kCPU &&
+    } else if (from_dev_type == kDLCPU &&
                to_dev_type > kRPCSessMask) {
       GetSess(ctx_to)->CopyToRemote(
           (void*)from, from_offset,  // NOLINT(*)

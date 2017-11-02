@@ -242,7 +242,7 @@ llvm::Type* CodeGenLLVM::LLVMType(const Type& t) const {
     CHECK_EQ(t.lanes(), 1);
     return t_void_p_;
   }
-  llvm::Type* etype;
+  llvm::Type* etype = nullptr;
   if (t.is_int() || t.is_uint()) {
     etype = llvm::Type::getIntNTy(*ctx_, t.bits());
   } else if (t.is_float()) {
