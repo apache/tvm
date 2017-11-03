@@ -133,7 +133,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
 inline int DetectROCMComputeVersion() {
   TVMContext tvm_ctx;
-  tvm_ctx.device_type = kROCM;
+  tvm_ctx.device_type = kDLROCM;
   tvm_ctx.device_id = 0;
   TVMRetValue val;
   tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
