@@ -162,9 +162,9 @@ class RPCSession::EventHandler {
       int tcode = type_codes[i];
       TVMValue value = arg_values[i];
       switch (tcode) {
-        case kInt:
-        case kUInt:
-        case kFloat:
+        case kDLInt:
+        case kDLUInt:
+        case kDLFloat:
         case kTVMType: {
           writer_->Write(&value, sizeof(TVMValue));
           break;
@@ -315,9 +315,9 @@ class RPCSession::EventHandler {
     int tcode = arg_buf_->tcode[arg_index_];
     static_assert(sizeof(TVMValue) == sizeof(uint64_t), "invariant");
     switch (tcode) {
-      case kInt:
-      case kUInt:
-      case kFloat:
+      case kDLInt:
+      case kDLUInt:
+      case kDLFloat:
       case kTVMType:
       case kHandle:
       case kStr:
@@ -352,9 +352,9 @@ class RPCSession::EventHandler {
     TVMValue& value = arg_buf_->value[arg_index_];
     if (arg_recv_stage_ == 0) {
       switch (tcode) {
-        case kInt:
-        case kUInt:
-        case kFloat:
+        case kDLInt:
+        case kDLUInt:
+        case kDLFloat:
         case kTVMType:
         case kTVMContext: {
           this->Read(&value, sizeof(TVMValue));
@@ -484,7 +484,7 @@ class RPCSession::EventHandler {
     this->Read(&offset, sizeof(offset));
     this->Read(&size, sizeof(size));
     this->Read(&ctx, sizeof(ctx));
-    if (ctx.device_type == kCPU) {
+    if (ctx.device_type == kDLCPU) {
       RPCCode code = RPCCode::kCopyAck;
       writer_->Write(&code, sizeof(code));
       writer_->Write(reinterpret_cast<char*>(handle) + offset, size);
@@ -492,7 +492,7 @@ class RPCSession::EventHandler {
       temp_data_.resize(size + 1);
       try {
         TVMContext cpu_ctx;
-        cpu_ctx.device_type = kCPU;
+        cpu_ctx.device_type = kDLCPU;
         cpu_ctx.device_id = 0;
         DeviceAPI::Get(ctx)->CopyDataFromTo(
             reinterpret_cast<void*>(handle), offset,
@@ -531,7 +531,7 @@ class RPCSession::EventHandler {
       int ret_tcode = kNull;
       RPCCode code = RPCCode::kReturn;
       std::string errmsg;
-      if (copy_ctx_.device_type == kCPU) {
+      if (copy_ctx_.device_type == kDLCPU) {
         this->Read(
             reinterpret_cast<char*>(copy_handle_) + copy_offset_, copy_size_);
       } else {
@@ -539,7 +539,7 @@ class RPCSession::EventHandler {
         this->Read(&temp_data_[0], copy_size_);
         try {
           TVMContext cpu_ctx;
-          cpu_ctx.device_type = kCPU;
+          cpu_ctx.device_type = kDLCPU;
           cpu_ctx.device_id = 0;
           DeviceAPI::Get(copy_ctx_)->CopyDataFromTo(
               temp_data_.data(), 0,
@@ -915,10 +915,10 @@ void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
   TVMContext ctx_to = args[6];
   TVMStreamHandle stream = args[7];
   TVMContext ctx = ctx_from;
-  if (ctx.device_type == kCPU) {
+  if (ctx.device_type == kDLCPU) {
     ctx = ctx_to;
   } else {
-    CHECK(ctx_to.device_type == kCPU ||
+    CHECK(ctx_to.device_type == kDLCPU ||
           ctx_to.device_type == ctx_from.device_type)
         << "Can not copy across different ctx types directly";
   }

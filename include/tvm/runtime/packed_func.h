@@ -217,25 +217,25 @@ class ExtTypeVTable {
 class TVMPODValue_ {
  public:
   operator double() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kFloat);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
     return value_.v_float64;
   }
   operator int64_t() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kInt);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
   }
   operator uint64_t() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kInt);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
   }
   operator int() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kInt);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     CHECK_LE(value_.v_int64,
              std::numeric_limits<int>::max());
     return static_cast<int>(value_.v_int64);
   }
   operator bool() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kInt);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64 != 0;
   }
   operator void*() const {
@@ -430,7 +430,7 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(double value) {
-    this->SwitchToPOD(kFloat);
+    this->SwitchToPOD(kDLFloat);
     value_.v_float64 = value;
     return *this;
   }
@@ -445,12 +445,12 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(int64_t value) {
-    this->SwitchToPOD(kInt);
+    this->SwitchToPOD(kDLInt);
     value_.v_int64 = value;
     return *this;
   }
   TVMRetValue& operator=(int value) {
-    this->SwitchToPOD(kInt);
+    this->SwitchToPOD(kDLInt);
     value_.v_int64 = value;
     return *this;
   }
@@ -460,7 +460,7 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(bool value) {
-    this->SwitchToPOD(kInt);
+    this->SwitchToPOD(kDLInt);
     value_.v_int64 = value;
     return *this;
   }
@@ -609,9 +609,9 @@ class TVMRetValue : public TVMPODValue_ {
 // implementation details
 inline const char* TypeCode2Str(int type_code) {
   switch (type_code) {
-    case kInt: return "int";
-    case kUInt: return "uint";
-    case kFloat: return "float";
+    case kDLInt: return "int";
+    case kDLUInt: return "uint";
+    case kDLFloat: return "float";
     case kStr: return "str";
     case kBytes: return "bytes";
     case kHandle: return "handle";
@@ -648,11 +648,11 @@ inline TVMType String2TVMType(std::string s) {
   t.bits = 32; t.lanes = 1;
   const char* scan;
   if (s.substr(0, 3) == "int") {
-    t.code = kInt;  scan = s.c_str() + 3;
+    t.code = kDLInt;  scan = s.c_str() + 3;
   } else if (s.substr(0, 4) == "uint") {
-    t.code = kUInt; scan = s.c_str() + 4;
+    t.code = kDLUInt; scan = s.c_str() + 4;
   } else if (s.substr(0, 5) == "float") {
-    t.code = kFloat; scan = s.c_str() + 5;
+    t.code = kDLFloat; scan = s.c_str() + 5;
   } else if (s.substr(0, 6) == "handle") {
     t.code = kHandle;
     t.bits = 64;  // handle uses 64 bit by default.
@@ -724,17 +724,17 @@ class TVMArgsSetter {
              std::is_integral<T>::value>::type>
   void operator()(size_t i, T value) const {
     values_[i].v_int64 = static_cast<int64_t>(value);
-    type_codes_[i] = kInt;
+    type_codes_[i] = kDLInt;
   }
   void operator()(size_t i, uint64_t value) const {
     values_[i].v_int64 = static_cast<int64_t>(value);
     CHECK_LE(value,
              static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
-    type_codes_[i] = kInt;
+    type_codes_[i] = kDLInt;
   }
   void operator()(size_t i, double value) const {
     values_[i].v_float64 = value;
-    type_codes_[i] = kFloat;
+    type_codes_[i] = kDLFloat;
   }
   void operator()(size_t i, std::nullptr_t value) const {
     values_[i].v_handle = value;

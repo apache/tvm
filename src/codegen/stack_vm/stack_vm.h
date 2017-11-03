@@ -340,16 +340,16 @@ class StackVM {
   static OpCode GetLoad(TVMType t) {
     CHECK_EQ(t.lanes, 1U);
     if (t.code == kHandle) return ARRAY_LOAD_HANDLE;
-    if (t.code == kInt) {
+    if (t.code == kDLInt) {
       switch (t.bits) {
         case 32 : return ARRAY_LOAD_INT32;
         case 64 : return ARRAY_LOAD_INT64;
       }
-    } else if (t.code == kUInt) {
+    } else if (t.code == kDLUInt) {
       switch (t.bits) {
         case 32 : return ARRAY_LOAD_UINT32;
       }
-    } else if (t.code == kFloat) {
+    } else if (t.code == kDLFloat) {
       switch (t.bits) {
         case 64 : return ARRAY_LOAD_FP64;
       }
@@ -365,16 +365,16 @@ class StackVM {
   static OpCode GetStore(TVMType t) {
     CHECK_EQ(t.lanes, 1U);
     if (t.code == kHandle) return ARRAY_STORE_HANDLE;
-    if (t.code == kInt) {
+    if (t.code == kDLInt) {
       switch (t.bits) {
         case 32 : return ARRAY_STORE_INT32;
         case 64 : return ARRAY_STORE_INT64;
       }
-    } else if (t.code == kUInt) {
+    } else if (t.code == kDLUInt) {
       switch (t.bits) {
         case 32 : return ARRAY_STORE_UINT32;
       }
-    } else if (t.code == kFloat) {
+    } else if (t.code == kDLFloat) {
       switch (t.bits) {
         case 64 : return ARRAY_STORE_FP64;
       }

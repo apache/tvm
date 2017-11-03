@@ -161,10 +161,10 @@ void fromJavaContext(JNIEnv *env, jobject jctx, TVMContext *ctx) {
 
 jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
   switch (tcode) {
-    case kUInt:
-    case kInt:
+    case kDLUInt:
+    case kDLInt:
       return newTVMValueLong(env, static_cast<jlong>(value.v_int64));
-    case kFloat:
+    case kDLFloat:
       return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
     case kModuleHandle:
       return newModule(env, reinterpret_cast<jlong>(value.v_handle));

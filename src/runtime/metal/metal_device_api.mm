@@ -150,13 +150,13 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
   this->Init();
   CHECK(stream == nullptr);
   TVMContext ctx = ctx_from;
-  if (ctx_from.device_type == kCPU) ctx = ctx_to;
+  if (ctx_from.device_type == kDLCPU) ctx = ctx_to;
   id<MTLCommandQueue> queue = GetCommandQueue(ctx);
   id<MTLCommandBuffer> cb = [queue commandBuffer];
   int from_dev_type = static_cast<int>(ctx_from.device_type);
   int to_dev_type = static_cast<int>(ctx_to.device_type);
 
-  if (from_dev_type == kMetal && to_dev_type == kMetal) {
+  if (from_dev_type == kDLMetal && to_dev_type == kDLMetal) {
     CHECK_EQ(ctx_from.device_id, ctx_to.device_id)
         << "Metal disallow cross device copy.";
     id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
@@ -167,7 +167,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
              size:size];
     [encoder endEncoding];
     [cb commit];
-  } else if (from_dev_type == kMetal && to_dev_type == kCPU) {
+  } else if (from_dev_type == kDLMetal && to_dev_type == kDLCPU) {
     // copy to a local buffer before get into global buffer.
     id<MTLBuffer> from_buf = (__bridge id<MTLBuffer>)(from);
     if (from_buf.storageMode != MTLStorageModeShared) {
@@ -190,7 +190,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
              static_cast<char*>([from_buf contents]) + from_offset,
              size);
     }
-  } else if (from_dev_type == kCPU && to_dev_type == kMetal) {
+  } else if (from_dev_type == kDLCPU && to_dev_type == kDLMetal) {
     id<MTLBuffer> to_buf = (__bridge id<MTLBuffer>)(to);
     if (to_buf.storageMode != MTLStorageModeShared) {
       id<MTLBuffer> temp = MetalThreadEntry::ThreadLocal()
