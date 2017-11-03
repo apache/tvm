@@ -107,12 +107,13 @@ LoweredFunc MakeAPI(Stmt body,
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be int";
-        seq_check.emplace_back(AssertStmt::make(tcode == kInt, msg.str(), nop));
+        seq_check.emplace_back(AssertStmt::make(tcode == kDLInt, msg.str(), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be float";
-        seq_check.emplace_back(AssertStmt::make(tcode == kFloat, msg.str(), nop));
+        seq_check.emplace_back(
+            AssertStmt::make(tcode == kDLFloat, msg.str(), nop));
       }
     } else {
       args.push_back(v_arg);
@@ -148,7 +149,7 @@ LoweredFunc MakeAPI(Stmt body,
     seq_check.push_back(AttrStmt::make(
         node, attr::device_context_type, device_type, nop));
     Stmt set_device = IfThenElse::make(
-        device_type != kCPU, Evaluate::make(Call::make(
+        device_type != kDLCPU, Evaluate::make(Call::make(
             Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, Call::Intrinsic)));

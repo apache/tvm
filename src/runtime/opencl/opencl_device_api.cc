@@ -76,13 +76,13 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
-  if (ctx_from.device_type == kOpenCL && ctx_to.device_type == kOpenCL) {
+  if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLOpenCL) {
     OPENCL_CALL(clEnqueueCopyBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
         static_cast<cl_mem>(to),
         from_offset, to_offset, size, 0, nullptr, nullptr));
-  } else if (ctx_from.device_type == kOpenCL && ctx_to.device_type == kCPU) {
+  } else if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLCPU) {
     OPENCL_CALL(clEnqueueReadBuffer(
         this->GetQueue(ctx_from),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
@@ -90,7 +90,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
         static_cast<char*>(to) + to_offset,
         0, nullptr, nullptr));
     OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
-  } else if (ctx_from.device_type == kCPU && ctx_to.device_type == kOpenCL) {
+  } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenCL) {
     OPENCL_CALL(clEnqueueWriteBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>(to),

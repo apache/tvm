@@ -45,14 +45,14 @@ class MetalWorkspace final : public DeviceAPI {
   ~MetalWorkspace();
   // Get command queue for given context.
   id<MTLCommandQueue> GetCommandQueue(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kMetal);
+    CHECK_EQ(ctx.device_type, kDLMetal);
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid Metal device_id=" << ctx.device_id;
     return queues[ctx.device_id];
   }
   // Get device for given context
   id<MTLDevice> GetDevice(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kMetal);
+    CHECK_EQ(ctx.device_type, kDLMetal);
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < devices.size())
         << "Invalid Metal device_id=" << ctx.device_id;
     return devices[ctx.device_id];
@@ -91,9 +91,9 @@ class MetalThreadEntry {
   WorkspacePool pool;
   // constructor
   MetalThreadEntry()
-      : pool(static_cast<DLDeviceType>(kMetal), MetalWorkspace::Global()) {
+      : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
     context.device_id = 0;
-    context.device_type = static_cast<DLDeviceType>(kMetal);
+    context.device_type = static_cast<DLDeviceType>(kDLMetal);
   }
   ~MetalThreadEntry();
   // Get temp buffer with at least size under ctx.
