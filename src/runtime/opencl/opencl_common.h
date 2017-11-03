@@ -133,7 +133,7 @@ class OpenCLWorkspace final : public DeviceAPI {
   void Init();
   // get the queue of the context
   cl_command_queue GetQueue(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kOpenCL);
+    CHECK_EQ(ctx.device_type, kDLOpenCL);
     this->Init();
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << ctx.device_id;
@@ -178,9 +178,9 @@ class OpenCLThreadEntry {
   WorkspacePool pool;
   // constructor
   OpenCLThreadEntry()
-      : pool(kOpenCL, OpenCLWorkspace::Global()) {
+      : pool(kDLOpenCL, OpenCLWorkspace::Global()) {
     context.device_id = 0;
-    context.device_type = kOpenCL;
+    context.device_type = kDLOpenCL;
   }
   // get the global workspace
   static OpenCLThreadEntry* ThreadLocal();

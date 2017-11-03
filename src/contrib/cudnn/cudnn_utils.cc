@@ -13,17 +13,17 @@ namespace contrib {
 // CuDNN Data Type
 cudnnDataType_t CuDNNDataType::DLTypeToCuDNNType(const DLDataType &dtype) {
   switch (dtype.code) {
-      case kInt:
+      case kDLInt:
         if (dtype.bits == 8 && dtype.lanes == 1) return CUDNN_DATA_INT8;
         else if (dtype.bits == 32 && dtype.lanes == 1) return CUDNN_DATA_INT32;
         else if (dtype.bits == 8 && dtype.lanes == 4) return CUDNN_DATA_INT8x4;
         else
           LOG(FATAL) << "Unsupported type";
         break;
-      case kUInt:
+      case kDLUInt:
         LOG(FATAL) << "Unsupported type";
         break;
-      case kFloat:
+      case kDLFloat:
         if (dtype.bits == 32 && dtype.lanes == 1) return CUDNN_DATA_FLOAT;
         else if (dtype.bits == 64 && dtype.lanes == 1) return CUDNN_DATA_DOUBLE;
         else if (dtype.bits == 16 && dtype.lanes == 1) return CUDNN_DATA_HALF;

@@ -28,10 +28,10 @@ void Verify(tvm::runtime::Module mod, std::string fname) {
   DLTensor* x;
   DLTensor* y;
   int ndim = 1;
-  int dtype_code = kFloat;
+  int dtype_code = kDLFloat;
   int dtype_bits = 32;
   int dtype_lanes = 1;
-  int device_type = kCPU;
+  int device_type = kDLCPU;
   int device_id = 0;
   int64_t shape[1] = {10};
   TVMArrayAlloc(shape, ndim, dtype_code, dtype_bits, dtype_lanes,
