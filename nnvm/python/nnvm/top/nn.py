@@ -126,6 +126,37 @@ def schedule_conv2d(attrs, outs, target):
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# conv2d_transpose
+@reg.register_compute("conv2d_transpose")
+def compute_conv2d_transpose(attrs, inputs, _):
+    """Compute definition of conv2d_transpose"""
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs["layout"]
+    assert layout == "NCHW", "only support nchw for now"
+    assert dilation == (1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    out = topi.nn.conv2d_transpose_nchw(inputs[0], inputs[1], strides, padding)
+    if attrs.get_bool("use_bias"):
+        bias = inputs[2]
+        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
+        out = topi.broadcast_add(out, bias)
+    output_padding = attrs.get_int_tuple("output_padding")
+    out = topi.nn.pad(out, \
+        [0, 0, 0, 0], [0, 0, output_padding[0], output_padding[1]])
+    return out
+
+@reg.register_schedule("conv2d_transpose")
+def schedule_conv2d_transpose(attrs, outs, target):
+    """Schedule definition of conv2d_transpose"""
+    with tvm.target.create(target):
+        return topi.generic.schedule_conv2d_transpose_nchw(outs)
+
+reg.register_pattern("conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # max_pool2d
 @reg.register_compute("max_pool2d")
 def compute_max_pool2d(attrs, inputs, _):
