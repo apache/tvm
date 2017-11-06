@@ -23,7 +23,6 @@ def main():
     args = parser.parse_args()
 
     opt_level = args.opt_level
-    target = "llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
 
     num_iter = args.num_iter
     batch_size = 1
@@ -43,9 +42,8 @@ def main():
 
 
     with nnvm.compiler.build_config(opt_level=opt_level):
-        with tvm.target.rasp():
-            graph, lib, params = nnvm.compiler.build(
-                net, target, shape={"data": data_shape}, params=params)
+        graph, lib, params = nnvm.compiler.build(
+            net, tvm.target.rasp(), shape={"data": data_shape}, params=params)
 
     tmp = util.tempdir()
     lib_fname = tmp.relpath('net.o')
