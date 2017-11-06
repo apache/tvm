@@ -67,14 +67,14 @@ int main()
     params_arr.data = params_data.c_str();
     params_arr.size = params_data.length();
 
-    // get global function module for graph runtime
-    tvm::runtime::Module mod = (*tvm::runtime::Registry::Get("tvm.graph_runtime.create"))(json_data, mod_dylib, 1, 0);
-
-    int dtype_code = kFloat;
+    int dtype_code = kDLFloat;
     int dtype_bits = 32;
     int dtype_lanes = 1;
-    int device_type = kCPU;
+    int device_type = kDLCPU;
     int device_id = 0;
+
+    // get global function module for graph runtime
+    tvm::runtime::Module mod = (*tvm::runtime::Registry::Get("tvm.graph_runtime.create"))(json_data, mod_syslib, device_type, device_id);
 
     DLTensor* x;
     int in_ndim = 4;
