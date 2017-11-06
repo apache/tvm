@@ -10,7 +10,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+    W = tvm.placeholder((in_channel, num_filter, kernel, kernel), name='W')
     B = topi.nn.conv2d_transpose_nchw(A, W, [stride, stride], padding)
     C = topi.nn.relu(B)
 
