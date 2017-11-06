@@ -127,7 +127,7 @@ inline void TVMArrayFree_(TVMArray* arr) {
 inline void VerifyType(int dtype_code, int dtype_bits, int dtype_lanes) {
   CHECK_GE(dtype_lanes, 1);
   if (dtype_code == kDLFloat) {
-    CHECK_EQ(dtype_bits % 32, 0);
+    CHECK_EQ(dtype_bits % 8, 0);
   } else {
     CHECK_EQ(dtype_bits % 8, 0);
   }
