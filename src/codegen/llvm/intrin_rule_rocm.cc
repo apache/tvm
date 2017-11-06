@@ -43,6 +43,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow")
 .set_body(DispatchExternOCML);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh")
+.set_body(DispatchExternOCML);
 }  // namespace llvm
 }  // namespace codegen
 }  // namespace tvm
