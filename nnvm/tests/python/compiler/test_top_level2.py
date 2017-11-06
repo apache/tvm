@@ -60,7 +60,7 @@ def test_conv2d_transpose():
                              name="y", padding=(1,1), output_padding=(2,2))
     dtype = "float32"
     dshape = (1, 3, 18, 18)
-    kshape = (10, 3, 3, 3)
+    kshape = (3, 10, 3, 3)
     oshape = (1, 10, 37, 37)
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
@@ -68,12 +68,12 @@ def test_conv2d_transpose():
         m = graph_runtime.create(graph, lib, ctx)
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
-        bias = tvm.nd.array(np.random.uniform(size=kshape[0]).astype(dtype))
+        bias = tvm.nd.array(np.random.uniform(size=kshape[1]).astype(dtype))
         m.run(x=data, y_weight=kernel, y_bias=bias)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         c_np = topi.testing.conv2d_transpose_nchw_python(
             data.asnumpy(), kernel.asnumpy(), 2, 1)
-        c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
+        c_np = c_np + bias.asnumpy().reshape(kshape[1], 1, 1)
         d_np = np.zeros(shape=oshape)
         d_np[:,:,0:c_np.shape[2],0:c_np.shape[3]] = c_np
         np.testing.assert_allclose(out.asnumpy(), d_np, rtol=1e-5)
