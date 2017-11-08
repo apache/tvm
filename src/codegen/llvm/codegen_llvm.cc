@@ -509,6 +509,18 @@ llvm::Value* CodeGenLLVM::CreateBufferPtr(
   return builder_->CreateInBoundsGEP(buffer, index);
 }
 
+llvm::Value* CodeGenLLVM::CreateBufferVecPtr(
+    Type t, llvm::Value* buffer, llvm::Value* index) {
+  CHECK_GT(t.lanes(), 1);
+  llvm::PointerType* btype = llvm::dyn_cast<llvm::PointerType>(buffer->getType());
+  CHECK(btype != nullptr);
+  llvm::PointerType* ptype = LLVMType(t)->getPointerTo(btype->getAddressSpace());
+  if (btype != ptype) {
+    buffer = builder_->CreatePointerCast(buffer, ptype);
+  }
+  return builder_->CreateInBoundsGEP(buffer, index);
+}
+
 llvm::Value* CodeGenLLVM::GetVarValue(const Variable* v) const {
   auto it = var_map_.find(v);
   CHECK(it != var_map_.end()) << "cannot find variable " << v->name_hint;
@@ -572,10 +584,21 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
     CHECK(op->args.size() == 1 && l);
-    llvm::Value* ptr = CreateBufferPtr(
-        l->type, MakeValue(l->buffer_var), MakeValue(l->index));
-    unsigned addrspace = llvm::dyn_cast<llvm::PointerType>(
-        ptr->getType())->getAddressSpace();
+    const Ramp *r = l->index.as<Ramp>();
+    llvm::Value* ptr;
+    unsigned addrspace;
+    if (!r) {
+        ptr = CreateBufferPtr(
+          l->type, MakeValue(l->buffer_var), MakeValue(l->index));
+        addrspace = llvm::dyn_cast<llvm::PointerType>(
+          ptr->getType())->getAddressSpace();
+    } else {
+        Expr index = r->base / make_const(Int(32), r->lanes);
+        ptr = CreateBufferVecPtr(
+          l->type, MakeValue(l->buffer_var), MakeValue(index));
+        addrspace = llvm::dyn_cast<llvm::PointerType>(
+          ptr->getType())->getAddressSpace();
+    }
     return builder_->CreatePointerCast(ptr, t_void_->getPointerTo(addrspace));
   } else if (op->is_intrinsic(Call::reinterpret) && is_zero(op->args[0])) {
     return llvm::Constant::getNullValue(t_void_p_);
