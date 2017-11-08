@@ -80,7 +80,7 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
                 if mark % i == 0 and vthread_x > 0:
                     num_thread_x = i
                     break
-        if num_thread_x * vthread_x > 128:
+        if mark < 5 or num_thread_x * vthread_x > 128:
             num_thread_x = 8
             vthread_x = 8
         num_thread_y = 8
