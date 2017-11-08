@@ -18,7 +18,7 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding):
         4-D with shape [batch, in_channel, in_height, in_width]
 
     Filter : tvm.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+        4-D with shape [in_channel, num_filter, filter_height, filter_width]
 
     strides : tuple of two ints
         The spatial stride along height and width
@@ -32,7 +32,7 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding):
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     batch, in_c, in_h, in_w = Input.shape
-    out_c, _, filter_h, filter_w = Filter.shape
+    _, out_c, filter_h, filter_w = Filter.shape
     stride_h, stride_w = strides
     # dilate stage
     DilatedInput = dilate(Input, [1, 1, stride_h, stride_w], name='DilatedInput')
@@ -57,7 +57,7 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding):
     Output = tvm.compute(
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: tvm.sum(
-            PaddedInput[b, dc, h+dh, w+dw] * Filter[c, dc, filter_h-1-dh, filter_w-1-dw],
+            PaddedInput[b, dc, h+dh, w+dw] * Filter[dc, c, filter_h-1-dh, filter_w-1-dw],
             axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
 
     return Output

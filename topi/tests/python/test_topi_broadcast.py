@@ -12,6 +12,7 @@ def verify_broadcast_to_ele(in_shape, out_shape):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(B)
         ctx = tvm.context(device, 0)
@@ -52,6 +53,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(C)
         ctx = tvm.context(device, 0)

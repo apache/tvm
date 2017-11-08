@@ -30,9 +30,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
     CHECK(C->strides == nullptr);
     CHECK(B->strides == nullptr);
     CHECK(A->strides == nullptr);
-    CHECK(TypeMatch(A->dtype, kFloat, 32));
-    CHECK(TypeMatch(B->dtype, kFloat, 32));
-    CHECK(TypeMatch(C->dtype, kFloat, 32));
+    CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(B->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(C->dtype, kDLFloat, 32));
     cblas_sgemm(CblasColMajor,
                 transb ? CblasTrans : CblasNoTrans,
                 transa ? CblasTrans : CblasNoTrans,

@@ -27,6 +27,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         with tvm.target.create(device):
             # schedule
             s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
@@ -111,6 +112,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
 
         with tvm.target.create(device):
             s1 = topi.generic.schedule_depthwise_conv2d_nhwc(DepthwiseConv2d)

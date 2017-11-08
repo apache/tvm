@@ -60,6 +60,26 @@ def test_log_pow_llvm():
         b.asnumpy(), np.power(np.log(a.asnumpy()), 2.0), rtol=1e-5)
 
 
+def test_popcount_llvm():
+    # graph
+    n = tvm.var('n')
+    A = tvm.placeholder((n,), name='A', dtype="uint32")
+    B = tvm.compute(A.shape, lambda *i: tvm.popcount(A(*i)), name='B')
+    s = tvm.create_schedule(B.op)
+
+    if not tvm.module.enabled("llvm"):
+        return
+    f = tvm.build(s, [A, B], "llvm")
+    ctx = tvm.cpu(0)
+    # launch the kernel.
+    n = 1024
+    a = tvm.nd.array(np.random.randint(low=0, high=1000, size=n, dtype=A.dtype), ctx)
+    b = tvm.nd.array(np.zeros(shape=n, dtype=B.dtype), ctx)
+    f(a, b)
+    np.testing.assert_allclose(
+        b.asnumpy(), list(map(lambda x: bin(x).count('1'), a.asnumpy())), rtol=1e-5)
+
+
 def test_add():
     # graph
     n = tvm.var('n')
@@ -107,5 +127,6 @@ def test_add():
 
 if __name__ == "__main__":
     test_log_pow_llvm()
+    test_popcount_llvm()
     test_exp()
     test_add()

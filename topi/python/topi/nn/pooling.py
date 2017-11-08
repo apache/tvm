@@ -44,7 +44,7 @@ def global_pool(data, pool_type):
         raise ValueError("Pool type should be 'avg' or 'max'.")
 
 
-def pool(data, kernel, stride, padding, pool_type):
+def pool(data, kernel, stride, padding, pool_type, ceil_mode=False):
     """Perform pooling on the data
 
     Parameters
@@ -64,6 +64,9 @@ def pool(data, kernel, stride, padding, pool_type):
     pool_type : str
         Pool type, 'max' or 'avg'
 
+    ceil_mode : bool
+        Whether to use ceil when caculate output size.
+
     Returns
     -------
     output : tvm.Tensor
@@ -77,10 +80,18 @@ def pool(data, kernel, stride, padding, pool_type):
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_height, kernel_width))
+
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]
+
+    if ceil_mode:
+        # Additional padding to ensure we do ceil instead of floor when divide stride.
+        pad_down += stride_height -1
+        pad_right += stride_width - 1
+
     out_height = util.simplify((height - kernel_height + pad_top + pad_down) // stride_height + 1)
     out_width = util.simplify((width - kernel_width + pad_left + pad_right) // stride_width + 1)
+
     dheight = tvm.reduce_axis((0, kernel_height))
     dwidth = tvm.reduce_axis((0, kernel_width))
 

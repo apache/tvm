@@ -34,6 +34,7 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

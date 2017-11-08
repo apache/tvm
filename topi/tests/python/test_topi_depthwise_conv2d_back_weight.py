@@ -35,6 +35,7 @@ def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multipl
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
+        print("Running on target: %s" % device)
         ctx = tvm.context(device, 0)
         # build the kernel
         f = tvm.build(schedule, [Input, Out_grad, Weight_grad], device)

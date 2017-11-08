@@ -91,10 +91,10 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
                       TVMContext ctx_from,
                       TVMContext ctx_to,
                       TVMStreamHandle stream) final {
-    if (static_cast<int>(ctx_from.device_type) == kVPI) {
+    if (static_cast<int>(ctx_from.device_type) == kDLVPI) {
       from = RealAddr(static_cast<const char*>(from) + from_offset, size);
     }
-    if (static_cast<int>(ctx_to.device_type) == kVPI) {
+    if (static_cast<int>(ctx_to.device_type) == kDLVPI) {
       to = RealAddr(static_cast<char*>(to) + to_offset, size);
     }
     memcpy(to, from, size);
