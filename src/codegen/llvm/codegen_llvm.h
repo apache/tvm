@@ -191,6 +191,7 @@ class CodeGenLLVM :
   llvm::Value* CreateMul(Type t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
+  llvm::Value* CreateBufferVecPtr(Type t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
