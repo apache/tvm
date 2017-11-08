@@ -351,10 +351,9 @@ Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes) const
   if (content_lanes > 1) {
     e_dtype = make_zero(self->dtype.with_lanes(content_lanes));
     extent = extent / make_const(self->elem_offset.type(), content_lanes);
-    elem_offset = self->elem_offset / make_const(self->elem_offset.type(), 
+    elem_offset = self->elem_offset / make_const(self->elem_offset.type(),
                                                  content_lanes);
-  }
-  else {
+  } else {
     e_dtype = make_zero(self->dtype);
   }
   Array<Expr> acc_args{

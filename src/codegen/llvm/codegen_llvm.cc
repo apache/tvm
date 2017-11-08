@@ -520,8 +520,6 @@ llvm::Value* CodeGenLLVM::CreateBufferVecPtr(
   }
   return builder_->CreateInBoundsGEP(buffer, index);
 }
-   
-
 
 llvm::Value* CodeGenLLVM::GetVarValue(const Variable* v) const {
   auto it = var_map_.find(v);
@@ -594,8 +592,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
           l->type, MakeValue(l->buffer_var), MakeValue(l->index));
         addrspace = llvm::dyn_cast<llvm::PointerType>(
           ptr->getType())->getAddressSpace();
-    }
-    else {
+    } else {
         Expr index = r->base / make_const(Int(32), r->lanes);
         ptr = CreateBufferVecPtr(
           l->type, MakeValue(l->buffer_var), MakeValue(index));
