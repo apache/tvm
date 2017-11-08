@@ -41,6 +41,10 @@ class Buffer(NodeBase):
             The data type of the result pointer. Do not specify
             unless we want to cast pointer to specific type.
 
+        content_lanes: int, optional
+            The number of lanes for the data type. This value
+            is greater than one for vector types.
+
         Examples
         --------
         .. code-block:: python

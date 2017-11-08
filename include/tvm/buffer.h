@@ -51,6 +51,7 @@ class Buffer : public NodeRef {
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
    * \param ptr_type The type of the pointer.
+   * \param content_lanes The number of lanes for the (data) type.
    */
   TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle(),
                           int content_lanes = 1) const;
