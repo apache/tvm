@@ -341,14 +341,24 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           0);
 }
 
-Expr Buffer::access_ptr(int access_mask, Type ptr_type) const {
+Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes) const {
   const BufferNode* self = operator->();
-  Expr e_dtype = make_zero(self->dtype);
+  Expr e_dtype;
   Expr extent = (self->strides.size() == self->shape.size() ?
                  arith::ComputeExpr<ir::Mul>(self->strides[0], self->shape[0]):
                  arith::ComputeReduce<ir::Mul>(self->shape));
+  Expr elem_offset = self->elem_offset;
+  if (content_lanes > 1) {
+    e_dtype = make_zero(self->dtype.with_lanes(content_lanes));
+    extent = extent / make_const(self->elem_offset.type(), content_lanes);
+    elem_offset = self->elem_offset / make_const(self->elem_offset.type(), 
+                                                 content_lanes);
+  }
+  else {
+    e_dtype = make_zero(self->dtype);
+  }
   Array<Expr> acc_args{
-    e_dtype, self->data, self->elem_offset,
+    e_dtype, self->data, elem_offset,
         extent, make_const(Int(32), access_mask)};
   return ir::Call::make(
       ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::Call::Intrinsic);

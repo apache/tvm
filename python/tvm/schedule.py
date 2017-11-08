@@ -25,7 +25,7 @@ class Buffer(NodeBase):
     READ = 1
     WRITE = 2
 
-    def access_ptr(self, access_mask, ptr_type="handle"):
+    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1):
         """Get an access pointer to the head of buffer.
 
         This is the recommended method to get buffer data
@@ -63,7 +63,8 @@ class Buffer(NodeBase):
                 else:
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
-        return _api_internal._BufferAccessPtr(self, access_mask, ptr_type)
+        return _api_internal._BufferAccessPtr(self, access_mask, ptr_type,
+                                              content_lanes)
 
     def vload(self, begin, dtype=None):
         """Generate an Expr that loads dtype from begin index.

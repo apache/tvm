@@ -102,6 +102,7 @@ inline Expr AddressOffset(Var handle, Type dtype, int offset) {
 inline Expr AddressOffset(Var handle, Type dtype, Expr offset) {
   if (dtype.lanes() != 1) {
     offset = offset * make_const(offset.type(), dtype.lanes());
+    offset = Ramp::make(offset, make_const(offset.type(), 1), dtype.lanes()); 
   }
   return Call::make(
       Handle(), intrinsic::tvm_address_of,

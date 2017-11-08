@@ -52,7 +52,8 @@ class Buffer : public NodeRef {
    * \param access_mask The access mask
    * \param ptr_type The type of the pointer.
    */
-  TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle()) const;
+  TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle(),
+                          int content_lanes = 1) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
