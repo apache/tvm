@@ -43,10 +43,10 @@ if(MSVC)
     endif(${flag_var} MATCHES "/MD")
   endforeach(flag_var)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-  find_library(TVM_LIB tvm  
+  find_library(TVM_LIB tvm
 			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/../tvm/build/Release
-			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/tvm/build/Release) 
-  message(STATUS "Build with TVM libary: " ${TVM_LIB})			    
+			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/tvm/build/Release)
+  message(STATUS "Build with TVM libary: " ${TVM_LIB})
   list(APPEND NNVM_COMPILER_LINKER_LIBS ${TVM_LIB})
 else(MSVC)
   include(CheckCXXCompilerFlag)
@@ -54,6 +54,11 @@ else(MSVC)
   set(CMAKE_C_FLAGS "-O3 -Wall -std=c++11 -fPIC")
   set(CMAKE_CXX_FLAGS ${CMAKE_C_FLAGS})
 endif(MSVC)
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -undefined dynamic_lookup")
+endif()
+
 
 mxnet_source_group("Include\\c_api"   GLOB "src/c_api/*.h")
 mxnet_source_group("Include\\core"   GLOB "src/core/*.h")
