@@ -79,6 +79,7 @@ class Target(object):
 
     - :any:`tvm.target.create` create target from string
     - :any:`tvm.target.rasp` create raspberry pi target
+    - :any:`tvm.target.x86_64` create x86_64 target
     - :any:`tvm.target.cuda` create CUDA target
     - :any:`tvm.target.rocm` create ROCM target
     """
@@ -265,6 +266,21 @@ def rasp(options=None):
     return Target("llvm", opts)
 
 
+def x86_64(options=None):
+    """Returns a x86_64 target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    opts = ["-device=x86_64",
+            "-mtriple=x86_64-unknown-linux-gnu",
+            "-mattr=+avx2"]
+    opts = _merge_opts(opts, options)
+    return Target("llvm", opts)
+
+
 def create(target_str):
     """Get a target given target string.
 
@@ -294,6 +310,8 @@ def create(target_str):
             device_name = item.split("=")[1]
     if device_name == "rasp":
         return rasp(arr[1:])
+    elif device_name == "x86_64":
+        return x86_64(arr[1:])
     return Target(arr[0], arr[1:])
 
 
