@@ -30,6 +30,7 @@ def find_lib_path():
 
     api_path = os.path.join(base_path, '../../lib/')
     cmake_build_path = os.path.join(base_path, '../../build/Release/')
+    cmake_build_path = os.path.join(base_path, '../../build/')
     dll_path = [base_path, api_path, cmake_build_path]
 
     if sys.platform.startswith('linux') and os.environ.get('LD_LIBRARY_PATH', None):
