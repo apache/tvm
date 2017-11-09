@@ -176,6 +176,9 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
     }
     mlib->setTargetTriple(tm->getTargetTriple().str());
     mlib->setDataLayout(tm->createDataLayout());
+    for (llvm::Function &f : mlib->functions()) {
+      f.addFnAttr(llvm::Attribute::AlwaysInline);
+    }
     cg->AddLinkModule(std::move(mlib));
   }
 
