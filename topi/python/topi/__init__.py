@@ -17,5 +17,6 @@ from . import nn
 from . import x86
 from . import cuda
 from . import rasp
+from . import x86_64
 from . import testing
 from . import util
