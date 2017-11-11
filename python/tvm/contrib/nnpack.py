@@ -16,7 +16,7 @@ def config(nthreads):
     """
     _Config(nthreads)
 
-def fully_connected_inference(lhs, rhs):
+def fully_connected_inference(lhs, rhs, nthreads=1):
     """Create an extern op that compute fully connected of 1D tensor lhs and
     2D tensor rhs with nnpack.
 
@@ -37,9 +37,9 @@ def fully_connected_inference(lhs, rhs):
         (m, ), [lhs, rhs],
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.fully_connected_inference",
-            ins[0], ins[1], outs[0]), name="C")
+            ins[0], ins[1], outs[0], nthreads), name="C")
 
-def fully_connected_output(lhs, rhs):
+def fully_connected_output(lhs, rhs, nthreads=1):
     """Create an extern op that compute fully connected of 2D tensor lhs and
     2D tensor rhs with nnpack.
 
@@ -61,9 +61,9 @@ def fully_connected_output(lhs, rhs):
         (n, m), [lhs, rhs],
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.fully_connected_output",
-            ins[0], ins[1], outs[0]), name="C")
+            ins[0], ins[1], outs[0], nthreads), name="C")
 
-def convolution_inference(data, kernel, bias, padding, stride):
+def convolution_inference(data, kernel, bias, padding, stride, nthreads=1):
     """Create an extern op to do inference convolution of 3D tensor data and
     4D tensor kernel and 1D tensor bias with nnpack.
 
@@ -104,9 +104,9 @@ def convolution_inference(data, kernel, bias, padding, stride):
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.convolution_inference", ins[0], ins[1], ins[2],
             outs[0], padding[0], padding[1], padding[2], padding[3],
-            stride[0], stride[1]), name="C")
+            stride[0], stride[1], nthreads), name="C")
 
-def convolution_output(data, kernel, bias, padding):
+def convolution_output(data, kernel, bias, padding, nthreads=1):
     """Create an extern op to compute convolution of 4D tensor data and
     4D tensor kernel and 1D tensor bias with nnpack.
 
@@ -142,6 +142,6 @@ def convolution_output(data, kernel, bias, padding):
         (batch, output_channels, output_height, output_width), [data, kernel, bias],
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.convolution_output", ins[0], ins[1], ins[2],
-            outs[0], padding[0], padding[1], padding[2], padding[3]), name="C")
+            outs[0], padding[0], padding[1], padding[2], padding[3], nthreads), name="C")
 
 _init_api("tvm.contrib.nnpack")

@@ -21,6 +21,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
     DLTensor* A = args[0];
     DLTensor* B = args[1];
     DLTensor* C = args[2];
+    NNPackConfig(args[3]);
+
     CHECK_EQ(A->ndim, 1);
     CHECK_EQ(B->ndim, 2);
     CHECK_EQ(C->ndim, 1);
@@ -49,6 +51,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
     DLTensor* A = args[0];
     DLTensor* B = args[1];
     DLTensor* C = args[2];
+    NNPackConfig(args[3]);
+
     CHECK_EQ(A->ndim, 2);
     CHECK_EQ(B->ndim, 2);
     CHECK_EQ(C->ndim, 2);

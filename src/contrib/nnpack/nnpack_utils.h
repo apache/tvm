@@ -18,6 +18,8 @@ struct NNPackThreadLocalEntry {
   pthreadpool_t threadpool{NULL};
   static NNPackThreadLocalEntry* ThreadLocal();
 };
+
+bool NNPackConfig(uint64_t nthreads);
 }  // namespace contrib
 }  // namespace tvm
 #endif  // TVM_CONTRIB_NNPACK_NNPACK_UTILS_H_
