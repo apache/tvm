@@ -24,6 +24,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
     nnp_padding input_padding{pad_top, pad_right, pad_bottom, pad_left};
     uint64_t stride_width = args[8], stride_height = args[9];
     nnp_size stride_size{stride_width, stride_height};
+    NNPackConfig(args[10]);
 
     CHECK_EQ(input->ndim, 3);
     CHECK_EQ(kernel->ndim, 4);
@@ -80,6 +81,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_output")
     DLTensor* output = args[3];
     uint64_t pad_top = args[4], pad_right = args[5], pad_bottom = args[6], pad_left = args[7];
     nnp_padding input_padding{pad_top, pad_right, pad_bottom, pad_left};
+    NNPackConfig(args[8]);
 
     CHECK_EQ(input->ndim, 4);
     CHECK_EQ(kernel->ndim, 4);
