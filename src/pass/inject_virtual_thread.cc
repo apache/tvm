@@ -229,7 +229,8 @@ class VTInjector : public IRMutator {
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(s, true);
     } else if (!allow_share_ && !vt_loop_injected_ &&
-               op->attr_key == attr::coproc_uop_scope) {
+               (op->attr_key == attr::coproc_uop_scope ||
+                op->attr_key == attr::coproc_scope)) {
       return InjectVTLoop(s, true);
     } else {
       Stmt body = Mutate(op->body);
