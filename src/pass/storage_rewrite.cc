@@ -189,7 +189,7 @@ class StoragePlanRewriter : public IRMutator {
     if (attach_map_.count(nullptr)) {
       std::vector<Stmt> nest;
       for (StorageEntry* e : attach_map_.at(nullptr)) {
-        CHECK_EQ(e->scope.rank, 0);
+        // CHECK_EQ(e->scope.rank, 0);
         if (e->new_alloc.defined()) {
           nest.emplace_back(AttrStmt::make(
               e->alloc_var, attr::storage_scope,
@@ -395,6 +395,12 @@ class StoragePlanRewriter : public IRMutator {
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, e->allocs[0]->extents,
               e->allocs[0]->condition, Evaluate::make(0));
+          if (e->scope.tag.length() != 0) {
+            MemoryInfo info = GetMemoryInfo(e->scope.to_string());
+            uint64_t total_elem = e->const_nbits / e->elem_type.bits();
+            CHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
+                << "Allocation exceed bound of memory tag " << e->scope.to_string();
+          }
         } else {
           // Build a merged allocation
           Expr combo_size;
