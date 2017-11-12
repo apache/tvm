@@ -168,8 +168,8 @@ f.save(path)
 #   `LLVM guide of cross compilation <https://clang.llvm.org/docs/CrossCompilation.html>`_.
 
 ######################################################################
-# Run Kernel Remotely by RPC
-# --------------------------
+# Run CPU Kernel Remotely by RPC
+# ------------------------------
 # Here we will show you how to run the kernel on the remote device:
 
 # replace host with the ip address of your device
@@ -203,6 +203,60 @@ np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 time_f = f.time_evaluator(f.entry_name, ctx, number=10)
 cost = time_f(a, b).mean
 print('%g secs/op' % cost)
+
+#########################################################################
+# Run OpenCL Kernel Remotely by RPC
+# ---------------------------------
+# As for remote OpenCL devices, the workflow is almost the same as above.
+# You can define the kernel, upload files, and run by RPC. The files
+# include host object, kernel source code and module meta file. We rely
+# on remote compiler to re-link them.
+#
+# .. note::
+#    Raspberry Pi does not support OpenCL, the following code is tested on
+#    Firefly-RK3399. The target_host should be 'llvm -target=aarch64-linux-gnu'.
+#    But here we set 'llvm' to enable this tutorial to run locally.
+
+# build kernel (different from cpu, we need bind axis for OpenCL)
+s = tvm.create_schedule(B.op)
+xo, xi = s[B].split(B.op.axis[0], factor=32)
+s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
+
+# save files
+path_o = temp.relpath("myadd.o")
+path_cl = temp.relpath("myadd.cl")
+path_json = temp.relpath("myadd.tvm_meta.json")
+f.save(path_o)
+f.imported_modules[0].save(path_cl)
+
+# upload files
+remote.upload(path_o)
+remote.upload(path_cl)
+remote.upload(path_json)
+
+# load files on remote device
+fhost = remote.load_module("myadd.o")
+fdev = remote.load_module("myadd.cl")
+fhost.import_module(fdev)
+
+# run
+ctx = remote.cl(0)
+a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
+b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+fhost(a, b)
+np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+#####################################################################
+# Instead of uploading files separately, there is a more convinient way.
+# You can export libraray as a tar ball.
+path_tar = temp.relpath("myadd.tar")
+f.export_library(path_tar)
+remote.upload(path_tar)
+fhost = remote.load_module("myadd.tar")
+fhost(a, b)
+np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 # terminate the server after experiment
 server.terminate()
