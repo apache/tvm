@@ -58,6 +58,27 @@ def test_coproc_sync():
     assert(blist[-1].value.args[3].value == 10)
 
 
+def test_coproc_sync2():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    cp = tvm.thread_axis((0, 1), "cop")
+    ty = tvm.thread_axis("cthread")
+    A = ib.allocate("float32", 128, name="A")
+    ib.scope_attr(ty, "virtual_thread", 2)
+    with ib.new_scope():
+        ib.scope_attr(cp, "coproc_scope", 2)
+        A[ty] = 0.0
+    with ib.for_range(0, n, name="i") as i:
+        with ib.new_scope():
+            ib.scope_attr(cp, "coproc_scope", 1)
+            A[ty] = 1.0
+        with ib.new_scope():
+            ib.scope_attr(cp, "coproc_scope", 2)
+            A[ty] = 1.0
+    stmt = ib.get()
+    stmt = tvm.ir_pass.CoProcSync(stmt)
+
 if __name__ == "__main__":
     test_coproc_sync()
     test_storage_sync()
+    test_coproc_sync2()

@@ -201,7 +201,8 @@ def lower(sch,
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
-    lower_phase2 = [x[1] for x in add_lower_pass if x[0] > 1]
+    lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
+    lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
     # normalize schedule first
     sch = sch.normalize()
     # Phase 0
@@ -213,6 +214,9 @@ def lower(sch,
     # Phase 1
     stmt = ir_pass.StorageFlatten(stmt, binds, 64)
     stmt = ir_pass.CanonicalSimplify(stmt)
+    for f in lower_phase1:
+        stmt = f(stmt)
+    # Phase 2
     if not simple_mode:
         stmt = ir_pass.LoopPartition(stmt)
     stmt = ir_pass.VectorizeLoop(stmt)
@@ -224,14 +228,14 @@ def lower(sch,
         cfg.auto_unroll_max_step,
         cfg.auto_unroll_max_depth,
         cfg.unroll_explicit)
-    for f in lower_phase1:
+    for f in lower_phase2:
         stmt = f(stmt)
     # Phase 2
     stmt = ir_pass.Simplify(stmt)
     stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
     stmt = ir_pass.RewriteUnsafeSelect(stmt)
-    for f in lower_phase2:
+    for f in lower_phase3:
         stmt = f(stmt)
     if simple_mode:
         return stmt
