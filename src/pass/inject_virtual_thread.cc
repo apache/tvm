@@ -15,11 +15,12 @@ namespace ir {
 // If expression is touched by var.
 class ExprTouched final : public IRVisitor {
  public:
-  explicit ExprTouched(const std::unordered_set<const Variable*> &touched)
-      : touched_var_(touched) {}
+  explicit ExprTouched(const std::unordered_set<const Variable*> &touched,
+                       bool check_write)
+      : touched_var_(touched), check_write_(check_write) {}
   void Visit(const NodeRef& n) final {
     // early stopping
-    if (expr_touched_) return;
+    if (expr_touched_ && !check_write_) return;
     IRVisitor::Visit(n);
   }
   void Visit_(const Load *op) final {
@@ -28,6 +29,24 @@ class ExprTouched final : public IRVisitor {
   }
   void Visit_(const Variable *op) final {
     HandleUseVar(op);
+  }
+  void Visit_(const Call *op) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      int rw_mask;
+      CHECK(arith::GetConstInt(op->args[4], &rw_mask));
+      const Variable* buffer_var = op->args[1].as<Variable>();
+      CHECK(buffer_var);
+      // read
+      if (rw_mask & 1) {
+        HandleUseVar(buffer_var);
+      }
+      if (rw_mask & 2) {
+        HandleWriteVar(buffer_var);
+      }
+      this->Visit(op->args[2]);
+    } else {
+      IRVisitor::Visit_(op);
+    }
   }
   void HandleUseVar(const Variable* var) {
     auto it = touched_var_.find(var);
@@ -40,36 +59,49 @@ class ExprTouched final : public IRVisitor {
       used_vars_.push_back(var);
     }
   }
+  void HandleWriteVar(const Variable* var) {
+    write_vars_.push_back(var);
+  }
   // the fields.
   bool expr_touched_{false};
   std::vector<const Variable*> used_vars_;
+  std::vector<const Variable*> write_vars_;
   const std::unordered_set<const Variable*>& touched_var_;
+  bool check_write_;
 };
 
 // Analyze if the buffers are invariant to value of var
 class VarTouchedAnalysis : public IRVisitor {
  public:
   void Visit_(const LetStmt *op) {
-    ExprTouched tc(touched_var_);
+    ExprTouched tc(touched_var_, false);
     tc.Visit(op->value);
     Record(op->var.get(), tc);
     this->Visit(op->body);
   }
   void Visit_(const Store *op) {
-    ExprTouched tc(touched_var_);
+    ExprTouched tc(touched_var_, false);
     tc.Visit(op->value);
     tc.Visit(op->index);
     Record(op->buffer_var.get(), tc);
   }
   void Visit_(const For *op) {
-    ExprTouched tc(touched_var_);
+    ExprTouched tc(touched_var_, false);
     tc.Visit(op->min);
     tc.Visit(op->extent);
     Record(op->loop_var.get(), tc);
     this->Visit(op->body);
   }
+  // external function call
+  void Visit_(const Evaluate *op) {
+    ExprTouched tc(touched_var_, true);
+    tc.Visit(op->value);
+    for (const Variable* var : tc.write_vars_) {
+      Record(var, tc);
+    }
+  }
   void Visit_(const Allocate *op) {
-    ExprTouched tc(touched_var_);
+    ExprTouched tc(touched_var_, false);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       tc.Visit(op->extents[i]);
     }
@@ -87,7 +119,9 @@ class VarTouchedAnalysis : public IRVisitor {
       touched_var_.insert(var);
     } else {
       for (const Variable* r : tc.used_vars_) {
-        affect_[r].push_back(var);
+        if (r != var) {
+          affect_[r].push_back(var);
+        }
       }
     }
   }
