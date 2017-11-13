@@ -1,21 +1,18 @@
 {% set version = "0.1.dev" %}
 
 package:
-  name: tvm
+  name: topi
   version: {{ version }}
 
 source:
-  path: ../..
+  path: ..
 
 build:
-  number: 1
-  skip: True  # [win]
-  script_env:
-    - CONDA_CUDA_HOME
+  number: 0
+  script: $PYTHON setup.py install
 
 requirements:
   build:
-    - llvmdev ==4.0.0
     - cmake
     - python >=3
     - numpy
@@ -30,4 +27,4 @@ requirements:
 about:
   home: https://github.com/dmlc/tvm
   license: Apache2
-  summary: a low level domain specific language for compiling tensor computation pipelines
+  summary: "TOPI: TVM Operator Inventory"
