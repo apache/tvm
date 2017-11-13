@@ -1,0 +1,30 @@
+{% set version = "0.1.dev" %}
+
+package:
+  name: topi
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: $PYTHON setup.py install
+
+requirements:
+  build:
+    - cmake
+    - python >=3
+    - numpy
+    - setuptools
+    - nose
+    - decorator
+  run:
+    - python >=3
+    - numpy
+    - decorator
+
+about:
+  home: https://github.com/dmlc/tvm
+  license: Apache2
+  summary: "TOPI: TVM Operator Inventory"
