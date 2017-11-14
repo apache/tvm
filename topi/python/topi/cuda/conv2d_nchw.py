@@ -95,7 +95,7 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
         thread_yz = tvm.thread_axis((0, vthread_y), "vthread", name="vy")
 
         i, oc, h, w = s[Out].op.axis
-        factor=util.get_const_int(Out.shape[3])
+        factor = util.get_const_int(Out.shape[3])
         ooc, ioc = s[Out].split(oc, factor=num_thread_y*vthread_y)
         oioc, iioc = s[Out].split(ioc, nparts=vthread_y)
         s[Out].bind(iioc, thread_y)
