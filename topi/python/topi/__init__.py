@@ -14,6 +14,7 @@ from .reduction import *
 from .transform import *
 from .broadcast import *
 from . import nn
+from . import x86
 from . import cuda
 from . import rasp
 from . import testing

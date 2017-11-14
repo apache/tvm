@@ -12,6 +12,7 @@ from ..nn.util import infer_pad, infer_stride
 from .. import generic
 
 _SCHEDULES = [
+    # float32 imagenet
     SpatialPack(1, 8, 4, 1, 4, True),
     SpatialPack(1, 7, 4, 2, 4, True),
     SpatialPack(1, 4, 8, 4, 1, True),
@@ -25,6 +26,7 @@ _SCHEDULES = [
     Im2ColPack(7, 4, 1, 8, False),
     Im2ColPack(7, 4, 1, 16, False),
 
+    # float32 mobilenet
     SpatialPack(2, 2, 4, 28, 1, True),
     SpatialPack(1, 4, 8, 14, 1, False),
     SpatialPack(1, 2, 16, 8, 1, True),
@@ -47,12 +49,12 @@ def _schedule_conv2d(wkl):
 
 
 @conv2d.register("rasp")
-def _declaration_conv2d(data, kernel, stride, padding, layout):
+def _declaration_conv2d(data, kernel, stride, padding, layout, out_dtype):
     assert layout == 'NCHW', "only support NCHW convolution on rasp"
     assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
-    wkl = _get_workload(data, kernel, stride, padding)
+    wkl = _get_workload(data, kernel, stride, padding, out_dtype)
     sch = _get_schedule(wkl)
-    return _SCH_TO_DECL_FUNC[type(sch)](data, kernel, stride, padding)
+    return _SCH_TO_DECL_FUNC[type(sch)](data, kernel, stride, padding, out_dtype)
 
 
 def _schedule_spatial_conv2d(s, data, data_pad, data_vec,
@@ -64,10 +66,8 @@ def _schedule_spatial_conv2d(s, data, data_pad, data_vec,
         stride = infer_stride(data, kernel, output)
     else:
         stride = infer_stride(data_pad, kernel, output)
-    wkl = _get_workload(data, kernel, stride, padding)
-
-    with tvm.target.rasp():
-        sch = _get_schedule(wkl)
+    wkl = _get_workload(data, kernel, stride, padding, output.dtype)
+    sch = _get_schedule(wkl)
 
     H, W = wkl.height, wkl.width
     CI, CO = wkl.in_filter, wkl.out_filter
@@ -172,7 +172,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
         stride = infer_stride(data, kernel, output)
     else:
         stride = infer_stride(data_pad, kernel, output)
-    wkl = _get_workload(data, kernel, stride, padding)
+    wkl = _get_workload(data, kernel, stride, padding, output.dtype)
 
     with _target.rasp():
         sch = _get_schedule(wkl)
@@ -280,7 +280,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
 
     return s
 
-@generic.schedule_conv2d_nchw.register(["cpu", "rasp"])
+@generic.schedule_conv2d_nchw.register(["rasp"])
 def schedule_conv2d(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -294,6 +294,7 @@ def schedule_conv2d(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
+
         if 'spatial_conv_output' in op.tag:
             output = op.output(0)
             conv_out = op.input_tensors[0]
