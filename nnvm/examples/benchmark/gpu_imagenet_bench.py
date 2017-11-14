@@ -49,8 +49,12 @@ def main():
     else:
         raise ValueError('no benchmark prepared for {}.'.format(args.model))
 
+    if args.target == "cuda":
+        unroll = 1400
+    else:
+        unroll = 128
     with nnvm.compiler.build_config(opt_level=opt_level):
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.build_config(auto_unroll_max_step=unroll,
                               unroll_explicit=(args.target != "cuda")):
             graph, lib, params = nnvm.compiler.build(
                 net, args.target, shape={"data": data_shape}, params=params)
