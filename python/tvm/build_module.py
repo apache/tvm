@@ -28,7 +28,8 @@ class BuildConfig(object):
     current = None
     defaults = {
         "auto_unroll_max_step": 0,
-        "auto_unroll_max_depth": 4,
+        "auto_unroll_max_depth": 8,
+        "auto_unroll_max_extent": 0,
         "unroll_explicit": True,
         "detect_global_barrier": False,
         "offset_factor": 0,
@@ -227,6 +228,7 @@ def lower(sch,
         stmt,
         cfg.auto_unroll_max_step,
         cfg.auto_unroll_max_depth,
+        cfg.auto_unroll_max_extent,
         cfg.unroll_explicit)
     for f in lower_phase2:
         stmt = f(stmt)
