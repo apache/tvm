@@ -1,7 +1,8 @@
+# pylint: disable=invalid-name,unused-variable,invalid-name
+"""Conv2D schedule on x86"""
 import tvm
 from .. import generic
 from .. import tag
-from .. import util
 
 @generic.schedule_conv2d_nchw.register(["cpu"])
 def schedule_conv2d(outs):

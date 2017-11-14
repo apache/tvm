@@ -286,7 +286,7 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype):
             axis=[rc, ry, rx]), tag="conv2d_nchw")
 
 
-def conv2d_hwcn(Input, Filter, stride, padding):
+def conv2d_hwcn(Input, Filter, stride, padding, out_dtype):
     """Convolution operator in HWCN layout.
 
     Parameters
@@ -331,8 +331,8 @@ def conv2d_hwcn(Input, Filter, stride, padding):
     Output = tvm.compute(
         (out_height, out_width, out_channel, batch),
         lambda yy, xx, ff, nn: tvm.sum(
-            PaddedInput[yy * stride_h + ry, xx * stride_w + rx, rc, nn] * Filter[ry, rx, rc, ff],
-            axis=[ry, rx, rc]),
+            PaddedInput[yy * stride_h + ry, xx * stride_w + rx, rc, nn].astype(out_dtype) *
+            Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
 
