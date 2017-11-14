@@ -235,7 +235,7 @@ def _im2col_pack(data, kernel, stride, padding, out_dtype):
     return output
 
 
-def conv2d_nchw(Input, Filter, stride, padding, out_dtype):
+def conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
     """Convolution operator in NCHW layout.
 
     Parameters
@@ -286,7 +286,7 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype):
             axis=[rc, ry, rx]), tag="conv2d_nchw")
 
 
-def conv2d_hwcn(Input, Filter, stride, padding, out_dtype):
+def conv2d_hwcn(Input, Filter, stride, padding, out_dtype='float32'):
     """Convolution operator in HWCN layout.
 
     Parameters
