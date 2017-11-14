@@ -95,20 +95,30 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
         thread_yz = tvm.thread_axis((0, vthread_y), "vthread", name="vy")
 
         i, oc, h, w = s[Out].op.axis
-        ow, iw = s[Out].split(w, factor=num_thread_x)
-        oh, ih = s[Out].split(h, factor=vthread_x)
+        factor = util.get_const_int(Out.shape[3])
         ooc, ioc = s[Out].split(oc, factor=num_thread_y*vthread_y)
         oioc, iioc = s[Out].split(ioc, nparts=vthread_y)
-        s[Out].reorder(i, ooc, oh, ow, oioc, ih, iioc, iw)
-        oh = s[Out].fuse(oh, ow)
-        s[Out].bind(iw, thread_x)
         s[Out].bind(iioc, thread_y)
-        s[Out].bind(ih, thread_xz)
         s[Out].bind(oioc, thread_yz)
-        s[Out].bind(oh, block_x)
         s[Out].bind(ooc, block_y)
-
-        s[Out_L].compute_at(s[Out], iw)
+        if factor < num_thread_x*vthread_x:
+            oh, ih = s[Out].split(h, factor=num_thread_x*vthread_x//factor)
+            w = s[Out].fuse(ih, w)
+            ow, iw = s[Out].split(w, nparts=vthread_x)
+            s[Out].reorder(i, ooc, oh, oioc, ow, iioc, iw)
+            s[Out].bind(iw, thread_x)
+            s[Out].bind(ow, thread_xz)
+            s[Out].bind(oh, block_x)
+            s[Out_L].compute_at(s[Out], iw)
+        else:
+            ow, iw = s[Out].split(w, factor=num_thread_x)
+            oh, ih = s[Out].split(h, factor=vthread_x)
+            s[Out].reorder(i, ooc, oh, ow, oioc, ih, iioc, iw)
+            oh = s[Out].fuse(oh, ow)
+            s[Out].bind(iw, thread_x)
+            s[Out].bind(ih, thread_xz)
+            s[Out].bind(oh, block_x)
+            s[Out_L].compute_at(s[Out], iw)
 
         # schedule Out_L local write
         i, oc, h, w = s[Out_L].op.axis
@@ -350,14 +360,14 @@ def conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L):
     if util.get_const_int(Filter.shape[0]) == 64:
         opart2 = 8
         ifactor = 16
-    sfactor = max(1, ofactor//(opart2*2))
+    sfactor = max(1, ofactor // (opart2*2))
     spart = max(1, (wfactor + vthread-1) // vthread)
 
     block_x = tvm.thread_axis("blockIdx.x")
     block_y = tvm.thread_axis("blockIdx.y")
     block_z = tvm.thread_axis("blockIdx.z")
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
+    thread_y = tvm.thread_axis((0, wfactor // vthread), "threadIdx.y")
     thread_xz = tvm.thread_axis((0, vthread), "vthread", name="vx")
     thread_yz = tvm.thread_axis((0, vthread), "vthread", name="vy")
 

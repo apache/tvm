@@ -6,7 +6,6 @@ import topi
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
-
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
@@ -42,10 +41,10 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.build_config(auto_unroll_max_step=1400,
                               unroll_explicit=(device != "cuda")):
-            func1 = tvm.build(s1, [A, W, B], device)
-            func2 = tvm.build(s2, [A, W, C], device)
+            func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
+            func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
             func1(a, w, b)
             func2(a, w, c)
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
@@ -56,6 +55,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 
 def test_conv2d_nchw():
+    # ResNet18 worklaods
     verify_conv2d_nchw(1, 3, 224, 64, 7, 3, 2)
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
     verify_conv2d_nchw(1, 64, 56, 64, 1, 1, 0)
@@ -68,7 +68,13 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 256, 14, 512, 3, 2, 1)
     verify_conv2d_nchw(1, 256, 14, 512, 1, 2, 0)
     verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
+    # Vgg16 workloads
     verify_conv2d_nchw(1, 128, 122, 128, 3, 1, 1)
+    # Super resolution workloads
+    verify_conv2d_nchw(1, 1, 224, 64, 5, 1, 2)
+    verify_conv2d_nchw(1, 64, 224, 64, 3, 1, 1)
+    verify_conv2d_nchw(1, 64, 224, 32, 3, 1, 1)
+    verify_conv2d_nchw(1, 32, 224, 9, 3, 1, 1)
 
 if __name__ == "__main__":
     test_conv2d_nchw()
