@@ -19,9 +19,11 @@ class LoopUnroller : public IRMutator {
  public:
   explicit LoopUnroller(int auto_max_step,
                         int auto_max_depth,
+                        int auto_max_extent,
                         bool explicit_unroll)
       : auto_max_step_(auto_max_step),
         auto_max_depth_(auto_max_depth),
+        auto_max_extent_(auto_max_extent),
         explicit_unroll_(explicit_unroll) {
   }
 
@@ -42,10 +44,13 @@ class LoopUnroller : public IRMutator {
     // condition for auto unroll
     bool auto_unroll = (
         op->for_type == ForType::Serial &&
-        normal_loop_depth_ == 0 &&
         value >= 0 &&
-        unroll_depth_ <= auto_max_depth_ &&
-        value * step_count_ <= auto_max_step_);
+        normal_loop_depth_ == 0 &&
+        unroll_depth_ <= auto_max_depth_);
+
+    auto_unroll = auto_unroll && (
+        value * step_count_ <= auto_max_step_||
+        value <= auto_max_extent_);
 
     if (op->for_type == ForType::Unrolled) {
       CHECK_GE(value, 0)
@@ -127,6 +132,9 @@ class LoopUnroller : public IRMutator {
   // maximum number of step to perform auto unroll.
   int auto_max_step_;
   int auto_max_depth_;
+  // max extent of loop to auto unroll
+  // this not not count the total steps, only count the number of loops
+  int auto_max_extent_;
   bool explicit_unroll_;
   // Number of normal loops in scope
   int normal_loop_depth_{0};
@@ -140,10 +148,12 @@ class LoopUnroller : public IRMutator {
 Stmt UnrollLoop(Stmt stmt,
                 int auto_max_step,
                 int auto_max_depth,
+                int auto_max_extent,
                 bool explicit_unroll) {
   Stmt ret = LoopUnroller(
       auto_max_step,
       auto_max_depth,
+      auto_max_extent,
       explicit_unroll).Mutate(stmt);
   if (!ret.same_as(stmt)) {
     return ConvertSSA(ret);
