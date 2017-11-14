@@ -8,22 +8,32 @@ from ..nn.util import infer_pad, infer_stride, get_pad_tuple
 from .. import generic
 
 _Workload = namedtuple('Workload',
-                       ['height', 'width', 'channel', 'multiplier',
+                       ['in_dtype', 'out_dtype', 'height', 'width', 'channel', 'multiplier',
                         'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
 _Schedule = namedtuple('Schedule', ['vh', 'vw', 'vc', 'bc', 'unroll'])
 
 # workloads of depthwise conv mobile net on imagenet
 _WORKLOADS = [
-    _Workload(112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
-    _Workload(112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
-    _Workload(56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
-    _Workload(56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
-    _Workload(28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
-    _Workload(28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
-    _Workload(14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
-    _Workload(14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
-    _Workload(14, 14, 1024, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('float32', 'float32', 112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('float32', 'float32', 112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('float32', 'float32', 56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('float32', 'float32', 56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('float32', 'float32', 28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('float32', 'float32', 28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('float32', 'float32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
+
+    _Workload('int8', 'int16', 112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int8', 'int16', 112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int8', 'int16', 56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int8', 'int16', 56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int8', 'int16', 28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int8', 'int16', 28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int8', 'int16', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int8', 'int16', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int8', 'int16', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
 ]
 
 _SCHEDULES = [
@@ -35,10 +45,20 @@ _SCHEDULES = [
     _Schedule(1, 1, 4, 2, True),
     _Schedule(1, 1, 8, 8, True),
     _Schedule(1, 1, 4, 1, False),
-    _Schedule(2, 1, 4, 16, False),
+    _Schedule(1, 1, 4, 4, False),
+
+    _Schedule(2, 2, 8, 2, True),
+    _Schedule(1, 7, 8, 1, True),
+    _Schedule(1, 7, 8, 4, True),
+    _Schedule(2, 2, 8, 1, True),
+    _Schedule(2, 4, 8, 2, False),
+    _Schedule(2, 2, 8, 2, True),
+    _Schedule(2, 2, 16, 1, True),
+    _Schedule(1, 2, 16, 1, True),
+    _Schedule(1, 1, 8, 4, True),
 ]
 
-def _get_workload(data, kernel, stride, padding):
+def _get_workload(data, kernel, stride, padding, out_dtype):
     _, C, IH, IW = [x.value for x in data.shape]
     _, MT, KH, KW = [x.value for x in kernel.shape]
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
@@ -46,7 +66,7 @@ def _get_workload(data, kernel, stride, padding):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    return _Workload(IH, IW, C, MT, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    return _Workload(data.dtype, out_dtype, IH, IW, C, MT, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
 def _schedule(s, data, data_pad, kernel, output, last):
@@ -55,7 +75,7 @@ def _schedule(s, data, data_pad, kernel, output, last):
         stride = infer_stride(data, kernel, output)
     else:
         stride = infer_stride(data_pad, kernel, output)
-    wkl = _get_workload(data, kernel, stride, padding)
+    wkl = _get_workload(data, kernel, stride, padding, output.dtype)
 
     if wkl not in _WORKLOADS:
         return s

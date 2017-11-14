@@ -9,7 +9,7 @@ from ..util import simplify
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
-                      ['height', 'width', 'in_filter', 'out_filter',
+                      ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
 # schedule description of spatial
@@ -22,36 +22,36 @@ Im2ColPack = namedtuple('Im2ColPack',
 
 _WORKLOADS = [
     # workloads of resnet18 on imagenet
-    Workload(224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
-    Workload(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-    Workload(56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-    Workload(56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-    Workload(56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-    Workload(28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-    Workload(28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-    Workload(28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-    Workload(14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-    Workload(14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-    Workload(14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-    Workload(7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
+    Workload('float32', 'float32', 224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
+    Workload('float32', 'float32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
+    Workload('float32', 'float32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
+    Workload('float32', 'float32', 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
+    Workload('float32', 'float32', 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
+    Workload('float32', 'float32', 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
+    Workload('float32', 'float32', 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
+    Workload('float32', 'float32', 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
+    Workload('float32', 'float32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
+    Workload('float32', 'float32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
+    Workload('float32', 'float32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
     # workloads of mobile net on imagenet
-    Workload(224, 224, 3, 32, 3, 3, 1, 1, 2, 2),
-    Workload(112, 112, 32, 64, 1, 1, 0, 0, 1, 1),
-    Workload(56, 56, 64, 128, 1, 1, 0, 0, 1, 1),
-    Workload(56, 56, 128, 128, 1, 1, 0, 0, 1, 1),
-    Workload(28, 28, 128, 256, 1, 1, 0, 0, 1, 1),
-    Workload(28, 28, 256, 256, 1, 1, 0, 0, 1, 1),
-    Workload(14, 14, 256, 512, 1, 1, 0, 0, 1, 1),
-    Workload(14, 14, 512, 512, 1, 1, 0, 0, 1, 1),
-    Workload(7, 7, 512, 1024, 1, 1, 0, 0, 1, 1),
-    Workload(7, 7, 1024, 1024, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 224, 224, 3, 32, 3, 3, 1, 1, 2, 2),
+    Workload('float32', 'float32', 112, 112, 32, 64, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 56, 56, 64, 128, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 56, 56, 128, 128, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 28, 28, 128, 256, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 28, 28, 256, 256, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 14, 14, 256, 512, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 14, 14, 512, 512, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 7, 7, 512, 1024, 1, 1, 0, 0, 1, 1),
+    Workload('float32', 'float32', 7, 7, 1024, 1024, 1, 1, 0, 0, 1, 1),
 ]
 
 # platform specific schedule
 _CONV_SCHEDULE = {}
 
 @tvm.target.generic_func
-def conv2d(data, kernel, stride, padding, layout='NCHW'):
+def conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator.
 
     Parameters
@@ -79,14 +79,14 @@ def conv2d(data, kernel, stride, padding, layout='NCHW'):
     # search platform specific declaration first
     # default declaration
     if layout == 'NCHW':
-        return conv2d_nchw(data, kernel, stride, padding)
+        return conv2d_nchw(data, kernel, stride, padding, out_dtype)
     elif layout == 'HWCN':
-        return conv2d_hwcn(data, kernel, stride, padding)
+        return conv2d_hwcn(data, kernel, stride, padding, out_dtype)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
 
-def _get_workload(data, kernel, stride, padding):
+def _get_workload(data, kernel, stride, padding, out_dtype):
     """ Get the workload structure. """
     _, CI, IH, IW = [x.value for x in data.shape]
     CO, _, KH, KW = [x.value for x in kernel.shape]
@@ -95,7 +95,8 @@ def _get_workload(data, kernel, stride, padding):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    return Workload(IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    assert data.dtype == kernel.dtype, "Do not support inputs with different data types now."
+    return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
 @tvm.target.generic_func
@@ -108,10 +109,10 @@ def _get_schedule(wkl):
     # This return has no use, merely to supress pylint warning
     return wkl
 
-def _spatial_pack(data, kernel, stride, padding):
+def _spatial_pack(data, kernel, stride, padding, out_dtype):
     """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
-    wkl = _get_workload(data, kernel, stride, padding)
+    wkl = _get_workload(data, kernel, stride, padding, out_dtype)
     sch = _get_schedule(wkl)
 
     H, W = wkl.height, wkl.width
@@ -158,8 +159,8 @@ def _spatial_pack(data, kernel, stride, padding):
     dw = tvm.reduce_axis((0, KW), name='dw')
 
     conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw] *
-                kernel_vec[co, ci, dh, dw, vc],
+        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw].astype(out_dtype) *
+                kernel_vec[co, ci, dh, dw, vc].astype(out_dtype),
                 axis=[ci, dh, dw]), name='conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w:
@@ -169,10 +170,10 @@ def _spatial_pack(data, kernel, stride, padding):
     return output
 
 
-def _im2col_pack(data, kernel, stride, padding):
+def _im2col_pack(data, kernel, stride, padding, out_dtype):
     """ Compute convolution with im2col pack layout. """
     assert data.shape[0].value == 1, "im2col pack convolution only support batch size=1"
-    wkl = _get_workload(data, kernel, stride, padding)
+    wkl = _get_workload(data, kernel, stride, padding, out_dtype)
     sch = _get_schedule(wkl)
 
     N = 1
@@ -234,7 +235,7 @@ def _im2col_pack(data, kernel, stride, padding):
     return output
 
 
-def conv2d_nchw(Input, Filter, stride, padding):
+def conv2d_nchw(Input, Filter, stride, padding, out_dtype):
     """Convolution operator in NCHW layout.
 
     Parameters
@@ -280,7 +281,8 @@ def conv2d_nchw(Input, Filter, stride, padding):
     return tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda nn, ff, yy, xx: tvm.sum(
-            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx] * Filter[ff, rc, ry, rx],
+            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
+            Filter[ff, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag="conv2d_nchw")
 
 
