@@ -197,8 +197,13 @@ void OpenCLWorkspace::Init() {
   std::vector<cl_device_id> devices_matched =
       cl::GetDeviceIDs(this->platform_id, "gpu");
   if (devices_matched.size() == 0) {
-    LOG(WARNING) << "No OpenCL device any device matched given the options";
-    return;
+    LOG(WARNING) << "No OpenCL device any device matched given the options: gpu mode";
+    LOG(WARNING) << "Now try OpenCL cpu mode";
+    devices_matched = cl::GetDeviceIDs(this->platform_id, "cpu");
+    if (devices_matched.size() == 0) {
+      LOG(WARNING) << "No OpenCL device any device matched given the options: cpu mode";
+      return;
+    }
   }
   this->devices = devices_matched;
   cl_int err_code;
