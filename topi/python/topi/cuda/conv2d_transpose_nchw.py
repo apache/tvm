@@ -65,7 +65,7 @@ def schedule_conv2d_transpose_small_batch(outs):
             Out_L = Output
 
         if util.get_const_int(Filter.shape[3]) == 7:
-            conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L)
+            conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag)
         elif 128 < flag < 512:
             conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag)
         elif flag >= 512:
