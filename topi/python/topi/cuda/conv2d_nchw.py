@@ -358,7 +358,7 @@ def conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L):
     vthread = 2
     opart2 = 4
     ofactor = 64
-    wfactor = 56
+    wfactor = util.get_const_int(Out.shape[2])
     ifactor = 8
     if util.get_const_int(Filter.shape[0]) == 64:
         opart2 = 8
