@@ -1,4 +1,4 @@
-#pylint: disable=invalid-name
+#pylint: disable=invalid-name, line-too-long
 """Schedule for conv2d_transpose_nchw with auto fusion"""
 import tvm
 from .. import util
@@ -42,7 +42,7 @@ def schedule_conv2d_transpose_small_batch(outs):
             s[temp_G].reorder(i, oic, h, w, iic)
             temp_R = s.cache_write(temp_G, "global")
             temp_S = s.cache_read(temp_R, "shared", [temp_G])
-        elif util.get_const_int(Filter.shape[3]) == 7:
+        elif util.get_const_int(Filter.shape[3]) == 7 or (util.get_const_int(Output.shape[2] == 224) and flag < 128):
             temp_G = s.cache_read(temp, "global", [Output])
             s[temp_G].compute_inline()
             i, ic, h, w = s[temp_G].op.axis
@@ -64,7 +64,7 @@ def schedule_conv2d_transpose_small_batch(outs):
             s[Output].set_scope("local")
             Out_L = Output
 
-        if util.get_const_int(Filter.shape[3]) == 7:
+        if util.get_const_int(Filter.shape[3]) == 7 or (util.get_const_int(Output.shape[2] == 224) and flag < 128):
             conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag)
         elif 128 < flag < 512:
             conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag)
