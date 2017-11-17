@@ -50,7 +50,7 @@ An example in c++.
 int main()
 {
     // tvm module for compiled functions
-    tvm::runtime::Module mod_dylib = tvm::runtime::Module::LoadFromFile("deploy.so");
+    tvm::runtime::Module mod_syslib = tvm::runtime::Module::LoadFromFile("deploy.so");
 
     // json graph
     std::ifstream json_in("deploy.json", std::ios::in);
