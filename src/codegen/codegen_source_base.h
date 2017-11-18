@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include "../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
@@ -108,6 +109,19 @@ class CodeGenSourceBase {
  * \param fmt The code. format.
  */
 runtime::Module SourceModuleCreate(std::string code, std::string fmt);
+
+/*!
+ * \brief Create a source module for viewing and limited saving
+ * \param code The code to be viewed.
+ * \param fmt The code. format.
+ * \param fmap The map function information map of each function.
+ * \param type_key The type_key of the runtime module of this source code
+ */
+runtime::Module DeviceSourceModuleCreate(
+  std::string code,
+  std::string fmt,
+  std::unordered_map<std::string, runtime::FunctionInfo> fmap,
+  std::string type_key);
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
