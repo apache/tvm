@@ -38,7 +38,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   stream->Write(sz);
   for (runtime::Module im : mod->imports()) {
     CHECK_EQ(im->imports().size(), 0U)
-        << "Only support simply one-level hierachy";
+        << "Only support simply one-level hierarchy";
     std::string tkey = im->type_key();
     std::string bin;
     stream->Write(tkey);
