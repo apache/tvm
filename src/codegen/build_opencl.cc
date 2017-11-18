@@ -27,7 +27,7 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs));
 #else
   LOG(WARNING) << "OpenCL runtime not enabled, return a source module...";
-  return SourceModuleCreate(code, "cl");
+  return DeviceSourceModuleCreate(code, "cl", ExtractFuncInfo(funcs), "opencl");
 #endif   // TVM_OPENCL_RUNTIME
 }
 

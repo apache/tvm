@@ -35,7 +35,7 @@ runtime::Module BuildMetal(Array<LoweredFunc> funcs) {
   return MetalModuleCreate(code, fmt, ExtractFuncInfo(funcs), source);
 #else
   LOG(WARNING) << "Metal runtime not enabled, return a source module...";
-  return SourceModuleCreate(code, "metal");
+  return DeviceSourceModuleCreate(code, "metal", ExtractFuncInfo(funcs), "metal");
 #endif   // TVM_METAL_RUNTIME
 }
 
