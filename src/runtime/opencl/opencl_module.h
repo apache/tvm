@@ -16,7 +16,7 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief create a cuda module from data.
+ * \brief create a opencl module from data.
  *
  * \param data The module data.
  * \param fmt The format of the data, can be "clbin", "cl"
