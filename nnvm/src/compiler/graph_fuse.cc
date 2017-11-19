@@ -219,6 +219,10 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
   const std::vector<TOpPattern>& pattern_vec =
       g.GetAttr<std::vector<TOpPattern> >("pattern");
   std::string target = g.GetAttr<std::string>("target");
+  std::string target_host;
+  if (g.HasAttr("target_host"))
+    target_host = g.GetAttr<std::string>("target_host");
+
   std::vector<FuseEntry> fuse_vec(idx.num_nodes());
   // setup inputs and placeholder.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
@@ -398,7 +402,7 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
   ret.attrs["dltype"] = std::make_shared<any>(std::move(new_dltype_vec));
   // Setup module
   static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_target");
-  tvm::runtime::Module module = fbuild(func_list, target);
+  tvm::runtime::Module module = fbuild(func_list, target, target_host);
   ret.attrs["module"] = std::make_shared<any>(std::move(module));
   ret = nnvm::ApplyPass(ret, "PlanMemory");
   return ret;

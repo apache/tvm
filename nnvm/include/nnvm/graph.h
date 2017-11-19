@@ -48,6 +48,12 @@ class Graph {
   template<typename T>
   inline const T& GetAttr(const std::string& attr_name) const;
   /*!
+   * \brief Check whether has a specific attribute.
+   * \param attr_name the name of the attribute
+   * \return a boolean result
+   */
+  inline bool HasAttr(const std::string& attr_name) const;
+  /*!
    * \brief Get a move copy of the attribute, implement copy on write semantics.
    *  The content is moved if the reference counter of shared_ptr is 1.
    *  The attribute is erased from attrs after the call.
@@ -224,6 +230,11 @@ inline const T& Graph::GetAttr(const std::string& attr_name) const {
   CHECK(it != attrs.end())
       << "Cannot find attribute " << attr_name << " in the graph";
   return nnvm::get<T>(*it->second);
+}
+
+inline bool Graph::HasAttr(const std::string& attr_name) const {
+  auto it = attrs.find(attr_name);
+  return it != attrs.end();
 }
 
 template<typename T>
