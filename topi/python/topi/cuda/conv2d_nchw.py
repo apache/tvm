@@ -75,6 +75,9 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
         if mark % 8 == 0 and mark % 7 == 0:
             num_thread_x = 8
             vthread_x = 7
+        elif mark % 4 == 0 and mark % 7 == 0:
+            num_thread_x = 4
+            vthread_x = 7
         else:
             for i in range(5, mark):
                 if mark % i == 0 and num_thread_x == 0:
