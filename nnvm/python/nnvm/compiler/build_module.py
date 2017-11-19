@@ -112,8 +112,10 @@ def _lower(sch, inputs, func_name, graph):
 
 
 @tvm.register_func("nnvm.compiler.build_target")
-def _build(funcs, target):
-    return tvm.build(funcs, target=target)
+def _build(funcs, target, target_host):
+    if target_host == "":
+        target_host = None
+    return tvm.build(funcs, target=target, target_host=target_host)
 
 
 def _update_shape_dtype(shape, dtype, params):
@@ -161,7 +163,7 @@ def optimize(graph, shape, dtype="float32"):
     return graph
 
 
-def build(graph, target=None, shape=None, dtype="float32", params=None):
+def build(graph, target=None, shape=None, dtype="float32", params=None, target_host=None):
     """Build graph into runtime library.
 
     The build function will optimize the graph and do the compilation.
@@ -188,6 +190,15 @@ def build(graph, target=None, shape=None, dtype="float32", params=None):
         Input parameetrs to the graph that do not change
         during inference time. Used for pre-compute
         folding optimization.
+
+    target_host : str or :any:`tvm.target.Target` optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
 
     Returns
     -------
@@ -228,6 +239,8 @@ def build(graph, target=None, shape=None, dtype="float32", params=None):
     graph = graph_attr.set_shape_inputs(graph, shape)
     graph = graph_attr.set_dtype_inputs(graph, dtype)
     graph._set_json_attr("target", str(target), "str")
+    if target_host is not None:
+        graph._set_json_attr("target_host", str(target_host), "str")
     if cfg.pass_enabled("OpFusion"):
         graph._set_json_attr("opt_level", 1, "int")
     else:
