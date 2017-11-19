@@ -20,13 +20,12 @@ namespace runtime {
  * \brief Create an OpenGL module from data.
  *
  * \param data The module data.
- * \param fmt The format of the data, TODO(zhixunt): Define supported formats.
+ * \param fmt The format of the data,
  * \param fmap The map function information map of each function.
  */
-Module OpenGLModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap);
+Module OpenGLModuleCreate(std::string data,
+                          std::string fmt,
+                          std::unordered_map<std::string, FunctionInfo> fmap);
 
 }  // namespace runtime
 }  // namespace tvm

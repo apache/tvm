@@ -14,10 +14,13 @@ namespace codegen {
 
 CodeGenOpenGL::CodeGenOpenGL() {
   // TODO(zhixunt): Implement this.
+  LOG_INFO.stream() << "CodeGenOpenGL::CodeGenOpenGL" << std::endl;
 }
 
 void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   // TODO(zhixunt): Implement this.
+  LOG_INFO.stream() << "CodeGenOpenGL::AddFunction" << std::endl;
+  this->stream << "THE OPENGL FRAGMENT SHADER GOES HERE." << std::endl;
 }
 
 }  // namespace tvm

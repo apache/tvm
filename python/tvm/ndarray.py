@@ -120,6 +120,9 @@ def vpi(dev_id=0):
     """
     return TVMContext(9, dev_id)
 
+def opengl(dev_id=0):
+    return TVMContext(11, dev_id)
+
 def ext_dev(dev_id=0):
     """Construct a extension device
 

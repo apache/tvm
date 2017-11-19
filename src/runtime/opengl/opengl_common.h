@@ -39,6 +39,8 @@ class OpenGLWorkspace final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
+  // get the global workspace
+  static const std::shared_ptr<OpenGLWorkspace>& Global();
 };
 
 }  // namespace gl
