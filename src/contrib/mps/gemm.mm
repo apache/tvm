@@ -28,24 +28,23 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
       CHECK(TypeMatch(B->dtype, kDLFloat, 32));
       CHECK(TypeMatch(C->dtype, kDLFloat, 32));
       // Get Metal device API
-      auto func = runtime::Registry::Get("device_api.metal");
-      void *dev_handle = (*func)();
-      runtime::metal::MetalWorkspace *metal_api =
-          static_cast<runtime::metal::MetalWorkspace *>(dev_handle);
-      // TODO(Check same device)
-      id<MTLDevice> dev = metal_api->GetDevice(A->ctx);
-      id<MTLCommandQueue> queue = metal_api->GetCommandQueue(A->ctx);
+      MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
+      CHECK_EQ(A->ctx, B->ctx);
+      CHECK_EQ(A->ctx, C->ctx);
+      id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(A->ctx);
+      id<MTLCommandQueue> queue = entry_ptr->metal_api->GetCommandQueue(A->ctx);
       id<MTLCommandBuffer> cb = [queue commandBuffer];
-      // TODO(Check shape)
-      NSUInteger M = A->shape[0];
-      NSUInteger N = B->shape[1];
-      NSUInteger K = B->shape[0];
+      NSUInteger M = A->shape[0 + transa?1:0];
+      NSUInteger N = B->shape[1 - transb?1:0];
+      NSUInteger K = B->shape[0 + transb?1:0];
+      CHECK_EQ(A->shape[1-transa?1:0], K);
       // mps a
+      MPSDataType dtype = MPSType::DLTypeToMPSType(A->dtype);
       MPSMatrixDescriptor *descA = [MPSMatrixDescriptor
           matrixDescriptorWithDimensions:M
                                  columns:K
-                                rowBytes:M * sizeof(float)
-                                dataType:MPSDataTypeFloat32];
+                                rowBytes:M * sizeof(dtype)
+                                dataType:dtype];
       id<MTLBuffer> bufA = (__bridge id<MTLBuffer>)(A->data);
       MPSMatrix *matrixA =
           [[MPSMatrix alloc] initWithBuffer:bufA descriptor:descA];
@@ -53,8 +52,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
       MPSMatrixDescriptor *descB = [MPSMatrixDescriptor
           matrixDescriptorWithDimensions:K
                                  columns:N
-                                rowBytes:K * sizeof(float)
-                                dataType:MPSDataTypeFloat32];
+                                rowBytes:K * sizeof(dtype)
+                                dataType:dtype];
       id<MTLBuffer> bufB = (__bridge id<MTLBuffer>)(B->data);
       MPSMatrix *matrixB =
           [[MPSMatrix alloc] initWithBuffer:bufB descriptor:descB];
@@ -62,8 +61,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
       MPSMatrixDescriptor *descC = [MPSMatrixDescriptor
           matrixDescriptorWithDimensions:M
                                  columns:N
-                                rowBytes:M * sizeof(float)
-                                dataType:MPSDataTypeFloat32];
+                                rowBytes:M * sizeof(dtype)
+                                dataType:dtype];
       id<MTLBuffer> bufC = (__bridge id<MTLBuffer>)(C->data);
       MPSMatrix *matrixC =
           [[MPSMatrix alloc] initWithBuffer:bufC descriptor:descC];
@@ -84,7 +83,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
                        rightMatrix:matrixB
                       resultMatrix:matrixC];
       [cb commit];
-      [cb waitUntilCompleted];
       [mul_obj dealloc];
       [matrixA dealloc];
       [matrixB dealloc];
