@@ -7,6 +7,7 @@
 #include <tvm/arithmetic.h>
 #include "./canonical.h"
 #include "./compute_expr.h"
+#include "arithmetic/Simplify.h"
 
 namespace tvm {
 namespace arith {
@@ -558,6 +559,29 @@ Stmt CanonicalSimplify(Stmt stmt) {
 
 Expr CanonicalSimplify(Expr expr) {
   return arith::Canonical().Simplify(expr);
+}
+
+template<typename T>
+T Simplify_(T a, Map<Var, Range> vrange) {
+  using namespace Halide::Internal;
+  Scope<Interval> rscope;
+  for (auto kv : vrange) {
+    Range r = kv.second;
+    rscope.push(
+        kv.first.get(),
+        Interval(r->min,
+                 simplify(r->min + r->extent - make_const(r->min.type(), 1))));
+  }
+  return Halide::Internal::simplify(a, true, rscope);
+}
+
+
+Expr Simplify(Expr a, Map<Var, Range> vrange) {
+  return Simplify_(a, vrange);
+}
+
+Stmt Simplify(Stmt a, Map<Var, Range> vrange) {
+  return Simplify_(a, vrange);
 }
 }  // namespace ir
 }  // namespace tvm
