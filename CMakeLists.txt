@@ -139,7 +139,7 @@ endif(USE_OPENCL)
 
 if(USE_OPENGL)
   find_package(OpenGL QUIET REQUIRED)
-  find_package(GLFW3 QUIET REQUIRED)
+  find_package(glfw3 QUIET REQUIRED)
   message(STATUS "Build with OpenGL support")
   include_directories(${OPENGL_INCLUDE_DIRS})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenGL_LIBRARIES} glfw)
