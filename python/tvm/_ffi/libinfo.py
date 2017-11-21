@@ -74,7 +74,8 @@ def find_lib_path(name=None, search_path=None):
     if not use_runtime:
         # try to find lib_dll_path
         lib_found = [p for p in lib_dll_path if os.path.exists(p) and os.path.isfile(p)]
-    if use_runtime or not lib_found:
+        lib_found += [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
+    else:
         # try to find runtime_dll_path
         use_runtime = True
         lib_found = [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
