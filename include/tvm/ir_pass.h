@@ -25,7 +25,7 @@ namespace ir {
 /*!
  * \brief Simplify the expression.
  * \param expr The expression to be simplifed.
- * \param var_range The range information about the variable.
+ * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
 Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
@@ -33,7 +33,7 @@ Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 /*!
  * \brief Simplify the statement.
  * \param stmt The statement to be simplifed.
- * \param var_range The range information about the variable.
+ * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
 Stmt Simplify(Stmt stmt, Map<Var, Range> vrange = Map<Var, Range>());
