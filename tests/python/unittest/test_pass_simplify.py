@@ -27,6 +27,13 @@ def test_basic():
     assert str(ret.value) == "(m - 1)"
 
 
+def test_bound():
+    m = tvm.var('m')
+    vrange = tvm.convert({m: tvm.Range(tvm.const(0), tvm.const(10))})
+    ret = tvm.ir_pass.Simplify(m % 10, vrange)
+    assert ret == m
+
+
 def test_canonical():
     x = tvm.var("x")
     z = tvm.const(3)
@@ -37,6 +44,7 @@ def test_canonical():
     assert(tvm.ir_pass.Equal(ret, 0))
 
 if __name__ == "__main__":
+    test_bound()
     test_basic()
     test_simplify()
     test_canonical()
