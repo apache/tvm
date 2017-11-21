@@ -365,4 +365,6 @@ def from_mxnet(symbol, arg_params=None, aux_params=None):
     else:
         msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
         raise ValueError(msg)
+    if isinstance(sym, list):
+        sym = _sym.Group(sym)
     return sym, params
