@@ -31,13 +31,17 @@ void OpenGLWorkspace::GetAttr(
 void* OpenGLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t size, size_t alignment) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::AllocDataSpace";
+  LOG_INFO.stream()
+      << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
+      << size << ", alignment = " << alignment << ")";
   return nullptr;
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void *ptr) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::FreeDataSpace";
+  LOG_INFO.stream()
+      << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
+      << ptr << ")";
 }
 
 void OpenGLWorkspace::CopyDataFromTo(const void *from,
@@ -49,7 +53,14 @@ void OpenGLWorkspace::CopyDataFromTo(const void *from,
                                      TVMContext ctx_to,
                                      TVMStreamHandle stream) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::CopyDataFromTo";
+  LOG_INFO.stream()
+      << "OpenGLWorkspace::CopyDataFromTo("
+      << "from = " << from << ", "
+      << "from_offset = " << from_offset << ", "
+      << "to = " << to << ", "
+      << "to_offset = " << to_offset << ", "
+      << "size = " << size << ", "
+      << "ctx_from, ctx_to, stream)";
 }
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
