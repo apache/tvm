@@ -77,7 +77,26 @@ def test_precompute_prune():
         res.asnumpy(), nx.asnumpy() + 1 + ny.asnumpy() + na.asnumpy())
 
 
+def test_dtypes():
+    x = sym.Variable("x")
+    y = sym.relu(x)
+    dshape = (1, 3, 32, 32)
+    oshape = dshape
+    for dtype in ['float32', 'float64', 'int32', 'int16', 'int8', 'int64']:
+        graph, lib, _ = nnvm.compiler.build(y, 'llvm', {"x": dshape}, dtype=dtype)
+        m = graph_runtime.create(graph, lib, tvm.cpu())
+        if 'float' in dtype:
+          data = np.random.uniform(size=dshape).astype(dtype)
+        elif 'int' in dtype:
+          data = np.random.randint(-127, 127, dshape).astype(dtype)
+        m.run(x=data)
+        data = (data > 0) * data
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        np.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
+
+
 if __name__ == "__main__":
     test_precompute_prune()
     test_compile()
     test_run()
+    test_dtypes()
