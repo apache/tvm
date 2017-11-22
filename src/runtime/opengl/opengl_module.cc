@@ -47,7 +47,7 @@ class OpenGLWrappedFunc {
  public:
   void operator()(TVMArgs args, TVMRetValue *rv, void **void_args) const {
     // TODO(zhixunt): Implement this.
-    LOG_INFO.stream() << "OpenGLWrappedFunc::operator()" << std::endl;
+    LOG_INFO.stream() << "OpenGLWrappedFunc::operator()";
   }
 };
 
@@ -55,7 +55,7 @@ PackedFunc OpenGLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLModuleNode::GetFunction" << std::endl;
+  LOG_INFO.stream() << "OpenGLModuleNode::GetFunction";
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
     << "Device function do not have main";

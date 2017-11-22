@@ -18,6 +18,12 @@ class CodeGenOpenGL final : public CodeGenC {
  public:
   explicit CodeGenOpenGL();
   void AddFunction(LoweredFunc f);
+  void BindThreadIndex(const IterVar& iv) final;
+  void VisitStmt_(const Store* op) final;
+  std::string GetBufferRef(Type t, const Variable* buffer, Expr index) final;
+
+ private:
+  const Variable *output_;
 };
 
 }  // namespace codegen
