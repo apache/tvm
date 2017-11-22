@@ -36,9 +36,7 @@ enum class FuseRule {
  * \return corresponding DLDataType
  */
 DLDataType GetDLType(int type_flag) {
-  if (type_flag == 0) return tvm::Type2TVMType(tvm::Float(32));
-  LOG(FATAL) << "unknown type_flag=" << type_flag;
-  return Type2TVMType(Float(32));
+  return Type2TVMType(GetTVMType(type_flag));
 }
 
 // Partition the graph into segments
