@@ -28,12 +28,26 @@ def set_shape_inputs(g, shape):
 
 DTYPE_TO_TCODE = {
     "default": -1,
-    "float32": 0
+    "float32": 0,
+    "float64": 1,
+    "float16": 2,
+    "uint8": 3,
+    "int32": 4,
+    "int8": 5,
+    "int64": 6,
+    "int16": 7,
 }
 
 TCODE_TO_DTYPE = {
     -1: None,
-    0: "float32"
+    0: "float32",
+    1: "float64",
+    2: "float16",
+    3: "uint8",
+    4: "int32",
+    5: "int8",
+    6: "int64",
+    7: "int16",
 }
 
 def set_dtype_inputs(g, dtype):

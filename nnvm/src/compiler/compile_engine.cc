@@ -27,14 +27,39 @@ using namespace tvm;
  */
 int GetTypeFlag(tvm::Type type) {
   if (type == tvm::Float(32)) return 0;
+  if (type == tvm::Float(64)) return 1;
+  if (type == tvm::Float(16)) return 2;
+  if (type == tvm::UInt(8)) return 3;
+  if (type == tvm::Int(32)) return 4;
+  if (type == tvm::Int(8)) return 5;
+  if (type == tvm::Int(64)) return 6;
+  if (type == tvm::Int(16)) return 7;
   LOG(FATAL) << "cannot convert " << type;
   return 0;
 }
 // convert from type flag to tvm type.
 Type GetTVMType(int type_flag) {
-  if (type_flag == 0) return tvm::Float(32);
-  LOG(FATAL) << "unknown type_flag=" << type_flag;
-  return Float(32);
+  switch (type_flag) {
+    case 0:
+      return tvm::Float(32);
+    case 1:
+      return tvm::Float(64);
+    case 2:
+      return tvm::Float(16);
+    case 3:
+      return tvm::UInt(8);
+    case 4:
+      return tvm::Int(32);
+    case 5:
+      return tvm::Int(8);
+    case 6:
+      return tvm::Int(64);
+    case 7:
+      return tvm::Int(16);
+    default:
+      LOG(FATAL) << "unknown type_flag=" << type_flag;
+      return Float(32);
+  }
 }
 
 // internal compile engine

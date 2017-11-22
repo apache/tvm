@@ -90,6 +90,22 @@ GraphFunc GraphLower(Graph graph,
                      const Op* schedule_op_key,
                      const NodeAttrs& schedule_op_attr);
 
+/*!
+ * \brief Get type flag from TVM Type
+ *
+ * \param type the tvm type
+ * \return corresponding DLDataType
+ */
+int GetTypeFlag(tvm::Type type);
+
+/*!
+ * \brief Get TVM Type from type flag
+ *
+ * \param type_flag the type flag
+ * \return corresponding TVM type
+ */
+tvm::Type GetTVMType(int type_flag);
+
 }  // namespace compiler
 }  // namespace nnvm
 
