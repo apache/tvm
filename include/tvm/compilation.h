@@ -199,6 +199,7 @@ EXPORT LoweredFunc Lower(Schedule sch, Array<Tensor> args, std::string name,
 * \param funcs The functions to be built.
 * \param target The target device to build for.
 * \param targetHost The target for building host code.
+* \param config The build configuration.
 * \return The built module.
 */
 EXPORT runtime::Module BuildModule(Array<LoweredFunc> funcs, const Target& target,
