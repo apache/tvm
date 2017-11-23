@@ -6,6 +6,7 @@
 #ifndef TVM_COMPILATION_H_
 #define TVM_COMPILATION_H_
 
+#include <string>
 #include "./tvm/c_dsl_api.h"
 #include "./tvm/runtime/packed_func.h"
 #include "./tvm/schedule_pass.h"
