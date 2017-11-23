@@ -14,16 +14,14 @@ namespace compilation {
 
 
 Buffer bufferWithOffsetAlignment(Array<Expr> shape, Type dtype, std::string name,
-    int data_alignment, int offset_factor)
-{
+    int data_alignment, int offset_factor) {
     auto data = Var(name, Handle());
 
     auto shapeType = TVMType2Type(GetAttr(shape[0], "dtype").v_type);
     Expr elem_offset;
     if (offset_factor != 0) {
         elem_offset = Var(name + "_elem_offset", shapeType);
-    }
-    else {
+    } else {
         elem_offset = Expr();
     }
 
@@ -38,14 +36,11 @@ void get_binds(Array<Tensor> args, std::unordered_map<Tensor, Buffer> binds,
 
     for (const auto &x : args) {
         if (bindsOut->find(x) == bindsOut->end()) {
-
             auto buf = bufferWithOffsetAlignment(x->shape, x->dtype, x->op->name,
                 config.data_alignment, config.offset_factor);
             bindsOut->Set(x, buf);
             argListOut->push_back(buf);
-
-        }
-        else {
+        } else {
             argListOut->push_back((*bindsOut)[x]);
         }
     }
@@ -92,16 +87,14 @@ Stmt BuildStmt(Schedule sch, Array<Tensor> args, std::unordered_map<Tensor, Buff
 }
 
 LoweredFunc Lower(Schedule sch, Array<Tensor> args, std::string name,
-    std::unordered_map<Tensor, Buffer> binds, const BuildConfig& config)
-{
+    std::unordered_map<Tensor, Buffer> binds, const BuildConfig& config) {
     Array<NodeRef> argListOut;
     auto stmt = BuildStmt(sch, args, binds, true, &argListOut, config);
     return ir::MakeAPI(stmt, name, argListOut, 0, config.restricted_func);
 }
 
 runtime::Module BuildModule(Array<LoweredFunc> funcs, const Target& target,
-    const Target& targetHost, const BuildConfig& config)
-{
+    const Target& targetHost, const BuildConfig& config) {
     std::unordered_set<std::string> allNames;
     for (const auto &x : funcs) {
         CHECK(allNames.count(x->name) == 0) << "Duplicate function name " << x->name;
@@ -127,14 +120,11 @@ runtime::Module BuildModule(Array<LoweredFunc> funcs, const Target& target,
             for (auto f = fsplits.begin() + 1; f != fsplits.end(); ++f) {
                 fdevice.push_back(*f);
             }
-        }
-        else if (func_type == kHostFunc) {
+        } else if (func_type == kHostFunc) {
             fhost.push_back(x);
-        }
-        else if (func_type == kDeviceFunc) {
+        } else if (func_type == kDeviceFunc) {
             fdevice.push_back(x);
-        }
-        else {
+        } else {
             CHECK(false) << "unknown function type " << func_type;
         }
     }

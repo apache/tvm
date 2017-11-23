@@ -16,10 +16,10 @@ namespace tvm {
 namespace compilation {
 
 /*!
-* \brief Container for target device information. Use target_llvm, target_cuda etc functions instead of constructing directly.
+* \brief Container for target device information.
+* Use target_llvm, target_cuda etc functions instead of constructing directly.
 */
 struct Target {
-
     /*! \brief The name of the target device */
     std::string targetName;
     /*! \brief The type of the target device */
@@ -34,8 +34,9 @@ struct Target {
     std::unordered_set<std::string> options;
 
 
-    Target(std::string targetName, DLDeviceType deviceType, int max_num_threads, int thread_warp_size,
-		const std::unordered_set<std::string>& keys, const std::unordered_set<std::string>& options) {
+    Target(std::string targetName, DLDeviceType deviceType, int max_num_threads,
+        int thread_warp_size, const std::unordered_set<std::string>& keys,
+        const std::unordered_set<std::string>& options) {
         this->targetName = targetName;
         this->deviceType = deviceType;
         this->max_num_threads = max_num_threads;
@@ -118,12 +119,10 @@ bool LLVMEnabled() {
 Target default_target_host(Target target) {
     if (target.deviceType == kDLCPU) {
         return target;
-    }
-    else {
+    } else {
         if (LLVMEnabled()) {
             return target_llvm();
-        }
-        else {
+        } else {
             return target_stackvm();
         }
     }
@@ -202,9 +201,9 @@ EXPORT LoweredFunc Lower(Schedule sch, Array<Tensor> args, std::string name,
 * \return The built module.
 */
 EXPORT runtime::Module BuildModule(Array<LoweredFunc> funcs, const Target& target,
-	const Target& targetHost, const BuildConfig& config);
+    const Target& targetHost, const BuildConfig& config);
 
-} // namespace compilation
-} // namespace tvm
+}  // namespace compilation
+}  // namespace tvm
 
 #endif  // TVM_COMPILATION_H_
