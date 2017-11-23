@@ -3,7 +3,7 @@
  *  Compile executable modules.
  * \file compilation.cc
  */
-#include <tvm\compilation.h>
+#include "./tvm/compilation.h"
 #include "./tvm/operation.h"
 #include "./tvm/ir_pass.h"
 #include "./tvm/codegen.h"
