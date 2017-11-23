@@ -23,11 +23,11 @@ runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
     cg.AddFunction(f);
   }
   std::string code = cg.Finish();
-#if TVM_OPENCL_RUNTIME
+#if TVM_OPENGL_RUNTIME
   return OpenGLModuleCreate(code, "gl", ExtractFuncInfo(funcs));
 #else
-  LOG(WARNING) << "OpenCL runtime not enabled, return a source module...";
-  return DeviceSourceModuleCreate(code, "cl", ExtractFuncInfo(funcs), "opencl");
+  LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
+  return DeviceSourceModuleCreate(code, "gl", ExtractFuncInfo(funcs), "opengl");
 #endif   // TVM_OPENGL_RUNTIME
 }
 
