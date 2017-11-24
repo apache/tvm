@@ -77,7 +77,6 @@ void OpenGLWorkspace::GetAttr(
 
 void* OpenGLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t size, size_t alignment) {
-  // TODO(zhixunt): Implement this.
   LOG_INFO.stream()
       << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
       << size << ", alignment = " << alignment << ")";
@@ -92,10 +91,11 @@ void* OpenGLWorkspace::AllocDataSpace(
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void *ptr) {
-  // TODO(zhixunt): Implement this.
   LOG_INFO.stream()
       << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
       << ptr << ")";
+    auto texture = (GLuint) reinterpret_cast<uintptr_t>(ptr);
+    OPENGL_CALL(glDeleteTextures(1, &texture));
 }
 
 void OpenGLWorkspace::CopyDataFromTo(const void *from,
@@ -106,7 +106,6 @@ void OpenGLWorkspace::CopyDataFromTo(const void *from,
                                      TVMContext ctx_from,
                                      TVMContext ctx_to,
                                      TVMStreamHandle stream) {
-  // TODO(zhixunt): Implement this.
   LOG_INFO.stream()
       << "OpenGLWorkspace::CopyDataFromTo("
       << "from = " << from << ", "
@@ -119,6 +118,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void *from,
     this->Init();
     CHECK(stream == nullptr);
     if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLOpenGL) {
+        // TODO(pengw): Implement this.
     } else if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLCPU) {
         auto texture = (GLuint) reinterpret_cast<uintptr_t>(from);
         BindTextureUnit(NumTextureUnits() - 1, texture);
@@ -232,31 +232,6 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
     *rv = static_cast<void*>(ptr);
   });
 
-        GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind, const char *shader_src) {
-            // Create the shader.
-            GLuint shader = glCreateShader(shader_kind);
-            glShaderSource(shader, 1, &shader_src, nullptr);
-            glCompileShader(shader);
-
-            // Check compile errors.
-            GLint err;
-            glGetShaderiv(shader, GL_COMPILE_STATUS, &err);
-
-            GLint info_log_len;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
-
-            if (info_log_len > 0) {
-                std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
-                glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-                LOG_ERROR.stream() << err_msg.get() << std::endl;
-                assert(false);
-            }
-
-            OPENGL_CHECK_ERROR();
-
-            return shader;
-        }
-
         void OpenGLWorkspace::BindTextureUnit(GLuint unit, GLuint texture) {
             OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
             OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
@@ -285,6 +260,148 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
                 "void main() {\n"
                 "  gl_Position = vec4(point, 0.0, 1.0);\n"
                 "}\n";
+
+        /*!
+ * \brief Create a program that uses the given vertex and fragment shader.
+ * \param fragment_shader The fragment shader **source**.
+ * \return The program ID.
+ */
+        GLuint OpenGLWorkspace::CreateProgram(const char *fragment_shader_src) {
+            // Create and compile the shaders.
+            GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
+                                                  fragment_shader_src);
+
+            // Link the shaders and create the program.
+            GLuint program = CreateProgram(fragment_shader);
+
+            OPENGL_CALL(glDeleteShader(fragment_shader));
+
+            return program;
+        }
+
+        /*!
+ * \brief Create and compile a shader from a source string.
+ * \param shader_kind The kind of shader.
+ * Could be GL_VERTEX_SHADER or GL_FRAGMENT_SHADER.
+ * \param shader_src The source string of the shader.
+ * \return The compiled shader ID.
+ */
+        GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind, const char *shader_src) {
+            // Create the shader.
+            GLuint shader = glCreateShader(shader_kind);
+            glShaderSource(shader, 1, &shader_src, nullptr);
+            glCompileShader(shader);
+
+            // Check compile errors.
+            GLint err;
+            glGetShaderiv(shader, GL_COMPILE_STATUS, &err);
+
+            GLint info_log_len;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
+
+            if (info_log_len > 0) {
+                std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
+                glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
+                std::cout << err_msg.get() << std::endl;
+                assert(false);
+            }
+
+            OPENGL_CHECK_ERROR();
+
+            return shader;
+        }
+
+/*!
+ * \brief Create a program that uses the given vertex and fragment shaders.
+ * \param fragment_shader The **compiled** fragment shader.
+ * \return The program ID.
+ */
+        GLuint OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
+            // Create the program and link the shaders.
+            GLuint program = glCreateProgram();
+            glAttachShader(program, vertex_shader_);
+            glAttachShader(program, fragment_shader);
+            glLinkProgram(program);
+
+            // Check link errors.
+            GLint err;
+            glGetProgramiv(program, GL_LINK_STATUS, &err);
+
+            GLint info_log_len;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_len);
+
+            if (info_log_len > 0) {
+                std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
+                glGetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
+                std::cout << err_msg.get() << std::endl;
+                assert(false);
+            }
+
+            OPENGL_CHECK_ERROR();
+
+            OPENGL_CALL(glDetachShader(program, vertex_shader_));
+            OPENGL_CALL(glDetachShader(program, fragment_shader));
+
+            auto point_attrib = GLuint(glGetAttribLocation(program, "point"));
+            OPENGL_CALL(glEnableVertexAttribArray(point_attrib));
+
+            OPENGL_CALL(glVertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
+                                              sizeof(Vertex), nullptr));
+
+            return program;
+        }
+
+//        void OpenGLWorkspace::Render(
+//                const Program &program,
+//                const std::vector<std::pair<std::string, Texture *>> &inputs,
+//                Texture *output) {
+//            if (inputs.size() + 2 > NumTextureUnits()) {
+//                std::cerr << "Too many inputs!" << std::endl;
+//                assert(false);
+//            }
+//
+//            OPENGL_CALL(glUseProgram(program.program_));
+//
+//            // Create frame buffer.
+//            GLuint frame_buffer;
+//            OPENGL_CALL(glGenFramebuffers(1, &frame_buffer));
+//            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+//
+//            // Set "renderedTexture" as our colour attachement #0
+//            OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+//                                             output->texture(), 0));
+//
+//            // Set the list of draw buffers.
+//            GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+//            // "1" is the size of DrawBuffers.
+//            OPENGL_CALL(glDrawBuffers(1, DrawBuffers));
+//
+//            // Always check that our framebuffer is ok
+//            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+//                std::cout << "Framebuffer not complete." << std::endl;
+//                assert(false);
+//            }
+//
+//            // Tell the fragment shader what input textures to use.
+//            for (GLuint unit = 0; unit != inputs.size(); ++unit) {
+//                const std::string &name = inputs[unit].first;
+//                Texture *texture = inputs[unit].second;
+//
+//                BindTextureUnit(unit, *texture);
+//
+//                GLint texture_uniform = glGetUniformLocation(program.program_,
+//                                                             name.c_str());
+//                OPENGL_CALL(glUniform1i(texture_uniform, unit));
+//            }
+//
+//            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+//            OPENGL_CALL(glViewport(0, 0, output->width(), output->height()));
+//
+//            OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+//            OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+//
+//            glDeleteFramebuffers(1, &frame_buffer);
+//        }
 
 }  // namespace gl
 }  // namespace runtime

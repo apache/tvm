@@ -45,6 +45,7 @@ class OpenGLWorkspace final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
+    GLuint CreateProgram(const char *fragment_shader_src);
   // get the global workspace
   static const std::shared_ptr<OpenGLWorkspace>& Global();
 
@@ -59,9 +60,13 @@ private:
     static constexpr size_t kNumVertices = 6;
     static const Vertex vertices[kNumVertices];
     static const char *vertex_shader_text_;
-    GLuint CreateShader(GLenum shader_kind, const char *shader_src);
     void BindTextureUnit(GLuint unit, GLuint texture);
     GLuint NumTextureUnits();
+    GLuint CreateShader(GLenum shader_kind, const char *shader_src);
+    GLuint CreateProgram(GLuint fragment_shader);
+//    void Render(const Program &program,
+//                const std::vector<std::pair<std::string, Texture *>> &inputs,
+//                Texture *output);
 };
 
 }  // namespace gl
