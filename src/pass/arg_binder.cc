@@ -136,12 +136,6 @@ inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
   return TVMStructGet(t, arr, 0, kind);
 }
 
-inline Stmt AssertCompact(Var handle, std::string msg) {
-  return AssertStmt::make(Call::make(
-      Bool(1), intrinsic::tvm_handle_is_null,
-      {handle}, Call::PureIntrinsic), msg, Evaluate::make(0));
-}
-
 void ArgBinder::BindDLTensor(const Buffer& buffer,
                              const Expr& device_type,
                              const Expr& device_id,
