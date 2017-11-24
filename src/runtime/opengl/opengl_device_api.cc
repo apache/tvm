@@ -12,6 +12,52 @@ namespace tvm {
 namespace runtime {
 namespace gl {
 
+    inline const char *GLGetErrorString(GLenum error) {
+        switch (error) {
+            case GL_NO_ERROR:
+                return "GL_NO_ERROR";
+            case GL_INVALID_ENUM:
+                return "GL_INVALID_ENUM";
+            case GL_INVALID_VALUE:
+                return "GL_INVALID_VALUE";
+            case GL_INVALID_OPERATION:
+                return "GL_INVALID_OPERATION";
+            case GL_STACK_OVERFLOW:
+                return "GL_STACK_OVERFLOW";
+            case GL_STACK_UNDERFLOW:
+                return "GL_STACK_UNDERFLOW";
+            case GL_OUT_OF_MEMORY:
+                return "GL_OUT_OF_MEMORY";
+            default:
+                return "Unknown OpenGL error code";
+        }
+    }
+    // TODO(zhixunt): When porting to TVM, change this to
+//   CHECK(err == GL_NO_ERROR) << ...;
+    void OPENGL_CHECK_ERROR() {
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            std::cerr << "OpenGL error, code=" << err << ": "
+                      << gl::GLGetErrorString(err) << std::endl;
+            assert(false);
+        }
+    }
+
+/*!
+ * \brief Protected OpenGL call.
+ * \param func Expression to call.
+ */
+#define OPENGL_CALL(func)                                                      \
+  {                                                                            \
+    (func);                                                                    \
+    OPENGL_CHECK_ERROR();                                                      \
+  }
+
+        void GlfwErrorCallback(int err, const char *str) {
+            std::cerr << "Error: [" << err << "] " << str << std::endl;
+        }
+
+
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
   static std::shared_ptr<OpenGLWorkspace> inst = std::make_shared<OpenGLWorkspace>();
   return inst;
@@ -79,11 +125,116 @@ void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void *data) {
   LOG_INFO.stream() << "OpenGLWorkspace::FreeWorkspace";
 }
 
+void OpenGLWorkspace::Init() {
+  if (initialized_) return;
+  std::lock_guard<std::mutex>(this->mu);
+  if (initialized_) return;
+  initialized_ = true;
+// Set an error handler.
+  // This can be called before glfwInit().
+  glfwSetErrorCallback(&GlfwErrorCallback);
+
+  // Initialize GLFW.
+  if (glfwInit() != GL_TRUE) {
+    std::cout << "glfwInit() failed!" << std::endl;
+    assert(false);
+  }
+
+  // Create a window.
+  // TODO(zhixunt): GLFW allows us to create an invisible window.
+  // TODO(zhixunt): On retina display, window size is different from framebuffer size.
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  window_ = glfwCreateWindow(kWindowWidth, kWindowHeight, "", nullptr, nullptr);
+  if (window_ == nullptr) {
+    std::cout << "glfwCreateWindow() failed!" << std::endl;
+    assert(false);
+  }
+
+  std::cout << "GLFW says OpenGL version: "
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
+            << "."
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
+            << "."
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION)
+            << std::endl;
+
+  // Before using any OpenGL API, we must specify a context.
+  glfwMakeContextCurrent(window_);
+
+  // Must be called after creating GLFW window.
+  gladLoadGL();
+
+  std::cout << "Opengl says version: " << glGetString(GL_VERSION) << std::endl;
+
+  OPENGL_CHECK_ERROR();
+
+  // We always render the same vertices and triangles.
+  GLuint vertex_buffer;
+  OPENGL_CALL(glGenBuffers(1, &vertex_buffer));
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
+                           GL_STATIC_DRAW));
+
+  GLuint vertex_array;
+  OPENGL_CALL(glGenVertexArrays(1, &vertex_array));
+  OPENGL_CALL(glBindVertexArray(vertex_array));
+  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+
+  // We always use the same vertex shader.
+  vertex_shader_ = CreateShader(GL_VERTEX_SHADER, vertex_shader_text_);
+}
+
 TVM_REGISTER_GLOBAL("device_api.opengl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = OpenGLWorkspace::Global().get();
     *rv = static_cast<void*>(ptr);
   });
+
+        GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind, const char *shader_src) {
+            // Create the shader.
+            GLuint shader = glCreateShader(shader_kind);
+            glShaderSource(shader, 1, &shader_src, nullptr);
+            glCompileShader(shader);
+
+            // Check compile errors.
+            GLint err;
+            glGetShaderiv(shader, GL_COMPILE_STATUS, &err);
+
+            GLint info_log_len;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
+
+            if (info_log_len > 0) {
+                std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
+                glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
+                std::cout << err_msg.get() << std::endl;
+                assert(false);
+            }
+
+            OPENGL_CHECK_ERROR();
+
+            return shader;
+        }
+
+        const OpenGLWorkspace::Vertex OpenGLWorkspace::vertices[OpenGLWorkspace::kNumVertices] = {
+                {-1.f, -1.f},
+                {1.0f, -1.f},
+                {1.0f, 1.0f},
+                {-1.f, -1.f},
+                {-1.f, 1.0f},
+                {1.0f, 1.0f},
+        };
+
+        // Don't need to change this.
+// The vertex shader only needs to take in the triangle points.
+// No need for point transformations.
+        const char *OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
+                "in vec2 point; // input to vertex shader\n"
+                "void main() {\n"
+                "  gl_Position = vec4(point, 0.0, 1.0);\n"
+                "}\n";
 
 }  // namespace gl
 }  // namespace runtime

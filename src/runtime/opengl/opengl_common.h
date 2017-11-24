@@ -11,6 +11,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 
 namespace tvm {
 namespace runtime {
@@ -21,6 +23,10 @@ namespace gl {
  */
 class OpenGLWorkspace final : public DeviceAPI {
  public:
+  // whether the workspace it initialized.
+  bool initialized_{false};
+  // the mutex for initialization
+  std::mutex mu;
   void Init();
 
   // override device API
@@ -41,6 +47,19 @@ class OpenGLWorkspace final : public DeviceAPI {
   void FreeWorkspace(TVMContext ctx, void* data) final;
   // get the global workspace
   static const std::shared_ptr<OpenGLWorkspace>& Global();
+
+private:
+    GLFWwindow *window_;
+    GLuint vertex_shader_;
+    static const int kWindowWidth = 640;
+    static const int kWindowHeight = 480;
+    struct Vertex {
+        float x, y;
+    };
+    static constexpr size_t kNumVertices = 6;
+    static const Vertex vertices[kNumVertices];
+    static const char *vertex_shader_text_;
+    GLuint CreateShader(GLenum shader_kind, const char *shader_src);
 };
 
 }  // namespace gl
