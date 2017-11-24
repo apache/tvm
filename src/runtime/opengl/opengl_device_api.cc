@@ -7,6 +7,7 @@
 #if TVM_OPENGL_RUNTIME
 
 #include <tvm/runtime/registry.h>
+#include <dlpack/dlpack.h>
 
 namespace tvm {
 namespace runtime {
@@ -80,7 +81,14 @@ void* OpenGLWorkspace::AllocDataSpace(
   LOG_INFO.stream()
       << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
       << size << ", alignment = " << alignment << ")";
-  return nullptr;
+    this->Init();
+// Create a texture.
+    GLuint texture;
+    OPENGL_CALL(glGenTextures(1, &texture));
+
+    LOG_INFO.stream() << "Created texture [" << texture << "]";
+
+  return reinterpret_cast<void*>(texture);
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void *ptr) {
@@ -106,7 +114,39 @@ void OpenGLWorkspace::CopyDataFromTo(const void *from,
       << "to = " << to << ", "
       << "to_offset = " << to_offset << ", "
       << "size = " << size << ", "
-      << "ctx_from, ctx_to, stream)";
+      << "ctx_from = (" << ctx_from.device_type << ", " << ctx_from.device_id << "), "
+      << "ctx_to = (" << ctx_to.device_type << ", " << ctx_to.device_id << "), stream)";
+    this->Init();
+    CHECK(stream == nullptr);
+    if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLOpenGL) {
+    } else if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLCPU) {
+        auto texture = (GLuint) reinterpret_cast<uintptr_t>(from);
+        BindTextureUnit(NumTextureUnits() - 1, texture);
+
+        OPENGL_CALL(glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, to));
+    } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenGL) {
+        auto texture = (GLuint) reinterpret_cast<uintptr_t>(to);
+        // Bind to temporary unit.
+        BindTextureUnit(NumTextureUnits() - 1, texture);
+
+        // Similar to cudaMemcpy.
+        // TODO(pengw): How can we know the type of data?
+        OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
+                                 (GLsizei)size / sizeof(GLfloat), 1, /*border=*/0,
+                                 GL_RED, GL_FLOAT, from));
+
+        // TODO(zhixunt): What are these?
+        OPENGL_CALL(
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+        OPENGL_CALL(
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+        OPENGL_CALL(
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+        OPENGL_CALL(
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    } else {
+        LOG(FATAL) << "Expect copy from/to OpenGL or between OpenGL";
+    }
 }
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
@@ -216,6 +256,17 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             OPENGL_CHECK_ERROR();
 
             return shader;
+        }
+
+        void OpenGLWorkspace::BindTextureUnit(GLuint unit, GLuint texture) {
+            OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
+            OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
+        }
+
+        GLuint OpenGLWorkspace::NumTextureUnits() {
+            GLint num_units;
+            OPENGL_CALL(glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &num_units));
+            return static_cast<GLuint>(num_units);
         }
 
         const OpenGLWorkspace::Vertex OpenGLWorkspace::vertices[OpenGLWorkspace::kNumVertices] = {

@@ -6,4 +6,4 @@
 	url = https://github.com/dmlc/HalideIR
 [submodule "dlpack"]
 	path = dlpack
-	url = https://github.com/dmlc/dlpack
+	url = https://github.com/stomakun/dlpack

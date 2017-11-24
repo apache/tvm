@@ -60,6 +60,8 @@ private:
     static const Vertex vertices[kNumVertices];
     static const char *vertex_shader_text_;
     GLuint CreateShader(GLenum shader_kind, const char *shader_src);
+    void BindTextureUnit(GLuint unit, GLuint texture);
+    GLuint NumTextureUnits();
 };
 
 }  // namespace gl
