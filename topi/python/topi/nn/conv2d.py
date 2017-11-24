@@ -225,7 +225,8 @@ def _im2col_pack(data, kernel, stride, padding, out_dtype):
     wk = tvm.reduce_axis((0, KW), name='wk')
 
     conv = tvm.compute(ovshape, lambda n, co, im, vim, vco: \
-        tvm.sum(data_vec[n][im][ci][hk][wk][vim] * kernel_vec[co][ci][hk][wk][vco],
+        tvm.sum(data_vec[n][im][ci][hk][wk][vim].astype(out_dtype) *
+                kernel_vec[co][ci][hk][wk][vco].astype(out_dtype),
                 axis=[ci, hk, wk]), name='conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w: \

@@ -136,7 +136,7 @@ inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
   return TVMStructGet(t, arr, 0, kind);
 }
 
-inline Stmt AssertNull(Var handle, std::string msg) {
+inline Stmt AssertCompact(Var handle, std::string msg) {
   return AssertStmt::make(Call::make(
       Bool(1), intrinsic::tvm_handle_is_null,
       {handle}, Call::PureIntrinsic), msg, Evaluate::make(0));
@@ -201,10 +201,30 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       v_strides, TVMArrayGet(Handle(), handle, intrinsic::kArrStrides),
       nop));
   if (buffer->strides.size() == 0) {
+    // Assert the buffer is compact
+    Type stype = buffer->shape[0].type();
+    Expr expect_stride = make_const(stype, 1);
+    Array<Expr> conds;
+    for (size_t i = buffer->shape.size(); i != 0; --i) {
+      size_t k = i - 1;
+      Expr svalue = cast(
+          stype,
+          Load::make(tvm_shape_type, v_strides,
+                     IntImm::make(Int(32), k), const_true(1)));
+      conds.push_back(expect_stride == svalue);
+      expect_stride = expect_stride * buffer->shape[k];
+    }
     std::ostringstream stride_err_msg;
     stride_err_msg << arg_name << ".strides:"
-                   << " expected to be nullptr for contiguous array";
-    init_nest_.emplace_back(AssertNull(v_strides, stride_err_msg.str()));
+                   << " expected to be compact array";
+    Stmt check =
+        AssertStmt::make(arith::ComputeReduce<ir::And>(conds),
+                         stride_err_msg.str(), Evaluate::make(0));
+    Expr is_null = Call::make(
+        Bool(1), intrinsic::tvm_handle_is_null,
+        {v_strides}, Call::PureIntrinsic);
+    check = IfThenElse::make(Not::make(is_null), check, Stmt());
+    init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
   } else {
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;
