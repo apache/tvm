@@ -68,7 +68,7 @@ Target Target::create(const std::string& target_str) {
 
     std::getline(ss, target_name, ' ');
     auto device_name = GetDeviceName(target_str);
-    
+
     auto result = device_name == "rasp" ?
         target::rasp() :
         TargetFromName(target_name);
