@@ -38,8 +38,8 @@ namespace gl {
     void OPENGL_CHECK_ERROR() {
         GLenum err = glGetError();
         if (err != GL_NO_ERROR) {
-            std::cerr << "OpenGL error, code=" << err << ": "
-                      << gl::GLGetErrorString(err) << std::endl;
+            LOG_ERROR.stream() << "OpenGL error, code=" << err << ": "
+                               << gl::GLGetErrorString(err) << std::endl;
             assert(false);
         }
     }
@@ -55,7 +55,7 @@ namespace gl {
   }
 
         void GlfwErrorCallback(int err, const char *str) {
-            std::cerr << "Error: [" << err << "] " << str << std::endl;
+            LOG_ERROR.stream() << "Error: [" << err << "] " << str << std::endl;
         }
 
 
@@ -176,7 +176,7 @@ void OpenGLWorkspace::Init() {
 
   // Initialize GLFW.
   if (glfwInit() != GL_TRUE) {
-    std::cout << "glfwInit() failed!" << std::endl;
+      LOG_ERROR.stream() << "glfwInit() failed!";
     assert(false);
   }
 
@@ -189,17 +189,16 @@ void OpenGLWorkspace::Init() {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   window_ = glfwCreateWindow(kWindowWidth, kWindowHeight, "", nullptr, nullptr);
   if (window_ == nullptr) {
-    std::cout << "glfwCreateWindow() failed!" << std::endl;
+      LOG_ERROR.stream() << "glfwCreateWindow() failed!";
     assert(false);
   }
 
-  std::cout << "GLFW says OpenGL version: "
+    LOG_INFO.stream() << "GLFW says OpenGL version: "
             << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
             << "."
             << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
             << "."
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION)
-            << std::endl;
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION);
 
   // Before using any OpenGL API, we must specify a context.
   glfwMakeContextCurrent(window_);
@@ -207,7 +206,7 @@ void OpenGLWorkspace::Init() {
   // Must be called after creating GLFW window.
   gladLoadGL();
 
-  std::cout << "Opengl says version: " << glGetString(GL_VERSION) << std::endl;
+  LOG_INFO.stream() << "Opengl says version: " << glGetString(GL_VERSION);
 
   OPENGL_CHECK_ERROR();
 
@@ -249,7 +248,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             if (info_log_len > 0) {
                 std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
                 glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-                std::cout << err_msg.get() << std::endl;
+                LOG_ERROR.stream() << err_msg.get() << std::endl;
                 assert(false);
             }
 
