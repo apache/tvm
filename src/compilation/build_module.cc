@@ -21,6 +21,70 @@ std::string Target::str() const {
 }
 
 
+Target TargetFromName(const std::string& name) {
+    if (name == "llvm") {
+        return target::llvm();
+    } else if (name == "cuda" || name == "nvptx") {
+        return target::cuda();
+    } else if (name == "rocm" || name == "opencl") {
+        /* For now, assume rocm schedule for opencl */
+        return target::rocm();
+    } else if (name == "metal") {
+        return target::metal();
+    } else if (name == "stackvm" || name == "ext_dev") {
+        return target::stackvm();
+    } else {
+        LOG(ERROR) << "Unknown target name " << name;
+        return target::stackvm();
+    }
+}
+
+bool StartsWith(const std::string& str, const std::string& pattern) {
+    return str.compare(0, pattern.length(), pattern) == 0;
+}
+
+std::string GetDeviceName(const std::string& target_str) {
+    std::stringstream ss(target_str);
+    std::string item;
+    /* skip target name */
+    std::getline(ss, item, ' ');
+
+    while (std::getline(ss, item, ' ')) {
+        if (StartsWith(item, "-device=")) {
+            return item.substr(std::string("-device=").length());
+        }
+    }
+
+    return "";
+}
+
+Target Target::create(const std::string& target_str) {
+    if (target_str.length() == 0) {
+        LOG(ERROR) << "target_str must not be zero";
+    }
+
+    std::stringstream ss(target_str);
+    std::string target_name;
+
+    std::getline(ss, target_name, ' ');
+    auto device_name = GetDeviceName(target_str);
+    
+    auto result = device_name == "rasp" ?
+        target::rasp() :
+        TargetFromName(target_name);
+
+    std::string item;
+    while (std::getline(ss, item, ' ')) {
+        if (result.options.count(item) == 0) {
+            result.options.insert(item);
+        }
+    }
+
+    return result;
+}
+
+
+
 namespace target {
 Target llvm() {
     std::unordered_set<std::string> keys({ "llvm", "cpu" });
@@ -169,11 +233,11 @@ Stmt BuildStmt(Schedule sch, const Array<Tensor>& args,
     return stmt;
 }
 
-LoweredFunc lower(Schedule sch, const Array<Tensor>& args, const std::string& name,
+Array<LoweredFunc> lower(Schedule sch, const Array<Tensor>& args, const std::string& name,
     const std::unordered_map<Tensor, Buffer>& binds, const BuildConfig& config) {
     Array<NodeRef> out_arg_list;
     auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
-    return ir::MakeAPI(stmt, name, out_arg_list, 0, config.restricted_func);
+    return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config.restricted_func) });
 }
 
 runtime::Module build(const Array<LoweredFunc>& funcs, const Target& target,

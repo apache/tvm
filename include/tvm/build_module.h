@@ -45,7 +45,13 @@ struct Target {
     }
 
     /*! \return the full device string to pass to codegen::Build */
-    std::string str() const;
+    EXPORT std::string str() const;
+
+    /*!
+     * \brief Create a Target given a string
+     * \param target_str the string to parse
+     */
+    EXPORT static Target create(const std::string& target_str);
 };
 
 namespace target {
@@ -123,7 +129,7 @@ struct BuildConfig {
 * \param config The build configuration.
 * \return The lowered function.
 */
-EXPORT LoweredFunc lower(Schedule sch, const Array<Tensor>& args, const std::string& name,
+EXPORT Array<LoweredFunc> lower(Schedule sch, const Array<Tensor>& args, const std::string& name,
     const std::unordered_map<Tensor, Buffer>& binds, const BuildConfig& config);
 
 /*!
