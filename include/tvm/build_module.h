@@ -130,7 +130,7 @@ EXPORT LoweredFunc lower(Schedule sch, const Array<Tensor>& args, const std::str
 * \brief Build a device and host module for a specific target from an array of lowered functions.
 * \param funcs The functions to be built.
 * \param target The target device to build for.
-* \param targetHost The target for building host code. If null, a suitable default will be used.
+* \param target_host The target for building host code. If null, a suitable default will be used.
 * \param config The build configuration.
 * \return The built module.
 */

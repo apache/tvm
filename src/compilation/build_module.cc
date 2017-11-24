@@ -124,8 +124,8 @@ void GetBinds(const Array<Tensor>& args, const std::unordered_map<Tensor, Buffer
 * \param sch The schedule to build.
 * \param args The arguments for the schedule.
 * \param binds Buffer assignments.
-* \param loopPartition True if the LoopPartition pass should be included.
-* \param argListOut Returns the arguments for the Stmt.
+* \param loop_partition True if the LoopPartition pass should be included.
+* \param out_arg_list Returns the arguments for the Stmt.
 * \param config The build configuration.
 * \return The built Stmt.
 */
