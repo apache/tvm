@@ -7,3 +7,7 @@
 [submodule "dlpack"]
 	path = dlpack
 	url = https://github.com/stomakun/dlpack
+[submodule "glad"]
+	path = glad
+	url = https://github.com/Dav1dde/glad.git
+	branch = c
