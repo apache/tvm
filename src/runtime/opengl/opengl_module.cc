@@ -50,7 +50,7 @@ class OpenGLModuleNode final : public ModuleNode {
           LOG(FATAL) << "Unknown OpenGL format " << fmt_;
       }
   }
-    GLuint program_;
+    std::shared_ptr<gl::Program> program_;
     std::shared_ptr<gl::OpenGLWorkspace> workspace_;
  private:
   std::string data_;
@@ -78,7 +78,7 @@ class OpenGLWrappedFunc {
   void operator()(TVMArgs args, TVMRetValue *rv, void **void_args) const {
     LOG_INFO.stream() << "OpenGLWrappedFunc::operator()";
       // TODO(pengw): How to get variable names?
-      m_->workspace_->Render(m_->program_, {
+      m_->workspace_->Render(*m_->program_, {
                                      {"A", *static_cast<gl::Texture**>(void_args[1])},
                                      {"B", *static_cast<gl::Texture**>(void_args[2])}
                              },

@@ -132,6 +132,13 @@ namespace gl {
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
         }
 
+            Program::~Program() {
+                if (program_ != kInvalidProgram) {
+                    glDeleteProgram(program_);
+                    program_ = kInvalidProgram;
+                }
+            }
+
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
   static std::shared_ptr<OpenGLWorkspace> inst = std::make_shared<OpenGLWorkspace>();
   return inst;
@@ -313,13 +320,13 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
  * \param fragment_shader The fragment shader **source**.
  * \return The program ID.
  */
-        GLuint OpenGLWorkspace::CreateProgram(const char *fragment_shader_src) {
+        std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(const char *fragment_shader_src) {
             // Create and compile the shaders.
             GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
                                                   fragment_shader_src);
 
             // Link the shaders and create the program.
-            GLuint program = CreateProgram(fragment_shader);
+            auto program = CreateProgram(fragment_shader);
 
             OPENGL_CALL(glDeleteShader(fragment_shader));
 
@@ -363,7 +370,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
  * \param fragment_shader The **compiled** fragment shader.
  * \return The program ID.
  */
-        GLuint OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
+        std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
             // Create the program and link the shaders.
             GLuint program = glCreateProgram();
             glAttachShader(program, vertex_shader_);
@@ -395,11 +402,11 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             OPENGL_CALL(glVertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
                                               sizeof(Vertex), nullptr));
 
-            return program;
+            return std::make_shared<Program>(program);
         }
 
         void OpenGLWorkspace::Render(
-                GLuint program,
+                const Program &program,
                 const std::vector<std::pair<std::string, Texture*>> &inputs,
                 Texture* output) {
             if (inputs.size() + 2 > NumTextureUnits()) {
@@ -407,7 +414,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
                 assert(false);
             }
 
-            OPENGL_CALL(glUseProgram(program));
+            OPENGL_CALL(glUseProgram(program.program_));
 
             // Create frame buffer.
             GLuint frame_buffer;
@@ -436,7 +443,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 
                 BindTextureUnit(unit, texture->texture());
 
-                GLint texture_uniform = glGetUniformLocation(program,
+                GLint texture_uniform = glGetUniformLocation(program.program_,
                                                              name.c_str());
                 OPENGL_CALL(glUniform1i(texture_uniform, unit));
             }

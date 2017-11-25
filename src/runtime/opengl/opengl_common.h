@@ -18,6 +18,7 @@ namespace tvm {
 namespace runtime {
 namespace gl {
     class Texture;
+    class Program;
 /*!
  * \brief Process global OpenGL workspace.
  */
@@ -45,11 +46,11 @@ class OpenGLWorkspace final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
-    GLuint CreateProgram(const char *fragment_shader_src);
+    std::shared_ptr<Program> CreateProgram(const char *fragment_shader_src);
   // get the global workspace
   static const std::shared_ptr<OpenGLWorkspace>& Global();
     void Render(
-            GLuint program,
+            const Program &program,
             const std::vector<std::pair<std::string, Texture*>> &inputs,
             Texture* output);
 
@@ -68,8 +69,35 @@ private:
     void BindTextureUnit(GLuint unit, GLuint texture);
     GLuint NumTextureUnits();
     GLuint CreateShader(GLenum shader_kind, const char *shader_src);
-    GLuint CreateProgram(GLuint fragment_shader);
+    std::shared_ptr<Program> CreateProgram(GLuint fragment_shader);
 };
+
+    /*!
+ * \brief An OpenGL program, composed of a vertex shader and a fragment shader.
+ * In TVM, every program has the same vertex shader.
+ * So a program just corresponds to a fragment shader.
+ * A program can only be created by the workspace.
+ * This class is just a wrapper over an OpenGL program ID.
+ */
+    class Program {
+    public:
+        Program() : program_(kInvalidProgram) {};
+        explicit Program(GLuint program) : program_(program) {};
+        // Move constructor.
+        Program(Program &&other) noexcept : program_(other.program_) {
+          other.program_ = kInvalidProgram;
+        }
+        // Cannot be copied.
+        Program(const Program &other) = delete;
+        // Cannot be assigned.
+        Program &operator=(const Program &other) = delete;
+        ~Program();
+    private:
+        friend class OpenGLWorkspace;
+        // The internal OpenGL program ID.
+        GLuint program_;
+        static const GLuint kInvalidProgram = static_cast<GLuint>(-1);
+    };
 
 }  // namespace gl
 }  // namespace runtime
