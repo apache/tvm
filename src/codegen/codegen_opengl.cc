@@ -48,8 +48,8 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   this->output_ = f->args[0].get();
 
   this->stream << "void main() {\n";
-  // TODO(pengw): Replace this with the correct statement.
-  this->stream << "ivec2 pixel = ivec2(gl_FragCoord.xy);\n";
+  // TODO(zhixunt): Don't hardcode name.
+  this->stream << "ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
@@ -97,9 +97,9 @@ std::string CodeGenOpenGL::GetBufferRef(
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported";
 
   os << "texelFetch(" << vid << ", ";
-      // TODO(pengw): Replace this with the correct statement.
-      os << "pixel";
-  //PrintExpr(index, os);
+  os << "ivec2(";
+  PrintExpr(index, os);
+  os << ", 0)";
   os << ", 0).r";
 
   return os.str();

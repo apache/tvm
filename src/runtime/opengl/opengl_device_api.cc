@@ -12,30 +12,34 @@
 namespace tvm {
 namespace runtime {
 namespace gl {
-    inline const char *GLGetErrorString(GLenum error) {
-        switch (error) {
-            case GL_NO_ERROR:
-                return "GL_NO_ERROR";
-            case GL_INVALID_ENUM:
-                return "GL_INVALID_ENUM";
-            case GL_INVALID_VALUE:
-                return "GL_INVALID_VALUE";
-            case GL_INVALID_OPERATION:
-                return "GL_INVALID_OPERATION";
-            case GL_STACK_OVERFLOW:
-                return "GL_STACK_OVERFLOW";
-            case GL_STACK_UNDERFLOW:
-                return "GL_STACK_UNDERFLOW";
-            case GL_OUT_OF_MEMORY:
-                return "GL_OUT_OF_MEMORY";
-            default:
-                return "Unknown OpenGL error code";
-        }
-    }
-    void OPENGL_CHECK_ERROR() {
-        GLenum err = glGetError();
-        CHECK (err == GL_NO_ERROR) << "OpenGL error, code=" << err << ": " << gl::GLGetErrorString(err);
-    }
+
+inline const char* GLGetErrorString(GLenum error) {
+  switch (error) {
+    case GL_NO_ERROR:
+      return "GL_NO_ERROR";
+    case GL_INVALID_ENUM:
+      return "GL_INVALID_ENUM";
+    case GL_INVALID_VALUE:
+      return "GL_INVALID_VALUE";
+    case GL_INVALID_OPERATION:
+      return "GL_INVALID_OPERATION";
+    case GL_STACK_OVERFLOW:
+      return "GL_STACK_OVERFLOW";
+    case GL_STACK_UNDERFLOW:
+      return "GL_STACK_UNDERFLOW";
+    case GL_OUT_OF_MEMORY:
+      return "GL_OUT_OF_MEMORY";
+    default:
+      return "Unknown OpenGL error code";
+  }
+}
+
+void OPENGL_CHECK_ERROR() {
+  GLenum err = glGetError();
+  CHECK(err == GL_NO_ERROR) << "OpenGL error, code=" << err << ": "
+                            << gl::GLGetErrorString(err);
+}
+
 /*!
  * \brief Protected OpenGL call.
  * \param func Expression to call.
@@ -45,58 +49,60 @@ namespace gl {
     (func);                                                                    \
     OPENGL_CHECK_ERROR();                                                      \
   }
-        void GlfwErrorCallback(int err, const char *str) {
-            LOG_ERROR.stream() << "Error: [" << err << "] " << str;
-        }
 
-        // TODO(pengw): How to determine 2D size?
-        Texture::Texture(size_t size)
-                : texture_(kInvalidTexture), width_((GLuint)(size / sizeof(GLfloat))), height_(1) {
-            // Create a texture.
-            OPENGL_CALL(glGenTextures(1, &texture_));
-            LOG_INFO.stream() << "Created texture [" << texture_ << "]";
-        }
+void GlfwErrorCallback(int err, const char* str) {
+  LOG_ERROR.stream() << "Error: [" << err << "] " << str;
+}
 
-        Texture::~Texture() {
-            if (texture_ != kInvalidTexture) {
-                LOG_INFO.stream() << "Deleting texture [" << texture_ << "]";
-                OPENGL_CALL(glDeleteTextures(1, &texture_));
-                texture_ = kInvalidTexture;
-            }
-        }
+// TODO(pengw): How to determine 2D size?
+Texture::Texture(size_t size)
+    : texture_(kInvalidTexture), width_((GLuint) (size / sizeof(GLfloat))),
+      height_(1) {
+  // Create a texture.
+  OPENGL_CALL(glGenTextures(1, &texture_));
+  LOG_INFO.stream() << "Created texture [" << texture_ << "]";
+}
 
-        void Texture::GetData(GLfloat *data) const {
-            auto workspace = gl::OpenGLWorkspace::Global();
-            workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
-            glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, data);
-        }
+Texture::~Texture() {
+  if (texture_ != kInvalidTexture) {
+    LOG_INFO.stream() << "Deleting texture [" << texture_ << "]";
+    OPENGL_CALL(glDeleteTextures(1, &texture_));
+    texture_ = kInvalidTexture;
+  }
+}
 
-        void Texture::PutData(size_t size, const void *data) {
-            auto workspace = gl::OpenGLWorkspace::Global();
-            // Bind to temporary unit.
-            workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
-            // Similar to cudaMemcpy.
-            // TODO(pengw): How can we know the type of data?
-            OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
-                                     (GLsizei)size / sizeof(GLfloat), 1, /*border=*/0,
-                                     GL_RED, GL_FLOAT, data));
-            // TODO(zhixunt): What are these?
-            OPENGL_CALL(
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-            OPENGL_CALL(
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-            OPENGL_CALL(
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-            OPENGL_CALL(
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-        }
+void Texture::GetData(GLfloat* data) const {
+  auto workspace = gl::OpenGLWorkspace::Global();
+  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
+  glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, data);
+}
 
-            Program::~Program() {
-                if (program_ != kInvalidProgram) {
-                    glDeleteProgram(program_);
-                    program_ = kInvalidProgram;
-                }
-            }
+void Texture::PutData(size_t size, const void* data) {
+  auto workspace = gl::OpenGLWorkspace::Global();
+  // Bind to temporary unit.
+  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
+  // Similar to cudaMemcpy.
+  // TODO(pengw): How can we know the type of data?
+  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
+                           (GLsizei) size / sizeof(GLfloat), 1, /*border=*/0,
+                           GL_RED, GL_FLOAT, data));
+  // TODO(zhixunt): What are these?
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+}
+
+Program::~Program() {
+  if (program_ != kInvalidProgram) {
+    glDeleteProgram(program_);
+    program_ = kInvalidProgram;
+  }
+}
 
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
   static std::shared_ptr<OpenGLWorkspace> inst = std::make_shared<OpenGLWorkspace>();
@@ -109,7 +115,7 @@ void OpenGLWorkspace::SetDevice(TVMContext ctx) {
 }
 
 void OpenGLWorkspace::GetAttr(
-    TVMContext ctx, DeviceAttrKind kind, TVMRetValue *rv) {
+    TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   // TODO(zhixunt): Implement this.
   LOG_INFO.stream() << "OpenGLWorkspace::GetAttr";
 }
@@ -119,20 +125,20 @@ void* OpenGLWorkspace::AllocDataSpace(
   LOG_INFO.stream()
       << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
       << size << ", alignment = " << alignment << ")";
-    this->Init();
+  this->Init();
   return new Texture(size);
 }
 
-void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void *ptr) {
+void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   LOG_INFO.stream()
       << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
       << ptr << ")";
-    delete(static_cast<Texture*>(ptr));
+  delete (static_cast<Texture*>(ptr));
 }
 
-void OpenGLWorkspace::CopyDataFromTo(const void *from,
+void OpenGLWorkspace::CopyDataFromTo(const void* from,
                                      size_t from_offset,
-                                     void *to,
+                                     void* to,
                                      size_t to_offset,
                                      size_t size,
                                      TVMContext ctx_from,
@@ -145,21 +151,25 @@ void OpenGLWorkspace::CopyDataFromTo(const void *from,
       << "to = " << to << ", "
       << "to_offset = " << to_offset << ", "
       << "size = " << size << ", "
-      << "ctx_from = (" << ctx_from.device_type << ", " << ctx_from.device_id << "), "
-      << "ctx_to = (" << ctx_to.device_type << ", " << ctx_to.device_id << "), stream)";
-    this->Init();
-    CHECK(stream == nullptr);
-    if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLOpenGL) {
-        // TODO(pengw): Implement this.
-    } else if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLCPU) {
-        auto texture = static_cast<const Texture*>(from);
-        texture->GetData(static_cast<GLfloat*>(to));
-    } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenGL) {
-        auto texture = static_cast<Texture*>(to);
-        texture->PutData(size, from);
-    } else {
-        LOG(FATAL) << "Expect copy from/to OpenGL or between OpenGL";
-    }
+      << "ctx_from = (" << ctx_from.device_type << ", " << ctx_from.device_id
+      << "), "
+      << "ctx_to = (" << ctx_to.device_type << ", " << ctx_to.device_id
+      << "), stream)";
+  this->Init();
+  CHECK(stream == nullptr);
+  if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLOpenGL) {
+    // TODO(pengw): Implement this.
+  } else if (ctx_from.device_type == kDLOpenGL &&
+             ctx_to.device_type == kDLCPU) {
+    auto texture = static_cast<const Texture*>(from);
+    texture->GetData(static_cast<GLfloat*>(to));
+  } else if (ctx_from.device_type == kDLCPU &&
+             ctx_to.device_type == kDLOpenGL) {
+    auto texture = static_cast<Texture*>(to);
+    texture->PutData(size, from);
+  } else {
+    LOG(FATAL) << "Expect copy from/to OpenGL or between OpenGL";
+  }
 }
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
@@ -173,7 +183,7 @@ void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
   return nullptr;
 }
 
-void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void *data) {
+void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
   // TODO(zhixunt): Implement this.
   LOG_INFO.stream() << "OpenGLWorkspace::FreeWorkspace";
 }
@@ -189,7 +199,7 @@ void OpenGLWorkspace::Init() {
 
   // Initialize GLFW.
   if (glfwInit() != GL_TRUE) {
-      LOG_ERROR.stream() << "glfwInit() failed!";
+    LOG_ERROR.stream() << "glfwInit() failed!";
     assert(false);
   }
 
@@ -202,16 +212,16 @@ void OpenGLWorkspace::Init() {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   window_ = glfwCreateWindow(kWindowWidth, kWindowHeight, "", nullptr, nullptr);
   if (window_ == nullptr) {
-      LOG_ERROR.stream() << "glfwCreateWindow() failed!";
+    LOG_ERROR.stream() << "glfwCreateWindow() failed!";
     assert(false);
   }
 
-    LOG_INFO.stream() << "GLFW says OpenGL version: "
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
-            << "."
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
-            << "."
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION);
+  LOG_INFO.stream() << "GLFW says OpenGL version: "
+                    << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
+                    << "."
+                    << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
+                    << "."
+                    << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION);
 
   // Before using any OpenGL API, we must specify a context.
   glfwMakeContextCurrent(window_);
@@ -239,191 +249,194 @@ void OpenGLWorkspace::Init() {
   vertex_shader_ = CreateShader(GL_VERTEX_SHADER, vertex_shader_text_);
 }
 
-        OpenGLWorkspace::~OpenGLWorkspace() {
-            LOG_INFO.stream() << "~OpenGLWorkspace()";
-            // Paired with glfwCreateWindow().
-            glfwDestroyWindow(window_);
-            // Paired with glfwInit().
-            glfwTerminate();
-        }
+OpenGLWorkspace::~OpenGLWorkspace() {
+  LOG_INFO.stream() << "~OpenGLWorkspace()";
+  // Paired with glfwCreateWindow().
+  glfwDestroyWindow(window_);
+  // Paired with glfwInit().
+  glfwTerminate();
+}
 
-        void OpenGLWorkspace::BindTextureUnit(GLuint unit, GLuint texture) {
-            OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
-            OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
-        }
+void OpenGLWorkspace::BindTextureUnit(GLuint unit, GLuint texture) {
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
+}
 
-        GLuint OpenGLWorkspace::NumTextureUnits() {
-            GLint num_units;
-            OPENGL_CALL(glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &num_units));
-            return static_cast<GLuint>(num_units);
-        }
+GLuint OpenGLWorkspace::NumTextureUnits() {
+  GLint num_units;
+  OPENGL_CALL(glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &num_units));
+  return static_cast<GLuint>(num_units);
+}
 
-        const OpenGLWorkspace::Vertex OpenGLWorkspace::vertices[OpenGLWorkspace::kNumVertices] = {
-                {-1.f, -1.f},
-                {1.0f, -1.f},
-                {1.0f, 1.0f},
-                {-1.f, -1.f},
-                {-1.f, 1.0f},
-                {1.0f, 1.0f},
-        };
+const OpenGLWorkspace::Vertex OpenGLWorkspace::vertices[OpenGLWorkspace::kNumVertices] = {
+    {-1.f, -1.f},
+    {1.0f, -1.f},
+    {1.0f, 1.0f},
+    {-1.f, -1.f},
+    {-1.f, 1.0f},
+    {1.0f, 1.0f},
+};
 
-        // Don't need to change this.
+// Don't need to change this.
 // The vertex shader only needs to take in the triangle points.
 // No need for point transformations.
-        const char *OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
-                "in vec2 point; // input to vertex shader\n"
-                "void main() {\n"
-                "  gl_Position = vec4(point, 0.0, 1.0);\n"
-                "}\n";
+const char* OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
+    "in vec2 point; // input to vertex shader\n"
+    "void main() {\n"
+    "  gl_Position = vec4(point, 0.0, 1.0);\n"
+    "}\n";
 
-        /*!
+/*!
  * \brief Create a program that uses the given vertex and fragment shader.
  * \param fragment_shader The fragment shader **source**.
  * \return The program ID.
  */
-        std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(const char *fragment_shader_src) {
-            this->Init();
-            // Create and compile the shaders.
-            GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
-                                                  fragment_shader_src);
+std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(
+    const char* fragment_shader_src) {
+  this->Init();
+  // Create and compile the shaders.
+  GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
+                                        fragment_shader_src);
 
-            // Link the shaders and create the program.
-            auto program = CreateProgram(fragment_shader);
+  // Link the shaders and create the program.
+  auto program = CreateProgram(fragment_shader);
 
-            OPENGL_CALL(glDeleteShader(fragment_shader));
+  OPENGL_CALL(glDeleteShader(fragment_shader));
 
-            return program;
-        }
+  return program;
+}
 
-        /*!
+/*!
  * \brief Create and compile a shader from a source string.
  * \param shader_kind The kind of shader.
  * Could be GL_VERTEX_SHADER or GL_FRAGMENT_SHADER.
  * \param shader_src The source string of the shader.
  * \return The compiled shader ID.
  */
-        GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind, const char *shader_src) {
-            // Create the shader.
-            GLuint shader = glCreateShader(shader_kind);
-            glShaderSource(shader, 1, &shader_src, nullptr);
-            glCompileShader(shader);
+GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
+                                     const char* shader_src) {
+  // Create the shader.
+  GLuint shader = glCreateShader(shader_kind);
+  glShaderSource(shader, 1, &shader_src, nullptr);
+  glCompileShader(shader);
 
-            // Check compile errors.
-            GLint err;
-            glGetShaderiv(shader, GL_COMPILE_STATUS, &err);
+  // Check compile errors.
+  GLint err;
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &err);
 
-            GLint info_log_len;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
+  GLint info_log_len;
+  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
 
-            if (info_log_len > 0) {
-                std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
-                glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-                LOG_ERROR.stream() << err_msg.get();
-                assert(false);
-            }
+  if (info_log_len > 0) {
+    std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
+    glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
+    LOG_ERROR.stream() << err_msg.get();
+    assert(false);
+  }
 
-            OPENGL_CHECK_ERROR();
+  OPENGL_CHECK_ERROR();
 
-            return shader;
-        }
+  return shader;
+}
 
 /*!
  * \brief Create a program that uses the given vertex and fragment shaders.
  * \param fragment_shader The **compiled** fragment shader.
  * \return The program ID.
  */
-        std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
-            // Create the program and link the shaders.
-            GLuint program = glCreateProgram();
-            glAttachShader(program, vertex_shader_);
-            glAttachShader(program, fragment_shader);
-            glLinkProgram(program);
+std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(
+    GLuint fragment_shader) {
+  // Create the program and link the shaders.
+  GLuint program = glCreateProgram();
+  glAttachShader(program, vertex_shader_);
+  glAttachShader(program, fragment_shader);
+  glLinkProgram(program);
 
-            // Check link errors.
-            GLint err;
-            glGetProgramiv(program, GL_LINK_STATUS, &err);
+  // Check link errors.
+  GLint err;
+  glGetProgramiv(program, GL_LINK_STATUS, &err);
 
-            GLint info_log_len;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_len);
+  GLint info_log_len;
+  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_len);
 
-            if (info_log_len > 0) {
-                std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
-                glGetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
-                LOG_ERROR.stream() << err_msg.get();
-                assert(false);
-            }
+  if (info_log_len > 0) {
+    std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
+    glGetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
+    LOG_ERROR.stream() << err_msg.get();
+    assert(false);
+  }
 
-            OPENGL_CHECK_ERROR();
+  OPENGL_CHECK_ERROR();
 
-            OPENGL_CALL(glDetachShader(program, vertex_shader_));
-            OPENGL_CALL(glDetachShader(program, fragment_shader));
+  OPENGL_CALL(glDetachShader(program, vertex_shader_));
+  OPENGL_CALL(glDetachShader(program, fragment_shader));
 
-            auto point_attrib = GLuint(glGetAttribLocation(program, "point"));
-            OPENGL_CALL(glEnableVertexAttribArray(point_attrib));
+  auto point_attrib = GLuint(glGetAttribLocation(program, "point"));
+  OPENGL_CALL(glEnableVertexAttribArray(point_attrib));
 
-            OPENGL_CALL(glVertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
-                                              sizeof(Vertex), nullptr));
+  OPENGL_CALL(glVertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
+                                    sizeof(Vertex), nullptr));
 
-            return std::make_shared<Program>(program);
-        }
+  return std::make_shared<Program>(program);
+}
 
-        void OpenGLWorkspace::Render(
-                const Program &program,
-                const std::vector<std::pair<std::string, Texture*>> &inputs,
-                Texture* output) {
-            if (inputs.size() + 2 > NumTextureUnits()) {
-                LOG_ERROR.stream() << "Too many inputs!";
-                assert(false);
-            }
+void OpenGLWorkspace::Render(
+    const Program& program,
+    const std::vector<std::pair<std::string, Texture*>>& inputs,
+    Texture* output) {
+  if (inputs.size() + 2 > NumTextureUnits()) {
+    LOG_ERROR.stream() << "Too many inputs!";
+    assert(false);
+  }
 
-            OPENGL_CALL(glUseProgram(program.program_));
+  OPENGL_CALL(glUseProgram(program.program_));
 
-            // Create frame buffer.
-            GLuint frame_buffer;
-            OPENGL_CALL(glGenFramebuffers(1, &frame_buffer));
-            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+  // Create frame buffer.
+  GLuint frame_buffer;
+  OPENGL_CALL(glGenFramebuffers(1, &frame_buffer));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
 
-            // Set "renderedTexture" as our colour attachement #0
-            OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                             output->texture(), 0));
+  // Set "renderedTexture" as our colour attachement #0
+  OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   output->texture(), 0));
 
-            // Set the list of draw buffers.
-            GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
-            // "1" is the size of DrawBuffers.
-            OPENGL_CALL(glDrawBuffers(1, DrawBuffers));
+  // Set the list of draw buffers.
+  GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+  // "1" is the size of DrawBuffers.
+  OPENGL_CALL(glDrawBuffers(1, DrawBuffers));
 
-            // Always check that our framebuffer is ok
-            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-                LOG_ERROR.stream() << "Framebuffer not complete.";
-                assert(false);
-            }
+  // Always check that our framebuffer is ok
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    LOG_ERROR.stream() << "Framebuffer not complete.";
+    assert(false);
+  }
 
-            // Tell the fragment shader what input textures to use.
-            for (GLuint unit = 0; unit != inputs.size(); ++unit) {
-                const std::string &name = inputs[unit].first;
-                auto texture = inputs[unit].second;
+  // Tell the fragment shader what input textures to use.
+  for (GLuint unit = 0; unit != inputs.size(); ++unit) {
+    const std::string& name = inputs[unit].first;
+    auto texture = inputs[unit].second;
 
-                BindTextureUnit(unit, texture->texture());
+    BindTextureUnit(unit, texture->texture());
 
-                GLint texture_uniform = glGetUniformLocation(program.program_,
-                                                             name.c_str());
-                OPENGL_CALL(glUniform1i(texture_uniform, unit));
-            }
+    GLint texture_uniform = glGetUniformLocation(program.program_,
+                                                 name.c_str());
+    OPENGL_CALL(glUniform1i(texture_uniform, unit));
+  }
 
-            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
-            OPENGL_CALL(glViewport(0, 0, output->width(), output->height()));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+  OPENGL_CALL(glViewport(0, 0, output->width(), output->height()));
 
-            OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
-            OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+  OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
 
-            glDeleteFramebuffers(1, &frame_buffer);
-        }
+  glDeleteFramebuffers(1, &frame_buffer);
+}
 
-        TVM_REGISTER_GLOBAL("device_api.opengl")
-        .set_body([](TVMArgs args, TVMRetValue* rv) {
-            DeviceAPI* ptr = OpenGLWorkspace::Global().get();
-            *rv = static_cast<void*>(ptr);
-        });
+TVM_REGISTER_GLOBAL("device_api.opengl")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = OpenGLWorkspace::Global().get();
+  *rv = static_cast<void*>(ptr);
+});
 
 }  // namespace gl
 }  // namespace runtime
