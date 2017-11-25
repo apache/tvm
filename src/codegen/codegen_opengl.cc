@@ -12,7 +12,7 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenOpenGL::CodeGenOpenGL() {
+CodeGenOpenGL::CodeGenOpenGL() : output_(nullptr), iter_var_(nullptr) {
   // TODO(zhixunt): Implement this.
   LOG_INFO.stream() << "CodeGenOpenGL::CodeGenOpenGL";
 }
@@ -59,6 +59,8 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   LOG_INFO.stream() << "CodeGenOpenGL::BindThreadIndex";
   CHECK(!var_idmap_.count(iv->var.get()));
   var_idmap_[iv->var.get()] = iv->thread_tag;
+  CHECK(iter_var_ == nullptr) << "Only support one iter var";
+  iter_var_ = iv->var.get();
 }
 
 void CodeGenOpenGL::VisitStmt_(const Store* op) {
@@ -83,6 +85,7 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
 std::string CodeGenOpenGL::GetBufferRef(
     Type t, const Variable* buffer, Expr index) {
   if (buffer == this->output_) {
+    CHECK(index.get() == iter_var_) << "GLSL must write to corresponding elem";
     return this->var_idmap_[buffer] + ".r";
   }
 

@@ -36,6 +36,7 @@ class CodeGenOpenGL final : public CodeGenC {
 
  private:
   const Variable *output_;
+  const Variable *iter_var_;
 };
 
 }  // namespace codegen
