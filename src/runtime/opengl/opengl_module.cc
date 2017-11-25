@@ -21,9 +21,7 @@ class OpenGLModuleNode final : public ModuleNode {
                             std::string fmt,
                             std::unordered_map<std::string, FunctionInfo> fmap)
       : data_(std::move(data)), fmt_(std::move(fmt)), fmap_(std::move(fmap)) {
-    LOG_INFO.stream() << data << " " << fmt << " " << fmap.size();
-    for (auto &f: fmap) LOG_INFO.stream() << f.first;
-    // TODO(zhixunt): Implement this.
+    LOG_INFO.stream() << "OpenGLModuleNode() " << data << " " << fmt << " " << fmap.size();
   }
 
   OpenGLModuleNode(const OpenGLModuleNode &other) = delete;
@@ -40,9 +38,8 @@ class OpenGLModuleNode final : public ModuleNode {
 
   std::string GetSource(const std::string& format) final;
   void Init() {
-      LOG_INFO.stream() << fmt_ << " " << data_;
+      LOG_INFO.stream() << "Init() " << fmt_ << " " << data_;
       workspace_ = gl::OpenGLWorkspace::Global();
-      workspace_->Init();
       if (fmt_ == "gl") {
           const char* s = data_.c_str();
           program_ = workspace_->CreateProgram(s);
@@ -135,9 +132,8 @@ std::string OpenGLModuleNode::GetSource(const std::string& format) {
 Module OpenGLModuleCreate(std::string data,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
+    LOG_INFO.stream() << "OpenGLModuleCreate() " << data << " " << fmt << " " << fmap.size();
   auto n = std::make_shared<OpenGLModuleNode>(data, fmt, fmap);
-    LOG_INFO.stream() << data << " " << fmt << " " << fmap.size();
-    for (auto &f: fmap) LOG_INFO.stream() << f.first;
     n->Init();
   return Module(n);
 }

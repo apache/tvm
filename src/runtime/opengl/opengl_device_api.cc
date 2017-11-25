@@ -12,7 +12,6 @@
 namespace tvm {
 namespace runtime {
 namespace gl {
-
     inline const char *GLGetErrorString(GLenum error) {
         switch (error) {
             case GL_NO_ERROR:
@@ -33,17 +32,10 @@ namespace gl {
                 return "Unknown OpenGL error code";
         }
     }
-    // TODO(zhixunt): When porting to TVM, change this to
-//   CHECK(err == GL_NO_ERROR) << ...;
     void OPENGL_CHECK_ERROR() {
         GLenum err = glGetError();
-        if (err != GL_NO_ERROR) {
-            LOG_ERROR.stream() << "OpenGL error, code=" << err << ": "
-                               << gl::GLGetErrorString(err) << std::endl;
-            assert(false);
-        }
+        CHECK (err == GL_NO_ERROR) << "OpenGL error, code=" << err << ": " << gl::GLGetErrorString(err);
     }
-
 /*!
  * \brief Protected OpenGL call.
  * \param func Expression to call.
@@ -53,48 +45,16 @@ namespace gl {
     (func);                                                                    \
     OPENGL_CHECK_ERROR();                                                      \
   }
-
         void GlfwErrorCallback(int err, const char *str) {
-            LOG_ERROR.stream() << "Error: [" << err << "] " << str << std::endl;
+            LOG_ERROR.stream() << "Error: [" << err << "] " << str;
         }
-
-        /*!
-         * An OpenGL texture represents a chunk of GPU memory.
-         * This is the way we represent tensors.
-         * We always use 2D textures.
-         */
-        class Texture {
-        public:
-            explicit Texture(size_t size);
-            ~Texture();
-            Texture(Texture &&other) noexcept;
-            Texture(const Texture &other) = delete;
-            Texture &operator=(const Texture &other) = delete;
-            GLsizei width() const { return width_; }
-            GLsizei height() const { return height_; }
-            void GetData(GLfloat *data) const;
-            void PutData(size_t size, const void *data);
-        private:
-            friend class OpenGLWorkspace;
-            GLuint texture() const { return texture_; }
-            static const GLuint kInvalidTexture = static_cast<GLuint>(-1);
-            GLuint texture_;
-            GLsizei width_;
-            GLsizei height_;
-        };
 
         // TODO(pengw): How to determine 2D size?
         Texture::Texture(size_t size)
                 : texture_(kInvalidTexture), width_((GLuint)(size / sizeof(GLfloat))), height_(1) {
             // Create a texture.
             OPENGL_CALL(glGenTextures(1, &texture_));
-
             LOG_INFO.stream() << "Created texture [" << texture_ << "]";
-        }
-
-        Texture::Texture(Texture &&other) noexcept
-                : texture_(other.texture_), width_(other.width_), height_(other.height_) {
-            other.texture_ = kInvalidTexture;
         }
 
         Texture::~Texture() {
@@ -108,7 +68,6 @@ namespace gl {
         void Texture::GetData(GLfloat *data) const {
             auto workspace = gl::OpenGLWorkspace::Global();
             workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
-
             glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, data);
         }
 
@@ -260,7 +219,7 @@ void OpenGLWorkspace::Init() {
   // Must be called after creating GLFW window.
   gladLoadGL();
 
-  LOG_INFO.stream() << "Opengl says version: " << glGetString(GL_VERSION);
+  LOG_INFO.stream() << "OpenGL says version: " << glGetString(GL_VERSION);
 
   OPENGL_CHECK_ERROR();
 
@@ -280,11 +239,13 @@ void OpenGLWorkspace::Init() {
   vertex_shader_ = CreateShader(GL_VERTEX_SHADER, vertex_shader_text_);
 }
 
-TVM_REGISTER_GLOBAL("device_api.opengl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = OpenGLWorkspace::Global().get();
-    *rv = static_cast<void*>(ptr);
-  });
+        OpenGLWorkspace::~OpenGLWorkspace() {
+            LOG_INFO.stream() << "~OpenGLWorkspace()";
+            // Paired with glfwCreateWindow().
+            glfwDestroyWindow(window_);
+            // Paired with glfwInit().
+            glfwTerminate();
+        }
 
         void OpenGLWorkspace::BindTextureUnit(GLuint unit, GLuint texture) {
             OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
@@ -321,6 +282,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
  * \return The program ID.
  */
         std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(const char *fragment_shader_src) {
+            this->Init();
             // Create and compile the shaders.
             GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
                                                   fragment_shader_src);
@@ -356,7 +318,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             if (info_log_len > 0) {
                 std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
                 glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-                std::cout << err_msg.get() << std::endl;
+                LOG_ERROR.stream() << err_msg.get();
                 assert(false);
             }
 
@@ -387,7 +349,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             if (info_log_len > 0) {
                 std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
                 glGetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
-                std::cout << err_msg.get() << std::endl;
+                LOG_ERROR.stream() << err_msg.get();
                 assert(false);
             }
 
@@ -410,7 +372,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
                 const std::vector<std::pair<std::string, Texture*>> &inputs,
                 Texture* output) {
             if (inputs.size() + 2 > NumTextureUnits()) {
-                std::cerr << "Too many inputs!" << std::endl;
+                LOG_ERROR.stream() << "Too many inputs!";
                 assert(false);
             }
 
@@ -432,7 +394,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 
             // Always check that our framebuffer is ok
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-                std::cout << "Framebuffer not complete." << std::endl;
+                LOG_ERROR.stream() << "Framebuffer not complete.";
                 assert(false);
             }
 
@@ -456,6 +418,12 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 
             glDeleteFramebuffers(1, &frame_buffer);
         }
+
+        TVM_REGISTER_GLOBAL("device_api.opengl")
+        .set_body([](TVMArgs args, TVMRetValue* rv) {
+            DeviceAPI* ptr = OpenGLWorkspace::Global().get();
+            *rv = static_cast<void*>(ptr);
+        });
 
 }  // namespace gl
 }  // namespace runtime

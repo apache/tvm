@@ -29,6 +29,7 @@ class OpenGLWorkspace final : public DeviceAPI {
   // the mutex for initialization
   std::mutex mu;
   void Init();
+    ~OpenGLWorkspace();
 
   // override device API
   void SetDevice(TVMContext ctx) final;
@@ -97,6 +98,34 @@ private:
         // The internal OpenGL program ID.
         GLuint program_;
         static const GLuint kInvalidProgram = static_cast<GLuint>(-1);
+    };
+
+    /*!
+         * An OpenGL texture represents a chunk of GPU memory.
+         * This is the way we represent tensors.
+         * We always use 2D textures.
+         */
+    class Texture {
+    public:
+        explicit Texture(size_t size);
+        ~Texture();
+        Texture(Texture &&other) noexcept
+                : texture_(other.texture_), width_(other.width_), height_(other.height_) {
+            other.texture_ = kInvalidTexture;
+        }
+        Texture(const Texture &other) = delete;
+        Texture &operator=(const Texture &other) = delete;
+        GLsizei width() const { return width_; }
+        GLsizei height() const { return height_; }
+        void GetData(GLfloat *data) const;
+        void PutData(size_t size, const void *data);
+    private:
+        friend class OpenGLWorkspace;
+        GLuint texture() const { return texture_; }
+        static const GLuint kInvalidTexture = static_cast<GLuint>(-1);
+        GLuint texture_;
+        GLsizei width_;
+        GLsizei height_;
     };
 
 }  // namespace gl
