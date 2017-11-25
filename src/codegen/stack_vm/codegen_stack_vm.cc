@@ -362,6 +362,7 @@ void CodeGenStackVM::VisitExpr_(const Or *op) {
 }
 
 void CodeGenStackVM::VisitExpr_(const Not* op) {
+  this->Push(op->a);
   this->PushOp(StackVM::NOT);
 }
 
