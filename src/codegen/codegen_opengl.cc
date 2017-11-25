@@ -27,7 +27,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
   // add to alloc buffer type.
-  for (const auto & kv : f->handle_data_type) {
+  for (const auto& kv : f->handle_data_type) {
     RegisterHandleType(kv.first.get(), kv.second.type());
   }
 
@@ -55,13 +55,13 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   this->stream << "}\n\n";
 }
 
-void CodeGenOpenGL::BindThreadIndex(const IterVar &iv) {
+void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   LOG_INFO.stream() << "CodeGenOpenGL::BindThreadIndex";
   CHECK(!var_idmap_.count(iv->var.get()));
   var_idmap_[iv->var.get()] = iv->thread_tag;
 }
 
-void CodeGenOpenGL::VisitStmt_(const Store *op) {
+void CodeGenOpenGL::VisitStmt_(const Store* op) {
   LOG_INFO.stream() << "CodeGenOpenGL::VisitStmt_(const Store *)";
   Type t = op->value.type();
   if (t.lanes() == 1) {
@@ -96,6 +96,31 @@ std::string CodeGenOpenGL::GetBufferRef(
   os << ", 0).r";
 
   return os.str();
+}
+
+void CodeGenOpenGL::PrintType(Type t, std::ostream& os) const {
+  CHECK(false) << "Not implemented";
+}
+
+// Codegen for immediate values
+
+void CodeGenOpenGL::VisitExpr_(const IntImm* op, std::ostream& os) {
+  CHECK(op->type == Int(32)) << "GLSL 3.3 only supports 32-bit ints.";
+  CodeGenC::VisitExpr_(op, os);
+}
+
+void CodeGenOpenGL::VisitExpr_(const UIntImm* op, std::ostream& os) {
+  CHECK(op->type == UInt(32)) << "GLSL 3.3 only supports 32-bit uints.";
+  CodeGenC::VisitExpr_(op, os);
+}
+
+void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
+  CHECK(op->type == Float(32)) << "GLSL 3.3 only supports 32-bit floats.";
+  CodeGenC::VisitExpr_(op, os);
+}
+
+void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
+  LOG_FATAL.stream() << "GLSL 3.3 doesn't support strings.";
 }
 
 }  // namespace tvm

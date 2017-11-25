@@ -397,6 +397,25 @@ Stage& Stage::double_buffer() {
   return *this;
 }
 
+Stage& Stage::opengl() {
+  CHECK(!is_scheduled()) << "Must be a fresh schedule";
+  StageNode *self = operator->();
+
+  auto all_iter_vars = self->all_iter_vars; // curr version of all_iter_vars
+  CHECK(!all_iter_vars.empty()) << "At least one iter var";
+
+  // Fuse all dimensions to 1.
+  IterVar fused = all_iter_vars[0];
+  for (size_t i = 1; i != all_iter_vars.size(); ++i) {
+    fuse(fused, all_iter_vars[i], &fused);
+  }
+
+  // Bind the only dimension to threadIdx.x.
+  bind(fused, thread_axis(Range(nullptr), "threadIdx.x"));
+
+  return *this;
+}
+
 Stage CopyStage(const Stage& s) {
   std::shared_ptr<StageNode> n =
       std::make_shared<StageNode>(*s.operator->());

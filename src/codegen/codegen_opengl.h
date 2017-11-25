@@ -17,10 +17,22 @@ namespace codegen {
 class CodeGenOpenGL final : public CodeGenC {
  public:
   explicit CodeGenOpenGL();
+
   void AddFunction(LoweredFunc f);
-  void BindThreadIndex(const IterVar& iv) final;
-  void VisitStmt_(const Store* op) final;
-  std::string GetBufferRef(Type t, const Variable* buffer, Expr index) final;
+
+  void BindThreadIndex(const IterVar &iv) final;
+
+  void VisitStmt_(const Store *op) final;
+
+  std::string GetBufferRef(Type t, const Variable *buffer, Expr index) final;
+
+  void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
+
+  // Codegen for immediate values
+  void VisitExpr_(const IntImm *op, std::ostream &os) final;  // NOLINT(*)
+  void VisitExpr_(const UIntImm *op, std::ostream &os) final;  // NOLINT(*)
+  void VisitExpr_(const FloatImm *op, std::ostream &os) final;  // NOLINT(*)
+  void VisitExpr_(const StringImm* op, std::ostream& os) final;  // NOLINT(*)
 
  private:
   const Variable *output_;

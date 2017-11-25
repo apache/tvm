@@ -611,4 +611,8 @@ class Stage(NodeBase):
         """
         _api_internal._StageDoubleBuffer(self)
 
+    def opengl(self):
+        """TODO(zhixunt): Fill this in"""
+        _api_internal._StageOpenGL(self)
+
 _init_api("tvm.schedule")

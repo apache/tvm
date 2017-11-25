@@ -214,6 +214,11 @@ class Stage : public NodeRef {
    */
   Stage& double_buffer();   // NOLINT(*)
   /*!
+   * \brief Schedule for GpenGL fragment shader.
+   * \return reference to self
+   */
+  Stage& opengl(); // NOLINT(*)
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
