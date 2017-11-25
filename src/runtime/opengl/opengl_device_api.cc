@@ -58,6 +58,79 @@ namespace gl {
             LOG_ERROR.stream() << "Error: [" << err << "] " << str << std::endl;
         }
 
+        /*!
+         * An OpenGL texture represents a chunk of GPU memory.
+         * This is the way we represent tensors.
+         * We always use 2D textures.
+         */
+        class Texture {
+        public:
+            explicit Texture(size_t size);
+            ~Texture();
+            Texture(Texture &&other) noexcept;
+            Texture(const Texture &other) = delete;
+            Texture &operator=(const Texture &other) = delete;
+            GLsizei width() const { return width_; }
+            GLsizei height() const { return height_; }
+            void GetData(GLfloat *data) const;
+            void PutData(size_t size, const void *data);
+        private:
+            friend class OpenGLWorkspace;
+            GLuint texture() const { return texture_; }
+            static const GLuint kInvalidTexture = static_cast<GLuint>(-1);
+            GLuint texture_;
+            GLsizei width_;
+            GLsizei height_;
+        };
+
+        // TODO(pengw): How to determine 2D size?
+        Texture::Texture(size_t size)
+                : texture_(kInvalidTexture), width_((GLuint)(size / sizeof(GLfloat))), height_(1) {
+            // Create a texture.
+            OPENGL_CALL(glGenTextures(1, &texture_));
+
+            LOG_INFO.stream() << "Created texture [" << texture_ << "]";
+        }
+
+        Texture::Texture(Texture &&other) noexcept
+                : texture_(other.texture_), width_(other.width_), height_(other.height_) {
+            other.texture_ = kInvalidTexture;
+        }
+
+        Texture::~Texture() {
+            if (texture_ != kInvalidTexture) {
+                LOG_INFO.stream() << "Deleting texture [" << texture_ << "]";
+                OPENGL_CALL(glDeleteTextures(1, &texture_));
+                texture_ = kInvalidTexture;
+            }
+        }
+
+        void Texture::GetData(GLfloat *data) const {
+            auto workspace = gl::OpenGLWorkspace::Global();
+            workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
+
+            glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, data);
+        }
+
+        void Texture::PutData(size_t size, const void *data) {
+            auto workspace = gl::OpenGLWorkspace::Global();
+            // Bind to temporary unit.
+            workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
+            // Similar to cudaMemcpy.
+            // TODO(pengw): How can we know the type of data?
+            OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
+                                     (GLsizei)size / sizeof(GLfloat), 1, /*border=*/0,
+                                     GL_RED, GL_FLOAT, data));
+            // TODO(zhixunt): What are these?
+            OPENGL_CALL(
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+            OPENGL_CALL(
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+            OPENGL_CALL(
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+            OPENGL_CALL(
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+        }
 
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
   static std::shared_ptr<OpenGLWorkspace> inst = std::make_shared<OpenGLWorkspace>();
@@ -81,21 +154,14 @@ void* OpenGLWorkspace::AllocDataSpace(
       << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
       << size << ", alignment = " << alignment << ")";
     this->Init();
-// Create a texture.
-    GLuint texture;
-    OPENGL_CALL(glGenTextures(1, &texture));
-
-    LOG_INFO.stream() << "Created texture [" << texture << "]";
-
-  return reinterpret_cast<void*>(texture);
+  return new Texture(size);
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void *ptr) {
   LOG_INFO.stream()
       << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
       << ptr << ")";
-    auto texture = (GLuint) reinterpret_cast<uintptr_t>(ptr);
-    OPENGL_CALL(glDeleteTextures(1, &texture));
+    delete(static_cast<Texture*>(ptr));
 }
 
 void OpenGLWorkspace::CopyDataFromTo(const void *from,
@@ -120,30 +186,11 @@ void OpenGLWorkspace::CopyDataFromTo(const void *from,
     if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLOpenGL) {
         // TODO(pengw): Implement this.
     } else if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLCPU) {
-        auto texture = (GLuint) reinterpret_cast<uintptr_t>(from);
-        BindTextureUnit(NumTextureUnits() - 1, texture);
-
-        OPENGL_CALL(glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, to));
+        auto texture = static_cast<const Texture*>(from);
+        texture->GetData(static_cast<GLfloat*>(to));
     } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenGL) {
-        auto texture = (GLuint) reinterpret_cast<uintptr_t>(to);
-        // Bind to temporary unit.
-        BindTextureUnit(NumTextureUnits() - 1, texture);
-
-        // Similar to cudaMemcpy.
-        // TODO(pengw): How can we know the type of data?
-        OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
-                                 (GLsizei)size / sizeof(GLfloat), 1, /*border=*/0,
-                                 GL_RED, GL_FLOAT, from));
-
-        // TODO(zhixunt): What are these?
-        OPENGL_CALL(
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-        OPENGL_CALL(
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-        OPENGL_CALL(
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-        OPENGL_CALL(
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+        auto texture = static_cast<Texture*>(to);
+        texture->PutData(size, from);
     } else {
         LOG(FATAL) << "Expect copy from/to OpenGL or between OpenGL";
     }
@@ -353,8 +400,8 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 
         void OpenGLWorkspace::Render(
                 GLuint program,
-                const std::vector<std::pair<std::string, GLuint>> &inputs,
-                GLuint output) {
+                const std::vector<std::pair<std::string, Texture*>> &inputs,
+                Texture* output) {
             if (inputs.size() + 2 > NumTextureUnits()) {
                 std::cerr << "Too many inputs!" << std::endl;
                 assert(false);
@@ -369,7 +416,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 
             // Set "renderedTexture" as our colour attachement #0
             OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                             output, 0));
+                                             output->texture(), 0));
 
             // Set the list of draw buffers.
             GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
@@ -385,9 +432,9 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             // Tell the fragment shader what input textures to use.
             for (GLuint unit = 0; unit != inputs.size(); ++unit) {
                 const std::string &name = inputs[unit].first;
-                GLuint texture = inputs[unit].second;
+                auto texture = inputs[unit].second;
 
-                BindTextureUnit(unit, texture);
+                BindTextureUnit(unit, texture->texture());
 
                 GLint texture_uniform = glGetUniformLocation(program,
                                                              name.c_str());
@@ -395,8 +442,7 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             }
 
             OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
-            // TODO(pengw): Change input type to correct this.
-            OPENGL_CALL(glViewport(0, 0, 32, 1));
+            OPENGL_CALL(glViewport(0, 0, output->width(), output->height()));
 
             OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
             OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));

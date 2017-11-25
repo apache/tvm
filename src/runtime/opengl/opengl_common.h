@@ -17,7 +17,7 @@
 namespace tvm {
 namespace runtime {
 namespace gl {
-
+    class Texture;
 /*!
  * \brief Process global OpenGL workspace.
  */
@@ -50,10 +50,11 @@ class OpenGLWorkspace final : public DeviceAPI {
   static const std::shared_ptr<OpenGLWorkspace>& Global();
     void Render(
             GLuint program,
-            const std::vector<std::pair<std::string, GLuint>> &inputs,
-            GLuint output);
+            const std::vector<std::pair<std::string, Texture*>> &inputs,
+            Texture* output);
 
 private:
+    friend class Texture;
     GLFWwindow *window_;
     GLuint vertex_shader_;
     static const int kWindowWidth = 640;

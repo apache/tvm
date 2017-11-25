@@ -79,10 +79,10 @@ class OpenGLWrappedFunc {
     LOG_INFO.stream() << "OpenGLWrappedFunc::operator()";
       // TODO(pengw): How to get variable names?
       m_->workspace_->Render(m_->program_, {
-                                     {"A", *static_cast<GLuint *>(void_args[1])},
-                                     {"B", *static_cast<GLuint *>(void_args[2])}
+                                     {"A", *static_cast<gl::Texture**>(void_args[1])},
+                                     {"B", *static_cast<gl::Texture**>(void_args[2])}
                              },
-                             *static_cast<GLuint *>(void_args[0]));
+                             *static_cast<gl::Texture**>(void_args[0]));
   }
 
 private:
