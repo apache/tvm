@@ -351,57 +351,58 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
             return program;
         }
 
-//        void OpenGLWorkspace::Render(
-//                const Program &program,
-//                const std::vector<std::pair<std::string, Texture *>> &inputs,
-//                Texture *output) {
-//            if (inputs.size() + 2 > NumTextureUnits()) {
-//                std::cerr << "Too many inputs!" << std::endl;
-//                assert(false);
-//            }
-//
-//            OPENGL_CALL(glUseProgram(program.program_));
-//
-//            // Create frame buffer.
-//            GLuint frame_buffer;
-//            OPENGL_CALL(glGenFramebuffers(1, &frame_buffer));
-//            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
-//
-//            // Set "renderedTexture" as our colour attachement #0
-//            OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-//                                             output->texture(), 0));
-//
-//            // Set the list of draw buffers.
-//            GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
-//            // "1" is the size of DrawBuffers.
-//            OPENGL_CALL(glDrawBuffers(1, DrawBuffers));
-//
-//            // Always check that our framebuffer is ok
-//            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-//                std::cout << "Framebuffer not complete." << std::endl;
-//                assert(false);
-//            }
-//
-//            // Tell the fragment shader what input textures to use.
-//            for (GLuint unit = 0; unit != inputs.size(); ++unit) {
-//                const std::string &name = inputs[unit].first;
-//                Texture *texture = inputs[unit].second;
-//
-//                BindTextureUnit(unit, *texture);
-//
-//                GLint texture_uniform = glGetUniformLocation(program.program_,
-//                                                             name.c_str());
-//                OPENGL_CALL(glUniform1i(texture_uniform, unit));
-//            }
-//
-//            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
-//            OPENGL_CALL(glViewport(0, 0, output->width(), output->height()));
-//
-//            OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
-//            OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
-//
-//            glDeleteFramebuffers(1, &frame_buffer);
-//        }
+        void OpenGLWorkspace::Render(
+                GLuint program,
+                const std::vector<std::pair<std::string, GLuint>> &inputs,
+                GLuint output) {
+            if (inputs.size() + 2 > NumTextureUnits()) {
+                std::cerr << "Too many inputs!" << std::endl;
+                assert(false);
+            }
+
+            OPENGL_CALL(glUseProgram(program));
+
+            // Create frame buffer.
+            GLuint frame_buffer;
+            OPENGL_CALL(glGenFramebuffers(1, &frame_buffer));
+            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+
+            // Set "renderedTexture" as our colour attachement #0
+            OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                             output, 0));
+
+            // Set the list of draw buffers.
+            GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+            // "1" is the size of DrawBuffers.
+            OPENGL_CALL(glDrawBuffers(1, DrawBuffers));
+
+            // Always check that our framebuffer is ok
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+                std::cout << "Framebuffer not complete." << std::endl;
+                assert(false);
+            }
+
+            // Tell the fragment shader what input textures to use.
+            for (GLuint unit = 0; unit != inputs.size(); ++unit) {
+                const std::string &name = inputs[unit].first;
+                GLuint texture = inputs[unit].second;
+
+                BindTextureUnit(unit, texture);
+
+                GLint texture_uniform = glGetUniformLocation(program,
+                                                             name.c_str());
+                OPENGL_CALL(glUniform1i(texture_uniform, unit));
+            }
+
+            OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+            // TODO(pengw): Change input type to correct this.
+            OPENGL_CALL(glViewport(0, 0, 32, 1));
+
+            OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+            OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+
+            glDeleteFramebuffers(1, &frame_buffer);
+        }
 
 }  // namespace gl
 }  // namespace runtime

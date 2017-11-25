@@ -48,6 +48,10 @@ class OpenGLWorkspace final : public DeviceAPI {
     GLuint CreateProgram(const char *fragment_shader_src);
   // get the global workspace
   static const std::shared_ptr<OpenGLWorkspace>& Global();
+    void Render(
+            GLuint program,
+            const std::vector<std::pair<std::string, GLuint>> &inputs,
+            GLuint output);
 
 private:
     GLFWwindow *window_;
@@ -64,9 +68,6 @@ private:
     GLuint NumTextureUnits();
     GLuint CreateShader(GLenum shader_kind, const char *shader_src);
     GLuint CreateProgram(GLuint fragment_shader);
-//    void Render(const Program &program,
-//                const std::vector<std::pair<std::string, Texture *>> &inputs,
-//                Texture *output);
 };
 
 }  // namespace gl

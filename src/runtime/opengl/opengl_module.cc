@@ -50,34 +50,41 @@ class OpenGLModuleNode final : public ModuleNode {
           LOG(FATAL) << "Unknown OpenGL format " << fmt_;
       }
   }
- private:
+    GLuint program_;
     std::shared_ptr<gl::OpenGLWorkspace> workspace_;
+ private:
   std::string data_;
   std::string fmt_;
   std::unordered_map<std::string, FunctionInfo> fmap_;
-    GLuint program_;
 };
 
 class OpenGLWrappedFunc {
  public:
     void Init(OpenGLModuleNode* m,
               std::shared_ptr<ModuleNode> sptr,
-              std::string func_name,
+              const std::string &func_name,
               std::vector<size_t> arg_size,
               const std::vector<std::string>& thread_axis_tags)  {
       LOG_INFO.stream() << func_name << " " << arg_size.size() << " " << thread_axis_tags.size();
       for (auto &a: arg_size) LOG_INFO.stream() << a;
       for (auto &t: thread_axis_tags) LOG_INFO.stream() << t;
       m_ = m;
-      sptr_ = sptr;
+      sptr_ = std::move(sptr);
       func_name_ = func_name;
       arg_size_ = arg_size;
       thread_axis_cfg_.Init(arg_size.size(), thread_axis_tags);
     }
+
   void operator()(TVMArgs args, TVMRetValue *rv, void **void_args) const {
     LOG_INFO.stream() << "OpenGLWrappedFunc::operator()";
-
+      // TODO(pengw): How to get variable names?
+      m_->workspace_->Render(m_->program_, {
+                                     {"A", *static_cast<GLuint *>(void_args[1])},
+                                     {"B", *static_cast<GLuint *>(void_args[2])}
+                             },
+                             *static_cast<GLuint *>(void_args[0]));
   }
+
 private:
     // The module
     OpenGLModuleNode* m_;
@@ -94,7 +101,6 @@ private:
 PackedFunc OpenGLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  // TODO(zhixunt): Implement this.
   LOG_INFO.stream() << "OpenGLModuleNode::GetFunction" << " " << name;
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
