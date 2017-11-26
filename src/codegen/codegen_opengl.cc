@@ -44,7 +44,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   }
 
   CHECK(!f->args.empty()) << "Must have at least one argument";
-  this->stream << "out vec4 " << this->GetVarID(f->args[0].get()) << ";\n";
+  this->stream << "out float " << this->GetVarID(f->args[0].get()) << ";\n";
   this->output_ = f->args[0].get();
 
   this->stream << "void main() {\n";
@@ -92,7 +92,7 @@ std::string CodeGenOpenGL::GetBufferRef(
     Type t, const Variable* buffer, Expr index) {
   if (buffer == this->output_) {
     CHECK(index.get() == iter_var_) << "GLSL must write to corresponding elem";
-    return this->var_idmap_[buffer] + ".r";
+    return this->var_idmap_[buffer];
   }
 
   std::ostringstream os;
