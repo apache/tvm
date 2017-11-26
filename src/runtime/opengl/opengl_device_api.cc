@@ -324,11 +324,6 @@ const char* OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
     "  gl_Position = vec4(point, 0.0, 1.0);\n"
     "}\n";
 
-/*!
- * \brief Create a program that uses the given vertex and fragment shader.
- * \param fragment_shader The fragment shader **source**.
- * \return The program ID.
- */
 std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
     const char* fragment_shader_src) {
   // Create and compile the shaders.
@@ -343,13 +338,6 @@ std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
   return program;
 }
 
-/*!
- * \brief Create and compile a shader from a source string.
- * \param shader_kind The kind of shader.
- * Could be GL_VERTEX_SHADER or GL_FRAGMENT_SHADER.
- * \param shader_src The source string of the shader.
- * \return The compiled shader ID.
- */
 GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
                                      const char* shader_src) {
   // Create the shader.
@@ -376,11 +364,6 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   return shader;
 }
 
-/*!
- * \brief Create a program that uses the given vertex and fragment shaders.
- * \param fragment_shader The **compiled** fragment shader.
- * \return The program ID.
- */
 std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
     GLuint fragment_shader) {
   // Create the program and link the shaders.

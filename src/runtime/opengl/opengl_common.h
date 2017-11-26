@@ -46,11 +46,25 @@ class OpenGLWorkspace final : public DeviceAPI {
   void* AllocWorkspace(TVMContext ctx, size_t size) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
+  /*!
+   * \brief Create an OpenGL program that uses the given fragment shader.
+   * \param fragment_shader The fragment shader **source**.
+   * \return The OpenGL program.
+   */
   std::unique_ptr<Program> CreateProgram(const char* fragment_shader_src);
 
-  // get the global workspace
+  /*!
+   * \brief Get the global OpenGL workspace.
+   * \return The global OpenGL workspace.
+   */
   static const std::shared_ptr<OpenGLWorkspace>& Global();
 
+  /*!
+   * \brief Use an OpenGL program to render to a texture.
+   * \param program The OpenGL program. Created by CreateProgram().
+   * \param inputs All input textures.
+   * \param output The output texture.
+   */
   void Render(
       const Program& program,
       const std::vector<std::pair<std::string, Texture*>>& inputs,
@@ -76,8 +90,20 @@ class OpenGLWorkspace final : public DeviceAPI {
 
   GLuint NumTextureUnits();
 
+  /*!
+   * \brief Create and compile a shader from a source string.
+   * \param shader_kind The kind of shader.
+   * Could be GL_VERTEX_SHADER or GL_FRAGMENT_SHADER.
+   * \param shader_src The source string of the shader.
+   * \return The compiled shader ID.
+   */
   GLuint CreateShader(GLenum shader_kind, const char* shader_src);
 
+  /*!
+   * \brief Create an OpenGL program that uses the given fragment shader.
+   * \param fragment_shader The **compiled** fragment shader.
+   * \return The OpenGL program.
+   */
   std::unique_ptr<Program> CreateProgram(GLuint fragment_shader);
 };
 
@@ -90,10 +116,6 @@ class OpenGLWorkspace final : public DeviceAPI {
  */
 class Program {
  public:
-  Program() : program_(kInvalidProgram) {}
-
-  explicit Program(GLuint program) : program_(program) {}
-
   // Move constructor.
   Program(Program&& other) noexcept : program_(other.program_) {
     other.program_ = kInvalidProgram;
@@ -107,22 +129,26 @@ class Program {
  private:
   friend class OpenGLWorkspace;
 
+  // Only OpenGLWorkspace can create a Program.
+  // We enforce this to make sure OpenGL is initialized.
+  explicit Program(GLuint program) : program_(program) {}
+
   // The internal OpenGL program ID.
+  GLuint program() { return program_; }
+
+  static constexpr GLuint kInvalidProgram = static_cast<GLuint>(-1);
+
   GLuint program_;
-  static const GLuint kInvalidProgram = static_cast<GLuint>(-1);
 };
 
 /*!
- * An OpenGL texture represents a chunk of GPU memory.
+ * \brief An OpenGL texture represents a chunk of GPU memory.
  * This is the way we represent tensors.
  * We always use 2D textures.
  */
 class Texture {
  public:
-  explicit Texture(size_t nbytes);
-
-  ~Texture();
-
+  // Move constructor.
   Texture(Texture&& other) noexcept
       : texture_(other.texture_), width_(other.width_), height_(other.height_) {
     other.texture_ = kInvalidTexture;
@@ -130,6 +156,8 @@ class Texture {
 
   Texture(const Texture& other) = delete;
   Texture& operator=(const Texture& other) = delete;
+
+  ~Texture();
 
   GLsizei width() const { return width_; }
 
@@ -142,6 +170,11 @@ class Texture {
  private:
   friend class OpenGLWorkspace;
 
+  // Only OpenGLWorkspace can create a Texture.
+  // We enforce this to make sure OpenGL is initialized.
+  explicit Texture(size_t nbytes);
+
+  // The internal texture ID.
   GLuint texture() const { return texture_; }
 
   static constexpr GLuint kInvalidTexture = static_cast<GLuint>(-1);
