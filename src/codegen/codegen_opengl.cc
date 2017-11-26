@@ -48,8 +48,6 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   this->output_ = f->args[0].get();
 
   this->stream << "void main() {\n";
-  // TODO(zhixunt): Don't hardcode name.
-  this->stream << "ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
@@ -60,9 +58,15 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   LOG_INFO.stream() << "CodeGenOpenGL::BindThreadIndex";
   CHECK(!var_idmap_.count(iv->var.get()));
+
+  // TODO(zhixunt): Can we not hardcode the name?
+  CHECK(iv->thread_tag == "threadIdx.x") << "Must be threadIdx.x";
   var_idmap_[iv->var.get()] = iv->thread_tag;
+
   CHECK(iter_var_ == nullptr) << "Only support one iter var";
   iter_var_ = iv->var.get();
+
+  this->stream << "  ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
 }
 
 void CodeGenOpenGL::VisitStmt_(const Store* op) {

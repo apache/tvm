@@ -6,7 +6,6 @@
 #ifndef TVM_RUNTIME_OPENGL_OPENGL_COMMON_H_
 #define TVM_RUNTIME_OPENGL_OPENGL_COMMON_H_
 
-#include <mutex>
 #include <tvm/runtime/config.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
@@ -91,19 +90,16 @@ class OpenGLWorkspace final : public DeviceAPI {
  */
 class Program {
  public:
-  Program() : program_(kInvalidProgram) {};
+  Program() : program_(kInvalidProgram) {}
 
-  explicit Program(GLuint program) : program_(program) {};
+  explicit Program(GLuint program) : program_(program) {}
 
   // Move constructor.
   Program(Program&& other) noexcept : program_(other.program_) {
     other.program_ = kInvalidProgram;
   }
 
-  // Cannot be copied.
   Program(const Program& other) = delete;
-
-  // Cannot be assigned.
   Program& operator=(const Program& other) = delete;
 
   ~Program();
@@ -133,16 +129,15 @@ class Texture {
   }
 
   Texture(const Texture& other) = delete;
-
   Texture& operator=(const Texture& other) = delete;
 
   GLsizei width() const { return width_; }
 
   GLsizei height() const { return height_; }
 
-  void GetData(GLfloat* data) const;
+  void GetData(GLvoid* data) const;
 
-  void PutData(size_t size, const void* data);
+  void PutData(GLint begin, GLsizei nelems, const GLvoid* data);
 
  private:
   friend class OpenGLWorkspace;

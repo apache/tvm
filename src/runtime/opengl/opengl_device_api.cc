@@ -6,9 +6,7 @@
 
 #if TVM_OPENGL_RUNTIME
 
-#include <memory>
 #include <tvm/runtime/registry.h>
-#include <dlpack/dlpack.h>
 
 namespace tvm {
 namespace runtime {
@@ -62,11 +60,29 @@ Texture::Texture(size_t nbytes)
       width_(static_cast<decltype(width_)>(nbytes / sizeof(GLfloat))),
       height_(1) {
   LOG_INFO.stream() << "Created texture [" << texture_ << "]";
-  CHECK((nbytes % sizeof(GLfloat)) == 0)
-    << "nbytes must be multiple of GLfloats";
+  CHECK((nbytes % sizeof(GLfloat)) == 0) << "Must be multiple of GLfloats";
 
   // Create a texture.
   OPENGL_CALL(glGenTextures(1, &texture_));
+
+  auto workspace = gl::OpenGLWorkspace::Global();
+  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
+
+  // Use glTexImage2D with nullptr data to specify GPU data storage.
+  // TODO(pengw): How can we know the type of data?
+  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
+                           width_, /*height=*/1, /*border=*/0,
+                           GL_RED, GL_FLOAT, /*data=*/nullptr));
+
+  // TODO(zhixunt): What are these?
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
 }
 
 Texture::~Texture() {
@@ -78,30 +94,27 @@ Texture::~Texture() {
   }
 }
 
-void Texture::GetData(GLfloat* data) const {
+void Texture::GetData(GLvoid* data) const {
+  // Bind to temporary unit.
   auto workspace = gl::OpenGLWorkspace::Global();
-  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
+  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
+
   glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, data);
 }
 
-void Texture::PutData(size_t size, const void* data) {
-  auto workspace = gl::OpenGLWorkspace::Global();
+void Texture::PutData(GLint begin, GLsizei nelems, const GLvoid* data) {
+  LOG_INFO.stream() << "Texture::PutData(" << "begin = " << begin << ", "
+                    << "nelems = " << nelems << ", data)";
+
   // Bind to temporary unit.
+  auto workspace = gl::OpenGLWorkspace::Global();
   workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
+
   // Similar to cudaMemcpy.
-  // TODO(pengw): How can we know the type of data?
-  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
-                           (GLsizei) size / sizeof(GLfloat), 1, /*border=*/0,
-                           GL_RED, GL_FLOAT, data));
-  // TODO(zhixunt): What are these?
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+  OPENGL_CALL(glTexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
+                              /*xoffset=*/begin, /*yoffset=*/0,
+                              /*width=*/nelems, /*height=*/1,
+                              GL_RED, GL_FLOAT, data));
 }
 
 Program::~Program() {
@@ -168,16 +181,35 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
   constexpr int gl_devtype = kOpenGL;
 
   if (ctx_from.device_type == gl_devtype && ctx_to.device_type == gl_devtype) {
+    // OpenGL texture => OpenGL texture
+
     // TODO(pengw): Implement this.
     LOG_FATAL.stream() << "Not Implemented";
+
   } else if (ctx_from.device_type == gl_devtype &&
-             ctx_to.device_type == kDLCPU) {
+      ctx_to.device_type == kDLCPU) {
+    // OpenGL texture => CPU memory buffer
+
     auto texture = static_cast<const Texture*>(from);
-    texture->GetData(static_cast<GLfloat*>(to));
+    CHECK(from_offset == 0U &&
+          size == static_cast<size_t>(texture->width()) * sizeof(GLfloat))
+      << "Only support full texture retrieval.";
+
+    texture->GetData(static_cast<char *>(to) + to_offset);
+
   } else if (ctx_from.device_type == kDLCPU &&
              ctx_to.device_type == gl_devtype) {
-    auto texture = static_cast<Texture*>(to);
-    texture->PutData(size, from);
+    // CPU memory buffer => OpenGL texture
+
+    CHECK(to_offset % sizeof(GLfloat) == 0) << "Must be multiple of GLfloats.";
+    CHECK(size % sizeof(GLfloat) == 0) << "Must be multiple of GLfloats.";
+
+    auto texture = reinterpret_cast<Texture*>(to);
+    const void* data = static_cast<const char*>(from) + from_offset;
+    auto begin = static_cast<GLint>(to_offset / sizeof(GLfloat));
+    auto nelems = static_cast<GLsizei>(size / sizeof(GLfloat));
+    texture->PutData(begin, nelems, data);
+
   } else {
     LOG(FATAL) << "Expect copy from/to OpenGL or between OpenGL";
   }
