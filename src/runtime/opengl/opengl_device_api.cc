@@ -6,6 +6,7 @@
 
 #if TVM_OPENGL_RUNTIME
 
+#include <memory>
 #include <tvm/runtime/registry.h>
 #include <dlpack/dlpack.h>
 
@@ -54,18 +55,24 @@ void GlfwErrorCallback(int err, const char* str) {
   LOG_ERROR.stream() << "Error: [" << err << "] " << str;
 }
 
-// TODO(pengw): How to determine 2D size?
-Texture::Texture(size_t size)
-    : texture_(kInvalidTexture), width_((GLuint) (size / sizeof(GLfloat))),
+// Always only use the first dimension of a 2D texture.
+// The reason of using 2D textures is that texelFetch only supports 2D textures.
+Texture::Texture(size_t nbytes)
+    : texture_(kInvalidTexture),
+      width_(static_cast<decltype(width_)>(nbytes / sizeof(GLfloat))),
       height_(1) {
+  LOG_INFO.stream() << "Created texture [" << texture_ << "]";
+  CHECK((nbytes % sizeof(GLfloat)) == 0)
+    << "nbytes must be multiple of GLfloats";
+
   // Create a texture.
   OPENGL_CALL(glGenTextures(1, &texture_));
-  LOG_INFO.stream() << "Created texture [" << texture_ << "]";
 }
 
 Texture::~Texture() {
   if (texture_ != kInvalidTexture) {
     LOG_INFO.stream() << "Deleting texture [" << texture_ << "]";
+
     OPENGL_CALL(glDeleteTextures(1, &texture_));
     texture_ = kInvalidTexture;
   }
@@ -121,11 +128,11 @@ void OpenGLWorkspace::GetAttr(
 }
 
 void* OpenGLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t nbytes, size_t alignment) {
   LOG_INFO.stream()
-      << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
-      << size << ", alignment = " << alignment << ")";
-  return reinterpret_cast<void*>(new Texture(size));
+      << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
+      << nbytes << ", alignment = " << alignment << ")";
+  return reinterpret_cast<void*>(new Texture(nbytes));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
@@ -290,7 +297,7 @@ const char* OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
  * \param fragment_shader The fragment shader **source**.
  * \return The program ID.
  */
-std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(
+std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
     const char* fragment_shader_src) {
   // Create and compile the shaders.
   GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
@@ -342,7 +349,7 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
  * \param fragment_shader The **compiled** fragment shader.
  * \return The program ID.
  */
-std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(
+std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
     GLuint fragment_shader) {
   // Create the program and link the shaders.
   GLuint program = glCreateProgram();
@@ -375,7 +382,7 @@ std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(
   OPENGL_CALL(glVertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
                                     sizeof(Vertex), nullptr));
 
-  return std::make_shared<Program>(program);
+  return std::unique_ptr<Program>(new Program(program));
 }
 
 void OpenGLWorkspace::Render(

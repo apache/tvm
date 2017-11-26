@@ -33,7 +33,7 @@ class OpenGLWorkspace final : public DeviceAPI {
   // override device API
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final;
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
                       size_t from_offset,
@@ -47,7 +47,7 @@ class OpenGLWorkspace final : public DeviceAPI {
   void* AllocWorkspace(TVMContext ctx, size_t size) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
-  std::shared_ptr<Program> CreateProgram(const char* fragment_shader_src);
+  std::unique_ptr<Program> CreateProgram(const char* fragment_shader_src);
 
   // get the global workspace
   static const std::shared_ptr<OpenGLWorkspace>& Global();
@@ -79,7 +79,7 @@ class OpenGLWorkspace final : public DeviceAPI {
 
   GLuint CreateShader(GLenum shader_kind, const char* shader_src);
 
-  std::shared_ptr<Program> CreateProgram(GLuint fragment_shader);
+  std::unique_ptr<Program> CreateProgram(GLuint fragment_shader);
 };
 
 /*!
@@ -123,7 +123,7 @@ class Program {
  */
 class Texture {
  public:
-  explicit Texture(size_t size);
+  explicit Texture(size_t nbytes);
 
   ~Texture();
 
@@ -149,7 +149,8 @@ class Texture {
 
   GLuint texture() const { return texture_; }
 
-  static const GLuint kInvalidTexture = static_cast<GLuint>(-1);
+  static constexpr GLuint kInvalidTexture = static_cast<GLuint>(-1);
+
   GLuint texture_;
   GLsizei width_;
   GLsizei height_;
