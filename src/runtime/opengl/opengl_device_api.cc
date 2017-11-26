@@ -157,14 +157,20 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
       << "), stream)";
   this->Init();
   CHECK(stream == nullptr);
-  if (ctx_from.device_type == kDLOpenGL && ctx_to.device_type == kDLOpenGL) {
+
+  // TODO(zhixunt): This is a nasty hack to avoid comparison between
+  // incompatible enums. We should add kOpenGL to dlpack.
+  constexpr int gl_devtype = kOpenGL;
+
+  if (ctx_from.device_type == gl_devtype && ctx_to.device_type == gl_devtype) {
     // TODO(pengw): Implement this.
-  } else if (ctx_from.device_type == kDLOpenGL &&
+    LOG_FATAL.stream() << "Not Implemented";
+  } else if (ctx_from.device_type == gl_devtype &&
              ctx_to.device_type == kDLCPU) {
     auto texture = static_cast<const Texture*>(from);
     texture->GetData(static_cast<GLfloat*>(to));
   } else if (ctx_from.device_type == kDLCPU &&
-             ctx_to.device_type == kDLOpenGL) {
+             ctx_to.device_type == gl_devtype) {
     auto texture = static_cast<Texture*>(to);
     texture->PutData(size, from);
   } else {

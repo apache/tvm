@@ -6,7 +6,7 @@
 	url = https://github.com/dmlc/HalideIR
 [submodule "dlpack"]
 	path = dlpack
-	url = https://github.com/stomakun/dlpack
+	url = https://github.com/dmlc/dlpack
 [submodule "glad"]
 	path = glad
 	url = https://github.com/Dav1dde/glad.git
