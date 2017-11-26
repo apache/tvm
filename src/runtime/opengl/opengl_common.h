@@ -28,14 +28,7 @@ class Program;
  */
 class OpenGLWorkspace final : public DeviceAPI {
  public:
-  // whether the workspace it initialized.
-  bool initialized_{false};
-  // the mutex for initialization
-  std::mutex mu;
-
-  void Init();
-
-  ~OpenGLWorkspace();
+  ~OpenGLWorkspace() final;
 
   // override device API
   void SetDevice(TVMContext ctx) final;
@@ -66,6 +59,8 @@ class OpenGLWorkspace final : public DeviceAPI {
 
  private:
   friend class Texture;
+
+  OpenGLWorkspace();
 
   GLFWwindow* window_;
   GLuint vertex_shader_;

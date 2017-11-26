@@ -105,7 +105,7 @@ Program::~Program() {
 }
 
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
-  static std::shared_ptr<OpenGLWorkspace> inst = std::make_shared<OpenGLWorkspace>();
+  static std::shared_ptr<OpenGLWorkspace> inst(new OpenGLWorkspace);
   return inst;
 }
 
@@ -125,15 +125,14 @@ void* OpenGLWorkspace::AllocDataSpace(
   LOG_INFO.stream()
       << "OpenGLWorkspace::AllocDataSpace(ctx, size = "
       << size << ", alignment = " << alignment << ")";
-  this->Init();
-  return new Texture(size);
+  return reinterpret_cast<void*>(new Texture(size));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   LOG_INFO.stream()
       << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
       << ptr << ")";
-  delete (static_cast<Texture*>(ptr));
+  delete reinterpret_cast<Texture*>(ptr);
 }
 
 void OpenGLWorkspace::CopyDataFromTo(const void* from,
@@ -155,7 +154,6 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
       << "), "
       << "ctx_to = (" << ctx_to.device_type << ", " << ctx_to.device_id
       << "), stream)";
-  this->Init();
   CHECK(stream == nullptr);
 
   // TODO(zhixunt): This is a nasty hack to avoid comparison between
@@ -194,12 +192,8 @@ void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
   LOG_INFO.stream() << "OpenGLWorkspace::FreeWorkspace";
 }
 
-void OpenGLWorkspace::Init() {
-  if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mu);
-  if (initialized_) return;
-  initialized_ = true;
-// Set an error handler.
+OpenGLWorkspace::OpenGLWorkspace() {
+  // Set an error handler.
   // This can be called before glfwInit().
   glfwSetErrorCallback(&GlfwErrorCallback);
 
@@ -210,12 +204,11 @@ void OpenGLWorkspace::Init() {
   }
 
   // Create a window.
-  // TODO(zhixunt): GLFW allows us to create an invisible window.
-  // TODO(zhixunt): On retina display, window size is different from framebuffer size.
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
   window_ = glfwCreateWindow(kWindowWidth, kWindowHeight, "", nullptr, nullptr);
   if (window_ == nullptr) {
     LOG_ERROR.stream() << "glfwCreateWindow() failed!";
@@ -299,7 +292,6 @@ const char* OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
  */
 std::shared_ptr<Program> OpenGLWorkspace::CreateProgram(
     const char* fragment_shader_src) {
-  this->Init();
   // Create and compile the shaders.
   GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
                                         fragment_shader_src);
