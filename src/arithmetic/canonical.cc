@@ -5,6 +5,7 @@
  */
 #include <tvm/ir_mutator.h>
 #include <tvm/arithmetic.h>
+#include <tvm/ir_pass.h>
 #include "./canonical.h"
 #include "./compute_expr.h"
 #include "arithmetic/Simplify.h"
@@ -612,6 +613,7 @@ void Canonical::SetRange(Var v, Range r, int level) {
 }  // namespace arith
 
 namespace ir {
+
 Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
   return arith::Canonical(vrange).Simplify(stmt);
 }
