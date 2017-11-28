@@ -92,11 +92,14 @@ def get_pad_tuple(padding, kernel):
     elif padding == "VALID":
         pad_h = 0
         pad_w = 0
-    elif padding == "SAME":
+    elif padding == "SAME" or padding == "SAME_BOTTOM_RIGHT_HEAVY":
         pad_h = kernel[0] - 1
         pad_w = kernel[1] - 1
     else:
         raise ValueError("Unknown padding option %s" % padding)
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
-    return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
+    if padding != "SAME_BOTTOM_RIGHT_HEAVY":
+        return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
+    else:
+        return pad_h - pad_top, pad_w - pad_left, pad_top, pad_left
