@@ -41,16 +41,20 @@ Stmt Simplify(Stmt stmt, Map<Var, Range> vrange = Map<Var, Range>());
 /*!
  * \brief Simplify by applying canonical form.
  * \param stmt The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Stmt CanonicalSimplify(Stmt stmt);
+Stmt CanonicalSimplify(Stmt stmt,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify by applying canonical form.
  * \param expr The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-Expr CanonicalSimplify(Expr expr);
+Expr CanonicalSimplify(Expr expr,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs
