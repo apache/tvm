@@ -269,6 +269,11 @@ def PaddingLayerParams(op, insym, symtab):
         raise NotImplementedError("Only constant padding is supported now.")
     return insym
 
+def PermuteLayerParams(op, insym, symtab):
+    axes = tuple(op.axis)
+    return _sym.transpose(insym, axes=axes)
+
+
 _convert_map = {
     'NeuralNetworkMeanImage': NeuralNetworkMeanImage,
     'NeuralNetworkImageScaler': NeuralNetworkImageScaler,
@@ -283,6 +288,7 @@ _convert_map = {
     'FlattenLayerParams':FlattenLayerParams,
     'ConcatLayerParams':ConcatLayerParams,
     'PaddingLayerParams':PaddingLayerParams,
+    'PermuteLayerParams':PermuteLayerParams,
 }
 
 def coreml_op_to_nnvm(op, inname, outname, symtab):
