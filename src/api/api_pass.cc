@@ -33,9 +33,17 @@ TVM_REGISTER_API("ir_pass.Simplify")
 TVM_REGISTER_API("ir_pass.CanonicalSimplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
-      *ret = CanonicalSimplify(args[0].operator Stmt());
+      if (args.size() > 1) {
+        *ret = CanonicalSimplify(args[0].operator Stmt(), args[1]);
+      } else {
+        *ret = CanonicalSimplify(args[0].operator Stmt());
+      }
     } else {
-      *ret = CanonicalSimplify(args[0].operator Expr());
+      if (args.size() > 1) {
+        *ret = CanonicalSimplify(args[0].operator Expr(), args[1]);
+      } else {
+        *ret = CanonicalSimplify(args[0].operator Expr());
+      }
     }
   });
 
