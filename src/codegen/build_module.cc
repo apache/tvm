@@ -282,7 +282,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
       " but cannot find device code. Did you forget to bind?";
   }
 
-  for (int i = 0; i < fhost.size(); ++i) {
+  for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::BindDeviceType(func, target.device_type);
     func = ir::LowerTVMBuiltin(func);
@@ -290,13 +290,13 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
   }
 
 
-  for (int i = 0; i < fdevice.size(); ++i) {
+  for (size_t i = 0; i < fdevice.size(); ++i) {
     auto func = fdevice[i];
     func = ir::LowerIntrin(func, target.target_name);
     fdevice.Set(i, func);
   }
 
-  for (int i = 0; i < fhost.size(); ++i) {
+  for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host_val.target_name);
     func = ir::CombineContextCall(func);
