@@ -7,6 +7,7 @@
 #define TVM_BUILD_MODULE_H_
 
 #include <string>
+#include <vector>
 #include "./tvm/runtime/packed_func.h"
 #include "./tvm/schedule_pass.h"
 #include "./tvm/lowered_func.h"
@@ -31,9 +32,12 @@ struct Target {
   /*! \brief Options for this target */
   std::vector<std::string> options;
 
-  Target(const std::string& target_name, DLDeviceType device_type, int max_num_threads,
-    int thread_warp_size, const std::unordered_set<std::string>& keys,
-    const std::vector<std::string>& options) :
+  Target(const std::string& target_name,
+         DLDeviceType device_type,
+         int max_num_threads,
+         int thread_warp_size,
+         const std::unordered_set<std::string>& keys,
+         const std::vector<std::string>& options) :
     target_name(target_name),
     device_type(device_type),
     max_num_threads(max_num_threads),
@@ -125,8 +129,11 @@ struct BuildConfig {
 * \param config The build configuration.
 * \return The lowered function.
 */
-EXPORT Array<LoweredFunc> lower(Schedule sch, const Array<Tensor>& args, const std::string& name,
-  const std::unordered_map<Tensor, Buffer>& binds, const BuildConfig& config);
+EXPORT Array<LoweredFunc> lower(Schedule sch,
+                                const Array<Tensor>& args,
+                                const std::string& name,
+                                const std::unordered_map<Tensor, Buffer>& binds,
+                                const BuildConfig& config);
 
 /*!
 * \brief Build a device and host module for a specific target from an array of lowered functions.
@@ -136,8 +143,10 @@ EXPORT Array<LoweredFunc> lower(Schedule sch, const Array<Tensor>& args, const s
 * \param config The build configuration.
 * \return The built module.
 */
-EXPORT runtime::Module build(const Array<LoweredFunc>& funcs, const Target& target,
-  Target* target_host, const BuildConfig& config);
+EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
+                             const Target& target,
+                             Target* target_host,
+                             const BuildConfig& config);
 
 }  // namespace tvm
 

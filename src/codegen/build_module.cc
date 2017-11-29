@@ -142,8 +142,11 @@ Target DefaultTargetHost(Target target) {
   }
 }
 
-Buffer BufferWithOffsetAlignment(Array<Expr> shape, Type dtype, std::string name,
-  int data_alignment, int offset_factor) {
+Buffer BufferWithOffsetAlignment(Array<Expr> shape,
+                                 Type dtype,
+                                 std::string name,
+                                 int data_alignment,
+                                 int offset_factor) {
   auto data = Var(name, Handle());
 
   Expr elem_offset;
@@ -157,9 +160,11 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape, Type dtype, std::string name
     data_alignment, offset_factor);
 }
 
-void GetBinds(const Array<Tensor>& args, const std::unordered_map<Tensor, Buffer>& binds,
-  Map<Tensor, Buffer>* out_binds, Array<NodeRef>* out_arg_list,
-  const BuildConfig& config) {
+void GetBinds(const Array<Tensor>& args,
+              const std::unordered_map<Tensor, Buffer>& binds,
+              Map<Tensor, Buffer>* out_binds,
+              Array<NodeRef>* out_arg_list,
+              const BuildConfig& config) {
   *out_binds = binds;
 
   for (const auto &x : args) {
@@ -184,9 +189,12 @@ void GetBinds(const Array<Tensor>& args, const std::unordered_map<Tensor, Buffer
 * \param config The build configuration.
 * \return The built Stmt.
 */
-Stmt BuildStmt(Schedule sch, const Array<Tensor>& args,
-  const std::unordered_map<Tensor, Buffer>& binds, bool loop_partition,
-  Array<NodeRef> *out_arg_list, const BuildConfig& config) {
+Stmt BuildStmt(Schedule sch,
+               const Array<Tensor>& args,
+               const std::unordered_map<Tensor, Buffer>& binds,
+               bool loop_partition,
+               Array<NodeRef> *out_arg_list,
+               const BuildConfig& config) {
   Map<Tensor, Buffer> out_binds;
   GetBinds(args, binds, &out_binds, out_arg_list, config);
 
@@ -219,15 +227,20 @@ Stmt BuildStmt(Schedule sch, const Array<Tensor>& args,
   return stmt;
 }
 
-Array<LoweredFunc> lower(Schedule sch, const Array<Tensor>& args, const std::string& name,
-  const std::unordered_map<Tensor, Buffer>& binds, const BuildConfig& config) {
+Array<LoweredFunc> lower(Schedule sch,
+                         const Array<Tensor>& args,
+                         const std::string& name,
+                         const std::unordered_map<Tensor, Buffer>& binds,
+                         const BuildConfig& config) {
   Array<NodeRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config.restricted_func) });
 }
 
-runtime::Module build(const Array<LoweredFunc>& funcs, const Target& target,
-  Target* target_host, const BuildConfig& config) {
+runtime::Module build(const Array<LoweredFunc>& funcs,
+                      const Target& target,
+                      Target* target_host,
+                      const BuildConfig& config) {
   std::unordered_set<std::string> all_names;
   for (const auto &x : funcs) {
     CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
