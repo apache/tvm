@@ -216,7 +216,8 @@ stage('Unit Test') {
     node('GPU' && 'linux') {
       ws('workspace/tvm/ut-cpp') {
         init_git()
-        unpack_lib('gpu', tvm_lib)
+        unpack_lib('gpu', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_cpp_unittest.sh"
         }
