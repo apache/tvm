@@ -213,12 +213,12 @@ stage('Unit Test') {
     }
   },
   'cpp': {
-    node('linux') {
+    node('GPU' && 'linux') {
       ws('workspace/tvm/ut-cpp') {
         init_git()
-        unpack_lib('cpu', tvm_lib)
+        unpack_lib('gpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} cpu ./tests/scripts/task_cpp_unittest.sh"
+          sh "${docker_run} gpu ./tests/scripts/task_cpp_unittest.sh"
         }
       }
     }

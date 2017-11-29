@@ -24,11 +24,14 @@ TEST(BuildModule, Basic) {
   IterVar bx, tx;
   s[C].split(cAxis[0], 64, &bx, &tx);
 
+  s[C].bind(bx, thread_axis(Range(), "blockIdx.x"));
+  s[C].bind(tx, thread_axis(Range(), "threadIdx.x"));
+
   auto args = Array<Tensor>({ A, B, C });
   std::unordered_map<Tensor, Buffer> binds;
 
   BuildConfig config;
-  auto target = target::llvm();
+  auto target = target::cuda();
 
   auto lowered = lower(s, args, "func", binds, config);
   auto module = build(lowered, target, nullptr, config);
