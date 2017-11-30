@@ -62,6 +62,9 @@ USE_GRAPH_RUNTIME = 1
 # Whether use BLAS, choices: openblas, atlas, blas, apple
 USE_BLAS = none
 
+# Whether use contrib.random in runtime
+USE_RANDOM = 0
+
 # Whether use NNPack
 USE_NNPACK = 0
 # NNPACK_PATH = none
