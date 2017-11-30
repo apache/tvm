@@ -7,11 +7,16 @@ from .._ffi.function import _init_api
 
 
 def randint(low, high, size, dtype='int32'):
-    assert dtype == 'int32', 'only support int32 for now'
     return _api.extern(size, [],
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.random.randint", low, high, outs[0]),
         dtype=dtype)
 
+
+def uniform(low, high, size):
+    return _api.extern(size, [],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.random.uniform", float(low), float(high), outs[0]),
+        dtype='float32')
 
 _init_api("tvm.contrib.random")
