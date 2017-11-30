@@ -8,6 +8,8 @@ You will need JDK, [Android NDK](https://developer.android.com/ndk) and an Andro
 
 ### <a name="buildapk">Build APK</a>
 
+We use [Gradle](https://gradle.org) to build. Please follow [the installation instruction](https://gradle.org/install) for your operating system.
+
 Before you build the Android application, please refer to [TVM4J Installation Guide](https://github.com/dmlc/tvm/blob/master/jvm/README.md) and install tvm4j-core to your local maven repository. You can find tvm4j dependency declare in `app/build.gradle`. Modify it if it is necessary.
 
 ```
@@ -24,17 +26,17 @@ dependencies {
 }
 ```
 
-The Gradle build script is provided in the app root folder. It downloads the proper version of Gradle, compiles JNI, resolves Java dependencies and builds the Android application together with tvm4j. Run following script to build apk file.
+Now use Gradle to compile JNI, resolve Java dependencies and build the Android application together with tvm4j. Run following script to generate the apk file.
 
 ```bash
 export ANDROID_HOME=[Path to your Android SDK, e.g., ~/Android/sdk]
 cd apps/android_rpc
-./gradlew clean build
+gradle clean build
 ```
 
 In `app/build/outputs/apk` you'll find `app-release-unsigned.apk`, use `dev_tools/gen_keystore.sh` to generate a signature and use `dev_tools/sign_apk.sh` to get the signed apk file `app/build/outputs/apk/tvmrpc-release.apk`.
 
-Now upload `tvmrpc-release.apk` to your Android device and install it.
+Upload `tvmrpc-release.apk` to your Android device and install it.
 
 ### Build with OpenCL
 
