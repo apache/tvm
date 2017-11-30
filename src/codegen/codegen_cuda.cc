@@ -66,7 +66,11 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
     }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
-      os << 'u';
+      if (t.lanes() != 1) {
+        os << "u";
+      } else {
+        os << "unsigned ";
+      }
     }
     if (t.bits() == 8 && t.lanes() == 4) {
       // directly 4 8 bit int in integer.
@@ -77,16 +81,16 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
       case 16: os << "short"; break;
       case 32: os << "int"; break;
       case 64: {
-        if (lanes != 1 && sizeof(long) == 64) {  // NOLINT(*)
-          os << "long"; break;
-        } else {
-          os << "int64_t"; break;
-        }
+        CHECK(sizeof(long) == 8)  // NOLINT(*)
+            << "CUDA not support int64 int in 32 bit system";
+        os << "long"; break;
       }
       case 1: os << "int"; break;
       default: fail = true; break;
     }
-    if (!fail && lanes == 1) return;
+    if (!fail && lanes == 1) {
+      return;
+    }
     if (!fail && (lanes >= 2 && lanes <= 4)) {
       os << lanes; return;
     }
