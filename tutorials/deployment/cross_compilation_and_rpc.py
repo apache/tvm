@@ -101,7 +101,7 @@ from tvm.contrib import rpc, util
 # same machine, for demonstration. This line can be omitted if we
 # started an remote server.
 #
-server = rpc.Server(host='0.0.0.0', port=9090)
+server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
 
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
