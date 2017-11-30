@@ -82,13 +82,11 @@ class RandomEngine {
     } else {
       LOG(FATAL) << "Do not support random.randint on this device yet";
     }
-
   }
 
  private:
   std::mt19937 rnd_engine_;
   unsigned rseed_;
-
 };
 
 struct RandomThreadLocalEntry {
