@@ -119,6 +119,17 @@ def _connect_proxy_loop(addr, key):
         process.join()
 
 
+def _popen(cmd):
+    proc = subprocess.Popen(cmd,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=os.environ)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "Server invoke error:\n"
+        msg += out
+        raise RuntimeError(msg)
+
+
 class Server(object):
     """Start RPC server on a seperate process.
 
@@ -162,11 +173,15 @@ class Server(object):
         self.libs = []
 
         if use_popen:
-            cmd = ["python", "-m", "tvm.exec.rpc_server",
+            cmd = ["python",
+                   "-m", "tvm.exec.rpc_server",
                    "--host=%s" % host,
                    "--port=%s" % port]
             self.proc = multiprocessing.Process(
                 target=subprocess.check_call, args=(cmd,))
+            self.proc.deamon = True
+            self.proc.start()
+            time.sleep(1)
         elif not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.port = None
@@ -187,13 +202,15 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop, args=(self.sock,))
+            self.proc.deamon = True
+            self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key))
-        self.proc.deamon = True
-        self.proc.start()
-        # Sleep a while until server get started.
-        time.sleep(0.5)
+            self.proc.deamon = True
+            self.proc.start()
+
+
 
     def terminate(self):
         """Terminate the server process"""
