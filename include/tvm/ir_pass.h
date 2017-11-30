@@ -216,7 +216,7 @@ Stmt NarrowChannelAccess(Stmt stmt);
  *
  * \param stmt The statment to be unrolled.
  * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_min_depth The minimum depth before we can start automatic unroll
+ * \param auto_max_depth The maximum depth before stop attach automatic unroll
  * \param auto_max_extent The maximum extent of the loop we can unroll,
  *                        this is an legacy option that donot take the loop total steps into account.
  * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
@@ -224,7 +224,7 @@ Stmt NarrowChannelAccess(Stmt stmt);
  */
 Stmt UnrollLoop(Stmt stmt,
                 int auto_max_step,
-                int auto_min_depth,
+                int auto_max_depth,
                 int auto_max_extent,
                 bool explicit_unroll);
 
