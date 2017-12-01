@@ -371,6 +371,8 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
             raise ValueError("Cannot infer output type, please provide dtype argument")
         infered_type = types.pop()
         dtype = [infered_type for _ in shape]
+    if isinstance(dtype, str):
+        dtype = [dtype]
 
     for shp, dt in zip(shape, dtype):
         output_placeholders.append(decl_buffer(shp, dt, name))
