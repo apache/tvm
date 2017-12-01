@@ -15,6 +15,8 @@ import socket
 import struct
 import logging
 import multiprocessing
+import subprocess
+import time
 from . import util, cc, tar
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
@@ -117,6 +119,17 @@ def _connect_proxy_loop(addr, key):
         process.join()
 
 
+def _popen(cmd):
+    proc = subprocess.Popen(cmd,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=os.environ)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "Server invoke error:\n"
+        msg += out
+        raise RuntimeError(msg)
+
+
 class Server(object):
     """Start RPC server on a seperate process.
 
@@ -140,15 +153,36 @@ class Server(object):
         If this is true, the host and port actually corresponds to the
         address of the proxy server.
 
+    use_popen : bool, optional
+        Whether to use Popen to start a fresh new process instead of fork.
+        This is recommended to switch on if we want to do local RPC demonstration
+        for GPU devices to avoid fork safety issues.
+
     key : str, optional
         The key used to identify the server in Proxy connection.
     """
-    def __init__(self, host, port=9091, port_end=9199, is_proxy=False, key=""):
+    def __init__(self,
+                 host,
+                 port=9091,
+                 port_end=9199,
+                 is_proxy=False,
+                 use_popen=False,
+                 key=""):
         self.host = host
         self.port = port
         self.libs = []
 
-        if not is_proxy:
+        if use_popen:
+            cmd = ["python",
+                   "-m", "tvm.exec.rpc_server",
+                   "--host=%s" % host,
+                   "--port=%s" % port]
+            self.proc = multiprocessing.Process(
+                target=subprocess.check_call, args=(cmd,))
+            self.proc.deamon = True
+            self.proc.start()
+            time.sleep(1)
+        elif not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.port = None
             for my_port in range(port, port_end):
@@ -168,11 +202,15 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop, args=(self.sock,))
+            self.proc.deamon = True
+            self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key))
-        self.proc.deamon = True
-        self.proc.start()
+            self.proc.deamon = True
+            self.proc.start()
+
+
 
     def terminate(self):
         """Terminate the server process"""

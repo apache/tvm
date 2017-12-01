@@ -7,7 +7,7 @@ def test_double_buffer():
     tx = tvm.thread_axis("threadIdx.x")
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="A")
+    C = ib.pointer("float32", name="C")
     ib.scope_attr(tx, "thread_extent", 1)
     with ib.for_range(0, n) as i:
         B = ib.allocate("float32", m, name="B", scope="shared")
