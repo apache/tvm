@@ -27,7 +27,7 @@
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
   } else if (type.code == kDLUInt && type.bits == 8) {  \
-    typedef uint16_t DType;                             \
+    typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
     LOG(FATAL) << "unknown data type";                  \
@@ -118,7 +118,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.randint")
 
     DLPACK_INTEGER_TYPE_SWITCH(dtype, DType, {
       int64_t numeric_low = std::numeric_limits<DType>::min();
-      int64_t numeric_high = std::numeric_limits<DType>::max() + 1;
+      int64_t numeric_high = std::numeric_limits<DType>::max();
+      numeric_high += 1;  // exclusive upper bound
       low = std::max(low, numeric_low);
       high = std::min(high, numeric_high);
 
