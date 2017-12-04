@@ -6,7 +6,7 @@
 
 TEST(BuildModule, Basic) {
   using namespace tvm;
-  auto n = Variable::make(Int(32), "n");
+  auto n = var("n");
   Array<Expr> shape;
   shape.push_back(n);
 

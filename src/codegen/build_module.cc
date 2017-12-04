@@ -124,9 +124,8 @@ Target stackvm() {
 }  // namespace target
 
 bool LLVMEnabled() {
-  const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.llvm_target_enabled");
-  if (pf == nullptr) return false;
-  return (*pf)("llvm");
+  const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.build_llvm");
+  return pf != nullptr;
 }
 
 /*! \return The default host target for a given device target */
