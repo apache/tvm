@@ -63,7 +63,15 @@ def test_byte_array():
     f(a)
 
 
+def test_empty_array():
+    def myfunc(ss):
+        assert tuple(ss) == ()
+    x = tvm.convert(())
+    tvm.convert(myfunc)(x)
+
+
 if __name__ == "__main__":
+    test_empty_array()
     test_get_global()
     test_get_callback_with_node()
     test_convert()

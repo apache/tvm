@@ -33,11 +33,14 @@ inline Expr ComputeExpr(Expr lhs, Expr rhs) {
 /*!
  * \brief Compute an reduction with Op
  * \param values The input values.
+ * \param empty_value The value when return if it is empty, can be Expr()
+ *        which will cause an error to be rasied.
  * \tparam Op The computation operator
  * \return The result.
  */
 template<typename Op>
-inline Expr ComputeReduce(const Array<Expr>& values);
+inline Expr ComputeReduce(
+    const Array<Expr>& values, Expr empty_value);
 
 template<typename T>
 inline bool GetConst(Expr e, T* out);
@@ -139,8 +142,11 @@ inline Expr ComputeExpr<ir::Min>(Expr a, Expr b) {
 }
 
 template<typename Op>
-inline Expr ComputeReduce(const Array<Expr>& values) {
-  CHECK_NE(values.size(), 0U);
+inline Expr ComputeReduce(const Array<Expr>& values, Expr empty_value) {
+  if (values.size() == 0U) {
+    CHECK(empty_value.defined());
+    return empty_value;
+  }
   Expr res = values[0];
   for (size_t i = 1; i < values.size(); ++i) {
     res = ComputeExpr<Op>(res, values[i]);

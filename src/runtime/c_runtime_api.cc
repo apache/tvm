@@ -352,9 +352,13 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   arr->dtype.code = static_cast<uint8_t>(dtype_code);
   arr->dtype.bits = static_cast<uint8_t>(dtype_bits);
   arr->dtype.lanes = static_cast<uint16_t>(dtype_lanes);
-  tvm_index_t* shape_copy = new tvm_index_t[ndim];
-  std::copy(shape, shape + ndim, shape_copy);
-  arr->shape = shape_copy;
+  if (ndim != 0) {
+    tvm_index_t* shape_copy = new tvm_index_t[ndim];
+    std::copy(shape, shape + ndim, shape_copy);
+    arr->shape = shape_copy;
+  } else {
+    arr->shape = nullptr;
+  }
   // ctx
   arr->ctx.device_type = static_cast<DLDeviceType>(device_type);
   arr->ctx.device_id = device_id;
