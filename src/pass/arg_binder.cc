@@ -196,7 +196,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       nop));
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact
-    Type stype = buffer->shape[0].type();
+    Type stype = buffer->DefaultIndexType();
     Expr expect_stride = make_const(stype, 1);
     Array<Expr> conds;
     for (size_t i = buffer->shape.size(); i != 0; --i) {
@@ -211,14 +211,16 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     std::ostringstream stride_err_msg;
     stride_err_msg << arg_name << ".strides:"
                    << " expected to be compact array";
-    Stmt check =
-        AssertStmt::make(arith::ComputeReduce<ir::And>(conds),
-                         stride_err_msg.str(), Evaluate::make(0));
-    Expr is_null = Call::make(
-        Bool(1), intrinsic::tvm_handle_is_null,
-        {v_strides}, Call::PureIntrinsic);
-    check = IfThenElse::make(Not::make(is_null), check, Stmt());
-    init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
+    if (conds.size() != 0) {
+      Stmt check =
+          AssertStmt::make(arith::ComputeReduce<ir::And>(conds, Expr()),
+                           stride_err_msg.str(), Evaluate::make(0));
+      Expr is_null = Call::make(
+          Bool(1), intrinsic::tvm_handle_is_null,
+          {v_strides}, Call::PureIntrinsic);
+      check = IfThenElse::make(Not::make(is_null), check, Stmt());
+      init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
+    }
   } else {
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;

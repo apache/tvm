@@ -376,7 +376,8 @@ class VTInjector : public IRMutator {
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      Expr stride = arith::ComputeReduce<Mul>(op->extents) * op->type.lanes();
+      Expr stride = arith::ComputeReduce<Mul>(
+          op->extents, Expr()) * op->type.lanes();
       Array<Expr> other;
       other.push_back(make_const(op->extents[0].type(), num_threads_));
       for (Expr e : extents) {

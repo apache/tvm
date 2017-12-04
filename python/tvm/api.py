@@ -462,7 +462,6 @@ def decl_buffer(shape,
         elem_offset = var('%s_elem_offset' % name, shape[0].dtype)
     if data is None:
         data = var(name, "handle")
-
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
