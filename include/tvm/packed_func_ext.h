@@ -14,6 +14,7 @@
 
 #include "./base.h"
 #include "./expr.h"
+#include "./tensor.h"
 #include "./runtime/packed_func.h"
 
 namespace tvm {
@@ -115,6 +116,9 @@ inline TVMArgValue::operator Halide::Expr() const {
   std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
   if (sptr->is_type<IterVarNode>()) {
     return IterVar(sptr)->var;
+  }
+  if (sptr->is_type<TensorNode>()) {
+    return Tensor(sptr)();
   }
   CHECK(NodeTypeChecker<Expr>::Check(sptr.get()))
       << "Expected type " << NodeTypeName<Expr>()

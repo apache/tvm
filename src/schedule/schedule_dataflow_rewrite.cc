@@ -47,10 +47,10 @@ Expr InjectPredicate(const Array<Expr>& predicates,
   const Reduce* reduce = body.as<Reduce>();
   if (reduce) {
     std::shared_ptr<Reduce> n = std::make_shared<Reduce>(*reduce);
-    n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates);
+    n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates, Expr());
     return Expr(n);
   }
-  return Select::make(arith::ComputeReduce<ir::And>(predicates),
+  return Select::make(arith::ComputeReduce<ir::And>(predicates, Expr()),
                       body,
                       make_zero(body.type()));
 }
@@ -467,7 +467,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const Reduce* reduce = compute_op->body[idx].as<Reduce>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  Expr predicate = arith::ComputeReduce<ir::And>(predicates);
+  Expr predicate = arith::ComputeReduce<ir::And>(predicates, Expr());
 
   std::unordered_map<const Variable*, Expr> vsub;
 
