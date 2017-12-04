@@ -124,6 +124,11 @@ class BufferNode : public Node {
     v->Visit("offset_factor", &offset_factor);
   }
 
+  /*! \return preferred index type for this buffer node */
+  Type DefaultIndexType() const {
+    return shape.size() != 0 ? shape[0].type() : Int(32);
+  }
+
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
   TVM_DLL static Buffer make(Var ptr,
