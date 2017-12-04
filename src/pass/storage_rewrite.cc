@@ -405,7 +405,7 @@ class StoragePlanRewriter : public IRMutator {
           // Build a merged allocation
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
-            Expr sz = arith::ComputeReduce<Mul>(op->extents);
+            Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(Int(32), 1));
             if (alloc_type.lanes() != op->type.lanes()) {
               sz = (sz * make_const(sz.type(), op->type.lanes()) +
                     make_const(sz.type(), alloc_type.lanes() - 1)) /

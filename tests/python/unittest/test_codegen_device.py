@@ -5,8 +5,8 @@ import numpy as np
 def test_add_pipeline():
     n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    B = tvm.placeholder((), name='B')
+    C = tvm.compute(A.shape, lambda *i: A(*i) + B(), name='C')
     D = tvm.compute(A.shape, lambda *i: C(*i) + 1, name='D')
     s = tvm.create_schedule(D.op)
 
@@ -48,7 +48,7 @@ def test_add_pipeline():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
         d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
         f(a, b, d)
         np.testing.assert_allclose(
@@ -72,7 +72,7 @@ def test_add_pipeline():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
         d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
         f(a, b, d)
         np.testing.assert_allclose(
@@ -83,6 +83,7 @@ def test_add_pipeline():
     check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
     check_target("rocm", host="llvm")
+
 
 if __name__ == "__main__":
     test_add_pipeline()
