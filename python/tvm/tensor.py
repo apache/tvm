@@ -70,7 +70,7 @@ class Tensor(NodeBase, _expr.ExprOp):
         return _api_internal._TensorEqual(self, other)
 
     @property
-    ncdef ndim(self):
+    def ndim(self):
         """Dimension of the tensor."""
         return len(self.shape)
 
