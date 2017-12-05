@@ -291,6 +291,13 @@ inline const char* IterVarType2String(IterVarType t) {
   return "Unknown";
 }
 
+/*!
+ * \brief Construct a new Var expression
+ * \param name_hint The name hint for the expression
+ * \param t The type of the expression
+ */
+TVM_DLL Var var(const std::string& name_hint, Type t = Int(32));
+
 /*
  * \brief Template function to convert Map to unordered_map
  *  Sometimes useful for API gluing when internal uses unordered_map

@@ -47,6 +47,10 @@ std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)
   return os;
 }
 
+Var var(const std::string& name_hint, Type t) {
+  return Var(name_hint, t);
+}
+
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IterVarNode>([](const IterVarNode *op, IRPrinter *p) {
     p->stream << "iter_var(";
