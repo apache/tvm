@@ -81,7 +81,7 @@ class Stage : public NodeRef {
    * \param thread_ivar The thread axis to be binded.
    * \return reference to self.
    */
-  Stage& bind(IterVar ivar, IterVar thread_ivar);
+  EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
   /*!
    * \brief Set predicate under which store to the array can be performed.
    *  Use this when there are duplicated threads doing the same store and we only
@@ -110,7 +110,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
+  EXPORT Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
    * \brief Split the iteration with given number of parts.
    *
@@ -248,13 +248,13 @@ class Schedule : public NodeRef {
    * \brief Get the stage corresponds to the op
    * \param op The operation.
    */
-  Stage operator[](const Operation& op);
+  EXPORT Stage operator[](const Operation& op);
   /*!
    * \brief Short hand for getting the stage of tensor's operation.
    * \param tensor The tensor
    * \return The stage corresponding to the tensor's op
    */
-  Stage operator[](const Tensor& tensor) {
+  EXPORT Stage operator[](const Tensor& tensor) {
     return this->operator[](tensor->op);
   }
   /*!
@@ -493,7 +493,7 @@ class ScheduleNode : public Node {
    * \param ops The ops to be scheduled.
    * \return sch The created Schedule.
    */
-  static Schedule make(Array<Operation> ops);
+  EXPORT static Schedule make(Array<Operation> ops);
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
