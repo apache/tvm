@@ -16,6 +16,7 @@ namespace tvm {
 namespace codegen {
 
 runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
+  using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenOpenCL cg;
   cg.Init(output_ssa);
@@ -23,6 +24,10 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
     cg.AddFunction(f);
   }
   std::string code = cg.Finish();
+
+  if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
+    code = (*f)(code).operator std::string();
+  }
 #if TVM_OPENCL_RUNTIME
   return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs));
 #else
