@@ -427,9 +427,6 @@ Stmt MakeTensorize(const ComputeOpNode* self,
         n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
     init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
     Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
-    init = MergeNest(input_bind_nest, init);
-    init = MergeNest(binder.asserts(), init);
-    init = Substitute(init, vmap);
     init = Substitute(init, n.init_vmap);
     init = MergeNest(init_nest, init);
     // The update
