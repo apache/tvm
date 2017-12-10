@@ -222,6 +222,8 @@ _convert_map = {
     'Pooling'       : _pooling,
     'Pooling_v1'    : _pooling,
     'Reshape'       : _reshape,
+    'SliceChannel'  : _split,
+    'split'         : _split,
     'Softmax'       : _rename('softmax'),
     'SoftmaxOutput' : _softmax_output,
     'concat'        : _concat,
@@ -269,10 +271,6 @@ def _convert_symbol(op_name, inputs, attrs,
         _raise_not_supported('Operator: ' + op_name)
     return sym
 
-def _is_mxnet_group_symbol(symbol):
-    """Internal check for mxnet group symbol."""
-    return len(symbol.list_outputs()) > 1
-
 def _as_list(arr):
     """Force being a list, ignore if already is."""
     if isinstance(arr, list):
@@ -296,26 +294,27 @@ def _from_mxnet_impl(symbol, graph):
     nnvm.sym.Symbol
         Converted symbol
     """
-    if _is_mxnet_group_symbol(symbol):
+    if len(symbol.list_outputs()) > 1:
         return [_from_mxnet_impl(s, graph) for s in symbol]
 
     name = symbol.attr('name')
+    output_index = json.loads(symbol.tojson())['heads'][0][1]
     node = graph.get(name, None)
     if node:
-        return node
+        return node[output_index]
     attr = symbol.list_attr()
     # op_name = symbol.attr('op_name')
     childs = symbol.get_children()
     if childs:
         op_name = symbol.attr('op_name')
-        childs = [_from_mxnet_impl(c, graph) for c in _as_list(childs)]
+        childs = [_from_mxnet_impl(c, graph) for c in childs]
         childs = [x for y in childs for x in _as_list(y)]  # expand group symbol
         node = _convert_symbol(op_name, childs, attr)
     else:
         op_name = json.loads(symbol.tojson())['nodes'][0]['op']
         node = _sym.Variable(name=name, **attr)
     graph[name] = node
-    return node
+    return node[output_index]
 
 def from_mxnet(symbol, arg_params=None, aux_params=None):
     """Convert from MXNet's model into compatible NNVM format.
