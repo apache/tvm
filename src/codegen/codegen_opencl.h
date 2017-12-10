@@ -38,7 +38,9 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
 
  private:
-  bool enable_fp16_, enable_fp64_;
+  // whether enable fp16 and fp64 extension
+  bool enable_fp16_{false};
+  bool enable_fp64_{false};
 };
 
 }  // namespace codegen

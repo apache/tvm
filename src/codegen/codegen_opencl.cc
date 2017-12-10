@@ -14,7 +14,6 @@ namespace codegen {
 
 CodeGenOpenCL::CodeGenOpenCL() {
   restrict_keyword_ = "restrict";
-  enable_fp16_ = enable_fp64_ = false;
 }
 
 void CodeGenOpenCL::InitFuncState(LoweredFunc f) {
