@@ -132,7 +132,7 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
       CastFromTo(iv->thread_tag, UInt(thread_index_bits_), iv->var.type());
 }
 
-void CodeGenMetal::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenMetal::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)
