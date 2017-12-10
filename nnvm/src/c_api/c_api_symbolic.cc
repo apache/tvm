@@ -141,6 +141,15 @@ int NNSymbolGetInternals(SymbolHandle symbol,
   API_END_HANDLE_ERROR(delete s);
 }
 
+int NNSymbolGetChildren(SymbolHandle symbol,
+                        SymbolHandle *out) {
+  Symbol *s = new Symbol();
+  API_BEGIN();
+  *s = static_cast<Symbol*>(symbol)->GetChildren();
+  *out = s;
+  API_END_HANDLE_ERROR(delete s);
+}
+
 int NNSymbolFree(SymbolHandle symbol) {
   API_BEGIN();
   delete static_cast<Symbol*>(symbol);

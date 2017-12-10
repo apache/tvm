@@ -267,6 +267,14 @@ NNVM_DLL int NNSymbolGetNumOutputs(SymbolHandle symbol,
 NNVM_DLL int NNSymbolGetInternals(SymbolHandle symbol,
                                   SymbolHandle *out);
 /*!
+ * \brief Get a symbol that contains only direct children.
+ * \param symbol The symbol
+ * \param out The output symbol whose outputs are the direct children.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNSymbolGetChildren(SymbolHandle symbol,
+                                 SymbolHandle *out);
+/*!
  * \brief Get index-th outputs of the symbol.
  * \param symbol The symbol
  * \param index the Index of the output.
