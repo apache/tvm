@@ -247,6 +247,17 @@ NNVM_DLL int NNSymbolListInputNames(SymbolHandle symbol,
 NNVM_DLL int NNSymbolListOutputNames(SymbolHandle symbol,
                                      nn_uint *out_size,
                                      const char ***out_str_array);
+
+
+/*!
+ * \brief Supply number of outputs of the symbol.
+ * \param symbol the symbol
+ * \param output_count number of outputs
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNSymbolGetNumOutputs(SymbolHandle symbol,
+                                    nn_uint *output_count);
+
 /*!
  * \brief Get a symbol that contains all the internals.
  * \param symbol The symbol
