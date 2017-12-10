@@ -36,13 +36,22 @@ def get_feature(internel_layer, layers, filters, batch_norm = False, **kwargs):
 
 def get_classifier(input_data, num_classes, **kwargs):
     flatten = mx.sym.Flatten(data=input_data, name="flatten")
-    fc6 = mx.sym.FullyConnected(data=flatten, num_hidden=4096, name="fc6")
-    relu6 = mx.sym.Activation(data=fc6, act_type="relu", name="relu6")
-    drop6 = mx.sym.Dropout(data=relu6, p=0.5, name="drop6")
-    fc7 = mx.sym.FullyConnected(data=drop6, num_hidden=4096, name="fc7")
-    relu7 = mx.sym.Activation(data=fc7, act_type="relu", name="relu7")
-    drop7 = mx.sym.Dropout(data=relu7, p=0.5, name="drop7")
-    fc8 = mx.sym.FullyConnected(data=drop7, num_hidden=num_classes, name="fc8")
+    try:
+        fc6 = mx.sym.FullyConnected(data=flatten, num_hidden=4096, name="fc6", flatten=False)
+        relu6 = mx.sym.Activation(data=fc6, act_type="relu", name="relu6")
+        drop6 = mx.sym.Dropout(data=relu6, p=0.5, name="drop6")
+        fc7 = mx.sym.FullyConnected(data=drop6, num_hidden=4096, name="fc7", flatten=False)
+        relu7 = mx.sym.Activation(data=fc7, act_type="relu", name="relu7")
+        drop7 = mx.sym.Dropout(data=relu7, p=0.5, name="drop7")
+        fc8 = mx.sym.FullyConnected(data=drop7, num_hidden=num_classes, name="fc8", flatten=False)
+    except:
+        fc6 = mx.sym.FullyConnected(data=flatten, num_hidden=4096, name="fc6")
+        relu6 = mx.sym.Activation(data=fc6, act_type="relu", name="relu6")
+        drop6 = mx.sym.Dropout(data=relu6, p=0.5, name="drop6")
+        fc7 = mx.sym.FullyConnected(data=drop6, num_hidden=4096, name="fc7")
+        relu7 = mx.sym.Activation(data=fc7, act_type="relu", name="relu7")
+        drop7 = mx.sym.Dropout(data=relu7, p=0.5, name="drop7")
+        fc8 = mx.sym.FullyConnected(data=drop7, num_hidden=num_classes, name="fc8")
     return fc8
 
 def get_symbol(num_classes, num_layers=11, batch_norm=False, dtype='float32', **kwargs):

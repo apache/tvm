@@ -137,7 +137,10 @@ def resnet(units, num_stages, filter_list, num_classes, image_shape, bottle_neck
     # Although kernel is not used here when global_pool=True, we should put one
     pool1 = mx.sym.Pooling(data=relu1, global_pool=True, kernel=(7, 7), pool_type='avg', name='pool1')
     flat = mx.sym.Flatten(data=pool1)
-    fc1 = mx.sym.FullyConnected(data=flat, num_hidden=num_classes, name='fc1')
+    try:
+        fc1 = mx.sym.FullyConnected(data=flat, num_hidden=num_classes, name='fc1', flatten=False)
+    except:
+        fc1 = mx.sym.FullyConnected(data=flat, num_hidden=num_classes, name='fc1')
     if dtype == 'float16':
         fc1 = mx.sym.Cast(data=fc1, dtype=np.float32)
     return mx.sym.softmax(data=fc1, name='softmax')
