@@ -143,6 +143,9 @@ class Symbol(SymbolBase):
             self.handle, _base.nn_uint(index), _ctypes.byref(handle)))
         return Symbol(handle=handle)
 
+    def __iter__(self):
+        return (self[i] for i in self.list_output_names())
+
     def attr(self, key):
         """Get attribute string from the symbol, this function only works for non-grouped symbol.
 
@@ -195,6 +198,17 @@ class Symbol(SymbolBase):
         _check_call(_LIB.NNSymbolGetInternals(
             self.handle, _ctypes.byref(handle)))
         return Symbol(handle=handle)
+
+    def get_children(self):
+        """Gets a new grouped symbol whose output contains
+           inputs to output nodes of the original symbol."""
+        handle = _base.SymbolHandle()
+        _check_call(_LIB.NNSymbolGetChildren(
+            self.handle, _ctypes.byref(handle)))
+        ret = Symbol(handle=handle)
+        if not ret.list_output_names():
+            return None
+        return ret
 
     def _get_list_copt(self, option):
         """internal function to get list option"""
