@@ -87,7 +87,7 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
       case 16: os << "short"; break;
       case 32: os << "int"; break;
       case 64: {
-        if (sizeof(long) != 8) {
+        if (sizeof(long) != 8) { // NOLINT(*)
           if (t.lanes() == 1) {
             os << "long long"; break;
           } else if (t.lanes() == 2) {
