@@ -26,7 +26,7 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintVecBinaryOp(
       const std::string&op, Type t,
       Expr lhs, Expr rhs, std::ostream& os) final;  // NOLINT(*)
-  void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
+  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
   void PrintVecElemLoad(
       const std::string& vec, Type t, int i, std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemStore(

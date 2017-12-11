@@ -45,7 +45,7 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
       CastFromTo(iv->thread_tag, UInt(32), iv->var.type());
 }
 
-void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)

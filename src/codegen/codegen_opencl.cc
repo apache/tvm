@@ -30,6 +30,35 @@ void CodeGenOpenCL::AddFunction(LoweredFunc f) {
   CodeGenC::AddFunction(f);
 }
 
+std::string CodeGenOpenCL::Finish() {
+  // inject extension enable pragma for fp16 and fp64
+  if (enable_fp16_) {
+    decl_stream
+        << "#ifdef cl_khr_fp16\n"
+           "#pragma OPENCL EXTENSION cl_khr_fp16 : enable\n"
+           "#elif defined(cl_amd_fp16)\n"
+           "#pragma OPENCL EXTENSION cl_amd_fp16 : enable\n"
+           "#else\n"
+           "#error \"Half precision floating point not supported"
+                    "by OpenCL implementation on your device.\" \n"
+           "#endif\n\n";
+  }
+
+  if (enable_fp64_) {
+    decl_stream
+        << "#ifdef cl_khr_fp64\n"
+           "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n"
+           "#elif defined(cl_amd_fp64)\n"
+           "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n"
+           "#else\n"
+           "#error \"Double precision floating point not supported"
+                    "by OpenCL implementation on your device.\" \n"
+           "#endif\n\n";
+  }
+
+  return CodeGenC::Finish();
+}
+
 void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
   CHECK(!var_idmap_.count(iv->var.get()));
   runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
@@ -43,7 +72,7 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
       CastFromTo(os.str(), UInt(64), iv->var.type());
 }
 
-void CodeGenOpenCL::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenOpenCL::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)
@@ -53,9 +82,15 @@ void CodeGenOpenCL::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
-      case 16: os << "half"; break;
+      case 16:
+        os << "half";
+        enable_fp16_ = true;
+        break;
       case 32: os << "float"; break;
-      case 64: os << "double"; break;
+      case 64:
+        os << "double";
+        enable_fp64_ = true;
+        break;
       default: fail = true; break;
     }
     if (!fail && lanes == 1) return;
