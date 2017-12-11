@@ -81,9 +81,18 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
       case 16: os << "short"; break;
       case 32: os << "int"; break;
       case 64: {
-        CHECK(sizeof(long) == 8)  // NOLINT(*)
-            << "CUDA not support int64 int in 32 bit system";
-        os << "long"; break;
+        if (sizeof(long) != 8) {
+          if (t.lanes() == 1) {
+            os << "long long"; break;
+          } else if (t.lanes() == 2) {
+            os << "longlong"; break;
+          } else {
+            // No longlong3, longlong4
+            LOG(FATAL) << "Cannot convert type " << t << " to CUDA type on a L32 platform";
+          }
+        } else {
+          os << "long"; break;
+        }
       }
       case 1: os << "int"; break;
       default: fail = true; break;
