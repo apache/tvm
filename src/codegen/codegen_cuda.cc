@@ -77,7 +77,13 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
       os << "int"; return;
     }
     switch (t.bits()) {
-      case 8: os << "char"; break;
+      case 8: {
+        if (!t.is_uint() && t.lanes() == 1) {
+          os << "signed char"; break;
+        } else {
+          os << "char"; break;
+        }
+      }
       case 16: os << "short"; break;
       case 32: os << "int"; break;
       case 64: {
