@@ -104,7 +104,7 @@ class LoopUnroller : public IRMutator {
   Stmt Unroll(const For* op) {
     using arith::ComputeExpr;
     int value = GetExtent(op);
-    //For loop must have a constant integer extent
+    // For loop must have a constant integer extent
     CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return Evaluate::make(0);
     Stmt body = op->body;
@@ -123,13 +123,11 @@ class LoopUnroller : public IRMutator {
       }
     }
     return unrolled;
-
   }
- private:
 
-  //returns the extent of the loop if it's a constant integer, otherwise return -1
-  int GetExtent(const For* op)
-  {
+ private:
+  // returns the extent of the loop if it's a constant integer, otherwise return -1
+  int GetExtent(const For* op) {
     // constant folding.
     Expr extent = ir::Simplify(op->extent);
     const IntImm  *v1 = extent.as<IntImm>();
