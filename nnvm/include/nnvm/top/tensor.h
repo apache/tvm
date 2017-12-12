@@ -57,20 +57,26 @@ enum TypeFlag {
   kInt8  = 5,
   kInt64 = 6,
   kInt16 = 7,
+  kUint16 = 8,
+  kUint32 = 9,
+  kUint64 = 10,
 };
 
 struct CastParam : public dmlc::Parameter<CastParam> {
   int dtype;
   DMLC_DECLARE_PARAMETER(CastParam) {
     DMLC_DECLARE_FIELD(dtype)
+    .add_enum("float16", kFloat16)
     .add_enum("float32", kFloat32)
     .add_enum("float64", kFloat64)
-    .add_enum("float16", kFloat16)
-    .add_enum("uint8", kUint8)
-    .add_enum("int32", kInt32)
-    .add_enum("int8", kInt8)
-    .add_enum("int64", kInt64)
+    .add_enum("uint8",  kUint8)
+    .add_enum("uint16", kUint16)
+    .add_enum("uint32", kUint32)
+    .add_enum("uint64", kUint64)
+    .add_enum("int8",  kInt8)
     .add_enum("int16", kInt16)
+    .add_enum("int32", kInt32)
+    .add_enum("int64", kInt64)
     .describe("Output data type.");
   }
 };
