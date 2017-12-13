@@ -29,6 +29,8 @@ struct ComExprEntry {
   inline bool operator<(const ComExprEntry& other) const {
     if (level < other.level) return true;
     if (level > other.level) return false;
+    if (value.type_index() < other.value.type_index()) return true;
+    if (value.type_index() > other.value.type_index()) return false;
     return value.get() < other.value.get();
   }
 };
