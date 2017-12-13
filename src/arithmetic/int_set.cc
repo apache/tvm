@@ -27,7 +27,7 @@ inline IntSet IntSet::cover_interval() const {
     for (size_t i = 0; i < s->extents.size(); ++i) {
       max = max + s->extents[i] * s->strides[i] - s->strides[i];
     }
-    return IntervalSet::make(s->base.min, max);
+    return IntervalSet::make(s->base.min, Simplify(max));
   }
   LOG(FATAL) << "cannot convert set " << (*this)->type_key() << " to interval";
   return IntSet::everything();
