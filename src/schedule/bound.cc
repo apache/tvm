@@ -6,9 +6,9 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/schedule_pass.h>
 #include <tvm/operation.h>
+#include <tvm/ir_pass.h>
 #include <unordered_map>
 #include <unordered_set>
-#include <tvm/ir_pass.h>
 #include "./graph.h"
 #include "./message_passing.h"
 #include "../runtime/thread_storage_scope.h"
