@@ -8,6 +8,7 @@
 #include <tvm/operation.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <tvm/ir_pass.h>
 #include "./graph.h"
 #include "./message_passing.h"
 #include "../runtime/thread_storage_scope.h"
@@ -208,6 +209,10 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
       CHECK(iv->dom.defined());
       ret[iv] = iv->dom;
     }
+  }
+  for (auto& p : ret) {
+    ret[p.first] = Range::make_by_min_extent(ir::Simplify(p.second->min),
+                                             ir::Simplify(p.second->extent));
   }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
