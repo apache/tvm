@@ -29,9 +29,20 @@ struct ComExprEntry {
   inline bool operator<(const ComExprEntry& other) const {
     if (level < other.level) return true;
     if (level > other.level) return false;
+    // compare top operator of entries and sort on that if possible (fast check)
     if (value.type_index() < other.value.type_index()) return true;
     if (value.type_index() > other.value.type_index()) return false;
-    return value.get() < other.value.get();
+    // if none of the above distinguishes the terms, compare string representation of entries.
+    // This is a slower check.
+    std::ostringstream str, str_other;
+    str << value;
+    str_other << other.value;
+    int compare_result = strcmp(str.str().c_str(), str_other.str().c_str());
+    if (compare_result < 0) return true;
+    if (compare_result > 0) return false;
+    // it's a problem if we see idential entries at this point. They should've been merged earlier.
+    LOG(FATAL) << "we should not have identical entries at this point";
+    return false;
   }
 };
 
