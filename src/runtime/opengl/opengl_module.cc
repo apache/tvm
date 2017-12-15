@@ -127,8 +127,12 @@ OpenGLWrappedFunc::OpenGLWrappedFunc(
                     << "nargs = " << arg_size_.size() << ", "
                     << "nthread_axis_tags = " << thread_axis_tags.size()
                     << ")";
-  for (auto& a: arg_size_) { LOG(INFO) << a; }
-  for (auto& t: thread_axis_tags) { LOG(INFO) << t; }
+  for (auto& a : arg_size_) {
+    LOG(INFO) << a;
+  }
+  for (auto& t : thread_axis_tags) {
+    LOG(INFO) << t;
+  }
 
   thread_axis_cfg_.Init(arg_size_.size(), thread_axis_tags);
 }
@@ -144,8 +148,7 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
           {"A", *static_cast<gl::Texture**>(void_args[1])},
           {"B", *static_cast<gl::Texture**>(void_args[2])}
       },
-      *static_cast<gl::Texture**>(void_args[0])
-  );
+      *static_cast<gl::Texture**>(void_args[0]));
 }
 
 Module OpenGLModuleCreate(std::string data,

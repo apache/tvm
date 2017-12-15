@@ -401,7 +401,7 @@ Stage& Stage::opengl() {
   CHECK(!is_scheduled()) << "Must be a fresh schedule";
   StageNode *self = operator->();
 
-  auto all_iter_vars = self->all_iter_vars; // curr version of all_iter_vars
+  auto all_iter_vars = self->all_iter_vars;  // curr version of all_iter_vars
   CHECK(!all_iter_vars.empty()) << "At least one iter var";
 
   // Fuse all dimensions to 1.

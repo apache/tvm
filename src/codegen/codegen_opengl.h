@@ -16,7 +16,7 @@ namespace codegen {
 
 class CodeGenOpenGL final : public CodeGenC {
  public:
-  explicit CodeGenOpenGL();
+  CodeGenOpenGL();
 
   void AddFunction(LoweredFunc f);
 

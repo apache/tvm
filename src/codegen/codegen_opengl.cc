@@ -137,5 +137,5 @@ void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
   LOG(FATAL) << "GLSL 3.3 doesn't support strings.";
 }
 
-}  // namespace tvm
 }  // namespace codegen
+}  // namespace tvm

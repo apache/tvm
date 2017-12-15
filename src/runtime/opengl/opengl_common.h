@@ -13,6 +13,9 @@
 #include <dmlc/logging.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
