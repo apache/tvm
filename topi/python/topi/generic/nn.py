@@ -177,7 +177,6 @@ def schedule_global_pool(outs):
     """
     return _default_schedule(outs, False)
 
-
 @tvm.target.generic_func
 def schedule_binarize_pack(outs):
     """Schedule for binarize_pack
@@ -211,4 +210,8 @@ def schedule_binary_dense(outs):
     sch: Schedule
         The computation schedule for the op.
     """
+
+
+@tvm.target.generic_func
+def schedule_upsampling(outs):
     return _default_schedule(outs, False)
