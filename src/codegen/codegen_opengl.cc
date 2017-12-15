@@ -112,7 +112,7 @@ std::string CodeGenOpenGL::GetBufferRef(
   return os.str();
 }
 
-void CodeGenOpenGL::PrintType(Type t, std::ostream& os) const {
+void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
   CHECK(false) << "Not implemented";
 }
 

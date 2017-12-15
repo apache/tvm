@@ -26,7 +26,7 @@ class CodeGenOpenGL final : public CodeGenC {
 
   std::string GetBufferRef(Type t, const Variable *buffer, Expr index) final;
 
-  void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
+  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
 
   // Codegen for immediate values
   void VisitExpr_(const IntImm *op, std::ostream &os) final;  // NOLINT(*)
