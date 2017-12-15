@@ -32,15 +32,12 @@ struct ComExprEntry {
     // compare top operator of entries and sort on that if possible (fast check)
     if (value.type_index() < other.value.type_index()) return true;
     if (value.type_index() > other.value.type_index()) return false;
-    // if none of the above distinguishes the terms, compare string representation of entries.
+    // if none of the above distinguishes the terms, compare the expression tree of the entries.
     // This is a slower check.
-    std::ostringstream str, str_other;
-    str << value;
-    str_other << other.value;
-    int compare_result = strcmp(str.str().c_str(), str_other.str().c_str());
+    int compare_result = Compare(value, other.value);
     if (compare_result < 0) return true;
     if (compare_result > 0) return false;
-    // it's a problem if we see idential entries at this point. They should've been merged earlier.
+    // it's a problem if we see identical entries at this point. They should've been merged earlier.
     LOG(FATAL) << "we should not have identical entries at this point";
     return false;
   }
