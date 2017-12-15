@@ -310,6 +310,7 @@ def build(sch,
             raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
         if x.name in fname_set:
             raise ValueError("Duplicate function name %s" % x.name)
+        fname_set.add(x.name)
 
     target = _target.current_target() if target is None else target
     target = _target.create(target) if target else _target.create("llvm")
