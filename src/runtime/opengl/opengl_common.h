@@ -18,8 +18,9 @@ namespace tvm {
 namespace runtime {
 namespace gl {
 
+// This file contains the following classes.
+class OpenGLWorkspace;
 class Texture;
-
 class Program;
 
 /*!

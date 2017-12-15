@@ -405,6 +405,7 @@ Stage& Stage::opengl() {
   CHECK(!all_iter_vars.empty()) << "At least one iter var";
 
   // Fuse all dimensions to 1.
+  // TODO(zhixunt): Don't fuse reduction.
   IterVar fused = all_iter_vars[0];
   for (size_t i = 1; i != all_iter_vars.size(); ++i) {
     fuse(fused, all_iter_vars[i], &fused);

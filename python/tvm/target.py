@@ -119,9 +119,8 @@ class Target(object):
         elif target_name in ("metal",):
             self.keys += ("gpu",)
             self.max_num_threads = 256
-        elif target_name in ("opengl"):
-            # TODO(zhixunt): What here?
-            pass
+        elif target_name in ("opengl",):
+            self.keys += ("opengl",)
         elif target_name in ("stackvm", "ext_dev"):
             # Do not now class for stacvm or ext_dev
             pass

@@ -50,7 +50,7 @@ void OPENGL_CHECK_ERROR() {
   }
 
 void GlfwErrorCallback(int err, const char* str) {
-  LOG_ERROR.stream() << "Error: [" << err << "] " << str;
+  LOG(ERROR) << "Error: [" << err << "] " << str;
 }
 
 // Always only use the first dimension of a 2D texture.
@@ -59,7 +59,7 @@ Texture::Texture(size_t nbytes)
     : texture_(kInvalidTexture),
       width_(static_cast<decltype(width_)>(nbytes / sizeof(GLfloat))),
       height_(1) {
-  LOG_INFO.stream() << "Created texture [" << texture_ << "]";
+  LOG(INFO) << "Created texture [" << texture_ << "]";
   CHECK((nbytes % sizeof(GLfloat)) == 0) << "Must be multiple of GLfloats";
 
   // Create a texture.
@@ -87,7 +87,7 @@ Texture::Texture(size_t nbytes)
 
 Texture::~Texture() {
   if (texture_ != kInvalidTexture) {
-    LOG_INFO.stream() << "Deleting texture [" << texture_ << "]";
+    LOG(INFO) << "Deleting texture [" << texture_ << "]";
 
     OPENGL_CALL(glDeleteTextures(1, &texture_));
     texture_ = kInvalidTexture;
@@ -103,7 +103,7 @@ void Texture::GetData(GLvoid* data) const {
 }
 
 void Texture::PutData(GLint begin, GLsizei nelems, const GLvoid* data) {
-  LOG_INFO.stream() << "Texture::PutData(" << "begin = " << begin << ", "
+  LOG(INFO) << "Texture::PutData(" << "begin = " << begin << ", "
                     << "nelems = " << nelems << ", data)";
 
   // Bind to temporary unit.
@@ -131,25 +131,25 @@ const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
 
 void OpenGLWorkspace::SetDevice(TVMContext ctx) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::SetDevice";
+  LOG(INFO) << "OpenGLWorkspace::SetDevice";
 }
 
 void OpenGLWorkspace::GetAttr(
     TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::GetAttr";
+  LOG(INFO) << "OpenGLWorkspace::GetAttr";
 }
 
 void* OpenGLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t nbytes, size_t alignment) {
-  LOG_INFO.stream()
+  LOG(INFO)
       << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
       << nbytes << ", alignment = " << alignment << ")";
   return reinterpret_cast<void*>(new Texture(nbytes));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
-  LOG_INFO.stream()
+  LOG(INFO)
       << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
       << ptr << ")";
   delete reinterpret_cast<Texture*>(ptr);
@@ -163,7 +163,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
                                      TVMContext ctx_from,
                                      TVMContext ctx_to,
                                      TVMStreamHandle stream) {
-  LOG_INFO.stream()
+  LOG(INFO)
       << "OpenGLWorkspace::CopyDataFromTo("
       << "from = " << from << ", "
       << "from_offset = " << from_offset << ", "
@@ -184,7 +184,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
     // OpenGL texture => OpenGL texture
 
     // TODO(pengw): Implement this.
-    LOG_FATAL.stream() << "Not Implemented";
+    LOG(FATAL) << "Not Implemented";
 
   } else if (ctx_from.device_type == gl_devtype &&
       ctx_to.device_type == kDLCPU) {
@@ -217,18 +217,18 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::StreamSync";
+  LOG(INFO) << "OpenGLWorkspace::StreamSync";
 }
 
 void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::AllocWorkspace";
+  LOG(INFO) << "OpenGLWorkspace::AllocWorkspace";
   return nullptr;
 }
 
 void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "OpenGLWorkspace::FreeWorkspace";
+  LOG(INFO) << "OpenGLWorkspace::FreeWorkspace";
 }
 
 OpenGLWorkspace::OpenGLWorkspace() {
@@ -238,7 +238,7 @@ OpenGLWorkspace::OpenGLWorkspace() {
 
   // Initialize GLFW.
   if (glfwInit() != GL_TRUE) {
-    LOG_ERROR.stream() << "glfwInit() failed!";
+    LOG(ERROR) << "glfwInit() failed!";
     assert(false);
   }
 
@@ -250,11 +250,11 @@ OpenGLWorkspace::OpenGLWorkspace() {
   glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
   window_ = glfwCreateWindow(kWindowWidth, kWindowHeight, "", nullptr, nullptr);
   if (window_ == nullptr) {
-    LOG_ERROR.stream() << "glfwCreateWindow() failed!";
+    LOG(ERROR) << "glfwCreateWindow() failed!";
     assert(false);
   }
 
-  LOG_INFO.stream() << "GLFW says OpenGL version: "
+  LOG(INFO) << "GLFW says OpenGL version: "
                     << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
                     << "."
                     << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
@@ -267,7 +267,7 @@ OpenGLWorkspace::OpenGLWorkspace() {
   // Must be called after creating GLFW window.
   gladLoadGL();
 
-  LOG_INFO.stream() << "OpenGL says version: " << glGetString(GL_VERSION);
+  LOG(INFO) << "OpenGL says version: " << glGetString(GL_VERSION);
 
   OPENGL_CHECK_ERROR();
 
@@ -288,7 +288,7 @@ OpenGLWorkspace::OpenGLWorkspace() {
 }
 
 OpenGLWorkspace::~OpenGLWorkspace() {
-  LOG_INFO.stream() << "~OpenGLWorkspace()";
+  LOG(INFO) << "~OpenGLWorkspace()";
   // Paired with glfwCreateWindow().
   glfwDestroyWindow(window_);
   // Paired with glfwInit().
@@ -355,7 +355,7 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   if (info_log_len > 0) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
     glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-    LOG_ERROR.stream() << err_msg.get();
+    LOG(ERROR) << err_msg.get();
     assert(false);
   }
 
@@ -382,7 +382,7 @@ std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
   if (info_log_len > 0) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
     glGetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
-    LOG_ERROR.stream() << err_msg.get();
+    LOG(ERROR) << err_msg.get();
     assert(false);
   }
 
@@ -405,7 +405,7 @@ void OpenGLWorkspace::Render(
     const std::vector<std::pair<std::string, Texture*>>& inputs,
     Texture* output) {
   if (inputs.size() + 2 > NumTextureUnits()) {
-    LOG_ERROR.stream() << "Too many inputs!";
+    LOG(ERROR) << "Too many inputs!";
     assert(false);
   }
 
@@ -427,7 +427,7 @@ void OpenGLWorkspace::Render(
 
   // Always check that our framebuffer is ok
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    LOG_ERROR.stream() << "Framebuffer not complete.";
+    LOG(ERROR) << "Framebuffer not complete.";
     assert(false);
   }
 

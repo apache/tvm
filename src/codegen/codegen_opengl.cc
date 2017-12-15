@@ -1,6 +1,9 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_opengl.cc
+ *
+ * We are targeting OpenGL 3.3. The reason of not targeting a recent version
+ * of OpenGL is to have better compatibility of WebGL 2.
  */
 #include <tvm/runtime/config.h>
 #include <tvm/packed_func_ext.h>
@@ -14,11 +17,11 @@ namespace codegen {
 
 CodeGenOpenGL::CodeGenOpenGL() : output_(nullptr), iter_var_(nullptr) {
   // TODO(zhixunt): Implement this.
-  LOG_INFO.stream() << "CodeGenOpenGL::CodeGenOpenGL";
+  LOG(INFO) << "CodeGenOpenGL::CodeGenOpenGL";
 }
 
 void CodeGenOpenGL::AddFunction(LoweredFunc f) {
-  LOG_INFO.stream() << "CodeGenOpenGL::AddFunction";
+  LOG(INFO) << "CodeGenOpenGL::AddFunction";
 
   this->stream << "#version 330 core\n";
 
@@ -33,7 +36,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 
   // Allocate argument names.
   for (Var arg : f->args) {
-    LOG_INFO.stream() << "Arg: " << arg.get()->name_hint;
+    LOG(INFO) << "Arg: " << arg.get()->name_hint;
     AllocVarID(arg.get());
   }
 
@@ -56,7 +59,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 }
 
 void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
-  LOG_INFO.stream() << "CodeGenOpenGL::BindThreadIndex";
+  LOG(INFO) << "CodeGenOpenGL::BindThreadIndex";
   CHECK(!var_idmap_.count(iv->var.get()));
 
   // TODO(zhixunt): Can we not hardcode the name?
@@ -70,7 +73,7 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
 }
 
 void CodeGenOpenGL::VisitStmt_(const Store* op) {
-  LOG_INFO.stream() << "CodeGenOpenGL::VisitStmt_(const Store *)";
+  LOG(INFO) << "CodeGenOpenGL::VisitStmt_(const Store *)";
   Type t = op->value.type();
   if (t.lanes() == 1) {
     // Store to a scalar.
@@ -82,7 +85,7 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
 
   } else {
     // Store to an array.
-    LOG_FATAL.stream() << "Storing to an array not implemented";
+    LOG(FATAL) << "Storing to an array not implemented";
   }
 }
 
@@ -131,7 +134,7 @@ void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
 }
 
 void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
-  LOG_FATAL.stream() << "GLSL 3.3 doesn't support strings.";
+  LOG(FATAL) << "GLSL 3.3 doesn't support strings.";
 }
 
 }  // namespace tvm

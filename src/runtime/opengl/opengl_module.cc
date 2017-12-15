@@ -74,7 +74,7 @@ OpenGLModuleNode::OpenGLModuleNode(
     std::unordered_map<std::string, FunctionInfo> fmap)
     : workspace_(gl::OpenGLWorkspace::Global()), data_(std::move(data)),
       fmt_(std::move(fmt)), fmap_(std::move(fmap)) {
-  LOG_INFO.stream() << "OpenGLModuleNode(" << data << ", " << fmt << ", "
+  LOG(INFO) << "OpenGLModuleNode(" << data << ", " << fmt << ", "
                     << fmap.size() << ")";
   CHECK(fmt_ == "gl") << "Unknown OpenGL format " << fmt_;
   program_ = workspace_->CreateProgram(data_.c_str());
@@ -83,7 +83,7 @@ OpenGLModuleNode::OpenGLModuleNode(
 PackedFunc OpenGLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  LOG_INFO.stream() << "OpenGLModuleNode::GetFunction(" << name << ")";
+  LOG(INFO) << "OpenGLModuleNode::GetFunction(" << name << ")";
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
 
@@ -123,19 +123,19 @@ OpenGLWrappedFunc::OpenGLWrappedFunc(
     const std::vector<std::string>& thread_axis_tags)
     : m_(m), sptr_(std::move(sptr)), func_name_(std::move(func_name)),
       arg_size_(std::move(arg_size)) {
-  LOG_INFO.stream() << "OpenGLWrappedFunc(" << func_name_ << ", "
+  LOG(INFO) << "OpenGLWrappedFunc(" << func_name_ << ", "
                     << "nargs = " << arg_size_.size() << ", "
                     << "nthread_axis_tags = " << thread_axis_tags.size()
                     << ")";
-  for (auto& a: arg_size_) { LOG_INFO.stream() << a; }
-  for (auto& t: thread_axis_tags) { LOG_INFO.stream() << t; }
+  for (auto& a: arg_size_) { LOG(INFO) << a; }
+  for (auto& t: thread_axis_tags) { LOG(INFO) << t; }
 
   thread_axis_cfg_.Init(arg_size_.size(), thread_axis_tags);
 }
 
 void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    void** void_args) const {
-  LOG_INFO.stream() << "OpenGLWrappedFunc::operator()";
+  LOG(INFO) << "OpenGLWrappedFunc::operator()";
 
   // TODO(pengw): How to get variable names?
   m_->workspace_->Render(
@@ -151,7 +151,7 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 Module OpenGLModuleCreate(std::string data,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
-  LOG_INFO.stream() << "OpenGLModuleCreate() " << data << " " << fmt << " "
+  LOG(INFO) << "OpenGLModuleCreate() " << data << " " << fmt << " "
                     << fmap.size();
   auto n = std::make_shared<OpenGLModuleNode>(data, fmt, fmap);
   return Module(n);
