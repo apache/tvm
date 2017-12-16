@@ -114,7 +114,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.output_shape")
   int x_dim3 = args[10];
   int w_dim0 = args[11];
   int w_dim1 = args[12];
-  int w_dim2 = args[12];
+  int w_dim2 = args[13];
   int w_dim3 = args[14];
   void *out_shape = args[15];
   // Set Format
