@@ -407,7 +407,7 @@ void PassUpBoundCheck(const Stage& s,
                       const Map<IterVar, Range>& dom_map,
                       std::unordered_map<IterVar, bool>* p_state) {
   auto& state = *p_state;
-  using Halide::Internal::can_prove;
+  using HalideIR::Internal::can_prove;
   for (size_t i = s->relations.size(); i != 0; --i) {
     IterVarRelation rel = s->relations[i - 1];
     if (rel.as<SplitNode>()) {

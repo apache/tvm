@@ -113,7 +113,7 @@ Stmt ExternOpNode::BuildRealize(
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
     Tensor t = stage->op.output(k);
-    Halide::Internal::Region bounds;
+    HalideIR::Internal::Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
           Range::make_by_min_extent(
