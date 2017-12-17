@@ -10,7 +10,7 @@
 
 namespace tvm {
 
-using Halide::IR::RangeNode;
+using HalideIR::IR::RangeNode;
 
 Range::Range(Expr begin, Expr end)
     : Range(std::make_shared<RangeNode>(
@@ -19,7 +19,7 @@ Range::Range(Expr begin, Expr end)
 }
 
 Range Range::make_by_min_extent(Expr min, Expr extent) {
-  return Range(std::make_shared<Halide::IR::RangeNode>(min, extent));
+  return Range(std::make_shared<HalideIR::IR::RangeNode>(min, extent));
 }
 
 IterVar IterVarNode::make(Range dom, Var var,
@@ -67,7 +67,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RangeNode>([](const Halide::IR::RangeNode *op, IRPrinter *p) {
+.set_dispatch<RangeNode>([](const HalideIR::IR::RangeNode *op, IRPrinter *p) {
     p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
   });
 

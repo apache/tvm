@@ -4,8 +4,8 @@
 
 namespace {
 using namespace tvm::ir;
-using namespace Halide::Internal;
-using namespace Halide;
+using namespace HalideIR::Internal;
+using namespace HalideIR;
 
 // replace variable to constant
 class IRVar2Const : public IRMutator {
@@ -38,7 +38,7 @@ TVM_STATIC_IR_FUNCTOR(IRVar2Const, vtable_expr)
 }  // namespace
 
 TEST(IRMutator, Basic) {
-  using namespace Halide::Internal;
+  using namespace HalideIR::Internal;
   using namespace tvm;
   Var x("x"), y;
   auto z = x + y;

@@ -22,7 +22,7 @@
 namespace tvm {
 namespace ir {
 
-using Halide::Internal::Region;
+using HalideIR::Internal::Region;
 using runtime::StorageScope;
 using runtime::ThreadScope;
 using intrinsic::tvm_address_of;

@@ -626,7 +626,7 @@ Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
 
 template<typename T>
 T Simplify_(T a, Map<Var, Range> vrange) {
-  using namespace Halide::Internal;
+  using namespace HalideIR::Internal;
   Scope<Interval> rscope;
   for (auto kv : vrange) {
     Range r = kv.second;
@@ -635,7 +635,7 @@ T Simplify_(T a, Map<Var, Range> vrange) {
         Interval(r->min,
                  simplify(r->min + r->extent - make_const(r->min.type(), 1))));
   }
-  return Halide::Internal::simplify(a, true, rscope);
+  return HalideIR::Internal::simplify(a, true, rscope);
 }
 
 

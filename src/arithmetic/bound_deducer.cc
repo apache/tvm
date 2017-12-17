@@ -16,7 +16,7 @@ namespace tvm {
 namespace arith {
 
 using namespace ir;
-using Halide::Internal::Interval;
+using HalideIR::Internal::Interval;
 
 // a visitor to find the path to the target variable
 // from a expression.
