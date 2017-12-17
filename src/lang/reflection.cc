@@ -25,7 +25,7 @@ inline std::string Type2String(const Type& t) {
 
 inline Type String2Type(std::string s) {
   std::istringstream is(s);
-  halide_type_code_t code = Type::Int;
+  halideir_type_code_t code = Type::Int;
   if (s.substr(0, 3) == "int") {
     code = Type::Int; s = s.substr(3);
   } else if (s.substr(0, 4) == "uint") {

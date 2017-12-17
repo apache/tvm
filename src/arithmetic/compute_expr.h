@@ -14,9 +14,9 @@
 namespace tvm {
 namespace arith {
 
-using Halide::Internal::add_would_overflow;
-using Halide::Internal::sub_would_overflow;
-using Halide::Internal::mul_would_overflow;
+using HalideIR::Internal::add_would_overflow;
+using HalideIR::Internal::sub_would_overflow;
+using HalideIR::Internal::mul_would_overflow;
 
 /*!
  * \brief Compute the expression with the given binary op.
@@ -133,12 +133,12 @@ inline Expr ComputeExpr<ir::Mod>(Expr a, Expr b) {
 
 template<>
 inline Expr ComputeExpr<ir::Max>(Expr a, Expr b) {
-  return Halide::Internal::Interval::make_max(a, b);
+  return HalideIR::Internal::Interval::make_max(a, b);
 }
 
 template<>
 inline Expr ComputeExpr<ir::Min>(Expr a, Expr b) {
-  return Halide::Internal::Interval::make_min(a, b);
+  return HalideIR::Internal::Interval::make_min(a, b);
 }
 
 template<typename Op>

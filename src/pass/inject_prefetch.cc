@@ -15,7 +15,7 @@ namespace ir {
 
 using arith::IntSet;
 using arith::DomainTouched;
-using Halide::Internal::Region;
+using HalideIR::Internal::Region;
 
 class PrefetchInjector : public IRMutator {
  public:

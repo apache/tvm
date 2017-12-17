@@ -23,7 +23,7 @@ class TensorNode;
 // internal node container for Operation
 class OperationNode;
 
-using Halide::IR::FunctionRef;
+using HalideIR::IR::FunctionRef;
 
 /*!
  * \brief Tensor structure representing a possible input,
