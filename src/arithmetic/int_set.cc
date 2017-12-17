@@ -15,7 +15,7 @@
 namespace tvm {
 namespace arith {
 
-using Halide::Internal::Interval;
+using HalideIR::Internal::Interval;
 using namespace ir;
 
 inline IntSet IntSet::cover_interval() const {
