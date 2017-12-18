@@ -35,6 +35,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void PrintVecAddr(const Variable* buffer, Type t,
                     Expr base, std::ostream& os);  // NOLINT(*)
   // overload visitor
+  void VisitExpr_(const Ramp* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
 
  private:

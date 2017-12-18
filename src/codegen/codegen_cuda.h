@@ -33,6 +33,7 @@ class CodeGenCUDA final : public CodeGenC {
       const std::string& vec, Type t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
+  void VisitExpr_(const Ramp* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitStmt_(const Evaluate *op) final;
 

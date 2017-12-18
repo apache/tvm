@@ -568,6 +568,7 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
       os << ref;
     } else {
       // load seperately.
+      int vec_scope = BeginScope();
       std::string svalue = GetUniqueName("_");
       this->PrintIndent();
       this->PrintType(op->type, stream);
@@ -590,6 +591,7 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
         PrintVecElemStore(svalue, op->type, i, value_temp.str());
       }
       os << svalue;
+      EndScope(vec_scope);
     }
   }
 }
@@ -610,6 +612,7 @@ void CodeGenC::VisitStmt_(const Store* op) {
       this->PrintVecStore(op->buffer_var.get(), t, base, value);
     } else {
       // store elements seperately
+      int vec_scope = BeginScope();
       std::string index = SSAGetID(PrintExpr(op->index), op->index.type());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.type());
       std::string vid = GetVarID(op->buffer_var.get());
@@ -629,6 +632,7 @@ void CodeGenC::VisitStmt_(const Store* op) {
         PrintVecElemLoad(value, op->value.type(), i, stream);
         stream << ";\n";
       }
+      EndScope(vec_scope);
     }
   }
 }
