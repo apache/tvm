@@ -28,10 +28,19 @@ def schedule_conv2d(outs):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
+            n_pad, c_pad, h_pad, w_pad = data_pad.op.axis
+            pad_fused = s[data_pad].fuse(n_pad, c_pad)
+            s[data_pad].parallel(pad_fused)
             C = conv
             n, c, h, w = C.op.axis
-            s[C].parallel(c)
-            s[C].pragma(n, "parallel_launch_point")
+            rc, ry, rx = C.op.reduce_axis
+            fused = s[C].fuse(n, c)
+            s[C].parallel(fused)
+            wo, wi = s[C].split(w, factor=16)
+            s[C].reorder(fused, wo, rc, ry, rx, wi)
+            s[C].unroll(rx)
+            s[C].unroll(ry)
+            s[C].vectorize(wi)
 
     traverse(outs[0].op)
     return s
