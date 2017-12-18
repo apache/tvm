@@ -38,7 +38,7 @@ struct ComExprEntry {
     if (compare_result < 0) return true;
     if (compare_result > 0) return false;
     // it's a problem if we see identical entries at this point. They should've been merged earlier.
-    LOG(FATAL) << "we should not have identical entries at this point";
+    LOG(WARNING) << "we should not have identical entries at this point";
     return false;
   }
 };
