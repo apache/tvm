@@ -52,6 +52,22 @@ class AttrDict(object):
         """
         return tuple(int(x) for x in self[key][1:-1].split(",") if x)
 
+    def get_int_pair_tuple(self, key):
+        """Get tuple of integer pairs from attr dict
+
+        Parameters
+        ----------
+        key : str
+            The attr key
+
+        Returns
+        -------
+        tuple : tuple of int pairs
+            The result tuple
+        """
+        flat = [int(x.strip(' [] ')) for x in self[key][1:-1].split(",")]
+        return tuple((flat[i], flat[i+1]) for i in range(0, len(flat), 2))
+
     def get_int(self, key):
         """Get integer from attr dict
 

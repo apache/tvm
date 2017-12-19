@@ -244,6 +244,25 @@ def test_squeeze():
     verify_squeeze((1, 3, 1), axis=0)
     verify_squeeze((1, 3, 2, 5, 1), axis=-1)
 
+
+def test_pad():
+    x = sym.Variable("x")
+    y = sym.pad(x, pad_width=((0, 0), (0, 0), (0, 1), (2, 3)), pad_value=1.)
+    dtype = "float32"
+    dshape = (1, 3, 28, 28)
+    oshape = (1, 3, 29, 33)
+    shape_dict = {"x": dshape}
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        b_np = np.pad(data.asnumpy(), pad_width=((0, 0), (0, 0), (0, 1), (2, 3)),
+            mode='constant', constant_values=1.)
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+
+
 if __name__ == "__main__":
     test_split()
     test_concatenate()
@@ -257,3 +276,4 @@ if __name__ == "__main__":
     test_sigmoid()
     test_softmax()
     test_squeeze()
+    test_pad()

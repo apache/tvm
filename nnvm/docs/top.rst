@@ -47,6 +47,7 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.batch_norm
    nnvm.symbol.softmax
    nnvm.symbol.log_softmax
+   nnvm.symbol.pad
 
 
 **Level 2: Convolutions**
@@ -119,7 +120,7 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.batch_norm
 .. autofunction:: nnvm.symbol.softmax
 .. autofunction:: nnvm.symbol.log_softmax
-
+.. autofunction:: nnvm.symbol.pad
 
 .. autofunction:: nnvm.symbol.conv2d
 .. autofunction:: nnvm.symbol.conv2d_transpose
