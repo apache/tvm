@@ -15,6 +15,12 @@ def schedule_conv2d(outs):
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
                 s[op].compute_inline()
+            else: # inject custom schedule
+                if len(op.axis) == 4:
+                    n, c, h, w = op.axis
+                    fused = s[op].fuse(n, c)
+                    s[op].parallel(fused)
+                    s[op].vectorize(w)
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
@@ -37,7 +43,8 @@ def schedule_conv2d(outs):
             fused = s[C].fuse(n, c)
             s[C].parallel(fused)
             wo, wi = s[C].split(w, factor=16)
-            s[C].reorder(fused, wo, rc, ry, rx, wi)
+            #ho, hi = s[C].split(h, factor=4)
+            s[C].reorder(fused, h,  wo, rc, ry, rx, wi)
             s[C].unroll(rx)
             s[C].unroll(ry)
             s[C].vectorize(wi)
