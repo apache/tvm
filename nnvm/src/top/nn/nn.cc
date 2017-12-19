@@ -254,5 +254,42 @@ NNVM_REGISTER_OP(leaky_relu)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1);
 
+
+DMLC_REGISTER_PARAMETER(PadParam);
+
+inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
+                          std::vector<TShape>* in_shape,
+                          std::vector<TShape>* out_shape) {
+  const PadParam& param = nnvm::get<PadParam>(attrs.parsed);
+  CHECK_EQ(in_shape->size(), 1U);
+  CHECK_EQ(out_shape->size(), 1U);
+  TShape dshape = (*in_shape)[0];
+  if (dshape.ndim() == 0) return false;
+  CHECK_EQ(param.pad_width.ndim(), dshape.ndim());
+  CHECK_EQ(param.pad_width[0].ndim(), 2U);
+  TShape oshape = dshape;
+  for (uint32_t i = 0; i < dshape.ndim(); i++) {
+    int pad_before = param.pad_width[i][0];
+    int pad_after = param.pad_width[i][1];
+    oshape[i] = dshape[i] + pad_before + pad_after;
+  }
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+}
+
+NNVM_REGISTER_OP(pad)
+.describe(R"code(Pad for n-D tensor.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "n-D Tensor", "Input data.")
+.add_arguments(PadParam::__FIELDS__())
+.set_attr_parser(ParamParser<PadParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<PadParam>)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", PadInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(1);
+
 }  // namespace top
 }  // namespace nnvm
