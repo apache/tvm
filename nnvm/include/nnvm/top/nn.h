@@ -101,6 +101,21 @@ struct LeakyReLUParam : public dmlc::Parameter<LeakyReLUParam> {
   }
 };
 
+
+struct PadParam : public dmlc::Parameter<PadParam> {
+  float pad_value;
+  Tuple<Tuple<int> > pad_width;
+
+  DMLC_DECLARE_PARAMETER(PadParam) {
+    DMLC_DECLARE_FIELD(pad_value).set_default(0.0)
+      .describe("The value to be padded.");
+    DMLC_DECLARE_FIELD(pad_width)
+      .describe("Number of values padded to the edges of each axis, "
+                "in the format of ((before_1, after_1), ... (before_N, after_N))");
+  }
+};
+
+
 struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
   int channels;
   TShape kernel_size;

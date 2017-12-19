@@ -135,3 +135,38 @@ class AttrConverter(object):
         if key not in attr:
             raise AttributeError("Required attribute {} not found.".format(key))
         return attr[key]
+
+
+class SymbolTable(object):
+    """Table storing symbols by names."""
+    def __init__(self):
+        self.vars = {}
+        self.params = {}
+        self.const_ctr = 1
+        self.in_padding = False
+        self.paddings = [0, 0]
+
+    def new_const(self, value):
+        name = "_param_%d" % (self.const_ctr)
+        self.const_ctr += 1
+        self.params[name] = value
+        self.vars[name] = _sym.Variable(name=name)
+        return self.vars[name]
+
+    def get_var(self, name, must_contain=True):
+        if must_contain:
+            assert name in self.vars
+        if name not in self.vars:
+            self.vars[name] = _sym.Variable(name=name)
+        return self.vars[name]
+
+    def set_var(self, name, sym):
+        assert isinstance(sym, _sym.Symbol)
+        self.vars[name] = sym
+
+    def set_padding(self, paddings):
+        self.paddings = paddings
+        self.in_padding = True
+
+    def clear_padding(self):
+        self.in_padding = False

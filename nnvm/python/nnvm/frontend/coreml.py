@@ -4,43 +4,10 @@ from __future__ import absolute_import as _abs
 import tvm
 import numpy as np
 from .. import symbol as _sym
+from .common import SymbolTable
 
 __all__ = ['from_coreml']
 
-
-class SymbolTable(object):
-    """Table storing symbols by names."""
-    def __init__(self):
-        self.vars = {}
-        self.params = {}
-        self.const_ctr = 1
-        self.in_padding = False
-        self.paddings = [0, 0]
-
-    def new_const(self, value):
-        name = "_param_%d" % (self.const_ctr)
-        self.const_ctr += 1
-        self.params[name] = value
-        self.vars[name] = _sym.Variable(name=name)
-        return self.vars[name]
-
-    def get_var(self, name, must_contain=True):
-        if must_contain:
-            assert name in self.vars
-        if name not in self.vars:
-            self.vars[name] = _sym.Variable(name=name)
-        return self.vars[name]
-
-    def set_var(self, name, sym):
-        assert isinstance(sym, _sym.Symbol)
-        self.vars[name] = sym
-
-    def set_padding(self, paddings):
-        self.paddings = paddings
-        self.in_padding = True
-
-    def clear_padding(self):
-        self.in_padding = False
 
 def NeuralNetworkImageScaler(op, insym, symtab):
     # this changes the symbol

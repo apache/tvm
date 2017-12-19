@@ -39,6 +39,22 @@ reg.register_schedule("flatten", _fschedule_broadcast)
 reg.register_pattern("flatten", OpPattern.INJECTIVE)
 
 
+# pad
+@reg.register_compute("pad")
+def compute_pad(attrs, inputs, _):
+    """Compute definition of pad"""
+    pad_width = attrs.get_int_pair_tuple('pad_width')
+    assert len(pad_width) == len(inputs[0].shape) and \
+        len(pad_width[0]) == 2, "illegal pad_width"
+    pad_before = [x[0] for x in pad_width]
+    pad_after = [x[1] for x in pad_width]
+    pad_value = attrs.get_int('pad_value')
+    return topi.nn.pad(inputs[0], pad_before, pad_after, pad_value)
+
+reg.register_schedule("pad", _fschedule_broadcast)
+reg.register_pattern("pad", OpPattern.INJECTIVE)
+
+
 # softmax
 @reg.register_compute("softmax")
 def compute_softmax(attrs, inputs, _):
@@ -53,8 +69,8 @@ def schedule_softmax(_, outs, target):
     with tvm.target.create(target):
         return topi.generic.schedule_softmax(outs)
 
-
 reg.register_pattern("softmax", OpPattern.OPAQUE)
+
 
 # log softmax
 @reg.register_compute("log_softmax")
@@ -72,6 +88,7 @@ def schedule_log_softmax(_, outs, target):
 
 # Mark softmax as extern as we do not fuse it in call cases
 reg.register_pattern("log_softmax", OpPattern.OPAQUE)
+
 
 # dense
 @reg.register_compute("dense")
