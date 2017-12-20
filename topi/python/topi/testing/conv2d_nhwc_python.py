@@ -27,7 +27,7 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
         4-D with shape [out_height, out_width, out_channel, batch]
     """
     batch, in_height, in_width, in_channel = a_np.shape
-    num_filter, kernel_h, kernel_w, _ = w_np.shape
+    kernel_h, kernel_w, _, num_filter = w_np.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -50,7 +50,7 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
     out_width = (in_width - kernel_w + pad_w) // stride_w + 1
     # change the layout from NHWC to NCHW
     at = a_np.transpose((0, 3, 1, 2))
-    wt = w_np.transpose((0, 3, 1, 2))
+    wt = w_np.transpose((3, 2, 0, 1))
     print("at.shape, wt.shape", at.shape, wt.shape)
     bt = np.zeros((batch, out_channel, out_height, out_width))
     # computation

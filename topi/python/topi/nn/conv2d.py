@@ -347,7 +347,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
         4-D with shape [batch, in_height, in_width, in_channel]
 
     Filter : tvm.Tensor
-        4-D with shape [num_filter, filter_height, filter_width, in_channel]
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
@@ -362,7 +362,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
     """
     assert isinstance(stride, int) or len(stride) == 2
     batch, in_height, in_width, in_channel = Input.shape
-    num_filter, kernel_h, kernel_w, channel = Filter.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -384,7 +384,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
         (batch, out_height, out_width, out_channel),
         lambda nn, yy, xx, ff: tvm.sum(
             PaddedInput[nn, yy * stride_h + ry, xx * stride_w + rx, rc].astype(out_dtype) *
-            Filter[ff, ry, rx, rc].astype(out_dtype), axis=[ry, rx, rc]),
+            Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
         name="Conv2dOutput", tag="conv2d_nhwc")
     return Output
 

@@ -11,7 +11,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
-    W = tvm.placeholder((num_filter, kernel, kernel, in_channel), name='W')
+    W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
     B = topi.nn.conv2d_nhwc(A, W, stride, padding)
     with tvm.target.create("llvm"):
         s1 = topi.generic.schedule_conv2d_nhwc([B])
@@ -20,14 +20,10 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype
 
-    a_np = np.random.uniform(size=a_shape).astype(dtype)
-    w_np = np.random.uniform(size=w_shape).astype(dtype)
-
     @memoize("topi.tests.test_topi_conv2d_nhwc.verify_nhwc")
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        print("foo")
         b_np = topi.testing.conv2d_nhwc_python(a_np, w_np, stride, padding)
         return a_np, w_np, b_np
     a_np, w_np, b_np = get_ref_data()
