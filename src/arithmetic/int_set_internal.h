@@ -13,7 +13,7 @@
 namespace tvm {
 namespace arith {
 
-using Halide::Internal::Interval;
+using HalideIR::Internal::Interval;
 
 /*! \brief Set of continuous interval */
 struct IntervalSet : public IntSetNode {

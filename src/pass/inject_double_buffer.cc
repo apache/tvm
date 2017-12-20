@@ -81,7 +81,8 @@ class DoubleBufferInjector : public IRMutator {
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
-      it->second.stride = arith::ComputeReduce<Mul>(op->extents) * op->type.lanes();
+      it->second.stride = arith::ComputeReduce<Mul>
+          (op->extents, Expr()) * op->type.lanes();
       Stmt stmt = IRMutator::Mutate_(op, s);
       op = stmt.as<Allocate>();
       Array<Expr> new_extents{make_const(op->extents[0].type(), 2)};

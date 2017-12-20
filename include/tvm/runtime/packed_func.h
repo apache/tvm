@@ -17,7 +17,7 @@
 #include "./c_runtime_api.h"
 #include "./module.h"
 
-namespace Halide {
+namespace HalideIR {
 // Forward declare type for extensions
 // The header works fine without depending on this.
 struct Type;
@@ -351,8 +351,8 @@ class TVMArgValue : public TVMPODValue_ {
            typename = typename std::enable_if<
              std::is_class<TNodeRef>::value>::type>
   inline bool IsNodeType() const;
-  inline operator Halide::Type() const;
-  inline operator Halide::Expr() const;
+  inline operator HalideIR::Type() const;
+  inline operator HalideIR::Expr() const;
   // get internal node ptr, if it is node
   inline std::shared_ptr<Node>& node_sptr();
 };
@@ -531,8 +531,8 @@ class TVMRetValue : public TVMPODValue_ {
   inline TVMRetValue& operator=(const NodeRef& other);
   inline TVMRetValue& operator=(const std::shared_ptr<Node>& other);
   // type related
-  inline operator Halide::Type() const;
-  inline TVMRetValue& operator=(const Halide::Type& other);
+  inline operator HalideIR::Type() const;
+  inline TVMRetValue& operator=(const HalideIR::Type& other);
 
  private:
   template<typename T>
@@ -800,7 +800,7 @@ class TVMArgsSetter {
   inline void operator()(size_t i, const T& value) const;
   // NodeRef related extenstions: in tvm/packed_func_ext.h
   inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
-  inline void operator()(size_t i, const Halide::Type& t) const;
+  inline void operator()(size_t i, const HalideIR::Type& t) const;
 
  private:
   /*! \brief The values fields */

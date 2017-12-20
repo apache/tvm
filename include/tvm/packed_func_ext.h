@@ -14,6 +14,7 @@
 
 #include "./base.h"
 #include "./expr.h"
+#include "./tensor.h"
 #include "./runtime/packed_func.h"
 
 namespace tvm {
@@ -103,7 +104,7 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
   return TNodeRef(sptr);
 }
 
-inline TVMArgValue::operator Halide::Expr() const {
+inline TVMArgValue::operator HalideIR::Expr() const {
   if (type_code_ == kNull) return Expr();
   if (type_code_ == kDLInt) {
     return Expr(static_cast<int>(value_.v_int64));
@@ -115,6 +116,9 @@ inline TVMArgValue::operator Halide::Expr() const {
   std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
   if (sptr->is_type<IterVarNode>()) {
     return IterVar(sptr)->var;
+  }
+  if (sptr->is_type<TensorNode>()) {
+    return Tensor(sptr)();
   }
   CHECK(NodeTypeChecker<Expr>::Check(sptr.get()))
       << "Expected type " << NodeTypeName<Expr>()
@@ -180,20 +184,20 @@ inline void TVMArgsSetter::operator()(size_t i, const NodeRef& other) const {  /
 }
 
 // type related stuffs
-inline TVMRetValue& TVMRetValue::operator=(const Halide::Type& t) {
+inline TVMRetValue& TVMRetValue::operator=(const HalideIR::Type& t) {
   return this->operator=(Type2TVMType(t));
 }
 
-inline TVMRetValue::operator Halide::Type() const {
+inline TVMRetValue::operator HalideIR::Type() const {
   return TVMType2Type(operator TVMType());
 }
 
-inline TVMArgValue::operator Halide::Type() const {
+inline TVMArgValue::operator HalideIR::Type() const {
   return TVMType2Type(operator TVMType());
 }
 
 inline void TVMArgsSetter::operator()(
-    size_t i, const Halide::Type& t) const {
+    size_t i, const HalideIR::Type& t) const {
   this->operator()(i, Type2TVMType(t));
 }
 }  // namespace runtime

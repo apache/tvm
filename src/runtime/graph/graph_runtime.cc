@@ -370,8 +370,10 @@ void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* dst) {
   CHECK(strm->Read(&tensor.dtype, sizeof(tensor.dtype)))
       << "Invalid DLTensor file format";
   std::vector<int64_t> shape(tensor.ndim);
-  CHECK(strm->Read(&shape[0], sizeof(int64_t) * tensor.ndim))
-      << "Invalid DLTensor file format";
+  if (tensor.ndim != 0) {
+    CHECK(strm->Read(&shape[0], sizeof(int64_t) * tensor.ndim))
+        << "Invalid DLTensor file format";
+  }
   CHECK_EQ(tensor.ndim, dst->ndim) << "param dimension mismatch";
   CHECK(tensor.dtype.bits == dst->dtype.bits &&
         tensor.dtype.code == dst->dtype.code &&

@@ -27,7 +27,7 @@ TVM_REGISTER_API("make.For")
                      args[1],
                      args[2],
                      static_cast<ForType>(args[3].operator int()),
-                     static_cast<Halide::DeviceAPI>(args[4].operator int()),
+                     static_cast<HalideIR::DeviceAPI>(args[4].operator int()),
                      args[5]);
   });
 

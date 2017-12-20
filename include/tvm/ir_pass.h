@@ -41,16 +41,20 @@ Stmt Simplify(Stmt stmt, Map<Var, Range> vrange = Map<Var, Range>());
 /*!
  * \brief Simplify by applying canonical form.
  * \param stmt The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Stmt CanonicalSimplify(Stmt stmt);
+Stmt CanonicalSimplify(Stmt stmt,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify by applying canonical form.
  * \param expr The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-Expr CanonicalSimplify(Expr expr);
+Expr CanonicalSimplify(Expr expr,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -212,7 +216,7 @@ Stmt NarrowChannelAccess(Stmt stmt);
  *
  * \param stmt The statment to be unrolled.
  * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_min_depth The minimum depth before we can start automatic unroll
+ * \param auto_max_depth The maximum depth before stop attach automatic unroll
  * \param auto_max_extent The maximum extent of the loop we can unroll,
  *                        this is an legacy option that donot take the loop total steps into account.
  * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
@@ -220,7 +224,7 @@ Stmt NarrowChannelAccess(Stmt stmt);
  */
 Stmt UnrollLoop(Stmt stmt,
                 int auto_max_step,
-                int auto_min_depth,
+                int auto_max_depth,
                 int auto_max_extent,
                 bool explicit_unroll);
 

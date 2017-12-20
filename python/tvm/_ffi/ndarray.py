@@ -177,13 +177,14 @@ class NDArrayBase(_NDArrayBase):
             shape = shape + (t.lanes,)
             t.lanes = 1
             dtype = str(t)
-        source_array = np.ascontiguousarray(source_array, dtype=dtype)
+
         if source_array.shape != shape:
             raise ValueError("array shape do not match the shape of NDArray {0} vs {1}".format(
                 source_array.shape, shape))
+        source_array = np.ascontiguousarray(source_array, dtype=dtype)
         assert source_array.flags['C_CONTIGUOUS']
         data = source_array.ctypes.data_as(ctypes.c_void_p)
-        nbytes = ctypes.c_size_t(np.prod(source_array.shape) * source_array.dtype.itemsize)
+        nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
         return self
 
@@ -212,7 +213,7 @@ class NDArrayBase(_NDArrayBase):
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags['C_CONTIGUOUS']
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
-        nbytes = ctypes.c_size_t(np.prod(np_arr.shape) * np_arr.dtype.itemsize)
+        nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
         return np_arr
 

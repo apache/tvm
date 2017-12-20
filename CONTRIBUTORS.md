@@ -36,3 +36,4 @@ List of Contributors
 - [Jian Weng](https://github.com/were)
 - [Masahiro Masuda](https://github.com/masahi)
 - [Haolong Zhang](https://github.com/haolongzhangm)
+- [Cody Hao Yu](https://github.com/comaniac)

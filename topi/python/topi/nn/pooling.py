@@ -81,13 +81,13 @@ def pool(data, kernel, stride, padding, pool_type, ceil_mode=False):
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_height, kernel_width))
 
-    pad_before = [0, 0, pad_top, pad_left]
-    pad_after = [0, 0, pad_down, pad_right]
-
     if ceil_mode:
         # Additional padding to ensure we do ceil instead of floor when divide stride.
         pad_down += stride_height -1
         pad_right += stride_width - 1
+
+    pad_before = [0, 0, pad_top, pad_left]
+    pad_after = [0, 0, pad_down, pad_right]
 
     out_height = util.simplify((height - kernel_height + pad_top + pad_down) // stride_height + 1)
     out_width = util.simplify((width - kernel_width + pad_left + pad_right) // stride_width + 1)

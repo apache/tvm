@@ -22,7 +22,7 @@ namespace arith {
 class Canonical {
  public:
   /*! \brief constructor */
-  Canonical();
+  explicit Canonical(Map<Var, Range> var_range);
   /*!
    * \brief simplify expression e.
    * \param expr The expression to be simplified.

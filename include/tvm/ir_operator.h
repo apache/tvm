@@ -12,14 +12,14 @@
 
 namespace tvm {
 
-using Halide::likely;
-using Halide::likely_if_innermost;
+using HalideIR::likely;
+using HalideIR::likely_if_innermost;
 // functions
-using Halide::cast;
-using Halide::min;
-using Halide::max;
-using Halide::abs;
-using Halide::select;
+using HalideIR::cast;
+using HalideIR::min;
+using HalideIR::max;
+using HalideIR::abs;
+using HalideIR::select;
 
 /*!
  * \brief sum of of source expression over axis

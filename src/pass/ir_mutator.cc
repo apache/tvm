@@ -206,7 +206,7 @@ Stmt IRMutator::Mutate_(const Provide* op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
   IRMutator* m = this;
-  Halide::Internal::Region new_bounds;
+  HalideIR::Internal::Region new_bounds;
   bool bounds_changed = false;
 
   // Mutate the bounds
@@ -236,7 +236,7 @@ Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Prefetch* op, const Stmt& s) {
   IRMutator* m = this;
-  Halide::Internal::Region new_bounds;
+  HalideIR::Internal::Region new_bounds;
   bool bounds_changed = false;
 
   // Mutate the bounds

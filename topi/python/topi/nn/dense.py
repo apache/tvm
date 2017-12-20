@@ -25,7 +25,7 @@ def dense(data, weight, bias=None):
     """
     assert len(data.shape) == 2 and len(weight.shape) == 2, \
         "only support 2-dim dense"
-    if bias:
+    if bias is not None:
         assert len(bias.shape) == 1
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
@@ -33,7 +33,7 @@ def dense(data, weight, bias=None):
     matmul = tvm.compute((batch, out_dim), \
                          lambda i, j: tvm.sum(data[i, k] * weight[j, k], axis=k), \
                          tag='dense')
-    if bias:
+    if bias is not None:
         matmul = tvm.compute((batch, out_dim), \
                              lambda i, j: matmul[i, j] + bias[j], \
                              tag=tag.BROADCAST)
