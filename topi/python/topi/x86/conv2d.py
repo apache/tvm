@@ -43,11 +43,16 @@ def schedule_conv2d(outs):
             fused = s[C].fuse(n, c)
             s[C].parallel(fused)
             wo, wi = s[C].split(w, factor=16)
-            #ho, hi = s[C].split(h, factor=4)
             s[C].reorder(fused, rc, h, wo, ry, rx, wi) # move rc to outer loop
             s[C].unroll(rx)
             s[C].unroll(ry)
             s[C].vectorize(wi)
 
     traverse(outs[0].op)
+    return s
+
+@generic.schedule_conv2d_hwcn.register(["cpu"])
+def schedule_conv2d_nhwc(outs):
+    """Create schedule for tensors"""
+    s = tvm.create_schedule([x.op for x in outs])
     return s
