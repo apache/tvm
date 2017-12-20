@@ -8,7 +8,6 @@ from .. import tag
 def schedule_conv2d(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
-    output_op =  outs[0].op
 
     def traverse(op):
         """Traverse operators from computation graph"""
@@ -38,18 +37,17 @@ def schedule_conv2d(outs):
             n_pad, c_pad, h_pad, w_pad = data_pad.op.axis
             pad_fused = s[data_pad].fuse(n_pad, c_pad)
             s[data_pad].parallel(pad_fused)
-
             C = conv
             n, c, h, w = C.op.axis
             rc, ry, rx = C.op.reduce_axis
-            n_out, c_out, h_out, w_out = output_op.axis
-            w_out_o, w_out_i = s[output_op].split(w_out, factor=16)
-            # h_out_o, h_out_i = s[output_op].split(h_out, factor=4)
-            # s[output_op].reorder(h_out_o, w_out_o, h_out_i, w_out_i)
-            s[C].compute_at(s[output_op], w_out_i)
-            s[C].unroll(ry)
+            fused = s[C].fuse(n, c)
+            s[C].parallel(fused)
+            wo, wi = s[C].split(w, factor=16)
+            #ho, hi = s[C].split(h, factor=4)
+            s[C].reorder(fused, rc, h, wo, ry, rx, wi) # move rc to outer loop
             s[C].unroll(rx)
-            s[output_op].vectorize(w_out_i)
+            s[C].unroll(ry)
+            s[C].vectorize(wi)
 
     traverse(outs[0].op)
     return s
