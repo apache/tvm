@@ -293,12 +293,6 @@ def from_coreml(model):
     model:
         coremltools.models.MLModel of a NeuralNetworkClassifier
 
-    arg_params : dict of str to mx.NDArray
-        The argument parameters in mxnet
-
-    aux_params : dict of str to mx.NDArray
-        The auxiliary parameters in mxnet
-
     Returns
     -------
     sym : nnvm.Symbol
