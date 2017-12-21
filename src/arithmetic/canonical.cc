@@ -640,6 +640,24 @@ T Simplify_(T a, Map<Var, Range> vrange) {
 
 
 Expr Simplify(Expr a, Map<Var, Range> vrange) {
+  // We should not pass an expression having a non-HalideIR op to
+  // Halide::Internal::simplify. Reduce op is the only such op at this time
+  // and it only appears as the top op in an expression. So we strip it
+  // first and send the sub-expressions to the simplifier.
+  if (const Reduce* r = a.as<Reduce>()) {
+    Array<Expr> new_source;
+    for (auto& e : r->source) {
+      new_source.push_back(Simplify_(e, vrange));
+    }
+    Expr new_condition = Simplify_(r->condition, vrange);
+    if (r->source.same_as(new_source) &&
+        r->condition.same_as(new_condition)) {
+      return a;
+    } else {
+      return Reduce::make(
+              r->combiner, new_source, r->axis, new_condition, r->value_index);
+    }
+  }
   return Simplify_(a, vrange);
 }
 
