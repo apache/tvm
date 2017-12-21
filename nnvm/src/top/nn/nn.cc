@@ -266,9 +266,9 @@ inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
   TShape dshape = (*in_shape)[0];
   if (dshape.ndim() == 0) return false;
   CHECK_EQ(param.pad_width.ndim(), dshape.ndim());
-  CHECK_EQ(param.pad_width[0].ndim(), 2U);
   TShape oshape = dshape;
   for (uint32_t i = 0; i < dshape.ndim(); i++) {
+    CHECK_EQ(param.pad_width[i].ndim(), 2U);
     int pad_before = param.pad_width[i][0];
     int pad_after = param.pad_width[i][1];
     oshape[i] = dshape[i] + pad_before + pad_after;
