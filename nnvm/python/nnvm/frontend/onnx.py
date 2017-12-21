@@ -393,7 +393,7 @@ class GraphProto(object):
 
 
 def from_onnx(graph):
-    """Load onnx graph which is a python protobuf object in to nnvm graph.
+    """Load onnx graph which is a python protobuf object into nnvm graph.
     The companion parameters will be handled automatically.
     The inputs from onnx graph is vague, only providing "1", "2"...
     For convenience, we rename the `real` input names to "input_0",

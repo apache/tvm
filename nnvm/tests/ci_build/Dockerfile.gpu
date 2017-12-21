@@ -38,6 +38,9 @@ RUN bash /install/ubuntu_install_onnx.sh
 COPY install/ubuntu_install_coreml.sh /install/ubuntu_install_coreml.sh
 RUN bash /install/ubuntu_install_coreml.sh
 
+COPY install/ubuntu_install_keras.sh /install/ubuntu_install_keras.sh
+RUN bash /install/ubuntu_install_keras.sh
+
 RUN pip install Pillow
 
 # Environment variables
