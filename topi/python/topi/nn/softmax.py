@@ -4,10 +4,10 @@ from __future__ import absolute_import
 import tvm
 
 @tvm.tag_scope(tag='softmax_output')
-def softmax(x, axis, layout="NCHW"):
-    if layout == "NCHW":
+def softmax(x, axis):
+    if axis == 1:
         return softmax_nchw(x, axis)
-    elif layout == "NHWC":
+    elif axis == 3 or axis == 4:
         return softmax_nhwc(x, axis)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
