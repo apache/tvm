@@ -43,6 +43,16 @@ def test_canonical():
     ret = tvm.ir_pass.CanonicalSimplify(x / (z+z) - x / (z+z))
     assert(tvm.ir_pass.Equal(ret, 0))
 
+    #make sure terms are ordered based on their top operators (e.g., / always precedes %)
+    ret1 = tvm.ir_pass.CanonicalSimplify(x % 3 + x / 3)
+    ret2 = tvm.ir_pass.CanonicalSimplify(x / 3 + x % 3)
+    assert(tvm.ir_pass.Equal(ret1, ret2))
+
+    #when top operators match, compare string representation of terms
+    ret1 = tvm.ir_pass.CanonicalSimplify(x % 4 + x % 3)
+    ret2 = tvm.ir_pass.CanonicalSimplify(x % 3 + x % 4)
+    assert (tvm.ir_pass.Equal(ret1, ret2))
+
 if __name__ == "__main__":
     test_bound()
     test_basic()

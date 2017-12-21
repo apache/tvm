@@ -29,9 +29,17 @@ struct ComExprEntry {
   inline bool operator<(const ComExprEntry& other) const {
     if (level < other.level) return true;
     if (level > other.level) return false;
+    // compare top operator of entries and sort on that if possible (fast check)
     if (value.type_index() < other.value.type_index()) return true;
     if (value.type_index() > other.value.type_index()) return false;
-    return value.get() < other.value.get();
+    // if none of the above distinguishes the terms, compare the expression tree of the entries.
+    // This is a slower check.
+    int compare_result = Compare(value, other.value);
+    if (compare_result < 0) return true;
+    if (compare_result > 0) return false;
+    // it's a problem if we see identical entries at this point. They should've been merged earlier.
+    LOG(WARNING) << "we should not have identical entries at this point";
+    return false;
   }
 };
 
