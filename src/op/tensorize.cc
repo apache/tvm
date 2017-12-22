@@ -303,8 +303,10 @@ void VerifyTensorizeBody(
   CHECK_EQ(body.size(), intrin_compute->body.size())
       << "Tensorize failed: body size mismatch";
   for (size_t i = 0; i < body.size(); ++i) {
-    Expr lhs = CanonicalSimplify(body[i], compute_intrin_iter_space);
-    Expr rhs = CanonicalSimplify(intrin_compute->body[i], compute_intrin_iter_space);
+    Expr lhs = Simplify(body[i], compute_intrin_iter_space);
+    lhs = CanonicalSimplify(lhs, compute_intrin_iter_space);
+    Expr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
+    rhs = CanonicalSimplify(rhs, compute_intrin_iter_space);
     if (lhs.type() != rhs.type()) {
       LOG(FATAL)
           << "Failed to match the data type with TensorIntrin "
