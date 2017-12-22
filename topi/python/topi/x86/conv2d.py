@@ -51,10 +51,12 @@ def schedule_conv2d(outs):
     traverse(outs[0].op)
     return s
 
+
 @generic.schedule_conv2d_nhwc.register(["cpu"])
 def schedule_conv2d_nhwc(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
+    output_op = outs[0].op
 
     def traverse(op):
         """Traverse operators from computation graph"""
@@ -65,7 +67,7 @@ def schedule_conv2d_nhwc(outs):
             else: # inject custom schedule
                 if len(op.axis) == 4:
                     n, h, w, c = op.axis
-                    fused = s[op].fuse(n, h)
+                    fused = s[op].fuse(n, h, w)
                     s[op].parallel(fused)
                     s[op].vectorize(c)
             for tensor in op.input_tensors:
@@ -73,7 +75,6 @@ def schedule_conv2d_nhwc(outs):
                     traverse(tensor.op)
 
         if 'conv2d_nhwc' in op.tag:
-            print("In conv2d_nhwc")
             conv = op.output(0)
             kernel = op.input_tensors[1]
             data = op.input_tensors[0]
@@ -88,15 +89,9 @@ def schedule_conv2d_nhwc(outs):
             C = conv
             n, h, w, c = C.op.axis
             ry, rx, rc = C.op.reduce_axis
-            fused = s[C].fuse(n, h)
-            s[C].parallel(fused)
+            n_out, h_out, w_out, c_out = output_op.axis
             s[C].vectorize(c)
-            # #s[C].reorder(rc, ry, rx) # move rc to outer loop
-            # s[C].unroll(rx)
-            # s[C].unroll(ry)
-            # rco, rci = s[C].split(rc, factor=8)
-            # s[C].unroll(rci)
+            s[C].compute_at(s[output_op], c_out)
 
-    traverse(outs[0].op)
-
+    traverse(output_op)
     return s
