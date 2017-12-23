@@ -10,6 +10,7 @@
 
 namespace tvm {
 namespace contrib {
+namespace miopen {
 
 std::string miopenGetErrorString(int error_code) {
   const std::vector<std::string> mio_err{
@@ -72,5 +73,6 @@ void ConvEntry::CleanWorkspace() {
   workspace_size = 0;
 }
 
+}  // namespace miopen
 }  // namespace contrib
 }  // namespace tvm

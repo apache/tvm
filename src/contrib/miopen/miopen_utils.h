@@ -14,6 +14,7 @@
 
 namespace tvm {
 namespace contrib {
+namespace miopen {
 
 std::string miopenGetErrorString(int error_code);
 
@@ -52,6 +53,7 @@ struct MIOpenThreadEntry {
   static MIOpenThreadEntry *ThreadLocal();
 };  // MIOpenThreadEntry
 
+}  // namespace miopen
 }  // namespace contrib
 }  // namespace tvm
 

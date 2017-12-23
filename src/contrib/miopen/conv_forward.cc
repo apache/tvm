@@ -9,6 +9,7 @@
 
 namespace tvm {
 namespace contrib {
+namespace miopen {
 
 using namespace runtime;
 
@@ -172,5 +173,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
                                        entry_ptr->conv_entry.workspace_size));
 });
 
+}  // namespace miopen
 }  // namespace contrib
 }  // namespace tvm
