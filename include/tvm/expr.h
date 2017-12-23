@@ -16,31 +16,31 @@
 
 namespace tvm {
 
-using Halide::Type;
-using Halide::Float;
-using Halide::Bool;
-using Halide::Int;
-using Halide::UInt;
-using Halide::Handle;
-using Halide::ExprHash;
-using Halide::ExprEqual;
+using HalideIR::Type;
+using HalideIR::Float;
+using HalideIR::Bool;
+using HalideIR::Int;
+using HalideIR::UInt;
+using HalideIR::Handle;
+using HalideIR::ExprHash;
+using HalideIR::ExprEqual;
 
-using Halide::Expr;
-using Halide::VarExpr;
-using Halide::IR::RangeNode;
-using Halide::IR::FunctionRef;
-using Halide::IR::FunctionBaseNode;
-using Halide::Internal::Stmt;
-using Halide::Internal::IRPrinter;
-using Halide::Internal::Variable;
+using HalideIR::Expr;
+using HalideIR::VarExpr;
+using HalideIR::IR::RangeNode;
+using HalideIR::IR::FunctionRef;
+using HalideIR::IR::FunctionBaseNode;
+using HalideIR::Internal::Stmt;
+using HalideIR::Internal::IRPrinter;
+using HalideIR::Internal::Variable;
 
-using Halide::Internal::make_const;
-using Halide::Internal::make_zero;
-using Halide::Internal::as_const_int;
-using Halide::Internal::as_const_uint;
-using Halide::Internal::const_true;
-using Halide::Internal::const_false;
-using Halide::Internal::is_no_op;
+using HalideIR::Internal::make_const;
+using HalideIR::Internal::make_zero;
+using HalideIR::Internal::as_const_int;
+using HalideIR::Internal::as_const_uint;
+using HalideIR::Internal::const_true;
+using HalideIR::Internal::const_false;
+using HalideIR::Internal::is_no_op;
 
 inline Type TVMShapeIndexType() {
   if (std::is_signed<tvm_index_t>::value) {
@@ -51,7 +51,7 @@ inline Type TVMShapeIndexType() {
 }
 
 inline Type TVMType2Type(TVMType t) {
-  return Type(static_cast<halide_type_code_t>(t.code), t.bits, t.lanes);
+  return Type(static_cast<halideir_type_code_t>(t.code), t.bits, t.lanes);
 }
 
 inline TVMType Type2TVMType(Type t) {
@@ -71,7 +71,7 @@ inline int GetVectorBytes(Type dtype) {
 }
 
 /*! \brief a named variable in TVM */
-class Var : public Halide::VarExpr {
+class Var : public HalideIR::VarExpr {
  public:
   explicit Var(const std::string& name_hint = "v",
                Type t = Int(32)) : VarExpr(name_hint, t) {}
@@ -94,7 +94,7 @@ class Var : public Halide::VarExpr {
 class IterVarNode;
 
 /*!
- * \brief same as Halide::IR::Range
+ * \brief same as HalideIR::IR::Range
  *  except it provide an constructor with (begin, end)
  *
  *  \note Traditional Halide's Range have a constructor with
@@ -102,19 +102,19 @@ class IterVarNode;
  *   We decided to correct it by removing the constructor in HalideIR,
  *   and add it back in TVM's range.
  */
-class Range : public Halide::IR::Range {
+class Range : public HalideIR::IR::Range {
  public:
   /*! \brief constructor */
   Range() {}
-  explicit Range(std::shared_ptr<Node> n) : Halide::IR::Range(n) {}
+  explicit Range(std::shared_ptr<Node> n) : HalideIR::IR::Range(n) {}
   /*!
    * \brief constructor by begin and end
    * \param begin The begin of the range.
    * \param end The end of the range.
    */
-  Range(Expr begin, Expr end);
+  TVM_DLL Range(Expr begin, Expr end);
 
-  static Range make_by_min_extent(Expr min, Expr extent);
+  TVM_DLL static Range make_by_min_extent(Expr min, Expr extent);
 };
 
 /*!
@@ -216,7 +216,7 @@ class IterVar : public NodeRef {
  * \param dom Optional, domain of the thread axis.
  * \param tag The thread tag of the axis.
  */
-IterVar thread_axis(Range dom, std::string tag);
+TVM_DLL IterVar thread_axis(Range dom, std::string tag);
 
 /*!
  * \brief Create a new IterVar for reduction operations.
@@ -224,12 +224,12 @@ IterVar thread_axis(Range dom, std::string tag);
  * \param dom The domain of the reduction axis.
  * \param name The name of the reduction axis.
  */
-IterVar reduce_axis(Range dom, std::string name = "rv");
+TVM_DLL IterVar reduce_axis(Range dom, std::string name = "rv");
 
 using Domain = Array<Range>;
 
 // print functions for expr
-std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
+TVM_DLL std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration
@@ -259,9 +259,9 @@ class IterVarNode : public Node {
     v->Visit("thread_tag", &thread_tag);
   }
 
-  static IterVar make(Range dom, Var var,
-                      IterVarType iter_type,
-                      std::string thread_tag = "");
+  TVM_DLL static IterVar make(Range dom, Var var,
+                              IterVarType iter_type,
+                              std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
   TVM_DECLARE_NODE_TYPE_INFO(IterVarNode, Node);
@@ -290,6 +290,13 @@ inline const char* IterVarType2String(IterVarType t) {
   }
   return "Unknown";
 }
+
+/*!
+ * \brief Construct a new Var expression
+ * \param name_hint The name hint for the expression
+ * \param t The type of the expression
+ */
+TVM_DLL Var var(const std::string& name_hint, Type t = Int(32));
 
 /*
  * \brief Template function to convert Map to unordered_map

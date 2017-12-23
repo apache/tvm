@@ -21,6 +21,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
     DLTensor* A = args[0];
     DLTensor* B = args[1];
     DLTensor* C = args[2];
+    NNPackConfig(args[3]);
+
     CHECK_EQ(A->ndim, 1);
     CHECK_EQ(B->ndim, 2);
     CHECK_EQ(C->ndim, 1);
@@ -29,9 +31,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
     CHECK(C->strides == nullptr);
     CHECK(B->strides == nullptr);
     CHECK(A->strides == nullptr);
-    CHECK(TypeMatch(A->dtype, kFloat, 32));
-    CHECK(TypeMatch(B->dtype, kFloat, 32));
-    CHECK(TypeMatch(C->dtype, kFloat, 32));
+    CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(B->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
     nnp_fully_connected_inference(B->shape[1],
                                   B->shape[0],
@@ -49,6 +51,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
     DLTensor* A = args[0];
     DLTensor* B = args[1];
     DLTensor* C = args[2];
+    NNPackConfig(args[3]);
+
     CHECK_EQ(A->ndim, 2);
     CHECK_EQ(B->ndim, 2);
     CHECK_EQ(C->ndim, 2);
@@ -58,9 +62,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_output")
     CHECK(C->strides == nullptr);
     CHECK(B->strides == nullptr);
     CHECK(A->strides == nullptr);
-    CHECK(TypeMatch(A->dtype, kFloat, 32));
-    CHECK(TypeMatch(B->dtype, kFloat, 32));
-    CHECK(TypeMatch(C->dtype, kFloat, 32));
+    CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(B->dtype, kDLFloat, 32));
+    CHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
     nnp_fully_connected_output(A->shape[0],
                                B->shape[1],

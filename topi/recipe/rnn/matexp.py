@@ -24,7 +24,7 @@ SKIP_CHECK = False
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     """Use nvcc compiler for better perf."""
-    ptx =  nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
+    ptx =  nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 def write_code(code, fname):
@@ -112,7 +112,6 @@ def rnn_matexp():
     def check_device(target):
         with tvm.build_config(
                 detect_global_barrier=detect_global_barrier,
-                auto_unroll_min_depth=2,
                 auto_unroll_max_step=128,
                 unroll_explicit=False):
             f = tvm.build(s, [s_scan, Whh], target)

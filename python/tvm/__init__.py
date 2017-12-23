@@ -14,9 +14,10 @@ from . import schedule
 from . import module
 from . import node
 from . import ir_builder
+from . import target
 
 from . import ndarray as nd
-from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi, rocm
+from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi, rocm, ext_dev
 
 from ._ffi.runtime_ctypes import TypeCode
 from ._ffi.function import Function
@@ -29,3 +30,6 @@ from .ndarray import register_extension
 from .schedule import create_schedule
 from .build_module import build, lower, build_config
 from .tag import tag_scope
+
+# Contrib initializers
+from .contrib import rocm as _rocm, nvcc as _nvcc

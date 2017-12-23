@@ -130,30 +130,76 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 };
 
+inline int DetectCUDAComputeVersion() {
+  TVMContext tvm_ctx;
+  tvm_ctx.device_type = kDLGPU;
+  tvm_ctx.device_id = 0;
+  TVMRetValue val;
+  tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
+      tvm_ctx, tvm::runtime::kExist, &val);
+  if (val.operator int() == 1) {
+    tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
+        tvm_ctx, tvm::runtime::kComputeVersion, &val);
+    std::string version = val;
+    std::istringstream is(version);
+    double ver;
+    is >> ver;
+    return static_cast<int>(ver * 10);
+  } else {
+    return 20;
+  }
+}
+
 runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
-  CHECK(target.length(
-) >= 5 &&
+  CHECK(target.length() >= 5 &&
         target.substr(0, 5) == "nvptx");
-  llvm::TargetMachine* tm = GetLLVMTargetMachine(
-      "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_20" +
-      target.substr(5, target.length() - 5));
+  int compute_ver = DetectCUDAComputeVersion();
+  std::ostringstream config;
+  config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_"
+         << compute_ver
+         << target.substr(5, target.length() - 5);
+  llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
   for (LoweredFunc f :  funcs) {
     cg->AddFunction(f);
   }
+
+  const auto* flibdevice_path =
+      tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
+  if (flibdevice_path != nullptr) {
+    std::string path = (*flibdevice_path)(compute_ver);
+    if (path.length() != 0) {
+      llvm::SMDiagnostic err;
+      std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
+      if (mlib.get() == nullptr) {
+        std::string msg = err.getMessage();
+        LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
+                   << "line " << err.getLineNo() << ":" << msg;
+      }
+      mlib->setTargetTriple(tm->getTargetTriple().str());
+      mlib->setDataLayout(tm->createDataLayout());
+      // TODO(tqchen) libdevice linking not yet working.
+      // cg->AddLinkModule(std::move(mlib));
+    }
+  }
   std::unique_ptr<llvm::Module> module = cg->Finish();
-  llvm::SmallString<8> data;
-  llvm::raw_svector_ostream dest(data);
-  dest.SetUnbuffered();
+  llvm::SmallString<8> data_ptx, data_ll;
+  llvm::raw_svector_ostream dest_ptx(data_ptx), dest_ll(data_ll);
+  dest_ptx.SetUnbuffered();
+  dest_ll.SetUnbuffered();
+  // print ll
+  module->print(dest_ll, nullptr);
+  std::string ll(data_ll.begin(), data_ll.end());
+  // emit ptx
   llvm::legacy::PassManager pass;
   CHECK(tm->addPassesToEmitFile(
-      pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
   pass.run(*module);
-  std::string ptx(data.begin(), data.end());
-  return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), "");
+  std::string ptx(data_ptx.begin(), data_ptx.end());
+  return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
 }
 
 TVM_REGISTER_API("codegen.build_nvptx")

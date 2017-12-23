@@ -72,7 +72,7 @@ class BuiltinLower : public IRMutator {
     int64_t nbytes = GetVectorBytes(op->type);
     if (device_type_.defined()) {
       if (arith::GetConst(device_type_, &dev_type)) {
-        if (dev_type == kCPU) {
+        if (dev_type == kDLCPU) {
           int32_t constant_size = op->constant_allocation_size();
           if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
             return stmt;
@@ -140,6 +140,8 @@ class BuiltinLower : public IRMutator {
       return MakeShape(op, e);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_array)) {
       return MakeArray(op, e);
+    } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
+      return make_zero(op->type);
     } else {
       return IRMutator::Mutate_(op, e);
     }

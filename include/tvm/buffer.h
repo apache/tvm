@@ -37,7 +37,7 @@ class Buffer : public NodeRef {
    *  but always add stride field.
    * \return The strided version of the buffer.
    */
-  Buffer MakeStrideView() const;
+  TVM_DLL Buffer MakeStrideView() const;
   /*!
    * \brief Make a new symbolic buffer representing a slice of the buffer.
    * \param begins The beginning position of each dimension.
@@ -46,25 +46,27 @@ class Buffer : public NodeRef {
    *  If stride is not needed in the slice, it won't be presented
    * \return the result buffer.
    */
-  Buffer MakeSlice(Array<Expr> begins, Array<Expr> extents) const;
+  TVM_DLL Buffer MakeSlice(Array<Expr> begins, Array<Expr> extents) const;
   /*!
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
    * \param ptr_type The type of the pointer.
+   * \param content_lanes The number of lanes for the (data) type.
    */
-  Expr access_ptr(int access_mask, Type ptr_type = Handle()) const;
+  TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle(),
+                          int content_lanes = 1) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
    */
-  Expr vload(Array<Expr> begin, Type dtype) const;
+  TVM_DLL Expr vload(Array<Expr> begin, Type dtype) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
    * \param value The value to be stored.
    */
-  Stmt vstore(Array<Expr> begin, Expr value) const;
+  TVM_DLL Stmt vstore(Array<Expr> begin, Expr value) const;
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -122,17 +124,22 @@ class BufferNode : public Node {
     v->Visit("offset_factor", &offset_factor);
   }
 
+  /*! \return preferred index type for this buffer node */
+  Type DefaultIndexType() const {
+    return shape.size() != 0 ? shape[0].type() : Int(32);
+  }
+
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
-  static Buffer make(Var ptr,
-                     Type dtype,
-                     Array<Expr> shape,
-                     Array<Expr> strides,
-                     Expr byte_offset,
-                     std::string name,
-                     std::string scope,
-                     int data_alignment,
-                     int offset_factor);
+  TVM_DLL static Buffer make(Var ptr,
+                             Type dtype,
+                             Array<Expr> shape,
+                             Array<Expr> strides,
+                             Expr elem_offset,
+                             std::string name,
+                             std::string scope,
+                             int data_alignment,
+                             int offset_factor);
 
   static constexpr const char* _type_key = "Buffer";
   TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);
@@ -150,8 +157,8 @@ inline const BufferNode* Buffer::operator->() const {
  * \return The created buffer.
  * \sa BufferNode::make for complete constructor.
  */
-Buffer decl_buffer(Array<Expr> shape,
-                   Type dtype = Float(32),
-                   std::string name = "buffer");
+TVM_DLL Buffer decl_buffer(Array<Expr> shape,
+                           Type dtype = Float(32),
+                           std::string name = "buffer");
 }  // namespace tvm
 #endif  // TVM_BUFFER_H_

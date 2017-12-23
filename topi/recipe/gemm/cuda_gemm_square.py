@@ -9,7 +9,7 @@ USE_MANUAL_CODE = False
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx =  nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_52"])
+    ptx =  nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 def write_code(code, fname):
@@ -80,6 +80,7 @@ def test_gemm():
     s[CC].reorder(ko, kt, ki, yo, xo)
     s[AA].compute_at(s[CC], ko)
     s[BB].compute_at(s[CC], ko)
+    s[CC].unroll(kt)
     s[AL].compute_at(s[CC], kt)
     s[BL].compute_at(s[CC], kt)
     # Schedule for A's shared memory load
@@ -96,13 +97,16 @@ def test_gemm():
     s[BB].bind(ty, thread_y)
     s[BB].bind(tx, thread_x)
     s[BB].vectorize(xi)
+    s[AA].double_buffer()
+    s[BB].double_buffer()
     # correctness
     def check_device(device):
+        print("Device %s" % device)
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         f = tvm.build(s, [A, B, C], device)
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         # launch the kernel.
         n, m, l = nn, nn, nn
         a_np = np.random.uniform(size=(n, l)).astype(A.dtype)
@@ -115,10 +119,17 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(b_np.T, a_np), rtol=1e-5)
 
-    with tvm.build_config(auto_unroll_max_step=32,
-                          auto_unroll_min_depth=0,
-                          unroll_explicit=False):
-        check_device("cuda")
+        num_flops = 2 * nn * nn * nn
+        num_runs = 10
+        timer_f = f.time_evaluator(f.entry_name, ctx, number=num_runs)
+        t = timer_f(a, b, c).mean
+        GFLOPS = num_flops / (t * 1e3) / 1e6
+        print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
+
+    for device in ["cuda", "opencl", "rocm", "nvptx"]:
+        with tvm.build_config(auto_unroll_max_step=128,
+                              unroll_explicit=(device != "cuda")):
+            check_device(device)
 
 if __name__ == "__main__":
     test_gemm()

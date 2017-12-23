@@ -55,7 +55,30 @@ def test_schedule_scan():
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    print(stmt)
+
+def test_inline_multi_reduce():
+    def argmax_comp(x, y):
+        idx = tvm.select((x[1] >= y[1]), x[0], y[0])
+        val = tvm.select((x[1] >= y[1]), x[1], y[1])
+        return idx, val
+    def argmax_init(idx_typ, val_typ):
+        return tvm.const(-1, idx_typ), tvm.min_value(val_typ)
+
+    argmax = tvm.comm_reducer(argmax_comp, argmax_init, name='argmax')
+    m = tvm.var('m')
+    n = tvm.var('n')
+    val = tvm.placeholder((m, n), name='val', dtype='float32')
+    val1 = tvm.compute((m, n), lambda i, j: val[i, j]+1, name='val1')
+    val2 = tvm.compute((m, n), lambda i, j: tvm.exp(val1[i, j]), name='val2')
+    k = tvm.reduce_axis((0, n), 'k')
+    T_idx, T_val = tvm.compute((m, ), lambda i: argmax((k.var, val2[i, k]), axis=k), name='T')
+    s = tvm.create_schedule(T_idx.op)
+    s[val1].compute_inline()
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
 
 def test_auto_inline():
     m = tvm.var('m')
@@ -160,7 +183,58 @@ def test_schedule_cache():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
+def test_schedule_cache_relayout1():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m, n), name='A')
+    B = tvm.placeholder((m, n), name='B')
+    C = tvm.compute((m, n), lambda i, j:  A(i, j) * B(i, j), name='C')
+
+    s = tvm.create_schedule(C.op)
+    s[C].reorder(C.op.axis[1], C.op.axis[0])
+    CC = s.cache_write(C, "global")
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
+def test_schedule_cache_relayout2():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m*4, n), name='A')
+    B = tvm.placeholder((m*4, n), name='B')
+    C = tvm.compute(A.shape, lambda i, j:  A(i, j) * B(i, j), name='C')
+    s = tvm.create_schedule(C.op)
+    x, y = C.op.axis
+    xo, xi = s[C].split(x, factor=4)
+    s[C].reorder(xo, y, xi)
+    CC = s.cache_write(C, "global")
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
+def test_schedule_cache_relayout3():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m*4, n), name='A')
+    B = tvm.placeholder((m*4, n), name='B')
+    k = tvm.reduce_axis((0, n), "k")
+    C = tvm.compute((A.shape[0],),
+                    lambda i: tvm.sum(A(i, k) * B(i, k), axis=k), name='C')
+    s = tvm.create_schedule(C.op)
+    x = C.op.axis[0]
+    xo, xi = s[C].split(x, factor=4)
+    CC = s.cache_write(C, "global")
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
 if __name__ == "__main__":
+    test_inline_multi_reduce()
+    test_schedule_cache_relayout3()
+    test_schedule_cache_relayout2()
+    test_schedule_cache_relayout1()
     test_schedule_const_bound()
     test_scan_inline1()
     test_scan_inline2()

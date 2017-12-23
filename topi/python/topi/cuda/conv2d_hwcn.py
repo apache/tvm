@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 """Schedule for conv2d_hwcn with auto fusion"""
 import tvm
-
+from .. import tag
 
 def schedule_conv2d_hwcn(outs):
     """Schedule for conv2d_hwcn and any element-wise operations.
@@ -101,7 +101,7 @@ def schedule_conv2d_hwcn(outs):
 
     def traverse(operator):
         """Traverse operators from computation graph"""
-        if operator.tag == 'ewise' or operator.tag == 'scale_shift':
+        if tag.is_broadcast(operator.tag):
             if operator not in sch.outputs:
                 sch[operator].compute_inline()
             for tensor in operator.input_tensors:

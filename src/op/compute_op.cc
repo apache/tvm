@@ -24,6 +24,13 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 
+inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+  return (a->combiner.same_as(b->combiner)) &&
+         (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) &&
+         (a->condition.same_as(b->condition));
+}
+
 int ComputeOpNode::num_outputs() const {
   return body.size();
 }
@@ -98,13 +105,6 @@ Array<Tensor> compute(Array<Expr> shape,
   return outputs;
 }
 
-bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
-  return (a->combiner.same_as(b->combiner)) &&
-         (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) &&
-         (a->condition.same_as(b->condition));
-}
-
 Operation ComputeOpNode::make(std::string name,
                               std::string tag,
                               Array<IterVar> axis,
@@ -151,9 +151,35 @@ Operation ComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  Array<Expr> arr = UpdateArray(this->body, [&rmap] (const Expr& e) {
-      return op::ReplaceTensor(e, rmap);
-    });
+  Array<Expr> arr;
+  if (this->body[0]->is_type<ir::Reduce>()) {
+    // Specially handle reduce so the replaced op
+    // still share all the components
+    const ir::Reduce* reduce = this->body[0].as<ir::Reduce>();
+    for (size_t i = 1; i < this->body.size(); ++i) {
+      const ir::Reduce* reduce_ = this->body[i].as<ir::Reduce>();
+      CHECK(reduce_);
+      CHECK(ReduceEqual(reduce_, reduce))
+        << "The Reduce inputs of ComputeOp should "
+        << "have the same attribute except value_index";
+    }\
+    Expr new_reduce = op::ReplaceTensor(this->body[0], rmap);
+    if (!new_reduce.same_as(this->body[0])) {
+      const ir::Reduce* r = new_reduce.as<ir::Reduce>();
+      for (size_t k = 0; k < this->body.size(); ++k) {
+        std::shared_ptr<ir::Reduce> n = std::make_shared<ir::Reduce>(*r);
+        n->value_index = static_cast<int>(k);
+        n->type = r->source[k].type();
+        arr.push_back(Expr(n));
+      }
+    } else {
+      arr = this->body;
+    }
+  } else {
+    arr = UpdateArray(this->body, [&rmap] (const Expr& e) {
+        return op::ReplaceTensor(e, rmap);
+      });
+  }
   if (!arr.same_as(this->body)) {
     return ComputeOpNode::make(name, tag, axis, arr);
   } else {
@@ -202,7 +228,7 @@ Stmt ComputeOpNode::BuildRealize(
     const std::unordered_map<IterVar, Range>& realize_map,
     const Stmt& realize_body) const {
   CHECK_EQ(stage->op.get(), this);
-  Halide::Internal::Region bounds;
+  HalideIR::Internal::Region bounds;
   for (IterVar iv : this->axis) {
     bounds.push_back(realize_map.at(iv));
   }
@@ -383,8 +409,9 @@ ComputeLoopNest ComputeLoopNest::make(
   // make main loop nest
   ret.main_nest = op::MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap);
-  ret.main_predicates = op::MakeBoundCheck(stage, dom_map, false,
-      std::unordered_set<IterVar>(), ret.main_vmap);
+  ret.main_predicates = schedule::MakeBoundCheck(
+      stage, dom_map, ret.main_vmap, false,
+      std::unordered_set<IterVar>());
   for (auto& e : ret.main_predicates) {
     e = likely(e);
   }
@@ -424,8 +451,8 @@ ComputeLoopNest ComputeLoopNest::make(
     ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
         skip_iter, &(ret.init_vmap));
-    ret.init_predicates = op::MakeBoundCheck(
-        stage, dom_map, true, skip_iter, ret.init_vmap);
+    ret.init_predicates = schedule::MakeBoundCheck(
+        stage, dom_map, ret.init_vmap, true, skip_iter);
     for (auto& e : ret.init_predicates) {
       e = likely(e);
     }

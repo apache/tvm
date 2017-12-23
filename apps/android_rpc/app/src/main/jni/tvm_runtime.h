@@ -17,10 +17,13 @@
 #include "../src/runtime/dso_module.cc"
 #include "../src/runtime/rpc/rpc_session.cc"
 #include "../src/runtime/rpc/rpc_event_impl.cc"
-#include "../src/runtime/rpc/rpc_server_env.cc"                                                                                       
+#include "../src/runtime/rpc/rpc_server_env.cc"
 #include "../src/runtime/rpc/rpc_module.cc"
 #include "../src/runtime/rpc/rpc_socket_impl.cc"
 #include "../src/runtime/thread_pool.cc"
+
+#include "../src/runtime/graph/graph_runtime.cc"
+
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
 #include "../src/runtime/opencl/opencl_module.cc"

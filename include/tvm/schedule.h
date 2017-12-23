@@ -81,7 +81,7 @@ class Stage : public NodeRef {
    * \param thread_ivar The thread axis to be binded.
    * \return reference to self.
    */
-  Stage& bind(IterVar ivar, IterVar thread_ivar);
+  EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
   /*!
    * \brief Set predicate under which store to the array can be performed.
    *  Use this when there are duplicated threads doing the same store and we only
@@ -110,7 +110,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
+  EXPORT Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
    * \brief Split the iteration with given number of parts.
    *
@@ -209,6 +209,11 @@ class Stage : public NodeRef {
    */
   Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
   /*!
+   * \brief Compute current stage with double buffering.
+   * \return reference to self.
+   */
+  Stage& double_buffer();   // NOLINT(*)
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
@@ -243,13 +248,13 @@ class Schedule : public NodeRef {
    * \brief Get the stage corresponds to the op
    * \param op The operation.
    */
-  Stage operator[](const Operation& op);
+  EXPORT Stage operator[](const Operation& op);
   /*!
    * \brief Short hand for getting the stage of tensor's operation.
    * \param tensor The tensor
    * \return The stage corresponding to the tensor's op
    */
-  Stage operator[](const Tensor& tensor) {
+  EXPORT Stage operator[](const Tensor& tensor) {
     return this->operator[](tensor->op);
   }
   /*!
@@ -279,8 +284,15 @@ class Schedule : public NodeRef {
   /*!
    * \brief Create a cache write tensor for producing tensor.
    *  The the tensor will take over body of original tensor op.
-   *  The original tensor's body will be changed to an identity read
-   *  from the corresponding cache.
+   *
+   *  This function can be used to do data layout transformation.
+   *  If there is a split/fuse/reorder on the data parallel axis of tensor
+   *  before cache_write is called. The intermediate cache stores
+   *  the data in the layout as the iteration order of leave axis.
+   *  The data will be transformed back to the original layout in the original tensor.
+   *  User can further call compute_inline to inline the original layout and keep
+   *  the data stored in the transformed layout.
+   *
    * \param tensor The tensor to be produced.
    * \param scope The scope of the storage.
    * \return The created tensor.
@@ -291,6 +303,8 @@ class Schedule : public NodeRef {
    * This will create a new stage that generated the new tensor with axis
    * as the first dimension. The tensor's body will be rewritten as a reduction
    * over the factored tensor.
+   *
+   *  P. Suriana, A. Adams and S. Kamil. Parallel associative reductions in halide. CGO'17
    *
    * \param tensor The tensor to be factored.
    * \param axis The reduction axis in tensor's schedule to be factored.
@@ -408,6 +422,8 @@ class StageNode : public Node {
   std::string scope;
   /*! \brief Whether this is an output stage */
   bool is_output{false};
+  /*! \brief Whether apply double buffer optimization to this stage */
+  bool double_buffer{false};
   /*!
    * \brief The parent group of the current stage.
    *  The stage cannot be assigned to stages outside the group.
@@ -429,6 +445,7 @@ class StageNode : public Node {
     v->Visit("attach_stage", &attach_stage);
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
+    v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);
   }
@@ -476,7 +493,7 @@ class ScheduleNode : public Node {
    * \param ops The ops to be scheduled.
    * \return sch The created Schedule.
    */
-  static Schedule make(Array<Operation> ops);
+  EXPORT static Schedule make(Array<Operation> ops);
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);

@@ -238,7 +238,7 @@ Stmt ScanOpNode::BuildRealize(
   for (size_t i = 0; i < update.size(); ++i) {
     Tensor t = stage->op.output(i);
     CHECK_EQ(static_cast<size_t>(t->value_index), i);
-    Halide::Internal::Region bounds;
+    HalideIR::Internal::Region bounds;
     bounds.push_back(tdom);
     for (size_t k = 1; k < this->update[i]->shape.size(); ++k, ++sp_idx) {
       IterVar sp_ax = this->spatial_axis_[sp_idx];
@@ -274,7 +274,7 @@ Stmt ScanOpNode::BuildProvide(
   nest[begin_scan].push_back(init);
   nest.push_back(
       op::MakeIfNest(
-          op::MakeBoundCheck(stage, dom_map, false, empty, vmap)));
+          schedule::MakeBoundCheck(stage, dom_map, vmap, false, empty)));
   return MergeNest(nest, provide);
 }
 }  // namespace tvm

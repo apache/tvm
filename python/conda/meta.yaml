@@ -16,6 +16,7 @@ build:
 requirements:
   build:
     - llvmdev ==4.0.0
+    - cmake
     - python >=3
     - numpy
     - setuptools

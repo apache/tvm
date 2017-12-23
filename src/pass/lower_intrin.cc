@@ -16,11 +16,12 @@ namespace ir {
 class IntrinInjecter : public IRMutator {
  public:
   explicit IntrinInjecter(std::string target) {
-    patterns_.push_back("tvm.intrin.rule." + target + ".");
-    if (!strncmp(target.c_str(), "llvm", 4) && target != "llvm") {
-      patterns_.push_back("tvm.intrin.rule.llvm.");
-    }
+    std::istringstream is(target);
+    std::string starget;
+    is >> starget;
+    patterns_.push_back("tvm.intrin.rule." + starget + ".");
     patterns_.push_back("tvm.intrin.rule.default.");
+    fma_ = runtime::Registry::Get(patterns_[0] + "fma");
   }
 
   Expr Mutate_(const Call* op, const Expr& e) final {
@@ -32,7 +33,51 @@ class IntrinInjecter : public IRMutator {
     return IRMutator::Mutate_(op, e);
   }
 
+  Expr Mutate_(const Add* op, const Expr& e) final {
+    if (const Mul* mb = op->b.as<Mul>()) {
+      return MakeFMA(mb->a, mb->b, op->a, op, e);
+    } else if (const Mul* ma = op->a.as<Mul>()) {
+      return MakeFMA(ma->a, ma->b, op->b, op, e);
+    }
+    return IRMutator::Mutate_(op, e);
+  }
+
  private:
+  Expr SwapBroadcastCast(const Expr& e) {
+    // Try to change broadcast(cast(x)) to cast(broadcast(x))
+    // For some targets, LLVM will generate more efficient FMA
+    // instruction with the latter. For example, vmla vs. vmlal
+    // on ARM.
+    if (const Broadcast* bcast = e.as<Broadcast>()) {
+      if (const Cast* cast = bcast->value.as<Cast>()) {
+        if (cast->type.bits() == cast->value.type().bits() * 2) {
+          Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
+          return Cast::make(bcast->type, new_bcast);
+        }
+      }
+    }
+    return e;
+  }
+
+  Expr MakeFMA(const Expr& a, const Expr& b, const Expr& c,
+               const Add* op, const Expr& e) {
+    // emit fma instruction: a * b + c
+    Expr lhs = SwapBroadcastCast(a);
+    Expr rhs = SwapBroadcastCast(b);
+
+    if (fma_ != nullptr && op->type.is_float()) {
+      Expr r = (*fma_)(Call::make(
+          op->type, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
+      if (r.defined()) return this->Mutate(r);
+    } else {
+      if (!lhs.same_as(a) || !rhs.same_as(b)) {
+        Expr mul = this->Mutate(Mul::make(lhs, rhs));
+        return Add::make(mul, this->Mutate(c));
+      }
+    }
+    return IRMutator::Mutate_(op, e);
+  }
+
   Expr ApplyPattern(const std::string& name, const Expr& e) {
     for (size_t i = 0; i < patterns_.size(); ++i) {
       std::string& p = patterns_[i];
@@ -54,6 +99,7 @@ class IntrinInjecter : public IRMutator {
   }
   // patterns
   std::vector<std::string> patterns_;
+  const PackedFunc* fma_{nullptr};
 };
 
 LoweredFunc

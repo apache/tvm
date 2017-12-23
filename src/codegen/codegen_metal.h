@@ -23,10 +23,13 @@ class CodeGenMetal final : public CodeGenC {
   void InitFuncState(LoweredFunc f) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
-  void PrintType(Type t, std::ostream& os) const final; // NOLINT(*)
+  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
+
+ private:
+  int thread_index_bits_{32};
 };
 }  // namespace codegen
 }  // namespace tvm

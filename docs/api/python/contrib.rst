@@ -22,6 +22,11 @@ tvm.contrib.rpc
 .. automodule:: tvm.contrib.rpc
     :members:
 
+tvm.contrib.graph_runtime
+~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.graph_runtime
+    :members:
+
 tvm.contrib.util
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.util

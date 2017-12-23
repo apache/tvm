@@ -40,6 +40,17 @@ class CUDADeviceAPI final : public DeviceAPI {
             &value, cudaDevAttrWarpSize, ctx.device_id));
         break;
       }
+      case kComputeVersion: {
+        std::ostringstream os;
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrComputeCapabilityMajor, ctx.device_id));
+        os << value << ".";
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrComputeCapabilityMinor, ctx.device_id));
+        os << value;
+        *rv = os.str();
+        return;
+      }
     }
     *rv = value;
   }
@@ -68,7 +79,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
-    if (ctx_from.device_type == kGPU && ctx_to.device_type == kGPU) {
+    if (ctx_from.device_type == kDLGPU && ctx_to.device_type == kDLGPU) {
       CUDA_CALL(cudaSetDevice(ctx_from.device_id));
       if (ctx_from.device_id == ctx_to.device_id) {
         GPUCopy(from, to, size, cudaMemcpyDeviceToDevice, cu_stream);
@@ -77,10 +88,10 @@ class CUDADeviceAPI final : public DeviceAPI {
                             from, ctx_from.device_id,
                             size, cu_stream);
       }
-    } else if (ctx_from.device_type == kGPU && ctx_to.device_type == kCPU) {
+    } else if (ctx_from.device_type == kDLGPU && ctx_to.device_type == kDLCPU) {
       CUDA_CALL(cudaSetDevice(ctx_from.device_id));
       GPUCopy(from, to, size, cudaMemcpyDeviceToHost, cu_stream);
-    } else if (ctx_from.device_type == kCPU && ctx_to.device_type == kGPU) {
+    } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLGPU) {
       CUDA_CALL(cudaSetDevice(ctx_to.device_id));
       GPUCopy(from, to, size, cudaMemcpyHostToDevice, cu_stream);
     } else {
@@ -129,7 +140,7 @@ class CUDADeviceAPI final : public DeviceAPI {
 typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;
 
 CUDAThreadEntry::CUDAThreadEntry()
-    : pool(kGPU, CUDADeviceAPI::Global()) {
+    : pool(kDLGPU, CUDADeviceAPI::Global()) {
 }
 
 CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {

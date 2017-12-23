@@ -31,9 +31,11 @@ def test_if():
             A[0] = A[i] + 2
 
     body = ib.get()
+    assert A == A
     assert isinstance(body, tvm.stmt.For)
     body = body.body
     assert isinstance(body, tvm.stmt.IfThenElse)
+    assert isinstance(body.condition, tvm.expr.EQ)
     assert isinstance(body.then_case.index, tvm.expr.Var)
     assert body.else_case.index.value == 0
 
@@ -41,6 +43,7 @@ def test_prefetch():
     A = tvm.placeholder((10, 20), name="A")
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
+
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
             tvm.make.Prefetch(

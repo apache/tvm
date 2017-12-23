@@ -17,6 +17,7 @@
 #include "../src/runtime/rpc/rpc_session.cc"
 #include "../src/runtime/rpc/rpc_event_impl.cc"
 #include "../src/runtime/rpc/rpc_server_env.cc"
+#include "../src/runtime/graph/graph_runtime.cc"
 
 namespace tvm {
 namespace contrib {

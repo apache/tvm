@@ -23,6 +23,7 @@ namespace codegen {
 
 using namespace ir;
 
+
 /*!
  * \brief A base class to generate a LLVM.
  */
@@ -65,6 +66,11 @@ class CodeGenLLVM :
    * \return the created module.
    */
   virtual std::unique_ptr<llvm::Module> Finish();
+  /*!
+   * \brief Add mod to be linked with the generated module
+   * \param mod The module to be linked.
+   */
+  void AddLinkModule(std::unique_ptr<llvm::Module>&& mod);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
@@ -148,6 +154,9 @@ class CodeGenLLVM :
   virtual void Optimize();
   // Get the maximim storage align bits of buffer pointer given storage scope.
   virtual int NativeVectorBits(const runtime::StorageScope& storage_scope) const;
+  // Get correct address space depending on the backend
+  virtual unsigned GetGlobalAddressSpace();
+
   void AddFunctionInternal(const LoweredFunc& f, bool ret_void);
   // Create extern call
   llvm::CallInst* CreateCallExtern(llvm::Type* ret,
@@ -182,6 +191,7 @@ class CodeGenLLVM :
   llvm::Value* CreateMul(Type t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
+  llvm::Value* CreateBufferVecPtr(Type t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -223,7 +233,8 @@ class CodeGenLLVM :
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
   llvm::MDNode* md_tbaa_alias_set_{nullptr};
-
+  // modules to be linked.
+  std::vector<std::unique_ptr<llvm::Module> > link_modules_;
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */
@@ -238,6 +249,8 @@ class CodeGenLLVM :
   std::unordered_map<const Variable*, arith::ModularEntry> align_map_;
   // set of var that are not restricted(can alias)
   std::unordered_set<const Variable*> alias_var_set_;
+  // set of volatile buffer.
+  std::unordered_set<const Variable*> volatile_buf_;
 };
 }  // namespace codegen
 }  // namespace tvm

@@ -14,6 +14,7 @@
 
 #include "./base.h"
 #include "./expr.h"
+#include "./tensor.h"
 #include "./runtime/packed_func.h"
 
 namespace tvm {
@@ -89,8 +90,8 @@ inline std::string NodeTypeName() {
 
 // extensions for tvm arg value
 
-template<typename TNodeRef, typename>
-inline TVMArgValue::operator TNodeRef() const {
+template<typename TNodeRef>
+inline TNodeRef TVMArgValue::AsNodeRef() const {
   static_assert(
       std::is_base_of<NodeRef, TNodeRef>::value,
       "Conversion only works for NodeRef");
@@ -103,18 +104,21 @@ inline TVMArgValue::operator TNodeRef() const {
   return TNodeRef(sptr);
 }
 
-inline TVMArgValue::operator Halide::Expr() const {
+inline TVMArgValue::operator HalideIR::Expr() const {
   if (type_code_ == kNull) return Expr();
-  if (type_code_ == kInt) {
+  if (type_code_ == kDLInt) {
     return Expr(static_cast<int>(value_.v_int64));
   }
-  if (type_code_ == kFloat) {
+  if (type_code_ == kDLFloat) {
     return Expr(static_cast<float>(value_.v_float64));
   }
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
   std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
   if (sptr->is_type<IterVarNode>()) {
     return IterVar(sptr)->var;
+  }
+  if (sptr->is_type<TensorNode>()) {
+    return Tensor(sptr)();
   }
   CHECK(NodeTypeChecker<Expr>::Check(sptr.get()))
       << "Expected type " << NodeTypeName<Expr>()
@@ -156,36 +160,44 @@ inline TVMRetValue& TVMRetValue::operator=(const NodeRef& other) {
   return *this;
 }
 
-template<typename TNodeRef, typename>
-inline TVMRetValue::operator TNodeRef() const {
+template<typename TNodeRef>
+inline TNodeRef TVMRetValue::AsNodeRef() const {
   static_assert(
       std::is_base_of<NodeRef, TNodeRef>::value,
       "Conversion only works for NodeRef");
   if (type_code_ == kNull) return TNodeRef();
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  return TNodeRef(*ptr<std::shared_ptr<Node> >());
+  std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
+  CHECK(NodeTypeChecker<TNodeRef>::Check(sptr.get()))
+      << "Expected type " << NodeTypeName<TNodeRef>()
+      << " but get " << sptr->type_key();
+  return TNodeRef(sptr);
 }
 
-inline void TVMArgsSetter::operator()(size_t i, NodeRef& other) const {  // NOLINT(*)
-  values_[i].v_handle = &(other.node_);
-  type_codes_[i] = kNodeHandle;
+inline void TVMArgsSetter::operator()(size_t i, const NodeRef& other) const {  // NOLINT(*)
+  if (other.defined()) {
+    values_[i].v_handle = const_cast<std::shared_ptr<Node>*>(&(other.node_));
+    type_codes_[i] = kNodeHandle;
+  } else {
+    type_codes_[i] = kNull;
+  }
 }
 
 // type related stuffs
-inline TVMRetValue& TVMRetValue::operator=(const Halide::Type& t) {
+inline TVMRetValue& TVMRetValue::operator=(const HalideIR::Type& t) {
   return this->operator=(Type2TVMType(t));
 }
 
-inline TVMRetValue::operator Halide::Type() const {
+inline TVMRetValue::operator HalideIR::Type() const {
   return TVMType2Type(operator TVMType());
 }
 
-inline TVMArgValue::operator Halide::Type() const {
+inline TVMArgValue::operator HalideIR::Type() const {
   return TVMType2Type(operator TVMType());
 }
 
 inline void TVMArgsSetter::operator()(
-    size_t i, const Halide::Type& t) const {
+    size_t i, const HalideIR::Type& t) const {
   this->operator()(i, Type2TVMType(t));
 }
 }  // namespace runtime

@@ -259,6 +259,7 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
 }
 
 Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
+  std::unordered_set<IterVar> seen_var;
   StageNode* self = operator->();
   for (IterVar iv : order) {
     CHECK(iv->iter_type == kDataPar ||
@@ -266,6 +267,10 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
           iv->iter_type == kThreadIndex)
         << "Cannot reorder IterVar("
         << IterVarType2String(iv->iter_type) << ")";
+
+    CHECK_EQ(seen_var.count(iv), 0)
+        << "Same axis can not appear more than once " << iv;
+    seen_var.insert(iv);
   }
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -382,6 +387,13 @@ Stage& Stage::storage_align(IterVar axis, int factor, int offset) {
       n->dim_align_factor = factor;
       n->dim_align_offset = offset;
     }, false);
+  return *this;
+}
+
+Stage& Stage::double_buffer() {
+  StageNode *self = operator->();
+  CHECK(!self->is_output) << "Cannot apply double buffer on output";
+  self->double_buffer = true;
   return *this;
 }
 

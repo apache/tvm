@@ -54,9 +54,9 @@ def tag_scope(tag):
 
         n = tvm.var('n')
         m = tvm.var('m')
-        l = tvm.var('m')
+        l = tvm.var('l')
         A = tvm.placeholder((n, l), name='A')
-        B = tvm.placeholder((m, l), name='A')
+        B = tvm.placeholder((m, l), name='B')
         k = tvm.reduce_axis((0, l), name='k')
 
         with tvm.tag_scope(tag='matmul'):

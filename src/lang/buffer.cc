@@ -11,13 +11,11 @@
 
 namespace tvm {
 
-Array<Expr> GetStrides(Array<Expr> shape) {
-  CHECK_NE(shape.size(), 0U);
-  std::vector<Expr> vec{make_const(shape[0].type(), 1)};
-  for (size_t i = shape.size() - 1; i != 0; --i) {
-    vec.push_back(shape[i - 1] * vec.back());
+Array<Expr> SimplifyArray(Array<Expr> array) {
+  for (size_t i = 0; i < array.size(); ++i) {
+    array.Set(i, ir::Simplify(array[i]));
   }
-  return Array<Expr>(vec.rbegin(), vec.rend());
+  return array;
 }
 
 Buffer decl_buffer(Array<Expr> shape,
@@ -228,10 +226,12 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   Expr base = n->elem_offset;
   if (n->strides.size() == 0) {
     CHECK_EQ(n->shape.size(), index.size());
-    if (is_zero(base)) {
-      base = index[0];
-    } else {
-      base = base + index[0];
+    if (n->shape.size() != 0) {
+      if (is_zero(base)) {
+        base = index[0];
+      } else {
+        base = base + index[0];
+      }
     }
     base = MergeMulMod(base);
     for (size_t i = 1; i < index.size(); ++i) {
@@ -287,9 +287,10 @@ Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
 
 Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
+  if ((*this)->shape.size() == 0) return *this;
   std::vector<Expr> temp;
   auto n = std::make_shared<BufferNode>(*operator->());
-  Expr acc = make_const(n->shape[0].type(), 1);
+  Expr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0 ; --i) {
     temp.push_back(acc);
     acc = acc * n->shape[i - 1];
@@ -302,6 +303,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
   const BufferNode* n = operator->();
+  begins = SimplifyArray(begins);
   Expr elem_offset = ir::Simplify(ElemOffset(n, begins));
   Array<Expr> strides = n->strides;
   if (strides.size() == 0) {
@@ -333,14 +335,30 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           0);
 }
 
-Expr Buffer::access_ptr(int access_mask, Type ptr_type) const {
+Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes) const {
   const BufferNode* self = operator->();
-  Expr e_dtype = make_zero(self->dtype);
-  Expr extent = (self->strides.size() == self->shape.size() ?
-                 arith::ComputeExpr<ir::Mul>(self->strides[0], self->shape[0]):
-                 arith::ComputeReduce<ir::Mul>(self->shape));
+  Expr e_dtype;
+  Expr extent;
+  if (self->shape.size() == 0) {
+    extent = make_const(self->DefaultIndexType(), 1);
+  } else if (self->strides.size() == self->shape.size()) {
+    int highest_dim = 0;
+    extent = arith::ComputeExpr<ir::Mul>(
+        self->strides[highest_dim], self->shape[highest_dim]);
+  } else {
+    extent = arith::ComputeReduce<ir::Mul>(self->shape, Expr());
+  }
+  Expr elem_offset = self->elem_offset;
+  if (content_lanes > 1) {
+    e_dtype = make_zero(self->dtype.with_lanes(content_lanes));
+    extent = extent / make_const(self->elem_offset.type(), content_lanes);
+    elem_offset = self->elem_offset / make_const(self->elem_offset.type(),
+                                                 content_lanes);
+  } else {
+    e_dtype = make_zero(self->dtype);
+  }
   Array<Expr> acc_args{
-    e_dtype, self->data, self->elem_offset,
+    e_dtype, self->data, elem_offset,
         extent, make_const(Int(32), access_mask)};
   return ir::Call::make(
       ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::Call::Intrinsic);
@@ -366,7 +384,7 @@ Buffer BufferNode::make(Var data,
   }
   n->scope = std::move(scope);
   if (!elem_offset.defined()) {
-    elem_offset = make_const(n->shape[0].type(), 0);
+    elem_offset = make_const(n->DefaultIndexType(), 0);
   }
   if (data_alignment <= 0) {
     data_alignment = runtime::kAllocAlignment;

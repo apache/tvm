@@ -27,9 +27,9 @@ TVM_REGISTER_API("_max_value")
 
 TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    if (args[0].type_code() == kInt) {
+    if (args[0].type_code() == kDLInt) {
       *ret = make_const(args[1], args[0].operator int64_t());
-    } else if (args[0].type_code() == kFloat) {
+    } else if (args[0].type_code() == kDLFloat) {
       *ret = make_const(args[1], args[0].operator double());
     } else {
       LOG(FATAL) << "only accept int or float";
@@ -159,7 +159,7 @@ TVM_REGISTER_API("_Buffer")
 TVM_REGISTER_API("_BufferAccessPtr")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Buffer()
-        .access_ptr(args[1], args[2]);
+        .access_ptr(args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_API("_BufferVLoad")
@@ -385,13 +385,18 @@ TVM_REGISTER_API("_StagePragma")
 TVM_REGISTER_API("_StagePrefetch")
   .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator Stage()
-      .prefetch(args[1], args[2], args[3]);
+        .prefetch(args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_API("_StageStorageAlign")
   .set_body([](TVMArgs args, TVMRetValue *ret) {
     args[0].operator Stage()
-      .storage_align(args[1], args[2], args[3]);
+        .storage_align(args[1], args[2], args[3]);
+  });
+
+TVM_REGISTER_API("_StageDoubleBuffer")
+  .set_body([](TVMArgs args, TVMRetValue *ret) {
+    args[0].operator Stage().double_buffer();
   });
 
 TVM_REGISTER_API("_ScheduleNormalize")

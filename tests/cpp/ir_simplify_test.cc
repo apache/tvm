@@ -4,7 +4,7 @@
 #include <arithmetic/Simplify.h>
 
 TEST(IRSIMPLIFY, Basic) {
-  using namespace Halide::Internal;
+  using namespace HalideIR::Internal;
   simplify_test();
 }
 

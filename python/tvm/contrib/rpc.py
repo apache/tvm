@@ -15,7 +15,9 @@ import socket
 import struct
 import logging
 import multiprocessing
-from . import util, cc
+import subprocess
+import time
+from . import util, cc, tar
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
 from .._ffi.ndarray import context as _context
@@ -37,10 +39,16 @@ def _server_env():
         """Load module from remote side."""
         path = temp.relpath(file_name)
         # Try create a shared library in remote
-        if path.endswith('.o'):
-            logging.info('Create shared library based on %s', path)
-            cc.create_shared(path + '.so', path)
-            path += '.so'
+        if path.endswith(".o"):
+            logging.info("Create shared library based on %s", path)
+            cc.create_shared(path + ".so", path)
+            path += ".so"
+        elif path.endswith(".tar"):
+            tar_temp = util.tempdir()
+            tar.untar(path, tar_temp.temp_dir)
+            files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
+            cc.create_shared(path + ".so", files)
+            path += ".so"
         m = _load_module(path)
         logging.info("load_module %s", path)
         return m
@@ -63,7 +71,7 @@ def _recvall(sock, nbytes):
         chunk = sock.recv(min(nbytes - nread, 1024))
         nread += len(chunk)
         res.append(chunk)
-    return b''.join(res)
+    return b"".join(res)
 
 
 def _listen_loop(sock):
@@ -71,16 +79,16 @@ def _listen_loop(sock):
     while True:
         conn, addr = sock.accept()
         logging.info("RPCServer: connection from %s", addr)
-        magic = struct.unpack('@i', _recvall(conn, 4))[0]
+        magic = struct.unpack("@i", _recvall(conn, 4))[0]
         if magic != RPC_MAGIC:
             conn.close()
             continue
-        keylen = struct.unpack('@i', _recvall(conn, 4))[0]
+        keylen = struct.unpack("@i", _recvall(conn, 4))[0]
         key = py_str(_recvall(conn, keylen))
         if not key.startswith("client:"):
-            conn.sendall(struct.pack('@i', RPC_MAGIC + 2))
+            conn.sendall(struct.pack("@i", RPC_MAGIC + 2))
         else:
-            conn.sendall(struct.pack('@i', RPC_MAGIC))
+            conn.sendall(struct.pack("@i", RPC_MAGIC))
         logging.info("Connection from %s", addr)
         process = multiprocessing.Process(target=_serve_loop, args=(conn, addr))
         process.deamon = True
@@ -94,10 +102,10 @@ def _connect_proxy_loop(addr, key):
     while True:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(addr)
-        sock.sendall(struct.pack('@i', RPC_MAGIC))
-        sock.sendall(struct.pack('@i', len(key)))
+        sock.sendall(struct.pack("@i", RPC_MAGIC))
+        sock.sendall(struct.pack("@i", len(key)))
         sock.sendall(key.encode("utf-8"))
-        magic = struct.unpack('@i', _recvall(sock, 4))[0]
+        magic = struct.unpack("@i", _recvall(sock, 4))[0]
         if magic == RPC_MAGIC + 1:
             raise RuntimeError("key: %s has already been used in proxy" % key)
         elif magic == RPC_MAGIC + 2:
@@ -109,6 +117,17 @@ def _connect_proxy_loop(addr, key):
         process.deamon = True
         process.start()
         process.join()
+
+
+def _popen(cmd):
+    proc = subprocess.Popen(cmd,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=os.environ)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "Server invoke error:\n"
+        msg += out
+        raise RuntimeError(msg)
 
 
 class Server(object):
@@ -134,15 +153,36 @@ class Server(object):
         If this is true, the host and port actually corresponds to the
         address of the proxy server.
 
+    use_popen : bool, optional
+        Whether to use Popen to start a fresh new process instead of fork.
+        This is recommended to switch on if we want to do local RPC demonstration
+        for GPU devices to avoid fork safety issues.
+
     key : str, optional
         The key used to identify the server in Proxy connection.
     """
-    def __init__(self, host, port=9091, port_end=9199, is_proxy=False, key=""):
+    def __init__(self,
+                 host,
+                 port=9091,
+                 port_end=9199,
+                 is_proxy=False,
+                 use_popen=False,
+                 key=""):
         self.host = host
         self.port = port
         self.libs = []
 
-        if not is_proxy:
+        if use_popen:
+            cmd = ["python",
+                   "-m", "tvm.exec.rpc_server",
+                   "--host=%s" % host,
+                   "--port=%s" % port]
+            self.proc = multiprocessing.Process(
+                target=subprocess.check_call, args=(cmd,))
+            self.proc.deamon = True
+            self.proc.start()
+            time.sleep(1)
+        elif not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.port = None
             for my_port in range(port, port_end):
@@ -162,11 +202,15 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop, args=(self.sock,))
+            self.proc.deamon = True
+            self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key))
-        self.proc.deamon = True
-        self.proc.start()
+            self.proc.deamon = True
+            self.proc.start()
+
+
 
     def terminate(self):
         """Terminate the server process"""
@@ -222,6 +266,7 @@ class RPCSession(object):
         ctx = _context(dev_type, dev_id)
         encode = (self._tbl_index + 1) * RPC_SESS_MASK
         ctx.device_type += encode
+        ctx._rpc_sess = self
         return ctx
 
     def cpu(self, dev_id=0):
@@ -239,6 +284,10 @@ class RPCSession(object):
     def metal(self, dev_id=0):
         """Construct remote Metal device."""
         return self.context(8, dev_id)
+
+    def ext_dev(self, dev_id=0):
+        """Construct remote extension device."""
+        return self.context(12, dev_id)
 
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder
@@ -321,7 +370,7 @@ def connect(url, port, key=""):
     try:
         sess = _Connect(url, port, key)
     except NameError:
-        raise RuntimeError('Please compile with USE_RPC=1')
+        raise RuntimeError("Please compile with USE_RPC=1")
     return RPCSession(sess)
 
 _init_api("tvm.contrib.rpc")

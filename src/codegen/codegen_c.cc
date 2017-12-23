@@ -142,6 +142,10 @@ std::string CodeGenC::GetBufferRef(
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
       os << '(';
+      if (scope.length() != 0) {
+        PrintStorageScope(scope, os);
+      }
+      os << ' ';
       PrintType(t.element_of(), os);
       os << "*)";
     }
@@ -268,7 +272,7 @@ void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { /
   CHECK_EQ(scope, "global");
 }
 
-void CodeGenC::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   CHECK_EQ(t.lanes(), 1)
       << "do not yet support vector types";
   if (t.is_handle()) {
@@ -398,7 +402,9 @@ inline void PrintBinaryIntrinsitc(const Call* op,
   }
 }
 void CodeGenC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
+  os << "(";
   this->PrintType(op->type, os);
+  os << ")";
   os << '(';
   this->PrintExpr(op->value, os);
   os << ')';

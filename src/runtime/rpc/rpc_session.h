@@ -44,6 +44,7 @@ enum class RPCCode : int {
   kDevStreamSync,
   kCopyAmongRemote,
   kModuleLoad,
+  kModuleImport,
   kModuleFree,
   kModuleGetFunc,
   kModuleGetSource,

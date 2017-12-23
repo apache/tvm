@@ -175,10 +175,10 @@ class ChannelAccessRewriter : public IRMutator {
     r = Range::make_by_min_extent(
         ir::Simplify(r->min), ir::Simplify(r->extent));
     if (ExprUseVar(r->extent, var)) return body;
-    Array<Expr> linear_eq = DetectLinearEquation(r->min, var);
+    Array<Expr> linear_eq = DetectLinearEquation(r->min, {var});
     if (linear_eq.size() == 0) return body;
-    Expr base = linear_eq[0];
-    Expr coeff = linear_eq[1];
+    Expr coeff = linear_eq[0];
+    Expr base = linear_eq[1];
     if (!is_zero(base)) return body;
     Expr left = ir::Simplify(adv_op->value - coeff * for_op->extent);
     if (!can_prove(left >= 0)) return body;

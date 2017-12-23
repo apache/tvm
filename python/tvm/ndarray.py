@@ -9,7 +9,8 @@ import numpy as _np
 
 from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
 from ._ffi.ndarray import context, empty
-from ._ffi.ndarray import _set_class_ndarray, register_extension
+from ._ffi.ndarray import _set_class_ndarray
+from ._ffi.ndarray import register_extension, free_extension_handle
 
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
@@ -119,6 +120,27 @@ def vpi(dev_id=0):
     """
     return TVMContext(9, dev_id)
 
+def ext_dev(dev_id=0):
+    """Construct a extension device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
+
+    Note
+    ----
+    This API is reserved for quick testing of new
+    device by plugin device API as ext_dev.
+    """
+    return TVMContext(12, dev_id)
+
+
 cl = opencl
 mtl = metal
 
@@ -139,7 +161,7 @@ def array(arr, ctx=cpu(0)):
     ret : NDArray
         The created array
     """
-    if not isinstance(arr, _np.ndarray):
+    if not isinstance(arr, (_np.ndarray, NDArray)):
         arr = _np.array(arr)
     return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
 

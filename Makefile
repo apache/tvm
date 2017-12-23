@@ -23,7 +23,7 @@ endif
 UNAME_S := $(shell uname -s)
 
 # The flags
-LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0
+LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0 -DDMLC_USE_FOPEN64=0
 LDFLAGS = -pthread -lm -ldl
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
 CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
@@ -53,6 +53,7 @@ CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
+GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
 
 # Objectives
@@ -63,6 +64,7 @@ CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
+GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
 RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
 CONTRIB_OBJ =
@@ -113,7 +115,7 @@ endif
 
 ifeq ($(USE_METAL), 1)
 	CFLAGS += -DTVM_METAL_RUNTIME=1
-	LDFLAGS += -lObjc
+	LDFLAGS += -lobjc
 	RUNTIME_DEP += $(METAL_OBJ)
 	FRAMEWORKS += -framework Metal -framework Foundation
 else
@@ -124,9 +126,15 @@ ifeq ($(USE_RPC), 1)
 	RUNTIME_DEP += $(RPC_OBJ)
 endif
 
+ifeq ($(USE_GRAPH_RUNTIME), 1)
+	RUNTIME_DEP += $(GRAPH_OBJ)
+endif
+
 include make/contrib/cblas.mk
+include make/contrib/random.mk
 include make/contrib/nnpack.mk
 include make/contrib/cudnn.mk
+include make/contrib/mps.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
@@ -219,7 +227,7 @@ lib/libtvm_web_runtime.js: lib/libtvm_web_runtime.bc
 $(LIB_HALIDEIR): LIBHALIDEIR
 
 LIBHALIDEIR:
-	+ cd HalideIR; make lib/libHalideIR.a ; cd $(ROOTDIR)
+	+ cd HalideIR; make lib/libHalideIR.a DMLC_CORE_PATH=../dmlc-core; cd $(ROOTDIR)
 
 cpplint:
 	python dmlc-core/scripts/lint.py topi cpp topi/include;

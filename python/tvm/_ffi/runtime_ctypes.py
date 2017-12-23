@@ -24,6 +24,7 @@ class TypeCode(object):
     FUNC_HANDLE = 10
     STR = 11
     BYTES = 12
+    EXT_BEGIN = 15
 
 class TVMByteArray(ctypes.Structure):
     """Temp data structure for byte array."""
@@ -65,10 +66,7 @@ class TVMType(ctypes.Structure):
             head = ""
         else:
             raise ValueError("Donot know how to handle type %s" % type_str)
-
         bits = int(head) if head else bits
-        if (bits & (bits - 1)) != 0 or bits < 8:
-            raise ValueError("Donot know how to handle type %s" % type_str)
         self.bits = bits
 
 
@@ -98,17 +96,22 @@ class TVMContext(ctypes.Structure):
         4 : 'opencl',
         8 : 'metal',
         9 : 'vpi',
-        10: 'rocm'
+        10: 'rocm',
+        12: 'ext_dev',
     }
     STR2MASK = {
+        'llvm': 1,
+        'stackvm': 1,
         'cpu': 1,
         'gpu': 2,
         'cuda': 2,
+        'nvptx': 2,
         'cl': 4,
         'opencl': 4,
         'metal': 8,
         'vpi': 9,
-        'rocm': 10
+        'rocm': 10,
+        'ext_dev': 12,
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()
@@ -132,6 +135,20 @@ class TVMContext(ctypes.Structure):
         """Number of threads that executes in concurrent."""
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 2)
+
+    @property
+    def compute_version(self):
+        """Get compute verison number in string.
+
+        Currently used to get compute capability of CUDA device.
+
+        Returns
+        -------
+        version : str
+            The version string in `major.minor` format.
+        """
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 3)
 
     def sync(self):
         """Synchronize until jobs finished at the context."""

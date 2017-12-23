@@ -14,29 +14,34 @@ Index
    topi.log
    topi.sqrt
    topi.sigmoid
-   topi.broadcast_to
-   topi.max
-   topi.sum
-   topi.min
+   topi.transpose
+   topi.expand_dims
    topi.nn.relu
+   topi.nn.leaky_relu
    topi.nn.dilate
    topi.nn.conv2d_nchw
    topi.nn.conv2d_hwcn
    topi.nn.depthwise_conv2d_nchw
    topi.nn.depthwise_conv2d_nhwc
+   topi.max
+   topi.sum
+   topi.min
+   topi.broadcast_to
+   topi.broadcast_add
+   topi.broadcast_sub
+   topi.broadcast_mul
+   topi.broadcast_div
 
 
 **List of schedules**
 
 .. autosummary::
 
-   topi.cuda.schedule_conv2d_nchw
-   topi.cuda.schedule_conv2d_hwcn
-   topi.cuda.schedule_depthwise_conv2d_nchw
-   topi.cuda.schedule_depthwise_conv2d_nhwc
-   topi.cuda.schedule_reduce
-   topi.cuda.schedule_broadcast_to
-
+   topi.generic.schedule_conv2d_nchw
+   topi.generic.schedule_depthwise_conv2d_nchw
+   topi.generic.schedule_reduce
+   topi.generic.schedule_broadcast
+   topi.generic.schedule_injective
 
 topi
 ~~~~
@@ -45,14 +50,22 @@ topi
 .. autofunction:: topi.log
 .. autofunction:: topi.sqrt
 .. autofunction:: topi.sigmoid
-.. autofunction:: topi.broadcast_to
+.. autofunction:: topi.transpose
+.. autofunction:: topi.expand_dims
 .. autofunction:: topi.max
 .. autofunction:: topi.sum
 .. autofunction:: topi.min
+.. autofunction:: topi.broadcast_to
+.. autofunction:: topi.broadcast_add
+.. autofunction:: topi.broadcast_sub
+.. autofunction:: topi.broadcast_mul
+.. autofunction:: topi.broadcast_div
+
 
 topi.nn
 ~~~~~~~
 .. autofunction:: topi.nn.relu
+.. autofunction:: topi.nn.leaky_relu
 .. autofunction:: topi.nn.dilate
 .. autofunction:: topi.nn.conv2d_nchw
 .. autofunction:: topi.nn.conv2d_hwcn
@@ -60,13 +73,12 @@ topi.nn
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
 
 
-topi.cuda
-~~~~~~~~~
-.. automodule:: topi.cuda
+topi.generic
+~~~~~~~~~~~~
+.. automodule:: topi.generic
 
-.. autofunction:: topi.cuda.schedule_conv2d_nchw
-.. autofunction:: topi.cuda.schedule_conv2d_hwcn
-.. autofunction:: topi.cuda.schedule_depthwise_conv2d_nchw
-.. autofunction:: topi.cuda.schedule_depthwise_conv2d_nhwc
-.. autofunction:: topi.cuda.schedule_reduce
-.. autofunction:: topi.cuda.schedule_broadcast_to
+.. autofunction:: topi.generic.schedule_conv2d_nchw
+.. autofunction:: topi.generic.schedule_depthwise_conv2d_nchw
+.. autofunction:: topi.generic.schedule_reduce
+.. autofunction:: topi.generic.schedule_broadcast
+.. autofunction:: topi.generic.schedule_injective

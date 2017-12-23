@@ -226,6 +226,7 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(
       name);
   gv->setAlignment(data_layout_->getTypeAllocSize(p_type));
   gv->setInitializer(llvm::Constant::getNullValue(p_type));
+  gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
   return gv;
 }
 
@@ -316,10 +317,12 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
     if (var.type().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
 #if TVM_LLVM_VERSION >= 50
-      fcompute->addParamAttr(idx + 1, llvm::Attribute::NoAlias);
+      fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
+      // always not inline compute function to make the code structure clean
 #else
       fcompute->setDoesNotAlias(idx + 1);
 #endif
+      fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
   }
   std::swap(function_, fcompute);
@@ -334,7 +337,11 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
   builder_->SetInsertPoint(compute_call_end);
 }
 
-llvm::Value* CodeGenCPU::PackClosureData(const Array<Var>& vfields) {
+llvm::Value* CodeGenCPU::PackClosureData(const Array<Var>& vfields, uint64_t* num_bytes) {
+  if (vfields.size() == 0) {
+    *num_bytes = 0U;
+    return llvm::Constant::getNullValue(t_void_p_);
+  }
   std::vector<llvm::Type*> fields;
   for (Var v : vfields) {
     auto it = var_map_.find(v.get());
@@ -349,6 +356,8 @@ llvm::Value* CodeGenCPU::PackClosureData(const Array<Var>& vfields) {
         var_map_.at(vfields[i].get()),
         builder_->CreateInBoundsGEP(cdata, {zero, ConstInt32(i)}));
   }
+  *num_bytes = data_layout_->getTypeAllocSize(
+      llvm::cast<llvm::PointerType>(cdata->getType())->getElementType());
   return cdata;
 }
 
@@ -371,7 +380,8 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
       "__tvm_parallel_lambda", module_.get());
   // allocate and setup the closure, call the closure.
   Array<Var> vfields = ir::UndefinedVars(body, {});
-  llvm::Value* cdata = PackClosureData(vfields);
+  uint64_t nbytes;
+  llvm::Value* cdata = PackClosureData(vfields, &nbytes);
   BasicBlock* par_launch_end = CheckCallSuccess(
       builder_->CreateCall(
           RuntimeTVMParallelLaunch(),
@@ -428,14 +438,13 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
         ftype_tvm_static_init_, llvm::Function::ExternalLinkage, init_fname, module_.get());
   }
   // allocate and setup the closure, call the closure.
+  uint64_t nbytes;
   Array<Var> vfields = ir::UndefinedVars(body, {});
-  llvm::Value* cdata = PackClosureData(vfields);
-  llvm::Value* nbytes = ConstInt32(data_layout_->getTypeAllocSize(
-      llvm::cast<llvm::PointerType>(cdata->getType())->getElementType()));
+  llvm::Value* cdata = PackClosureData(vfields, &nbytes);
   BasicBlock* init_end = CheckCallSuccess(
       builder_->CreateCall(
           finit,
-          {gv, f, builder_->CreatePointerCast(cdata, t_void_p_), nbytes}));
+          {gv, f, builder_->CreatePointerCast(cdata, t_void_p_), ConstInt32(nbytes)}));
   // Setup the closure function.
   BasicBlock *lambda_entry = BasicBlock::Create(*ctx_, "entry", f);
   builder_->SetInsertPoint(lambda_entry);
@@ -697,7 +706,8 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
 
 void CodeGenCPU::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
-  if (op->for_type == ForType::Serial) {
+  if (op->for_type == ForType::Serial ||
+      op->for_type == ForType::Unrolled) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {

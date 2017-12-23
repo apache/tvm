@@ -14,11 +14,14 @@ def test_unroll_loop():
                                     tvm.make.Load(dtype, Ab.data, i) + 1,
                                     j + 1)))
     assert isinstance(stmt, tvm.stmt.For)
-    ret = tvm.ir_pass.UnrollLoop(stmt, 2, 0, True)
+    ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, True)
     assert not isinstance(ret, tvm.stmt.For)
-    ret = tvm.ir_pass.UnrollLoop(stmt, 4, 0, False)
+    ret = tvm.ir_pass.UnrollLoop(stmt, 15, 8, 0, True)
+    assert isinstance(ret, tvm.stmt.For)
+    ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, False)
     assert isinstance(ret, tvm.stmt.For)
     assert ret.for_type == tvm.stmt.For.Unrolled
+
 
 if __name__ == "__main__":
     test_unroll_loop()

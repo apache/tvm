@@ -90,6 +90,7 @@ stage('Build') {
            echo USE_OPENCL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
+           echo USE_GRAPH_RUNTIME=1 >> config.mk
            echo USE_BLAS=openblas >> config.mk
            rm -f lib/libtvm_runtime.so lib/libtvm.so
            """
@@ -119,6 +120,7 @@ stage('Build') {
            echo USE_CUDA=0 >> config.mk
            echo USE_OPENCL=0 >> config.mk
            echo USE_RPC=0 >> config.mk
+           echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            """
         make('cpu', '-j2')
         pack_lib('cpu', tvm_lib)

@@ -16,11 +16,11 @@
 namespace tvm {
 namespace ir {
 
-using Halide::Internal::ExprNode;
-using Halide::Internal::StmtNode;
-using Halide::Internal::IRNodeType;
-using Halide::Internal::ForType;
-using Halide::DeviceAPI;
+using HalideIR::Internal::ExprNode;
+using HalideIR::Internal::StmtNode;
+using HalideIR::Internal::IRNodeType;
+using HalideIR::Internal::ForType;
+using HalideIR::DeviceAPI;
 
 // Node container for CommReducer
 struct CommReducerNode;
@@ -62,8 +62,8 @@ struct CommReducerNode : public Node {
   /*! \brief Function call operator to combine a and b */
   Array<Expr> operator()(Array<Expr> a, Array<Expr> b) const;
   /*! \brief construct CommReducer from args, result and identity_element */
-  static CommReducer make(Array<Var> lhs, Array<Var> rhs,
-                          Array<Expr> result, Array<Expr> identity_element);
+  TVM_DLL static CommReducer make(Array<Var> lhs, Array<Var> rhs,
+                                 Array<Expr> result, Array<Expr> identity_element);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("lhs", &lhs);
@@ -100,11 +100,11 @@ struct Reduce : public ExprNode<Reduce> {
   int value_index;
 
   /*! \brief construct expr from op and rdom */
-  static Expr make(CommReducer combiner,
-                   Array<Expr> src,
-                   Array<IterVar> rdom,
-                   Expr condition,
-                   int value_index);
+  TVM_DLL static Expr make(CommReducer combiner,
+                           Array<Expr> src,
+                           Array<IterVar> rdom,
+                           Expr condition,
+                           int value_index);
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("dtype", &type);
@@ -178,6 +178,14 @@ constexpr const char* pragma_scope = "pragma_scope";
  *  run prefetch of Tensor on the current loop scope
  */
 constexpr const char* prefetch_scope = "prefetch_scope";
+/*!
+ * \brief Marks production of double buffer data
+ */
+constexpr const char* double_buffer_scope = "double_buffer_scope";
+/*!
+ * \brief Marks region used by double buffer write
+ */
+constexpr const char* double_buffer_write = "double_buffer_write";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
@@ -248,6 +256,11 @@ constexpr const char* tvm_if_then_else = "tvm_if_then_else";
  *  }
  */
 constexpr const char* tvm_access_ptr = "tvm_access_ptr";
+/*!
+ * \brief Return a unique context id, used for hint of workspace separation.
+ *  Different context id ganrantees not having overlapping workspace.
+ */
+constexpr const char* tvm_context_id = "tvm_context_id";
 /*!
  * \brief tvm_tuple is not an actual function and cannot codegen.
  *  It is used to represent tuple structure in value field of AttrStmt,
@@ -420,50 +433,50 @@ enum TVMStructFieldKind : int {
 }   // namespace intrinsic
 
 // Reuse IR node defintiion from HalideIR
-using Halide::Internal::IntImm;
-using Halide::Internal::UIntImm;
-using Halide::Internal::FloatImm;
-using Halide::Internal::StringImm;
-using Halide::Internal::Cast;
-using Halide::Internal::Add;
-using Halide::Internal::Sub;
-using Halide::Internal::Mul;
-using Halide::Internal::Div;
-using Halide::Internal::Mod;
-using Halide::Internal::Min;
-using Halide::Internal::Max;
-using Halide::Internal::EQ;
-using Halide::Internal::NE;
-using Halide::Internal::LT;
-using Halide::Internal::LE;
-using Halide::Internal::GT;
-using Halide::Internal::GE;
-using Halide::Internal::And;
-using Halide::Internal::Or;
-using Halide::Internal::Not;
-using Halide::Internal::Select;
-using Halide::Internal::Load;
-using Halide::Internal::Ramp;
-using Halide::Internal::Broadcast;
-using Halide::Internal::Call;
-using Halide::Internal::Let;
-using Halide::Internal::LetStmt;
-using Halide::Internal::AttrStmt;
-using Halide::Internal::AssertStmt;
-using Halide::Internal::ProducerConsumer;
-using Halide::Internal::For;
-using Halide::Internal::Store;
-using Halide::Internal::Provide;
-using Halide::Internal::Allocate;
-using Halide::Internal::Free;
-using Halide::Internal::Realize;
-using Halide::Internal::Prefetch;
-using Halide::Internal::Block;
-using Halide::Internal::IfThenElse;
-using Halide::Internal::Evaluate;
-using Halide::Internal::Shuffle;
+using HalideIR::Internal::IntImm;
+using HalideIR::Internal::UIntImm;
+using HalideIR::Internal::FloatImm;
+using HalideIR::Internal::StringImm;
+using HalideIR::Internal::Cast;
+using HalideIR::Internal::Add;
+using HalideIR::Internal::Sub;
+using HalideIR::Internal::Mul;
+using HalideIR::Internal::Div;
+using HalideIR::Internal::Mod;
+using HalideIR::Internal::Min;
+using HalideIR::Internal::Max;
+using HalideIR::Internal::EQ;
+using HalideIR::Internal::NE;
+using HalideIR::Internal::LT;
+using HalideIR::Internal::LE;
+using HalideIR::Internal::GT;
+using HalideIR::Internal::GE;
+using HalideIR::Internal::And;
+using HalideIR::Internal::Or;
+using HalideIR::Internal::Not;
+using HalideIR::Internal::Select;
+using HalideIR::Internal::Load;
+using HalideIR::Internal::Ramp;
+using HalideIR::Internal::Broadcast;
+using HalideIR::Internal::Call;
+using HalideIR::Internal::Let;
+using HalideIR::Internal::LetStmt;
+using HalideIR::Internal::AttrStmt;
+using HalideIR::Internal::AssertStmt;
+using HalideIR::Internal::ProducerConsumer;
+using HalideIR::Internal::For;
+using HalideIR::Internal::Store;
+using HalideIR::Internal::Provide;
+using HalideIR::Internal::Allocate;
+using HalideIR::Internal::Free;
+using HalideIR::Internal::Realize;
+using HalideIR::Internal::Prefetch;
+using HalideIR::Internal::Block;
+using HalideIR::Internal::IfThenElse;
+using HalideIR::Internal::Evaluate;
+using HalideIR::Internal::Shuffle;
 // ir functions
-using Halide::Internal::is_const_power_of_two_integer;
+using HalideIR::Internal::is_const_power_of_two_integer;
 
 }  // namespace ir
 }  // namespace tvm

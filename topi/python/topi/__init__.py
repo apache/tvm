@@ -11,8 +11,11 @@ from __future__ import absolute_import as _abs
 
 from .math import *
 from .reduction import *
+from .transform import *
 from .broadcast import *
 from . import nn
+from . import x86
 from . import cuda
+from . import rasp
 from . import testing
 from . import util

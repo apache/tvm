@@ -101,21 +101,21 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
-    PrintType(UInt(16, work_dim), stream);
+    PrintType(UInt(thread_index_bits_, work_dim), stream);
     stream << " blockIdx [[threadgroup_position_in_grid]],\n";
     stream << "  ";
-    PrintType(UInt(16, work_dim), stream);
+    PrintType(UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
   // bind thread axis
   for (IterVar iv : f->thread_axis) {
     CHECK(!var_idmap_.count(iv->var.get()));
+    std::string vname = iv->thread_tag;
     if (work_dim <= 1) {
-      var_idmap_[iv->var.get()] =
-          iv->thread_tag.substr(0, iv->thread_tag.length() - 2);
-    } else {
-      var_idmap_[iv->var.get()] = iv->thread_tag;
+      vname = vname.substr(0, iv->thread_tag.length() - 2);
     }
+    var_idmap_[iv->var.get()] =
+        CastFromTo(vname, UInt(thread_index_bits_), iv->var.type());
   }
   // the function scope.
   stream << ") {\n";
@@ -129,10 +129,10 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   CHECK(!var_idmap_.count(iv->var.get()));
   var_idmap_[iv->var.get()] =
-      CastFromTo(iv->thread_tag, UInt(16), iv->var.type());
+      CastFromTo(iv->thread_tag, UInt(thread_index_bits_), iv->var.type());
 }
 
-void CodeGenMetal::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenMetal::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)
@@ -192,6 +192,8 @@ void CodeGenMetal::PrintStorageScope(
     os << "device";
   } else if (scope == "shared") {
     os << "threadgroup";
+  } else {
+    os << "thread";
   }
 }
 

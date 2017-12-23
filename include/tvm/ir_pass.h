@@ -22,27 +22,39 @@
 namespace tvm {
 namespace ir {
 
-inline Expr Simplify(Expr a) {
-  return Halide::Internal::simplify(a);
-}
+/*!
+ * \brief Simplify the expression.
+ * \param expr The expression to be simplifed.
+ * \param vrange The range information about the variable.
+ * \return Canonicalized statement.
+ */
+Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
-inline Stmt Simplify(Stmt a) {
-  return Halide::Internal::simplify(a);
-}
+/*!
+ * \brief Simplify the statement.
+ * \param stmt The statement to be simplifed.
+ * \param vrange The range information about the variable.
+ * \return Canonicalized statement.
+ */
+Stmt Simplify(Stmt stmt, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify by applying canonical form.
  * \param stmt The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Stmt CanonicalSimplify(Stmt stmt);
+Stmt CanonicalSimplify(Stmt stmt,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify by applying canonical form.
  * \param expr The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-Expr CanonicalSimplify(Expr expr);
+Expr CanonicalSimplify(Expr expr,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -204,11 +216,17 @@ Stmt NarrowChannelAccess(Stmt stmt);
  *
  * \param stmt The statment to be unrolled.
  * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_min_depth The minimum depth before we can start automatic unroll
+ * \param auto_max_depth The maximum depth before stop attach automatic unroll
+ * \param auto_max_extent The maximum extent of the loop we can unroll,
+ *                        this is an legacy option that donot take the loop total steps into account.
  * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
  * \return Transformed stmt.
  */
-Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_min_depth, bool explicit_unroll);
+Stmt UnrollLoop(Stmt stmt,
+                int auto_max_step,
+                int auto_max_depth,
+                int auto_max_extent,
+                bool explicit_unroll);
 
 /*!
  * \brief vectorize the constant loops
@@ -230,6 +248,32 @@ Stmt InjectVirtualThread(Stmt stmt);
  * \return Transformed stmt.
  */
 Stmt InjectPrefetch(Stmt stmt);
+
+/*!
+ * \brief Inject double buffer into stmt.
+ * \param stmt The statment to be transformed.
+ * \param split_loop Loop splitting factor.
+ * \return Transformed stmt.
+ */
+Stmt InjectDoubleBuffer(Stmt stmt, int split_loop);
+
+/*!
+ * \brief Inject copy intrinsics with optional pad.
+ *
+ * \param stmt The statment to be transformed.
+ * \param pragma_key The pragma key for hint of copy.
+ * \param fintrin The function with signature
+ *
+ *   Stmt fintrin(Buffer src,
+ *                Buffer dst,
+ *                Array<Expr> pad_before,
+ *                Array<Expr> pad_after,
+ *                Expr pad_value)
+ * \return Transformed stmt.
+ */
+Stmt InjectCopyIntrin(Stmt stmt,
+                      const std::string& pragma_key,
+                      const runtime::PackedFunc& fintrin);
 
 /*!
  * \brief Rewrite storage allocation pattern.

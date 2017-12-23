@@ -43,6 +43,13 @@ def test_reorder():
     assert tuple(s[T].leaf_iter_vars) != order
     s[T].reorder(*order)
     assert tuple(s[T].leaf_iter_vars) == order
+    try:
+        # pass duplicate IterVar
+        # must raise an error
+        s[T].reorder(xi2, xi1, xi2)
+        assert False
+    except tvm.TVMError:
+        pass
 
 def test_split():
     m = tvm.var('m')

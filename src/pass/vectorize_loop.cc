@@ -1,8 +1,8 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- *  Vectorize the loop
  * \file vectorize_loop.cc
  */
+// Loop vectorizer as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
@@ -28,7 +28,13 @@ inline Expr BroadcastTo(Expr e, int lanes) {
 }
 
 // Rewrite vectorized allocation access
+// This is necessary for making each vector component containing its own workspace.
+// Originates from Halide's loop vectorizer
+//
 // s[i] = s[i * lanes + var]
+//
+// The same principle applies when using one thread to simulate multiple context.
+//
 class VecAllocAccess : public IRMutator {
  public:
   VecAllocAccess(const Variable* buf, Var var, int var_lanes)

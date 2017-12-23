@@ -118,7 +118,7 @@ class CodeGenC :
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(Type t, std::ostream& os) const; // NOLINT(*)
+  virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
   /*!
    * \brief Print expr representing the thread tag
    * \param IterVar iv The thread index to be binded;

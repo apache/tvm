@@ -14,7 +14,7 @@ TEST(PackedFunc, Basic) {
   Var v = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 3);
       CHECK(args.values[0].v_float64 == 1.0);
-      CHECK(args.type_codes[0] == kFloat);
+      CHECK(args.type_codes[0] == kDLFloat);
       CHECK(args.values[1].v_handle == &a);
       CHECK(args.type_codes[1] == kArrayHandle);
       CHECK(args.values[2].v_handle == &x);
@@ -108,6 +108,55 @@ TEST(PackedFunc, Type) {
   CHECK(get_type("int32").operator Type() == Int(32));
   CHECK(get_type("float").operator Type() == Float(32));
   CHECK(get_type2("float32x2").operator Type() == Float(32, 2));
+}
+
+// new namespoace
+namespace test {
+// register int vector as extension type
+using IntVector = std::vector<int>;
+}  // namespace test
+
+namespace tvm {
+namespace runtime {
+
+template<>
+struct extension_class_info<test::IntVector> {
+  static const int code = kExtBegin + 1;
+};
+}  // runtime
+}  // tvm
+
+// do registration, this need to be in cc file
+TVM_REGISTER_EXT_TYPE(test::IntVector);
+
+TEST(PackedFunc, ExtensionType) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  // note: class are copy by value.
+  test::IntVector vec{1, 2, 4};
+
+  auto copy_vec = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      // copy by value
+      const test::IntVector& v = args[0].AsExtension<test::IntVector>();
+      CHECK(&v == &vec);
+      test::IntVector v2 = args[0];
+      CHECK_EQ(v2.size(), 3U);
+      CHECK_EQ(v[2], 4);
+      // return copy by value
+      *rv = v2;
+    });
+
+  auto pass_vec = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      // copy by value
+      *rv = args[0];
+    });
+
+  test::IntVector vret1 = copy_vec(vec);
+  test::IntVector vret2 = pass_vec(copy_vec(vec));
+  CHECK_EQ(vret1.size(), 3U);
+  CHECK_EQ(vret2.size(), 3U);
+  CHECK_EQ(vret1[2], 4);
+  CHECK_EQ(vret2[2], 4);
 }
 
 

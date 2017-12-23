@@ -27,8 +27,10 @@ cdef int tvm_callback(TVMValue* args,
         tcode = type_codes[i]
         if (tcode == kNodeHandle or
             tcode == kFuncHandle or
-            tcode == kModuleHandle):
+            tcode == kModuleHandle or
+            tcode > kExtBegin):
             CALL(TVMCbArgToReturn(&value, tcode))
+
         if tcode != kArrayHandle:
             pyargs.append(make_ret(value, tcode))
         else:
@@ -87,7 +89,7 @@ cdef inline void make_arg(object arg,
     elif isinstance(arg, _TVM_COMPATS):
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
-        tcode[0] = arg._tvm_tcode
+        tcode[0] = arg.__class__._tvm_tcode
     elif isinstance(arg, (int, long)):
         value[0].v_int64 = arg
         tcode[0] = kInt
@@ -185,8 +187,10 @@ cdef inline object make_ret(TVMValue value, int tcode):
         fobj = _CLASS_FUNCTION(None, False)
         (<FunctionBase>fobj).chandle = value.v_handle
         return fobj
-    else:
-        raise ValueError("Unhandled type code %d" % tcode)
+    elif tcode in _TVM_EXT_RET:
+        return _TVM_EXT_RET[tcode](ctypes_handle(value.v_handle))
+
+    raise ValueError("Unhandled type code %d" % tcode)
 
 
 cdef inline object FuncCall3(void* chandle, tuple args, int nargs):

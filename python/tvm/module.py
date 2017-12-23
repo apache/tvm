@@ -2,14 +2,17 @@
 from __future__ import absolute_import as _abs
 
 from collections import namedtuple
+
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
-from .contrib import cc as _cc, util as _util
+from .contrib import cc as _cc, tar as _tar, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean"])
 
+
 class Module(ModuleBase):
     """Module container of all TVM generated functions"""
+
     def __repr__(self):
         return "Module(%s, %x)" % (self.type_key, self.handle.value)
 
@@ -100,7 +103,11 @@ class Module(ModuleBase):
             with open(path_cc, "w") as f:
                 f.write(_PackImportsToC(self, is_system_lib))
             files.append(path_cc)
-        fcompile = fcompile if fcompile else _cc.create_shared
+        if not fcompile:
+            if file_name.endswith(".tar"):
+                fcompile = _tar.tar
+            else:
+                fcompile = _cc.create_shared
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number):
@@ -131,11 +138,13 @@ class Module(ModuleBase):
         try:
             feval = _RPCTimeEvaluator(
                 self, func_name, ctx.device_type, ctx.device_id, number)
+
             def evaluator(*args):
                 """Internal wrapped evaluator."""
                 # Wrap feval so we can add more stats in future.
                 mean = feval(*args)
                 return ProfileResult(mean=mean)
+
             return evaluator
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")

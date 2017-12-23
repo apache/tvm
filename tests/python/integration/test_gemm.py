@@ -47,7 +47,8 @@ def test_gemm():
     s[CC].compute_at(s[C], tx)
     s[AA].compute_at(s[CC], k)
     s[BB].compute_at(s[CC], k)
-
+    s[AA].double_buffer()
+    s[BB].double_buffer()
     ty, xi = s[AA].split(s[AA].op.axis[0], nparts=num_thread)
     tx, xi = s[AA].split(xi, nparts=num_thread)
     s[AA].bind(ty, thread_y)
@@ -67,7 +68,8 @@ def test_gemm():
             print("skip because %s is not enabled.." % device)
             return
 
-        f = tvm.build(s, [A, B, C], device)
+        with tvm.target.create(device):
+            f = tvm.build(s, [A, B, C])
         ctx = tvm.context(device, 0)
         # launch the kernel.
         n = nn
@@ -85,9 +87,11 @@ def test_gemm():
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
     check_device("nvptx -mcpu=sm_20")
+    check_device("rocm")
     check_device("metal")
     check_device("opencl")
     check_device("cuda")
+    #check_device("nvptx -mcpu=sm_20")
 
 if __name__ == "__main__":
     test_gemm()

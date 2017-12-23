@@ -48,6 +48,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt")
 .set_body(DispatchExtern<CUDAMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow")
+.set_body(DispatchExtern<CUDAMath>);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm

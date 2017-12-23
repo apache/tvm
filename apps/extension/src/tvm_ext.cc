@@ -10,8 +10,40 @@
 #include <tvm/packed_func_ext.h>
 
 namespace tvm_ext {
+using IntVector = std::vector<int>;
+}  // namespace tvm_ext
+
+namespace tvm {
+namespace runtime {
+template<>
+struct extension_class_info<tvm_ext::IntVector> {
+  static const int code = 17;
+};
+}  // namespace tvm
+}  // namespace runtime
+
+
+namespace tvm_ext {
+
 using namespace tvm;
 using namespace tvm::runtime;
+
+TVM_REGISTER_EXT_TYPE(IntVector);
+
+TVM_REGISTER_GLOBAL("tvm_ext.ivec_create")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    IntVector vec;
+    for (int i = 0; i < args.size(); ++i) {
+      vec.push_back(args[i].operator int());
+    }
+    *rv = vec;
+  });
+
+TVM_REGISTER_GLOBAL("tvm_ext.ivec_get")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    *rv = args[0].AsExtension<IntVector>()[args[1].operator int()];
+  });
+
 
 TVM_REGISTER_GLOBAL("tvm_ext.bind_add")
 .set_body([](TVMArgs args_, TVMRetValue *rv_) {
@@ -27,5 +59,10 @@ TVM_REGISTER_GLOBAL("tvm_ext.sym_add")
     Var a = args[0];
     Var b = args[1];
     *rv = a + b;
+  });
+
+TVM_REGISTER_GLOBAL("device_api.ext_dev")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    *rv = (*tvm::runtime::Registry::Get("device_api.cpu"))();
   });
 }  // namespace tvm_ext

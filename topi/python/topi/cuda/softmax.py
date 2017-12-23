@@ -1,7 +1,9 @@
-# pylint: disable=invalid-name, unused-variable, trailing-whitespace 
+# pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
 import tvm
+from .. import generic
 
+@generic.schedule_softmax.register(["cuda", "gpu"])
 def schedule_softmax(outs):
     """Schedule for softmax op.
 
@@ -34,7 +36,7 @@ def schedule_softmax(outs):
     s[expsum].bind(s[expsum].op.axis[0], block_x)
     s[expsum].bind(s[expsum].op.reduce_axis[0], thread_x)
     s[EF].compute_at(s[expsum], s[expsum].op.reduce_axis[0])
-
+    s[expsum].set_store_predicate(thread_x.var.equal(0))
     tx, xi = s[softmax].split(softmax.op.axis[1], nparts=num_thread)
     s[softmax].bind(softmax.op.axis[0], block_x)
     s[softmax].bind(tx, thread_x)

@@ -79,7 +79,8 @@ LoweredFunc MakeAPI(Stmt body,
     args.push_back(v_packed_arg_type_ids);
     args.push_back(v_num_packed_args);
     std::ostringstream os;
-    os << "expected num_args to be " << num_packed_args;
+
+    os << name << ": num_args should be " << num_packed_args;
     seq_init.emplace_back(
         MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
@@ -98,20 +99,21 @@ LoweredFunc MakeAPI(Stmt body,
       Type t = v_arg.type();
       if (t.is_handle()) {
         std::ostringstream msg;
-        msg << "Expect argument " << i << " to be pointer";
+        msg << name << ": Expect arg[" << i << "] to be pointer";
         seq_check.emplace_back(
             AssertStmt::make(tcode == kHandle ||
                              tcode == kArrayHandle ||
                              tcode == kNull, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
-        msg << "Expect argument " << i << " to be int";
-        seq_check.emplace_back(AssertStmt::make(tcode == kInt, msg.str(), nop));
+        msg << name << ": Expect arg[" << i << "] to be int";
+        seq_check.emplace_back(AssertStmt::make(tcode == kDLInt, msg.str(), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
-        msg << "Expect argument " << i << " to be float";
-        seq_check.emplace_back(AssertStmt::make(tcode == kFloat, msg.str(), nop));
+        msg << name << ": Expect arg[" << i << "] to be float";
+        seq_check.emplace_back(
+            AssertStmt::make(tcode == kDLFloat, msg.str(), nop));
       }
     } else {
       args.push_back(v_arg);
@@ -147,7 +149,7 @@ LoweredFunc MakeAPI(Stmt body,
     seq_check.push_back(AttrStmt::make(
         node, attr::device_context_type, device_type, nop));
     Stmt set_device = IfThenElse::make(
-        device_type != kCPU, Evaluate::make(Call::make(
+        device_type != kDLCPU, Evaluate::make(Call::make(
             Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, Call::Intrinsic)));

@@ -46,18 +46,23 @@ This will generate the VS project using the MSVC 14 64 bit generator. Open the .
 
 ### Customized Building
 
-Install prerequisites first: 
+Install prerequisites first:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python gcc libtinfo-dev
+sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev
 ```
 
 The configuration of tvm can be modified by ```config.mk```
 - First copy ```make/config.mk``` to the project root, on which
   any local modification will be ignored by git, then modify the according flags.
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
-  - LLVM 4.0 or higher is needed for build with LLVM. The verison of LLVM from apt may lower than 4.0. you can download pre-built version of LLVM 4.0 from [LLVM Download Page](http://releases.llvm.org/download.html#4.0.1) and choose your matched pre-built binary package using `gcc -v` in command line to check `Target` value.
+  - LLVM 4.0 or higher is needed for build with LLVM. Note that verison of LLVM from default apt may lower than 4.0.
+  - Since LLVM takes long time to build from source, you can download pre-built version of LLVM frorm
+    [LLVM Download Page](http://releases.llvm.org/download.html).
+    - Unzip to a certain location, modify ```config.mk``` to add ```LLVM_CONFIG=/path/to/your/llvm/bin/llvm-config```
+  - You can also use [LLVM Nightly Ubuntu Build](https://apt.llvm.org/)
+    - Note that apt-package append ```llvm-config``` with version number. For example, set ```LLVM_CONFIG=llvm-config-4.0``` if you installed 4.0 package
   - By default CUDA and OpenCL code generator do not require llvm.
 
 ## Python Package Installation
@@ -72,7 +77,7 @@ There are several ways to install the package:
     The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ```setup``` again)
 
     ```bash
-    export PYTHONPATH=/path/to/tvm/python:${PYTHONPATH}
+    export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:${PYTHONPATH}
     ```
 
 2. Install tvm python bindings by `setup.py`:
@@ -82,7 +87,6 @@ There are several ways to install the package:
     # NOTE: if you installed python via homebrew, --user is not needed during installaiton
     #       it will be automatically installed to your user directory.
     #       providing --user flag may trigger error during installation in such case.
-    cd python; python setup.py install --user
-    # or install tvm package system wide
-    cd python; sudo python setup.py install
+    cd python; python setup.py install --user; cd ..
+    cd topi/python; python setup.py install --user; cd ../..
     ```

@@ -5,9 +5,9 @@ import numpy as np
 def test_add_pipeline():
     n = tvm.var('n')
     A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    D = tvm.compute(A.shape, lambda *i: C(*i) + 1, name='C')
+    B = tvm.placeholder((), name='B')
+    C = tvm.compute(A.shape, lambda *i: A(*i) + B(), name='C')
+    D = tvm.compute(A.shape, lambda *i: C(*i) + 1, name='D')
     s = tvm.create_schedule(D.op)
 
     # GPU schedule have to split by gridIdx and threadIdx
@@ -26,11 +26,11 @@ def test_add_pipeline():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
-    Cb = tvm.decl_buffer(C.shape, C.dtype, name='C')
+    Db = tvm.decl_buffer(D.shape, D.dtype, name='D')
     stmt = tvm.ir_pass.LoopPartition(stmt)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, D:Db}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Cb], 0, True)
+    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
     fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
 
@@ -48,11 +48,11 @@ def test_add_pipeline():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=Cb.dtype), ctx)
-        f(a, b, c)
+        b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
+        d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
+        f(a, b, d)
         np.testing.assert_allclose(
-            c.asnumpy(), a.asnumpy() + b.asnumpy())
+            d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
     def check_module_save(device, host="stackvm"):
         if not tvm.module.enabled(host):
@@ -72,16 +72,18 @@ def test_add_pipeline():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(Bb.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=Cb.dtype), ctx)
-        f(a, b, c)
+        b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
+        d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
+        f(a, b, d)
         np.testing.assert_allclose(
-            c.asnumpy(), a.asnumpy() + b.asnumpy())
+            d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
     check_target("cuda", host="stackvm")
     check_target("cuda", host="llvm")
     check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
+    check_target("rocm", host="llvm")
+
 
 if __name__ == "__main__":
     test_add_pipeline()

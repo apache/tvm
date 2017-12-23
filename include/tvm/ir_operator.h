@@ -12,35 +12,35 @@
 
 namespace tvm {
 
-using Halide::likely;
-using Halide::likely_if_innermost;
+using HalideIR::likely;
+using HalideIR::likely_if_innermost;
 // functions
-using Halide::cast;
-using Halide::min;
-using Halide::max;
-using Halide::abs;
-using Halide::select;
+using HalideIR::cast;
+using HalideIR::min;
+using HalideIR::max;
+using HalideIR::abs;
+using HalideIR::select;
 
 /*!
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-Expr sum(Expr source, Array<IterVar> axis);
+TVM_DLL Expr sum(Expr source, Array<IterVar> axis);
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-Expr max(Expr source, Array<IterVar> axis);
+TVM_DLL Expr max(Expr source, Array<IterVar> axis);
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-Expr min(Expr source, Array<IterVar> axis);
+TVM_DLL Expr min(Expr source, Array<IterVar> axis);
 
 // Unary intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \

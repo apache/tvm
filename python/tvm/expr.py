@@ -16,8 +16,9 @@ For example, you can use addexp.a to get the left operand of an Add node.
 """
 # pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
-from ._ffi.node import NodeBase, register_node
+from ._ffi.node import NodeBase, NodeGeneric, register_node
 from . import make as _make
+from . import _api_internal
 
 class ExprOp(object):
     def __add__(self, other):
@@ -60,7 +61,26 @@ class ExprOp(object):
         return _make.Mod(self, other)
 
     def __neg__(self):
-        return self.__mul__(-1)
+        neg_one = _api_internal._const(-1, self.dtype)
+        return self.__mul__(neg_one)
+
+    def __lshift__(self, other):
+        return _make.Call(self.dtype, "shift_left", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __rshift__(self, other):
+        return _make.Call(self.dtype, "shift_right", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __and__(self, other):
+        return _make.Call(self.dtype, "bitwise_and", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __or__(self, other):
+        return _make.Call(self.dtype, "bitwise_or", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __xor__(self, other):
+        return _make.Call(self.dtype, "bitwise_xor", [self, other], Call.PureIntrinsic, None, 0)
+
+    def __invert__(self):
+        return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
         return _make.LT(self, other)
@@ -69,10 +89,10 @@ class ExprOp(object):
         return _make.LE(self, other)
 
     def __eq__(self, other):
-        return self.equal(other)
+        return EqualOp(self, other)
 
     def __ne__(self, other):
-        return _make.NE(self, other)
+        return NotEqualOp(self, other)
 
     def __gt__(self, other):
         return _make.GT(self, other)
@@ -118,9 +138,76 @@ class ExprOp(object):
         return _make.static_cast(dtype, self)
 
 
-class Expr(NodeBase, ExprOp):
+class EqualOp(NodeGeneric, ExprOp):
+    """Deferred equal operator.
+
+    This is used to support sugar that a == b can either
+    mean NodeBase.same_as or NodeBase.equal.
+
+    Parameters
+    ----------
+    a : Expr
+        Left operand.
+
+    b : Expr
+        Right operand.
+    """
+    # This class is not manipulated by C++. So use python's identity check function is sufficient
+    same_as = object.__eq__
+
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+
+    def __nonzero__(self):
+        return self.a.same_as(self.b)
+
+    def __bool__(self):
+        return self.__nonzero__()
+
+    def asnode(self):
+        """Convert node."""
+        return _make.EQ(self.a, self.b)
+
+
+class NotEqualOp(NodeGeneric, ExprOp):
+    """Deferred NE operator.
+
+    This is used to support sugar that a != b can either
+    mean not NodeBase.same_as or make.NE.
+
+    Parameters
+    ----------
+    a : Expr
+        Left operand.
+
+    b : Expr
+        Right operand.
+    """
+    # This class is not manipulated by C++. So use python's identity check function is sufficient
+    same_as = object.__eq__
+
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+
+    def __nonzero__(self):
+        return not self.a.same_as(self.b)
+
+    def __bool__(self):
+        return self.__nonzero__()
+
+    def asnode(self):
+        """Convert node."""
+        return _make.NE(self.a, self.b)
+
+
+class Expr(ExprOp, NodeBase):
     """Base class of all tvm Expressions"""
-    pass
+    # In Python3, We have to explicity tell interpreter to retain __hash__ if we overide __eq__
+    # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
+    __hash__ = NodeBase.__hash__
+
 
 class ConstExpr(Expr):
     pass

@@ -23,7 +23,7 @@ class TensorNode;
 // internal node container for Operation
 class OperationNode;
 
-using Halide::IR::FunctionRef;
+using HalideIR::IR::FunctionRef;
 
 /*!
  * \brief Tensor structure representing a possible input,
@@ -62,13 +62,13 @@ class Tensor : public NodeRef {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  Expr operator()(Array<Expr> indices) const;
+  TVM_DLL Expr operator()(Array<Expr> indices) const;
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  Expr operator()(Array<Var> indices) const;
+  TVM_DLL Expr operator()(Array<Var> indices) const;
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
    *  This is used to enable syntax sugar of Tensor[x][y][z] to get the element.
@@ -129,7 +129,7 @@ class Operation : public FunctionRef {
    * \param i the output index.
    * \return The i-th output.
    */
-  Tensor output(size_t i) const;
+  TVM_DLL Tensor output(size_t i) const;
   /*! \brief specify container node */
   using ContainerType = OperationNode;
 };
@@ -154,10 +154,10 @@ class TensorNode : public Node {
     v->Visit("op", &op);
     v->Visit("value_index", &value_index);
   }
-  static Tensor make(Array<Expr> shape,
-                     Type dtype,
-                     Operation op,
-                     int value_index);
+  TVM_DLL static Tensor make(Array<Expr> shape,
+                             Type dtype,
+                             Operation op,
+                             int value_index);
 
   static constexpr const char* _type_key = "Tensor";
   TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
@@ -188,7 +188,7 @@ inline bool Tensor::operator==(const Tensor& other) const {
 #define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op)                              \
   inline Expr operator Op (const Tensor::Slice& a) {                    \
     return Op a.operator Expr() ;                                       \
-  }
+  }                                                                     \
 
 #define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                             \
   template<typename T>                                                  \

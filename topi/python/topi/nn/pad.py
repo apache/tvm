@@ -2,53 +2,9 @@
 from __future__ import absolute_import as _abs
 import tvm
 from ..util import equal_const_int
+from .. import tag
 
-
-def _spatial2d_pad_option(padding, kernel):
-    """Common code to get the pad option
-
-    Parameters
-    ----------
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
-
-    kernel : tuple of int
-        Conv kernel size
-
-    Returns
-    -------
-    pad_top : int
-        Padding size on top
-
-    pad_left : int
-        Padding size on left
-
-    pad_down : int
-        Padding size on down.
-
-    pad_right : int
-        Padding size on right.
-    """
-    # compute the padding size
-    if isinstance(padding, (tuple, list)):
-        pad_h = padding[0] * 2
-        pad_w = padding[1] * 2
-    elif isinstance(padding, int):
-        pad_h = pad_w = padding * 2
-    elif padding == "VALID":
-        pad_h = 0
-        pad_w = 0
-    elif padding == "SAME":
-        pad_h = kernel[0] - 1
-        pad_w = kernel[1] - 1
-    else:
-        raise ValueError("Unknown padding option %s" % padding)
-    pad_top = (pad_h + 1) // 2
-    pad_left = (pad_w + 1) // 2
-    return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
-
-
-@tvm.tag_scope(tag="pad")
+@tvm.tag_scope(tag=tag.INJECTIVE+",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     """Dilate Input with zeros.
 

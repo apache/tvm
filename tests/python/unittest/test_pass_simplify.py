@@ -27,6 +27,13 @@ def test_basic():
     assert str(ret.value) == "(m - 1)"
 
 
+def test_bound():
+    m = tvm.var('m')
+    vrange = tvm.convert({m: tvm.Range(tvm.const(0), tvm.const(10))})
+    ret = tvm.ir_pass.Simplify(m % 10, vrange)
+    assert ret == m
+
+
 def test_canonical():
     x = tvm.var("x")
     z = tvm.const(3)
@@ -36,7 +43,18 @@ def test_canonical():
     ret = tvm.ir_pass.CanonicalSimplify(x / (z+z) - x / (z+z))
     assert(tvm.ir_pass.Equal(ret, 0))
 
+    #make sure terms are ordered based on their top operators (e.g., / always precedes %)
+    ret1 = tvm.ir_pass.CanonicalSimplify(x % 3 + x / 3)
+    ret2 = tvm.ir_pass.CanonicalSimplify(x / 3 + x % 3)
+    assert(tvm.ir_pass.Equal(ret1, ret2))
+
+    #when top operators match, compare string representation of terms
+    ret1 = tvm.ir_pass.CanonicalSimplify(x % 4 + x % 3)
+    ret2 = tvm.ir_pass.CanonicalSimplify(x % 3 + x % 4)
+    assert (tvm.ir_pass.Equal(ret1, ret2))
+
 if __name__ == "__main__":
+    test_bound()
     test_basic()
     test_simplify()
     test_canonical()

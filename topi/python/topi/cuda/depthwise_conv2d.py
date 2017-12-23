@@ -2,7 +2,10 @@
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
 from ..util import get_const_tuple
+from .. import tag
+from .. import generic
 
+@generic.schedule_depthwise_conv2d_nchw.register(["cuda", "gpu"])
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 
@@ -100,7 +103,7 @@ def schedule_depthwise_conv2d_nchw(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+        if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
@@ -116,6 +119,7 @@ def schedule_depthwise_conv2d_nchw(outs):
     traverse(outs[0].op)
     return s
 
+@generic.schedule_depthwise_conv2d_nhwc.register(["cuda", "gpu"])
 def schedule_depthwise_conv2d_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc forward.
 
@@ -148,8 +152,12 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
         b, h, w, c = s[Output].op.axis
 
-        ic_val = tvm.ir_pass.Simplify(temp.shape[3]).value
-        xoc, xic = s[Output].split(c, factor=ic_val)
+        # num_thread here could be 728, it is larger than cuda.max_num_threads
+        num_thread = tvm.ir_pass.Simplify(temp.shape[3]).value
+        target = tvm.target.current_target()
+        if target and target.target_name != "cuda":
+            num_thread = target.max_num_threads
+        xoc, xic = s[Output].split(c, factor=num_thread)
         s[Output].reorder(xoc, b, h, w, xic)
         xo, yo, _, _ = s[Output].tile(h, w, x_factor=2, y_factor=2)
         fused = s[Output].fuse(yo, xo)
@@ -171,7 +179,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if 'ewise' in OP.tag or 'bcast' in OP.tag:
+        if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
@@ -183,6 +191,104 @@ def schedule_depthwise_conv2d_nhwc(outs):
             Filter = OP.input_tensors[1]
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
+
+    traverse(outs[0].op)
+    return s
+
+
+def schedule_depthwise_conv2d_backward_input_nhwc(outs):
+    """Schedule for depthwise_conv2d nhwc backward wrt input.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of depthwise_conv2d
+        backward wrt input in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for depthwise_conv2d backward
+        wrt input with layout nhwc.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _schedule(Padded_out_grad, In_grad):
+        s[Padded_out_grad].compute_inline()
+
+        block_x = tvm.thread_axis("blockIdx.x")
+        thread_x = tvm.thread_axis("threadIdx.x")
+        _, h, w, c = In_grad.op.axis
+
+        fused_hwc = s[In_grad].fuse(h, w, c)
+        xoc, xic = s[In_grad].split(fused_hwc, factor=128)
+
+        s[In_grad].bind(xoc, block_x)
+        s[In_grad].bind(xic, thread_x)
+
+    def traverse(OP):
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if OP.tag == 'depthwise_conv2d_backward_input_nhwc':
+            Padded_out_grad = OP.input_tensors[0]
+            Dilated_out_grad = Padded_out_grad.op.input_tensors[0]
+            s[Dilated_out_grad].compute_inline()
+            In_grad = OP.output(0)
+            _schedule(Padded_out_grad, In_grad)
+        else:
+            raise ValueError("Depthwise conv backward wrt input for non-NHWC is not supported.")
+
+    traverse(outs[0].op)
+    return s
+
+def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
+    """Schedule for depthwise_conv2d nhwc backward wrt weight.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of depthwise_conv2d
+        backward wrt weight in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for depthwise_conv2d backward
+        wrt weight with layout nhwc.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _schedule(Weight_grad):
+        block_x = tvm.thread_axis("blockIdx.x")
+        thread_y = tvm.thread_axis("threadIdx.y")
+        thread_x = tvm.thread_axis("threadIdx.x")
+
+        db, dh, dw = Weight_grad.op.reduce_axis
+
+        fused_dbdhdw = s[Weight_grad].fuse(db, dh, dw)
+        _, ki = s[Weight_grad].split(fused_dbdhdw, factor=8)
+        BF = s.rfactor(Weight_grad, ki)
+
+        fused_fwcm = s[Weight_grad].fuse(*s[Weight_grad].op.axis)
+
+        xo, xi = s[Weight_grad].split(fused_fwcm, factor=32)
+
+        s[Weight_grad].bind(xi, thread_x)
+        s[Weight_grad].bind(xo, block_x)
+
+        s[Weight_grad].bind(s[Weight_grad].op.reduce_axis[0], thread_y)
+        s[BF].compute_at(s[Weight_grad], s[Weight_grad].op.reduce_axis[0])
+
+    def traverse(OP):
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if OP.tag == 'depthwise_conv2d_backward_weight_nhwc':
+            Padded_in = OP.input_tensors[1]
+            s[Padded_in].compute_inline()
+            Weight_grad = OP.output(0)
+            _schedule(Weight_grad)
+        else:
+            raise ValueError("Depthwise conv backward wrt weight for non-NHWC is not supported.")
 
     traverse(outs[0].op)
     return s

@@ -13,7 +13,7 @@ USE_MANUAL_CODE = False
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx", options=["-arch=sm_37"]) # 37 for k80(ec2 instance)
+    ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
 
 def write_code(code, fname):
@@ -69,7 +69,7 @@ def test_depthwise_conv2d_nchw():
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         # Build the kernel
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
@@ -111,12 +111,12 @@ def test_depthwise_conv2d_nchw():
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print("success")
 
-    with tvm.build_config(auto_unroll_max_step=32,
-                          auto_unroll_min_depth=0,
-                          unroll_explicit=False,
-                          detect_global_barrier=False,
-                          restricted_func=True):
-        check_device("cuda")
+    for device in ['cuda', 'opencl', 'rocm']:
+        with tvm.build_config(auto_unroll_max_step=128,
+                              unroll_explicit=device == 'rocm',
+                              detect_global_barrier=False,
+                              restricted_func=True):
+            check_device(device)
 
 def test_depthwise_conv2d_nhwc():
     """You may test different settings."""
@@ -159,7 +159,7 @@ def test_depthwise_conv2d_nhwc():
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.gpu(0) if device == "cuda" else tvm.cl(0)
+        ctx = tvm.context(device, 0)
         # Build the kernel
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
@@ -200,12 +200,11 @@ def test_depthwise_conv2d_nhwc():
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print("success")
 
-    with tvm.build_config(auto_unroll_max_step=32,
-                          auto_unroll_min_depth=0,
-                          unroll_explicit=False,
-                          detect_global_barrier=False,
-                          restricted_func=True):
-        check_device("cuda")
+    for device in ['cuda', 'opencl', 'rocm']:
+        with tvm.build_config(auto_unroll_max_step=128,
+                              detect_global_barrier=False,
+                              restricted_func=True):
+            check_device(device)
 
 if __name__ == "__main__":
     test_depthwise_conv2d_nchw()

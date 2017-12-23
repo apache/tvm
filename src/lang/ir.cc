@@ -11,7 +11,7 @@
 #include <memory>
 #include "../pass/ir_util.h"
 
-namespace Halide {
+namespace HalideIR {
 namespace Internal {
 
 using tvm::ir::CommReducerNode;
@@ -43,7 +43,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
             << ")";
 });
 }  // namespace Internal
-}  // namespace Halide
+}  // namespace HalideIR
 
 namespace tvm {
 namespace ir {

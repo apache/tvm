@@ -45,6 +45,7 @@ void OpenCLWorkspace::GetAttr(
       *rv = 1;
       break;
     }
+    case kComputeVersion: return;
     case kExist: break;
   }
 }
@@ -75,13 +76,13 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
-  if (ctx_from.device_type == kOpenCL && ctx_to.device_type == kOpenCL) {
+  if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLOpenCL) {
     OPENCL_CALL(clEnqueueCopyBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
         static_cast<cl_mem>(to),
         from_offset, to_offset, size, 0, nullptr, nullptr));
-  } else if (ctx_from.device_type == kOpenCL && ctx_to.device_type == kCPU) {
+  } else if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLCPU) {
     OPENCL_CALL(clEnqueueReadBuffer(
         this->GetQueue(ctx_from),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
@@ -89,7 +90,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
         static_cast<char*>(to) + to_offset,
         0, nullptr, nullptr));
     OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
-  } else if (ctx_from.device_type == kCPU && ctx_to.device_type == kOpenCL) {
+  } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenCL) {
     OPENCL_CALL(clEnqueueWriteBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>(to),
@@ -196,8 +197,13 @@ void OpenCLWorkspace::Init() {
   std::vector<cl_device_id> devices_matched =
       cl::GetDeviceIDs(this->platform_id, "gpu");
   if (devices_matched.size() == 0) {
-    LOG(WARNING) << "No OpenCL device any device matched given the options";
-    return;
+    LOG(WARNING) << "No OpenCL device any device matched given the options: gpu mode";
+    LOG(WARNING) << "Now try OpenCL cpu mode";
+    devices_matched = cl::GetDeviceIDs(this->platform_id, "cpu");
+    if (devices_matched.size() == 0) {
+      LOG(WARNING) << "No OpenCL device any device matched given the options: cpu mode";
+      return;
+    }
   }
   this->devices = devices_matched;
   cl_int err_code;

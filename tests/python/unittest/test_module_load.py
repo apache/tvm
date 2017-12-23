@@ -2,6 +2,7 @@ import tvm
 from tvm.contrib import cc, util
 import ctypes
 import os
+import sys
 import numpy as np
 import subprocess
 
@@ -88,7 +89,13 @@ def test_device_module_dump():
             return
         temp = util.tempdir()
         name = "myadd_%s" % device
-        f = tvm.build(s, [A, B], device, "llvm -system-lib", name=name)
+        if sys.platform == "darwin" or sys.platform.startswith('linux'):
+            f = tvm.build(s, [A, B], device, "llvm -system-lib", name=name)
+        elif sys.platform == "win32":
+            f = tvm.build(s, [A, B], device, "llvm", name=name)
+        else:
+            raise ValueError("Unsupported platform")
+       
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
 
@@ -96,10 +103,11 @@ def test_device_module_dump():
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
         f1(a, b)
-        f2 = tvm.module.system_lib()
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-        f2[name](a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        if sys.platform != "win32":
+            f2 = tvm.module.system_lib()
+            f2[name](a, b)
+            np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     check_device("cuda")
     check_device("opencl")
@@ -164,8 +172,9 @@ def test_combine_module_llvm():
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         mm['myadd2'](a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-
-    check_system_lib()
+    
+    if sys.platform != "win32":
+        check_system_lib()
     check_llvm()
 
 

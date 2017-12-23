@@ -45,7 +45,10 @@ USE_OPENCL = 0
 USE_METAL = 0
 
 # Whether enable RPC during compile
-USE_RPC = 0
+USE_RPC = 1
+
+# Whether enable tiny embedded graph runtime.
+USE_GRAPH_RUNTIME = 1
 
 # whether build with LLVM support
 # Requires LLVM version >= 4.0
@@ -59,9 +62,15 @@ USE_RPC = 0
 # Whether use BLAS, choices: openblas, atlas, blas, apple
 USE_BLAS = none
 
+# Whether use contrib.random in runtime
+USE_RANDOM = 0
+
 # Whether use NNPack
 USE_NNPACK = 0
 # NNPACK_PATH = none
 
 # Whether use CuDNN
 USE_CUDNN = 0
+
+# Whether use MPS
+USE_MPS = 0

@@ -30,8 +30,9 @@ class ROCMModuleNode : public runtime::ModuleNode {
   explicit ROCMModuleNode(std::string data,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap,
-                          std::string hip_source)
-      : data_(data), fmt_(fmt), fmap_(fmap), hip_source_(hip_source) {
+                          std::string hip_source,
+                          std::string assembly)
+    : data_(data), fmt_(fmt), fmap_(fmap), hip_source_(hip_source), assembly_(assembly) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
@@ -59,10 +60,18 @@ class ROCMModuleNode : public runtime::ModuleNode {
     stream->Write(data_);
   }
 
+  std::string GetSource(const std::string& format) final {
+    if (format == fmt_) { return data_; }
+    if (format == "llvm") { return hip_source_; }
+    if (format == "asm") { return assembly_; }
+    return "";
+  }
+
   // get a CUfunction from primary context in device_id
   hipFunction_t GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
+
     if (module_[device_id] == nullptr) {
       ROCM_DRIVER_CALL(hipModuleLoadData(&(module_[device_id]), data_.c_str()));
     }
@@ -109,6 +118,8 @@ class ROCMModuleNode : public runtime::ModuleNode {
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // The hip source.
   std::string hip_source_;
+  // The gcn asm.
+  std::string assembly_;
   // the internal modules per GPU, to be lazily initialized.
   std::array<hipModule_t, kMaxNumGPUs> module_;
   // internal mutex when updating the module
@@ -133,14 +144,22 @@ class ROCMWrappedFunc {
   // invoke the function with void arguments
   void operator()(TVMArgs args,
                   TVMRetValue* rv,
-                  void** void_args) const {
+                  void* packed_args,
+                  size_t packed_nbytes) const {
     int device_id;
     ROCM_CALL(hipGetDevice(&device_id));
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
+
     hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
+
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+    void* config[] = {
+      HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args,
+      HIP_LAUNCH_PARAM_BUFFER_SIZE, &packed_nbytes,
+      HIP_LAUNCH_PARAM_END
+    };
     // HIP supports only extra_args.
     ROCM_DRIVER_CALL(hipModuleLaunchKernel(
         fcache_[device_id],
@@ -150,7 +169,8 @@ class ROCMWrappedFunc {
         wl.block_dim(0),
         wl.block_dim(1),
         wl.block_dim(2),
-        0, strm, void_args, 0));
+        0, strm, nullptr,
+        reinterpret_cast<void**>(&config)));
   }
 
  private:
@@ -174,22 +194,22 @@ PackedFunc ROCMModuleNode::GetFunction(
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
-
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+  return PackFuncPackedArg(f, info.arg_types);
 }
 
 Module ROCMModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string hip_source) {
+    std::string hip_source,
+    std::string assembly) {
   std::shared_ptr<ROCMModuleNode> n =
-      std::make_shared<ROCMModuleNode>(data, fmt, fmap, hip_source);
+    std::make_shared<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
   return Module(n);
 }
 
@@ -201,7 +221,7 @@ Module ROCMModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return ROCMModuleCreate(data, fmt, fmap, std::string());
+  return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
 
 

@@ -25,7 +25,7 @@ class Buffer(NodeBase):
     READ = 1
     WRITE = 2
 
-    def access_ptr(self, access_mask, ptr_type="handle"):
+    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1):
         """Get an access pointer to the head of buffer.
 
         This is the recommended method to get buffer data
@@ -40,6 +40,10 @@ class Buffer(NodeBase):
         ptr_type : str, optional
             The data type of the result pointer. Do not specify
             unless we want to cast pointer to specific type.
+
+        content_lanes: int, optional
+            The number of lanes for the data type. This value
+            is greater than one for vector types.
 
         Examples
         --------
@@ -63,7 +67,8 @@ class Buffer(NodeBase):
                 else:
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
-        return _api_internal._BufferAccessPtr(self, access_mask, ptr_type)
+        return _api_internal._BufferAccessPtr(self, access_mask, ptr_type,
+                                              content_lanes)
 
     def vload(self, begin, dtype=None):
         """Generate an Expr that loads dtype from begin index.
@@ -247,6 +252,14 @@ class Schedule(NodeBase):
 
         This will mutate the body of the tensor.
         A new cache stage will created before feed into the tensor.
+
+        This function can be used to support data layout transformation.
+        If there is a split/fuse/reorder on the data parallel axis of tensor
+        before cache_write is called. The intermediate cache stores
+        the data in the layout as the iteration order of leave axis.
+        The data will be transformed back to the original layout in the original tensor.
+        User can further call compute_inline to inline the original layout and keep
+        the data stored in the transformed layout.
 
         Parameters
         ----------
@@ -588,5 +601,14 @@ class Stage(NodeBase):
             The offset in the alignment specification.
         """
         _api_internal._StageStorageAlign(self, axis, factor, offset)
+
+    def double_buffer(self):
+        """Compute the current stage via double buffering.
+
+        This can only be applied to intermediate stage.
+        This will double the storage cost of the current stage.
+        Can be useful to hide load latency.
+        """
+        _api_internal._StageDoubleBuffer(self)
 
 _init_api("tvm.schedule")

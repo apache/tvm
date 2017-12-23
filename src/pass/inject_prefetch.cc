@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file inject_prefetch.cc
  */
+// Inject prefetch op in HalideIR
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
@@ -14,7 +15,7 @@ namespace ir {
 
 using arith::IntSet;
 using arith::DomainTouched;
-using Halide::Internal::Region;
+using HalideIR::Internal::Region;
 
 class PrefetchInjector : public IRMutator {
  public:

@@ -2,8 +2,11 @@
  *  Copyright (c) 2016 by Contributors
  * \file storage_flatten.cc
  */
+// Flattens storage from multi-dimensional array to 1D
+// buffer access as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/expr.h>
+#include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
@@ -19,7 +22,7 @@
 namespace tvm {
 namespace ir {
 
-using Halide::Internal::Region;
+using HalideIR::Internal::Region;
 using runtime::StorageScope;
 using runtime::ThreadScope;
 using intrinsic::tvm_address_of;
@@ -53,6 +56,18 @@ class StorageFlattener : public IRMutator {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
+    } else if (op->attr_key == attr::double_buffer_scope) {
+      Operation func(op->node.node_);
+      Stmt body = Mutate(op->body);
+      for (int i = 0; i < func->num_outputs(); ++i) {
+        TensorKey key{func, i};
+        auto it = buf_map_.find(key);
+        CHECK(it != buf_map_.end())
+            << "Cannot find allocated buffer for " << key.f;
+        body = AttrStmt::make(
+            it->second.buffer->data, op->attr_key, op->value, body);
+      }
+      return body;
     } else if (op->attr_key == attr::thread_extent) {
       IterVar iv(op->node.node_);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
@@ -127,13 +142,16 @@ class StorageFlattener : public IRMutator {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
         if (info.defined()) {
           align = (info->max_simd_bits + op->type.bits() - 1) / op->type.bits();
+          CHECK_LE(const_size * op->type.bits(), info->max_num_bits)
+              << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
       Array<Expr> strides;
-      if (dim_align_.count(key) != 0) {
+      if (dim_align_.count(key) != 0 && shape.size() != 0) {
         std::vector<Expr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
-        Expr stride = make_const(shape[0].type(), 1);
+        int first_dim = 0;
+        Expr stride = make_const(shape[first_dim].type(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
@@ -147,6 +165,7 @@ class StorageFlattener : public IRMutator {
         }
         strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
       }
+
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
           op->type, shape, strides, Expr(),
@@ -159,13 +178,18 @@ class StorageFlattener : public IRMutator {
       Stmt ret;
 
       if (strides.size() != 0) {
+        int first_dim = 0;
         ret = Allocate::make(
             e.buffer->data, e.buffer->dtype,
-            {arith::ComputeExpr<Mul>(e.buffer->strides[0], e.buffer->shape[0])},
+            {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
+        shape = e.buffer->shape;
+        if (shape.size() == 0) {
+          shape.push_back(make_const(Int(32), 1));
+        }
         ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype, e.buffer->shape,
+            e.buffer->data, e.buffer->dtype, shape,
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       }
       ret = AttrStmt::make(
@@ -304,7 +328,8 @@ class StorageFlattener : public IRMutator {
     Buffer slice = be.buffer.MakeSlice(begins, extents);
     if (buffer->strides.size() == 0) {
       CHECK_EQ(slice->strides.size(), 0U)
-          << "Trying to bind compact buffer to strided one";
+          << "Trying to bind compact buffer to strided one strides="
+          << slice->strides;
     } else {
       slice = slice.MakeStrideView();
     }

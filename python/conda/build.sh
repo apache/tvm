@@ -26,7 +26,7 @@ mkdir -p build
 cd build
 # Enable static-libstdc++ to make it easier to link this library with
 # other C++ compilers
-CXXFLAGS=-static-libstdc++ cmake3 -DCMAKE_PREFIX_PATH=${PREFIX} -DCMAKE_INSTALL_PREFIX=${PREFIX} -DUSE_CUDA=1 -DUSE_LLVM=1 -DINSTALL_DEV=1 $CUDA_ARGS ..
+CXXFLAGS=-static-libstdc++ cmake -DCMAKE_PREFIX_PATH=${PREFIX} -DCMAKE_INSTALL_PREFIX=${PREFIX} -DUSE_CUDA=1 -DUSE_LLVM=1 -DINSTALL_DEV=1 $CUDA_ARGS ..
 make -j20 VERBOSE=1
 make install/fast
 cd ..
