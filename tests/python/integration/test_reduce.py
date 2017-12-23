@@ -17,6 +17,7 @@ def test_reduce_prims():
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
         s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[R].compute_inline()
 
         # one line to build the function.
         def check_device(device, host="stackvm"):
