@@ -22,7 +22,6 @@ namespace tvm {
 namespace runtime {
 
 // Module to support thread-safe multi-GPU execution.
-// cuModule is a per-GPU module
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
 class MetalModuleNode final :public runtime::ModuleNode {
