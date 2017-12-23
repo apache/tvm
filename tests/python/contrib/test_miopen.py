@@ -1,7 +1,6 @@
 import tvm
 from tvm.contrib import miopen
 import numpy as np
-import topi
 
 
 def test_conv2d():
@@ -48,6 +47,7 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
+        import topi
         Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w))
         with tvm.target.rocm():
             s_ref = topi.generic.schedule_conv2d_nchw([Y_ref])
