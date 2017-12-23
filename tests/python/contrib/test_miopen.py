@@ -5,8 +5,8 @@ import topi
 
 
 def test_conv2d():
-    in_channel = 32
-    out_channel = 64
+    in_channel = 64
+    out_channel = 128
     filter_h = 3
     filter_w = 3
     pad_h = 1
@@ -16,11 +16,11 @@ def test_conv2d():
     dilation_h = 1
     dilation_w = 1
 
-    xshape = [1, in_channel, 128, 128]
+    xshape = [1, in_channel, 64, 64]
     if not tvm.module.enabled("rocm"):
         print("skip because rocm is not enabled...")
         return
-    if not tvm.get_global_func("tvm.contrib.miopen.conv2d.output_shape", True):
+    if not tvm.get_global_func("tvm.contrib.miopen.conv2d.setup", True):
         print("skip because miopen is not enabled...")
         return
     wshape = (out_channel, in_channel, filter_h, filter_w)
@@ -35,8 +35,8 @@ def test_conv2d():
                               pad_w,
                               dilation_h,
                               dilation_w,
-                              conv_mode=0,
-                              algo=1)
+                              conv_mode=0)
+
     yshape = [x.value for x in Y.shape]
     s = tvm.create_schedule(Y.op)
 

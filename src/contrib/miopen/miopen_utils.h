@@ -30,12 +30,12 @@ struct ConvEntry {
   miopenDataType_t data_type{miopenFloat};
   miopenTensorDescriptor_t input_desc;
   miopenTensorDescriptor_t output_desc;
-  miopenConvFwdAlgorithm_t fwd_algo{miopenConvolutionFwdAlgoDirect};
+  miopenConvFwdAlgorithm_t fwd_algo;
   TVMContext ctx;
   runtime::DeviceAPI *rocm_api;
   void *workspace{nullptr};
   size_t workspace_size{0};
-  int group_count{0};
+  bool done_setup{false};
   ConvEntry();
   ~ConvEntry();
   void UpdateWorkspace(const size_t wsize);
