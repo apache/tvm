@@ -5,7 +5,8 @@
 #include "miopen_utils.h"
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
-
+#include <vector>
+#include <string>
 
 namespace tvm {
 namespace contrib {

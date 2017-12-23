@@ -6,10 +6,11 @@
 #ifndef TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
 #define TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
 
-#include "../../runtime/rocm/rocm_common.h"
 #include <dmlc/logging.h>
 #include <miopen/miopen.h>
 #include <tvm/runtime/device_api.h>
+#include <string>
+#include "../../runtime/rocm/rocm_common.h"
 
 namespace tvm {
 namespace contrib {
@@ -40,7 +41,7 @@ struct ConvEntry {
   ~ConvEntry();
   void UpdateWorkspace(const size_t wsize);
   void CleanWorkspace();
-}; // ConvThreadEntry
+};  // ConvThreadEntry
 
 struct MIOpenThreadEntry {
   MIOpenThreadEntry();
@@ -49,9 +50,9 @@ struct MIOpenThreadEntry {
   ConvEntry conv_entry;
   runtime::DeviceAPI *rocm_api{nullptr};
   static MIOpenThreadEntry *ThreadLocal();
-}; // MiopenThreadEntry
+};  // MIOpenThreadEntry
 
-} // namespace contrib
-} // namespace tvm
+}  // namespace contrib
+}  // namespace tvm
 
-#endif // TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
+#endif  // TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_

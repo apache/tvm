@@ -37,10 +37,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
   // Set Ctx
   entry_ptr->conv_entry.ctx = TVMContext{kDLROCM, 0};
   // Set Data Type
-  entry_ptr->conv_entry.data_type = miopenFloat; // MIOpen only suppports fp32
+  entry_ptr->conv_entry.data_type = miopenFloat;  // MIOpen only suppports fp32
   // Set Desc
   MIOPEN_CALL(miopenInitConvolutionDescriptor(entry_ptr->conv_entry.conv_desc,
-					      entry_ptr->conv_entry.mode,
+                                              entry_ptr->conv_entry.mode,
                                               pad_h,
                                               pad_w,
                                               stride_h,
@@ -76,14 +76,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
   MIOPEN_CALL(miopenSet4dTensorDescriptor(entry_ptr->conv_entry.output_desc,
                                           entry_ptr->conv_entry.data_type,
                                           oshape[0],
-					  oshape[1],
-					  oshape[2],
-					  oshape[3]));
+                                          oshape[1],
+                                          oshape[2],
+                                          oshape[3]));
 
   // Set workspace
   size_t workspace_size = 0;
   MIOPEN_CALL(miopenConvolutionForwardGetWorkSpaceSize(entry_ptr->handle,
-						       entry_ptr->conv_entry.filter_desc,
+                                                       entry_ptr->conv_entry.filter_desc,
                                                        entry_ptr->conv_entry.input_desc,
                                                        entry_ptr->conv_entry.conv_desc,
                                                        entry_ptr->conv_entry.output_desc,
@@ -95,9 +95,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
   const size_t output_size = oshape[0] * oshape[1] * oshape[2] * oshape[3];
 
   runtime::DeviceAPI* rocm_api = entry_ptr->conv_entry.rocm_api;
-  float* input_buf = static_cast<float*>(rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx, input_size * sizeof(float)));
-  float* filter_buf = static_cast<float*>(rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx, filter_size * sizeof(float)));
-  float* output_buf = static_cast<float*>(rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx, output_size * sizeof(float)));
+  float* input_buf = static_cast<float*>(rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx,
+                                                                  input_size * sizeof(float)));
+  float* filter_buf = static_cast<float*>(rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx,
+                                                                   filter_size * sizeof(float)));
+  float* output_buf = static_cast<float*>(rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx,
+                                                                   output_size * sizeof(float)));
 
   const int request_algo_count = 4;
   const bool exhaustive_search = false;
@@ -111,13 +114,13 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
                                                     filter_buf,
                                                     entry_ptr->conv_entry.conv_desc,
                                                     entry_ptr->conv_entry.output_desc,
-				                    output_buf,
-						    request_algo_count,
-						    &returned_algo_count,
-						    perfs,
-						    entry_ptr->conv_entry.workspace,
-						    workspace_size,
-						    exhaustive_search));
+                                                    output_buf,
+                                                    request_algo_count,
+                                                    &returned_algo_count,
+                                                    perfs,
+                                                    entry_ptr->conv_entry.workspace,
+                                                    workspace_size,
+                                                    exhaustive_search));
 
   rocm_api->FreeWorkspace(entry_ptr->conv_entry.ctx, input_buf);
   rocm_api->FreeWorkspace(entry_ptr->conv_entry.ctx, filter_buf);
@@ -155,16 +158,16 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
   const float alpha = 1.f;
   const float beta = 0.f;
   MIOPEN_CALL(miopenConvolutionForward(entry_ptr->handle,
-				       &alpha,
+                                       &alpha,
                                        entry_ptr->conv_entry.input_desc,
                                        x->data,
                                        entry_ptr->conv_entry.filter_desc,
                                        w->data,
                                        entry_ptr->conv_entry.conv_desc,
                                        entry_ptr->conv_entry.fwd_algo,
-				       &beta,
+                                       &beta,
                                        entry_ptr->conv_entry.output_desc,
-				       y->data,
+                                       y->data,
                                        entry_ptr->conv_entry.workspace,
                                        entry_ptr->conv_entry.workspace_size));
 });
