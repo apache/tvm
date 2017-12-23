@@ -8,6 +8,7 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
+#include <nnvm/top/tensor.h>
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -16,7 +17,7 @@ namespace nnvm {
 namespace top {
 /*!
  * \brief Parse keyword arguments as PType arguments and save to parsed
- * \tparam PType the arameter type.
+ * \tparam PType the parameter type.
  * \param attrs The attributes.
  */
 template<typename PType>
@@ -202,6 +203,28 @@ inline std::string attr_assign_error_msg(const NodeAttrs& attrs,
     }                                                                    \
   }
 
+/*!
+ * \brief macro assign rhs shape to lhs
+ *  Use macro so we can see the error file more clearly
+ * \param lhs lhs shape
+ * \param rhs rhs shape
+ */
+#define SHAPE_ASSIGN(lhs, rhs)                                \
+  if ((lhs).ndim() == 0) (lhs) = (rhs);                       \
+  else                                                        \
+    CHECK_EQ(lhs, rhs) << "shape inference inconsistent";     \
+
+/*!
+ * \brief macro assign rhs type to lhs
+ *  Use macro so we can see the error file more clearly
+ * \param lhs lhs type
+ * \param rhs rhs type
+ */
+#define DTYPE_ASSIGN(lhs, rhs)                                \
+  if ((lhs) == -1) (lhs) = (rhs);                             \
+  else                                                        \
+    CHECK_EQ(lhs, rhs) << "type inference inconsistent";     \
+
 // simply return the shape as same
 inline bool SameShape(const NodeAttrs& attrs,
                       std::vector<TShape> *ishape,
@@ -213,6 +236,28 @@ inline bool SameShape(const NodeAttrs& attrs,
   for (TShape& pshape : *ishape) {
     pshape = (*ishape)[0];
   }
+  return true;
+}
+
+// return shape from node attrs
+inline bool ZeroShape(const NodeAttrs& attrs,
+                      std::vector<TShape> *ishape,
+                      std::vector<TShape> *oshape) {
+  const TShape& ts = dmlc::get<InitOpParam>(attrs.parsed).shape;
+  if (ts.ndim() != 0) {
+    SHAPE_ASSIGN(oshape->at(0), ts);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// return type from node attrs
+inline bool ZeroType(const NodeAttrs& attrs,
+                     std::vector<int> *iattr,
+                     std::vector<int> *oattr) {
+  int dtype = dmlc::get<InitOpParam>(attrs.parsed).dtype;
+  DTYPE_ASSIGN(oattr->at(0), dtype);
   return true;
 }
 

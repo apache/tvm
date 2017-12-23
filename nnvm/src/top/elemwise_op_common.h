@@ -97,6 +97,16 @@ inline bool ElemwiseType(const NodeAttrs& attrs,
   .add_argument("data", "Tensor", "The input tensor.")
 
 
+#define NNVM_REGISTER_INIT_OP(name)                                 \
+  NNVM_REGISTER_OP(name)                                            \
+  .set_num_inputs(0)                                                \
+  .set_num_outputs(1)                                               \
+  .set_attr_parser(ParamParser<InitOpParam>)                        \
+  .add_arguments(InitOpParam::__FIELDS__())                         \
+  .set_attr<FInferShape>("FInferShape", ZeroShape)                  \
+  .set_attr<FInferType>("FInferType", ZeroType)
+
+
 #define NNVM_REGISTER_ELEMWISE_BINARY_OP(name)                      \
   NNVM_REGISTER_OP(name)                                            \
   .set_num_inputs(2)                                                \

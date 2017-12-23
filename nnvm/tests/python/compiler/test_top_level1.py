@@ -6,146 +6,199 @@ import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
 
+
+def helper(symbol, inputs, dtype,
+           np_forward, np_backward=None):
+    ishapes = {}
+    input_syms = []
+    np_inputs = {}
+    for (k, v) in inputs.items():
+        ishapes.update({k: v[0]})
+        np_inputs.update({k: np.random.uniform(size=v[0]).astype(dtype)})
+        if len(v) > 1:
+            input_syms.append(v[1])
+
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(**np_inputs)
+        y_np = np_forward(**np_inputs)
+        out = m.get_output(0, tvm.nd.empty(y_np.shape, dtype))
+        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+
+        # backward
+        if np_backward:
+            graph._set_symbol_list_attr("grad_ys", symbol)
+            for x in input_syms:
+                graph._set_symbol_list_attr("grad_xs", x)
+            graph._set_symbol_list_attr("grad_ys_out_grad", sym.Variable("head_grads"))
+            graph = graph.apply("Gradient")
+            ishapes.update({"head_grads": y_np.shape})
+            graph, lib, _ = nnvm.compiler.build(graph, target, ishapes)
+            m = graph_runtime.create(graph, lib, ctx)
+            head_grads = np.random.uniform(size=y_np.shape).astype(dtype)
+            y_np = head_grads * np_backward(**np_inputs)
+            m.run(head_grads=head_grads, **np_inputs)
+            out = m.get_output(0, tvm.nd.empty(y_np.shape, dtype))
+
+            np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+
+
 def test_relu():
     x = sym.Variable("x")
-    y = sym.leaky_relu(x, alpha=0.3) - 0.2
-    y = sym.relu(y)
+    y = sym.relu(sym.leaky_relu(x, alpha=0.3) - 0.2)
+
+    def forward(x):
+        x = (x < 0) * x * 0.3 + (x > 0) * x - 0.2
+        return (x > 0) * x
+
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        data = (data < 0) * data * 0.3 + (data>0) * data - 0.2
-        data = (data > 0) * data
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward)
+
+
+def test_sym_scalar_pow():
+    scalar = 3
+    x = sym.Variable("x")
+    y = x**scalar
+
+    def forward(x):
+        return x**scalar
+
+    def backward(x):
+        return scalar * x**(scalar -  1)
+
+    dtype = "float32"
+    dshape = (1, 3, 32, 32)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward, backward)
+
+
+def test_scalar_sym_pow():
+    scalar = 3
+    x = sym.Variable("x")
+    y = scalar**x
+
+    def forward(x):
+        return scalar**x
+
+    def backward(x):
+        return np.log(scalar) * scalar**x
+
+    dtype = "float32"
+    dshape = (1, 3, 32, 32)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_exp():
     x = sym.Variable("x")
     y = sym.exp(x)
+
+    def forward(x):
+        return np.exp(x)
+
+    def backward(x):
+        return np.exp(x)
+
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        y_np = np.exp(data)
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_log():
     x = sym.Variable("x")
     y = sym.log(x)
+
+    def forward(x):
+        return np.log(x)
+
+    def backward(x):
+        return 1. / x
+
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        with nnvm.compiler.build_config(opt_level=1):
-            graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        y_np = np.log(data)
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_tanh():
     x = sym.Variable("x")
     y = sym.tanh(x)
+
+    def forward(x):
+        return np.sinh(x) / np.cosh(x)
+
+    def backward(x):
+        y_np = forward(x)
+        return (1 - y_np**2)
+
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        with nnvm.compiler.build_config(opt_level=1):
-            graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        y_np = np.sinh(data) / np.cosh(data)
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_sigmoid():
     x = sym.Variable("x")
     y = sym.sigmoid(x)
+
+    def forward(x):
+        return 1.0 / (1.0 + np.exp(-x))
+
+    def backward(x):
+        y_np = forward(x)
+        return y_np *(1 - y_np)
+
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        y_np = 1.0 / (1.0 + np.exp(-data))
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_softmax():
     x = sym.Variable("x")
     y = sym.softmax(x)
+
+    def forward(x):
+        return topi.testing.softmax_python(x)
+
     dtype = "float32"
     dshape = (10, 1000)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        with nnvm.compiler.build_config(opt_level=1):
-            graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        y_np = topi.testing.softmax_python(data)
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward)
 
 
 def test_log_softmax():
     x = sym.Variable("x")
     y = sym.log_softmax(x)
+
+    def forward(x):
+        return topi.testing.log_softmax_python(x)
+
     dtype = "float32"
     dshape = (10, 1000)
-    oshape = dshape
-    for target, ctx in ctx_list():
-        with nnvm.compiler.build_config(opt_level=1):
-            graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        y_np = topi.testing.log_softmax_python(data)
-        np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward)
 
 
 def test_dense():
     x = sym.Variable("x")
     y = sym.dense(x, units=3, name="dense")
     y = sym.flatten(y)
+
+    def forward(x, dense_weight, dense_bias):
+        return np.dot(x, dense_weight.T) + dense_bias
+
     dtype = "float32"
-    shape = {
-        "x" : (10, 100),
-        "dense_weight" : (3, 100),
-        "dense_bias" : (3,),
+    inputs = {
+        'x': ((10, 100), x),
+        'dense_weight': ((3, 100),),
+        'dense_bias': ((3,),)
     }
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, shape)
-        m = graph_runtime.create(graph, lib, ctx)
-        x_np = np.random.uniform(size=shape["x"]).astype(dtype)
-        w_np = np.random.uniform(size=shape["dense_weight"]).astype(dtype)
-        b_np = np.random.uniform(size=shape["dense_bias"]).astype(dtype)
-        res = tvm.nd.empty((10, 3))
-        m.run(x=x_np, dense_weight=w_np, dense_bias=b_np)
-        m.get_output(0, res)
-        res_np = np.dot(x_np, w_np.T) + b_np
-        np.testing.assert_allclose(
-            res.asnumpy(), res_np, atol=1e-5, rtol=1e-5)
+    helper(y, inputs, dtype, forward)
 
 
 def test_batchnorm():
@@ -154,27 +207,23 @@ def test_batchnorm():
     gamma = sym.Variable("gamma")
     moving_var = sym.Variable("moving_var")
     moving_mean = sym.Variable("moving_mean")
-    shape = (10, 20)
     eps = 1e-5
-    dtype = "float32"
     y = sym.batch_norm(
         x, gamma, beta, moving_mean, moving_var, epsilon=eps)
 
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, "llvm", {"x": shape})
-        m = graph_runtime.create(graph, lib, tvm.cpu(0))
-        x_np = np.random.uniform(size=shape).astype(dtype)
-        mean_np = np.random.uniform(size=shape[1]).astype(dtype)
-        var_np = np.random.uniform(size=shape[1]).astype(dtype)
-        gamma_np = np.random.uniform(size=shape[1]).astype(dtype)
-        beta_np = np.random.uniform(size=shape[1]).astype(dtype)
-        res = tvm.nd.empty(shape)
-        m.run(x=x_np, moving_mean=mean_np, moving_var=var_np,
-              gamma=gamma_np, beta=beta_np)
-        m.get_output(0, res)
-        res_np = (x_np - mean_np) / np.sqrt(var_np + eps) * gamma_np + beta_np
-        np.testing.assert_allclose(
-            res.asnumpy(), res_np, atol=1e-5, rtol=1e-5)
+    def forward(x, gamma, beta, moving_mean, moving_var):
+        return (x - moving_mean) / np.sqrt(moving_var + eps) * gamma + beta
+
+    dtype = "float32"
+    inputs = {
+        'x': ((10, 20), x),
+        'gamma': ((20,),),
+        'beta': ((20,),),
+        'moving_mean': ((20,),),
+        'moving_var': ((20,),)
+    }
+
+    helper(y, inputs,  dtype, forward)
 
 
 def verify_concatenate(ishape, axis):
@@ -194,6 +243,7 @@ def verify_concatenate(ishape, axis):
         out_np = np.concatenate(data, axis=axis) + 1
         out = m.get_output(0, tvm.nd.empty(out_np.shape))
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
 
 def test_concatenate():
     verify_concatenate([(2, 3, 4), (1, 3, 4)], axis=0)
@@ -215,6 +265,7 @@ def verify_split(ishape, indices_or_sections, axis):
             out = m.get_output(i, tvm.nd.empty(arr.shape))
             np.testing.assert_allclose(out.asnumpy(), arr, atol=1e-5, rtol=1e-5)
 
+
 def test_split():
     verify_split((2, 3), 2, axis=0)
     verify_split((5, 3), [3], axis=0)
@@ -228,16 +279,14 @@ def verify_squeeze(dshape, axis):
     else:
         y = sym.squeeze(x)
     y = y + 1
+
+    def forward(x):
+        return np.squeeze(x, axis=axis) + 1
+
     dtype = "float32"
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        # set input
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        m.run(x=data)
-        out_np = np.squeeze(data.asnumpy(), axis=axis) + 1
-        out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+    inputs = {'x': (dshape, x)}
+    helper(y, inputs, dtype, forward)
+
 
 def test_squeeze():
     verify_squeeze((1, 3, 2, 5), None)
@@ -248,19 +297,15 @@ def test_squeeze():
 def test_pad():
     x = sym.Variable("x")
     y = sym.pad(x, pad_width=((0, 0), (0, 0), (0, 1), (2, 3)), pad_value=1.)
+
+    def forward(x):
+        return np.pad(x,
+                      pad_width=((0, 0), (0, 0), (0, 1), (2, 3)),
+                      mode='constant', constant_values=1.)
+
     dtype = "float32"
-    dshape = (1, 3, 28, 28)
-    oshape = (1, 3, 29, 33)
-    shape_dict = {"x": dshape}
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = graph_runtime.create(graph, lib, ctx)
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        b_np = np.pad(data.asnumpy(), pad_width=((0, 0), (0, 0), (0, 1), (2, 3)),
-            mode='constant', constant_values=1.)
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+    inputs = {'x': ((1, 3, 28, 28), x)}
+    helper(y, inputs, dtype, forward)
 
 
 if __name__ == "__main__":
@@ -270,6 +315,8 @@ if __name__ == "__main__":
     test_batchnorm()
     test_dense()
     test_relu()
+    test_sym_scalar_pow()
+    test_scalar_sym_pow()
     test_exp()
     test_log()
     test_tanh()
