@@ -7,8 +7,9 @@ def test_reduce_prims():
         n = tvm.var('n')
         m = tvm.var('m')
         A = tvm.placeholder((n, m), name='A')
+        R = tvm.compute((n, ), lambda i: tvm.select((i > 1), 1, 0), name='R')
         k = tvm.reduce_axis((0, m))
-        B = tvm.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(i>1)), name='B')
+        B = tvm.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i]==1)), name='B')
         # schedule
         s = tvm.create_schedule(B.op)
         # create iter var and assign them tags.
