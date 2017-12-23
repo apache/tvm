@@ -95,7 +95,7 @@ port = 9090
 if not use_rasp:
     # run server locally
     host = 'localhost'
-    port = 9090
+    port = 9091
     server = rpc.Server(host=host, port=port)
 
 ######################################################################
