@@ -55,14 +55,8 @@ def conv2d_forward(x,
     dilation_w: int
         width dilation
     conv_mode: int
-        0: CUDNN_CONVOLUTION
-        1: CUDNN_CROSS_CORRELATION
-    tensor_format: int
-        0: CUDNN_TENSOR_NCHW
-        1: CUDNN_TENSOR_NHWC
-        2: CUDNN_TENSOR_NCHW_VECT_C
-    algo: int
-        Forward algorithm, get index from ```algo_to_index``` function
+        0: miopenConvolution
+        1: miopenTranspose
 
     Returns
     -------
