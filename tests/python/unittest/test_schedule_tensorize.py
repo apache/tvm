@@ -126,7 +126,34 @@ def test_tensorize_matmul():
     check(16)
     check_rfactor(16, 16)
 
+# This tests whether algorithm and intrinsics expressions are simplified
+# as much as possible first and then checked for equality. See Issue #696
+def test_tensorize_op():
+    def op_intrin():
+        bh = 9
+        bw = 9
+        x = tvm.placeholder((5, 5), name='A')
+        y = tvm.compute((bh, bw), lambda i,j: x[j/3 + i%3, j%3+ i/3])
+
+        def intrin_func(ins, outs):
+            xx, = ins
+            zz = outs[0]
+            return tvm.call_packed("op", xx, zz)
+
+        with tvm.build_config(offset_factor=2):
+            return tvm.decl_tensor_intrin(y.op, intrin_func)
+
+    A = tvm.placeholder((5, 5), name='A')
+    B = tvm.compute((9,9), lambda i, j: A[j/3 + i%3, j%3 + i/3])
+    bt = op_intrin()
+    s = tvm.create_schedule(B.op)
+
+    x,y = B.op.axis
+    s[B].tensorize(x, bt)
+    s = s.normalize()
+    tvm.lower(s, [A, B])
 
 if __name__ == "__main__":
     test_tensorize_vadd()
     test_tensorize_matmul()
+    test_tensorize_op()
