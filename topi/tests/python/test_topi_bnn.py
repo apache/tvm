@@ -7,7 +7,7 @@ from tvm.contrib.pickle_memoize import memoize
 
 
 def verify_binary_dense(batch, in_dim, out_dim):
-    target = tvm.target.x86_64()
+    target = tvm.target.x86()
     with target:
         # binarization and bit-packing
         A = tvm.placeholder((batch, in_dim), name='A')

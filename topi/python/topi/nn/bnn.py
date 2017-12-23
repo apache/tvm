@@ -14,7 +14,8 @@ def binarize_pack(data, axis=None, name="PackedInput"):
         n-D input, can be any layout.
 
     axis : None or int
-        The axis along which to do binarization and bit-packing.
+        The axis along which to do binarization and bit-packing,
+        default is the last axis.
 
     name : str, optional
         The name prefix operators generate.
