@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for binary dense operator."""
 from __future__ import absolute_import as _abs
 import tvm
@@ -24,15 +24,13 @@ def schedule_binary_dense(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
-    def _schedule(data, weight, output):
-        A, B, C = data, weight, output
-
+    def _schedule(A, B, C):
         if C.op in s.outputs:
             Out = C
         else:
             Out = outs[0].op.output(0)
 
-        bn = 16
+        bn = 8
         yo, xo, yi, xi = s[Out].tile(Out.op.axis[1], Out.op.axis[0], bn, bn)
         s[Out].parallel(yo)
         s[Out].vectorize(yi)
