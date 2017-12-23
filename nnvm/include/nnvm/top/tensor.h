@@ -62,21 +62,24 @@ enum TypeFlag {
   kUint64 = 10,
 };
 
+#define DMLC_DECLARE_DTYPE_FIELD(name)                              \
+  DMLC_DECLARE_FIELD(name)                                          \
+  .add_enum("float16", kFloat16)                                    \
+  .add_enum("float32", kFloat32)                                    \
+  .add_enum("float64", kFloat64)                                    \
+  .add_enum("uint8",  kUint8)                                       \
+  .add_enum("uint16", kUint16)                                      \
+  .add_enum("uint32", kUint32)                                      \
+  .add_enum("uint64", kUint64)                                      \
+  .add_enum("int8",  kInt8)                                         \
+  .add_enum("int16", kInt16)                                        \
+  .add_enum("int32", kInt32)                                        \
+  .add_enum("int64", kInt64)
+
 struct CastParam : public dmlc::Parameter<CastParam> {
   int dtype;
   DMLC_DECLARE_PARAMETER(CastParam) {
-    DMLC_DECLARE_FIELD(dtype)
-    .add_enum("float16", kFloat16)
-    .add_enum("float32", kFloat32)
-    .add_enum("float64", kFloat64)
-    .add_enum("uint8",  kUint8)
-    .add_enum("uint16", kUint16)
-    .add_enum("uint32", kUint32)
-    .add_enum("uint64", kUint64)
-    .add_enum("int8",  kInt8)
-    .add_enum("int16", kInt16)
-    .add_enum("int32", kInt32)
-    .add_enum("int64", kInt64)
+    DMLC_DECLARE_DTYPE_FIELD(dtype)
     .describe("Output data type.");
   }
 };
@@ -152,6 +155,19 @@ struct ReduceParam : public dmlc::Parameter<ReduceParam> {
                 "in the result as dimension with size one.");
     DMLC_DECLARE_FIELD(exclude).set_default(false)
       .describe("Whether to perform reduction on axis that are NOT in axis instead.");
+  }
+};
+
+struct InitOpParam : public dmlc::Parameter<InitOpParam> {
+  TShape shape;
+  int dtype;
+  double value;
+
+  DMLC_DECLARE_PARAMETER(InitOpParam) {
+    DMLC_DECLARE_FIELD(shape).set_default(TShape());
+    DMLC_DECLARE_DTYPE_FIELD(dtype).set_default(kFloat32)
+      .describe("Target data type.");
+    DMLC_DECLARE_FIELD(value).describe("Value to fill");
   }
 };
 

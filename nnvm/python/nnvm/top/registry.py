@@ -7,7 +7,7 @@ class OpPattern(object):
 
     See Also
     --------
-    top.tag : Contains explaination of the tag type.
+    top.tag : Contains explanation of the tag type.
     """
     # Elementwise operator
     ELEMWISE = 0
