@@ -37,7 +37,6 @@ struct ConvEntry {
   runtime::DeviceAPI *rocm_api;
   void *workspace{nullptr};
   size_t workspace_size{0};
-  bool done_setup{false};
   ConvEntry();
   ~ConvEntry();
   void UpdateWorkspace(const size_t wsize);

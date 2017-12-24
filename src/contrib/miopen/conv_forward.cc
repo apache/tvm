@@ -142,19 +142,62 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
               << ", Memory: " << perfs[i].memory;
   }
   // Set Algo
-  entry_ptr->conv_entry.fwd_algo = best_algo;
-  entry_ptr->conv_entry.done_setup = true;
+  ret[0] = static_cast<int>(best_algo);
 });
 
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-  const DLTensor *x = args[0];
-  const DLTensor *w = args[1];
-  const DLTensor *y = args[2];
+  const int mode = args[0];
+  const int pad_h = args[1];
+  const int pad_w = args[2];
+  const int stride_h = args[3];
+  const int stride_w = args[4];
+  const int dilation_h = args[5];
+  const int dilation_w = args[6];
+  const int algo = args[7];
+  const DLTensor *x = args[8];
+  const DLTensor *w = args[9];
+  const DLTensor *y = args[10];
 
   MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
-  CHECK(entry_ptr->conv_entry.done_setup) << "call setup before forward";
+  entry_ptr->conv_entry.fwd_algo = static_cast<miopenConvFwdAlgorithm_t>(algo);
+  // Set Mode
+  entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);
+  // Set Ctx
+  entry_ptr->conv_entry.ctx = x->ctx;
+  // Set Data Type
+  entry_ptr->conv_entry.data_type = miopenFloat;  // MIOpen only suppports fp32
+  // Set Desc
+  MIOPEN_CALL(miopenInitConvolutionDescriptor(entry_ptr->conv_entry.conv_desc,
+                                              entry_ptr->conv_entry.mode,
+                                              pad_h,
+                                              pad_w,
+                                              stride_h,
+                                              stride_w,
+                                              dilation_h,
+                                              dilation_w));
+  // Set Filter
+  MIOPEN_CALL(miopenSet4dTensorDescriptor(entry_ptr->conv_entry.filter_desc,
+                                          entry_ptr->conv_entry.data_type,
+                                          w->shape[0],
+                                          w->shape[1],
+                                          w->shape[2],
+                                          w->shape[3]));
+  // Set Input
+  MIOPEN_CALL(miopenSet4dTensorDescriptor(entry_ptr->conv_entry.input_desc,
+                                          entry_ptr->conv_entry.data_type,
+                                          x->shape[0],
+                                          x->shape[1],
+                                          x->shape[2],
+                                          x->shape[3]));
+  // Set Output
+  MIOPEN_CALL(miopenSet4dTensorDescriptor(entry_ptr->conv_entry.output_desc,
+                                          entry_ptr->conv_entry.data_type,
+                                          y->shape[0],
+                                          y->shape[1],
+                                          y->shape[2],
+                                          y->shape[3]));
 
   const float alpha = 1.f;
   const float beta = 0.f;
