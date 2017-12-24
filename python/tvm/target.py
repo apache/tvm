@@ -111,6 +111,11 @@ class Target(object):
             # For now assume rocm schedule for opencl
             self.keys += ("rocm", "gpu")
             self.max_num_threads = 256
+            if len(options) > 0 and options[0] == "miopen":
+                self.options = []
+                self.use_miopen = True
+            else:
+                self.use_miopen = False
         elif target_name in ("metal",):
             self.keys += ("gpu",)
             self.max_num_threads = 256
