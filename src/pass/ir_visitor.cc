@@ -134,6 +134,7 @@ DEFINE_BINOP_VISIT_(Or)
 void IRVisitor::Visit_(const Reduce* op) {
   VisitRDom(op->axis, this);
   VisitArray(op->source, this);
+  this->Visit(op->condition);
 }
 
 void IRVisitor::Visit_(const Cast* op) {

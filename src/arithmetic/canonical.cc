@@ -29,9 +29,17 @@ struct ComExprEntry {
   inline bool operator<(const ComExprEntry& other) const {
     if (level < other.level) return true;
     if (level > other.level) return false;
+    // compare top operator of entries and sort on that if possible (fast check)
     if (value.type_index() < other.value.type_index()) return true;
     if (value.type_index() > other.value.type_index()) return false;
-    return value.get() < other.value.get();
+    // if none of the above distinguishes the terms, compare the expression tree of the entries.
+    // This is a slower check.
+    int compare_result = Compare(value, other.value);
+    if (compare_result < 0) return true;
+    if (compare_result > 0) return false;
+    // it's a problem if we see identical entries at this point. They should've been merged earlier.
+    LOG(WARNING) << "we should not have identical entries at this point";
+    return false;
   }
 };
 
@@ -640,6 +648,24 @@ T Simplify_(T a, Map<Var, Range> vrange) {
 
 
 Expr Simplify(Expr a, Map<Var, Range> vrange) {
+  // We should not pass an expression having a non-HalideIR op to
+  // Halide::Internal::simplify. Reduce op is the only such op at this time
+  // and it only appears as the top op in an expression. So we strip it
+  // first and send the sub-expressions to the simplifier.
+  if (const Reduce* r = a.as<Reduce>()) {
+    Array<Expr> new_source;
+    for (auto& e : r->source) {
+      new_source.push_back(Simplify_(e, vrange));
+    }
+    Expr new_condition = Simplify_(r->condition, vrange);
+    if (r->source.same_as(new_source) &&
+        r->condition.same_as(new_condition)) {
+      return a;
+    } else {
+      return Reduce::make(
+              r->combiner, new_source, r->axis, new_condition, r->value_index);
+    }
+  }
   return Simplify_(a, vrange);
 }
 

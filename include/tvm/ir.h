@@ -257,6 +257,11 @@ constexpr const char* tvm_if_then_else = "tvm_if_then_else";
  */
 constexpr const char* tvm_access_ptr = "tvm_access_ptr";
 /*!
+ * \brief Create a function local static handle that iniitalizes to nullptr.
+ *  can be used to cache function local static resources.
+ */
+constexpr const char* tvm_static_handle = "tvm_static_handle";
+/*!
  * \brief Return a unique context id, used for hint of workspace separation.
  *  Different context id ganrantees not having overlapping workspace.
  */
