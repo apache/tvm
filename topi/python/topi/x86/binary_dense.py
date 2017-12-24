@@ -25,18 +25,14 @@ def schedule_binary_dense(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def _schedule(A, B, C):
+        s[C].split(s[C].op.reduce_axis[0], factor=8)
+        s[C].parallel(s[C].op.axis[0])
         if C.op in s.outputs:
             Out = C
         else:
             Out = outs[0].op.output(0)
-
-        bn = 8
-        yo, xo, yi, xi = s[Out].tile(Out.op.axis[1], Out.op.axis[0], bn, bn)
-        s[Out].parallel(yo)
-        s[Out].vectorize(yi)
-
-        if C.op not in s.outputs:
-            s[C].compute_at(s[Out], xi)
+        xo, xi = s[Out].split(Out.op.axis[1], factor=8)
+        s[Out].vectorize(xi)
 
     def traverse(OP):
         # inline all one-to-one-mapping operators except the last stage (output)
