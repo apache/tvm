@@ -120,6 +120,10 @@ void CodeGenCUDA::PrintVecBinaryOp(
   int lanes = t.lanes();
 
   {
+    // The assignment below introduces side-effect, and the resulting value cannot
+    // be reused across multiple expression, thus a new scope is needed
+    int vec_scope = BeginScope();
+
     // default: unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.type());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.type());
@@ -148,6 +152,7 @@ void CodeGenCUDA::PrintVecBinaryOp(
       PrintVecElemStore(sret, t, i, value_temp.str());
     }
     os << sret;
+    EndScope(vec_scope);
   }
 }
 
@@ -230,6 +235,16 @@ void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   } else {
     CodeGenC::VisitStmt_(op);
   }
+}
+
+void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
+  os << "((make_int" << op->lanes << ")(";
+  for (int i = 0; i < op->lanes; i++) {
+    os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
+    if (i != op->lanes - 1)
+      os << ", ";
+  }
+  os << "))";
 }
 
 void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
