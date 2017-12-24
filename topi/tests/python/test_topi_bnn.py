@@ -7,18 +7,16 @@ from tvm.contrib.pickle_memoize import memoize
 
 
 def verify_binary_dense(batch, in_dim, out_dim):
-    target = tvm.target.x86()
-    with target:
-        # binarization and bit-packing
-        A = tvm.placeholder((batch, in_dim), name='A')
-        B = tvm.placeholder((out_dim, in_dim), name='B')
-        bnn_A = topi.nn.binarize_pack(A)
-        bnn_B = topi.nn.binarize_pack(B)
-        # binary dense
-        bnn_A1 = tvm.placeholder(bnn_A.shape, dtype=bnn_A.dtype)
-        bnn_B1 = tvm.placeholder(bnn_B.shape, dtype=bnn_B.dtype)
-        bnn_C = topi.nn.binary_dense(bnn_A1, bnn_B1)
-        # schedule
+    A = tvm.placeholder((batch, in_dim), name='A')
+    B = tvm.placeholder((out_dim, in_dim), name='B')
+    bnn_A = topi.nn.binarize_pack(A)
+    bnn_B = topi.nn.binarize_pack(B)
+    # binary dense
+    bnn_A1 = tvm.placeholder(bnn_A.shape, dtype=bnn_A.dtype)
+    bnn_B1 = tvm.placeholder(bnn_B.shape, dtype=bnn_B.dtype)
+    bnn_C = topi.nn.binary_dense(bnn_A1, bnn_B1)
+    # schedule
+    with tvm.target.create('llvm'):
         s1 = topi.generic.schedule_binarize_pack(bnn_A)
         s2 = topi.generic.schedule_binarize_pack(bnn_B)
         s3 = topi.generic.schedule_binary_dense(bnn_C)
@@ -40,9 +38,9 @@ def verify_binary_dense(batch, in_dim, out_dim):
     bnn_a = tvm.nd.array(np.zeros(get_const_tuple(bnn_A.shape), dtype=bnn_A.dtype), ctx)
     bnn_b = tvm.nd.array(np.zeros(get_const_tuple(bnn_B.shape), dtype=bnn_B.dtype), ctx)
     bnn_c = tvm.nd.array(np.zeros(get_const_tuple(bnn_C.shape), dtype=bnn_C.dtype), ctx)
-    f1 = tvm.build(s1, [A, bnn_A], target)
-    f2 = tvm.build(s2, [B, bnn_B], target)
-    f3 = tvm.build(s3, [bnn_A1, bnn_B1, bnn_C], target)
+    f1 = tvm.build(s1, [A, bnn_A], 'llvm -mcpu=core-avx2')
+    f2 = tvm.build(s2, [B, bnn_B], 'llvm -mcpu=core-avx2')
+    f3 = tvm.build(s3, [bnn_A1, bnn_B1, bnn_C], 'llvm -mcpu=core-avx2')
     f1(a, bnn_a)
     f2(b, bnn_b)
     f3(bnn_a, bnn_b, bnn_c)
