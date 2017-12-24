@@ -88,12 +88,16 @@ class Target(object):
                  target_name,
                  options=None):
         self.target_name = target_name
-        self.options = _merge_opts([], options)
+        self.options = []
         self.device_name = ""
+        self.libs = []
         # Parse device option
-        for item in self.options:
+        for item in _merge_opts([], options):
             if item.startswith("-device="):
                 self.device_name = item.split("=")[1]
+                options.append(item)
+            elif item.startswith("-libs="):
+                self.libs.append(item.split("=")[1])
         # Target query searchs device name first
         if self.device_name:
             self.keys = (self.device_name,)
@@ -111,11 +115,6 @@ class Target(object):
             # For now assume rocm schedule for opencl
             self.keys += ("rocm", "gpu")
             self.max_num_threads = 256
-            if options and options[0] == "miopen":
-                self.options = []
-                self.use_miopen = True
-            else:
-                self.use_miopen = False
         elif target_name in ("metal",):
             self.keys += ("gpu",)
             self.max_num_threads = 256
