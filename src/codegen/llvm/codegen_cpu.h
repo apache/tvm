@@ -72,6 +72,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMAPISetLastError();
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
+  llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
   llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t *num_bytes);
   llvm::Value* CreateStructRefPtr(Type t, llvm::Value* buffer, llvm::Value* index, int kind);
