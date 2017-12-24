@@ -93,11 +93,12 @@ class Target(object):
         self.libs = []
         # Parse device option
         for item in _merge_opts([], options):
-            if item.startswith("-device="):
-                self.device_name = item.split("=")[1]
-                self.options.append(item)
-            elif item.startswith("-libs="):
+            if item.startswith("-libs="):
                 self.libs.append(item.split("=")[1])
+                continue
+            elif item.startswith("-device="):
+                self.device_name = item.split("=")[1]
+            self.options.append(item)
         # Target query searchs device name first
         if self.device_name:
             self.keys = (self.device_name,)
