@@ -567,8 +567,11 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
       std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
       os << ref;
     } else {
-      // load seperately.
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
       int vec_scope = BeginScope();
+
+      // load seperately.
       std::string svalue = GetUniqueName("_");
       this->PrintIndent();
       this->PrintType(op->type, stream);
@@ -611,8 +614,11 @@ void CodeGenC::VisitStmt_(const Store* op) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base, value);
     } else {
-      // store elements seperately
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
       int vec_scope = BeginScope();
+
+      // store elements seperately
       std::string index = SSAGetID(PrintExpr(op->index), op->index.type());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.type());
       std::string vid = GetVarID(op->buffer_var.get());
@@ -646,7 +652,13 @@ void CodeGenC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Ramp: not supported ";
+  os << "((int" << op->lanes << ")(";
+  for (int i = 0; i < op->lanes; i++) {
+    os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
+    if (i != op->lanes - 1)
+      os << ", ";
+  }
+  os << "))";
 }
 
 void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)

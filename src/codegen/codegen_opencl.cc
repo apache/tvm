@@ -175,16 +175,6 @@ void CodeGenOpenCL::PrintStorageScope(
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const Ramp* op, std::ostream& os) {
-  os << "((int" << op->lanes << ")(";
-  for (int i = 0; i < op->lanes; i++) {
-    os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
-    if (i != op->lanes - 1)
-      os << ", ";
-  }
-  os << "))";
-}
-
 void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << '(';

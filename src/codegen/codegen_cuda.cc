@@ -120,8 +120,11 @@ void CodeGenCUDA::PrintVecBinaryOp(
   int lanes = t.lanes();
 
   {
-    // default: unpack into individual ops.
+    // The assignment below introduces side-effect, and the resulting value cannot
+    // be reused across multiple expression, thus a new scope is needed
     int vec_scope = BeginScope();
+
+    // default: unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.type());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.type());
     std::string sret = GetUniqueName("_");
