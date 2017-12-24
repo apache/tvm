@@ -80,6 +80,33 @@ def call_pure_intrin(dtype, func_name, *args):
         dtype, func_name, convert(args), _Call.PureIntrinsic, None, 0)
 
 
+def call_intrin(dtype, func_name, *args):
+    """Build expression by calling an intrinsic function.
+
+    Intrinsics can be overloaded with multiple data types via
+    the intrinsic translation rule.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    func_name: str
+        The intrinsic function name.
+
+    args : list
+        Positional arguments.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+    """
+    args = convert(args)
+    return _make.Call(
+        dtype, func_name, convert(args), _Call.Intrinsic, None, 0)
+
+
 def call_pure_extern(dtype, func_name, *args):
     """Build expression by calling a pure extern function.
 
