@@ -6,6 +6,7 @@ import tvm
 from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
+from tvm.contrib import miopen
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
@@ -265,6 +266,22 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+    if isinstance(padding, int):
+        pad_h = pad_w = padding
+    else:
+        pad_h, pad_w = padding
+
+    target = tvm.target.current_target()
+    if target.target_name == "rocm" and "miopen" in target.libs:
+        return miopen.conv2d_forward(Input,
+                                     Filter,
+                                     stride_h,
+                                     stride_w,
+                                     pad_h,
+                                     pad_w,
+                                     1,  # dilation_h
+                                     1,  # dilation_w
+                                     conv_mode=0)
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
