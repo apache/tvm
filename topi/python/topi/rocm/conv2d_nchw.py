@@ -23,5 +23,4 @@ def schedule_conv2d_nchw(outs):
     target = tvm.target.current_target()
     if "miopen" in target.libs:
         return topi.generic.schedule_extern(outs)
-    else:
-        return topi.cuda.schedule_conv2d_nchw(outs)
+    return topi.cuda.schedule_conv2d_nchw(outs)

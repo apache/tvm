@@ -3,10 +3,11 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+from tvm.contrib import miopen
 from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
-from tvm.contrib import miopen
+
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
