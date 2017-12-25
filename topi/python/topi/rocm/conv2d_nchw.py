@@ -21,6 +21,6 @@ def schedule_conv2d_nchw(outs):
         The computation schedule for conv2d_nchw.
     """
     target = tvm.target.current_target()
-    if "miopen" in target.libs:
+    if target and "miopen" in target.libs:
         return topi.generic.schedule_extern(outs)
     return topi.cuda.schedule_conv2d_nchw(outs)

@@ -273,7 +273,7 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
         pad_h, pad_w = padding
 
     target = tvm.target.current_target()
-    if target.target_name == "rocm" and "miopen" in target.libs:
+    if target and target.target_name == "rocm" and "miopen" in target.libs:
         return miopen.conv2d_forward(Input,
                                      Filter,
                                      stride_h,
