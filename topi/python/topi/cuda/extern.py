@@ -16,12 +16,13 @@ def _schedule_output(op, sch):
 
 @generic.schedule_extern.register(["cuda", "gpu"])
 def schedule_extern(outs):
-    """Schedule for extern op, such as cudnn and miopen kernel calls.
+    """Schedule for an extern op followed by injective operations.
+       For example, cudnn kernel + bias add + relu.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of extern plus injective ops in the format
           of an array of tensors.
 
     Returns

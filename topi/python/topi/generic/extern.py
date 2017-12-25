@@ -6,12 +6,12 @@ import tvm
 
 @tvm.target.generic_func
 def schedule_extern(outs):
-    """Schedule for extern op.
+    """Schedule for an extern op followed by injective operations.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of extern plus injective ops in the format
           of an array of tensors.
 
     Returns
