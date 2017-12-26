@@ -126,7 +126,7 @@ class Target(object):
             raise ValueError("Unknown target name %s" % target_name)
 
     def __str__(self):
-        return " ".join([self.target_name] + self.options)
+        return " ".join([self.target_name] + self.options + self.libs)
 
     def __repr__(self):
         return self.__str__()
