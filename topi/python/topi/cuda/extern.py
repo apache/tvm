@@ -3,7 +3,6 @@
 import tvm
 from .. import generic
 
-
 def _schedule_output(op, sch):
     x = op.output(0)
     fused = sch[x].fuse(*sch[x].op.axis)
