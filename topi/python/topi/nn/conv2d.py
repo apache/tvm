@@ -7,7 +7,6 @@ from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
 
-
 # workload description of conv2d
 Workload = namedtuple('Workload',
                       ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
