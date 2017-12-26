@@ -4,8 +4,8 @@ import numpy as np
 
 
 def test_conv2d():
-    in_channel = 64
-    out_channel = 128
+    in_channel = 3
+    out_channel = 64
     filter_h = 3
     filter_w = 3
     pad_h = 1
@@ -15,7 +15,7 @@ def test_conv2d():
     dilation_h = 1
     dilation_w = 1
 
-    xshape = [1, in_channel, 64, 64]
+    xshape = [1, in_channel, 128, 128]
     if not tvm.module.enabled("rocm"):
         print("skip because rocm is not enabled...")
         return
@@ -37,7 +37,9 @@ def test_conv2d():
                               conv_mode=0)
 
     yshape = [x.value for x in Y.shape]
-    s = tvm.create_schedule(Y.op)
+    import topi
+    with tvm.target.create("rocm -libs=miopen"):
+        s = topi.generic.schedule_extern(Y)
 
     def verify():
         ctx = tvm.rocm(0)
@@ -47,7 +49,6 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
-        import topi
         Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w))
         with tvm.target.rocm():
             s_ref = topi.generic.schedule_conv2d_nchw([Y_ref])
