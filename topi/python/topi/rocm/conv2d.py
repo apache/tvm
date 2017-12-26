@@ -35,8 +35,6 @@ def conv2d_rocm(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
     """
     assert layout == 'NCHW', "Only NCHW layout is supported."
     assert isinstance(stride, int) or len(stride) == 2
-    batch, in_channel, in_heighppt, in_width = data.shape
-    num_filter, channel, kernel_h, kernel_w = kernel.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
