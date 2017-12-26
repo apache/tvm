@@ -6,7 +6,6 @@ import topi
 from .. import generic
 from ..nn.conv2d import conv2d
 
-
 @conv2d.register("rocm")
 def conv2d_rocm(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for rocm backend.
