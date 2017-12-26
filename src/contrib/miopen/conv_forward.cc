@@ -105,6 +105,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
 
   const int request_algo_count = 4;
   const bool exhaustive_search = false;
+  void* workspace = entry_ptr->conv_entry.workspace;
+  if (workspace_size == 0) workspace = nullptr;
   int returned_algo_count = 0;
   miopenConvAlgoPerf_t perfs[4];
 
@@ -119,7 +121,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
                                                     request_algo_count,
                                                     &returned_algo_count,
                                                     perfs,
-                                                    entry_ptr->conv_entry.workspace,
+                                                    workspace,
                                                     workspace_size,
                                                     exhaustive_search));
 
