@@ -416,32 +416,48 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     return MergeNest(nest, body);
   } else {
     // Need to split reduction
-    CHECK(intrin->reduce_init.defined())
-        << "Reduction init op for intrin " << intrin << " is not defined";
+    // Comment out the following check for the case when there is no init func
+    //CHECK(intrin->reduce_init.defined())
+    //    << "Reduction init op for intrin " << intrin << " is not defined";
     CHECK(intrin->reduce_update.defined())
         << "Reduction update op for intrin " << intrin << " is not defined";
     // Need init and update steps
     CHECK_NE(self->reduce_axis.size(), 0U);
     std::vector<std::vector<Stmt> > common(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
-    // init nest
-    std::vector<std::vector<Stmt> > init_nest(
-        n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
-    init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
-    Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
-    init = Substitute(init, n.init_vmap);
-    init = MergeNest(init_nest, init);
-    // The update
     std::vector<std::vector<Stmt> > update_nest(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.begin() + tloc + 1);
     update_nest.emplace_back(op::MakeIfNest(n.main_predicates));
-    Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
-    update = MergeNest(input_bind_nest, update);
-    update = Substitute(update, vmap);
-    update = MergeNest(binder.asserts(), update);
-    update = Substitute(update, n.main_vmap);
-    update = MergeNest(update_nest, update);
-    return MergeNest(common, Block::make(init, update));
+
+    if (intrin->reduce_init.defined()) {
+      // init nest
+      std::vector<std::vector<Stmt> > init_nest(
+          n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
+      init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+      Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
+      init = Substitute(init, n.init_vmap);
+      init = MergeNest(init_nest, init);
+      // The update
+      Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
+      update = MergeNest(input_bind_nest, update);
+      update = Substitute(update, vmap);
+      update = MergeNest(binder.asserts(), update);
+      update = Substitute(update, n.main_vmap);
+      update = MergeNest(update_nest, update);
+      return MergeNest(common, Block::make(init, update));
+    } else {
+      // The update
+      Stmt update = TransformUpdate (stage, dom_map, 
+                                     intrin->body, 
+                                     intrin->reduce_update);
+      update = MergeNest(output_bind_nest, update);
+      update = MergeNest(input_bind_nest, update);
+      update = Substitute(update, vmap);
+      update = MergeNest(binder.asserts(), update);
+      update = Substitute(update, n.main_vmap);
+      update = MergeNest(update_nest, update);
+      return MergeNest(common, update);  
+    }
   }
 }
 
