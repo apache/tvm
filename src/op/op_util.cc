@@ -208,31 +208,5 @@ Stmt Substitute(Stmt s,
   return ir::Substitute(s, init);
 }
 
-Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
-                     Stmt body,
-                     Stmt update)
-{
-   Expr condition = (make_zero(Int(32)) ==  make_zero(Int(32))); //will try Bool(1) 
-   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
-    IterVar iv = stage->leaf_iter_vars[i];
-    auto iit = stage->iter_var_attrs.find(iv);
-    if (iit != stage->iter_var_attrs.end()) {
-      const IterVarAttr& attr = (*iit).second;
-      if (attr->iter_type == kTensorized) {
-        break;
-      }
-    }
-    if (iv->iter_type == kCommReduce) {
-      auto vit = dom_map.find(iv);
-      CHECK(vit != dom_map.end());
-      const Range& vrange = vit->second;
-      Expr newcond = ( iv->var == vrange->min);
-      condition = condition && newcond;
-    }
-  }
-  return IfThenElse::make(condition, body, update);
-}
-
 }  // namespace op
 }  // namespace tvm

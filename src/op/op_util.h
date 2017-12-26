@@ -70,20 +70,6 @@ Expr ReplaceTensor(Expr expr,
 Stmt Substitute(Stmt stmt,
                 const std::unordered_map<IterVar, Expr>& value_map);
 
-
-/*!
- * \brief Transform the update part when there is no init func in tensorizing
- * \param stage The stage for tensorizing.
- * \param dom_map The range of each iter var.
- * \param body The body func in tensorize intrin
- * \param update The update func in tensorize intrin
- * \return Transformed result.
- */
-Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
-		     Stmt body,
-                     Stmt update);
-
 }  // namespace op
 }  // namespace tvm
 #endif  // TVM_OP_OP_UTIL_H_
