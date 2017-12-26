@@ -516,6 +516,10 @@ def schedule_conv2d_nchw(outs):
     s: Schedule
         The computation schedule for conv2d_nchw.
     """
+    target = tvm.target.current_target()
+    if target.target_name == "cuda" and "cudnn" in target.libs:
+        return topi.generic.schedule_extern(outs)
+
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     batch_size = util.get_const_int(outs[0].op.output(0).shape[0])
     if batch_size > 1:

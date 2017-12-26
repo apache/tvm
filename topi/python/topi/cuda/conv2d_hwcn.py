@@ -17,6 +17,10 @@ def schedule_conv2d_hwcn(outs):
     s: Schedule
         The computation schedule for conv2d_hwcn.
     """
+    target = tvm.target.current_target()
+    if target.target_name == "cuda" and "cudnn" in target.libs:
+        return topi.generic.schedule_extern(outs)
+
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     sch = tvm.create_schedule([x.op for x in outs])
     def schedule(Apad, W, B):
