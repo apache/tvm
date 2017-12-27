@@ -25,7 +25,7 @@ UNAME_S := $(shell uname -s)
 # The flags
 LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0 -DDMLC_USE_FOPEN64=0
 LDFLAGS = -pthread -lm -ldl
-INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
+INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include -Iglad/include
 CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
@@ -54,6 +54,8 @@ METAL_SRC = $(wildcard src/runtime/metal/*.mm)
 CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
+OPENGL_SRC = $(wildcard src/runtime/opengl/*.cc)
+GLAD_SRC = glad/src/glad.c
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
@@ -65,6 +67,8 @@ METAL_OBJ = $(patsubst src/%.mm, build/%.o, $(METAL_SRC))
 CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
+OPENGL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENGL_SRC))
+GLAD_OBJ = $(patsubst glad/src/%.c, build/%.o, $(GLAD_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
@@ -117,6 +121,19 @@ ifeq ($(USE_OPENCL), 1)
 	RUNTIME_DEP += $(OPENCL_OBJ)
 else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
+endif
+
+ifeq ($(USE_OPENGL), 1)
+	CFLAGS += -DTVM_OPENGL_RUNTIME=1
+	ifeq ($(UNAME_S), Darwin)
+		FRAMEWORKS += -framework OpenGL
+	else
+		LDFLAGS += -lGL -lglfw
+	endif
+	RUNTIME_DEP += $(OPENGL_OBJ)
+	RUNTIME_DEP += $(GLAD_OBJ)
+else
+	CFLAGS += -DTVM_OPENGL_RUNTIME=0
 endif
 
 ifeq ($(USE_METAL), 1)
@@ -201,6 +218,11 @@ build/runtime/metal/%.o: src/runtime/metal/%.mm
 	@mkdir -p $(@D)
 	$(CXX) $(OBJCFLAGS) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
+
+build/glad.o: glad/src/glad.c
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT build/glad.o $< >build/glad.d
+	$(CXX) -c $(CFLAGS) -c glad/src/glad.c -o build/glad.o
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
