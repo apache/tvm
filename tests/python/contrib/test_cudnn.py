@@ -41,7 +41,8 @@ def test_conv2d():
                              tensor_format=0,
                              algo=1)
     yshape = [x.value for x in Y.shape]
-    s = tvm.create_schedule(Y.op)
+    with tvm.target.create("cuda -libs=cudnn"):
+        s = tvm.create_schedule(Y.op)
     
     def verify():
         ctx = tvm.gpu(0)

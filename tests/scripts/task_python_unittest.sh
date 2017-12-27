@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export PYTHONPATH=python
+export PYTHONPATH=python:topi/python
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc
 
