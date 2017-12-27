@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, too-many-arguments, too-many-branches, line-too-long
-"""Schedule for rocm conv2d_nchw with auto fusion"""
+"""Compute and schedule for rocm conv2d_nchw with auto fusion"""
 import tvm
 from tvm.contrib import miopen
 import topi
