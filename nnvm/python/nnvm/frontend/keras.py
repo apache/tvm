@@ -17,7 +17,7 @@ def _check_data_format(keras_layer):
 
 
 def _convert_activation(insym, keras_layer, _):
-    if isinstance(keras_layer, (str, unicode)):
+    if isinstance(keras_layer, str):
         act_type = keras_layer
     else:
         if sys.version_info.major < 3:
@@ -25,7 +25,7 @@ def _convert_activation(insym, keras_layer, _):
         else:
             act_type = keras_layer.activation.__name__
     if act_type == 'linear':
-        if isinstance(keras_layer, (str, unicode)):
+        if isinstance(keras_layer, str):
             return insym
         return _sym.__add_scalar__(_sym.__mul_scalar__(insym, \
             scalar=keras_layer.alpha), scalar=keras_layer.beta)
