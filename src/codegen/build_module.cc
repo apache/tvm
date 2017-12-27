@@ -208,7 +208,7 @@ Stmt BuildStmt(Schedule sch,
   stmt = ir::StorageFlatten(stmt, out_binds, 64);
   stmt = ir::CanonicalSimplify(stmt);
   if (loop_partition) {
-    stmt = ir::LoopPartition(stmt);
+    stmt = ir::LoopPartition(stmt, config.partition_const_loop);
   }
   stmt = ir::VectorizeLoop(stmt);
   stmt = ir::InjectVirtualThread(stmt);
