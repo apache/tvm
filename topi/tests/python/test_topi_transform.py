@@ -91,7 +91,6 @@ def verify_squeeze(src_shape, axis):
             out_nd_shape = (1,)
         else:
             out_nd_shape = out_npy.shape
-        out_nd_shape = out_npy.shape
         out_nd = tvm.nd.empty(out_nd_shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
