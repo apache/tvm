@@ -88,17 +88,15 @@ class Target(object):
                  target_name,
                  options=None):
         self.target_name = target_name
-        self.options = []
+        self.options = _merge_opts([], options)
         self.device_name = ""
         self.libs = []
         # Parse device option
-        for item in _merge_opts([], options):
+        for item in self.options:
             if item.startswith("-libs="):
                 self.libs.append(item.split("=")[1])
-                continue
             elif item.startswith("-device="):
                 self.device_name = item.split("=")[1]
-            self.options.append(item)
         # Target query searchs device name first
         if self.device_name:
             self.keys = (self.device_name,)
@@ -126,7 +124,7 @@ class Target(object):
             raise ValueError("Unknown target name %s" % target_name)
 
     def __str__(self):
-        return " ".join([self.target_name] + self.options + self.libs)
+        return " ".join([self.target_name] + self.options)
 
     def __repr__(self):
         return self.__str__()

@@ -1,6 +1,7 @@
 #pylint: disable=invalid-name, no-member, too-many-locals, too-many-statements, too-many-arguments, too-many-branches, line-too-long
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
+import topi
 from .. import util
 from .. import tag
 from .. import generic

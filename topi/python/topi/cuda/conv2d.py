@@ -42,6 +42,7 @@ def conv2d_cuda(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
         pad_h, pad_w = padding
     target = tvm.target.current_target()
     if "cudnn" in target.libs:
+        assert layout != 'HWCN', "HWCN layout not supported with CUDNN."
         tensor_format = 0 # CUDNN_TENSOR_NCHW
         if layout == 'NHWC':
             tensor_format = 1 # CUDNN_TENSOR_NHWC
