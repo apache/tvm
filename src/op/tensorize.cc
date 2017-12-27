@@ -336,11 +336,10 @@ Stmt TransformUpdate(const Stage& stage,
                      const std::unordered_map<IterVar, Range>& dom_map,
                      const ComputeLoopNest& n,
                      Stmt body,
-                     Stmt update)
-{
-   Array<Expr> conds;
-   std::unordered_set<const Variable*> banned;
-   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+                     Stmt update) {
+  Array<Expr> conds;
+  std::unordered_set<const Variable*> banned;
+  for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     IterVar iv = stage->leaf_iter_vars[i];
     auto iit = stage->iter_var_attrs.find(iv);
     if (iit != stage->iter_var_attrs.end()) {
@@ -357,7 +356,6 @@ Stmt TransformUpdate(const Stage& stage,
       banned.insert(iv->var.get());
     }
   }
-    
   for (const Expr& pred : n.main_predicates) {
     if (ir::ExprUseVar(pred, banned)) {
       LOG(FATAL) << "Tensorize update transform failed, the condition "
@@ -493,16 +491,16 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       // When init op is not available, use body op for reset in the first iter.
       CHECK(intrin->body.defined())
           << "Normal body op for intrin " << intrin << " is not defined";
-      Stmt update = TransformUpdate (stage, dom_map, n,
-                                     intrin->body, 
-                                     intrin->reduce_update);
+      Stmt update = TransformUpdate(stage, dom_map, n,
+                                    intrin->body,
+                                    intrin->reduce_update);
       update = MergeNest(output_bind_nest, update);
       update = MergeNest(input_bind_nest, update);
       update = Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
       update = Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
-      return MergeNest(common, update);  
+      return MergeNest(common, update);
     }
   }
 }
