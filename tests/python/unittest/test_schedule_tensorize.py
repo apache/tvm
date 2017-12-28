@@ -173,7 +173,7 @@ def test_tensorize_matmul():
         stmt = tvm.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
-     def check_rfactor_no_reset_multi_reduction(factor, rfactor):
+    def check_rfactor_no_reset_multi_reduction(factor, rfactor):
         s = tvm.create_schedule(C.op)
         x, y = C.op.axis
         rk = C.op.reduce_axis[0]
