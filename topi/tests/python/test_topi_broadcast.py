@@ -89,12 +89,14 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
 
 def test_broadcast_to():
     verify_broadcast_to_ele((1,), (10,))
+    verify_broadcast_to_ele((), (10,))
     verify_broadcast_to_ele((1, 1, 5, 4), (3, 4, 4, 4, 5, 4))
     verify_broadcast_to_ele((1, 128, 1, 32), (64, 128, 64, 32))
 
 
 def test_broadcast_binary():
     verify_broadcast_binary_ele((5, 2, 3), (2, 1), typ="add")
+    verify_broadcast_binary_ele((5, 2, 3), (), typ="add")
     verify_broadcast_binary_ele((5, 64, 128), (2, 5, 64, 1), typ="mul")
     verify_broadcast_binary_ele((2, 3, 1, 32), (64, 32), typ="div")
     verify_broadcast_binary_ele((1, 32), (64, 32), typ="sub")
