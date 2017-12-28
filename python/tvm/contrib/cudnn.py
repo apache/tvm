@@ -230,6 +230,38 @@ def conv2d_find_algo(tensor_format,
                      x_shape,
                      w_shape,
                      y_shape):
+    """Choose the best algo for the given input.
+
+    Paramters
+    ---------
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+        2: CUDNN_TENSOR_NCHW_VECT_C
+    pad_h: int
+        height pad
+    pad_w: int
+        weight pad
+    stride_h: int
+        height stride
+    stride_w: int
+        width stride
+    dilation_h: int
+        height dilation
+    dilation_w: int
+        width dilation
+    x_shape: list
+        input shape
+    w_shape: list
+        weight shape
+    y_shape: list
+        output shape
+
+    Returns
+    -------
+    algo: int
+        algo chosen by CUDNN
+    """
     func = _get_global_func("tvm.contrib.cudnn.conv2d.find_algo")
     return func(tensor_format,
                 pad_h,

@@ -220,13 +220,13 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.find_algo")
   int returned_algo_count = 0;
   cudnnConvolutionFwdAlgoPerf_t perf_results[CUDNN_CONVOLUTION_FWD_ALGO_COUNT];
   CUDNN_CALL(cudnnFindConvolutionForwardAlgorithm(entry_ptr->handle,
-						  entry_ptr->conv_entry.input_desc,
-						  entry_ptr->conv_entry.filter_desc,
-						  entry_ptr->conv_entry.conv_desc,
-						  entry_ptr->conv_entry.output_desc,
-						  CUDNN_CONVOLUTION_FWD_ALGO_COUNT,
-						  &returned_algo_count,
-						  perf_results));
+                                                  entry_ptr->conv_entry.input_desc,
+                                                  entry_ptr->conv_entry.filter_desc,
+                                                  entry_ptr->conv_entry.conv_desc,
+                                                  entry_ptr->conv_entry.output_desc,
+                                                  CUDNN_CONVOLUTION_FWD_ALGO_COUNT,
+                                                  &returned_algo_count,
+                                                  perf_results));
 
   const std::vector<std::string> fwd_algo_names{
       "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM",
