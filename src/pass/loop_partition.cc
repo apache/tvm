@@ -45,10 +45,12 @@ bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
 class CandidateSelector final : public IRVisitor {
  public:
   using VarIsUsed = bool;
-  CandidateSelector() {}
+  explicit CandidateSelector(bool split_const_loop)
+      : split_const_loop_(split_const_loop) {}
 
   void Visit_(const For* op) {
-    if (!is_const(op->min) || !is_const(op->extent)) {
+    // partition const loop when sets split_const_loop_
+    if (!is_const(op->min) || !is_const(op->extent) || split_const_loop_) {
       const Variable* var = op->loop_var.get();
       record_.insert({var, false});
       IRVisitor::Visit_(op);
@@ -67,7 +69,7 @@ class CandidateSelector final : public IRVisitor {
       CHECK(iv);
       Var var = iv->var;
       runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
-      if ((scope.rank == 0) && !is_const(op->value)) {
+      if ((scope.rank == 0) && (!is_const(op->value) || split_const_loop_)) {
         record_.insert({var.get(), false});
         IRVisitor::Visit_(op);
         if (record_.at(var.get()) && !no_split_) {
@@ -115,6 +117,7 @@ class CandidateSelector final : public IRVisitor {
  private:
   bool in_likely_{false};
   bool no_split_{false};
+  bool split_const_loop_{false};
   std::unordered_map<const Variable*, VarIsUsed> record_;
 };
 
@@ -392,8 +395,8 @@ class RemoveLikelyTags : public IRMutator {
   }
 };
 
-Stmt LoopPartition(Stmt stmt) {
-  CandidateSelector selector;
+Stmt LoopPartition(Stmt stmt, bool split_const_loop) {
+  CandidateSelector selector(split_const_loop);
   selector.Visit(stmt);
   stmt = LoopPartitioner(selector.candidates).Mutate(stmt);
   stmt = RemoveLikelyTags().Mutate(stmt);
