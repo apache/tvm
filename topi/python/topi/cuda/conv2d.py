@@ -56,7 +56,7 @@ def conv2d_cuda(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
                                     1,  # dilation_w
                                     conv_mode=1,
                                     tensor_format=tensor_format,
-                                    algo=0)
+                                    algo=-1) # let CUDNN choose the best algo
     elif layout == 'NCHW':
         return topi.nn.conv2d_nchw(data, kernel, stride, padding, out_dtype)
     elif layout == 'HWCN':
