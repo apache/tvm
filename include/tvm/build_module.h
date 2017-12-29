@@ -116,6 +116,9 @@ struct BuildConfig {
   /*! \brief Whether to detect global barrier */
   bool detect_global_barrier = false;
 
+  /*! \brief Whether to partition const loop */
+  bool partition_const_loop = false;
+
   BuildConfig() {
   }
 };

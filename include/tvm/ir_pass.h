@@ -289,9 +289,10 @@ Stmt StorageRewrite(Stmt stmt);
 /*!
  * \brief partition loops in the stmt
  * \param stmt The stmt to do loop partition
+ * \param split_const_loop flag to enable partition for const loop
  * \return Transformed stmt.
  */
-Stmt LoopPartition(Stmt stmt);
+Stmt LoopPartition(Stmt stmt, bool split_const_loop);
 
 /*!
  * \brief Detect and insert sync points to co-processor.
