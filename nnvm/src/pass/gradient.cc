@@ -20,11 +20,11 @@ NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
     return std::move(v[0]);
   } else if (v.size() == 0) {
     NodePtr zero_node = Node::Create();
-    zero_node->attrs.op = Op::Get("__zero__");
+    zero_node->attrs.op = Op::Get("_zeros");
     return NodeEntry{zero_node, 0, 0};
   } else {
     NodePtr sum_node = Node::Create();
-    sum_node->attrs.op = Op::Get("__ewise_sum__");
+    sum_node->attrs.op = Op::Get("elemwise_sum");
     sum_node->inputs = std::move(v);
     return NodeEntry{sum_node, 0, 0};
   }
