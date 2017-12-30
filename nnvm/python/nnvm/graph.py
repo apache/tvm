@@ -13,6 +13,7 @@ from ._base import c_array, c_str, nn_uint, py_str, string_types
 from ._base import GraphHandle, SymbolHandle
 from ._base import check_call
 from .symbol import Variable, Symbol, Group as _Group
+from .symbol import ones_like
 
 class GraphIndex(object):
     """Index for quickly accessing graph attributes.
@@ -270,3 +271,38 @@ def create(symbol):
     check_call(_LIB.NNGraphCreate(
         symbol.handle, ctypes.byref(ghandle)))
     return Graph(ghandle)
+
+
+def gradients(ys, xs, grad_ys=None):
+    """Create gradient symbol of ys respect to xs.
+
+    Parameters
+    ----------
+    ys : Symbol or list of Symbol
+        Symbols from which the gradient is calculated.
+    xs : Symbol or list of Symbol
+        Symbols the gradient respect to.
+        For group symbol, gradients for all outputs will be calculated.
+    grad_ys : Symbol or list of Symbol
+        Head gradients for ys.
+
+    Returns
+    -------
+    ret : list of Symbol
+        Generated gradient symbol. For each xs,
+        all gradients from ys are merged into a single symbol.
+    """
+    if isinstance(ys, list):
+        ys = _Group(ys)
+    g = create(ys)
+    g._set_symbol_list_attr('grad_ys', ys)
+    g._set_symbol_list_attr('grad_xs', xs)
+    ny = len(ys.list_output_names())
+    if grad_ys is None:
+        grad_ys = [ones_like(ys[i]) for i in range(ny)]
+    g._set_symbol_list_attr('grad_ys_out_grad', grad_ys)
+    sym = g.apply('Gradient').symbol
+    nx = len(_Group(xs).list_output_names()) \
+        if isinstance(xs, list) else len(xs.list_output_names())
+    ret = [sym[i] for i in range(nx)]
+    return ret

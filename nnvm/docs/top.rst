@@ -38,8 +38,12 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.elemwise_sub
    nnvm.symbol.elemwise_mul
    nnvm.symbol.elemwise_div
-   nnvm.symbol.fill
-   nnvm.symbol.fill_like
+   nnvm.symbol.full
+   nnvm.symbol.full_like
+   nnvm.symbol.ones
+   nnvm.symbol.ones_like
+   nnvm.symbol.zeros
+   nnvm.symbol.zeros_like
    nnvm.symbol.flatten
    nnvm.symbol.concatenate
    nnvm.symbol.expand_dims
@@ -113,8 +117,12 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.elemwise_sub
 .. autofunction:: nnvm.symbol.elemwise_mul
 .. autofunction:: nnvm.symbol.elemwise_div
-.. autofunction:: nnvm.symbol.fill
-.. autofunction:: nnvm.symbol.fill_like
+.. autofunction:: nnvm.symbol.full
+.. autofunction:: nnvm.symbol.full_like
+.. autofunction:: nnvm.symbol.ones
+.. autofunction:: nnvm.symbol.ones_like
+.. autofunction:: nnvm.symbol.zeros
+.. autofunction:: nnvm.symbol.zeros_like
 .. autofunction:: nnvm.symbol.flatten
 .. autofunction:: nnvm.symbol.concatenate
 .. autofunction:: nnvm.symbol.expand_dims
