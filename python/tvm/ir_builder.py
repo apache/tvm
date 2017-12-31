@@ -168,8 +168,8 @@ class IRBuilder(object):
             The end iteration scope
 
         name : str, optional
-            The name of iteration variable, using typical index i, j, k,
-            then i_suffix
+            The name of iteration variable, if no input names, 
+            using typical index names i, j, k, then i_nidx
 
         dtype : str, optional
             The data type of iteration variable.
