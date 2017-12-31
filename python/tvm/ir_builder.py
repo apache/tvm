@@ -97,7 +97,7 @@ class IRBuilder(object):
     """
     def __init__(self):
         self._seq_stack = [[]]
-        self.idx_num = 0
+        self.nidx = 0
 
     def _pop_seq(self):
         """Pop sequence from stack"""
@@ -168,7 +168,8 @@ class IRBuilder(object):
             The end iteration scope
 
         name : str, optional
-            The name of iteration variable
+            The name of iteration variable, using typical index i, j, k,
+            then i_suffix
 
         dtype : str, optional
             The data type of iteration variable.
@@ -190,8 +191,8 @@ class IRBuilder(object):
             with ib.for_range(1, 10, name="i") as i:
                 x[i] = x[i - 1] + 1
         """
-        name = name + "_" + str(self.idx_num)
-        self.idx_num += 1
+        name = chr(ord(name) + self.nidx) if self.nidx < 3 else name + "_" + str(self.nidx - 3)
+        self.nidx += 1
         self._seq_stack.append([])
         loop_var = _api.var(name, dtype=dtype)
         extent = end if begin == 0 else _pass.Simplify(end - begin)
