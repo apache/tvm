@@ -495,6 +495,15 @@ bool Symbol::GetAttr(const std::string& key, std::string* out) const {
       *out = "null";  // use null with json
     }
     return true;
+  } else if (key == "_value_index") {
+    *out = "";
+    for (size_t i = 0; i < outputs.size(); ++i) {
+      if (i != 0) {
+        *out += ", ";
+      }
+      *out += std::to_string(outputs[i].index);
+    }
+    return true;
   }
   auto it = node->attrs.dict.find(key);
   if (it == node->attrs.dict.end()) return false;
