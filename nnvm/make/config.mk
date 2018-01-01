@@ -22,6 +22,9 @@
 
 export NVCC = nvcc
 
+# choice of archiver
+export AR = ar
+
 # the additional link flags you want to add
 ADD_LDFLAGS=
 
