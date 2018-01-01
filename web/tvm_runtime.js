@@ -493,7 +493,8 @@ var tvm_runtime = tvm_runtime || {};
     }
     var fptrInvokeCallback = null;
     var fptrFreeCallback = null;
-    if (typeof Runtime !== "undefined") {
+    if (typeof Runtime !== "undefined" &&
+        typeof Runtime.addFunction !== "undefined") {
       fptrInvokeCallback = Runtime.addFunction(invokeCallback);
       fptrFreeCallback = Runtime.addFunction(freeCallback);
     }
@@ -513,7 +514,8 @@ var tvm_runtime = tvm_runtime || {};
      */
     this.convertFunc = function(f) {
       if (isPackedFunc(f)) return f;
-      CHECK(fptrInvokeCallback !== null, "Emscripten Runtime is not available");
+      CHECK(fptrInvokeCallback !== null,
+            "Emscripten Runtime addFunction is not available");
       var fid;
       if (freeFuncId.length != 0) {
         fid = freeFuncId.pop();
@@ -1086,7 +1088,11 @@ var tvm_runtime = tvm_runtime || {};
   this.create = function(Module) {
     var tvm = {};
     tvm.Module = Module;
-    tvm.Runtime = Module.Runtime;
+    if (typeof Module.addFunction !== "undefined") {
+      tvm.Runtime = Module;
+    } else {
+      tvm.Runtime = Module.Runtime;
+    }
     TVMRuntime.apply(tvm);
     return tvm;
   };
