@@ -72,7 +72,7 @@ build/src/%.o: src/%.cc
 
 lib/libnnvm.a: $(ALL_DEP)
 	@mkdir -p $(@D)
-	ar crv $@ $(filter %.o, $?)
+	$(AR) crv $@ $(filter %.o, $?)
 
 lib/libnnvm_compiler.$(SHARED_LIBRARY_SUFFIX): lib/libnnvm.a ${TOP_OBJ}
 	@mkdir -p $(@D)
