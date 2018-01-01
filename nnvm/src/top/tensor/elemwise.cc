@@ -7,6 +7,7 @@
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
 #include <nnvm/top/tensor.h>
+#include <cmath>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 
