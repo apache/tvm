@@ -192,7 +192,7 @@ class HostDeviceSplitter : public IRMutator {
         if (it != handle_data_type_.end()) {
           n->handle_data_type.Set(v, it->second);
         } else {
-          // as a placeholder
+          // int32 as a placeholder
           n->handle_data_type.Set(v, make_const(UInt(32), 0));
         }
       }
