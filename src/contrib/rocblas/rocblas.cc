@@ -1,14 +1,11 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file Use external cblas library call.
+ * \file Use external rocblas library call.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
-
-extern "C" {
-#include <rocblas.h>
-}
+#include "rocblas.h"
 
 namespace tvm {
 namespace contrib {
@@ -18,15 +15,15 @@ using namespace runtime;
 #ifndef CHECK_ROCBLAS_ERROR
 #define CHECK_ROCBLAS_ERROR(error) \
 if (error != rocblas_status_success) { \
-    fprintf(stderr, "rocBLAS error: "); \
-    if(error == rocblas_status_invalid_handle)fprintf(stderr, "rocblas_status_invalid_handle"); \
-    if(error == rocblas_status_not_implemented )fprintf(stderr, " rocblas_status_not_implemented"); \
-    if(error == rocblas_status_invalid_pointer)fprintf(stderr, "rocblas_status_invalid_pointer"); \
-    if(error == rocblas_status_invalid_size)fprintf(stderr, "rocblas_status_invalid_size"); \
-    if(error == rocblas_status_memory_error)fprintf(stderr, "rocblas_status_memory_error"); \
-    if(error == rocblas_status_internal_error)fprintf(stderr, "rocblas_status_internal_error"); \
-    fprintf(stderr, "\n"); \
-    exit(EXIT_FAILURE); \
+  fprintf(stderr, "rocBLAS error: "); \
+  if(error == rocblas_status_invalid_handle)fprintf(stderr, "rocblas_status_invalid_handle"); \
+  if(error == rocblas_status_not_implemented )fprintf(stderr, " rocblas_status_not_implemented"); \
+  if(error == rocblas_status_invalid_pointer)fprintf(stderr, "rocblas_status_invalid_pointer"); \
+  if(error == rocblas_status_invalid_size)fprintf(stderr, "rocblas_status_invalid_size"); \
+  if(error == rocblas_status_memory_error)fprintf(stderr, "rocblas_status_memory_error"); \
+  if(error == rocblas_status_internal_error)fprintf(stderr, "rocblas_status_internal_error"); \
+  fprintf(stderr, "\n"); \
+  exit(EXIT_FAILURE); \
 }
 #endif
 
@@ -56,19 +53,19 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
     float beta = 0.0;
 
     CHECK_ROCBLAS_ERROR(rocblas_sgemm(handle,
-                transb ? rocblas_operation_transpose : rocblas_operation_none,
-                transa ? rocblas_operation_transpose : rocblas_operation_none,
-                transb ? B->shape[0] : B->shape[1],
-                transa ? A->shape[1] : A->shape[0],
-                transb ? B->shape[1] : B->shape[0],
-                &alpha,
-                reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
-                B->shape[1],
-                reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset),
-                A->shape[1],
-                &beta,
-                reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset),
-				      C->shape[1]));
+                                      transb ? rocblas_operation_transpose : rocblas_operation_none,
+                                      transa ? rocblas_operation_transpose : rocblas_operation_none,
+                                      transb ? B->shape[0] : B->shape[1],
+                                      transa ? A->shape[1] : A->shape[0],
+                                      transb ? B->shape[1] : B->shape[0],
+                                      &alpha,
+                                      reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
+                                      B->shape[1],
+                                      reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset),
+                                      A->shape[1],
+                                      &beta,
+                                      reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset),
+                                      C->shape[1]));
 
     CHECK_ROCBLAS_ERROR(rocblas_destroy_handle(handle));
 });
