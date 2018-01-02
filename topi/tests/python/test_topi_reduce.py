@@ -108,7 +108,10 @@ def test_reduce_map():
                           axis=None,
                           keepdims=True,
                           type="argmax")
-
+    verify_reduce_map_ele(in_shape=(31, 21, 15),
+                          axis=None,
+                          keepdims=False,
+                          type="sum")
 
 if __name__ == "__main__":
     test_reduce_map()

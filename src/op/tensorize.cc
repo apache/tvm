@@ -10,6 +10,7 @@
 #include "./op_util.h"
 #include "./compute_op.h"
 #include "../schedule/message_passing.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
@@ -322,6 +323,50 @@ void VerifyTensorizeBody(
   }
 }
 
+/*!
+ * \brief Transform the update part when there is no init func in tensorizing
+ * \param stage The stage for tensorizing.
+ * \param dom_map The range of each iter var.
+ * \param n The loop nest structured used in compute. 
+ * \param body The body func in tensorize intrin
+ * \param update The update func in tensorize intrin
+ * \return Transformed result.
+ */
+Stmt TransformUpdate(const Stage& stage,
+                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const ComputeLoopNest& n,
+                     Stmt body,
+                     Stmt update) {
+  Array<Expr> conds;
+  std::unordered_set<const Variable*> banned;
+  for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+    IterVar iv = stage->leaf_iter_vars[i];
+    auto iit = stage->iter_var_attrs.find(iv);
+    if (iit != stage->iter_var_attrs.end()) {
+      const IterVarAttr& attr = (*iit).second;
+      if (attr->iter_type == kTensorized) {
+        break;
+      }
+    }
+    if (iv->iter_type == kCommReduce) {
+      auto vit = dom_map.find(iv);
+      CHECK(vit != dom_map.end());
+      const Range& vrange = vit->second;
+      conds.push_back(likely(iv->var > vrange->min));
+      banned.insert(iv->var.get());
+    }
+  }
+  for (const Expr& pred : n.main_predicates) {
+    if (ir::ExprUseVar(pred, banned)) {
+      LOG(FATAL) << "Tensorize update transform failed, the condition "
+                 << pred << " has a conflict with the reset condition";
+    }
+  }
+
+  return IfThenElse::make(arith::ComputeReduce<ir::Or>(conds, const_true(1)),
+                          update, body);
+}
+
 Stmt MakeTensorize(const ComputeOpNode* self,
                    const Stage& stage,
                    const std::unordered_map<IterVar, Range>& dom_map) {
@@ -416,32 +461,47 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     return MergeNest(nest, body);
   } else {
     // Need to split reduction
-    CHECK(intrin->reduce_init.defined())
-        << "Reduction init op for intrin " << intrin << " is not defined";
     CHECK(intrin->reduce_update.defined())
         << "Reduction update op for intrin " << intrin << " is not defined";
     // Need init and update steps
     CHECK_NE(self->reduce_axis.size(), 0U);
     std::vector<std::vector<Stmt> > common(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
-    // init nest
-    std::vector<std::vector<Stmt> > init_nest(
-        n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
-    init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
-    Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
-    init = Substitute(init, n.init_vmap);
-    init = MergeNest(init_nest, init);
-    // The update
     std::vector<std::vector<Stmt> > update_nest(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.begin() + tloc + 1);
     update_nest.emplace_back(op::MakeIfNest(n.main_predicates));
-    Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
-    update = MergeNest(input_bind_nest, update);
-    update = Substitute(update, vmap);
-    update = MergeNest(binder.asserts(), update);
-    update = Substitute(update, n.main_vmap);
-    update = MergeNest(update_nest, update);
-    return MergeNest(common, Block::make(init, update));
+
+    if (intrin->reduce_init.defined()) {
+      // init nest
+      std::vector<std::vector<Stmt> > init_nest(
+          n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
+      init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+      Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
+      init = Substitute(init, n.init_vmap);
+      init = MergeNest(init_nest, init);
+      // The update
+      Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
+      update = MergeNest(input_bind_nest, update);
+      update = Substitute(update, vmap);
+      update = MergeNest(binder.asserts(), update);
+      update = Substitute(update, n.main_vmap);
+      update = MergeNest(update_nest, update);
+      return MergeNest(common, Block::make(init, update));
+    } else {
+      // When init op is not available, use body op for reset in the first iter.
+      CHECK(intrin->body.defined())
+          << "Normal body op for intrin " << intrin << " is not defined";
+      Stmt update = TransformUpdate(stage, dom_map, n,
+                                    intrin->body,
+                                    intrin->reduce_update);
+      update = MergeNest(output_bind_nest, update);
+      update = MergeNest(input_bind_nest, update);
+      update = Substitute(update, vmap);
+      update = MergeNest(binder.asserts(), update);
+      update = Substitute(update, n.main_vmap);
+      update = MergeNest(update_nest, update);
+      return MergeNest(common, update);
+    }
   }
 }
 

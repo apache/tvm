@@ -72,5 +72,11 @@ USE_NNPACK = 0
 # Whether use CuDNN
 USE_CUDNN = 0
 
+# Whether use MIOpen
+USE_MIOPEN = 0
+
 # Whether use MPS
 USE_MPS = 0
+
+# Whether use cuBLAS
+USE_CUBLAS = 0

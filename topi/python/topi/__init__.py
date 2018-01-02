@@ -19,3 +19,4 @@ from . import cuda
 from . import rasp
 from . import testing
 from . import util
+from . import rocm

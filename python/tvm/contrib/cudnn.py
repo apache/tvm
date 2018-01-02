@@ -220,6 +220,70 @@ def conv2d_output_shape(tensor_format,
     return list(oshape)
 
 
+def conv2d_find_algo(tensor_format,
+                     pad_h,
+                     pad_w,
+                     stride_h,
+                     stride_w,
+                     dilation_h,
+                     dilation_w,
+                     x_shape,
+                     w_shape,
+                     y_shape):
+    """Choose the best algo for the given input.
+
+    Paramters
+    ---------
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+        2: CUDNN_TENSOR_NCHW_VECT_C
+    pad_h: int
+        height pad
+    pad_w: int
+        weight pad
+    stride_h: int
+        height stride
+    stride_w: int
+        width stride
+    dilation_h: int
+        height dilation
+    dilation_w: int
+        width dilation
+    x_shape: list
+        input shape
+    w_shape: list
+        weight shape
+    y_shape: list
+        output shape
+
+    Returns
+    -------
+    algo: int
+        algo chosen by CUDNN
+    """
+    func = _get_global_func("tvm.contrib.cudnn.conv2d.find_algo")
+    return func(tensor_format,
+                pad_h,
+                pad_w,
+                stride_h,
+                stride_w,
+                dilation_h,
+                dilation_w,
+                x_shape[0].value,
+                x_shape[1].value,
+                x_shape[2].value,
+                x_shape[3].value,
+                w_shape[0].value,
+                w_shape[1].value,
+                w_shape[2].value,
+                w_shape[3].value,
+                y_shape[0],
+                y_shape[1],
+                y_shape[2],
+                y_shape[3])
+
+
 def conv2d_forward(x,
                    w,
                    stride_h=1,
@@ -230,7 +294,7 @@ def conv2d_forward(x,
                    dilation_w=1,
                    conv_mode=1,
                    tensor_format=0,
-                   algo=0):
+                   algo=-1):
     """Create an extern op that compute 2D convolution with CuDNN
 
     Parameters
@@ -260,6 +324,7 @@ def conv2d_forward(x,
         2: CUDNN_TENSOR_NCHW_VECT_C
     algo: int
         Forward algorithm, get index from ```algo_to_index``` function
+        if algo == -1, the best algo will be chosen by CUDNN
 
     Returns
     -------
@@ -275,6 +340,18 @@ def conv2d_forward(x,
                                  dilation_w,
                                  list(x.shape),
                                  list(w.shape))
+    if algo == -1:
+        algo = conv2d_find_algo(tensor_format,
+                                pad_h,
+                                pad_w,
+                                stride_h,
+                                stride_w,
+                                dilation_h,
+                                dilation_w,
+                                list(x.shape),
+                                list(w.shape),
+                                oshape)
+
     return _api.extern(
         oshape, [x, w],
         lambda ins, outs: _intrin.call_packed(
