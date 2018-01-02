@@ -136,6 +136,7 @@ include make/contrib/nnpack.mk
 include make/contrib/cudnn.mk
 include make/contrib/miopen.mk
 include make/contrib/mps.mk
+include make/contrib/cublas.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
