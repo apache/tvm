@@ -19,15 +19,15 @@ using namespace runtime;
 #define CHECK_CUBLAS_ERROR(error) \
 if (error != CUBLAS_STATUS_SUCCESS) { \
   fprintf(stderr, "cuBLAS error: "); \
-  if(error == CUBLAS_STATUS_NOT_INITIALIZED) fprintf(stderr, "CUBLAS_STATUS_NOT_INITIALIZED"); \
-  if(error == CUBLAS_STATUS_ALLOC_FAILED) fprintf(stderr, "CUBLAS_STATUS_ALLOC_FAILED"); \
-  if(error == CUBLAS_STATUS_INVALID_VALUE) fprintf(stderr, "CUBLAS_STATUS_INVALID_VALUE"); \
-  if(error == CUBLAS_STATUS_ARCH_MISMATCH) fprintf(stderr, "CUBLAS_STATUS_ARCH_MISMATCH"); \
-  if(error == CUBLAS_STATUS_MAPPING_ERROR) fprintf(stderr, "CUBLAS_STATUS_MAPPING_ERROR"); \
-  if(error == CUBLAS_STATUS_EXECUTION_FAILED) fprintf(stderr, "CUBLAS_STATUS_EXECUTION_FAILED"); \
-  if(error == CUBLAS_STATUS_INTERNAL_ERROR) fprintf(stderr, "CUBLAS_STATUS_INTERNAL_ERROR"); \
-  if(error == CUBLAS_STATUS_NOT_SUPPORTED) fprintf(stderr, "CUBLAS_STATUS_NOT_SUPPORTED"); \
-  if(error == CUBLAS_STATUS_LICENSE_ERROR) fprintf(stderr, "CUBLAS_STATUS_LICENSE_ERROR"); \
+  if (error == CUBLAS_STATUS_NOT_INITIALIZED) fprintf(stderr, "CUBLAS_STATUS_NOT_INITIALIZED"); \
+  if (error == CUBLAS_STATUS_ALLOC_FAILED) fprintf(stderr, "CUBLAS_STATUS_ALLOC_FAILED"); \
+  if (error == CUBLAS_STATUS_INVALID_VALUE) fprintf(stderr, "CUBLAS_STATUS_INVALID_VALUE"); \
+  if (error == CUBLAS_STATUS_ARCH_MISMATCH) fprintf(stderr, "CUBLAS_STATUS_ARCH_MISMATCH"); \
+  if (error == CUBLAS_STATUS_MAPPING_ERROR) fprintf(stderr, "CUBLAS_STATUS_MAPPING_ERROR"); \
+  if (error == CUBLAS_STATUS_EXECUTION_FAILED) fprintf(stderr, "CUBLAS_STATUS_EXECUTION_FAILED"); \
+  if (error == CUBLAS_STATUS_INTERNAL_ERROR) fprintf(stderr, "CUBLAS_STATUS_INTERNAL_ERROR"); \
+  if (error == CUBLAS_STATUS_NOT_SUPPORTED) fprintf(stderr, "CUBLAS_STATUS_NOT_SUPPORTED"); \
+  if (error == CUBLAS_STATUS_LICENSE_ERROR) fprintf(stderr, "CUBLAS_STATUS_LICENSE_ERROR"); \
   fprintf(stderr, "\n"); \
   exit(EXIT_FAILURE); \
 }
@@ -56,6 +56,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     CHECK_CUBLAS_ERROR(cublasCreate(&handle));
     float alpha = 1.0;
     float beta = 0.0;
+    float *A_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
+    float *B_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+    float *C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
 
     CHECK_CUBLAS_ERROR(cublasSgemm(handle,
                                    transb ? CUBLAS_OP_T : CUBLAS_OP_N,
@@ -64,12 +67,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
                                    transa ? A->shape[1] : A->shape[0],
                                    transb ? B->shape[1] : B->shape[0],
                                    &alpha,
-                                   reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
+                                   A_ptr,
                                    B->shape[1],
-                                   reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset),
+                                   B_ptr,
                                    A->shape[1],
                                    &beta,
-                                   reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset),
+                                   C_ptr,
                                    C->shape[1]));
 
     CHECK_CUBLAS_ERROR(cublasDestroy(handle));
