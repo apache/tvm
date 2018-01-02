@@ -77,3 +77,6 @@ USE_MIOPEN = 0
 
 # Whether use MPS
 USE_MPS = 0
+
+# Whether use cuBLAS
+USE_CUBLAS = 0
