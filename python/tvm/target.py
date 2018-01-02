@@ -94,7 +94,8 @@ class Target(object):
         # Parse device option
         for item in self.options:
             if item.startswith("-libs="):
-                self.libs.append(item.split("=")[1])
+                libs = item.split("=")[1]
+                self.libs += libs.split(",")
             elif item.startswith("-device="):
                 self.device_name = item.split("=")[1]
         # Target query searchs device name first
