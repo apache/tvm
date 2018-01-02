@@ -191,6 +191,8 @@ class HostDeviceSplitter : public IRMutator {
         auto it = handle_data_type_.find(v.get());
         if (it != handle_data_type_.end()) {
           n->handle_data_type.Set(v, it->second);
+        } else {
+          n->handle_data_type.Set(v, make_const(v.get()->type, 0);
         }
       }
     }
