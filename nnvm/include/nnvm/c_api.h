@@ -352,7 +352,7 @@ NNVM_DLL int NNGraphSetJSONAttr(GraphHandle handle,
  * \param success Whether the result is contained in out.
  * \return 0 when success, -1 when failure happens
  */
-NNVM_DLL int NNGraphGetJSONAttr(SymbolHandle handle,
+NNVM_DLL int NNGraphGetJSONAttr(GraphHandle handle,
                                 const char* key,
                                 const char** json_out,
                                 int *success);
