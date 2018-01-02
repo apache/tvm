@@ -3,9 +3,8 @@ from __future__ import absolute_import
 import tvm
 from .. import tag
 
-
-def dense(data, weight, bias=None):
-    """Applies a linear transformation: :math:`Y = XW^T + b`.
+def dense_default(data, weight, bias=None):
+    """The default implementation of dense in topi.
 
     Parameters
     ----------
@@ -38,3 +37,26 @@ def dense(data, weight, bias=None):
                              lambda i, j: matmul[i, j] + bias[j], \
                              tag=tag.BROADCAST)
     return matmul
+
+
+@tvm.target.generic_func
+def dense(data, weight, bias=None):
+    """Applies a linear transformation: :math:`Y = XW^T + b`.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        2-D with shape [batch, in_dim]
+
+    weight : tvm.Tensor
+        2-D with shape [out_dim, in_dim]
+
+    bias : tvm.Tensor, optional
+        1-D with shape [out_dim]
+
+    Returns
+    -------
+    output : tvm.Tensor
+        2-D with shape [batch, out_dim]
+    """
+    return dense_default(data, weight, bias)

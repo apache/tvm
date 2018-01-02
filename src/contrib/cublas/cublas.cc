@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
                 transa ? CUBLAS_OP_T : CUBLAS_OP_N,
                 transb ? B->shape[0] : B->shape[1],
                 transa ? A->shape[1] : A->shape[0],
-                transa ? B->shape[1] : B->shape[0],
+                transb ? B->shape[1] : B->shape[0],
                 &alpha,
                 reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
                 B->shape[1],
