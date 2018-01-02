@@ -20,7 +20,6 @@
 #include "../src/runtime/graph/graph_runtime.cc"
 #include "../src/runtime/opengl/opengl_device_api.cc"
 #include "../src/runtime/opengl/opengl_module.cc"
-#include "../glad/src/glad.c"
 
 namespace tvm {
 namespace contrib {

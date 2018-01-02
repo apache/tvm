@@ -155,7 +155,7 @@ Module OpenGLModuleCreate(std::string data,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
   LOG(INFO) << "OpenGLModuleCreate() " << data << " " << fmt << " "
-                    << fmap.size();
+            << fmap.size();
   auto n = std::make_shared<OpenGLModuleNode>(data, fmt, fmap);
   return Module(n);
 }

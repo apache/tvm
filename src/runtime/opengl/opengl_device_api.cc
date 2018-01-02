@@ -33,8 +33,8 @@ inline const char* GLGetErrorString(GLenum error) {
   }
 }
 
-void OPENGL_CHECK_ERROR() {
-  GLenum err = glGetError();
+void OpenGLWorkspace::CheckOpenGLError() {
+  GLenum err = gl->GetError();
   CHECK(err == GL_NO_ERROR) << "OpenGL error, code=" << err << ": "
                             << gl::GLGetErrorString(err);
 }
@@ -46,82 +46,11 @@ void OPENGL_CHECK_ERROR() {
 #define OPENGL_CALL(func)                                                      \
   {                                                                            \
     (func);                                                                    \
-    OPENGL_CHECK_ERROR();                                                      \
+    CheckOpenGLError();                                                        \
   }
 
 void GlfwErrorCallback(int err, const char* str) {
   LOG(ERROR) << "Error: [" << err << "] " << str;
-}
-
-// Always only use the first dimension of a 2D texture.
-// The reason of using 2D textures is that texelFetch only supports 2D textures.
-Texture::Texture(size_t nbytes)
-    : texture_(kInvalidTexture),
-      width_(static_cast<decltype(width_)>(nbytes / sizeof(GLfloat))),
-      height_(1) {
-  LOG(INFO) << "Created texture [" << texture_ << "]";
-  CHECK((nbytes % sizeof(GLfloat)) == 0) << "Must be multiple of GLfloats";
-
-  // Create a texture.
-  OPENGL_CALL(glGenTextures(1, &texture_));
-
-  auto workspace = gl::OpenGLWorkspace::Global();
-  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, texture_);
-
-  // Use glTexImage2D with nullptr data to specify GPU data storage.
-  // TODO(pengw): How can we know the type of data?
-  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
-                           width_, /*height=*/1, /*border=*/0,
-                           GL_RED, GL_FLOAT, /*data=*/nullptr));
-
-  // TODO(zhixunt): What are these?
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-}
-
-Texture::~Texture() {
-  if (texture_ != kInvalidTexture) {
-    LOG(INFO) << "Deleting texture [" << texture_ << "]";
-
-    OPENGL_CALL(glDeleteTextures(1, &texture_));
-    texture_ = kInvalidTexture;
-  }
-}
-
-void Texture::GetData(GLvoid* data) const {
-  // Bind to temporary unit.
-  auto workspace = gl::OpenGLWorkspace::Global();
-  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
-
-  glGetTexImage(GL_TEXTURE_2D, /*level=*/0, GL_RED, GL_FLOAT, data);
-}
-
-void Texture::PutData(GLint begin, GLsizei nelems, const GLvoid* data) {
-  LOG(INFO) << "Texture::PutData(" << "begin = " << begin << ", "
-                    << "nelems = " << nelems << ", data)";
-
-  // Bind to temporary unit.
-  auto workspace = gl::OpenGLWorkspace::Global();
-  workspace->BindTextureUnit(workspace->NumTextureUnits() - 1, this->texture_);
-
-  // Similar to cudaMemcpy.
-  OPENGL_CALL(glTexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
-                              /*xoffset=*/begin, /*yoffset=*/0,
-                              /*width=*/nelems, /*height=*/1,
-                              GL_RED, GL_FLOAT, data));
-}
-
-Program::~Program() {
-  if (program_ != kInvalidProgram) {
-    glDeleteProgram(program_);
-    program_ = kInvalidProgram;
-  }
 }
 
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
@@ -145,7 +74,8 @@ void* OpenGLWorkspace::AllocDataSpace(
   LOG(INFO)
       << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
       << nbytes << ", alignment = " << alignment << ")";
-  return reinterpret_cast<void*>(new Texture(nbytes));
+  auto texture = CreateTexture(nbytes).release();
+  return reinterpret_cast<void*>(texture);
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
@@ -195,7 +125,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
           size == static_cast<size_t>(texture->width()) * sizeof(GLfloat))
       << "Only support full texture retrieval.";
 
-    texture->GetData(static_cast<char *>(to) + to_offset);
+    GetTextureData(texture, static_cast<char *>(to) + to_offset);
 
   } else if (ctx_from.device_type == kDLCPU &&
              ctx_to.device_type == gl_devtype) {
@@ -208,7 +138,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
     const void* data = static_cast<const char*>(from) + from_offset;
     auto begin = static_cast<GLint>(to_offset / sizeof(GLfloat));
     auto nelems = static_cast<GLsizei>(size / sizeof(GLfloat));
-    texture->PutData(begin, nelems, data);
+    PutTextureData(texture, begin, nelems, data);
 
   } else {
     LOG(FATAL) << "Expect copy from/to OpenGL or between OpenGL";
@@ -264,27 +194,32 @@ OpenGLWorkspace::OpenGLWorkspace() {
   // Before using any OpenGL API, we must specify a context.
   glfwMakeContextCurrent(window_);
 
+  LOG(INFO) << "Calling gladLoadGL...";
+
+  gl = std::unique_ptr<GLFunctionPointers>(new GLFunctionPointers);
+
   // Must be called after creating GLFW window.
-  gladLoadGL();
+//  gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
   LOG(INFO) << "OpenGL says version: " << glGetString(GL_VERSION);
 
-  OPENGL_CHECK_ERROR();
+  CheckOpenGLError();
 
   // We always render the same vertices and triangles.
   GLuint vertex_buffer;
-  OPENGL_CALL(glGenBuffers(1, &vertex_buffer));
-  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer));
-  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
-                           GL_STATIC_DRAW));
+  OPENGL_CALL(gl->GenBuffers(1, &vertex_buffer));
+  OPENGL_CALL(gl->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer));
+  OPENGL_CALL(gl->BufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
+                             GL_STATIC_DRAW));
 
   GLuint vertex_array;
-  OPENGL_CALL(glGenVertexArrays(1, &vertex_array));
-  OPENGL_CALL(glBindVertexArray(vertex_array));
-  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+  OPENGL_CALL(gl->GenVertexArrays(1, &vertex_array));
+  OPENGL_CALL(gl->BindVertexArray(vertex_array));
+  OPENGL_CALL(gl->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer));
 
   // We always use the same vertex shader.
   vertex_shader_ = CreateShader(GL_VERTEX_SHADER, vertex_shader_text_);
+  LOG(INFO) << "Created vertex shader";
 }
 
 OpenGLWorkspace::~OpenGLWorkspace() {
@@ -296,13 +231,21 @@ OpenGLWorkspace::~OpenGLWorkspace() {
 }
 
 void OpenGLWorkspace::BindTextureUnit(GLuint unit, GLuint texture) {
-  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
-  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
+  OPENGL_CALL(gl->ActiveTexture(GL_TEXTURE0 + unit));
+  OPENGL_CALL(gl->BindTexture(GL_TEXTURE_2D, texture));
+}
+
+void OpenGLWorkspace::OnDeleteTexture(GLuint texture) {
+  OPENGL_CALL(gl->DeleteTextures(1, &texture));
+}
+
+void OpenGLWorkspace::OnDeleteProgram(GLuint program) {
+  OPENGL_CALL(gl->DeleteProgram(program));
 }
 
 GLuint OpenGLWorkspace::NumTextureUnits() {
   GLint num_units;
-  OPENGL_CALL(glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &num_units));
+  OPENGL_CALL(gl->GetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &num_units));
   return static_cast<GLuint>(num_units);
 }
 
@@ -318,7 +261,7 @@ const OpenGLWorkspace::Vertex OpenGLWorkspace::vertices[OpenGLWorkspace::kNumVer
 // Don't need to change this.
 // The vertex shader only needs to take in the triangle points.
 // No need for point transformations.
-const char* OpenGLWorkspace::vertex_shader_text_ = "#version 330 core\n"
+const char* OpenGLWorkspace::vertex_shader_text_ = "#version 300 es\n"
     "in vec2 point; // input to vertex shader\n"
     "void main() {\n"
     "  gl_Position = vec4(point, 0.0, 1.0);\n"
@@ -333,7 +276,7 @@ std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
   // Link the shaders and create the program.
   auto program = CreateProgram(fragment_shader);
 
-  OPENGL_CALL(glDeleteShader(fragment_shader));
+  OPENGL_CALL(gl->DeleteShader(fragment_shader));
 
   return program;
 }
@@ -341,63 +284,135 @@ std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
 GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
                                      const char* shader_src) {
   // Create the shader.
-  GLuint shader = glCreateShader(shader_kind);
-  glShaderSource(shader, 1, &shader_src, nullptr);
-  glCompileShader(shader);
+  GLuint shader = gl->CreateShader(shader_kind);
+  gl->ShaderSource(shader, 1, &shader_src, nullptr);
+  gl->CompileShader(shader);
 
   // Check compile errors.
   GLint err;
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &err);
+  gl->GetShaderiv(shader, GL_COMPILE_STATUS, &err);
 
   GLint info_log_len;
-  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
+  gl->GetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_len);
 
-  if (info_log_len > 0) {
+  if (err != GL_TRUE) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
-    glGetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
+    gl->GetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
     LOG(ERROR) << err_msg.get();
     assert(false);
   }
 
-  OPENGL_CHECK_ERROR();
+  CheckOpenGLError();
 
   return shader;
+}
+
+std::unique_ptr<Texture> OpenGLWorkspace::CreateTexture(size_t nbytes) {
+  CHECK((nbytes % sizeof(GLfloat)) == 0) << "Must be multiple of GLfloats";
+
+  // Create a texture.
+  GLuint texture;
+  OPENGL_CALL(gl->GenTextures(1, &texture));
+
+  BindTextureUnit(NumTextureUnits() - 1, texture);
+
+  // Use glTexImage2D with nullptr data to specify GPU data storage.
+  // TODO(pengw): How can we know the type of data?
+  auto width = static_cast<GLsizei>(nbytes / sizeof(GLfloat));
+  auto height = GLsizei(1);
+  OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
+                             width, height, /*border=*/0,
+                             GL_RED, GL_FLOAT, /*data=*/nullptr));
+
+  // TODO(zhixunt): What are these?
+  OPENGL_CALL(
+      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+  OPENGL_CALL(
+      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+
+  LOG(INFO) << "Created texture [" << texture << "]";
+
+  return std::unique_ptr<Texture>(new Texture(this, texture, width, height));
 }
 
 std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
     GLuint fragment_shader) {
   // Create the program and link the shaders.
-  GLuint program = glCreateProgram();
-  glAttachShader(program, vertex_shader_);
-  glAttachShader(program, fragment_shader);
-  glLinkProgram(program);
+  GLuint program = gl->CreateProgram();
+  gl->AttachShader(program, vertex_shader_);
+  gl->AttachShader(program, fragment_shader);
+  gl->LinkProgram(program);
 
   // Check link errors.
   GLint err;
-  glGetProgramiv(program, GL_LINK_STATUS, &err);
+  gl->GetProgramiv(program, GL_LINK_STATUS, &err);
 
   GLint info_log_len;
-  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_len);
+  gl->GetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_len);
 
-  if (info_log_len > 0) {
+  if (err != GL_TRUE) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
-    glGetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
+    gl->GetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
     LOG(ERROR) << err_msg.get();
     assert(false);
   }
 
-  OPENGL_CHECK_ERROR();
+  CheckOpenGLError();
 
-  OPENGL_CALL(glDetachShader(program, vertex_shader_));
-  OPENGL_CALL(glDetachShader(program, fragment_shader));
+  OPENGL_CALL(gl->DetachShader(program, vertex_shader_));
+  OPENGL_CALL(gl->DetachShader(program, fragment_shader));
 
-  auto point_attrib = GLuint(glGetAttribLocation(program, "point"));
-  OPENGL_CALL(glEnableVertexAttribArray(point_attrib));
+  auto point_attrib = GLuint(gl->GetAttribLocation(program, "point"));
+  OPENGL_CALL(gl->EnableVertexAttribArray(point_attrib));
 
-  OPENGL_CALL(glVertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
-                                    sizeof(Vertex), nullptr));
+  OPENGL_CALL(gl->VertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
+                                      sizeof(Vertex), nullptr));
 
-  return std::unique_ptr<Program>(new Program(program));
+  return std::unique_ptr<Program>(new Program(this, program));
+}
+
+void OpenGLWorkspace::PutTextureData(Texture *texture, GLint begin,
+                                     GLsizei nelems, const GLvoid* data) {
+  LOG(INFO) << "Texture::PutData(" << "begin = " << begin << ", "
+            << "nelems = " << nelems << ", data)";
+
+  // Bind to temporary unit.
+  BindTextureUnit(NumTextureUnits() - 1, texture->texture());
+
+  // Similar to cudaMemcpy.
+  OPENGL_CALL(gl->TexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
+                                /*xoffset=*/begin, /*yoffset=*/0,
+                                /*width=*/nelems, /*height=*/1,
+                                GL_RED, GL_FLOAT, data));
+}
+
+void OpenGLWorkspace::GetTextureData(const Texture *texture, GLvoid* data) {
+  BindTextureUnit(NumTextureUnits() - 1, texture->texture());
+
+  // Create frame buffer.
+  GLuint frame_buffer;
+  OPENGL_CALL(gl->GenFramebuffers(1, &frame_buffer));
+  OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+
+  // Bind texture to framebuffer's attachment #0.
+  OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_2D, texture->texture(), 0));
+
+  // Always check that our framebuffer is ok
+  if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    LOG(ERROR) << "Framebuffer not complete.";
+    assert(false);
+  }
+
+  OPENGL_CALL(gl->ReadPixels(/*x=*/0, /*y=*/0, /*width=*/texture->width(),
+                             /*height=*/texture->height(), GL_RED, GL_FLOAT,
+                             data));
+
+  OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));
 }
 
 void OpenGLWorkspace::Render(
@@ -409,24 +424,24 @@ void OpenGLWorkspace::Render(
     assert(false);
   }
 
-  OPENGL_CALL(glUseProgram(program.program_));
+  OPENGL_CALL(gl->UseProgram(program.program_));
 
   // Create frame buffer.
   GLuint frame_buffer;
-  OPENGL_CALL(glGenFramebuffers(1, &frame_buffer));
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+  OPENGL_CALL(gl->GenFramebuffers(1, &frame_buffer));
+  OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
 
   // Set "renderedTexture" as our colour attachement #0
-  OPENGL_CALL(glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                   output->texture(), 0));
+  OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_2D, output->texture(), 0));
 
   // Set the list of draw buffers.
   GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
   // "1" is the size of DrawBuffers.
-  OPENGL_CALL(glDrawBuffers(1, DrawBuffers));
+  OPENGL_CALL(gl->DrawBuffers(1, DrawBuffers));
 
   // Always check that our framebuffer is ok
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+  if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     LOG(ERROR) << "Framebuffer not complete.";
     assert(false);
   }
@@ -438,18 +453,18 @@ void OpenGLWorkspace::Render(
 
     BindTextureUnit(unit, texture->texture());
 
-    GLint texture_uniform = glGetUniformLocation(program.program_,
-                                                 name.c_str());
-    OPENGL_CALL(glUniform1i(texture_uniform, unit));
+    GLint texture_uniform = gl->GetUniformLocation(program.program_,
+                                                   name.c_str());
+    OPENGL_CALL(gl->Uniform1i(texture_uniform, unit));
   }
 
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
-  OPENGL_CALL(glViewport(0, 0, output->width(), output->height()));
+  OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+  OPENGL_CALL(gl->Viewport(0, 0, output->width(), output->height()));
 
-  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
-  OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+  OPENGL_CALL(gl->Clear(GL_COLOR_BUFFER_BIT));
+  OPENGL_CALL(gl->DrawArrays(GL_TRIANGLES, 0, 6));
 
-  glDeleteFramebuffers(1, &frame_buffer);
+  gl->DeleteFramebuffers(1, &frame_buffer);
 }
 
 TVM_REGISTER_GLOBAL("device_api.opengl")
@@ -459,6 +474,40 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 });
 
 }  // namespace gl
+
+void TestLocalOpenGL() {
+  std::cout << "Calling TestLocalOpenGL()" << std::endl;
+
+  std::shared_ptr<gl::OpenGLWorkspace> workspace = gl::OpenGLWorkspace::Global();
+
+  std::cout << "Got workspace" << std::endl;
+
+  const char* shader_src = "#version 300 es\n"
+    "precision highp float;\n"
+    "out float color;\n"
+    "void main() {\n"
+    "  color = 0.0;\n"
+    "}\n";
+
+  std::unique_ptr<gl::Program> program = workspace->CreateProgram(shader_src);
+
+  std::cout << "Created program" << std::endl;
+
+  std::unique_ptr<gl::Texture> output = workspace->CreateTexture(16);
+
+  std::cout << "Created texture" << std::endl;
+
+  workspace->Render(*program, {}, output.get());
+
+  std::cout << "Rendered" << std::endl;
+}
+
+TVM_REGISTER_GLOBAL("contrib.rpc._TestLocalOpenGL")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  TestLocalOpenGL();
+  *rv = nullptr;
+});
+
 }  // namespace runtime
 }  // namespace tvm
 
