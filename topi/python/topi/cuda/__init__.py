@@ -11,7 +11,7 @@ from .depthwise_conv2d import schedule_depthwise_conv2d_backward_weight_nhwc
 from .reduction import schedule_reduce
 from .softmax import schedule_softmax
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
-from .dense import schedule_dense
+from .dense import dense_cuda, schedule_dense
 from .pooling import schedule_pool, schedule_global_pool
 from .conv2d_transpose_nchw import schedule_conv2d_transpose_nchw
 from .extern import schedule_extern
