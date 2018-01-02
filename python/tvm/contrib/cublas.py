@@ -1,4 +1,4 @@
-"""External function interface to cuBLAS libraroes."""
+"""External function interface to cuBLAS libraries."""
 from __future__ import absolute_import as _abs
 
 from .. import api as _api
@@ -6,8 +6,6 @@ from .. import intrin as _intrin
 
 def matmul(lhs, rhs, transa=False, transb=False):
     """Create an extern op that compute matrix mult of A and rhs with cuBLAS
-
-    This function serves as an example on how to calle external libraries.
 
     Parameters
     ----------
