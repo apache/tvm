@@ -91,10 +91,9 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   os << "." << scope;
 
   std::unordered_map<Tensor, Tensor> vsub;
-  //vsub[tensor] = cache;
   Tensor sugar_tensor = tensor;
   Stage s = operator[](tensor->op);
-  if (! s->op.same_as(tensor->op)) // can we just always use s->op.ouput(0) to map cache ?
+  if (!(s->op.same_as(tensor->op))) 
       sugar_tensor = s->op.output(0);
   vsub[sugar_tensor] = cache;
 
