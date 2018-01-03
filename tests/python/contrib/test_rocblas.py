@@ -6,14 +6,10 @@ def test_matmul_add():
     n = 1024
     l = 128
     m = 235
-    bias = tvm.var('bias', dtype=tvm.float32)
     A = tvm.placeholder((n, l), name='A')
     B = tvm.placeholder((l, m), name='B')
     C = rocblas.matmul(A, B)
-    D = tvm.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
-    import topi
-    with tvm.target.create("rocm -libs=rocblas"):
-        s = topi.generic.schedule_extern(D)
+    s = tvm.create_schedule(C.op)
 
     def verify(target="rocm"):
         if not tvm.module.enabled(target):
@@ -23,14 +19,13 @@ def test_matmul_add():
             print("skip because extern function is not avalable")
             return
         ctx = tvm.rocm(0)
-        f = tvm.build(s, [A, B, D, bias], target)
+        f = tvm.build(s, [A, B, C], target)
         a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
-        bb = 10.0
-        f(a, b, d, bb)
+        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
+        f(a, b, c)
         np.testing.assert_allclose(
-            d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + bb, rtol=1e-5)
+            c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
     verify()
 
 

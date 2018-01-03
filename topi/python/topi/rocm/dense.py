@@ -2,8 +2,8 @@
 """Schedule for dense operator"""
 from __future__ import absolute_import as _abs
 import tvm
-import topi
 from tvm.contrib import rocblas
+import topi
 from ..nn.dense import dense, dense_default
 from .. import tag
 from .. import generic

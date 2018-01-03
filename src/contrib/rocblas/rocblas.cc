@@ -16,12 +16,12 @@ using namespace runtime;
 #define CHECK_ROCBLAS_ERROR(error) \
 if (error != rocblas_status_success) { \
   fprintf(stderr, "rocBLAS error: "); \
-  if(error == rocblas_status_invalid_handle)fprintf(stderr, "rocblas_status_invalid_handle"); \
-  if(error == rocblas_status_not_implemented )fprintf(stderr, " rocblas_status_not_implemented"); \
-  if(error == rocblas_status_invalid_pointer)fprintf(stderr, "rocblas_status_invalid_pointer"); \
-  if(error == rocblas_status_invalid_size)fprintf(stderr, "rocblas_status_invalid_size"); \
-  if(error == rocblas_status_memory_error)fprintf(stderr, "rocblas_status_memory_error"); \
-  if(error == rocblas_status_internal_error)fprintf(stderr, "rocblas_status_internal_error"); \
+  if (error == rocblas_status_invalid_handle) fprintf(stderr, "rocblas_status_invalid_handle"); \
+  if (error == rocblas_status_not_implemented) fprintf(stderr, " rocblas_status_not_implemented"); \
+  if (error == rocblas_status_invalid_pointer) fprintf(stderr, "rocblas_status_invalid_pointer"); \
+  if (error == rocblas_status_invalid_size) fprintf(stderr, "rocblas_status_invalid_size"); \
+  if (error == rocblas_status_memory_error) fprintf(stderr, "rocblas_status_memory_error"); \
+  if (error == rocblas_status_internal_error) fprintf(stderr, "rocblas_status_internal_error"); \
   fprintf(stderr, "\n"); \
   exit(EXIT_FAILURE); \
 }
@@ -51,6 +51,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
     CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));
     float alpha = 1.0;
     float beta = 0.0;
+    float *A_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
+    float *B_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+    float *C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
 
     CHECK_ROCBLAS_ERROR(rocblas_sgemm(handle,
                                       transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -59,12 +62,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
                                       transa ? A->shape[1] : A->shape[0],
                                       transb ? B->shape[1] : B->shape[0],
                                       &alpha,
-                                      reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
+                                      A_ptr,
                                       B->shape[1],
-                                      reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset),
+                                      B_ptr,
                                       A->shape[1],
                                       &beta,
-                                      reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset),
+                                      C_ptr,
                                       C->shape[1]));
 
     CHECK_ROCBLAS_ERROR(rocblas_destroy_handle(handle));
