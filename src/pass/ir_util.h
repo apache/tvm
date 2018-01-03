@@ -154,8 +154,8 @@ inline Type APIType(Type t) {
 inline int GetTempAllocaAlignment(Type type, int32_t const_size) {
   int align = runtime::kTempAllocaAlignment;
   if (const_size > 0) {
-    const_size = const_size * type.bits() * type.lanes() / 8;
-    while (align > const_size) {
+    int64_t const_s = static_cast<int64_t>(const_size) * type.bits() * type.lanes() / 8;
+    while (align > const_s) {
       align = align / 2;
     }
   }
