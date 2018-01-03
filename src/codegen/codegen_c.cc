@@ -228,7 +228,7 @@ void CodeGenC::RegisterHandleType(const Variable* buf_var, Type t) {
 void CodeGenC::PrintVecElemLoad(const std::string& vec,
                                 Type t, int i,
                                 std::ostream& os) {  // NOLINT(*)
-  os << vec << ".s" << std::hex << i;
+  os << vec << ".s" << std::hex << i << std::dec;
 }
 
 void CodeGenC::PrintVecElemStore(const std::string& vec,
@@ -236,7 +236,7 @@ void CodeGenC::PrintVecElemStore(const std::string& vec,
                                  const std::string& value) {
   this->PrintIndent();
   stream << vec << ".s" << std::hex << i
-         << " = " << value << ";\n";
+         << " = " << value << ";\n" << std::dec;
 }
 
 std::string CodeGenC::GetVecLoad(
@@ -583,6 +583,13 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
         std::ostringstream value_temp;
         if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
           value_temp << "((";
+          if (op->buffer_var.get()->type.is_handle()) {
+            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+            if (it != alloc_storage_scope_.end()) {
+              PrintStorageScope(it->second, value_temp);
+              value_temp << ' ';
+            }
+          }
           PrintType(elem_type, value_temp);
           value_temp << "*)" << vid << ')';
         } else {
@@ -627,6 +634,13 @@ void CodeGenC::VisitStmt_(const Store* op) {
         Type elem_type = t.element_of();
         if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
           stream << "((";
+          if (op->buffer_var.get()->type.is_handle()) {
+            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+            if (it != alloc_storage_scope_.end()) {
+              PrintStorageScope(it->second, stream);
+              stream << ' ';
+            }
+          }
           PrintType(elem_type, stream);
           stream << "*)" << vid << ')';
         } else {
