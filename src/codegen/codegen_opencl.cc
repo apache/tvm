@@ -177,14 +177,14 @@ void CodeGenOpenCL::PrintStorageScope(
 
 void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  os << '(';
+  os << "((";
   PrintType(op->type, os);
   os << ")(";
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }
-  os << ')';
+  os << "))";
 }
 }  // namespace codegen
 }  // namespace tvm
