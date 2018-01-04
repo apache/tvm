@@ -590,7 +590,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     if (!r) {
         ptr = CreateBufferPtr(
           l->type, MakeValue(l->buffer_var), MakeValue(l->index));
-
         addrspace = llvm::dyn_cast<llvm::PointerType>(
           ptr->getType())->getAddressSpace();
     } else {
