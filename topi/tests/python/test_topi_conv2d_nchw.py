@@ -56,7 +56,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 def test_conv2d_nchw():
     # ResNet18 worklaods
-    verify_conv2d_nchw(1, 3, 224, 64, 7, 3, 2)
+    verify_conv2d_nchw(1, 3, 224, 64, 7, 2, 3)
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
     verify_conv2d_nchw(1, 64, 56, 64, 1, 1, 0)
     verify_conv2d_nchw(1, 64, 56, 128, 3, 2, 1)
