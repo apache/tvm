@@ -599,7 +599,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
         addrspace = llvm::dyn_cast<llvm::PointerType>(
           ptr->getType())->getAddressSpace();
     }
-    return builder_->CreatePointerCast(ptr, t_void_->getPointerTo(addrspace));
+    return builder_->CreatePointerCast(ptr, t_char_->getPointerTo(addrspace));
   } else if (op->is_intrinsic(Call::reinterpret) && is_zero(op->args[0])) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
