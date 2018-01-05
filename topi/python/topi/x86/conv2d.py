@@ -91,7 +91,11 @@ def schedule_conv2d_nhwc(outs):
             ry, rx, rc = C.op.reduce_axis
             n_out, h_out, w_out, c_out = output_op.axis
             s[C].vectorize(c)
-            s[C].compute_at(s[output_op], c_out)
+            if op != output_op:
+                s[C].compute_at(s[output_op], c_out)
+            else:
+                fused = s[C].fuse(n, h, w)
+                s[C].parallel(fused)
 
     traverse(output_op)
     return s
