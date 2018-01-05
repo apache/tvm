@@ -70,12 +70,11 @@ void OpenGLWorkspace::GetAttr(
 }
 
 void* OpenGLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t nbytes, size_t alignment) {
+    TVMContext ctx, TVMType type, size_t nbytes, size_t alignment) {
   LOG(INFO)
       << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
       << nbytes << ", alignment = " << alignment << ")";
-  auto texture = CreateTexture(nbytes).release();
-  return reinterpret_cast<void*>(texture);
+  return reinterpret_cast<void*>(new Texture(CreateTexture(nbytes)));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
@@ -201,7 +200,7 @@ OpenGLWorkspace::OpenGLWorkspace() {
   // Must be called after creating GLFW window.
 //  gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-  LOG(INFO) << "OpenGL says version: " << glGetString(GL_VERSION);
+  LOG(INFO) << "OpenGL says version: " << gl->GetString(GL_VERSION);
 
   CheckOpenGLError();
 
@@ -267,14 +266,14 @@ const char* OpenGLWorkspace::vertex_shader_text_ = "#version 300 es\n"
     "  gl_Position = vec4(point, 0.0, 1.0);\n"
     "}\n";
 
-std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
+Program OpenGLWorkspace::CreateProgram(
     const char* fragment_shader_src) {
   // Create and compile the shaders.
   GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
                                         fragment_shader_src);
 
   // Link the shaders and create the program.
-  auto program = CreateProgram(fragment_shader);
+  Program program = CreateProgram(fragment_shader);
 
   OPENGL_CALL(gl->DeleteShader(fragment_shader));
 
@@ -307,7 +306,7 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   return shader;
 }
 
-std::unique_ptr<Texture> OpenGLWorkspace::CreateTexture(size_t nbytes) {
+Texture OpenGLWorkspace::CreateTexture(size_t nbytes) {
   CHECK((nbytes % sizeof(GLfloat)) == 0) << "Must be multiple of GLfloats";
 
   // Create a texture.
@@ -336,11 +335,10 @@ std::unique_ptr<Texture> OpenGLWorkspace::CreateTexture(size_t nbytes) {
 
   LOG(INFO) << "Created texture [" << texture << "]";
 
-  return std::unique_ptr<Texture>(new Texture(this, texture, width, height));
+  return Texture(this, texture, width, height);
 }
 
-std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
-    GLuint fragment_shader) {
+Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
   // Create the program and link the shaders.
   GLuint program = gl->CreateProgram();
   gl->AttachShader(program, vertex_shader_);
@@ -372,7 +370,7 @@ std::unique_ptr<Program> OpenGLWorkspace::CreateProgram(
   OPENGL_CALL(gl->VertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
                                       sizeof(Vertex), nullptr));
 
-  return std::unique_ptr<Program>(new Program(this, program));
+  return Program(this, program);
 }
 
 void OpenGLWorkspace::PutTextureData(Texture *texture, GLint begin,
@@ -489,15 +487,15 @@ void TestLocalOpenGL() {
     "  color = 0.0;\n"
     "}\n";
 
-  std::unique_ptr<gl::Program> program = workspace->CreateProgram(shader_src);
+  gl::Program program = workspace->CreateProgram(shader_src);
 
   std::cout << "Created program" << std::endl;
 
-  std::unique_ptr<gl::Texture> output = workspace->CreateTexture(16);
+  gl::Texture output = workspace->CreateTexture(16);
 
   std::cout << "Created texture" << std::endl;
 
-  workspace->Render(*program, {}, output.get());
+  workspace->Render(program, {}, &output);
 
   std::cout << "Rendered" << std::endl;
 }

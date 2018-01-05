@@ -21,6 +21,7 @@ class OpenGLModuleNode final : public ModuleNode {
                             std::string fmt,
                             std::unordered_map<std::string, FunctionInfo> fmap);
 
+  // Disallow copy and assignment.
   OpenGLModuleNode(const OpenGLModuleNode& other) = delete;
   OpenGLModuleNode(OpenGLModuleNode&& other) = delete;
   OpenGLModuleNode& operator=(const OpenGLModuleNode& other) = delete;
@@ -35,7 +36,7 @@ class OpenGLModuleNode final : public ModuleNode {
 
   std::string GetSource(const std::string& format) final;
 
-  const gl::Program *program() const { return program_.get(); }
+  const gl::Program &program() const { return program_; }
 
   std::shared_ptr<gl::OpenGLWorkspace> workspace_;
 
@@ -43,7 +44,7 @@ class OpenGLModuleNode final : public ModuleNode {
   std::string data_;
   std::string fmt_;
   std::unordered_map<std::string, FunctionInfo> fmap_;
-  std::unique_ptr<gl::Program> program_;
+  gl::Program program_;
 };
 
 class OpenGLWrappedFunc {
@@ -73,11 +74,11 @@ OpenGLModuleNode::OpenGLModuleNode(
     std::string data, std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap)
     : workspace_(gl::OpenGLWorkspace::Global()), data_(std::move(data)),
-      fmt_(std::move(fmt)), fmap_(std::move(fmap)) {
+      fmt_(std::move(fmt)), fmap_(std::move(fmap)),
+      program_(workspace_->CreateProgram(data_.c_str())) {
   LOG(INFO) << "OpenGLModuleNode(" << data << ", " << fmt << ", "
                     << fmap.size() << ")";
   CHECK(fmt_ == "gl") << "Unknown OpenGL format " << fmt_;
-  program_ = workspace_->CreateProgram(data_.c_str());
 }
 
 PackedFunc OpenGLModuleNode::GetFunction(
@@ -143,7 +144,7 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 
   // TODO(pengw): How to get variable names?
   m_->workspace_->Render(
-      *m_->program(),
+      m_->program(),
       {
           {"A", *static_cast<gl::Texture**>(void_args[1])},
           {"B", *static_cast<gl::Texture**>(void_args[2])}
@@ -154,8 +155,7 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 Module OpenGLModuleCreate(std::string data,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
-  LOG(INFO) << "OpenGLModuleCreate() " << data << " " << fmt << " "
-            << fmap.size();
+  LOG(INFO) << "OpenGLModuleCreate()";
   auto n = std::make_shared<OpenGLModuleNode>(data, fmt, fmap);
   return Module(n);
 }

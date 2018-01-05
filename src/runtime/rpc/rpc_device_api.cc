@@ -20,10 +20,11 @@ class RPCDeviceAPI final : public DeviceAPI {
     *rv = GetSess(ctx)->CallRemote(
         RPCCode::kDevGetAttr, ctx, static_cast<int>(kind));
   }
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx, TVMType type, size_t nbytes,
+                       size_t alignment) final {
     auto sess = GetSess(ctx);
     void *data = sess->CallRemote(
-            RPCCode::kDevAllocData, ctx, size, alignment);
+            RPCCode::kDevAllocData, ctx, nbytes, alignment);
     RemoteSpace* space = new RemoteSpace();
     space->data = data;
     space->sess = std::move(sess);

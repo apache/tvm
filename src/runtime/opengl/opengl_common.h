@@ -27,9 +27,9 @@ class OpenGLWorkspace;
 class Texture;
 class Program;
 
-inline GLFWglproc GetProcAddress(const char *procname) {
+inline GLFWglproc GetProcAddress(const char* procname) {
   GLFWglproc proc = glfwGetProcAddress(procname);
-  CHECK(proc != nullptr) << "Cannot get function pointer " << procname;
+  CHECK(proc != nullptr) << "Cannot get function \"" << procname << "\"";
   return proc;
 }
 
@@ -104,40 +104,40 @@ class GLFunctionPointers {
   void (*CompileShader)(GLuint shader);
   GLuint (*CreateProgram)();
   GLuint (*CreateShader)(GLenum shader_type);
-  void (*DeleteFramebuffers)(GLsizei n, const GLuint *framebuffers);
+  void (*DeleteFramebuffers)(GLsizei n, const GLuint* framebuffers);
   void (*DeleteProgram)(GLuint program);
   void (*DeleteShader)(GLuint shader);
-  void (*DeleteTextures)(GLsizei n, const GLuint *textures);
+  void (*DeleteTextures)(GLsizei n, const GLuint* textures);
   void (*DetachShader)(GLuint program, GLuint shader);
   void (*DrawArrays)(GLenum mode, GLint first, GLsizei count);
-  void (*DrawBuffers)(GLsizei n, const GLenum *bufs);
+  void (*DrawBuffers)(GLsizei n, const GLenum* bufs);
   void (*EnableVertexAttribArray)(GLuint index);
   void (*Finish)();
   void (*FramebufferTexture2D)(GLenum target, GLenum attachment,
                                GLenum textarget, GLuint texture, GLint level);
-  void (*GenBuffers)(GLsizei n, GLuint *buffers);
-  void (*GenFramebuffers)(GLsizei n, GLuint *ids);
-  void (*GenTextures)(GLsizei n, GLuint * textures);
-  void (*GenVertexArrays)(GLsizei n, GLuint *arrays);
-  GLint (*GetAttribLocation)(GLuint program, const GLchar *name);
+  void (*GenBuffers)(GLsizei n, GLuint* buffers);
+  void (*GenFramebuffers)(GLsizei n, GLuint* ids);
+  void (*GenTextures)(GLsizei n, GLuint* textures);
+  void (*GenVertexArrays)(GLsizei n, GLuint* arrays);
+  GLint (*GetAttribLocation)(GLuint program, const GLchar* name);
   GLenum (*GetError)();
-  void (*GetIntegerv)(GLenum pname, GLint * data);
-  void (*GetProgramInfoLog)(GLuint program, GLsizei maxLength, GLsizei *length,
-                            GLchar *infoLog);
-  void (*GetProgramiv)(GLuint program, GLenum pname, GLint *params);
-  void (*GetShaderInfoLog)(GLuint shader, GLsizei max_length, GLsizei *length,
-                           GLchar *info_log);
-  void (*GetShaderiv)(GLuint shader, GLenum pname, GLint *params);
+  void (*GetIntegerv)(GLenum pname, GLint* data);
+  void (*GetProgramInfoLog)(GLuint program, GLsizei maxLength, GLsizei* length,
+                            GLchar* info_log);
+  void (*GetProgramiv)(GLuint program, GLenum pname, GLint* params);
+  void (*GetShaderInfoLog)(GLuint shader, GLsizei max_length, GLsizei* length,
+                           GLchar* info_log);
+  void (*GetShaderiv)(GLuint shader, GLenum pname, GLint* params);
   const GLubyte *(*GetString)(GLenum name);
-  GLint (*GetUniformLocation)(GLuint program, const GLchar *name);
+  GLint (*GetUniformLocation)(GLuint program, const GLchar* name);
   void (*LinkProgram)(GLuint program);
   void (*ReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height,
                      GLenum format, GLenum type, GLvoid* data);
-  void (*ShaderSource)(GLuint shader, GLsizei count, const GLchar **string,
-                       const GLint *length);
+  void (*ShaderSource)(GLuint shader, GLsizei count, const GLchar** string,
+                       const GLint* length);
   void (*TexImage2D)(GLenum target, GLint level, GLint internal_format,
                      GLsizei width, GLsizei height, GLint border, GLenum format,
-                     GLenum type, const GLvoid *data);
+                     GLenum type, const GLvoid* data);
   void (*TexParameteri)(GLenum target, GLenum pname, GLint param);
   void (*TexSubImage2D)(GLenum target, GLint level, GLint xoffset,
                         GLint yoffset, GLsizei width, GLsizei height,
@@ -146,7 +146,7 @@ class GLFunctionPointers {
   void (*UseProgram)(GLuint program);
   void (*VertexAttribPointer)(GLuint index, GLint size, GLenum type,
                               GLboolean normalized, GLsizei stride,
-                              const GLvoid * pointer);
+                              const GLvoid* pointer);
   void (*Viewport)(GLint x, GLint y, GLsizei width, GLsizei height);
 };
 
@@ -160,7 +160,8 @@ class OpenGLWorkspace final : public DeviceAPI {
   // override device API
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment) final;
+  void* AllocDataSpace(TVMContext ctx, TVMType type, size_t nbytes,
+                       size_t alignment) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
                       size_t from_offset,
@@ -175,24 +176,29 @@ class OpenGLWorkspace final : public DeviceAPI {
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
   /*!
-   * \brief Create an OpenGL program that uses the given fragment shader.
-   * \param fragment_shader The fragment shader **source**.
-   * \return The OpenGL program.
-   */
-  std::unique_ptr<Program> CreateProgram(const char* fragment_shader_src);
-
-  std::unique_ptr<Texture> CreateTexture(size_t nbytes);
-
-  void PutTextureData(Texture *texture, GLint begin, GLsizei nelems,
-                      const GLvoid* data);
-
-  void GetTextureData(const Texture *texture, GLvoid* data);
-
-  /*!
    * \brief Get the global OpenGL workspace.
    * \return The global OpenGL workspace.
    */
   static const std::shared_ptr<OpenGLWorkspace>& Global();
+
+  /*!
+   * \brief Create an OpenGL program that uses the given fragment shader.
+   * \param fragment_shader The fragment shader **source**.
+   * \return The OpenGL program.
+   */
+  Program CreateProgram(const char* fragment_shader_src);
+
+  /*!
+   * \brief Create an OpenGL texture that stores an array.
+   * \param nbytes Number of bytes in the array.
+   * \return The OpenGL texture.
+   */
+  Texture CreateTexture(size_t nbytes);
+
+  void PutTextureData(Texture* texture, GLint begin, GLsizei nelems,
+                      const GLvoid* data);
+
+  void GetTextureData(const Texture* texture, GLvoid* data);
 
   /*!
    * \brief Use an OpenGL program to render to a texture.
@@ -229,8 +235,14 @@ class OpenGLWorkspace final : public DeviceAPI {
 
   void OnDeleteProgram(GLuint program);
 
+  /*!
+   * \brief Check if there is any outstanding OpenGL error. If there is, crash.
+   */
   void CheckOpenGLError();
 
+  /*!
+   * \brief Get the maximum number of texture units.
+   */
   GLuint NumTextureUnits();
 
   /*!
@@ -247,7 +259,7 @@ class OpenGLWorkspace final : public DeviceAPI {
    * \param fragment_shader The **compiled** fragment shader.
    * \return The OpenGL program.
    */
-  std::unique_ptr<Program> CreateProgram(GLuint fragment_shader);
+  Program CreateProgram(GLuint fragment_shader);
 };
 
 /*!
@@ -265,9 +277,19 @@ class Program {
     other.program_ = kInvalidProgram;
   }
 
+  // Move assignment.
+  Program& operator=(Program&& other) noexcept {
+    workspace_ = other.workspace_;
+    program_ = other.program_;
+    other.program_ = kInvalidProgram;
+    return *this;
+  }
+
+  // Disallow copy.
   Program(const Program& other) = delete;
   Program& operator=(const Program& other) = delete;
 
+  // Destructor.
   ~Program() {
     if (program_ != kInvalidProgram) {
       workspace_->OnDeleteProgram(program_);
@@ -306,9 +328,21 @@ class Texture {
     other.texture_ = kInvalidTexture;
   }
 
+  // Move assignment.
+  Texture& operator=(Texture&& other) noexcept {
+    workspace_ = other.workspace_;
+    texture_ = other.texture_;
+    width_ = other.width_;
+    height_ = other.height_;
+    other.texture_ = kInvalidTexture;
+    return *this;
+  }
+
+  // Disallow copy.
   Texture(const Texture& other) = delete;
   Texture& operator=(const Texture& other) = delete;
 
+  // Destructor.
   ~Texture() {
     if (texture_ != kInvalidTexture) {
       LOG(INFO) << "Deleting texture [" << texture_ << "]";
@@ -317,8 +351,14 @@ class Texture {
     }
   }
 
+  /*!
+   * \brief The width of the texture in number of pixels.
+   */
   GLsizei width() const { return width_; }
 
+  /*!
+   * \brief The height of the texture in number of pixels.
+   */
   GLsizei height() const { return height_; }
 
  private:
@@ -327,7 +367,7 @@ class Texture {
   // Only OpenGLWorkspace can create a Texture.
   // We enforce this to make sure OpenGL is initialized.
   // Always only use the first dimension of a 2D texture.
-  // The reason of using 2D textures is that texelFetch only supports 2D textures.
+  // The reason is that texelFetch only supports 2D textures.
   explicit Texture(OpenGLWorkspace* workspace, GLuint texture, GLsizei width,
                    GLsizei height)
       : workspace_(workspace), texture_(texture), width_(width),

@@ -889,9 +889,10 @@ void RPCDevGetAttr(TVMArgs args, TVMRetValue *rv) {
 
 void RPCDevAllocData(TVMArgs args, TVMRetValue *rv) {
   TVMContext ctx = args[0];
-  uint64_t size = args[1];
+  uint64_t nbytes = args[1];
   uint64_t alignment = args[2];
-  void* data = DeviceAPI::Get(ctx)->AllocDataSpace(ctx, size, alignment);
+  TVMType type = {.code = kDLUInt, .bits = 8, .lanes = 1};
+  void* data = DeviceAPI::Get(ctx)->AllocDataSpace(ctx, type, nbytes, alignment);
   *rv = data;
 }
 
@@ -984,15 +985,15 @@ void RPCModuleTestRemoteOpenGL(TVMArgs args, TVMRetValue* rv) {
     "  color = 0.0;\n"
     "}\n";
 
-  std::unique_ptr<gl::Program> program = workspace->CreateProgram(shader_src);
+  gl::Program program = workspace->CreateProgram(shader_src);
 
   std::cout << "Created program" << std::endl;
 
-  std::unique_ptr<gl::Texture> output = workspace->CreateTexture(16);
+  gl::Texture output = workspace->CreateTexture(16);
 
   std::cout << "Created texture" << std::endl;
 
-  workspace->Render(*program, {}, output.get());
+  workspace->Render(program, {}, &output);
 
   std::cout << "Rendered" << std::endl;
 
