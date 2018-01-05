@@ -86,8 +86,7 @@ Tensor Schedule::cache_read(const Tensor& tensor,
       return tensor(Array<Expr>(i.begin(), i.end()));
     }, os.str());
   std::unordered_map<Tensor, Tensor> vsub;
-  Stage tensor_stage = operator[](tensor->op);
-  vsub[tensor_stage->op.output(0)] = cache;
+  vsub[tensor] = cache;
 
   std::unordered_map<Tensor, Tensor> vmap;
   for (Operation op : readers) {
