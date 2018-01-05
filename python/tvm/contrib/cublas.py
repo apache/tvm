@@ -1,13 +1,11 @@
-"""External function interface to BLAS libraries."""
+"""External function interface to cuBLAS libraries."""
 from __future__ import absolute_import as _abs
 
 from .. import api as _api
 from .. import intrin as _intrin
 
 def matmul(lhs, rhs, transa=False, transb=False):
-    """Create an extern op that compute matrix mult of A and rhs with CrhsLAS
-
-    This function serves as an example on how to call external libraries.
+    """Create an extern op that compute matrix mult of A and rhs with cuBLAS
 
     Parameters
     ----------
@@ -30,5 +28,5 @@ def matmul(lhs, rhs, transa=False, transb=False):
     return _api.extern(
         (n, m), [lhs, rhs],
         lambda ins, outs: _intrin.call_packed(
-            "tvm.contrib.cblas.matmul",
+            "tvm.contrib.cublas.matmul",
             ins[0], ins[1], outs[0], transa, transb), name="C")
