@@ -30,14 +30,14 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale):
         f = tvm.build(s, [A, B], device)
         f(a, b)
 
-        print("Diff:", np.sum(np.abs(b.asnumpy() - b_np)))
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'cuda']:
         check_device(device)
 
 def test_upsampling():
     verify_upsampling(8, 16, 32, 32, 2)
+    verify_upsampling(12, 32, 64, 64, 3)
 
 if __name__ == "__main__":
     test_upsampling()

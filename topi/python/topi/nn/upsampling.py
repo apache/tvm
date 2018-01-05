@@ -8,7 +8,8 @@ from .. import tag
 
 
 def upsampling(data, scale):
-    """Only supports nearest neighbor for now.
+    """Perform nearest neighbor upsampling on the data.
+       Bilinear upsampling is not supported.
 
     Parameters
     ----------
@@ -18,8 +19,11 @@ def upsampling(data, scale):
     scale: int
         upsampling scaling factor
 
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, channel, in_height*scale, in_width*scale]
     """
-
     batch, channel, height, width = data.shape
     out_height = height * scale
     out_width = width * scale
