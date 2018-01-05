@@ -128,7 +128,14 @@ class BoundDeducer: public IRVisitor {
     }
 
     // always use relax bound
-    result = result / operand + (is_greater ? 1 : -1);
+    Expr div_result = result / operand;
+    bool divided = can_prove(div_result * operand == result);
+    result = div_result;
+    if (is_greater) {
+      result += (divided && is_equal) ? 0 : 1;
+    } else {
+      result += (divided && !is_equal) ? -1 : 0;
+    }
     Visit(left ? op->a : op->b);
   }
 
@@ -237,9 +244,9 @@ IntSet DeduceBound(Expr v, Expr e,
   if (!d.success) return IntSet::nothing();
   Expr min = Interval::neg_inf, max = Interval::pos_inf;
   if (d.is_greater) {
-    min = d.is_equal ? d.result : d.result + 1;
+    min = d.result;
   } else {
-    max = d.is_equal ? d.result : d.result - 1;
+    max = d.result;
   }
   return IntSet::interval(min, max);
 }

@@ -25,12 +25,12 @@ def test_deduce():
 
     e0 = (-b)*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = (d-c)/(-b)+(-1)
+    ans0 = (d-c)/(-b)
     assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
 
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (c-b)/4+(-2)
+    ans1 = (c-b)/4
     assert str(tvm.ir_pass.Simplify(res1.max())) == str(ans1)
 
     e2 = (tvm.max(5, a * 4) < 0)
@@ -59,14 +59,38 @@ def test_check():
 
     # multiple compare operators
     res2 = tvm.arith.DeduceBound(a, (a+b>3)>c , {b: b_s, c: c_s}, {})
-    assert res1.is_nothing()
+    assert res2.is_nothing()
 
     # multiple target variable
     res2 = tvm.arith.DeduceBound(a, a*2-a>b, {b: b_s}, {})
-    assert res1.is_nothing()
+    assert res2.is_nothing()
+
+def test_deduce_relax(a1,a2):
+    a = tvm.var('a')
+    b = tvm.var('b')
+    b_s = tvm.arith.intset_interval(a1, a2)
+    e0 = b + a*4
+    res1 = tvm.arith.DeduceBound(a, e0<17, {b: b_s}, {b: b_s})
+    assert tvm.ir_pass.Simplify((res1.max() * 4 + b_s.max()) < 17).value == 1
+
+    res1 = tvm.arith.DeduceBound(a, e0>17, {b: b_s}, {b: b_s})
+    assert (tvm.ir_pass.Simplify((res1.min() * 4 + b_s.min()) > 17)).value == 1
+
+    res1 = tvm.arith.DeduceBound(a, e0<=17, {b: b_s}, {b: b_s})
+    assert (tvm.ir_pass.Simplify((res1.max() * 4 + b_s.max()) <= 17)).value == 1
+
+    res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
+    assert (tvm.ir_pass.Simplify((res1.min() * 4 + b_s.min()) >= 17)).value == 1
 
 if __name__ == "__main__":
     test_basic()
     test_vector()
     test_deduce()
     test_check()
+    test_deduce_relax(0, 4)
+    test_deduce_relax(10, 17)
+    test_deduce_relax(1, 5)
+    test_deduce_relax(17, 25)
+    test_deduce_relax(10, 17)
+    test_deduce_relax(8, 17)
+    test_deduce_relax(29, 45)
