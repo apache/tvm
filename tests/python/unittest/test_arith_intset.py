@@ -66,7 +66,7 @@ def test_check():
     assert res2.is_nothing()
 
 def test_deduce_relax():
-    def test(a1, a2):
+    def test_pos(a1, a2):
         a = tvm.var('a')
         b = tvm.var('b')
         b_s = tvm.arith.intset_interval(a1, a2)
@@ -82,10 +82,30 @@ def test_deduce_relax():
       
         res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
         assert (tvm.ir_pass.Simplify((res1.min() * 4 + b_s.min()) >= 17)).value == 1
+   
+    def test_neg(a1, a2):
+        a = tvm.var('a')
+        b = tvm.var('b')
+        b_s = tvm.arith.intset_interval(a1, a2)
+        e0 = b + a*(-4)
+        res1 = tvm.arith.DeduceBound(a, e0<17, {b: b_s}, {b: b_s})
+        assert tvm.ir_pass.Simplify((res1.min() * (-4) + b_s.min()) < 17).value == 1
+
+        res1 = tvm.arith.DeduceBound(a, e0>17, {b: b_s}, {b: b_s})
+        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + b_s.max()) > 17)).value == 1
+
+        res1 = tvm.arith.DeduceBound(a, e0<=17, {b: b_s}, {b: b_s})
+        assert (tvm.ir_pass.Simplify((res1.min() * (-4) + b_s.min()) <= 17)).value == 1
+
+        res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
+        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + b_s.max()) >= 17)).value == 1
        
-    test(0, 4)
-    test(1, 5)
-    test(2, 6)
+    test_pos(0, 4)
+    test_pos(1, 5)
+    test_pos(2, 6)
+    test_neg(0, 4)
+    test_neg(1, 5)
+    test_neg(2, 6)
 
 if __name__ == "__main__":
     test_basic()
