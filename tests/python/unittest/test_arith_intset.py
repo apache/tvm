@@ -82,15 +82,10 @@ def test_deduce_relax():
       
         res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
         assert (tvm.ir_pass.Simplify((res1.min() * 4 + b_s.min()) >= 17)).value == 1
-        
-
-    test(-1, 2)
-    test(10, 17)
+       
+    test(0, 4)
     test(1, 5)
-    test(16, 25)
-    test(10, 17)
-    test(8, 18)
-    test(5, 35)
+    test(2, 6)
 
 if __name__ == "__main__":
     test_basic()
