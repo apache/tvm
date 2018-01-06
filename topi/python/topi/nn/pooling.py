@@ -48,7 +48,7 @@ def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW
     if layout == "NCHW":
         return pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=ceil_mode)
     elif layout == "NHWC":
-        return pool_nhcw(data, kernel, stride, padding, pool_type, ceil_mode=ceil_mode)
+        return pool_nhwc(data, kernel, stride, padding, pool_type, ceil_mode=ceil_mode)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
