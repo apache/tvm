@@ -25,12 +25,12 @@ def test_deduce():
 
     e0 = (-b)*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d - c) + -1)/(b*-1)
+    ans0 = ((d - c) /(b*-1))
     assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
 
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (c-b)/4
+    ans1 = (((c - b) + -1)/4) 
     assert str(tvm.ir_pass.Simplify(res1.max())) == str(ans1)
 
     e2 = (tvm.max(5, a * 4) < 0)
@@ -40,7 +40,7 @@ def test_deduce():
 
     e3 = (-b)+a*c-d
     res3 = tvm.arith.DeduceBound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    ans3 = 1/c+1
+    ans3 = 2/c+1
     assert str(tvm.ir_pass.Simplify(res3.min())) == str(ans3)
 
 def test_check():
