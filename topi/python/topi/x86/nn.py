@@ -11,15 +11,7 @@ def _default_schedule(outs, auto_inline):
         tvm.schedule.AutoInlineInjective(s)
         s[x].fuse(s[x].op.axis)
         return s
-    if len(s[x].op.axis) == 4:
-        n, c, h, w = s[x].op.axis
-        fused = s[x].fuse(n, c)
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) == 1:
-        axis = s[x].op.axis[0]
-        s[x].parallel(axis)
-    else:
-        s[x].fuse(s[x].op.axis)
+    s[x].parallel(s[x].op.axis[0])
     return s
 
 

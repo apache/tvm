@@ -23,15 +23,7 @@ def schedule_injective(outs):
     x = outs[0]
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)
-    if len(s[x].op.axis) == 4:
-        n, c, h, w = s[x].op.axis
-        fused = s[x].fuse(n, c)
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) == 1:
-        axis = s[x].op.axis[0]
-        s[x].parallel(axis)
-    else:
-        s[x].fuse(s[x].op.axis)
+    s[x].parallel(s[x].op.axis[0])
     return s
 
 schedule_elemwise = schedule_injective
