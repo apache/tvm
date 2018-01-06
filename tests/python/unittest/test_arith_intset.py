@@ -28,6 +28,11 @@ def test_deduce():
     ans0 = ((d - c) /(b*-1))
     assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
 
+    e0 = d*a+c-d
+    res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
+    ans0 = ((0-c)/d + 1)
+    assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
+
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
     ans1 = (((c - b) + -1)/4) 
