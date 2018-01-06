@@ -70,35 +70,35 @@ def test_deduce_relax():
         a = tvm.var('a')
         b = tvm.var('b')
         b_s = tvm.arith.intset_interval(a1, a2)
-        e0 = b + a*4
+        e0 = 2*b + a*4 + 3
         res1 = tvm.arith.DeduceBound(a, e0<17, {b: b_s}, {b: b_s})
-        assert tvm.ir_pass.Simplify((res1.max() * 4 + b_s.max()) < 17).value == 1
+        assert tvm.ir_pass.Simplify((res1.max() * 4 + 3 + 2*b_s.max()) < 17).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0>17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.min() * 4 + b_s.min()) > 17)).value == 1
+        assert (tvm.ir_pass.Simplify((res1.min() * 4 + 3 + 2*b_s.min()) > 17)).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0<=17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.max() * 4 + b_s.max()) <= 17)).value == 1
+        assert (tvm.ir_pass.Simplify((res1.max() * 4 + 3 + 2*b_s.max()) <= 17)).value == 1
       
         res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.min() * 4 + b_s.min()) >= 17)).value == 1
+        assert (tvm.ir_pass.Simplify((res1.min() * 4 + 3 + 2*b_s.min()) >= 17)).value == 1
    
     def test_neg(a1, a2):
         a = tvm.var('a')
         b = tvm.var('b')
         b_s = tvm.arith.intset_interval(a1, a2)
-        e0 = b + a*(-4)
-        res1 = tvm.arith.DeduceBound(a, e0<17, {b: b_s}, {b: b_s})
-        assert tvm.ir_pass.Simplify((res1.min() * (-4) + b_s.min()) < 17).value == 1
+        e0 = (-2) * b + a*(-4) + 3
+        res1 = tvm.arith.DeduceBound(a, e0<21, {b: b_s}, {b: b_s})
+        assert tvm.ir_pass.Simplify((res1.min() * (-4) + 3 + (-2)*b_s.max()) < 21).value == 1
 
-        res1 = tvm.arith.DeduceBound(a, e0>17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + b_s.max()) > 17)).value == 1
+        res1 = tvm.arith.DeduceBound(a, e0>21, {b: b_s}, {b: b_s})
+        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + 3 + (-2)*b_s.min()) > 21)).value == 1
 
-        res1 = tvm.arith.DeduceBound(a, e0<=17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.min() * (-4) + b_s.min()) <= 17)).value == 1
+        res1 = tvm.arith.DeduceBound(a, e0<=21, {b: b_s}, {b: b_s})
+        assert (tvm.ir_pass.Simplify((res1.min() * (-4) + 3 + (-2)*b_s.max()) <= 21)).value == 1
 
-        res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + b_s.max()) >= 17)).value == 1
+        res1 = tvm.arith.DeduceBound(a, e0>=21, {b: b_s}, {b: b_s})
+        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + 3 + (-2)*b_s.min()) >= 21)).value == 1
        
     test_pos(0, 4)
     test_pos(1, 5)
