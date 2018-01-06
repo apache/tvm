@@ -46,9 +46,9 @@ def global_pool(data, pool_type):
 
 def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW"):
     if layout == "NCHW":
-        return pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=False)
-    elif layout == "NWHC":
-        return pool_nhcw(data, kernel, stride, padding, pool_type, ceil_mode=False)
+        return pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=ceil_mode)
+    elif layout == "NHWC":
+        return pool_nhcw(data, kernel, stride, padding, pool_type, ceil_mode=ceil_mode)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
@@ -126,6 +126,7 @@ def pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=False):
                             tag=tag.ELEMWISE)
     else:
         raise ValueError("Pool type should be 'avg' or 'max'.")
+
 
 def pool_nhwc(data, kernel, stride, padding, pool_type, ceil_mode=False):
     """Perform pooling on the data

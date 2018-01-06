@@ -26,7 +26,18 @@ def softmax_nchw(x, axis):
     output : tvm.Tensor
         2-D output with same shape
     """
-    assert len(x.shape) == 2, "only support 2-dim softmax"
+    if len(x.shape) == 5:
+        assert axis == 1, "only support 5-dim axis == 1 softmax"
+        n, c, d, h, w = x.shape
+        k = tvm.reduce_axis((0, c), name='k')
+        max_elem = tvm.compute((n, d, h, w), lambda n, d, h, w: tvm.max(x[n, k, d, h, w], axis=k))
+        k = tvm.reduce_axis((0, c), name='k')
+        expsum = tvm.compute(
+            (n, d, h, w), lambda n, d, h, w: tvm.sum(tvm.exp(x[n, k, d, h, w] - max_elem[n, d, h, w]), axis=k))
+        return tvm.compute(
+            x.shape, lambda n, c, d, h, w: tvm.exp(x[n, c, d, h, w] - max_elem[n, d, h, w]) / expsum[n, d, h, w])
+
+    assert len(x.shape) == 2 and axis == -1, "only support 2-dim axis == -1 softmax"
     m, n = x.shape
     k = tvm.reduce_axis((0, n), name='k')
     max_elem = tvm.compute((m, ), lambda i: tvm.max(x[i, k], axis=k))
