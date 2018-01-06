@@ -128,20 +128,27 @@ class BoundDeducer: public IRVisitor {
     }
 
     // always use relax bound
-    Expr div_result = result / operand;
-    bool divided = can_prove(div_result * operand == result);
-    result = div_result;
+    bool divided = can_prove(result % operand == 0);
+    result = result / operand;
+    // since system will round down when not divided
+    // eg. 2/4 -> 0
+    // eg. -2/4 -> -1
     if (is_greater) {
-      result += (divided && is_equal) ? 0 : 1;
+      // so fix for all, 
+      // eg. a > 2/4 -> a >= 0 + 1
+      // eg. a > 4/4 -> a >= 0 + 1
+      result += 1;
     } else {
-      result += (divided && !is_equal) ? -1 : 0;
+      // so just fix for divided
+      // eg. a < 2/4 -> a <= 0
+      // eg. a < 4/4 -> a <= 0 + (-1)
+      result += (divided) ? -1 : 0;
     }
     Visit(left ? op->a : op->b);
   }
 
   Expr result;
   bool is_greater{true};
-  bool is_equal{true};
   bool success{true};
 
  private:
@@ -185,24 +192,22 @@ void BoundDeducer::Init() {
 void BoundDeducer::Transform() {
   if (const LT* op = expr_.as<LT>()) {
     is_greater = false;
-    is_equal   = false;
     expr_      = op->a;
     result     = op->b;
   } else if (const LE* op = expr_.as<LE>()) {
     is_greater = false;
-    is_equal   = true;
     expr_      = op->a;
-    result     = op->b;
+    // a <= b -> a < b + 1
+    result     = op->b + 1;
   } else if (const GT* op = expr_.as<GT>()) {
     is_greater = true;
-    is_equal   = false;
     expr_      = op->a;
     result     = op->b;
   } else if (const GE* op = expr_.as<GE>()) {
     is_greater = true;
-    is_equal   = true;
     expr_      = op->a;
-    result     = op->b;
+    // a >= b -> a > b - 1
+    result     = op->b - 1;
   } else {
     success = false;
   }
