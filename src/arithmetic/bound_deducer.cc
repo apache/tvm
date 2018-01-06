@@ -134,7 +134,7 @@ class BoundDeducer: public IRVisitor {
     // eg. 2/4 -> 0
     // eg. -2/4 -> -1
     if (is_greater) {
-      // so fix for all, 
+      // so fix for all,
       // eg. a > 2/4 -> a >= 0 + 1
       // eg. a > 0/4 -> a >= 0 + 1
       result += 1;
