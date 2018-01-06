@@ -12,10 +12,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale):
     dtype = A.dtype
 
     a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
-    b_np = np.zeros(out_shape, dtype=dtype)
-    for b in range(batch):
-        for c in range(in_channel):
-            b_np[b,c,:,:] = resize(a_np[b,c,:,:] , (in_height*scale, in_width*scale), order=0, mode="reflect")
+    b_np = topi.testing.upsampling_python(a_np, scale)
 
     def check_device(device):
         if not tvm.module.enabled(device):
