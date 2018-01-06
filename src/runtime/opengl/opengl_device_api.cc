@@ -7,6 +7,7 @@
 #if TVM_OPENGL_RUNTIME
 
 #include <tvm/runtime/registry.h>
+#include <dlpack/dlpack.h>
 
 namespace tvm {
 namespace runtime {
@@ -74,7 +75,7 @@ void* OpenGLWorkspace::AllocDataSpace(
   LOG(INFO)
       << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
       << nbytes << ", alignment = " << alignment << ")";
-  return reinterpret_cast<void*>(new Texture(CreateTexture(nbytes)));
+  return reinterpret_cast<void*>(new Texture(CreateTexture(type, nbytes)));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
@@ -108,35 +109,34 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
   // TODO(zhixunt): This is a nasty hack to avoid comparison between
   // incompatible enums. We should add kOpenGL to dlpack.
   constexpr int gl_devtype = kOpenGL;
+  std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
 
-  if (ctx_from.device_type == gl_devtype && ctx_to.device_type == gl_devtype) {
-    // OpenGL texture => OpenGL texture
+  if (type_from_to == std::make_tuple(gl_devtype, gl_devtype)) {
+    auto from_texture = static_cast<const Texture*>(from);
+    auto to_texture = static_cast<Texture*>(to);
+    auto temp_buffer = std::unique_ptr<char[]>(new char[size]);
+    CHECK(from_texture->format_ == to_texture->format_);
+    auto elemsz = from_texture->elemsz();
+    auto from_begin = static_cast<GLint>(from_offset / elemsz);
+    auto to_begin = static_cast<GLint>(to_offset / elemsz);
+    auto nelems = static_cast<GLsizei>(size / elemsz);
+    GetTextureData(from_texture, from_begin, nelems, temp_buffer.get());
+    PutTextureData(to_texture, to_begin, nelems, temp_buffer.get());
 
-    // TODO(pengw): Implement this.
-    LOG(FATAL) << "Not Implemented";
-
-  } else if (ctx_from.device_type == gl_devtype &&
-      ctx_to.device_type == kDLCPU) {
-    // OpenGL texture => CPU memory buffer
-
+  } else if (type_from_to == std::make_tuple(gl_devtype, kDLCPU)) {
     auto texture = static_cast<const Texture*>(from);
-    CHECK(from_offset == 0U &&
-          size == static_cast<size_t>(texture->width()) * sizeof(GLfloat))
-      << "Only support full texture retrieval.";
+    void *data = static_cast<char *>(to) + to_offset;
+    auto elemsz = texture->elemsz();
+    auto begin = static_cast<GLint>(from_offset / elemsz);
+    auto nelems = static_cast<GLsizei>(size / elemsz);
+    GetTextureData(texture, begin, nelems, data);
 
-    GetTextureData(texture, static_cast<char *>(to) + to_offset);
-
-  } else if (ctx_from.device_type == kDLCPU &&
-             ctx_to.device_type == gl_devtype) {
-    // CPU memory buffer => OpenGL texture
-
-    CHECK(to_offset % sizeof(GLfloat) == 0) << "Must be multiple of GLfloats.";
-    CHECK(size % sizeof(GLfloat) == 0) << "Must be multiple of GLfloats.";
-
+  } else if (type_from_to == std::make_tuple(kDLCPU, gl_devtype)) {
     auto texture = reinterpret_cast<Texture*>(to);
     const void* data = static_cast<const char*>(from) + from_offset;
-    auto begin = static_cast<GLint>(to_offset / sizeof(GLfloat));
-    auto nelems = static_cast<GLsizei>(size / sizeof(GLfloat));
+    auto elemsz = texture->elemsz();
+    auto begin = static_cast<GLint>(to_offset / elemsz);
+    auto nelems = static_cast<GLsizei>(size / elemsz);
     PutTextureData(texture, begin, nelems, data);
 
   } else {
@@ -146,18 +146,16 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   // TODO(zhixunt): Implement this.
-  LOG(INFO) << "OpenGLWorkspace::StreamSync";
+  LOG(INFO) << "OpenGLWorkspace::StreamSync()";
 }
 
 void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
-  // TODO(zhixunt): Implement this.
-  LOG(INFO) << "OpenGLWorkspace::AllocWorkspace";
+  LOG(FATAL) << "Cannot allocate OpenGL workspace.";
   return nullptr;
 }
 
 void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
-  // TODO(zhixunt): Implement this.
-  LOG(INFO) << "OpenGLWorkspace::FreeWorkspace";
+  LOG(FATAL) << "Cannot free OpenGL workspace.";
 }
 
 OpenGLWorkspace::OpenGLWorkspace() {
@@ -167,8 +165,7 @@ OpenGLWorkspace::OpenGLWorkspace() {
 
   // Initialize GLFW.
   if (glfwInit() != GL_TRUE) {
-    LOG(ERROR) << "glfwInit() failed!";
-    assert(false);
+    LOG(FATAL) << "glfwInit() failed!";
   }
 
   // Create a window.
@@ -196,9 +193,6 @@ OpenGLWorkspace::OpenGLWorkspace() {
   LOG(INFO) << "Calling gladLoadGL...";
 
   gl = std::unique_ptr<GLFunctionPointers>(new GLFunctionPointers);
-
-  // Must be called after creating GLFW window.
-//  gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
   LOG(INFO) << "OpenGL says version: " << gl->GetString(GL_VERSION);
 
@@ -306,9 +300,57 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   return shader;
 }
 
-Texture OpenGLWorkspace::CreateTexture(size_t nbytes) {
-  CHECK((nbytes % sizeof(GLfloat)) == 0) << "Must be multiple of GLfloats";
+static TextureFormat GetTextureFormat(TVMType type) {
+  // TODO(zhixunt) Might want to support this.
+  CHECK(type.lanes == 1) << "Currently not supporting multi-lane types.";
 
+  switch (type.code) {
+    case kDLInt: {
+      switch (type.bits) {
+        case 8:
+          LOG(INFO) << "Texture data type: int8";
+          return {GL_R8I, GL_RED_INTEGER, GL_BYTE};
+        case 16:
+          LOG(INFO) << "Texture data type: int16";
+          return {GL_R16I, GL_RED_INTEGER, GL_SHORT};
+        case 32:
+          LOG(INFO) << "Texture data type: int32";
+          return {GL_R32I, GL_RED_INTEGER, GL_INT};
+        default:
+          LOG(FATAL) << "Unsupported type bits " << type.bits;
+      }
+    }
+    case kDLUInt: {
+      switch (type.bits) {
+        case 8:
+          LOG(INFO) << "Texture data type: uint8";
+          return {GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE};
+        case 16:
+          LOG(INFO) << "Texture data type: uint16";
+          return {GL_R16UI, GL_RED_INTEGER, GL_UNSIGNED_SHORT};
+        case 32:
+          LOG(INFO) << "Texture data type: uint32";
+          return {GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT};
+        default:
+          LOG(FATAL) << "Unsupported type bits " << type.bits;
+      }
+    }
+    case kDLFloat: {
+      switch (type.bits) {
+        case 32:
+          LOG(INFO) << "Texture data type: float32";
+          return {GL_R32F, GL_RED, GL_FLOAT};
+        default:
+          LOG(FATAL) << "Unsupported type bits " << type.bits;
+      }
+    }
+    default:
+      LOG(FATAL) << "Unsupported type code" << type.code;
+  }
+  assert(false);
+}
+
+Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {
   // Create a texture.
   GLuint texture;
   OPENGL_CALL(gl->GenTextures(1, &texture));
@@ -316,12 +358,14 @@ Texture OpenGLWorkspace::CreateTexture(size_t nbytes) {
   BindTextureUnit(NumTextureUnits() - 1, texture);
 
   // Use glTexImage2D with nullptr data to specify GPU data storage.
-  // TODO(pengw): How can we know the type of data?
-  auto width = static_cast<GLsizei>(nbytes / sizeof(GLfloat));
+  auto texture_format = GetTextureFormat(type);
+  auto width = static_cast<GLsizei>(nbytes / (type.bits / 8));
   auto height = GLsizei(1);
-  OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_R32F,
+  OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0,
+                             texture_format.internal_format,
                              width, height, /*border=*/0,
-                             GL_RED, GL_FLOAT, /*data=*/nullptr));
+                             texture_format.format, texture_format.type,
+                             /*data=*/nullptr));
 
   // TODO(zhixunt): What are these?
   OPENGL_CALL(
@@ -335,7 +379,7 @@ Texture OpenGLWorkspace::CreateTexture(size_t nbytes) {
 
   LOG(INFO) << "Created texture [" << texture << "]";
 
-  return Texture(this, texture, width, height);
+  return Texture(this, texture, texture_format, width, height);
 }
 
 Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
@@ -385,10 +429,12 @@ void OpenGLWorkspace::PutTextureData(Texture *texture, GLint begin,
   OPENGL_CALL(gl->TexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
                                 /*xoffset=*/begin, /*yoffset=*/0,
                                 /*width=*/nelems, /*height=*/1,
-                                GL_RED, GL_FLOAT, data));
+                                texture->format_.format, texture->format_.type,
+                                data));
 }
 
-void OpenGLWorkspace::GetTextureData(const Texture *texture, GLvoid* data) {
+void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
+                                     GLsizei nelems, GLvoid* data) {
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
   // Create frame buffer.
@@ -402,13 +448,12 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLvoid* data) {
 
   // Always check that our framebuffer is ok
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    LOG(ERROR) << "Framebuffer not complete.";
-    assert(false);
+    LOG(FATAL) << "Framebuffer not complete.";
   }
 
-  OPENGL_CALL(gl->ReadPixels(/*x=*/0, /*y=*/0, /*width=*/texture->width(),
-                             /*height=*/texture->height(), GL_RED, GL_FLOAT,
-                             data));
+  OPENGL_CALL(gl->ReadPixels(/*x=*/begin, /*y=*/0, /*width=*/nelems,
+                             /*height=*/1, texture->format_.format,
+                             texture->format_.type, data));
 
   OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));
 }
@@ -418,8 +463,7 @@ void OpenGLWorkspace::Render(
     const std::vector<std::pair<std::string, Texture*>>& inputs,
     Texture* output) {
   if (inputs.size() + 2 > NumTextureUnits()) {
-    LOG(ERROR) << "Too many inputs!";
-    assert(false);
+    LOG(FATAL) << "Too many inputs!";
   }
 
   OPENGL_CALL(gl->UseProgram(program.program_));
@@ -440,8 +484,7 @@ void OpenGLWorkspace::Render(
 
   // Always check that our framebuffer is ok
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    LOG(ERROR) << "Framebuffer not complete.";
-    assert(false);
+    LOG(FATAL) << "Framebuffer not complete.";
   }
 
   // Tell the fragment shader what input textures to use.
@@ -491,7 +534,8 @@ void TestLocalOpenGL() {
 
   std::cout << "Created program" << std::endl;
 
-  gl::Texture output = workspace->CreateTexture(16);
+  TVMType type = {.code = kDLFloat, .bits = 32, .lanes = 1};
+  gl::Texture output = workspace->CreateTexture(type, 16);
 
   std::cout << "Created texture" << std::endl;
 

@@ -190,15 +190,17 @@ class OpenGLWorkspace final : public DeviceAPI {
 
   /*!
    * \brief Create an OpenGL texture that stores an array.
+   * \param type Element type.
    * \param nbytes Number of bytes in the array.
    * \return The OpenGL texture.
    */
-  Texture CreateTexture(size_t nbytes);
+  Texture CreateTexture(TVMType type, size_t nbytes);
 
   void PutTextureData(Texture* texture, GLint begin, GLsizei nelems,
                       const GLvoid* data);
 
-  void GetTextureData(const Texture* texture, GLvoid* data);
+  void GetTextureData(const Texture* texture, GLint begin, GLsizei nelems,
+                      GLvoid* data);
 
   /*!
    * \brief Use an OpenGL program to render to a texture.
@@ -314,6 +316,36 @@ class Program {
   GLuint program_;
 };
 
+struct TextureFormat {
+  TextureFormat(GLint internal_format, GLenum format, GLenum type)
+      : internal_format(internal_format), format(format), type(type) {}
+
+  GLsizei elemsz() const {
+    switch (type) {
+      case GL_BYTE: case GL_UNSIGNED_BYTE:
+        return 1;
+      case GL_SHORT: case GL_UNSIGNED_SHORT:
+        return 2;
+      case GL_INT: case GL_UNSIGNED_INT:
+        return 4;
+      case GL_FLOAT:
+        return 4;
+      default:
+        LOG(FATAL) << "Unsupported type";
+        return -1;
+    }
+  }
+
+  bool operator==(const TextureFormat& other) const {
+    return std::make_tuple(internal_format, format, type) ==
+        std::make_tuple(other.internal_format, other.format, other.type);
+  }
+
+  GLint internal_format;  // OpenGL says this is GLint, not GLenum.
+  GLenum format;
+  GLenum type;
+};
+
 /*!
  * \brief An OpenGL texture represents a chunk of GPU memory.
  * This is the way we represent tensors.
@@ -324,7 +356,7 @@ class Texture {
   // Move constructor.
   Texture(Texture&& other) noexcept
       : workspace_(other.workspace_), texture_(other.texture_),
-        width_(other.width_), height_(other.height_) {
+        format_(other.format_), width_(other.width_), height_(other.height_) {
     other.texture_ = kInvalidTexture;
   }
 
@@ -332,6 +364,7 @@ class Texture {
   Texture& operator=(Texture&& other) noexcept {
     workspace_ = other.workspace_;
     texture_ = other.texture_;
+    format_ = other.format_;
     width_ = other.width_;
     height_ = other.height_;
     other.texture_ = kInvalidTexture;
@@ -361,6 +394,11 @@ class Texture {
    */
   GLsizei height() const { return height_; }
 
+  /*!
+   * \brief The number of bytes of each element in the array.
+   */
+  GLsizei elemsz() const { return format_.elemsz(); }
+
  private:
   friend class OpenGLWorkspace;
 
@@ -368,10 +406,11 @@ class Texture {
   // We enforce this to make sure OpenGL is initialized.
   // Always only use the first dimension of a 2D texture.
   // The reason is that texelFetch only supports 2D textures.
-  explicit Texture(OpenGLWorkspace* workspace, GLuint texture, GLsizei width,
-                   GLsizei height)
-      : workspace_(workspace), texture_(texture), width_(width),
-        height_(height) {}
+  explicit Texture(OpenGLWorkspace* workspace, GLuint texture,
+                   TextureFormat format,
+                   GLsizei width, GLsizei height)
+      : workspace_(workspace), texture_(texture), format_(format),
+        width_(width), height_(height) {}
 
   // The internal texture ID.
   GLuint texture() const { return texture_; }
@@ -380,6 +419,7 @@ class Texture {
 
   OpenGLWorkspace* workspace_;
   GLuint texture_;
+  TextureFormat format_;
   GLsizei width_;
   GLsizei height_;
 };

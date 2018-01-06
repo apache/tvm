@@ -989,7 +989,8 @@ void RPCModuleTestRemoteOpenGL(TVMArgs args, TVMRetValue* rv) {
 
   std::cout << "Created program" << std::endl;
 
-  gl::Texture output = workspace->CreateTexture(16);
+  TVMType type = {.code = kDLFloat, .bits = 8, .lanes = 1};
+  gl::Texture output = workspace->CreateTexture(type, 16);
 
   std::cout << "Created texture" << std::endl;
 
