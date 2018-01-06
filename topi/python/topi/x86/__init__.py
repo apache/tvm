@@ -6,3 +6,5 @@ from .conv2d import schedule_conv2d
 from .binarize_pack import schedule_binarize_pack
 from .binary_dense import schedule_binary_dense
 from .conv2d import schedule_conv2d, schedule_conv2d_nhwc
+from .nn import *
+from .injective import *
