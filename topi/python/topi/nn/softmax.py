@@ -5,12 +5,12 @@ import tvm
 
 @tvm.tag_scope(tag='softmax_output')
 def softmax(x, axis):
-    if axis == 1:
+    if axis == 1 or axis == -1:
         return softmax_nchw(x, axis)
     elif axis == 3 or axis == 4:
         return softmax_nhwc(x, axis)
     else:
-        raise ValueError("not support this layout {} yet".format(layout))
+        raise ValueError("not support this axis {} yet".format(axis))
 
 
 def softmax_nchw(x, axis):
