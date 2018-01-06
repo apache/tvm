@@ -136,12 +136,12 @@ class BoundDeducer: public IRVisitor {
     if (is_greater) {
       // so fix for all, 
       // eg. a > 2/4 -> a >= 0 + 1
-      // eg. a > 4/4 -> a >= 0 + 1
+      // eg. a > 0/4 -> a >= 0 + 1
       result += 1;
     } else {
       // so just fix for divided
       // eg. a < 2/4 -> a <= 0
-      // eg. a < 4/4 -> a <= 0 + (-1)
+      // eg. a < 0/4 -> a <= 0 + (-1)
       result += (divided) ? -1 : 0;
     }
     Visit(left ? op->a : op->b);
