@@ -70,51 +70,71 @@ def test_check():
     res2 = tvm.arith.DeduceBound(a, a*2-a>b, {b: b_s}, {})
     assert res2.is_nothing()
 
-def test_deduce_relax():
-    def test_pos(a1, a2):
+def test_deduce_basic():
+    def test_basic(a1, a2, coff):
         a = tvm.var('a')
         b = tvm.var('b')
         b_s = tvm.arith.intset_interval(a1, a2)
-        e0 = 2*b + a*4 + 3
+        e0 = b + a*coff + 3
+
         res1 = tvm.arith.DeduceBound(a, e0<17, {b: b_s}, {b: b_s})
-        assert tvm.ir_pass.Simplify((res1.max() * 4 + 3 + 2*b_s.max()) < 17).value == 1
+        [x, y] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) < 17)).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0>17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.min() * 4 + 3 + 2*b_s.min()) > 17)).value == 1
+        [x, y] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) > 17)).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0<=17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.max() * 4 + 3 + 2*b_s.max()) <= 17)).value == 1
+        [x, y] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) <= 17)).value == 1
       
         res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.min() * 4 + 3 + 2*b_s.min()) >= 17)).value == 1
-   
-    def test_neg(a1, a2):
+        [x, y] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) >= 17)).value == 1
+       
+    test_basic(0, 4, 4)
+    test_basic(1, 5, 4)
+    test_basic(2, 6, 4)
+    test_basic(0, 4, -4)
+    test_basic(1, 5, -4)
+    test_basic(2, 6, -4)
+
+def test_deduce_complex():
+    def test_complex(a1, a2, coff):
         a = tvm.var('a')
         b = tvm.var('b')
+        c = tvm.var('c')
         b_s = tvm.arith.intset_interval(a1, a2)
-        e0 = (-2) * b + a*(-4) + 3
-        res1 = tvm.arith.DeduceBound(a, e0<21, {b: b_s}, {b: b_s})
-        assert tvm.ir_pass.Simplify((res1.min() * (-4) + 3 + (-2)*b_s.max()) < 21).value == 1
+        c_s = tvm.arith.intset_interval(10, 20)
+        e0 = (b*c + a* coff) * 4
 
-        res1 = tvm.arith.DeduceBound(a, e0>21, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + 3 + (-2)*b_s.min()) > 21)).value == 1
+        res1 = tvm.arith.DeduceBound(a, e0<63, {b: b_s, c: c_s}, {b: b_s, c: c_s})
+        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff > 0 else [res1.min(), b_s.min(), c_s.min()]
 
-        res1 = tvm.arith.DeduceBound(a, e0<=21, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.min() * (-4) + 3 + (-2)*b_s.max()) <= 21)).value == 1
+        res1 = tvm.arith.DeduceBound(a, e0<=63, {b: b_s}, {b: b_s})
+        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff > 0 else [res1.min(), b_s.min(), c_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*y + t* coff) * 4) <= 63)).value == 1
+        print(tvm.ir_pass.Simplify(((x*y + t* coff) * 4)))
 
-        res1 = tvm.arith.DeduceBound(a, e0>=21, {b: b_s}, {b: b_s})
-        assert (tvm.ir_pass.Simplify((res1.max() * (-4) + 3 + (-2)*b_s.min()) >= 21)).value == 1
-       
-    test_pos(0, 4)
-    test_pos(1, 5)
-    test_pos(2, 6)
-    test_neg(0, 4)
-    test_neg(1, 5)
-    test_neg(2, 6)
+        res1 = tvm.arith.DeduceBound(a, e0>63, {b: b_s}, {b: b_s})
+        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff < 0 else [res1.min(), b_s.min(), c_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*y + t* coff) * 4) < 63)).value == 1
+        print(tvm.ir_pass.Simplify(((x*y + t* coff) * 4)))
+
+        res1 = tvm.arith.DeduceBound(a, e0>=63, {b: b_s}, {b: b_s})
+        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff < 0 else [res1.min(), b_s.min(), c_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*y + t* coff) * 4) <= 63)).value == 1
+        print(tvm.ir_pass.Simplify(((x*y + t* coff) * 4)))
+
+    test_complex(0, 4, 4)
+    #test_complex(0, 4, -4)
+
 
 if __name__ == "__main__":
     test_basic()
     test_vector()
     test_deduce()
     test_check()
-    test_deduce_relax()
+    test_deduce_basic()
+
