@@ -100,37 +100,35 @@ def test_deduce_basic():
     test_basic(1, 5, -4)
     test_basic(2, 6, -4)
 
-'''
 def test_deduce_complex():
     def test_complex(a1, a2, coff):
         a = tvm.var('a')
         b = tvm.var('b')
-        c = tvm.var('c')
         b_s = tvm.arith.intset_interval(a1, a2)
-        c_s = tvm.arith.intset_interval(10, 20)
-        e0 = (b*c + a* coff) * 4
+        e0 = (b*3 + a* coff) * 4
 
-        res1 = tvm.arith.DeduceBound(a, e0<63, {b: b_s, c: c_s}, {b: b_s, c: c_s})
-        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff > 0 else [res1.min(), b_s.min(), c_s.min()]
+        res1 = tvm.arith.DeduceBound(a, e0<63, {b: b_s}, {b: b_s})
+        [t, x] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) < 63)).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0<=63, {b: b_s}, {b: b_s})
-        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff > 0 else [res1.min(), b_s.min(), c_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*y + t* coff) * 4) <= 63)).value == 1
-        print(tvm.ir_pass.Simplify(((x*y + t* coff) * 4)))
+        [t, x] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) <= 63)).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0>63, {b: b_s}, {b: b_s})
-        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff < 0 else [res1.min(), b_s.min(), c_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*y + t* coff) * 4) < 63)).value == 1
-        print(tvm.ir_pass.Simplify(((x*y + t* coff) * 4)))
+        [t, x] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) > 63)).value == 1
 
         res1 = tvm.arith.DeduceBound(a, e0>=63, {b: b_s}, {b: b_s})
-        [t, x, y] = [res1.max(), b_s.max(), c_s.max()] if coff < 0 else [res1.min(), b_s.min(), c_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*y + t* coff) * 4) <= 63)).value == 1
-        print(tvm.ir_pass.Simplify(((x*y + t* coff) * 4)))
+        [t, x] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
+        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) >= 63)).value == 1
 
     test_complex(0, 4, 4)
     test_complex(0, 4, -4)
-'''
+    test_complex(2, 6, 4)
+    test_complex(0, 4, -4)
+    test_complex(1, 5, -4)
+    test_complex(2, 6, -4)
 
 if __name__ == "__main__":
     test_basic()
@@ -138,4 +136,5 @@ if __name__ == "__main__":
     test_deduce()
     test_check()
     test_deduce_basic()
+    test_deduce_complex()
 
