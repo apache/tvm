@@ -128,7 +128,7 @@ class Stage : public NodeRef {
    * \param p_target The result target domain.
    * \return reference to self.
    */
-  Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
+  EXPORT Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
   /*!
    * \brief Reorder the iteration
    * \param order The order of iteration variable.
