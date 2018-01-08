@@ -9,8 +9,8 @@ algorithm in high-performance schedule breaks the algorithm's readability and mo
 trying various seemingly promising schedules is time-consuming. With the help of TVM, we can
 try these schedules efficiently to enhance the performance.
 
-In this tutorial, we will demonstrate how square matrix multiplication is optimized step by step by
-writing TVM.
+In this tutorial, we will demonstrate how to use TVM to optimize square matrix multiplication
+and achieve 100 times faster than baseline by simply adding 6 extra lines of code.
 
 There are two important optmizations on intense computation applications executed on CPU:
     1. Increase the cache hit rate of memory access. Both complex numerical computation and hot-spot
@@ -40,7 +40,7 @@ Intel i7-4770QH CPU. The cache line size should be 64 bytes for all the x86 CPU.
 
 import tvm
 import numpy
-import time
+import timeit
 
 # The size of the square matrix
 N = 1024
@@ -50,11 +50,17 @@ dtype = "float32"
 a = tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 b = tvm.nd.array(numpy.random.rand(N, N).astype(dtype), tvm.cpu(0))
 
-now = time.time()
-# The expected answer
+np_repeat = 100
+np_runing_time = timeit.timeit(setup='import numpy\n'
+                                     'N = 1024\n'
+                                     'dtype = "float32"\n'
+                                     'a = numpy.random.rand(N, N).astype(dtype)\n'
+                                     'b = numpy.random.rand(N, N).astype(dtype)\n',
+                               stmt='answer = numpy.dot(a, b)',
+                               number=np_repeat)
+print("Numpy running time: %f" % (np_runing_time / np_repeat))
+
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
-np_runing_time = time.time() - now
-print("Numpy running time: %f" % np_runing_time)
 
 # Algorithm
 k = tvm.reduce_axis((0, N), 'k')
@@ -89,7 +95,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # A important trick to enhance the cache hit rate is blocking --- data chunck will be computed
 # block by block. The memory access inside the block is a small neighbourhood which is with high
 # memory locality. In this tutorial, I picked up 32 as the blocking factor. So the block will
-# fill 32 * 32 * sizeof(int) bytes in the cache whose total size is 32KB (L1 data cache)
+# fill 32 * 32 * sizeof(float) which is 4KB in the cache whose total size is 32KB (L1 data cache)
 
 bn = 32
 s = tvm.create_schedule(C.op)
@@ -196,7 +202,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # If we look at the above IR, we can see the inner loop row data is vectorized and
 # B is transformed into PackedB. The traversal of PackedB is sequential now.
 # So we will look at the access pattern of A. In current schedule, A is accessed column by column
-# which is not cache friendly. If we change the nested loop order of k and inner row index,
+# which is not cache friendly. If we change the nested loop order of k and inner row index xi,
 # the access pattern for A matrix is more cache friendly.
 
 s = tvm.create_schedule(C.op)
@@ -241,14 +247,14 @@ c = tvm.nd.array(numpy.zeros((N, N), dtype = dtype), tvm.cpu(0))
 func(a, b, c)
 numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
-evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number = 5)
+evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number=50)
 opt5_time = evaluator(a, b, c).mean
 print('Opt5: %f' % opt5_time)
 
 ##################################################################################################
 # Summary
 # -------
-# After applying the above simple optimizations with only 9 lines of code,
+# After applying the above simple optimizations with only 6 lines of code,
 # our generated code can achieve 30% of numpy performance with Apple implemented BLAS.
 #
 # We can see TVM is very powerful tool to optimize low level computation.
