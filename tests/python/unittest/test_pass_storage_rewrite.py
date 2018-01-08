@@ -19,14 +19,39 @@ def test_storage_share():
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     stmt = tvm.ir_pass.StorageRewrite(stmt)
-    # verify only have two allocations.
-    # verify that the data is folded.
+    # verify only have one allocations.
+    # verify inplace folding works
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
             num_alloc[0] += 1
-        elif isinstance(n, tvm.stmt.Store):
-            assert n.buffer_var != n.value.a.buffer_var
+    tvm.ir_pass.PostOrderVisit(stmt, verify)
+    assert num_alloc[0] == 1
+
+
+def test_inplace_rule():
+    m = 10
+    A = tvm.placeholder((m,), name='A')
+    A0 = tvm.compute((m,), lambda i: A[i], name='A0')
+    A1 = tvm.compute((m,), lambda i: A[i] + 1, name='A1')
+    AA =  tvm.compute((m,), lambda i: A0[i] + A1[i] + A1[0], name='AA')
+    B = tvm.compute((m,), lambda i: AA[i] + 1, name='B')
+    s = tvm.create_schedule(B.op)
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.ir_pass.StorageRewrite(stmt)
+    # verify only have one allocations.
+    # verify inplace folding works
+    num_alloc = [0]
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 2
 
@@ -38,7 +63,7 @@ def test_storage_combine():
     B = A
     stages = []
     for t in range(num_stage):
-        B = tvm.compute((n, ), lambda i: B[i] + (t+1), name='A%d' % t)
+        B = tvm.compute((n, ), lambda i: B[i] + B[0] + (t+1), name='A%d' % t)
         stages.append(B)
 
     s = tvm.create_schedule(B.op)
@@ -121,12 +146,14 @@ def test_parallel_alloc():
                 A[j] = A[j] + 2
     body = ib.get()
     body = tvm.ir_pass.StorageRewrite(body)
+
     assert(isinstance(body.body.body.body.body, tvm.stmt.Allocate))
 
 
 
 if __name__ == "__main__":
+    test_inplace_rule()
+    test_storage_share()
     test_parallel_alloc()
     test_storage_combine()
     test_storage_share_gpu()
-    test_storage_share()
