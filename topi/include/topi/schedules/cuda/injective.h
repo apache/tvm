@@ -3,8 +3,8 @@
 * \file injective.h
 * \brief CUDA schedule for injective operations
 */
-#ifndef TOPI_CUDA_INJECTIVE_H_
-#define TOPI_CUDA_INJECTIVE_H_
+#ifndef TOPI_SCHEDULES_CUDA_INJECTIVE_H_
+#define TOPI_SCHEDULES_CUDA_INJECTIVE_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -16,8 +16,7 @@ using namespace tvm;
 
 namespace cuda {
 
-void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s)
-{
+void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s) {
   auto x = op.output(0);
   auto fused = Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
   auto num_thread = target.max_num_threads;
@@ -35,8 +34,7 @@ void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s)
  *
  * \return A schedule for the given ops.
  */
-Schedule schedule_injective(const Target &target, const Array<Tensor>& outs)
-{
+Schedule schedule_injective(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -51,4 +49,4 @@ Schedule schedule_injective(const Target &target, const Array<Tensor>& outs)
 
 }  // namespace cuda
 }  // namespace topi
-#endif  // TOPI_CUDA_INJECTIVE_H_
+#endif  // TOPI_SCHEDULES_CUDA_INJECTIVE_H_

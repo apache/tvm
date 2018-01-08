@@ -3,16 +3,15 @@
 * \file fuse.h
 * \brief Fuse operation
 */
-#ifndef TOPI_FUSE_H_
-#define TOPI_FUSE_H_
+#ifndef TOPI_DETAIL_FUSE_H_
+#define TOPI_DETAIL_FUSE_H_
 
 #include "tvm/tvm.h"
 
 namespace topi {
 using namespace tvm;
 
-IterVar Fuse(Stage stage, const Array<IterVar>& args)
-{
+IterVar Fuse(Stage stage, const Array<IterVar>& args) {
   CHECK_GE(args.size(), 1) << "Fuse requires at least 2 args";
 
   auto fused = args[0];
@@ -25,4 +24,4 @@ IterVar Fuse(Stage stage, const Array<IterVar>& args)
 }
 
 }  // namespace topi
-#endif  // TOPI_FUSE_H_
+#endif  // TOPI_DETAIL_FUSE_H_

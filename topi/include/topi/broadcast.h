@@ -163,7 +163,7 @@ inline tvm::Tensor broadcast_max(const tvm::Tensor& A,
   const tvm::Tensor& B,
   std::string name = "tensor",
   std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::max(a, b); };
+  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::max(a, b); };  // NOLINT(*)
   return detail::WithBroadcast(l, A, B, name, tag);
 }
 
@@ -183,7 +183,7 @@ inline tvm::Tensor broadcast_min(const tvm::Tensor& A,
   const tvm::Tensor& B,
   std::string name = "tensor",
   std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::min(a, b); };
+  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::min(a, b); };  // NOLINT(*)
   return detail::WithBroadcast(l, A, B, name, tag);
 }
 
