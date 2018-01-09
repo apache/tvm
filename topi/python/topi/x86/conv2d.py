@@ -16,7 +16,7 @@ def schedule_conv2d(outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             else: # inject custom schedule
-                if len(op.axis) == 4:
+                if len(op.axis) == 4: # schedule bias + bn + relu
                     n, c, h, w = op.axis
                     fused = s[op].fuse(n, c)
                     s[op].parallel(fused)
@@ -65,7 +65,7 @@ def schedule_conv2d_nhwc(outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             else: # inject custom schedule
-                if len(op.axis) == 4:
+                if len(op.axis) == 4: # schedule bias + bn + relu
                     n, h, w, c = op.axis
                     fused = s[op].fuse(n, h, w)
                     s[op].parallel(fused)
@@ -91,7 +91,7 @@ def schedule_conv2d_nhwc(outs):
             ry, rx, rc = C.op.reduce_axis
             n_out, h_out, w_out, c_out = output_op.axis
             s[C].vectorize(c)
-            if op != output_op:
+            if op != output_op: # fuse bias + bn + relu into conv
                 s[C].compute_at(s[output_op], c_out)
             else:
                 fused = s[C].fuse(n, h, w)
