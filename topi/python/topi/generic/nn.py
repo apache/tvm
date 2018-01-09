@@ -214,4 +214,17 @@ def schedule_binary_dense(outs):
 
 @tvm.target.generic_func
 def schedule_upsampling(outs):
+    """Schedule for upsampling
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of upsampling
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
     return _default_schedule(outs, False)
