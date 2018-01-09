@@ -251,6 +251,13 @@ evaluator = func.time_evaluator(func.entry_name, tvm.cpu(0), number=50)
 opt5_time = evaluator(a, b, c).mean
 print('Opt5: %f' % opt5_time)
 
+################################################################################################
+# Here is the generated IR after parallelization.
+
+print(tvm.lower(s, [A, B, C], simple_mode=True))
+
+###################################################################################################
+
 ##################################################################################################
 # Summary
 # -------
