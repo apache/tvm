@@ -26,7 +26,7 @@ Actually, all the methodologies used in this tutorial is a subset of tricks ment
 abstraction automatically, but some of them cannot be simply applied due to TVM constraints.
 
 All the experiment results mentioned below, are executed on 2015's 15' MacBook equiped with
-Intel i7-4770QH CPU. The cache line size should be 64 bytes for all the x86 CPU.
+Intel i7-4770QH CPU. The cache line size should be 64 bytes for all the x86 CPUs.
 """
 
 ###############################################################################
@@ -230,7 +230,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 ###################################################################################################
 # Parallel
 # -------------
-# Futhermore, we can also utilize multi-core processors to parallelize computation.
+# Futhermore, we can also utilize multi-core processors to do the thread-level parallelization.
 
 s = tvm.create_schedule(C.op)
 xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
@@ -255,7 +255,7 @@ print('Opt5: %f' % opt5_time)
 # Summary
 # -------
 # After applying the above simple optimizations with only 6 lines of code,
-# our generated code can achieve 30% of numpy performance with Apple implemented BLAS.
-#
-# We can see TVM is very powerful tool to optimize low level computation.
-
+# our generated code can achieve 30% of the `numpy` performance with Apple implemented BLAS.
+# Note that the outputs on the webpage reflect the running times on a non-exclusive
+# Docker container, thereby they are *unreliable*. It is highly encouraged to run the
+# tutorial by yourself to observe the performance gain acheived by TVM.
