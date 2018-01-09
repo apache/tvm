@@ -345,7 +345,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   if (true_itrv.as<arith::IntervalSet>()->i.has_upper_bound()) {
     post_doubt_begin = true_itrv.max() + 1;
     if (!can_prove(true_itrv.max() == max)) {
-      // require the extenr to be positive
+      // require the extent to be non-negative
       Expr cond = (max - post_doubt_begin + 1 >= 0);
       if (!can_prove(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
