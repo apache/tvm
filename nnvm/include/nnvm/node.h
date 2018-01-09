@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include "./base.h"
 #include "./op.h"
+#include "./c_api.h"
 
 namespace nnvm {
 
@@ -94,7 +95,7 @@ struct NodeAttrs {
 /*!
  * \brief Node represents an operation in a computation graph.
  */
-class Node {
+class NNVM_DLL Node {
  public:
   /*! \brief The attributes in the node. */
   NodeAttrs attrs;
