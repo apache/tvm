@@ -14,6 +14,7 @@
 #include <limits>
 #include <functional>
 #include "./base.h"
+#include "./c_api.h"
 
 namespace nnvm {
 
@@ -81,7 +82,7 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  * }
  * \endcode
  */
-class Op {
+class NNVM_DLL Op {
  public:
   /*! \brief name of the operator */
   std::string name;
