@@ -300,8 +300,13 @@ class LoopPartitioner : public IRMutator {
   std::unordered_map<const Variable*, IntSet> relax_map_;
 };
 
-Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
-    VarExpr var, Expr min, Expr max, Stmt body, bool partition_thread_scope) {
+Stmt LoopPartitioner::TryPartition(const Node* node,
+                                   const Stmt& stmt,
+                                   VarExpr var,
+                                   Expr min,
+                                   Expr max,
+                                   Stmt body,
+                                   bool partition_thread_scope) {
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
   const auto& partitions = finder.partitions;
@@ -340,7 +345,8 @@ Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
   if (true_itrv.as<arith::IntervalSet>()->i.has_upper_bound()) {
     post_doubt_begin = true_itrv.max() + 1;
     if (!can_prove(true_itrv.max() == max)) {
-      Expr cond = (max - post_doubt_begin >= 0);
+      // require the extenr to be positive
+      Expr cond = (max - post_doubt_begin + 1 >= 0);
       if (!can_prove(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the post doubt loop";
