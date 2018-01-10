@@ -1,10 +1,6 @@
 """TVM operator upsampling compute."""
 from __future__ import absolute_import
 import tvm
-from .pad import pad
-from .util import get_pad_tuple
-from .. import util
-from .. import tag
 
 
 def upsampling(data, scale):
