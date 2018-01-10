@@ -6,6 +6,8 @@
 #ifndef TOPI_DETAIL_RAVEL_UNRAVEL_H_
 #define TOPI_DETAIL_RAVEL_UNRAVEL_H_
 
+#include <vector>
+
 #include "tvm/tvm.h"
 
 namespace topi {

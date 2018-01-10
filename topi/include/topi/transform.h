@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file topi/reduction.h
- * \brief Reduction op constructors
+ * \file topi/transform.h
+ * \brief Transform op constructors
  */
-#ifndef TOPI_REDUCTION_H_
-#define TOPI_REDUCTION_H_
+#ifndef TOPI_TRANSFORM_H_
+#define TOPI_TRANSFORM_H_
 
 #include <string>
 #include <vector>
@@ -255,7 +255,6 @@ inline Array<Tensor> split(const Tensor& x,
   int axis,
   std::string name = "tensor",
   std::string tag = kInjective) {
-
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
 
   CHECK(std::is_sorted(split_indices.begin(), split_indices.end())) <<
@@ -304,4 +303,4 @@ inline Array<Tensor> split(const Tensor& x,
 }
 
 }  // namespace topi
-#endif  // TOPI_REDUCTION_H_
+#endif  // TOPI_TRANSFORM_H_
