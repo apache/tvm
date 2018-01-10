@@ -1,7 +1,6 @@
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Upsampling in python"""
 import numpy as np
-import scipy.signal
 from skimage.transform import resize
 
 
@@ -11,5 +10,5 @@ def upsampling_python(data, scale):
     output_np = np.zeros(oshape, dtype=data.dtype)
     for b in range(oshape[0]):
         for c in range(oshape[1]):
-            output_np[b, c, :, :] = resize(data[b, c, :, :] , (oshape[2], oshape[3]), order=0, mode="reflect")
+            output_np[b, c, :, :] = resize(data[b, c, :, :], (oshape[2], oshape[3]), order=0, mode="reflect")
     return output_np
