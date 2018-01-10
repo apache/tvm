@@ -210,6 +210,7 @@ def schedule_binary_dense(outs):
     sch: Schedule
         The computation schedule for the op.
     """
+    return _default_schedule(outs, False)
 
 
 @tvm.target.generic_func
