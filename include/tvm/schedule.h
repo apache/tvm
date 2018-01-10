@@ -63,12 +63,12 @@ class Stage : public NodeRef {
    * \param scope The iteration point to carry the schedule.
    * \return reference to self.
    */
-  Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
+  EXPORT Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
   /*!
    * \brief Compute the function inline.
    * \return reference to self.
    */
-  Stage& compute_inline();   // NOLINT(*)
+  EXPORT Stage& compute_inline();   // NOLINT(*)
   /*!
    * \brief Compute the function at group root.
    * \return reference to self.
@@ -92,7 +92,7 @@ class Stage : public NodeRef {
    * \param predicate The condition to be checked.
    * \return reference to self.
    */
-  Stage& set_store_predicate(Expr predicate);
+  EXPORT Stage& set_store_predicate(Expr predicate);
   /*!
    * \brief Specify environment threads that launched around the group's scope.
    *  This can only be used in group stage.
@@ -310,7 +310,7 @@ class Schedule : public NodeRef {
    * \param axis The reduction axis in tensor's schedule to be factored.
    * \return The created factored tensors.
    */
-  Array<Tensor> rfactor(const Tensor& tensor,
+  EXPORT Array<Tensor> rfactor(const Tensor& tensor,
                         const IterVar& axis);
   /*!
    * \brief Normalize the schedule.
