@@ -1,4 +1,4 @@
-"""Generic nn operators"""
+"""x86 nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
@@ -13,7 +13,7 @@ def _default_schedule(outs, auto_inline):
         return s
     if len(s[x].op.axis) == 4:
         n, c, h, w = s[x].op.axis
-        fused = s[x].fuse(n, c)
+        fused = s[x].fuse(n, c) # for nhwc layout, fuse n and h
         s[x].parallel(fused)
     else:
         s[x].parallel(s[x].op.axis[0])

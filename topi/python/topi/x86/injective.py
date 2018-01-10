@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name
-"""generic declaration and schedules."""
+"""x86 declaration and schedules."""
 from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
@@ -25,7 +25,7 @@ def schedule_injective(outs):
     tvm.schedule.AutoInlineInjective(s)
     if len(s[x].op.axis) == 4:
         n, c, h, w = s[x].op.axis
-        fused = s[x].fuse(n, c)
+        fused = s[x].fuse(n, c) # for nhwc layout, fuse n and h
         s[x].parallel(fused)
     else:
         s[x].parallel(s[x].op.axis[0])
