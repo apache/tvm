@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2017 by Contributors
-* \file injective.h
+* \file cuda/injective.h
 * \brief CUDA schedule for injective operations
 */
 #ifndef TOPI_SCHEDULES_CUDA_INJECTIVE_H_

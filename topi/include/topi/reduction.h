@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file reduction.h
+ * \file topi/reduction.h
  * \brief Reduction op constructors
  */
 #ifndef TOPI_REDUCTION_H_
@@ -230,6 +230,7 @@ using FIdentity = std::function<Array<Expr>(std::vector<Type> types)>;
  *
  * \param fcombine A function to combine exprs
  * \param fidentity A function to initialize elements
+ * \param name The name of the operation
  *
  * \return A reducer function which creates a reduce expression over an axis.
  */

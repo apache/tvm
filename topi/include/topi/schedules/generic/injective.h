@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2017 by Contributors
-* \file injective.h
+* \file generic/injective.h
 * \brief Generic schedule for injective operations
 */
 #ifndef TOPI_SCHEDULES_GENERIC_INJECTIVE_H_

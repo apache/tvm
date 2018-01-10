@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2017 by Contributors
-* \file reduction.h
+* \file cuda/reduction.h
 * \brief CUDA schedule for reduction operations
 */
 #ifndef TOPI_SCHEDULES_CUDA_REDUCTION_H_
