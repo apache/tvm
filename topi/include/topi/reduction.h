@@ -8,6 +8,7 @@
 
 #include <string>
 #include <set>
+#include <vector>
 #include <iterator>
 
 #include "topi/tags.h"
@@ -21,7 +22,8 @@ using namespace tvm;
 using FReduce = std::function<Expr(Expr source, const Array<IterVar>& axis)>;
 
 /*! \brief The operation to use for CommReduceIdx */
-using FCommReduce = std::function<Array<Expr>(Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition)>;
+using FCommReduce = std::function<
+  Array<Expr>(Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition)>;
 
 /*!
 * \brief Convert a reduction axis which could be empty or have negative
@@ -79,8 +81,7 @@ Tensor CommReduce(const Tensor& data,
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
     reduce_axes.push_back(
-      tvm::reduce_axis(Range(0, data->shape[i]), name)
-    );
+      tvm::reduce_axis(Range(0, data->shape[i]), name));
   }
 
   Array<Expr> target_shape;
@@ -102,7 +103,8 @@ Tensor CommReduce(const Tensor& data,
     }
   }
 
-  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data](const Array<Var>& indices) {
+  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
+    (const Array<Var>& indices) {
     Array<Expr> eval_range;
     Array<Var> eval_indices;
     int arg_counter = 0;
@@ -125,7 +127,6 @@ Tensor CommReduce(const Tensor& data,
     }
 
     return func(data(eval_range), reduce_axes);
-
   };
 
   return tvm::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
@@ -155,8 +156,7 @@ Tensor CommReduceIdx(const Tensor& data,
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
     reduce_axes.push_back(
-      tvm::reduce_axis(Range(0, data->shape[i]), name)
-    );
+      tvm::reduce_axis(Range(0, data->shape[i]), name));
   }
 
   Array<Expr> target_shape;
@@ -178,7 +178,8 @@ Tensor CommReduceIdx(const Tensor& data,
     }
   }
 
-  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data](const Array<Var>& indices) {
+  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
+    (const Array<Var>& indices) {
     Array<Expr> eval_range;
     Array<Var> eval_indices;
     int arg_counter = 0;
@@ -208,7 +209,8 @@ Tensor CommReduceIdx(const Tensor& data,
     return func({ idx, data(eval_range) }, reduce_axes, nullptr);
   };
 
-  auto temp_idx_val = tvm::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduceIdx);
+  auto temp_idx_val = tvm::compute(target_shape, compute,
+    data->op->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
   return tvm::compute(target_shape,
@@ -231,8 +233,11 @@ using FIdentity = std::function<Array<Expr>(std::vector<Type> types)>;
  *
  * \return A reducer function which creates a reduce expression over an axis.
  */
-FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity, std::string name = "reduce") {
-  return [fcombine, fidentity, &name](Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
+FCommReduce MakeCommReducer(FCombine fcombine,
+  FIdentity fidentity,
+  std::string name = "reduce") {
+  return [fcombine, fidentity, &name]
+    (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
     Array<Var> lhs, rhs;
     std::vector<Type> dtypes;
 
@@ -258,12 +263,12 @@ FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity, std::string 
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
 inline Expr MinOp(Expr source, Array<IterVar> axis) {
-  return tvm::min(source, axis);
+  return tvm::min(source, axis);  // NOLINT(*)
 }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
 inline Expr MaxOp(Expr source, Array<IterVar> axis) {
-  return tvm::max(source, axis);
+  return tvm::max(source, axis);  // NOLINT(*)
 }
 
 /*!
@@ -332,14 +337,14 @@ Tensor max(const Tensor& data, std::vector<int> axis, bool keepdims = false) {
 Tensor argmin(const Tensor& data, std::vector<int> axis, bool keepdims = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
-    result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[0], rhs[0])); // idx
-    result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[1], rhs[1])); // val
+    result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<Type> types) {
     Array<Expr> result;
-    result.push_back(tvm::make_const(types[0], -1)); // idx
-    result.push_back(types[1].max()); // val
+    result.push_back(tvm::make_const(types[0], -1));  // idx
+    result.push_back(types[1].max());  // val
     return result;
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmin");
@@ -362,14 +367,14 @@ Tensor argmin(const Tensor& data, std::vector<int> axis, bool keepdims = false) 
 Tensor argmax(const Tensor& data, std::vector<int> axis, bool keepdims = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
-    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0])); // idx
-    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[1], rhs[1])); // val
+    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<Type> types) {
     Array<Expr> result;
-    result.push_back(tvm::make_const(types[0], -1)); // idx
-    result.push_back(types[1].min()); // val
+    result.push_back(tvm::make_const(types[0], -1));  // idx
+    result.push_back(types[1].min());  // val
     return result;
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmin");

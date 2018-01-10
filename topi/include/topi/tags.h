@@ -6,6 +6,8 @@
 #ifndef TOPI_TAGS_H_
 #define TOPI_TAGS_H_
 
+#include <string>
+
 namespace topi {
 
 constexpr auto kElementWise = "elemwise";

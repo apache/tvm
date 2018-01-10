@@ -16,7 +16,10 @@ using namespace tvm;
 
 namespace cuda {
 
-Schedule ScheduleReduce(const Target& target, Operation op, Schedule sch, bool is_idx_reduce = false) {
+Schedule ScheduleReduce(const Target& target,
+  Operation op,
+  Schedule sch,
+  bool is_idx_reduce = false) {
   Tensor data_out;
   Tensor data_in;
 
@@ -28,7 +31,8 @@ Schedule ScheduleReduce(const Target& target, Operation op, Schedule sch, bool i
   }
 
   auto out_stage = sch[data_out];
-  CHECK_GT(out_stage->op.as<ComputeOpNode>()->reduce_axis.size(), 0) << "reduce_axis must be greater than zero";
+  CHECK_GT(out_stage->op.as<ComputeOpNode>()->reduce_axis.size(), 0) <<
+    "reduce_axis must be greater than zero";
 
   bool all_reduce;
   int num_thread;
