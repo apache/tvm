@@ -34,7 +34,7 @@ using FCommReduce = std::function<
 * If any input element is negative, it will be treated as an offset from the
 * last dimension (same as python indexing rules).
 */
-std::vector<int> GetRealAxis(size_t ndim, const std::vector<int>& axis) {
+std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
   std::vector<int> real_axis;
   if (axis.size() == 0) {
     for (int i = 0; i < ndim; ++i) {
@@ -75,7 +75,7 @@ Tensor CommReduce(const Tensor& data,
   bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
-  auto real_axis = GetRealAxis(ndim, axis);
+  auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
 
   Array<IterVar> reduce_axes;
   for (auto i : real_axis) {
@@ -150,7 +150,7 @@ Tensor CommReduceIdx(const Tensor& data,
   bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
-  auto real_axis = GetRealAxis(ndim, axis);
+  auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
 
   Array<IterVar> reduce_axes;
   for (auto i : real_axis) {

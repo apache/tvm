@@ -33,5 +33,24 @@ inline Expr RavelIndex(Array<Var> indices, Array<Expr> shape) {
   return idx;
 }
 
+/*!
+* \brief Convert flattened index to coordinate array
+*
+* \param idx The 1D index
+* \param shape Shape of the tensor
+*
+* \return The coordinate corresponding to the 1D index
+*/
+inline Array<Expr> UnavelIndex(Expr idx, Array<Expr> shape) {
+  std::vector<Expr> indices;
+
+  for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
+    indices.push_back(idx % shape[i]);
+    idx = idx / shape[i];
+  }
+  std::reverse(indices.begin(), indices.end());
+  return indices;
+}
+
 }  // namespace topi
 #endif  // TOPI_DETAIL_RAVEL_UNRAVEL_H_
