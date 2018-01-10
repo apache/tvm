@@ -28,6 +28,28 @@ def test_storage_share():
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 1
 
+def test_alloc_seq():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.for_range(0, 10, name="j") as j:
+            A = ib.allocate("float32", 200, name="A", scope="local.L0A")
+            A[j] = 1.2
+        with ib.for_range(0, 10, name="j") as j:
+            A = ib.allocate("float32", 200, name="B", scope="local.L0A")
+            A[j] = 1.3
+
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+    num_alloc = [0]
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
+            assert n.extents[0].value == 200
+    tvm.ir_pass.PostOrderVisit(body, verify)
+    assert num_alloc[0] == 1
+
+
 
 def test_inplace_rule():
     m = 10
@@ -152,6 +174,7 @@ def test_parallel_alloc():
 
 
 if __name__ == "__main__":
+    test_alloc_seq()
     test_inplace_rule()
     test_storage_share()
     test_parallel_alloc()
