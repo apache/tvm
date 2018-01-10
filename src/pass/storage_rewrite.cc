@@ -766,14 +766,15 @@ class StoragePlanRewriter : public IRMutator {
     const uint64_t match_range = 16;
     uint64_t const_nbits = static_cast<uint64_t>(
         op->constant_allocation_size() * op->type.bits() * op->type.lanes());
-    if (scope.rank > 1 || op->type.is_handle()) {
-      return NewAlloc(op, attach_scope, scope, const_nbits);
-    }
     // disable reuse of small arrays, they will be lowered to registers in LLVM
-    if (const_nbits > 0  &&
-        const_nbits <= 32 &&
-        scope.tag.length() == 0) {
-      return NewAlloc(op, attach_scope, scope, const_nbits);
+    // This rules only apply if we are using non special memory
+    if (scope.tag.length() == 0) {
+      if (scope.rank > 1 || op->type.is_handle()) {
+        return NewAlloc(op, attach_scope, scope, const_nbits);
+      }
+      if (const_nbits > 0  &&  const_nbits <= 32) {
+        return NewAlloc(op, attach_scope, scope, const_nbits);
+      }
     }
     if (const_nbits != 0) {
       // constant allocation.
@@ -818,10 +819,15 @@ class StoragePlanRewriter : public IRMutator {
     CHECK(it != alloc_map_.end());
     StorageEntry* e = it->second;
     CHECK_NE(e->allocs.size(), 0U);
-    // Disable sharing of local memory.
-    if (e->scope.rank > 1 || e->allocs[0]->type.is_handle()) return;
-    // disable reuse of small arrays
-    if (e->const_nbits > 0 && e->const_nbits <= 32) return;
+
+    // disable reuse of small arrays, they will be lowered to registers in LLVM
+    // This rules only apply if we are using non special memory
+    if (e->scope.tag.length() == 0) {
+      // Disable sharing of local memory.
+      if (e->scope.rank > 1 || e->allocs[0]->type.is_handle()) return;
+      // disable reuse of small arrays
+      if (e->const_nbits > 0 && e->const_nbits <= 32) return;
+    }
     // normal free.
     if (e->const_nbits != 0) {
       const_free_map_.insert({e->const_nbits, e});
