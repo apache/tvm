@@ -1,6 +1,5 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for upsampling operator"""
-import tvm
 from .. import generic
 from .injective import schedule_injective
 
