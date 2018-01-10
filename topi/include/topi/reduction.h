@@ -263,7 +263,7 @@ FCommReduce MakeCommReducer(FCombine fcombine,
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
 inline Expr MinOp(Expr source, Array<IterVar> axis) {
-  return tvm::min(source, axis);  // NOLINT(*)
+  return tvm::min(source, axis);
 }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
@@ -317,7 +317,7 @@ Tensor min(const Tensor& data, std::vector<int> axis, bool keepdims = false) {
 *
 * \return A Tensor whose op member is the max operation
 */
-Tensor max(const Tensor& data, std::vector<int> axis, bool keepdims = false) {
+Tensor max(const Tensor& data, std::vector<int> axis, bool keepdims = false) {  // NOLINT(*)
   return CommReduce(data, axis, MaxOp, keepdims);
 }
 
