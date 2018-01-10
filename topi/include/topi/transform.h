@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <iterator>
+#include <algorithm>
 
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
