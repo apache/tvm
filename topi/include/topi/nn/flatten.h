@@ -7,6 +7,7 @@
 #define TOPI_NN_FLATTEN_H_
 
 #include <string>
+#include <vector>
 
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"

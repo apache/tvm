@@ -31,7 +31,8 @@ inline Tensor softmax(const Tensor& x,
   Expr n = x->shape[1];
 
   auto k = tvm::reduce_axis(Range(0, n), "k");
-  auto max_elem = tvm::compute({ m }, [&](Var i) { return tvm::max({ x(i, k) }, Array<IterVar>{ k }); });
+  auto max_elem = tvm::compute({ m }, [&](Var i) {
+    return tvm::max(x(i, k), Array<IterVar>{ k }); });
   k = tvm::reduce_axis(Range(0, n), "k");
 
   auto expsum = tvm::compute({ m }, [&](Var i) {
@@ -58,7 +59,8 @@ inline Tensor log_softmax(const Tensor& x,
   Expr n = x->shape[1];
 
   auto k = tvm::reduce_axis(Range(0, n), "k");
-  auto max_elem = tvm::compute({ m }, [&](Var i) { return tvm::max({ x(i, k) }, Array<IterVar>{ k }); });
+  auto max_elem = tvm::compute({ m }, [&](Var i) {
+    return tvm::max(x(i, k), Array<IterVar>{ k }); });
   k = tvm::reduce_axis(Range(0, n), "k");
 
   auto expsum = tvm::compute({ m }, [&](Var i) {
