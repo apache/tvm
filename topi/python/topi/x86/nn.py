@@ -54,21 +54,3 @@ def schedule_pool(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
-
-
-@generic.schedule_global_pool.register(["cpu"])
-def schedule_global_pool(outs):
-    """Schedule for global pool
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of global pool
-          in the format of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
