@@ -45,7 +45,7 @@ TVM_DLL Expr min(Expr source, Array<IterVar> axis);
 // Unary intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
-    return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureExtern); \
+    return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureIntrinsic); \
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);

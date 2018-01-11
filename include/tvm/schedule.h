@@ -120,7 +120,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
+  EXPORT Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
    * \param outer The outer domain to be fused.
