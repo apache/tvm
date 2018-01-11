@@ -14,3 +14,4 @@ from .pooling import *
 from .softmax import *
 from .conv2d_transpose import *
 from .bnn import *
+from .upsampling import *
