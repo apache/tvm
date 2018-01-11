@@ -148,6 +148,25 @@ def test_global_avg_pool2d():
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
+def test_upsampling():
+    x = sym.Variable("x")
+    scale = 2
+    y = sym.upsampling(x, scale=scale, name="y")
+    dtype = "float32"
+    dshape = (1, 16, 32, 32)
+    oshape = (1, 16, 32*scale, 32*scale)
+    shape_dict = {"x": dshape}
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+        a_np = np.random.uniform(size=dshape).astype(dtype)
+        data = tvm.nd.array(a_np)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        b_np = topi.testing.upsampling_python(a_np, scale)
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+
+
 if __name__ == "__main__":
     test_conv2d()
     test_grouped_conv2d()
@@ -156,3 +175,4 @@ if __name__ == "__main__":
     test_avg_pool2d()
     test_global_max_pool2d()
     test_global_avg_pool2d()
+    test_upsampling()
