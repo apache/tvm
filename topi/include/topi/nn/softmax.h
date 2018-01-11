@@ -19,6 +19,8 @@ using namespace tvm;
 * \brief Softmax activation
 *
 * \param x The input tensor. 2-D where softmax is performed along the second dimension
+* \param name The name of the operation
+* \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the softmax operation
 */
@@ -47,6 +49,8 @@ inline Tensor softmax(const Tensor& x,
 * \brief Log softmax activation
 *
 * \param x The input tensor. 2-D where log softmax is performed along the second dimension
+* \param name The name of the operation
+* \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the log softmax operation
 */

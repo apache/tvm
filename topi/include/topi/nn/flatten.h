@@ -21,6 +21,8 @@ using namespace tvm;
 * This requires the input tensor to have constant sized dimensions.
 *
 * \param x The input tensor.
+* \param name The name of the operation
+* \param tag The tag to mark the operation
 *
 * \return A 2-D tensor.
 */
