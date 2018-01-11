@@ -60,25 +60,40 @@ def test_log_pow_llvm():
         b.asnumpy(), np.power(np.log(a.asnumpy()), 2.0), rtol=1e-5)
 
 
-def test_popcount_llvm():
-    # graph
-    n = tvm.var('n')
-    A = tvm.placeholder((n,), name='A', dtype="uint32")
-    B = tvm.compute(A.shape, lambda *i: tvm.popcount(A(*i)), name='B')
-    s = tvm.create_schedule(B.op)
+def test_popcount():
+    def run(dtype):
+        # graph
+        n = tvm.convert(1024)
+        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        B = tvm.compute(A.shape, lambda *i: tvm.popcount(A(*i)), name='B')
+        s = tvm.create_schedule(B.op)
+        # simple schedule
+        num_thread = 8
+        bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
 
-    if not tvm.module.enabled("llvm"):
-        return
-    f = tvm.build(s, [A, B], "llvm")
-    ctx = tvm.cpu(0)
-    # launch the kernel.
-    n = 1024
-    a = tvm.nd.array(np.random.randint(low=0, high=1000, size=n, dtype=A.dtype), ctx)
-    b = tvm.nd.array(np.zeros(shape=n, dtype=B.dtype), ctx)
-    f(a, b)
-    np.testing.assert_allclose(
-        b.asnumpy(), list(map(lambda x: bin(x).count('1'), a.asnumpy())), rtol=1e-5)
+        def check_device(device):
+            if not tvm.module.enabled(device):
+                print("skip because %s is not enabled.." % device)
+                return
+            ctx = tvm.context(device, 0)
+            if str(ctx).startswith('gpu'):
+                s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
+                s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+            func = tvm.build(s, [A, B], device)
+            # launch the kernel.
+            n = 1024
+            a = tvm.nd.array(np.random.randint(low=0, high=1000, size=n, dtype=A.dtype), ctx)
+            b = tvm.nd.array(np.zeros(shape=n, dtype=B.dtype), ctx)
+            func(a, b)
+            np.testing.assert_allclose(
+                b.asnumpy(), list(map(lambda x: bin(x).count('1'), a.asnumpy())), rtol=1e-5)
 
+        check_device("llvm")
+        check_device("cuda")
+        check_device("opencl")
+        check_device("metal")
+    run('uint32')
+    run('uint64')
 
 
 def test_add():
@@ -133,5 +148,5 @@ def test_add():
 if __name__ == "__main__":
     test_add()
     test_log_pow_llvm()
-    test_popcount_llvm()
+    test_popcount()
     test_exp()
