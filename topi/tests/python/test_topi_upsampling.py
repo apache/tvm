@@ -19,7 +19,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_upsampling(B)
+            s = topi.generic.schedule_injective(B)
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
