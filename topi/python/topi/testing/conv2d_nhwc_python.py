@@ -51,7 +51,6 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
     # change the layout from NHWC to NCHW
     at = a_np.transpose((0, 3, 1, 2))
     wt = w_np.transpose((3, 2, 0, 1))
-    print("at.shape, wt.shape", at.shape, wt.shape)
     bt = np.zeros((batch, out_channel, out_height, out_width))
     # computation
     for n in range(batch):

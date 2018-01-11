@@ -20,42 +20,6 @@ def _default_schedule(outs, auto_inline):
     return s
 
 
-@generic.schedule_conv2d_transpose_nchw.register(["cpu"])
-def schedule_conv2d_transpose_nchw(outs):
-    """Schedule for conv2d_transpose_nchw
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of conv2d_transpose_nchw
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-@generic.schedule_reduce.register(["cpu"])
-def schedule_reduce(outs):
-    """Schedule for reduction
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of reduce
-          in the format of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    return _default_schedule(outs, True)
-
-
 @generic.schedule_softmax.register(["cpu"])
 def schedule_softmax(outs):
     """Schedule for softmax
@@ -64,24 +28,6 @@ def schedule_softmax(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of softmax
-          in the format of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-@generic.schedule_dense.register(["cpu"])
-def schedule_dense(outs):
-    """Schedule for dense
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of dense
           in the format of an array of tensors.
 
     Returns
