@@ -190,6 +190,12 @@ def _softmax_output(inputs, attrs):
         new_attrs['axis'] = 1
     return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
 
+def _upsampling(inputs, attrs):
+    scale = attrs.get('scale')
+    new_attrs = {'scale':int(scale)}
+    return _get_nnvm_op('upsampling')(inputs[0], **new_attrs)
+
+
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
                   '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
@@ -231,6 +237,7 @@ _convert_map = {
     'min_axis'      : _rename('min'),
     'reshape'       : _reshape,
     'sum_axis'      : _rename('sum'),
+    'UpSampling'    : _upsampling
 }
 
 def _convert_symbol(op_name, inputs, attrs,

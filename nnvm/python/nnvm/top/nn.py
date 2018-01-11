@@ -250,3 +250,18 @@ def schedule_global_avg_pool2d(_, outs, target):
         return topi.generic.schedule_global_pool(outs)
 
 reg.register_pattern("global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_compute("upsampling")
+def compute_upsampling(attrs, inputs, _):
+    """Compute definition of upsampling"""
+    scale = attrs.get_int("scale")
+    return topi.nn.upsampling(inputs[0], scale)
+
+@reg.register_schedule("upsampling")
+def schedule_upsampling(_, outs, target):
+    """Compute definition of upsampling"""
+    with tvm.target.create(target):
+        return topi.generic.schedule_injective(outs)
+
+reg.register_pattern("upsampling", OpPattern.OUT_ELEMWISE_FUSABLE)
