@@ -3,7 +3,6 @@ import numpy as np
 import tvm
 import topi
 import math
-from skimage.transform import resize
 
 def verify_upsampling(batch, in_channel, in_height, in_width, scale):
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
