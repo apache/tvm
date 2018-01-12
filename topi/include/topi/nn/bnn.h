@@ -77,8 +77,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
 * \return Tensor with shape [batch, out_dim], dtype is float32
 */
 inline tvm::Tensor binary_dense(const tvm::Tensor& data,
-  const tvm::Tensor& weight,
-  tvm::Tensor* bias) {
+  const tvm::Tensor& weight) {
   CHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
   CHECK_EQ(data->dtype, UInt(32)) << "binary_dense requires uint32 data";

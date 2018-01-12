@@ -87,6 +87,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
  * respective iterator
  * \param pad_after An Array of Expr describing the padding after the
  * respective iterator
+ * \param pad_value The value to fill padding elements with
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
