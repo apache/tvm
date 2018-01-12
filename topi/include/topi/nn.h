@@ -90,7 +90,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the relu operation
+ * \return A Tensor whose op member is the padding operation
  *
  * \note
  *  The pad_after Array must either be empty or have the same length as
@@ -114,6 +114,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
 inline tvm::Tensor pad(const tvm::Tensor& t,
                        const tvm::Array<tvm::Expr>& pad_before,
                        tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
+                       Expr* pad_value = nullptr,
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   if (pad_after.size() < pad_before.size()) {
@@ -132,6 +133,13 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
           tvm::ir::Simplify(t->shape[i] + pad_before[i] + pad_after[i]));
     }
   }
+  Expr pad_val;
+  if (pad_value == nullptr) {
+    pad_val = tvm::make_const(t->dtype, 0);
+  } else {
+    pad_val = *pad_value;
+  }
+
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     tvm::Array<tvm::Expr> indices;
     tvm::Array<tvm::Expr> sel;
@@ -150,7 +158,10 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
         sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before[i] + t->shape[i]));
       }
     }
-    return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), 0);
+    if (sel.size() != 0) {
+      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_val);
+    }
+    return t(indices);
   };
   return tvm::compute(output_shape, l, name, tag);
 }

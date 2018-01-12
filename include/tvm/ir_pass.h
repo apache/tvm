@@ -28,7 +28,7 @@ namespace ir {
  * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
+EXPORT Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify the statement.
