@@ -56,7 +56,7 @@ class Stage : public NodeRef {
    * \brief set the memory scope of the stage
    * \param scope The memory scope.
    */
-  Stage& set_scope(std::string scope);  // NOLINT(*)
+  EXPORT Stage& set_scope(std::string scope);  // NOLINT(*)
   /*!
    * \brief specify the schedule to be computed at the parent schedule's scope.
    * \param parent The parent schedule.
@@ -73,7 +73,7 @@ class Stage : public NodeRef {
    * \brief Compute the function at group root.
    * \return reference to self.
    */
-  Stage& compute_root();  // NOLINT(*)
+  EXPORT Stage& compute_root();  // NOLINT(*)
   /*!
    * \brief Bind the ivar to thread index.
    *
@@ -101,7 +101,7 @@ class Stage : public NodeRef {
    *    This is a beta feature.
    * \return reference to self.
    */
-  Stage& env_threads(Array<IterVar> threads);
+  EXPORT Stage& env_threads(Array<IterVar> threads);
   /*!
    * \brief Split the parent by factor, generate
    * \param parent The parent iteration domain.
@@ -134,7 +134,7 @@ class Stage : public NodeRef {
    * \param order The order of iteration variable.
    * \return reference to self.
    */
-  Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
+  EXPORT Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
   /*!
    * \brief Perform tiling on two dimensions
    *  The final loop order from outmost to inner most are
@@ -150,7 +150,7 @@ class Stage : public NodeRef {
    * \param p_y_inner Inner axis of y dimension
    * \return reference to self.
    */
-  Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
+  EXPORT Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
               Expr x_factor, Expr y_factor,
               IterVar* p_x_outer, IterVar* p_y_outer,
               IterVar* p_x_inner, IterVar* p_y_inner);
@@ -159,7 +159,7 @@ class Stage : public NodeRef {
    * \param var The axis to be vectorized.
    * \return reference to self.
    */
-  Stage& vectorize(IterVar var);   // NOLINT(*)
+  EXPORT Stage& vectorize(IterVar var);   // NOLINT(*)
   /*!
    * \brief Replace computation of the current stage by tensor intrinsic f.
    * \param var The axis marks beginning of tensorization.
@@ -167,19 +167,19 @@ class Stage : public NodeRef {
    * \param f The Tensor compute intrinsics.
    * \return reference to self.
    */
-  Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
+  EXPORT Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
   /*!
    * \brief Unroll iteration.
    * \param var The axis to be unrolled.
    * \return reference to self.
    */
-  Stage& unroll(IterVar var);   // NOLINT(*)
+  EXPORT Stage& unroll(IterVar var);   // NOLINT(*)
   /*!
    * \brief Parallelize iteration.
    * \param var The axis to be parallelized.
    * \return reference to self.
    */
-  Stage& parallel(IterVar var);   // NOLINT(*)
+  EXPORT Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
    * \brief Annotate the iteration with pragma
    *
@@ -188,7 +188,7 @@ class Stage : public NodeRef {
    *
    * \return reference to self.
    */
-  Stage& pragma(IterVar var, const std::string& pragma_type);   // NOLINT(*)
+  EXPORT Stage& pragma(IterVar var, const std::string& pragma_type);   // NOLINT(*)
   /*!
    * \brief Fetch data in advance.
    * \param domain the tensor to be prefetched
@@ -196,7 +196,7 @@ class Stage : public NodeRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
+  EXPORT Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
   /*!
    * \brief Set alignment requirement for specific dimension.
    *
@@ -207,12 +207,12 @@ class Stage : public NodeRef {
    * \param offset The required offset factor.
    * \return reference to self
    */
-  Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
+  EXPORT Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
   /*!
    * \brief Compute current stage with double buffering.
    * \return reference to self.
    */
-  Stage& double_buffer();   // NOLINT(*)
+  EXPORT Stage& double_buffer();   // NOLINT(*)
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
@@ -266,7 +266,7 @@ class Schedule : public NodeRef {
    * \param include_inputs Whether include inputs if they are reachable from outputs.
    * \return The new grouped stage.
    */
-  Stage create_group(const Array<Tensor>& outputs,
+  EXPORT Stage create_group(const Array<Tensor>& outputs,
                      const Array<Tensor>& inputs,
                      bool include_inputs = false);
   /*!
@@ -278,7 +278,7 @@ class Schedule : public NodeRef {
    * \param readers The readers to redirect to the tensor.
    * \return The created tensor.
    */
-  Tensor cache_read(const Tensor& tensor,
+  EXPORT Tensor cache_read(const Tensor& tensor,
                     const std::string& scope,
                     const Array<Operation>& readers);
   /*!
@@ -297,7 +297,7 @@ class Schedule : public NodeRef {
    * \param scope The scope of the storage.
    * \return The created tensor.
    */
-  Tensor cache_write(const Tensor& tensor, const std::string& scope);
+  EXPORT Tensor cache_write(const Tensor& tensor, const std::string& scope);
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
    * This will create a new stage that generated the new tensor with axis
