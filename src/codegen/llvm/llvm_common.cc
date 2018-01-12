@@ -36,9 +36,11 @@ void InitializeLLVM() {
   }
 }
 
-llvm::TargetMachine*
-GetLLVMTargetMachine(const std::string& target_str,
-                     bool allow_null) {
+void ParseLLVMTargetOptions(const std::string& target_str,
+                            std::string* triple,
+                            std::string* mcpu,
+                            std::string* mattr,
+                            llvm::TargetOptions* options) {
   // setup target triple
   size_t start = 0;
   if (target_str.length() >= 4 &&
@@ -46,9 +48,10 @@ GetLLVMTargetMachine(const std::string& target_str,
     start = 4;
   }
   // simple parser
-  std::string target_triple = "";
-  std::string cpu = "generic";
-  std::string attr = "";
+  triple->resize(0);
+  mcpu->resize(0);
+  mattr->resize(0);
+
   bool soft_float_abi = false;
   std::string key, value;
   std::istringstream is(target_str.substr(start, target_str.length() - start));
@@ -69,11 +72,11 @@ GetLLVMTargetMachine(const std::string& target_str,
     }
     if (key == "-target" ||
         key == "-mtriple") {
-      target_triple = value;
+      *triple = value;
     } else if (key == "-mcpu") {
-      cpu = value;
+      *mcpu = value;
     } else if (key == "-mattr") {
-      attr = value;
+      *mattr = value;
     } else if (key == "-mfloat-abi") {
       if (value == "hard") {
         soft_float_abi = false;
@@ -89,19 +92,13 @@ GetLLVMTargetMachine(const std::string& target_str,
     }
   }
 
-  if (target_triple.length() == 0 ||
-      target_triple == "default") {
-    target_triple = llvm::sys::getDefaultTargetTriple();
-  }
-  std::string err;
-  const llvm::Target* target =
-      llvm::TargetRegistry::lookupTarget(target_triple, err);
-  if (target == nullptr) {
-    CHECK(allow_null) << err << " target_triple=" << target_triple;
-    return nullptr;
+  if (triple->length() == 0 ||
+      *triple == "default") {
+    *triple = llvm::sys::getDefaultTargetTriple();
   }
   // set target option
-  llvm::TargetOptions opt;
+  llvm::TargetOptions& opt = *options;
+  opt = llvm::TargetOptions();
   #if TVM_LLVM_VERSION < 50
   opt.LessPreciseFPMADOption = true;
   #endif
@@ -114,8 +111,38 @@ GetLLVMTargetMachine(const std::string& target_str,
   } else {
     opt.FloatABIType = llvm::FloatABI::Hard;
   }
+}
+
+
+llvm::TargetMachine*
+GetLLVMTargetMachine(const std::string& target_str,
+                     bool allow_null) {
+  std::string target_triple, mcpu, mattr;
+  llvm::TargetOptions opt;
+
+  ParseLLVMTargetOptions(target_str,
+                         &target_triple,
+                         &mcpu,
+                         &mattr,
+                         &opt);
+
+  if (target_triple.length() == 0 ||
+      target_triple == "default") {
+    target_triple = llvm::sys::getDefaultTargetTriple();
+  }
+  if (mcpu.length() == 0) {
+    mcpu = "generic";
+  }
+
+  std::string err;
+  const llvm::Target* target =
+      llvm::TargetRegistry::lookupTarget(target_triple, err);
+  if (target == nullptr) {
+    CHECK(allow_null) << err << " target_triple=" << target_triple;
+    return nullptr;
+  }
   llvm::TargetMachine* tm = target->createTargetMachine(
-      target_triple, cpu, attr, opt, llvm::Reloc::PIC_);
+      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
   return tm;
 }
 
