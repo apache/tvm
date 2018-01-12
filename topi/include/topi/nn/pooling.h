@@ -75,8 +75,10 @@ inline Tensor pool(const Tensor& x,
   Array<Expr> pad_before{ 0, 0, pad_top, pad_left };
   Array<Expr> pad_after{ 0, 0, pad_down, pad_right };
 
-  auto out_height = tvm::ir::Simplify((height - kernel_height + pad_top + pad_down) / stride_height + 1);
-  auto out_width = tvm::ir::Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
+  auto out_height = tvm::ir::Simplify(
+    (height - kernel_height + pad_top + pad_down) / stride_height + 1);
+  auto out_width = tvm::ir::Simplify(
+    (width - kernel_width + pad_left + pad_right) / stride_width + 1);
 
   auto dheight = tvm::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
@@ -85,14 +87,16 @@ inline Tensor pool(const Tensor& x,
     auto temp = pad(x, pad_before, pad_after, &x->dtype.min(), "pad_temp");
     return tvm::compute({ batch, channel, out_height, out_width },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::max(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth), { dheight, dwidth });
+      return tvm::max(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
+        { dheight, dwidth });
     }, "tensor", "pool_max");
   } else if (pool_type == kAvgPool) {
     auto temp = pad(x, pad_before, pad_after, 0, "pad_temp");
 
     auto tsum = tvm::compute({ batch, channel, out_height, out_width },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::sum(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth), { dheight, dwidth });
+      return tvm::sum(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
+        { dheight, dwidth });
     }, "tensor", "pool_avg");
 
     return tvm::compute({ batch, channel, out_height, out_width },
@@ -128,7 +132,7 @@ inline Tensor global_pool(const Tensor& x,
   if (pool_type == kMaxPool) {
     return tvm::compute({ batch, channel, 1, 1 },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::max(x(n, c, dheight, dwidth), { dheight, dwidth });
+      return tvm::max(x(n, c, dheight, dwidth), { dheight, dwidth });  // NOLINT(*)
     }, "tensor", "global_pool_max");
   } else if (pool_type == kAvgPool) {
     auto tsum = tvm::compute({ batch, channel, 1, 1 },

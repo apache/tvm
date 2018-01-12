@@ -7,6 +7,7 @@
 #define TOPI_NN_DILATE_H_
 
 #include <string>
+#include <vector>
 
 #include "tvm/tvm.h"
 #include "tvm/ir_pass.h"

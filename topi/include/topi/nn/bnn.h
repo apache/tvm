@@ -65,7 +65,6 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
       }
       packed = packed << 1;
     }
-
   }, name, tag);
 }
 
