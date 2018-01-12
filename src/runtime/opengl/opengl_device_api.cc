@@ -71,11 +71,11 @@ void OpenGLWorkspace::GetAttr(
 }
 
 void* OpenGLWorkspace::AllocDataSpace(
-    TVMContext ctx, TVMType type, size_t nbytes, size_t alignment) {
+    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
   LOG(INFO)
       << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
       << nbytes << ", alignment = " << alignment << ")";
-  return reinterpret_cast<void*>(new Texture(CreateTexture(type, nbytes)));
+  return reinterpret_cast<void*>(new Texture(CreateTexture(type_hint, nbytes)));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {

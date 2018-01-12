@@ -20,8 +20,10 @@ class CPUDeviceAPI final : public DeviceAPI {
       *rv = 1;
     }
   }
-  void* AllocDataSpace(TVMContext ctx, TVMType type, size_t nbytes,
-                       size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       TVMType type_hint) final {
     void* ptr;
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);

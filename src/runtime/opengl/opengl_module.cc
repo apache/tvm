@@ -9,8 +9,11 @@
 
 #if TVM_OPENGL_RUNTIME
 
+#include <tvm/runtime/registry.h>
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
+#include "../meta_data.h"
+#include "../file_util.h"
 
 namespace tvm {
 namespace runtime {
@@ -35,6 +38,21 @@ class OpenGLModuleNode final : public ModuleNode {
                          const std::shared_ptr<ModuleNode>& sptr_to_self) final;
 
   std::string GetSource(const std::string& format) final;
+
+  void SaveToFile(const std::string& file_name,
+                  const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    std::string meta_file = GetMetaFilePath(file_name);
+    SaveMetaDataToFile(meta_file, fmap_);
+    SaveBinaryToFile(file_name, data_);
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    stream->Write(fmt_);
+    stream->Write(fmap_);
+    stream->Write(data_);
+  }
 
   const gl::Program &program() const { return program_; }
 
@@ -125,9 +143,8 @@ OpenGLWrappedFunc::OpenGLWrappedFunc(
     : m_(m), sptr_(std::move(sptr)), func_name_(std::move(func_name)),
       arg_size_(std::move(arg_size)) {
   LOG(INFO) << "OpenGLWrappedFunc(" << func_name_ << ", "
-                    << "nargs = " << arg_size_.size() << ", "
-                    << "nthread_axis_tags = " << thread_axis_tags.size()
-                    << ")";
+            << "nargs = " << arg_size_.size() << ", "
+            << "nthread_axis_tags = " << thread_axis_tags.size() << ")";
   for (auto& a : arg_size_) {
     LOG(INFO) << a;
   }
@@ -142,14 +159,20 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    void** void_args) const {
   LOG(INFO) << "OpenGLWrappedFunc::operator()";
 
-  // TODO(pengw): How to get variable names?
+  gl::Texture* arg0 = *static_cast<gl::Texture**>(void_args[0]);
+  std::vector<std::pair<std::string, gl::Texture*>> name_texture_pairs;
+  for (size_t i = 1; i != arg_size_.size(); ++i) {
+    name_texture_pairs.push_back(std::make_pair(
+        "arg" + std::to_string(i),
+        *static_cast<gl::Texture**>(void_args[i])
+    ));
+  }
+
   m_->workspace_->Render(
       m_->program(),
-      {
-          {"A", *static_cast<gl::Texture**>(void_args[1])},
-          {"B", *static_cast<gl::Texture**>(void_args[2])}
-      },
-      *static_cast<gl::Texture**>(void_args[0]));
+      name_texture_pairs,
+      arg0
+  );
 }
 
 Module OpenGLModuleCreate(std::string data,
@@ -159,6 +182,42 @@ Module OpenGLModuleCreate(std::string data,
   auto n = std::make_shared<OpenGLModuleNode>(data, fmt, fmap);
   return Module(n);
 }
+
+Module OpenGLModuleLoadFile(const std::string& file_name,
+                            const std::string& format) {
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt = GetFileFormat(file_name, format);
+  std::string meta_file = GetMetaFilePath(file_name);
+  LoadBinaryFromFile(file_name, &data);
+  LoadMetaDataFromFile(meta_file, &fmap);
+  return OpenGLModuleCreate(data, fmt, fmap);}
+
+Module OpenGLModuleLoadBinary(void* strm) {
+  auto stream = static_cast<dmlc::Stream*>(strm);
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt;
+  stream->Read(&fmt);
+  stream->Read(&fmap);
+  stream->Read(&data);
+  return OpenGLModuleCreate(data, fmt, fmap);
+}
+
+TVM_REGISTER_GLOBAL("module.loadfile_gl")
+  .set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenGLModuleLoadFile(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("module.loadfile_glbin")
+  .set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenGLModuleLoadFile(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("module.loadbinary_opengl")
+  .set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenGLModuleLoadBinary(args[0]);
+  });
 
 }  // namespace runtime
 }  // namespace tvm

@@ -23,7 +23,8 @@ CodeGenOpenGL::CodeGenOpenGL() : output_(nullptr), iter_var_(nullptr) {
 void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   LOG(INFO) << "CodeGenOpenGL::AddFunction";
 
-  this->stream << "#version 330 core\n";
+  this->stream << "#version 300 es\n";
+  this->stream << "precision highp float;\n";
 
   // clear previous generated state.
   this->InitFuncState(f);
@@ -35,9 +36,13 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   }
 
   // Allocate argument names.
-  for (Var arg : f->args) {
+  for (size_t i = 0; i != f->args.size(); ++i) {
+    auto &arg = f->args[i];
     LOG(INFO) << "Arg: " << arg.get()->name_hint;
-    AllocVarID(arg.get());
+    auto name_hint = "arg" + std::to_string(i);
+    auto arg_name = GetUniqueName(name_hint);
+    CHECK(arg_name == name_hint) << "Argument name not available";
+    var_idmap_[arg.get()] = arg_name;
   }
 
   // Declare arguments in shader.

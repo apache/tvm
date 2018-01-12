@@ -123,7 +123,7 @@ void MetalWorkspace::SetDevice(TVMContext ctx) {
 }
 
 void* MetalWorkspace::AllocDataSpace(
-    TVMContext ctx, TVMType type, size_t nbytes, size_t alignment) {
+    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
   this->Init();
   id<MTLDevice> dev = GetDevice(ctx);
   // allocate buffer in GPU only mode.

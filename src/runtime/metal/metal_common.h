@@ -63,8 +63,10 @@ class MetalWorkspace final : public DeviceAPI {
   // override device API
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, TVMType type, size_t nbytes,
-                       size_t alignment) final;
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       TVMType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
                       size_t from_size,
