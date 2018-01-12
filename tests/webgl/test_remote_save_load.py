@@ -37,6 +37,7 @@ def test_remote_save_load():
 
     data = remote.download("myadd.dso")
     wat = remote.download("myadd.gl")
+    wat = remote.download("myadd.tvm_meta.json")
 
     print('Loading myadd.dso')
     fhost = remote.load_module("myadd.dso")
