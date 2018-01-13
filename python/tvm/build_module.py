@@ -5,6 +5,7 @@ LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
 import warnings
+import types
 
 from . import api
 from . import tensor
@@ -171,31 +172,37 @@ def get_binds(args, binds=None):
     return binds, arg_list
 
 # global index for pass order
-idx = 0
-import types
+Pass_Idx = 0
 
 def dump_ir(debug, add_lower_pass=[]):
-    def dump(func):
-        def decorator(*args, **kwargs):
-            rv = func(*args, **kwargs); global idx
-            if isinstance(rv, expr.IntImm): return rv
-            pname = str(idx) + "_" + func.func_name + "_ir.cc"
+    ''' dump ir for eache pass, includes costomized pass'''
+    def decorator(func):
+        ''' decorate the pass function '''
+        def dump(*args, **kwargs):
+            '''dump function'''
+            retv = func(*args, **kwargs)
+            global Pass_Idx
+            if isinstance(retv, expr.IntImm):
+                return retv
+            pname = str(Pass_Idx) + "_" + func.func_name + "_ir.cc"
             with open(pname, "w") as f:
-                 print >> f, (rv.body if isinstance(rv, container.LoweredFunc) else rv)
-                 if func.func_name == "SplitHostDevice":
-                     print >> f, (rv[0].body, rv[1].body)
-                 idx += 1
-            return rv
-        return decorator
+                print >> f, (retv.body if isinstance(retv, container.LoweredFunc) else retv)
+                if func.func_name == "SplitHostDevice":
+                    print >> f, (retv[0].body, retv[1].body)
+                Pass_Idx += 1
+            return retv
+        return dump
 
-    def init(add_lower_pass):
-       global idx; idx = 0
-       for k, v in vars(ir_pass).items():
-           vars(ir_pass)[k] = dump(v) if isinstance(v, types.FunctionType) else v
-       pass_list = [(x[0], dump(x[1])) for x in add_lower_pass]
-       return pass_list
+    def decorator_passes(add_lower_pass):
+        '''decorate ir_pass and add_lower_pass'''
+        global Pass_Idx
+        Pass_Idx = 0
+        for k, v in vars(ir_pass).items():
+            vars(ir_pass)[k] = decorator(v) if isinstance(v, types.FunctionType) else v
+        pass_list = [(x[0], decorator(x[1])) for x in add_lower_pass]
+        return pass_list
 
-    return init(add_lower_pass) if debug else add_lower_pass
+    return decorator_passes(add_lower_pass) if debug else add_lower_pass
 
 def lower(sch,
           args,
