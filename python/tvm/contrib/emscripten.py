@@ -26,7 +26,7 @@ def create_js(output,
         The compile string.
     """
     cmd = [cc]
-    cmd += ["-Oz"]
+    cmd += ["-O0"]
     if not side_module:
         cmd += ["-s", "RESERVED_FUNCTION_POINTERS=2"]
         cmd += ["-s", "NO_EXIT_RUNTIME=1"]

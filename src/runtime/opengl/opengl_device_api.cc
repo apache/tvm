@@ -453,8 +453,8 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
 
 #ifdef __EMSCRIPTEN__
   // WebGL2's glReadPixels API doesn't allow GL_RED user buffer format.
-  // Instead, We must use GL_RGB. This means the data we retrieve has useless
-  // G & B channels. Here we are applying a dirty hack.
+  // Instead, We must use GL_RGBA. This means the data we retrieve has useless
+  // GBA channels. Here we are applying a dirty hack.
   // TODO: What we really want is to utilize all RGBA channels in textures.
   //
   // WebGL2's glReadPixels API also doesn't allow GL_RED_INTEGER or
@@ -464,11 +464,11 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
   CHECK(texture->format_.internal_format == GL_R32F)
     << "Retrieving integer texture not supported yet.";
   auto elemsz = texture->format_.elemsz();
-  auto nchannels = 3;
+  auto nchannels = 4;
   auto padded_data_size = nchannels * nelems * elemsz;
   auto padded_data = std::unique_ptr<char[]>(new char[padded_data_size]);
   OPENGL_CALL(gl->ReadPixels(/*x=*/begin, /*y=*/0, /*width=*/nelems,
-                             /*height=*/1, GL_RGB, GL_FLOAT,
+                             /*height=*/1, GL_RGBA, GL_FLOAT,
                              padded_data.get()));
   for (GLsizei i = 0; i != nelems; ++i) {
     auto dst = reinterpret_cast<char *>(data) + i * elemsz;
