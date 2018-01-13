@@ -172,14 +172,18 @@ def get_binds(args, binds=None):
 
 # global index for pass order
 idx = 0
+import types
 
 def dump_ir(debug, add_lower_pass=[]):
     def dump(func):
         def decorator(*args, **kwargs):
             rv = func(*args, **kwargs); global idx
+            if isinstance(rv, expr.IntImm): return rv
             pname = str(idx) + "_" + func.func_name + "_ir.cc"
             with open(pname, "w") as f:
-                 print >> f, rv
+                 print >> f, (rv.body if isinstance(rv, container.LoweredFunc) else rv)
+                 if func.func_name == "SplitHostDevice":
+                     print >> f, (rv[0].body, rv[1].body)
                  idx += 1
             return rv
         return decorator
@@ -187,11 +191,11 @@ def dump_ir(debug, add_lower_pass=[]):
     def init(add_lower_pass):
        global idx; idx = 0
        for k, v in vars(ir_pass).items():
-           vars(ir_pass)[k] = dump(v)
-       for i in range(len(add_lower_pass)):
-           add_lower_pass[i] = dump(add_lower_pass[i])
+           vars(ir_pass)[k] = dump(v) if isinstance(v, types.FunctionType) else v
+       pass_list = [(x[0], dump(x[1])) for x in add_lower_pass]
+       return pass_list
 
-    if debug: init(add_lower_pass)
+    return init(add_lower_pass) if debug else add_lower_pass
 
 def lower(sch,
           args,
@@ -226,10 +230,10 @@ def lower(sch,
        The result function, if with_api_wrapper=False
        Then the Stmt before make api is returned.
     """
-    dump_ir(cfg.dump_pass_ir, cfg.add_lower_pass)
     binds, arg_list = get_binds(args, binds)
     cfg = BuildConfig.current
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+    add_lower_pass = dump_ir(cfg.dump_pass_ir, add_lower_pass)
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
