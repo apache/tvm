@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2017 by Contributors
-* \file extern.h
+* \file generic/extern.h
 * \brief Schedule for extern followed by injective ops
 */
 #ifndef TOPI_SCHEDULES_GENERIC_EXTERN_H_
