@@ -30,7 +30,8 @@ def test_remote_save_load():
     C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
     s = tvm.create_schedule(C.op)
     s[C].opengl()
-    f = tvm.build(s, [A, B, C], "opengl", target_host="llvm -target=asmjs-unknown-emscripten -system-lib", name="myadd")
+    target_host = "llvm -target=asmjs-unknown-emscripten -system-lib"
+    f = tvm.build(s, [A, B, C], "opengl", target_host=target_host, name="myadd")
 
     remote = rpc.connect(proxy_host, proxy_port, key="js")
 

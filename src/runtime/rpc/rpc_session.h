@@ -48,7 +48,6 @@ enum class RPCCode : int {
   kModuleFree,
   kModuleGetFunc,
   kModuleGetSource,
-  kTestRemoteOpenGL,
 };
 
 /*!

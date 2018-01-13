@@ -12,8 +12,6 @@
 #include <chrono>
 #include "./rpc_session.h"
 #include "../../common/ring_buffer.h"
-#include "../opengl/opengl_module.h"
-#include "../opengl/opengl_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -973,35 +971,6 @@ void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {
   *rv = (*static_cast<Module*>(mhandle))->GetSource(fmt);
 }
 
-void RPCModuleTestRemoteOpenGL(TVMArgs args, TVMRetValue* rv) {
-  std::cout << "RPCModuleTestRemoteOpenGL" << std::endl;
-
-  std::shared_ptr<gl::OpenGLWorkspace> workspace = gl::OpenGLWorkspace::Global();
-  std::cout << "Got workspace" << std::endl;
-
-  const char* shader_src = "#version 300 es\n"
-    "precision highp float;\n"
-    "out float color;\n"
-    "void main() {\n"
-    "  color = 0.0;\n"
-    "}\n";
-
-  gl::Program program = workspace->CreateProgram(shader_src);
-
-  std::cout << "Created program" << std::endl;
-
-  TVMType type = {.code = kDLFloat, .bits = 8, .lanes = 1};
-  gl::Texture output = workspace->CreateTexture(type, 16);
-
-  std::cout << "Created texture" << std::endl;
-
-  workspace->Render(program, {}, &output);
-
-  std::cout << "Rendered" << std::endl;
-
-  *rv = nullptr;
-}
-
 void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
   PackedFunc *pf = static_cast<PackedFunc*>(args[0].operator void*());
   void *fhandle = new PackedFunc(WrapTimeEvaluator(*pf, args[1], args[2]));
@@ -1050,7 +1019,6 @@ void RPCSession::EventHandler::HandlePackedCall() {
     case RPCCode::kModuleFree: CallHandler(RPCModuleFree); break;
     case RPCCode::kModuleGetFunc: CallHandler(RPCModuleGetFunc); break;
     case RPCCode::kModuleGetSource: CallHandler(RPCModuleGetSource); break;
-    case RPCCode::kTestRemoteOpenGL: CallHandler(RPCModuleTestRemoteOpenGL); break;
     default: LOG(FATAL) << "Unknown event " << static_cast<int>(code_);
   }
   CHECK_EQ(state_, kRecvCode);

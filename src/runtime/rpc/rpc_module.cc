@@ -7,8 +7,6 @@
 #include <memory>
 #include <cstring>
 #include "./rpc_session.h"
-#include "../opengl/opengl_module.h"
-#include "../opengl/opengl_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -155,16 +153,6 @@ TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
       *rv = WrapTimeEvaluator(
           m.GetFunction(args[1], false), ctx, args[4]);
     }
-  });
-
-TVM_REGISTER_GLOBAL("contrib.rpc._TestRemoteOpenGL")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    Module m = args[0];
-    std::string tkey = m->type_key();
-    CHECK_EQ(tkey, "rpc");
-    auto& sess = static_cast<RPCModuleNode*>(m.operator->())->sess();
-    sess->CallRemote(RPCCode::kTestRemoteOpenGL);
-    *rv = nullptr;
   });
 
 TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteModule")

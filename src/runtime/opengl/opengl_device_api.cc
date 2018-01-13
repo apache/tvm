@@ -6,14 +6,17 @@
 
 #if TVM_OPENGL_RUNTIME
 
-#include <cstring>
 #include <tvm/runtime/registry.h>
+#include <cstring>
 
 namespace tvm {
 namespace runtime {
 namespace gl {
 
-inline const char* GLGetErrorString(GLenum error) {
+/*!
+ * \brief Turn OpenGL error enum to string.
+ */
+static const char* GLGetErrorString(GLenum error) {
   switch (error) {
     case GL_NO_ERROR:
       return "GL_NO_ERROR";
@@ -34,6 +37,9 @@ inline const char* GLGetErrorString(GLenum error) {
   }
 }
 
+/*!
+ * \brief Get the latest error.
+ */
 void OpenGLWorkspace::CheckOpenGLError() {
   GLenum err = gl->GetError();
   CHECK(err == GL_NO_ERROR) << "OpenGL error, code=" << err << ": "
@@ -50,8 +56,11 @@ void OpenGLWorkspace::CheckOpenGLError() {
     CheckOpenGLError();                                                        \
   }
 
+/*!
+ * \brief The error handling callback passed to GLFW.
+ */
 void GlfwErrorCallback(int err, const char* str) {
-  LOG(ERROR) << "Error: [" << err << "] " << str;
+  LOG(FATAL) << "Error: [" << err << "] " << str;
 }
 
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
@@ -72,16 +81,13 @@ void OpenGLWorkspace::GetAttr(
 
 void* OpenGLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
-  LOG(INFO)
-      << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = "
-      << nbytes << ", alignment = " << alignment << ")";
+  LOG(INFO) << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = " << nbytes
+            << ", alignment = " << alignment << ")";
   return reinterpret_cast<void*>(new Texture(CreateTexture(type_hint, nbytes)));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
-  LOG(INFO)
-      << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = "
-      << ptr << ")";
+  LOG(INFO) << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = " << ptr << ")";
   delete reinterpret_cast<Texture*>(ptr);
 }
 
@@ -176,22 +182,20 @@ OpenGLWorkspace::OpenGLWorkspace() {
   glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
   window_ = glfwCreateWindow(kWindowWidth, kWindowHeight, "", nullptr, nullptr);
   if (window_ == nullptr) {
-    LOG(ERROR) << "glfwCreateWindow() failed!";
-    assert(false);
+    LOG(FATAL) << "glfwCreateWindow() failed!";
   }
 
   LOG(INFO) << "GLFW says OpenGL version: "
-                    << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
-                    << "."
-                    << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
-                    << "."
-                    << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION);
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
+            << "."
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
+            << "."
+            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION);
 
   // Before using any OpenGL API, we must specify a context.
   glfwMakeContextCurrent(window_);
 
-  LOG(INFO) << "Calling gladLoadGL...";
-
+  // Load all OpenGL API function pointers.
   gl = std::unique_ptr<GLFunctionPointers>(new GLFunctionPointers);
 
   LOG(INFO) << "OpenGL says version: " << gl->GetString(GL_VERSION);
@@ -217,8 +221,10 @@ OpenGLWorkspace::OpenGLWorkspace() {
 
 OpenGLWorkspace::~OpenGLWorkspace() {
   LOG(INFO) << "~OpenGLWorkspace()";
+
   // Paired with glfwCreateWindow().
   glfwDestroyWindow(window_);
+
   // Paired with glfwInit().
   glfwTerminate();
 }
@@ -442,11 +448,11 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
   OPENGL_CALL(gl->GenFramebuffers(1, &frame_buffer));
   OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
 
-  // Bind texture to framebuffer's attachment #0.
+  // Bind texture to framebuffer's attachment 0.
   OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                        GL_TEXTURE_2D, texture->texture(), 0));
 
-  // Always check that our framebuffer is ok
+  // Always check that our framebuffer is okay.
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     LOG(FATAL) << "Framebuffer not complete.";
   }
@@ -455,7 +461,7 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
   // WebGL2's glReadPixels API doesn't allow GL_RED user buffer format.
   // Instead, We must use GL_RGBA. This means the data we retrieve has useless
   // GBA channels. Here we are applying a dirty hack.
-  // TODO: What we really want is to utilize all RGBA channels in textures.
+  // TODO(zhixunt): We really want to utilize all RGBA channels in textures.
   //
   // WebGL2's glReadPixels API also doesn't allow GL_RED_INTEGER or
   // GL_RGB_INTEGER user buffer format, which means we cannot retrieve integer
@@ -499,16 +505,15 @@ void OpenGLWorkspace::Render(
   OPENGL_CALL(gl->GenFramebuffers(1, &frame_buffer));
   OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
 
-  // Set "renderedTexture" as our colour attachement #0
+  // Set "renderedTexture" as our colour attachement 0.
   OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                        GL_TEXTURE_2D, output->texture(), 0));
 
-  // Set the list of draw buffers.
+  // Specify that we will render to color attachment 0.
   GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
-  // "1" is the size of DrawBuffers.
   OPENGL_CALL(gl->DrawBuffers(1, DrawBuffers));
 
-  // Always check that our framebuffer is ok
+  // Always check that our framebuffer is okay.
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     LOG(FATAL) << "Framebuffer not complete.";
   }
@@ -525,13 +530,12 @@ void OpenGLWorkspace::Render(
     OPENGL_CALL(gl->Uniform1i(texture_uniform, unit));
   }
 
-  OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
+  // Perform rendering.
   OPENGL_CALL(gl->Viewport(0, 0, output->width(), output->height()));
-
   OPENGL_CALL(gl->Clear(GL_COLOR_BUFFER_BIT));
   OPENGL_CALL(gl->DrawArrays(GL_TRIANGLES, 0, 6));
 
-  gl->DeleteFramebuffers(1, &frame_buffer);
+  OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));
 }
 
 TVM_REGISTER_GLOBAL("device_api.opengl")
@@ -541,41 +545,6 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 });
 
 }  // namespace gl
-
-void TestLocalOpenGL() {
-  std::cout << "Calling TestLocalOpenGL()" << std::endl;
-
-  std::shared_ptr<gl::OpenGLWorkspace> workspace = gl::OpenGLWorkspace::Global();
-
-  std::cout << "Got workspace" << std::endl;
-
-  const char* shader_src = "#version 300 es\n"
-    "precision highp float;\n"
-    "out float color;\n"
-    "void main() {\n"
-    "  color = 0.0;\n"
-    "}\n";
-
-  gl::Program program = workspace->CreateProgram(shader_src);
-
-  std::cout << "Created program" << std::endl;
-
-  TVMType type = {.code = kDLFloat, .bits = 32, .lanes = 1};
-  gl::Texture output = workspace->CreateTexture(type, 16);
-
-  std::cout << "Created texture" << std::endl;
-
-  workspace->Render(program, {}, &output);
-
-  std::cout << "Rendered" << std::endl;
-}
-
-TVM_REGISTER_GLOBAL("contrib.rpc._TestLocalOpenGL")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  TestLocalOpenGL();
-  *rv = nullptr;
-});
-
 }  // namespace runtime
 }  // namespace tvm
 

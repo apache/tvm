@@ -164,15 +164,10 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   for (size_t i = 1; i != arg_size_.size(); ++i) {
     name_texture_pairs.push_back(std::make_pair(
         "arg" + std::to_string(i),
-        *static_cast<gl::Texture**>(void_args[i])
-    ));
+        *static_cast<gl::Texture**>(void_args[i])));
   }
 
-  m_->workspace_->Render(
-      m_->program(),
-      name_texture_pairs,
-      arg0
-  );
+  m_->workspace_->Render(m_->program(), name_texture_pairs, arg0);
 }
 
 Module OpenGLModuleCreate(std::string data,
