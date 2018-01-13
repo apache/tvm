@@ -172,7 +172,7 @@ def get_binds(args, binds=None):
     return binds, arg_list
 
 # global index for pass order
-Pass_Idx = 0
+PASS_ID = 0
 
 def dump_ir(debug, add_lower_pass=[]):
     ''' dump ir for eache pass, includes costomized pass'''
@@ -181,22 +181,22 @@ def dump_ir(debug, add_lower_pass=[]):
         def dump(*args, **kwargs):
             '''dump function'''
             retv = func(*args, **kwargs)
-            global Pass_Idx
+            global PASS_ID
             if isinstance(retv, expr.IntImm):
                 return retv
-            pname = str(Pass_Idx) + "_" + func.func_name + "_ir.cc"
+            pname = str(PASS_ID) + "_" + func.func_name + "_ir.cc"
             with open(pname, "w") as f:
                 print >> f, (retv.body if isinstance(retv, container.LoweredFunc) else retv)
                 if func.func_name == "SplitHostDevice":
                     print >> f, (retv[0].body, retv[1].body)
-                Pass_Idx += 1
+                PASS_ID += 1
             return retv
         return dump
 
     def decorator_passes(add_lower_pass):
         '''decorate ir_pass and add_lower_pass'''
-        global Pass_Idx
-        Pass_Idx = 0
+        global PASS_ID
+        PASS_ID = 0
         for k, v in vars(ir_pass).items():
             vars(ir_pass)[k] = decorator(v) if isinstance(v, types.FunctionType) else v
         pass_list = [(x[0], decorator(x[1])) for x in add_lower_pass]
