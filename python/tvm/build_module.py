@@ -37,7 +37,8 @@ class BuildConfig(object):
         "data_alignment": -1,
         "restricted_func": True,
         "double_buffer_split_loop": 1,
-        "add_lower_pass": None
+        "add_lower_pass": None,
+        "dump_pass_ir": False
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -115,6 +116,8 @@ def build_config(**kwargs):
         phase contains an integer on which optimization pass we apply the pass.
         Additional lowering passes to be applied before make_api.
 
+    dump_pass_ir: dump ir of each pass into file idx_passname_ir.cc, default=False
+
     Returns
     -------
     config: BuildConfig
@@ -167,6 +170,28 @@ def get_binds(args, binds=None):
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
 
+# global index for pass order
+idx = 0
+
+def dump_ir(debug, add_lower_pass=[]):
+    def dump(func):
+        def decorator(*args, **kwargs):
+            rv = func(*args, **kwargs); global idx
+            pname = str(idx) + "_" + func.func_name + "_ir.cc"
+            with open(pname, "w") as f:
+                 print >> f, rv
+                 idx += 1
+            return rv
+        return decorator
+
+    def init(add_lower_pass):
+       global idx; idx = 0
+       for k, v in vars(ir_pass).items():
+           vars(ir_pass)[k] = dump(v)
+       for i in range(len(add_lower_pass)):
+           add_lower_pass[i] = dump(add_lower_pass[i])
+
+    if debug: init(add_lower_pass)
 
 def lower(sch,
           args,
@@ -201,6 +226,7 @@ def lower(sch,
        The result function, if with_api_wrapper=False
        Then the Stmt before make api is returned.
     """
+    dump_ir(cfg.dump_pass_ir, cfg.add_lower_pass)
     binds, arg_list = get_binds(args, binds)
     cfg = BuildConfig.current
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
