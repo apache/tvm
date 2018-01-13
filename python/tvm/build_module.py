@@ -175,7 +175,7 @@ def get_binds(args, binds=None):
 PASS_ID = 0
 
 def dump_ir(debug, add_lower_pass=[]):
-    ''' dump ir for eache pass, includes costomized pass'''
+    ''' dump ir for each pass, includes costomized pass'''
     def decorator(func):
         ''' decorate the pass function '''
         def dump(*args, **kwargs):
