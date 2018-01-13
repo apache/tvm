@@ -1,3 +1,17 @@
+"""
+The following instruction is based on web/README.md.
+
+Setup an RPC server:
+$ python -m tvm.exec.rpc_proxy --example-rpc=1
+
+Go to http://localhost:9190 in browser.
+
+Click "Connect To Proxy".
+
+Run this test script:
+$ python tests/webgl/test_remote_save_load.py
+"""
+
 import numpy as np
 import tvm
 from tvm.contrib import rpc, util, emscripten

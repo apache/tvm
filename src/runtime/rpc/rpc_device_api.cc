@@ -26,7 +26,7 @@ class RPCDeviceAPI final : public DeviceAPI {
                        TVMType type_hint) final {
     auto sess = GetSess(ctx);
     void *data = sess->CallRemote(
-            RPCCode::kDevAllocData, ctx, nbytes, alignment);
+            RPCCode::kDevAllocData, ctx, nbytes, alignment, type_hint);
     RemoteSpace* space = new RemoteSpace();
     space->data = data;
     space->sess = std::move(sess);

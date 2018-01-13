@@ -14,8 +14,8 @@ def test_local_save_load():
 
     ctx = tvm.opengl(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(size=(n)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(n)).astype(B.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(high=2.0, size=(n)).astype(A.dtype), ctx)
+    b = tvm.nd.array(np.random.uniform(high=2.0, size=(n)).astype(B.dtype), ctx)
     c = tvm.nd.array(np.zeros((n), dtype=C.dtype), ctx)
     f(a, b, c)
 
@@ -24,6 +24,7 @@ def test_local_save_load():
     f.export_library(path_so)
     f1 = tvm.module.load(path_so)
     f1(a, b, c)
+    np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     # path_o = temp.relpath("myadd.o")
     # path_gl = temp.relpath("myadd.gl")

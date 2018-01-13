@@ -6,8 +6,8 @@
 
 #if TVM_OPENGL_RUNTIME
 
+#include <cstring>
 #include <tvm/runtime/registry.h>
-#include <dlpack/dlpack.h>
 
 namespace tvm {
 namespace runtime {
@@ -451,9 +451,35 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
     LOG(FATAL) << "Framebuffer not complete.";
   }
 
+#ifdef __EMSCRIPTEN__
+  // WebGL2's glReadPixels API doesn't allow GL_RED user buffer format.
+  // Instead, We must use GL_RGB. This means the data we retrieve has useless
+  // G & B channels. Here we are applying a dirty hack.
+  // TODO: What we really want is to utilize all RGBA channels in textures.
+  //
+  // WebGL2's glReadPixels API also doesn't allow GL_RED_INTEGER or
+  // GL_RGB_INTEGER user buffer format, which means we cannot retrieve integer
+  // texture data? (need to confirm)
+
+  CHECK(texture->format_.internal_format == GL_R32F)
+    << "Retrieving integer texture not supported yet.";
+  auto elemsz = texture->format_.elemsz();
+  auto nchannels = 3;
+  auto padded_data_size = nchannels * nelems * elemsz;
+  auto padded_data = std::unique_ptr<char[]>(new char[padded_data_size]);
+  OPENGL_CALL(gl->ReadPixels(/*x=*/begin, /*y=*/0, /*width=*/nelems,
+                             /*height=*/1, GL_RGB, GL_FLOAT,
+                             padded_data.get()));
+  for (GLsizei i = 0; i != nelems; ++i) {
+    auto dst = reinterpret_cast<char *>(data) + i * elemsz;
+    auto src = padded_data.get() + nchannels * i * elemsz;
+    std::memcpy(dst, src, elemsz);
+  }
+#else
   OPENGL_CALL(gl->ReadPixels(/*x=*/begin, /*y=*/0, /*width=*/nelems,
                              /*height=*/1, texture->format_.format,
                              texture->format_.type, data));
+#endif
 
   OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));
 }
