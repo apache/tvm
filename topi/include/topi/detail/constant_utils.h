@@ -25,6 +25,7 @@ int64_t GetConstInt(Expr expr) {
     return expr.as<tvm::ir::UIntImm>()->value;
   }
   LOG(ERROR) << "expr must be a constant integer";
+  return -1;
 }
 
 }  // namespace topi

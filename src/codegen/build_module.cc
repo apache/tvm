@@ -84,25 +84,25 @@ namespace target {
 Target llvm() {
   std::unordered_set<std::string> keys({ "llvm", "cpu" });
   std::vector<std::string> options;
-  return Target("llvm", kDLCPU, 512, 1, keys, options);
+  return Target("llvm", kDLCPU, 512, 1, keys, options, {});
 }
 
 Target cuda() {
   std::unordered_set<std::string> keys({ "cuda", "gpu" });
   std::vector<std::string> options;
-  return Target("cuda", kDLGPU, 512, 32, keys, options);
+  return Target("cuda", kDLGPU, 512, 32, keys, options, {});
 }
 
 Target rocm() {
   std::unordered_set<std::string> keys({ "rocm", "gpu" });
   std::vector<std::string> options;
-  return Target("rocm", kDLROCM, 256, 1, keys, options);
+  return Target("rocm", kDLROCM, 256, 1, keys, options, {});
 }
 
 Target metal() {
   std::unordered_set<std::string> keys({ "gpu" });
   std::vector<std::string> options;
-  return Target("metal", kDLMetal, 256, 1, keys, options);
+  return Target("metal", kDLMetal, 256, 1, keys, options, {});
 }
 
 Target rasp() {
@@ -113,13 +113,13 @@ Target rasp() {
     "-mcpu=cortex-a53",
     "-mattr=+neon"
   });
-  return Target("llvm", kDLCPU, 512, 1, keys, options);
+  return Target("llvm", kDLCPU, 512, 1, keys, options, {});
 }
 
 Target stackvm() {
   std::unordered_set<std::string> keys({ "stackvm", "cpu" });
   std::vector<std::string> options;
-  return Target("stackvm", kDLCPU, 512, 1, keys, options);
+  return Target("stackvm", kDLCPU, 512, 1, keys, options, {});
 }
 }  // namespace target
 

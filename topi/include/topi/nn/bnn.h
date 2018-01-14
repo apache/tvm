@@ -90,7 +90,7 @@ inline tvm::Tensor binary_dense(const tvm::Tensor& data,
   auto k = tvm::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::compute({ batch, out_dim },
     [&](Var i, Var j) {
-    return tvm::sum(popcount(data(i, j) ^ weight(j, k)), { k });
+    return tvm::sum(popcount(data(i, k) ^ weight(j, k)), { k });
   }, "tensor", "binary_dense");
 
   return tvm::compute({ batch, out_dim },
