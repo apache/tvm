@@ -174,7 +174,7 @@ def get_binds(args, binds=None):
 # global index for pass order
 PASS_ID = 0
 
-def dump_ir(debug, add_lower_pass=[]):
+def dump_ir(debug, pass_inp=None):
     ''' dump ir for each pass, includes costomized pass'''
     def decorator(func):
         ''' decorate the pass function '''
@@ -202,6 +202,7 @@ def dump_ir(debug, add_lower_pass=[]):
         pass_list = [(x[0], decorator(x[1])) for x in add_lower_pass]
         return pass_list
 
+    add_lower_pass = [] if not pass_inp else pass_inp
     return decorator_passes(add_lower_pass) if debug else add_lower_pass
 
 def lower(sch,
