@@ -196,6 +196,7 @@ def dump_ir(debug, pass_inp=None):
         '''decorate ir_pass and add_lower_pass'''
         for k, v in vars(ir_pass).items():
             vars(ir_pass)[k] = decorator(v) if isinstance(v, types.FunctionType) else v
+        schedule.ScheduleOps = decorator(schedule.ScheduleOps)
         pass_list = [(x[0], decorator(x[1])) for x in add_lower_pass]
         return pass_list
 
