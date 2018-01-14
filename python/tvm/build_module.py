@@ -187,7 +187,8 @@ def dump_ir(debug, pass_inp=None):
                     print >> f, (retv[0].body, retv[1].body)
                 pass_id[0] += 1
             return retv
-        pass_id.append(0)
+        if not pass_id:
+            pass_id.append(0)
         return dump
 
     def decorator_passes(add_lower_pass):
