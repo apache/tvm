@@ -184,7 +184,8 @@ def dump_ir(debug, pass_inp=None):
             with open(pname, "w") as f:
                 print >> f, (retv.body if isinstance(retv, container.LoweredFunc) else retv)
                 if func.func_name == "SplitHostDevice":
-                    print >> f, (retv[0].body, retv[1].body)
+                    for x in retv:
+                        print >> f, "---------", x.name, "\n", x.body, "\n-----------\n"
                 pass_id[0] += 1
             return retv
         if not pass_id:
