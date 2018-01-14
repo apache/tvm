@@ -171,32 +171,27 @@ def get_binds(args, binds=None):
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
 
-# global index for pass order
-PASS_ID = 0
-
 def dump_ir(debug, pass_inp=None):
     ''' dump ir for each pass, includes costomized pass'''
-    def decorator(func):
-        ''' decorate the pass function '''
+    def decorator(func, pass_id=[]): # pylint: disable=dangerous-default-value
+        ''' decorate the pass function, use pass_id[0] as increased pass id'''
         def dump(*args, **kwargs):
             '''dump function'''
             retv = func(*args, **kwargs)
-            global PASS_ID
             if isinstance(retv, expr.IntImm):
                 return retv
-            pname = str(PASS_ID) + "_" + func.func_name + "_ir.cc"
+            pname = str(pass_id[0]) + "_" + func.func_name + "_ir.cc"
             with open(pname, "w") as f:
                 print >> f, (retv.body if isinstance(retv, container.LoweredFunc) else retv)
                 if func.func_name == "SplitHostDevice":
                     print >> f, (retv[0].body, retv[1].body)
-                PASS_ID += 1
+                pass_id[0] += 1
             return retv
+        pass_id.append(0)
         return dump
 
     def decorator_passes(add_lower_pass):
         '''decorate ir_pass and add_lower_pass'''
-        global PASS_ID
-        PASS_ID = 0
         for k, v in vars(ir_pass).items():
             vars(ir_pass)[k] = decorator(v) if isinstance(v, types.FunctionType) else v
         pass_list = [(x[0], decorator(x[1])) for x in add_lower_pass]
