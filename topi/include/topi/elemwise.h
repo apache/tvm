@@ -65,6 +65,25 @@ inline Tensor negative(const Tensor& x,
 }
 
 /*!
+* \brief Creates an operation that raises each element of tensor x to power y
+*
+* \param x The input tensor
+* \param y The exponent
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the pow operation
+*/
+inline Tensor pow(const Tensor& x,
+  const Expr& y,
+  std::string name = "tensor",
+  std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    return tvm::pow(x(i), y);
+  }, name, tag);
+}
+
+/*!
 * \brief Creates an operation that performs pointwise left shift by n bits
 *
 * \param x The input tensor

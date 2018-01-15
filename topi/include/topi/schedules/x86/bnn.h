@@ -14,7 +14,7 @@
 namespace topi {
 using namespace tvm;
 
-namespace generic {
+namespace x86 {
 /*!
 * \brief Create a generic schedule for binarize_pack
 *
