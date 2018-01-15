@@ -27,8 +27,10 @@ def _convert_activation(insym, keras_layer, _):
     if act_type == 'linear':
         if isinstance(keras_layer, str):
             return insym
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
+        beta = keras_layer.beta if hasattr(keras_layer, "beta") else 0
         return _sym.__add_scalar__(_sym.__mul_scalar__(insym, \
-            scalar=keras_layer.alpha), scalar=keras_layer.beta)
+            scalar=alpha), scalar=beta)
     elif act_type == 'softmax':
         return _sym.softmax(insym)
     elif act_type == 'sigmoid':
