@@ -75,7 +75,7 @@ Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
   return topi::cuda::schedule_dense(target, outs);
 }
 
-}  // namespace cuda
+}  // namespace rocm
 }  // namespace topi
 #endif  // TOPI_SCHEDULES_ROCM_DENSE_H_
 
