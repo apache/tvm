@@ -29,7 +29,7 @@ inline Tensor rocblas_matmul(const Tensor& lhs,
   auto n = transa ? lhs->shape[1] : lhs->shape[0];
   auto m = transb ? rhs->shape[0] : rhs->shape[1];
 
-  return make_extern({ { n,m } }, { lhs->dtype }, { lhs, rhs },
+  return make_extern({ { n, m } }, { lhs->dtype }, { lhs, rhs },
     [&](Array<Buffer> ins, Array<Buffer> outs) {
     return call_packed({
       Expr("tvm.contrib.rocblas.matmul"),
