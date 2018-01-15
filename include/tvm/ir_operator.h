@@ -53,6 +53,11 @@ TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(log);
+
+inline Expr pow(Expr x, Expr y) {
+  return ir::Call::make(x.type(), "pow", { x, y }, ir::Call::PureIntrinsic);
+}
+
 }  // namespace tvm
 
 #endif  // TVM_IR_OPERATOR_H_

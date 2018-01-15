@@ -17,7 +17,7 @@ using namespace tvm;
 namespace generic {
 
 /*!
- * \brief Create a generic schedule for the given output tensors.
+ * \brief Create a generic schedule for the given injective ops.
  *
  * \param target The target to generate a schedule for.
  * \param outs The output tensors.
