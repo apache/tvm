@@ -39,7 +39,7 @@ def verify_keras_frontend(keras_model):
         np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_forward_softrelu():
+def test_forward_softrelu():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Activation('softplus')(data)
     x = keras.layers.Concatenate()([x, x])
@@ -48,7 +48,7 @@ def verify_forward_softrelu():
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_leaky_relu():
+def test_forward_leaky_relu():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.LeakyReLU(alpha=0.3)(data)
     x = keras.layers.Add()([x, x])
@@ -57,7 +57,7 @@ def verify_forward_leaky_relu():
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_dense():
+def test_forward_dense():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.MaxPooling2D(pool_size=(2,2))(data)
     x = keras.layers.Flatten()(x)
@@ -66,7 +66,7 @@ def verify_forward_dense():
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_transpose_conv():
+def test_forward_transpose_conv():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
     x = keras.applications.mobilenet.DepthwiseConv2D(kernel_size=(3,3), padding='same')(x)
@@ -76,7 +76,7 @@ def verify_forward_transpose_conv():
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_separable_conv():
+def test_forward_separable_conv():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.SeparableConv2D(filters=10, kernel_size=(3,3),
         padding='same', activation='relu')(data)
@@ -87,31 +87,40 @@ def verify_forward_separable_conv():
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_vgg16():
-    keras_model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet',
+def test_forward_upsample():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.UpSampling2D(size=(3,3))(data)
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+
+def test_forward_vgg16():
+    keras_model = keras.applications.vgg16.VGG16(include_top=True, weights=None,
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_xception():
-    keras_model = keras.applications.xception.Xception(include_top=True, weights='imagenet',
+def test_forward_xception():
+    keras_model = keras.applications.xception.Xception(include_top=True, weights=None,
         input_shape=(299,299,3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
-def verify_forward_resnet50():
-    keras_model = keras.applications.resnet50.ResNet50(include_top=True, weights='imagenet',
+def test_forward_resnet50():
+    keras_model = keras.applications.resnet50.ResNet50(include_top=True, weights=None,
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 if __name__ == '__main__':
-    verify_forward_softrelu()
-    verify_forward_leaky_relu()
-    verify_forward_dense()
-    verify_forward_transpose_conv()
-    verify_forward_separable_conv()
+    test_forward_softrelu()
+    test_forward_leaky_relu()
+    test_forward_dense()
+    test_forward_transpose_conv()
+    test_forward_separable_conv()
+    test_forward_upsample()
 
-    verify_forward_vgg16()
-    verify_forward_xception()
-    verify_forward_resnet50()
+    test_forward_vgg16()
+    test_forward_xception()
+    test_forward_resnet50()
