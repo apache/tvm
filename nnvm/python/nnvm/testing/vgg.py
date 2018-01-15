@@ -20,7 +20,6 @@
 Simonyan, Karen, and Andrew Zisserman. "Very deep convolutional networks for
 large-scale image recognition." arXiv preprint arXiv:1409.1556 (2014).
 """
-import numpy as np
 from .. import symbol as sym
 from . utils import create_workload
 
@@ -51,7 +50,7 @@ def get_classifier(input_data, num_classes):
     fc8 = sym.dense(data=drop7, units=num_classes, name="fc8")
     return fc8
 
-def get_symbol(num_classes, num_layers=11, batch_norm=False, dtype='float32'):
+def get_symbol(num_classes, num_layers=11, batch_norm=False):
     """
     Parameters
     ----------
@@ -61,8 +60,6 @@ def get_symbol(num_classes, num_layers=11, batch_norm=False, dtype='float32'):
         Number of layers for the variant of densenet. Options are 11, 13, 16, 19.
     batch_norm : bool, default False
         Use batch normalization.
-    dtype: str, float32 or float16
-        Data precision.
     """
     vgg_spec = {11: ([1, 1, 2, 2, 2], [64, 128, 256, 512, 512]),
                 13: ([2, 2, 2, 2, 2], [64, 128, 256, 512, 512]),
@@ -72,12 +69,8 @@ def get_symbol(num_classes, num_layers=11, batch_norm=False, dtype='float32'):
         raise ValueError("Invalide num_layers {}. Choices are 11,13,16,19.".format(num_layers))
     layers, filters = vgg_spec[num_layers]
     data = sym.Variable(name="data")
-    if dtype == 'float16':
-        data = sym.cast(data=data, dtype=np.float16)
     feature = get_feature(data, layers, filters, batch_norm)
     classifier = get_classifier(feature, num_classes)
-    if dtype == 'float16':
-        classifier = sym.cast(data=classifier, dtype=np.float32)
     symbol = sym.softmax(data=classifier, name='softmax')
     return symbol
 
@@ -110,5 +103,5 @@ def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224),
     params : dict of str to NDArray
         The parameters.
     """
-    net = get_symbol(num_classes=num_classes, dtype=dtype, **kwargs)
+    net = get_symbol(num_classes=num_classes, **kwargs)
     return create_workload(net, batch_size, image_shape, dtype)
