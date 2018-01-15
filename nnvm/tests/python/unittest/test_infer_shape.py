@@ -62,6 +62,22 @@ def test_batchnorm():
     sdict = infer_shape(y)
     assert(sdict["bn_gamma"][0] == [20])
 
+    x = sym.Variable("x", shape=(10, 20, 30, 40))
+    y = sym.batch_norm(data=x, axis=0, epsilon=2e-5, name='bn')
+    sdict = infer_shape(y)
+    assert(sdict['bn_moving_var'][0] == [10])
+
+    y = sym.batch_norm(data=x, axis=1, epsilon=2e-5, name='bn')
+    sdict = infer_shape(y)
+    assert(sdict['bn_gamma'][0] == [20])
+
+    y = sym.batch_norm(data=x, axis=2, epsilon=2e-5, name='bn')
+    sdict = infer_shape(y)
+    assert(sdict['bn_beta'][0] == [30])
+
+    y = sym.batch_norm(data=x, axis=3, epsilon=2e-5, name='bn')
+    sdict = infer_shape(y)
+    assert(sdict['bn_moving_mean'][0] == [40])
 
 def test_flatten():
     x = sym.Variable("x", shape=(10, 20, 10))
