@@ -51,6 +51,6 @@ Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool 
   return s;
 }
 
-}  // namespace generic
+}  // namespace x86
 }  // namespace topi
 #endif  // TOPI_SCHEDULES_X86_DEFAULT_H_
