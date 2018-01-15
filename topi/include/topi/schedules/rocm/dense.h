@@ -22,6 +22,7 @@ namespace rocm {
 /*!
 * \brief Implementation of dense for rocm backend
 *
+* \param target The target device
 * \param data Tensor with shape [batch, in_dim]
 * \param weight Tensor with shape [out_dim, in_dim]
 * \param bias Tensor with shape [out_dim] (optional)

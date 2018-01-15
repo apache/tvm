@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2017 by Contributors
-* \file default.h
+* \file generic/default.h
 * \brief Generic default schedule
 */
 #ifndef TOPI_SCHEDULES_GENERIC_DEFAULT_H_
