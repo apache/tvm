@@ -79,7 +79,11 @@ RUNTIME_DEP = $(RUNTIME_OBJ)
 ifdef CUDA_PATH
 	NVCC=$(CUDA_PATH)/bin/nvcc
 	CFLAGS += -I$(CUDA_PATH)/include
-	LDFLAGS += -L$(CUDA_PATH)/lib64
+	ifeq ($(UNAME_S),Darwin)
+		LDFLAGS += -L$(CUDA_PATH)/lib
+	else
+		LDFLAGS += -L$(CUDA_PATH)/lib64
+	endif
 endif
 
 ifeq ($(USE_CUDA), 1)
