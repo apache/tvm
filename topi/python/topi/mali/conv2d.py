@@ -256,7 +256,7 @@ def _schedule_direct_conv2d(s, op):
         num_thread = 32
 
     if data.dtype == 'float16' and (util.get_const_int(conv.shape[1]) == 4 or output_height == 28):
-        num_thread /= 2
+        num_thread //= 2
 
     # schedule padding
     if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
@@ -319,17 +319,17 @@ def _decl_im2col(data, kernel, stride, padding, layout='NCHW', out_dtype='float3
 
     ALIGN = 16
     def upround(x, align):
-        return (x + align - 1) / align * align
+        return (x + align - 1) // align * align
 
     # A [CO, CI * KH * KW]
     reduce_len = upround(CI * KH * KW, ALIGN)
     A = tvm.compute((upround(CO, ALIGN), reduce_len), lambda i, j:
-                    kernel[i][j / KW / KH][j / KW % KH][j % KW], name='A')
+                    kernel[i][j // KW // KH][j // KW % KH][j % KW], name='A')
 
     # B [CI * KH * KW, N * OH * OW]
     B = tvm.compute((reduce_len, upround(N * OH * OW, ALIGN)), lambda i, j:\
             tvm.select(tvm.all(i < CI * KH * KW, j < N * OH * OW),
-                       data_pad[j / (OH*OW)][i / (KH*KW)][j / OW % OH*HSTR + i / KW % KH]
+                       data_pad[j // (OH*OW)][i // (KH*KW)][j // OW % OH*HSTR + i // KW % KH]
                        [j % OW*WSTR + i % KW],
                        tvm.const(0, data_pad.dtype)), name='B')
 
@@ -400,7 +400,7 @@ def _schedule_im2col_conv2d(s, op):
         last_work = util.get_const_int(C.shape[1])
         if last_work % (bnb * num_thread2) != 0:
             num_thread1 = num_thread * 2
-            num_thread2 = num_thread / 2
+            num_thread2 = num_thread // 2
 
     # schedule padding
     if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
