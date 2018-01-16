@@ -115,7 +115,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
 inline tvm::Tensor pad(const tvm::Tensor& t,
                        const tvm::Array<tvm::Expr>& pad_before,
                        tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
-                       Expr* pad_value = nullptr,
+                       Expr pad_value = Expr(),
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   if (pad_after.size() < pad_before.size()) {
@@ -134,11 +134,9 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
           tvm::ir::Simplify(t->shape[i] + pad_before[i] + pad_after[i]));
     }
   }
-  Expr pad_val;
-  if (pad_value == nullptr) {
-    pad_val = tvm::make_const(t->dtype, 0);
-  } else {
-    pad_val = *pad_value;
+  
+  if (!pad_value.defined()) {
+    pad_value = tvm::make_const(t->dtype, 0);
   }
 
   auto l = [&](tvm::Array<tvm::Var> ovars) {
@@ -160,7 +158,7 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
       }
     }
     if (sel.size() != 0) {
-      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_val);
+      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
     }
     return t(indices);
   };

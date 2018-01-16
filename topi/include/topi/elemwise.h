@@ -93,13 +93,11 @@ inline Tensor pow(const Tensor& x,
 *
 * \return A Tensor whose op member is the left shift operation
 */
-inline Tensor left_shift(const Tensor& x,
-                         const Expr& n,
-                         std::string name = "tensor",
-                         std::string tag = kElementWise) {
+inline Tensor operator<<(const Tensor& x,
+                         const Expr& n) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return x(i) << n;
-  }, name, tag);
+  }, "tensor", kElementWise);
 }
 
 /*!
@@ -112,13 +110,11 @@ inline Tensor left_shift(const Tensor& x,
 *
 * \return A Tensor whose op member is the right shift operation
 */
-inline Tensor right_shift(const Tensor& x,
-                          const Expr& n,
-                          std::string name = "tensor",
-                          std::string tag = kElementWise) {
+inline Tensor operator<<(const Tensor& x,
+                          const Expr& n) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return x(i) >> n;
-  }, name, tag);
+  }, "tensor", kElementWise);
 }
 
 /*!
