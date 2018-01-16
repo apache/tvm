@@ -4,6 +4,7 @@ This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
+from __future__ import print_function
 import warnings
 import types
 
@@ -12,6 +13,7 @@ from . import tensor
 from . import schedule
 from . import expr
 from . import ir_pass
+from . import stmt as _stmt
 from . import container
 from . import module
 from . import codegen
@@ -43,6 +45,7 @@ class BuildConfig(object):
     }
     def __init__(self, **kwargs):
         self._old_scope = None
+        self._pass_id = 0
         for k, _ in kwargs.items():
             if k not in BuildConfig.defaults:
                 raise ValueError(
@@ -54,6 +57,42 @@ class BuildConfig(object):
             return BuildConfig.defaults[name]
         return self._attr[name]
 
+    def decorator(self, func):
+        ''' decorate the pass function, use pass_id[0] as increased pass id'''
+        def dump(*args, **kwargs):
+            '''dump function'''
+            retv = func(*args, **kwargs)
+            # pylint: disable=unidiomatic-typecheck
+            if type(retv) not in self._types:
+                return retv
+            pname = str(self._pass_id) + "_" + func.func_name + "_ir.cc"
+            with open(pname, "a") as f:
+                out = retv.body if isinstance(retv, container.LoweredFunc) else retv
+                print(out, file=f)
+                if isinstance(retv, container.Array):
+                    for x in retv:
+                        out = x.body if isinstance(x, container.LoweredFunc) else x
+                        print("---------", x.name, "\n", out, "\n-----------\n", file=f)
+                self._pass_id += 1
+            return retv
+        return dump
+
+    def decorator_irpass(self):
+        '''decorate ir_pass and add_lower_pass'''
+        for k, v in vars(ir_pass).items():
+            vars(ir_pass)[k] = self.decorator(v) if isinstance(v, types.FunctionType) else v
+        schedule.ScheduleOps = self.decorator(schedule.ScheduleOps)
+        self._types = [v for k, v in vars(_stmt).items()]
+        self._types.append(container.Array)
+        self._types.append(container.LoweredFunc)
+
+    def decorator_custompass(self, add_lower_pass):
+        if self._attr["dump_pass_ir"] is False:
+            return add_lower_pass
+        self._pass_id = 0
+        pass_list = [(x[0], self.decorator(x[1])) for x in add_lower_pass]
+        return pass_list
+
     def __enter__(self):
         # pylint: disable=protected-access
         self._old_scope = BuildConfig.current
@@ -61,10 +100,16 @@ class BuildConfig(object):
         attr.update(self._attr)
         self._attr = attr
         BuildConfig.current = self
+        if self._attr["dump_pass_ir"] is True:
+            self.decorator_irpass()
         return self
 
     def __exit__(self, ptype, value, trace):
         assert self._old_scope
+        if self._attr["dump_pass_ir"] is True:
+            reload(ir_pass)
+            reload(schedule)
+            self._pass_id = 0
         BuildConfig.current = self._old_scope
 
 
@@ -171,38 +216,6 @@ def get_binds(args, binds=None):
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
 
-def dump_ir(debug, pass_inp=None):
-    ''' dump ir for each pass, includes costomized pass'''
-    def decorator(func, pass_id=[]): # pylint: disable=dangerous-default-value
-        ''' decorate the pass function, use pass_id[0] as increased pass id'''
-        def dump(*args, **kwargs):
-            '''dump function'''
-            retv = func(*args, **kwargs)
-            if isinstance(retv, expr.IntImm):
-                return retv
-            pname = str(pass_id[0]) + "_" + func.func_name + "_ir.cc"
-            with open(pname, "w") as f:
-                print >> f, (retv.body if isinstance(retv, container.LoweredFunc) else retv)
-                if func.func_name == "SplitHostDevice":
-                    for x in retv:
-                        print >> f, "---------", x.name, "\n", x.body, "\n-----------\n"
-                pass_id[0] += 1
-            return retv
-        if not pass_id:
-            pass_id.append(0)
-        return dump
-
-    def decorator_passes(add_lower_pass):
-        '''decorate ir_pass and add_lower_pass'''
-        for k, v in vars(ir_pass).items():
-            vars(ir_pass)[k] = decorator(v) if isinstance(v, types.FunctionType) else v
-        schedule.ScheduleOps = decorator(schedule.ScheduleOps)
-        pass_list = [(x[0], decorator(x[1])) for x in add_lower_pass]
-        return pass_list
-
-    add_lower_pass = [] if not pass_inp else pass_inp
-    return decorator_passes(add_lower_pass) if debug else add_lower_pass
-
 def lower(sch,
           args,
           name="default_function",
@@ -239,7 +252,7 @@ def lower(sch,
     binds, arg_list = get_binds(args, binds)
     cfg = BuildConfig.current
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-    add_lower_pass = dump_ir(cfg.dump_pass_ir, add_lower_pass)
+    add_lower_pass = cfg.decorator_custompass(add_lower_pass)
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
