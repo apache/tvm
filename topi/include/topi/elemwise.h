@@ -110,8 +110,8 @@ inline Tensor operator<<(const Tensor& x,
 *
 * \return A Tensor whose op member is the right shift operation
 */
-inline Tensor operator<<(const Tensor& x,
-                          const Expr& n) {
+inline Tensor operator>>(const Tensor& x,
+                         const Expr& n) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return x(i) >> n;
   }, "tensor", kElementWise);

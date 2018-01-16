@@ -84,7 +84,7 @@ inline Tensor pool(const Tensor& x,
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
 
   if (pool_type == kMaxPool) {
-    auto temp = pad(x, pad_before, pad_after, &x->dtype.min(), "pad_temp");
+    auto temp = pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp");
     return tvm::compute(
       { batch, channel, out_height, out_width },
       [&](Var n, Var c, Var h, Var w) {

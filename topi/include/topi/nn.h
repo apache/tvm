@@ -134,7 +134,7 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
           tvm::ir::Simplify(t->shape[i] + pad_before[i] + pad_after[i]));
     }
   }
-  
+
   if (!pad_value.defined()) {
     pad_value = tvm::make_const(t->dtype, 0);
   }
