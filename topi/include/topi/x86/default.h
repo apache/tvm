@@ -3,8 +3,8 @@
 * \file x86/default.h
 * \brief default x86 schedule
 */
-#ifndef TOPI_SCHEDULES_X86_DEFAULT_H_
-#define TOPI_SCHEDULES_X86_DEFAULT_H_
+#ifndef TOPI_X86_DEFAULT_H_
+#define TOPI_X86_DEFAULT_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -53,4 +53,4 @@ Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool 
 
 }  // namespace x86
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_X86_DEFAULT_H_
+#endif  // TOPI_X86_DEFAULT_H_

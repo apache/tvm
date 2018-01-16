@@ -3,8 +3,8 @@
 * \file rocm/dense.h
 * \brief rocm schedule for dense operation
 */
-#ifndef TOPI_SCHEDULES_ROCM_DENSE_H_
-#define TOPI_SCHEDULES_ROCM_DENSE_H_
+#ifndef TOPI_ROCM_DENSE_H_
+#define TOPI_ROCM_DENSE_H_
 
 #include "tvm/tvm.h"
 #include "tvm/build_module.h"
@@ -12,8 +12,8 @@
 #include "topi/detail/array_utils.h"
 #include "topi/nn/dense.h"
 #include "topi/contrib/rocblas.h"
-#include "topi/schedules/generic/extern.h"
-#include "topi/schedules/cuda/dense.h"
+#include "topi/generic/extern.h"
+#include "topi/cuda/dense.h"
 
 namespace topi {
 using namespace tvm;
@@ -78,5 +78,5 @@ Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
 
 }  // namespace rocm
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_ROCM_DENSE_H_
+#endif  // TOPI_ROCM_DENSE_H_
 

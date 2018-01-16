@@ -3,8 +3,8 @@
 * \file generic/default.h
 * \brief Generic default schedule
 */
-#ifndef TOPI_SCHEDULES_GENERIC_DEFAULT_H_
-#define TOPI_SCHEDULES_GENERIC_DEFAULT_H_
+#ifndef TOPI_GENERIC_DEFAULT_H_
+#define TOPI_GENERIC_DEFAULT_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -40,4 +40,4 @@ Schedule default_schedule(const Target& target, Array<Tensor> outs, bool auto_in
 
 }  // namespace generic
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_GENERIC_DEFAULT_H_
+#endif  // TOPI_GENERIC_DEFAULT_H_

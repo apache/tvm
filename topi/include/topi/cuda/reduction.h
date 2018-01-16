@@ -3,8 +3,8 @@
 * \file cuda/reduction.h
 * \brief CUDA schedule for reduction operations
 */
-#ifndef TOPI_SCHEDULES_CUDA_REDUCTION_H_
-#define TOPI_SCHEDULES_CUDA_REDUCTION_H_
+#ifndef TOPI_CUDA_REDUCTION_H_
+#define TOPI_CUDA_REDUCTION_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -152,4 +152,4 @@ Schedule schedule_reduce(const Target& target, Array<Tensor> outs) {
 
 }  // namespace cuda
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_CUDA_REDUCTION_H_
+#endif  // TOPI_CUDA_REDUCTION_H_

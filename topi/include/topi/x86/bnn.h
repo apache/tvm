@@ -3,8 +3,8 @@
 * \file x86/bnn.h
 * \brief x86 schedule for binary operations
 */
-#ifndef TOPI_SCHEDULES_X86_BNN_H_
-#define TOPI_SCHEDULES_X86_BNN_H_
+#ifndef TOPI_X86_BNN_H_
+#define TOPI_X86_BNN_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -107,4 +107,4 @@ Schedule schedule_binary_dense(const Target &target, const Array<Tensor>& outs) 
 
 }  // namespace x86
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_X86_BNN_H_
+#endif  // TOPI_X86_BNN_H_

@@ -3,8 +3,8 @@
 * \file cuda/injective.h
 * \brief CUDA schedule for injective operations
 */
-#ifndef TOPI_SCHEDULES_CUDA_SOFTMAX_H_
-#define TOPI_SCHEDULES_CUDA_SOFTMAX_H_
+#ifndef TOPI_CUDA_SOFTMAX_H_
+#define TOPI_CUDA_SOFTMAX_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -59,4 +59,4 @@ Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs) {
 
 }  // namespace cuda
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_CUDA_SOFTMAX_H_
+#endif  // TOPI_CUDA_SOFTMAX_H_

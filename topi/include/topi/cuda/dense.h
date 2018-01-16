@@ -3,8 +3,8 @@
 * \file cuda/dense.h
 * \brief CUDA schedule for dense operation
 */
-#ifndef TOPI_SCHEDULES_CUDA_DENSE_H_
-#define TOPI_SCHEDULES_CUDA_DENSE_H_
+#ifndef TOPI_CUDA_DENSE_H_
+#define TOPI_CUDA_DENSE_H_
 
 #include "tvm/tvm.h"
 #include "tvm/build_module.h"
@@ -12,7 +12,7 @@
 #include "topi/detail/array_utils.h"
 #include "topi/nn/dense.h"
 #include "topi/contrib/cublas.h"
-#include "topi/schedules/generic/extern.h"
+#include "topi/generic/extern.h"
 
 namespace topi {
 using namespace tvm;
@@ -130,5 +130,5 @@ Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
 
 }  // namespace cuda
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_CUDA_DENSE_H_
+#endif  // TOPI_CUDA_DENSE_H_
 

@@ -3,8 +3,8 @@
 * \file generic/extern.h
 * \brief Schedule for extern followed by injective ops
 */
-#ifndef TOPI_SCHEDULES_GENERIC_EXTERN_H_
-#define TOPI_SCHEDULES_GENERIC_EXTERN_H_
+#ifndef TOPI_GENERIC_EXTERN_H_
+#define TOPI_GENERIC_EXTERN_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -34,4 +34,4 @@ Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
 
 }  // namespace generic
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_GENERIC_EXTERN_H_
+#endif  // TOPI_GENERIC_EXTERN_H_

@@ -3,8 +3,8 @@
 * \file generic/injective.h
 * \brief Generic schedule for injective operations
 */
-#ifndef TOPI_SCHEDULES_GENERIC_INJECTIVE_H_
-#define TOPI_SCHEDULES_GENERIC_INJECTIVE_H_
+#ifndef TOPI_GENERIC_INJECTIVE_H_
+#define TOPI_GENERIC_INJECTIVE_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -39,4 +39,4 @@ Schedule schedule_injective(const Target &target, const Array<Tensor>& outs) {
 
 }  // namespace generic
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_GENERIC_INJECTIVE_H_
+#endif  // TOPI_GENERIC_INJECTIVE_H_

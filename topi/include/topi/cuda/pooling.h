@@ -3,8 +3,8 @@
 * \file cuda/pooling.h
 * \brief CUDA schedule for pooling operations
 */
-#ifndef TOPI_SCHEDULES_CUDA_POOLING_H_
-#define TOPI_SCHEDULES_CUDA_POOLING_H_
+#ifndef TOPI_CUDA_POOLING_H_
+#define TOPI_CUDA_POOLING_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
@@ -160,4 +160,4 @@ Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
 
 }  // namespace cuda
 }  // namespace topi
-#endif  // TOPI_SCHEDULES_CUDA_POOLING_H_
+#endif  // TOPI_CUDA_POOLING_H_
