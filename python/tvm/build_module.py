@@ -78,7 +78,6 @@ class BuildConfig(object):
         return dump
 
     def decorate_irpass(self):
-        '''decorate ir_pass and add_lower_pass'''
         for k, v in vars(ir_pass).items():
             vars(ir_pass)[k] = self.decorator(v) if isinstance(v, types.FunctionType) else v
         schedule.ScheduleOps = self.decorator(schedule.ScheduleOps)
