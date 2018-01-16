@@ -88,8 +88,6 @@ inline Tensor pow(const Tensor& x,
 *
 * \param x The input tensor
 * \param n The number of bits to shift by
-* \param name The name of the operation
-* \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the left shift operation
 */
@@ -105,8 +103,6 @@ inline Tensor operator<<(const Tensor& x,
 *
 * \param x The input tensor
 * \param n The number of bits to shift by
-* \param name The name of the operation
-* \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the right shift operation
 */
