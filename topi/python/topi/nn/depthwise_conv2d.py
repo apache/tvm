@@ -31,9 +31,14 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
+    out_dtype = Input.dtype
+
     batch, in_channel, in_height, in_width = Input.shape
     filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
-    stride_h, stride_w = stride
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
@@ -82,7 +87,10 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     """
     batch, in_height, in_width, in_channel = Input.shape
     filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
-    stride_h, stride_w = stride
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
@@ -131,7 +139,10 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
     batch, in_h, in_w, in_c = ishape
     _, out_h, out_w, out_c = oshape
     filter_h, filter_w, _, channel_multiplier = Filter.shape
-    stride_h, stride_w = stride
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
 
     dilated_out_grad = dilate(Out_grad, [1, stride_h, stride_w, 1], name='dilated_out_grad')
 
@@ -186,7 +197,10 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
     batch, out_h, out_w, out_c = oshape
     filter_h, filter_w, _, channel_multiplier = fshape
     in_c = Input.shape[3].value
-    stride_h, stride_w = stride
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
 
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (filter_h, filter_w))
 
