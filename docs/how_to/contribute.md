@@ -14,7 +14,6 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
   - [What is the consequence of force push](#what-is-the-consequence-of-force-push)
 * [Document](#document)
 * [Testcases](#testcases)
-* [Examples](#examples)
 * [Core Library](#core-library)
 * [Python Package](#python-package)
 
