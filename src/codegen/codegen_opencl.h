@@ -34,6 +34,8 @@ class CodeGenOpenCL final : public CodeGenC {
   // the address of load/store
   void PrintVecAddr(const Variable* buffer, Type t,
                     Expr base, std::ostream& os);  // NOLINT(*)
+  std::string CastFromTo(std::string value, Type from, Type target); // NOLINT(*)
+
   // overload visitor
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
 
