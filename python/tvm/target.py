@@ -264,6 +264,19 @@ def rasp(options=None):
     return Target("llvm", opts)
 
 
+def mali(options=None):
+    """Returns a ARM Mali GPU target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    opts = ["-device=mali"]
+    opts = _merge_opts(opts, options)
+    return Target("opencl", opts)
+
+
 def create(target_str):
     """Get a target given target string.
 
