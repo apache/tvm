@@ -142,6 +142,8 @@ class CodeGenC :
   // print store of single element.
   virtual void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value);
+  // Get a cast type from to
+  virtual std::string CastFromTo(std::string value, Type from, Type target);
 
  protected:
   // Print reference to struct location
@@ -150,8 +152,6 @@ class CodeGenC :
   // print reference to a buffer as type t in index.
   std::string GetBufferRef(
       Type t, const Variable* buffer, Expr index);
-  // Get a cast type from to
-  std::string CastFromTo(std::string value, Type from, Type target);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
