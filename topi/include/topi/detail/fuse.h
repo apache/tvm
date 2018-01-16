@@ -11,6 +11,7 @@
 namespace topi {
 using namespace tvm;
 
+/*! \brief Fuse all of the given args */
 IterVar Fuse(Stage stage, const Array<IterVar>& args) {
   CHECK_GE(args.size(), 1) << "Fuse requires at least 2 args";
 

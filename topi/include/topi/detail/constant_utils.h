@@ -11,12 +11,14 @@
 namespace topi {
 using namespace tvm;
 
+/*! \brief Return true iff the given expr is a constant int or uint */
 bool IsConstInt(Expr expr) {
   return
     expr->derived_from<tvm::ir::IntImm>() ||
     expr->derived_from<tvm::ir::UIntImm>();
 }
 
+/*! \brief Get the value of the given constant integer expression */
 int64_t GetConstInt(Expr expr) {
   if (expr->derived_from<tvm::ir::IntImm>()) {
     return expr.as<tvm::ir::IntImm>()->value;

@@ -11,6 +11,7 @@
 namespace topi {
 using namespace tvm;
 
+/*! \brief returns true iff the given array contains the given item */
 template<typename T>
 bool contains(Array<T> array, T item) {
   return std::any_of(array.begin(), array.end(),

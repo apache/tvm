@@ -13,6 +13,7 @@
 namespace topi {
 using namespace tvm;
 
+/*! \brief Get padding size for each side given padding height and width */
 std::vector<int> GetPadTuple(int pad_h, int pad_w) {
   auto pad_top = (pad_h + 1) / 2;
   auto pad_left = (pad_w + 1) / 2;

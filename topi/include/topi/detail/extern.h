@@ -14,6 +14,7 @@
 namespace topi {
 using namespace tvm;
 
+/*! \brief Construct a buffer to pass to an external function */
 Buffer DeclExternBuffer(Array<Expr> shape,
   Type dtype,
   std::string name) {
@@ -23,8 +24,10 @@ Buffer DeclExternBuffer(Array<Expr> shape,
     -1, 0);
 }
 
+/*! \brief A function wrapping the invocation of an external function */
 using FExtern = std::function<Expr(Array<Buffer>, Array<Buffer>)>;
 
+/*! \brief Create tensors representing the result of invoking an external function */
 Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
                           const std::vector<Type>& out_types,
                           const Array<Tensor>& inputs,
@@ -56,6 +59,7 @@ Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
   return outputs;
 }
 
+/*! \brief Pack a buffer object to be used as an argument to a PackedFunc */
 Expr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   auto shape = tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
@@ -79,6 +83,7 @@ Expr pack_buffer(Buffer buf) {
     pack_args, tvm::ir::Call::CallType::Intrinsic);
 }
 
+/*! \brief Construct an Expr representing the invocation of a PackedFunc */
 Expr call_packed(Array<Expr> args) {
   return tvm::ir::Call::make(Int(32), tvm::ir::intrinsic::tvm_call_packed,
     args, tvm::ir::Call::CallType::Intrinsic);
