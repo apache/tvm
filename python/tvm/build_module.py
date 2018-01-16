@@ -58,7 +58,7 @@ class BuildConfig(object):
         return self._attr[name]
 
     def decorator(self, func):
-        ''' decorate the pass function, use pass_id[0] as increased pass id'''
+        ''' decorate the pass function'''
         def dump(*args, **kwargs):
             '''dump function'''
             retv = func(*args, **kwargs)
@@ -77,7 +77,7 @@ class BuildConfig(object):
             return retv
         return dump
 
-    def decorator_irpass(self):
+    def decorate_irpass(self):
         '''decorate ir_pass and add_lower_pass'''
         for k, v in vars(ir_pass).items():
             vars(ir_pass)[k] = self.decorator(v) if isinstance(v, types.FunctionType) else v
@@ -86,8 +86,8 @@ class BuildConfig(object):
         self._types.append(container.Array)
         self._types.append(container.LoweredFunc)
 
-    def decorator_custompass(self, add_lower_pass):
-        if self._attr["dump_pass_ir"] is False:
+    def decorate_custompass(self, add_lower_pass):
+        if self.dump_pass_ir is False:
             return add_lower_pass
         self._pass_id = 0
         pass_list = [(x[0], self.decorator(x[1])) for x in add_lower_pass]
@@ -100,13 +100,13 @@ class BuildConfig(object):
         attr.update(self._attr)
         self._attr = attr
         BuildConfig.current = self
-        if self._attr["dump_pass_ir"] is True:
-            self.decorator_irpass()
+        if self.dump_pass_ir is True:
+            self.decorate_irpass()
         return self
 
     def __exit__(self, ptype, value, trace):
         assert self._old_scope
-        if self._attr["dump_pass_ir"] is True:
+        if self.dump_pass_ir is True:
             reload(ir_pass)
             reload(schedule)
             self._pass_id = 0
@@ -252,7 +252,7 @@ def lower(sch,
     binds, arg_list = get_binds(args, binds)
     cfg = BuildConfig.current
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-    add_lower_pass = cfg.decorator_custompass(add_lower_pass)
+    add_lower_pass = cfg.decorate_custompass(add_lower_pass)
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
