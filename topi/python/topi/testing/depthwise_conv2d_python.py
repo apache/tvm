@@ -27,7 +27,11 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
     """
     batch, in_channel, in_height, in_width = input_np.shape
     _, channel_multiplier, filter_height, filter_width = filter_np.shape
-    stride_h, stride_w = stride
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
     # calculate output shape
     if padding == 'VALID':
         out_channel = in_channel * channel_multiplier
@@ -84,7 +88,11 @@ def depthwise_conv2d_python_nhwc(input_np, filter_np, stride, padding):
     """
     batch, in_height, in_width, in_channel = input_np.shape
     filter_height, filter_width, _, channel_multiplier = filter_np.shape
-    stride_h, stride_w = stride
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
     # calculate output shape
     if padding == 'VALID':
         out_channel = in_channel * channel_multiplier
