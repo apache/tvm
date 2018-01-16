@@ -337,6 +337,57 @@ def conv2d_hwcn(Input, Filter, stride, padding, out_dtype='float32'):
         name="Conv2dOutput", tag="conv2d_hwcn")
     return Output
 
+
+def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
+    """Convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    Filter : tvm.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_height,  out_width, out_channel]
+    """
+    assert isinstance(stride, int) or len(stride) == 2
+    batch, in_height, in_width, in_channel = Input.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (kernel_h, kernel_w))
+    # compute the output shape
+    out_channel = num_filter
+    out_height = simplify((in_height - kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - kernel_w + pad_left + pad_right) // stride_w + 1)
+    pad_before = [0, pad_top, pad_left, 0]
+    pad_after = [0, pad_down, pad_right, 0]
+    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
+    rc = tvm.reduce_axis((0, in_channel), name='rc')
+    ry = tvm.reduce_axis((0, kernel_h), name='ry')
+    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    Output = tvm.compute(
+        (batch, out_height, out_width, out_channel),
+        lambda nn, yy, xx, ff: tvm.sum(
+            PaddedInput[nn, yy * stride_h + ry, xx * stride_w + rx, rc].astype(out_dtype) *
+            Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
+        name="Conv2dOutput", tag="conv2d_nhwc")
+    return Output
+
 # map from schedule type to declaration function
 _SCH_TO_DECL_FUNC = {
     SpatialPack: _spatial_pack,
