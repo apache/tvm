@@ -10,6 +10,7 @@
 #include <tvm/packed_func_ext.h>
 #include <string>
 #include "./codegen_c.h"
+#include "../runtime/opengl/opengl_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -18,7 +19,11 @@ class CodeGenOpenGL final : public CodeGenC {
  public:
   CodeGenOpenGL();
 
+  void InitFuncState(LoweredFunc f) final;
+
   void AddFunction(LoweredFunc f);
+
+  std::unordered_map<std::string, runtime::OpenGLShader> Finish();
 
   void BindThreadIndex(const IterVar &iv) final;
 
@@ -36,7 +41,9 @@ class CodeGenOpenGL final : public CodeGenC {
 
  private:
   const Variable *output_;
+  std::unordered_set<const Variable *> inputs_;
   const Variable *iter_var_;
+  std::unordered_map<std::string, runtime::OpenGLShader> shaders_;
 };
 
 }  // namespace codegen

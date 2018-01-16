@@ -4,13 +4,8 @@
  * \file build_opengl.cc
  */
 #include <tvm/base.h>
-#include <tvm/runtime/config.h>
 #include "./codegen_opengl.h"
 #include "./build_common.h"
-
-#if TVM_OPENGL_RUNTIME
-#include "../runtime/opengl/opengl_module.h"
-#endif   // TVM_OPENGL_RUNTIME
 
 namespace tvm {
 namespace codegen {
@@ -22,12 +17,13 @@ runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
   for (LoweredFunc f : funcs) {
     cg.AddFunction(f);
   }
-  std::string code = cg.Finish();
+  auto shaders = cg.Finish();
 #if TVM_OPENGL_RUNTIME
-  return OpenGLModuleCreate(code, "gl", ExtractFuncInfo(funcs));
+  return OpenGLModuleCreate(shaders, "gl", ExtractFuncInfo(funcs));
 #else
   LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
-  return DeviceSourceModuleCreate(code, "gl", ExtractFuncInfo(funcs), "opengl");
+  auto data = ToJson(shaders);
+  return DeviceSourceModuleCreate(data, "gl", ExtractFuncInfo(funcs), "opengl");
 #endif   // TVM_OPENGL_RUNTIME
 }
 

@@ -12,7 +12,6 @@
 #include <tvm/runtime/registry.h>
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
-#include "../meta_data.h"
 #include "../file_util.h"
 
 namespace tvm {
@@ -20,15 +19,9 @@ namespace runtime {
 
 class OpenGLModuleNode final : public ModuleNode {
  public:
-  explicit OpenGLModuleNode(std::string data,
-                            std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap);
-
-  // Disallow copy and assignment.
-  OpenGLModuleNode(const OpenGLModuleNode& other) = delete;
-  OpenGLModuleNode(OpenGLModuleNode&& other) = delete;
-  OpenGLModuleNode& operator=(const OpenGLModuleNode& other) = delete;
-  OpenGLModuleNode& operator=(OpenGLModuleNode&& other) = delete;
+  OpenGLModuleNode(std::unordered_map<std::string, OpenGLShader> shaders,
+                   std::string fmt,
+                   std::unordered_map<std::string, FunctionInfo> fmap);
 
   ~OpenGLModuleNode() override = default;
 
@@ -40,29 +33,27 @@ class OpenGLModuleNode final : public ModuleNode {
   std::string GetSource(const std::string& format) final;
 
   void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-    std::string meta_file = GetMetaFilePath(file_name);
-    SaveMetaDataToFile(meta_file, fmap_);
-    SaveBinaryToFile(file_name, data_);
-  }
+                  const std::string& format) final;
 
-  void SaveToBinary(dmlc::Stream* stream) final {
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-  }
+  void SaveToBinary(dmlc::Stream* stream) final;
 
-  const gl::Program &program() const { return program_; }
+  const gl::Program& GetProgram(const std::string& func_name) const;
+
+  const OpenGLShader& GetShader(const std::string& func_name) const;
+
+  const FunctionInfo& GetFunctionInfo(const std::string& func_name) const;
+
+  gl::OpenGLWorkspace& workspace() const { return *workspace_; }
 
   std::shared_ptr<gl::OpenGLWorkspace> workspace_;
 
  private:
-  std::string data_;
+  std::unordered_map<std::string, OpenGLShader> shaders_;
   std::string fmt_;
   std::unordered_map<std::string, FunctionInfo> fmap_;
-  gl::Program program_;
+  std::unordered_map<std::string, gl::Program> programs_;
+
+  DISALLOW_COPY_AND_ASSIGN(OpenGLModuleNode);
 };
 
 class OpenGLWrappedFunc {
@@ -89,14 +80,18 @@ class OpenGLWrappedFunc {
 };
 
 OpenGLModuleNode::OpenGLModuleNode(
-    std::string data, std::string fmt,
+    std::unordered_map<std::string, OpenGLShader> shaders,
+    std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap)
-    : workspace_(gl::OpenGLWorkspace::Global()), data_(std::move(data)),
-      fmt_(std::move(fmt)), fmap_(std::move(fmap)),
-      program_(workspace_->CreateProgram(data_.c_str())) {
-  LOG(INFO) << "OpenGLModuleNode(" << data << ", " << fmt << ", "
-                    << fmap.size() << ")";
+    : workspace_(gl::OpenGLWorkspace::Global()), shaders_(std::move(shaders)),
+      fmt_(std::move(fmt)), fmap_(std::move(fmap)), programs_() {
   CHECK(fmt_ == "gl") << "Unknown OpenGL format " << fmt_;
+  for (auto &pair : shaders_) {
+    auto &func_name = pair.first;
+    auto &shader = pair.second;
+    programs_.emplace(func_name,
+                      workspace_->CreateProgram(shader.source.c_str()));
+  }
 }
 
 PackedFunc OpenGLModuleNode::GetFunction(
@@ -106,32 +101,70 @@ PackedFunc OpenGLModuleNode::GetFunction(
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
 
-  auto it = fmap_.find(name);
-  if (it == fmap_.end()) return PackedFunc();
-  const FunctionInfo& info = it->second;
+  auto func_info_it = fmap_.find(name);
+  if (func_info_it == fmap_.end()) { return PackedFunc(); }
+  auto &func_info = func_info_it->second;
 
-  std::vector<size_t> arg_size(info.arg_types.size());
-  for (size_t i = 0; i < info.arg_types.size(); ++i) {
-    TVMType t = info.arg_types[i];
+  std::vector<size_t> arg_size(func_info.arg_types.size());
+  for (size_t i = 0; i < func_info.arg_types.size(); ++i) {
+    TVMType t = func_info.arg_types[i];
     CHECK_EQ(t.lanes, 1U);
     uint32_t bits = t.bits;
     CHECK_EQ(bits % 8, 0U);
     arg_size[i] = bits / 8;
   }
 
-  // initialize the wrapped func.
+  // Initialize the wrapped func.
   OpenGLWrappedFunc f(this, sptr_to_self, name, arg_size,
-                      info.thread_axis_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+                      func_info.thread_axis_tags);
+  return PackFuncVoidAddr(f, func_info.arg_types);
 }
 
 std::string OpenGLModuleNode::GetSource(const std::string& format) {
-  if (format == fmt_) return data_;
-  if (fmt_ == "gl") {
-    return data_;
-  } else {
-    return "";
+  if (format != fmt_ && fmt_ != "gl") { return ""; }
+  return ToJson(shaders_);
+}
+
+void OpenGLModuleNode::SaveToFile(const std::string &file_name,
+                                  const std::string &format) {
+  std::string fmt = GetFileFormat(file_name, format);
+  CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+  std::string meta_file = GetMetaFilePath(file_name);
+  SaveMetaDataToFile(meta_file, fmap_);
+  SaveBinaryToFile(file_name, GetSource(fmt_));
+}
+
+void OpenGLModuleNode::SaveToBinary(dmlc::Stream *stream) {
+  stream->Write(fmt_);
+  stream->Write(fmap_);
+  stream->Write(GetSource(fmt_));
+}
+
+const gl::Program& OpenGLModuleNode::GetProgram(
+    const std::string& func_name) const {
+  auto it = programs_.find(func_name);
+  if (it == programs_.end()) {
+    LOG(FATAL) << "Cannot find program";
   }
+  return it->second;
+}
+
+const OpenGLShader& OpenGLModuleNode::GetShader(
+    const std::string& func_name) const {
+  auto it = shaders_.find(func_name);
+  if (it == shaders_.end()) {
+    LOG(FATAL) << "Cannot find shader";
+  }
+  return it->second;
+}
+
+const FunctionInfo& OpenGLModuleNode::GetFunctionInfo(
+    const std::string& func_name) const {
+  auto it = fmap_.find(func_name);
+  if (it == fmap_.end()) {
+    LOG(FATAL) << "Cannot find shader";
+  }
+  return it->second;
 }
 
 OpenGLWrappedFunc::OpenGLWrappedFunc(
@@ -159,22 +192,51 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    void** void_args) const {
   LOG(INFO) << "OpenGLWrappedFunc::operator()";
 
-  gl::Texture* arg0 = *static_cast<gl::Texture**>(void_args[0]);
-  std::vector<std::pair<std::string, gl::Texture*>> name_texture_pairs;
-  for (size_t i = 1; i != arg_size_.size(); ++i) {
-    name_texture_pairs.push_back(std::make_pair(
-        "arg" + std::to_string(i),
-        *static_cast<gl::Texture**>(void_args[i])));
+  auto &shader = m_->GetShader(func_name_);
+  auto &program = m_->GetProgram(func_name_);
+  auto &func_info = m_->GetFunctionInfo(func_name_);
+
+  size_t nargs = shader.arg_kinds.size();
+
+  std::vector<std::tuple<std::string, TVMType, void*>> uniforms;
+  std::vector<std::pair<std::string, gl::Texture*>> inputs;
+  gl::Texture* output = nullptr;
+  for (size_t i = 0; i != nargs; ++i) {
+    auto name = shader.arg_names.at(i);
+    auto kind = shader.arg_kinds.at(i);
+    auto type = func_info.arg_types.at(i);
+    switch (kind) {
+      case OpenGLArgKind::kUniform: {
+        uniforms.emplace_back(name, type, void_args[i]);
+        break;
+      }
+      case OpenGLArgKind::kInputTexture: {
+        CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        auto texture = *static_cast<gl::Texture**>(void_args[i]);
+        inputs.emplace_back(name, texture);
+        break;
+      }
+      case OpenGLArgKind::kOutputTexture: {
+        CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        output = *static_cast<gl::Texture**>(void_args[i]);
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Invalid OpenGLArgKind";
+      }
+    }
   }
 
-  m_->workspace_->Render(m_->program(), name_texture_pairs, arg0);
+  m_->workspace().Render(program, uniforms, inputs, output);
 }
 
-Module OpenGLModuleCreate(std::string data,
+Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
   LOG(INFO) << "OpenGLModuleCreate()";
-  auto n = std::make_shared<OpenGLModuleNode>(data, fmt, fmap);
+  auto n = std::make_shared<OpenGLModuleNode>(std::move(shaders),
+                                              std::move(fmt),
+                                              std::move(fmap));
   return Module(n);
 }
 
@@ -186,7 +248,8 @@ Module OpenGLModuleLoadFile(const std::string& file_name,
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenGLModuleCreate(data, fmt, fmap);}
+  return OpenGLModuleCreate(FromJson(data), fmt, fmap);
+}
 
 Module OpenGLModuleLoadBinary(void* strm) {
   auto stream = static_cast<dmlc::Stream*>(strm);
@@ -196,7 +259,7 @@ Module OpenGLModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return OpenGLModuleCreate(data, fmt, fmap);
+  return OpenGLModuleCreate(FromJson(data), fmt, fmap);
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_gl")

@@ -492,6 +492,7 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
 
 void OpenGLWorkspace::Render(
     const Program& program,
+    const std::vector<std::tuple<std::string, TVMType, void*>>& uniforms,
     const std::vector<std::pair<std::string, Texture*>>& inputs,
     Texture* output) {
   if (inputs.size() + 2 > NumTextureUnits()) {
@@ -516,6 +517,40 @@ void OpenGLWorkspace::Render(
   // Always check that our framebuffer is okay.
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     LOG(FATAL) << "Framebuffer not complete.";
+  }
+
+  // Set up uniforms.
+  for (auto &uniform : uniforms) {
+    std::string name;
+    TVMType type;
+    void *value;
+    std::tie(name, type, value) = uniform;
+    CHECK_EQ(type.lanes, 1) << "Only support scalar uniform.";
+
+    GLint location = gl->GetUniformLocation(program.program_, name.c_str());
+
+    switch (type.code) {
+      case kDLInt: {
+        CHECK_EQ(type.bits, 32) << "Only support 32-bit int for uniform.";
+        GLint uniform_value = *reinterpret_cast<GLint*>(value);
+        OPENGL_CALL(gl->Uniform1i(location, uniform_value));
+        break;
+      }
+      case kDLUInt: {
+        LOG(FATAL) << "Strangely, emcc WebGL does not support glUniform1ui.";
+        break;
+      }
+      case kDLFloat: {
+        CHECK_EQ(type.bits, 32) << "Only support 32-bit float for uniform.";
+        GLfloat uniform_value = *reinterpret_cast<GLfloat*>(value);
+        OPENGL_CALL(gl->Uniform1f(location, uniform_value));
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unsupported type code for uniform.";
+        break;
+      }
+    }
   }
 
   // Tell the fragment shader what input textures to use.

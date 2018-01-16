@@ -50,15 +50,15 @@ def test_remote_save_load():
     remote.upload(path_gl)
     remote.upload(path_json)
 
-    data = remote.download("myadd.dso")
-    wat = remote.download("myadd.gl")
-    wat = remote.download("myadd.tvm_meta.json")
-
-    print('Loading myadd.dso')
-    fhost = remote.load_module("myadd.dso")
+    remote.download("myadd.dso")
+    remote.download("myadd.gl")
+    remote.download("myadd.tvm_meta.json")
 
     print('Loading myadd.gl')
     fdev = remote.load_module("myadd.gl")
+
+    print('Loading myadd.dso')
+    fhost = remote.load_module("myadd.dso")
 
     print('import_module')
     fhost.import_module(fdev)

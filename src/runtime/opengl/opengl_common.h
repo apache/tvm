@@ -14,6 +14,7 @@
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -84,6 +85,7 @@ class GLFunctionPointers {
         SetGLFunctionPointer(TexImage2D),
         SetGLFunctionPointer(TexParameteri),
         SetGLFunctionPointer(TexSubImage2D),
+        SetGLFunctionPointer(Uniform1f),
         SetGLFunctionPointer(Uniform1i),
         SetGLFunctionPointer(UseProgram),
         SetGLFunctionPointer(VertexAttribPointer),
@@ -142,6 +144,7 @@ class GLFunctionPointers {
   void (*TexSubImage2D)(GLenum target, GLint level, GLint xoffset,
                         GLint yoffset, GLsizei width, GLsizei height,
                         GLenum format, GLenum type, const GLvoid* data);
+  void (*Uniform1f)(GLint location, GLfloat v0);
   void (*Uniform1i)(GLint location, GLint v0);
   void (*UseProgram)(GLuint program);
   void (*VertexAttribPointer)(GLuint index, GLint size, GLenum type,
@@ -212,6 +215,7 @@ class OpenGLWorkspace final : public DeviceAPI {
    */
   void Render(
       const Program& program,
+      const std::vector<std::tuple<std::string, TVMType, void*>>& uniforms,
       const std::vector<std::pair<std::string, Texture*>>& inputs,
       Texture* output);
 
