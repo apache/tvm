@@ -40,8 +40,8 @@ TOPI_DECLARE_UNARY_OP(log);
 * \return A Tensor whose op member is the identity operation
 */
 inline Tensor identity(const Tensor& x,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                       std::string name = "tensor",
+                       std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return x(i);
   }, name, tag);
@@ -57,8 +57,8 @@ inline Tensor identity(const Tensor& x,
 * \return A Tensor whose op member is the negation operation
 */
 inline Tensor negative(const Tensor& x,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                       std::string name = "tensor",
+                       std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return -x(i);
   }, name, tag);
@@ -75,9 +75,9 @@ inline Tensor negative(const Tensor& x,
 * \return A Tensor whose op member is the pow operation
 */
 inline Tensor pow(const Tensor& x,
-  const Expr& y,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                  const Expr& y,
+                  std::string name = "tensor",
+                  std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return tvm::pow(x(i), y);
   }, name, tag);
@@ -94,9 +94,9 @@ inline Tensor pow(const Tensor& x,
 * \return A Tensor whose op member is the left shift operation
 */
 inline Tensor left_shift(const Tensor& x,
-  const Expr& n,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                         const Expr& n,
+                         std::string name = "tensor",
+                         std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return x(i) << n;
   }, name, tag);
@@ -113,9 +113,9 @@ inline Tensor left_shift(const Tensor& x,
 * \return A Tensor whose op member is the right shift operation
 */
 inline Tensor right_shift(const Tensor& x,
-  const Expr& n,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                          const Expr& n,
+                          std::string name = "tensor",
+                          std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return x(i) >> n;
   }, name, tag);
@@ -134,10 +134,10 @@ inline Tensor right_shift(const Tensor& x,
 * \return A Tensor whose op member is the clip operation
 */
 inline Tensor clip(const Tensor& x,
-  const Expr& a_min,
-  const Expr& a_max,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                   const Expr& a_min,
+                   const Expr& a_max,
+                   std::string name = "tensor",
+                   std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return tvm::max(tvm::min(x(i), a_max), a_min);  // NOLINT(*)
   }, name, tag);
@@ -156,9 +156,9 @@ inline Tensor clip(const Tensor& x,
  * \return A Tensor whose op member is the cast operation
  */
 inline Tensor cast(const Tensor& x,
-  Type type,
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                   Type type,
+                   std::string name = "tensor",
+                   std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     auto expr = x(i);
     if (expr.type().code() == type.code() && expr.type().bits() == type.bits()) {

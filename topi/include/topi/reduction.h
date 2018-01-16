@@ -70,9 +70,9 @@ std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
  * \return The result tensor.
  */
 Tensor CommReduce(const Tensor& data,
-  const std::vector<int>& axis,
-  FReduce func,
-  bool keepdims = false) {
+                  const std::vector<int>& axis,
+                  FReduce func,
+                  bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
@@ -104,7 +104,7 @@ Tensor CommReduce(const Tensor& data,
   }
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
-    (const Array<Var>& indices) {
+  (const Array<Var>& indices) {
     Array<Expr> eval_range;
     Array<Var> eval_indices;
     int arg_counter = 0;
@@ -145,9 +145,9 @@ Tensor CommReduce(const Tensor& data,
 * \return The result tensor.
 */
 Tensor CommReduceIdx(const Tensor& data,
-  const std::vector<int>& axis,
-  FCommReduce func,
-  bool keepdims = false) {
+                     const std::vector<int>& axis,
+                     FCommReduce func,
+                     bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
@@ -179,7 +179,7 @@ Tensor CommReduceIdx(const Tensor& data,
   }
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
-    (const Array<Var>& indices) {
+  (const Array<Var>& indices) {
     Array<Expr> eval_range;
     Array<Var> eval_indices;
     int arg_counter = 0;
@@ -210,10 +210,11 @@ Tensor CommReduceIdx(const Tensor& data,
   };
 
   auto temp_idx_val = tvm::compute(target_shape, compute,
-    data->op->name + "_red_temp", kCommReduceIdx);
+                                   data->op->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
-  return tvm::compute(target_shape,
+  return tvm::compute(
+    target_shape,
     [&temp_idx](const Array<Var>& indices) { return temp_idx(indices); },
     data->op->name + "_red",
     kCommReduceIdx);
@@ -235,10 +236,10 @@ using FIdentity = std::function<Array<Expr>(std::vector<Type> types)>;
  * \return A reducer function which creates a reduce expression over an axis.
  */
 FCommReduce MakeCommReducer(FCombine fcombine,
-  FIdentity fidentity,
-  std::string name = "reduce") {
+                            FIdentity fidentity,
+                            std::string name = "reduce") {
   return [fcombine, fidentity, &name]
-    (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
+  (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
     Array<Var> lhs, rhs;
     std::vector<Type> dtypes;
 

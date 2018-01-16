@@ -24,8 +24,8 @@ using namespace tvm;
 * \return Tensor with shape [batch, out_dim]
 */
 inline tvm::Tensor dense(const tvm::Tensor& data,
-  const tvm::Tensor& weight,
-  tvm::Tensor* bias) {
+                         const tvm::Tensor& weight,
+                         tvm::Tensor* bias) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias != nullptr) {
@@ -37,17 +37,19 @@ inline tvm::Tensor dense(const tvm::Tensor& data,
   auto out_dim = weight->shape[0];
 
   auto k = tvm::reduce_axis(Range(0, in_dim), "k");
-  auto matmul = tvm::compute({ batch, out_dim },
+  auto matmul = tvm::compute(
+    { batch, out_dim },
     [&](Var i, Var j) {
-    return tvm::sum(data(i, k) * weight(j, k), { k });
-  }, "tensor", "dense");
+      return tvm::sum(data(i, k) * weight(j, k), { k });
+    }, "tensor", "dense");
 
   if (bias != nullptr) {
     auto bias_val = *bias;
-    matmul = tvm::compute({ batch, out_dim },
+    matmul = tvm::compute(
+      { batch, out_dim },
       [&](Var i, Var j) {
-      return matmul(i, j) + bias_val(j);
-    }, "tensor", kBroadcast);
+        return matmul(i, j) + bias_val(j);
+      }, "tensor", kBroadcast);
   }
 
   return matmul;

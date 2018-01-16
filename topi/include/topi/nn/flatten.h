@@ -27,8 +27,8 @@ using namespace tvm;
 * \return A 2-D tensor.
 */
 inline Tensor flatten(const Tensor& x,
-  std::string name = "tensor",
-  std::string tag = kInjective) {
+                      std::string name = "tensor",
+                      std::string tag = kInjective) {
   auto ishape = x->shape;
   int dim = 1;
   for (int i = 1; i < ishape.size(); ++i) {
@@ -43,17 +43,18 @@ inline Tensor flatten(const Tensor& x,
   }
   std::reverse(extra_shape.begin(), extra_shape.end());
 
-  return tvm::compute(oshape, [&](Var i, Var j) {
-    Expr idx = j;
-    std::vector<Expr> index;
-    for (auto s : extra_shape) {
-      index.push_back(idx % s);
-      idx = idx / s;
-    }
-    index.push_back(i);
-    std::reverse(index.begin(), index.end());
-    return x(index);
-  });
+  return tvm::compute(
+    oshape, [&](Var i, Var j) {
+      Expr idx = j;
+      std::vector<Expr> index;
+      for (auto s : extra_shape) {
+        index.push_back(idx % s);
+        idx = idx / s;
+      }
+      index.push_back(i);
+      std::reverse(index.begin(), index.end());
+      return x(index);
+    });
 }
 
 }  // namespace topi

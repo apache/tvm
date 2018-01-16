@@ -30,29 +30,31 @@ using namespace tvm;
 * \return A Tensor whose op member is the batch normalization operation
 */
 inline Tensor batch_norm_inference(const Tensor& x,
-  const Tensor& gamma,
-  const Tensor& beta,
-  const Tensor& moving_mean,
-  const Tensor& moving_var,
-  float eps,
-  bool fix_gamma,
-  std::string name = "tensor",
-  std::string tag = kBroadcast) {
+                                   const Tensor& gamma,
+                                   const Tensor& beta,
+                                   const Tensor& moving_mean,
+                                   const Tensor& moving_var,
+                                   float eps,
+                                   bool fix_gamma,
+                                   std::string name = "tensor",
+                                   std::string tag = kBroadcast) {
   CHECK_EQ(x->shape.size(), 4) << "Batch norm requires 4-D input";
 
   Tensor out;
   if (fix_gamma) {
-    out = tvm::compute(x->shape,
+    out = tvm::compute(
+      x->shape,
       [&](const Array<Var>& indices) {
-      auto c = Array<Var>({ indices[1] });
-      return (x(indices) - moving_mean(c)) / tvm::sqrt(moving_var(c) + eps) + beta(c);
-    }, name, tag);
+        auto c = Array<Var>({ indices[1] });
+        return (x(indices) - moving_mean(c)) / tvm::sqrt(moving_var(c) + eps) + beta(c);
+      }, name, tag);
   } else {
-    out = tvm::compute(x->shape,
+    out = tvm::compute(
+      x->shape,
       [&](const Array<Var>& indices) {
-      auto c = Array<Var>({ indices[1] });
-      return (x(indices) - moving_mean(c)) / tvm::sqrt(moving_var(c) + eps) * gamma(c) + beta(c);
-    }, name, tag);
+        auto c = Array<Var>({ indices[1] });
+        return (x(indices) - moving_mean(c)) / tvm::sqrt(moving_var(c) + eps) * gamma(c) + beta(c);
+      }, name, tag);
 
     return out;
   }

@@ -30,9 +30,9 @@ namespace rocm {
 * \return Tensor with shape [batch, out_dim]
 */
 inline tvm::Tensor dense_rocm(const Target& target,
-  const tvm::Tensor& data,
-  const tvm::Tensor& weight,
-  tvm::Tensor* bias) {
+                              const tvm::Tensor& data,
+                              const tvm::Tensor& weight,
+                              tvm::Tensor* bias) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias != nullptr) {
@@ -48,9 +48,9 @@ inline tvm::Tensor dense_rocm(const Target& target,
     if (bias != nullptr) {
       auto bias_val = *bias;
       mm = tvm::compute({ batch, out_dim },
-        [&](Var i, Var j) {
-        return mm(i, j) + bias_val(j);
-      }, "tensor", kBroadcast);
+                        [&](Var i, Var j) {
+                          return mm(i, j) + bias_val(j);
+                        }, "tensor", kBroadcast);
     }
 
     return mm;

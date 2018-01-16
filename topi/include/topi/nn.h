@@ -64,10 +64,10 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 */
 template <typename T>
 inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
-  T threshold = static_cast<T>(0),
-  T alpha = static_cast<T>(0.1),
-  std::string name = "tensor",
-  std::string tag = kElementWise) {
+                              T threshold = static_cast<T>(0),
+                              T alpha = static_cast<T>(0.1),
+                              std::string name = "tensor",
+                              std::string tag = kElementWise) {
   return tvm::compute(
     t->shape,
     [&](const tvm::Array<tvm::Var>& i) {

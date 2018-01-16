@@ -45,9 +45,9 @@ Expr all(Array<Expr> args) {
 * \return The output tensor.
 */
 inline Tensor dilate(const Tensor& x,
-  std::vector<int> strides,
-  std::string name = "tensor",
-  std::string tag = kInjective) {
+                     std::vector<int> strides,
+                     std::string name = "tensor",
+                     std::string tag = kInjective) {
   auto n = x->shape.size();
   CHECK_EQ(n, strides.size())
     << "strides size (" << strides.size()
@@ -59,24 +59,25 @@ inline Tensor dilate(const Tensor& x,
       (x->shape[i] - 1) * strides[i] + 1));
   }
 
-  return tvm::compute(out_shape,
+  return tvm::compute(
+    out_shape,
     [&](const Array<Var>& indices) {
-    Array<Expr> not_zero;
-    Array<Expr> index_tuple;
-    for (int i = 0; i < n; ++i) {
-      if (strides[i] != 1) {
-        index_tuple.push_back(indices[i] / strides[i]);
-        not_zero.push_back((indices[i] % strides[i]) == 0);
-      } else {
-        index_tuple.push_back(indices[i]);
+      Array<Expr> not_zero;
+      Array<Expr> index_tuple;
+      for (int i = 0; i < n; ++i) {
+        if (strides[i] != 1) {
+          index_tuple.push_back(indices[i] / strides[i]);
+          not_zero.push_back((indices[i] % strides[i]) == 0);
+        } else {
+          index_tuple.push_back(indices[i]);
+        }
       }
-    }
-    if (not_zero.size() > 0) {
-      auto all_not_zero = all(not_zero);
-      return tvm::select(all_not_zero, x(index_tuple), make_const(x->dtype, 0));
-    }
-    return x(index_tuple);
-  }, name, tag);
+      if (not_zero.size() > 0) {
+        auto all_not_zero = all(not_zero);
+        return tvm::select(all_not_zero, x(index_tuple), make_const(x->dtype, 0));
+      }
+      return x(index_tuple);
+    }, name, tag);
 }
 
 }  // namespace topi

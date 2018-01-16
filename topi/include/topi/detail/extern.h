@@ -26,11 +26,11 @@ Buffer DeclExternBuffer(Array<Expr> shape,
 using FExtern = std::function<Expr(Array<Buffer>, Array<Buffer>)>;
 
 Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
-  const std::vector<Type>& out_types,
-  const Array<Tensor>& inputs,
-  FExtern fextern,
-  std::string name,
-  std::string tag) {
+                          const std::vector<Type>& out_types,
+                          const Array<Tensor>& inputs,
+                          FExtern fextern,
+                          std::string name,
+                          std::string tag) {
   CHECK_EQ(out_shapes.size(), out_types.size())
     << "make_extern: out_shapes and out_types must have equal size";
 

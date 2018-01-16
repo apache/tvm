@@ -160,9 +160,9 @@ inline tvm::Tensor broadcast_mod(const tvm::Tensor& A,
 * \return A Tensor whose op member is a pointwise maximum with broadcast
 */
 inline tvm::Tensor broadcast_max(const tvm::Tensor& A,
-  const tvm::Tensor& B,
-  std::string name = "tensor",
-  std::string tag = kBroadcast) {
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = kBroadcast) {
   auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::max(a, b); };  // NOLINT(*)
   return detail::WithBroadcast(l, A, B, name, tag);
 }
@@ -180,9 +180,9 @@ inline tvm::Tensor broadcast_max(const tvm::Tensor& A,
 * \return A Tensor whose op member is a pointwise minimum with broadcast
 */
 inline tvm::Tensor broadcast_min(const tvm::Tensor& A,
-  const tvm::Tensor& B,
-  std::string name = "tensor",
-  std::string tag = kBroadcast) {
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = kBroadcast) {
   auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::min(a, b); };  // NOLINT(*)
   return detail::WithBroadcast(l, A, B, name, tag);
 }
@@ -201,9 +201,9 @@ inline tvm::Tensor broadcast_min(const tvm::Tensor& A,
 * broadcast
 */
 inline tvm::Tensor broadcast_pow(const tvm::Tensor& A,
-  const tvm::Tensor& B,
-  std::string name = "tensor",
-  std::string tag = kBroadcast) {
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = kBroadcast) {
   auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::pow(a, b); };
   return detail::WithBroadcast(l, A, B, name, tag);
 }

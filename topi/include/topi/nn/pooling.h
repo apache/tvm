@@ -37,11 +37,11 @@ enum PoolType : int {
 * \return The output tensor in NCHW order
 */
 inline Tensor pool(const Tensor& x,
-  const std::vector<int>& kernel_size,
-  const std::vector<int>& stride_size,
-  const std::vector<int>& padding_size,
-  PoolType pool_type,
-  bool ceil_mode) {
+                   const std::vector<int>& kernel_size,
+                   const std::vector<int>& stride_size,
+                   const std::vector<int>& padding_size,
+                   PoolType pool_type,
+                   bool ceil_mode) {
   CHECK_EQ(x->shape.size(), 4) << "Pooling input must be 4-D";
   CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
@@ -85,24 +85,27 @@ inline Tensor pool(const Tensor& x,
 
   if (pool_type == kMaxPool) {
     auto temp = pad(x, pad_before, pad_after, &x->dtype.min(), "pad_temp");
-    return tvm::compute({ batch, channel, out_height, out_width },
+    return tvm::compute(
+      { batch, channel, out_height, out_width },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::max(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
+        return tvm::max(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
         { dheight, dwidth });
-    }, "tensor", "pool_max");
+      }, "tensor", "pool_max");
   } else if (pool_type == kAvgPool) {
     auto temp = pad(x, pad_before, pad_after, 0, "pad_temp");
 
-    auto tsum = tvm::compute({ batch, channel, out_height, out_width },
+    auto tsum = tvm::compute(
+      { batch, channel, out_height, out_width },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::sum(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
+        return tvm::sum(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
         { dheight, dwidth });
-    }, "tensor", "pool_avg");
+      }, "tensor", "pool_avg");
 
-    return tvm::compute({ batch, channel, out_height, out_width },
+    return tvm::compute(
+      { batch, channel, out_height, out_width },
       [&](Var n, Var c, Var h, Var w) {
-      return tsum(n, c, h, w) / (kernel_height * kernel_width);
-    }, "tensor", kElementWise);
+        return tsum(n, c, h, w) / (kernel_height * kernel_width);
+      }, "tensor", kElementWise);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
@@ -118,7 +121,7 @@ inline Tensor pool(const Tensor& x,
 * \return The output tensor with shape [batch, channel, 1, 1]
 */
 inline Tensor global_pool(const Tensor& x,
-  PoolType pool_type) {
+                          PoolType pool_type) {
   CHECK_EQ(x->shape.size(), 4) << "Pooling input must be 4-D";
 
   auto batch = x->shape[0];
@@ -130,20 +133,23 @@ inline Tensor global_pool(const Tensor& x,
   auto dwidth = tvm::reduce_axis(Range(0, width));
 
   if (pool_type == kMaxPool) {
-    return tvm::compute({ batch, channel, 1, 1 },
+    return tvm::compute(
+      { batch, channel, 1, 1 },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::max(x(n, c, dheight, dwidth), { dheight, dwidth });  // NOLINT(*)
-    }, "tensor", "global_pool_max");
+        return tvm::max(x(n, c, dheight, dwidth), { dheight, dwidth });  // NOLINT(*)
+      }, "tensor", "global_pool_max");
   } else if (pool_type == kAvgPool) {
-    auto tsum = tvm::compute({ batch, channel, 1, 1 },
+    auto tsum = tvm::compute(
+      { batch, channel, 1, 1 },
       [&](Var n, Var c, Var h, Var w) {
-      return tvm::sum(x(n, c, dheight, dwidth), { dheight, dwidth });
-    }, "tensor", "global_pool_sum");
+        return tvm::sum(x(n, c, dheight, dwidth), { dheight, dwidth });
+      }, "tensor", "global_pool_sum");
 
-    return tvm::compute({ batch, channel, 1, 1 },
+    return tvm::compute(
+      { batch, channel, 1, 1 },
       [&](Var n, Var c, Var h, Var w) {
-      return tsum(n, c, h, w) / tvm::cast(x->dtype, height * width);
-    }, "tensor", kElementWise);
+        return tsum(n, c, h, w) / tvm::cast(x->dtype, height * width);
+      }, "tensor", kElementWise);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
   }

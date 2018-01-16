@@ -27,9 +27,9 @@ using namespace tvm;
 * \return Output tensor with dtype uint32
 */
 inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
-  int axis,
-  std::string name = "PackedInput",
-  std::string tag = "binarize_pack") {
+                                 int axis,
+                                 std::string name = "PackedInput",
+                                 std::string tag = "binarize_pack") {
   auto ishape = data->shape;
   CHECK_EQ(GetConstInt(ishape[axis]) % 32, 0)
     << "binarize_pack: axis size must be a multiple of 32";
@@ -38,34 +38,35 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
   Array<Expr> oshape;
   for (int i = 0; i < n; ++i) {
     oshape.push_back(i == axis ?
-      tvm::ir::Simplify(ishape[i] / 32) :
-      ishape[i]);
+                     tvm::ir::Simplify(ishape[i] / 32) :
+                     ishape[i]);
   }
 
-  return tvm::compute(oshape,
+  return tvm::compute(
+    oshape,
     [&](const Array<Var>& indices) {
-    Array<Expr> start_idx;
-    for (int i = 0; i < n; ++i) {
-      start_idx.push_back(i == axis ?
-        indices[i] * 32 :
-        indices[i]);
-    }
-    auto packed = make_const(UInt(32), 0);
-    for (int j = 0; j < 32; ++j) {
-      Array<Expr> idx;
+      Array<Expr> start_idx;
       for (int i = 0; i < n; ++i) {
-        idx.push_back(i == axis ?
-          start_idx[i] + j :
-          start_idx[i]);
+        start_idx.push_back(i == axis ?
+                            indices[i] * 32 :
+                            indices[i]);
       }
-      auto sign = tvm::cast(UInt(32), data(idx) >= 0);
-      packed = (packed | sign);
-      if (j == 31) {
-        return packed;
+      auto packed = make_const(UInt(32), 0);
+      for (int j = 0; j < 32; ++j) {
+        Array<Expr> idx;
+        for (int i = 0; i < n; ++i) {
+          idx.push_back(i == axis ?
+                        start_idx[i] + j :
+                        start_idx[i]);
+        }
+        auto sign = tvm::cast(UInt(32), data(idx) >= 0);
+        packed = (packed | sign);
+        if (j == 31) {
+          return packed;
+        }
+        packed = packed << 1;
       }
-      packed = packed << 1;
-    }
-  }, name, tag);
+    }, name, tag);
 }
 
 /*!
@@ -77,7 +78,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
 * \return Tensor with shape [batch, out_dim], dtype is float32
 */
 inline tvm::Tensor binary_dense(const tvm::Tensor& data,
-  const tvm::Tensor& weight) {
+                                const tvm::Tensor& weight) {
   CHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
   CHECK_EQ(data->dtype, UInt(32)) << "binary_dense requires uint32 data";
@@ -88,15 +89,17 @@ inline tvm::Tensor binary_dense(const tvm::Tensor& data,
   auto out_dim = weight->shape[0];
 
   auto k = tvm::reduce_axis(Range(0, in_dim), "k");
-  auto matmul = tvm::compute({ batch, out_dim },
+  auto matmul = tvm::compute(
+    { batch, out_dim },
     [&](Var i, Var j) {
-    return tvm::sum(popcount(data(i, k) ^ weight(j, k)), { k });
-  }, "tensor", "binary_dense");
+      return tvm::sum(popcount(data(i, k) ^ weight(j, k)), { k });
+    }, "tensor", "binary_dense");
 
-  return tvm::compute({ batch, out_dim },
+  return tvm::compute(
+    { batch, out_dim },
     [&](Var i, Var j) {
-    return 32 * in_dim - 2.0f * matmul(i, j);
-  }, "tensor", kElementWise);
+      return 32 * in_dim - 2.0f * matmul(i, j);
+    }, "tensor", kElementWise);
 }
 
 }  // namespace topi

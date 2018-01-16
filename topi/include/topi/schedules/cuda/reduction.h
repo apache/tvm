@@ -17,9 +17,9 @@ using namespace tvm;
 namespace cuda {
 
 Schedule ScheduleReduce(const Target& target,
-  Operation op,
-  Schedule sch,
-  bool is_idx_reduce = false) {
+                        Operation op,
+                        Schedule sch,
+                        bool is_idx_reduce = false) {
   Tensor data_out;
   Tensor data_in;
 
@@ -91,9 +91,9 @@ Schedule ScheduleReduce(const Target& target,
   } else {
     if (is_idx_reduce) {
       sch[temp_idx_input].compute_at(stage_real,
-        stage_real->op.as<ComputeOpNode>()->axis[0]);
+                                     stage_real->op.as<ComputeOpNode>()->axis[0]);
       sch[temp_val_input].compute_at(stage_real,
-        stage_real->op.as<ComputeOpNode>()->axis[0]);
+                                     stage_real->op.as<ComputeOpNode>()->axis[0]);
     }
   }
 

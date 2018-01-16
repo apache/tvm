@@ -26,14 +26,15 @@ using namespace tvm;
 * \return A Tensor whose op member is the scale shift operation
 */
 inline Tensor scale_shift_nchw(const Tensor& x,
-  const Tensor& scale,
-  const Tensor& shift,
-  std::string name = "ScaleShift",
-  std::string tag = kBroadcast) {
-  return tvm::compute(x->shape,
+                               const Tensor& scale,
+                               const Tensor& shift,
+                               std::string name = "ScaleShift",
+                               std::string tag = kBroadcast) {
+  return tvm::compute(
+    x->shape,
     [&](Var b, Var c, Var h, Var w) {
-    return x(b, c, h, w) * scale(c) + shift(w);
-  }, name, tag);
+      return x(b, c, h, w) * scale(c) + shift(w);
+    }, name, tag);
 }
 
 /*!
@@ -48,14 +49,15 @@ inline Tensor scale_shift_nchw(const Tensor& x,
 * \return A Tensor whose op member is the scale shift operation
 */
 inline Tensor scale_shift_nhwc(const Tensor& x,
-  const Tensor& scale,
-  const Tensor& shift,
-  std::string name = "ScaleShift",
-  std::string tag = kBroadcast) {
-  return tvm::compute(x->shape,
+                               const Tensor& scale,
+                               const Tensor& shift,
+                               std::string name = "ScaleShift",
+                               std::string tag = kBroadcast) {
+  return tvm::compute(
+    x->shape,
     [&](Var b, Var h, Var w, Var c) {
-    return x(b, h, w, c) * scale(c) + shift(w);
-  }, name, tag);
+      return x(b, h, w, c) * scale(c) + shift(w);
+    }, name, tag);
 }
 
 }  // namespace topi
