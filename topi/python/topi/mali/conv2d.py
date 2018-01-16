@@ -118,6 +118,7 @@ def schedule_conv2d_nchw(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
+        """inline all one-to-one-mapping operators except the last stage (output)"""
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
                 s[op].compute_inline()
