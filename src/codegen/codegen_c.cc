@@ -38,14 +38,17 @@ void CodeGenC::AddFunction(LoweredFunc f) {
     if (i != 0) stream << ", ";
     if (v.type().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end()) {
+      if (it != alloc_storage_scope_.end())
         PrintStorageScope(it->second, stream);
-        stream << ' ';
+      stream << ' ';
+
+      if (handle_data_type_.count(v.get())) {
+        PrintType(handle_data_type_.at(v.get()), stream);
+      } else {
+        stream << "void";
       }
-    }
-    if (handle_data_type_.count(v.get())) {
-      PrintType(handle_data_type_.at(v.get()), stream);
       stream << "*";
+
       if (f->is_restricted && restrict_keyword_.length() != 0) {
         stream << ' ' << restrict_keyword_;
       }
@@ -402,12 +405,9 @@ inline void PrintBinaryIntrinsitc(const Call* op,
   }
 }
 void CodeGenC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
-  os << "(";
-  this->PrintType(op->type, os);
-  os << ")";
-  os << '(';
-  this->PrintExpr(op->value, os);
-  os << ')';
+  std::stringstream value;
+  this->PrintExpr(op->value, value);
+  os << CastFromTo(value.str(), op->value.type(), op->type);
 }
 void CodeGenC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
