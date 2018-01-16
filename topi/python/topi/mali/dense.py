@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,unused-variable
 """dense schedule on ARM Mali GPU"""
 
 from __future__ import absolute_import as _abs
@@ -36,14 +37,14 @@ def schedule_dense(outs):
         tune_config = getattr(tvm.target.current_target(), "tune_config", None)
         if tune_config is None:
             if hidden > 8192:
-                num_thread  = 32
+                num_thread = 32
                 unroll_step = 32
             else:
                 if out <= 1024:
                     num_thread = 32
                     unroll_step = 16
                 else:
-                    num_thread  = 256
+                    num_thread = 256
                     unroll_step = 32
 
             if data.dtype == 'float16':
@@ -55,7 +56,7 @@ def schedule_dense(outs):
                     unroll_step = 256
         else:
             num_thread = tune_config['num_thread']
-            unroll_step =tune_config['unroll_step']
+            unroll_step = tune_config['unroll_step']
 
         def fuse_and_bind(s, tensor, axis=None, num_thread=None):
             """ fuse all the axis and bind to GPU threads """

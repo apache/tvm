@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,unused-variable,unused-argument
 """depthwise_conv2d schedule on ARM Mali GPU"""
 
 from __future__ import absolute_import as _abs
@@ -72,7 +73,7 @@ def schedule_depthwise_conv2d_nchw(outs):
         s[conv].unroll(dj)
 
         _, c, y, x = s[output].op.axis
-        y, x, yi, xi =s[output].tile(y, x, VH, VW)
+        y, x, yi, xi = s[output].tile(y, x, VH, VW)
         s[output].unroll(yi)
         s[output].vectorize(xi)
 
@@ -80,7 +81,7 @@ def schedule_depthwise_conv2d_nchw(outs):
 
         if conv.op not in s.outputs:
             _, c, y, x = s[conv].op.axis
-            y, x, yi, xi =s[conv].tile(y, x, VH, VW)
+            y, x, yi, xi = s[conv].tile(y, x, VH, VW)
             s[conv].unroll(yi)
             s[conv].vectorize(xi)
             s[conv].compute_at(s[output], ji)
@@ -103,4 +104,3 @@ def schedule_depthwise_conv2d_nchw(outs):
 
     traverse(outs[0].op)
     return s
-

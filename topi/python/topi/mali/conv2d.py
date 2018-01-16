@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali GPU"""
 
 from __future__ import absolute_import as _abs
@@ -23,7 +24,7 @@ def fuse_and_bind(s, tensor, axis=None, num_thread=None):
 
 def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
     """ tile and bind to GPU threads """
-    x_factor= x_factor or y_factor
+    x_factor = x_factor or y_factor
     yo, xo, yi, xi = s[tensor].tile(y, x, y_factor, x_factor)
     s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
     s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
@@ -63,15 +64,15 @@ def transpose(s, tensor, readers):
     return s.cache_write(tmp, "global"), tmp
 
 @conv2d.register("mali")
-def decl_conv2d(input, filter, stride, padding, layout='NCHW', out_dtype='float32'):
+def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for ARM Mali GPU backend.
 
     Parameters
     ----------
-    input : tvm.Tensor
+    data : tvm.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    filter : tvm.Tensor
+    kernel : tvm.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
@@ -89,14 +90,14 @@ def decl_conv2d(input, filter, stride, padding, layout='NCHW', out_dtype='float3
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     assert layout == 'NCHW', "only support NCHW convolution on mali"
-    assert input.shape[0].value == 1, "only support batch size=1 convolution on mali"
-    assert input.dtype == filter.dtype, "Do not support inputs with different data types now."
+    assert data.shape[0].value == 1, "only support batch size=1 convolution on mali"
+    assert data.dtype == kernel.dtype, "Do not support inputs with different data types now."
 
-    out_dtype = input.dtype
-    if util.get_const_int(filter.shape[2]) == 1:
-        return _decl_im2col(input, filter, stride, padding, layout, out_dtype)
+    out_dtype = data.dtype
+    if util.get_const_int(kernel.shape[2]) == 1:
+        return _decl_im2col(data, kernel, stride, padding, layout, out_dtype)
     else:
-        return _decl_direct(input, filter, stride, padding, layout, out_dtype)
+        return _decl_direct(data, kernel, stride, padding, layout, out_dtype)
 
 @generic.schedule_conv2d_nchw.register(["mali"])
 def schedule_conv2d_nchw(outs):
@@ -187,19 +188,21 @@ def _decl_direct(data, kernel, stride, padding, layout, out_dtype):
     oshape = (N, CO, OH, OW)
 
     data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-        data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
+                           data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
+                           name='data_vec')
 
     kernel_vec = tvm.compute(kvshape, lambda co, ci, kh, kw, vc:
-        kernel[co*VC+vc][ci][kh][kw], name='kernel_vec')
+                             kernel[co*VC+vc][ci][kh][kw],
+                             name='kernel_vec')
 
     ci = tvm.reduce_axis((0, CI), name='ci')
     kh = tvm.reduce_axis((0, KH), name='kh')
     kw = tvm.reduce_axis((0, KW), name='kw')
 
-    conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc:
-        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+kh, vw*WSTR+kw].astype(out_dtype) *
-                kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
-                axis=[ci, kh, kw]), name='conv')
+    conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc:\
+                tvm.sum(data_vec[n, h, w, ci, vh*HSTR+kh, vw*WSTR+kw].astype(out_dtype) *
+                        kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
+                        axis=[ci, kh, kw]), name='conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w:
                          conv[n][co//VC][h/VH][w//VW][h%VH][w%VW][co%VC],
@@ -225,8 +228,8 @@ def _schedule_direct_conv2d(s, op):
         num_thread = 8
 
         out_channel = util.get_const_int(kernel.shape[0])
-        in_channel  = util.get_const_int(kernel.shape[1])
-        in_width    = util.get_const_int(data.shape[2])
+        in_channel = util.get_const_int(kernel.shape[1])
+        in_width = util.get_const_int(data.shape[2])
 
         if in_width >= 224:
             pass
@@ -319,30 +322,28 @@ def _decl_im2col(data, kernel, stride, padding, layout='NCHW', out_dtype='float3
 
     # A [CO, CI * KH * KW]
     reduce_len = upround(CI * KH * KW, ALIGN)
-    A = tvm.compute((upround(CO, ALIGN), reduce_len), lambda i, j : 
-            #tvm.select(tvm.all(i < CO, j < CI * KH * KW),
-                       kernel[i][j / KW / KH][j / KW % KH][j % KW], name='A')
-                       #tvm.const(0, kernel.dtype)), name='A')
+    A = tvm.compute((upround(CO, ALIGN), reduce_len), lambda i, j:
+                    kernel[i][j / KW / KH][j / KW % KH][j % KW], name='A')
 
     # B [CI * KH * KW, N * OH * OW]
-    B = tvm.compute((reduce_len, upround(N * OH * OW, ALIGN)), lambda i, j:
+    B = tvm.compute((reduce_len, upround(N * OH * OW, ALIGN)), lambda i, j:\
             tvm.select(tvm.all(i < CI * KH * KW, j < N * OH * OW),
-                               data_pad[j / (OH*OW)][i / (KH*KW)][j / OW % OH*HSTR + i / KW % KH]
-                                                                 [j % OW*WSTR + i % KW],
-                               tvm.const(0, data_pad.dtype)), name='B')
+                       data_pad[j / (OH*OW)][i / (KH*KW)][j / OW % OH*HSTR + i / KW % KH]
+                       [j % OW*WSTR + i % KW],
+                       tvm.const(0, data_pad.dtype)), name='B')
 
     gemm_n, gemm_l, gemm_m = A.shape[0], reduce_len, B.shape[1]
 
     # C [CO, N * OH * OW]
     k = tvm.reduce_axis((0, gemm_l), name='k')
-    C = tvm.compute((gemm_n, gemm_m), lambda i, j: tvm.sum(A[i,k] * B[k,j], axis=k), name='C')
+    C = tvm.compute((gemm_n, gemm_m), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
 
     # output
-    # the last term C[gemm_n-1, gemm_m-1] is for enabling the alignment, otherwise the alignemt above
-    # will be eliminated by bound inference
-    output = tvm.compute((N, CO, OH, OW), lambda n, co, h, w:
-                 C[co][n * OW * OW + h * OW + w] + tvm.const(0, C.dtype) * C[gemm_n-1,gemm_m-1],
-                 name='output', tag='im2col_conv_output')
+    # the last term C[gemm_n-1, gemm_m-1] is for enabling the alignment,
+    # otherwise the alignment above will be eliminated by bound inference
+    output = tvm.compute((N, CO, OH, OW), lambda n, co, h, w:\
+                 C[co][n * OW * OW + h * OW + w] + tvm.const(0, C.dtype) * C[gemm_n-1, gemm_m-1],
+                         name='output', tag='im2col_conv_output')
 
     return output
 
