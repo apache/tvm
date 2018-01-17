@@ -13,7 +13,7 @@ TEST(Tuple, Basic) {
   Tuple<int> z{1, 2, 3, 5, 6};
   std::ostringstream os;
   os << z;
-  CHECK_EQ(os.str(), "(1,2,3,5,6)");
+  CHECK_EQ(os.str(), "[1,2,3,5,6]");
   std::istringstream is(os.str());
   is >> y;
   CHECK_EQ(x, y);
