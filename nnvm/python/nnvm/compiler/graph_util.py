@@ -5,6 +5,9 @@ from __future__ import absolute_import as _abs
 import tvm
 from . import graph_attr
 
+from ..graph import create
+from ..symbol import Group, ones_like
+
 def infer_shape(graph, **shape):
     """Infer the shape given the shape of inputs.
 
@@ -89,3 +92,57 @@ def check_graph_equal(grapha, graphb, compare_variable_attrs=False):
     err = _deep_compare(grapha, graphb, compare_variable_attrs)
     if err:
         raise ValueError("Graph compare error: " + err)
+
+def get_gradient_graph(ys, xs, grad_ys=None):
+    """Create gradient graph of ys with respect to xs.
+
+    Parameters
+    ----------
+    ys : Symbol or list of Symbol
+        Symbols from which the gradient is calculated.
+    xs : Symbol or list of Symbol
+        Symbols the gradient respect to.
+        For group symbol, gradients for all outputs will be calculated.
+    grad_ys : Symbol or list of Symbol
+        Head gradients for ys.
+
+    Returns
+    -------
+    ret : Graph
+        Generated gradient graph.
+    """
+    if isinstance(ys, list):
+        ys = Group(ys)
+    g = create(ys)
+    g._set_symbol_list_attr('grad_ys', ys)
+    g._set_symbol_list_attr('grad_xs', xs)
+    ny = len(ys.list_output_names())
+    if grad_ys is None:
+        grad_ys = [ones_like(ys[i]) for i in range(ny)]
+    g._set_symbol_list_attr('grad_ys_out_grad', grad_ys)
+    return g.apply('Gradient')
+
+def gradients(ys, xs, grad_ys=None):
+    """Create gradient symbol of ys respect to xs.
+
+    Parameters
+    ----------
+    ys : Symbol or list of Symbol
+        Symbols from which the gradient is calculated.
+    xs : Symbol or list of Symbol
+        Symbols the gradient respect to.
+        For group symbol, gradients for all outputs will be calculated.
+    grad_ys : Symbol or list of Symbol
+        Head gradients for ys.
+
+    Returns
+    -------
+    ret : list of Symbol
+        Generated gradient symbol. For each xs,
+        all gradients from ys are merged into a single symbol.
+    """
+    grad_g = get_gradient_graph(ys, xs, grad_ys)
+    nx = len(Group(xs).list_output_names()) \
+        if isinstance(xs, list) else len(xs.list_output_names())
+    ret = [grad_g.symbol[i] for i in range(nx)]
+    return ret

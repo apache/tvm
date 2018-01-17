@@ -84,6 +84,22 @@ inline bool ElemwiseType(const NodeAttrs& attrs,
     attrs, in_attrs, out_attrs, -1);
 }
 
+inline bool ElementWiseReduceShape(const NodeAttrs& attrs,
+                                   std::vector<TShape> *in_attrs,
+                                   std::vector<TShape> *out_attrs) {
+  CHECK_EQ(out_attrs->size(), 1);
+  return ElemwiseAttr<TShape, shape_is_none, shape_assign, true, shape_string>(
+    attrs, in_attrs, out_attrs, TShape());
+}
+
+inline bool ElementWiseReduceType(const NodeAttrs& attrs,
+                                  std::vector<int> *in_attrs,
+                                  std::vector<int> *out_attrs) {
+  CHECK_EQ(out_attrs->size(), 1);
+  return ElemwiseAttr<int, type_is_none, type_assign, true, type_string>(
+    attrs, in_attrs, out_attrs, -1);
+}
+
 #define NNVM_REGISTER_ELEMWISE_UNARY_OP(name)                       \
   NNVM_REGISTER_OP(name)                                            \
   .set_num_inputs(1)                                                \
@@ -100,11 +116,13 @@ inline bool ElemwiseType(const NodeAttrs& attrs,
 #define NNVM_REGISTER_INIT_OP(name)                                 \
   NNVM_REGISTER_OP(name)                                            \
   .set_num_inputs(0)                                                \
-  .set_num_outputs(1)                                               \
-  .set_attr_parser(ParamParser<InitOpParam>)                        \
-  .add_arguments(InitOpParam::__FIELDS__())                         \
-  .set_attr<FInferShape>("FInferShape", ZeroShape)                  \
-  .set_attr<FInferType>("FInferType", ZeroType)
+  .set_num_outputs(1)
+
+
+#define NNVM_REGISTER_INIT_LIKE_OP(name)                            \
+  NNVM_REGISTER_ELEMWISE_UNARY_OP(name)                             \
+  .set_attr<FGradient>("FGradient", MakeZeroGradNodes)              \
+  .add_argument("data", "Symbol", "The input")
 
 
 #define NNVM_REGISTER_ELEMWISE_BINARY_OP(name)                      \
@@ -119,6 +137,41 @@ inline bool ElemwiseType(const NodeAttrs& attrs,
     })                                                              \
   .add_argument("lhs", "Tensor", "first input")                     \
   .add_argument("rhs", "Tensor", "second input")
+
+
+#define NNVM_REGISTER_ELEMWISE_REDUCE_OP(name)                      \
+  NNVM_REGISTER_OP(name)                                            \
+  .set_num_inputs([](const NodeAttrs& attrs) {                      \
+    return static_cast<uint32_t>(                                   \
+      dmlc::get<ElementWiseReduceParam>(attrs.parsed).num_args);    \
+    })                                                              \
+  .set_attr_parser(ParamParser<ElementWiseReduceParam>)             \
+  .set_attr<FGetAttrDict>("FGetAttrDict",                           \
+    ParamGetAttrDict<ElementWiseReduceParam>)                       \
+  .set_attr<nnvm::FInferShape>("FInferShape",                       \
+    ElementWiseReduceShape)                                         \
+  .set_attr<nnvm::FInferType>("FInferType", ElementWiseReduceType)  \
+  .add_argument("args", "Symbol[]", "Positional input arguments")
+
+
+#define NNVM_REGISTER_INDICATOR_OP(name)                            \
+  NNVM_REGISTER_OP(name)                                            \
+  .set_num_outputs(1)                                               \
+  .set_attr<FInferType>(                                            \
+    "FInferType", [](const NodeAttrs& attrs,                        \
+                     std::vector<int>* in_attrs,                    \
+                     std::vector<int>* out_attrs) {                 \
+      CHECK_EQ(out_attrs->size(), 1U);                              \
+      NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0,                 \
+        static_cast<int>(kFloat32));                                \
+      return true;                                                  \
+  })                                                                \
+  .set_attr<FGradient>(                                             \
+    "FGradient", [](const NodePtr& n,                               \
+                    const std::vector<NodeEntry>& ograds) {         \
+      return MakeZeroGradNodes(n, ograds);                          \
+  })
+
 
 }  // namespace top
 }  // namespace nnvm

@@ -1,6 +1,7 @@
 import json
 import nnvm.symbol as sym
 import nnvm.graph as graph
+import nnvm.compiler.graph_util as graph_util
 
 def test_json_pass():
     x = sym.Variable('x')
@@ -117,13 +118,13 @@ def test_gradient():
     y = sym.Variable("y")
     z1 = sym.elemwise_add(x, sym.sqrt(y))
     z2 = sym.log(x)
-    gradient = graph.gradients([z1, z2], [x, y])
+    gradient = graph_util.gradients([z1, z2], [x, y])
     assert len(gradient) == 2
 
     g1 = sym.Variable("g1")
     g2 = sym.Variable("g2")
     grad_ys = [g1, g2]
-    gradient = graph.gradients(sym.Group([z1, z2]),
+    gradient = graph_util.gradients(sym.Group([z1, z2]),
                                sym.Group([x, y]), grad_ys=grad_ys)
     g_graph = graph.create(sym.Group(gradient)).ir()
     assert len(gradient) == 2
