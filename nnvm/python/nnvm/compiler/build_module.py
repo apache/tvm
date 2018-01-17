@@ -188,7 +188,7 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
         The input types to the graph
 
     params : dict of str to NDArray
-        Input parameetrs to the graph that do not change
+        Input parameters to the graph that do not change
         during inference time. Used for pre-compute
         folding optimization.
 

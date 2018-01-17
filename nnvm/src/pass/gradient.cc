@@ -14,18 +14,23 @@ namespace pass {
 namespace {
 
 // default aggregate gradient function
-// require operator __zero__ and __ewise_sum__ to be presented.
+// require operator zeros and elemwise_sum to be presented.
 NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
   if (v.size() == 1) {
     return std::move(v[0]);
   } else if (v.size() == 0) {
     NodePtr zero_node = Node::Create();
-    zero_node->attrs.op = Op::Get("_zeros");
+    zero_node->attrs.op = Op::Get("zeros");
+    zero_node->attrs.name = "zero_grad";
+    zero_node->attrs.op->attr_parser(&(zero_node->attrs));
     return NodeEntry{zero_node, 0, 0};
   } else {
     NodePtr sum_node = Node::Create();
     sum_node->attrs.op = Op::Get("elemwise_sum");
     sum_node->inputs = std::move(v);
+    sum_node->attrs.name = "grad_sum";
+    sum_node->attrs.dict["num_args"] = std::to_string(sum_node->inputs.size());
+    sum_node->attrs.op->attr_parser(&(sum_node->attrs));
     return NodeEntry{sum_node, 0, 0};
   }
 }

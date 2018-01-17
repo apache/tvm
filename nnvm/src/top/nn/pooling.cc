@@ -77,7 +77,29 @@ NNVM_REGISTER_OP(max_pool2d)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", Pool2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FGradient>(
+  "FGradient", [](const NodePtr& n,
+                  const std::vector<NodeEntry>& ograds) {
+    return MakeGradNode("_max_pool2d_grad", n,
+                        {ograds[0], n->inputs[0], NodeEntry{n, 0, 0}},
+                        n->attrs.dict);
+})
 .set_support_level(2);
+
+NNVM_REGISTER_OP(_max_pool2d_grad)
+  .describe(R"code(Max pooling 2D grad.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("ograd", "4D Tensor", "Output grad.")
+.add_argument("input", "4D Tensor", "Input data of max_pool2d grad.")
+.add_argument("output", "4D Tensor", "Output data of max_pool2d grad.")
+.set_num_inputs(3)
+.set_num_outputs(1)
+.set_attr_parser(ParamParser<Pool2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Pool2DParam>)
+.set_attr<FInferShape>("FInferShape", AssignOutputAttr<TShape, 1, 0>)
+.set_attr<FInferType>("FInferType", ElemwiseType<3, 1>)
+.set_attr<TIsBackward>("TIsBackward", true);
 
 
 NNVM_REGISTER_OP(avg_pool2d)
