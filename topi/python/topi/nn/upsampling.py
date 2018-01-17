@@ -19,7 +19,7 @@ def upsampling(data, scale, layout="NCHW"):
 
     layout: string
         either "NCHW" or "NHWC"
-        
+
     Returns
     -------
     output : tvm.Tensor
@@ -45,7 +45,7 @@ def upsampling_nchw(data, scale):
 
     scale: int
         upsampling scaling factor
-        
+
     Returns
     -------
     output : tvm.Tensor
@@ -61,7 +61,7 @@ def upsampling_nchw(data, scale):
 
 def upsampling_nhwc(data, scale):
     """Perform nearest neighor upsampling on NHWC layout input.
-    
+
     Parameters
     ----------
     data : tvm.Tensor
@@ -69,7 +69,7 @@ def upsampling_nhwc(data, scale):
 
     scale: int
         upsampling scaling factor
-    
+
     """
 
     batch, height, width, channel = data.shape
