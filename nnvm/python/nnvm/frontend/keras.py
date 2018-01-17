@@ -349,7 +349,14 @@ def _convert_concat(insym, keras_layer, _):
 
 
 def _convert_reshape(insym, keras_layer, _):
-    return _sym.reshape(insym, keras_layer.shape)
+    shape = keras_layer.shape if hasattr(keras_layer, 'shape') else \
+                keras_layer.target_shape if hasattr(keras_layer, 'target_shape') else\
+                None
+
+    if shape is None:
+        raise TypeError("No shape attribute in reshape layer: {}".format(keras_layer))
+
+    return _sym.reshape(insym, shape=shape)
 
 
 def _default_skip(insym, keras_layer, _): # pylint: disable=unused-argument
@@ -477,7 +484,15 @@ def from_keras(model):
             symtab.get_var(keras_layer.name, must_contain=False)
         else:
             predecessors = []
-            for node in keras_layer.inbound_nodes:
+            inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
+                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
+                        else None
+
+            if inbound_nodes is None:
+                raise TypeError("Unknown layer type or unsupported Keras version : {}"
+                                .format(keras_layer))
+
+            for node in inbound_nodes:
                 for pred in node.inbound_layers:
                     predecessors.append(pred.name)
             if len(predecessors) == 1:
