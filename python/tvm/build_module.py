@@ -4,13 +4,16 @@ This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
+from __future__ import print_function
 import warnings
+import types
 
 from . import api
 from . import tensor
 from . import schedule
 from . import expr
 from . import ir_pass
+from . import stmt as _stmt
 from . import container
 from . import module
 from . import codegen
@@ -37,10 +40,12 @@ class BuildConfig(object):
         "data_alignment": -1,
         "restricted_func": True,
         "double_buffer_split_loop": 1,
-        "add_lower_pass": None
+        "add_lower_pass": None,
+        "dump_pass_ir": False
     }
     def __init__(self, **kwargs):
         self._old_scope = None
+        self._pass_id = 0
         for k, _ in kwargs.items():
             if k not in BuildConfig.defaults:
                 raise ValueError(
@@ -52,6 +57,41 @@ class BuildConfig(object):
             return BuildConfig.defaults[name]
         return self._attr[name]
 
+    def decorator(self, func):
+        ''' decorate the pass function'''
+        def dump(*args, **kwargs):
+            '''dump function'''
+            retv = func(*args, **kwargs)
+            # pylint: disable=unidiomatic-typecheck
+            if type(retv) not in self._types:
+                return retv
+            pname = str(self._pass_id) + "_" + func.func_name + "_ir.cc"
+            with open(pname, "a") as f:
+                out = retv.body if isinstance(retv, container.LoweredFunc) else retv
+                print(out, file=f)
+                if isinstance(retv, container.Array):
+                    for x in retv:
+                        out = x.body if isinstance(x, container.LoweredFunc) else x
+                        print("---------", x.name, "\n", out, "\n-----------\n", file=f)
+                self._pass_id += 1
+            return retv
+        return dump
+
+    def decorate_irpass(self):
+        for k, v in vars(ir_pass).items():
+            vars(ir_pass)[k] = self.decorator(v) if isinstance(v, types.FunctionType) else v
+        schedule.ScheduleOps = self.decorator(schedule.ScheduleOps)
+        self._types = [v for k, v in vars(_stmt).items()]
+        self._types.append(container.Array)
+        self._types.append(container.LoweredFunc)
+
+    def decorate_custompass(self, add_lower_pass):
+        if self.dump_pass_ir is False:
+            return add_lower_pass
+        self._pass_id = 0
+        pass_list = [(x[0], self.decorator(x[1])) for x in add_lower_pass]
+        return pass_list
+
     def __enter__(self):
         # pylint: disable=protected-access
         self._old_scope = BuildConfig.current
@@ -59,10 +99,16 @@ class BuildConfig(object):
         attr.update(self._attr)
         self._attr = attr
         BuildConfig.current = self
+        if self.dump_pass_ir is True:
+            self.decorate_irpass()
         return self
 
     def __exit__(self, ptype, value, trace):
         assert self._old_scope
+        if self.dump_pass_ir is True:
+            reload(ir_pass)
+            reload(schedule)
+            self._pass_id = 0
         BuildConfig.current = self._old_scope
 
 
@@ -114,6 +160,8 @@ def build_config(**kwargs):
     add_lower_pass: list of tuiple (phase, function(Stmt->Stmt)), default=None
         phase contains an integer on which optimization pass we apply the pass.
         Additional lowering passes to be applied before make_api.
+
+    dump_pass_ir: dump ir of each pass into file idx_passname_ir.cc, default=False
 
     Returns
     -------
@@ -167,7 +215,6 @@ def get_binds(args, binds=None):
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
 
-
 def lower(sch,
           args,
           name="default_function",
@@ -204,6 +251,7 @@ def lower(sch,
     binds, arg_list = get_binds(args, binds)
     cfg = BuildConfig.current
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+    add_lower_pass = cfg.decorate_custompass(add_lower_pass)
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
