@@ -16,6 +16,14 @@ def _check_data_format(keras_layer):
             raise ValueError("Keras frontend currently supports data_format = channels_last only.")
 
 
+def _get_pad_pair(input1d, kernel1d, stride1d):
+    out1d = (input1d + stride1d - 1) // stride1d
+    pad = np.maximum((out1d - 1) * stride1d + kernel1d - input1d, 0)
+    pad_before = pad // 2
+    pad_after = pad - pad_before
+    return [pad_before, pad_after]
+
+
 def _convert_activation(insym, keras_layer, _):
     if isinstance(keras_layer, str):
         act_type = keras_layer
@@ -120,6 +128,8 @@ def _convert_convolution(insym, keras_layer, symtab):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:
         dilation = [keras_layer.dilation_rate, keras_layer.dilation_rate]
+    kernel_h = (kernel_h - 1) * dilation[0] + 1
+    kernel_w = (kernel_w - 1) * dilation[1] + 1
     stride_h, stride_w = keras_layer.strides
     params = {'weight': symtab.new_const(weight),
               'kernel_size': [kernel_h, kernel_w],
@@ -141,14 +151,8 @@ def _convert_convolution(insym, keras_layer, symtab):
     elif keras_layer.padding == 'same':
         in_h = keras_layer.input.shape[1].value
         in_w = keras_layer.input.shape[2].value
-        out_h = (in_h + stride_h - 1) // stride_h
-        out_w = (in_w + stride_w - 1) // stride_w
-        pad_h = np.maximum((out_h - 1) * stride_h + kernel_h - in_h, 0)
-        pad_w = np.maximum((out_w - 1) * stride_w + kernel_w - in_w, 0)
-        pad_t = pad_h // 2
-        pad_l = pad_w // 2
-        pad_b = pad_h - pad_t
-        pad_r = pad_w - pad_l
+        pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         insym = _sym.pad(data=insym, pad_width=((0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
         raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
@@ -187,14 +191,8 @@ def _convert_separable_convolution(insym, keras_layer, symtab):
     elif keras_layer.padding == 'same':
         in_h = keras_layer.input.shape[1].value
         in_w = keras_layer.input.shape[2].value
-        out_h = (in_h + stride_h - 1) // stride_h
-        out_w = (in_w + stride_w - 1) // stride_w
-        pad_h = np.maximum((out_h - 1) * stride_h + kernel_h - in_h, 0)
-        pad_w = np.maximum((out_w - 1) * stride_w + kernel_w - in_w, 0)
-        pad_t = pad_h // 2
-        pad_l = pad_w // 2
-        pad_b = pad_h - pad_t
-        pad_r = pad_w - pad_l
+        pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         insym = _sym.pad(data=insym, pad_width=(
             (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
@@ -242,23 +240,18 @@ def _convert_pooling(insym, keras_layer, symtab):
         pool_h, pool_w = keras_layer.pool_size
         stride_h, stride_w = keras_layer.strides
         params = {'pool_size': [pool_h, pool_w],
-                  'strides': [stride_h, stride_w]}
+                  'strides': [stride_h, stride_w],
+                  'padding': [0, 0]}
         if keras_layer.padding == 'valid':
-            params['padding'] = [0, 0]
+            pass
+        # we insert a separate pad operator
         elif keras_layer.padding == 'same':
             in_h = keras_layer.input.shape[1].value
             in_w = keras_layer.input.shape[2].value
-            out_h = (in_h + stride_h - 1) // stride_h
-            out_w = (in_w + stride_w - 1) // stride_w
-            pad_h = np.maximum((out_h - 1) * stride_h + pool_h - in_h, 0)
-            pad_w = np.maximum((out_w - 1) * stride_w + pool_w - in_w, 0)
-            pad_t = pad_h // 2
-            pad_l = pad_w // 2
-            pad_b = pad_h - pad_t
-            pad_r = pad_w - pad_l
-            params['padding'] = [pad_t, pad_l]
-            if pad_b > pad_t and pad_r > pad_l:
-                params['ceil_mode'] = True
+            pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
+            pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
+            insym = _sym.pad(data=insym, pad_width=(
+                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
         else:
             raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
         if pool_type == 'MaxPooling2D':
@@ -349,13 +342,11 @@ def _convert_concat(insym, keras_layer, _):
 
 
 def _convert_reshape(insym, keras_layer, _):
-    shape = keras_layer.shape if hasattr(keras_layer, 'shape') else \
-                keras_layer.target_shape if hasattr(keras_layer, 'target_shape') else\
-                None
-
+    shape = keras_layer.shape if hasattr(keras_layer, 'shape') \
+       else keras_layer.target_shape if hasattr(keras_layer, 'target_shape') \
+       else None
     if shape is None:
         raise TypeError("No shape attribute in reshape layer: {}".format(keras_layer))
-
     return _sym.reshape(insym, shape=shape)
 
 
@@ -485,13 +476,11 @@ def from_keras(model):
         else:
             predecessors = []
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
-                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
-                        else None
-
+                       else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
+                       else None
             if inbound_nodes is None:
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
-
             for node in inbound_nodes:
                 for pred in node.inbound_layers:
                     predecessors.append(pred.name)
