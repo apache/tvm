@@ -13,6 +13,7 @@ def upsampling(data, scale, layout="NCHW"):
     data : tvm.Tensor
         4-D with shape [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
+
     scale: int
         upsampling scaling factor
 

@@ -45,6 +45,38 @@ def global_pool(data, pool_type):
 
 
 def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW"):
+    """Perform pooling on the data
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        4-D with shape [batch, channel, in_height, in_width]
+        or  [batch, in_height, in_width, channel]
+
+    kernel : list/tuple of two ints
+        Kernel size, [kernel_height, kernel_width]
+
+    stride : list/tuple of two ints
+        Stride size, [stride_height, stride_width]
+
+    paddding : list/tuple of two ints
+        Pad size, [pad_height, pad_width]
+
+    pool_type : str
+        Pool type, 'max' or 'avg'
+
+    ceil_mode : bool
+        Whether to use ceil when caculate output size.
+
+    layout: string
+        either "NCHW" or "NHWC"
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, channel, out_height, out_width]
+        or [batch, out_height, out_width, channel]
+    """
     if layout == "NCHW":
         return pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=ceil_mode)
     elif layout == "NHWC":
@@ -54,7 +86,7 @@ def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW
 
 
 def pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=False):
-    """Perform pooling on the data
+    """Perform pooling on the data in NCHW layout
 
     Parameters
     ----------
@@ -129,7 +161,7 @@ def pool_nchw(data, kernel, stride, padding, pool_type, ceil_mode=False):
 
 
 def pool_nhwc(data, kernel, stride, padding, pool_type, ceil_mode=False):
-    """Perform pooling on the data
+    """Perform pooling on the data in NHWC layout
 
     Parameters
     ----------

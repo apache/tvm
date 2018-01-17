@@ -36,7 +36,7 @@ def softmax(x, axis=-1):
 
 
 def softmax_nchw(x, axis):
-    """Perform softmax activation on the data
+    """Perform softmax activation on the data in NCHW layout
 
     Parameters
     ----------
@@ -75,7 +75,7 @@ def softmax_nchw(x, axis):
 
 
 def softmax_nhwc(x, axis):
-    """Perform softmax activation on the data
+    """Perform softmax activation on the data in NHWC layout
 
     Parameters
     ----------
