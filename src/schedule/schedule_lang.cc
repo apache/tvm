@@ -408,7 +408,27 @@ Stage& Stage::opengl() {
   // TODO(zhixunt): Don't fuse reduction.
   IterVar fused = all_iter_vars[0];
   for (size_t i = 1; i != all_iter_vars.size(); ++i) {
-    fuse(fused, all_iter_vars[i], &fused);
+    auto iter_var = all_iter_vars[i];
+    switch (iter_var->iter_type) {
+      case IterVarType::kDataPar: {
+        fuse(fused, all_iter_vars[i], &fused);
+        break;
+      }
+      case IterVarType::kThreadIndex: {
+        LOG(ERROR) << "A fresh schedule shouldn't have thread index iter var";
+        break;
+      }
+      case IterVarType::kCommReduce:
+      case IterVarType::kOrdered:
+      case IterVarType::kOpaque: {
+        break;
+      }
+      default: {
+        LOG(ERROR) << "Invalid iter var type "
+                   << IterVarType2String(iter_var->iter_type);
+        break;
+      }
+    }
   }
 
   // Bind the only dimension to threadIdx.x.

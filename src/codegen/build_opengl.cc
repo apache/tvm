@@ -24,7 +24,7 @@ runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
   LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
   auto data = ToJson(shaders);
   return DeviceSourceModuleCreate(data, "gl", ExtractFuncInfo(funcs), "opengl");
-#endif   // TVM_OPENGL_RUNTIME
+#endif  // TVM_OPENGL_RUNTIME
 }
 
 TVM_REGISTER_API("codegen.build_opengl")

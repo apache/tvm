@@ -167,21 +167,21 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
   LOG(INFO) << "CodeGenOpenGL::VisitStmt_(const Store *)";
   auto t = op->value.type();
   auto buffer = op->buffer_var.get();
-  auto index = op->index.get();
+  auto index = op->index;
 
   if (t.lanes() == 1) {
     // Store to a scalar.
     CHECK(inputs_.find(buffer) == inputs_.cend())
-      << "Texture has been read from. Must not store to it.";
+      << "Texture has been read from before. Must not store to it.";
     if (output_ == nullptr) {
       output_ = buffer;  // Record that this texture is the output.
     } else {
-      CHECK(output_ != buffer) << "GLSL can only write to 1 texture.";
+      CHECK(output_ == buffer) << "GLSL can only write to 1 texture.";
     }
-    CHECK(index == iter_var_) << "GLSL must write to corresponding elem.";
 
     this->PrintIndent();
-    stream << GetVarID(buffer) << " = " << PrintExpr(op->value) << ";\n";
+    stream << GetBufferRef(t, buffer, index) << " = "
+           << PrintExpr(op->value) << ";\n";
 
   } else {
     // Store to a vector.
@@ -193,21 +193,27 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
 // Format: texelFetch(buffer, index, 0).r
 std::string CodeGenOpenGL::GetBufferRef(
     Type t, const Variable* buffer, Expr index) {
-  CHECK(buffer != this->output_)
-    << "Texture has been stored to. Must not read from it.";
   CHECK(t.lanes() == 1) << "Vector type not supported.";
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported.";
 
-  this->inputs_.insert(buffer);  // Record that this texture is an input.
+  if (buffer == this->output_) {
+    // This is the output texture.
+    CHECK(index.get() == iter_var_)
+      << "GLSL must access corresponding elem of output texture.";
+    return GetVarID(buffer);
+  } else {
+    // This is an input texture.
+    this->inputs_.insert(buffer);
 
-  std::ostringstream os;
-  std::string vid = GetVarID(buffer);
-  os << "texelFetch(" << vid << ", ";
-  os << "ivec2(";
-  PrintExpr(index, os);
-  os << ", 0)";
-  os << ", 0).r";
-  return os.str();
+    std::ostringstream os;
+    std::string vid = GetVarID(buffer);
+    os << "texelFetch(" << vid << ", ";
+    os << "ivec2(";
+    PrintExpr(index, os);
+    os << ", 0)";
+    os << ", 0).r";
+    return os.str();
+  }
 }
 
 void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
