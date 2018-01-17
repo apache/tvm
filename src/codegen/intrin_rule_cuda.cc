@@ -36,6 +36,19 @@ struct CUDAFastMath : public CUDAMath {
   }
 };
 
+struct CUDAPopcount {
+  std::string operator()(Type t, std::string name) const {
+    if (t.lanes() == 1 && t.is_uint()) {
+      switch (t.bits()) {
+        case 32: return "__popc";
+        case 64: return "__popcll";
+        default: return "";
+      }
+    }
+    return "";
+  }
+};
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
 .set_body(DispatchExtern<CUDAFastMath>);
 
@@ -50,6 +63,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow")
 .set_body(DispatchExtern<CUDAMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
+.set_body(DispatchExtern<CUDAPopcount>);
 
 }  // namespace intrin
 }  // namespace codegen
