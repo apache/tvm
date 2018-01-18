@@ -56,7 +56,7 @@ def find_lib_path(name=None, search_path=None):
         else:
             dll_path.append(search_path)
     if name is not None:
-        if type(name) is list:
+        if isinstance(name, list):
             lib_dll_path = []
             for n in name:
                 lib_dll_path += [os.path.join(p, n) for p in dll_path]
