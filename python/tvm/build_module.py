@@ -4,13 +4,16 @@ This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
+
 import warnings
+import types
 
 from . import api
 from . import tensor
 from . import schedule
 from . import expr
 from . import ir_pass
+from . import stmt as _stmt
 from . import container
 from . import module
 from . import codegen
@@ -37,7 +40,8 @@ class BuildConfig(object):
         "data_alignment": -1,
         "restricted_func": True,
         "double_buffer_split_loop": 1,
-        "add_lower_pass": None
+        "add_lower_pass": None,
+        "dump_pass_ir": False
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -67,6 +71,68 @@ class BuildConfig(object):
 
 
 BuildConfig.current = BuildConfig()
+
+class DumpIR(object):
+    '''dump ir for each pass'''
+    pass_id = 0
+    decorated = False
+    def __init__(self):
+        self._local_decorated = False
+
+    def decorate(self, func):
+        ''' decorate the pass function'''
+        def dump(*args, **kwargs):
+            '''dump function'''
+            retv = func(*args, **kwargs)
+            if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
+                return retv
+            pname = str(DumpIR.pass_id) + "_" + func.func_name + "_ir.cc"
+            with open(pname, "a") as f:
+                out = retv.body if isinstance(retv, container.LoweredFunc) else retv
+                f.write(str(out))
+                if isinstance(retv, container.Array):
+                    for x in retv:
+                        out = x.body if isinstance(x, container.LoweredFunc) else x
+                        f.write("---------", x.name, "\n", str(out), "\n-----------\n")
+                DumpIR.pass_id += 1
+            return retv
+        return dump
+
+    def decorate_irpass(self):
+        for k, v in vars(ir_pass).items():
+            vars(ir_pass)[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
+        schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
+
+    def decorate_custompass(self):
+        cfg = BuildConfig.current
+        add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+        pass_list = [(x[0], self.decorate(x[1])) for x in add_lower_pass]
+        BuildConfig.current.add_lower_pass = pass_list
+
+    def __enter__(self, pass_inp=None):
+        if DumpIR.decorated is True:
+            return
+        self._old_irpass = vars(ir_pass).items()
+        self._old_sgpass = schedule.ScheduleOps
+        self._old_custom_pass = BuildConfig.current.add_lower_pass
+        self.decorate_irpass()
+        self.decorate_custompass()
+        self._local_decorated = True
+        DumpIR.decorated = True
+        DumpIR.pass_id = 0
+
+    def __exit__(self, ptype, value, trace):
+        if not (self._local_decorated and DumpIR.decorated):
+            return
+
+        assert self._old_irpass
+        assert self._old_sgpass
+        for k, v in self._old_irpass:
+            vars(ir_pass)[k] = v
+        schedule.ScheduleOps = self._old_sgpass
+        BuildConfig.current.add_lower_pass = self._old_custom_pass
+        self._local_decorated = False
+        DumpIR.decorated = False
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -114,6 +180,8 @@ def build_config(**kwargs):
     add_lower_pass: list of tuiple (phase, function(Stmt->Stmt)), default=None
         phase contains an integer on which optimization pass we apply the pass.
         Additional lowering passes to be applied before make_api.
+
+    dump_pass_ir: dump ir of each pass into file idx_passname_ir.cc, default=False
 
     Returns
     -------
@@ -168,6 +236,17 @@ def get_binds(args, binds=None):
     return binds, arg_list
 
 
+def dump_ir(func):
+    def __decorator(*args, **kwargs):
+        if BuildConfig.current.dump_pass_ir is True:
+            with DumpIR():
+                retv = func(*args, **kwargs)
+        else:
+            retv = func(*args, **kwargs)
+        return retv
+    return __decorator
+
+@dump_ir
 def lower(sch,
           args,
           name="default_function",
@@ -247,7 +326,7 @@ def lower(sch,
         return stmt
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
-
+@dump_ir
 def build(sch,
           args=None,
           target=None,
