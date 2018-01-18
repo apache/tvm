@@ -159,7 +159,7 @@ inline tvm::Tensor broadcast_mod(const tvm::Tensor& A,
 *
 * \return A Tensor whose op member is a pointwise maximum with broadcast
 */
-inline tvm::Tensor broadcast_max(const tvm::Tensor& A,
+inline tvm::Tensor broadcast_maximum(const tvm::Tensor& A,
                                  const tvm::Tensor& B,
                                  std::string name = "tensor",
                                  std::string tag = kBroadcast) {
@@ -179,7 +179,7 @@ inline tvm::Tensor broadcast_max(const tvm::Tensor& A,
 *
 * \return A Tensor whose op member is a pointwise minimum with broadcast
 */
-inline tvm::Tensor broadcast_min(const tvm::Tensor& A,
+inline tvm::Tensor broadcast_minimum(const tvm::Tensor& A,
                                  const tvm::Tensor& B,
                                  std::string name = "tensor",
                                  std::string tag = kBroadcast) {

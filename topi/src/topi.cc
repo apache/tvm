@@ -19,4 +19,30 @@ TVM_REGISTER_GLOBAL("topi.broadcast_add")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = broadcast_add(args[0], args[1]);
   });
+
+TVM_REGISTER_GLOBAL("topi.broadcast_sub")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_sub(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.broadcast_mul")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_mul(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.broadcast_div")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_div(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.broadcast_maximum")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_maximum(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.broadcast_minimum")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_minimum(args[0], args[1]);
+   });
+
 }  // namespace topi
