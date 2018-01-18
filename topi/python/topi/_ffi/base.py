@@ -7,7 +7,18 @@ import sys
 import os
 import ctypes
 import numpy as np
-from . import libinfo
+from tvm._ffi import libinfo
+
+def get_lib_names():
+    if sys.platform.startswith('win32'):
+        return ['libtopi.dll', 'topi.dll']
+    elif sys.platform.startswith('darwin'):
+        return ['libtopi.dylib']
+    else:
+        return ['libtopi.so']
+
+curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+lib_search = os.path.join(curr_path, "..")
 
 #----------------------------
 # library loading
@@ -31,7 +42,7 @@ class TVMError(Exception):
 
 def _load_lib():
     """Load libary by searching possible path."""
-    lib_path = libinfo.find_lib_path()
+    lib_path = libinfo.find_lib_path(get_lib_names(), lib_search)
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
     return lib, os.path.basename(lib_path[0])
 

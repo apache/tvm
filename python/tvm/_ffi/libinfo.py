@@ -56,7 +56,12 @@ def find_lib_path(name=None, search_path=None):
         else:
             dll_path.append(search_path)
     if name is not None:
-        lib_dll_path = [os.path.join(p, name) for p in dll_path]
+        if type(name) is list:
+            lib_dll_path = []
+            for n in name:
+                lib_dll_path += [os.path.join(p, n) for p in dll_path]
+        else:
+            lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []
     else:
         if sys.platform.startswith('win32'):

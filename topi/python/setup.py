@@ -14,15 +14,23 @@ else:
     from setuptools import setup
     from setuptools.extension import Extension
 
+def get_lib_names():
+    if sys.platform.startswith('win32'):
+        return ['libtopi.dll', 'topi.dll']
+    elif sys.platform.startswith('darwin'):
+        return ['libtopi.dylib']
+    else:
+        return ['libtopi.so']
+
 def get_lib_path():
     """Get library path, name and version"""
     # We can not import `libinfo.py` in setup.py directly since __init__.py
     # Will be invoked which introduces dependences
     CURRENT_DIR = os.path.dirname(__file__)
-    libinfo_py = os.path.join(CURRENT_DIR, './topi/_ffi/libinfo.py')
+    libinfo_py = os.path.join(CURRENT_DIR, '../../python/tvm/_ffi/libinfo.py')
     libinfo = {'__file__': libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, 'exec'), libinfo, libinfo)
-    lib_path = libinfo['find_lib_path']()
+    lib_path = libinfo['find_lib_path'](get_lib_names())
     version = libinfo['__version__']
     libs = [lib_path[0]]
     if libs[0].find("runtime") == -1:
