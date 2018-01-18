@@ -1,7 +1,7 @@
 """FFI implementation details"""
 from __future__ import absolute_import as _abs
-from tvm._ffi.function import list_global_func_names, get_global_func, _get_api
 import sys
+from tvm._ffi.function import list_global_func_names, get_global_func, _get_api
 
 def _init_api(module_name, prefix):
     """Initialize api for a given module name
@@ -24,4 +24,3 @@ def _init_api(module_name, prefix):
         ff.__name__ = fname
         ff.__doc__ = ("TVM PackedFunc %s. " % fname)
         setattr(target_module, ff.__name__, ff)
-
