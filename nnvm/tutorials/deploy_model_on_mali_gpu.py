@@ -1,12 +1,17 @@
 """
-Deploy the Pretrained Model on Raspberry Pi
-===========================================
-**Author**: `Ziheng Jiang <https://ziheng.org/>`_
+Deploy the Pretrained Model on ARM Mali GPU
+=======================================================
+**Author**: `Lianmin Zheng <https://lmzheng.net/>`_, `Ziheng Jiang <https://ziheng.org/>`_
 
-This is an example of using NNVM to compile a ResNet model and deploy
-it on raspberry pi.
+This is an example of using NNVM to compile a ResNet model and
+deploy it on Firefly-RK3399 with ARM Mali GPU.  We will use the
+Mali-T860 MP4 GPU on this board to accelerate the inference.
 
-To begin with, we import nnvm(for compilation) and TVM(for deployment).
+This tutorial is based on the `tutorial <http://nnvm.tvmlang.org/tutorials/deploy_model_on_rasp.html>`_
+for deploying on Raspberry Pi by `Ziheng Jiang <https://ziheng.org/>`_.
+Great thanks to the original author, I only do several lines of modification.
+
+To begin with, we import nnvm (for compilation) and TVM (for deployment).
 """
 import tvm
 import nnvm.compiler
@@ -64,7 +69,7 @@ from tvm.contrib import graph_runtime as runtime
 ######################################################################
 # Set Up RPC Server on Device
 # ---------------------------
-# To set up a TVM RPC server on the Raspberry Pi (our remote device),
+# To set up a TVM RPC server on the your ARM device (our remote device),
 # we have prepared a one-line script so you only need to run this
 # command after following the installation guide to install TVM on
 # your device:
@@ -81,21 +86,22 @@ from tvm.contrib import graph_runtime as runtime
 #      Loading runtime library /home/YOURNAME/code/tvm/lib/libtvm_runtime.so... exec only
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
+
 ######################################################################
 # For demonstration, we simply start an RPC server on the same machine,
-# if :code:`use_rasp` is False. If you have set up the remote
+# if :code:`use_mali` is False. If you have set up the remote
 # environment, please change the three lines below: change the
-# :code:`use_rasp` to True, also change the :code:`host` and :code:`port`
+# :code:`use_mali` to True, also change the :code:`host` and :code:`port`
 # with your device's host address and port number.
 
-use_rasp = False
-host = 'rasp0'
+use_mali = False
+host = '10.42.0.96'
 port = 9090
 
-if not use_rasp:
+if not use_mali:
     # run server locally
     host = 'localhost'
-    port = 9091
+    port = 9092
     server = rpc.Server(host=host, port=port, use_popen=True)
 
 ######################################################################
@@ -163,40 +169,35 @@ out_shape = (batch_size, num_classes)
 # Compile The Graph
 # -----------------
 # To compile the graph, we call the :any:`nnvm.compiler.build` function
-# with the graph configuration and parameters. However, You cannot to
-# deploy a x86 program on a device with ARM instruction set. It means
-# NNVM also needs to know the compilation option of target device,
-# apart from arguments :code:`net` and :code:`params` to specify the
-# deep learning workload. Actually, the option matters, different option
-# will lead to very different performance.
+# with the graph configuration and parameters. As we use OpenCL for 
+# GPU computing, the tvm will generate both OpenCL kernel code and ARM
+# CPU host code. The CPU host code is used for calling OpenCL kernels.
+# In order to generate correct CPU code, we need to specify the target
+# triplet for host ARM device by setting the parameter :code:`target_host`.
 
 ######################################################################
 # If we run the example locally for demonstration, we can simply set
-# it as :code:`llvm`. If to run it on the Raspberry Pi, you need to
-# specify its instruction set. Here is the option I use for my Raspberry
-# Pi, which has been proved as a good compilation configuration.
+# it as :code:`llvm`. If to run it on the ARM device, you need to specify
+# its instruction set. Here is the option I use for my Firefly-RK3399.
 
-if use_rasp:
-    target = "llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
+if use_mali:
+    target_host = "llvm -target=aarch64-linux-gnu -mattr=+neon"
 else:
-    target = "llvm"
+    target_host = "llvm"
 
-
-# use `with tvm.target.rasp` for some target-specified optimization
-with tvm.target.rasp():
-    graph, lib, params = nnvm.compiler.build(
-        net, target, shape={"data": data_shape}, params=params)
+# set target as  `tvm.target.mali` instead of 'opencl' to enable
+# target-specified optimization
+graph, lib, params = nnvm.compiler.build(net, target=tvm.target.mali(),
+        shape={"data": data_shape}, params=params, target_host=target_host)
 
 # After `nnvm.compiler.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will
 # change the parameters but keep the result of model as the same.
 
-
 # Save the library at local temporary directory.
 tmp = util.tempdir()
-lib_fname = tmp.relpath('net.o')
-lib.save(lib_fname)
-
+lib_fname = tmp.relpath('net.tar')
+lib.export_library(lib_fname)
 
 ######################################################################
 # Deploy the Model Remotely by RPC
@@ -209,9 +210,9 @@ remote = rpc.connect(host, port)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
-rlib = remote.load_module('net.o')
+rlib = remote.load_module('net.tar')
 
-ctx = remote.cpu(0)
+ctx = remote.cl(0)
 # upload the parameter
 rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
 
@@ -229,6 +230,6 @@ out = module.get_output(0, tvm.nd.empty(out_shape, ctx=ctx))
 top1 = np.argmax(out.asnumpy())
 print('TVM prediction top-1: {}'.format(synset[top1]))
 
-if not use_rasp:
+if not use_mali:
     # terminate the local server
     server.terminate()
