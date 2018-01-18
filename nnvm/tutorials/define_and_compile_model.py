@@ -143,7 +143,7 @@ if not use_rasp:
     # run server locally
     host = 'localhost'
     port = 9090
-    server = rpc.Server(host=host, port=port)
+    server = rpc.Server(host=host, port=port, use_popen=True)
 
 # compile and save model library
 if use_rasp:
