@@ -20,7 +20,7 @@ def _init_api(module_name, prefix):
         if fname.find(".") != -1:
             continue
         f = get_global_func(name)
-        ff = _get_api(f)
-        ff.__name__ = fname
-        ff.__doc__ = ("TVM PackedFunc %s. " % fname)
-        setattr(target_module, ff.__name__, ff)
+        func = _get_api(f)
+        func.__name__ = fname
+        func.__doc__ = ("TVM PackedFunc %s. " % fname)
+        setattr(target_module, func.__name__, func)

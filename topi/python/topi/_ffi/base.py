@@ -12,10 +12,9 @@ from tvm._ffi import libinfo
 def get_lib_names():
     if sys.platform.startswith('win32'):
         return ['libtopi.dll', 'topi.dll']
-    elif sys.platform.startswith('darwin'):
+    if sys.platform.startswith('darwin'):
         return ['libtopi.dylib']
-    else:
-        return ['libtopi.so']
+    return ['libtopi.so']
 
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 lib_search = os.path.join(curr_path, "..")
