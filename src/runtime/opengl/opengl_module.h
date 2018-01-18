@@ -26,6 +26,7 @@ struct OpenGLShader {
   std::string source;
   std::vector<std::string> arg_names;
   std::vector<int> arg_kinds;
+  std::string thread_extent_var;
 
   void Save(dmlc::JSONWriter *writer) const;
   void Load(dmlc::JSONReader *reader);
@@ -52,6 +53,7 @@ inline void OpenGLShader::Save(dmlc::JSONWriter* writer) const {
   writer->WriteObjectKeyValue("arg_names", arg_names);
   writer->WriteObjectKeyValue("arg_kinds", arg_kinds);
   writer->WriteObjectKeyValue("source", source);
+  writer->WriteObjectKeyValue("thread_extent_var", thread_extent_var);
   writer->EndObject();
 }
 
@@ -60,6 +62,7 @@ inline void OpenGLShader::Load(dmlc::JSONReader* reader) {
   helper.DeclareField("arg_names", &arg_names);
   helper.DeclareField("arg_kinds", &arg_kinds);
   helper.DeclareField("source", &source);
+  helper.DeclareField("thread_extent_var", &thread_extent_var);
   helper.ReadAllFields(reader);
 }
 

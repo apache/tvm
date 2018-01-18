@@ -44,6 +44,7 @@ class CodeGenOpenGL final : public CodeGenC {
   std::unordered_set<const Variable *> inputs_;
   const Variable *iter_var_;
   std::unordered_map<std::string, runtime::OpenGLShader> shaders_;
+  std::string thread_extent_var_;
 };
 
 }  // namespace codegen

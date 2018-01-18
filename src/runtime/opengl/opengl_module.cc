@@ -235,6 +235,11 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     }
   }
 
+  ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+  std::unique_ptr<GLint> thread_extent(new GLint(wl.block_dim(0)));
+  uniforms.emplace_back(shader.thread_extent_var, TVMType{kDLInt, 32, 1},
+                        static_cast<void*>(thread_extent.get()));
+
   m_->workspace().Render(program, uniforms, inputs, output);
 }
 

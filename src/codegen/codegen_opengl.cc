@@ -65,6 +65,9 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
     var_idmap_[arg.get()] = arg_name;
   }
 
+  thread_extent_var_ = GetUniqueName("thread_extent");
+  this->decl_stream << "uniform int " << thread_extent_var_ << ";\n";
+
   this->stream << "void main() {\n";
 
   int func_scope = this->BeginScope();
@@ -172,6 +175,12 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
 
   PrintIndent();
   this->stream << "ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
+  PrintIndent();
+  this->stream << "if (threadIdx.x < " << thread_extent_var_ << ") {\n";
+  PrintIndent();
+  this->stream << "  return;\n";
+  PrintIndent();
+  this->stream << "}\n";
 }
 
 // GLSL texture store is special. We can only store to one output texture, and
