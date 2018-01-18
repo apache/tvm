@@ -77,18 +77,21 @@ def _convert_advanced_activation(insym, keras_layer, _):
 
 def _convert_merge(insym, keras_layer, _):
     merge_type = type(keras_layer).__name__
-    if merge_type == 'Add':
-        return _sym.elemwise_add(insym[0], insym[1])
-    elif merge_type == 'Subtract':
-        return _sym.elemwise_sub(insym[0], insym[1])
-    elif merge_type == 'Multiply':
-        return _sym.elemwise_mul(insym[0], insym[1])
-    elif merge_type == 'Average':
-        raise NotImplementedError('Average merge not implemented')
-    elif merge_type == 'Maximum':
-        raise NotImplementedError('Maximum merge not implemented')
-    else:
-        raise TypeError("Unsupported merge type : {}".format(merge_type))
+    ret = insym[0]
+    for i in range(1, len(insym)):
+        if merge_type == 'Add':
+            ret = _sym.elemwise_add(ret, insym[i])
+        elif merge_type == 'Subtract':
+            ret = _sym.elemwise_sub(ret, insym[i])
+        elif merge_type == 'Multiply':
+            ret = _sym.elemwise_mul(ret, insym[i])
+        elif merge_type == 'Average':
+            raise NotImplementedError('Average merge not implemented')
+        elif merge_type == 'Maximum':
+            raise NotImplementedError('Maximum merge not implemented')
+        else:
+            raise TypeError("Unsupported merge type : {}".format(merge_type))
+    return ret
 
 
 def _convert_dense(insym, keras_layer, symtab):
