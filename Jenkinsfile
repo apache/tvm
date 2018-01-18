@@ -4,8 +4,9 @@
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
 // tvm libraries
+topi_lib = "lib/libtopi.so"
 tvm_runtime = "lib/libtvm_runtime.so, config.mk"
-tvm_lib = "lib/libtvm.so, " + tvm_runtime
+tvm_lib = "lib/libtvm.so, " + tvm_runtime + topi_lib
 // LLVM upstream lib
 tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, " + tvm_runtime
 
