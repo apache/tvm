@@ -122,7 +122,15 @@ PackedFunc OpenGLModuleNode::GetFunction(
 
 std::string OpenGLModuleNode::GetSource(const std::string& format) {
   if (format != fmt_ && fmt_ != "gl") { return ""; }
-  return ToJson(shaders_);
+
+  std::ostringstream os;
+  for (auto &pair : shaders_) {
+    auto &name = pair.first;
+    auto &shader = pair.second;
+    os << "[" << name << "]" << "\n";
+    os << shader.source <<"\n";
+  }
+  return os.str();
 }
 
 void OpenGLModuleNode::SaveToFile(const std::string &file_name,
@@ -131,13 +139,13 @@ void OpenGLModuleNode::SaveToFile(const std::string &file_name,
   CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
   SaveMetaDataToFile(meta_file, fmap_);
-  SaveBinaryToFile(file_name, GetSource(fmt_));
+  SaveBinaryToFile(file_name, ToJson(shaders_));
 }
 
 void OpenGLModuleNode::SaveToBinary(dmlc::Stream *stream) {
   stream->Write(fmt_);
   stream->Write(fmap_);
-  stream->Write(GetSource(fmt_));
+  stream->Write(ToJson(shaders_));
 }
 
 const gl::Program& OpenGLModuleNode::GetProgram(

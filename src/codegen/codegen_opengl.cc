@@ -37,6 +37,19 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   this->decl_stream << "#version 300 es\n";
   this->decl_stream << "precision highp float;\n";
 
+  this->decl_stream << "float tvm_get_texel(sampler2D tex, int idx) {\n";
+  this->decl_stream << "  return texelFetch(tex, ivec2(idx, 0), 0).r;\n";
+  this->decl_stream << "}\n";
+  this->decl_stream << "\n";
+  this->decl_stream << "int tvm_get_texel(isampler2D tex, int idx) {\n";
+  this->decl_stream << "  return texelFetch(tex, ivec2(idx, 0), 0).r;\n";
+  this->decl_stream << "}\n";
+  this->decl_stream << "\n";
+  this->decl_stream << "uint tvm_get_texel(usampler2D tex, int idx) {\n";
+  this->decl_stream << "  return texelFetch(tex, ivec2(idx, 0), 0).r;\n";
+  this->decl_stream << "}\n";
+  this->decl_stream << "\n";
+
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
   // add to alloc buffer type.
@@ -206,12 +219,9 @@ std::string CodeGenOpenGL::GetBufferRef(
     this->inputs_.insert(buffer);
 
     std::ostringstream os;
-    std::string vid = GetVarID(buffer);
-    os << "texelFetch(" << vid << ", ";
-    os << "ivec2(";
+    os << "tvm_get_texel(" << GetVarID(buffer) << ", ";
     PrintExpr(index, os);
-    os << ", 0)";
-    os << ", 0).r";
+    os << ")";
     return os.str();
   }
 }
