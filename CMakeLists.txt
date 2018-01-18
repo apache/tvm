@@ -81,6 +81,10 @@ file(GLOB COMPILER_SRCS
     src/op/*.cc
     src/schedule/*.cc
 )
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/topi/include)
+file(GLOB TOPI_SRCS
+    topi/src/*.cc
+)
 file(GLOB_RECURSE HALIDEIR_SRCS HalideIR/src/*.cpp)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
 file(GLOB RUNTIME_SRCS src/runtime/*.cc)
@@ -195,8 +199,10 @@ endif()
 
 list(APPEND RUNTIME_SRCS ${GROUP_Include})
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 if (INSTALL_DEV)
