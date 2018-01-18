@@ -121,7 +121,7 @@ class CompileEngine {
       return GraphCacheEntry();
     }
   }
-  // Find the function given graph key.
+  // Set the given function on given graph key.
   void Set(const GraphKey& key, GraphFunc func) {
     std::lock_guard<std::mutex> lock(mutex_);
     std::shared_ptr<GraphCacheEntryNode> n = std::make_shared<GraphCacheEntryNode>();
@@ -129,7 +129,7 @@ class CompileEngine {
     n->use_count = 1;
     cache_[key] = GraphCacheEntry(n);
   }
-    // Find the function given graph key.
+    // Clear the function cache.
   void Clear() {
     std::lock_guard<std::mutex> lock(mutex_);
     cache_.clear();
