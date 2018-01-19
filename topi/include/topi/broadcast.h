@@ -33,7 +33,7 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
       << output_shape << "\nvs\ninput: " << t;
   auto bh = detail::BroadcastShape(output_shape, t->shape);
   CHECK_EQ(output_shape.size(), bh.common_shape.size());
-  for (int i = 0; i < output_shape.size(); ++i) {
+  for (size_t i = 0; i < output_shape.size(); ++i) {
     CHECK(tvm::ir::Equal(output_shape[i], bh.common_shape[i]));
   }
   auto l = [&](tvm::Array<tvm::Var> ovars) {
