@@ -26,7 +26,9 @@ lib_search = curr_path
 
 def _load_lib():
     """Load libary by searching possible path."""
-    lib_path = libinfo.find_lib_path(get_lib_names(), lib_search)
+    lib_path = libinfo.find_lib_path(get_lib_names(), lib_search, optional=True)
+    if lib_path is None:
+        return None, None
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
     return lib, os.path.basename(lib_path[0])
 
