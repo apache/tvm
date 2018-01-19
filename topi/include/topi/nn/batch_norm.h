@@ -60,6 +60,6 @@ inline Tensor batch_norm_inference(const Tensor& x,
   return out;
 }
 
-}  // namespace nnn
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_BATCH_NORM_H_
