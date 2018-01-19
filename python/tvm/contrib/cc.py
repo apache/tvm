@@ -22,8 +22,8 @@ def create_shared(output,
     objects : list
         List of object files.
 
-    options : str
-        The additional options.
+    options : list
+        The list of additional options string.
 
     cc : str, optional
         The compile string.
