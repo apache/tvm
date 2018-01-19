@@ -22,7 +22,7 @@ runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
   return OpenGLModuleCreate(shaders, "gl", ExtractFuncInfo(funcs));
 #else
   LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
-  auto data = ToJson(shaders);
+  auto data = ToJSON(shaders);
   return DeviceSourceModuleCreate(data, "gl", ExtractFuncInfo(funcs), "opengl");
 #endif  // TVM_OPENGL_RUNTIME
 }

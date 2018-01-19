@@ -3,9 +3,14 @@ import tvm
 from tvm.contrib import rpc, util, emscripten
 
 def test_local_save_load():
+    if not tvm.module.enabled("opengl"):
+        return
+    if not tvm.module.enabled("llvm"):
+        return
+
     n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
+    A = tvm.placeholder((n,), name='A', dtype='int32')
+    B = tvm.placeholder((n,), name='B', dtype='int32')
     C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
     s = tvm.create_schedule(C.op)
     s[C].opengl()
@@ -14,8 +19,8 @@ def test_local_save_load():
 
     ctx = tvm.opengl(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(high=2.0, size=(n)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(high=2.0, size=(n)).astype(B.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(high=10, size=(n)).astype(A.dtype), ctx)
+    b = tvm.nd.array(np.random.uniform(high=10, size=(n)).astype(B.dtype), ctx)
     c = tvm.nd.array(np.zeros((n), dtype=C.dtype), ctx)
     f(a, b, c)
 

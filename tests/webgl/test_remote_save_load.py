@@ -19,8 +19,12 @@ from tvm.contrib import rpc, util, emscripten
 proxy_host = "localhost"
 proxy_port = 9090
 
-def test_remote_save_load():
+def try_remote_save_load():
     if not tvm.module.enabled("rpc"):
+        return
+    if not tvm.module.enabled("opengl"):
+        return
+    if not tvm.module.enabled("llvm"):
         return
 
     # Build the module.
@@ -70,4 +74,4 @@ def test_remote_save_load():
     fhost(a, b, c)
     np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-test_remote_save_load()
+try_remote_save_load()
