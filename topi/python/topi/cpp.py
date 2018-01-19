@@ -1,4 +1,4 @@
 """FFI for C++ TOPI ops and schedules"""
-from ._ffi.cpp_init import _init_api
+from tvm._ffi.function import _init_api_prefix
 
-_init_api("topi.cpp", "topi")
+_init_api_prefix("topi.cpp", "topi")
