@@ -16,10 +16,10 @@ else:
 
 def get_lib_names():
     if sys.platform.startswith('win32'):
-        return ['libtopi.dll', 'topi.dll']
+        return ['libtvm_topi.dll', 'tvm_topi.dll']
     if sys.platform.startswith('darwin'):
-        return ['libtopi.dylib', 'topi.dylib']
-    return ['libtopi.so', 'topi.so']
+        return ['libtvm_topi.dylib', 'tvm_topi.dylib']
+    return ['libtvm_topi.so', 'tvm_topi.so']
 
 def get_lib_path():
     """Get library path, name and version"""

@@ -182,11 +182,11 @@ else
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
 endif
 
-BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) lib/libtopi.$(SHARED_LIBRARY_SUFFIX)
+BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
-topi: lib/libtopi.$(SHARED_LIBRARY_SUFFIX)
+topi: lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
 
 include tests/cpp/unittest.mk
 
@@ -220,7 +220,7 @@ lib/libtvm.dylib: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtopi.dylib: lib/libtvm.so $(TOPI_DEP)
+lib/libtvm_topi.dylib: lib/libtvm.so $(TOPI_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
@@ -232,7 +232,7 @@ lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtopi.so: lib/libtvm.so $(TOPI_DEP)
+lib/libtvm_topi.so: lib/libtvm.so $(TOPI_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
