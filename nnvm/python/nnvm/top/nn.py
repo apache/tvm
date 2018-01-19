@@ -264,4 +264,4 @@ def schedule_upsampling(_, outs, target):
     with tvm.target.create(target):
         return topi.generic.schedule_injective(outs)
 
-reg.register_pattern("upsampling", OpPattern.OUT_ELEMWISE_FUSABLE)
+reg.register_pattern("upsampling", OpPattern.INJECTIVE)
