@@ -81,6 +81,7 @@ class Target(object):
     - :any:`tvm.target.rasp` create raspberry pi target
     - :any:`tvm.target.cuda` create CUDA target
     - :any:`tvm.target.rocm` create ROCM target
+    - :any:`tvm.target.mali` create Mali target
     """
     current = None
 
@@ -306,6 +307,8 @@ def create(target_str):
             device_name = item.split("=")[1]
     if device_name == "rasp":
         return rasp(arr[1:])
+    if device_name == "mali":
+        return mali(arr[1:])
     return Target(arr[0], arr[1:])
 
 
