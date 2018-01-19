@@ -13,6 +13,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -81,5 +82,6 @@ inline Tensor log_softmax(const Tensor& x,
     });
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_SOFTMAX_H_

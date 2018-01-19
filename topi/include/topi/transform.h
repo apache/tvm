@@ -280,9 +280,13 @@ inline Array<Tensor> split(const Tensor& x,
     }
 
     std::vector<Expr> shape;
-    std::copy(x->shape.begin(), x->shape.begin() + axis, std::back_inserter(shape));
+    for (int i = 0; i < axis; ++i) {
+      shape.push_back(x->shape[i]);
+    }
     shape.push_back(out_axis_size);
-    std::copy(x->shape.begin() + axis + 1, x->shape.end(), std::back_inserter(shape));
+    for (int i = axis + 1; i < x->shape.size(); ++i) {
+      shape.push_back(x->shape[i]);
+    }
 
     out_shapes.push_back(shape);
   }

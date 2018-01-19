@@ -54,7 +54,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
 
     return mm;
   } else {
-    return topi::dense(data, weight, bias);
+    return topi::nn::dense(data, weight, bias);
   }
 }
 

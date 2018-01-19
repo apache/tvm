@@ -14,6 +14,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -57,5 +58,6 @@ inline Tensor flatten(const Tensor& x,
     });
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_FLATTEN_H_

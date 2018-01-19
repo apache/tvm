@@ -12,6 +12,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -55,5 +56,6 @@ inline tvm::Tensor dense(const tvm::Tensor& data,
   return matmul;
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_DENSE_H_

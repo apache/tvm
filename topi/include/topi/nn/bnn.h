@@ -14,6 +14,7 @@
 #include "topi/detail/constant_utils.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -66,6 +67,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
         }
         packed = packed << 1;
       }
+      return packed;  // never reached, but suppress compiler warning
     }, name, tag);
 }
 
@@ -102,5 +104,6 @@ inline tvm::Tensor binary_dense(const tvm::Tensor& data,
     }, "tensor", kElementWise);
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_BNN_H_

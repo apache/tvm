@@ -12,6 +12,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -60,5 +61,6 @@ inline Tensor scale_shift_nhwc(const Tensor& x,
     }, name, tag);
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_MAPPING_H_

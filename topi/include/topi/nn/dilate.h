@@ -14,6 +14,7 @@
 #include "topi/tags.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -80,5 +81,6 @@ inline Tensor dilate(const Tensor& x,
     }, name, tag);
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_DILATE_H_

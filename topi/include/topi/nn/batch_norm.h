@@ -12,6 +12,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*!
@@ -55,10 +56,10 @@ inline Tensor batch_norm_inference(const Tensor& x,
         auto c = Array<Var>({ indices[1] });
         return (x(indices) - moving_mean(c)) / tvm::sqrt(moving_var(c) + eps) * gamma(c) + beta(c);
       }, name, tag);
-
-    return out;
   }
+  return out;
 }
 
+}  // namespace nnn
 }  // namespace topi
 #endif  // TOPI_NN_BATCH_NORM_H_

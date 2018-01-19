@@ -16,6 +16,7 @@
 #include "topi/nn.h"
 
 namespace topi {
+namespace nn {
 using namespace tvm;
 
 /*! \brief Pooling type */
@@ -152,8 +153,10 @@ inline Tensor global_pool(const Tensor& x,
       }, "tensor", kElementWise);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
+    return x;
   }
 }
 
+}  // namespace nn
 }  // namespace topi
 #endif  // TOPI_NN_POOLING_H_
