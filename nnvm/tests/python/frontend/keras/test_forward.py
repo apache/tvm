@@ -38,7 +38,7 @@ def verify_keras_frontend(keras_model):
         tvm_out = get_tvm_output(x.transpose([0,3,1,2]), target, ctx)
         np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
 
-
+    
 def test_forward_elemwise_add():
     print("test_forward_elemwise_add")
     r = []
@@ -58,6 +58,16 @@ def test_forward_elemwise_add():
     y = keras.layers.GlobalAveragePooling2D()(y)
     keras_model = keras.models.Model(data, y)
     verify_keras_frontend(keras_model)
+    
+    
+def test_forward_elementwise_add2():
+    data = keras.layers.Input(shape=(32,32,3))
+    r = keras.layers.Conv2D(10, (3, 3), padding="same")(data)
+    x = keras.layers.Conv2D(10, (3, 3), strides=(2, 2), padding="same")(data)
+    x = keras.layers.UpSampling2D()(x)
+    x = keras.layers.add([x, r])
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
 
 
 def test_forward_softrelu():
@@ -136,6 +146,7 @@ def test_forward_resnet50():
 
 if __name__ == '__main__':
     test_forward_elemwise_add()
+    test_forward_elementwise_add2()
     test_forward_softrelu()
     test_forward_leaky_relu()
     test_forward_dense()
