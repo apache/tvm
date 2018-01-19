@@ -26,14 +26,5 @@ def test_local_save_load():
     f1(a, b, c)
     np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    # path_o = temp.relpath("myadd.o")
-    # path_gl = temp.relpath("myadd.gl")
-    # f.save(path_o)
-    # f.imported_modules[0].save(path_gl)
-    # f2_host = tvm.module.load(path_o)
-    # f2_dev = tvm.module.load(path_gl)
-    # f2_host.import_module(f2_dev)
-    # f2(a, b, c)
-
 if __name__ == "__main__":
     test_local_save_load()

@@ -45,9 +45,8 @@ class OpenGLModuleNode final : public ModuleNode {
 
   gl::OpenGLWorkspace& workspace() const { return *workspace_; }
 
-  std::shared_ptr<gl::OpenGLWorkspace> workspace_;
-
  private:
+  std::shared_ptr<gl::OpenGLWorkspace> workspace_;
   std::unordered_map<std::string, OpenGLShader> shaders_;
   std::string fmt_;
   std::unordered_map<std::string, FunctionInfo> fmap_;
@@ -139,13 +138,13 @@ void OpenGLModuleNode::SaveToFile(const std::string &file_name,
   CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
   SaveMetaDataToFile(meta_file, fmap_);
-  SaveBinaryToFile(file_name, ToJson(shaders_));
+  SaveBinaryToFile(file_name, ToJSON(shaders_));
 }
 
 void OpenGLModuleNode::SaveToBinary(dmlc::Stream *stream) {
   stream->Write(fmt_);
   stream->Write(fmap_);
-  stream->Write(ToJson(shaders_));
+  stream->Write(ToJSON(shaders_));
 }
 
 const gl::Program& OpenGLModuleNode::GetProgram(
@@ -229,9 +228,6 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
         output = *static_cast<gl::Texture**>(void_args[i]);
         break;
       }
-      default: {
-        LOG(FATAL) << "Invalid OpenGLArgKind";
-      }
     }
   }
 
@@ -261,7 +257,7 @@ Module OpenGLModuleLoadFile(const std::string& file_name,
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenGLModuleCreate(FromJson(data), fmt, fmap);
+  return OpenGLModuleCreate(FromJSON(data), fmt, fmap);
 }
 
 Module OpenGLModuleLoadBinary(void* strm) {
@@ -272,7 +268,7 @@ Module OpenGLModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return OpenGLModuleCreate(FromJson(data), fmt, fmap);
+  return OpenGLModuleCreate(FromJSON(data), fmt, fmap);
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_gl")

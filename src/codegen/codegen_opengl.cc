@@ -26,6 +26,7 @@ void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
   output_ = nullptr;
   inputs_.clear();
   iter_var_ = nullptr;
+  thread_extent_var_ = "";
 }
 
 void CodeGenOpenGL::AddFunction(LoweredFunc f) {
@@ -134,7 +135,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   }
 
   std::vector<std::string> arg_names;
-  std::vector<int> arg_kinds;
+  std::vector<runtime::OpenGLArgKind> arg_kinds;
   for (auto arg : f->args) {
     std::string name = GetVarID(arg.get());
 
@@ -151,11 +152,10 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
     arg_kinds.push_back(kind);
   }
 
-  shaders_[f->name] = runtime::OpenGLShader{
-      .source = this->decl_stream.str() + this->stream.str(),
-      .arg_names = std::move(arg_names),
-      .arg_kinds = std::move(arg_kinds)
-  };
+  shaders_[f->name] = runtime::OpenGLShader(
+      this->decl_stream.str() + this->stream.str(),
+      std::move(arg_names), std::move(arg_kinds),
+      this->thread_extent_var_);
 }
 
 std::unordered_map<std::string, runtime::OpenGLShader> CodeGenOpenGL::Finish() {
@@ -176,7 +176,7 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   PrintIndent();
   this->stream << "ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
   PrintIndent();
-  this->stream << "if (threadIdx.x < " << thread_extent_var_ << ") {\n";
+  this->stream << "if (threadIdx.x >= " << thread_extent_var_ << ") {\n";
   PrintIndent();
   this->stream << "  return;\n";
   PrintIndent();
