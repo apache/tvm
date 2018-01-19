@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import sys
 import os
-
+import warnings
 
 def find_lib_path(name=None, search_path=None, optional=False):
     """Find dynamic library files.
@@ -92,7 +92,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         if not optional:
             raise RuntimeError(message)
         else:
-            print('Warning\n' + message)
+            warnings.warn(message)
             return None
 
     if use_runtime:
