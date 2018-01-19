@@ -42,8 +42,8 @@ static const char* GLGetErrorString(GLenum error) {
  */
 void OpenGLWorkspace::CheckOpenGLError() {
   GLenum err = gl->GetError();
-  CHECK(err == GL_NO_ERROR) << "OpenGL error, code=" << err << ": "
-                            << gl::GLGetErrorString(err);
+  CHECK_EQ(err, GL_NO_ERROR) << "OpenGL error, code=" << err << ": "
+                             << gl::GLGetErrorString(err);
 }
 
 /*!
@@ -69,25 +69,39 @@ const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
 }
 
 void OpenGLWorkspace::SetDevice(TVMContext ctx) {
-  // TODO(zhixunt): Implement this.
-  LOG(INFO) << "OpenGLWorkspace::SetDevice";
+  CHECK_EQ(ctx.device_type, static_cast<int>(kOpenGL))
+    << "Device type must be OpenGL.";
+  CHECK_EQ(ctx.device_id, 0) << "Only support 1 OpenGL \"device\".";
 }
 
 void OpenGLWorkspace::GetAttr(
     TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
-  // TODO(zhixunt): Implement this.
-  LOG(INFO) << "OpenGLWorkspace::GetAttr";
+  switch (kind) {
+    case kExist: {
+      *rv = static_cast<int>(ctx.device_id == 0);
+      break;
+    }
+    case kMaxThreadsPerBlock: {
+      GLint max_texture_size;
+      OPENGL_CALL(gl->GetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size));
+      break;
+    }
+    case kWarpSize: {
+      *rv = 1;
+      break;
+    }
+    case kComputeVersion: {
+      break;
+    }
+  }
 }
 
 void* OpenGLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
-  LOG(INFO) << "OpenGLWorkspace::AllocDataSpace(ctx, nbytes = " << nbytes
-            << ", alignment = " << alignment << ")";
   return reinterpret_cast<void*>(new Texture(CreateTexture(type_hint, nbytes)));
 }
 
 void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
-  LOG(INFO) << "OpenGLWorkspace::FreeDataSpace(ctx, ptr = " << ptr << ")";
   delete reinterpret_cast<Texture*>(ptr);
 }
 
@@ -99,17 +113,6 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
                                      TVMContext ctx_from,
                                      TVMContext ctx_to,
                                      TVMStreamHandle stream) {
-  LOG(INFO)
-      << "OpenGLWorkspace::CopyDataFromTo("
-      << "from = " << from << ", "
-      << "from_offset = " << from_offset << ", "
-      << "to = " << to << ", "
-      << "to_offset = " << to_offset << ", "
-      << "size = " << size << ", "
-      << "ctx_from = (" << ctx_from.device_type << ", " << ctx_from.device_id
-      << "), "
-      << "ctx_to = (" << ctx_to.device_type << ", " << ctx_to.device_id
-      << "), stream)";
   CHECK(stream == nullptr);
 
   // TODO(zhixunt): This is a nasty hack to avoid comparison between
@@ -150,10 +153,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
   }
 }
 
-void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
-  // TODO(zhixunt): Implement this.
-  LOG(INFO) << "OpenGLWorkspace::StreamSync()";
-}
+void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {}
 
 void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
   LOG(FATAL) << "Cannot allocate OpenGL workspace.";
@@ -185,20 +185,11 @@ OpenGLWorkspace::OpenGLWorkspace() {
     LOG(FATAL) << "glfwCreateWindow() failed!";
   }
 
-  LOG(INFO) << "GLFW says OpenGL version: "
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MAJOR)
-            << "."
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_VERSION_MINOR)
-            << "."
-            << glfwGetWindowAttrib(window_, GLFW_CONTEXT_REVISION);
-
   // Before using any OpenGL API, we must specify a context.
   glfwMakeContextCurrent(window_);
 
   // Load all OpenGL API function pointers.
   gl = std::unique_ptr<GLFunctionPointers>(new GLFunctionPointers);
-
-  LOG(INFO) << "OpenGL says version: " << gl->GetString(GL_VERSION);
 
   CheckOpenGLError();
 
@@ -216,12 +207,11 @@ OpenGLWorkspace::OpenGLWorkspace() {
 
   // We always use the same vertex shader.
   vertex_shader_ = CreateShader(GL_VERTEX_SHADER, vertex_shader_text_);
-  LOG(INFO) << "Created vertex shader";
+
+  LOG(INFO) << "OpenGL initialized, version = " << gl->GetString(GL_VERSION);
 }
 
 OpenGLWorkspace::~OpenGLWorkspace() {
-  LOG(INFO) << "~OpenGLWorkspace()";
-
   // Paired with glfwCreateWindow().
   glfwDestroyWindow(window_);
 
@@ -297,7 +287,7 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   if (err != GL_TRUE) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
     gl->GetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-    LOG(ERROR) << err_msg.get();
+    LOG(FATAL) << err_msg.get();
     assert(false);
   }
 
@@ -307,20 +297,16 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
 }
 
 static TextureFormat GetTextureFormat(TVMType type) {
-  // TODO(zhixunt) Might want to support this.
-  CHECK(type.lanes == 1) << "Currently not supporting multi-lane types.";
+  CHECK_EQ(type.lanes, 1) << "Not supporting multi-lane types.";
 
   switch (type.code) {
     case kDLInt: {
       switch (type.bits) {
         case 8:
-          LOG(INFO) << "Texture data type: int8";
           return {GL_R8I, GL_RED_INTEGER, GL_BYTE};
         case 16:
-          LOG(INFO) << "Texture data type: int16";
           return {GL_R16I, GL_RED_INTEGER, GL_SHORT};
         case 32:
-          LOG(INFO) << "Texture data type: int32";
           return {GL_R32I, GL_RED_INTEGER, GL_INT};
         default:
           LOG(FATAL) << "Unsupported type bits " << type.bits;
@@ -329,13 +315,10 @@ static TextureFormat GetTextureFormat(TVMType type) {
     case kDLUInt: {
       switch (type.bits) {
         case 8:
-          LOG(INFO) << "Texture data type: uint8";
           return {GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE};
         case 16:
-          LOG(INFO) << "Texture data type: uint16";
           return {GL_R16UI, GL_RED_INTEGER, GL_UNSIGNED_SHORT};
         case 32:
-          LOG(INFO) << "Texture data type: uint32";
           return {GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT};
         default:
           LOG(FATAL) << "Unsupported type bits " << type.bits;
@@ -344,7 +327,6 @@ static TextureFormat GetTextureFormat(TVMType type) {
     case kDLFloat: {
       switch (type.bits) {
         case 32:
-          LOG(INFO) << "Texture data type: float32";
           return {GL_R32F, GL_RED, GL_FLOAT};
         default:
           LOG(FATAL) << "Unsupported type bits " << type.bits;
@@ -373,7 +355,6 @@ Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {
                              texture_format.format, texture_format.type,
                              /*data=*/nullptr));
 
-  // TODO(zhixunt): What are these?
   OPENGL_CALL(
       gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
   OPENGL_CALL(
@@ -382,8 +363,6 @@ Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {
       gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
   OPENGL_CALL(
       gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-
-  LOG(INFO) << "Created texture [" << texture << "]";
 
   return Texture(this, texture, texture_format, width, height);
 }
@@ -405,7 +384,7 @@ Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
   if (err != GL_TRUE) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
     gl->GetProgramInfoLog(program, info_log_len, nullptr, err_msg.get());
-    LOG(ERROR) << err_msg.get();
+    LOG(FATAL) << err_msg.get();
     assert(false);
   }
 
@@ -425,9 +404,6 @@ Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
 
 void OpenGLWorkspace::PutTextureData(Texture *texture, GLint begin,
                                      GLsizei nelems, const GLvoid* data) {
-  LOG(INFO) << "Texture::PutData(" << "begin = " << begin << ", "
-            << "nelems = " << nelems << ", data)";
-
   // Bind to temporary unit.
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
@@ -467,8 +443,8 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
   // GL_RGB_INTEGER user buffer format, which means we cannot retrieve integer
   // texture data? (need to confirm)
 
-  CHECK(texture->format_.internal_format == GL_R32F)
-    << "Retrieving integer texture not supported yet.";
+  CHECK_EQ(texture->format_.internal_format, GL_R32F)
+      << "Retrieving integer texture not supported yet.";
   auto elemsz = texture->format_.elemsz();
   auto nchannels = 4;
   auto padded_data_size = nchannels * nelems * elemsz;
@@ -492,8 +468,8 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
 
 void OpenGLWorkspace::Render(
     const Program& program,
-    const std::vector<std::tuple<std::string, TVMType, void*>>& uniforms,
-    const std::vector<std::pair<std::string, Texture*>>& inputs,
+    const std::vector<std::tuple<std::string, TVMType, void*> >& uniforms,
+    const std::vector<std::pair<std::string, Texture*> >& inputs,
     Texture* output) {
   if (inputs.size() + 2 > NumTextureUnits()) {
     LOG(FATAL) << "Too many inputs!";
@@ -560,9 +536,8 @@ void OpenGLWorkspace::Render(
 
     BindTextureUnit(unit, texture->texture());
 
-    GLint texture_uniform = gl->GetUniformLocation(program.program_,
-                                                   name.c_str());
-    OPENGL_CALL(gl->Uniform1i(texture_uniform, unit));
+    GLint location = gl->GetUniformLocation(program.program_, name.c_str());
+    OPENGL_CALL(gl->Uniform1i(location, unit));
   }
 
   // Perform rendering.

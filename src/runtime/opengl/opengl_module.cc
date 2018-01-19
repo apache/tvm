@@ -57,7 +57,7 @@ class OpenGLModuleNode final : public ModuleNode {
 
 class OpenGLWrappedFunc {
  public:
-  OpenGLWrappedFunc(OpenGLModuleNode *m,
+  OpenGLWrappedFunc(OpenGLModuleNode* m,
                     std::shared_ptr<ModuleNode> sptr,
                     std::string func_name,
                     std::vector<size_t> arg_size,
@@ -84,7 +84,7 @@ OpenGLModuleNode::OpenGLModuleNode(
     std::unordered_map<std::string, FunctionInfo> fmap)
     : workspace_(gl::OpenGLWorkspace::Global()), shaders_(std::move(shaders)),
       fmt_(std::move(fmt)), fmap_(std::move(fmap)), programs_() {
-  CHECK(fmt_ == "gl") << "Unknown OpenGL format " << fmt_;
+  CHECK_EQ(fmt_, "gl") << "Unknown OpenGL format " << fmt_;
   for (auto &pair : shaders_) {
     auto &func_name = pair.first;
     auto &shader = pair.second;
@@ -96,7 +96,6 @@ OpenGLModuleNode::OpenGLModuleNode(
 PackedFunc OpenGLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  LOG(INFO) << "OpenGLModuleNode::GetFunction(" << name << ")";
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
 
@@ -132,8 +131,8 @@ std::string OpenGLModuleNode::GetSource(const std::string& format) {
   return os.str();
 }
 
-void OpenGLModuleNode::SaveToFile(const std::string &file_name,
-                                  const std::string &format) {
+void OpenGLModuleNode::SaveToFile(const std::string& file_name,
+                                  const std::string& format) {
   std::string fmt = GetFileFormat(file_name, format);
   CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
@@ -141,7 +140,7 @@ void OpenGLModuleNode::SaveToFile(const std::string &file_name,
   SaveBinaryToFile(file_name, ToJSON(shaders_));
 }
 
-void OpenGLModuleNode::SaveToBinary(dmlc::Stream *stream) {
+void OpenGLModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(fmt_);
   stream->Write(fmap_);
   stream->Write(ToJSON(shaders_));
@@ -182,31 +181,19 @@ OpenGLWrappedFunc::OpenGLWrappedFunc(
     const std::vector<std::string>& thread_axis_tags)
     : m_(m), sptr_(std::move(sptr)), func_name_(std::move(func_name)),
       arg_size_(std::move(arg_size)) {
-  LOG(INFO) << "OpenGLWrappedFunc(" << func_name_ << ", "
-            << "nargs = " << arg_size_.size() << ", "
-            << "nthread_axis_tags = " << thread_axis_tags.size() << ")";
-  for (auto& a : arg_size_) {
-    LOG(INFO) << a;
-  }
-  for (auto& t : thread_axis_tags) {
-    LOG(INFO) << t;
-  }
-
   thread_axis_cfg_.Init(arg_size_.size(), thread_axis_tags);
 }
 
 void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    void** void_args) const {
-  LOG(INFO) << "OpenGLWrappedFunc::operator()";
-
   auto &shader = m_->GetShader(func_name_);
   auto &program = m_->GetProgram(func_name_);
   auto &func_info = m_->GetFunctionInfo(func_name_);
 
   size_t nargs = shader.arg_kinds.size();
 
-  std::vector<std::tuple<std::string, TVMType, void*>> uniforms;
-  std::vector<std::pair<std::string, gl::Texture*>> inputs;
+  std::vector<std::tuple<std::string, TVMType, void*> > uniforms;
+  std::vector<std::pair<std::string, gl::Texture*> > inputs;
   gl::Texture* output = nullptr;
   for (size_t i = 0; i != nargs; ++i) {
     auto name = shader.arg_names.at(i);
@@ -242,7 +229,6 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
-  LOG(INFO) << "OpenGLModuleCreate()";
   auto n = std::make_shared<OpenGLModuleNode>(std::move(shaders),
                                               std::move(fmt),
                                               std::move(fmap));

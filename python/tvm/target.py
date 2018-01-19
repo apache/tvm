@@ -67,7 +67,7 @@ class Target(object):
 
     Parameters
     ----------
-    target_name : {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "ext_dev"}
+    target_name : {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev"}
         The major target name.
 
     options : list of str, optional

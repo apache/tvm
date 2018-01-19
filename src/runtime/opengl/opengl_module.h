@@ -88,7 +88,7 @@ inline OpenGLArgKind String2OpenGLArgKind(const std::string& str) {
   } else if (str == "uniform") {
     return OpenGLArgKind::kUniform;
   } else {
-    LOG(ERROR) << "Invalid OpenGL arg kind.";
+    LOG(FATAL) << "Invalid OpenGL arg kind.";
     assert(false);
   }
 }

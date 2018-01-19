@@ -215,7 +215,7 @@ class Stage : public NodeRef {
   Stage& double_buffer();   // NOLINT(*)
   /*!
    * \brief Schedule for OpenGL fragment shader.
-   * \return reference to self
+   * \return reference to self.
    */
   Stage& opengl(); // NOLINT(*)
   /*!

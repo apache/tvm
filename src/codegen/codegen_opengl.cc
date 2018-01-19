@@ -16,10 +16,7 @@ namespace tvm {
 namespace codegen {
 
 CodeGenOpenGL::CodeGenOpenGL()
-    : output_(nullptr), inputs_(), iter_var_(nullptr) {
-  // TODO(zhixunt): Implement this.
-  LOG(INFO) << "CodeGenOpenGL::CodeGenOpenGL";
-}
+    : output_(nullptr), inputs_(), iter_var_(nullptr) {}
 
 void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
   CodeGenC::InitFuncState(f);
@@ -30,8 +27,6 @@ void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
 }
 
 void CodeGenOpenGL::AddFunction(LoweredFunc f) {
-  LOG(INFO) << "CodeGenOpenGL::AddFunction";
-
   // clear previous generated state.
   this->InitFuncState(f);
 
@@ -61,8 +56,6 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   // Allocate argument names. Store in `var_idmap_`.
   for (auto arg : f->args) {
     auto arg_name = GetUniqueName(arg.get()->name_hint);
-    LOG(INFO) << "Allocated argument name: " << arg.get()->name_hint << " => "
-              << arg_name;
     var_idmap_[arg.get()] = arg_name;
   }
 
@@ -163,30 +156,30 @@ std::unordered_map<std::string, runtime::OpenGLShader> CodeGenOpenGL::Finish() {
 }
 
 void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
-  LOG(INFO) << "CodeGenOpenGL::BindThreadIndex";
-  CHECK(!var_idmap_.count(iv->var.get()));
+  CHECK_EQ(iv->thread_tag, "threadIdx.x") << "Must be threadIdx.x";
+  CHECK(var_idmap_.find(iv->var.get()) == var_idmap_.end())
+    << "Only support one thread iter var";
+  CHECK(iter_var_ == nullptr) << "Only support one thread iter var";
 
-  // TODO(zhixunt): Can we not hardcode the name?
-  CHECK(iv->thread_tag == "threadIdx.x") << "Must be threadIdx.x";
   var_idmap_[iv->var.get()] = iv->thread_tag;
-
-  CHECK(iter_var_ == nullptr) << "Only support one iter var";
   iter_var_ = iv->var.get();
 
-  PrintIndent();
+  // Declare threadIdx local variable.
+  this->PrintIndent();
   this->stream << "ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
-  PrintIndent();
+
+  // Return directly if threadIdx.x >= thread_extent.
+  this->PrintIndent();
   this->stream << "if (threadIdx.x >= " << thread_extent_var_ << ") {\n";
-  PrintIndent();
+  this->PrintIndent();
   this->stream << "  return;\n";
-  PrintIndent();
+  this->PrintIndent();
   this->stream << "}\n";
 }
 
 // GLSL texture store is special. We can only store to one output texture, and
 // we must store to the index that matches the current "thread index".
 void CodeGenOpenGL::VisitStmt_(const Store* op) {
-  LOG(INFO) << "CodeGenOpenGL::VisitStmt_(const Store *)";
   auto t = op->value.type();
   auto buffer = op->buffer_var.get();
   auto index = op->index;
@@ -202,8 +195,8 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
     }
 
     this->PrintIndent();
-    stream << GetBufferRef(t, buffer, index) << " = "
-           << PrintExpr(op->value) << ";\n";
+    this->stream << GetBufferRef(t, buffer, index) << " = "
+                 << PrintExpr(op->value) << ";\n";
 
   } else {
     // Store to a vector.
@@ -215,12 +208,12 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
 // Format: texelFetch(buffer, index, 0).r
 std::string CodeGenOpenGL::GetBufferRef(
     Type t, const Variable* buffer, Expr index) {
-  CHECK(t.lanes() == 1) << "Vector type not supported.";
+  CHECK_EQ(t.lanes(), 1) << "Vector type not supported.";
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported.";
 
   if (buffer == this->output_) {
     // This is the output texture.
-    CHECK(index.get() == iter_var_)
+    CHECK_EQ(index.get(), iter_var_)
       << "GLSL must access corresponding elem of output texture.";
     return GetVarID(buffer);
   } else {
@@ -238,15 +231,15 @@ std::string CodeGenOpenGL::GetBufferRef(
 void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
   switch (t.code()) {
     case halideir_type_int:
-      CHECK(t.bits() == 32) << "Only support 32-bit int.";
+      CHECK_EQ(t.bits(), 32) << "Only support 32-bit int.";
       os << "int";
       break;
     case halideir_type_uint:
-      CHECK(t.bits() == 32) << "Only support 32-bit uint.";
+      CHECK_EQ(t.bits(), 32) << "Only support 32-bit uint.";
       os << "uint";
       break;
     case halideir_type_float:
-      CHECK(t.bits() == 32) << "Only support 32-bit float.";
+      CHECK_EQ(t.bits(), 32) << "Only support 32-bit float.";
       os << "float";
       break;
     default:
@@ -257,17 +250,17 @@ void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
 // Codegen for immediate values
 
 void CodeGenOpenGL::VisitExpr_(const IntImm* op, std::ostream& os) {
-  CHECK(op->type == Int(32)) << "GLSL 3.0 only supports 32-bit ints.";
+  CHECK_EQ(op->type, Int(32)) << "GLSL 3.0 only supports 32-bit ints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
 void CodeGenOpenGL::VisitExpr_(const UIntImm* op, std::ostream& os) {
-  CHECK(op->type == UInt(32)) << "GLSL 3.0 only supports 32-bit uints.";
+  CHECK_EQ(op->type, UInt(32)) << "GLSL 3.0 only supports 32-bit uints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
 void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
-  CHECK(op->type == Float(32)) << "GLSL 3.0 only supports 32-bit floats.";
+  CHECK_EQ(op->type, Float(32)) << "GLSL 3.0 only supports 32-bit floats.";
   CodeGenC::VisitExpr_(op, os);
 }
 

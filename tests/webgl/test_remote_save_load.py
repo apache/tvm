@@ -58,11 +58,11 @@ def try_remote_save_load():
     remote.download("myadd.gl")
     remote.download("myadd.tvm_meta.json")
 
-    print('Loading myadd.gl')
-    fdev = remote.load_module("myadd.gl")
-
     print('Loading myadd.dso')
     fhost = remote.load_module("myadd.dso")
+
+    print('Loading myadd.gl')
+    fdev = remote.load_module("myadd.gl")
 
     print('import_module')
     fhost.import_module(fdev)

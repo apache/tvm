@@ -89,9 +89,7 @@ class GLFunctionPointers {
         SetGLFunctionPointer(Uniform1i),
         SetGLFunctionPointer(UseProgram),
         SetGLFunctionPointer(VertexAttribPointer),
-        SetGLFunctionPointer(Viewport) {
-    LOG(INFO) << "Constructed GLFunctionPointers";
-  }
+        SetGLFunctionPointer(Viewport) {}
 
   void (*ActiveTexture)(GLenum texture);
   void (*AttachShader)(GLuint program, GLuint shader);
@@ -99,7 +97,7 @@ class GLFunctionPointers {
   void (*BindFramebuffer)(GLenum target, GLuint framebuffer);
   void (*BindTexture)(GLenum target, GLuint texture);
   void (*BindVertexArray)(GLuint array);
-  void (*BufferData)(GLenum target, GLsizeiptr size, const GLvoid *data,
+  void (*BufferData)(GLenum target, GLsizeiptr size, const GLvoid* data,
                      GLenum usage);
   GLenum (*CheckFramebufferStatus)(GLenum target);
   void (*Clear)(GLbitfield mask);
@@ -201,9 +199,22 @@ class OpenGLWorkspace final : public DeviceAPI {
    */
   Texture CreateTexture(TVMType type, size_t nbytes);
 
+  /*!
+   * \brief Upload user data into a sub-region of an OpenGL texture.
+   * \param texture The texture to be written to.
+   * \param begin The index of the first element to be written to.
+   * \param nelems The number of elements to be written to.
+   * \param data The user data.
+   */
   void PutTextureData(Texture* texture, GLint begin, GLsizei nelems,
                       const GLvoid* data);
-
+  /*!
+   * \brief Download a sub-region of an OpenGL texture.
+   * \param texture The texture to download from.
+   * \param begin The index of first element to download from.
+   * \param nelems The number of elements to download from.
+   * \param data The user buffer.
+   */
   void GetTextureData(const Texture* texture, GLint begin, GLsizei nelems,
                       GLvoid* data);
 
@@ -215,14 +226,15 @@ class OpenGLWorkspace final : public DeviceAPI {
    */
   void Render(
       const Program& program,
-      const std::vector<std::tuple<std::string, TVMType, void*>>& uniforms,
-      const std::vector<std::pair<std::string, Texture*>>& inputs,
+      const std::vector<std::tuple<std::string, TVMType, void*> >& uniforms,
+      const std::vector<std::pair<std::string, Texture*> >& inputs,
       Texture* output);
 
  private:
   friend class Texture;
   friend class Program;
 
+  // Global singleton. Hide constructor.
   OpenGLWorkspace();
 
   GLFWwindow* window_;
@@ -237,10 +249,23 @@ class OpenGLWorkspace final : public DeviceAPI {
   static const Vertex vertices[kNumVertices];
   static const char* vertex_shader_text_;
 
+  /*!
+   * \brief Bind a texture to a "texture unit".
+   * After calling this function, the "texture unit" becomes "active", and the
+   * texture is bound to GL_TEXTURE_2D in that "texture unit".
+   * \param unit The texture unit to activate.
+   * \param texture The texture to bind.
+   */
   void BindTextureUnit(GLuint unit, GLuint texture);
 
+  /*!
+   * \brief Callback in Texture's destructor.
+   */
   void OnDeleteTexture(GLuint texture);
 
+  /*!
+   * \brief Callback in Program's destructor.
+   */
   void OnDeleteProgram(GLuint program);
 
   /*!
@@ -322,6 +347,10 @@ class Program {
   GLuint program_;
 };
 
+/*!
+ * \brief The storage format of a texture.
+ * The members match the API of glTexImage2D.
+ */
 struct TextureFormat {
   TextureFormat(GLint internal_format, GLenum format, GLenum type)
       : internal_format(internal_format), format(format), type(type) {}
@@ -384,7 +413,6 @@ class Texture {
   // Destructor.
   ~Texture() {
     if (texture_ != kInvalidTexture) {
-      LOG(INFO) << "Deleting texture [" << texture_ << "]";
       workspace_->OnDeleteTexture(texture_);
       texture_ = kInvalidTexture;
     }
