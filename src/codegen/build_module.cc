@@ -70,7 +70,8 @@ Target Target::create(const std::string& target_str) {
 
   auto result = device_name == "rasp" ?
     target::rasp() :
-    TargetFromName(target_name);
+    (device_name == "mali" ? target::mali() :
+    TargetFromName(target_name));
 
   std::string item;
   while (ss >> item) {
@@ -115,6 +116,15 @@ Target rasp() {
   });
   return Target("llvm", kDLCPU, 512, 1, keys, options);
 }
+
+Target mali() {
+  std::unordered_set<std::string> keys({ "rocm", "gpu" });
+  std::vector<std::string> options({
+    "-device=mali"
+  });
+  return Target("opencl", kDLOpenCL, 256, 1, keys, options);
+}
+
 
 Target stackvm() {
   std::unordered_set<std::string> keys({ "stackvm", "cpu" });
