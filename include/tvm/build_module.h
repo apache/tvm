@@ -40,7 +40,7 @@ struct Target {
          int thread_warp_size,
          const std::unordered_set<std::string>& keys,
          const std::vector<std::string>& options,
-         const std::unordered_set<std::string>& libs) :
+         const std::unordered_set<std::string>& libs = {}) :
     target_name(target_name),
     device_type(device_type),
     max_num_threads(max_num_threads),
