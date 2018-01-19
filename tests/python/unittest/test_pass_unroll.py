@@ -25,7 +25,7 @@ def test_unroll_loop():
 
 
 if __name__ == "__main__":
-    with tvm.DumpIR():
+    with tvm.build_config(dump_pass_ir=True):
         test_unroll_loop()
 
     def end_with(*suffix):

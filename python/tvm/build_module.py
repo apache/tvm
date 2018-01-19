@@ -4,7 +4,6 @@ This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
-
 import warnings
 import types
 
@@ -19,6 +18,81 @@ from . import module
 from . import codegen
 from . import ndarray
 from . import target as _target
+
+class DumpIR(object):
+    """Dump IR for each pass.
+       With it, you can dump ir just like gcc/llvm.
+
+       How to use:
+       -----------
+       .. code-block:: python
+
+          with tvm.build_config(dump_pass_ir=True)
+              run()
+
+    """
+    scope_level = 0
+    def __init__(self):
+        self._pass_id = 0
+        self._recover_list = []
+
+    def decorate(self, func):
+        ''' decorate the pass function'''
+        def dump(*args, **kwargs):
+            '''dump function'''
+            retv = func(*args, **kwargs)
+            if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
+                return retv
+            pname = str(self._pass_id) + "_" + func.func_name + "_ir.cc"
+            with open(pname, "a") as f:
+                out = retv.body if isinstance(retv, container.LoweredFunc) else retv
+                f.write(str(out))
+                if isinstance(retv, container.Array):
+                    for x in retv:
+                        out = x.body if isinstance(x, container.LoweredFunc) else x
+                        f.write("---------%s\n%s\n-----------\n"%(x.name, str(out)))
+                self._pass_id += 1
+            return retv
+        return dump
+
+    def decorate_irpass(self):
+        '''decorate ir_pass and ScheduleOps'''
+        schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
+        vset = vars(ir_pass)
+        k = v = 0
+        def recover():
+            vset[k] = v
+        for k, v in vset.items():
+            self._recover_list.append(recover)
+            vset[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
+
+    def decorate_custompass(self):
+        ''' decorate add_lower_pass pass in BuildConfig'''
+        cfg = BuildConfig.current
+        add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+        pass_list = [(x[0], self.decorate(x[1])) for x in add_lower_pass]
+        BuildConfig.current.add_lower_pass = pass_list
+
+    def enter(self):
+        '''only decorate outermost nest'''
+        if DumpIR.scope_level > 0:
+            return
+        self._old_custom_pass = BuildConfig.current.add_lower_pass
+        self._old_sgpass = schedule.ScheduleOps
+        self.decorate_irpass()
+        self.decorate_custompass()
+        self._pass_id = 0
+        DumpIR.scope_level += 1
+
+    def exit(self):
+        '''recover outermost nest'''
+        if DumpIR.scope_level > 1:
+            return
+        for f in self._recover_list:
+            f()
+        schedule.ScheduleOps = self._old_sgpass
+        BuildConfig.current.add_lower_pass = self._old_custom_pass
+        DumpIR.scope_level -= 1
 
 class BuildConfig(object):
     """Configuration scope to set a build config option.
@@ -45,6 +119,7 @@ class BuildConfig(object):
     }
     def __init__(self, **kwargs):
         self._old_scope = None
+        self._dump_ir = DumpIR()
         for k, _ in kwargs.items():
             if k not in BuildConfig.defaults:
                 raise ValueError(
@@ -63,76 +138,18 @@ class BuildConfig(object):
         attr.update(self._attr)
         self._attr = attr
         BuildConfig.current = self
+        if self.dump_pass_ir is True:
+            self._dump_ir.enter()
         return self
 
     def __exit__(self, ptype, value, trace):
         assert self._old_scope
+        if self.dump_pass_ir is True:
+            self._dump_ir.exit()
         BuildConfig.current = self._old_scope
 
 
 BuildConfig.current = BuildConfig()
-
-class DumpIR(object):
-    '''dump ir for each pass'''
-    pass_id = 0
-    decorated = False
-    def __init__(self):
-        self._local_decorated = False
-
-    def decorate(self, func):
-        ''' decorate the pass function'''
-        def dump(*args, **kwargs):
-            '''dump function'''
-            retv = func(*args, **kwargs)
-            if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
-                return retv
-            pname = str(DumpIR.pass_id) + "_" + func.func_name + "_ir.cc"
-            with open(pname, "a") as f:
-                out = retv.body if isinstance(retv, container.LoweredFunc) else retv
-                f.write(str(out))
-                if isinstance(retv, container.Array):
-                    for x in retv:
-                        out = x.body if isinstance(x, container.LoweredFunc) else x
-                        f.write("---------", x.name, "\n", str(out), "\n-----------\n")
-                DumpIR.pass_id += 1
-            return retv
-        return dump
-
-    def decorate_irpass(self):
-        for k, v in vars(ir_pass).items():
-            vars(ir_pass)[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
-        schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
-
-    def decorate_custompass(self):
-        cfg = BuildConfig.current
-        add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-        pass_list = [(x[0], self.decorate(x[1])) for x in add_lower_pass]
-        BuildConfig.current.add_lower_pass = pass_list
-
-    def __enter__(self, pass_inp=None):
-        if DumpIR.decorated is True:
-            return
-        self._old_irpass = vars(ir_pass).items()
-        self._old_sgpass = schedule.ScheduleOps
-        self._old_custom_pass = BuildConfig.current.add_lower_pass
-        self.decorate_irpass()
-        self.decorate_custompass()
-        self._local_decorated = True
-        DumpIR.decorated = True
-        DumpIR.pass_id = 0
-
-    def __exit__(self, ptype, value, trace):
-        if not (self._local_decorated and DumpIR.decorated):
-            return
-
-        assert self._old_irpass
-        assert self._old_sgpass
-        for k, v in self._old_irpass:
-            vars(ir_pass)[k] = v
-        schedule.ScheduleOps = self._old_sgpass
-        BuildConfig.current.add_lower_pass = self._old_custom_pass
-        self._local_decorated = False
-        DumpIR.decorated = False
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -236,17 +253,6 @@ def get_binds(args, binds=None):
     return binds, arg_list
 
 
-def dump_ir(func):
-    def __decorator(*args, **kwargs):
-        if BuildConfig.current.dump_pass_ir is True:
-            with DumpIR():
-                retv = func(*args, **kwargs)
-        else:
-            retv = func(*args, **kwargs)
-        return retv
-    return __decorator
-
-@dump_ir
 def lower(sch,
           args,
           name="default_function",
@@ -326,7 +332,6 @@ def lower(sch,
         return stmt
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
-@dump_ir
 def build(sch,
           args=None,
           target=None,
