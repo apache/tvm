@@ -92,7 +92,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         if not optional:
             raise RuntimeError(message)
         else:
-            print(message)
+            print('Warning\n' + message)
             return None
 
     if use_runtime:
