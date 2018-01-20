@@ -175,16 +175,32 @@ void CodeGenOpenCL::PrintStorageScope(
   }
 }
 
+std::string CodeGenOpenCL::CastFromTo(std::string value, Type from, Type target) {
+  if (from == target) return value;
+  std::ostringstream os;
+  if (target.lanes() == 1) {
+    os << "((";
+    this->PrintType(target, os);
+    os << ")" << value << ")";
+  } else {  // convert vector type
+    os << "(";
+    os << "convert_";
+    this->PrintType(target, os);
+    os << "(" << value << "))";
+  }
+  return os.str();
+}
+
 void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  os << '(';
+  os << "((";
   PrintType(op->type, os);
   os << ")(";
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }
-  os << ')';
+  os << "))";
 }
 }  // namespace codegen
 }  // namespace tvm

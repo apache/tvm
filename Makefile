@@ -79,7 +79,11 @@ RUNTIME_DEP = $(RUNTIME_OBJ)
 ifdef CUDA_PATH
 	NVCC=$(CUDA_PATH)/bin/nvcc
 	CFLAGS += -I$(CUDA_PATH)/include
-	LDFLAGS += -L$(CUDA_PATH)/lib64
+	ifeq ($(UNAME_S),Darwin)
+		LDFLAGS += -L$(CUDA_PATH)/lib
+	else
+		LDFLAGS += -L$(CUDA_PATH)/lib64
+	endif
 endif
 
 ifeq ($(USE_CUDA), 1)
@@ -139,6 +143,7 @@ include make/contrib/cudnn.mk
 include make/contrib/miopen.mk
 include make/contrib/mps.mk
 include make/contrib/cublas.mk
+include make/contrib/rocblas.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)

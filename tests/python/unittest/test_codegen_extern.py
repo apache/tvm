@@ -15,6 +15,7 @@ def test_add_pipeline():
 
     C = tvm.extern(A.shape, [A], extern_generator, name='C')
     s = tvm.create_schedule(C.op)
+    print(tvm.lower(s, [A, C], simple_mode=True))
 
     def check_llvm():
         if not tvm.module.enabled("llvm"):

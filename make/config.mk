@@ -80,3 +80,6 @@ USE_MPS = 0
 
 # Whether use cuBLAS
 USE_CUBLAS = 0
+
+# Whether use rocBlas
+USE_ROCBLAS = 0
