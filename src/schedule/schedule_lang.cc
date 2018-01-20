@@ -404,8 +404,7 @@ Stage& Stage::opengl() {
   auto all_iter_vars = self->all_iter_vars;  // curr version of all_iter_vars
   CHECK(!all_iter_vars.empty()) << "At least one iter var";
 
-  // Fuse all dimensions to 1.
-  // TODO(zhixunt): Don't fuse reduction.
+  // Fuse all data parallel dimensions to 1.
   IterVar fused = all_iter_vars[0];
   for (size_t i = 1; i != all_iter_vars.size(); ++i) {
     auto iter_var = all_iter_vars[i];

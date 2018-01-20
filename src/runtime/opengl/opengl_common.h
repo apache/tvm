@@ -206,7 +206,9 @@ class OpenGLWorkspace final : public DeviceAPI {
    * \param nelems The number of elements to be written to.
    * \param data The user data.
    */
-  void PutTextureData(Texture* texture, GLint begin, GLsizei nelems,
+  void PutTextureData(Texture* texture,
+                      GLint begin,
+                      GLsizei nelems,
                       const GLvoid* data);
   /*!
    * \brief Download a sub-region of an OpenGL texture.
@@ -215,20 +217,48 @@ class OpenGLWorkspace final : public DeviceAPI {
    * \param nelems The number of elements to download from.
    * \param data The user buffer.
    */
-  void GetTextureData(const Texture* texture, GLint begin, GLsizei nelems,
+  void GetTextureData(const Texture* texture,
+                      GLint begin,
+                      GLsizei nelems,
                       GLvoid* data);
 
   /*!
-   * \brief Use an OpenGL program to render to a texture.
-   * \param program The OpenGL program. Created by CreateProgram().
-   * \param inputs All input textures.
+   * \brief Set currently used OpenGL program.
+   */
+  void SetCurrentProgram(const Program& program);
+
+  /*!
+   * \brief Set uniform values for an OpenGL program.
+   * Must call SetCurrentProgram before calling this.
+   * \param program The OpenGL program.
+   * \param name The uniform argument name.
+   * \param type The type of the uniform.
+   * \param value The value to pass in.
+   */
+  void SetUniform(const Program& program,
+                  const std::string& name,
+                  TVMType type,
+                  void* value);
+
+  /*!
+   * \brief Set input texture for an OpenGL program.
+   * Must call SetCurrentProgram before calling this.
+   * \param program The OpenGL program.
+   * \param name The texture uniform argument name.
+   * \param unit The texture unit to use. Each input texture must occupy a
+   * different unit.
+   * \param texture The OpenGL texture to pass in.
+   */
+  void SetInputTexture(const Program& program,
+                       const std::string& name,
+                       GLuint unit,
+                       Texture* texture);
+
+  /*!
+   * \brief Render to a texture.
    * \param output The output texture.
    */
-  void Render(
-      const Program& program,
-      const std::vector<std::tuple<std::string, TVMType, void*> >& uniforms,
-      const std::vector<std::pair<std::string, Texture*> >& inputs,
-      Texture* output);
+  void Render(Texture* output);
 
  private:
   friend class Texture;
@@ -339,7 +369,7 @@ class Program {
       : workspace_(workspace), program_(program) {}
 
   // The internal OpenGL program ID.
-  GLuint program() { return program_; }
+  GLuint program() const { return program_; }
 
   static constexpr GLuint kInvalidProgram = static_cast<GLuint>(-1);
 

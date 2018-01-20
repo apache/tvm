@@ -16,13 +16,13 @@ namespace tvm {
 namespace codegen {
 
 CodeGenOpenGL::CodeGenOpenGL()
-    : output_(nullptr), inputs_(), iter_var_(nullptr) {}
+    : output_(nullptr), output_iter_var_(nullptr) {}
 
 void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
   CodeGenC::InitFuncState(f);
   output_ = nullptr;
   inputs_.clear();
-  iter_var_ = nullptr;
+  output_iter_var_ = nullptr;
   thread_extent_var_ = "";
 }
 
@@ -32,19 +32,6 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 
   this->decl_stream << "#version 300 es\n";
   this->decl_stream << "precision highp float;\n";
-
-  this->decl_stream << "float tvm_get_texel(sampler2D tex, int idx) {\n";
-  this->decl_stream << "  return texelFetch(tex, ivec2(idx, 0), 0).r;\n";
-  this->decl_stream << "}\n";
-  this->decl_stream << "\n";
-  this->decl_stream << "int tvm_get_texel(isampler2D tex, int idx) {\n";
-  this->decl_stream << "  return texelFetch(tex, ivec2(idx, 0), 0).r;\n";
-  this->decl_stream << "}\n";
-  this->decl_stream << "\n";
-  this->decl_stream << "uint tvm_get_texel(usampler2D tex, int idx) {\n";
-  this->decl_stream << "  return texelFetch(tex, ivec2(idx, 0), 0).r;\n";
-  this->decl_stream << "}\n";
-  this->decl_stream << "\n";
 
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
@@ -84,16 +71,17 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 
       auto type_it = this->handle_data_type_.find(arg.get());
       CHECK(type_it != this->handle_data_type_.cend()) << "Cannot find type.";
-      auto type = type_it->second;
+      auto type = Type2TVMType(type_it->second);
+      CHECK_EQ(type.lanes, 1) << "Vector type not supported.";
 
-      switch (type.code()) {
-        case halideir_type_int:
+      switch (type.code) {
+        case kDLInt:
           this->decl_stream << "uniform isampler2D " << arg_name << ";\n";
           break;
-        case halideir_type_uint:
+        case kDLUInt:
           this->decl_stream << "uniform usampler2D " << arg_name << ";\n";
           break;
-        case halideir_type_float:
+        case kDLFloat:
           this->decl_stream << "uniform sampler2D " << arg_name << ";\n";
           break;
         default:
@@ -159,10 +147,10 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   CHECK_EQ(iv->thread_tag, "threadIdx.x") << "Must be threadIdx.x";
   CHECK(var_idmap_.find(iv->var.get()) == var_idmap_.end())
     << "Only support one thread iter var";
-  CHECK(iter_var_ == nullptr) << "Only support one thread iter var";
+  CHECK(output_iter_var_ == nullptr) << "Only support one thread iter var";
 
   var_idmap_[iv->var.get()] = iv->thread_tag;
-  iter_var_ = iv->var.get();
+  output_iter_var_ = iv->var.get();
 
   // Declare threadIdx local variable.
   this->PrintIndent();
@@ -204,6 +192,15 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
   }
 }
 
+// texelFetch(tex, ivec2(idx, 0), 0).r
+std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
+  std::ostringstream os;
+  os << "texelFetch(" << GetVarID(buffer) << ", ivec2(";
+  PrintExpr(index, os);
+  os << ", 0), 0).r";
+  return os.str();
+}
+
 // Print a reference expression to a buffer.
 // Format: texelFetch(buffer, index, 0).r
 std::string CodeGenOpenGL::GetBufferRef(
@@ -213,18 +210,13 @@ std::string CodeGenOpenGL::GetBufferRef(
 
   if (buffer == this->output_) {
     // This is the output texture.
-    CHECK_EQ(index.get(), iter_var_)
+    CHECK_EQ(index.get(), output_iter_var_)
       << "GLSL must access corresponding elem of output texture.";
     return GetVarID(buffer);
   } else {
     // This is an input texture.
     this->inputs_.insert(buffer);
-
-    std::ostringstream os;
-    os << "tvm_get_texel(" << GetVarID(buffer) << ", ";
-    PrintExpr(index, os);
-    os << ")";
-    return os.str();
+    return TexelFetch(buffer, index);
   }
 }
 

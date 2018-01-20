@@ -189,41 +189,47 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   auto &shader = m_->GetShader(func_name_);
   auto &program = m_->GetProgram(func_name_);
   auto &func_info = m_->GetFunctionInfo(func_name_);
-
   size_t nargs = shader.arg_kinds.size();
 
-  std::vector<std::tuple<std::string, TVMType, void*> > uniforms;
-  std::vector<std::pair<std::string, gl::Texture*> > inputs;
+  // Must call this function before setting uniforms & input textures.
+  m_->workspace().SetCurrentProgram(program);
+
+  // Set all arguments.
+  GLuint texture_unit = 0;
   gl::Texture* output = nullptr;
   for (size_t i = 0; i != nargs; ++i) {
-    auto name = shader.arg_names.at(i);
+    auto &name = shader.arg_names.at(i);
     auto kind = shader.arg_kinds.at(i);
     auto type = func_info.arg_types.at(i);
     switch (kind) {
       case OpenGLArgKind::kUniform: {
-        uniforms.emplace_back(name, type, void_args[i]);
+        m_->workspace().SetUniform(program, name, type, void_args[i]);
         break;
       }
       case OpenGLArgKind::kInputTexture: {
         CHECK_EQ(type.code, kHandle) << "Type is not handle?";
         auto texture = *static_cast<gl::Texture**>(void_args[i]);
-        inputs.emplace_back(name, texture);
+        m_->workspace().SetInputTexture(program, name, texture_unit, texture);
+        ++texture_unit;
         break;
       }
       case OpenGLArgKind::kOutputTexture: {
         CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        CHECK(output == nullptr) << "Can only have one output texture.";
         output = *static_cast<gl::Texture**>(void_args[i]);
         break;
       }
     }
   }
 
+  // Set "thread_extent" uniform.
   ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
   std::unique_ptr<GLint> thread_extent(new GLint(wl.block_dim(0)));
-  uniforms.emplace_back(shader.thread_extent_var, TVMType{kDLInt, 32, 1},
-                        static_cast<void*>(thread_extent.get()));
+  m_->workspace().SetUniform(program, shader.thread_extent_var,
+                             TVMType{kDLInt, 32, 1},
+                             static_cast<void*>(thread_extent.get()));
 
-  m_->workspace().Render(program, uniforms, inputs, output);
+  m_->workspace().Render(output);
 }
 
 Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,

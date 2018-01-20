@@ -96,7 +96,7 @@ DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
 }
 
 void* DeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
-  TVMType type_hint = {.code = kDLUInt, .bits = 8, .lanes = 1};
+  TVMType type_hint{kDLUInt, 8, 1};
   return AllocDataSpace(ctx, size, kTempAllocaAlignment, type_hint);
 }
 

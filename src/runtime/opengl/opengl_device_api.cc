@@ -402,8 +402,10 @@ Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
   return Program(this, program);
 }
 
-void OpenGLWorkspace::PutTextureData(Texture *texture, GLint begin,
-                                     GLsizei nelems, const GLvoid* data) {
+void OpenGLWorkspace::PutTextureData(Texture *texture,
+                                     GLint begin,
+                                     GLsizei nelems,
+                                     const GLvoid* data) {
   // Bind to temporary unit.
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
@@ -415,8 +417,10 @@ void OpenGLWorkspace::PutTextureData(Texture *texture, GLint begin,
                                 data));
 }
 
-void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
-                                     GLsizei nelems, GLvoid* data) {
+void OpenGLWorkspace::GetTextureData(const Texture *texture,
+                                     GLint begin,
+                                     GLsizei nelems,
+                                     GLvoid* data) {
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
   // Create frame buffer.
@@ -466,17 +470,53 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture, GLint begin,
   OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));
 }
 
-void OpenGLWorkspace::Render(
-    const Program& program,
-    const std::vector<std::tuple<std::string, TVMType, void*> >& uniforms,
-    const std::vector<std::pair<std::string, Texture*> >& inputs,
-    Texture* output) {
-  if (inputs.size() + 2 > NumTextureUnits()) {
-    LOG(FATAL) << "Too many inputs!";
+void OpenGLWorkspace::SetCurrentProgram(const Program& program) {
+  OPENGL_CALL(gl->UseProgram(program.program()));
+}
+
+void OpenGLWorkspace::SetUniform(const Program& program,
+                                 const std::string& name,
+                                 TVMType type,
+                                 void* value) {
+  GLint location = gl->GetUniformLocation(program.program(), name.c_str());
+  switch (type.code) {
+    case kDLInt: {
+      CHECK_EQ(type.bits, 32) << "Only support 32-bit int for uniform.";
+      GLint uniform_value = *reinterpret_cast<GLint*>(value);
+      OPENGL_CALL(gl->Uniform1i(location, uniform_value));
+      break;
+    }
+    case kDLUInt: {
+      LOG(FATAL) << "Strangely, emcc WebGL does not support glUniform1ui.";
+      break;
+    }
+    case kDLFloat: {
+      CHECK_EQ(type.bits, 32) << "Only support 32-bit float for uniform.";
+      GLfloat uniform_value = *reinterpret_cast<GLfloat*>(value);
+      OPENGL_CALL(gl->Uniform1f(location, uniform_value));
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Unsupported type code for uniform.";
+      break;
+    }
   }
+}
 
-  OPENGL_CALL(gl->UseProgram(program.program_));
+void OpenGLWorkspace::SetInputTexture(const Program& program,
+                                      const std::string& name,
+                                      GLuint unit,
+                                      Texture* texture) {
+  // We always use the last texture unit as temporary.
+  // Therefore, we can have "NumTextureUnits() - 1" input textures.
+  CHECK_LT(unit, NumTextureUnits() - 1) << "Too many textures.";
 
+  BindTextureUnit(unit, texture->texture());
+  GLint location = gl->GetUniformLocation(program.program_, name.c_str());
+  OPENGL_CALL(gl->Uniform1i(location, unit));
+}
+
+void OpenGLWorkspace::Render(Texture* output) {
   // Create frame buffer.
   GLuint frame_buffer;
   OPENGL_CALL(gl->GenFramebuffers(1, &frame_buffer));
@@ -493,51 +533,6 @@ void OpenGLWorkspace::Render(
   // Always check that our framebuffer is okay.
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     LOG(FATAL) << "Framebuffer not complete.";
-  }
-
-  // Set up uniforms.
-  for (auto &uniform : uniforms) {
-    std::string name;
-    TVMType type;
-    void *value;
-    std::tie(name, type, value) = uniform;
-    CHECK_EQ(type.lanes, 1) << "Only support scalar uniform.";
-
-    GLint location = gl->GetUniformLocation(program.program_, name.c_str());
-
-    switch (type.code) {
-      case kDLInt: {
-        CHECK_EQ(type.bits, 32) << "Only support 32-bit int for uniform.";
-        GLint uniform_value = *reinterpret_cast<GLint*>(value);
-        OPENGL_CALL(gl->Uniform1i(location, uniform_value));
-        break;
-      }
-      case kDLUInt: {
-        LOG(FATAL) << "Strangely, emcc WebGL does not support glUniform1ui.";
-        break;
-      }
-      case kDLFloat: {
-        CHECK_EQ(type.bits, 32) << "Only support 32-bit float for uniform.";
-        GLfloat uniform_value = *reinterpret_cast<GLfloat*>(value);
-        OPENGL_CALL(gl->Uniform1f(location, uniform_value));
-        break;
-      }
-      default: {
-        LOG(FATAL) << "Unsupported type code for uniform.";
-        break;
-      }
-    }
-  }
-
-  // Tell the fragment shader what input textures to use.
-  for (GLuint unit = 0; unit != inputs.size(); ++unit) {
-    const std::string& name = inputs[unit].first;
-    auto texture = inputs[unit].second;
-
-    BindTextureUnit(unit, texture->texture());
-
-    GLint location = gl->GetUniformLocation(program.program_, name.c_str());
-    OPENGL_CALL(gl->Uniform1i(location, unit));
   }
 
   // Perform rendering.

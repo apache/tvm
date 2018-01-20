@@ -24,6 +24,7 @@ class CodeGenOpenGL final : public CodeGenC {
   void InitFuncState(LoweredFunc f) final;
   void BindThreadIndex(const IterVar& iv) final;
   void VisitStmt_(const Store* op) final;
+  std::string TexelFetch(const Variable* buffer, Expr index);
   std::string GetBufferRef(Type t, const Variable* buffer, Expr index) final;
   void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
 
@@ -34,9 +35,9 @@ class CodeGenOpenGL final : public CodeGenC {
   void VisitExpr_(const StringImm* op, std::ostream& os) final;  // NOLINT(*)
 
  private:
-  const Variable* output_;
+  const Variable* output_{nullptr};
   std::unordered_set<const Variable*> inputs_;
-  const Variable* iter_var_;
+  const Variable* output_iter_var_{nullptr};
   std::unordered_map<std::string, runtime::OpenGLShader> shaders_;
   std::string thread_extent_var_;
 };

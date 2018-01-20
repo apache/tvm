@@ -74,4 +74,5 @@ def try_remote_save_load():
     fhost(a, b, c)
     np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-try_remote_save_load()
+if __name__ == "__main__":
+    try_remote_save_load()
