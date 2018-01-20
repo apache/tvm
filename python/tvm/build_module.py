@@ -57,6 +57,7 @@ class DumpIR(object):
 
     def decorate_irpass(self):
         '''decorate ir_pass and ScheduleOps'''
+        self._old_sgpass = schedule.ScheduleOps
         schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
         vset = vars(ir_pass)
         k = v = 0
@@ -69,16 +70,15 @@ class DumpIR(object):
     def decorate_custompass(self):
         ''' decorate add_lower_pass pass in BuildConfig'''
         cfg = BuildConfig.current
-        add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-        pass_list = [(x[0], self.decorate(x[1])) for x in add_lower_pass]
+        self._old_custom_pass = cfg.add_lower_pass
+        custom_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+        pass_list = [(x[0], self.decorate(x[1])) for x in custom_pass]
         BuildConfig.current.add_lower_pass = pass_list
 
     def enter(self):
         '''only decorate outermost nest'''
         if DumpIR.scope_level > 0:
             return
-        self._old_custom_pass = BuildConfig.current.add_lower_pass
-        self._old_sgpass = schedule.ScheduleOps
         self.decorate_irpass()
         self.decorate_custompass()
         self._pass_id = 0
@@ -88,6 +88,7 @@ class DumpIR(object):
         '''recover outermost nest'''
         if DumpIR.scope_level > 1:
             return
+        # recover decorated functions
         for f in self._recover_list:
             f()
         schedule.ScheduleOps = self._old_sgpass
