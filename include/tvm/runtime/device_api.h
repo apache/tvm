@@ -55,11 +55,16 @@ class DeviceAPI {
   /*!
    * \brief Allocate a data space on device.
    * \param ctx The device context to perform operation.
-   * \param size The size of the memory
+   * \param nbytes The number of bytes in memory.
    * \param alignment The alignment of the memory.
-   * \return The allocated device pointer
+   * \param type_hint The type of elements. Only needed by certain backends such
+   * as OpenGL, as nbytes & alignment are sufficient for most backends.
+   * \return The allocated device pointer.
    */
-  virtual void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) = 0;
+  virtual void* AllocDataSpace(TVMContext ctx,
+                               size_t nbytes,
+                               size_t alignment,
+                               TVMType type_hint) = 0;
   /*!
    * \brief Free a data space on device.
    * \param ctx The device context to perform operation.

@@ -123,12 +123,12 @@ void MetalWorkspace::SetDevice(TVMContext ctx) {
 }
 
 void* MetalWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
   this->Init();
   id<MTLDevice> dev = GetDevice(ctx);
   // allocate buffer in GPU only mode.
   id<MTLBuffer> buf = [
-      dev newBufferWithLength:size
+      dev newBufferWithLength:nbytes
           options:MTLResourceStorageModePrivate];
   CHECK(buf != nil);
   return (__bridge void*)([buf retain]);
