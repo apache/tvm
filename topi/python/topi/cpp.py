@@ -2,8 +2,10 @@
 import sys
 import os
 import ctypes
+from imp import new_module as _new_module
 from tvm._ffi.function import _init_api_prefix
 from tvm._ffi import libinfo
+import tvm as _tvm
 
 def _get_lib_names():
     if sys.platform.startswith('win32'):
@@ -25,3 +27,39 @@ def _load_lib():
 _LIB, _LIB_NAME = _load_lib()
 
 _init_api_prefix("topi.cpp", "topi")
+
+def _create_module(name):
+    fullname = __name__ + "." + name
+    mod = _new_module(fullname)
+    sys.modules[fullname] = mod
+    return mod
+
+nn = _create_module("nn")
+_init_api_prefix("topi.cpp.nn", "topi.nn")
+generic = _create_module("generic")
+_init_api_prefix("topi.cpp.generic", "topi.generic")
+cuda = _create_module("cuda")
+_init_api_prefix("topi.cpp.cuda", "topi.cuda")
+rocm = _create_module("rocm")
+_init_api_prefix("topi.cpp.rocm", "topi.rocm")
+x86 = _create_module("x86")
+_init_api_prefix("topi.cpp.x86", "topi.x86")
+
+class Target(object):
+    """Handle to C++ Target instance """
+    _tvm_tcode = 18
+
+    def __init__(self, handle):
+        self.handle = handle
+
+    def __del__(self):
+        _tvm.nd.free_extension_handle(self.handle, 18)
+
+    @property
+    def _tvm_handle(self):
+        return self.handle.value
+
+    def __getitem__(self, idx):
+        return ivec_get(self, idx)
+
+_tvm.register_extension(Target, Target)
