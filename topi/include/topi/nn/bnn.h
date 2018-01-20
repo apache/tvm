@@ -50,7 +50,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
       for (int i = 0; i < n; ++i) {
         start_idx.push_back(i == axis ?
                             indices[i] * 32 :
-                            indices[i]);
+                            static_cast<Expr>(indices[i]));
       }
       auto packed = make_const(UInt(32), 0);
       for (int j = 0; j < 32; ++j) {
