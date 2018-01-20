@@ -49,7 +49,10 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
       *rv = 1;
     }
   }
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t size,
+                       size_t alignment,
+                       TVMType type_hint) final {
     // always align to 32 bytes at least.
     CHECK_LE(alignment, runtime::kAllocAlignment);
     alignment = runtime::kAllocAlignment;

@@ -150,7 +150,7 @@ class CodeGenC :
   std::string GetStructRef(
       Type t, const Expr& buffer, const Expr& index, int kind);
   // print reference to a buffer as type t in index.
-  std::string GetBufferRef(
+  virtual std::string GetBufferRef(
       Type t, const Variable* buffer, Expr index);
   /*!
    * \brief If buffer is allocated as type t.
