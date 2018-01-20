@@ -36,6 +36,24 @@ def schedule_conv2d_nchw(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_nhwc(outs):
+    """Schedule for conv2d_nhwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 
@@ -168,6 +186,41 @@ def schedule_global_pool(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of global pool
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_binarize_pack(outs):
+    """Schedule for binarize_pack
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of binarize_pack
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_binary_dense(outs):
+    """Schedule for binary_dense
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of binary_dense
           in the format of an array of tensors.
 
     Returns

@@ -73,6 +73,9 @@ EXPORT Target metal();
 /*! \return A target for rasp */
 EXPORT Target rasp();
 
+/*! \return A target for Mali */
+EXPORT Target mali();
+
 /*! \return A target for stackvm */
 EXPORT Target stackvm();
 
@@ -115,6 +118,9 @@ struct BuildConfig {
 
   /*! \brief Whether to detect global barrier */
   bool detect_global_barrier = false;
+
+  /*! \brief Whether to partition const loop */
+  bool partition_const_loop = false;
 
   BuildConfig() {
   }

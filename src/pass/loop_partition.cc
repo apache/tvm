@@ -45,10 +45,12 @@ bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
 class CandidateSelector final : public IRVisitor {
  public:
   using VarIsUsed = bool;
-  CandidateSelector() {}
+  explicit CandidateSelector(bool split_const_loop)
+      : split_const_loop_(split_const_loop) {}
 
   void Visit_(const For* op) {
-    if (!is_const(op->min) || !is_const(op->extent)) {
+    // partition const loop when sets split_const_loop_
+    if (!is_const(op->min) || !is_const(op->extent) || split_const_loop_) {
       const Variable* var = op->loop_var.get();
       record_.insert({var, false});
       IRVisitor::Visit_(op);
@@ -67,7 +69,7 @@ class CandidateSelector final : public IRVisitor {
       CHECK(iv);
       Var var = iv->var;
       runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
-      if ((scope.rank == 0) && !is_const(op->value)) {
+      if ((scope.rank == 0) && (!is_const(op->value) || split_const_loop_)) {
         record_.insert({var.get(), false});
         IRVisitor::Visit_(op);
         if (record_.at(var.get()) && !no_split_) {
@@ -115,6 +117,7 @@ class CandidateSelector final : public IRVisitor {
  private:
   bool in_likely_{false};
   bool no_split_{false};
+  bool split_const_loop_{false};
   std::unordered_map<const Variable*, VarIsUsed> record_;
 };
 
@@ -297,8 +300,13 @@ class LoopPartitioner : public IRMutator {
   std::unordered_map<const Variable*, IntSet> relax_map_;
 };
 
-Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
-    VarExpr var, Expr min, Expr max, Stmt body, bool partition_thread_scope) {
+Stmt LoopPartitioner::TryPartition(const Node* node,
+                                   const Stmt& stmt,
+                                   VarExpr var,
+                                   Expr min,
+                                   Expr max,
+                                   Stmt body,
+                                   bool partition_thread_scope) {
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
   const auto& partitions = finder.partitions;
@@ -337,7 +345,8 @@ Stmt LoopPartitioner::TryPartition(const Node* node, const Stmt& stmt,
   if (true_itrv.as<arith::IntervalSet>()->i.has_upper_bound()) {
     post_doubt_begin = true_itrv.max() + 1;
     if (!can_prove(true_itrv.max() == max)) {
-      Expr cond = (max - post_doubt_begin >= 0);
+      // require the extent to be non-negative
+      Expr cond = (max - post_doubt_begin + 1 >= 0);
       if (!can_prove(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the post doubt loop";
@@ -392,8 +401,8 @@ class RemoveLikelyTags : public IRMutator {
   }
 };
 
-Stmt LoopPartition(Stmt stmt) {
-  CandidateSelector selector;
+Stmt LoopPartition(Stmt stmt, bool split_const_loop) {
+  CandidateSelector selector(split_const_loop);
   selector.Visit(stmt);
   stmt = LoopPartitioner(selector.candidates).Mutate(stmt);
   stmt = RemoveLikelyTags().Mutate(stmt);

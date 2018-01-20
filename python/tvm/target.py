@@ -81,6 +81,7 @@ class Target(object):
     - :any:`tvm.target.rasp` create raspberry pi target
     - :any:`tvm.target.cuda` create CUDA target
     - :any:`tvm.target.rocm` create ROCM target
+    - :any:`tvm.target.mali` create Mali target
     """
     current = None
 
@@ -90,9 +91,13 @@ class Target(object):
         self.target_name = target_name
         self.options = _merge_opts([], options)
         self.device_name = ""
+        self.libs = []
         # Parse device option
         for item in self.options:
-            if item.startswith("-device="):
+            if item.startswith("-libs="):
+                libs = item.split("=")[1]
+                self.libs += libs.split(",")
+            elif item.startswith("-device="):
                 self.device_name = item.split("=")[1]
         # Target query searchs device name first
         if self.device_name:
@@ -260,6 +265,19 @@ def rasp(options=None):
     return Target("llvm", opts)
 
 
+def mali(options=None):
+    """Returns a ARM Mali GPU target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    opts = ["-device=mali"]
+    opts = _merge_opts(opts, options)
+    return Target("opencl", opts)
+
+
 def create(target_str):
     """Get a target given target string.
 
@@ -289,6 +307,8 @@ def create(target_str):
             device_name = item.split("=")[1]
     if device_name == "rasp":
         return rasp(arr[1:])
+    if device_name == "mali":
+        return mali(arr[1:])
     return Target(arr[0], arr[1:])
 
 

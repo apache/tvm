@@ -29,8 +29,10 @@ INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -
 CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
-EMCC_FLAGS= -s RESERVED_FUNCTION_POINTERS=2 -s NO_EXIT_RUNTIME=1 -s MAIN_MODULE=1 -DDMLC_LOG_STACK_TRACE=0\
-	 -std=c++11 -Oz $(INCLUDE_FLAGS)
+EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
+	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\
+	-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap','getValue','setValue','addFunction']"\
+	$(INCLUDE_FLAGS)
 
 # llvm configuration
 ifdef LLVM_CONFIG
@@ -77,7 +79,11 @@ RUNTIME_DEP = $(RUNTIME_OBJ)
 ifdef CUDA_PATH
 	NVCC=$(CUDA_PATH)/bin/nvcc
 	CFLAGS += -I$(CUDA_PATH)/include
-	LDFLAGS += -L$(CUDA_PATH)/lib64
+	ifeq ($(UNAME_S),Darwin)
+		LDFLAGS += -L$(CUDA_PATH)/lib
+	else
+		LDFLAGS += -L$(CUDA_PATH)/lib64
+	endif
 endif
 
 ifeq ($(USE_CUDA), 1)
@@ -134,7 +140,10 @@ include make/contrib/cblas.mk
 include make/contrib/random.mk
 include make/contrib/nnpack.mk
 include make/contrib/cudnn.mk
+include make/contrib/miopen.mk
 include make/contrib/mps.mk
+include make/contrib/cublas.mk
+include make/contrib/rocblas.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)

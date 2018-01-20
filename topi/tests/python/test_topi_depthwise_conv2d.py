@@ -7,18 +7,17 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nhwc
 
 
-def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
+def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding):
     in_width = in_height
     filter_channel = in_channel
     filter_width = filter_height
-    stride_w = stride_h
     # placeholder
     Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
     Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, stride=[stride_h, stride_w], padding=padding)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, stride=stride, padding=padding)
     ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
 
@@ -56,7 +55,7 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             shift_np = np.random.uniform(size=shift_shape).astype(dtype)
             # correctness with scipy
             depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(
-                input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+                input_np, filter_np, stride=stride, padding=padding)
             scale_shift_scipy = np.zeros(shape=scale_shift_shape)
             for c in range(in_channel * channel_multiplier):
                 scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]

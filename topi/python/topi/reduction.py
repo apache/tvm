@@ -107,10 +107,8 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
     ret : tvm.Tensor
     """
     ndim = len(data.shape)
+    assert ndim != 0, "Reduce a dim-0 input is not supported!"
     real_axis = _get_real_axis(ndim, axis)
-    if real_axis == list(range(ndim)) and keepdims is False:
-        raise ValueError("Currently we do not support all reduce + keepdims = False!"
-                         " axis={}, keepdims={}".format(axis, keepdims))
     reduce_axes = [tvm.reduce_axis((0, data.shape[i]), "k%d" %i) for i in real_axis]
     if keepdims:
         target_shape = [1 if i in real_axis else data.shape[i] for i in range(ndim)]
