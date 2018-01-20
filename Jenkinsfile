@@ -88,6 +88,7 @@ stage('Build') {
            echo USE_CUDNN=1 >> config.mk
            echo USE_CUDA=1 >> config.mk
            echo USE_OPENCL=1 >> config.mk
+           echo USE_OPENGL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
            echo USE_GRAPH_RUNTIME=1 >> config.mk
@@ -120,6 +121,7 @@ stage('Build') {
            echo USE_CUDA=0 >> config.mk
            echo USE_OPENCL=0 >> config.mk
            echo USE_RPC=0 >> config.mk
+           echo USE_OPENGL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            """
         make('cpu', '-j2')
