@@ -51,7 +51,7 @@ void OpenCLWorkspace::GetAttr(
 }
 
 void* OpenCLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
   this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
