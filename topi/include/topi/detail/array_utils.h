@@ -14,8 +14,12 @@ using namespace tvm;
 /*! \brief returns true iff the given array contains the given item */
 template<typename T>
 bool contains(Array<T> array, T item) {
-  return std::any_of(array.begin(), array.end(),
-    [&](T i) { return i == item; });
+  for (auto& i : array) {
+    if (i == item) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace topi
