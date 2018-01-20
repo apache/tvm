@@ -1,4 +1,5 @@
 import tvm
+import os
 
 def test_unroll_loop():
     dtype = 'int64'
@@ -24,4 +25,20 @@ def test_unroll_loop():
 
 
 if __name__ == "__main__":
-    test_unroll_loop()
+    with tvm.build_config(dump_pass_ir=True):
+        test_unroll_loop()
+
+    def end_with(*suffix):
+        ends = suffix
+        def run(s):
+            f = map(s.endswith, ends)
+            if True in f: return s
+        return run
+
+    file_list = os.listdir('./')
+    cc_file = end_with('.cc')
+    cc_file = filter(cc_file, file_list)
+    assert len(cc_file) == 3
+    for i in cc_file:
+        os.remove(i)
+    
