@@ -34,6 +34,8 @@ def _create_module(name):
     sys.modules[fullname] = mod
     return mod
 
+# pylint: disable-msg=C0103
+
 nn = _create_module("nn")
 _init_api_prefix("topi.cpp.nn", "topi.nn")
 generic = _create_module("generic")
