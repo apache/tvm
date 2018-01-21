@@ -42,23 +42,23 @@ inline Tensor expand_dims(const Tensor& x,
   }
 
   Array<Expr> new_shape;
-  for (int i = 0; i < axis; ++i) {
+  for (size_t i = 0; i < axis; ++i) {
     new_shape.push_back(x->shape[i]);
   }
-  for (int i = 0; i < num_newaxis; ++i) {
+  for (size_t i = 0; i < num_newaxis; ++i) {
     new_shape.push_back(1);
   }
-  for (int i = axis; i < x->shape.size(); ++i) {
+  for (size_t i = axis; i < x->shape.size(); ++i) {
     new_shape.push_back(x->shape[i]);
   }
 
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       Array<Expr> idx;
-      for (int i = 0; i < axis; ++i) {
+      for (size_t i = 0; i < axis; ++i) {
         idx.push_back(indices[i]);
       }
-      for (int i = axis + num_newaxis; i < indices.size(); ++i) {
+      for (size_t i = axis + num_newaxis; i < indices.size(); ++i) {
         idx.push_back(indices[i]);
       }
       return x(idx);
@@ -93,10 +93,10 @@ inline Tensor transpose(const Tensor& x,
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       std::vector<Expr> idx;
-      for (int i = 0; i < axes.size(); ++i) {
+      for (size_t i = 0; i < axes.size(); ++i) {
         idx.push_back(1);
       }
-      for (int i = 0; i < axes.size(); ++i) {
+      for (size_t i = 0; i < axes.size(); ++i) {
         idx[axes[i]] = indices[i];
       }
       return x(idx);
@@ -143,13 +143,13 @@ inline Tensor squeeze(const Tensor& x,
                       std::string tag = kInjective) {
   auto ndim = x->shape.size();
   if (axis.size() == 0) {
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
-        axis.push_back(i);
+        axis.push_back(static_cast<int>(i));
       }
     }
   } else {
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (axis[i] < 0) {
         axis[i] += static_cast<int>(x->shape.size());
       }
@@ -161,8 +161,8 @@ inline Tensor squeeze(const Tensor& x,
   std::unordered_set<int> axis_set(axis.begin(), axis.end());
 
   Array<Expr> out_shape;
-  for (int i = 0; i < ndim; ++i) {
-    if (axis_set.count(i) == 0) {
+  for (size_t i = 0; i < ndim; ++i) {
+    if (axis_set.count(static_cast<int>(i)) == 0) {
       out_shape.push_back(x->shape[i]);
     }
   }
@@ -174,8 +174,8 @@ inline Tensor squeeze(const Tensor& x,
     out_shape, [&](const Array<Var>& indices) {
       Array<Expr> real_indices;
       int flag = 0;
-      for (int i = 0; i < ndim; ++i) {
-        if (axis_set.count(i) == 0) {
+      for (size_t i = 0; i < ndim; ++i) {
+        if (axis_set.count(static_cast<int>(i)) == 0) {
           real_indices.push_back(indices[i - flag]);
         } else {
           real_indices.push_back(0);
@@ -212,11 +212,11 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   }
 
   Expr join_size = axis_sizes[0];
-  for (int i = 1; i < axis_sizes.size(); ++i) {
+  for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
   }
   std::vector<Expr> out_shape;
-  for (int i = 0; i < inputs[0]->shape.size(); ++i) {
+  for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == axis ? join_size : inputs[0]->shape[i]);
   }
 
@@ -224,15 +224,15 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
     out_shape, [&](const Array<Var>& indices) {
       auto ret = inputs[0](indices);
       auto ind = indices[axis];
-      for (int i = 0; i < inputs.size() - 1; ++i) {
+      for (size_t i = 0; i < inputs.size() - 1; ++i) {
         ind -= axis_sizes[i];
 
         Array<Expr> idx;
-        for (int i = 0; i < axis; ++i) {
+        for (size_t i = 0; i < axis; ++i) {
           idx.push_back(indices[i]);
         }
         idx.push_back(ind);
-        for (int i = axis + 1; i < indices.size(); ++i) {
+        for (size_t i = axis + 1; i < indices.size(); ++i) {
           idx.push_back(indices[i]);
         }
 
