@@ -37,7 +37,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
 
   auto n = ishape.size();
   Array<Expr> oshape;
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     oshape.push_back(i == axis ?
                      tvm::ir::Simplify(ishape[i] / 32) :
                      ishape[i]);
@@ -53,11 +53,11 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
                             static_cast<Expr>(indices[i]));
       }
       auto packed = make_const(UInt(32), 0);
-      for (int j = 0; j < 32; ++j) {
+      for (size_t j = 0; j < 32; ++j) {
         Array<Expr> idx;
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           idx.push_back(i == axis ?
-                        start_idx[i] + j :
+                        start_idx[i] + static_cast<int>(j) :
                         start_idx[i]);
         }
         auto sign = tvm::cast(UInt(32), data(idx) >= 0);

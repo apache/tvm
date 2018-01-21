@@ -27,7 +27,7 @@ Expr all(Array<Expr> args) {
   CHECK_GT(args.size(), 0) << "all requires at least one argument";
 
   Expr ret = args[0];
-  for (int i = 1; i < args.size(); ++i) {
+  for (size_t i = 1; i < args.size(); ++i) {
     ret = ret && args[i];
   }
   return ret;
@@ -55,7 +55,7 @@ inline Tensor dilate(const Tensor& x,
     << ") must match dimension of x (" << n << ")";
 
   Array<Expr> out_shape;
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     out_shape.push_back(tvm::ir::Simplify(
       (x->shape[i] - 1) * strides[i] + 1));
   }
@@ -65,7 +65,7 @@ inline Tensor dilate(const Tensor& x,
     [&](const Array<Var>& indices) {
       Array<Expr> not_zero;
       Array<Expr> index_tuple;
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (strides[i] != 1) {
           index_tuple.push_back(indices[i] / strides[i]);
           not_zero.push_back((indices[i] % strides[i]) == 0);

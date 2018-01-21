@@ -16,7 +16,7 @@ IterVar Fuse(Stage stage, const Array<IterVar>& args) {
   CHECK_GE(args.size(), 1) << "Fuse requires at least 2 args";
 
   auto fused = args[0];
-  for (auto i = 1; i < args.size(); ++i) {
+  for (size_t i = 1; i < args.size(); ++i) {
     IterVar out;
     stage.fuse(fused, args[i], &out);
     fused = out;

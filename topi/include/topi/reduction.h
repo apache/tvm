@@ -86,7 +86,7 @@ Tensor CommReduce(const Tensor& data,
 
   Array<Expr> target_shape;
   if (keepdims) {
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         // real_axis contains i
         target_shape.push_back(1);
@@ -95,7 +95,7 @@ Tensor CommReduce(const Tensor& data,
       }
     }
   } else {
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
         // real_axis does not contain i
         target_shape.push_back(data->shape[i]);
@@ -110,7 +110,7 @@ Tensor CommReduce(const Tensor& data,
     int arg_counter = 0;
     int red_counter = 0;
 
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         // real_axis contains i
         eval_range.push_back(reduce_axes[red_counter]);
@@ -161,7 +161,7 @@ Tensor CommReduceIdx(const Tensor& data,
 
   Array<Expr> target_shape;
   if (keepdims) {
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         // real_axis contains i
         target_shape.push_back(1);
@@ -170,7 +170,7 @@ Tensor CommReduceIdx(const Tensor& data,
       }
     }
   } else {
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
         // real_axis does not contain i
         target_shape.push_back(data->shape[i]);
@@ -185,7 +185,7 @@ Tensor CommReduceIdx(const Tensor& data,
     int arg_counter = 0;
     int red_counter = 0;
 
-    for (int i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         // real_axis contains i
         eval_range.push_back(reduce_axes[red_counter]);
@@ -243,7 +243,7 @@ FCommReduce MakeCommReducer(FCombine fcombine,
     Array<Var> lhs, rhs;
     std::vector<Type> dtypes;
 
-    for (int i = 0; i < exprs.size(); ++i) {
+    for (size_t i = 0; i < exprs.size(); ++i) {
       auto dtype = exprs[i].type();
       dtypes.push_back(dtype);
       lhs.push_back(var("lhs_" + std::to_string(i), dtype));
@@ -256,7 +256,7 @@ FCommReduce MakeCommReducer(FCombine fcombine,
 
     auto combiner = tvm::ir::CommReducerNode::make(lhs, rhs, result, id_elem);
     Array<Expr> outputs;
-    for (int i = 0; i < exprs.size(); ++i) {
+    for (size_t i = 0; i < exprs.size(); ++i) {
       outputs.push_back(tvm::ir::Reduce::make(combiner, exprs, axis, cond, i));
     }
     return outputs;

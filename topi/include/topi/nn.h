@@ -21,7 +21,7 @@ template <typename T>
 tvm::Expr Map(const tvm::Array<tvm::Expr>& exprs, T op) {
   CHECK_GE(exprs.size(), 1);
   tvm::Expr res = exprs[0];
-  for (int i = 1; i < exprs.size(); ++i) {
+  for (size_t i = 1; i < exprs.size(); ++i) {
     res = op(res, exprs[i]);
   }
   return res;
@@ -119,14 +119,14 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   if (pad_after.size() < pad_before.size()) {
-    for (int i = pad_after.size(); i < pad_before.size(); ++i) {
+    for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
     }
   }
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
   tvm::Array<tvm::Expr> output_shape;
-  for (int i = 0; i < t->shape.size(); ++i) {
+  for (size_t i = 0; i < t->shape.size(); ++i) {
     if (i >= pad_before.size()) {
       output_shape.push_back(t->shape[i]);
     } else {
@@ -142,7 +142,7 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     tvm::Array<tvm::Expr> indices;
     tvm::Array<tvm::Expr> sel;
-    for (int i = 0; i < t->shape.size(); ++i) {
+    for (size_t i = 0; i < t->shape.size(); ++i) {
       if (i >= pad_before.size()) {
         indices.push_back(ovars[i]);
         continue;

@@ -25,7 +25,7 @@ inline Expr RavelIndex(Array<Var> indices, Array<Expr> shape) {
   CHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   CHECK_GT(indices.size(), 0) << "indices must not be empty";
   Expr idx;
-  for (int i = 0; i < indices.size(); ++i) {
+  for (size_t i = 0; i < indices.size(); ++i) {
     if (i == 0) {
       idx = indices[i];
     } else {

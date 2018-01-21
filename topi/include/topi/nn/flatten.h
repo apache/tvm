@@ -32,14 +32,14 @@ inline Tensor flatten(const Tensor& x,
                       std::string tag = kInjective) {
   auto ishape = x->shape;
   int dim = 1;
-  for (int i = 1; i < ishape.size(); ++i) {
+  for (size_t i = 1; i < ishape.size(); ++i) {
     dim = dim * static_cast<int>(GetConstInt(ishape[i]));
   }
 
   Array<Expr> oshape({ ishape[0], dim });
 
   std::vector<Expr> extra_shape;
-  for (int i = 1; i < ishape.size(); ++i) {
+  for (size_t i = 1; i < ishape.size(); ++i) {
     extra_shape.push_back(ishape[i]);
   }
   std::reverse(extra_shape.begin(), extra_shape.end());

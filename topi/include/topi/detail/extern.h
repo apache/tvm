@@ -42,7 +42,7 @@ Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
     input_placeholders.push_back(DeclExternBuffer(t->shape, t->dtype, t->op->name));
   }
   Array<Buffer> output_placeholders;
-  for (int i = 0; i < out_shapes.size(); ++i) {
+  for (size_t i = 0; i < out_shapes.size(); ++i) {
     output_placeholders.push_back(DeclExternBuffer(out_shapes[i], out_types[i], name));
   }
 
@@ -53,7 +53,7 @@ Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
     name, tag, inputs, input_placeholders, output_placeholders, body_stmt);
 
   Array<Tensor> outputs;
-  for (int i = 0; i < output_placeholders.size(); ++i) {
+  for (size_t i = 0; i < output_placeholders.size(); ++i) {
     outputs.push_back(op.output(i));
   }
   return outputs;

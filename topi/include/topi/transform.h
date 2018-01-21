@@ -271,7 +271,7 @@ inline Array<Tensor> split(const Tensor& x,
   std::copy(split_indices.begin(), split_indices.end(), std::back_inserter(begin_ids));
 
   std::vector<Array<Expr>> out_shapes;
-  for (int i = 0; i < begin_ids.size(); ++i) {
+  for (size_t i = 0; i < begin_ids.size(); ++i) {
     int out_axis_size;
     if (i == begin_ids.size() - 1) {
       out_axis_size = src_axis_size - begin_ids[i];
@@ -280,11 +280,11 @@ inline Array<Tensor> split(const Tensor& x,
     }
 
     std::vector<Expr> shape;
-    for (int i = 0; i < axis; ++i) {
+    for (size_t i = 0; i < axis; ++i) {
       shape.push_back(x->shape[i]);
     }
     shape.push_back(out_axis_size);
-    for (int i = axis + 1; i < x->shape.size(); ++i) {
+    for (size_t i = axis + 1; i < x->shape.size(); ++i) {
       shape.push_back(x->shape[i]);
     }
 
@@ -292,17 +292,17 @@ inline Array<Tensor> split(const Tensor& x,
   }
 
   Array<Tensor> result;
-  for (int i = 0; i < begin_ids.size(); ++i) {
+  for (size_t i = 0; i < begin_ids.size(); ++i) {
     result.push_back(
       compute(
         out_shapes[i], [&](const Array<Var>& indices) {
           auto begin = begin_ids[i];
           Array<Expr> real_indices;
-          for (int j = 0; j < axis; ++j) {
+          for (size_t j = 0; j < axis; ++j) {
             real_indices.push_back(indices[j]);
           }
           real_indices.push_back(indices[axis] + begin);
-          for (int j = axis + 1; j < indices.size(); ++j) {
+          for (size_t j = axis + 1; j < indices.size(); ++j) {
             real_indices.push_back(indices[j]);
           }
 
