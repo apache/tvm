@@ -35,7 +35,9 @@ Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool 
 
   if (auto_inline) {
     tvm::schedule::AutoInlineInjective(s);
-    Fuse(s[x], axis);
+    if (axis.size() > 0) {
+      Fuse(s[x], axis);
+    }
     return s;
   }
 

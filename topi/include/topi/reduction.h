@@ -379,7 +379,7 @@ Tensor argmax(const Tensor& data, std::vector<int> axis, bool keepdims = false) 
     result.push_back(types[1].min());  // val
     return result;
   };
-  auto func = MakeCommReducer(fcombine, fidentity, "argmin");
+  auto func = MakeCommReducer(fcombine, fidentity, "argmax");
   return CommReduceIdx(data, axis, func, keepdims);
 }
 

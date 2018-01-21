@@ -65,6 +65,15 @@ using namespace tvm::runtime;
 TVM_REGISTER_EXT_TYPE(IntVector);
 TVM_REGISTER_EXT_TYPE(tvm::Target);
 
+TVM_REGISTER_GLOBAL("topi.create_IntVector")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::vector<int> data;
+  for (int i = 0; i < args.size(); ++i) {
+    data.push_back(args[i].operator int());
+  }
+  *ret = data;
+  });
+
 TVM_REGISTER_GLOBAL("topi.TEST_create_target")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tvm::Target::create(args[0]);
@@ -207,7 +216,7 @@ TVM_REGISTER_GLOBAL("topi.max")
 
 TVM_REGISTER_GLOBAL("topi.argmin")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = argmax(args[0], args[1], args[2]);
+  *rv = argmin(args[0], args[1], args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.argmax")
@@ -332,7 +341,7 @@ TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
   });
 
 /* Generic schedules */
-TVM_REGISTER_GLOBAL("topi.generic.schedule_default")
+TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::generic::default_schedule(args[0], args[1], args[2]);
   });

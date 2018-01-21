@@ -33,7 +33,10 @@ Schedule default_schedule(const Target& target, Array<Tensor> outs, bool auto_in
   if (auto_inline) {
     auto x = outs[0];
     tvm::schedule::AutoInlineInjective(s);
-    Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
+    auto axis = s[x]->op.as<ComputeOpNode>()->axis;
+    if (axis.size() > 0) {
+      Fuse(s[x], axis);
+    }
   }
   return s;
 }

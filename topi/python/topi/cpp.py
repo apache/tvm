@@ -47,6 +47,25 @@ _init_api_prefix("topi.cpp.rocm", "topi.rocm")
 x86 = _create_module("x86")
 _init_api_prefix("topi.cpp.x86", "topi.x86")
 
+class IntVector(object):
+    """Handle to std::vector<int> instance """
+    _tvm_tcode = 17
+
+    def __init__(self, handle):
+        self.handle = handle
+
+    def __del__(self):
+        _tvm.nd.free_extension_handle(self.handle, 17)
+
+    @property
+    def _tvm_handle(self):
+        return self.handle.value
+
+    def __getitem__(self, idx):
+        return ivec_get(self, idx)
+
+_tvm.register_extension(IntVector, IntVector)
+
 class Target(object):
     """Handle to C++ Target instance """
     _tvm_tcode = 18

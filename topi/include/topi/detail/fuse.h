@@ -13,7 +13,7 @@ using namespace tvm;
 
 /*! \brief Fuse all of the given args */
 IterVar Fuse(Stage stage, const Array<IterVar>& args) {
-  CHECK_GE(args.size(), 1) << "Fuse requires at least 2 args";
+  CHECK_GE(args.size(), 1) << "Fuse requires at least 1 arg";
 
   auto fused = args[0];
   for (size_t i = 1; i < args.size(); ++i) {
