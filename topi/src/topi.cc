@@ -139,17 +139,17 @@ TVM_REGISTER_GLOBAL("topi.sqrt")
 
 TVM_REGISTER_GLOBAL("topi.log")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = exp(args[0]);
+  *rv = log(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.identity")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = exp(args[0]);
+  *rv = identity(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.negative")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = exp(args[0]);
+  *rv = negative(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.pow")
