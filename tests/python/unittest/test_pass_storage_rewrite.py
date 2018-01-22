@@ -162,7 +162,9 @@ def test_storage_combine():
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
+    print stmt
     stmt = tvm.ir_pass.StorageRewrite(stmt)
+    print stmt
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
