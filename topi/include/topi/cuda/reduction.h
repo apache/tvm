@@ -141,6 +141,7 @@ void TraverseAfterReduce(const Target& target, Schedule s, Operation op) {
 * \return A schedule for the given ops.
 */
 Schedule schedule_reduce(const Target& target, Array<Tensor> outs) {
+  CHECK_EQ(outs.size(), 1) << "outs must have size 1";
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

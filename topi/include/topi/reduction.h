@@ -57,6 +57,41 @@ std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
   return real_axis;
 }
 
+/*! \brief Enumerate the axes for a reduce op */
+Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& data) {
+  Array<IterVar> reduce_axes;
+  for (auto i : real_axis) {
+    std::string name = "k" + std::to_string(i);
+    reduce_axes.push_back(
+      tvm::reduce_axis(Range(0, data->shape[i]), name));
+  }
+  return reduce_axes;
+}
+
+/*! \brief Calculate the target shape for a reduce op */
+Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis, const Tensor& data, bool keepdims) {
+  auto ndim = data->shape.size();
+  Array<Expr> target_shape;
+  if (keepdims) {
+    for (size_t i = 0; i < ndim; ++i) {
+      if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
+        // real_axis contains i
+        target_shape.push_back(1);
+      } else {
+        target_shape.push_back(data->shape[i]);
+      }
+    }
+  } else {
+    for (size_t i = 0; i < ndim; ++i) {
+      if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
+        // real_axis does not contain i
+        target_shape.push_back(data->shape[i]);
+      }
+    }
+  }
+  return target_shape;
+}
+
 /*!
  * \brief Create a reduction operation.
  *
@@ -76,32 +111,8 @@ Tensor CommReduce(const Tensor& data,
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
-
-  Array<IterVar> reduce_axes;
-  for (auto i : real_axis) {
-    std::string name = "k" + std::to_string(i);
-    reduce_axes.push_back(
-      tvm::reduce_axis(Range(0, data->shape[i]), name));
-  }
-
-  Array<Expr> target_shape;
-  if (keepdims) {
-    for (size_t i = 0; i < ndim; ++i) {
-      if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
-        // real_axis contains i
-        target_shape.push_back(1);
-      } else {
-        target_shape.push_back(data->shape[i]);
-      }
-    }
-  } else {
-    for (size_t i = 0; i < ndim; ++i) {
-      if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
-        // real_axis does not contain i
-        target_shape.push_back(data->shape[i]);
-      }
-    }
-  }
+  auto reduce_axes = MakeReduceAxes(real_axis, data);
+  auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
   (const Array<Var>& indices) {
@@ -151,32 +162,8 @@ Tensor CommReduceIdx(const Tensor& data,
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
-
-  Array<IterVar> reduce_axes;
-  for (auto i : real_axis) {
-    std::string name = "k" + std::to_string(i);
-    reduce_axes.push_back(
-      tvm::reduce_axis(Range(0, data->shape[i]), name));
-  }
-
-  Array<Expr> target_shape;
-  if (keepdims) {
-    for (size_t i = 0; i < ndim; ++i) {
-      if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
-        // real_axis contains i
-        target_shape.push_back(1);
-      } else {
-        target_shape.push_back(data->shape[i]);
-      }
-    }
-  } else {
-    for (size_t i = 0; i < ndim; ++i) {
-      if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
-        // real_axis does not contain i
-        target_shape.push_back(data->shape[i]);
-      }
-    }
-  }
+  auto reduce_axes = MakeReduceAxes(real_axis, data);
+  auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
   (const Array<Var>& indices) {
