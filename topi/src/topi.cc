@@ -49,11 +49,11 @@ namespace tvm {
 namespace runtime {
 template<>
 struct extension_class_info<topi::IntVector> {
-  static const int code = 17;
+  static const int code = 27;
 };
 template<>
 struct extension_class_info<tvm::Target> {
-  static const int code = 18;
+  static const int code = 28;
 };
 }  // namespace tvm
 } // namespace runtime

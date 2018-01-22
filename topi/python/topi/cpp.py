@@ -49,13 +49,13 @@ _init_api_prefix("topi.cpp.x86", "topi.x86")
 
 class IntVector(object):
     """Handle to std::vector<int> instance """
-    _tvm_tcode = 17
+    _tvm_tcode = 27
 
     def __init__(self, handle):
         self.handle = handle
 
     def __del__(self):
-        _tvm.nd.free_extension_handle(self.handle, 17)
+        _tvm.nd.free_extension_handle(self.handle, 27)
 
     @property
     def _tvm_handle(self):
@@ -68,13 +68,13 @@ _tvm.register_extension(IntVector, IntVector)
 
 class Target(object):
     """Handle to C++ Target instance """
-    _tvm_tcode = 18
+    _tvm_tcode = 28
 
     def __init__(self, handle):
         self.handle = handle
 
     def __del__(self):
-        _tvm.nd.free_extension_handle(self.handle, 18)
+        _tvm.nd.free_extension_handle(self.handle, 28)
 
     @property
     def _tvm_handle(self):
