@@ -49,6 +49,30 @@ def test_alloc_seq():
     tvm.ir_pass.PostOrderVisit(body, verify)
     assert num_alloc[0] == 1
 
+def test_alloc_different_dtypes():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    global_a = tvm.placeholder((256,), name = "global_a", dtype = "float32")
+    with ib.for_range(0, 1, name="i") as i:
+        with ib.for_range(0, 256, name="j") as j:
+            A = ib.allocate("float32", 256, name="A", scope="local.L0A")
+            A[j] = 2.5
+        with ib.for_range(0, 256, name="j") as j:
+            B = ib.allocate("int16", 256, name="B", scope="local.L0A")
+            B[j] = tvm.const(1, dtype = "int16")
+        with ib.for_range(0, 256, name="j") as j:
+            C = ib.allocate("float16", 256, name="C", scope="local.L0A")
+            C[j] = tvm.const(1, dtype = "float16")
+        with ib.for_range(0, 256, name="j") as j:
+            D = ib.allocate("uint16", 256, name="D", scope="local.L0A")
+            D[j] = tvm.const(1, dtype = "uint16")
+
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            assert n.extents[0].value == 640
+    tvm.ir_pass.PostOrderVisit(body, verify)
 
 
 def test_inplace_rule():
@@ -99,9 +123,7 @@ def test_storage_combine():
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
-    print stmt
     stmt = tvm.ir_pass.StorageRewrite(stmt)
-    print stmt
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
@@ -176,6 +198,7 @@ def test_parallel_alloc():
 
 if __name__ == "__main__":
     test_alloc_seq()
+    test_alloc_different_dtypes()
     test_inplace_rule()
     test_storage_share()
     test_parallel_alloc()
