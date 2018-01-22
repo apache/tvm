@@ -32,7 +32,7 @@ class ExprTouched final : public IRVisitor {
   }
   void Visit_(const Call *op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      int rw_mask;
+      int rw_mask = 0;
       CHECK(arith::GetConstInt(op->args[4], &rw_mask));
       const Variable* buffer_var = op->args[1].as<Variable>();
       CHECK(buffer_var);
