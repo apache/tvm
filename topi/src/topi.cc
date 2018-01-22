@@ -115,6 +115,10 @@ TVM_REGISTER_GLOBAL("topi.broadcast_minimum")
   *rv = broadcast_minimum(args[0], args[1]);
    });
 
+TVM_REGISTER_GLOBAL("topi.broadcast_pow")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_pow(args[0], args[1]);
+  });
 
 /* Ops from elemwise.h */
 TVM_REGISTER_GLOBAL("topi.exp")
@@ -254,6 +258,11 @@ TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = split(args[0], args[1], args[2]);
   });
+
+TVM_REGISTER_GLOBAL("topi.split_sections")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = split_sections(args[0], args[1], args[2]);
+});
 
 /* Ops from nn/batch_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.batch_norm_inference")

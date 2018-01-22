@@ -131,7 +131,9 @@ inline Tensor clip(const Tensor& x,
                    std::string name = "tensor",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
-    return tvm::max(tvm::min(x(i), a_max), a_min);  // NOLINT(*)
+    auto min_val = tvm::cast(x->dtype, a_min);
+    auto max_val = tvm::cast(x->dtype, a_max);
+    return tvm::max(tvm::min(x(i), max_val), min_val);  // NOLINT(*)
   }, name, tag);
 }
 

@@ -149,7 +149,7 @@ inline Tensor squeeze(const Tensor& x,
       }
     }
   } else {
-    for (size_t i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < axis.size(); ++i) {
       if (axis[i] < 0) {
         axis[i] += static_cast<int>(x->shape.size());
       }
@@ -261,6 +261,9 @@ inline Array<Tensor> split(const Tensor& x,
                            int axis,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
+  if (axis < 0) {
+    axis += static_cast<int>(x->shape.size());
+  }
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
 
   CHECK(std::is_sorted(split_indices.begin(), split_indices.end())) <<
@@ -311,6 +314,42 @@ inline Array<Tensor> split(const Tensor& x,
   }
 
   return result;
+}
+
+/*!
+* \brief Split a tensor into a number of sub-tensors
+*
+* \param x The input tensor
+* \param num_sections The number of sections to split the tensor into.
+* this must be an integer factor of the size of the axis being split.
+* \param axis The axis to split along.
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the split operation
+*/
+inline Array<Tensor> split_sections(const Tensor& x,
+                           int num_sections,
+                           int axis,
+                           std::string name = "tensor",
+                           std::string tag = kInjective) {
+  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
+
+  CHECK_GT(num_sections, 0) << "Slice count must be > 0";
+  CHECK_EQ(src_axis_size % num_sections, 0)
+    << "num_sections must be an integer factor of the size of axis " << axis
+    << " (" << src_axis_size << ")";
+
+  std::vector<int> split_indices;
+  auto seg_size = src_axis_size / num_sections;
+  for (int i = 0; i < num_sections; ++i) {
+    // region at index 0 is added by split()
+    if (i != 0) {
+      split_indices.push_back(seg_size * i);
+    }
+  }
+
+  return split(x, split_indices, axis, name, tag);
 }
 
 }  // namespace topi

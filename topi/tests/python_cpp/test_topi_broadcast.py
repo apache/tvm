@@ -47,6 +47,8 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
         C = topi.cpp.broadcast_maximum(A, B)
     elif typ == "minimum":
         C = topi.cpp.broadcast_minimum(A, B)
+    elif typ == "pow":
+        C = topi.cpp.broadcast_pow(A, B)
     else:
         raise NotImplementedError
     def check_device(device):
@@ -73,6 +75,8 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
             out_npy = np.maximum(lhs_npy, rhs_npy)
         elif typ == "minimum":
             out_npy = np.minimum(lhs_npy, rhs_npy)
+        elif typ == "pow":
+            out_npy = lhs_npy ** rhs_npy
         else:
             raise NotImplementedError
         lhs_nd = tvm.nd.array(lhs_npy, ctx)
@@ -102,6 +106,7 @@ def test_broadcast_binary():
     verify_broadcast_binary_ele((1, 32), (64, 32), typ="sub")
     verify_broadcast_binary_ele((32,), (64, 32), typ="maximum")
     verify_broadcast_binary_ele((1, 2, 2, 1, 32), (64, 32), typ="minimum")
+    verify_broadcast_binary_ele((1, 32), (64, 32), typ="pow")
 
 
 if __name__ == "__main__":
