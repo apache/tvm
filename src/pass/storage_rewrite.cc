@@ -578,11 +578,12 @@ class StoragePlanRewriter : public IRMutator {
     CHECK_NE(e->const_nbits, 0U);
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
     uint64_t total_bits = e->const_nbits;
-    std::cout << total_bits << std::endl;
-    std::cout << "shit" << std::endl;
-    std::cout << 1 / info->max_simd_bits << std::endl;
-    if (total_bits % info->max_simd_bits != 0) {
-      total_bits += info->max_simd_bits  - (total_bits % info->max_simd_bits);
+    size_t align = 1;
+    if (info.define()){
+      align = info->max_simd_bits;
+    }
+    if (total_bits % align != 0) {
+      total_bits += align  - (total_bits % align);
     }
     std::cout << total_bits << std::endl;
     e->alloc_var = e->allocs[0]->buffer_var;
@@ -593,8 +594,8 @@ class StoragePlanRewriter : public IRMutator {
       child->elem_offset = total_bits / child->elem_type.bits();
       child->alloc_var = e->alloc_var;
       total_bits += child->const_nbits;
-      if (total_bits % info->max_simd_bits != 0) {
-        total_bits += info->max_simd_bits  - (total_bits % info->max_simd_bits);
+      if (total_bits % align != 0) {
+        total_bits += align  - (total_bits % align);
       }
     }
     auto alloc_type = e->allocs[0]->extents[0].type();
