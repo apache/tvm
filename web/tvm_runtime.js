@@ -686,7 +686,8 @@ var tvm_runtime = tvm_runtime || {};
       2 : "gpu",
       4 : "opencl",
       8 : "metal",
-      9 : "vpi"
+      9 : "vpi",
+      11 : "opengl",
     };
     var CTX_STR2MASK = {
       "cpu": 1,
@@ -695,7 +696,8 @@ var tvm_runtime = tvm_runtime || {};
       "cl": 4,
       "opencl": 4,
       "metal": 8,
-      "vpi": 9
+      "vpi": 9,
+      "opengl": 11,
     };
     TVMContext.prototype = {
       toString : function() {

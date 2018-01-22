@@ -97,6 +97,7 @@ class TVMContext(ctypes.Structure):
         8 : 'metal',
         9 : 'vpi',
         10: 'rocm',
+        11: 'opengl',
         12: 'ext_dev',
     }
     STR2MASK = {
@@ -111,6 +112,7 @@ class TVMContext(ctypes.Structure):
         'metal': 8,
         'vpi': 9,
         'rocm': 10,
+        'opengl': 11,
         'ext_dev': 12,
     }
     def __init__(self, device_type, device_id):

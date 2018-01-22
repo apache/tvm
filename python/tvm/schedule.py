@@ -611,4 +611,11 @@ class Stage(NodeBase):
         """
         _api_internal._StageDoubleBuffer(self)
 
+    def opengl(self):
+        """The special OpenGL schedule
+
+        Maps each output element to a pixel.
+        """
+        _api_internal._StageOpenGL(self)
+
 _init_api("tvm.schedule")

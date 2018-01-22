@@ -20,13 +20,16 @@ class CPUDeviceAPI final : public DeviceAPI {
       *rv = 1;
     }
   }
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       TVMType type_hint) final {
     void* ptr;
 #if _MSC_VER
-    ptr = _aligned_malloc(size, alignment);
+    ptr = _aligned_malloc(nbytes, alignment);
     if (ptr == nullptr) throw std::bad_alloc();
 #else
-    int ret = posix_memalign(&ptr, alignment, size);
+    int ret = posix_memalign(&ptr, alignment, nbytes);
     if (ret != 0) throw std::bad_alloc();
 #endif
     return ptr;

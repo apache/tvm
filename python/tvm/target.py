@@ -67,7 +67,7 @@ class Target(object):
 
     Parameters
     ----------
-    target_name : {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "ext_dev"}
+    target_name : {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev"}
         The major target name.
 
     options : list of str, optional
@@ -119,6 +119,8 @@ class Target(object):
         elif target_name in ("metal",):
             self.keys += ("gpu",)
             self.max_num_threads = 256
+        elif target_name in ("opengl",):
+            self.keys += ("opengl",)
         elif target_name in ("stackvm", "ext_dev"):
             # Do not now class for stacvm or ext_dev
             pass

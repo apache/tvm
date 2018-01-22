@@ -31,6 +31,7 @@ inline std::string DeviceName(int type) {
     case kDLMetal: return "metal";
     case kDLVPI: return "vpi";
     case kDLROCM: return "rocm";
+    case kOpenGL: return "opengl";
     case kExtDev: return "ext_dev";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
@@ -95,7 +96,8 @@ DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
 }
 
 void* DeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
-  return AllocDataSpace(ctx, size, kTempAllocaAlignment);
+  TVMType type_hint{kDLUInt, 8, 1};
+  return AllocDataSpace(ctx, size, kTempAllocaAlignment, type_hint);
 }
 
 void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
@@ -365,7 +367,7 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   size_t size = GetDataSize(arr);
   size_t alignment = GetDataAlignment(arr);
   arr->data = DeviceAPIManager::Get(arr->ctx)->AllocDataSpace(
-      arr->ctx, size, alignment);
+      arr->ctx, size, alignment, arr->dtype);
   *out = arr;
   API_END_HANDLE_ERROR(TVMArrayFree_(arr));
 }
