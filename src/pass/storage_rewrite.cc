@@ -578,7 +578,7 @@ class StoragePlanRewriter : public IRMutator {
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
     uint64_t total_bits = e->const_nbits;
     size_t align = 1;
-    if (info.defined()){
+    if (info.defined()) {
       align = info->max_simd_bits;
     }
     if (total_bits % align != 0) {
