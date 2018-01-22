@@ -3,6 +3,7 @@ import os
 import numpy as np
 import tvm
 import topi
+from util import make_vector
 
 def _my_npy_argmax(arr, axis, keepdims):
     if not keepdims:
@@ -23,14 +24,6 @@ def _my_npy_argmin(arr, axis, keepdims):
         out_shape = list(arr.shape)
         out_shape[axis] = 1
         return arr.argmin(axis=axis).reshape(out_shape)
-
-def make_vector(elements):
-    if elements is None:
-        return topi.cpp.create_IntVector()
-    elif isinstance(elements, int):
-        return topi.cpp.create_IntVector(elements)
-    else:
-        return topi.cpp.create_IntVector(*elements)
 
 def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     # Build the logic and compile the function
