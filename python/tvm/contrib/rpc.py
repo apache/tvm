@@ -285,6 +285,10 @@ class RPCSession(object):
         """Construct remote Metal device."""
         return self.context(8, dev_id)
 
+    def opengl(self, dev_id=0):
+        """Construct remote OpenGL device."""
+        return self.context(11, dev_id)
+
     def ext_dev(self, dev_id=0):
         """Construct remote extension device."""
         return self.context(12, dev_id)

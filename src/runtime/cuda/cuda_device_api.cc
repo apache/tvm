@@ -54,12 +54,15 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
     *rv = value;
   }
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       TVMType type_hint) final {
     CUDA_CALL(cudaSetDevice(ctx.device_id));
     CHECK_EQ(256 % alignment, 0U)
         << "CUDA space is aligned at 256 bytes";
     void *ret;
-    CUDA_CALL(cudaMalloc(&ret, size));
+    CUDA_CALL(cudaMalloc(&ret, nbytes));
     return ret;
   }
 

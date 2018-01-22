@@ -399,6 +399,11 @@ TVM_REGISTER_API("_StageDoubleBuffer")
     args[0].operator Stage().double_buffer();
   });
 
+TVM_REGISTER_API("_StageOpenGL")
+  .set_body([](TVMArgs args, TVMRetValue *ret) {
+    args[0].operator Stage().opengl();
+  });
+
 TVM_REGISTER_API("_ScheduleNormalize")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
