@@ -42,10 +42,10 @@ inline Tensor expand_dims(const Tensor& x,
   }
 
   Array<Expr> new_shape;
-  for (size_t i = 0; i < axis; ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
     new_shape.push_back(x->shape[i]);
   }
-  for (size_t i = 0; i < num_newaxis; ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(num_newaxis); ++i) {
     new_shape.push_back(1);
   }
   for (size_t i = axis; i < x->shape.size(); ++i) {
@@ -55,7 +55,7 @@ inline Tensor expand_dims(const Tensor& x,
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       Array<Expr> idx;
-      for (size_t i = 0; i < axis; ++i) {
+      for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
         idx.push_back(indices[i]);
       }
       for (size_t i = axis + num_newaxis; i < indices.size(); ++i) {
@@ -87,7 +87,7 @@ inline Tensor transpose(const Tensor& x,
   }
 
   Array<Expr> new_shape;
-  for (int i = 0; i < axes.size(); ++i) {
+  for (size_t i = 0; i < axes.size(); ++i) {
     new_shape.push_back(x->shape[axes[i]]);
   }
   return compute(
@@ -217,7 +217,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   }
   std::vector<Expr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
-    out_shape.push_back(i == axis ? join_size : inputs[0]->shape[i]);
+    out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);
   }
 
   return compute(
@@ -228,7 +228,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
         ind -= axis_sizes[i];
 
         Array<Expr> idx;
-        for (size_t i = 0; i < axis; ++i) {
+        for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
           idx.push_back(indices[i]);
         }
         idx.push_back(ind);
@@ -283,7 +283,7 @@ inline Array<Tensor> split(const Tensor& x,
     }
 
     std::vector<Expr> shape;
-    for (size_t i = 0; i < axis; ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
       shape.push_back(x->shape[i]);
     }
     shape.push_back(out_axis_size);
@@ -301,7 +301,7 @@ inline Array<Tensor> split(const Tensor& x,
         out_shapes[i], [&](const Array<Var>& indices) {
           auto begin = begin_ids[i];
           Array<Expr> real_indices;
-          for (size_t j = 0; j < axis; ++j) {
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(indices[j]);
           }
           real_indices.push_back(indices[axis] + begin);

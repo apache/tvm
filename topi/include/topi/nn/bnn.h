@@ -56,7 +56,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
       for (size_t j = 0; j < 32; ++j) {
         Array<Expr> idx;
         for (size_t i = 0; i < n; ++i) {
-          idx.push_back(i == axis ?
+          idx.push_back(i == static_cast<size_t>(axis) ?
                         start_idx[i] + static_cast<int>(j) :
                         start_idx[i]);
         }
