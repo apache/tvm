@@ -576,10 +576,6 @@ class StoragePlanRewriter : public IRMutator {
     // allocate with element type.
     CHECK_NE(e->const_nbits, 0U);
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
-    size_t align = 1;
-    if (info.defined()) {
-      align = (info->max_simd_bits + e->elem_type.bits() - 1) / e->elem_type.bits();
-    }
     uint64_t total_bits = e->const_nbits;
     if (total_bits % info->max_simd_bits != 0) {
       total_bits += info->max_simd_bits  - (total_bits % info->max_simd_bits);

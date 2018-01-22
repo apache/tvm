@@ -91,7 +91,6 @@ def test_storage_combine():
     s = tvm.create_schedule(B.op)
     for S in stages[:-1]:
         s[S].set_scope("global:tag")
-
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -100,7 +99,9 @@ def test_storage_combine():
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
+    print stmt
     stmt = tvm.ir_pass.StorageRewrite(stmt)
+    print stmt
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
