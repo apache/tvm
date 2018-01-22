@@ -73,8 +73,8 @@ def upsampling_nhwc(data, scale):
     """
 
     batch, height, width, channel = data.shape
-    out_height = height * scale
-    out_width = width * scale
+    out_height = util.simplify(height * scale)
+    out_width = util.simplify(width * scale)
 
     return tvm.compute((batch, out_height, out_width, channel), \
                         lambda n, h, w, c: data[n, h/scale, w/scale, c])
