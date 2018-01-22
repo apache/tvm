@@ -595,15 +595,8 @@ class StoragePlanRewriter : public IRMutator {
     CHECK_NE(e->const_nbits, 0U);
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
     uint64_t total_bits = e->const_nbits;
-    // By default, align to 32 bits.
-    size_t align = 32;
-    if (info.defined()) {
-      align = info->max_simd_bits;
-    }
-    // Always align to max_simd_bits
-    // so we can remap types by keeping this property
-    if (total_bits % align != 0) {
-      total_bits += align  - (total_bits % align);
+    if (total_bits % info->max_simd_bits != 0) {
+      total_bits += info->max_simd_bits  - (total_bits % info->max_simd_bits);
     }
     e->alloc_var = e->allocs[0]->buffer_var;
     for (StorageEntry* child : e->merged_children) {
