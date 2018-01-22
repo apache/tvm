@@ -590,14 +590,19 @@ class StoragePlanRewriter : public IRMutator {
   }
   // New allocation for merged data
   void NewAllocTagMerged(StorageEntry* e) {
+    #include<iostream>
     CHECK_NE(e->scope.tag.length(), 0U);
     // allocate with element type.
     CHECK_NE(e->const_nbits, 0U);
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
     uint64_t total_bits = e->const_nbits;
+    std::cout << total_bits << std::endl;
+    std::cout << "shit" << std::endl;
+    std::cout << 1 / info->max_simd_bits << std::endl;
     if (total_bits % info->max_simd_bits != 0) {
       total_bits += info->max_simd_bits  - (total_bits % info->max_simd_bits);
     }
+    std::cout << total_bits << std::endl;
     e->alloc_var = e->allocs[0]->buffer_var;
     for (StorageEntry* child : e->merged_children) {
       CHECK_NE(child->const_nbits, 0U);
