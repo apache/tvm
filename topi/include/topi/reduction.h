@@ -69,7 +69,9 @@ Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& d
 }
 
 /*! \brief Calculate the target shape for a reduce op */
-Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis, const Tensor& data, bool keepdims) {
+Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
+                                  const Tensor& data,
+                                  bool keepdims) {
   auto ndim = data->shape.size();
   Array<Expr> target_shape;
   if (keepdims) {
