@@ -595,9 +595,10 @@ class StoragePlanRewriter : public IRMutator {
         total_bits += align  - (total_bits % align);
       }
     }
-    auto alloc_type = e->allocs[0]->extents[0].type();
+    auto alloc_type = e->elem_type;
+    uint64_t type_bits = alloc_type.bits() * alloc_type.lanes();
     Expr alloc_size = make_const(alloc_type,
-                                 (total_bits + alloc_type.bits() - 1) / alloc_type.bits());
+                                 (total_bits + type_bits - 1) / type_bits);
     e->new_alloc = Allocate::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
         Evaluate::make(0));
