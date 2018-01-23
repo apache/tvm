@@ -50,29 +50,51 @@ def test_alloc_seq():
     assert num_alloc[0] == 1
 
 def test_alloc_different_dtypes():
-    ib = tvm.ir_builder.create()
-    n = tvm.var("n")
-    global_a = tvm.placeholder((256,), name = "global_a", dtype = "float32")
-    with ib.for_range(0, 1, name="i") as i:
-        with ib.for_range(0, 256, name="j") as j:
-            A = ib.allocate("float32", 256, name="A", scope="local.L0A")
-            A[j] = 2.5
-        with ib.for_range(0, 256, name="j") as j:
-            B = ib.allocate("int16", 256, name="B", scope="local.L0A")
-            B[j] = tvm.const(1, dtype = "int16")
-        with ib.for_range(0, 256, name="j") as j:
-            C = ib.allocate("float16", 256, name="C", scope="local.L0A")
-            C[j] = tvm.const(1, dtype = "float16")
-        with ib.for_range(0, 256, name="j") as j:
-            D = ib.allocate("uint16", 256, name="D", scope="local.L0A")
-            D[j] = tvm.const(1, dtype = "uint16")
+    def stmt_generater(dtype_list, length):
+        ib = tvm.ir_builder.create()
+        base_dtype = dtype_list[0]
+        global_a = tvm.placeholder((length,), name = "global_a", dtype = base_dtype)
+        for index, dtype in enumerate(dtype_list):
+            with ib.for_range(0, length, name="j") as j:
+                A = ib.allocate(dtype, length, name="A_" + str(index), scope="local.L0A")
+                A[j] = tvm.const(1, dtype = dtype)
+        return ib.get()
+    
+    def dtype_bit_len(dtype):
+        index = 0
+        for i in dtype:
+            if i.isdigit():
+                break
+            index += 1
+        return int(dtype[index:])
 
-    body = ib.get()
-    body = tvm.ir_pass.StorageRewrite(body)
-    def verify(n):
-        if isinstance(n, tvm.stmt.Allocate):
-            assert n.extents[0].value == 640
-    tvm.ir_pass.PostOrderVisit(body, verify)
+    def offset_generater(dtype_list, length):
+        dtype_len_list = [dtype_bit_len(i) for i in dtype_list]
+        base_len = dtype_len_list[0]
+        return sum([i * length / base_len for i in dtype_len_list])
+
+    def dtype_test(dtype_list, length):
+        def verify(n):
+            if isinstance(n, tvm.stmt.Allocate):
+                assert n.extents[0].value == offset
+
+        body = stmt_generater(dtype_list, length)
+        offset = offset_generater(dtype_list, length)
+        body = tvm.ir_pass.StorageRewrite(body)
+        tvm.ir_pass.PostOrderVisit(body, verify)
+
+    length = 1024
+    dtype_list = ["float16", "int32", "uint16", "int8"]
+    dtype_test(dtype_list, length)
+
+    dtype_list = ["float32", "int32", "uint16", "int8"]
+    dtype_test(dtype_list, length)
+
+    dtype_list = ["float64", "int32", "uint16", "int8"]
+    dtype_test(dtype_list, length)
+    
+    dtype_list = ["int8", "int32", "uint16", "uint8"]
+    dtype_test(dtype_list, length)
 
 
 def test_inplace_rule():
