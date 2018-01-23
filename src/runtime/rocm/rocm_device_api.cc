@@ -52,12 +52,15 @@ class ROCMDeviceAPI final : public DeviceAPI {
     }
     *rv = value;
   }
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       TVMType type_hint) final {
     ROCM_CALL(hipSetDevice(ctx.device_id));
     CHECK_EQ(256 % alignment, 0U)
         << "ROCM space is aligned at 256 bytes";
     void *ret;
-    ROCM_CALL(hipMalloc(&ret, size));
+    ROCM_CALL(hipMalloc(&ret, nbytes));
     return ret;
   }
 
