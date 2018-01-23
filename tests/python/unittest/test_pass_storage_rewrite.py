@@ -109,7 +109,6 @@ def test_alloc_different_dtypes():
 
     dtype_list = ["float64", "int32", "uint16", "int8"]
     dtype_test(dtype_list, length)
-
     dtype_list = ["int8", "int32", "uint16", "uint8"]
     dtype_test(dtype_list, length)
 
