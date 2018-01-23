@@ -52,7 +52,9 @@ N = 1024
 dtype = "float32"
 
 # using Intel AVX2(Advanced Vector Extensions) ISA for SIMD
-target = 'llvm -mcpu=core-avx2'
+# To get the best performance, please change the following line
+# to llvm -mcpu=core-avx2, or specific type of CPU you use
+target = 'llvm'
 ctx = tvm.context(target, 0)
 
 # Random generated tensor for testing
