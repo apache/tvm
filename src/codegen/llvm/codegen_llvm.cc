@@ -9,6 +9,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include "./codegen_llvm.h"
 #include "./codegen_cpu.h"
+#include "../codegen_common.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -341,7 +342,7 @@ void CodeGenLLVM::GetAlignment(Type t,
   int align_bits = t.bits();
   while (align_bits < max_align_bits &&
          me.base % 2  == 0 &&
-         me.coeff %2 == 0) {
+         me.coeff % 2 == 0) {
     me.base =  me.base / 2;
     me.coeff =  me.coeff / 2;
     align_bits *= 2;
@@ -1026,31 +1027,9 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
-  // Detect useful invariant pattern and use them to visit child.
-  // Pattern: Var % const  == 0
-  // TODO(tqchen) move these pattern to a generic scope info visitor.
-  if (const EQ* eq = op->condition.as<EQ>()) {
-    const Mod* mod = eq->a.as<Mod>();
-    int64_t factor = 0, offset = 0;
-    if (mod && arith::GetConst(eq->b, &offset)) {
-      const Variable *var = mod->a.as<Variable>();
-      if (var && arith::GetConst(mod->b, &factor)) {
-        arith::ModularEntry old = align_map_[var];
-        if (factor > old.coeff) {
-          arith::ModularEntry e;
-          e.coeff = static_cast<int>(factor);
-          e.base = static_cast<int>(offset);
-          // new alignment info,
-          align_map_[var] = e;
-          this->VisitStmt(op->body);
-          // restore old info
-          align_map_[var] = old;
-          return;
-        }
-      }
-    }
-  }
-  this->VisitStmt(op->body);
+  VisitAssert(op, &align_map_, [this](const Stmt& body) {
+      this->VisitStmt(body);
+    });
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmt* op) {

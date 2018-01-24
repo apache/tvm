@@ -666,6 +666,8 @@ void CodeGenC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
+  // constraint of current logic
+  CHECK_EQ(op->base.type(), Int(32));
   os << "((int" << op->lanes << ")(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
