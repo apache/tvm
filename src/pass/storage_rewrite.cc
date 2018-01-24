@@ -576,33 +576,33 @@ class StoragePlanRewriter : public IRMutator {
     // allocate with element type.
     CHECK_NE(e->const_nbits, 0U);
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
+    uint64_t total_bits = e->const_nbits;
     size_t align = 1;
     if (info.defined()) {
-      align = (info->max_simd_bits + e->elem_type.bits() - 1) / e->elem_type.bits();
+      align = info->max_simd_bits;
     }
-    uint64_t total_elem = e->const_nbits / e->elem_type.bits();
-    if (total_elem % align != 0) {
-      total_elem += align  - (total_elem % align);
+    if (total_bits % align != 0) {
+      total_bits += align  - (total_bits % align);
     }
     e->alloc_var = e->allocs[0]->buffer_var;
     for (StorageEntry* child : e->merged_children) {
-      CHECK_NE(e->const_nbits, 0U);
-      CHECK_NE(total_elem, 0U);
-      size_t num_elem = child->const_nbits / child->elem_type.bits();
-      child->elem_offset = total_elem;
+      CHECK_NE(child->const_nbits, 0U);
+      CHECK_NE(total_bits, 0U);
+      child->elem_offset = total_bits / child->elem_type.bits();
       child->alloc_var = e->alloc_var;
-      total_elem += num_elem;
-      if (total_elem % align != 0) {
-        total_elem += align  - (total_elem % align);
+      total_bits += child->const_nbits;
+      if (total_bits % align != 0) {
+        total_bits += align  - (total_bits % align);
       }
     }
+    uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     Expr alloc_size = make_const(e->allocs[0]->extents[0].type(),
-                                 total_elem);
+                                 (total_bits + type_bits - 1) / type_bits);
     e->new_alloc = Allocate::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
         Evaluate::make(0));
     if (info.defined()) {
-      CHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
+      CHECK_LE(total_bits, info->max_num_bits)
           << "Allocation exceed bound of memory tag " << e->scope.to_string();
     }
   }
