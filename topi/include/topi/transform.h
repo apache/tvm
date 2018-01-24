@@ -77,27 +77,30 @@ inline Tensor expand_dims(const Tensor& x,
 * \return A Tensor whose op member is the transpose operation
 */
 inline Tensor transpose(const Tensor& x,
-                        std::vector<int> axes,
+                        Array<Expr> axes,
                         std::string name = "tensor",
                         std::string tag = kInjective) {
   if (axes.size() == 0) {
+    axes = Array<Expr>();
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }
   }
 
+  auto axes_val = GetConstIntValues(axes, "axes");
+
   Array<Expr> new_shape;
-  for (size_t i = 0; i < axes.size(); ++i) {
-    new_shape.push_back(x->shape[axes[i]]);
+  for (size_t i = 0; i < axes_val.size(); ++i) {
+    new_shape.push_back(x->shape[axes_val[i]]);
   }
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       std::vector<Expr> idx;
-      for (size_t i = 0; i < axes.size(); ++i) {
+      for (size_t i = 0; i < axes_val.size(); ++i) {
         idx.push_back(1);
       }
-      for (size_t i = 0; i < axes.size(); ++i) {
-        idx[axes[i]] = indices[i];
+      for (size_t i = 0; i < axes_val.size(); ++i) {
+        idx[axes_val[i]] = indices[i];
       }
       return x(idx);
     }, name, tag);
@@ -138,27 +141,28 @@ inline Tensor reshape(const Tensor& x,
 * \return A Tensor whose op member is the squeeze operation
 */
 inline Tensor squeeze(const Tensor& x,
-                      std::vector<int> axis,
+                      Array<Expr> axis,
                       std::string name = "tensor",
                       std::string tag = kInjective) {
+  auto axis_val = GetConstIntValues(axis, "axis");
   auto ndim = x->shape.size();
-  if (axis.size() == 0) {
+  if (axis_val.size() == 0) {
     for (size_t i = 0; i < ndim; ++i) {
       if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
-        axis.push_back(static_cast<int>(i));
+        axis_val.push_back(static_cast<int>(i));
       }
     }
   } else {
-    for (size_t i = 0; i < axis.size(); ++i) {
-      if (axis[i] < 0) {
-        axis[i] += static_cast<int>(x->shape.size());
+    for (size_t i = 0; i < axis_val.size(); ++i) {
+      if (axis_val[i] < 0) {
+        axis_val[i] += static_cast<int>(x->shape.size());
       }
-      CHECK_EQ(GetConstInt(x->shape[axis[i]]), 1) <<
+      CHECK_EQ(GetConstInt(x->shape[axis_val[i]]), 1) <<
         "Dimension " << axis[i] << " must have size 1";
     }
   }
 
-  std::unordered_set<int> axis_set(axis.begin(), axis.end());
+  std::unordered_set<int> axis_set(axis_val.begin(), axis_val.end());
 
   Array<Expr> out_shape;
   for (size_t i = 0; i < ndim; ++i) {
@@ -206,7 +210,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   CHECK_LT(axis, inputs[0]->shape.size()) <<
     "axis out of bounds";
 
-  std::vector<Expr> axis_sizes;
+  Array<Expr> axis_sizes;
   for (auto t : inputs) {
     axis_sizes.push_back(t->shape[axis]);
   }
@@ -215,7 +219,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
   }
-  std::vector<Expr> out_shape;
+  Array<Expr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);
   }
@@ -257,7 +261,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
 * \return A Tensor whose op member is the split operation
 */
 inline Array<Tensor> split(const Tensor& x,
-                           std::vector<int> split_indices,
+                           Array<Expr> split_indices,
                            int axis,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
@@ -266,14 +270,15 @@ inline Array<Tensor> split(const Tensor& x,
   }
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
 
-  CHECK(std::is_sorted(split_indices.begin(), split_indices.end())) <<
+  auto split_indices_val = GetConstIntValues(split_indices, "split_indices");
+  CHECK(std::is_sorted(split_indices_val.begin(), split_indices_val.end())) <<
     "split_indices must be sorted";
 
   std::vector<int> begin_ids;
   begin_ids.push_back(0);
-  std::copy(split_indices.begin(), split_indices.end(), std::back_inserter(begin_ids));
+  std::copy(split_indices_val.begin(), split_indices_val.end(), std::back_inserter(begin_ids));
 
-  std::vector<Array<Expr>> out_shapes;
+  Array<Array<Expr>> out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     int out_axis_size;
     if (i == begin_ids.size() - 1) {
@@ -282,7 +287,7 @@ inline Array<Tensor> split(const Tensor& x,
       out_axis_size = begin_ids[i + 1] - begin_ids[i];
     }
 
-    std::vector<Expr> shape;
+    Array<Expr> shape;
     for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
       shape.push_back(x->shape[i]);
     }
@@ -340,7 +345,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
     << "num_sections must be an integer factor of the size of axis " << axis
     << " (" << src_axis_size << ")";
 
-  std::vector<int> split_indices;
+  Array<Expr> split_indices;
   auto seg_size = src_axis_size / num_sections;
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()

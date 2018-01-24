@@ -41,16 +41,8 @@
 
 #include <topi/rocm/dense.h>
 
-namespace topi {
-using IntVector = std::vector<int>;
-}  // namespace topi
-
 namespace tvm {
 namespace runtime {
-template<>
-struct extension_class_info<topi::IntVector> {
-  static const int code = 27;
-};
 template<>
 struct extension_class_info<tvm::Target> {
   static const int code = 28;
@@ -62,17 +54,18 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_REGISTER_EXT_TYPE(IntVector);
 TVM_REGISTER_EXT_TYPE(tvm::Target);
 
-TVM_REGISTER_GLOBAL("topi.create_IntVector")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::vector<int> data;
-  for (int i = 0; i < args.size(); ++i) {
-    data.push_back(args[i].operator int());
+/*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
+Array<Expr> ArrayOrInt(TVMArgValue arg) {
+  if (arg.type_code() == kDLInt || arg.type_code() == kDLUInt) {
+    Array<Expr> result;
+    result.push_back(arg.operator int());
+    return result;
+  } else {
+    return arg;
   }
-  *ret = data;
-  });
+}
 
 TVM_REGISTER_GLOBAL("topi.TEST_create_target")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -204,28 +197,27 @@ TVM_REGISTER_GLOBAL("topi.nn.pad")
 /* Ops from reduction.h */
 TVM_REGISTER_GLOBAL("topi.sum")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = sum(args[0], args[1], args[2]);
+  *rv = topi::sum(args[0], ArrayOrInt(args[1]), args[2]);
   });
-
 
 TVM_REGISTER_GLOBAL("topi.min")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = min(args[0], args[1], args[2]);
+  *rv = topi::min(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.max")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = max(args[0], args[1], args[2]);
+  *rv = topi::max(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.argmin")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = argmin(args[0], args[1], args[2]);
+  *rv = topi::argmin(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.argmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = argmax(args[0], args[1], args[2]);
+  *rv = topi::argmax(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
 /* Ops from transform.h */
@@ -246,7 +238,7 @@ TVM_REGISTER_GLOBAL("topi.reshape")
 
 TVM_REGISTER_GLOBAL("topi.squeeze")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = squeeze(args[0], args[1]);
+  *rv = squeeze(args[0], ArrayOrInt(args[1]));
   });
 
 TVM_REGISTER_GLOBAL("topi.concatenate")
@@ -256,13 +248,12 @@ TVM_REGISTER_GLOBAL("topi.concatenate")
 
 TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = split(args[0], args[1], args[2]);
+  if (args[1].type_code() == kDLInt || args[1].type_code() == kDLUInt) {
+    *rv = split_sections(args[0], args[1], args[2]);
+  } else {
+    *rv = split(args[0], args[1], args[2]);
+  }
   });
-
-TVM_REGISTER_GLOBAL("topi.split_sections")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = split_sections(args[0], args[1], args[2]);
-});
 
 /* Ops from nn/batch_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.batch_norm_inference")

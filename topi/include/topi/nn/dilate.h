@@ -7,7 +7,6 @@
 #define TOPI_NN_DILATE_H_
 
 #include <string>
-#include <vector>
 
 #include "tvm/tvm.h"
 #include "tvm/ir_pass.h"
@@ -46,7 +45,7 @@ Expr all(Array<Expr> args) {
 * \return The output tensor.
 */
 inline Tensor dilate(const Tensor& x,
-                     std::vector<int> strides,
+                     Array<Expr> strides,
                      std::string name = "tensor",
                      std::string tag = kInjective) {
   auto n = x->shape.size();
@@ -66,11 +65,11 @@ inline Tensor dilate(const Tensor& x,
       Array<Expr> not_zero;
       Array<Expr> index_tuple;
       for (size_t i = 0; i < n; ++i) {
-        if (strides[i] != 1) {
+        if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
+          index_tuple.push_back(indices[i]);
+        } else {
           index_tuple.push_back(indices[i] / strides[i]);
           not_zero.push_back((indices[i] % strides[i]) == 0);
-        } else {
-          index_tuple.push_back(indices[i]);
         }
       }
       if (not_zero.size() > 0) {

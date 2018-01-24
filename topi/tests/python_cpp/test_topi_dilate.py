@@ -1,7 +1,6 @@
 import tvm
 import topi
 import numpy as np
-from util import make_vector
 
 def test_dilate():
     target = 'llvm'
@@ -9,7 +8,7 @@ def test_dilate():
 
     def _test_dilate(input_size, strides):
         Input = tvm.placeholder((input_size))
-        Output = topi.cpp.nn.dilate(Input, make_vector(strides))
+        Output = topi.cpp.nn.dilate(Input, strides)
         tgt = topi.cpp.TEST_create_target(target)
         schedule = topi.cpp.generic.default_schedule(tgt, [Output], True)
         input_np = np.random.uniform(size=input_size).astype(Input.dtype)

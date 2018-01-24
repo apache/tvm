@@ -30,5 +30,15 @@ int64_t GetConstInt(Expr expr) {
   return -1;
 }
 
+/*! \brief Get the value of all the constant integer expressions in the given array */
+std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& var_name) {
+  std::vector<int> result;
+  for (auto expr : exprs) {
+    CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    result.push_back(GetConstInt(expr));
+  }
+  return result;
+}
+
 }  // namespace topi
 #endif  // TOPI_DETAIL_CONSTANT_UTILS_H_

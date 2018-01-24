@@ -7,7 +7,6 @@
 #define TOPI_NN_POOLING_H_
 
 #include <string>
-#include <vector>
 
 #include "tvm/tvm.h"
 #include "tvm/ir_pass.h"
@@ -38,9 +37,9 @@ enum PoolType : int {
 * \return The output tensor in NCHW order
 */
 inline Tensor pool(const Tensor& x,
-                   const std::vector<int>& kernel_size,
-                   const std::vector<int>& stride_size,
-                   const std::vector<int>& padding_size,
+                   const Array<Expr>& kernel_size,
+                   const Array<Expr>& stride_size,
+                   const Array<Expr>& padding_size,
                    PoolType pool_type,
                    bool ceil_mode) {
   CHECK_EQ(x->shape.size(), 4) << "Pooling input must be 4-D";

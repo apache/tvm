@@ -2,7 +2,6 @@
 import numpy as np
 import tvm
 import topi
-from util import make_vector
 
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     A = tvm.placeholder(shape=in_shape, name="A")
@@ -32,7 +31,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
 
 def verify_tranpose(in_shape, axes):
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.cpp.transpose(A, make_vector(axes))
+    B = topi.cpp.transpose(A, axes)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
@@ -84,8 +83,7 @@ def verify_reshape(src_shape, dst_shape):
 
 def verify_squeeze(src_shape, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
-    print (make_vector(axis))
-    B = topi.cpp.squeeze(A, make_vector(axis))
+    B = topi.cpp.squeeze(A, axis)
     def check_device(device):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
@@ -142,10 +140,7 @@ def verify_concatenate(shapes, axis):
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
-    if isinstance(indices_or_sections, int):
-        tensor_l = topi.cpp.split_sections(A, indices_or_sections, axis)
-    else:
-        tensor_l = topi.cpp.split(A, make_vector(indices_or_sections), axis)
+    tensor_l = topi.cpp.split(A, indices_or_sections, axis)
     tensor_l = list(tensor_l)
     def check_device(device):
         if not tvm.module.enabled(device):

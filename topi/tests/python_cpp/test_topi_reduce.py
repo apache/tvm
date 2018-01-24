@@ -3,7 +3,6 @@ import os
 import numpy as np
 import tvm
 import topi
-from util import make_vector
 
 def _my_npy_argmax(arr, axis, keepdims):
     if not keepdims:
@@ -32,16 +31,16 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     A1 = topi.cpp.sqrt(topi.cpp.exp(A))
     out_dtype = "float32"
     if type == "sum":
-        B = topi.cpp.sum(A1, make_vector(axis), keepdims)
+        B = topi.cpp.sum(A1, axis, keepdims)
     elif type == "max":
-        B = topi.cpp.max(A1, make_vector(axis), keepdims)
+        B = topi.cpp.max(A1, axis, keepdims)
     elif type == "min":
-        B = topi.cpp.min(A1, make_vector(axis), keepdims)
+        B = topi.cpp.min(A1, axis, keepdims)
     elif type == "argmax":
-        B = topi.cpp.argmax(A1, make_vector(axis), keepdims)
+        B = topi.cpp.argmax(A1, axis, keepdims)
         out_dtype = "int32"
     elif type == "argmin":
-        B = topi.cpp.argmin(A1, make_vector(axis), keepdims)
+        B = topi.cpp.argmin(A1, axis, keepdims)
         out_dtype = "int32"
     else:
         raise NotImplementedError

@@ -14,7 +14,7 @@ namespace topi {
 using namespace tvm;
 
 /*! \brief Get padding size for each side given padding height and width */
-std::vector<int> GetPadTuple(int pad_h, int pad_w) {
+Array<Expr> GetPadTuple(Expr pad_h, Expr pad_w) {
   pad_h *= 2;
   pad_w *= 2;
 

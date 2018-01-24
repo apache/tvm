@@ -4,7 +4,6 @@ import tvm
 import topi
 import math
 from topi.util import get_const_tuple
-from util import make_vector
 
 pool_code = {
     "avg": 0,
@@ -16,7 +15,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     sw = sh
     ph, pw = padding
     A = tvm.placeholder((n, ic, ih, iw), name='A')
-    B = topi.cpp.nn.pool(A, make_vector([kh, kw]), make_vector([sh, sw]), make_vector(padding),
+    B = topi.cpp.nn.pool(A, [kh, kw], [sh, sw], padding,
                      pool_code[pool_type], ceil_mode)
     B = topi.cpp.nn.relu(B)
     dtype = A.dtype
