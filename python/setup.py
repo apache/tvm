@@ -18,11 +18,12 @@ else:
     from setuptools import setup
     from setuptools.extension import Extension
 
+CURRENT_DIR = os.path.dirname(__file__)
+
 def get_lib_path():
     """Get library path, name and version"""
     # We can not import `libinfo.py` in setup.py directly since __init__.py
     # Will be invoked which introduces dependences
-    CURRENT_DIR = os.path.dirname(__file__)
     libinfo_py = os.path.join(CURRENT_DIR, './tvm/_ffi/libinfo.py')
     libinfo = {'__file__': libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, 'exec'), libinfo, libinfo)
@@ -126,4 +127,4 @@ if "bdist_wheel" in sys.argv:
     os.remove("MANIFEST.in")
     for path in LIB_LIST:
         _, libname = os.path.split(path)
-        os.remove("tvm/%s" % LIB_NAME)
+        os.remove("tvm/%s" % libname)
