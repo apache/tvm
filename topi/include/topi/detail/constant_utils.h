@@ -6,6 +6,9 @@
 #ifndef TOPI_DETAIL_CONSTANT_UTILS_H_
 #define TOPI_DETAIL_CONSTANT_UTILS_H_
 
+#include <string>
+#include <vector>
+
 #include "tvm/tvm.h"
 
 namespace topi {
