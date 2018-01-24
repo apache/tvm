@@ -154,7 +154,8 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
 
   // Declare threadIdx local variable.
   this->PrintIndent();
-  this->stream << "ivec2 threadIdx = ivec2(gl_FragCoord.xy);\n";
+  this->stream << "ivec2 threadIdx = ivec2(" << runtime::kTextureRowSize
+               << " * int(gl_FragCoord.y) + int(gl_FragCoord.x), 0);\n";
 
   // Return directly if threadIdx.x >= thread_extent.
   this->PrintIndent();
@@ -192,12 +193,14 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
   }
 }
 
-// texelFetch(tex, ivec2(idx, 0), 0).r
+// texelFetch(tex, ivec2(idx % kTextureRowSize, idx / kTextureRowSize), 0).r
 std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
   std::ostringstream os;
   os << "texelFetch(" << GetVarID(buffer) << ", ivec2(";
   PrintExpr(index, os);
-  os << ", 0), 0).r";
+  os << " % " << runtime::kTextureRowSize << ", ";
+  PrintExpr(index, os);
+  os << " / " << runtime::kTextureRowSize << "), 0).r";
   return os.str();
 }
 
