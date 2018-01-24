@@ -296,7 +296,40 @@ class StorageFlattener : public IRMutator {
   }
 
  private:
-  // Start bind
+  // The specific tensor data layout is not determined before
+  // StorageFlatten pass. We use buffer_bind_scope
+  // to specify before hand we want to bind a subregion
+  // of tensor to a symbolic buffer, which get used in extern.
+  //
+  // Example:
+  //
+  // realize A in range [i*4, extent=10) {
+  //   bind Ab to A in [i*4+1, extent=4) {
+  //     call_func(Ab.ptr, Ab.shape[0])
+  //   }
+  // }
+  //
+  // After StorageFlatten
+  //
+  // alloc A[10]
+  //   call(A + 1,  4)
+  //
+  // Buffer is a protocol to declare specific
+  // data layout and shape we expect.
+  // So this function need to check:
+  // - If the bind range is within the realize range
+  // - If we can match the requirement of buffer
+  // - Remap variables such as Ab.ptr to the actual value.
+  //
+  // Here are a few possible failure cases:
+  // - Buffer is declared to have constant shape,
+  //   but we try to bind it to a different one.
+  // - Buffer is declared to be compact(no strides)
+  //   but this binded region is a subregion of
+  //   a matrix(tensor), which means it requires strides.
+  //
+  // We do support a few relaxed case, such as bindingx
+  // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmt* op) {
     Array<NodeRef> arr(op->node.node_);
     CHECK_EQ(arr.size(), 2U);
