@@ -18,6 +18,10 @@ TVM_FFI=ctypes python3 -m nose -v tests/python/integration || exit -1
 TVM_FFI=cython python -m nose -v tests/python/contrib || exit -1
 TVM_FFI=ctypes python3 -m nose -v tests/python/contrib || exit -1
 
-# Do not enabke OpenGL
-# TVM_FFI=cython python -m nose -v tests/webgl || exit -1
-# TVM_FFI=ctypes python3 -m nose -v tests/webgl || exit -1
+/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid \
+        --make-pidfile --background --exec /usr/bin/Xvfb -- :99 \
+        -screen 0 1400x900x24 -ac +extension GLX +render || exit -1
+sleep 3
+export DISPLAY=:963.0
+DISPLAY=:963.0 TVM_FFI=cython python -m nose -v tests/webgl || exit -1
+DISPLAY=:963.0 TVM_FFI=ctypes python3 -m nose -v tests/webgl || exit -1
