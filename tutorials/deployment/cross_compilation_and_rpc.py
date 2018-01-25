@@ -23,11 +23,11 @@ for example.
 # local machine, we need build runtime on remote device.
 #
 # .. note::
-# 
-#   All instructions in both this section and next section should be 
-#   executed on the target device, e.g. Raspberry Pi. And we assume it 
-#   has Linux running. 
-# 
+#
+#   All instructions in both this section and next section should be
+#   executed on the target device, e.g. Raspberry Pi. And we assume it
+#   has Linux running.
+#
 # To get started, clone tvm repo from github. It is important to clone
 # the submodules along, with --recursive option (Assuming you are in
 # your home directory):
@@ -102,6 +102,12 @@ for example.
 # same machine, for demonstration. This line can be omitted if we
 # started an remote server.
 #
+from __future__ import absolute_import, print_function
+
+import tvm
+import numpy as np
+from tvm.contrib import rpc, util
+
 server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
 
 ######################################################################
@@ -110,15 +116,9 @@ server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
 #
 # .. note::
 #
-#   Now we back to the local machine, which has a full TVM installed. 
+#   Now we back to the local machine, which has a full TVM installed.
 #
 # Here we will declare a simple kernel with TVM on the local machine:
-
-from __future__ import absolute_import, print_function
-
-import tvm
-import numpy as np
-from tvm.contrib import rpc, util
 
 n = tvm.convert(1024)
 A = tvm.placeholder((n,), name='A')
@@ -148,7 +148,7 @@ f.save(path)
 #   Pi. Here we use :code:`'llvm'` directly to make the tutorial runable.
 #
 #   Usually, you can query the target by execute :code:`gcc -v` on your
-#   device, and look for the line starting with :code:`Target:` 
+#   device, and look for the line starting with :code:`Target:`
 #   (Though it may be still a loose configuration.)
 #
 #   Besides :code:`-target`, you can also set other compilation options
@@ -185,14 +185,14 @@ f.save(path)
 # ------------------------------
 # Here we will show you how to run the kernel on the remote device:
 #
-# .. note:: 
-#    In order to have this tutorial runs locally to build the nice HTML, we 
-#    start a RPC server on the local machine. You can ignore it if you already 
+# .. note::
+#    In order to have this tutorial runs locally to build the nice HTML, we
+#    start a RPC server on the local machine. You can ignore it if you already
 #    started the server on the target device. And then change host IP properly.
 
-# Can be ignored if you already started the RPC server 
-server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True) 
-host = '0.0.0.0'  # Change to your target device IP 
+# Can be ignored if you already started the RPC server
+server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
+host = '0.0.0.0'  # Change to your target device IP
 port = 9090
 # connect the remote device
 remote = rpc.connect(host, port)
@@ -237,7 +237,7 @@ print('%g secs/op' % cost)
 #    Firefly-RK3399. The target_host should be 'llvm -target=aarch64-linux-gnu'.
 #    But here we set 'llvm' to enable this tutorial to run locally.
 #
-#    Also we need to build the runtime with the flag `USE_OPENCL=1`. 
+#    Also we need to build the runtime with the flag `USE_OPENCL=1`.
 
 # build kernel (different from cpu, we need bind axis for OpenCL)
 s = tvm.create_schedule(B.op)
