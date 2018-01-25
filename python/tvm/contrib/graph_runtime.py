@@ -72,6 +72,7 @@ class GraphModule(object):
         self._set_input = module["set_input"]
         self._run = module["run"]
         self._get_output = module["get_output"]
+        self._get_node_output = module["get_node_output"]
         self._load_params = module["load_params"]
         self.ctx = ctx
 
@@ -119,6 +120,20 @@ class GraphModule(object):
             The output array container
         """
         self._get_output(index, out)
+        return out
+
+    def get_node_output(self, node, out):
+        """Get index-th output to out
+
+        Parameters
+        ----------
+        node : int / str
+            The node index or name
+
+        out : NDArray
+            The output array container
+        """
+        self._get_node_output(node, out)
         return out
 
     def load_params(self, params_bytes):

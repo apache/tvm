@@ -88,6 +88,20 @@ class GraphRuntime : public ModuleNode {
     return -1;
   }
   /*!
+   * \brief Get the node index given the name of node.
+   * \param name The name of the node.
+   * \return The index of node.
+   */
+  int GetNodeIndex(const std::string& name) {
+    for (uint32_t nid = 0; nid< nodes_.size(); ++nid) {
+      if (nodes_[nid].name == name) {
+        return static_cast<int>(nid);
+      }
+    }
+    LOG(FATAL) << "cannot find " << name << " among nodex";
+    return -1;
+  }
+  /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
    * \param data The input data.
@@ -107,7 +121,16 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = this->entry_id(outputs_[index]);
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
-
+  /*!
+   * \brief Copy index-th node to data_out.
+   * \param index: The  index of the node.
+   * \param data_out the node data.
+   */
+  void GetNodeOutput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), nodes_.size());
+    uint32_t eid = index;
+    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
+  }
   /*!
    * \brief Load parameters from binary stream
    * \param strm The input stream.
@@ -555,6 +578,14 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->GetOutput(args[0], args[1]);
+      });
+  } else if (name == "get_node_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          this->GetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
+        } else {
+          this->GetNodeOutput(args[0], args[1]);
+        }
       });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
