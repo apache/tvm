@@ -9,7 +9,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/device_api.h>
 #include "../../runtime/metal/metal_common.h"
-
+#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 
 namespace tvm {
 namespace contrib {
@@ -23,7 +23,7 @@ struct MPSType {
 struct MetalThreadEntry {
   MetalThreadEntry();
   ~MetalThreadEntry();
-  runtime::MetalWorkspace *metal_api{nullptr};
+  runtime::metal::MetalWorkspace *metal_api{nullptr};
   static MetalThreadEntry* ThreadLocal();
 };  // MetalThreadEntry
 
