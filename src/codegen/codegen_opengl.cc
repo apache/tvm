@@ -193,14 +193,14 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
   }
 }
 
-// texelFetch(tex, ivec2(idx % kTextureRowSize, idx / kTextureRowSize), 0).r
+// texelFetch(tex, ivec2(idx & kTextureRowMask, idx >> kTextureRowBits), 0).r
 std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
   std::ostringstream os;
-  os << "texelFetch(" << GetVarID(buffer) << ", ivec2(";
+  os << "texelFetch(" << GetVarID(buffer) << ", ivec2(int(";
   PrintExpr(index, os);
-  os << " % " << runtime::kTextureRowSize << ", ";
+  os << ") & " << runtime::kTextureRowMask << ", int(";
   PrintExpr(index, os);
-  os << " / " << runtime::kTextureRowSize << "), 0).r";
+  os << ") >> " << runtime::kTextureRowBits << "), 0).r";
   return os.str();
 }
 

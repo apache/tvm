@@ -26,7 +26,9 @@ namespace runtime {
  * because that would limit our array size to be 1024. Here we use (1024 x m)
  * 2D textures. Then we can have arrays of size up to 2^20.
  */
-static constexpr int kTextureRowSize = 1024;
+static constexpr int kTextureRowBits = 10;
+static constexpr int kTextureRowSize = 1 << kTextureRowBits;
+static constexpr int kTextureRowMask = kTextureRowSize - 1;
 
 /*!
  * \brief Determines how we supply arguments.

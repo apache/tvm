@@ -349,8 +349,8 @@ Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {
   // Use glTexImage2D with nullptr data to specify GPU data storage.
   auto texture_format = GetTextureFormat(type);
   auto nelems = static_cast<GLsizei>(nbytes / (type.bits / 8));
-  auto width = kTextureRowSize;
-  auto height = (nelems + width - 1) / width;
+  auto height = (nelems + kTextureRowSize - 1) / kTextureRowSize;
+  auto width = (height == 1) ? nelems : kTextureRowSize;
   OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0,
                              texture_format.internal_format,
                              width, height, /*border=*/0,
@@ -404,17 +404,29 @@ Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
   return Program(this, program);
 }
 
-// On2DBlock(xbeg, ybeg, width, height)
-using On2DBlock = std::function<void(GLint, GLint, GLsizei, GLsizei)>;
-
-//           xbeg         kTextureRowSize
-// ybeg  ....************
-//       ****************
-//       ****************
-// ylast *********.......
-//           xlast
-static void On1DRange(GLint beg, GLint end, const On2DBlock& on_2d_block) {
+/*!
+ * \brief Visit a 1D range of an OpenGL texture-backed TVM array.
+ * When getting/setting a sub image of a texture, we can only specify a 2D
+ * block (xbeg, ybeg, width, height).
+ * Since we are storing all TVM arrays using (kTextureRowSize x nrows) 2D
+ * textures (row-major), a range in an array does not necessarily map to a 2D
+ * block.
+ * This function split a 1D range into 3 2D blocks.
+ * \param beg The index of the first element in the 1D range.
+ * \param end The index of the last + 1 element in the 1D range.
+ * \param on_2d_block Callback for each 2D block. Must have interface
+ * void(GLint xbeg, GLint ybeg, GLsizei width, GLsizei height).
+ */
+template <typename F>
+static void Visit1DRange(GLint beg, GLint end, F&& on_2d_block) {
   CHECK_LE(beg, end) << "Invalid range.";
+
+  //           xbeg         kTextureRowSize
+  // ybeg  ....************
+  //       ****************
+  //       ****************
+  // ylast *********.......
+  //           xlast
   GLint xbeg = beg % kTextureRowSize;
   GLint ybeg = beg / kTextureRowSize;
   GLint xlast = (end - 1) % kTextureRowSize;
@@ -444,8 +456,8 @@ void OpenGLWorkspace::PutTextureData(Texture *texture,
   // Bind to temporary unit.
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
-  On1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
-                                       GLsizei width, GLsizei height) {
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
+                                          GLsizei width, GLsizei height) {
     auto offset = (ybeg * kTextureRowSize + xbeg - begin) * texture->elemsz();
     const GLvoid* ptr = static_cast<const char*>(data) + offset;
 
@@ -493,8 +505,8 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture,
   auto nchannels = 4;
   auto padded_data_size = nchannels * nelems * elemsz;
   auto padded_data = std::unique_ptr<char[]>(new char[padded_data_size]);
-  On1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
-                                       GLsizei width, GLsizei height) {
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
+                                          GLsizei width, GLsizei height) {
     auto data_offset = (ybeg * kTextureRowSize + xbeg - begin) * elemsz;
     auto padded_data_offset = data_offset * nchannels;
     OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height,
@@ -507,8 +519,8 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture,
     std::memcpy(dst, src, elemsz);
   }
 #else
-  On1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
-                                       GLsizei width, GLsizei height) {
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
+                                          GLsizei width, GLsizei height) {
     auto offset = (ybeg * kTextureRowSize + xbeg - begin) * texture->elemsz();
     GLvoid* ptr = static_cast<char*>(data) + offset;
 
