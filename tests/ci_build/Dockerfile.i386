@@ -13,3 +13,6 @@ RUN bash /install/ubuntu_install_python.sh
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
+
+COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
+RUN bash /install/ubuntu_install_opengl.sh
