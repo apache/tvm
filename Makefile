@@ -32,8 +32,8 @@ OBJCFLAGS = -fno-objc-arc
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\
 	-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap','getValue','setValue','addFunction']"\
+	-s USE_GLFW=3 -s USE_WEBGL2=1 -lglfw\
 	$(INCLUDE_FLAGS)
-
 # llvm configuration
 ifdef LLVM_CONFIG
 	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
@@ -54,6 +54,7 @@ METAL_SRC = $(wildcard src/runtime/metal/*.mm)
 CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
+OPENGL_SRC = $(wildcard src/runtime/opengl/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
@@ -65,6 +66,7 @@ METAL_OBJ = $(patsubst src/%.mm, build/%.o, $(METAL_SRC))
 CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
+OPENGL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENGL_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
@@ -117,6 +119,19 @@ ifeq ($(USE_OPENCL), 1)
 	RUNTIME_DEP += $(OPENCL_OBJ)
 else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
+endif
+
+ifeq ($(USE_OPENGL), 1)
+	CFLAGS += -DTVM_OPENGL_RUNTIME=1
+	EMCC_FLAGS += -DTVM_OPENGL_RUNTIME=1
+	ifeq ($(UNAME_S), Darwin)
+		FRAMEWORKS += -framework OpenGL
+	else
+		LDFLAGS += -lGL -lglfw
+	endif
+	RUNTIME_DEP += $(OPENGL_OBJ)
+else
+	CFLAGS += -DTVM_OPENGL_RUNTIME=0
 endif
 
 ifeq ($(USE_METAL), 1)

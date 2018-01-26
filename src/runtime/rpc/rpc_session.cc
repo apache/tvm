@@ -887,9 +887,11 @@ void RPCDevGetAttr(TVMArgs args, TVMRetValue *rv) {
 
 void RPCDevAllocData(TVMArgs args, TVMRetValue *rv) {
   TVMContext ctx = args[0];
-  uint64_t size = args[1];
+  uint64_t nbytes = args[1];
   uint64_t alignment = args[2];
-  void* data = DeviceAPI::Get(ctx)->AllocDataSpace(ctx, size, alignment);
+  TVMType type_hint = args[3];
+  void* data = DeviceAPI::Get(ctx)->AllocDataSpace(
+      ctx, nbytes, alignment, type_hint);
   *rv = data;
 }
 

@@ -386,7 +386,7 @@ void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* dst) {
   for (int i = 0; i < dst->ndim; ++i) {
     size *= dst->shape[i];
   }
-  int64_t data_byte_size;
+  uint64_t data_byte_size;
   CHECK(strm->Read(&data_byte_size, sizeof(data_byte_size)))
       << "Invalid DLTensor file format";
   CHECK(data_byte_size == size)

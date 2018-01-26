@@ -49,6 +49,52 @@ def test_alloc_seq():
     tvm.ir_pass.PostOrderVisit(body, verify)
     assert num_alloc[0] == 1
 
+def test_alloc_different_dtypes():
+    def stmt_generater(dtype_list, length):
+        ib = tvm.ir_builder.create()
+        base_dtype = dtype_list[0]
+        global_a = tvm.placeholder((length,), name = "global_a", dtype = base_dtype)
+        for index, dtype in enumerate(dtype_list):
+            with ib.for_range(0, length, name="j") as j:
+                A = ib.allocate(dtype, length, name="A_" + str(index), scope="local.L0A")
+                A[j] = tvm.const(1, dtype = dtype)
+        return ib.get()
+    
+    def dtype_bit_len(dtype):
+        index = 0
+        for i in dtype:
+            if i.isdigit():
+                break
+            index += 1
+        return int(dtype[index:])
+
+    def offset_generater(dtype_list, length):
+        dtype_len_list = [dtype_bit_len(i) for i in dtype_list]
+        base_len = dtype_len_list[0]
+        return sum([i * length / base_len for i in dtype_len_list])
+
+    def dtype_test(dtype_list, length):
+        def verify(n):
+            if isinstance(n, tvm.stmt.Allocate):
+                assert n.extents[0].value == offset
+
+        body = stmt_generater(dtype_list, length)
+        offset = offset_generater(dtype_list, length)
+        body = tvm.ir_pass.StorageRewrite(body)
+        tvm.ir_pass.PostOrderVisit(body, verify)
+
+    length = 1024
+    dtype_list = ["float16", "int32", "uint16", "int8"]
+    dtype_test(dtype_list, length)
+
+    dtype_list = ["float32", "int32", "uint16", "int8"]
+    dtype_test(dtype_list, length)
+
+    dtype_list = ["float64", "int32", "uint16", "int8"]
+    dtype_test(dtype_list, length)
+    
+    dtype_list = ["int8", "int32", "uint16", "uint8"]
+    dtype_test(dtype_list, length)
 
 
 def test_inplace_rule():
@@ -91,7 +137,6 @@ def test_storage_combine():
     s = tvm.create_schedule(B.op)
     for S in stages[:-1]:
         s[S].set_scope("global:tag")
-
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -171,12 +216,54 @@ def test_parallel_alloc():
 
     assert(isinstance(body.body.body.body.body, tvm.stmt.Allocate))
 
-
+def test_inplace_rule2():
+    #Test Buffer
+    scope_tb = "local_TB"
+    @tvm.register_func("tvm.info.mem.%s" % scope_tb)
+    def mem_info_inp_buffer():
+        return tvm.make.node("MemoryInfo",
+                        unit_bits= 16,
+                        max_simd_bits=32,
+                        max_num_bits=1024*1024*1024,
+                        head_address=None)
+    m = 10
+    A = tvm.placeholder((m,), name='A')
+    C = tvm.placeholder((m,), name='C')
+    D = tvm.placeholder((m,), name='D')
+    A0 = tvm.compute((m,), lambda i: A[i] + C[i], name='A0')
+    A1 = tvm.compute((m,), lambda i: D[i] * D[i], name='A1')
+    A2 = tvm.compute((m,), lambda i: A0[i] + A1[i], name='A2')
+    B = tvm.compute((m,), lambda i: A2[i], name='B')
+    s = tvm.create_schedule(B.op)
+    A0L = s.cache_read(A0, scope_tb, [A2])
+    A1L = s.cache_read(A1, scope_tb, [A2])
+    A2L = s.cache_read(A2, scope_tb, [B])
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
+    Cc = tvm.decl_buffer(C.shape, B.dtype, name='C')
+    Dd = tvm.decl_buffer(D.shape, B.dtype, name='D')
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb, C: Cc, D:Dd}, 64)
+    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.ir_pass.StorageRewrite(stmt)
+    # verify only have one allocations.
+    # verify inplace folding works
+    num_alloc = [0]
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
+    tvm.ir_pass.PostOrderVisit(stmt, verify)
+    assert num_alloc[0] == 2
 
 if __name__ == "__main__":
     test_alloc_seq()
+    test_alloc_different_dtypes()
     test_inplace_rule()
     test_storage_share()
     test_parallel_alloc()
     test_storage_combine()
     test_storage_share_gpu()
+    test_inplace_rule2()

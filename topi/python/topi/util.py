@@ -59,9 +59,8 @@ def get_const_tuple(in_tuple):
     """
     out_tuple = ()
     for elem in in_tuple:
-        if not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm)):
-            raise ValueError("Element of input tuple should be const int")
-        out_tuple = out_tuple + (elem.value, )
+        value = get_const_int(elem)
+        out_tuple = out_tuple + (value, )
     return out_tuple
 
 
