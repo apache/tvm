@@ -59,7 +59,7 @@ inline Tensor pool(const Tensor& x,
   auto height = x->shape[2];
   auto width = x->shape[3];
 
-  auto pad_tuple = GetPadTuple(padding_height, padding_width);
+  auto pad_tuple = detail::GetPadTuple(padding_height, padding_width);
   auto pad_top = pad_tuple[0];
   auto pad_left = pad_tuple[1];
   auto pad_down = pad_tuple[2];

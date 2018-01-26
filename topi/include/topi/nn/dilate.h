@@ -17,10 +17,12 @@ namespace nn {
 using namespace tvm;
 
 /*!
-* \brief Create a new experssion of the intersection of all
+* \brief Create a new expression of the logical and of all
 * conditions in the arguments.
 *
-* \return The intersection expression
+* \param args The arguments to find the logical conjunction of
+*
+* \return The logical conjunction expression
 */
 Expr all(Array<Expr> args) {
   CHECK_GT(args.size(), 0) << "all requires at least one argument";

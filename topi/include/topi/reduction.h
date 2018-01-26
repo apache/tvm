@@ -113,7 +113,7 @@ Tensor CommReduce(const Tensor& data,
                   bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
-  auto axis_val = GetConstIntValues(axis, "axis");
+  auto axis_val = detail::GetConstIntValues(axis, "axis");
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis_val);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
@@ -165,7 +165,7 @@ Tensor CommReduceIdx(const Tensor& data,
                      bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
-  auto axis_val = GetConstIntValues(axis, "axis");
+  auto axis_val = detail::GetConstIntValues(axis, "axis");
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis_val);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
@@ -197,7 +197,7 @@ Tensor CommReduceIdx(const Tensor& data,
     for (auto i : real_axis) {
       ravel_shape.push_back(data->shape[i]);
     }
-    auto idx = RavelIndex(eval_indices, ravel_shape);
+    auto idx = detail::RavelIndex(eval_indices, ravel_shape);
     return func({ idx, data(eval_range) }, reduce_axes, nullptr);
   };
 

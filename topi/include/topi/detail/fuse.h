@@ -9,9 +9,17 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace detail {
 using namespace tvm;
 
-/*! \brief Fuse all of the given args */
+/*!
+ * \brief Fuse all of the given args
+ * 
+ * \param stage The stage in which to apply the fuse
+ * \param args The iteration variables to be fused
+ *
+ * \return The fused iteration variable
+ */
 IterVar Fuse(Stage stage, const Array<IterVar>& args) {
   CHECK_GE(args.size(), 1) << "Fuse requires at least 1 arg";
 
@@ -24,5 +32,6 @@ IterVar Fuse(Stage stage, const Array<IterVar>& args) {
   return fused;
 }
 
+}  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_FUSE_H_

@@ -9,9 +9,17 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace detail {
 using namespace tvm;
 
-/*! \brief returns true iff the given array contains the given item */
+/*!
+ * \brief Search an array for a specific item
+ *
+ * \param array The array to search
+ * \param item The item to search for
+ *
+ * \return True iff the given array contains the given item.
+ */
 template<typename T>
 bool contains(Array<T> array, T item) {
   for (auto& i : array) {
@@ -22,5 +30,6 @@ bool contains(Array<T> array, T item) {
   return false;
 }
 
+}  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_ARRAY_UTILS_H_

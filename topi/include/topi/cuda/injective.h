@@ -15,7 +15,13 @@ namespace topi {
 using namespace tvm;
 
 namespace cuda {
-
+/*!
+* \brief Schedule a given injective operation.
+*
+* \param target The target to generate a schedule for.
+* \param op The operation representing the injective operation.
+* \param s The schedule to apply this scheduling to
+*/
 void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s) {
   auto x = op.output(0);
   auto fused = Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);

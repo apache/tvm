@@ -18,6 +18,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace topi::detail;
 
 /*!
 * \brief Creates an operation to insert new dimensions of length 1
@@ -278,7 +279,7 @@ inline Array<Tensor> split(const Tensor& x,
   begin_ids.push_back(0);
   std::copy(split_indices_val.begin(), split_indices_val.end(), std::back_inserter(begin_ids));
 
-  Array<Array<Expr>> out_shapes;
+  Array< Array<Expr> > out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     int out_axis_size;
     if (i == begin_ids.size() - 1) {

@@ -15,7 +15,17 @@ namespace topi {
 using namespace tvm;
 
 namespace cuda {
-
+/*!
+ * \brief Schedule a given reduce operation.
+ *
+ * \param target The target to generate a schedule for.
+ * \param op The operation representing the injective operation.
+ * \param sch The schedule to apply this scheduling to
+ * \param is_idx_reduce Pass true to schedule a reduce op that returns
+ * an index, such as argmax or argmin.
+ *
+ * \return The schedule given by sch
+*/
 Schedule ScheduleReduce(const Target& target,
                         Operation op,
                         Schedule sch,
@@ -101,6 +111,13 @@ Schedule ScheduleReduce(const Target& target,
   return sch;
 }
 
+/*!
+ * \brief Recursively traverse operator inputs, setting injective inputs
+ * to be computed inline.
+ *
+ * \param s The schedule we are building
+ * \param op The current op in the traversal
+ */
 void TraverseBeforeReduce(Schedule s, Operation op) {
   if (op->derived_from<PlaceholderOpNode>()) {
     return;
@@ -114,6 +131,14 @@ void TraverseBeforeReduce(Schedule s, Operation op) {
   }
 }
 
+/*!
+* \brief Schedule a reduce op, then invoke TraverseBeforeReduce on each
+* of the op's inputs.
+*
+* \param target The target to generate a schedule for.
+* \param s The schedule we are building
+* \param op The reduce op
+*/
 void TraverseAfterReduce(const Target& target, Schedule s, Operation op) {
   if (is_broadcast(op->tag)) {
     LOG(ERROR) << "Elementwise op after reduce is not yet supported";

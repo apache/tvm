@@ -12,6 +12,7 @@
 namespace topi {
 namespace contrib {
 using namespace tvm;
+using namespace topi::detail;
 /*!
 * \brief Create an op that multiplies lhs and rhs with cuBLAS
 *

@@ -18,10 +18,11 @@ namespace nn {
 using namespace tvm;
 
 /*!
-* \brief Binarization and bit-packing along a certain axis
+* \brief Binarization and bit-packing along a certain axis.
 *
 * \param data N-D tensor, can be any layout
-* \param axis The axis along which to do binarization and bit-packing.
+* \param axis The axis along which to do binarization and bit-packing. This axis
+* must have a size equal to an integer multiple of 32.
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *

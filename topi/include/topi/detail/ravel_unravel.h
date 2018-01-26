@@ -11,6 +11,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace detail {
 using namespace tvm;
 
 /*!
@@ -54,5 +55,6 @@ inline Array<Expr> UnavelIndex(Expr idx, Array<Expr> shape) {
   return indices;
 }
 
+}  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_RAVEL_UNRAVEL_H_

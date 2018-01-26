@@ -12,23 +12,51 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace detail {
 using namespace tvm;
 
-/*! \brief Construct a buffer to pass to an external function */
+/*!
+ * \brief Construct a buffer to pass to an external function
+ *
+ * \param shape The shape of the buffer
+ * \param dtype The type of the buffer elements
+ * \param name The name of the buffer
+ *
+ * \return The Buffer object
+ */
 Buffer DeclExternBuffer(Array<Expr> shape,
-  Type dtype,
-  std::string name) {
+                        Type dtype,
+                        std::string name) {
   auto data = var(name, Handle());
   auto elem_offset = Expr();
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-    -1, 0);
+                          -1, 0);
 }
 
-/*! \brief A function wrapping the invocation of an external function */
+/*!
+ * \brief A function which constructs an Expr representing the invocation of an external
+ * function. The function expects two arguments: an array of Buffers holding the input
+ * tensor values, and a pre-allocated array of Buffers to be filled with the outputs.
+ */
 using FExtern = std::function<Expr(Array<Buffer>, Array<Buffer>)>;
 
-/*! \brief Create tensors representing the result of invoking an external function */
-Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
+/*!
+ * \brief Create tensors representing the result of invoking an external function.
+ * This function will create the necessary buffers to hold input and output tensor values.
+ *
+ * \param out_shapes An array where each element is the shape of the corresponding output tensor.
+ * \param out_types An array where each element is the dtype of the corresponding output tensor.
+ * \param inputs An array of input Tensors
+ * \param fextern A function that constructs an Expr representing the invocation of
+ * the external function given the input and output buffers.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return An array of Tensors representing the outputs of the function invocation. There will
+ * be one output Tensor for each element of out_shapes, with dtype equal to the corresponding
+ * element of out_types.
+ */
+Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
                           const std::vector<Type>& out_types,
                           const Array<Tensor>& inputs,
                           FExtern fextern,
@@ -59,15 +87,22 @@ Array<Tensor> make_extern(const Array<Array<Expr>>& out_shapes,
   return outputs;
 }
 
-/*! \brief Pack a buffer object to be used as an argument to a PackedFunc */
+/*!
+ * \brief This function is used to create a DLTensor structure on the stack to
+ * be able to pass a symbolic buffer as arguments to TVM PackedFunc
+ *
+ * \param buf The buffer to pack
+ *
+ * \return An expression representing the pack operation
+ */
 Expr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   auto shape = tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
-    buf->shape, tvm::ir::Call::CallType::Intrinsic);
+                                   buf->shape, tvm::ir::Call::CallType::Intrinsic);
   Expr strides;
   if (buf->strides.size() > 0) {
     strides = tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
-      buf->shape, tvm::ir::Call::CallType::Intrinsic);
+                                  buf->shape, tvm::ir::Call::CallType::Intrinsic);
   } else {
     strides = 0;
   }
@@ -80,14 +115,23 @@ Expr pack_buffer(Buffer buf) {
     buf->elem_offset
   };
   return tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_array,
-    pack_args, tvm::ir::Call::CallType::Intrinsic);
+                             pack_args, tvm::ir::Call::CallType::Intrinsic);
 }
 
-/*! \brief Construct an Expr representing the invocation of a PackedFunc */
+/*!
+ * \brief Construct an Expr representing the invocation of a PackedFunc
+ *
+ * \param args An array containing the registered name of the PackedFunc followed
+ * by the arguments to pass to the PackedFunc when called. The first element of the
+ * array must be a constant string expression.
+ *
+ * \return An expression representing the invocation 
+ */
 Expr call_packed(Array<Expr> args) {
   return tvm::ir::Call::make(Int(32), tvm::ir::intrinsic::tvm_call_packed,
-    args, tvm::ir::Call::CallType::Intrinsic);
+                             args, tvm::ir::Call::CallType::Intrinsic);
 }
 
+}  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_EXTERN_H_

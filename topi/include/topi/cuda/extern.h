@@ -15,6 +15,16 @@ namespace topi {
 using namespace tvm;
 
 namespace cuda {
+/*!
+ * \brief Schedule a given operation representing one of the outputs of an
+ * external function which is followed by injective operations.
+ *
+ * \param target The target to generate a schedule for.
+ * \param op The operation representing the output followed by injective operations.
+ * \param sch The schedule to apply this scheduling to
+ *
+ * \return The schedule given by sch
+ */
 Schedule ScheduleOutputForExtern(Target target, Operation op, Schedule sch) {
   auto x = op.output(0);
   auto fused = Fuse(sch[x], sch[x]->op.as<ComputeOpNode>()->axis);
