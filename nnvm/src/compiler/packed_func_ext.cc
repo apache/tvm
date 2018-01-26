@@ -9,6 +9,7 @@
 #include <nnvm/compiler/packed_func_ext.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include "./node_attr.h"
+#include "compile_engine.h"
 
 namespace tvm {
 namespace runtime {

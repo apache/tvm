@@ -315,9 +315,15 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
       auto it = fe.input_info.find(subidx[sub_input_id].source);
       inputs.push_back(it->second);
     }
-    fe.compiled_func = GraphLower(fe.subgraph, inputs, target,
-                                  idx[master].source->op(),
-                                  idx[master].source->attrs);
+    // find master idx in subgraph
+    int sub_master_idx = 0;
+    for (uint32_t i = 0; i < subidx.num_nodes(); i++) {
+      if (subidx[i].source->op() == idx[master].source->op()) {
+        sub_master_idx = i;
+        break;
+      }
+    }
+    fe.compiled_func = GraphLower(fe.subgraph, inputs, target, sub_master_idx);
     for (LoweredFunc f : fe.compiled_func->funcs) {
       if (!func_set.count(f.get())) {
         func_set.insert(f.get());
