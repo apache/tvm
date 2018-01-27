@@ -335,7 +335,7 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           0);
 }
 
-Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes) const {
+Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, int offset) const {
   const BufferNode* self = operator->();
   Expr e_dtype;
   Expr extent;
@@ -348,7 +348,7 @@ Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes) const
   } else {
     extent = arith::ComputeReduce<ir::Mul>(self->shape, Expr());
   }
-  Expr elem_offset = self->elem_offset;
+  Expr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
     e_dtype = make_zero(self->dtype.with_lanes(content_lanes));
     extent = extent / make_const(self->elem_offset.type(), content_lanes);
