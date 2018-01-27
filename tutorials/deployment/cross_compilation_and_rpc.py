@@ -234,7 +234,10 @@ print('%g secs/op' % cost)
 # .. note::
 #
 #    Raspberry Pi does not support OpenCL, the following code is tested on
-#    Firefly-RK3399. The target_host should be 'llvm -target=aarch64-linux-gnu'.
+#    Firefly-RK3399. You may follow this `tutorial <https://gist.github.com/mli/585aed2cec0b5178b1a510f9f236afa2>`_
+#    to setup the RK3399 OS and OpenCL driver.
+#
+#    The target_host should be 'llvm -target=aarch64-linux-gnu'.
 #    But here we set 'llvm' to enable this tutorial to run locally.
 #
 #    Also we need to build the runtime with the flag `USE_OPENCL=1`.
