@@ -207,7 +207,7 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
         The final execution graph.
 
     libmod : tvm.Module
-        The modue that comes with the execution graph
+        The module that comes with the execution graph
 
     params : dict of str to NDArray
         The updated parameters of graph if params is passed.
@@ -236,7 +236,7 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
     if params and cfg.pass_enabled("PrecomputePrune"):
         graph, params = precompute_prune(graph, params)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-    # Operator Fusion and generatiom
+    # Operator Fusion and generation
     graph = graph_attr.set_shape_inputs(graph, shape)
     graph = graph_attr.set_dtype_inputs(graph, dtype)
     graph._set_json_attr("target", str(target), "str")
