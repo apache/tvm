@@ -150,6 +150,43 @@ def verify_split(src_shape, indices_or_sections, axis):
         check_device(device)
 
 
+def verify_expand_like(in_shape, out_shape, axis, exclude):
+    A = tvm.placeholder(shape=in_shape, name="A")
+    B = tvm.placeholder(shape=out_shape, name="B")
+    C = topi.expand_like(A, B, axis, exclude)
+    s = tvm.create_schedule([C.op])
+
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+
+        ctx = tvm.context(device, 0)
+        f = tvm.build(s, [A, B, C], device, name="expand_like")
+        input = np.random.uniform(size=in_shape).astype(A.dtype)
+        tvm_input = tvm.nd.array(input, ctx)
+
+        odim = len(out_shape)
+        real_axis = [x if x >= 0 else x + odim for x in axis]
+        real_axis = sorted(real_axis)
+        if exclude:
+            real_axis = list(set(range(odim)) - set(real_axis))
+        for x in real_axis:
+            input = np.expand_dims(input, x).astype(A.dtype)
+        for x in real_axis:
+            input = np.concatenate([input]*out_shape[x], axis=x).astype(A.dtype)
+        assert input.shape == out_shape
+
+        tvm_shape_like = tvm.nd.array(np.zeros(out_shape).astype(B.dtype), ctx)
+        out = tvm.nd.array(np.zeros(out_shape).astype(A.dtype), ctx)
+        f(tvm_input, tvm_shape_like, out)
+        np.testing.assert_allclose(out.asnumpy(), input)
+
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
+
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
@@ -191,6 +228,14 @@ def test_split():
     verify_split((2, 12, 3), [2, 4], 1)
     verify_split((10, 12, 24), [5, 7, 9], -1)
 
+
+def test_expand_like():
+    verify_expand_like((3,), (2, 3), [0], False)
+    verify_expand_like((2,), (2, 3), [1], False)
+    verify_expand_like((3, 4), (3, 5, 4), [1], False)
+    verify_expand_like((5, 7), (5, 6, 7, 8), [0, -2], True)
+
+
 if __name__ == "__main__":
     test_concatenate()
     test_tranpose()
@@ -198,3 +243,4 @@ if __name__ == "__main__":
     test_reshape()
     test_squeeze()
     test_split()
+    test_expand_like()

@@ -1,7 +1,8 @@
-# pylint: disable=invalid-name,consider-using-enumerate
+# pylint: disable=invalid-name,consider-using-enumerate,len-as-condition
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 import tvm
+import topi
 from . import tag
 from .util import ravel_index, unravel_index, get_const_int, get_const_tuple
 
@@ -27,6 +28,48 @@ def expand_dims(a, axis, num_newaxis=1):
         idx = indices[:axis] + indices[axis + num_newaxis:]
         return a(*idx)
     return tvm.compute(new_shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.BROADCAST)
+def expand_like(a, shape_like, axis, exclude):
+    """Expand the shape of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+    shape_like : tvm.Tensor
+        The tensor to with target shape.
+    axis: list of int
+        axis to be expanded on
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead.
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    odim = len(a.shape) + len(shape_like.shape) - len(axis) if exclude \
+        else len(axis) + len(a.shape)
+    assert odim == len(shape_like.shape), \
+            "shape inconsistent when expand_like (%d, %d, %d, %s)" % \
+                (len(axis), len(a.shape), len(shape_like.shape), exclude)
+
+    real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
+    if exclude:
+        real_axis = list(set(range(odim)) - set(sorted(real_axis)))
+
+    if len(real_axis) == 0:
+        return a
+
+    def _compute(*idxs):
+        indices = []
+        axis_index = 0
+        for i in range(0, len(idxs)):
+            if i not in real_axis:
+                indices.append(idxs[i])
+                axis_index += 1
+        return a(*indices)
+    return tvm.compute(shape_like.shape, _compute)
 
 
 @tvm.tag_scope(tag=tag.INJECTIVE)

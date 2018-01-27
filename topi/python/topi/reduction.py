@@ -1,4 +1,4 @@
-# pylint: disable=redefined-builtin,consider-using-enumerate,no-member
+# pylint: disable=redefined-builtin,consider-using-enumerate,no-member,len-as-condition
 """Reduce operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -81,7 +81,7 @@ def _choose_idx(idx, _, *indices):
     return idx(*indices)
 
 
-def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=False):
+def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=False, exclude=False):
     """Reducing the data
 
     Parameters
@@ -102,6 +102,9 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
     func : function
         functions like tvm.sum, tvm.max, tvm.min
 
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead
+
     Returns
     -------
     ret : tvm.Tensor
@@ -109,6 +112,12 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
     ndim = len(data.shape)
     assert ndim != 0, "Reduce a dim-0 input is not supported!"
     real_axis = _get_real_axis(ndim, axis)
+    if exclude:
+        real_axis = list(set(range(ndim)) - set(sorted(real_axis)))
+
+    if len(real_axis) == 0:
+        return data
+
     reduce_axes = [tvm.reduce_axis((0, data.shape[i]), "k%d" %i) for i in real_axis]
     if keepdims:
         target_shape = [1 if i in real_axis else data.shape[i] for i in range(ndim)]
@@ -151,7 +160,7 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
 
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE)
-def sum(data, axis=None, keepdims=False):
+def sum(data, axis=None, keepdims=False, exclude=False):
     """Sum of array elements over a given axis or a list of axes
 
     Parameters
@@ -169,15 +178,18 @@ def sum(data, axis=None, keepdims=False):
         with size one.
         With this option, the result will broadcast correctly against the input array.
 
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead
+
     Returns
     -------
     ret : tvm.Tensor
     """
-    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum, exclude=exclude)
 
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE)
-def max(data, axis=None, keepdims=False):
+def max(data, axis=None, keepdims=False, exclude=False):
     """Maximum of array elements over a given axis or a list of axes
 
     Parameters
@@ -195,15 +207,18 @@ def max(data, axis=None, keepdims=False):
         with size one.
         With this option, the result will broadcast correctly against the input array.
 
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead
+
     Returns
     -------
     ret : tvm.Tensor
     """
-    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.max, exclude=exclude)
 
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE)
-def min(data, axis=None, keepdims=False):
+def min(data, axis=None, keepdims=False, exclude=False):
     """Minimum of array elements over a given axis or a list of axes
 
     Parameters
@@ -221,15 +236,19 @@ def min(data, axis=None, keepdims=False):
         with size one.
         With this option, the result will broadcast correctly against the input array.
 
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead
+
+
     Returns
     -------
     ret : tvm.Tensor
     """
-    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.min)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.min, exclude=exclude)
 
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE_IDX)
-def argmax(data, axis=None, keepdims=False):
+def argmax(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the maximum values along an axis.
 
     Parameters
@@ -247,16 +266,20 @@ def argmax(data, axis=None, keepdims=False):
         with size one.
         With this option, the result will broadcast correctly against the input array.
 
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead
+
     Returns
     -------
     ret : tvm.Tensor
     """
     _argmax = tvm.comm_reducer(fcombine=_argmax_comp, fidentity=_argmax_init, name='argmax')
-    return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmax, is_idx_reduce=True)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmax,
+                       is_idx_reduce=True, exclude=exclude)
 
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE_IDX)
-def argmin(data, axis=None, keepdims=False):
+def argmin(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the minimum values along an axis.
 
     Parameters
@@ -274,9 +297,13 @@ def argmin(data, axis=None, keepdims=False):
         with size one.
         With this option, the result will broadcast correctly against the input array.
 
+    exclude: bool
+        whether to apply rule on axis that are NOT in axis instead
+
     Returns
     -------
     ret : tvm.Tensor
     """
     _argmin = tvm.comm_reducer(fcombine=_argmin_comp, fidentity=_argmin_init, name='argmin')
-    return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmin, is_idx_reduce=True)
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmin,
+                       is_idx_reduce=True, exclude=exclude)
