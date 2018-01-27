@@ -1,13 +1,14 @@
 """Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
 
+import struct
 from collections import namedtuple
 
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
 from .contrib import cc as _cc, tar as _tar, util as _util
 
-ProfileResult = namedtuple("ProfileResult", ["mean"])
+ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
 class Module(ModuleBase):
@@ -110,7 +111,7 @@ class Module(ModuleBase):
                 fcompile = _cc.create_shared
         fcompile(file_name, files, **kwargs)
 
-    def time_evaluator(self, func_name, ctx, number):
+    def time_evaluator(self, func_name, ctx, number, repeat=1):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -122,11 +123,15 @@ class Module(ModuleBase):
             The context we should run this function on.
 
         number: int
-            The number of repeative times to run evaluation.
+            The number of steps used in measuring each time interval
+
+        repeat: int, optional
+            Number of times to run the timer measurement
+            If repeat equals 3, then we will get 3 numbers in the ProfileResult.
 
         Note
         ----
-        The function will be invoked number + 1 times,
+        The function will be invoked  repeat * number + 1 times,
         with the first call discarded in case there is lazy initialization.
 
         Returns
@@ -137,13 +142,16 @@ class Module(ModuleBase):
         """
         try:
             feval = _RPCTimeEvaluator(
-                self, func_name, ctx.device_type, ctx.device_id, number)
+                self, func_name, ctx.device_type, ctx.device_id, number, repeat)
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
                 # Wrap feval so we can add more stats in future.
-                mean = feval(*args)
-                return ProfileResult(mean=mean)
+                blob = feval(*args)
+                fmt = "@" + ("d" * repeat)
+                results = struct.unpack(fmt, blob)
+                mean = sum(results) / float(repeat)
+                return ProfileResult(mean=mean, results=results)
 
             return evaluator
         except NameError:
