@@ -67,10 +67,13 @@ print(net.debug_str())
 # optimization while TVM does the tensor-level optimization, resulting
 # in an optimized runtime module for model serving.
 #
-# We'll first compile for Nvidia GPU.
-# To generate the module library, TVM will first transfer graph IR into lower
-# intrinsic IR for the specified target backend, which is CUDA in this example.
-# Then target backend will generate module library.
+# We'll first compile for Nvidia GPU. Behind the scene, `nnvm.compiler.build`
+# first does a number of graph-level optimizations, e.g. pruning, fusing, etc.,
+# then registers the operators (i.e. the nodes of the optmized graphs) to 
+# TVM implementations to generate a `tvm.module`.
+# To generate the module library, TVM will first transfer the HLO IR into the lower
+# intrinsic IR of the specified target backend, which is CUDA in this example.
+# Then the machine code will be generated as the module library.
 
 opt_level = 0
 target = tvm.target.cuda()
