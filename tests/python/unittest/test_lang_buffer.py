@@ -27,8 +27,9 @@ def test_buffer_access_ptr_offset():
     m = tvm.var('m')
     n = tvm.var('n')
     Ab = tvm.decl_buffer((m, n), tvm.float32)
-    aptr = Ab.access_ptr("rw", handle(), 1, 100)
-    assert tvm.ir_pass.Equal(aptr.args[2], 100)
+    aptr = Ab.access_ptr("rw", offset=100)
+    offset = tvm.ir_pass.Simplify(aptr.args[2])
+    assert tvm.ir_pass.Equal(offset, 100)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
 
 def test_buffer_index_merge_mult_mod():
@@ -65,4 +66,5 @@ def test_buffer_index_merge_mult_mod():
 if __name__ == "__main__":
     test_buffer()
     test_buffer_access_ptr()
+    test_buffer_access_ptr_offset()
     test_buffer_index_merge_mult_mod()

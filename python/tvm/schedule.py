@@ -46,7 +46,8 @@ class Buffer(NodeBase):
             is greater than one for vector types.
 
         offset: int, optional
-		    The offset of pointer.
+            The offset of pointer. We can use it to offset by
+            the number of elements from the address of ptr.
 
         Examples
         --------
