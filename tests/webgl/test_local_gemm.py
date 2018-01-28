@@ -7,7 +7,7 @@ def test_local_gemm():
     if not tvm.module.enabled("llvm"):
         return
 
-    nn = 2
+    nn = 1024
     n = tvm.var('n')
     n = tvm.convert(nn)
     m = n

@@ -159,7 +159,7 @@ TVM_REGISTER_API("_Buffer")
 TVM_REGISTER_API("_BufferAccessPtr")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Buffer()
-        .access_ptr(args[1], args[2], args[3]);
+        .access_ptr(args[1], args[2], args[3], args[4]);
   });
 
 TVM_REGISTER_API("_BufferVLoad")
