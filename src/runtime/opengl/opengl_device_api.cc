@@ -156,15 +156,6 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {}
 
-void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
-  LOG(FATAL) << "Cannot allocate OpenGL workspace.";
-  return nullptr;
-}
-
-void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
-  LOG(FATAL) << "Cannot free OpenGL workspace.";
-}
-
 OpenGLWorkspace::OpenGLWorkspace() {
   // Set an error handler.
   // This can be called before glfwInit().
