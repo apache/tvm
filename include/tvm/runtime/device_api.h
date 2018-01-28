@@ -114,9 +114,13 @@ class DeviceAPI {
    *  - Workspace should not overlap between different threads(i.e. be threadlocal)
    *
    * \param ctx The context of allocation.
-   * \param size The size to be allocated.
+   * \param nbytes The size to be allocated.
+   * \param type_hint The type of elements. Only needed by certain backends such
+   * as OpenGL, as nbytes is sufficient for most backends.
    */
-  TVM_DLL virtual void* AllocWorkspace(TVMContext ctx, size_t size);
+  TVM_DLL virtual void* AllocWorkspace(TVMContext ctx,
+                                       size_t nbytes,
+                                       TVMType type_hint = {});
   /*!
    * \brief Free temporal workspace in backend execution.
    *

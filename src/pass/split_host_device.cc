@@ -146,6 +146,11 @@ class IRUseDefAnalysis : public IRMutator {
 
 class HostDeviceSplitter : public IRMutator {
  public:
+  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
+    handle_data_type_[op->buffer_var.get()] = make_const(op->type, 0);
+    return IRMutator::Mutate_(op, s);
+  }
+
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::pipeline_exec_scope) {
