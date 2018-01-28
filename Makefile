@@ -151,6 +151,10 @@ ifeq ($(USE_GRAPH_RUNTIME), 1)
 	RUNTIME_DEP += $(GRAPH_OBJ)
 endif
 
+ifeq ($(USE_GRAPH_RUNTIME_DEBUG), 1)
+	CFLAGS += -DTVM_GRAPH_RUNTIME_DEBUG
+endif
+
 include make/contrib/cblas.mk
 include make/contrib/random.mk
 include make/contrib/nnpack.mk

@@ -50,6 +50,9 @@ USE_RPC = 1
 # Whether enable tiny embedded graph runtime.
 USE_GRAPH_RUNTIME = 1
 
+#  Whether enable additional graph debug functions
+USE_GRAPH_RUNTIME_DEBUG = 0
+
 # whether build with LLVM support
 # Requires LLVM version >= 4.0
 # Set LLVM_CONFIG to your version, uncomment to build with llvm support
