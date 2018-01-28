@@ -73,7 +73,7 @@ inline int GetVectorBytes(Type dtype) {
 /*! \brief a named variable in TVM */
 class Var : public HalideIR::VarExpr {
  public:
-  explicit Var(const std::string& name_hint = "v",
+  EXPORT explicit Var(const std::string& name_hint = "v",
                Type t = Int(32)) : VarExpr(name_hint, t) {}
   explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
   explicit Var(VarExpr v) : VarExpr(v) {}

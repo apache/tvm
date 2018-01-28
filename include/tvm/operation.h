@@ -353,7 +353,7 @@ class ExternOpNode : public OperationNode {
     v->Visit("inputs", &inputs);
     v->Visit("body", &body);
   }
-  static Operation make(std::string name,
+  EXPORT static Operation make(std::string name,
                         std::string tag,
                         Array<Tensor> inputs,
                         Array<Buffer> input_placeholders,

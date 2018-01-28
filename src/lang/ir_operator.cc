@@ -4,6 +4,7 @@
  */
 #include <tvm/base.h>
 #include <tvm/ir.h>
+#include <tvm/ir_operator.h>
 
 namespace tvm {
 

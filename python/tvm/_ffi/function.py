@@ -261,9 +261,12 @@ def _init_api(namespace):
     mod : str
        The name of the module.
     """
-    module = sys.modules[namespace]
     assert namespace.startswith("tvm.")
     prefix = namespace[4:]
+    _init_api_prefix(namespace, prefix)
+
+def _init_api_prefix(module_name, prefix):
+    module = sys.modules[module_name]
 
     for name in list_global_func_names():
         if prefix == "api":

@@ -69,10 +69,10 @@ inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
   tvm::Array<tvm::Expr> ivars;
   CHECK_EQ(ovars.size(), all_vars.size());
   // N^2, could use a map but NBD..
-  int expected_dims = T->shape.size();
-  for (int i = 0; i < ovars.size(); ++i) {
+  size_t expected_dims = T->shape.size();
+  for (size_t i = 0; i < ovars.size(); ++i) {
     bool found = false;
-    for (int j = 0; j < my_vars.size(); ++j) {
+    for (size_t j = 0; j < my_vars.size(); ++j) {
     if (all_vars[i].same_as(my_vars[j])) {
         ivars.push_back(ovars[i]);
         found = true;
