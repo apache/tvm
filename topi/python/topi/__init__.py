@@ -21,6 +21,7 @@ from . import x86
 from . import cuda
 from . import rasp
 from . import mali
+from . import opengl
 from . import testing
 from . import util
 from . import rocm
