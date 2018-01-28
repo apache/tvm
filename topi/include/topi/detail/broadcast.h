@@ -55,7 +55,7 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
   auto max_size = std::max(s1_size, s2_size);
   auto& shape = (s1_size > s2_size) ? shape1 : shape2;
   auto& vars = (s1_size > s2_size) ? bh.vars1 : bh.vars2;
-  for (i = i; i <= max_size; ++i) {
+  for (; i <= max_size; ++i) {
     bh.all_vars.push_front(tvm::Var());
     bh.common_shape.push_front(shape[max_size - i]);
     vars.push_front(bh.all_vars[0]);
