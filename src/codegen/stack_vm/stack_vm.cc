@@ -455,12 +455,15 @@ void StackVM::Run(State* s) const {
         break;
       }
       case TVM_DEVICE_ALLOCA: {
-        int device_type = static_cast<int>(stack[sp - 2].v_int64);
-        int device_id = static_cast<int>(stack[sp - 1].v_int64);
-        size_t nbytes = static_cast<size_t>(stack[sp].v_int64);
-        void* ptr = TVMBackendAllocWorkspace(device_type, device_id, nbytes);
-        stack[sp - 2].v_handle = ptr;
-        sp = sp - 2;
+        int device_type = static_cast<int>(stack[sp - 4].v_int64);
+        int device_id = static_cast<int>(stack[sp - 3].v_int64);
+        size_t nbytes = static_cast<size_t>(stack[sp - 2].v_int64);
+        int dtype_code_hint = static_cast<int>(stack[sp - 1].v_int64);
+        int dtype_bits_hint = static_cast<int>(stack[sp].v_int64);
+        void* ptr = TVMBackendAllocWorkspace(device_type, device_id, nbytes,
+                                             dtype_code_hint, dtype_bits_hint);
+        stack[sp - 4].v_handle = ptr;
+        sp = sp - 4;
         pc = pc + 1;
         break;
       }

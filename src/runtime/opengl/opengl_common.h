@@ -175,8 +175,6 @@ class OpenGLWorkspace final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
 
   /*!
    * \brief Get the global OpenGL workspace.
