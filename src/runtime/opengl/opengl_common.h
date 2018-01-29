@@ -11,7 +11,9 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
-#include <GL/gl.h>
+#if defined(__APPLE__)
+#define GLFW_INCLUDE_GLCOREARB
+#endif
 #include <GLFW/glfw3.h>
 #include <string>
 #include <tuple>
