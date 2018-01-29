@@ -12,16 +12,7 @@
 #include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
 #if defined(__APPLE__)
-#include <OpenGL/gl3.h>
 #define GLFW_INCLUDE_GLCOREARB
-#ifndef GL_STACK_OVERFLOW
-#define GL_STACK_OVERFLOW 1283
-#endif
-#ifndef GL_STACK_UNDERFLOW
-#define GL_STACK_UNDERFLOW 1284
-#endif
-#else
-#include <GL/gl.h>
 #endif
 #include <GLFW/glfw3.h>
 #include <string>
