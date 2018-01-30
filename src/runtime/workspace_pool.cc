@@ -28,7 +28,10 @@ class WorkspacePool::Pool {
     nbytes = (nbytes + (kWorkspacePageSize - 1)) / kWorkspacePageSize * kWorkspacePageSize;
     if (nbytes == 0) nbytes = kWorkspacePageSize;
     Entry e;
-    TVMType type = {type.code = kDLUInt, type.bits = 8, type.lanes = 1};
+    TVMType type;
+    type.code = kDLUInt;
+    type.bits = 8;
+    type.lanes = 1;
     if (free_list_.size() == 2) {
       e = free_list_.back();
       free_list_.pop_back();
