@@ -95,7 +95,7 @@ def _conv():
                 'dilations': ('dilation', (0, 0)),
                 'pads': ('padding', (0, 0), _revert_caffe2_pad),
                 'group': ('groups', 1)},
-            extras={'use_bias': False},
+            extras={'use_bias': len(inputs) == 3},
             custom_check=_dimension_constraint())(inputs, attr)
     return _impl
 
@@ -113,7 +113,7 @@ def _conv_transpose():
                 'dilations': ('dilation', (0, 0)),
                 'pads': ('padding', (0, 0), _revert_caffe2_pad)},
             disables=['output_shape'],
-            extras={'use_bias': False},
+            extras={'use_bias': len(inputs) == 3},
             custom_check=_dimension_constraint())(inputs, attr)
     return _impl
 
