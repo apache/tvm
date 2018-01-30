@@ -293,7 +293,7 @@ inline std::vector<NodeEntry> MakeGradNode(
   const char* op_name,
   const NodePtr& n,
   std::vector<NodeEntry> inputs,
-  std::unordered_map<std::string, std::string> attr = {}) {
+  std::unordered_map<std::string, std::string> attr = {{}}) {
   NodePtr p = Node::Create();
   p->attrs.op = nnvm::Op::Get(op_name);
   p->attrs.name = n->attrs.name + "_grad";
