@@ -228,7 +228,9 @@ void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   [cb waitUntilCompleted];
 }
 
-void* MetalWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+void* MetalWorkspace::AllocWorkspace(TVMContext ctx,
+                                     size_t size,
+                                     TVMType type_hint) {
   return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
 }
 

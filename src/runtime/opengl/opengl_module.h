@@ -18,6 +18,19 @@ namespace tvm {
 namespace runtime {
 
 /*!
+ * \brief The fixed row size of all OpenGL textures in TVM.
+ *
+ * OpenGL has texture size limit on each dimension. Suppose we have a limit of
+ * 1024, then we can have a 2D texture of size (2^10 x 2^10) but not (2^20 x 1).
+ * This means we don't want to just use (n x 1) 2D textures for all arrays,
+ * because that would limit our array size to be 1024. Here we use (1024 x m)
+ * 2D textures. Then we can have arrays of size up to 2^20.
+ */
+static constexpr int kTextureRowBits = 10;
+static constexpr int kTextureRowSize = 1 << kTextureRowBits;
+static constexpr int kTextureRowMask = kTextureRowSize - 1;
+
+/*!
  * \brief Determines how we supply arguments.
  */
 enum class OpenGLArgKind {

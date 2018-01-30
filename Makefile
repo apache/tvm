@@ -58,6 +58,7 @@ OPENGL_SRC = $(wildcard src/runtime/opengl/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
+TOPI_SRC = $(wildcard topi/src/*.cc)
 
 # Objectives
 LLVM_BUILD = build/llvm${LLVM_VERSION}
@@ -71,11 +72,13 @@ RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
 RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
+TOPI_OBJ = $(patsubst topi/%.cc, build/%.o, $(TOPI_SRC))
 CONTRIB_OBJ =
 
 # Deps
 ALL_DEP = $(CC_OBJ) $(CONTRIB_OBJ) $(LIB_HALIDEIR)
 RUNTIME_DEP = $(RUNTIME_OBJ)
+TOPI_DEP = $(TOPI_OBJ)
 
 # Dependency specific rules
 ifdef CUDA_PATH
@@ -151,6 +154,10 @@ ifeq ($(USE_GRAPH_RUNTIME), 1)
 	RUNTIME_DEP += $(GRAPH_OBJ)
 endif
 
+ifeq ($(USE_GRAPH_RUNTIME_DEBUG), 1)
+	CFLAGS += -DTVM_GRAPH_RUNTIME_DEBUG
+endif
+
 include make/contrib/cblas.mk
 include make/contrib/random.mk
 include make/contrib/nnpack.mk
@@ -194,10 +201,11 @@ else
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
 endif
 
-BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
+BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
+topi: lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
 
 include tests/cpp/unittest.mk
 
@@ -222,9 +230,18 @@ build/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
+build/src/%.o: topi/src/%.cc
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
+	$(CXX) -c $(CFLAGS) -c $< -o $@
+
 lib/libtvm.dylib: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+lib/libtvm_topi.dylib: lib/libtvm.so $(TOPI_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libtvm_runtime.dylib: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
@@ -233,6 +250,10 @@ lib/libtvm_runtime.dylib: $(RUNTIME_DEP)
 lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+lib/libtvm_topi.so: lib/libtvm.so $(TOPI_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libtvm_runtime.so: $(RUNTIME_DEP)
 	@mkdir -p $(@D)

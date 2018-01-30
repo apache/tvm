@@ -72,6 +72,10 @@ class GraphModule(object):
         self._set_input = module["set_input"]
         self._run = module["run"]
         self._get_output = module["get_output"]
+        try:
+            self._debug_get_output = module["debug_get_output"]
+        except AttributeError:
+            pass
         self._load_params = module["load_params"]
         self.ctx = ctx
 
@@ -119,6 +123,23 @@ class GraphModule(object):
             The output array container
         """
         self._get_output(index, out)
+        return out
+
+    def debug_get_output(self, node, out):
+        """Run graph upto node and get the output to out
+
+        Parameters
+        ----------
+        node : int / str
+            The node index or name
+
+        out : NDArray
+            The output array container
+        """
+        if hasattr(self, '_debug_get_output'):
+            self._debug_get_output(node, out)
+        else:
+            raise RuntimeError("Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0")
         return out
 
     def load_params(self, params_bytes):
