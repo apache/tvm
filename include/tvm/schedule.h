@@ -7,6 +7,7 @@
 #define TVM_SCHEDULE_H_
 
 #include <string>
+#include <unordered_map>
 #include "./base.h"
 #include "./expr.h"
 #include "./tensor.h"
@@ -41,6 +42,7 @@ class Stage : public NodeRef {
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
+   * \param sch The schedule that this stage belongs to
    */
   explicit Stage(Operation op, Schedule* sch);
   /*!
@@ -197,7 +199,7 @@ class Stage : public NodeRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  EXPORT Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
+  EXPORT Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); // NOLINT(*)
   /*!
    * \brief Set alignment requirement for specific dimension.
    *
@@ -247,10 +249,10 @@ class Schedule : public NodeRef {
   explicit Schedule(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Get a copy of current schedule.
-   * \param smap(optional) return the mapping from stages in the original object to stages in the copied object
+   * \param smap (optional) return the mapping from stages in the original object to stages in the copied object
    * \return The copied schedule.
    */
-  Schedule copy(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap = nullptr) const;
+  Schedule copy(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap = nullptr) const; //NOLINT(*)
   /*!
    * \brief Get the stage corresponds to the op
    * \param op The operation.
@@ -324,7 +326,7 @@ class Schedule : public NodeRef {
    *  This is needed before bound inference.
    *  Insert necessary RebaseNode to make sure all leaf_iter_vars
    *  are in form [0, extent)
-   * \param smap(optional) return the mapping from stages in the current schedule to stages in the normalized one
+   * \param smap (optional) return the mapping from stages in the current schedule to stages in the normalized one
    *
    * \return A normalized schedule, can be same as current one.
    */
