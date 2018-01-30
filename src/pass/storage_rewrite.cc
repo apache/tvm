@@ -681,6 +681,8 @@ class StoragePlanRewriter : public IRMutator {
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace) {
+            // only one inplace var for s.stmt
+            bool inplace_found = false;
             for (const Variable* src : it->second.kill) {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
                 InplaceOpVerifier visitor;
@@ -693,10 +695,12 @@ class StoragePlanRewriter : public IRMutator {
                       ae.alloc->constant_allocation_size() *
                       ae.alloc->type.bits() *
                       ae.alloc->type.lanes());
-                  if (src_entry->const_nbits == const_nbits) {
+                  if (src_entry->const_nbits == const_nbits
+                      && inplace_found == false) {
                     // successfully inplace
                     dst_entry = src_entry;
                     inplace_flag.insert(src);
+                    inplace_found = true;
                   }
                 }
               }
