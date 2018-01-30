@@ -28,7 +28,7 @@ namespace ir {
  * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
+EXPORT Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify the statement.
@@ -62,7 +62,7 @@ Expr CanonicalSimplify(Expr expr,
  * \param rhs The right operand
  * \return The comparison result.
  */
-bool Equal(const Expr& lhs, const Expr& rhs);
+EXPORT bool Equal(const Expr& lhs, const Expr& rhs);
 
 /*!
  * \brief Deep compare lhs and rhs

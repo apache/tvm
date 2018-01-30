@@ -27,10 +27,12 @@ static const char* GLGetErrorString(GLenum error) {
       return "GL_INVALID_VALUE";
     case GL_INVALID_OPERATION:
       return "GL_INVALID_OPERATION";
+#if !defined(__APPLE__)
     case GL_STACK_OVERFLOW:
       return "GL_STACK_OVERFLOW";
     case GL_STACK_UNDERFLOW:
       return "GL_STACK_UNDERFLOW";
+#endif
     case GL_OUT_OF_MEMORY:
       return "GL_OUT_OF_MEMORY";
     default:
@@ -155,15 +157,6 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
 }
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {}
-
-void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
-  LOG(FATAL) << "Cannot allocate OpenGL workspace.";
-  return nullptr;
-}
-
-void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
-  LOG(FATAL) << "Cannot free OpenGL workspace.";
-}
 
 OpenGLWorkspace::OpenGLWorkspace() {
   // Set an error handler.

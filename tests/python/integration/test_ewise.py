@@ -55,7 +55,10 @@ def test_log_pow_llvm():
     n = 1028
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
     b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
-    flog(a, b)
+    repeat = 10
+    ftimer = flog.time_evaluator(flog.entry_name, ctx, number=1, repeat=repeat)
+    res = ftimer(a, b)
+    assert(len(res.results) == repeat)
     np.testing.assert_allclose(
         b.asnumpy(), np.power(np.log(a.asnumpy()), 2.0), rtol=1e-5)
 
@@ -146,7 +149,7 @@ def test_add():
 
 
 if __name__ == "__main__":
-    test_add()
     test_log_pow_llvm()
-    test_popcount()
     test_exp()
+    test_add()
+    test_popcount()

@@ -44,9 +44,7 @@ if(MSVC)
   add_definitions(-DWIN32_LEAN_AND_MEAN)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
-  add_definitions(-DTVM_EXPORTS)
   add_definitions(-DHalide_SHARED)
-  add_definitions(-DHalide_EXPORTS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
@@ -81,6 +79,10 @@ file(GLOB COMPILER_SRCS
     src/pass/*.cc
     src/op/*.cc
     src/schedule/*.cc
+)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/topi/include)
+file(GLOB TOPI_SRCS
+    topi/src/*.cc
 )
 file(GLOB_RECURSE HALIDEIR_SRCS HalideIR/src/*.cpp)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
@@ -209,8 +211,10 @@ endif()
 
 list(APPEND RUNTIME_SRCS ${GROUP_Include})
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 if (INSTALL_DEV)
@@ -242,3 +246,10 @@ else(INSTALL_DEV)
     PATTERN "*.h"
   )
 endif(INSTALL_DEV)
+
+if(MSVC)
+  target_compile_definitions(tvm PRIVATE -DHalide_EXPORTS)
+  target_compile_definitions(tvm_runtime PRIVATE -DHalide_EXPORTS)
+  target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
+endif()

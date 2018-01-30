@@ -31,19 +31,23 @@ struct Target {
   std::unordered_set<std::string> keys;
   /*! \brief Options for this target */
   std::vector<std::string> options;
+  /*! \brief Set of imported libs */
+  std::unordered_set<std::string> libs;
 
   Target(const std::string& target_name,
          DLDeviceType device_type,
          int max_num_threads,
          int thread_warp_size,
          const std::unordered_set<std::string>& keys,
-         const std::vector<std::string>& options) :
+         const std::vector<std::string>& options,
+         const std::unordered_set<std::string>& libs = {}) :
     target_name(target_name),
     device_type(device_type),
     max_num_threads(max_num_threads),
     thread_warp_size(thread_warp_size),
     keys(keys),
-    options(options) {
+    options(options),
+    libs(libs) {
   }
 
   /*! \return the full device string to pass to codegen::Build */

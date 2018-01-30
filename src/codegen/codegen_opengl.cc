@@ -24,6 +24,8 @@ void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
   inputs_.clear();
   output_iter_var_ = nullptr;
   thread_extent_var_ = "";
+  this->decl_stream.str("");
+  this->stream.str("");
 }
 
 void CodeGenOpenGL::AddFunction(LoweredFunc f) {

@@ -107,7 +107,44 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = this->entry_id(outputs_[index]);
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
+#ifdef TVM_GRAPH_RUNTIME_DEBUG
+  /*!
+   * \brief Get the node index given the name of node.
+   * \param name The name of the node.
+   * \return The index of node.
+   */
+  int GetNodeIndex(const std::string& name) {
+    for (uint32_t nid = 0; nid< nodes_.size(); ++nid) {
+      if (nodes_[nid].name == name) {
+        return static_cast<int>(nid);
+      }
+    }
+    LOG(FATAL) << "cannot find " << name << " among nodex";
+    return -1;
+  }
 
+  /*!
+   * \brief Copy index-th node to data_out.
+   *
+   * This method will do a partial run of the the graph
+   * from begining upto the index-th node and return output of index-th node.
+   * This is costly operation and suggest to use only for debug porpose.
+   *
+   * \param index: The  index of the node.
+   * \param data_out the node data.
+   */
+  void DebugGetNodeOutput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), nodes_.size());
+    uint32_t eid = index;
+
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (static_cast<int>(i) == index) break;
+      if (op_execs_[i]) op_execs_[i]();
+    }
+
+    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
+  }
+#endif
   /*!
    * \brief Load parameters from binary stream
    * \param strm The input stream.
@@ -556,6 +593,16 @@ PackedFunc GraphRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->GetOutput(args[0], args[1]);
       });
+#ifdef TVM_GRAPH_RUNTIME_DEBUG
+  } else if (name == "debug_get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
+        } else {
+          this->DebugGetNodeOutput(args[0], args[1]);
+        }
+      });
+#endif
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
