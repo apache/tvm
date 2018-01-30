@@ -177,15 +177,12 @@ out_shape = (batch_size, num_classes)
 # Pi, which has been proved as a good compilation configuration.
 
 if use_rasp:
-    target = "llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
+    target = tvm.target.rasp()
 else:
-    target = "llvm"
+    target = tvm.target.create('llvm')
 
-
-# use `with tvm.target.rasp` for some target-specified optimization
-with tvm.target.rasp():
-    graph, lib, params = nnvm.compiler.build(
-        net, target, shape={"data": data_shape}, params=params)
+graph, lib, params = nnvm.compiler.build(
+    net, target, shape={"data": data_shape}, params=params)
 
 # After `nnvm.compiler.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will
