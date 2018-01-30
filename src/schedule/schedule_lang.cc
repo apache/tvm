@@ -69,11 +69,12 @@ void Split(StageNode* self,
 
 }  // namespace
 
-Stage::Stage(Operation op) {
+Stage::Stage(Operation op, Schedule* sch) {
   auto n = std::make_shared<StageNode>();
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
+  n->schedule = *sch;
   // remove opaque var from leaf.
   Array<IterVar> clean;
   for (IterVar iv : n->all_iter_vars) {
@@ -442,49 +443,52 @@ Stage CopyStage(const Stage& s) {
   return Stage(n);
 }
 
-Schedule Schedule::copy() const {
+Schedule Schedule::copy(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap) const {
   // map of stages.
   const ScheduleNode* self = operator->();
-  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
+  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap_local;
+  if (smap == nullptr) {
+    smap = &smap_local;
+  }
   std::shared_ptr<ScheduleNode> n = std::make_shared<ScheduleNode>();
   n->outputs = self->outputs;
   // Copy the stages.
   for (Stage s : self->stages) {
     Stage scopy = CopyStage(s);
-    smap[s] = scopy;
+    (*smap)[s] = scopy;
     n->stages.push_back(scopy);
   }
   for (Stage g : self->groups) {
     Stage gcopy = CopyStage(g);
-    smap[g] = gcopy;
+    (*smap)[g] = gcopy;
     n->groups.push_back(gcopy);
   }
   // Remaps the reference relations.
   for (auto kv : self->stage_map) {
-    n->stage_map.Set(kv.first, smap.at(kv.second));
+    n->stage_map.Set(kv.first, smap->at(kv.second));
   }
   for (Stage s : n->stages) {
     if (s->attach_stage.defined()) {
-      CHECK(smap.find(s->attach_stage) != smap.end())
+      CHECK(smap->find(s->attach_stage) != smap->end())
         << s->attach_stage << " not found in " << (*this);
-      s->attach_stage = smap.at(s->attach_stage);
+      s->attach_stage = smap->at(s->attach_stage);
     }
     if (s->group.defined()) {
-      CHECK(smap.find(s->group) != smap.end())
+      CHECK(smap->find(s->group) != smap->end())
         << s->group << " not found in " << (*this);
-      s->group = smap.at(s->group);
+      s->group = smap->at(s->group);
     }
   }
   for (Stage s : n->groups) {
     if (s->attach_stage.defined()) {
-      CHECK(smap.find(s->attach_stage) != smap.end())
+      CHECK(smap->find(s->attach_stage) != smap->end())
         << s->attach_stage << " not found in " << (*this);
-      s->attach_stage = smap.at(s->attach_stage);
+      s->attach_stage = smap->at(s->attach_stage);
     }
     if (s->group.defined()) {
-      CHECK(smap.find(s->group) != smap.end())
+      CHECK(smap->find(s->group) != smap->end())
         << s->group << " not found in " << (*this);
-      s->group = smap.at(s->group);
+      s->group = smap->at(s->group);
     }
   }
   return Schedule(n);
@@ -667,7 +671,7 @@ Schedule ScheduleNode::make(Array<Operation> ops) {
     output_set.insert(x);
   }
   for (Operation op : post_order) {
-    Stage stage(op);
+    Stage stage(op, &sch);
     stage->is_output = output_set.count(op) != 0;
     n->stages.push_back(stage);
     n->stage_map.Set(op, stage);

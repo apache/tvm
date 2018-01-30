@@ -22,6 +22,7 @@ class ScheduleNode;
 class IterVarRelationNode;
 // Attribute of itervar.
 class IterVarAttrNode;
+class Schedule;
 
 /*! \brief the attachment type */
 enum AttachType : int {
@@ -41,7 +42,7 @@ class Stage : public NodeRef {
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
    */
-  explicit Stage(Operation op);
+  explicit Stage(Operation op, Schedule* sch);
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -246,9 +247,10 @@ class Schedule : public NodeRef {
   explicit Schedule(std::shared_ptr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Get a copy of current schedule.
+   * \param smap(optional) return the mapping from stages in the original object to stages in the copied object
    * \return The copied schedule.
    */
-  Schedule copy() const;
+  Schedule copy(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap = nullptr) const;
   /*!
    * \brief Get the stage corresponds to the op
    * \param op The operation.
@@ -322,10 +324,11 @@ class Schedule : public NodeRef {
    *  This is needed before bound inference.
    *  Insert necessary RebaseNode to make sure all leaf_iter_vars
    *  are in form [0, extent)
+   * \param smap(optional) return the mapping from stages in the current schedule to stages in the normalized one
    *
    * \return A normalized schedule, can be same as current one.
    */
-  Schedule normalize();
+  Schedule normalize(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap = nullptr);
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -434,6 +437,10 @@ class StageNode : public Node {
    *  The stage cannot be assigned to stages outside the group.
    */
   Stage group;
+  /*!
+   * \brief The parent schedule of the stage
+   */
+  Schedule schedule;
   /*! \brief Number of direct child stages, only used for group stage.*/
   int num_child_stages{0};
 
@@ -452,6 +459,7 @@ class StageNode : public Node {
     v->Visit("is_output", &is_output);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
+    v->Visit("schedule", &schedule);
     v->Visit("num_child_stages", &num_child_stages);
   }
 
