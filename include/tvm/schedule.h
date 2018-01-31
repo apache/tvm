@@ -23,7 +23,6 @@ class ScheduleNode;
 class IterVarRelationNode;
 // Attribute of itervar.
 class IterVarAttrNode;
-class Schedule;
 
 /*! \brief the attachment type */
 enum AttachType : int {
@@ -42,9 +41,8 @@ class Stage : public NodeRef {
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
-   * \param sch The schedule that this stage belongs to
    */
-  explicit Stage(Operation op, Schedule* sch);
+  explicit Stage(Operation op);
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -439,10 +437,6 @@ class StageNode : public Node {
    *  The stage cannot be assigned to stages outside the group.
    */
   Stage group;
-  /*!
-   * \brief The parent schedule of the stage
-   */
-  Schedule schedule;
   /*! \brief Number of direct child stages, only used for group stage.*/
   int num_child_stages{0};
 
@@ -461,7 +455,6 @@ class StageNode : public Node {
     v->Visit("is_output", &is_output);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
-    v->Visit("schedule", &schedule);
     v->Visit("num_child_stages", &num_child_stages);
   }
 

@@ -69,12 +69,11 @@ void Split(StageNode* self,
 
 }  // namespace
 
-Stage::Stage(Operation op, Schedule* sch) {
+Stage::Stage(Operation op) {
   auto n = std::make_shared<StageNode>();
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
-  n->schedule = *sch;
   // remove opaque var from leaf.
   Array<IterVar> clean;
   for (IterVar iv : n->all_iter_vars) {
@@ -671,7 +670,7 @@ Schedule ScheduleNode::make(Array<Operation> ops) {
     output_set.insert(x);
   }
   for (Operation op : post_order) {
-    Stage stage(op, &sch);
+    Stage stage(op);
     stage->is_output = output_set.count(op) != 0;
     n->stages.push_back(stage);
     n->stage_map.Set(op, stage);

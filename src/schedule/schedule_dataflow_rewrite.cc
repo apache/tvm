@@ -104,7 +104,7 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   ArrayNode* stages = (*this)->stages.CopyOnWrite();
   Stage op_stage = operator[](tensor->op);
   size_t pos = FindNodeRef(stages, op_stage);
-  Stage cache_stage = Stage(cache->op, this);
+  Stage cache_stage = Stage(cache->op);
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos + 1,
@@ -207,7 +207,7 @@ Tensor CacheWriteWithReLayout(Schedule sch,
   // create schedule for new cached stage.
   ArrayNode* stages = sch->stages.CopyOnWrite();
   size_t pos = FindNodeRef(stages, orig_stage);
-  Stage cache_stage = Stage(cache_op, &sch);
+  Stage cache_stage = Stage(cache_op);
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos,
@@ -525,7 +525,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   Operation factor_op(n);
   ArrayNode* stages = (*this)->stages.CopyOnWrite();
   size_t stage_pos = FindNodeRef(stages, reduce_stage);
-  Stage factor_stage = Stage(factor_op, this);
+  Stage factor_stage = Stage(factor_op);
   factor_stage->relations = rels;
   CHECK_LT(stage_pos, stages->data.size());
   stages->data.insert(stages->data.begin() + stage_pos,
