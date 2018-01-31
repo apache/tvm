@@ -329,6 +329,15 @@ class Schedule : public NodeRef {
    * \return A normalized schedule, can be same as current one.
    */
   Schedule normalize(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap = nullptr);
+
+  /*!
+   * \brief Find all computations in all stages of the schedule
+   * that match intrinsic f and mark the appropriate iteration variables
+   * as tensorizable with intrinsic f
+   * \param f the intrinstic to match
+   */
+  void autotensorize(TensorIntrin f);
+
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

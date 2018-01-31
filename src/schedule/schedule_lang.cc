@@ -3,6 +3,7 @@
  * \file schedule_lang.cc
  */
 #include <tvm/schedule.h>
+#include <tvm/schedule_pass.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_set>
@@ -641,6 +642,33 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
 
   self->groups.push_back(gstage);
   return gstage;
+}
+
+void Schedule::autotensorize(TensorIntrin f)
+{
+  CHECK(defined());
+  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
+  Schedule                                              sch     = normalize(&smap);
+  Map<IterVar, Range>                                   bounds  = schedule::InferBound(sch);
+  std::unordered_map<IterVar, Range>                    dom_map = as_unordered_map(bounds);
+  const ScheduleNode *self = operator->();
+  for (auto s : self->stages) {
+    Stage stage_copy = smap[s];
+    const ComputeOpNode *opnode = stage_copy.operator->()->op.as<ComputeOpNode>();
+    if (opnode == nullptr) {
+      continue;
+    }
+    //pseudocode:
+    /*
+    if (CheckTensorize(opnode, stage_copy, dom_map, f, ..., &tloc, ...)) {
+      IterVar var = s->leaf_iter_vars[tloc];
+      UpdateIterVarAttr(s.operator->(), var, [f](IterVarAttrNode *n) {
+        n->iter_type     = kTensorized;
+        n->tensor_intrin = f;
+      });
+    }
+    */
+  }
 }
 
 void ScheduleNode::InvalidateCache() {
