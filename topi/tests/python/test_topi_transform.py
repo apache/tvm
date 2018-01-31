@@ -183,7 +183,7 @@ def verify_expand_like(in_shape, out_shape, axis, exclude):
         f(tvm_input, tvm_shape_like, out)
         np.testing.assert_allclose(out.asnumpy(), input)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm"]:
         check_device(device)
 
 

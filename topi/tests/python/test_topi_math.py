@@ -56,14 +56,14 @@ def verify_matmul(l_shape, r_shape, transpose_a, transpose_b):
         if transpose_b:
             np_r = np.transpose(np_r)
         if len(np_r.shape) > 2:
-            reorder = range(len(np_r.shape))
+            reorder = list(range(len(np_r.shape)))
             np_r = np.transpose(np_r, [reorder[-2]] + reorder[:-2] + [reorder[-1]])
         np_ret = np.dot(np_l, np_r)
         out = tvm.nd.array(np.zeros(np_ret.shape).astype(ret.dtype), ctx)
         f(tvm_l, tvm_r, out)
         np.testing.assert_allclose(out.asnumpy(), np_ret, rtol=1e-5)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm"]:
         check_device(device)
 
 def test_matmul():
