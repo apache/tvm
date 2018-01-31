@@ -696,7 +696,7 @@ class StoragePlanRewriter : public IRMutator {
                       ae.alloc->type.bits() *
                       ae.alloc->type.lanes());
                   if (src_entry->const_nbits == const_nbits
-                      && inplace_found == false) {
+                      && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
                     inplace_flag.insert(src);
