@@ -644,8 +644,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
   return gstage;
 }
 
-void Schedule::autotensorize(TensorIntrin f)
-{
+void Schedule::autotensorize(TensorIntrin f) {
   CHECK(defined());
   std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
   Schedule                                              sch     = normalize(&smap);
@@ -658,7 +657,7 @@ void Schedule::autotensorize(TensorIntrin f)
     if (opnode == nullptr) {
       continue;
     }
-    //pseudocode:
+    // pseudocode:
     /*
     if (CheckTensorize(opnode, stage_copy, dom_map, f, ..., &tloc, ...)) {
       IterVar var = s->leaf_iter_vars[tloc];

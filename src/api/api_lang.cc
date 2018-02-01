@@ -436,10 +436,9 @@ TVM_REGISTER_API("_ScheduleRFactor")
 
 TVM_REGISTER_API("_ScheduleAutoTensorize")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-   args[0].operator Schedule()
+    args[0].operator Schedule()
          .autotensorize(args[1]);
- });
-
+  });
 
 TVM_REGISTER_API("_CommReducerCombine")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
