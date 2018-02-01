@@ -2,7 +2,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
-from .util import get_const_tuple
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def identity(x):

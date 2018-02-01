@@ -68,7 +68,7 @@ def full_like(x, fill_value):
     return tvm.compute(x.shape, lambda *i: tvm.const(fill_value, dtype))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
-def greater(lhs, rhs):
+def greater(lhs, rhs, out_type=tvm.int8):
     """Compare two input tensors element-wise and return an mask tensor
        which contains 1 if lhs > rhs holds else 0
 
@@ -78,6 +78,8 @@ def greater(lhs, rhs):
         Left input argument.
     rhs : tvm.Tensor
         Right argument.
+    out_type: str
+        Output data type. Default is int8
 
     Returns
     -------
@@ -86,11 +88,11 @@ def greater(lhs, rhs):
     """
     return tvm.compute(lhs.shape,
                        lambda *i: tvm.select(lhs(*i) > rhs(*i),
-                                             tvm.const(1.0),
-                                             tvm.const(0.0)))
+                                             tvm.const(1, out_type),
+                                             tvm.const(0, out_type)))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
-def less(lhs, rhs):
+def less(lhs, rhs, out_type=tvm.int8):
     """Compare two input tensors element-wise and return an mask tensor
        which contains 1 if lhs < rhs holds else 0
 
@@ -100,6 +102,8 @@ def less(lhs, rhs):
         Left input argument.
     rhs : tvm.Tensor
         Right argument.
+    out_type: str
+        Output data type. Default is int8
 
     Returns
     -------
@@ -108,5 +112,5 @@ def less(lhs, rhs):
     """
     return tvm.compute(lhs.shape,
                        lambda *i: tvm.select(lhs(*i) < rhs(*i),
-                                             tvm.const(1.0),
-                                             tvm.const(0.0)))
+                                             tvm.const(1, out_type),
+                                             tvm.const(0, out_type)))
