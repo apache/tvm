@@ -110,7 +110,7 @@ Expr pack_buffer(Buffer buf) {
     buf->data,
     shape,
     strides,
-    make_const(Int(32), buf->shape.size()),
+    make_const(Int(32), static_cast<int64_t>(buf->shape.size())),
     make_const(buf->dtype, 0),
     buf->elem_offset
   };
@@ -125,7 +125,7 @@ Expr pack_buffer(Buffer buf) {
  * by the arguments to pass to the PackedFunc when called. The first element of the
  * array must be a constant string expression.
  *
- * \return An expression representing the invocation 
+ * \return An expression representing the invocation
  */
 Expr call_packed(Array<Expr> args) {
   return tvm::ir::Call::make(Int(32), tvm::ir::intrinsic::tvm_call_packed,

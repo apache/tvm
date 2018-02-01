@@ -51,11 +51,16 @@ class CopyIntrinInjector : public IRMutator {
     const Store* store = body.as<Store>();
     if (store == nullptr) return false;
     const Select* select = store->value.as<Select>();
+    const Cast* cast = store->value.as<Cast>();
     const Load* load = store->value.as<Load>();
 
     // for now only support true condition matching
     if (select != nullptr) {
       load = select->true_value.as<Load>();
+    }
+    // cast can be part of the pattern
+    if (cast != nullptr) {
+      load = cast->value.as<Load>();
     }
     if (load == nullptr) return false;
     if (load->type.lanes() != 1) return false;
@@ -114,7 +119,7 @@ class CopyIntrinInjector : public IRMutator {
     Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_vars.size());
     Buffer dst = BufferNode::make(
         Var(store->buffer_var.node_),
-        load->type,
+        store->value.type(),
         dst_shape,
         dst_strides,
         store_strides[loop_vars.size()],
