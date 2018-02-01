@@ -336,7 +336,7 @@ class Schedule : public NodeRef {
    * as tensorizable with intrinsic f
    * \param f the intrinstic to match
    */
-  void autotensorize(TensorIntrin f);
+  void auto_tensorize(TensorIntrin f);
 
   /*!
    * \brief access the internal node container

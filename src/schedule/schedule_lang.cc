@@ -644,12 +644,12 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
   return gstage;
 }
 
-void Schedule::autotensorize(TensorIntrin f) {
+void Schedule::auto_tensorize(TensorIntrin f) {
   CHECK(defined());
   std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
-  Schedule                                              sch     = normalize(&smap);
-  Map<IterVar, Range>                                   bounds  = schedule::InferBound(sch);
-  std::unordered_map<IterVar, Range>                    dom_map = as_unordered_map(bounds);
+  Schedule sch = normalize(&smap);
+  Map<IterVar, Range> bounds = schedule::InferBound(sch);
+  std::unordered_map<IterVar, Range> dom_map = as_unordered_map(bounds);
   const ScheduleNode *self = operator->();
   for (auto s : self->stages) {
     Stage stage_copy = smap[s];
