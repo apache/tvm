@@ -54,8 +54,10 @@ from PIL import Image
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 download(img_url, 'cat.png')
 img = Image.open('cat.png').resize((224, 224))
-x = np.transpose(img, (2, 0, 1))[np.newaxis, :]
-
+#x = np.transpose(img, (2, 0, 1))[np.newaxis, :]
+image = np.asarray(img)
+image = image.transpose((2, 0, 1))
+x = image[np.newaxis, :]
 ######################################################################
 # Compile the model on NNVM
 # ---------------------------
