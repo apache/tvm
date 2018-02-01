@@ -18,13 +18,13 @@ except ImportError:
 # library loading
 #----------------------------
 if sys.version_info[0] == 3:
-    string_types = str,
+    string_types = str
     numeric_types = (float, int, np.float32, np.int32)
     # this function is needed for python3
     # to convert ctypes.char_p .value back to python str
     py_str = lambda x: x.decode('utf-8')
 else:
-    string_types = basestring,
+    string_types = basestring
     numeric_types = (float, int, long, np.float32, np.int32)
     py_str = lambda x: x
 
