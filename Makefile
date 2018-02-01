@@ -27,6 +27,7 @@ LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0 -DDMLC_USE_FOPEN64=0
 LDFLAGS = -pthread -lm -ldl
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
 CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
+PKG_LDFLAGS =
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
@@ -79,6 +80,10 @@ CONTRIB_OBJ =
 ALL_DEP = $(CC_OBJ) $(CONTRIB_OBJ) $(LIB_HALIDEIR)
 RUNTIME_DEP = $(RUNTIME_OBJ)
 TOPI_DEP = $(TOPI_OBJ)
+
+ifeq ($(UNAME_S), Darwin)
+	PKG_LDFLAGS += -undefined dynamic_lookup
+endif
 
 # Dependency specific rules
 ifdef CUDA_PATH
@@ -201,7 +206,10 @@ else
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
 endif
 
-BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) \
+	lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) \
+  lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
@@ -235,29 +243,18 @@ build/src/%.o: topi/src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libtvm.dylib: $(ALL_DEP) $(RUNTIME_DEP)
+lib/libtvm.${SHARED_LIBRARY_SUFFIX}: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm_topi.dylib: lib/libtvm.so $(TOPI_DEP)
+lib/libtvm_topi.${SHARED_LIBRARY_SUFFIX}: $(TOPI_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS) $(PKG_LDFLAGS)
 
-lib/libtvm_runtime.dylib: $(RUNTIME_DEP)
+lib/libtvm_runtime.${SHARED_LIBRARY_SUFFIX}: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
-
-lib/libtvm_topi.so: lib/libtvm.so $(TOPI_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
-
-lib/libtvm_runtime.so: $(RUNTIME_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libtvm_web_runtime.bc: web/web_runtime.cc
 	@mkdir -p build/web
