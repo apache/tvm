@@ -69,15 +69,15 @@ def verify_full(shape, dtype, fill_value):
         check_device(device)
 
 
-def verify_indicator(shape, dtype):
+def verify_comparator(shape, dtype):
     A = tvm.placeholder(shape, dtype, name="A")
     B = tvm.placeholder(shape, dtype, name="B")
-    C = topi.indicator(A, B, lambda x, y: x < y)
+    C = topi.less(A, B)
     s_less = tvm.create_schedule([C.op])
 
     D = tvm.placeholder(shape, dtype, name="D")
     E = tvm.placeholder(shape, dtype, name="E")
-    F = topi.indicator(D, E, lambda x, y: x > y)
+    F = topi.greater(D, E)
     s_greater = tvm.create_schedule([F.op])
 
     @memoize("topi.tests.test_topi_indicator")
@@ -118,12 +118,12 @@ def test_full():
     verify_full((10,), "int32", 7)
 
 
-def test_indicator():
-    verify_indicator((3,4,5), "float32")
-    verify_indicator((7,), "int32")
+def test_comparator():
+    verify_comparator((3,4,5), "float32")
+    verify_comparator((7,), "int32")
 
 
 if __name__ == "__main__":
     test_elemwise_sum()
     test_full()
-    test_indicator()
+    test_comparator()

@@ -150,10 +150,10 @@ def verify_split(src_shape, indices_or_sections, axis):
         check_device(device)
 
 
-def verify_expand_like(in_shape, out_shape, axis, exclude):
+def verify_expand_like(in_shape, out_shape, axis):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = tvm.placeholder(shape=out_shape, name="B")
-    C = topi.expand_like(A, B, axis, exclude)
+    C = topi.expand_like(A, B, axis)
     s = tvm.create_schedule([C.op])
 
     def check_device(device):
@@ -170,8 +170,6 @@ def verify_expand_like(in_shape, out_shape, axis, exclude):
         odim = len(out_shape)
         real_axis = [x if x >= 0 else x + odim for x in axis]
         real_axis = sorted(real_axis)
-        if exclude:
-            real_axis = list(set(range(odim)) - set(real_axis))
         for x in real_axis:
             input = np.expand_dims(input, x).astype(A.dtype)
         for x in real_axis:
@@ -230,10 +228,10 @@ def test_split():
 
 
 def test_expand_like():
-    verify_expand_like((3,), (2, 3), [0], False)
-    verify_expand_like((2,), (2, 3), [1], False)
-    verify_expand_like((3, 4), (3, 5, 4), [1], False)
-    verify_expand_like((5, 7), (5, 6, 7, 8), [0, -2], True)
+    verify_expand_like((3,), (2, 3), [0])
+    verify_expand_like((2,), (2, 3), [1])
+    verify_expand_like((3, 4), (3, 5, 4), [1])
+    verify_expand_like((5, 7), (5, 6, 7, 8), [1, 3])
 
 
 if __name__ == "__main__":

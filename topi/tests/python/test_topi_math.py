@@ -26,11 +26,11 @@ def test_ewise():
     test_apply(topi.log, "log")
     test_apply(topi.sqrt, "sqrt")
 
-def verify_matmul(l_shape, r_shape, transpose_a, transpose_b):
+def verify_matmul(l_shape, r_shape):
     l = tvm.placeholder(l_shape, name="l")
     r = tvm.placeholder(r_shape, name="r")
 
-    ret = topi.matmul(l, r, transpose_a, transpose_b)
+    ret = topi.matmul(l, r)
     s = tvm.create_schedule([ret.op])
 
     def check_device(device):
@@ -51,10 +51,6 @@ def verify_matmul(l_shape, r_shape, transpose_a, transpose_b):
             np_l = np.array([np_l])
         if len(r_shape) == 1:
             np_r = np.array([np_r])
-        if transpose_a:
-            np_l = np.transpose(np_l)
-        if transpose_b:
-            np_r = np.transpose(np_r)
         if len(np_r.shape) > 2:
             reorder = list(range(len(np_r.shape)))
             np_r = np.transpose(np_r, [reorder[-2]] + reorder[:-2] + [reorder[-1]])
@@ -67,19 +63,11 @@ def verify_matmul(l_shape, r_shape, transpose_a, transpose_b):
         check_device(device)
 
 def test_matmul():
-    verify_matmul((3, 4, 5), (5, 6), False, False)
-    verify_matmul((5, 4, 3), (6, 5), True, True)
-    verify_matmul((3, 4, 5), (6, 5), False, True)
-    verify_matmul((2, 2), (2, 1), True, False)
-    verify_matmul((5, 4, 3), (5, 6), True, False)
-    verify_matmul((3, 5), (5, 6, 8), False, False)
-    verify_matmul((5, 3), (8, 6, 5), True, True)
-    verify_matmul((3, 5), (8, 6, 5), False, True)
-    verify_matmul((5, 3), (5, 6, 8), True, False)
-    verify_matmul((5,), (5, 1), False, False)
-    verify_matmul((5,), (5, ), False, True)
-    verify_matmul((5,), (5, 6, 7), False, False)
-    verify_matmul((5,), (5,), True, False)
+    verify_matmul((3, 4, 5), (5, 6))
+    verify_matmul((3, 5), (5, 6, 8))
+    verify_matmul((5,), (5, 1))
+    verify_matmul((5, 1), (5,))
+    verify_matmul((5,), (5, 6, 7))
 
 if __name__ == "__main__":
     test_util()

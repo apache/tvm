@@ -31,8 +31,24 @@ def expand_dims(a, axis, num_newaxis=1):
 
 
 @tvm.tag_scope(tag=tag.BROADCAST)
-def expand_like(a, shape_like, axis, exclude):
-    """Expand the shape of an array.
+def expand_like(a, shape_like, axis):
+    """Expand an input array with the shape of second array.
+    This operation can always be composed of unsqueezing and
+    expanding dims on those unsqueezed axes.
+
+    Examples::
+    input = [ 12.  19.  27.]
+    input.shape = (3,)
+
+    new_shape_array = [[[1,2],[2,3],[1,3]],
+                      [[1,4],[4,3],[5,2]],
+                      [[7,1],[7,2],[7,3]]]
+    new_shape_array.shape = (3, 3, 2)
+
+    expand_like(input, [1,2], new_shape_array) =
+                      [[[12,12],[12,12],[12,12]],
+                      [[19,19],[19,19],[19,19]],
+                      [[27,27],[27,27],[27,27]]]
 
     Parameters
     ----------
@@ -42,21 +58,17 @@ def expand_like(a, shape_like, axis, exclude):
         The tensor to with target shape.
     axis: list of int
         axis to be expanded on
-    exclude: bool
-        whether to apply rule on axis that are NOT in axis instead.
     Returns
     -------
     ret : tvm.Tensor
     """
-    odim = len(a.shape) + len(shape_like.shape) - len(axis) if exclude \
-        else len(axis) + len(a.shape)
+    odim = len(axis) + len(a.shape)
     assert odim == len(shape_like.shape), \
-            "shape inconsistent when expand_like (%d, %d, %d, %s)" % \
-                (len(axis), len(a.shape), len(shape_like.shape), exclude)
+            "shape inconsistent when expand_like (%d, %d, %d)" % \
+                (len(axis), len(a.shape), len(shape_like.shape))
 
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
-    if exclude:
-        real_axis = list(set(range(odim)) - set(sorted(real_axis)))
+    real_axis = sorted(real_axis)
 
     if len(real_axis) == 0:
         return a

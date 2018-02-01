@@ -68,9 +68,9 @@ def full_like(x, fill_value):
     return tvm.compute(x.shape, lambda *i: tvm.const(fill_value, dtype))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
-def indicator(lhs, rhs, comparator):
-    """Compare two input tensors element-wise and return an indicator tensor
-       which contains 1 if comparator(lhs, rhs) holds else 0
+def greater(lhs, rhs):
+    """Compare two input tensors element-wise and return an mask tensor
+       which contains 1 if lhs > rhs holds else 0
 
     Parameters
     ----------
@@ -85,6 +85,28 @@ def indicator(lhs, rhs, comparator):
         The result.
     """
     return tvm.compute(lhs.shape,
-                       lambda *i: tvm.select(comparator(lhs(*i), rhs(*i)),
+                       lambda *i: tvm.select(lhs(*i) > rhs(*i),
+                                             tvm.const(1.0),
+                                             tvm.const(0.0)))
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def less(lhs, rhs):
+    """Compare two input tensors element-wise and return an mask tensor
+       which contains 1 if lhs < rhs holds else 0
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor
+        Left input argument.
+    rhs : tvm.Tensor
+        Right argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(lhs.shape,
+                       lambda *i: tvm.select(lhs(*i) < rhs(*i),
                                              tvm.const(1.0),
                                              tvm.const(0.0)))

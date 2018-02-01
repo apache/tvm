@@ -210,7 +210,7 @@ def cast(x, dtype):
 
 
 @tvm.target.generic_func
-def matmul(a, b, transpose_a, transpose_b):
+def matmul(a, b):
     """Multiply matrix a by matrix b, producing a * b
 
        matmul(x,y) = sum(x[i,j,:]*y[:,a,b])
@@ -221,10 +221,6 @@ def matmul(a, b, transpose_a, transpose_b):
         Left matrix.
     b : tvm.Tensor
         Right matrix.
-    transpose_a : bool
-        Whether to transpose matrix a when computing
-    transpose_b : bool
-        Whether to transpose matrix b when computing
 
     Returns
     -------
@@ -232,57 +228,26 @@ def matmul(a, b, transpose_a, transpose_b):
         The result matrix.
     """
     if len(a.shape) == 1:
-        l_shape = (1,) + get_const_tuple(a.shape)
-        a = tvm.compute(l_shape, lambda x, y: a[y])
-    else:
-        l_shape = get_const_tuple(a.shape)
+        a = tvm.compute((1,) + get_const_tuple(a.shape), lambda x, y: a[y])
+
+    l_shape = get_const_tuple(a.shape)
 
     if len(b.shape) == 1:
-        r_shape = (1,) + get_const_tuple(b.shape)
-        b = tvm.compute(r_shape, lambda x, y: b[y])
-    else:
-        r_shape = get_const_tuple(b.shape)
+        b = tvm.compute((1,) + get_const_tuple(b.shape), lambda x, y: b[y])
+
+    r_shape = get_const_tuple(b.shape)
 
     l_dim = len(l_shape)
-    if transpose_a:
-        l_shape = l_shape[::-1]
-    if transpose_b:
-        r_shape = r_shape[::-1]
     out_shape = l_shape[:-1] + r_shape[1:]
 
     k = tvm.reduce_axis((0, l_shape[-1]), name='k')
     assert l_shape[-1] == r_shape[0], "shape inconsistent %d vs %d" % \
                                       (l_shape[-1], r_shape[0])
-    if transpose_a and transpose_b:
-        out = tvm.compute(out_shape,
-                          lambda *idx: tvm.sum(
-                              a[(k,) + idx[: l_dim - 1][::-1]] *
-                              b[idx[l_dim - 1:][::-1] + (k,)],
-                              axis=k
-                          ),
-                          tag="matmul_ta_tb")
-    elif transpose_a and not transpose_b:
-        out = tvm.compute(out_shape,
-                          lambda *idx: tvm.sum(
-                              a[(k,) + idx[:l_dim - 1][::-1]] *
-                              b[(k,) + idx[l_dim - 1:]],
-                              axis=k
-                          ),
-                          tag="matmul_ta")
-    elif not transpose_a and transpose_b:
-        out = tvm.compute(out_shape,
-                          lambda *idx: tvm.sum(
-                              a[idx[: l_dim - 1] + (k,)] *
-                              b[idx[l_dim - 1:][::-1] + (k,)],
-                              axis=k
-                          ),
-                          tag="matmul_tb")
-    else:
-        out = tvm.compute(out_shape,
-                          lambda *idx: tvm.sum(
-                              a[idx[:l_dim - 1] + (k,)] *
-                              b[(k,) + idx[l_dim - 1:]],
-                              axis=k
-                          ),
-                          tag="matmul")
+    out = tvm.compute(out_shape,
+                      lambda *idx: tvm.sum(
+                          a[idx[:l_dim - 1] + (k,)] *
+                          b[(k,) + idx[l_dim - 1:]],
+                          axis=k
+                      ),
+                      tag="matmul")
     return out
