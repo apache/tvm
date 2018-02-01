@@ -15,6 +15,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+using namespace tvm;
 namespace detail {
 
 template <typename T>
