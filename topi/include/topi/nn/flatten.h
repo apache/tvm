@@ -33,7 +33,7 @@ inline Tensor flatten(const Tensor& x,
   auto ishape = x->shape;
   int dim = 1;
   for (size_t i = 1; i < ishape.size(); ++i) {
-    dim = dim * static_cast<int>(GetConstInt(ishape[i]));
+    dim = dim * static_cast<int>(topi::detail::GetConstInt(ishape[i]));
   }
 
   Array<Expr> oshape({ ishape[0], dim });

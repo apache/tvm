@@ -23,7 +23,7 @@ using namespace tvm;
  * \return An array of 4 elements, representing padding sizes for
  * each individual side. The array is in the order { top, left, bottom, right }
  */
-Array<Expr> GetPadTuple(Expr pad_h, Expr pad_w) {
+inline Array<Expr> GetPadTuple(Expr pad_h, Expr pad_w) {
   pad_h *= 2;
   pad_w *= 2;
 

@@ -24,7 +24,7 @@ namespace generic {
  *
  * \return A schedule for the given ops.
  */
-Schedule schedule_injective(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_injective(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
