@@ -13,20 +13,21 @@ def verify_relu(m, n):
     b_np = a_np * (a_np > 0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_elemwise(B)
-        ctx = tvm.context(device, 0)
+
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         foo = tvm.build(s, [A, B], device, name="relu")
         foo(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
 

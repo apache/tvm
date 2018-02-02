@@ -24,13 +24,13 @@ def test_scan():
 
     # one line to build the function.
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("skip because %s is not enabled.." % device)
             return
         fscan = tvm.build(s, [X, res],
                           device,
                           name="myscan")
-        ctx = tvm.context(device, 0)
         # launch the kernel.
         n = 1024
         m = 10
@@ -41,6 +41,7 @@ def test_scan():
         np.testing.assert_allclose(
             b.asnumpy(), np.cumsum(a_np, axis=0))
 
+    check_device("vulkan")
     check_device("cuda")
     check_device("metal")
     check_device("opencl")

@@ -59,7 +59,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
     return VisitExpr(op->a);
   }
   bool VisitExpr_(const Let* op) final {
-    return VisitExpr(op->body) && VisitExpr(op->value);
+    return VisitExpr(op->body) || VisitExpr(op->value);
   }
   bool VisitExpr_(const Cast* op) final {
     return VisitExpr(op->value);
@@ -84,7 +84,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
  private:
   template<typename T>
   bool BinaryOp(const T* op) {
-    return VisitExpr(op->a) && VisitExpr(op->b);
+    return VisitExpr(op->a) || VisitExpr(op->b);
   }
 };
 
