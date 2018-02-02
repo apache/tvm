@@ -119,6 +119,8 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "device_api.opengl";
   } else if (target == "mtl" || target == "metal") {
     f_name = "device_api.metal";
+  } else if (target == "vulkan") {
+    f_name = "device_api.vulkan";
   } else if (target == "stackvm") {
     f_name = "codegen.build_stackvm";
   } else if (target == "rpc") {
