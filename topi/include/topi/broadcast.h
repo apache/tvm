@@ -33,7 +33,7 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
       << output_shape << "\nvs\ninput: " << t;
   auto bh = detail::BroadcastShape(output_shape, t->shape);
   CHECK_EQ(output_shape.size(), bh.common_shape.size());
-  for (int i = 0; i < output_shape.size(); ++i) {
+  for (size_t i = 0; i < output_shape.size(); ++i) {
     CHECK(tvm::ir::Equal(output_shape[i], bh.common_shape[i]));
   }
   auto l = [&](tvm::Array<tvm::Var> ovars) {
@@ -144,6 +144,67 @@ inline tvm::Tensor broadcast_mod(const tvm::Tensor& A,
                                  std::string name = "tensor",
                                  std::string tag = kBroadcast) {
   auto l = [&](tvm::Expr a, tvm::Expr b) { return a % b; };
+  return detail::WithBroadcast(l, A, B, name, tag);
+}
+
+/*!
+* \brief Creates an operation that performs pointwise maximum of 2 tensors
+* and broadcasts them into a common compatible shape where necessary,
+* according to numpy's rules
+*
+* \param A The first tensor
+* \param B The second tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is a pointwise maximum with broadcast
+*/
+inline tvm::Tensor broadcast_maximum(const tvm::Tensor& A,
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = kBroadcast) {
+  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::max(a, b); };  // NOLINT(*)
+  return detail::WithBroadcast(l, A, B, name, tag);
+}
+
+/*!
+* \brief Creates an operation that performs pointwise minimum of 2 tensors
+* and broadcasts them into a common compatible shape where necessary,
+* according to numpy's rules
+*
+* \param A The first tensor
+* \param B The second tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is a pointwise minimum with broadcast
+*/
+inline tvm::Tensor broadcast_minimum(const tvm::Tensor& A,
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = kBroadcast) {
+  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::min(a, b); };  // NOLINT(*)
+  return detail::WithBroadcast(l, A, B, name, tag);
+}
+
+/*!
+* \brief Creates an operation that raises one tensor to the power of another
+* pointwise and broadcasts them into a common compatible shape where necessary,
+* according to numpy's rules
+*
+* \param A The first tensor
+* \param B The second tensor to compute pow(A, B)
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is a pointwise pow with
+* broadcast
+*/
+inline tvm::Tensor broadcast_pow(const tvm::Tensor& A,
+                                 const tvm::Tensor& B,
+                                 std::string name = "tensor",
+                                 std::string tag = kBroadcast) {
+  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::pow(a, b); };
   return detail::WithBroadcast(l, A, B, name, tag);
 }
 

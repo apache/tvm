@@ -59,7 +59,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size) final;
+  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
   static const std::shared_ptr<CPUDeviceAPI>& Global() {
@@ -74,7 +74,9 @@ struct CPUWorkspacePool : public WorkspacePool {
       WorkspacePool(kDLCPU, CPUDeviceAPI::Global()) {}
 };
 
-void* CPUDeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
+void* CPUDeviceAPI::AllocWorkspace(TVMContext ctx,
+                                   size_t size,
+                                   TVMType type_hint) {
   return dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()
       ->AllocWorkspace(ctx, size);
 }

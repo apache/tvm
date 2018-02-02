@@ -4,7 +4,7 @@ import sys
 import os
 
 
-def find_lib_path(name=None, search_path=None):
+def find_lib_path(name=None, search_path=None, optional=False):
     """Find dynamic library files.
 
     Parameters
@@ -56,7 +56,12 @@ def find_lib_path(name=None, search_path=None):
         else:
             dll_path.append(search_path)
     if name is not None:
-        lib_dll_path = [os.path.join(p, name) for p in dll_path]
+        if isinstance(name, list):
+            lib_dll_path = []
+            for n in name:
+                lib_dll_path += [os.path.join(p, n) for p in dll_path]
+        else:
+            lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []
     else:
         if sys.platform.startswith('win32'):
@@ -81,9 +86,12 @@ def find_lib_path(name=None, search_path=None):
         lib_found = [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
 
     if not lib_found:
-        raise RuntimeError('Cannot find the files.\n' +
-                           'List of candidates:\n' +
-                           str('\n'.join(lib_dll_path + runtime_dll_path)))
+        message = ('Cannot find the files.\n' +
+                   'List of candidates:\n' +
+                   str('\n'.join(lib_dll_path + runtime_dll_path)))
+        if not optional:
+            raise RuntimeError(message)
+        return None
 
     if use_runtime:
         sys.stderr.write("Loading runtime library %s... exec only\n" % lib_found[0])
@@ -92,4 +100,4 @@ def find_lib_path(name=None, search_path=None):
 
 
 # current version
-__version__ = "0.1.0"
+__version__ = "0.2.0"

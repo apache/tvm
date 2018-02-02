@@ -82,12 +82,12 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   }
   os << "." << scope;
 
-  Tensor cache = compute(tensor->shape, [&tensor](const Array<Var>& i) {
-      return tensor(Array<Expr>(i.begin(), i.end()));
-    }, os.str());
   std::unordered_map<Tensor, Tensor> vsub;
   Stage s = operator[](tensor->op);
   Tensor sugar_tensor = s->op.output(tensor->value_index);
+  Tensor cache = compute(sugar_tensor->shape, [&sugar_tensor](const Array<Var>& i) {
+      return sugar_tensor(Array<Expr>(i.begin(), i.end()));
+    }, os.str());
   vsub[sugar_tensor] = cache;
 
   std::unordered_map<Tensor, Tensor> vmap;

@@ -28,6 +28,7 @@ inline std::string DeviceName(int type) {
     case kDLCPU: return "cpu";
     case kDLGPU: return "gpu";
     case kDLOpenCL: return "opencl";
+    case kDLVulkan: return "vulkan";
     case kDLMetal: return "metal";
     case kDLVPI: return "vpi";
     case kDLROCM: return "rocm";
@@ -95,8 +96,9 @@ DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
       static_cast<int>(ctx.device_type), allow_missing);
 }
 
-void* DeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
-  TVMType type_hint{kDLUInt, 8, 1};
+void* DeviceAPI::AllocWorkspace(TVMContext ctx,
+                                size_t size,
+                                TVMType type_hint) {
   return AllocDataSpace(ctx, size, kTempAllocaAlignment, type_hint);
 }
 
@@ -220,12 +222,22 @@ int TVMBackendGetFuncFromEnv(void* mod_node,
 }
 
 void* TVMBackendAllocWorkspace(int device_type,
-                             int device_id,
-                             uint64_t size) {
+                               int device_id,
+                               uint64_t size,
+                               int dtype_code_hint,
+                               int dtype_bits_hint) {
   TVMContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
-  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx, static_cast<size_t>(size));
+
+  TVMType type_hint;
+  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+  type_hint.lanes = 1;
+
+  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx,
+                                                    static_cast<size_t>(size),
+                                                    type_hint);
 }
 
 int TVMBackendFreeWorkspace(int device_type,

@@ -116,7 +116,7 @@ class Target(object):
             # For now assume rocm schedule for opencl
             self.keys += ("rocm", "gpu")
             self.max_num_threads = 256
-        elif target_name in ("metal",):
+        elif target_name in ("metal", "vulkan"):
             self.keys += ("gpu",)
             self.max_num_threads = 256
         elif target_name in ("opengl",):

@@ -44,20 +44,21 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_pool(B)
-        ctx = tvm.context(device, 0)
+
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
 def test_pool():
@@ -82,20 +83,20 @@ def verify_global_pool(n, c, h, w, pool_type):
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_global_pool(B)
-        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
 def test_global_pool():

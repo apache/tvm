@@ -44,11 +44,12 @@ class ROCMDeviceAPI final : public DeviceAPI {
         value = 64;
         break;
       }
-      case kComputeVersion:
+      case kComputeVersion: {
         hipDeviceProp_t prop;
         ROCM_CALL(hipGetDeviceProperties(&prop, ctx.device_id));
         *rv = prop.gcnArch;
         return;
+      }
     }
     *rv = value;
   }
@@ -110,7 +111,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
         ->stream = static_cast<hipStream_t>(stream);
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size) final {
+  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
     return ROCMThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
 

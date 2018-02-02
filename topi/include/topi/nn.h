@@ -15,13 +15,14 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+using namespace tvm;
 namespace detail {
 
 template <typename T>
 tvm::Expr Map(const tvm::Array<tvm::Expr>& exprs, T op) {
   CHECK_GE(exprs.size(), 1);
   tvm::Expr res = exprs[0];
-  for (int i = 1; i < exprs.size(); ++i) {
+  for (size_t i = 1; i < exprs.size(); ++i) {
     res = op(res, exprs[i]);
   }
   return res;
@@ -52,6 +53,34 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 }
 
 /*!
+* \brief Creates an operation that performs a leaky rectified linear unit
+*
+* \param t The input tensor
+* \param threshold The relu threshold (default 0)
+* \param alpha The slope for the small gradient when t < threshold
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the relu operation
+*/
+template <typename T>
+inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
+                              T threshold = static_cast<T>(0),
+                              T alpha = static_cast<T>(0.1),
+                              std::string name = "tensor",
+                              std::string tag = kElementWise) {
+  return tvm::compute(
+    t->shape,
+    [&](const tvm::Array<tvm::Var>& i) {
+      auto value = t(i);
+      auto calpha = tvm::make_const(value.type(), alpha);
+      return tvm::select(value > 0, value, value * alpha);
+    },
+    name,
+    tag);
+}
+
+/*!
  * \brief Creates an operation that performs padding
  *
  * \param t The input tensor
@@ -59,10 +88,11 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
  * respective iterator
  * \param pad_after An Array of Expr describing the padding after the
  * respective iterator
+ * \param pad_value The value to fill padding elements with
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the relu operation
+ * \return A Tensor whose op member is the padding operation
  *
  * \note
  *  The pad_after Array must either be empty or have the same length as
@@ -86,17 +116,18 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 inline tvm::Tensor pad(const tvm::Tensor& t,
                        const tvm::Array<tvm::Expr>& pad_before,
                        tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
+                       Expr pad_value = Expr(),
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   if (pad_after.size() < pad_before.size()) {
-    for (int i = pad_after.size(); i < pad_before.size(); ++i) {
+    for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
     }
   }
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
   tvm::Array<tvm::Expr> output_shape;
-  for (int i = 0; i < t->shape.size(); ++i) {
+  for (size_t i = 0; i < t->shape.size(); ++i) {
     if (i >= pad_before.size()) {
       output_shape.push_back(t->shape[i]);
     } else {
@@ -104,10 +135,15 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
           tvm::ir::Simplify(t->shape[i] + pad_before[i] + pad_after[i]));
     }
   }
+
+  if (!pad_value.defined()) {
+    pad_value = tvm::make_const(t->dtype, 0);
+  }
+
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     tvm::Array<tvm::Expr> indices;
     tvm::Array<tvm::Expr> sel;
-    for (int i = 0; i < t->shape.size(); ++i) {
+    for (size_t i = 0; i < t->shape.size(); ++i) {
       if (i >= pad_before.size()) {
         indices.push_back(ovars[i]);
         continue;
@@ -122,7 +158,10 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
         sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before[i] + t->shape[i]));
       }
     }
-    return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), 0);
+    if (sel.size() != 0) {
+      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+    }
+    return t(indices);
   };
   return tvm::compute(output_shape, l, name, tag);
 }

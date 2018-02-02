@@ -7,6 +7,7 @@ def enabled_ctx_list():
                 ('cl', tvm.opencl(0)),
                 ('metal', tvm.metal(0)),
                 ('rocm', tvm.rocm(0)),
+                ('vulkan', tvm.vulkan(0)),
                 ('vpi', tvm.vpi(0))]
     for k, v  in ctx_list:
         assert tvm.context(k, 0) == v

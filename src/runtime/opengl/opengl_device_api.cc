@@ -3,6 +3,7 @@
  * \file opengl_device_api.cc
  */
 #include "./opengl_common.h"
+#include "./opengl_module.h"
 
 #if TVM_OPENGL_RUNTIME
 
@@ -26,10 +27,12 @@ static const char* GLGetErrorString(GLenum error) {
       return "GL_INVALID_VALUE";
     case GL_INVALID_OPERATION:
       return "GL_INVALID_OPERATION";
+#if !defined(__APPLE__)
     case GL_STACK_OVERFLOW:
       return "GL_STACK_OVERFLOW";
     case GL_STACK_UNDERFLOW:
       return "GL_STACK_UNDERFLOW";
+#endif
     case GL_OUT_OF_MEMORY:
       return "GL_OUT_OF_MEMORY";
     default:
@@ -154,15 +157,6 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
 }
 
 void OpenGLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {}
-
-void* OpenGLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
-  LOG(FATAL) << "Cannot allocate OpenGL workspace.";
-  return nullptr;
-}
-
-void OpenGLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
-  LOG(FATAL) << "Cannot free OpenGL workspace.";
-}
 
 OpenGLWorkspace::OpenGLWorkspace() {
   // Set an error handler.
@@ -347,8 +341,9 @@ Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {
 
   // Use glTexImage2D with nullptr data to specify GPU data storage.
   auto texture_format = GetTextureFormat(type);
-  auto width = static_cast<GLsizei>(nbytes / (type.bits / 8));
-  auto height = GLsizei(1);
+  auto nelems = static_cast<GLsizei>(nbytes / (type.bits / 8));
+  auto height = (nelems + kTextureRowSize - 1) / kTextureRowSize;
+  auto width = (height == 1) ? nelems : kTextureRowSize;
   OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0,
                              texture_format.internal_format,
                              width, height, /*border=*/0,
@@ -402,6 +397,51 @@ Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
   return Program(this, program);
 }
 
+/*!
+ * \brief Visit a 1D range of an OpenGL texture-backed TVM array.
+ * When getting/setting a sub image of a texture, we can only specify a 2D
+ * block (xbeg, ybeg, width, height).
+ * Since we are storing all TVM arrays using (kTextureRowSize x nrows) 2D
+ * textures (row-major), a range in an array does not necessarily map to a 2D
+ * block.
+ * This function split a 1D range into 3 2D blocks.
+ * \param beg The index of the first element in the 1D range.
+ * \param end The index of the last + 1 element in the 1D range.
+ * \param on_2d_block Callback for each 2D block. Must have interface
+ * void(GLint xbeg, GLint ybeg, GLsizei width, GLsizei height).
+ */
+template <typename F>
+static void Visit1DRange(GLint beg, GLint end, F&& on_2d_block) {
+  CHECK_LE(beg, end) << "Invalid range.";
+
+  //           xbeg         kTextureRowSize
+  // ybeg  ....************
+  //       ****************
+  //       ****************
+  // ylast *********.......
+  //           xlast
+  GLint xbeg = beg % kTextureRowSize;
+  GLint ybeg = beg / kTextureRowSize;
+  GLint xlast = (end - 1) % kTextureRowSize;
+  GLint ylast = (end - 1) / kTextureRowSize;
+
+  if (ybeg == ylast) {  // Only one row.
+    on_2d_block(xbeg, ybeg, end - beg, 1);
+    return;
+  }
+
+  // First row.
+  on_2d_block(xbeg, ybeg, kTextureRowSize - xbeg, 1);
+
+  // Middle block.
+  if (ylast - ybeg > 1) {
+    on_2d_block(0, ybeg + 1, kTextureRowSize, ylast - ybeg - 1);
+  }
+
+  // Last row.
+  on_2d_block(0, ylast, xlast + 1, 1);
+}
+
 void OpenGLWorkspace::PutTextureData(Texture *texture,
                                      GLint begin,
                                      GLsizei nelems,
@@ -409,12 +449,17 @@ void OpenGLWorkspace::PutTextureData(Texture *texture,
   // Bind to temporary unit.
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
-  // Similar to cudaMemcpy.
-  OPENGL_CALL(gl->TexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
-                                /*xoffset=*/begin, /*yoffset=*/0,
-                                /*width=*/nelems, /*height=*/1,
-                                texture->format_.format, texture->format_.type,
-                                data));
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
+                                          GLsizei width, GLsizei height) {
+    auto offset = (ybeg * kTextureRowSize + xbeg - begin) * texture->elemsz();
+    const GLvoid* ptr = static_cast<const char*>(data) + offset;
+
+    // Similar to cudaMemcpy.
+    OPENGL_CALL(gl->TexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
+                                  xbeg, ybeg, width, height,
+                                  texture->format_.format,
+                                  texture->format_.type, ptr));
+  });
 }
 
 void OpenGLWorkspace::GetTextureData(const Texture *texture,
@@ -453,18 +498,29 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture,
   auto nchannels = 4;
   auto padded_data_size = nchannels * nelems * elemsz;
   auto padded_data = std::unique_ptr<char[]>(new char[padded_data_size]);
-  OPENGL_CALL(gl->ReadPixels(/*x=*/begin, /*y=*/0, /*width=*/nelems,
-                             /*height=*/1, GL_RGBA, GL_FLOAT,
-                             padded_data.get()));
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
+                                          GLsizei width, GLsizei height) {
+    auto data_offset = (ybeg * kTextureRowSize + xbeg - begin) * elemsz;
+    auto padded_data_offset = data_offset * nchannels;
+    OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height,
+                               GL_RGBA, GL_FLOAT,
+                               padded_data.get() + padded_data_offset));
+  });
   for (GLsizei i = 0; i != nelems; ++i) {
     auto dst = reinterpret_cast<char *>(data) + i * elemsz;
     auto src = padded_data.get() + nchannels * i * elemsz;
     std::memcpy(dst, src, elemsz);
   }
 #else
-  OPENGL_CALL(gl->ReadPixels(/*x=*/begin, /*y=*/0, /*width=*/nelems,
-                             /*height=*/1, texture->format_.format,
-                             texture->format_.type, data));
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
+                                          GLsizei width, GLsizei height) {
+    auto offset = (ybeg * kTextureRowSize + xbeg - begin) * texture->elemsz();
+    GLvoid* ptr = static_cast<char*>(data) + offset;
+
+    OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height,
+                               texture->format_.format, texture->format_.type,
+                               ptr));
+  });
 #endif
 
   OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));

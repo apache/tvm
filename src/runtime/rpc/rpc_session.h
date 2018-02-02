@@ -146,12 +146,14 @@ class RPCSession {
    *
    * \param fhandle The function handle.
    * \param ctx The ctx to run measurement on.
-   * \param nstep Number of steps to run.
+   * \param number How many steps to run in each time evaluation
+   * \param repeat How many times to repeat the timer
    * \return A remote timer function
    */
   RPCFuncHandle GetTimeEvaluator(RPCFuncHandle fhandle,
                                  TVMContext ctx,
-                                 int nstep);
+                                 int number,
+                                 int repeat);
   /*!
    * \brief Call a remote defined system function with arguments.
    * \param fcode The function code.
@@ -212,9 +214,10 @@ class RPCSession {
  * \brief Wrap a timer function for a given packed function.
  * \param f The function argument.
  * \param ctx The context.
- * \param nstep Number of repeative steps.
+ * \param number Number of steps in the inner iteration
+ * \param repeat How many steps to repeat the time evaluation.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int nstep);
+PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.
