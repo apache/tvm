@@ -40,6 +40,7 @@ class CopyIntrinInjector : public IRMutator {
  private:
   bool MatchCopyPattern(Stmt stmt, Stmt *out) {
     Stmt body = stmt;
+    bool is_single_point_copy = false;
 
     // strip the loops
     std::vector<const For*> loops;
@@ -47,6 +48,9 @@ class CopyIntrinInjector : public IRMutator {
       if (!is_zero(op->min)) return false;
       loops.push_back(op);
       body = op->body;
+    }
+    if (0 == loops.size()){
+      is_single_point_copy = true;
     }
     const Store* store = body.as<Store>();
     if (store == nullptr) return false;
@@ -68,61 +72,82 @@ class CopyIntrinInjector : public IRMutator {
     for (const For* op : loops) {
       loop_vars.push_back(Var(op->loop_var.node_));
     }
-    Array<Expr> store_strides =
-        arith::DetectLinearEquation(store->index, loop_vars);
-    Array<Expr> load_strides =
-        arith::DetectLinearEquation(load->index, loop_vars);
-    if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
+    Array<Expr> store_strides;
+    Array<Expr> load_strides;
     Array<Expr> dst_shape;
-    for (const For* op : loops) {
-      dst_shape.push_back(op->extent);
+
+    if (is_single_point_copy){
+      store_strides.push_back(make_const(Int(32), 1));
+      load_strides.push_back(make_const(Int(32), 1));
+      dst_shape.push_back(make_const(Int(32), 1));
+    }
+    else {
+      store_strides = arith::DetectLinearEquation(store->index, loop_vars);
+      load_strides = arith::DetectLinearEquation(load->index, loop_vars);
+      if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
+
+      for (const For* op : loops) {
+        dst_shape.push_back(op->extent);
+      }
     }
     Array<Expr> src_shape = dst_shape;
     Array<Expr> pad_before, pad_after;
     Expr pad_value;
     Expr src_elem_offset = load_strides[loop_vars.size()];
-    if (select != nullptr) {
-      Array<Expr> clip_bound =
-          arith::DetectClipBound(select->condition, loop_vars);
-      pad_value = select->false_value;
-      if (clip_bound.size() == 0) return false;
-      CHECK_EQ(src_shape.size(), loop_vars.size());
-      CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
-      for (size_t i = 0; i < src_shape.size(); ++i) {
-        Expr min_value = clip_bound[2 * i];
-        Expr max_value = clip_bound[2 * i + 1];
-        Type t = loop_vars[i].type();
-        Expr svalue = src_shape[i];
-        if (min_value.defined()) {
-          Expr pbefore = Simplify(Max::make(min_value, make_zero(t)));
-          src_elem_offset = src_elem_offset + pbefore * load_strides[i];
-          svalue = svalue - pbefore;
-          pad_before.push_back(pbefore);
-        } else {
-          pad_before.push_back(make_zero(t));
+    if (! is_single_point_copy){
+      if (select != nullptr) {
+        Array<Expr> clip_bound =
+            arith::DetectClipBound(select->condition, loop_vars);
+        pad_value = select->false_value;
+        if (clip_bound.size() == 0) return false;
+        CHECK_EQ(src_shape.size(), loop_vars.size());
+        CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
+        for (size_t i = 0; i < src_shape.size(); ++i) {
+          Expr min_value = clip_bound[2 * i];
+          Expr max_value = clip_bound[2 * i + 1];
+          Type t = loop_vars[i].type();
+          Expr svalue = src_shape[i];
+          if (min_value.defined()) {
+            Expr pbefore = Simplify(Max::make(min_value, make_zero(t)));
+            src_elem_offset = src_elem_offset + pbefore * load_strides[i];
+            svalue = svalue - pbefore;
+            pad_before.push_back(pbefore);
+          } else {
+            pad_before.push_back(make_zero(t));
+          }
+          if (max_value.defined()) {
+            Expr pafter = Simplify(Max::make(loops[i]->extent - max_value - make_const(t, 1),
+                                             make_zero(t)));
+            svalue = svalue - pafter;
+            pad_after.push_back(pafter);
+          } else {
+            pad_after.push_back(make_zero(t));
+          }
+          src_shape.Set(i, Simplify(svalue));
         }
-        if (max_value.defined()) {
-          Expr pafter = Simplify(Max::make(loops[i]->extent - max_value - make_const(t, 1),
-                                           make_zero(t)));
-          svalue = svalue - pafter;
-          pad_after.push_back(pafter);
-        } else {
-          pad_after.push_back(make_zero(t));
-        }
-        src_shape.Set(i, Simplify(svalue));
+        src_elem_offset = Simplify(src_elem_offset);
       }
-      src_elem_offset = Simplify(src_elem_offset);
     }
     CHECK_EQ(load_strides.size(), store_strides.size());
     CHECK_EQ(load_strides.size(), loop_vars.size() + 1);
-    Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_vars.size());
-    Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_vars.size());
+    auto loop_var_size = loop_vars.size();
+    Expr dst_elem_offset;
+    if (is_single_point_copy){
+      loop_var_size = 1;
+      src_elem_offset = load->index;
+      dst_elem_offset = store->index;
+    }
+    else {
+      dst_elem_offset = store_strides[loop_vars.size()];
+    }
+    Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
+    Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     Buffer dst = BufferNode::make(
         Var(store->buffer_var.node_),
         store->value.type(),
         dst_shape,
         dst_strides,
-        store_strides[loop_vars.size()],
+        dst_elem_offset,
         store->buffer_var->name_hint,
         GetStorageScope(store->buffer_var.get()),
         0, 0);
