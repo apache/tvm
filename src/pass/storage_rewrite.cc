@@ -903,19 +903,41 @@ class VectorAllocRewriter : public IRMutator {
     return stmt;
   }
 
-
- private:
   void UpdateTypeMap(const Variable* buffer, Type t) {
     auto& tvec = acc_map_[buffer];
     if (std::find(tvec.begin(), tvec.end(), t) == tvec.end()) {
       tvec.push_back(t);
     }
   }
+
   // Internal access map
-  std::unordered_map<const Variable*,
-                     std::vector<Type> > acc_map_;
+  std::unordered_map<const Variable*, std::vector<Type> > acc_map_;
 };
 
+
+LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
+  std::shared_ptr<LoweredFuncNode> n =
+      std::make_shared<LoweredFuncNode>(*f.operator->());
+  VectorAllocRewriter rewriter;
+  n->body = rewriter.Mutate(n->body);
+  for (Var arg : f->args) {
+    if (arg.type().is_handle()) {
+      const auto& tvec = rewriter.acc_map_[arg.get()];
+      if (tvec.size() == 1) {
+        Expr dtype = make_const(tvec[0], 0);
+        n->handle_data_type.Set(arg, dtype);
+      } else {
+        // always set data type to be non vectorized so
+        // load/store can still work via scalarization
+        if (tvec.size() != 0 && !n->handle_data_type.count(arg)) {
+          Expr dtype = make_const(tvec[0].with_lanes(1), 0);
+          n->handle_data_type.Set(arg, dtype);
+        }
+      }
+    }
+  }
+  return LoweredFunc(n);
+}
 
 Stmt StorageRewrite(Stmt stmt) {
   stmt = StoragePlanRewriter().Rewrite(stmt, true);

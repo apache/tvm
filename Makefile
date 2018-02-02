@@ -56,6 +56,7 @@ CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
 OPENGL_SRC = $(wildcard src/runtime/opengl/*.cc)
+VULKAN_SRC = $(wildcard src/runtime/vulkan/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
@@ -69,6 +70,7 @@ CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
 OPENGL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENGL_SRC))
+VULKAN_OBJ = $(patsubst src/%.cc, build/%.o, $(VULKAN_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
@@ -127,6 +129,20 @@ ifeq ($(USE_OPENCL), 1)
 	RUNTIME_DEP += $(OPENCL_OBJ)
 else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
+endif
+
+ifdef VULKAN_SDK
+	CFLAGS += -I$(VULKAN_SDK)/include
+	LDFLAGS += -L$(VULKAN_SDK)/lib
+	LDFLAGS += -L$(VULKAN_SDK)/lib/spirv-tools
+endif
+
+ifeq ($(USE_VULKAN), 1)
+	CFLAGS += -DTVM_VULKAN_RUNTIME=1
+	LDFLAGS += -lvulkan -lSPIRV-Tools
+	RUNTIME_DEP += $(VULKAN_OBJ)
+else
+	CFLAGS += -DTVM_VULKAN_RUNTIME=0
 endif
 
 ifeq ($(USE_OPENGL), 1)

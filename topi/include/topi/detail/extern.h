@@ -24,7 +24,7 @@ using namespace tvm;
  *
  * \return The Buffer object
  */
-Buffer DeclExternBuffer(Array<Expr> shape,
+inline Buffer DeclExternBuffer(Array<Expr> shape,
                         Type dtype,
                         std::string name) {
   auto data = var(name, Handle());
@@ -56,7 +56,7 @@ using FExtern = std::function<Expr(Array<Buffer>, Array<Buffer>)>;
  * be one output Tensor for each element of out_shapes, with dtype equal to the corresponding
  * element of out_types.
  */
-Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
+inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
                           const std::vector<Type>& out_types,
                           const Array<Tensor>& inputs,
                           FExtern fextern,
@@ -95,7 +95,7 @@ Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
  *
  * \return An expression representing the pack operation
  */
-Expr pack_buffer(Buffer buf) {
+inline Expr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   auto shape = tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
                                    buf->shape, tvm::ir::Call::CallType::Intrinsic);
@@ -127,7 +127,7 @@ Expr pack_buffer(Buffer buf) {
  *
  * \return An expression representing the invocation
  */
-Expr call_packed(Array<Expr> args) {
+inline Expr call_packed(Array<Expr> args) {
   return tvm::ir::Call::make(Int(32), tvm::ir::intrinsic::tvm_call_packed,
                              args, tvm::ir::Call::CallType::Intrinsic);
 }

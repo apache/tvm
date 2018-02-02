@@ -18,7 +18,8 @@ def test_exp():
     def check_device(device, host="stackvm"):
         if not tvm.module.enabled(host):
             return
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             return
         fexp = tvm.build(s, [A, B],
                          device, host,
@@ -33,6 +34,7 @@ def test_exp():
             b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
 
     check_device("cuda", "llvm")
+    check_device("vulkan")
     check_device("opencl")
 
 
@@ -75,11 +77,12 @@ def test_popcount():
         bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
 
         def check_device(device):
-            if not tvm.module.enabled(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
                 print("skip because %s is not enabled.." % device)
                 return
-            ctx = tvm.context(device, 0)
-            if str(ctx).startswith('gpu'):
+            target = tvm.target.create(device)
+            if "cpu" not in target.keys:
                 s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
                 s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
             func = tvm.build(s, [A, B], device)
@@ -95,6 +98,8 @@ def test_popcount():
         check_device("cuda")
         check_device("opencl")
         check_device("metal")
+        if dtype == "uint32":
+            check_device("vulkan")
     run('uint32')
     run('uint64')
 
@@ -121,14 +126,14 @@ def test_add():
 
         # one line to build the function.
         def check_device(device):
-            if not tvm.module.enabled(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
                 print("skip because %s is not enabled.." % device)
                 return
             fadd = tvm.build(s, [A, B, C],
                              device,
                              name="myadd")
-            print(fadd.imported_modules[0].get_source())
-            ctx = tvm.context(device, 0)
+
             # launch the kernel.
             n = 1024
             a = tvm.nd.array((np.random.uniform(size=n) * 256).astype(A.dtype), ctx)
@@ -142,6 +147,8 @@ def test_add():
         check_device("opencl")
         check_device("metal")
         check_device("cuda")
+        check_device("vulkan")
+
     run("float32")
     run("int32")
     run("int64")
@@ -149,7 +156,7 @@ def test_add():
 
 
 if __name__ == "__main__":
+    test_add()
     test_log_pow_llvm()
     test_exp()
-    test_add()
     test_popcount()

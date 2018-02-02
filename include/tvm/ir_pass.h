@@ -422,6 +422,18 @@ LoweredFunc LowerTVMBuiltin(LoweredFunc f);
 LoweredFunc CombineContextCall(LoweredFunc f);
 
 /*!
+ * \brief Rewrite the pointer content type of arguments,
+ *  as well as Alloc internal to the function to use
+ *  the most frequently accessed type for load/store
+ *  to avoid pointer casting in backend when possible.
+ *
+ * \note implemeneted in storage_rewrite.cc
+ * \param f The function to be trasnformed
+ * \return Transformed function.
+ */
+LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
+
+/*!
  * \brief Lower intrinsic function calls.
  * \param f The device function to be lowered.
  * \param target The target device.
