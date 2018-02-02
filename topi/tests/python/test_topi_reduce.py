@@ -47,13 +47,14 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         raise NotImplementedError
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_reduce(B)
-        ctx = tvm.context(device, 0)
+
         foo = tvm.build(s, [A, B], device, name=type)
         # Test
         in_npy = np.random.uniform(size=in_shape).astype(np.float32)
@@ -90,7 +91,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
                 np.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
         else:
             np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
-    for device in ["cuda", "opencl", "metal", "llvm", "rocm"]:
+    for device in ["cuda", "opencl", "metal", "llvm", "rocm", "vulkan"]:
         check_device(device)
 
 
