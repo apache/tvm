@@ -20,7 +20,7 @@ using namespace tvm;
  *
  * \return The fused iteration variable
  */
-IterVar Fuse(Stage stage, const Array<IterVar>& args) {
+inline IterVar Fuse(Stage stage, const Array<IterVar>& args) {
   CHECK_GE(args.size(), 1) << "Fuse requires at least 1 arg";
 
   auto fused = args[0];
