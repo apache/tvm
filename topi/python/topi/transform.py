@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,consider-using-enumerate,len-as-condition
+# pylint: disable=invalid-name,consider-using-enumerate
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -63,14 +63,14 @@ def expand_like(a, shape_like, axis):
     ret : tvm.Tensor
     """
     odim = len(axis) + len(a.shape)
-    assert odim == len(shape_like.shape), \
-            "shape inconsistent when expand_like (%d, %d, %d)" % \
-                (len(axis), len(a.shape), len(shape_like.shape))
+    if odim != len(shape_like.shape):
+        raise ValueError("shape inconsistent when expand_like ({}, {}, {})".format(
+            len(axis), len(a.shape), len(shape_like.shape)))
 
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
     real_axis = sorted(real_axis)
 
-    if len(real_axis) == 0:
+    if not real_axis:
         return a
 
     def _compute(*idxs):
