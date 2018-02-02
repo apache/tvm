@@ -428,7 +428,7 @@ LoweredFunc CombineContextCall(LoweredFunc f);
  *  to avoid pointer casting in backend when possible.
  *
  * \note implemeneted in storage_rewrite.cc
- * \param stmt The stmt to be trasnformed
+ * \param f The function to be trasnformed
  * \return Transformed function.
  */
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
