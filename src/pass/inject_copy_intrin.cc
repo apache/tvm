@@ -49,7 +49,7 @@ class CopyIntrinInjector : public IRMutator {
       loops.push_back(op);
       body = op->body;
     }
-    if (0 == loops.size()){
+    if (0 == loops.size()) {
       is_single_point_copy = true;
     }
     const Store* store = body.as<Store>();
@@ -76,12 +76,11 @@ class CopyIntrinInjector : public IRMutator {
     Array<Expr> load_strides;
     Array<Expr> dst_shape;
 
-    if (is_single_point_copy){
+    if (is_single_point_copy) {
       store_strides.push_back(make_const(Int(32), 1));
       load_strides.push_back(make_const(Int(32), 1));
       dst_shape.push_back(make_const(Int(32), 1));
-    }
-    else {
+    } else {
       store_strides = arith::DetectLinearEquation(store->index, loop_vars);
       load_strides = arith::DetectLinearEquation(load->index, loop_vars);
       if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
@@ -94,7 +93,7 @@ class CopyIntrinInjector : public IRMutator {
     Array<Expr> pad_before, pad_after;
     Expr pad_value;
     Expr src_elem_offset = load_strides[loop_vars.size()];
-    if (! is_single_point_copy){
+    if (! is_single_point_copy) {
       if (select != nullptr) {
         Array<Expr> clip_bound =
             arith::DetectClipBound(select->condition, loop_vars);
@@ -132,12 +131,11 @@ class CopyIntrinInjector : public IRMutator {
     CHECK_EQ(load_strides.size(), loop_vars.size() + 1);
     auto loop_var_size = loop_vars.size();
     Expr dst_elem_offset;
-    if (is_single_point_copy){
+    if (is_single_point_copy) {
       loop_var_size = 1;
       src_elem_offset = load->index;
       dst_elem_offset = store->index;
-    }
-    else {
+    } else {
       dst_elem_offset = store_strides[loop_vars.size()];
     }
     Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
