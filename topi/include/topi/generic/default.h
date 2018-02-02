@@ -24,7 +24,7 @@ namespace generic {
  *
  * \return A schedule for the given ops.
  */
- inline Schedule default_schedule(const Target& target, Array<Tensor> outs, bool auto_inline) {
+inline Schedule default_schedule(const Target& target, Array<Tensor> outs, bool auto_inline) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
