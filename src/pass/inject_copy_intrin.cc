@@ -93,7 +93,7 @@ class CopyIntrinInjector : public IRMutator {
     Array<Expr> pad_before, pad_after;
     Expr pad_value;
     Expr src_elem_offset = load_strides[loop_vars.size()];
-    if (! is_single_point_copy) {
+    if (!is_single_point_copy) {
       if (select != nullptr) {
         Array<Expr> clip_bound =
             arith::DetectClipBound(select->condition, loop_vars);
