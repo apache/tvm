@@ -49,7 +49,7 @@ class CopyIntrinInjector : public IRMutator {
       loops.push_back(op);
       body = op->body;
     }
-    if (0 == loops.size()){
+    if (0 == loops.size()) {
       is_single_point_copy = true;
     }
     const Store* store = body.as<Store>();
