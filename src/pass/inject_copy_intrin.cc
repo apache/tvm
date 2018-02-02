@@ -49,6 +49,9 @@ class CopyIntrinInjector : public IRMutator {
       loops.push_back(op);
       body = op->body;
     }
+    if (0 == loops.size()){
+      is_single_point_copy = true;
+    }
     const Store* store = body.as<Store>();
     if (store == nullptr) return false;
     const Select* select = store->value.as<Select>();
@@ -72,11 +75,8 @@ class CopyIntrinInjector : public IRMutator {
     for (const For* op : loops) {
       loop_vars.push_back(Var(op->loop_var.node_));
     }
-    Array<Expr> store_strides =
-        arith::DetectLinearEquation(store->index, loop_vars);
-    Array<Expr> load_strides =
-        arith::DetectLinearEquation(load->index, loop_vars);
-    if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
+    Array<Expr> store_strides;
+    Array<Expr> load_strides;
     Array<Expr> dst_shape;
     auto loop_var_size = loop_vars.size();
     if (is_single_point_copy) {
@@ -119,9 +119,8 @@ class CopyIntrinInjector : public IRMutator {
         } else {
           pad_after.push_back(make_zero(t));
         }
-        src_shape.Set(i, Simplify(svalue));
+        src_elem_offset = Simplify(src_elem_offset);
       }
-      src_elem_offset = Simplify(src_elem_offset);
     }
     CHECK_EQ(load_strides.size(), store_strides.size());
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
