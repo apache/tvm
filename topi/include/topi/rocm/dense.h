@@ -67,7 +67,7 @@ inline tvm::Tensor dense_rocm(const Target& target,
 *
 * \return A schedule for the given ops.
 */
-Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
   if (target.target_name == "rocm" &&
     target.libs.count("rocblas") > 0) {
     return topi::generic::schedule_extern(target, outs);
