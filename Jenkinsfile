@@ -107,6 +107,7 @@ stage('Build') {
         sh """
            echo USE_ROCM=1 >> config.mk
            echo ROCM_PATH=/opt/rocm >> config.mk
+           echo USE_VULKAN=1 >> config.mk
            """
         make('gpu', '-j2')
       }
