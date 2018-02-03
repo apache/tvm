@@ -311,8 +311,8 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   }
   CHECK_LE(dtype.type.bits(), 64);
   Value ret = NewValue(dtype, kConstant);
-  if (1 == dtype.type.bits() && dtype.is_uint()) {
-    // Boolean types.
+  if (dtype.type == UInt(1)) {
+    // bool types.
     if (*pvalue) {
       ib_.Begin(spv::OpConstantTrue).AddSeq(ret);
     } else {
