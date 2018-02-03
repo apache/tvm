@@ -24,7 +24,9 @@ namespace x86 {
 *
 * \return A schedule for the given ops.
 */
-Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool auto_inline) {
+inline Schedule default_schedule(const Target &target,
+                                 const Array<Tensor>& outs,
+                                 bool auto_inline) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

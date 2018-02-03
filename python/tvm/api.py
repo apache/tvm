@@ -19,6 +19,7 @@ from . import schedule as _schedule
 from . import container as _container
 from . import tag as _tag
 
+int8 = "int8"
 int32 = "int32"
 float32 = "float32"
 handle = "handle"
