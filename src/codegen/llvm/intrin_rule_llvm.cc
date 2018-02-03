@@ -25,6 +25,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::tanh, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.pow")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 1>);
 
