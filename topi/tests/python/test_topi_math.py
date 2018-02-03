@@ -21,7 +21,7 @@ def test_ewise():
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         assert B.op.body[0].name == name
-        a_np = np.random.uniform(shape).astype(A.dtype)
+        a_np = np.random.uniform(size=shape).astype(A.dtype)
         a_np = np.abs(a_np)
         b_np = f_numpy(a_np)
 
