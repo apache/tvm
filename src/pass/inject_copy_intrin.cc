@@ -49,7 +49,6 @@ class CopyIntrinInjector : public IRMutator {
       loops.push_back(op);
       body = op->body;
     }
-    
     const Store* store = body.as<Store>();
     if (store == nullptr) return false;
     const Select* select = store->value.as<Select>();
@@ -73,10 +72,10 @@ class CopyIntrinInjector : public IRMutator {
     for (const For* op : loops) {
       loop_vars.push_back(Var(op->loop_var.node_));
     }
-    Array<Expr> 
-      store_strides = arith::DetectLinearEquation(store->index, loop_vars);
-    Array<Expr> 
-      load_strides = arith::DetectLinearEquation(load->index, loop_vars);
+    Array<Expr> store_strides =
+        arith::DetectLinearEquation(store->index, loop_vars);
+    Array<Expr> load_strides =
+        arith::DetectLinearEquation(load->index, loop_vars);
     if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
     Array<Expr> dst_shape;
     auto loop_var_size = loop_vars.size();
