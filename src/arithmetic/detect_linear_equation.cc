@@ -127,7 +127,7 @@ Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars) {
   Array<Expr> coeff;
 
   if (0 == vars.size()) {
-    coeff.push_back(make_const(Int(32),1));
+    coeff.push_back(make_const(Int(32), 1));
   } else {
     for (Var v : vars) {
       LinearEqEntry ret;
