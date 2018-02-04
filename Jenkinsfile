@@ -224,6 +224,9 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} cpu ./tests/scripts/task_cpp_unittest.sh"
         }
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} cpu ./tests/scripts/task_cpp_topi.sh"
+        }
       }
     }
   },
