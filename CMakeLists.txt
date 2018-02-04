@@ -193,7 +193,7 @@ if(USE_GRAPH_RUNTIME)
 endif(USE_GRAPH_RUNTIME)
 
 if(USE_LLVM)
-  find_spackage(LLVM CONFIG REQUIRED)
+  find_package(LLVM CONFIG REQUIRED)
   include_directories(${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
   set(TVM_LLVM_VERSION ${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR})
