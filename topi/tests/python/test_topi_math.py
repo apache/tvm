@@ -21,7 +21,7 @@ def test_ewise():
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         assert B.op.body[0].name == name
-        a_np = np.random.uniform(size=shape).astype(A.dtype)
+        a_np = np.random.uniform(low=1e-5, size=shape).astype(A.dtype)
         a_np = np.abs(a_np)
         b_np = f_numpy(a_np)
 
@@ -37,7 +37,7 @@ def test_ewise():
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
             foo = tvm.build(s, [A, B], device, name=name)
             foo(a, b)
-            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
         for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'llvm']:
             check_device(device)
