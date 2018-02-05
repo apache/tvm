@@ -5,7 +5,7 @@
 
 // tvm libraries
 tvm_runtime = "lib/libtvm_runtime.so, config.mk"
-tvm_lib = "lib/libtvm.so, " + tvm_runtime
+tvm_lib = "lib/libtvm.so, lib/libtvm_topi.so " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, " + tvm_runtime
 
@@ -217,10 +217,11 @@ stage('Unit Test') {
     }
   },
   'cpp': {
-    node('linux') {
+    node('GPU' && 'linux') {
       ws('workspace/tvm/ut-cpp') {
         init_git()
-        unpack_lib('cpu', tvm_lib)
+        unpack_lib('gpu', tvm_multilib)
+        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} cpu ./tests/scripts/task_cpp_unittest.sh"
         }
