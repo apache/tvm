@@ -5,9 +5,9 @@
 
 // tvm libraries
 tvm_runtime = "lib/libtvm_runtime.so, config.mk"
-tvm_lib = "lib/libtvm.so, lib/libtvm_topi.so " + tvm_runtime
+tvm_lib = "lib/libtvm.so " + tvm_runtime
 // LLVM upstream lib
-tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, " + tvm_runtime
+tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, lib/libtvm_topi.so, " + tvm_runtime
 
 // command to start a docker container
 docker_run = 'tests/ci_build/ci_build.sh'
