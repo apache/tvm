@@ -186,6 +186,20 @@ void CodeGenMetal::PrintStorageSync(const Call* op) {
   }
 }
 
+void CodeGenMetal::PrintVecElemLoad(const std::string& vec,
+                                    Type t, int i,
+                                    std::ostream& os) {  // NOLINT(*)
+  os << vec << "[" << i << "]";
+}
+
+void CodeGenMetal::PrintVecElemStore(const std::string& vec,
+                                     Type t, int i,
+                                     const std::string& value) {
+  this->PrintIndent();
+  stream << vec << "[" << i << "]"
+         << " = " << value << ";\n";
+}
+
 void CodeGenMetal::PrintStorageScope(
     const std::string& scope, std::ostream& os) { // NOLINT(*)
   if (scope == "global") {

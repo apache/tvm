@@ -201,5 +201,11 @@ def popen_test_rpc(host,
     if options:
         cmd += options
     cmd += ["test"]
-    proc = subprocess.Popen(cmd)
+    if "-quiet" in options:
+        with open(os.devnull, 'w') as devnull:
+            proc = subprocess.Popen(cmd,
+                                    stderr=subprocess.STDOUT,
+                                    stdout=devnull)
+    else:
+        proc = subprocess.Popen(cmd)
     return proc
