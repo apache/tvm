@@ -25,7 +25,12 @@ def test_ewise():
     test_apply(topi.cpp.log, "log")
     test_apply(topi.cpp.sqrt, "sqrt")
 
+def test_flatten_tag():
+    A = tvm.placeholder((3, 4), name='A')
+    B = topi.cpp.nn.flatten(A)
+    assert B.op.tag == topi.tag.INJECTIVE
 
 if __name__ == "__main__":
     test_util()
     test_ewise()
+    test_flatten_tag()
