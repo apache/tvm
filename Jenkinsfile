@@ -217,16 +217,12 @@ stage('Unit Test') {
     }
   },
   'cpp': {
-    node('GPU' && 'linux') {
+    node('linux') {
       ws('workspace/tvm/ut-cpp') {
         init_git()
-        unpack_lib('gpu', tvm_multilib)
-        sh "cp lib/libtvm_llvm40.so lib/libtvm.so"
+        unpack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} cpu ./tests/scripts/task_cpp_unittest.sh"
-        }
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} cpu ./tests/scripts/task_cpp_topi.sh"
         }
       }
     }
@@ -255,6 +251,7 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} gpu ./tests/scripts/task_python_topi.sh"
+          sh "${docker_run} gpu ./tests/scripts/task_cpp_topi.sh"
         }
       }
     }
