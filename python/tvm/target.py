@@ -117,7 +117,7 @@ class Target(object):
             self.keys += ("rocm", "gpu")
             self.max_num_threads = 256
         elif target_name in ("metal", "vulkan"):
-            self.keys += ("gpu",)
+            self.keys += (target_name, "gpu",)
             self.max_num_threads = 256
         elif target_name in ("opengl",):
             self.keys += ("opengl",)
