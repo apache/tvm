@@ -65,7 +65,7 @@ Schedule ScheduleReduce(const Target& target,
     thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
   }
 
-  auto fused_reduce = Fuse(out_stage, out_stage->op.as<ComputeOpNode>()->reduce_axis);
+  auto fused_reduce = detail::Fuse(out_stage, out_stage->op.as<ComputeOpNode>()->reduce_axis);
 
   IterVar ko, ki;
   out_stage.split(fused_reduce, num_thread, &ko, &ki);
@@ -87,7 +87,7 @@ Schedule ScheduleReduce(const Target& target,
   auto stage_real = sch[real_output];
   if (!all_reduce) {
     // Fuse and split the axis
-    auto fused_outer = Fuse(stage_real, stage_real->op.as<ComputeOpNode>()->axis);
+    auto fused_outer = detail::Fuse(stage_real, stage_real->op.as<ComputeOpNode>()->axis);
     IterVar bx, outer_in;
     stage_real.split(fused_outer, num_thread, &bx, &outer_in);
 
