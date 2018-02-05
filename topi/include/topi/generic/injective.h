@@ -32,7 +32,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   auto s = create_schedule(out_ops);
   tvm::schedule::AutoInlineInjective(s);
   auto x = outs[0];
-  Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
+  detail::Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
 
   return s;
 }
