@@ -24,6 +24,14 @@ TVM_REGISTER_API("schedule.AutoInlineInjective")
     AutoInlineInjective(args[0]);
   });
 
+TVM_REGISTER_API("schedule.ScheduleOps")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  if (args.size() == 2)
+    *ret = ScheduleOps(args[0], args[1], true);
+  else
+    *ret = ScheduleOps(args[0], args[1], args[2]);
+});
+
 #define REGISTER_SCHEDULE_PASS1(PassName)                         \
   TVM_REGISTER_API("schedule."#PassName)                          \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
@@ -43,7 +51,6 @@ REGISTER_SCHEDULE_PASS2(PostDFSOrder);
 REGISTER_SCHEDULE_PASS1(CreateAttachPath);
 REGISTER_SCHEDULE_PASS1(ScanGetBody);
 REGISTER_SCHEDULE_PASS1(ScanFixPointAnalysis);
-REGISTER_SCHEDULE_PASS2(ScheduleOps);
 
 }  // namespace schedule
 }  // namespace tvm
