@@ -6,13 +6,19 @@
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/top/tensor.h>
 #include <cmath>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
+#include "topi/broadcast.h"
+#include "topi/elemwise.h"
+#include "topi/tags.h"
 
 namespace nnvm {
 namespace top {
+using namespace tvm;
+using namespace nnvm::compiler;
 // undefined op
 NNVM_REGISTER_ELEMWISE_UNARY_OP(__undef__)
 .describe(R"code(undefined op.
@@ -32,6 +38,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(sigmoid)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::sigmoid(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -56,6 +68,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(tanh)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::tanh(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -80,6 +98,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(exp)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::exp(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -100,6 +124,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(log)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::log(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -120,6 +150,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(sqrt)
 
 )code" NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::sqrt(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -140,6 +176,12 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_add)
 
 )code")
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::broadcast_add(inputs[0], inputs[1]) };
+  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -154,6 +196,12 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_sub)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::broadcast_sub(inputs[0], inputs[1]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -171,6 +219,12 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_mul)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::broadcast_mul(inputs[0], inputs[1]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -190,6 +244,12 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_div)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::broadcast_div(inputs[0], inputs[1]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -216,6 +276,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(negative)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::negative(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -232,6 +298,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(copy)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::identity(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -315,12 +387,29 @@ DMLC_REGISTER_PARAMETER(ScalarParam);
   .set_attr_parser(ParamParser<ScalarParam>)                            \
   .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ScalarParam>)
 
+inline Tensor binary_scalar_op(const NodeAttrs& attrs,
+                               const Tensor& x,
+                               std::function<Expr(Expr, Expr)> f) {
+  const ScalarParam& param = nnvm::get<ScalarParam>(attrs.parsed);
+  auto scalar_val = static_cast<float>(param.scalar);
+  return compute(x->shape, [&](const Array<Var>& i) {
+    auto scalar_const = make_const(x->dtype, scalar_val);
+    return f(x(i), scalar_const);
+    }, "tensor", topi::kElementWise);
+}
 
 NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__add_scalar__)
 .describe(R"code(Tensor add scalar
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return x + y; }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -332,6 +421,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__sub_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return x - y; }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -343,6 +439,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rsub_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return y - x; }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -356,6 +459,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__mul_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return x * y; }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -372,6 +482,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__div_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return x / y; }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -388,6 +505,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rdiv_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return y / x; }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -411,6 +535,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__pow_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return tvm::pow(x, y); }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -434,6 +565,13 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rpow_scalar__)
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ binary_scalar_op(attrs, inputs[0],
+      [](Expr x, Expr y) { return tvm::pow(y, x); }) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){

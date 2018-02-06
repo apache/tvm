@@ -3,16 +3,26 @@
  * \file nn.cc
  * \brief Property def of nn operators.
  */
+#include <tvm/expr.h>
+#include <tvm/packed_func_ext.h>
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/top/nn.h>
 #include "./nn_common.h"
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
+#include "topi/nn/dense.h"
+#include "topi/nn.h"
+#include "topi/nn/softmax.h"
 
 namespace nnvm {
 namespace top {
+
+using tvm::Tensor;
+using tvm::Array;
+using nnvm::compiler::FTVMCompute;
 
 // dense
 DMLC_REGISTER_PARAMETER(DenseParam);
@@ -72,6 +82,21 @@ If ``use_bias`` is set to be false, then the ``bias`` term is ignored.
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<DenseParam>)
 .set_attr<FInferShape>("FInferShape", DenseInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    Tensor bias_val;
+    Tensor* bias;
+    const DenseParam& param = nnvm::get<DenseParam>(attrs.parsed);
+    if (param.use_bias) {
+      bias_val = inputs[2];
+      bias = &bias_val;
+    } else {
+      bias = nullptr;
+    }
+    return Array<Tensor>{ topi::nn::dense(inputs[0], inputs[1], bias) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -110,6 +135,12 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(relu)
    max(input, 0)
 
 )code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::relu(inputs[0], 0.0f) };
+  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -258,6 +289,14 @@ NNVM_REGISTER_OP(softmax)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const SoftmaxParam& param = nnvm::get<SoftmaxParam>(attrs.parsed);
+    CHECK_EQ(param.axis, -1) << "Currently only axis=-1 is supported";
+    return Array<Tensor>{ topi::nn::softmax(inputs[0]) };
+  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -306,6 +345,14 @@ NNVM_REGISTER_OP(log_softmax)
 .set_num_outputs(1)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const SoftmaxParam& param = nnvm::get<SoftmaxParam>(attrs.parsed);
+    CHECK_EQ(param.axis, -1) << "Currently only axis=-1 is supported";
+    return Array<Tensor>{ topi::nn::log_softmax(inputs[0]) };
+  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -357,6 +404,13 @@ NNVM_REGISTER_OP(leaky_relu)
 .set_num_outputs(1)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const LeakyReLUParam& param = nnvm::get<LeakyReLUParam>(attrs.parsed);
+    return Array<Tensor>{ topi::leaky_relu<float>(inputs[0], 0.0, param.alpha) };
+  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -413,6 +467,25 @@ NNVM_REGISTER_OP(pad)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", PadInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const PadParam& param = nnvm::get<PadParam>(attrs.parsed);
+    auto pad_width = param.pad_width;
+    CHECK(pad_width.ndim() == inputs[0]->shape.size() &&
+      pad_width[0].ndim() == 2)
+      << "Illegal pad_width";
+    Array<tvm::Expr> pad_before;
+    for (size_t i = 0; i < pad_width.ndim(); ++i) {
+      pad_before.push_back(tvm::make_const(tvm::Int(32), pad_width[i][0]));
+    }
+    Array<tvm::Expr> pad_after;
+    for (size_t i = 0; i < pad_width.ndim(); ++i) {
+      pad_after.push_back(tvm::make_const(tvm::Int(32), pad_width[i][1]));
+    }
+    return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after, param.pad_value) };
+})
 .set_support_level(1);
 
 }  // namespace top
