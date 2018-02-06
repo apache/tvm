@@ -1,4 +1,10 @@
-"""measure bandwidth and compute peak"""
+"""measure bandwidth and compute peak
+
+e.g.
+python3 -m tvm.exec.measure_peak --target cuda --rpc-host 0.0.0.0 --rpc-port 9090
+python3 -m tvm.exec.measure_peak --target opencl --target-host "llvm -target=aarch64-linux-gnu" \
+        --rpc-host $TVM_OPENCL_DEVICE_HOST --rpc-port 9090
+"""
 
 import argparse
 import logging

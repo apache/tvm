@@ -141,7 +141,7 @@ def test_bandwidth_all_types(total_item, item_per_thread, n_times,
     for base_type in ["float"]:
         for bits in [32]:
             for lanes in [1, 2, 4, 8, 16]:
-                max_speed = 0
+                max_speed = -1e9
                 # try different strides
                 for stride in [max_threads, total_item // (lanes * item_per_thread)]:
                     speed = test_bandwidth_sum(total_item, item_per_thread, stride,
@@ -287,7 +287,7 @@ def test_compute_all_types(total_item, item_per_thread, n_times,
                 if base_type == 'int' and bits != 32:  # only test int32
                     continue
 
-                max_speed = -1
+                max_speed = -1e9
                 for per_thread in [item_per_thread//2, item_per_thread, item_per_thread*2]:
                     speed = test_compute_mad(total_item, per_thread,
                                              base_type, bits, lanes, target,
