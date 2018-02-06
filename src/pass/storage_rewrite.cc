@@ -491,7 +491,7 @@ class StoragePlanRewriter : public IRMutator {
   }
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
-    CHECK_EQ(dtype.element_of(), e->elem_type);
+    CHECK_LE(dtype.element_of().bytes(), e->elem_type.bytes());
     if (e->elem_offset == 0) return index;
     return make_const(index.type(), e->elem_offset) + index;
   }
@@ -788,7 +788,11 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry *e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        // reuse buffer for:
+        // A[] = 1.0 (float32)
+        // B[] = 1   (int32 or int8)
+        // when B's dtype LE than A's dtype, and no USE after B, B can reuse A
+        if (e->elem_type.bytes() < op->type.element_of().bytes()) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -798,7 +802,7 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry *e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (e->elem_type.bytes() < op->type.element_of().bytes()) continue;
         const_free_map_.erase(it);
         return e;
       }
@@ -809,7 +813,7 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry* e = *it;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (e->elem_type.bytes() < op->type.element_of().bytes()) continue;
         sym_free_list_.erase(it);
         return e;
       }
