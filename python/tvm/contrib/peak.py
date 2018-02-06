@@ -1,3 +1,6 @@
+# pylint: disable=invalid-name
+"""measure bandwidth and compute peak"""
+
 import logging
 
 import tvm
@@ -80,7 +83,8 @@ def test_bandwidth_sum(total_item, item_per_thread, stride,
 
     x = tvm.placeholder((n,), dtype=dtype, name="x")
     op = tvm.comm_reducer(lambda x, y: x*y, lambda t: tvm.const(1, dtype=t), name="sum")
-    y = tvm.compute((n // m,), lambda i: op(x[i // stride * stride * m + i % stride + k * stride], axis=k))
+    y = tvm.compute((n // m,),
+                    lambda i: op(x[i // stride * stride * m + i % stride + k * stride], axis=k))
     s = tvm.create_schedule(y.op)
 
     yo, yi = s[y].split(y.op.axis[0], target.max_num_threads)
@@ -88,18 +92,23 @@ def test_bandwidth_sum(total_item, item_per_thread, stride,
     s[y].bind(yi, tvm.thread_axis("threadIdx.x"))
     s[y].unroll(k)
 
-    func = tvm.build(s, [x, y], target, target_host=target_host)
+    try:
+        func = tvm.build(s, [x, y], target, target_host=target_host)
 
-    x = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
-    y = tvm.nd.empty((n // m,), dtype=dtype, ctx=ctx)
+        x = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
+        y = tvm.nd.empty((n // m,), dtype=dtype, ctx=ctx)
 
-    func = _convert_to_remote(func, remote)
-    time_f = func.time_evaluator(func.entry_name, ctx, number=n_times)
-    time = time_f(x, y).mean
+        func = _convert_to_remote(func, remote)
+        time_f = func.time_evaluator(func.entry_name, ctx, number=n_times)
+        time = time_f(x, y).mean
+    except tvm._ffi.base.TVMError:
+        # build error (occur when device does not support half)
+        return -1
 
-    return 1.0 * (total_item * bits / 8) / (1 << 30) / time
+    return 1.0 * (total_item * bits / 8) / 1e9 / time
 
-def test_bandwidth_all_types(total_item, item_per_thread, n_times, target, target_host, remote, ctx, verbose=True):
+def test_bandwidth_all_types(total_item, item_per_thread, n_times,
+                             target, target_host, remote, ctx, verbose=True):
     """ test memory bandwidth for all types
 
     Parameters
@@ -133,19 +142,16 @@ def test_bandwidth_all_types(total_item, item_per_thread, n_times, target, targe
         for bits in [32]:
             for lanes in [1, 2, 4, 8, 16]:
                 max_speed = 0
-                max_stride = 0
                 # try different strides
                 for stride in [max_threads, total_item // (lanes * item_per_thread)]:
                     speed = test_bandwidth_sum(total_item, item_per_thread, stride,
                                                base_type, bits, lanes, target,
                                                target_host, remote, ctx, n_times)
-                    if speed > max_speed:
-                        max_speed = speed
-                        max_stride = stride
+                    max_speed = max(max_speed, speed)
                 type_name = get_name(base_type, bits)
                 result.append(["%s%d" % (type_name, lanes), max_speed])
                 if verbose:
-                    logging.info("\t%-10s %.2f GBPS" % (result[-1][0], result[-1][1]))
+                    logging.info("\t%-10s %.2f GBPS", result[-1][0], result[-1][1])
     return result
 
 def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
@@ -188,15 +194,19 @@ def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
          giga operation per second
     """
 
-    n, m = total_item, item_per_thread
+    n = total_item
+
+    if bits >= 64 or lanes >= 16:
+        n //= 2
+
     max_threads = target.max_num_threads
 
     base_type = str(base_type) + str(bits)
     dtype = base_type if lanes == 1 else base_type + "x" + str(lanes)
 
-    k = tvm.reduce_axis((0, item_per_thread), name="k")
-
     def extern(ins, outs):
+        # pylint: disable=unused-argument
+        """construct test function by building IR directly"""
         ib = tvm.ir_builder.create()
 
         bx = tvm.thread_axis("blockIdx.x")
@@ -214,14 +224,13 @@ def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         b[0] = outs[0].vload(idx, dtype)
 
         if base_type.find('float') != -1:
-            mad_func = (lambda x, y:
-                        tvm.call_pure_extern(dtype, 'mad', x, x, y))
+            mad_func = lambda x, y: (x * x + y)
         else:
             c = ib.allocate(dtype, (1), name='c', scope='local')
             c[0] = outs[0].vload(idx, dtype)
-            mad_func = (lambda x, y: y * y + x)
+            mad_func = lambda x, y: y * y + x
 
-        for i in range(item_per_thread // 4 // lanes):
+        for _ in range(item_per_thread // 4 // lanes):
             a[0] = mad_func(a[0], b[0])
             b[0] = mad_func(b[0], a[0])
 
@@ -237,13 +246,14 @@ def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         time_f = func.time_evaluator(func.entry_name, ctx, number=n_times)
         y = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
         time = time_f(y).mean
-    except tvm._ffi.base.TVMError as e:
+    except tvm._ffi.base.TVMError:
         # build error (occur when device does not support half)
-        return 0
+        return -1
 
-    return 1.0 * (total_item * item_per_thread) / (1 << 30) / time
+    return 1.0 * (n * item_per_thread) / 1e9 / time
 
-def test_compute_all_types(total_item, item_per_thread, n_times, target, target_host, remote, ctx, verbose=True):
+def test_compute_all_types(total_item, item_per_thread, n_times,
+                           target, target_host, remote, ctx, verbose=True):
     """ test memory bandwidth for all types
 
     Parameters
@@ -271,22 +281,25 @@ def test_compute_all_types(total_item, item_per_thread, n_times, target, target_
         a list of (type_name, GFLOPS/GIOPS) pairs
     """
     result = []
-    for base_type in ["int", "float"]:
+    for base_type in ["float", "int"]:
         for bits in [16, 32, 64]:
             for lanes in [1, 2, 4, 8, 16]:
                 if base_type == 'int' and bits != 32:  # only test int32
                     continue
 
-                speed = test_compute_mad(total_item, item_per_thread,
-                                         base_type, bits, lanes, target,
-                                         target_host, remote, ctx, n_times)
+                max_speed = -1
+                for per_thread in [item_per_thread//2, item_per_thread, item_per_thread*2]:
+                    speed = test_compute_mad(total_item, per_thread,
+                                             base_type, bits, lanes, target,
+                                             target_host, remote, ctx, n_times)
+                    max_speed = max(max_speed, speed)
                 type_name = get_name(base_type, bits)
-                result.append(["%s%d" % (type_name, lanes), speed])
+                result.append(["%s%d" % (type_name, lanes), max_speed])
 
                 unit = "GFLOPS" if base_type == "float" else "GIOPS"
 
                 if verbose:
-                    logging.info("\t%-10s %.2f %s" % (result[-1][0], result[-1][1], unit))
+                    logging.info("\t%-10s %.2f %s", result[-1][0], result[-1][1], unit)
 
     return result
 
@@ -304,7 +317,7 @@ def measure_peak_all(target, target_host, host, port):
 
     target = tvm.target.create(target)
     remote = rpc.connect(host, port)
-    n_times = 30
+    n_times = 20
 
     bandwidth_total_item = 1 << 25
     bandwidth_item_per_thread = 32

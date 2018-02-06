@@ -1,3 +1,5 @@
+"""measure bandwidth and compute peak"""
+
 import argparse
 import logging
 
