@@ -6,22 +6,6 @@ import logging
 import tvm
 from tvm.contrib import rpc, util
 
-def get_name(base_type, bits):
-    """get conventional name of type"""
-    table = {
-        "float": {
-            16: 'half',
-            32: 'float',
-            64: 'double'},
-        "int": {
-            8:  'char',
-            16: 'short',
-            32: 'int',
-            64: 'long'}
-    }
-
-    return table[base_type][bits]
-
 def _convert_to_remote(func, remote):
     """ convert module function to remote rpc function"""
     temp = util.tempdir()
@@ -32,9 +16,9 @@ def _convert_to_remote(func, remote):
     func = remote.load_module("tmp_func.tar")
     return func
 
-def test_bandwidth_sum(total_item, item_per_thread, stride,
-                       base_type, bits, lanes,
-                       target, target_host, remote, ctx, n_times):
+def measure_bandwidth_sum(total_item, item_per_thread, stride,
+                          base_type, bits, lanes,
+                          target, target_host, remote, ctx, n_times):
     """ test memory bandwidth of gpu by product reduction for a given type
 
     The IR for test is
@@ -107,8 +91,8 @@ def test_bandwidth_sum(total_item, item_per_thread, stride,
 
     return 1.0 * (total_item * bits / 8) / 1e9 / time
 
-def test_bandwidth_all_types(total_item, item_per_thread, n_times,
-                             target, target_host, remote, ctx, verbose=True):
+def measure_bandwidth_all_types(total_item, item_per_thread, n_times,
+                                target, target_host, remote, ctx, verbose=True):
     """ test memory bandwidth for all types
 
     Parameters
@@ -144,18 +128,18 @@ def test_bandwidth_all_types(total_item, item_per_thread, n_times,
                 max_speed = -1e9
                 # try different strides
                 for stride in [max_threads, total_item // (lanes * item_per_thread)]:
-                    speed = test_bandwidth_sum(total_item, item_per_thread, stride,
-                                               base_type, bits, lanes, target,
-                                               target_host, remote, ctx, n_times)
+                    speed = measure_bandwidth_sum(total_item, item_per_thread, stride,
+                                                  base_type, bits, lanes, target,
+                                                  target_host, remote, ctx, n_times)
                     max_speed = max(max_speed, speed)
-                type_name = get_name(base_type, bits)
-                result.append(["%s%d" % (type_name, lanes), max_speed])
+                type_name = base_type + str(bits)
+                result.append(["%sx%d" % (type_name, lanes), max_speed])
                 if verbose:
                     logging.info("\t%-10s %.2f GBPS", result[-1][0], result[-1][1])
     return result
 
-def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
-                     target, target_host, remote, ctx, n_times):
+def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
+                        target, target_host, remote, ctx, n_times):
     """ test peak compute speed by computing mad for a type
 
     The IR for test is
@@ -226,8 +210,6 @@ def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         if base_type.find('float') != -1:
             mad_func = lambda x, y: (x * x + y)
         else:
-            c = ib.allocate(dtype, (1), name='c', scope='local')
-            c[0] = outs[0].vload(idx, dtype)
             mad_func = lambda x, y: y * y + x
 
         for _ in range(item_per_thread // 4 // lanes):
@@ -252,9 +234,9 @@ def test_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
 
     return 1.0 * (n * item_per_thread) / 1e9 / time
 
-def test_compute_all_types(total_item, item_per_thread, n_times,
-                           target, target_host, remote, ctx, verbose=True):
-    """ test memory bandwidth for all types
+def measure_compute_all_types(total_item, item_per_thread, n_times,
+                              target, target_host, remote, ctx, verbose=True):
+    """ measure peak flops for all types
 
     Parameters
     ----------
@@ -289,12 +271,12 @@ def test_compute_all_types(total_item, item_per_thread, n_times,
 
                 max_speed = -1e9
                 for per_thread in [item_per_thread//2, item_per_thread, item_per_thread*2]:
-                    speed = test_compute_mad(total_item, per_thread,
-                                             base_type, bits, lanes, target,
-                                             target_host, remote, ctx, n_times)
+                    speed = measure_compute_mad(total_item, per_thread,
+                                                base_type, bits, lanes, target,
+                                                target_host, remote, ctx, n_times)
                     max_speed = max(max_speed, speed)
-                type_name = get_name(base_type, bits)
-                result.append(["%s%d" % (type_name, lanes), max_speed])
+                type_name = base_type + str(bits)
+                result.append(["%sx%d" % (type_name, lanes), max_speed])
 
                 unit = "GFLOPS" if base_type == "float" else "GIOPS"
 
@@ -337,9 +319,9 @@ def measure_peak_all(target, target_host, host, port):
         raise RuntimeError("Unsupported target")
 
     logging.info("========== test memory bandwidth ==========")
-    test_bandwidth_all_types(bandwidth_total_item, bandwidth_item_per_thread,
-                             n_times, target, target_host, remote, ctx)
+    measure_bandwidth_all_types(bandwidth_total_item, bandwidth_item_per_thread,
+                                n_times, target, target_host, remote, ctx)
 
     logging.info("========== test compute ==========")
-    test_compute_all_types(compute_total_item, compute_item_per_thread,
-                           n_times, target, target_host, remote, ctx)
+    measure_compute_all_types(compute_total_item, compute_item_per_thread,
+                              n_times, target, target_host, remote, ctx)
