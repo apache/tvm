@@ -27,16 +27,13 @@ def _compute_reduce(f):
     return _compute
 
 # sum
-reg.register_compute("sum", _compute_reduce(topi.sum))
 reg.register_pattern("sum", OpPattern.COMM_REDUCE)
 reg.register_schedule("sum", _fschedule_reduce)
 
 # max
-reg.register_compute("max", _compute_reduce(topi.max))
 reg.register_pattern("max", OpPattern.COMM_REDUCE)
 reg.register_schedule("max", _fschedule_reduce)
 
 # min
-reg.register_compute("min", _compute_reduce(topi.min))
 reg.register_pattern("min", OpPattern.COMM_REDUCE)
 reg.register_schedule("min", _fschedule_reduce)

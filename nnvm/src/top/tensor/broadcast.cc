@@ -3,15 +3,22 @@
  * \file broadcast.cc
  * \brief broadcast operator.
  */
+#include <tvm/expr.h>
+#include <tvm/packed_func_ext.h>
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/compiler/op_attr_types.h>
+#include <nnvm/compiler/util.h>
 #include <nnvm/top/tensor.h>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
+#include "topi/broadcast.h"
 
 namespace nnvm {
 namespace top {
+using namespace tvm;
+using namespace nnvm::compiler;
 
 // broadcast_to
 DMLC_REGISTER_PARAMETER(BroadcastToParam);
@@ -67,6 +74,14 @@ So with `shape=(2,0)`, we will obtain the same result as in the above example.
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<BroadcastToParam>)
 .set_attr<FInferShape>("FInferShape", BroadcastToInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+    const Array<Tensor>& inputs,
+    const Array<Tensor>& out_info) {
+      const BroadcastToParam& param = nnvm::get<BroadcastToParam>(attrs.parsed);
+      auto shape = ShapeToArray(param.shape);
+      return Array<Tensor>{ topi::broadcast_to(inputs[0], shape) };
+  })
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_support_level(4);
@@ -121,6 +136,13 @@ inline bool BinaryBroadcastShape(const nnvm::NodeAttrs& attrs,
   .set_attr<FInplaceOption>("FInplaceOption",                       \
     [](const NodeAttrs& attrs) {                                    \
       return std::vector<std::pair<int, int> >{{0, 0}, {1, 0}};     \
+    })                                                              \
+  .set_attr<FTVMCompute>(                                           \
+    "FTVMCompute", [](const NodeAttrs& attrs,                       \
+      const Array<Tensor>& inputs,                                  \
+      const Array<Tensor>& out_info) {                              \
+        return Array<Tensor>{                                       \
+          topi::name(inputs[0], inputs[1]) };                       \
     })                                                              \
   .add_argument("lhs", "Tensor", "first input")                     \
   .add_argument("rhs", "Tensor", "second input")

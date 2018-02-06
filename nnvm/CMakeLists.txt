@@ -22,6 +22,7 @@ include_directories(BEFORE "include")
 include_directories("tvm/include")
 include_directories("tvm/dlpack/include")
 include_directories("tvm/HalideIR/src")
+include_directories("tvm/topi/include")
 
 set(NNVM_LINKER_LIBS "")
 set(NNVM_COMPILER_LINKER_LIBS "")

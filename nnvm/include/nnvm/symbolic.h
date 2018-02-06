@@ -28,7 +28,7 @@ namespace nnvm {
  *  symbol is the final operation of a graph and thus including all the information
  *  required (the graph) to evaluate its output value.
  */
-class Symbol {
+class NNVM_DLL Symbol {
  public:
   /*! \brief option passed to ListAttr */
   enum ListAttrOption {

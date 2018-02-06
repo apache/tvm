@@ -11,7 +11,7 @@ include $(config)
 
 export LDFLAGS = -pthread -lm
 export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
-CFLAGS += -Itvm/include -Itvm/dlpack/include -Itvm/HalideIR/src
+CFLAGS += -Itvm/include -Itvm/dlpack/include -Itvm/HalideIR/src -Itvm/topi/include
 
 ifdef DMLC_CORE_PATH
   CFLAGS += -I$(DMLC_CORE_PATH)/include
