@@ -281,7 +281,7 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   if (err != GL_TRUE) {
     std::unique_ptr<char[]> err_msg(new char[info_log_len + 1]);
     gl->GetShaderInfoLog(shader, info_log_len, nullptr, err_msg.get());
-    LOG(FATAL) << err_msg.get();
+    LOG(FATAL) << err_msg.get() << "\n" << shader_src;
     assert(false);
   }
 

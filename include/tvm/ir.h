@@ -226,6 +226,8 @@ constexpr const char* channel_write_advance = "channel_write_advance";
 constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
 /*! \brief pipeline execution scope, implies the scope can be pipelined. */
 constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
+/*! \brief This stage is an OpenGL shader. */
+constexpr const char* stage_is_opengl = "stage_is_opengl";
 }  // namespace attr
 
 /*! \brief namespace of TVM Intrinsic functions */

@@ -44,6 +44,11 @@ Stmt MakePipeline(const Stage& s,
       s->op, ir::attr::realize_scope,
       StringImm::make(s->scope),
       pipeline);
+
+  if (s->is_opengl) {
+    pipeline = AttrStmt::make(
+        s->op, ir::attr::stage_is_opengl, StringImm::make(""), pipeline);
+  }
   return pipeline;
 }
 
