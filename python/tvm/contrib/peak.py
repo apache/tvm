@@ -19,9 +19,9 @@ def _convert_to_remote(func, remote):
 def measure_bandwidth_sum(total_item, item_per_thread, stride,
                           base_type, bits, lanes,
                           target, target_host, remote, ctx, n_times):
-    """ test memory bandwidth of gpu by product reduction for a given type
+    """ measure memory bandwidth of gpu by product reduction for a given type
 
-    The IR for test is
+    The IR for measurement is
 
     for each thread
         for i in 1..num_per_thread:
@@ -50,7 +50,7 @@ def measure_bandwidth_sum(total_item, item_per_thread, stride,
     remote: tvm.contrib.rpc.RPCSession
         remote rpc session
     n_times: int
-        test times for taking mean
+        number of runs for taking mean
 
     Returns
     -------
@@ -93,7 +93,7 @@ def measure_bandwidth_sum(total_item, item_per_thread, stride,
 
 def measure_bandwidth_all_types(total_item, item_per_thread, n_times,
                                 target, target_host, remote, ctx, verbose=True):
-    """ test memory bandwidth for all types
+    """ measure memory bandwidth for all types
 
     Parameters
     ----------
@@ -140,9 +140,9 @@ def measure_bandwidth_all_types(total_item, item_per_thread, n_times,
 
 def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
                         target, target_host, remote, ctx, n_times):
-    """ test peak compute speed by computing mad for a type
+    """ measure peak compute speed by computing mad for a type
 
-    The IR for test is
+    The IR for measurement is
 
     for each thread
         for i in 1..item_per_thread
@@ -170,7 +170,7 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
     ctx: TVMcontext
         the context of array
     n_times: int
-        test times for taking mean
+        number of runs for taking mean
 
     Returns
     -------
@@ -190,7 +190,7 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
 
     def extern(ins, outs):
         # pylint: disable=unused-argument
-        """construct test function by building IR directly"""
+        """construct measurement function by building IR directly"""
         ib = tvm.ir_builder.create()
 
         bx = tvm.thread_axis("blockIdx.x")
@@ -266,7 +266,7 @@ def measure_compute_all_types(total_item, item_per_thread, n_times,
     for base_type in ["float", "int"]:
         for bits in [16, 32, 64]:
             for lanes in [1, 2, 4, 8, 16]:
-                if base_type == 'int' and bits != 32:  # only test int32
+                if base_type == 'int' and bits != 32:  # only measure int32
                     continue
 
                 max_speed = -1e9
@@ -287,7 +287,7 @@ def measure_compute_all_types(total_item, item_per_thread, n_times,
 
 
 def measure_peak_all(target, target_host, host, port):
-    """measure peak
+    """measure memory bandwidth and peak compute for gpu devices
 
     Parameters
     ----------
@@ -311,17 +311,15 @@ def measure_peak_all(target, target_host, host, port):
         ctx = remote.cl()
     elif str(target).startswith("cuda"):
         ctx = remote.gpu()
-    elif str(target).startswith("llvm"):
-        ctx = remote.cpu()
     elif str(target).startswith("metal"):
         ctx = remote.metal()
     else:
         raise RuntimeError("Unsupported target")
 
-    logging.info("========== test memory bandwidth ==========")
+    logging.info("========== measure memory bandwidth ==========")
     measure_bandwidth_all_types(bandwidth_total_item, bandwidth_item_per_thread,
                                 n_times, target, target_host, remote, ctx)
 
-    logging.info("========== test compute ==========")
+    logging.info("========== measure peak compute ==========")
     measure_compute_all_types(compute_total_item, compute_item_per_thread,
                               n_times, target, target_host, remote, ctx)
