@@ -6,13 +6,19 @@
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/compiler/op_attr_types.h>
+#include <nnvm/compiler/util.h>
 #include <nnvm/top/tensor.h>
 #include <cctype>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
+#include "topi/nn/flatten.h"
+#include "topi/transform.h"
 
 namespace nnvm {
 namespace top {
+using namespace tvm;
+using namespace nnvm::compiler;
 
 // flatten
 inline bool FlattenInferShape(const NodeAttrs& attrs,
@@ -58,6 +64,12 @@ Example::
 .set_attr<FInferShape>("FInferShape", FlattenInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .add_argument("data", "Tensor", "Input data.")
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::nn::flatten(inputs[0]) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -144,6 +156,13 @@ Example::
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ConcatenateParam>)
 .set_attr<FInferShape>("FInferShape", ConcatenateInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ConcatenateParam& param = nnvm::get<ConcatenateParam>(attrs.parsed);
+    return Array<Tensor>{ topi::concatenate(inputs, param.axis) };
+})
 .set_num_outputs(1)
 .set_num_inputs(kVarg)
 .set_support_level(1);
@@ -190,6 +209,13 @@ will return a new array with shape ``(2,5,3,4)``.
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ExpandDimsParam& param = nnvm::get<ExpandDimsParam>(attrs.parsed);
+    return Array<Tensor>{ topi::expand_dims(inputs[0], param.axis, param.num_newaxis) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -326,6 +352,22 @@ along which to split the array.
 .set_attr<FInferType>("FInferType", ElemwiseType<1, -1>)
 .set_num_inputs(1)
 .set_num_outputs(SplitNumOutputs)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
+    if (param.equal_split) {
+      return Array<Tensor>{
+        topi::split_sections(inputs[0], param.indices_or_sections[0], param.axis) };
+    } else {
+      Array<Expr> indices;
+      for (auto i : param.indices_or_sections) {
+        indices.push_back(tvm::make_const(tvm::Int(32), i));
+      }
+      return Array<Tensor>{ topi::split(inputs[0], indices, param.axis) };
+    }
+})
 .set_support_level(1);
 
 // cast
@@ -504,6 +546,12 @@ The significance of each is explained below:
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::reshape(inputs[0], out_info[0]->shape) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -620,6 +668,14 @@ Examples::
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const SqueezeParam& param = nnvm::get<SqueezeParam>(attrs.parsed);
+    auto axis = ShapeToArray(param.axis);
+    return Array<Tensor>{ topi::squeeze(inputs[0], axis) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -695,6 +751,14 @@ Examples::
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_support_level(4)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const TransposeParam& param = nnvm::get<TransposeParam>(attrs.parsed);
+    auto axes = ShapeToArray(param.axes);
+    return Array<Tensor>{ topi::transpose(inputs[0], axes) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {

@@ -6,12 +6,17 @@
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/compiler/op_attr_types.h>
+#include <nnvm/compiler/util.h>
 #include <nnvm/top/tensor.h>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
+#include "topi/reduction.h"
 
 namespace nnvm {
 namespace top {
+using namespace tvm;
+using namespace nnvm::compiler;
 
 // reduce
 DMLC_REGISTER_PARAMETER(ReduceParam);
@@ -127,6 +132,15 @@ Example::
   [ 12.  19.  27.]
 
 )code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    auto axis = ShapeToArray(param.axis);
+    return Array<Tensor>{
+      topi::sum(inputs[0], axis, param.keepdims) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -145,6 +159,15 @@ NNVM_REGISTER_REDUCE_OP(max)
 .describe(R"code(Computes the max of array elements over given axes.
 
 )code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    auto axis = ShapeToArray(param.axis);
+    return Array<Tensor>{
+      topi::max(inputs[0], axis, param.keepdims) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
@@ -168,6 +191,15 @@ NNVM_REGISTER_REDUCE_OP(min)
 .describe(R"code(Computes the min of array elements over given axes.
 
 )code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    auto axis = ShapeToArray(param.axis);
+    return Array<Tensor>{
+      topi::min(inputs[0], axis, param.keepdims) };
+})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){

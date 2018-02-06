@@ -80,7 +80,7 @@ GraphKey GraphKeyNode::make(Graph graph,
   return GraphKey(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<GraphKeyNode>([](const GraphKeyNode *op, IRPrinter *p) {
     p->stream << "GraphKeyNode("<< op << ")";
 });

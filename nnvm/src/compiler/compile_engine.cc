@@ -344,7 +344,7 @@ TVM_REGISTER_GLOBAL("nnvm.compiler.CacheItem2ScheduleArgs")
     *rv = ret;
   });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<GraphFuncNode>([](const GraphFuncNode *op, IRPrinter *p) {
     p->stream << "GraphFunc(name=" << op->func_name
               << ", addr=" << op << ")";
