@@ -336,7 +336,9 @@ class StoragePlanRewriter : public IRMutator {
           nest.push_back(e->new_alloc);
         }
       }
+      LOG(INFO) << "herehre";
       stmt = MergeNest(nest, stmt);
+      LOG(INFO) << "herehre !!";
     }
     return stmt;
   }
@@ -482,11 +484,13 @@ class StoragePlanRewriter : public IRMutator {
                   Stmt body) {
     std::vector<Stmt> nest;
     for (StorageEntry* e : svec) {
-      nest.emplace_back(AttrStmt::make(
-          e->alloc_var, attr::storage_scope,
-          StringImm::make(e->scope.to_string()),
-          Evaluate::make(0)));
-      nest.push_back(e->new_alloc);
+      if (e->new_alloc.defined()) {
+        nest.emplace_back(AttrStmt::make(
+            e->alloc_var, attr::storage_scope,
+            StringImm::make(e->scope.to_string()),
+            Evaluate::make(0)));
+        nest.push_back(e->new_alloc);
+      }
     }
     return MergeNest(nest, body);
   }
