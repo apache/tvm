@@ -133,6 +133,46 @@ Target stackvm() {
 }
 }  // namespace target
 
+std::string BuildConfig::str() const {
+  std::ostringstream os;
+  dmlc::JSONWriter writer(&os);
+
+  writer.BeginObject();
+  writer.WriteObjectKeyValue("data_alignment", data_alignment);
+  writer.WriteObjectKeyValue("offset_factor", offset_factor);
+  writer.WriteObjectKeyValue("double_buffer_split_loop", double_buffer_split_loop);
+  writer.WriteObjectKeyValue("auto_unroll_max_step", auto_unroll_max_step);
+  writer.WriteObjectKeyValue("auto_unroll_max_depth", auto_unroll_max_depth);
+  writer.WriteObjectKeyValue("auto_unroll_max_extent", auto_unroll_max_extent);
+  writer.WriteObjectKeyValue("unroll_explicit", unroll_explicit);
+  writer.WriteObjectKeyValue("restricted_func", restricted_func);
+  writer.WriteObjectKeyValue("detect_global_barrier", detect_global_barrier);
+  writer.WriteObjectKeyValue("partition_const_loop", partition_const_loop);
+  writer.EndObject();
+
+  return os.str();
+}
+
+BuildConfig BuildConfig::create(const std::string& json_str) {
+  std::istringstream is(json_str);
+  dmlc::JSONReader reader(&is);
+
+  tvm::BuildConfig cfg;
+  dmlc::JSONObjectReadHelper helper;
+  helper.DeclareOptionalField("data_alignment", &(cfg.data_alignment));
+  helper.DeclareOptionalField("offset_factor", &(cfg.offset_factor));
+  helper.DeclareOptionalField("double_buffer_split_loop", &(cfg.double_buffer_split_loop));
+  helper.DeclareOptionalField("auto_unroll_max_step", &(cfg.auto_unroll_max_step));
+  helper.DeclareOptionalField("auto_unroll_max_depth", &(cfg.auto_unroll_max_depth));
+  helper.DeclareOptionalField("auto_unroll_max_extent", &(cfg.auto_unroll_max_extent));
+  helper.DeclareOptionalField("unroll_explicit", &(cfg.unroll_explicit));
+  helper.DeclareOptionalField("restricted_func", &(cfg.restricted_func));
+  helper.DeclareOptionalField("detect_global_barrier", &(cfg.detect_global_barrier));
+  helper.DeclareOptionalField("partition_const_loop", &(cfg.partition_const_loop));
+  helper.ReadAllFields(&reader);
+  return cfg;
+}
+
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.build_llvm");
   return pf != nullptr;
