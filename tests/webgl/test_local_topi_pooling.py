@@ -1,5 +1,5 @@
 """Test code for pooling
-Copied from topi/tests/python/test_topi_softmax.py.
+Copied from topi/tests/python/test_topi_pooling.py.
 Should be removed once we fix OpenGL testing on Jenkins.
 """
 import numpy as np

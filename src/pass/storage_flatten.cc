@@ -92,7 +92,7 @@ class StorageFlattener : public IRMutator {
       vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
       return this->Mutate(op->body);
-    } else if (op->attr_key == attr::stage_is_opengl) {
+    } else if (op->attr_key == attr::opengl_stage_scope) {
       is_opengl_ = true;
     }
     return IRMutator::Mutate_(op, s);
