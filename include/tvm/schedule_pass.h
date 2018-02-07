@@ -29,9 +29,10 @@ Map<IterVar, Range> InferBound(const Schedule& sch);
  *
  * \param s The schedule to be realized
  * \param dom_map The domain of each iter vars.
+ * \param del_trivial_loop Whether delete trivial loops with extent of 1
  * \return the result Stmt
  */
-Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
+Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map, bool del_trivial_loop);
 
 /*!
  * \brief To automatically inline the element-wise operations.

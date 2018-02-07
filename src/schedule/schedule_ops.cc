@@ -22,8 +22,9 @@ using namespace ir;
 
 Stmt MakePipeline(const Stage& s,
                   const std::unordered_map<IterVar, Range>& dom_map,
-                  Stmt consumer) {
-  Stmt producer = s->op->BuildProvide(s, dom_map);
+                  Stmt consumer,
+                  bool del_trivial_loop) {
+  Stmt producer = s->op->BuildProvide(s, dom_map, del_trivial_loop);
   if (producer.defined()) {
     producer = ProducerConsumer::make(s->op, true, producer);
   }
@@ -68,7 +69,7 @@ class InjectAttach : public IRMutator {
         found_attach = true;
         stmt = AttrStmt::make(
             op->node, op->attr_key, op->value,
-            MakePipeline(stage_, dom_map_, op->body));
+            MakePipeline(stage_, dom_map_, op->body, true));
       }
     }
     return stmt;
@@ -107,7 +108,7 @@ class InjectScanStep : public IRMutator {
         found_attach = true;
         stmt = AttrStmt::make(
             op->node, op->attr_key, op->value,
-            MakePipeline(stage_, dom_map_, op->body));
+            MakePipeline(stage_, dom_map_, op->body, true));
       }
     }
     return stmt;
@@ -324,7 +325,7 @@ class SchedulePostProc : public IRMutator {
 };
 
 Stmt ScheduleOps(
-    Schedule sch, Map<IterVar, Range> dom_map_) {
+    Schedule sch, Map<IterVar, Range> dom_map_, bool del_trivial_loop) {
   Stmt body = Stmt();
   std::unordered_map<IterVar, Range> dom_map = as_unordered_map(dom_map_);
   // scan init and scan updates
@@ -374,7 +375,7 @@ Stmt ScheduleOps(
       // do nothing
     } else if (attach_spec->attach_type == kGroupRoot) {
       CHECK(!s->group.defined());
-      body = MakePipeline(s, dom_map, body);
+      body = MakePipeline(s, dom_map, body, del_trivial_loop);
     } else {
       CHECK_EQ(attach_spec->attach_type, kScope);
       CHECK(body.defined());
