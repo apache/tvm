@@ -280,6 +280,17 @@ def mali(options=None):
     return Target("opencl", opts)
 
 
+def opengl(options=None):
+    """Returns a OpenGL target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    return Target("opengl", options)
+
+
 def create(target_str):
     """Get a target given target string.
 

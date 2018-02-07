@@ -34,6 +34,9 @@ class CodeGenOpenGL final : public CodeGenC {
   void VisitExpr_(const FloatImm* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const StringImm* op, std::ostream& os) final;  // NOLINT(*)
 
+  // Match glsl_texture_store Call.
+  void VisitStmt_(const Evaluate* op) final;  // NOLINT(*)
+
  private:
   const Variable* output_{nullptr};
   std::unordered_set<const Variable*> inputs_;

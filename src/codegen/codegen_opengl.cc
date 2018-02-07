@@ -168,31 +168,9 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   this->stream << "}\n";
 }
 
-// GLSL texture store is special. We can only store to one output texture, and
-// we must store to the index that matches the current "thread index".
 void CodeGenOpenGL::VisitStmt_(const Store* op) {
-  auto t = op->value.type();
-  auto buffer = op->buffer_var.get();
-  auto index = op->index;
-
-  if (t.lanes() == 1) {
-    // Store to a scalar.
-    CHECK(inputs_.find(buffer) == inputs_.cend())
-      << "Texture has been read from before. Must not store to it.";
-    if (output_ == nullptr) {
-      output_ = buffer;  // Record that this texture is the output.
-    } else {
-      CHECK(output_ == buffer) << "GLSL can only write to 1 texture.";
-    }
-
-    this->PrintIndent();
-    this->stream << GetBufferRef(t, buffer, index) << " = "
-                 << PrintExpr(op->value) << ";\n";
-
-  } else {
-    // Store to a vector.
-    LOG(FATAL) << "Vectorized store not implemented.";
-  }
+  LOG(FATAL) << "Store statement not supported in OpenGL."
+             << " Texture store should be a Call statement.";
 }
 
 // texelFetch(tex, ivec2(idx & kTextureRowMask, idx >> kTextureRowBits), 0).r
@@ -215,8 +193,6 @@ std::string CodeGenOpenGL::GetBufferRef(
 
   if (buffer == this->output_) {
     // This is the output texture.
-    CHECK_EQ(index.get(), output_iter_var_)
-      << "GLSL must access corresponding elem of output texture.";
     return GetVarID(buffer);
   } else {
     // This is an input texture.
@@ -263,6 +239,34 @@ void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
 
 void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
   LOG(FATAL) << "GLSL 3.0 doesn't support strings.";
+}
+
+void CodeGenOpenGL::VisitStmt_(const Evaluate* op) {
+  auto call = op->value.as<Call>();
+  if (call == nullptr || call->name != Call::glsl_texture_store) {
+    // Fallback to normal logic.
+    CodeGenC::VisitStmt_(op);
+  }
+
+  CHECK_EQ(call->args.size(), 2);
+  auto buffer = call->args[0].as<Variable>();
+  auto value = call->args[1];
+
+  // Doesn't support store to vector.
+  auto type = value.type();
+  CHECK_EQ(type.lanes(), 1)
+    << "Vectorized store not implemented, type = " << type;
+
+  CHECK(inputs_.find(buffer) == inputs_.cend())
+    << "Texture has been read from before. Must not store to it.";
+  if (output_ == nullptr) {
+    output_ = buffer;  // Record that this texture is the output.
+  } else {
+    CHECK(output_ == buffer) << "GLSL can only write to 1 texture.";
+  }
+
+  this->PrintIndent();
+  this->stream << GetVarID(buffer) << " = " << PrintExpr(value) << ";\n";
 }
 
 }  // namespace codegen
