@@ -365,13 +365,17 @@ def test_alloc_seq_type():
     with ib.for_range(0, n, name="i") as i:
         with ib.for_range(0, 10, name="j") as j:
             A = ib.allocate("float32", 200, name="A", scope="local.L0A")
+            A1 = ib.allocate("float32", 200, name="A1", scope="local.L0A")
             A[j] = 1.2
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("int32", 200, name="A", scope="local.L0A")
-            A[j] = 1
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("int8", 200, name="A", scope="local.L0A")
-            A[j] = tvm.const(1, "int8")
+            A1[j] = 1.3
+            B = ib.allocate("int16", 200, name="B", scope="local.L0A")
+            B[j] = tvm.const(1, "int16")
+            C = ib.allocate("int16", 200, name="C", scope="local.L0A")
+            C[j] = tvm.const(1, "int16")
+            D = ib.allocate("int16", 200, name="D", scope="local.L0A")
+            D[j] = B[j] + C[j]
+            A2 = ib.allocate("float32", 200, name="A2", scope="local.L0A")
+            A2[j] = A[j]
 
     body = ib.get()
     body = tvm.ir_pass.StorageRewrite(body)
@@ -379,7 +383,7 @@ def test_alloc_seq_type():
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
             num_alloc[0] += 1
-            assert n.extents[0].value == 200
+            assert n.extents[0].value == 500
     tvm.ir_pass.PostOrderVisit(body, verify)
     assert num_alloc[0] == 1
 

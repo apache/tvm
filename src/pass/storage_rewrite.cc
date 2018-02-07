@@ -493,7 +493,10 @@ class StoragePlanRewriter : public IRMutator {
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
     CHECK_LE(dtype.element_of().bytes(), e->elem_type.bytes());
     if (e->elem_offset == 0) return index;
-    return make_const(index.type(), e->elem_offset) + index;
+    auto offset = e->elem_offset;
+    // when reusing buffer between different types, update offset as current dtypes
+    offset = offset * (e->elem_type.bytes() / dtype.element_of().bytes());
+    return make_const(index.type(), offset) + index;
   }
   // Prepare the new allocations
   void PrepareNewAlloc() {
