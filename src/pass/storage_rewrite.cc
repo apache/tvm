@@ -336,9 +336,7 @@ class StoragePlanRewriter : public IRMutator {
           nest.push_back(e->new_alloc);
         }
       }
-      LOG(INFO) << "herehre";
       stmt = MergeNest(nest, stmt);
-      LOG(INFO) << "herehre !!";
     }
     return stmt;
   }
