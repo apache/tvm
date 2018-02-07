@@ -154,6 +154,8 @@ class LinearAccessPatternFinder final : public IRVisitor {
       in_thread_env_ = false;
     } else if (op->attr_key == attr::extern_scope) {
       VisitNewScope(op);
+    } else if (op->attr_key == attr::virtual_thread) {
+      VisitNewScope(op);
     } else if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       alloc_info_[buf].storage_scope =
@@ -395,11 +397,10 @@ class StoragePlanRewriter : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    CHECK(op->attr_key != attr::virtual_thread)
-        << "InjectVirtualThread before StoragePlan";
     if (op->attr_key == attr::storage_scope) {
       return this->Mutate(op->body);
     } else if (op->attr_key == attr::thread_extent ||
+               op->attr_key == attr::virtual_thread ||
                op->attr_key == attr::pragma_scope) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
@@ -716,7 +717,8 @@ class StoragePlanRewriter : public IRMutator {
       if (s.stmt->is_type<AttrStmt>()) {
         const auto* op = static_cast<const AttrStmt*>(s.stmt);
         if (op->attr_key == attr::thread_extent ||
-            op->attr_key == attr::pragma_scope) {
+            op->attr_key == attr::pragma_scope ||
+            op->attr_key == attr::virtual_thread) {
           PlanNewScope(op);
         } else {
           CHECK(op->attr_key == attr::extern_scope);
