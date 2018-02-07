@@ -6,6 +6,7 @@ LoweredFunc and compiled Module.
 from __future__ import absolute_import as _abs
 import warnings
 import types
+import json
 
 from . import api
 from . import tensor
@@ -149,8 +150,27 @@ class BuildConfig(object):
             self._dump_ir.exit()
         BuildConfig.current = self._old_scope
 
+    def __str__(self):
+        attrs = {k: getattr(self, k) for k in BuildConfig.defaults}
+        return json.dumps(attrs)
+
 
 BuildConfig.current = BuildConfig()
+
+def build_config_parse(json_str):
+    """Create a BuildConfig object from the given json representation.
+
+    Parameters
+    ----------
+    json_str: string
+        String containing the json representation of a BuildConfig object.
+
+    Returns
+    -------
+    config: BuildConfig
+        The build configuration
+    """
+    return BuildConfig(**json.loads(json_str))
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
