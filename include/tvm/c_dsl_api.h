@@ -69,6 +69,7 @@ TVM_DLL int TVMNodeGetAttr(NodeHandle handle,
 * \param handle The node handle
 * \param key The attribute name
 * \param set_value The new attribute value
+* \param value_type_code The type code of the new value.
 * \param out_success Whether get is successful.
 * \return 0 when success, -1 when failure happens
 * \note API calls always exchanges with type bits=64, lanes=1
