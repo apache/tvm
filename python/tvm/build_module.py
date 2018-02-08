@@ -135,7 +135,7 @@ class BuildConfig(NodeBase):
     
     def __setattr__(self, name, value):
         if name == "handle" or not name in self.__dir__():
-            return super(NodeBase, self).__setattr__(name, value)
+            return super(BuildConfig, self).__setattr__(name, value)
         else:
             self.set_attr_value(name, value)
 
