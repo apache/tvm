@@ -179,7 +179,7 @@ void GetBinds(const Array<Tensor>& args,
   for (const auto &x : args) {
     if (out_binds->find(x) == out_binds->end()) {
       auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name,
-        config.data_alignment, config.offset_factor);
+        config->data_alignment, config->offset_factor);
       out_binds->Set(x, buf);
       out_arg_list->push_back(buf);
     } else {
@@ -218,14 +218,14 @@ Stmt BuildStmt(Schedule sch,
   stmt = ir::StorageFlatten(stmt, out_binds, 64);
   stmt = ir::CanonicalSimplify(stmt);
   if (loop_partition) {
-    stmt = ir::LoopPartition(stmt, config.partition_const_loop);
+    stmt = ir::LoopPartition(stmt, config->partition_const_loop);
   }
   stmt = ir::VectorizeLoop(stmt);
   stmt = ir::InjectVirtualThread(stmt);
-  stmt = ir::InjectDoubleBuffer(stmt, config.double_buffer_split_loop);
+  stmt = ir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
   stmt = ir::StorageRewrite(stmt);
-  stmt = ir::UnrollLoop(stmt, config.auto_unroll_max_step, config.auto_unroll_max_depth,
-    config.auto_unroll_max_extent, config.unroll_explicit);
+  stmt = ir::UnrollLoop(stmt, config->auto_unroll_max_step, config->auto_unroll_max_depth,
+    config->auto_unroll_max_extent, config->unroll_explicit);
 
   // Phase 2
   stmt = ir::Simplify(stmt);
@@ -243,7 +243,7 @@ Array<LoweredFunc> lower(Schedule sch,
                          const BuildConfig& config) {
   Array<NodeRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
-  return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config.restricted_func) });
+  return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
 
 runtime::Module build(const Array<LoweredFunc>& funcs,
@@ -266,7 +266,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
   for (const auto &x : funcs) {
     if (x->func_type == kMixedFunc) {
       auto func = x;
-      if (config.detect_global_barrier) {
+      if (config->detect_global_barrier) {
         func = ir::ThreadSync(func, "global");
       }
 
@@ -321,4 +321,21 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 
   return mhost;
 }
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<BuildConfigNode>([](const BuildConfigNode *op, IRPrinter *p) {
+  p->stream << "build_config(";
+  p->stream << "data_alignment=" << op->data_alignment << ", ";
+  p->stream << "offset_factor=" << op->offset_factor << ", ";
+  p->stream << "double_buffer_split_loop=" << op->double_buffer_split_loop << ", ";
+  p->stream << "auto_unroll_max_step=" << op->auto_unroll_max_step << ", ";
+  p->stream << "auto_unroll_max_depth=" << op->auto_unroll_max_depth << ", ";
+  p->stream << "auto_unroll_max_extent=" << op->auto_unroll_max_extent << ", ";
+  p->stream << "unroll_explicit=" << op->unroll_explicit << ", ";
+  p->stream << "restricted_func=" << op->restricted_func << ", ";
+  p->stream << "detect_global_barrier=" << op->detect_global_barrier << ", ";
+  p->stream << "partition_const_loop=" << op->partition_const_loop;
+  p->stream << ")";
+});
+
 }  // namespace tvm

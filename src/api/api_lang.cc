@@ -10,6 +10,7 @@
 #include <tvm/buffer.h>
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
+#include <tvm/build_module.h>
 
 namespace tvm {
 
@@ -440,5 +441,11 @@ TVM_REGISTER_API("_CommReducerCombine")
       args[0].operator ir::CommReducer().as<ir::CommReducerNode>();
     *ret = (*combiner)(args[1], args[2]);
   });
+
+TVM_REGISTER_API("_BuildConfig")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  auto node = std::make_shared<BuildConfigNode>();
+  *ret = node;
+});
 
 }  // namespace tvm

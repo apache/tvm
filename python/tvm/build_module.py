@@ -7,6 +7,8 @@ from __future__ import absolute_import as _abs
 import warnings
 import types
 
+from ._ffi.node import NodeBase, register_node
+from . import _api_internal
 from . import api
 from . import tensor
 from . import schedule
@@ -95,42 +97,25 @@ class DumpIR(object):
         BuildConfig.current.add_lower_pass = self._old_custom_pass
         DumpIR.scope_level -= 1
 
-class BuildConfig(object):
-    """Configuration scope to set a build config option.
-
-    Parameters
-    ----------
-    kwargs
-        Keyword arguments of configurations to set.
-    """
+@register_node
+class BuildConfig(NodeBase):
+    """Configuration scope to set a build config option."""
+    
     current = None
-    defaults = {
-        "auto_unroll_max_step": 0,
-        "auto_unroll_max_depth": 8,
-        "auto_unroll_max_extent": 0,
-        "unroll_explicit": True,
-        "detect_global_barrier": False,
-        "partition_const_loop": False,
-        "offset_factor": 0,
-        "data_alignment": -1,
-        "restricted_func": True,
-        "double_buffer_split_loop": 1,
-        "add_lower_pass": None,
-        "dump_pass_ir": False
-    }
-    def __init__(self, **kwargs):
+    
+    # pylint: disable=no-member
+    def __init__(self, handle):
+        """Initialize the function with handle
+
+        Parameters
+        ----------
+        handle : SymbolHandle
+            the handle to the underlying C++ Symbol
+        """
+        super(BuildConfig, self).__init__(handle)
         self._old_scope = None
         self._dump_ir = DumpIR()
-        for k, _ in kwargs.items():
-            if k not in BuildConfig.defaults:
-                raise ValueError(
-                    "invalid argument %s, candidates are %s" % (k, BuildConfig.defaults.keys()))
-        self._attr = kwargs
-
-    def __getattr__(self, name):
-        if name not in self._attr:
-            return BuildConfig.defaults[name]
-        return self._attr[name]
+        self.add_lower_pass = None
 
     def __enter__(self):
         # pylint: disable=protected-access
@@ -148,9 +133,6 @@ class BuildConfig(object):
         if self.dump_pass_ir is True:
             self._dump_ir.exit()
         BuildConfig.current = self._old_scope
-
-
-BuildConfig.current = BuildConfig()
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -206,8 +188,12 @@ def build_config(**kwargs):
     config: BuildConfig
         The build configuration
     """
-    return BuildConfig(**kwargs)
+    config = _api_internal._BuildConfig()
+    for k, v in kwargs.items():
+        config[k] = v
+    return config
 
+BuildConfig.current = build_config()
 
 def get_binds(args, binds=None):
     """Internal function to get binds and arg_list given arguments.
