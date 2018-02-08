@@ -188,7 +188,7 @@ def build_config(**kwargs):
     """
     config = _api_internal._BuildConfig()
     for k, v in kwargs.items():
-        config[k] = v
+        setattr(config, k, v)
     return config
 
 BuildConfig.current = build_config()
