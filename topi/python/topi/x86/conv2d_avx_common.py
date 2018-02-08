@@ -41,13 +41,14 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
                            name='data_vec')
 
     # pack kernel
-    shape = (num_filter // sch.oc_bn, in_channel // sch.ic_bn, kernel_height, kernel_width, sch.ic_bn, sch.oc_bn)
-    kernel_vec = tvm.compute(shape,
-                             lambda CO, CI, h, w, ci, co: kernel[CO * sch.oc_bn + co, CI * sch.ic_bn + ci, h, w],
+    shape = (num_filter//sch.oc_bn, in_channel//sch.ic_bn,
+             kernel_height, kernel_width, sch.ic_bn, sch.oc_bn)
+    kernel_vec = tvm.compute(shape, lambda CO, CI, h, w, ci, co:
+                             kernel[CO * sch.oc_bn + co, CI * sch.ic_bn + ci, h, w],
                              name='kernel_vec')
 
     # convolution
-    oshape = (batch_size, num_filter // sch.oc_bn, out_height, out_width, sch.oc_bn)
+    oshape = (batch_size, num_filter//sch.oc_bn, out_height, out_width, sch.oc_bn)
     unpack_shape = (batch_size, num_filter, out_height, out_width)
 
     ic = tvm.reduce_axis((0, in_channel), name='ic')
@@ -55,9 +56,10 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-        tvm.sum(data_vec[n, ic // sch.ic_bn, oh * HSTR + kh, ic % sch.ic_bn, ow * WSTR + kw].astype(out_dtype) *
-                kernel_vec[oc_chunk, ic // sch.ic_bn, kh, kw, ic % sch.ic_bn, oc_block],
-                axis=[ic, kh, kw]), name='conv')
+                       tvm.sum(data_vec[n, ic//sch.ic_bn, oh*HSTR+kh, ic%sch.ic_bn, ow*WSTR+kw] *
+                               kernel_vec[oc_chunk, ic//sch.ic_bn, kh, kw, ic%sch.ic_bn, oc_block],
+                               axis=[ic, kh, kw]),
+                       name='conv')
 
     unpack = tvm.compute(unpack_shape,
                          lambda n, c, h, w: conv[n, c // sch.oc_bn, h, w, c % sch.oc_bn],
