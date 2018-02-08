@@ -132,6 +132,12 @@ class BuildConfig(NodeBase):
         if self.dump_pass_ir is True:
             self._dump_ir.exit()
         BuildConfig.current = self._old_scope
+    
+    def __setattr__(self, name, value):
+        if name == "handle" or not name in self.__dir__():
+            return super(NodeBase, self).__setattr__(name, value)
+        else:
+            self.set_attr_value(name, value)
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
