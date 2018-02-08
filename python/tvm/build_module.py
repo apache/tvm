@@ -8,7 +8,6 @@ import warnings
 import types
 
 from ._ffi.node import NodeBase, register_node
-from . import _api_internal
 from . import api
 from . import tensor
 from . import schedule
@@ -103,7 +102,7 @@ class BuildConfig(NodeBase):
     """Configuration scope to set a build config option."""
 
     current = None
-    
+
     # pylint: disable=no-member
     def __init__(self, handle):
         """Initialize the function with handle
