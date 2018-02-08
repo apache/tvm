@@ -308,6 +308,11 @@ class InplaceOpVerifier : public IRVisitor {
   const Store* store_{nullptr};
 };
 
+// caculate bytes for dtype
+int total_bytes(Type dtype) {
+  return dtype.is_scalar() ? dtype.bytes() : dtype.bits() * dtype.lanes() / 8;
+}
+
 // Planner to plan and rewrite memory allocation.
 class StoragePlanRewriter : public IRMutator {
  public:
@@ -494,11 +499,12 @@ class StoragePlanRewriter : public IRMutator {
   }
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
-    CHECK_LE(dtype.element_of().bytes(), e->elem_type.bytes());
+    CHECK_LE(total_bytes(dtype.element_of()), total_bytes(e->elem_type));
+    CHECK_EQ(total_bytes(e->elem_type) % total_bytes(dtype.element_of()), 0);
     if (e->elem_offset == 0) return index;
     auto offset = e->elem_offset;
     // when reusing buffer between different types, update offset as current dtypes
-    offset = offset * (e->elem_type.bytes() / dtype.element_of().bytes());
+    offset = offset * (total_bytes(e->elem_type) / total_bytes(dtype.element_of()));
     return make_const(index.type(), offset) + index;
   }
   // Prepare the new allocations
@@ -767,6 +773,24 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
 
+  bool CanReuse(const StorageEntry *e,
+                const Allocate* op,
+                const Node* attach_scope,
+                const StorageScope& scope){
+    auto candidate_bybtes = total_bytes(e->elem_type);
+    auto op_bytes = total_bytes(op->type.element_of());
+    if (e->attach_scope_ != attach_scope) return false;
+    if (e->scope != scope) return false;;
+    // reuse buffer for:
+    // A[] = 1.0 (float32)
+    // B[] = 1   (int32 or int8)
+    // when B's dtype LE than A's dtype, and no USE after B, B can reuse A
+    if (candidate_bybtes < op_bytes) return false;
+    // when not divable, no reuse, eg, float4 vs float3
+    if (candidate_bybtes % op_bytes != 0) return false;
+    return true;
+  }
+
   StorageEntry* FindAlloc(const Allocate* op,
                           const Node* attach_scope,
                           const StorageScope& scope) {
@@ -793,13 +817,7 @@ class StoragePlanRewriter : public IRMutator {
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
       for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        // reuse buffer for:
-        // A[] = 1.0 (float32)
-        // B[] = 1   (int32 or int8)
-        // when B's dtype LE than A's dtype, and no USE after B, B can reuse A
-        if (e->elem_type.bytes() < op->type.element_of().bytes()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -807,9 +825,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = mid; it != begin;) {
         --it;
         StorageEntry *e = it->second;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type.bytes() < op->type.element_of().bytes()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         const_free_map_.erase(it);
         return e;
       }
@@ -818,9 +834,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = sym_free_list_.begin();
            it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type.bytes() < op->type.element_of().bytes()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         sym_free_list_.erase(it);
         return e;
       }
