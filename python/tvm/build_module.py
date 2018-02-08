@@ -116,6 +116,7 @@ class BuildConfig(NodeBase):
         self.handle = handle
         self._old_scope = None
         self._dump_ir = DumpIR()
+        self.dump_pass_ir = False
         self.add_lower_pass = None
 
     def __enter__(self):
