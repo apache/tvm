@@ -74,7 +74,7 @@ struct APIAttrSetter : public AttrVisitor {
   bool found_attr{ false };
 
   APIAttrSetter() :
-  set_value(TVMValue(), kNull){
+    set_value(TVMValue(), kNull) {
   }
 
   void Visit(const char* key, double* value) final {
