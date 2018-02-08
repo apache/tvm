@@ -20,7 +20,7 @@ _AVX_SCH_TO_SCH_FUNC = {
     AVXConv1x1Fwd: conv2d_avx_1x1._schedule_conv
 }
 
-@_get_schedule.register("cpu", override=True)
+@_get_schedule.register("cpu")
 def _get_schedule_conv(wkl):
     if wkl not in _WORKLOADS:
         raise ValueError("no schedule for such workload: {}".format(wkl))
@@ -63,7 +63,7 @@ def _get_schedule_conv(wkl):
     return sch
 
 
-@conv2d.register("cpu", override=True)
+@conv2d.register("cpu")
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     target = tvm.target.current_target(allow_none=False)
     if 'avx' in str(target) and layout == 'NCHW':
