@@ -100,9 +100,9 @@ class DumpIR(object):
 @register_node
 class BuildConfig(NodeBase):
     """Configuration scope to set a build config option."""
-    
+
     current = None
-    
+
     # pylint: disable=no-member
     def __init__(self, handle):
         """Initialize the function with handle
@@ -120,9 +120,6 @@ class BuildConfig(NodeBase):
     def __enter__(self):
         # pylint: disable=protected-access
         self._old_scope = BuildConfig.current
-        attr = BuildConfig.current._attr.copy()
-        attr.update(self._attr)
-        self._attr = attr
         BuildConfig.current = self
         if self.dump_pass_ir is True:
             self._dump_ir.enter()
