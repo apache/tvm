@@ -466,8 +466,14 @@ class StoragePlanRewriter : public IRMutator {
     // This is non-zero if this allocate is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
     // can be effectively converted to the element type.
-    // We need to convert bit_offset to offset of specific
-    // element type later.
+    // We need to convert bit_offset to offset of specific element type later.
+    //
+    // We use bits(instead of bytes) to support non-conventional indexing in hardware.
+    // When we are merging buffer together, the bits_offset are set to be aligned
+    // to certain value given by the max_simd_bits property of the special memory.
+    //
+    // This allows effective sharing among different types as long as their alignment
+    // requirement fits into the max_simd_bits.
     uint64_t bits_offset{0};
   };
 
