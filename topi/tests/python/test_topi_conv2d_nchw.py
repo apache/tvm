@@ -11,8 +11,6 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
     W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-    B = topi.nn.conv2d_nchw(A, W, stride, padding)
-    C = topi.nn.relu(B)
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -35,6 +33,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            B = topi.nn.conv2d(A, W, stride, padding, layout='NCHW')
+            C = topi.nn.relu(B)
             s1 = topi.generic.schedule_conv2d_nchw([B])
             s2 = topi.generic.schedule_conv2d_nchw([C])
         a = tvm.nd.array(a_np, ctx)
