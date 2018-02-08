@@ -128,18 +128,6 @@ struct BuildConfig {
 
   BuildConfig() {
   }
-
-  /*!
-   *\brief Encode this BuildConfig as a JSON string
-   * \return A string containing the JSON representation of this BuildConfig.
-   */
-  EXPORT std::string str() const;
-
-  /*!
-  * \brief Create a BuildConfig given a JSON string
-  * \param json_str the string to parse
-  */
-  EXPORT static BuildConfig create(const std::string& json_str);
 };
 
 /*!

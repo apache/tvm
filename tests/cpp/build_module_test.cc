@@ -4,26 +4,6 @@
 #include <tvm/operation.h>
 #include <tvm/build_module.h>
 
-TEST(BuildConfig, Serialization) {
-  using namespace tvm;
-  tvm::BuildConfig a;
-  a.detect_global_barrier = true;
-  a.offset_factor = 20;
-  a.auto_unroll_max_depth = 2;
-  auto s = a.str();
-  auto b = tvm::BuildConfig::create(s);
-  CHECK_EQ(a.data_alignment, b.data_alignment);
-  CHECK_EQ(a.offset_factor, b.offset_factor);
-  CHECK_EQ(a.double_buffer_split_loop, b.double_buffer_split_loop);
-  CHECK_EQ(a.auto_unroll_max_step, b.auto_unroll_max_step);
-  CHECK_EQ(a.auto_unroll_max_depth, b.auto_unroll_max_depth);
-  CHECK_EQ(a.auto_unroll_max_extent, b.auto_unroll_max_extent);
-  CHECK_EQ(a.unroll_explicit, b.unroll_explicit);
-  CHECK_EQ(a.restricted_func, b.restricted_func);
-  CHECK_EQ(a.detect_global_barrier, b.detect_global_barrier);
-  CHECK_EQ(a.partition_const_loop, b.partition_const_loop);
-}
-
 TEST(BuildModule, Basic) {
   using namespace tvm;
   auto n = var("n");
