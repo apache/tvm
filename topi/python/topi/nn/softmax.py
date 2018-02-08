@@ -56,22 +56,27 @@ def softmax_nchw(x, axis):
         assert axis == 1, "only support 5-dim axis == 1 softmax for NCDHW layout"
         n, c, d, h, w = x.shape
         k = tvm.reduce_axis((0, c), name='k')
-        max_elem = tvm.compute((n, d, h, w), lambda n, d, h, w: tvm.max(x[n, k, d, h, w], axis=k))
+        max_elem = tvm.compute((n, d, h, w),
+                               lambda n, d, h, w: tvm.max(x[n, k, d, h, w], axis=k))
         k = tvm.reduce_axis((0, c), name='k')
-        expsum = tvm.compute(
-            (n, d, h, w), lambda n, d, h, w: tvm.sum(tvm.exp(x[n, k, d, h, w] - max_elem[n, d, h, w]), axis=k))
-        return tvm.compute(
-            x.shape, lambda n, c, d, h, w: tvm.exp(x[n, c, d, h, w] - max_elem[n, d, h, w]) / expsum[n, d, h, w])
+        expsum = tvm.compute((n, d, h, w),
+                             lambda n, d, h, w:
+                             tvm.sum(tvm.exp(x[n, k, d, h, w] - max_elem[n, d, h, w]), axis=k))
+        return tvm.compute(x.shape,
+                           lambda n, c, d, h, w:
+                           tvm.exp(x[n, c, d, h, w] - max_elem[n, d, h, w]) / expsum[n, d, h, w])
     elif len(x.shape) == 4:
         assert axis == 1, "only support 4-dim axis == 1 softmax for NCHW layout"
         n, c, h, w = x.shape
         k = tvm.reduce_axis((0, c), name='k')
         max_elem = tvm.compute((n, h, w), lambda n, h, w: tvm.max(x[n, k, h, w], axis=k))
         k = tvm.reduce_axis((0, c), name='k')
-        expsum = tvm.compute(
-            (n, h, w), lambda n, h, w: tvm.sum(tvm.exp(x[n, k, h, w] - max_elem[n, h, w]), axis=k))
-        return tvm.compute(
-            x.shape, lambda n, c, h, w: tvm.exp(x[n, c, h, w] - max_elem[n, h, w]) / expsum[n, h, w])
+        expsum = tvm.compute((n, h, w),
+                             lambda n, h, w:
+                             tvm.sum(tvm.exp(x[n, k, h, w] - max_elem[n, h, w]), axis=k))
+        return tvm.compute(x.shape,
+                           lambda n, c, h, w:
+                           tvm.exp(x[n, c, h, w] - max_elem[n, h, w]) / expsum[n, h, w])
 
 
 def softmax_nhwc(x, axis):
@@ -95,22 +100,28 @@ def softmax_nhwc(x, axis):
         assert axis == 4, "only support 5-dim axis == 4 softmax for NDHWC layout"
         n, d, h, w, c = x.shape
         k = tvm.reduce_axis((0, c), name='k')
-        max_elem = tvm.compute((n, d, h, w), lambda n, d, h, w: tvm.max(x[n, d, h, w, k], axis=k))
+        max_elem = tvm.compute((n, d, h, w),
+                               lambda n, d, h, w:
+                               tvm.max(x[n, d, h, w, k], axis=k))
         k = tvm.reduce_axis((0, c), name='k')
-        expsum = tvm.compute(
-            (n, d, h, w), lambda n, d, h, w: tvm.sum(tvm.exp(x[n, d, h, w, k] - max_elem[n, d, h, w]), axis=k))
-        return tvm.compute(
-            x.shape, lambda n, d, h, w, c: tvm.exp(x[n, d, h, w, c] - max_elem[n, d, h, w]) / expsum[n, d, h, w])
+        expsum = tvm.compute((n, d, h, w),
+                             lambda n, d, h, w:
+                             tvm.sum(tvm.exp(x[n, d, h, w, k] - max_elem[n, d, h, w]), axis=k))
+        return tvm.compute(x.shape,
+                           lambda n, d, h, w, c:
+                           tvm.exp(x[n, d, h, w, c] - max_elem[n, d, h, w]) / expsum[n, d, h, w])
     elif len(x.shape) == 4:
         assert axis == 3, "only support 4-dim axis == 3 softmax for NHWC layout"
         n, h, w, c = x.shape
         k = tvm.reduce_axis((0, c), name='k')
         max_elem = tvm.compute((n, h, w), lambda n, h, w: tvm.max(x[n, h, w, k], axis=k))
         k = tvm.reduce_axis((0, c), name='k')
-        expsum = tvm.compute(
-            (n, h, w), lambda n, h, w: tvm.sum(tvm.exp(x[n, h, w, k] - max_elem[n, h, w]), axis=k))
-        return tvm.compute(
-            x.shape, lambda n, h, w, c: tvm.exp(x[n, h, w, c] - max_elem[n, h, w]) / expsum[n, h, w])
+        expsum = tvm.compute((n, h, w),
+                             lambda n, h, w:
+                             tvm.sum(tvm.exp(x[n, h, w, k] - max_elem[n, h, w]), axis=k))
+        return tvm.compute(x.shape,
+                           lambda n, h, w, c:
+                           tvm.exp(x[n, h, w, c] - max_elem[n, h, w]) / expsum[n, h, w])
 
 
 @tvm.tag_scope(tag='log_softmax_output')

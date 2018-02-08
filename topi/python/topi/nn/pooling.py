@@ -214,9 +214,9 @@ def pool_nhwc(data, kernel, stride, padding, pool_type, ceil_mode=False):
     if pool_type == 'max':
         temp = pad(data, pad_before, pad_after, name="pad_temp", \
             pad_value=tvm.min_value(data.dtype))
-        return tvm.compute((batch,out_height, out_width, channel), \
+        return tvm.compute((batch, out_height, out_width, channel), \
                             lambda n, h, w, c: \
-                            tvm.max(temp[n,  h*stride_height+dheight, w*stride_width+dwidth, c], \
+                            tvm.max(temp[n, h*stride_height+dheight, w*stride_width+dwidth, c], \
                                 axis=[dheight, dwidth]), \
                             tag="pool_max")
     elif pool_type == 'avg':
