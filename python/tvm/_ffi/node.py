@@ -71,6 +71,7 @@ class NodeBase(_NodeBase):
             return False
         return self.__hash__() == other.__hash__()
 
+
 def register_node(type_key=None):
     """register node type
 

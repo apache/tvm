@@ -322,6 +322,8 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
   return mhost;
 }
 
+TVM_REGISTER_NODE_TYPE(BuildConfigNode);
+
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<BuildConfigNode>([](const BuildConfigNode *op, IRPrinter *p) {
   p->stream << "build_config(";

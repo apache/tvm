@@ -442,10 +442,4 @@ TVM_REGISTER_API("_CommReducerCombine")
     *ret = (*combiner)(args[1], args[2]);
   });
 
-TVM_REGISTER_API("_BuildConfig")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  auto node = std::make_shared<BuildConfigNode>();
-  *ret = node;
-});
-
 }  // namespace tvm

@@ -144,34 +144,7 @@ class BuildConfigNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(BuildConfigNode, Node);
 };
 
-/*! \brief BuildConfig, contains options for a build. */
-class BuildConfig : public NodeRef {
- public:
-  BuildConfig() {
-    node_ = std::make_shared<BuildConfigNode>();
-  }
-  explicit BuildConfig(std::shared_ptr<Node> n) : NodeRef(n) {}
-  /*!
-  * \brief access the internal node container
-  * \return the pointer to the internal node container
-  */
-  inline const BuildConfigNode* operator->() const;
-  /*!
-  * \brief access the internal node container
-  * \return the pointer to the internal node container
-  */
-  inline BuildConfigNode* operator->();
-  /*! \brief specify container node */
-  using ContainerType = BuildConfigNode;
-};
-
-inline const BuildConfigNode* BuildConfig::operator->() const {
-  return static_cast<const BuildConfigNode*>(node_.get());
-}
-inline BuildConfigNode* BuildConfig::operator->() {
-  return static_cast<BuildConfigNode*>(node_.get());
-}
-
+TVM_DEFINE_NODE_REF(BuildConfig, BuildConfigNode);
 
 /*!
 * \brief Build a LoweredFunc given a schedule, args and binds

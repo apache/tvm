@@ -103,11 +103,6 @@ cdef extern from "tvm/c_dsl_api.h":
                        TVMValue* out_value,
                        int* out_type_code,
                        int* out_success)
-    int TVMNodeSetAttr(NodeHandle handle,
-                       const char* key,
-                       TVMValue set_value,
-                       int value_type_code,
-                       int* out_success)
 
 cdef inline py_str(const char* x):
     if PY_MAJOR_VERSION < 3:

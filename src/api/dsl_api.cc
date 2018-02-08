@@ -68,71 +68,6 @@ struct APIAttrGetter : public AttrVisitor {
   }
 };
 
-struct APIAttrSetter : public AttrVisitor {
-  std::string skey;
-  TVMArgValue set_value;
-  bool found_attr{ false };
-
-  APIAttrSetter() :
-    set_value(TVMValue(), kNull) {
-  }
-
-  void Visit(const char* key, double* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, int64_t* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, int* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, bool* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, void** value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, Type* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, std::string* value) final {
-    if (skey == key) {
-      value[0] = set_value.operator std::string();
-      found_attr = true;
-    }
-  }
-  void Visit(const char* key, NodeRef* value) final {
-    if (skey == key) {
-      value[0] = set_value;
-      found_attr = true;
-    }
-  }
-};
-
 struct APIAttrDir : public AttrVisitor {
   std::vector<std::string>* names;
 
@@ -206,19 +141,6 @@ class DSLAPIImpl : public DSLAPI {
         rv.MoveToCHost(ret_val, ret_type_code);
       }
     }
-  }
-  void NodeSetAttr(NodeHandle handle,
-    const char* key,
-    TVMValue set_value,
-    int value_type_code,
-    int* ret_success) const final {
-    TVMRetValue rv;
-    APIAttrSetter setter;
-    setter.skey = key;
-    setter.set_value = TVMArgValue(set_value, value_type_code);
-    TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
-    (*tnode)->VisitAttrs(&setter);
-    *ret_success = setter.found_attr;
   }
   void NodeListAttrNames(NodeHandle handle,
                         int *out_size,

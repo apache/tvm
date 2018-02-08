@@ -60,17 +60,4 @@ class NodeBase(object):
                 "'%s' object has no attribute '%s'" % (str(type(self)), name))
         return RETURN_SWITCH[ret_type_code.value](ret_val)
 
-    def set_attr_value(self, name, value):
-        from .function import _make_tvm_args
-        values, type_codes, _ = _make_tvm_args([value], [])
-        ret_success = ctypes.c_int()
-        check_call(_LIB.TVMNodeSetAttr(
-            self.handle, c_str(name),
-            values[0],
-            type_codes[0],
-            ctypes.byref(ret_success)))
-        if not ret_success.value:
-            raise AttributeError(
-                "'%s' object has no attribute '%s'" % (str(type(self)), name))
-
 _set_class_node_base(NodeBase)

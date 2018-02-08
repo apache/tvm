@@ -20,6 +20,7 @@ from . import module
 from . import codegen
 from . import ndarray
 from . import target as _target
+from . import make
 
 class DumpIR(object):
     """Dump IR for each pass.
@@ -102,7 +103,7 @@ class BuildConfig(NodeBase):
     """Configuration scope to set a build config option."""
 
     current = None
-
+    
     # pylint: disable=no-member
     def __init__(self, handle):
         """Initialize the function with handle
@@ -137,7 +138,8 @@ class BuildConfig(NodeBase):
         if name == "handle" or not name in self.__dir__():
             return super(BuildConfig, self).__setattr__(name, value)
         else:
-            self.set_attr_value(name, value)
+            raise AttributeError(
+                "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -193,10 +195,22 @@ def build_config(**kwargs):
     config: BuildConfig
         The build configuration
     """
-    config = _api_internal._BuildConfig()
-    for k, v in kwargs.items():
-        setattr(config, k, v)
-    return config
+    args = {
+        "auto_unroll_max_step": 0,
+        "auto_unroll_max_depth": 8,
+        "auto_unroll_max_extent": 0,
+        "unroll_explicit": True,
+        "detect_global_barrier": False,
+        "partition_const_loop": False,
+        "offset_factor": 0,
+        "data_alignment": -1,
+        "restricted_func": True,
+        "double_buffer_split_loop": 1
+    }
+    for k in kwargs:
+        args[k] = kwargs[k]
+    return make.node("BuildConfig", **args)
+    #return _api_internal._BuildConfig([k for k in kwargs])
 
 BuildConfig.current = build_config()
 
