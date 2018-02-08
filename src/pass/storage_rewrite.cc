@@ -776,11 +776,11 @@ class StoragePlanRewriter : public IRMutator {
   bool CanReuse(const StorageEntry *e,
                 const Allocate* op,
                 const Node* attach_scope,
-                const StorageScope& scope){
+                const StorageScope& scope) {
     auto candidate_bybtes = total_bytes(e->elem_type);
     auto op_bytes = total_bytes(op->type.element_of());
     if (e->attach_scope_ != attach_scope) return false;
-    if (e->scope != scope) return false;;
+    if (e->scope != scope) return false;
     // reuse buffer for:
     // A[] = 1.0 (float32)
     // B[] = 1   (int32 or int8)
