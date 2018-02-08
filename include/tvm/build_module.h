@@ -146,7 +146,7 @@ class BuildConfigNode : public Node {
 
 /*! \brief BuildConfig, contains options for a build. */
 class BuildConfig : public NodeRef {
-public:
+ public:
   BuildConfig() {
     node_ = std::make_shared<BuildConfigNode>();
   }
