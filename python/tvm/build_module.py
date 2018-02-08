@@ -113,6 +113,7 @@ class BuildConfig(NodeBase):
             the handle to the underlying C++ Symbol
         """
         super(BuildConfig, self).__init__(handle)
+        self.handle = handle
         self._old_scope = None
         self._dump_ir = DumpIR()
         self.add_lower_pass = None

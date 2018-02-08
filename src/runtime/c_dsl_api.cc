@@ -62,6 +62,17 @@ int TVMNodeGetAttr(NodeHandle handle,
   API_END();
 }
 
+int TVMNodeSetAttr(NodeHandle handle,
+                   const char* key,
+                   TVMValue set_value,
+                   int value_type_code,
+                   int* out_success) {
+  API_BEGIN();
+  GetDSLAPI()->NodeSetAttr(
+      handle, key, set_value, value_type_code, out_success);
+  API_END();
+}
+
 int TVMNodeListAttrNames(NodeHandle handle,
                          int *out_size,
                          const char*** out_array) {

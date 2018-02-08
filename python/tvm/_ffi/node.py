@@ -71,6 +71,22 @@ class NodeBase(_NodeBase):
             return False
         return self.__hash__() == other.__hash__()
 
+    def __setattr__(self, name, value):
+        if name == "handle" or not name in self.__dir__():
+            return super(NodeBase, self).__setattr__(name, value)
+        else:
+            from ._ctypes.function import _make_tvm_args
+            values, type_codes, _ = _make_tvm_args([value], [])
+            ret_success = ctypes.c_int()
+            check_call(_LIB.TVMNodeSetAttr(
+                self.handle, c_str(name),
+                values[0],
+                type_codes[0],
+                ctypes.byref(ret_success)))
+            if not ret_success.value:
+                raise AttributeError(
+                    "'%s' object has no attribute '%s'" % (str(type(self)), name))
+
 
 def register_node(type_key=None):
     """register node type

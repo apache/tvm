@@ -30,6 +30,12 @@ class DSLAPI {
                            int* out_type_code,
                            int* out_success) const = 0;
 
+  virtual void NodeSetAttr(NodeHandle handle,
+                           const char* key,
+                           TVMValue set_value,
+                           int value_type_code,
+                           int* out_success) const = 0;
+
   virtual void NodeListAttrNames(NodeHandle handle,
                                  int *out_size,
                                  const char*** out_array) const = 0;
