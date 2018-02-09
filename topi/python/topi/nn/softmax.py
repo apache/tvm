@@ -32,7 +32,6 @@ def softmax(x, axis=-1):
 
     def _compute_max(*indices):
         eval_range = insert_reduce_index(indices, k1)
-        print("eval_range", eval_range)
         return tvm.max(x[eval_range], axis=k1)
 
     def _compute_expsum(max_elem, *indices):
