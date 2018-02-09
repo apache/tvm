@@ -8,6 +8,7 @@ import warnings
 import types
 
 from ._ffi.node import NodeBase, register_node
+from . import _api_internal
 from . import api
 from . import tensor
 from . import schedule
@@ -198,18 +199,21 @@ def build_config(**kwargs):
         "auto_unroll_max_step": 0,
         "auto_unroll_max_depth": 8,
         "auto_unroll_max_extent": 0,
-        "unroll_explicit": True,
-        "detect_global_barrier": False,
-        "partition_const_loop": False,
+        "unroll_explicit": 1,
+        "detect_global_barrier": 0,
+        "partition_const_loop": 0,
         "offset_factor": 0,
         "data_alignment": -1,
-        "restricted_func": True,
+        "restricted_func": 1,
         "double_buffer_split_loop": 1
     }
     for k in kwargs:
         if k in args:
             args[k] = kwargs[k]
-    config = make.node("BuildConfig", **args)
+    init_args = []
+    for k, v in args.items():
+        init_args += [k, v]
+    config = _api_internal._BuildConfig(*init_args)
 
     for k in kwargs:
         if not k in args:
