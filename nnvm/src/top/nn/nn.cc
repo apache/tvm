@@ -82,21 +82,6 @@ If ``use_bias`` is set to be false, then the ``bias`` term is ignored.
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<DenseParam>)
 .set_attr<FInferShape>("FInferShape", DenseInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.set_attr<FTVMCompute>(
-  "FTVMCompute", [](const NodeAttrs& attrs,
-                    const Array<Tensor>& inputs,
-                    const Array<Tensor>& out_info) {
-    Tensor bias_val;
-    Tensor* bias;
-    const DenseParam& param = nnvm::get<DenseParam>(attrs.parsed);
-    if (param.use_bias) {
-      bias_val = inputs[2];
-      bias = &bias_val;
-    } else {
-      bias = nullptr;
-    }
-    return Array<Tensor>{ topi::nn::dense(inputs[0], inputs[1], bias) };
-})
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
