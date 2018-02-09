@@ -114,4 +114,3 @@ def schedule_dense(outs):
 
     traverse(outs[0].op)
     return s
-
