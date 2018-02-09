@@ -407,7 +407,6 @@ def test_alloc_seq_type2():
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
             num_alloc[0] += 1
-            print(n.extents[0].value)
             assert n.extents[0].value == 200
     tvm.ir_pass.PostOrderVisit(body, verify)
     assert num_alloc[0] == 1
