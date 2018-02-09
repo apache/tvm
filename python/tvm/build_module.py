@@ -216,8 +216,9 @@ def build_config(**kwargs):
             setattr(config, k, kwargs[k])
     return config
 
-
-BuildConfig.current = build_config()
+if not os.environ.get("TVM_USE_RUNTIME_LIB", False):
+    # BuildConfig is not available in tvm_runtime
+    BuildConfig.current = build_config()
 
 def get_binds(args, binds=None):
     """Internal function to get binds and arg_list given arguments.
