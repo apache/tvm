@@ -322,6 +322,10 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
   return mhost;
 }
 
+BuildConfig build_config() {
+  return BuildConfig(std::make_shared<BuildConfigNode>());
+}
+
 TVM_REGISTER_NODE_TYPE(BuildConfigNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)

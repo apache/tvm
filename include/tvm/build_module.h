@@ -85,6 +85,8 @@ EXPORT Target stackvm();
 
 }  // namespace target
 
+class BuildConfig;
+
 /*!
 * \brief Container for build configuration options
 */
@@ -145,6 +147,12 @@ class BuildConfigNode : public Node {
 };
 
 TVM_DEFINE_NODE_REF(BuildConfig, BuildConfigNode);
+
+/*!
+* \brief Construct a BuildConfig containing a new BuildConfigNode
+* \return The new BuildConfig
+*/
+EXPORT BuildConfig build_config();
 
 /*!
 * \brief Build a LoweredFunc given a schedule, args and binds
