@@ -152,7 +152,7 @@ Graph FoldScaleAxis(Graph src) {
     bwd_chain[nid].kind = kind;
     if (kind == kNone) continue;
     CHECK_GE(in_axis.size(), 1U);
-    CHECK(kind == kPassTroughFirst || kMulConsumer);
+    CHECK(kind == kPassTroughFirst || kind == kMulConsumer);
     // propagate back.
     bool can_prop = true;
     for (size_t i = 0; i < in_axis.size(); ++i) {
