@@ -278,20 +278,6 @@ TVM_REGISTER_GLOBAL("topi.nn.binary_dense")
   *rv = nn::binary_dense(args[0], args[1]);
   });
 
-/* Ops from nn/dense.h */
-TVM_REGISTER_GLOBAL("topi.nn.dense")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[2].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[2];
-    bias = &bias_val;
-  }
-  *rv = nn::dense(args[0], args[1], bias);
-  });
-
 /* Ops from nn/dilate.h */
 TVM_REGISTER_GLOBAL("topi.nn.dilate")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
