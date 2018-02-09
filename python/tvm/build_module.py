@@ -20,7 +20,6 @@ from . import module
 from . import codegen
 from . import ndarray
 from . import target as _target
-from . import make
 
 class DumpIR(object):
     """Dump IR for each pass.
