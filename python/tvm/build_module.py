@@ -207,9 +207,15 @@ def build_config(**kwargs):
         "double_buffer_split_loop": 1
     }
     for k in kwargs:
-        args[k] = kwargs[k]
-    return make.node("BuildConfig", **args)
-    #return _api_internal._BuildConfig([k for k in kwargs])
+        if k in args:
+            args[k] = kwargs[k]
+    config = make.node("BuildConfig", **args)
+
+    for k in kwargs:
+        if not k in args:
+            setattr(config, k, kwargs[k])
+    return config
+    
 
 BuildConfig.current = build_config()
 
