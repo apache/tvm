@@ -154,6 +154,8 @@ class LinearAccessPatternFinder final : public IRVisitor {
       in_thread_env_ = false;
     } else if (op->attr_key == attr::extern_scope) {
       VisitNewScope(op);
+    } else if (op->attr_key == attr::virtual_thread) {
+      VisitNewScope(op);
     } else if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       alloc_info_[buf].storage_scope =
@@ -361,7 +363,7 @@ class StoragePlanRewriter : public IRMutator {
   Expr Mutate_(const Variable* op, const Expr& e) final {
     auto it = alloc_map_.find(op);
     if (it != alloc_map_.end()) {
-      if (it->second->elem_offset != 0) {
+      if (it->second->bits_offset != 0) {
         LOG(WARNING) << "Use a merged buffer variable address, could cause error";
       }
       return it->second->alloc_var;
@@ -379,11 +381,10 @@ class StoragePlanRewriter : public IRMutator {
        const StorageEntry* se = it->second;
        Expr offset = Mutate(op->args[2]);
        Expr extent = Mutate(op->args[3]);
-       CHECK_EQ(se->elem_type, dtype.element_of())
-           << " buffer=" << buffer->name_hint;
-       CHECK_EQ(se->elem_offset % dtype.lanes(), 0);
-       if (se->elem_offset != 0) {
-         offset = make_const(offset.type(), se->elem_offset / dtype.lanes()) + offset;
+       uint64_t elem_bits = dtype.bits() * dtype.lanes();
+       CHECK_EQ(se->bits_offset % elem_bits, 0U);
+       if (se->bits_offset != 0) {
+         offset = make_const(offset.type(), se->bits_offset / elem_bits) + offset;
        }
        return Call::make(
            op->type, op->name,
@@ -395,11 +396,10 @@ class StoragePlanRewriter : public IRMutator {
   }
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    CHECK(op->attr_key != attr::virtual_thread)
-        << "InjectVirtualThread before StoragePlan";
     if (op->attr_key == attr::storage_scope) {
       return this->Mutate(op->body);
     } else if (op->attr_key == attr::thread_extent ||
+               op->attr_key == attr::virtual_thread ||
                op->attr_key == attr::pragma_scope) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
@@ -464,8 +464,17 @@ class StoragePlanRewriter : public IRMutator {
     // The allocation element type.
     Type elem_type;
     // This is non-zero if this allocate is folded into another one
-    // the address becomes alloc_var + sizeof(elem_type) * elem_offset;
-    uint64_t elem_offset{0};
+    // the address(in bits) becomes alloc_var + bits_offset;
+    // can be effectively converted to the element type.
+    // We need to convert bit_offset to offset of specific element type later.
+    //
+    // We use bits(instead of bytes) to support non-conventional indexing in hardware.
+    // When we are merging buffer together, the bits_offset are set to be aligned
+    // to certain value given by the max_simd_bits property of the special memory.
+    //
+    // This allows effective sharing among different types as long as their alignment
+    // requirement fits into the max_simd_bits.
+    uint64_t bits_offset{0};
   };
 
   // Alllocate entry of node.
@@ -481,19 +490,22 @@ class StoragePlanRewriter : public IRMutator {
                   Stmt body) {
     std::vector<Stmt> nest;
     for (StorageEntry* e : svec) {
-      nest.emplace_back(AttrStmt::make(
-          e->alloc_var, attr::storage_scope,
-          StringImm::make(e->scope.to_string()),
-          Evaluate::make(0)));
-      nest.push_back(e->new_alloc);
+      if (e->new_alloc.defined()) {
+        nest.emplace_back(AttrStmt::make(
+            e->alloc_var, attr::storage_scope,
+            StringImm::make(e->scope.to_string()),
+            Evaluate::make(0)));
+        nest.push_back(e->new_alloc);
+      }
     }
     return MergeNest(nest, body);
   }
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
-    CHECK_EQ(dtype.element_of(), e->elem_type);
-    if (e->elem_offset == 0) return index;
-    return make_const(index.type(), e->elem_offset) + index;
+    if (e->bits_offset == 0) return index;
+    uint64_t elem_bits = dtype.bits() * dtype.lanes();
+    CHECK_EQ(e->bits_offset % elem_bits, 0U);
+    return make_const(index.type(), e->bits_offset / elem_bits) + index;
   }
   // Prepare the new allocations
   void PrepareNewAlloc() {
@@ -523,7 +535,7 @@ class StoragePlanRewriter : public IRMutator {
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
         // already merged
-        if (e->elem_offset != 0) continue;
+        if (e->bits_offset != 0) continue;
         if (e->merged_children.size() != 0) {
           NewAllocTagMerged(e); continue;
         }
@@ -556,12 +568,16 @@ class StoragePlanRewriter : public IRMutator {
                     make_const(sz.type(), alloc_type.lanes() - 1)) /
                   make_const(sz.type(), alloc_type.lanes());
             }
+            // transform to bits
+            auto sz_nbits = sz * (op->type.bits() * op->type.lanes());
             if (combo_size.defined()) {
-              combo_size = max(combo_size, sz);
+              combo_size = max(combo_size, sz_nbits);
             } else {
-              combo_size = sz;
+              combo_size = sz_nbits;
             }
           }
+          // transform to alloc bytes
+          combo_size = combo_size / (alloc_type.bits() * alloc_type.lanes());
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
@@ -577,10 +593,13 @@ class StoragePlanRewriter : public IRMutator {
     CHECK_NE(e->const_nbits, 0U);
     MemoryInfo info = GetMemoryInfo(e->scope.to_string());
     uint64_t total_bits = e->const_nbits;
-    size_t align = 1;
+    // By default, align to 32 bits.
+    size_t align = 32;
     if (info.defined()) {
       align = info->max_simd_bits;
     }
+    // Always align to max_simd_bits
+    // so we can remap types by keeping this property
     if (total_bits % align != 0) {
       total_bits += align  - (total_bits % align);
     }
@@ -588,7 +607,7 @@ class StoragePlanRewriter : public IRMutator {
     for (StorageEntry* child : e->merged_children) {
       CHECK_NE(child->const_nbits, 0U);
       CHECK_NE(total_bits, 0U);
-      child->elem_offset = total_bits / child->elem_type.bits();
+      child->bits_offset = total_bits;
       child->alloc_var = e->alloc_var;
       total_bits += child->const_nbits;
       if (total_bits % align != 0) {
@@ -716,7 +735,8 @@ class StoragePlanRewriter : public IRMutator {
       if (s.stmt->is_type<AttrStmt>()) {
         const auto* op = static_cast<const AttrStmt*>(s.stmt);
         if (op->attr_key == attr::thread_extent ||
-            op->attr_key == attr::pragma_scope) {
+            op->attr_key == attr::pragma_scope ||
+            op->attr_key == attr::virtual_thread) {
           PlanNewScope(op);
         } else {
           CHECK(op->attr_key == attr::extern_scope);
@@ -760,6 +780,23 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
 
+  // check if op can reuse e's buffer
+  bool CanReuse(const StorageEntry *e,
+                const Allocate* op,
+                const Node* attach_scope,
+                const StorageScope& scope) {
+    uint64_t op_nbits = static_cast<uint64_t>(
+        op->constant_allocation_size() * op->type.bits() * op->type.lanes());
+    uint64_t op_elem_bits = op->type.bits() * op->type.lanes();
+
+    if (e->attach_scope_ != attach_scope) return false;
+    if (e->scope != scope) return false;
+    if (e->const_nbits < op_nbits) return false;
+    // when not divable, no reuse, eg, float4 vs float
+    if (e->bits_offset % op_elem_bits != 0) return false;
+    return true;
+  }
+
   StorageEntry* FindAlloc(const Allocate* op,
                           const Node* attach_scope,
                           const StorageScope& scope) {
@@ -786,9 +823,7 @@ class StoragePlanRewriter : public IRMutator {
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
       for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -796,9 +831,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = mid; it != begin;) {
         --it;
         StorageEntry *e = it->second;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         const_free_map_.erase(it);
         return e;
       }
@@ -807,9 +840,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = sym_free_list_.begin();
            it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         sym_free_list_.erase(it);
         return e;
       }

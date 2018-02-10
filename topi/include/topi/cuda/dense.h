@@ -86,7 +86,7 @@ inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) 
     auto dense_f = s.rfactor(dense, kf)[0];
 
     Tensor out;
-    if (contains(s->outputs, dense->op)) {
+    if (detail::contains(s->outputs, dense->op)) {
       out = dense;
     } else {
       out = outs[0]->op.output(0);
@@ -107,7 +107,7 @@ inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) 
   traverse = [&](const Operation& op) {
     // Inline all one-to-one-mapping operators except the last stage (output)
     if (is_broadcast(op->tag)) {
-      if (!contains(s->outputs, op)) {
+      if (!detail::contains(s->outputs, op)) {
         s[op].compute_inline();
       }
       for (auto tensor : op->InputTensors()) {

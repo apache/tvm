@@ -55,7 +55,7 @@ inline Tensor flatten(const Tensor& x,
       index.push_back(i);
       std::reverse(index.begin(), index.end());
       return x(index);
-    });
+    }, name, tag);
 }
 
 }  // namespace nn

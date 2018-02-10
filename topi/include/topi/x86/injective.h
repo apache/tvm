@@ -36,7 +36,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   if (axis.size() == 4) {
     auto n = axis[0];
     auto c = axis[1];
-    auto fused = Fuse(s[x], { n, c });  // for nhwc layout, fuse n and h
+    auto fused = detail::Fuse(s[x], { n, c });  // for nhwc layout, fuse n and h
     s[x].parallel(fused);
   } else {
     s[x].parallel(axis[0]);
