@@ -20,12 +20,12 @@ def softmax(x, axis=-1):
     output : tvm.Tensor
         output shape is the same as input
     """
-    if axis >= len(x.shape):
-        ValueError("axis parameter should be less than input dim")
-
     shape = x.shape
     if axis < 0:
-        axis = len(x.shape) + axis
+        axis = len(shape) + axis
+    if axis >= len(shape):
+        ValueError("axis parameter should be less than input dim")
+
     k1 = tvm.reduce_axis((0, shape[axis]), name='k')
     k2 = tvm.reduce_axis((0, shape[axis]), name='k')
 
