@@ -502,7 +502,6 @@ class StoragePlanRewriter : public IRMutator {
   }
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
-    CHECK_EQ(dtype.element_of(), e->elem_type);
     if (e->bits_offset == 0) return index;
     uint64_t elem_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(e->bits_offset % elem_bits, 0U);
@@ -569,12 +568,16 @@ class StoragePlanRewriter : public IRMutator {
                     make_const(sz.type(), alloc_type.lanes() - 1)) /
                   make_const(sz.type(), alloc_type.lanes());
             }
+            // transform to bits
+            auto sz_nbits = sz * (op->type.bits() * op->type.lanes());
             if (combo_size.defined()) {
-              combo_size = max(combo_size, sz);
+              combo_size = max(combo_size, sz_nbits);
             } else {
-              combo_size = sz;
+              combo_size = sz_nbits;
             }
           }
+          // transform to alloc bytes
+          combo_size = combo_size / (alloc_type.bits() * alloc_type.lanes());
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
@@ -777,6 +780,23 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
 
+  // check if op can reuse e's buffer
+  bool CanReuse(const StorageEntry *e,
+                const Allocate* op,
+                const Node* attach_scope,
+                const StorageScope& scope) {
+    uint64_t op_nbits = static_cast<uint64_t>(
+        op->constant_allocation_size() * op->type.bits() * op->type.lanes());
+    uint64_t op_elem_bits = op->type.bits() * op->type.lanes();
+
+    if (e->attach_scope_ != attach_scope) return false;
+    if (e->scope != scope) return false;
+    if (e->const_nbits < op_nbits) return false;
+    // when not divable, no reuse, eg, float4 vs float
+    if (e->bits_offset % op_elem_bits != 0) return false;
+    return true;
+  }
+
   StorageEntry* FindAlloc(const Allocate* op,
                           const Node* attach_scope,
                           const StorageScope& scope) {
@@ -799,23 +819,17 @@ class StoragePlanRewriter : public IRMutator {
     if (const_nbits != 0) {
       // constant allocation.
       auto begin = const_free_map_.lower_bound(const_nbits / match_range);
-      auto mid = const_free_map_.lower_bound(const_nbits);
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
-      for (auto it = mid; it != end; ++it) {
+      for (auto it = begin; it != end; ++it) {
         StorageEntry *e = it->second;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
-        e->const_nbits = std::max(const_nbits, e->const_nbits);
-        const_free_map_.erase(it);
-        return e;
-      }
-      for (auto it = mid; it != begin;) {
-        --it;
-        StorageEntry *e = it->second;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
+        // when space left, try reuse it the next var, eg. two int16 after a float32
+        if (const_nbits < e->const_nbits){
+          StorageEntry *new_e = NewAlloc(op, attach_scope, scope, e->const_nbits - const_nbits);
+          new_e->bits_offset = e->bits_offset + const_nbits;
+          const_free_map_.insert({new_e->const_nbits, new_e});
+          e->const_nbits = e->const_nbits - const_nbits;
+        }
         const_free_map_.erase(it);
         return e;
       }
@@ -824,9 +838,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = sym_free_list_.begin();
            it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
-        if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (!CanReuse(e, op, attach_scope, scope)) continue;
         sym_free_list_.erase(it);
         return e;
       }
