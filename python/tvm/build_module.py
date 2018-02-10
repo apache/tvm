@@ -206,14 +206,12 @@ def build_config(**kwargs):
     config: BuildConfig
         The build configuration
     """
-    args = BuildConfig._node_defaults
-    for k in kwargs:
-        if k in args:
-            args[k] = kwargs[k]
-    config = make.node("BuildConfig", **args)
+    node_args = {k: v if k not in kwargs else kwargs[k] 
+                       for k, v in BuildConfig._node_defaults.items()}
+    config = make.node("BuildConfig", **node_args)
 
     for k in kwargs:
-        if not k in args:
+        if not k in node_args:
             setattr(config, k, kwargs[k])
     return config
 
