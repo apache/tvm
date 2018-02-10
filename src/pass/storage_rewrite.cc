@@ -823,7 +823,7 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = begin; it != end; ++it) {
         StorageEntry *e = it->second;
         if (!CanReuse(e, op, attach_scope, scope)) continue;
-        // when space left, try reuse it the next time, eg. two int16 after a float32
+        // when space left, try reuse it the next var, eg. two int16 after a float32
         if (const_nbits < e->const_nbits){
           StorageEntry *new_e = NewAlloc(op, attach_scope, scope, e->const_nbits - const_nbits);
           new_e->bits_offset = e->bits_offset + const_nbits;
