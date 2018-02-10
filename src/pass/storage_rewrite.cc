@@ -824,7 +824,7 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry *e = it->second;
         if (!CanReuse(e, op, attach_scope, scope)) continue;
         // when space left, try reuse it the next var, eg. two int16 after a float32
-        if (const_nbits < e->const_nbits){
+        if (const_nbits < e->const_nbits) {
           StorageEntry *new_e = NewAlloc(op, attach_scope, scope, e->const_nbits - const_nbits);
           new_e->bits_offset = e->bits_offset + const_nbits;
           const_free_map_.insert({new_e->const_nbits, new_e});
