@@ -819,19 +819,17 @@ class StoragePlanRewriter : public IRMutator {
     if (const_nbits != 0) {
       // constant allocation.
       auto begin = const_free_map_.lower_bound(const_nbits / match_range);
-      auto mid = const_free_map_.lower_bound(const_nbits);
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
-      for (auto it = mid; it != end; ++it) {
+      for (auto it = begin; it != end; ++it) {
         StorageEntry *e = it->second;
         if (!CanReuse(e, op, attach_scope, scope)) continue;
-        e->const_nbits = std::max(const_nbits, e->const_nbits);
-        const_free_map_.erase(it);
-        return e;
-      }
-      for (auto it = mid; it != begin;) {
-        --it;
-        StorageEntry *e = it->second;
-        if (!CanReuse(e, op, attach_scope, scope)) continue;
+        // when space left, try reuse it the next time, eg. two int16 after a float32
+        if (const_nbits < e->const_nbits){
+          StorageEntry *new_e = NewAlloc(op, attach_scope, scope, e->const_nbits - const_nbits);
+          new_e->bits_offset = e->bits_offset + const_nbits;
+          const_free_map_.insert({new_e->const_nbits, new_e});
+          e->const_nbits = e->const_nbits - const_nbits;
+        }
         const_free_map_.erase(it);
         return e;
       }
