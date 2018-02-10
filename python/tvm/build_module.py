@@ -103,6 +103,18 @@ class BuildConfig(NodeBase):
     """Configuration scope to set a build config option."""
 
     current = None
+    _node_defaults = {
+        "auto_unroll_max_step": 0,
+        "auto_unroll_max_depth": 8,
+        "auto_unroll_max_extent": 0,
+        "unroll_explicit": True,
+        "detect_global_barrier": False,
+        "partition_const_loop": False,
+        "offset_factor": 0,
+        "data_alignment": -1,
+        "restricted_func": True,
+        "double_buffer_split_loop": 1
+    }
 
     # pylint: disable=no-member
     def __init__(self, handle):
@@ -135,11 +147,10 @@ class BuildConfig(NodeBase):
         BuildConfig.current = self._old_scope
 
     def __setattr__(self, name, value):
-        if name == "handle" or not name in self.__dir__():
-            return super(BuildConfig, self).__setattr__(name, value)
-        else:
+        if name in BuildConfig._node_defaults:
             raise AttributeError(
                 "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
+        return super(BuildConfig, self).__setattr__(name, value)
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -195,18 +206,7 @@ def build_config(**kwargs):
     config: BuildConfig
         The build configuration
     """
-    args = {
-        "auto_unroll_max_step": 0,
-        "auto_unroll_max_depth": 8,
-        "auto_unroll_max_extent": 0,
-        "unroll_explicit": True,
-        "detect_global_barrier": False,
-        "partition_const_loop": False,
-        "offset_factor": 0,
-        "data_alignment": -1,
-        "restricted_func": True,
-        "double_buffer_split_loop": 1
-    }
+    args = BuildConfig._node_defaults
     for k in kwargs:
         if k in args:
             args[k] = kwargs[k]
