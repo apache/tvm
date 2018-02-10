@@ -100,7 +100,18 @@ class DumpIR(object):
 
 @register_node
 class BuildConfig(NodeBase):
-    """Configuration scope to set a build config option."""
+    """Configuration scope to set a build config option.
+
+    Note
+    ----
+    This object is backed by node system in C++, with arguments that can be
+    exchanged between python and C++.
+
+    Do not construct directly, use build_config instead.
+
+    The fields that are backed by the C++ node are immutable once an instance
+    is constructed. See _node_defaults for the fields.
+    """
 
     current = None
     _node_defaults = {
