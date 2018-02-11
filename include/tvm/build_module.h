@@ -188,7 +188,7 @@ EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
 * \brief Generic function that can be specialized on a per-target basis.
 */
 class TVM_DLL GenericFunc {
-public:
+ public:
   /*! \brief name of the function */
   std::string name;
   /* \brief the generic builder */
@@ -203,7 +203,7 @@ public:
   * \return reference to self.
   */
   inline GenericFunc& set_generic_func(const PackedFunc value,
-                                               bool allow_override=false);
+                                       bool allow_override = false);
   /*!
   * \brief Register a specialized function
   * \param tags The tags for this specialization
@@ -213,8 +213,8 @@ public:
   * \return reference to self.
   */
   inline GenericFunc& register_func(const std::vector<std::string>& tags,
-                                       const PackedFunc value,
-                                       bool allow_override = false);
+                                    const PackedFunc value,
+                                    bool allow_override = false);
   /*!
   * \brief Invoke the relevant function for a given target. The function will be invoked with
   * the target string prepended to the arguments.
@@ -246,8 +246,8 @@ inline GenericFunc& GenericFunc::set_generic_func(const PackedFunc value,
 }
 
 inline GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
-                                                      const PackedFunc value,
-                                                      bool allow_override) {
+                                               const PackedFunc value,
+                                               bool allow_override) {
   for (auto &t : tags) {
     if (!allow_override) {
       auto iter = dispatch_dict.find(t);
