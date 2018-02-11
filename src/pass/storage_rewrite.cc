@@ -810,8 +810,9 @@ class StoragePlanRewriter : public IRMutator {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
+    uint64_t op_elem_bits = op->type.bits() * op->type.lanes();
     uint64_t const_nbits = static_cast<uint64_t>(
-        op->constant_allocation_size() * op->type.bits() * op->type.lanes());
+        op->constant_allocation_size() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {
@@ -830,7 +831,10 @@ class StoragePlanRewriter : public IRMutator {
       // start looking at the buffer that is bigger than the required size first
       for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
-        if (!CanReuse(e, op, attach_scope, scope)) continue;
+        if (e->attach_scope_ != attach_scope) continue;
+        if (e->scope != scope) continue;
+        // when not divided, no reuse, eg, float4 vs float
+        if (e->bits_offset % op_elem_bits != 0) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
