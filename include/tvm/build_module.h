@@ -29,7 +29,7 @@ struct Target {
   /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
   int thread_warp_size = 1;
   /*! \brief Keys for this target */
-  std::unordered_set<std::string> keys;
+  std::vector<std::string> keys;
   /*! \brief Options for this target */
   std::vector<std::string> options;
   /*! \brief Set of imported libs */
@@ -39,7 +39,7 @@ struct Target {
          DLDeviceType device_type,
          int max_num_threads,
          int thread_warp_size,
-         const std::unordered_set<std::string>& keys,
+         const std::vector<std::string>& keys,
          const std::vector<std::string>& options,
          const std::unordered_set<std::string>& libs =
            std::unordered_set<std::string>()) :

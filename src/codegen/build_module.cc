@@ -89,35 +89,35 @@ Target Target::create(const std::string& target_str) {
 
 namespace target {
 Target llvm() {
-  std::unordered_set<std::string> keys({ "llvm", "cpu" });
+  std::vector<std::string> keys({ "llvm", "cpu" });
   std::vector<std::string> options;
   return Target("llvm", kDLCPU, 512, 1, keys, options,
            std::unordered_set<std::string>());
 }
 
 Target cuda() {
-  std::unordered_set<std::string> keys({ "cuda", "gpu" });
+  std::vector<std::string> keys({ "cuda", "gpu" });
   std::vector<std::string> options;
   return Target("cuda", kDLGPU, 512, 32, keys, options,
            std::unordered_set<std::string>());
 }
 
 Target rocm() {
-  std::unordered_set<std::string> keys({ "rocm", "gpu" });
+  std::vector<std::string> keys({ "rocm", "gpu" });
   std::vector<std::string> options;
   return Target("rocm", kDLROCM, 256, 1, keys, options,
            std::unordered_set<std::string>());
 }
 
 Target metal() {
-  std::unordered_set<std::string> keys({ "gpu" });
+  std::vector<std::string> keys({ "gpu" });
   std::vector<std::string> options;
   return Target("metal", kDLMetal, 256, 1, keys, options,
            std::unordered_set<std::string>());
 }
 
 Target rasp() {
-  std::unordered_set<std::string> keys({ "llvm", "cpu" });
+  std::vector<std::string> keys({ "llvm", "cpu" });
   std::vector<std::string> options({
     "-device=rasp",
     "-mtriple=armv7l-none-linux-gnueabihf",
@@ -129,7 +129,7 @@ Target rasp() {
 }
 
 Target mali() {
-  std::unordered_set<std::string> keys({ "rocm", "gpu" });
+  std::vector<std::string> keys({ "rocm", "gpu" });
   std::vector<std::string> options({
     "-device=mali"
   });
@@ -138,7 +138,7 @@ Target mali() {
 
 
 Target stackvm() {
-  std::unordered_set<std::string> keys({ "stackvm", "cpu" });
+  std::vector<std::string> keys({ "stackvm", "cpu" });
   std::vector<std::string> options;
   return Target("stackvm", kDLCPU, 512, 1, keys, options,
            std::unordered_set<std::string>());
@@ -298,7 +298,8 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     }
   }
 
-  if (target.keys.count("gpu") > 0 && fdevice.size() == 0) {
+  bool target_is_gpu = std::find(target.keys.begin(), target.keys.end(), "gpu") != target.keys.end();
+  if (target_is_gpu && fdevice.size() == 0) {
     LOG(WARNING) << "Specified target " + target.str() +
       " but cannot find device code. Did you forget to bind?";
   }
