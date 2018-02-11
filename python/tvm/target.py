@@ -226,7 +226,7 @@ def generic_func(fdefault, name=None, override=False):
                 with create(target_str):
                     return myf(*args)
             _api_internal._RegisterFunc(func_name, invoke_specialized, key_list,
-                override)
+                                        override)
             return myf
         if func:
             return _do_reg(func)
