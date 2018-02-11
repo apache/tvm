@@ -563,11 +563,6 @@ class StoragePlanRewriter : public IRMutator {
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
             Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(Int(32), 1));
-            if (alloc_type.lanes() != op->type.lanes()) {
-              sz = (sz * make_const(sz.type(), op->type.lanes()) +
-                    make_const(sz.type(), alloc_type.lanes() - 1)) /
-                  make_const(sz.type(), alloc_type.lanes());
-            }
             // transform to bits
             auto sz_nbits = sz * (op->type.bits() * op->type.lanes());
             if (combo_size.defined()) {
@@ -786,6 +781,14 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
 
+  bool check_scope(const StorageEntry *e,
+                   const Node* attach_scope,
+                   const StorageScope& scope) {
+    if (e->attach_scope_ != attach_scope) return false;
+    if (e->scope != scope) return false;
+    return true;
+  }
+
   StorageEntry* FindAlloc(const Allocate* op,
                           const Node* attach_scope,
                           const StorageScope& scope) {
@@ -816,7 +819,7 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry *e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        // when not divided, no reuse, eg, float4 vs float
+        // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
