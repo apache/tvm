@@ -786,23 +786,6 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
 
-  // check if op can reuse e's buffer
-  bool CanReuse(const StorageEntry *e,
-                const Allocate* op,
-                const Node* attach_scope,
-                const StorageScope& scope) {
-    uint64_t op_nbits = static_cast<uint64_t>(
-        op->constant_allocation_size() * op->type.bits() * op->type.lanes());
-    uint64_t op_elem_bits = op->type.bits() * op->type.lanes();
-
-    if (e->attach_scope_ != attach_scope) return false;
-    if (e->scope != scope) return false;
-    if (e->const_nbits < op_nbits) return false;
-    // when not divable, no reuse, eg, float4 vs float
-    if (e->bits_offset % op_elem_bits != 0) return false;
-    return true;
-  }
-
   StorageEntry* FindAlloc(const Allocate* op,
                           const Node* attach_scope,
                           const StorageScope& scope) {
