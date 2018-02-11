@@ -234,7 +234,7 @@ def generic_func(fdefault, name=None, override=False):
 
     def dispatch_func(func, *args, **kwargs):
         """The wrapped dispath function"""
-        if len(kwargs) > 0:
+        if kwargs:
             raise RuntimeError(
                 "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
         target = current_target()
