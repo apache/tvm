@@ -577,7 +577,13 @@ class StoragePlanRewriter : public IRMutator {
             }
           }
           // transform to alloc bytes
-          combo_size = combo_size / (alloc_type.bits() * alloc_type.lanes());
+          auto type_bits = alloc_type.bits() * alloc_type.lanes();
+          bool divided = can_prove(combo_size % type_bits == 0);
+          combo_size = combo_size / type_bits;
+          // round up for can not divided
+          if (!divided) {
+             combo_size += make_const(Int(32), 1);
+          }
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
@@ -819,17 +825,23 @@ class StoragePlanRewriter : public IRMutator {
     if (const_nbits != 0) {
       // constant allocation.
       auto begin = const_free_map_.lower_bound(const_nbits / match_range);
+      auto mid = const_free_map_.lower_bound(const_nbits);
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
-      for (auto it = begin; it != end; ++it) {
+      // start looking at the buffer that is bigger than the required size first
+      for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
         if (!CanReuse(e, op, attach_scope, scope)) continue;
-        // when space left, try reuse it the next var, eg. two int16 after a float32
-        if (const_nbits < e->const_nbits) {
-          StorageEntry *new_e = NewAlloc(op, attach_scope, scope, e->const_nbits - const_nbits);
-          new_e->bits_offset = e->bits_offset + const_nbits;
-          const_free_map_.insert({new_e->const_nbits, new_e});
-          e->const_nbits = e->const_nbits - const_nbits;
-        }
+        e->const_nbits = std::max(const_nbits, e->const_nbits);
+        const_free_map_.erase(it);
+        return e;
+      }
+      // then start looking at smaller buffers.
+      for (auto it = mid; it != begin;) {
+        --it;
+        StorageEntry *e = it->second;
+        if (e->attach_scope_ != attach_scope) continue;
+        if (e->scope != scope) continue;
+        if (e->elem_type != op->type.element_of()) continue;
         const_free_map_.erase(it);
         return e;
       }
@@ -838,7 +850,9 @@ class StoragePlanRewriter : public IRMutator {
       for (auto it = sym_free_list_.begin();
            it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
-        if (!CanReuse(e, op, attach_scope, scope)) continue;
+        if (e->attach_scope_ != attach_scope) continue;
+        if (e->scope != scope) continue;
+        if (e->elem_type != op->type.element_of()) continue;
         sym_free_list_.erase(it);
         return e;
       }
