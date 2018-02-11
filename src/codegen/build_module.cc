@@ -8,6 +8,8 @@
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
 
+#include <algorithm>
+
 namespace dmlc {
 // enable registry
 DMLC_REGISTRY_ENABLE(tvm::GenericFunc);
@@ -298,7 +300,8 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     }
   }
 
-  bool target_is_gpu = std::find(target.keys.begin(), target.keys.end(), "gpu") != target.keys.end();
+  bool target_is_gpu =
+    std::find(target.keys.begin(), target.keys.end(), "gpu") != target.keys.end();
   if (target_is_gpu && fdevice.size() == 0) {
     LOG(WARNING) << "Specified target " + target.str() +
       " but cannot find device code. Did you forget to bind?";
