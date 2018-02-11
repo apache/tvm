@@ -8,6 +8,10 @@
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
 
+namespace dmlc {
+// enable registry
+DMLC_REGISTRY_ENABLE(tvm::GenericFunc);
+}  // namespace dmlc
 
 namespace tvm {
 
@@ -27,7 +31,9 @@ Target TargetFromName(const std::string& name) {
     return target::cuda();
   } else if (name == "rocm" || name == "opencl") {
     /* For now, assume rocm schedule for opencl */
-    return target::rocm();
+    auto rocm = target::rocm();
+    rocm.target_name = name;  // preserve the original target name for opencl
+    return rocm;
   } else if (name == "metal") {
     return target::metal();
   } else if (name == "stackvm" || name == "ext_dev") {
@@ -349,5 +355,77 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "partition_const_loop=" << op->partition_const_loop;
   p->stream << ")";
 });
+
+void GenericFunc::invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const {
+  PackedFunc func;
+  for (auto &k : target.keys) {
+    auto iter = dispatch_dict.find(k);
+    if (iter != dispatch_dict.end()) {
+      func = iter->second;
+      break;
+    }
+  }
+  if (func == nullptr) {
+    CHECK(generic_func != nullptr) << "No generic function registered for " << name;
+    func = generic_func;
+  }
+
+  std::vector<TVMValue> values;
+  std::vector<int> type_codes;
+
+  auto target_str = target.str();
+  TVMValue target_str_value;
+  target_str_value.v_str = target_str.c_str();
+  values.push_back(target_str_value);
+  type_codes.push_back(kStr);
+
+  for (int i = 0; i < args.num_args; ++i) {
+    values.push_back(args.values[i]);
+    type_codes.push_back(args.type_codes[i]);
+  }
+
+  TVMArgs all_args(values.data(), type_codes.data(), values.size());
+  func.CallPacked(all_args, ret);
+}
+
+TVM_REGISTER_API("_SetGenericFunc")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string func_name = args[0];
+  // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
+  PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
+  bool allow_override = args[2];
+
+  dmlc::Registry<GenericFunc>::Get()->__REGISTER_OR_GET__(func_name)
+    .set_generic_func(*func, allow_override);
+  });
+
+TVM_REGISTER_API("_RegisterFunc")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string func_name = args[0];
+  // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
+  PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
+  Array<Expr> tags = args[2];
+  bool allow_override = args[3];
+
+  std::vector<std::string> tags_vector;
+  for (auto& tag : tags) {
+    tags_vector.push_back(tag.as<tvm::ir::StringImm>()->value);
+  }
+
+  dmlc::Registry<GenericFunc>::Get()->__REGISTER_OR_GET__(func_name)
+    .register_func(tags_vector, *func, allow_override);
+  });
+
+TVM_REGISTER_API("_InvokeGenericFunc")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string func_name = args[0];
+  std::string target_str = args[1];
+
+  TVMArgs func_args(&args.values[2], &args.type_codes[2], args.num_args - 2);
+
+  auto target = Target::create(target_str);
+  dmlc::Registry<GenericFunc>::Get()->__REGISTER_OR_GET__(func_name)
+    .invoke_func(target, func_args, ret);
+  });
 
 }  // namespace tvm

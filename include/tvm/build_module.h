@@ -13,6 +13,7 @@
 #include "./tvm/lowered_func.h"
 
 namespace tvm {
+using namespace tvm::runtime;
 
 /*!
 * \brief Container for target device information.
@@ -183,6 +184,80 @@ EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
                              Target* target_host,
                              const BuildConfig& config);
 
+/*!
+* \brief Generic function that can be specialized on a per-target basis.
+*/
+class TVM_DLL GenericFunc {
+public:
+  /*! \brief name of the function */
+  std::string name;
+  /* \brief the generic builder */
+  PackedFunc generic_func;
+  /* \brief map from keys to registered functions */
+  std::unordered_map<std::string, PackedFunc> dispatch_dict;
+  /*!
+  * \brief Set the generic function implementaiton.
+  * \param value The generic function
+  * \param allow_override If true, this call may override a previously registered function. If
+  * false, an error will be logged if the call would override a previously registered function.
+  * \return reference to self.
+  */
+  inline GenericFunc& set_generic_func(const PackedFunc value,
+                                               bool allow_override=false);
+  /*!
+  * \brief Register a specialized function
+  * \param tags The tags for this specialization
+  * \param value The specialized function
+  * \param allow_override If true, this call may override previously registered tags. If false,
+  * an error will be logged if the call would override previously registered tags.
+  * \return reference to self.
+  */
+  inline GenericFunc& register_func(const std::vector<std::string>& tags,
+                                       const PackedFunc value,
+                                       bool allow_override = false);
+  /*!
+  * \brief Invoke the relevant function for a given target. The function will be invoked with
+  * the target string prepended to the arguments.
+  * \param target The target to specialize for.
+  * \param args The arguments to pass to the function. The target string will be prepended to
+  * these arguments.
+  * \param ret The return value
+  */
+  void invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const;
+};
+
+/*!
+* \def TVM_REGISTER_GENERIC_FUNC
+* \brief Register a new generic function, or set a device-specific variant
+* of the corresponding function.
+*
+* \param name The name of the function
+*/
+#define TVM_REGISTER_GENERIC_FUNC(name)                           \
+  DMLC_REGISTRY_REGISTER(::tvm::GenericFunc, GenericFunc, name)
+
+inline GenericFunc& GenericFunc::set_generic_func(const PackedFunc value,
+                                                  bool allow_override) {
+  if (!allow_override) {
+    CHECK(generic_func == nullptr) << "Generic function already registered for " << name;
+  }
+  this->generic_func = value;
+  return *this;
+}
+
+inline GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
+                                                      const PackedFunc value,
+                                                      bool allow_override) {
+  for (auto &t : tags) {
+    if (!allow_override) {
+      auto iter = dispatch_dict.find(t);
+      CHECK(iter == dispatch_dict.end())
+        << "Tag " << t << " already registered for schedule factory " << name;
+    }
+    dispatch_dict[t] = value;
+  }
+  return *this;
+}
 }  // namespace tvm
 
 #endif  // TVM_BUILD_MODULE_H_

@@ -42,6 +42,7 @@ from __future__ import absolute_import
 
 import warnings
 from ._ffi.base import _LIB_NAME
+from . import _api_internal
 
 try:
     from decorator import decorate
@@ -146,17 +147,28 @@ class Target(object):
         Target.current = self._old_target
 
 
-def generic_func(fdefault):
+def generic_func(fdefault, name=None, override=False):
     """Wrap a target generic function.
 
-    Generic function allows registeration of further functions
+    Generic function allows registration of further functions
     that can be dispatched on current target context.
     If no registered dispatch is matched, the fdefault will be called.
+
+    The default function and registered functions are tracked by C++ in
+    a dmlc::Registry object, under the given name. This allows for 2-way
+    interop between C++ and Python functions.
 
     Parameters
     ----------
     fdefault : function
         The default function.
+
+    name : str, optional
+        The name to use when registering this function with C++. By default,
+        this will be the name of the wrapped function.
+
+    override : bool, optional
+        Whether override existing default func.
 
     Returns
     -------
@@ -182,8 +194,13 @@ def generic_func(fdefault):
       with tvm.target.cuda():
           print(my_func(2))
     """
-    dispatch_dict = {}
-    func_name = fdefault.__name__
+    func_name = name if not name is None else fdefault.__name__
+
+    def invoke_generic(target_str, *args):
+        with create(target_str):
+            return fdefault(*args)
+
+    _api_internal._SetGenericFunc(func_name, invoke_generic, override)
 
     def register(key, func=None, override=False):
         """Register function to be the dispatch function.
@@ -196,8 +213,8 @@ def generic_func(fdefault):
         func : function
             The function to be registered.
 
-        override : bool
-            Whether override existing registeration.
+        override : bool, optional
+            Whether override existing registration.
 
         Returns
         -------
@@ -205,11 +222,11 @@ def generic_func(fdefault):
         """
         def _do_reg(myf):
             key_list = [key] if isinstance(key, str) else key
-            for k in key_list:
-                if k in dispatch_dict and not override:
-                    raise ValueError(
-                        "Key is already registered for %s" % func_name)
-                dispatch_dict[k] = myf
+            def invoke_specialized(target_str, *args):
+                with create(target_str):
+                    return myf(*args)
+            _api_internal._RegisterFunc(func_name, invoke_specialized, key_list,
+                override)
             return myf
         if func:
             return _do_reg(func)
@@ -217,13 +234,13 @@ def generic_func(fdefault):
 
     def dispatch_func(func, *args, **kwargs):
         """The wrapped dispath function"""
+        if len(kwargs) > 0:
+            raise RuntimeError(
+                "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
         target = current_target()
         if target is None:
-            return func(*args, **kwargs)
-        for k in target.keys:
-            if k in dispatch_dict:
-                return dispatch_dict[k](*args, **kwargs)
-        return func(*args, **kwargs)
+            return func(*args)
+        return _api_internal._InvokeGenericFunc(func_name, str(target), *args)
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
     return fdecorate
