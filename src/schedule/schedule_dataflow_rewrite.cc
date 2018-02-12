@@ -449,7 +449,8 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       reduce_stage, dom_map, value_map, true, skip_bound_check);
 
   // Get the factored op node.
-  const int factor_axis_pos = factor_axis >= 0 ? factor_axis : (compute_op->axis.size() + 1) + factor_axis;
+  const int factor_axis_pos = \
+      factor_axis >= 0 ? factor_axis : (compute_op->axis.size() + 1) + factor_axis;
   CHECK_LE(factor_axis_pos, compute_op->axis.size());
   auto n = std::make_shared<ComputeOpNode>();
   n->name = compute_op->name + ".rf";
