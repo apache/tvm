@@ -187,8 +187,8 @@ def max(data, axis=None, keepdims=False):
 
     axis : None or int or tuple of int
         Axis or axes along which the max operation is performed.
-        The default, axis=None, will find the max element from all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        The default, axis=None, will find the max element from all of the elements of the input
+        array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -213,8 +213,8 @@ def min(data, axis=None, keepdims=False):
 
     axis : None or int or tuple of int
         Axis or axes along which a minimum operation is performed.
-        The default, axis=None, will find the minimum element from all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        The default, axis=None, will find the minimum element from all of the elements of the
+        input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -239,8 +239,8 @@ def argmax(data, axis=None, keepdims=False):
 
     axis : None or int or tuple of int
         Axis or axes along which a argmax operation is performed.
-        The default, axis=None, will find the indices of the maximum element of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        The default, axis=None, will find the indices of the maximum element of the elements of
+        the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -266,8 +266,8 @@ def argmin(data, axis=None, keepdims=False):
 
     axis : None or int or tuple of int
         Axis or axes along which a argmin operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        The default, axis=None, will find the indices of minimum element all of the elements of
+        the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
