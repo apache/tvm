@@ -187,14 +187,8 @@ EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
 /*!
 * \brief Generic function that can be specialized on a per-target basis.
 */
-class TVM_DLL GenericFunc {
+class GenericFunc {
  public:
-  /*! \brief name of the function */
-  std::string name;
-  /* \brief the generic builder */
-  PackedFunc generic_func;
-  /* \brief map from keys to registered functions */
-  std::unordered_map<std::string, PackedFunc> dispatch_dict;
   /*!
   * \brief Set the generic function implementaiton.
   * \param value The generic function
@@ -202,8 +196,8 @@ class TVM_DLL GenericFunc {
   * false, an error will be logged if the call would override a previously registered function.
   * \return reference to self.
   */
-  inline GenericFunc& set_generic_func(const PackedFunc value,
-                                       bool allow_override = false);
+  TVM_DLL GenericFunc& set_generic_func(const PackedFunc value,
+                                        bool allow_override = false);
   /*!
   * \brief Register a specialized function
   * \param tags The tags for this specialization
@@ -212,9 +206,9 @@ class TVM_DLL GenericFunc {
   * an error will be logged if the call would override previously registered tags.
   * \return reference to self.
   */
-  inline GenericFunc& register_func(const std::vector<std::string>& tags,
-                                    const PackedFunc value,
-                                    bool allow_override = false);
+  TVM_DLL GenericFunc& register_func(const std::vector<std::string>& tags,
+                                     const PackedFunc value,
+                                     bool allow_override = false);
   /*!
   * \brief Invoke the relevant function for a given target. The function will be invoked with
   * the target string prepended to the arguments.
@@ -223,8 +217,30 @@ class TVM_DLL GenericFunc {
   * these arguments.
   * \param ret The return value
   */
-  void invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const;
+  TVM_DLL void invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const;
+
+  /*!
+  * \brief Find or register the GenericFunc instance corresponding to the give name
+  * \param name The name of the registered GenericFunc
+  * \return The GenericFunc instance
+  */
+  TVM_DLL static GenericFunc& Get(const std::string& name);
+
+  // Internal class.
+  struct Manager;
+
+ private:
+  /*! \brief name of the function */
+  std::string name_;
+  /* \brief the generic builder */
+  PackedFunc generic_func_;
+  /* \brief map from keys to registered functions */
+  std::unordered_map<std::string, PackedFunc> dispatch_dict_;
+  friend struct Manager;
 };
+
+#define TVM_GENERIC_FUNC_REG_VAR_DEF                               \
+  static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_ ## TVM
 
 /*!
 * \def TVM_REGISTER_GENERIC_FUNC
@@ -234,30 +250,10 @@ class TVM_DLL GenericFunc {
 * \param name The name of the function
 */
 #define TVM_REGISTER_GENERIC_FUNC(name)                           \
-  DMLC_REGISTRY_REGISTER(::tvm::GenericFunc, GenericFunc, name)
+  TVM_STR_CONCAT(TVM_GENERIC_FUNC_REG_VAR_DEF, __COUNTER__) =     \
+      ::tvm::GenericFunc::Get(#name)
 
-inline GenericFunc& GenericFunc::set_generic_func(const PackedFunc value,
-                                                  bool allow_override) {
-  if (!allow_override) {
-    CHECK(generic_func == nullptr) << "Generic function already registered for " << name;
-  }
-  this->generic_func = value;
-  return *this;
-}
 
-inline GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
-                                               const PackedFunc value,
-                                               bool allow_override) {
-  for (auto &t : tags) {
-    if (!allow_override) {
-      auto iter = dispatch_dict.find(t);
-      CHECK(iter == dispatch_dict.end())
-        << "Tag " << t << " already registered for schedule factory " << name;
-    }
-    dispatch_dict[t] = value;
-  }
-  return *this;
-}
 }  // namespace tvm
 
 #endif  // TVM_BUILD_MODULE_H_

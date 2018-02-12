@@ -9,11 +9,7 @@
 #include <tvm/codegen.h>
 
 #include <algorithm>
-
-namespace dmlc {
-// enable registry
-DMLC_REGISTRY_ENABLE(tvm::GenericFunc);
-}  // namespace dmlc
+#include <mutex>
 
 namespace tvm {
 
@@ -360,18 +356,74 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
+struct GenericFunc::Manager {
+  // map storing the functions.
+  // We delibrately used raw pointer
+  // This is because PackedFunc can contain callbacks into the host languge(python)
+  // and the resource can become invalid because of indeterminstic order of destruction.
+  // The resources will only be recycled during program exit.
+  std::unordered_map<std::string, GenericFunc*> fmap;
+  // mutex
+  std::mutex mutex;
+
+  Manager() {
+  }
+
+  static Manager* Global() {
+    static Manager inst;
+    return &inst;
+  }
+};
+
+GenericFunc& GenericFunc::Get(const std::string& name) {
+  Manager* m = Manager::Global();
+  std::lock_guard<std::mutex>(m->mutex);
+  auto it = m->fmap.find(name);
+  if (it == m->fmap.end()) {
+    GenericFunc* f = new GenericFunc();
+    f->name_ = name;
+    m->fmap[name] = f;
+    return *f;
+  } else {
+    return *it->second;
+  }
+}
+
+GenericFunc& GenericFunc::set_generic_func(const PackedFunc value,
+                                           bool allow_override) {
+  if (!allow_override) {
+    CHECK(generic_func_ == nullptr) << "Generic function already registered for " << name_;
+  }
+  this->generic_func_ = value;
+  return *this;
+}
+
+GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
+                                        const PackedFunc value,
+                                        bool allow_override) {
+  for (auto &t : tags) {
+    if (!allow_override) {
+      auto iter = dispatch_dict_.find(t);
+      CHECK(iter == dispatch_dict_.end())
+        << "Tag " << t << " already registered for schedule factory " << name_;
+    }
+    dispatch_dict_[t] = value;
+  }
+  return *this;
+}
+
 void GenericFunc::invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const {
   PackedFunc func;
   for (auto &k : target.keys) {
-    auto iter = dispatch_dict.find(k);
-    if (iter != dispatch_dict.end()) {
+    auto iter = dispatch_dict_.find(k);
+    if (iter != dispatch_dict_.end()) {
       func = iter->second;
       break;
     }
   }
   if (func == nullptr) {
-    CHECK(generic_func != nullptr) << "No generic function registered for " << name;
-    func = generic_func;
+    CHECK(generic_func_ != nullptr) << "No generic function registered for " << name_;
+    func = generic_func_;
   }
 
   std::vector<TVMValue> values;
@@ -399,7 +451,7 @@ TVM_REGISTER_API("_SetGenericFunc")
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
   bool allow_override = args[2];
 
-  dmlc::Registry<GenericFunc>::Get()->__REGISTER_OR_GET__(func_name)
+  GenericFunc::Get(func_name)
     .set_generic_func(*func, allow_override);
   });
 
@@ -416,7 +468,7 @@ TVM_REGISTER_API("_RegisterFunc")
     tags_vector.push_back(tag.as<tvm::ir::StringImm>()->value);
   }
 
-  dmlc::Registry<GenericFunc>::Get()->__REGISTER_OR_GET__(func_name)
+  GenericFunc::Get(func_name)
     .register_func(tags_vector, *func, allow_override);
   });
 
@@ -428,7 +480,7 @@ TVM_REGISTER_API("_InvokeGenericFunc")
   TVMArgs func_args(&args.values[2], &args.type_codes[2], args.num_args - 2);
 
   auto target = Target::create(target_str);
-  dmlc::Registry<GenericFunc>::Get()->__REGISTER_OR_GET__(func_name)
+  GenericFunc::Get(func_name)
     .invoke_func(target, func_args, ret);
   });
 

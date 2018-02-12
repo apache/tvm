@@ -147,7 +147,7 @@ class Target(object):
         Target.current = self._old_target
 
 
-def generic_func(fdefault, name=None, override=False):
+def generic_func(name=None, override=False):
     """Wrap a target generic function.
 
     Generic function allows registration of further functions
@@ -158,11 +158,24 @@ def generic_func(fdefault, name=None, override=False):
     a dmlc::Registry object, under the given name. This allows for 2-way
     interop between C++ and Python functions.
 
+    Note
+    ----
+    This can be used as a decorator in any of the follwing styles:
+    .. code-block:: python
+    @generic_func
+    def my_func(a):
+        return a + 1
+
+    @generic_func()
+    def my_func2(a):
+        return a + 1
+
+    @generic_func(override=True)
+    def my_func3(a):
+        return a + 1
+
     Parameters
     ----------
-    fdefault : function
-        The default function.
-
     name : str, optional
         The name to use when registering this function with C++. By default,
         this will be the name of the wrapped function.
@@ -179,20 +192,20 @@ def generic_func(fdefault, name=None, override=False):
     -------
     .. code-block:: python
 
-      import tvm
-      # wrap function as target generic
-      @tvm.target.generic_func
-      def my_func(a):
-          return a + 1
-      # register specialization of my_func under target cuda
-      @my_func.register("cuda")
-      def my_func_cuda(a):
-          return a + 2
-      # displays 3, because my_func is called
-      print(my_func(2))
-      # displays 4, because my_func_cuda is called
-      with tvm.target.cuda():
-          print(my_func(2))
+    import tvm
+    # wrap function as target generic
+    @tvm.target.generic_func
+    def my_func(a):
+        return a + 1
+    # register specialization of my_func under target cuda
+    @my_func.register("cuda")
+    def my_func_cuda(a):
+        return a + 2
+    # displays 3, because my_func is called
+    print(my_func(2))
+    # displays 4, because my_func_cuda is called
+    with tvm.target.cuda():
+        print(my_func(2))
     """
     func_name = name if not name is None else fdefault.__name__
 
