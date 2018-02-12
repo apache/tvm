@@ -279,7 +279,7 @@ class Schedule(NodeBase):
         """
         return _api_internal._ScheduleCacheWrite(self, tensor, scope)
 
-    def rfactor(self, tensor, axis, factor_axis = 0):
+    def rfactor(self, tensor, axis, factor_axis=0):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.
 
         This will create a new stage that generated the new tensor with axis
