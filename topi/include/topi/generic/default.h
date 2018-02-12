@@ -16,27 +16,42 @@ using namespace tvm;
 
 namespace generic {
 /*!
- * \brief Create a generic default schedule for the given output tensors.
- *
- * \param target The target to generate a schedule for.
- * \param outs The output tensors.
- * \param auto_inline Whether to apply the auto inline step.
- *
- * \return A schedule for the given ops.
- */
-Schedule default_schedule(const Target& target, Array<Tensor> outs, bool auto_inline) {
+* \brief Create a generic default schedule for the given output tensors.
+*
+* \param target The target to generate a schedule for.
+* \param outs The output tensors.
+*
+* \return A schedule for the given ops.
+*/
+inline Schedule default_schedule(const Target& target, Array<Tensor> outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
   }
   auto s = create_schedule(out_ops);
-  if (auto_inline) {
-    auto x = outs[0];
-    tvm::schedule::AutoInlineInjective(s);
-    auto axis = s[x]->op.as<ComputeOpNode>()->axis;
-    if (axis.size() > 0) {
-      Fuse(s[x], axis);
-    }
+  return s;
+}
+
+/*!
+* \brief Create a generic default schedule for the given output tensors, and apply
+* auto inline
+*
+* \param target The target to generate a schedule for.
+* \param outs The output tensors.
+*
+* \return A schedule for the given ops.
+*/
+inline Schedule default_schedule_auto_inline(const Target& target, Array<Tensor> outs) {
+  Array<Operation> out_ops;
+  for (auto t : outs) {
+    out_ops.push_back(t->op);
+  }
+  auto s = create_schedule(out_ops);
+  auto x = outs[0];
+  tvm::schedule::AutoInlineInjective(s);
+  auto axis = s[x]->op.as<ComputeOpNode>()->axis;
+  if (axis.size() > 0) {
+    detail::Fuse(s[x], axis);
   }
   return s;
 }

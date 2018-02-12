@@ -25,7 +25,7 @@ namespace cuda {
 *
 * \return A schedule for the given ops.
 */
-Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -37,19 +37,19 @@ Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
     auto num_thread = target.max_num_threads;
     Tensor out;
     Tensor OL;
-    if (contains(s->outputs, pool->op)) {
+    if (detail::contains(s->outputs, pool->op)) {
       out = pool;
       OL = s.cache_write(pool, "local");
     } else {
       out = outs[0]->op.output(0);
       s[pool].set_scope("local");
     }
-    auto fused = Fuse(s[out], s[out]->op.as<ComputeOpNode>()->axis);
+    auto fused = detail::Fuse(s[out], s[out]->op.as<ComputeOpNode>()->axis);
     IterVar bx, tx;
     s[out].split(fused, num_thread, &bx, &tx);
     s[out].bind(bx, tvm::thread_axis(Range(), "blockIdx.x"));
     s[out].bind(tx, tvm::thread_axis(Range(), "threadIdx.x"));
-    if (contains(s->outputs, pool->op)) {
+    if (detail::contains(s->outputs, pool->op)) {
       s[OL].compute_at(s[out], tx);
     } else {
       s[pool].compute_at(s[out], tx);
@@ -60,7 +60,7 @@ Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
   traverse = [&](const Operation& op) {
     // Inline all one-to-one-mapping operators except the last stage (output)
     if (is_broadcast(op->tag)) {
-      if (!contains(s->outputs, op)) {
+      if (!detail::contains(s->outputs, op)) {
         s[op].compute_inline();
       }
       for (auto tensor : op->InputTensors()) {
@@ -90,7 +90,7 @@ Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
 *
 * \return A schedule for the given ops.
 */
-Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -105,7 +105,7 @@ Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
     auto thread_y = tvm::thread_axis(Range(0, num_thread), "threadIdx.y");
     Tensor out;
     Tensor OL;
-    if (contains(s->outputs, pool->op)) {
+    if (detail::contains(s->outputs, pool->op)) {
       out = pool;
       OL = s.cache_write(pool, "local");
     } else {
@@ -126,7 +126,7 @@ Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
     s[out].bind(by, block_y);
     s[out].bind(bx, block_x);
 
-    if (contains(s->outputs, pool->op)) {
+    if (detail::contains(s->outputs, pool->op)) {
       s[OL].compute_at(s[out], tx);
     } else {
       s[pool].compute_at(s[out], tx);
@@ -137,7 +137,7 @@ Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
   traverse = [&](const Operation& op) {
     // Inline all one-to-one-mapping operators except the last stage (output)
     if (is_broadcast(op->tag)) {
-      if (!contains(s->outputs, op)) {
+      if (!detail::contains(s->outputs, op)) {
         s[op].compute_inline();
       }
       for (auto tensor : op->InputTensors()) {

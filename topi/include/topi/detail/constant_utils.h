@@ -22,7 +22,7 @@ using namespace tvm;
  *
  * \return true if the given expr is a constant int or uint, false otherwise.
  */
-bool IsConstInt(Expr expr) {
+inline bool IsConstInt(Expr expr) {
   return
     expr->derived_from<tvm::ir::IntImm>() ||
     expr->derived_from<tvm::ir::UIntImm>();
@@ -36,7 +36,7 @@ bool IsConstInt(Expr expr) {
  *
  * \return The integer value.
  */
-int64_t GetConstInt(Expr expr) {
+inline int64_t GetConstInt(Expr expr) {
   if (expr->derived_from<tvm::ir::IntImm>()) {
     return expr.as<tvm::ir::IntImm>()->value;
   }
@@ -56,7 +56,7 @@ int64_t GetConstInt(Expr expr) {
  *
  * \return A vector of the integer values
  */
-std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& var_name) {
+inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& var_name) {
   std::vector<int> result;
   for (auto expr : exprs) {
     CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";

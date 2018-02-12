@@ -117,7 +117,7 @@ class Target(object):
             self.keys += ("rocm", "gpu")
             self.max_num_threads = 256
         elif target_name in ("metal", "vulkan"):
-            self.keys += ("gpu",)
+            self.keys += (target_name, "gpu",)
             self.max_num_threads = 256
         elif target_name in ("opengl",):
             self.keys += ("opengl",)
@@ -278,6 +278,17 @@ def mali(options=None):
     opts = ["-device=mali"]
     opts = _merge_opts(opts, options)
     return Target("opencl", opts)
+
+
+def opengl(options=None):
+    """Returns a OpenGL target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    return Target("opengl", options)
 
 
 def create(target_str):

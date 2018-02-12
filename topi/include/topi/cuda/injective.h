@@ -22,9 +22,9 @@ namespace cuda {
 * \param op The operation representing the injective operation.
 * \param s The schedule to apply this scheduling to
 */
-void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s) {
+inline void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s) {
   auto x = op.output(0);
-  auto fused = Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
+  auto fused = detail::Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
   auto num_thread = target.max_num_threads;
   IterVar bx, tx;
   s[x].split(fused, num_thread, &bx, &tx);
@@ -40,7 +40,7 @@ void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s) {
  *
  * \return A schedule for the given ops.
  */
-Schedule schedule_injective(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_injective(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

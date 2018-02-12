@@ -23,7 +23,7 @@ namespace x86 {
 *
 * \return A schedule for the given ops.
 */
-Schedule schedule_binarize_pack(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_binarize_pack(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -55,7 +55,7 @@ Schedule schedule_binarize_pack(const Target &target, const Array<Tensor>& outs)
 *
 * \return A schedule for the given ops.
 */
-Schedule schedule_binary_dense(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_binary_dense(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -68,7 +68,7 @@ Schedule schedule_binary_dense(const Target &target, const Array<Tensor>& outs) 
     s[C].parallel(s[C]->op.as<ComputeOpNode>()->axis[0]);
 
     Tensor out;
-    if (contains(s->outputs, C->op)) {
+    if (detail::contains(s->outputs, C->op)) {
       out = C;
     } else {
       out = outs[0]->op.output(0);
@@ -83,7 +83,7 @@ Schedule schedule_binary_dense(const Target &target, const Array<Tensor>& outs) 
   traverse = [&](const Operation& op) {
     // Inline all one-to-one-mapping operators except the last stage (output)
     if (is_broadcast(op->tag)) {
-      if (!contains(s->outputs, op)) {
+      if (!detail::contains(s->outputs, op)) {
         s[op].compute_inline();
       }
       for (auto tensor : op->InputTensors()) {

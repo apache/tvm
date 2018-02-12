@@ -11,7 +11,7 @@ src/llvm/*          @aatluri
 src/runtime/rocm/*    @aatluri
 
 # JVM language
-jvm/*   @javelinjs
+jvm/*   @yzhliu
 
 # TOPI
 topi/python/topi/*  @Laurawly @Huyuwei

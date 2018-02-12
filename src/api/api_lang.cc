@@ -10,6 +10,7 @@
 #include <tvm/buffer.h>
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
+#include <tvm/build_module.h>
 
 namespace tvm {
 

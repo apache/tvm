@@ -24,6 +24,11 @@ using namespace ir;
  * \brief A base class to generate C code.
  *
  *  CodeGenC have two modes: generate SSA formed C code or normal form.
+ *
+ * **NOTE** CodeGenC does not aim at generating C codes consumed by MSVC or GCC,
+ * Rather, it's providing infrastructural abstraction for C variants like CUDA
+ * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
+ * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
 class CodeGenC :
       public ExprFunctor<void(const Expr&, std::ostream&)>,

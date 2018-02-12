@@ -433,6 +433,9 @@ Stage& Stage::opengl() {
   // Bind the only dimension to threadIdx.x.
   bind(fused, thread_axis(Range(nullptr), "threadIdx.x"));
 
+  // Mark this stage as OpenGL.
+  (*this)->is_opengl = true;
+
   return *this;
 }
 
