@@ -41,6 +41,14 @@
 
 #include <topi/rocm/dense.h>
 
+// We must export something for VC++ to generate a .lib file
+#ifdef _WIN32
+namespace win32_fix {
+__declspec(dllexport) void empty() {
+}
+}  // namespace win32_fix
+#endif
+
 namespace tvm {
 namespace runtime {
 template<>
