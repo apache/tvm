@@ -506,7 +506,7 @@ def _schedule_im2col_conv2d(s, op):
     fuse_and_bind(s, output, [n, co, h, w])
 
 def _decl_winograd(data, kernel, stride, padding, layout, out_dtype):
-    """schedule the winograd fast convolution F(2x2, 3x3) for conv2d"""
+    """declare winograd fast convolution F(2x2, 3x3) for conv2d"""
     N, CI, H, W = [util.get_const_int(x) for x in data.shape]
     CO, CI, KH, KW = [util.get_const_int(x) for x in kernel.shape]
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
@@ -603,7 +603,7 @@ def _decl_winograd(data, kernel, stride, padding, layout, out_dtype):
     return output
 
 def _schedule_winograd(s, op):
-    """schedule the winograd fast convolution F(2x2, 3x3) for conv2d"""
+    """schedule winograd fast convolution F(2x2, 3x3) for conv2d"""
 
     # get ops and tensors
     output = op.output(0)
