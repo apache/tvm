@@ -190,13 +190,13 @@ EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
 class GenericFunc {
  public:
   /*!
-  * \brief Set the generic function implementaiton.
-  * \param value The generic function
+  * \brief Set the default function implementaiton.
+  * \param value The default function
   * \param allow_override If true, this call may override a previously registered function. If
   * false, an error will be logged if the call would override a previously registered function.
   * \return reference to self.
   */
-  TVM_DLL GenericFunc& set_generic_func(const PackedFunc value,
+  TVM_DLL GenericFunc& set_default_func(const PackedFunc value,
                                         bool allow_override = false);
   /*!
   * \brief Register a specialized function
@@ -210,14 +210,28 @@ class GenericFunc {
                                      const PackedFunc value,
                                      bool allow_override = false);
   /*!
-  * \brief Invoke the relevant function for a given target. The function will be invoked with
-  * the target string prepended to the arguments.
-  * \param target The target to specialize for.
-  * \param args The arguments to pass to the function. The target string will be prepended to
-  * these arguments.
+  * \brief Call generic function by directly passing in unpacked format.
+  * \param args Arguments to be passed.
+  * \tparam Args arguments to be passed.
+  *
+  * \code
+  *   // Example code on how to call generic function
+  *   void CallGeneirc(GenericFunc f) {
+  *     // call like normal functions by pass in arguments
+  *     // return value is automatically converted back
+  *     int rvalue = f(1, 2.0);
+  *   }
+  * \endcode
+  */
+  template<typename... Args>
+  inline TVMRetValue operator()(Args&& ...args) const;
+  /*!
+  * \brief Invoke the relevant function for the current target context, set by set_target_context.
+  * Arguments are passed in packed format.
+  * \param args The arguments to pass to the function.
   * \param ret The return value
   */
-  TVM_DLL void invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const;
+  TVM_DLL void invoke_packed(TVMArgs args, TVMRetValue* ret) const;
 
   /*!
   * \brief Find or register the GenericFunc instance corresponding to the give name
@@ -225,6 +239,19 @@ class GenericFunc {
   * \return The GenericFunc instance
   */
   TVM_DLL static GenericFunc& Get(const std::string& name);
+
+  /*!
+  * \brief Set the target context to be used when invoking a GenericFunc. The target is stored in
+  * thread local storage.
+  * \param target The target to set as the current context.
+  */
+  TVM_DLL static void set_target_context(const tvm::Target& target);
+
+  /*!
+  * \brief Get the current target context from thread local storage.
+  * \return The target that is the current context.
+  */
+  TVM_DLL static tvm::Target get_target_context();
 
   // Internal class.
   struct Manager;
@@ -238,6 +265,19 @@ class GenericFunc {
   std::unordered_map<std::string, PackedFunc> dispatch_dict_;
   friend struct Manager;
 };
+
+template<typename... Args>
+inline TVMRetValue GenericFunc::operator()(Args&& ...args) const {
+  const int kNumArgs = sizeof...(Args);
+  const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
+  TVMValue values[kArraySize];
+  int type_codes[kArraySize];
+  detail::for_each(TVMArgsSetter(values, type_codes),
+    std::forward<Args>(args)...);
+  TVMRetValue rv;
+  invoke_packed(TVMArgs(values, type_codes, kNumArgs), &rv);
+  return rv;
+}
 
 #define TVM_GENERIC_FUNC_REG_VAR_DEF                               \
   static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_ ## TVM

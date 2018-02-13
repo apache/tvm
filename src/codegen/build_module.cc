@@ -3,6 +3,7 @@
  *  Compile executable modules.
  * \file build_module.cc
  */
+#include <dmlc/thread_local.h>
 #include <tvm/build_module.h>
 #include <tvm/operation.h>
 #include <tvm/ir_pass.h>
@@ -356,6 +357,19 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
+/*! \brief Entry to hold target context for GenericFunc */
+struct TVMGenericFuncThreadLocalEntry {
+  /*! \brief The current target context */
+  tvm::Target target;
+
+  TVMGenericFuncThreadLocalEntry() :
+    target(target::stackvm()) {
+  }
+};
+
+/*! \brief Thread local store that can be used to hold return values. */
+typedef dmlc::ThreadLocalStore<TVMGenericFuncThreadLocalEntry> TVMGenericFuncThreadLocalStore;
+
 struct GenericFunc::Manager {
   // map storing the functions.
   // We delibrately used raw pointer
@@ -389,7 +403,17 @@ GenericFunc& GenericFunc::Get(const std::string& name) {
   }
 }
 
-GenericFunc& GenericFunc::set_generic_func(const PackedFunc value,
+void GenericFunc::set_target_context(const tvm::Target& target) {
+  TVMGenericFuncThreadLocalEntry *entry = TVMGenericFuncThreadLocalStore::Get();
+  entry->target = target;
+}
+
+tvm::Target GenericFunc::get_target_context() {
+  TVMGenericFuncThreadLocalEntry *entry = TVMGenericFuncThreadLocalStore::Get();
+  return entry->target;
+}
+
+GenericFunc& GenericFunc::set_default_func(const PackedFunc value,
                                            bool allow_override) {
   if (!allow_override) {
     CHECK(generic_func_ == nullptr) << "Generic function already registered for " << name_;
@@ -412,7 +436,8 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
   return *this;
 }
 
-void GenericFunc::invoke_func(const tvm::Target& target, TVMArgs args, TVMRetValue* ret) const {
+void GenericFunc::invoke_packed(TVMArgs args, TVMRetValue* ret) const {
+  auto target = get_target_context();
   PackedFunc func;
   for (auto &k : target.keys) {
     auto iter = dispatch_dict_.find(k);
@@ -426,25 +451,10 @@ void GenericFunc::invoke_func(const tvm::Target& target, TVMArgs args, TVMRetVal
     func = generic_func_;
   }
 
-  std::vector<TVMValue> values;
-  std::vector<int> type_codes;
-
-  auto target_str = target.str();
-  TVMValue target_str_value;
-  target_str_value.v_str = target_str.c_str();
-  values.push_back(target_str_value);
-  type_codes.push_back(kStr);
-
-  for (int i = 0; i < args.num_args; ++i) {
-    values.push_back(args.values[i]);
-    type_codes.push_back(args.type_codes[i]);
-  }
-
-  TVMArgs all_args(values.data(), type_codes.data(), values.size());
-  func.CallPacked(all_args, ret);
+  func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_API("_SetGenericFunc")
+TVM_REGISTER_API("_SetGenericFuncDefault")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -452,7 +462,7 @@ TVM_REGISTER_API("_SetGenericFunc")
   bool allow_override = args[2];
 
   GenericFunc::Get(func_name)
-    .set_generic_func(*func, allow_override);
+    .set_default_func(*func, allow_override);
   });
 
 TVM_REGISTER_API("_RegisterFunc")
@@ -480,8 +490,14 @@ TVM_REGISTER_API("_InvokeGenericFunc")
   TVMArgs func_args(&args.values[2], &args.type_codes[2], args.num_args - 2);
 
   auto target = Target::create(target_str);
+  GenericFunc::set_target_context(target);
   GenericFunc::Get(func_name)
-    .invoke_func(target, func_args, ret);
+    .invoke_packed(func_args, ret);
+  });
+
+TVM_REGISTER_API("_GetGenericFuncTargetContext")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = GenericFunc::get_target_context().str();
   });
 
 }  // namespace tvm
