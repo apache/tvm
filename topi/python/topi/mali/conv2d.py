@@ -114,16 +114,13 @@ def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
     out_dtype = data.dtype
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
     kernel_shape = util.get_const_tuple(kernel.shape)
-    data_shape = util.get_const_tuple(data.shape)
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
 
-    gemm_factor = 4
-
     if (kernel_shape[2:4] == (3, 3) and (HPAD, WPAD) == (1, 1) and kernel_shape[0] >= 64 and
-            data_shape[2] * data_shape[3] // 4 % gemm_factor == 0 and (HSTR, WSTR) == (1, 1)):
+            (HSTR, WSTR) == (1, 1)):
         return _decl_winograd(data, kernel, stride, padding, layout, out_dtype)
     elif kernel_shape[2:4] == (1, 1):
         return _decl_im2col(data, kernel, stride, padding, layout, out_dtype)
@@ -552,15 +549,17 @@ def _decl_winograd(data, kernel, stride, padding, layout, out_dtype):
     P = N * nH * nW
 
     bna, bnb = 4, 4
-    if data.dtype == 'float16' and P % (bnb * 2) == 0:
+    if data.dtype == 'float16':
         bnb *= 2
-    assert K % bna == 0 and P % bnb == 0
+    P_round = (P + bnb - 1) // bnb * bnb
+    assert K % bna == 0 and P_round % bnb == 0
 
     # pack input tile
-    input_tile = tvm.compute((C, P // bnb, alpha, alpha, bnb),
+    input_tile = tvm.compute((C, P_round // bnb, alpha, alpha, bnb),
                              lambda c, b, eps, nu, bb:
-                             data_pad[(b*bnb+bb) // (nH*nW)][c][(b*bnb+bb) // nW % nH * m + eps]
-                             [(b*bnb+bb) % nW * m + nu],
+                             tvm.select(b * bnb + bb < P,\
+                             data_pad[(b*bnb+bb) // (nH*nW)][c][(b*bnb+bb) // nW % nH * m + eps]\
+                             [(b*bnb+bb) % nW * m + nu], tvm.const(0, data_pad.dtype)),
                              name='d')
 
     # transform kernel
@@ -575,13 +574,13 @@ def _decl_winograd(data, kernel, stride, padding, layout, out_dtype):
     B = const_array(B_data, 'B')
     r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
     r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
-    V = tvm.compute((alpha, alpha, P // bnb, C, bnb), lambda eps, nu, b, c, bb:
+    V = tvm.compute((alpha, alpha, P_round // bnb, C, bnb), lambda eps, nu, b, c, bb:
                     tvm.sum(input_tile[c][b][r_eps][r_nu][bb] * B[r_eps][eps] * B[r_nu][nu],
                             axis=[r_eps, r_nu]), name='V')
 
     # batch gemm
     c = tvm.reduce_axis((0, C), name='c')
-    M = tvm.compute((alpha, alpha, K, P), lambda eps, nu, k, b:
+    M = tvm.compute((alpha, alpha, K, P_round), lambda eps, nu, k, b:
                     tvm.sum(U[eps][nu][k // bna][c][k % bna] *
                             V[eps][nu][b // bnb][c][b % bnb], axis=c), name='M')
 
@@ -595,7 +594,10 @@ def _decl_winograd(data, kernel, stride, padding, layout, out_dtype):
 
     # unpack output
     output = tvm.compute((N, K, H, W), lambda n, k, h, w:
-                         Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m],
+                         Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m]
+                         # thw following term is used to make the padding effective,
+                         # otherwise the padding will be eliminated by bound inference
+                         + tvm.const(0, out_dtype) * M[alpha-1][alpha-1][K-1][P_round-1],
                          name='output', tag='winograd_conv_output')
 
     return output
@@ -644,7 +646,7 @@ def _schedule_winograd(s, op):
 
     # batch gemm
     bna, bnb = 4, 4
-    if data.dtype == 'float16' and util.get_const_int(M.shape[3]) % (bnb * 2) == 0:
+    if data.dtype == 'float16':
         bnb *= 2
 
     eps, nu, k, b = s[M].op.axis
