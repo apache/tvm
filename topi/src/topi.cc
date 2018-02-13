@@ -9,6 +9,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/build_module.h>
 
+#include <topi/base.h>
 #include <topi/broadcast.h>
 #include <topi/elemwise.h>
 #include <topi/nn.h>
@@ -51,6 +52,9 @@ struct extension_class_info<tvm::Target> {
 } // namespace runtime
 
 namespace topi {
+void ensure_lib_loaded() {
+}
+
 using namespace tvm;
 using namespace tvm::runtime;
 
@@ -470,7 +474,7 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
     auto target = GenericFunc::get_target_context();
     Array<Tensor> outs;
-    if (args[0].type_code() == kArrayHandle) {
+    if (args[0].type_code() == kNodeHandle) {
       outs = args[0];
     } else {
       outs = Array<Tensor> { args[0] };
