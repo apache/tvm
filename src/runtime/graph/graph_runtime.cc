@@ -138,8 +138,8 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = index;
 
     for (size_t i = 0; i < op_execs_.size(); ++i) {
-      if (static_cast<int>(i) == index) break;
       if (op_execs_[i]) op_execs_[i]();
+      if (static_cast<int>(i) == index) break;
     }
 
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
