@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Base header for TOPI library
- * \file base.h
+ * \file topi/base.h
  */
 #ifndef TOPI_BASE_H_
 #define TOPI_BASE_H_
