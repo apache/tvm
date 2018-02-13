@@ -474,7 +474,8 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
     auto target = GenericFunc::get_target_context();
     Array<Tensor> outs;
-    if (args[0].type_code() == kNodeHandle) {
+    NodeRef argNodeRef = args[0];
+    if (argNodeRef->type_index() == outs->type_index()) {
       outs = args[0];
     } else {
       outs = Array<Tensor> { args[0] };
