@@ -781,14 +781,6 @@ class StoragePlanRewriter : public IRMutator {
     return e;
   }
 
-  bool check_scope(const StorageEntry *e,
-                   const Node* attach_scope,
-                   const StorageScope& scope) {
-    if (e->attach_scope_ != attach_scope) return false;
-    if (e->scope != scope) return false;
-    return true;
-  }
-
   StorageEntry* FindAlloc(const Allocate* op,
                           const Node* attach_scope,
                           const StorageScope& scope) {
