@@ -9,7 +9,6 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/build_module.h>
 
-#include <topi/base.h>
 #include <topi/broadcast.h>
 #include <topi/elemwise.h>
 #include <topi/nn.h>
