@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file tvm/base.h
+ * \file base.h
  * \brief Defines the base data structure
  */
 #ifndef TVM_BASE_H_

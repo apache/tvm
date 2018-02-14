@@ -52,8 +52,6 @@ struct extension_class_info<tvm::Target> {
 } // namespace runtime
 
 namespace topi {
-void ensure_lib_loaded() {
-}
 
 using namespace tvm;
 using namespace tvm::runtime;
