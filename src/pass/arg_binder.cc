@@ -57,7 +57,7 @@ bool ArgBinder::Bind_(const Expr& arg,
         (*def_map_)[v] = value;
       }
       (*new_variable_added) = true;
-      result = true;
+      return true;
     } else {
       result = BinderAddAssert(it->second == value, arg_name);
     }
