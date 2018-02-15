@@ -90,3 +90,8 @@ USE_CUBLAS = 0
 
 # Whether use rocBlas
 USE_ROCBLAS = 0
+
+# Whether use imagelibraries
+USE_IMAGE = 0
+# # Whether use jpeg image operators
+USE_JPEG = 0

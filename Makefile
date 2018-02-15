@@ -208,6 +208,7 @@ include make/contrib/miopen.mk
 include make/contrib/mps.mk
 include make/contrib/cublas.mk
 include make/contrib/rocblas.mk
+include make/contrib/image.mk
 
 ifdef ADD_CFLAGS
 	CFLAGS += $(ADD_CFLAGS)
