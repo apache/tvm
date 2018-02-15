@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file arg_binder.cc
  * \brief Helper utility to match and bind arguments.
+ * \end
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
@@ -13,8 +14,10 @@
 
 namespace tvm {
 namespace ir {
-/*
- * returns false if cond can be proved to be unsatisfiable, true otherwise.
+
+/**!
+ * \brief if quit_on_assert_ is false (true, resp.): returns false (quit, resp.) if cond can
+ * be proven to be unsatisfiable, return true (return true, resp.) otherwise.
  */
 bool ArgBinder::BinderAddAssert(Expr cond,
                                 const std::string& arg_name) {
@@ -31,6 +34,10 @@ bool ArgBinder::BinderAddAssert(Expr cond,
   return true;
 }
 
+/**!
+ * \brief if quit_on_assert_ is false (true, resp.): returns false (quit, resp.) if
+ * arg == value can be proven to be unsatisfiable, return true (return true, resp.) otherwise.
+ */
 bool ArgBinder::Bind_(const Expr& arg,
                       const Expr& value,
                       const std::string& arg_name,
@@ -61,6 +68,10 @@ bool ArgBinder::Bind_(const Expr& arg,
   return result;
 }
 
+/**!
+ * \brief if quit_on_assert_ is false (true, resp.) : returns false (quit, resp.) if
+ * arg == value can be proven to be unsatisfiable, return true (return true, resp.) otherwise.
+ */
 bool ArgBinder::Bind(const Expr& arg,
                      const Expr& value,
                      const std::string& arg_name,
@@ -69,6 +80,11 @@ bool ArgBinder::Bind(const Expr& arg,
   return Bind_(arg, value, arg_name, with_let, &new_var_added);
 }
 
+/**!
+ * \brief if quit_on_assert_ is false (true, resp.) : returns false (quit, resp.) if
+ * arg[i] == value[i] can be proven to be unsatisfiable for any i, return true (return
+ * true, resp.) otherwise.
+ */
 bool ArgBinder::BindArray(const Array<Expr>& arg,
                           const Array<Expr>& value,
                           const std::string& arg_name) {
@@ -82,6 +98,11 @@ bool ArgBinder::BindArray(const Array<Expr>& arg,
   return true;
 }
 
+/**!
+ * \brief if quit_on_assert_ is false (true, resp.): returns false (quit, resp.) if
+ * any of the constraints passed to the binder can be proven to be unsatisfiable,
+ * return true (return true, resp.) otherwise.
+ */
 bool ArgBinder::BindBuffer(const Buffer& arg,
                            const Buffer& value,
                            const std::string& arg_name,
