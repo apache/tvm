@@ -439,6 +439,8 @@ class StageNode : public Node {
   std::string scope;
   /*! \brief Whether this is an output stage */
   bool is_output{false};
+  /*! \brief Whether this is an OpenGL stage */
+  bool is_opengl{false};
   /*! \brief Whether apply double buffer optimization to this stage */
   bool double_buffer{false};
   /*!
@@ -462,6 +464,7 @@ class StageNode : public Node {
     v->Visit("attach_stage", &attach_stage);
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
+    v->Visit("is_opengl", &is_opengl);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);

@@ -343,7 +343,11 @@ TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
 /* Generic schedules */
 TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::generic::default_schedule(args[0], args[1], args[2]);
+  if (args[2]) {
+    *rv = topi::generic::default_schedule_auto_inline(args[0], args[1]);
+  } else {
+    *rv = topi::generic::default_schedule(args[0], args[1]);
+  }
   });
 
 TVM_REGISTER_GLOBAL("topi.generic.schedule_extern")
@@ -369,7 +373,11 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_binary_dense")
 
 TVM_REGISTER_GLOBAL("topi.x86.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::default_schedule(args[0], args[1], args[2]);
+  if (args[2]) {
+    *rv = topi::x86::default_schedule_auto_inline(args[0], args[1]);
+  } else {
+    *rv = topi::x86::default_schedule(args[0], args[1]);
+  }
   });
 
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")

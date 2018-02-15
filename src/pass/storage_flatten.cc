@@ -29,7 +29,8 @@ using intrinsic::tvm_address_of;
 
 class StorageFlattener : public IRMutator {
  public:
-  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer, int cache_line_size) {
+  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
+                            int cache_line_size) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -38,6 +39,7 @@ class StorageFlattener : public IRMutator {
     }
     cache_line_size_ = cache_line_size;
   }
+
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Store>();
@@ -90,6 +92,8 @@ class StorageFlattener : public IRMutator {
       vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
       return this->Mutate(op->body);
+    } else if (op->attr_key == attr::opengl_stage_scope) {
+      is_opengl_ = true;
     }
     return IRMutator::Mutate_(op, s);
   }
@@ -104,7 +108,15 @@ class StorageFlattener : public IRMutator {
     const BufferEntry& e = it->second;
     CHECK(!e.released)
         << "Read a buffer that is already out of scope";
-    return e.buffer.vstore(e.RelIndex(op->args), op->value);
+    if (is_opengl_) {
+      return Evaluate::make(Call::make(
+          Type(),
+          Call::glsl_texture_store,
+          {e.buffer->data, op->value},
+          Call::Intrinsic));
+    } else {
+      return e.buffer.vstore(e.RelIndex(op->args), op->value);
+    }
   }
 
   Stmt Mutate_(const Realize* op, const Stmt& s) final {
@@ -421,6 +433,8 @@ class StorageFlattener : public IRMutator {
   std::vector<ThreadScope> curr_thread_scope_;
   // The size of cacheline
   int cache_line_size_;
+  // The current stage is an OpenGL shader.
+  bool is_opengl_{false};
 };
 
 Stmt StorageFlatten(Stmt stmt,
