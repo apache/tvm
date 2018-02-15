@@ -1,7 +1,9 @@
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-variable, line-too-long
 """NN operator common utilities"""
 from __future__ import absolute_import
+import tvm
 from ..util import get_const_int
+from ..util import simplify
 
 def infer_pad(data, data_pad):
     """Infer the padding from stages in reverse.
@@ -100,3 +102,29 @@ def get_pad_tuple(padding, kernel):
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
     return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
+
+def get_scheme_padding(padding_scheme, padding, layout, kernel_shape, data_shape, stride):
+    """ Padding calculation based on the scheme.
+        Compatible to Tensorflow 'SAME' or 'VALID' options
+    """
+
+    pad_h = padding[0]
+    pad_w = padding[1]
+
+    if padding_scheme == 1:
+        kernel_h = kernel_shape[0]
+        kernel_w = kernel_shape[1]
+        if layout == "NCHW":
+            in_height = data_shape[2]
+            in_width = data_shape[3]
+        else: #// NHWC
+            in_height = data_shape[1]
+            in_width = data_shape[2]
+
+        pad_h = tvm.select(tvm.all((in_height % stride[0]) == 0), simplify(kernel_h - stride[0]), simplify(kernel_h - (in_height % stride[0])))
+        pad_w = tvm.select(tvm.all((in_width % stride[1]) == 0), simplify(kernel_w - stride[1]), simplify(kernel_w - (in_width % stride[1])))
+
+        pad_h = tvm.select(tvm.all(pad_h < 0), 0, simplify(pad_h/2))
+        pad_w = tvm.select(tvm.all(pad_w < 0), 0, simplify(pad_w/2))
+
+    return (pad_h, pad_w)
