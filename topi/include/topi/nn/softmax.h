@@ -38,8 +38,8 @@ inline Tensor softmax(const Tensor &x,
   }
   CHECK_LT(axis, ndim) << "axis parameter should be less than input dim";
 
-  auto k1 = MakeReduceAxes({axis}, x);
-  auto k2 = MakeReduceAxes({axis}, x);
+  auto k1 = tvm::reduce_axis(Range(0, input_shape[axis]), "k1");
+  auto k2 = tvm::reduce_axis(Range(0, input_shape[axis]), "k2");
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false);
 
   auto insert_reduce_index = [axis, ndim](const Array<Var> &indices,
@@ -56,14 +56,14 @@ inline Tensor softmax(const Tensor &x,
   };
 
   auto _compute_max = [&](const Array<Var> &indices) {
-    auto eval_range = insert_reduce_index(indices, k1[0]);
-    return topi::MaxOp(x(eval_range), k1);
+    auto eval_range = insert_reduce_index(indices, k1);
+    return topi::MaxOp(x(eval_range), {k1});
   };
 
   auto _compute_expsum = [&](const Tensor &max_elem,
                              const Array<Var> &indices) {
-    auto eval_range = insert_reduce_index(indices, k2[0]);
-    return tvm::sum(tvm::exp(x(eval_range) - max_elem(indices)), k2);
+    auto eval_range = insert_reduce_index(indices, k2);
+    return tvm::sum(tvm::exp(x(eval_range) - max_elem(indices)), {k2});
   };
 
   auto _normalize = [&](const Tensor &max_elem, const Tensor &expsum,
