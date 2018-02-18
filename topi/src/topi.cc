@@ -482,7 +482,6 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   });
 }
 
-
 TVM_REGISTER_GENERIC_FUNC(schedule_injective)
 .set_default_func(WrapSchedule(topi::generic::schedule_injective))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_injective))
@@ -495,7 +494,6 @@ TVM_REGISTER_GENERIC_FUNC(schedule_softmax)
 
 TVM_REGISTER_GENERIC_FUNC(schedule_dense)
 .set_default_func(WrapSchedule(topi::generic::default_schedule))
-.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_dense))
 .register_func({ "rocm" }, WrapSchedule(topi::rocm::schedule_dense));
 
