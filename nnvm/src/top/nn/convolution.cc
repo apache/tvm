@@ -48,7 +48,7 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
                  param.kernel_size[0],
                  param.kernel_size[1]});
 
-  wshape = ConvertLayout(wshape, kNCHW, param.layout);
+  wshape = ConvertLayout(wshape, kNCHW, param.layout, true);
   wshape[0] *= param.groups;
 
   NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
@@ -189,7 +189,7 @@ inline bool Conv2DTransposeInferShape(const nnvm::NodeAttrs& attrs,
                  param.channels / param.groups,
                  param.kernel_size[0],
                  param.kernel_size[1]});
-  wshape = ConvertLayout(wshape, kNCHW, param.layout);
+  wshape = ConvertLayout(wshape, kNCHW, param.layout, true);
   NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DTransposeParam::kWeight, wshape);
 
   if (param.use_bias) {
