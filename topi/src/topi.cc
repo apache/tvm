@@ -482,6 +482,7 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   });
 }
 
+
 TVM_REGISTER_GENERIC_FUNC(schedule_injective)
 .set_default_func(WrapSchedule(topi::generic::schedule_injective))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_injective))
