@@ -29,7 +29,6 @@ reg.register_schedule("pad", _fschedule_broadcast)
 reg.register_pattern("pad", OpPattern.INJECTIVE)
 
 
-# softmax
 @reg.register_schedule("softmax")
 def schedule_softmax(_, outs, target):
     """Schedule definition of softmax"""
@@ -77,17 +76,18 @@ def compute_conv2d(attrs, inputs, _):
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
-    assert layout == "NCHW", "only support nchw for now"
+    assert layout == "NCHW" or layout == "NHWC"
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
-        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding)
+        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding, layout)
     elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(inputs[0], inputs[1], strides, padding)
     else:
         raise ValueError("not support arbitrary group number for now")
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
-        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
+        expand_axis = 1 if layout == "NCHW" else 0
+        bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
         out = topi.broadcast_add(out, bias)
     return out
 
@@ -95,9 +95,12 @@ def compute_conv2d(attrs, inputs, _):
 def schedule_conv2d(attrs, outs, target):
     """Schedule definition of conv2d"""
     groups = attrs.get_int("groups")
+    layout = attrs["layout"]
     with tvm.target.create(target):
-        if groups == 1:
+        if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
+        elif groups == 1 and layout == "NHWC":
+            return topi.generic.schedule_conv2d_nhwc(outs)
         return topi.generic.schedule_depthwise_conv2d_nchw(outs)
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
@@ -178,7 +181,9 @@ reg.register_pattern("global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 def compute_upsampling(attrs, inputs, _):
     """Compute definition of upsampling"""
     scale = attrs.get_int("scale")
-    return topi.nn.upsampling(inputs[0], scale)
+    layout = attrs["layout"]
+    assert layout == "NCHW" or layout == "NHWC"
+    return topi.nn.upsampling(inputs[0], scale, layout)
 
 @reg.register_schedule("upsampling")
 def schedule_upsampling(_, outs, target):
