@@ -18,12 +18,6 @@
 #ifndef TVM_RUNTIME_C_RUNTIME_API_H_
 #define TVM_RUNTIME_C_RUNTIME_API_H_
 
-#ifdef __cplusplus
-#define TVM_EXTERN_C extern "C"
-#else
-#define TVM_EXTERN_C
-#endif
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #define TVM_DLL EMSCRIPTEN_KEEPALIVE
@@ -45,7 +39,7 @@
 #include <dlpack/dlpack.h>
 
 #ifdef __cplusplus
-TVM_EXTERN_C {
+extern "C" {
 #endif
 #include <stdint.h>
 #include <stddef.h>
