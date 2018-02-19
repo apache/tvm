@@ -77,6 +77,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
     return false;
   }
   bool VisitExpr_(const Variable* op) final { return false; }
+  bool VisitExpr_(const UIntImm* op) final { return false; }
   bool VisitExpr_(const IntImm* op) final { return false; }
   bool VisitExpr_(const FloatImm* op) final { return false; }
   bool VisitExpr_(const StringImm* op) final { return false; }
