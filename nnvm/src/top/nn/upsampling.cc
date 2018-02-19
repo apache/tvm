@@ -24,9 +24,11 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(out_shape->size(), 1U);
   TShape dshape = (*in_shape)[0];
   if (dshape.ndim() ==  0) return false;
+  dshape = ConvertLayout(dshape, param.layout, kNCHW);
   TShape oshape = dshape;
   oshape[2] = oshape[2] * param.scale;
   oshape[3] = oshape[3] * param.scale;
+  oshape = ConvertLayout(oshape, kNCHW, param.layout);
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
   return true;
 }

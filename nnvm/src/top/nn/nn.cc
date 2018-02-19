@@ -279,8 +279,7 @@ NNVM_REGISTER_OP(softmax)
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const SoftmaxParam& param = nnvm::get<SoftmaxParam>(attrs.parsed);
-    CHECK_EQ(param.axis, -1) << "Currently only axis=-1 is supported";
-    return Array<Tensor>{ topi::nn::softmax(inputs[0]) };
+    return Array<Tensor>{ topi::nn::softmax(inputs[0], param.axis) };
   })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
