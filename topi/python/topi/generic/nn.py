@@ -280,5 +280,3 @@ def schedule_region(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
-
-
