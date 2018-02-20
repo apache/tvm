@@ -54,3 +54,32 @@ def batch_norm_inference(data, gamma, beta, moving_mean, moving_var, eps, fix_ga
     mean = tvm.compute((C, ), lambda c: moving_mean[c])
     var = tvm.compute((C, ), lambda c: moving_var[c])
     return [out, mean, var]
+
+@tvm.target.generic_func
+def batch_norm(data, moving_mean, moving_var, eps):
+    """Batch normalization inference operator in NCHW layout.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        4-D with shape [batch, channel, height, width]
+
+    moving_mean : tvm.Tensor
+        1-D with shape [channel]
+
+    moving_var : tvm.Tensor
+        1-D with shape [channel]
+
+    eps : float
+        Epsilon to prevent div 0.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, channel, height, width]
+    """
+
+    assert len(data.shape) == 4, "only support 4-dim batch norm"
+
+    return tvm.compute(data.shape, lambda b, c, h, w: (data[b, c, h, w] - moving_mean[c]) / \
+            tvm.intrin.sqrt(moving_var[c] + eps))

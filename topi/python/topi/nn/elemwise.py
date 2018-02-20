@@ -42,3 +42,26 @@ def leaky_relu(x, alpha):
         calpha = tvm.const(alpha, value.dtype)
         return tvm.select(value > 0, value, value * calpha)
     return tvm.compute(x.shape, _compute)
+
+def _compute_logistic_activation(x):
+    return 1 / (1 + tvm.exp(-1 * x))
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def logistic_activation(x):
+    """Take logistic activation of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+
+    def _compute(*indices):
+        value = x(*indices)
+        return _compute_logistic_activation(value)
+    return tvm.compute(x.shape, _compute)
