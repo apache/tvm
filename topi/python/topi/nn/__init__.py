@@ -15,3 +15,6 @@ from .softmax import *
 from .conv2d_transpose import *
 from .bnn import *
 from .upsampling import *
+from .shortcut import *
+from .reorg import *
+from .region import *
