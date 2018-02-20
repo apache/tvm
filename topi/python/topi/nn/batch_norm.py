@@ -81,5 +81,5 @@ def batch_norm(data, moving_mean, moving_var, eps):
 
     assert len(data.shape) == 4, "only support 4-dim batch norm"
 
-    return tvm.compute(data.shape, lambda b, c, h, w: (data[b, c, h, w] - moving_mean[c]) / \
+    return tvm.compute(data.shape, lambda b, c, h, w: (data[b, c, h, w] - moving_mean[c]) /
             tvm.intrin.sqrt(moving_var[c] + eps))
