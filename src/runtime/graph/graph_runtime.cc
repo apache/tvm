@@ -564,6 +564,9 @@ std::function<void()> GraphRuntime::CreateTVMOp(
       t->shape = &(arg_ptr->shape_data[i]);
     }
   }
+  if (param.func_name == "__nop") {
+    return [](){};
+  }
   // get compiled function from module.
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
