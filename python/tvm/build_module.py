@@ -6,7 +6,6 @@ LoweredFunc and compiled Module.
 from __future__ import absolute_import as _abs
 import warnings
 import types
-import os
 
 from ._ffi.node import NodeBase, register_node
 from ._ffi.base import _RUNTIME_ONLY
