@@ -41,6 +41,10 @@ def _load_lib():
 __version__ = libinfo.__version__
 # library instance of nnvm
 _LIB, _LIB_NAME = _load_lib()
+
+# Whether we are runtime only
+_RUNTIME_ONLY = "runtime" in _LIB_NAME
+
 # The FFI mode of TVM
 _FFI_MODE = os.environ.get("TVM_FFI", "auto")
 
