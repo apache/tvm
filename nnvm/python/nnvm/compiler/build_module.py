@@ -279,8 +279,10 @@ def _run_graph(graph, params):
     graph, libmod, _ = build(graph, target, shape, dtype)
     m = graph_runtime.create(graph, libmod, ctx)
     set_input, run, get_output = m["set_input"], m["run"], m["get_output"]
+    kset = set(graph.symbol.list_input_names())
     for k, v in params.items():
-        set_input(k, tvm.nd.array(v))
+        if k in kset:
+            set_input(k, tvm.nd.array(v))
     run()
     out_data = []
     for i, kv in enumerate(zip(oshape, odtype)):
