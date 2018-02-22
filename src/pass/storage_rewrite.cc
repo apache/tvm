@@ -502,7 +502,6 @@ class StoragePlanRewriter : public IRMutator {
   }
   // Remap the index
   Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
-    CHECK_EQ(dtype.element_of(), e->elem_type);
     if (e->bits_offset == 0) return index;
     uint64_t elem_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(e->bits_offset % elem_bits, 0U);
@@ -564,16 +563,21 @@ class StoragePlanRewriter : public IRMutator {
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
             Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(Int(32), 1));
-            if (alloc_type.lanes() != op->type.lanes()) {
-              sz = (sz * make_const(sz.type(), op->type.lanes()) +
-                    make_const(sz.type(), alloc_type.lanes() - 1)) /
-                  make_const(sz.type(), alloc_type.lanes());
-            }
+            // transform to bits
+            auto sz_nbits = sz * (op->type.bits() * op->type.lanes());
             if (combo_size.defined()) {
-              combo_size = max(combo_size, sz);
+              combo_size = max(combo_size, sz_nbits);
             } else {
-              combo_size = sz;
+              combo_size = sz_nbits;
             }
+          }
+          // transform to alloc bytes
+          auto type_bits = alloc_type.bits() * alloc_type.lanes();
+          bool divided = can_prove(combo_size % type_bits == 0);
+          combo_size = combo_size / type_bits;
+          // round up for can not divided
+          if (!divided) {
+             combo_size += make_const(Int(32), 1);
           }
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
@@ -784,8 +788,9 @@ class StoragePlanRewriter : public IRMutator {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
+    uint64_t op_elem_bits = op->type.bits() * op->type.lanes();
     uint64_t const_nbits = static_cast<uint64_t>(
-        op->constant_allocation_size() * op->type.bits() * op->type.lanes());
+        op->constant_allocation_size() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {
@@ -801,15 +806,18 @@ class StoragePlanRewriter : public IRMutator {
       auto begin = const_free_map_.lower_bound(const_nbits / match_range);
       auto mid = const_free_map_.lower_bound(const_nbits);
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
+      // start looking at the buffer that is bigger than the required size first
       for (auto it = mid; it != end; ++it) {
         StorageEntry *e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        // when not divided, no reuse, eg, float4 vs float3
+        if (e->bits_offset % op_elem_bits != 0) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
       }
+      // then start looking at smaller buffers.
       for (auto it = mid; it != begin;) {
         --it;
         StorageEntry *e = it->second;
