@@ -74,35 +74,3 @@ def log_softmax(x):
         (m, ), lambda i: tvm.sum(tvm.exp(x[i, k] - max_elem[i]), axis=k))
     return tvm.compute(
         x.shape, lambda i, j: x[i, j] - max_elem[i] - tvm.log(expsum[i]))
-
-@tvm.tag_scope(tag='softmax3d_output')
-def softmax3d(x):
-    """Perform log softmax activation on the data
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        4-D input data
-
-    Returns
-    -------
-    output : tvm.Tensor
-        4-D output with same shape
-    """
-
-    assert len(x.shape) == 4, "only support 4-dim softmax3d"
-    b, c, h, w = x.shape
-
-    dchannel = tvm.reduce_axis((0, c), name='dchannel')
-    max_elems = tvm.compute((b, h, w), lambda i, j, k:
-                            tvm.max(x[i, dchannel, j, k], axis=dchannel))
-
-    expsum = tvm.compute((b, c, h, w), lambda i, j, k, l:
-                         (tvm.exp(x[i, j, k, l] - max_elems[i, k, l])))
-
-    dchannel = tvm.reduce_axis((0, c), name='dchannel')
-    expsum = tvm.compute((b, h, w), lambda i, j, k:
-                         tvm.sum(expsum[i, dchannel, j, k], axis=dchannel))
-
-    return tvm.compute((b, c, h, w), lambda i, j, k, l:
-                       ((tvm.exp(x[i, j, k, l] - max_elems[i, k, l])) / expsum[i, k, l]))

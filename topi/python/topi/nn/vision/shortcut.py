@@ -1,10 +1,8 @@
 """Shortcut operators (short-cut connections)."""
 from __future__ import absolute_import as _abs
 import tvm
-import topi
-
-def _simplify(shape):
-    return int(str(shape[0])), int(str(shape[1])), int(str(shape[2])), int(str(shape[3]))
+from ... import transform
+from ... import util
 
 @tvm.target.generic_func
 def shortcut(inp1, inp2):
@@ -24,8 +22,8 @@ def shortcut(inp1, inp2):
         4-D with shape [batch, out_channel, out_height, out_width]
     """
 
-    _, inp1_c, inp1_h, inp1_w = _simplify(inp1.shape)
-    batch, inp2_c, inp2_h, inp2_w = _simplify(inp2.shape)
+    _, inp1_c, inp1_h, inp1_w = util.get_const_tuple(inp1.shape)
+    batch, inp2_c, inp2_h, inp2_w = util.get_const_tuple(inp2.shape)
 
     stride = int(max(inp2_w / inp1_w, 1))
     sample = int(max(inp1_w / inp2_w, 1))
@@ -40,8 +38,8 @@ def shortcut(inp1, inp2):
 
     split_indices = int(inp1_c / minc)
     if split_indices > 1:
-        split_res = topi.split(inp1, split_indices, 1)
+        split_res = transform.split(inp1, split_indices, 1)
         split_res[0] = out
-        out = topi.concatenate(split_res, 1)
+        out = transform.concatenate(split_res, 1)
 
     return out
