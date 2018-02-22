@@ -142,7 +142,7 @@ def test_rfactor():
     ko, ki = s[B].split(k1, factor=4)
     xo, xi = s[B].split(B.op.axis[0], factor=8)
     BF = s.rfactor(B, ki, 1)
-    assert(BF.shape[0] == n)
+    assert(n == BF.shape[0])
     assert(BF.shape[1].value == 4)
     assert(BF.op.body[0].axis[0] ==  k2)
     assert(BF.op.body[0].axis[1].var ==  ko.var)
