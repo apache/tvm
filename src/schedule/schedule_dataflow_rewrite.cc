@@ -395,7 +395,8 @@ Schedule Schedule::normalize() {
 
 // Handle reduction factor.
 Array<Tensor> Schedule::rfactor(const Tensor& tensor,
-                                const IterVar& axis) {
+                                const IterVar& axis,
+                                int factor_axis) {
   (*this)->InvalidateCache();
   using ir::Reduce;
   CHECK_EQ(axis->iter_type, kCommReduce)
@@ -448,6 +449,9 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       reduce_stage, dom_map, value_map, true, skip_bound_check);
 
   // Get the factored op node.
+  const int factor_axis_pos = \
+      factor_axis >= 0 ? factor_axis : static_cast<int>(compute_op->axis.size() + 1) + factor_axis;
+  CHECK_LE(factor_axis_pos, compute_op->axis.size());
   auto n = std::make_shared<ComputeOpNode>();
   n->name = compute_op->name + ".rf";
   {
@@ -458,10 +462,16 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
         << "Can only factor reduction domain starting from 0";
     iv_node->var = axis->var;
     iv_node->iter_type = kDataPar;
-    n->axis.push_back(IterVar(iv_node));
 
-    for (IterVar iv : compute_op->axis) {
-      n->axis.push_back(iv);
+    const int size = compute_op->axis.size();
+    for (int idx = 0; idx < size; ++idx) {
+      if (factor_axis_pos == idx) {
+        n->axis.push_back(IterVar(iv_node));
+      }
+      n->axis.push_back(compute_op->axis[idx]);
+    }
+    if (factor_axis_pos == size) {
+      n->axis.push_back(IterVar(iv_node));
     }
   }
   // predicate generation, copy not touched axis.
@@ -548,9 +558,15 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   Array<Tensor> repl_tensors = compute(old_tensors[0]->shape,
     [&](const Array<Var>& i) {
       Array<Expr> indices;
-      indices.push_back(repl_red_axis->var);
-      for (Var v : i) {
-        indices.push_back(v);
+      const int idx_size = static_cast<int>(i.size());
+      for (int idx = 0; idx < idx_size; ++idx) {
+        if (factor_axis_pos == idx) {
+          indices.push_back(repl_red_axis->var);
+        }
+        indices.push_back(i[idx]);
+      }
+      if (factor_axis_pos == idx_size) {
+          indices.push_back(repl_red_axis->var);
       }
       Array<Expr> factor_exprs;
       for (int idx = 0; idx < size; ++idx) {
