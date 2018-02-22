@@ -28,8 +28,6 @@ namespace tvm_ext {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_REGISTER_EXT_TYPE(IntVector);
-
 TVM_REGISTER_GLOBAL("tvm_ext.ivec_create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     IntVector vec;

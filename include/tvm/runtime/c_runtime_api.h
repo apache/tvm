@@ -24,6 +24,13 @@
 #define TVM_EXTERN_C
 #endif
 
+// Macros to do weak linking
+#ifdef _MSC_VER
+#define TVM_WEAK __declspec(selectany)
+#else
+#define TVM_WEAK __attribute__((weak))
+#endif
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #define TVM_DLL EMSCRIPTEN_KEEPALIVE

@@ -183,31 +183,17 @@ struct extension_class_info {
 };
 
 /*!
- * \brief Runtime function table about extension type.
+ * \brief Capsule structure holding extension types
+ *  Capsule is self-contained and include
+ *  all the information to clone and destroy the type.
  */
-class ExtTypeVTable {
- public:
+struct TVMExtTypeCapsule {
+  /*! \brief The pointer to the object */
+  void* ptr;
   /*! \brief function to be called to delete a handle */
   void (*destroy)(void* handle);
   /*! \brief function to be called when clone a handle */
   void* (*clone)(void* handle);
-  /*!
-   * \brief Register type
-   * \tparam T The type to be register.
-   * \return The registered vtable.
-   */
-  template <typename T>
-  static inline ExtTypeVTable* Register_();
-  /*!
-   * \brief Get a vtable based on type code.
-   * \param type_code The type code
-   * \return The registered vtable.
-   */
-  TVM_DLL static ExtTypeVTable* Get(int type_code);
-
- private:
-  // Internal registration function.
-  TVM_DLL static ExtTypeVTable* RegisterInternal(int type_code, const ExtTypeVTable& vt);
 };
 
 /*!
@@ -255,8 +241,9 @@ class TVMPODValue_ {
   }
   template<typename TExtension>
   const TExtension& AsExtension() const {
-    CHECK_LT(type_code_, kExtEnd);
-    return static_cast<TExtension*>(value_.v_handle)[0];
+    CHECK_EQ(type_code_, extension_class_info<TExtension>::code);
+    return static_cast<TExtension*>(
+        static_cast<TVMExtTypeCapsule*>(value_.v_handle)->ptr)[0];
   }
   int type_code() const {
     return type_code_;
@@ -488,14 +475,6 @@ class TVMRetValue : public TVMPODValue_ {
     this->Assign(other);
     return *this;
   }
-  template<typename T,
-           typename = typename std::enable_if<
-             extension_class_info<T>::code != 0>::type>
-  TVMRetValue& operator=(const T& other) {
-    this->SwitchToClass<T>(
-        extension_class_info<T>::code, other);
-    return *this;
-  }
   /*!
    * \brief Move the value back to front-end via C API.
    *  This marks the current container as null.
@@ -521,6 +500,11 @@ class TVMRetValue : public TVMPODValue_ {
           type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
+  // assign extension
+  template<typename T,
+           typename = typename std::enable_if<
+             extension_class_info<T>::code != 0>::type>
+  inline TVMRetValue& operator=(const T& other);
   // NodeRef related extenstions: in tvm/packed_func_ext.h
   template<typename T,
            typename = typename std::enable_if<
@@ -564,11 +548,9 @@ class TVMRetValue : public TVMPODValue_ {
           SwitchToPOD(other.type_code());
           value_ = other.value_;
         } else {
-          this->Clear();
-          type_code_ = other.type_code();
-          value_.v_handle =
-              (*(ExtTypeVTable::Get(other.type_code())->clone))(
-                  other.value().v_handle);
+          TVMExtTypeCapsule cap = *other.template ptr<TVMExtTypeCapsule>();
+          cap.ptr = cap.clone(cap.ptr);
+          SwitchToClass<TVMExtTypeCapsule>(other.type_code(), cap);
         }
         break;
       }
@@ -600,7 +582,9 @@ class TVMRetValue : public TVMPODValue_ {
       case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
     }
     if (type_code_ > kExtBegin) {
-      (*(ExtTypeVTable::Get(type_code_)->destroy))(value_.v_handle);
+      TVMExtTypeCapsule *cap = ptr<TVMExtTypeCapsule>();
+      cap->destroy(cap->ptr);
+      delete cap;
     }
     type_code_ = kNull;
   }
@@ -716,8 +700,10 @@ inline void for_each(const F& f, Args&&... args) {  // NOLINT(*)
 /* \brief argument settter to PackedFunc */
 class TVMArgsSetter {
  public:
-  TVMArgsSetter(TVMValue* values, int* type_codes)
-      : values_(values), type_codes_(type_codes) {}
+  TVMArgsSetter(TVMValue* values,
+                int* type_codes,
+                TVMExtTypeCapsule* exts)
+      : values_(values), type_codes_(type_codes), exts_(exts) {}
   // setters for POD types
   template<typename T,
            typename = typename std::enable_if<
@@ -807,15 +793,21 @@ class TVMArgsSetter {
   TVMValue* values_;
   /*! \brief The type code fields */
   int* type_codes_;
+  /*! \brief Temporary storage for extension types */
+  TVMExtTypeCapsule* exts_;
 };
 
 template<typename... Args>
 inline TVMRetValue PackedFunc::operator()(Args&& ...args) const {
   const int kNumArgs = sizeof...(Args);
+  // Compiler will remove an static array when it is not touched.
   const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
   TVMValue values[kArraySize];
   int type_codes[kArraySize];
-  detail::for_each(TVMArgsSetter(values, type_codes),
+  // If the function call does not contain extension type,
+  // exts will get optimized away by compiler.
+  TVMExtTypeCapsule exts[kArraySize];
+  detail::for_each(TVMArgsSetter(values, type_codes, exts),
                    std::forward<Args>(args)...);
   TVMRetValue rv;
   body_(TVMArgs(values, type_codes, kNumArgs), &rv);
@@ -853,14 +845,6 @@ inline TVMRetValue::operator T() const {
       ::Apply(this);
 }
 
-template<typename T, typename>
-inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
-  static_assert(extension_class_info<T>::code != 0,
-                "Need to have extesion code");
-  type_codes_[i] = extension_class_info<T>::code;
-  values_[i].v_handle = const_cast<T*>(&value);
-}
-
 // extension type handling
 template<typename T>
 struct ExtTypeInfo {
@@ -872,16 +856,28 @@ struct ExtTypeInfo {
   }
 };
 
-template<typename T>
-inline ExtTypeVTable* ExtTypeVTable::Register_() {
-  const int code = extension_class_info<T>::code;
-  static_assert(code != 0,
-                "require extension_class_info traits to be declared with non-zero code");
-  ExtTypeVTable vt;
-  vt.clone = ExtTypeInfo<T>::clone;
-  vt.destroy = ExtTypeInfo<T>::destroy;
-  return ExtTypeVTable::RegisterInternal(code, vt);
+template<typename T, typename>
+inline TVMRetValue& TVMRetValue::operator=(const T& other) {
+  TVMExtTypeCapsule cap;
+  cap.clone = ExtTypeInfo<T>::clone;
+  cap.destroy = ExtTypeInfo<T>::destroy;
+  cap.ptr = new T(other);
+  SwitchToClass<TVMExtTypeCapsule>(
+      extension_class_info<T>::code, cap);
+  return *this;
 }
+
+template<typename T, typename>
+inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
+  static_assert(extension_class_info<T>::code != 0,
+                "Need to have extesion code");
+  type_codes_[i] = extension_class_info<T>::code;
+  exts_[i].clone = ExtTypeInfo<T>::clone;
+  exts_[i].destroy = ExtTypeInfo<T>::destroy;
+  exts_[i].ptr = const_cast<T*>(&value);
+  values_[i].v_handle = &exts_[i];
+}
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_
