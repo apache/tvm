@@ -35,7 +35,7 @@ using FCommReduce = std::function<
 * If any input element is negative, it will be treated as an offset from the
 * last dimension (same as python indexing rules).
 */
-std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
+inline std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
   std::vector<int> real_axis;
   if (axis.size() == 0) {
     for (int i = 0; i < ndim; ++i) {
@@ -59,7 +59,7 @@ std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
 }
 
 /*! \brief Enumerate the axes for a reduce op */
-Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& data) {
+inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& data) {
   Array<IterVar> reduce_axes;
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
@@ -70,9 +70,9 @@ Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Tensor& d
 }
 
 /*! \brief Calculate the target shape for a reduce op */
-Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
-                                  const Tensor& data,
-                                  bool keepdims) {
+inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
+                                         const Tensor& data,
+                                         bool keepdims) {
   auto ndim = data->shape.size();
   Array<Expr> target_shape;
   if (keepdims) {
@@ -107,10 +107,10 @@ Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
  *
  * \return The result tensor.
  */
-Tensor CommReduce(const Tensor& data,
-                  const Array<Expr>& axis,
-                  FReduce func,
-                  bool keepdims = false) {
+inline Tensor CommReduce(const Tensor& data,
+                         const Array<Expr>& axis,
+                         FReduce func,
+                         bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto axis_val = detail::GetConstIntValues(axis, "axis");
@@ -159,10 +159,10 @@ Tensor CommReduce(const Tensor& data,
 *
 * \return The result tensor.
 */
-Tensor CommReduceIdx(const Tensor& data,
-                     const Array<Expr>& axis,
-                     FCommReduce func,
-                     bool keepdims = false) {
+inline Tensor CommReduceIdx(const Tensor& data,
+                            const Array<Expr>& axis,
+                            FCommReduce func,
+                            bool keepdims = false) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto axis_val = detail::GetConstIntValues(axis, "axis");
@@ -227,9 +227,9 @@ using FIdentity = std::function<Array<Expr>(std::vector<Type> types)>;
  *
  * \return A reducer function which creates a reduce expression over an axis.
  */
-FCommReduce MakeCommReducer(FCombine fcombine,
-                            FIdentity fidentity,
-                            std::string name = "reduce") {
+inline FCommReduce MakeCommReducer(FCombine fcombine,
+                                   FIdentity fidentity,
+                                   std::string name = "reduce") {
   return [fcombine, fidentity, &name]
   (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
     Array<Var> lhs, rhs;
@@ -277,7 +277,7 @@ inline Expr MaxOp(Expr source, Array<IterVar> axis) {
 *
 * \return A Tensor whose op member is the sum operation
 */
-Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+inline Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   return CommReduce(data, axis, tvm::sum, keepdims);
 }
 
@@ -294,7 +294,7 @@ Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 *
 * \return A Tensor whose op member is the min operation
 */
-Tensor min(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+inline Tensor min(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   return CommReduce(data, axis, MinOp, keepdims);
 }
 
@@ -311,7 +311,7 @@ Tensor min(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 *
 * \return A Tensor whose op member is the max operation
 */
-Tensor max(const Tensor& data, Array<Expr> axis, bool keepdims = false) {  // NOLINT(*)
+inline Tensor max(const Tensor& data, Array<Expr> axis, bool keepdims = false) {  // NOLINT(*)
   return CommReduce(data, axis, MaxOp, keepdims);
 }
 
@@ -328,7 +328,7 @@ Tensor max(const Tensor& data, Array<Expr> axis, bool keepdims = false) {  // NO
 *
 * \return A Tensor whose op member is the argmin operation
 */
-Tensor argmin(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+inline Tensor argmin(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
     result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
@@ -358,7 +358,7 @@ Tensor argmin(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 *
 * \return A Tensor whose op member is the argmax operation
 */
-Tensor argmax(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+inline Tensor argmax(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
     result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx

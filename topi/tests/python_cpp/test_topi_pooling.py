@@ -16,7 +16,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     ph, pw = padding
     A = tvm.placeholder((n, ic, ih, iw), name='A')
     B = topi.cpp.nn.pool(A, [kh, kw], [sh, sw], padding,
-                     pool_code[pool_type], ceil_mode)
+                         pool_code[pool_type], ceil_mode, "NCHW")
     B = topi.cpp.nn.relu(B)
     dtype = A.dtype
 
