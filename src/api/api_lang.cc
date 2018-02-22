@@ -432,7 +432,7 @@ TVM_REGISTER_API("_ScheduleCacheWrite")
 TVM_REGISTER_API("_ScheduleRFactor")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
-        .rfactor(args[1], args[2]);
+        .rfactor(args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_API("_CommReducerCombine")
