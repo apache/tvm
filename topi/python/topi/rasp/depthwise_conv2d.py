@@ -24,6 +24,16 @@ _WORKLOADS = [
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
     _Workload('float32', 'float32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
+
+    _Workload('int16', 'int32', 112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
 ]
 
 _SCHEDULES = [
@@ -36,6 +46,16 @@ _SCHEDULES = [
     _Schedule(1, 1, 8, 8, True),
     _Schedule(1, 1, 4, 1, False),
     _Schedule(1, 1, 4, 4, False),
+
+    _Schedule(2, 4, 4, 2, False),
+    _Schedule(2, 7, 4, 1, True),
+    _Schedule(2, 4, 4, 4, False),
+    _Schedule(2, 2, 4, 4, False),
+    _Schedule(2, 2, 8, 4, False),
+    _Schedule(2, 2, 4, 4, True),
+    _Schedule(2, 2, 8, 4, False),
+    _Schedule(1, 2, 8, 4, True),
+    _Schedule(1, 1, 4, 8, True),
 ]
 
 def _get_workload(data, kernel, stride, padding, out_dtype):
@@ -46,6 +66,8 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
+    wkl =  _Workload(data.dtype, out_dtype, IH, IW, C, MT, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    print('depthwise workload: {}'.format(wkl))
     return _Workload(data.dtype, out_dtype, IH, IW, C, MT, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
@@ -58,6 +80,7 @@ def _schedule(s, data, data_pad, kernel, output, last):
     wkl = _get_workload(data, kernel, stride, padding, output.dtype)
 
     if wkl not in _WORKLOADS:
+        print('not in WORKLOADS')
         return s
 
     # use specified schedule
@@ -160,10 +183,12 @@ def schedule_depthwise_conv2d(outs):
     s: Schedule
         The computation schedule for depthwise_conv2d nchw.
     """
+    print('specialized depthwise schedule')
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
+        print(op.name)
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
