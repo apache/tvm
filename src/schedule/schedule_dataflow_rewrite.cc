@@ -396,7 +396,7 @@ Schedule Schedule::normalize() {
 // Handle reduction factor.
 Array<Tensor> Schedule::rfactor(const Tensor& tensor,
                                 const IterVar& axis,
-                                const int factor_axis) {
+                                int factor_axis) {
   (*this)->InvalidateCache();
   using ir::Reduce;
   CHECK_EQ(axis->iter_type, kCommReduce)
@@ -450,7 +450,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
 
   // Get the factored op node.
   const int factor_axis_pos = \
-      factor_axis >= 0 ? factor_axis : (compute_op->axis.size() + 1) + factor_axis;
+      factor_axis >= 0 ? factor_axis : static_cast<int>(compute_op->axis.size() + 1) + factor_axis;
   CHECK_LE(factor_axis_pos, compute_op->axis.size());
   auto n = std::make_shared<ComputeOpNode>();
   n->name = compute_op->name + ".rf";
@@ -558,7 +558,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   Array<Tensor> repl_tensors = compute(old_tensors[0]->shape,
     [&](const Array<Var>& i) {
       Array<Expr> indices;
-      const int idx_size = i.size();
+      const int idx_size = static_cast<int>(i.size());
       for (int idx = 0; idx < idx_size; ++idx) {
         if (factor_axis_pos == idx) {
           indices.push_back(repl_red_axis->var);

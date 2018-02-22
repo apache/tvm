@@ -318,7 +318,7 @@ class Schedule : public NodeRef {
    */
   EXPORT Array<Tensor> rfactor(const Tensor& tensor,
                         const IterVar& axis,
-                        const int factor_axis = 0);
+                        int factor_axis = 0);
   /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
