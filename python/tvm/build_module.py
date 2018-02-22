@@ -6,9 +6,9 @@ LoweredFunc and compiled Module.
 from __future__ import absolute_import as _abs
 import warnings
 import types
-import os
 
 from ._ffi.node import NodeBase, register_node
+from ._ffi.base import _RUNTIME_ONLY
 from . import api
 from . import tensor
 from . import schedule
@@ -226,7 +226,7 @@ def build_config(**kwargs):
             setattr(config, k, kwargs[k])
     return config
 
-if not os.environ.get("TVM_USE_RUNTIME_LIB", False):
+if not _RUNTIME_ONLY:
     # BuildConfig is not available in tvm_runtime
     BuildConfig.current = build_config()
 
