@@ -6,10 +6,7 @@ Region operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
 import tvm
-import topi.transform as transform
-import topi.util as util
-import topi.math as math
-from ... import nn
+import topi
 
 @tvm.target.generic_func
 def region(data, num, classes, coords, background, _):
@@ -29,10 +26,10 @@ def region(data, num, classes, coords, background, _):
         4-D with shape [batch, out_channel, out_height, out_width]
     """
 
-    batch, c, _, _ = util.get_const_tuple(data.shape)
+    batch, c, _, _ = topi.util.get_const_tuple(data.shape)
 
     split_indices = c
-    split_res = transform.split(data, split_indices, 1)
+    split_res = topi.transform.split(data, split_indices, 1)
 
     def channel_select_activation(range_val, coords):
         # apply activiation first 2 layers and for last coords
@@ -44,7 +41,7 @@ def region(data, num, classes, coords, background, _):
         for activiation_it in range(2+1): #first 2 layers + 1 coords
             index = channel_select_activation(activiation_it, coords)
             index = index + (coords + classes + 1) * num_it
-            split_res[index] = math.sigmoid(split_res[index])
+            split_res[index] = topi.math.sigmoid(split_res[index])
 
     groups = classes + background
     batch_x = batch * num
@@ -57,14 +54,14 @@ def region(data, num, classes, coords, background, _):
             temp_out.insert(tmp_index, (split_res[index]))
             tmp_index = tmp_index + 1
         if mode == group_last:
-            temp_out = transform.concatenate(temp_out, 1)
-            temp_out_x = nn.softmax(temp_out, axis=1)
-            temp_out = transform.split(temp_out_x, groups, 1)
+            temp_out = topi.transform.concatenate(temp_out, 1)
+            temp_out_x = topi.nn.softmax(temp_out, axis=1)
+            temp_out = topi.transform.split(temp_out_x, groups, 1)
             for index_1 in range(groups):
                 split_res[index - index_1] = temp_out[groups - index_1 - 1]
             temp_out = []
             tmp_index = 0
 
-    out = transform.concatenate(split_res, 1)
+    out = topi.transform.concatenate(split_res, 1)
 
     return out
