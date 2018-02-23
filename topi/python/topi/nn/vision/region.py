@@ -6,10 +6,10 @@ Region operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
 import tvm
-from ... import transform
-from ... import util
-from ... import math
-from ... import nn
+from topi import transform
+from topi import util
+from topi import math
+from topi import nn
 
 @tvm.target.generic_func
 def region(data, num, classes, coords, background, _):

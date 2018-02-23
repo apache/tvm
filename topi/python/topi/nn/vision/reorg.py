@@ -6,8 +6,8 @@ Reorg operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
 import tvm
-from ... import transform
-from ... import util
+from topi import transform
+from topi import util
 
 @tvm.target.generic_func
 def reorg(data, stride):
