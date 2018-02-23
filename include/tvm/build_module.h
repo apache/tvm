@@ -94,7 +94,7 @@ struct TargetContext {
    * When the TargetContext is destructed, the previous context is restored.
    * \param target The target to set as the new current context.
    */
-  TargetContext(const tvm::Target& target) {
+  explicit TargetContext(const tvm::Target& target) {
     Target::EnterTargetScope(target);
   }
 
