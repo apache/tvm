@@ -347,6 +347,14 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
   API_END();
 }
 
+int TVMExtTypeFree(void* handle, int type_code) {
+  API_BEGIN();
+  TVMExtTypeCapsule* cap = static_cast<TVMExtTypeCapsule*>(handle);
+  cap->destroy(cap->ptr);
+  delete cap;
+  API_END();
+}
+
 int TVMArrayAlloc(const tvm_index_t* shape,
                   int ndim,
                   int dtype_code,
