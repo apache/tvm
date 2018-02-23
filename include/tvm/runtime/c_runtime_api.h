@@ -24,6 +24,13 @@
 #define TVM_EXTERN_C
 #endif
 
+// Macros to do weak linking
+#ifdef _MSC_VER
+#define TVM_WEAK __declspec(selectany)
+#else
+#define TVM_WEAK __attribute__((weak))
+#endif
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #define TVM_DLL EMSCRIPTEN_KEEPALIVE
@@ -312,6 +319,17 @@ typedef int (*TVMPackedCFunc)(
  * \param resource_handle The handle additional resouce handle from fron-end.
  */
 typedef void (*TVMPackedCFuncFinalizer)(void* resource_handle);
+
+/*!
+ * \brief Signature for extension function declarer.
+ *
+ *  TVM call this function to get the extension functions
+ *  The declarer will call register_func to register function and their name.
+ *
+ * \param resource_func_handle The register function
+ * \return 0 if success, -1 if failure happens
+ */
+typedef int (*TVMExtensionFuncDeclarer)(TVMFunctionHandle register_func_handle);
 
 /*!
  * \brief Wrap a TVMPackedCFunc to become a FunctionHandle.

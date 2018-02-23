@@ -8,7 +8,7 @@ from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.function import Function
-from ._ffi.function import _init_api, register_func, get_global_func
+from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
 from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
