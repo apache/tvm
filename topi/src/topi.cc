@@ -54,6 +54,8 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
+TVM_REGISTER_EXT_TYPE(tvm::Target);
+
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
 Array<Expr> ArrayOrInt(TVMArgValue arg) {
   if (arg.type_code() == kDLInt || arg.type_code() == kDLUInt) {
