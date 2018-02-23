@@ -38,14 +38,8 @@ class Module {
    * \param query_imports Whether also query dependency modules.
    * \return The result function.
    *  This function will return PackedFunc(nullptr) if function do not exist.
-   * \note Implemented in packed_func.cc
    */
-  inline PackedFunc GetFunction(const std::string& name, bool query_imports = false);
-  /*! \return internal container */
-  inline ModuleNode* operator->();
-  /*! \return internal container */
-  inline const ModuleNode* operator->() const;
-  // The following functions requires link with runtime.
+  TVM_DLL PackedFunc GetFunction(const std::string& name, bool query_imports = false);
   /*!
    * \brief Import another module into this module.
    * \param other The module to be imported.
@@ -63,6 +57,10 @@ class Module {
    */
   TVM_DLL static Module LoadFromFile(const std::string& file_name,
                                      const std::string& format = "");
+  /*! \return internal container */
+  inline ModuleNode* operator->();
+  /*! \return internal container */
+  inline const ModuleNode* operator->() const;
 
  private:
   std::shared_ptr<ModuleNode> node_;
