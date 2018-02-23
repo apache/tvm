@@ -81,7 +81,7 @@ struct Target {
    * \return The target that is the current context. nullptr may be returned if
    * allow_null is true.
    */
-  EXPORT static tvm::Target* Target::current_target(bool allow_null = true);
+  EXPORT static tvm::Target* current_target(bool allow_null = true);
 };
 
 /*!
