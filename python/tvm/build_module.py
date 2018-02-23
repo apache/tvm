@@ -23,16 +23,16 @@ from . import target as _target
 from . import make
 
 class DumpIR(object):
-    """Dump IR for each pass.
-       With it, you can dump ir just like gcc/llvm.
+    """
+    Dump IR for each pass.
+    With it, you can dump ir just like gcc/llvm.
 
-       How to use:
-       -----------
-       .. code-block:: python
+    How to use:
+    -----------
+    .. code-block:: python
 
-          with tvm.build_config(dump_pass_ir=True)
-              run()
-
+        with tvm.build_config(dump_pass_ir=True)
+            run()
     """
     scope_level = 0
     def __init__(self):
@@ -40,9 +40,9 @@ class DumpIR(object):
         self._recover_list = []
 
     def decorate(self, func):
-        ''' decorate the pass function'''
+        """ decorate the pass function"""
         def dump(*args, **kwargs):
-            '''dump function'''
+            """dump function"""
             retv = func(*args, **kwargs)
             if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
                 return retv
@@ -59,7 +59,7 @@ class DumpIR(object):
         return dump
 
     def decorate_irpass(self):
-        '''decorate ir_pass and ScheduleOps'''
+        """decorate ir_pass and ScheduleOps"""
         self._old_sgpass = schedule.ScheduleOps
         schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
         vset = vars(ir_pass)
@@ -71,7 +71,7 @@ class DumpIR(object):
             vset[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
 
     def decorate_custompass(self):
-        ''' decorate add_lower_pass pass in BuildConfig'''
+        """ decorate add_lower_pass pass in BuildConfig"""
         cfg = BuildConfig.current
         self._old_custom_pass = cfg.add_lower_pass
         custom_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
@@ -79,7 +79,7 @@ class DumpIR(object):
         BuildConfig.current.add_lower_pass = pass_list
 
     def enter(self):
-        '''only decorate outermost nest'''
+        """only decorate outermost nest"""
         if DumpIR.scope_level > 0:
             return
         self.decorate_irpass()
@@ -88,7 +88,7 @@ class DumpIR(object):
         DumpIR.scope_level += 1
 
     def exit(self):
-        '''recover outermost nest'''
+        """recover outermost nest"""
         if DumpIR.scope_level > 1:
             return
         # recover decorated functions

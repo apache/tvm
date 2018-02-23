@@ -24,6 +24,11 @@ struct Type;
 struct Expr;
 }
 
+// Whether use TVM runtime in header only mode.
+#ifndef TVM_RUNTIME_HEADER_ONLY
+#define TVM_RUNTIME_HEADER_ONLY 0
+#endif
+
 namespace tvm {
 // Forward declare NodeRef and Node for extensions.
 // This header works fine without depend on NodeRef
@@ -564,11 +569,15 @@ class TVMRetValue : public TVMPODValue_ {
           SwitchToPOD(other.type_code());
           value_ = other.value_;
         } else {
+#if TVM_RUNTIME_HEADER_ONLY
+          LOG(FATAL) << "Header only mode do not support ext type";
+#else
           this->Clear();
           type_code_ = other.type_code();
           value_.v_handle =
               (*(ExtTypeVTable::Get(other.type_code())->clone))(
                   other.value().v_handle);
+#endif
         }
         break;
       }
@@ -600,7 +609,11 @@ class TVMRetValue : public TVMPODValue_ {
       case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
     }
     if (type_code_ > kExtBegin) {
+#if TVM_RUNTIME_HEADER_ONLY
+          LOG(FATAL) << "Header only mode do not support ext type";
+#else
       (*(ExtTypeVTable::Get(type_code_)->destroy))(value_.v_handle);
+#endif
     }
     type_code_ = kNull;
   }
@@ -881,6 +894,20 @@ inline ExtTypeVTable* ExtTypeVTable::Register_() {
   vt.clone = ExtTypeInfo<T>::clone;
   vt.destroy = ExtTypeInfo<T>::destroy;
   return ExtTypeVTable::RegisterInternal(code, vt);
+}
+
+// Implement Module::GetFunction
+// Put implementation in this file so we have seen the PackedFunc
+inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {
+  PackedFunc pf = node_->GetFunction(name, node_);
+  if (pf != nullptr) return pf;
+  if (query_imports) {
+    for (const Module& m : node_->imports_) {
+      pf = m.node_->GetFunction(name, m.node_);
+      if (pf != nullptr) return pf;
+    }
+  }
+  return pf;
 }
 }  // namespace runtime
 }  // namespace tvm
