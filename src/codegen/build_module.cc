@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <stack>
 
 namespace tvm {
 
@@ -84,6 +85,38 @@ Target Target::create(const std::string& target_str) {
   }
 
   return result;
+}
+
+/*! \brief Entry to hold the Target context stack. */
+struct TVMTargetThreadLocalEntry {
+  /*! \brief The current target context */
+  std::stack<tvm::Target> context_stack;
+
+  TVMTargetThreadLocalEntry() {
+  }
+};
+
+/*! \brief Thread local store to hold the Target context stack. */
+typedef dmlc::ThreadLocalStore<TVMTargetThreadLocalEntry> TVMTargetThreadLocalStore;
+
+void Target::EnterTargetScope(const tvm::Target& target) {
+  TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
+  entry->context_stack.push(target);
+}
+
+void Target::ExitTargetScope() {
+  TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
+  entry->context_stack.pop();
+}
+
+tvm::Target* Target::current_target(bool allow_null) {
+  TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
+  if (entry->context_stack.size() > 0) {
+    return &entry->context_stack.top();
+  }
+  CHECK(allow_null) << "Target context required. Please set it by constructing a TargetContext";
+
+  return nullptr;
 }
 
 namespace target {
@@ -357,19 +390,6 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
-/*! \brief Entry to hold target context for GenericFunc */
-struct TVMGenericFuncThreadLocalEntry {
-  /*! \brief The current target context */
-  tvm::Target target;
-
-  TVMGenericFuncThreadLocalEntry() :
-    target(target::stackvm()) {
-  }
-};
-
-/*! \brief Thread local store that can be used to hold return values. */
-typedef dmlc::ThreadLocalStore<TVMGenericFuncThreadLocalEntry> TVMGenericFuncThreadLocalStore;
-
 struct GenericFunc::Manager {
   // map storing the functions.
   // We delibrately used raw pointer
@@ -403,16 +423,6 @@ GenericFunc& GenericFunc::Get(const std::string& name) {
   }
 }
 
-void GenericFunc::set_target_context(const tvm::Target& target) {
-  TVMGenericFuncThreadLocalEntry *entry = TVMGenericFuncThreadLocalStore::Get();
-  entry->target = target;
-}
-
-tvm::Target GenericFunc::get_target_context() {
-  TVMGenericFuncThreadLocalEntry *entry = TVMGenericFuncThreadLocalStore::Get();
-  return entry->target;
-}
-
 GenericFunc& GenericFunc::set_default_func(const PackedFunc value,
                                            bool allow_override) {
   if (!allow_override) {
@@ -436,10 +446,10 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
   return *this;
 }
 
-void GenericFunc::invoke_packed(TVMArgs args, TVMRetValue* ret) const {
-  auto target = get_target_context();
+void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
+  auto target = Target::current_target(false);
   PackedFunc func;
-  for (auto &k : target.keys) {
+  for (auto &k : target->keys) {
     auto iter = dispatch_dict_.find(k);
     if (iter != dispatch_dict_.end()) {
       func = iter->second;
@@ -490,14 +500,14 @@ TVM_REGISTER_API("_InvokeGenericFunc")
   TVMArgs func_args(&args.values[2], &args.type_codes[2], args.num_args - 2);
 
   auto target = Target::create(target_str);
-  GenericFunc::set_target_context(target);
+  TargetContext ctx(target);
   GenericFunc::Get(func_name)
-    .invoke_packed(func_args, ret);
+    .CallPacked(func_args, ret);
   });
 
 TVM_REGISTER_API("_GetGenericFuncTargetContext")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = GenericFunc::get_target_context().str();
+  *ret = Target::current_target(false)->str();
   });
 
 }  // namespace tvm

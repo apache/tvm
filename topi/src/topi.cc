@@ -469,7 +469,7 @@ using FTVMScheduleBuilder = std::function<
  */
 inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    auto target = GenericFunc::get_target_context();
+    auto target = Target::current_target(false);
     Array<Tensor> outs;
     NodeRef argNodeRef = args[0];
     if (argNodeRef->type_index() == outs->type_index()) {
@@ -478,7 +478,7 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
       outs = Array<Tensor> { args[0] };
     }
 
-    *ret = builder(target, outs);
+    *ret = builder(*target, outs);
   });
 }
 
@@ -537,7 +537,7 @@ using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
 */
 inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    auto target = GenericFunc::get_target_context();
+    auto target = Target::current_target(false);
     Tensor data = args[0];
     Tensor weight = args[1];
     Tensor bias_val;
@@ -549,7 +549,7 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
       bias = &bias_val;
     }
 
-    *ret = builder(target, data, weight, bias);
+    *ret = builder(*target, data, weight, bias);
   });
 }
 

@@ -60,6 +60,48 @@ struct Target {
    * \param target_str the string to parse
    */
   EXPORT static Target create(const std::string& target_str);
+
+  /*!
+   * \brief Push a new target context onto the thread local stack. The Target on top of
+   * the stack is used to determine which specialization to use when invoking a GenericFunc.
+   * \param target The target to set as the current context.
+   */
+  EXPORT static void EnterTargetScope(const tvm::Target& target);
+
+  /*!
+   * \brief Pop a target off the thread local context stack, restoring the previous target
+   * as the current context.
+   */
+  EXPORT static void ExitTargetScope();
+
+  /*!
+   * \brief Get the current target context from thread local storage.
+   * \param allow_null If the context stack is empty and this is set to true, a nullptr
+   * will be returned. Otherwise, an empty context stack will cause a runtime error.
+   * \return The target that is the current context. nullptr may be returned if
+   * allow_null is true.
+   */
+  EXPORT static tvm::Target* Target::current_target(bool allow_null = true);
+};
+
+/*!
+ * \brief RAII container to provide a scoped target context. Pushes a target onto the
+ * context stack when constructed, and pops it when destructed.
+ */
+struct TargetContext {
+  /*!
+   * \brief Enter a new target context. The given target becomes the new current context.
+   * When the TargetContext is destructed, the previous context is restored.
+   * \param target The target to set as the new current context.
+   */
+  TargetContext(const tvm::Target& target) {
+    Target::EnterTargetScope(target);
+  }
+
+  /*! \brief Destructor. Pops the context off the thread local stack. */
+  ~TargetContext() {
+    Target::ExitTargetScope();
+  }
 };
 
 /*! \brief This namespace provides functions to construct Target instances */
@@ -231,7 +273,7 @@ class GenericFunc {
   * \param args The arguments to pass to the function.
   * \param ret The return value
   */
-  TVM_DLL void invoke_packed(TVMArgs args, TVMRetValue* ret) const;
+  TVM_DLL void CallPacked(TVMArgs args, TVMRetValue* ret) const;
 
   /*!
   * \brief Find or register the GenericFunc instance corresponding to the give name
@@ -239,19 +281,6 @@ class GenericFunc {
   * \return The GenericFunc instance
   */
   TVM_DLL static GenericFunc& Get(const std::string& name);
-
-  /*!
-  * \brief Set the target context to be used when invoking a GenericFunc. The target is stored in
-  * thread local storage.
-  * \param target The target to set as the current context.
-  */
-  TVM_DLL static void set_target_context(const tvm::Target& target);
-
-  /*!
-  * \brief Get the current target context from thread local storage.
-  * \return The target that is the current context.
-  */
-  TVM_DLL static tvm::Target get_target_context();
 
   // Internal class.
   struct Manager;
@@ -275,7 +304,7 @@ inline TVMRetValue GenericFunc::operator()(Args&& ...args) const {
   detail::for_each(TVMArgsSetter(values, type_codes),
     std::forward<Args>(args)...);
   TVMRetValue rv;
-  invoke_packed(TVMArgs(values, type_codes, kNumArgs), &rv);
+  CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
 }
 
