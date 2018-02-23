@@ -234,6 +234,31 @@ def list_global_func_names():
     return fnames
 
 
+def extract_ext_funcs(finit):
+    """
+    Extract the extension PackedFuncs from a C module.
+
+    Parameters
+    ----------
+    finit : ctypes function
+        a ctypes that takes signature of TVMExtensionDeclarer
+
+    Returns
+    -------
+    fdict : dict of str to Function
+        The extracted functions
+    """
+    fdict = {}
+    def _list(name, func):
+        fdict[name] = func
+    myf = convert_to_tvm_func(_list)
+    ret = finit(myf.handle)
+    _ = myf
+    if ret != 0:
+        raise RuntimeError("cannot initialize with %s" % finit)
+    return fdict
+
+
 def _get_api(f):
     flocal = f
     flocal.is_global = True
