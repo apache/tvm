@@ -495,19 +495,38 @@ TVM_REGISTER_API("_RegisterFunc")
 TVM_REGISTER_API("_InvokeGenericFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
-  std::string target_str = args[1];
+  TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
 
-  TVMArgs func_args(&args.values[2], &args.type_codes[2], args.num_args - 2);
-
-  auto target = Target::create(target_str);
-  TargetContext ctx(target);
+  auto target = Target::current_target(false);
   GenericFunc::Get(func_name)
     .CallPacked(func_args, ret);
   });
 
-TVM_REGISTER_API("_GetGenericFuncTargetContext")
+TVM_REGISTER_API("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Target::current_target(false)->str();
+  bool allow_null = args[0];
+  auto target = Target::current_target(allow_null);
+  if (target) {
+    *ret = target->str();
+  } else {
+    *ret = nullptr;
+  }
+  });
+
+TVM_REGISTER_API("_EnterTargetScope")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string target_str = args[0];
+  auto current = Target::current_target();
+  if (current && target_str != current->str()) {
+    LOG(WARNING) << "Overriding target " << current->str()
+      << " with new target scope " << target_str;
+  }
+  Target::EnterTargetScope(Target::create(target_str));
+  });
+
+TVM_REGISTER_API("_ExitTargetScope")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  Target::ExitTargetScope();
   });
 
 }  // namespace tvm

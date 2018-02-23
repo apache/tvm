@@ -84,7 +84,6 @@ class Target(object):
     - :any:`tvm.target.rocm` create ROCM target
     - :any:`tvm.target.mali` create Mali target
     """
-    current = None
 
     def __init__(self,
                  target_name,
@@ -135,16 +134,11 @@ class Target(object):
         return self.__str__()
 
     def __enter__(self):
-        self._old_target = Target.current
-        if self._old_target is not None and str(self) != str(self._old_target):
-            warnings.warn(
-                "Override target '%s' with new target scope '%s'" % (
-                    self._old_target, self))
-        Target.current = self
+        _api_internal._EnterTargetScope(str(self))
         return self
 
     def __exit__(self, ptype, value, trace):
-        Target.current = self._old_target
+        _api_internal._ExitTargetScope()
 
 
 def generic_func(name=None, override=False):
@@ -367,10 +361,5 @@ def current_target(allow_none=True):
     ------
     ValueError if current target is not set.
     """
-    if Target.current:
-        return Target.current
-    if not allow_none:
-        raise RuntimeError(
-            "Requires a current target in generic function, but it is not set. "
-            "Please set it using `with TargetObject:`")
-    return Target.current
+    target_str = _api_internal._GetCurrentTarget(allow_none)
+    return create(target_str) if target_str is not None else None
