@@ -40,7 +40,6 @@ We can also use other specific function in this module to create specific target
 """
 from __future__ import absolute_import
 
-import warnings
 from ._ffi.base import _LIB_NAME
 from . import _api_internal
 
