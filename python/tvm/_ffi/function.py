@@ -251,7 +251,9 @@ def extract_ext_funcs(finit):
     fdict = {}
     def _list(name, func):
         fdict[name] = func
-    ret = finit(convert_to_tvm_func(_list).handle)
+    myf = convert_to_tvm_func(_list)
+    ret = finit(myf.handle)
+    _ = myf
     if ret != 0:
         raise RuntimeError("cannot initialize with %s" % finit)
     return fdict
