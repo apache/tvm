@@ -279,7 +279,7 @@ class Schedule(NodeBase):
         """
         return _api_internal._ScheduleCacheWrite(self, tensor, scope)
 
-    def rfactor(self, tensor, axis):
+    def rfactor(self, tensor, axis, factor_axis=0):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.
 
         This will create a new stage that generated the new tensor with axis
@@ -292,13 +292,15 @@ class Schedule(NodeBase):
             The tensor to be factored.
         axis : IterVar
             The reduction axis in the schedule to be factored.
+        factor_axis : int
+            The position where the new axis is placed.
 
         Returns
         -------
         tfactor : Tensor or Array of Tensor
             The created factored tensor.
         """
-        factored = _api_internal._ScheduleRFactor(self, tensor, axis)
+        factored = _api_internal._ScheduleRFactor(self, tensor, axis, factor_axis)
         return factored[0] if len(factored) == 1 else factored
 
 

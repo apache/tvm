@@ -83,6 +83,36 @@ def test_rfactor():
 
     check_target()
 
+def test_rfactor_factor_axis():
+    n = tvm.convert(1027)
+    A = tvm.placeholder((n,), name='A')
+    k = tvm.reduce_axis((0, n))
+    B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k), name='B')
+    # schedule
+    s = tvm.create_schedule(B.op)
+    kf, ki = s[B].split(k, nparts=4)
+    BF = s.rfactor(B, kf, 1)
+    s[BF].parallel(BF.op.axis[0])
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.module.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, B])
+        fsum = tvm.build(fapi,
+                         target=target,
+                         name="mysum")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
+        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        fsum(a, b)
+        res = np.sum(a.asnumpy(), axis=0)
+        np.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
 
 def test_rfactor_threads():
     nn = 1027
@@ -294,6 +324,7 @@ def test_rfactor_argmax():
 if __name__ == "__main__":
     test_rfactor_elemwise_threads()
     test_rfactor_threads()
+    test_rfactor_factor_axis()
     test_rfactor()
     test_reduce_prims()
     test_argmax()

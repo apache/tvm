@@ -313,10 +313,12 @@ class Schedule : public NodeRef {
    *
    * \param tensor The tensor to be factored.
    * \param axis The reduction axis in tensor's schedule to be factored.
+   * \param factor_axis The position where the new axis is placed.
    * \return The created factored tensors.
    */
   EXPORT Array<Tensor> rfactor(const Tensor& tensor,
-                        const IterVar& axis);
+                        const IterVar& axis,
+                        int factor_axis = 0);
   /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
