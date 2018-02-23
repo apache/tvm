@@ -126,6 +126,9 @@ struct extension_class_info<test::IntVector> {
 }  // runtime
 }  // tvm
 
+// do registration, this need to be in cc file
+TVM_REGISTER_EXT_TYPE(test::IntVector);
+
 TEST(PackedFunc, ExtensionType) {
   using namespace tvm;
   using namespace tvm::runtime;

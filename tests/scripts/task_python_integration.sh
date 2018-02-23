@@ -6,7 +6,6 @@ rm -rf python/tvm/*.pyc python/tvm/*/*.pyc
 
 # Test TVM
 make cython || exit -1
-make cython3 || exit -1
 
 # Test extern package package
 cd apps/extension
