@@ -878,6 +878,20 @@ inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
   values_[i].v_handle = &exts_[i];
 }
 
+// Implement Module::GetFunction
+// Put implementation in this file so we have seen the PackedFunc
+inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {
+  PackedFunc pf = node_->GetFunction(name, node_);
+  if (pf != nullptr) return pf;
+  if (query_imports) {
+    for (const Module& m : node_->imports_) {
+      pf = m.node_->GetFunction(name, m.node_);
+      if (pf != nullptr) return pf;
+    }
+  }
+  return pf;
+}
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_

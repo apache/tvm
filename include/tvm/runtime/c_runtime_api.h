@@ -321,6 +321,17 @@ typedef int (*TVMPackedCFunc)(
 typedef void (*TVMPackedCFuncFinalizer)(void* resource_handle);
 
 /*!
+ * \brief Signature for extension function declarer.
+ *
+ *  TVM call this function to get the extension functions
+ *  The declarer will call register_func to register function and their name.
+ *
+ * \param resource_func_handle The register function
+ * \return 0 if success, -1 if failure happens
+ */
+typedef int (*TVMExtensionFuncDeclarer)(TVMFunctionHandle register_func_handle);
+
+/*!
  * \brief Wrap a TVMPackedCFunc to become a FunctionHandle.
  *
  * The resource_handle will be managed by TVM API, until the function is no longer used.
