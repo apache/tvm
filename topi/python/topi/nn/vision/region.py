@@ -6,10 +6,10 @@ Region operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
 import tvm
-from topi import transform
-from topi import util
-from topi import math
-from topi import nn
+import topi.transform as transform
+import topi.util as util
+import topi.math as math
+from ... import nn
 
 @tvm.target.generic_func
 def region(data, num, classes, coords, background, _):
@@ -58,7 +58,7 @@ def region(data, num, classes, coords, background, _):
             tmp_index = tmp_index + 1
         if mode == group_last:
             temp_out = transform.concatenate(temp_out, 1)
-            temp_out_x = nn.softmax(temp_out, axis=1)
+            temp_out_x = softmax(temp_out, axis=1)
             temp_out = transform.split(temp_out_x, groups, 1)
             for index_1 in range(groups):
                 split_res[index - index_1] = temp_out[groups - index_1 - 1]
