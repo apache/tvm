@@ -13,6 +13,19 @@
 namespace tvm {
 namespace runtime {
 
+PackedFunc Module::GetFunction(
+    const std::string& name, bool query_imports) {
+  PackedFunc pf = node_->GetFunction(name, node_);
+  if (pf != nullptr) return pf;
+  if (query_imports) {
+    for (const Module& m : node_->imports_) {
+      pf = m.node_->GetFunction(name, m.node_);
+      if (pf != nullptr) return pf;
+    }
+  }
+  return pf;
+}
+
 void Module::Import(Module other) {
   // specially handle rpc
   if (!std::strcmp((*this)->type_key(), "rpc")) {
