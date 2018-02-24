@@ -4,7 +4,7 @@ from tvm.contrib import mps
 
 def test_matmul_add():
     if not tvm.module.enabled("metal"):
-        print("skip because %s is not enabled..." % target)
+        print("skip because %s is not enabled..." % "metal")
         return
     n = 1024
     l = 128
@@ -31,7 +31,7 @@ def test_matmul_add():
 
 def test_conv2d():
     if not tvm.module.enabled("metal"):
-        print("skip because %s is not enabled..." % target)
+        print("skip because %s is not enabled..." % "metal")
         return
     n = 1
     h = 13
