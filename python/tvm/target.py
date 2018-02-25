@@ -212,7 +212,7 @@ def generic_func(fdefault):
                 dispatch_dict[k] = myf
             return myf
         if func:
-            return _do_reg(myf)
+            return _do_reg(func)
         return _do_reg
 
     def dispatch_func(func, *args, **kwargs):
