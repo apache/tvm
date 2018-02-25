@@ -1,7 +1,5 @@
-
-
 def mxnet_check():
-    """This is a simple test function for RPC Proxy
+    """This is a simple test function for MXNet bridge
 
     It is not included as nosetests, because of its dependency on mxnet
 
