@@ -23,7 +23,7 @@ def shortcut_python(a_np1, a_np2):
     batch2, in_channel2, in_height2, in_width2 = a_np2.shape
     a_np1_temp = np.reshape(a_np1, batch1*in_channel1*in_height1*in_width1)
     a_np2_temp = np.reshape(a_np2, batch2*in_channel2*in_height2*in_width2)
-    b_np = np.zeros( batch1*in_channel1*in_height1*in_width1)
+    b_np = np.zeros(batch1*in_channel1*in_height1*in_width1)
     stride = int(in_width1/in_width2)
     sample = int(in_width2/in_width1)
     if stride < 1:
@@ -35,11 +35,11 @@ def shortcut_python(a_np1, a_np2):
     minc = min(in_channel1, in_channel2)
 
     for b in range(batch1):
-        for k in range (minc):
-            for j in range (minh):
-                for i in range (minw):
+        for k in range(minc):
+            for j in range(minh):
+                for i in range(minw):
                     out_index = i*sample + in_width2*(j*sample + in_height2*(k + in_channel2*b))
                     add_index = i*stride + in_width1*(j*stride + in_height1*(k + in_channel1*b))
                     b_np[out_index] = a_np1_temp[out_index] + a_np2_temp[add_index]
-    b_np = np.reshape(b_np, (batch1,in_channel1,in_height1,in_width1))
+    b_np = np.reshape(b_np, (batch1, in_channel1, in_height1, in_width1))
     return b_np

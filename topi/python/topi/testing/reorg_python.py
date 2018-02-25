@@ -10,7 +10,7 @@ def reorg_python(a_np, stride):
     a_np : numpy.ndarray
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    stride : int 
+    stride : int
         Stride size
 
     Returns
@@ -27,10 +27,10 @@ def reorg_python(a_np, stride):
     out_width = int(in_width/stride)
     b_np = np.zeros(batch*out_channel*out_height*out_width)
     cnt = 0
-    for b in range (batch):
-        for k in range (in_channel):
-            for j in range (in_height):
-                for i in range (in_width):
+    for b in range(batch):
+        for k in range(in_channel):
+            for j in range(in_height):
+                for i in range(in_width):
                     c2 = k % out_c
                     offset = int(k / out_c)
                     w2 = int(i*stride + offset % stride)
@@ -38,5 +38,5 @@ def reorg_python(a_np, stride):
                     out_index = int(w2 + in_width*stride*(h2 + in_height*stride*(c2 + out_c*b)))
                     b_np[cnt] = a_np[int(out_index)]
                     cnt = cnt+1
-    b_np = np.reshape(b_np, (batch,out_channel,out_height,out_width))
+    b_np = np.reshape(b_np, (batch, out_channel, out_height, out_width))
     return b_np
