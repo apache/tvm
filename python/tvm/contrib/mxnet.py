@@ -4,6 +4,7 @@ from __future__ import absolute_import as _abs
 from .. import api, _api_internal, ndarray
 from ..module import Module
 
+# pylint: disable=invalid-name
 _wrap_async = None
 
 
@@ -31,6 +32,7 @@ def to_mxnet_func(func, const_loc=None):
         Run asynchrously in MXNet's async engine.
     """
     # only import mxnet when wrap get called.
+    # pylint: disable=import-self
     import mxnet
     if isinstance(func, Module):
         func = func.entry_func
