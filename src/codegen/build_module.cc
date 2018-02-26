@@ -426,7 +426,8 @@ GenericFunc& GenericFunc::set_default_func(const PackedFunc value,
                                            bool allow_override) {
   auto node = static_cast<GenericFuncNode*>(node_.get());
   if (!allow_override) {
-    CHECK(node->generic_func_ == nullptr) << "Generic function already registered for " << node->name_;
+    CHECK(node->generic_func_ == nullptr)
+      << "Generic function already registered for " << node->name_;
   }
   node->generic_func_ = value;
   return *this;

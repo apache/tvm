@@ -233,8 +233,8 @@ class GenericFuncNode;
  */
 class GenericFunc : public NodeRef {
  public:
-   GenericFunc() {}
-   explicit GenericFunc(std::shared_ptr<Node> n) : NodeRef(n) {}
+  GenericFunc() {}
+  explicit GenericFunc(std::shared_ptr<Node> n) : NodeRef(n) {}
 
   /*!
    * \brief Set the default function implementaiton.
