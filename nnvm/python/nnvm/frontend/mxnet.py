@@ -314,7 +314,7 @@ def _from_mxnet_impl(symbol, graph):
     childs = symbol.get_children()
     if childs:
         op_name = symbol.attr('op_name')
-        childs = [_from_mxnet_impl(c, graph) for c in childs]
+        childs = [_from_mxnet_impl(childs[i], graph) for i in range(len(childs.list_outputs()))]
         childs = [x for y in childs for x in _as_list(y)]  # expand group symbol
         node = _convert_symbol(op_name, childs, attr)
     else:
