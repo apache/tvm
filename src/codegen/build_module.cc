@@ -390,13 +390,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
-struct GenericFunc::Manager {
-  // map storing the functions.
-  // We delibrately used raw pointer
-  // This is because PackedFunc can contain callbacks into the host languge(python)
-  // and the resource can become invalid because of indeterminstic order of destruction.
-  // The resources will only be recycled during program exit.
-  std::unordered_map<std::string, GenericFunc*> fmap;
+struct GenericFuncNode::Manager {
+  std::unordered_map<std::string, std::shared_ptr<GenericFuncNode>> fmap;
   // mutex
   std::mutex mutex;
 
@@ -409,26 +404,31 @@ struct GenericFunc::Manager {
   }
 };
 
-GenericFunc& GenericFunc::Get(const std::string& name) {
+std::shared_ptr<GenericFuncNode> GenericFuncNode::Get(const std::string& name) {
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
-    GenericFunc* f = new GenericFunc();
+    auto f = std::make_shared<GenericFuncNode>();
     f->name_ = name;
     m->fmap[name] = f;
-    return *f;
+    return f;
   } else {
-    return *it->second;
+    return it->second;
   }
+}
+
+GenericFunc GenericFunc::Get(const std::string& name) {
+  return GenericFunc(GenericFuncNode::Get(name));
 }
 
 GenericFunc& GenericFunc::set_default_func(const PackedFunc value,
                                            bool allow_override) {
+  auto node = static_cast<GenericFuncNode*>(node_.get());
   if (!allow_override) {
-    CHECK(generic_func_ == nullptr) << "Generic function already registered for " << name_;
+    CHECK(node->generic_func_ == nullptr) << "Generic function already registered for " << node->name_;
   }
-  this->generic_func_ = value;
+  node->generic_func_ = value;
   return *this;
 }
 
@@ -437,47 +437,54 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
                                         bool allow_override) {
   for (auto &t : tags) {
     if (!allow_override) {
-      auto iter = dispatch_dict_.find(t);
-      CHECK(iter == dispatch_dict_.end())
-        << "Tag " << t << " already registered for schedule factory " << name_;
+      auto iter = (*this)->dispatch_dict_.find(t);
+      CHECK(iter == (*this)->dispatch_dict_.end())
+        << "Tag " << t << " already registered for schedule factory " << (*this)->name_;
     }
-    dispatch_dict_[t] = value;
+    (*this)->dispatch_dict_[t] = value;
   }
   return *this;
 }
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
+  auto node = static_cast<GenericFuncNode*>(node_.get());
   auto target = Target::current_target(false);
   PackedFunc func;
   for (auto &k : target->keys) {
-    auto iter = dispatch_dict_.find(k);
-    if (iter != dispatch_dict_.end()) {
+    auto iter = node->dispatch_dict_.find(k);
+    if (iter != node->dispatch_dict_.end()) {
       func = iter->second;
       break;
     }
   }
   if (func == nullptr) {
-    CHECK(generic_func_ != nullptr) << "No generic function registered for " << name_;
-    func = generic_func_;
+    CHECK(node->generic_func_ != nullptr) << "No generic function registered for " << node->name_;
+    func = node->generic_func_;
   }
 
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_API("_SetGenericFuncDefault")
+TVM_REGISTER_API("_GetGenericFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
+  *ret = GenericFunc::Get(func_name);
+  });
+
+TVM_REGISTER_API("_GenericFuncSetDefault")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
   bool allow_override = args[2];
 
-  GenericFunc::Get(func_name)
+  generic_func
     .set_default_func(*func, allow_override);
   });
 
-TVM_REGISTER_API("_RegisterFunc")
+TVM_REGISTER_API("_GenericFuncRegisterFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string func_name = args[0];
+  GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
   Array<Expr> tags = args[2];
@@ -488,17 +495,17 @@ TVM_REGISTER_API("_RegisterFunc")
     tags_vector.push_back(tag.as<tvm::ir::StringImm>()->value);
   }
 
-  GenericFunc::Get(func_name)
+  generic_func
     .register_func(tags_vector, *func, allow_override);
   });
 
-TVM_REGISTER_API("_InvokeGenericFunc")
+TVM_REGISTER_API("_GenericFuncCallFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string func_name = args[0];
+  GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
 
   auto target = Target::current_target(false);
-  GenericFunc::Get(func_name)
+  generic_func
     .CallPacked(func_args, ret);
   });
 

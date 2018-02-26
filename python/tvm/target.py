@@ -41,6 +41,7 @@ We can also use other specific function in this module to create specific target
 from __future__ import absolute_import
 
 from ._ffi.base import _LIB_NAME
+from ._ffi.node import NodeBase, register_node
 from . import _api_internal
 
 try:
@@ -138,6 +139,24 @@ class Target(object):
 
     def __exit__(self, ptype, value, trace):
         _api_internal._ExitTargetScope()
+
+@register_node
+class GenericFunc(NodeBase):
+    """GenericFunc node reference, for internal use in generic_func.
+
+    Note
+    ----
+    Do not construct an instance of this object, it should only ever be
+    used as a return value from calling into C++.
+    """
+    def __call__(self, *args):
+        return _api_internal._GenericFuncCallFunc(self, *args)
+
+    def set_default(self, func, allow_override):
+        _api_internal._GenericFuncSetDefault(self, func, allow_override)
+
+    def register_func(self, func, key_list, allow_override):
+        _api_internal._GenericFuncRegisterFunc(self, func, key_list, allow_override)
 
 
 def generic_func(name=None, override=False):
