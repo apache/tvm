@@ -642,11 +642,22 @@ inline const char* TypeCode2Str(int type_code) {
 
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
-  return os << TVMType2String(t);
+  os << TypeCode2Str(t.code);
+  if (t.code == kHandle) return os;
+  os << static_cast<int>(t.bits);
+  if (t.lanes != 1) {
+    os << 'x' << static_cast<int>(t.lanes);
+  }
+  return os;
 }
 #endif
 
 inline std::string TVMType2String(TVMType t) {
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
+  std::ostringstream os;
+  os << t;
+  return os.str();
+#else
   std::string repr = "";
   repr += TypeCode2Str(t.code);
   if (t.code == kHandle) return repr;
@@ -655,6 +666,7 @@ inline std::string TVMType2String(TVMType t) {
     repr += "x" + std::to_string(static_cast<int>(t.lanes));
   }
   return repr;
+#endif
 }
 
 inline TVMType String2TVMType(std::string s) {
@@ -675,12 +687,13 @@ inline TVMType String2TVMType(std::string s) {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
   }
-  unsigned bits, lanes;
-  char* xdelim;  // "%ux%u"
-  bits = strtoul(scan, &xdelim, 10);
-  lanes = strtoul(xdelim + 1, nullptr, 10);
+  char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
+  unsigned bits = strtoul(scan, &xdelim, 10);
   if (bits != 0) t.bits = static_cast<uint8_t>(bits);
-  if (lanes != 0) t.lanes = static_cast<uint8_t>(lanes);
+  if (*xdelim == 'x') {
+    unsigned lanes = strtoul(xdelim + 1, nullptr, 10);
+    t.lanes = static_cast<uint16_t>(lanes);
+  }
   return t;
 }
 
