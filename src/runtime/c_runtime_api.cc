@@ -324,9 +324,9 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
           int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
                          args.num_args, rv, resource_handle);
           if (ret != 0) {
-            std::ostringstream os;
-            os << "TVMCall CFunc Error:\n" << TVMGetLastError();
-            throw dmlc::Error(os.str());
+            std::string err = "TVMCall CFunc Error:\n";
+            err += TVMGetLastError();
+            throw dmlc::Error(err);
           }
         });
   } else {
@@ -338,9 +338,9 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
           int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
                          args.num_args, rv, rpack.get());
           if (ret != 0) {
-            std::ostringstream os;
-            os << "TVMCall CFunc Error:\n" << TVMGetLastError();
-            throw dmlc::Error(os.str());
+            std::string err = "TVMCall CFunc Error:\n";
+            err += TVMGetLastError();
+            throw dmlc::Error(err);
           }
       });
   }
