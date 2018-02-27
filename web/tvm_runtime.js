@@ -229,6 +229,14 @@ var tvm_runtime = tvm_runtime || {};
       "number"  // size_t nbytes
      ]);
 
+    var TVMModLoadFromFile = Module.cwrap
+    ("TVMModLoadFromFile",
+     "number",
+     ["string", // const char* file_name
+      "string", // const char* format
+      "number"  // TVMModuleHandle* out
+     ])
+
     //-----------------------------------------
     // Static utility functions
     // ----------------------------------------
@@ -940,6 +948,22 @@ var tvm_runtime = tvm_runtime || {};
       }
       return new RPCServer(counter);
     };
+
+    this.loadModuleFromFile = function (file_name, format) {
+      // alloc
+      var out = new RefTVMValue();
+      TVM_CALL(TVMModLoadFromFile(file_name, format, out.data));
+      var out_handle = out.asHandle();
+      // release
+      out.release();
+      if (out_handle != 0) {
+        return new TVMModule(out_handle);
+      } else {
+        return null;
+      }
+    };
+    var loadModuleFromFile = this.loadModuleFromFile;
+
     //-----------------------------------------
     // Class defintions
     // ----------------------------------------
