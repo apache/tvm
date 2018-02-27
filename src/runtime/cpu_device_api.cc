@@ -28,6 +28,9 @@ class CPUDeviceAPI final : public DeviceAPI {
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
     if (ptr == nullptr) throw std::bad_alloc();
+#elif defined(_LIBCPP_SGX_CONFIG)
+    ptr = memalign(alignment, nbytes);
+    if (ptr == nullptr) throw std::bad_alloc();
 #else
     int ret = posix_memalign(&ptr, alignment, nbytes);
     if (ret != 0) throw std::bad_alloc();
