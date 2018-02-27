@@ -291,10 +291,11 @@ var tvm_runtime = tvm_runtime || {};
     }
 
     function StringToUint8Array(str) {
-      var arr = new Uint8Array(str.length);
+      var arr = new Uint8Array(str.length + 1);
       for(var i = 0; i < str.length; ++i) {
         arr[i] = str.charCodeAt(i);
       }
+      arr[str.length] = 0;
       return arr;
     }
     //-----------------------------------------
@@ -599,7 +600,7 @@ var tvm_runtime = tvm_runtime || {};
         Module.setValue(this.value + index * SIZEOF_TVMVALUE, value, "*");
       },
       setString : function(index, value) {
-        var sdata = new CBuffer(value.length);
+        var sdata = new CBuffer(value.length + 1);
         Module.HEAPU8.set(StringToUint8Array(value), sdata.data);
         this.temp.push(sdata);
         Module.setValue(this.tcode + index * SIZEOF_INT, kStr, "i32");
