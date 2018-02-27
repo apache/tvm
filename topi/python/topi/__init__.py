@@ -16,7 +16,6 @@ from .tensor import *
 from .reduction import *
 from .transform import *
 from .broadcast import *
-from .nn import *
 from . import nn
 from . import x86
 from . import cuda
@@ -27,3 +26,4 @@ from . import testing
 from . import util
 from . import rocm
 from . import cpp
+from . import vision

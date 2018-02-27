@@ -1,31 +1,29 @@
-"""Example code to do reorg."""
+"""Example code to do region."""
 import numpy as np
 import topi
 from topi.util import get_const_tuple
 import tvm
 from tvm.contrib.pickle_memoize import memoize
 
-
-def verify_reorg(batch, in_size, in_channel, stride):
-    '''Verify reorg operator by comparing outputs from tvm and numpy implementation'''
+def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_softmax):
+    '''Verify region operator by comparing outputs from tvm and numpy implementation'''
     in_height = in_width = in_size
 
     with tvm.target.rasp():
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-        B = topi.vision.reorg(A, stride)
-        s = topi.generic.schedule_reorg([B])
+        B = topi.vision.yolo2.region(A, n, classes, coords, background, l_softmax)
+        s = topi.generic.vision.schedule_region([B])
 
     a_shape = get_const_tuple(A.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_reorg.verify_reorg")
-    def get_ref_data_reorg():
+    @memoize("topi.tests.test_topi_region.verify_region")
+    def get_ref_data_region():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
-        b_np = topi.testing.reorg_python(a_np, stride)
+        b_np = topi.testing.region_python(a_np, n, classes, coords, background, l_softmax)
         return a_np, b_np
 
-    a_np, b_np = get_ref_data_reorg()
-
+    a_np, b_np = get_ref_data_region()
     def check_device(device):
         '''Cheching devices is enabled or not'''
         ctx = tvm.context(device, 0)
@@ -33,6 +31,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+
         ctx = tvm.cpu(0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
@@ -43,8 +42,8 @@ def verify_reorg(batch, in_size, in_channel, stride):
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
-def test_reorg():
-    verify_reorg(1, 110, 32, 2)
+def test_region():
+    verify_region(1, 19, 425, 5, 80, 4, 0, 1)
 
 if __name__ == "__main__":
-    test_reorg()
+    test_region()

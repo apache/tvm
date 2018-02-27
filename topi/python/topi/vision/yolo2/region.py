@@ -42,7 +42,6 @@ def region(data, num, classes, coords, background, _):
             index = channel_select_activation(activiation_it, coords)
             index = index + (coords + classes + 1) * num_it
             split_res[index] = topi.math.sigmoid(split_res[index])
-
     groups = classes + background
     batch_x = batch * num
     group_last = (groups + batch_x - 1)
@@ -61,7 +60,5 @@ def region(data, num, classes, coords, background, _):
                 split_res[index - index_1] = temp_out[groups - index_1 - 1]
             temp_out = []
             tmp_index = 0
-
     out = topi.transform.concatenate(split_res, 1)
-
     return out
