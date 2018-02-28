@@ -650,7 +650,7 @@ std::vector<VulkanContext> GetContext(VkInstance instance) {
 
 void VulkanWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mu);
+  std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
   initialized_ = true;
   instance_ = CreateInstance();
