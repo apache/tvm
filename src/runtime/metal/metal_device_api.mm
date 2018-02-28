@@ -96,7 +96,7 @@ MetalWorkspace::~MetalWorkspace() {
 
 void MetalWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mutex);
+  std::lock_guard<std::mutex> lock(this->mutex);
   if (initialized_) return;
   initialized_ = true;
   if (devices.size() != 0) return;
