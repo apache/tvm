@@ -25,22 +25,9 @@ def try_static_webgl_library():
     f = tvm.build(s, [A, B], name="identity", target="opengl",
                   target_host=target_host)
 
-    tempdir = util.tempdir()
-
-    # Save temporary file "identity_static.bc".
-    path_obj = tempdir.relpath("identity_static.bc")
-    f.save(path_obj)
-
-    # Write device module content into C++ array.
-    path_cc = tempdir.relpath("devc.cc")
-    with open(path_cc, "w") as fp:
-        is_syslib = True
-        fp.write(tvm.module._PackImportsToC(f, is_syslib))
-
-    # Compile and link host and dev modules into a single JS file.
-    files = [path_obj, path_cc]
+    # Create a JS library that contains both the module and the tvm runtime.
     path_dso = "identity_static.js"
-    emscripten.create_js(path_dso, files, side_module=False, options=[
+    f.export_library(path_dso, emscripten.create_js, options=[
         "-s", "USE_GLFW=3",
         "-s", "USE_WEBGL2=1",
         "-lglfw",
