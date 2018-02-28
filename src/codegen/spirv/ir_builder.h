@@ -344,7 +344,7 @@ class IRBuilder {
    * \tparams Args The positional arguments
    */
   template<typename... Args>
-  Value DeclareGlobal(spv::Op op, Args&& ...args) {
+  void DeclareGlobal(spv::Op op, Args&& ...args) {
     ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&decorate_);
   }
   /*!
