@@ -374,6 +374,8 @@ def test_alloc_seq_type():
             C[j] = tvm.const(1, "int16")
             D = ib.allocate("int16", 200, name="D", scope="local.L0A")
             D[j] = B[j] + C[j]
+            E = ib.allocate("int16", 400, name="E", scope="local.L0A")
+            E[j] = tvm.const(1, "int16")
             A2 = ib.allocate("float32", 200, name="A2", scope="local.L0A")
             A2[j] = A[j]
 
@@ -383,7 +385,7 @@ def test_alloc_seq_type():
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
             num_alloc[0] += 1
-            assert n.extents[0].value == 500
+            assert n.extents[0].value == 400
     tvm.ir_pass.PostOrderVisit(body, verify)
     assert num_alloc[0] == 1
 

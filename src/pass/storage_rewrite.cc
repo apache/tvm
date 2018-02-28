@@ -813,7 +813,12 @@ class StoragePlanRewriter : public IRMutator {
         if (e->scope != scope) continue;
         // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
-        e->const_nbits = std::max(const_nbits, e->const_nbits);
+        // enable small vars reuse big buffer, eg. 2 int16 vars reuse a float32 buffer
+        if (const_nbits < e->const_nbits) {
+          StorageEntry *new_e = NewAlloc(op, attach_scope, scope, e->const_nbits - const_nbits);
+          const_free_map_.insert({new_e->const_nbits, new_e});
+          e->const_nbits = const_nbits;
+        }
         const_free_map_.erase(it);
         return e;
       }
