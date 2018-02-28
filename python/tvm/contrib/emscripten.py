@@ -60,3 +60,5 @@ def create_js(output,
         msg = "Compilation error:\n"
         msg += out
         raise RuntimeError(msg)
+
+create_js.object_format = "bc"
