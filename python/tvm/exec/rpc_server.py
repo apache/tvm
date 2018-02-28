@@ -21,6 +21,9 @@ def main():
                         help="Whether to load executor runtime")
     parser.add_argument('--load-library', type=str, default="",
                         help="Additional library to load")
+    parser.add_argument('--exclusive', action='store_true',
+                        help="If this is enabled, the server will kill old connection"
+                             "when new connection comes")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -35,7 +38,7 @@ def main():
         libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
         logging.info("Load additional library %s", file_name)
 
-    server = rpc.Server(args.host, args.port, args.port_end)
+    server = rpc.Server(args.host, args.port, args.port_end, exclusive=args.exclusive)
     server.libs += libs
     server.proc.join()
 
