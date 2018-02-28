@@ -84,6 +84,8 @@ class Module(ModuleBase):
 
         fcompile : function(target, file_list, kwargs), optional
             Compilation function to use create dynamic library.
+            If fcompile has attribute object_format, will compile host library
+            to that format. Otherwise, will use default format "o".
 
         kwargs : dict, optiona;
             Additional arguments passed to fcompile
@@ -95,7 +97,11 @@ class Module(ModuleBase):
         if self.type_key != "llvm":
             raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
         temp = _util.tempdir()
-        path_obj = temp.relpath("lib.o")
+        if fcompile is not None and hasattr(fcompile, "object_format"):
+            object_format = fcompile.object_format
+        else:
+            object_format = "o"
+        path_obj = temp.relpath("lib." + object_format)
         self.save(path_obj)
         files = [path_obj]
         is_system_lib = self.get_function("__tvm_is_system_module")()
