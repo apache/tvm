@@ -229,6 +229,14 @@ var tvm_runtime = tvm_runtime || {};
       "number"  // size_t nbytes
      ]);
 
+    var TVMModLoadFromFile = Module.cwrap
+    ("TVMModLoadFromFile",
+     "number",
+     ["string", // const char* file_name
+      "string", // const char* format
+      "number"  // TVMModuleHandle* out
+     ])
+
     //-----------------------------------------
     // Static utility functions
     // ----------------------------------------
@@ -940,6 +948,35 @@ var tvm_runtime = tvm_runtime || {};
       }
       return new RPCServer(counter);
     };
+
+    /**
+     * Load a TVM module from a library file.
+     * The file must be present in the Emscripten virtual file system.
+     * For example, you can pass "--preload-file file" or "--preload-file dir/"
+     * to "emcc" when compiling the TVM library, in order to populate files into
+     * the file system.
+     * For more detail, see:
+     * https://kripken.github.io/emscripten-site/docs/porting/files/packaging_files
+     * @param {string} file_name Path of the file to be loaded. The path refers
+     * to the Emscripten virtual file system.
+     * @param {string} format The format of the file.
+     * @return {tvm.TVMModule} The loaded module.
+     */
+    this.loadModuleFromFile = function (file_name, format) {
+      // alloc
+      var out = new RefTVMValue();
+      TVM_CALL(TVMModLoadFromFile(file_name, format, out.data));
+      var out_handle = out.asHandle();
+      // release
+      out.release();
+      if (out_handle != 0) {
+        return new TVMModule(out_handle);
+      } else {
+        return null;
+      }
+    };
+    var loadModuleFromFile = this.loadModuleFromFile;
+
     //-----------------------------------------
     // Class defintions
     // ----------------------------------------
