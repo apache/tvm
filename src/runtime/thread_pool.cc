@@ -17,7 +17,10 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
+#include <iostream>
+#include <chrono>
 
+thread_local std::chrono::steady_clock::time_point t1, t2, t3, t4;
 namespace tvm {
 namespace runtime {
 
@@ -67,6 +70,12 @@ class ParallelLauncher {
     cv_.wait(lock, [this] {
         return num_pending_ == 0;
       });
+    //t4 = std::chrono::steady_clock::now();
+    //long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
+    //long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t3 - t2).count());
+    //long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t3).count());
+    //std::cout<<i2<<" "<<i3<<std::endl;
+    //std::cout<<d1<<" "<<d2<<" "<<d3<<std::endl;
     if (!has_error_) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
@@ -267,12 +276,13 @@ class ThreadPool {
           << " workers=" << num_workers_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
-    ParallelTaskQueue::Task tsk;
+    thread_local ParallelTaskQueue::Task tsk;  // is this shared?????????
     tsk.launcher = launcher;
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
+    //t2 = std::chrono::steady_clock::now();
     return launcher->WaitForJobs();
   }
 
@@ -323,6 +333,7 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
+  //t1 = std::chrono::steady_clock::now();
   return tvm::runtime::ThreadPool::Global()->Launch(
       flambda, cdata, num_task, 1);
 }
