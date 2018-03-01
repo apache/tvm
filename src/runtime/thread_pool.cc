@@ -277,7 +277,7 @@ class ThreadPool {
           << " workers=" << num_workers_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
-    thread_local ParallelTaskQueue::Task tsk;  // is this shared?????????
+    ParallelTaskQueue::Task tsk;  // is this shared?????????
     tsk.launcher = launcher;
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
@@ -306,7 +306,7 @@ class ThreadPool {
         });
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
-      CPU_SET(i+1, &cpuset);
+      CPU_SET(i, &cpuset);
       int rc = pthread_setaffinity_np(threads_[i].native_handle(),
                                     sizeof(cpu_set_t), &cpuset);
     }
