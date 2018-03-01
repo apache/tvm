@@ -288,6 +288,13 @@ class GenericFunc : public NodeRef {
   TVM_DLL static GenericFunc Get(const std::string& name);
 
   /*!
+   * \brief Add a GenericFunc instance to the registry
+   * \param func The GenericFunc instance
+   * \param name The name of the registered GenericFunc
+   */
+  TVM_DLL static void RegisterGenericFunc(GenericFunc func, const std::string& name);
+
+  /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */

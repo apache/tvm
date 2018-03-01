@@ -142,7 +142,9 @@ class Target(object):
 
 @register_node
 class GenericFunc(NodeBase):
-    """GenericFunc node reference, for internal use in generic_func.
+    """GenericFunc node reference. This represents a generic function
+    that may be specialized for different targets. When this object is
+    called, a specialization is chosen based on the current target.
 
     Note
     ----
@@ -152,15 +154,70 @@ class GenericFunc(NodeBase):
     def __call__(self, *args):
         return _api_internal._GenericFuncCallFunc(self, *args)
 
-    def set_default(self, func, allow_override):
+    def set_default(self, func, allow_override=False):
+        """Set the default function to be used if no specializations match
+        the current target.
+
+        Parameters
+        ----------
+        func : function
+            The default function
+
+        allow_override : bool
+            Whether to allow the current default to be overridden
+        """
         _api_internal._GenericFuncSetDefault(self, func, allow_override)
 
-    def register(self, func, key_list, allow_override):
+    def register(self, func, key_list, allow_override=False):
+        """Register a specialization for this GenericFunc.
+
+        Parameters
+        ----------
+        func : function
+            The function to be registered.
+
+        key : str or list of str
+            The key to be registered.
+
+        allow_override : bool, optional
+            Whether to allow existing keys to be overridden.
+        """
         key_list = [key_list] if isinstance(key_list, str) else key_list
         _api_internal._GenericFuncRegisterFunc(self, func, key_list, allow_override)
 
+def get_generic_func(name):
+    """Get a generic function from the global registry. If no
+    function is registered under the given name, a new generic
+    function is created.
 
-def generic_func(name=None, override=False):
+    Parameters
+    ----------
+    name : string
+        The name of the generic function to get
+
+    Returns
+    -------
+    func : GenericFunc
+        The generic function for the given name
+    """
+    return _api_internal._GenericFuncGet(name)
+
+def register_generic_func(func, name):
+    """Store a GenericFunc in the global registry. If the
+    name is already in use, an error is logged.
+
+    Parameters
+    ----------
+    func : GenericFunc
+        The function to store
+
+    name : string
+        The name to store the generic function under
+
+    """
+    _api_internal._GenericFuncAddToRegistry(func, name)
+
+def generic_func(fdefault):
     """Wrap a target generic function.
 
     Generic function allows registration of further functions
@@ -168,33 +225,12 @@ def generic_func(name=None, override=False):
     If no registered dispatch is matched, the fdefault will be called.
 
     The default function and registered functions are tracked by C++ in
-    a dmlc::Registry object, under the given name. This allows for 2-way
-    interop between C++ and Python functions.
-
-    Note
-    ----
-    This can be used as a decorator in any of the follwing styles:
-    .. code-block:: python
-    @generic_func
-    def my_func(a):
-        return a + 1
-
-    @generic_func()
-    def my_func2(a):
-        return a + 1
-
-    @generic_func(override=True)
-    def my_func3(a):
-        return a + 1
+    a tvm::GenericFunc object.
 
     Parameters
     ----------
-    name : str, optional
-        The name to use when registering this function with C++. By default,
-        this will be the name of the wrapped function.
-
-    override : bool, optional
-        Whether override existing default func.
+    fdefault : function
+        The default function.
 
     Returns
     -------
@@ -220,13 +256,10 @@ def generic_func(name=None, override=False):
     with tvm.target.cuda():
         print(my_func(2))
     """
-    func_name = name if not name is None else fdefault.__name__
+    func_name = fdefault.__name__
 
-    def invoke_generic(target_str, *args):
-        with create(target_str):
-            return fdefault(*args)
-
-    _api_internal._SetGenericFunc(func_name, invoke_generic, override)
+    generic_func_node = _api_internal._GenericFuncCreate()
+    generic_func_node.set_default(fdefault)
 
     def register(key, func=None, override=False):
         """Register function to be the dispatch function.
@@ -247,12 +280,7 @@ def generic_func(name=None, override=False):
         The register function is necessary.
         """
         def _do_reg(myf):
-            key_list = [key] if isinstance(key, str) else key
-            def invoke_specialized(target_str, *args):
-                with create(target_str):
-                    return myf(*args)
-            _api_internal._RegisterFunc(func_name, invoke_specialized, key_list,
-                                        override)
+            generic_func_node.register(myf, key, override)
             return myf
         if func:
             return _do_reg(func)
@@ -263,10 +291,7 @@ def generic_func(name=None, override=False):
         if kwargs:
             raise RuntimeError(
                 "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
-        target = current_target()
-        if target is None:
-            return func(*args)
-        return _api_internal._InvokeGenericFunc(func_name, str(target), *args)
+        return generic_func_node(*args)
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
     return fdecorate

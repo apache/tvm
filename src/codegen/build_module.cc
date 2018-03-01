@@ -391,7 +391,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 struct GenericFunc::Manager {
-  std::unordered_map<std::string, std::shared_ptr<GenericFuncNode> > fmap;
+  std::unordered_map<std::string, std::shared_ptr<Node> > fmap;
   // mutex
   std::mutex mutex;
 
@@ -416,6 +416,15 @@ GenericFunc GenericFunc::Get(const std::string& name) {
   } else {
     return GenericFunc(it->second);
   }
+}
+
+void GenericFunc::RegisterGenericFunc(GenericFunc func, const std::string& name) {
+  Manager* m = Manager::Global();
+  std::lock_guard<std::mutex>(m->mutex);
+  auto it = m->fmap.find(name);
+  CHECK(it == m->fmap.end()) << "GenericFunc already registered " << name;
+  func->name_ = name;
+  m->fmap[name] = func.node_;
 }
 
 GenericFunc& GenericFunc::set_default(const PackedFunc value,
@@ -466,7 +475,21 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_API("_GetGenericFunc")
+
+TVM_REGISTER_API("_GenericFuncCreate")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = GenericFunc(std::make_shared<GenericFuncNode>());
+  });
+
+TVM_REGISTER_API("_GenericFuncAddToRegistry")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  GenericFunc func = args[0];
+  std::string func_name = args[1];
+
+  GenericFunc::RegisterGenericFunc(func, func_name);
+  });
+
+TVM_REGISTER_API("_GenericFuncGet")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
