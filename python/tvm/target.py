@@ -155,7 +155,8 @@ class GenericFunc(NodeBase):
     def set_default(self, func, allow_override):
         _api_internal._GenericFuncSetDefault(self, func, allow_override)
 
-    def register_func(self, func, key_list, allow_override):
+    def register(self, func, key_list, allow_override):
+        key_list = [key_list] if isinstance(key_list, str) else key_list
         _api_internal._GenericFuncRegisterFunc(self, func, key_list, allow_override)
 
 

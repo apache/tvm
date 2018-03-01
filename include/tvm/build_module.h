@@ -243,8 +243,8 @@ class GenericFunc : public NodeRef {
    * false, an error will be logged if the call would override a previously registered function.
    * \return reference to self.
    */
-  TVM_DLL GenericFunc& set_default_func(const PackedFunc value,
-                                        bool allow_override = false);
+  TVM_DLL GenericFunc& set_default(const PackedFunc value,
+                                   bool allow_override = false);
   /*!
    * \brief Register a specialized function
    * \param tags The tags for this specialization
@@ -295,6 +295,12 @@ class GenericFunc : public NodeRef {
 
   // declare container type
   using ContainerType = GenericFuncNode;
+
+  // Internal class.
+  struct Manager;
+
+ private:
+  friend struct Manager;
 };
 
 template<typename... Args>
@@ -322,21 +328,8 @@ class GenericFuncNode : public Node {
   /* \brief map from keys to registered functions */
   std::unordered_map<std::string, PackedFunc> dispatch_dict_;
 
-  /*!
-   * \brief Find or register the GenericFuncNode instance corresponding to the give name
-   * \param name The name of the registered GenericFuncNode
-   * \return The GenericFuncNode instance
-   */
-  TVM_DLL static std::shared_ptr<GenericFuncNode> Get(const std::string& name);
-
-  // Internal class.
-  struct Manager;
-
   static constexpr const char* _type_key = "GenericFunc";
   TVM_DECLARE_NODE_TYPE_INFO(GenericFuncNode, Node);
-
- private:
-  friend struct Manager;
 };
 
 inline GenericFuncNode* GenericFunc::operator->() {

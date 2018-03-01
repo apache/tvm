@@ -390,8 +390,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
-struct GenericFuncNode::Manager {
-  std::unordered_map<std::string, std::shared_ptr<GenericFuncNode>> fmap;
+struct GenericFunc::Manager {
+  std::unordered_map<std::string, std::shared_ptr<GenericFuncNode> > fmap;
   // mutex
   std::mutex mutex;
 
@@ -404,7 +404,7 @@ struct GenericFuncNode::Manager {
   }
 };
 
-std::shared_ptr<GenericFuncNode> GenericFuncNode::Get(const std::string& name) {
+GenericFunc GenericFunc::Get(const std::string& name) {
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
@@ -412,17 +412,13 @@ std::shared_ptr<GenericFuncNode> GenericFuncNode::Get(const std::string& name) {
     auto f = std::make_shared<GenericFuncNode>();
     f->name_ = name;
     m->fmap[name] = f;
-    return f;
+    return GenericFunc(f);
   } else {
-    return it->second;
+    return GenericFunc(it->second);
   }
 }
 
-GenericFunc GenericFunc::Get(const std::string& name) {
-  return GenericFunc(GenericFuncNode::Get(name));
-}
-
-GenericFunc& GenericFunc::set_default_func(const PackedFunc value,
+GenericFunc& GenericFunc::set_default(const PackedFunc value,
                                            bool allow_override) {
   auto node = static_cast<GenericFuncNode*>(node_.get());
   if (!allow_override) {
@@ -449,15 +445,19 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   auto node = static_cast<GenericFuncNode*>(node_.get());
-  auto target = Target::current_target(false);
+  auto target = Target::current_target(true);
   PackedFunc func;
-  for (auto &k : target->keys) {
-    auto iter = node->dispatch_dict_.find(k);
-    if (iter != node->dispatch_dict_.end()) {
-      func = iter->second;
-      break;
+
+  if (target != nullptr) {
+    for (auto &k : target->keys) {
+      auto iter = node->dispatch_dict_.find(k);
+      if (iter != node->dispatch_dict_.end()) {
+        func = iter->second;
+        break;
+      }
     }
   }
+
   if (func == nullptr) {
     CHECK(node->generic_func_ != nullptr) << "No generic function registered for " << node->name_;
     func = node->generic_func_;
@@ -480,7 +480,7 @@ TVM_REGISTER_API("_GenericFuncSetDefault")
   bool allow_override = args[2];
 
   generic_func
-    .set_default_func(*func, allow_override);
+    .set_default(*func, allow_override);
   });
 
 TVM_REGISTER_API("_GenericFuncRegisterFunc")

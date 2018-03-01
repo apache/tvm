@@ -483,41 +483,41 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
 }
 
 TVM_REGISTER_GENERIC_FUNC(schedule_injective)
-.set_default_func(WrapSchedule(topi::generic::schedule_injective))
+.set_default(WrapSchedule(topi::generic::schedule_injective))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_injective))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_injective));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_softmax)
-.set_default_func(WrapSchedule(topi::generic::default_schedule))
+.set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_softmax));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_dense)
-.set_default_func(WrapSchedule(topi::generic::default_schedule))
+.set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_dense))
 .register_func({ "rocm" }, WrapSchedule(topi::rocm::schedule_dense));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_pool)
-.set_default_func(WrapSchedule(topi::generic::default_schedule))
+.set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_pool));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_global_pool)
-.set_default_func(WrapSchedule(topi::generic::default_schedule))
+.set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_global_pool));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_reduce)
-.set_default_func(WrapSchedule(topi::generic::default_schedule_auto_inline))
+.set_default(WrapSchedule(topi::generic::default_schedule_auto_inline))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule_auto_inline))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_reduce));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_binarize_pack)
-.set_default_func(WrapSchedule(topi::generic::default_schedule))
+.set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_binarize_pack));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
-.set_default_func(WrapSchedule(topi::generic::default_schedule))
+.set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_binary_dense));
 
 /*! \brief Builder function for instantiating dense ops. */
@@ -554,7 +554,7 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
 }
 
 TVM_REGISTER_GENERIC_FUNC(dense)
-.set_default_func(WrapDenseOp([](const Target& target,
+.set_default(WrapDenseOp([](const Target& target,
                                  const tvm::Tensor& data,
                                  const tvm::Tensor& weight,
                                  tvm::Tensor* bias) {
