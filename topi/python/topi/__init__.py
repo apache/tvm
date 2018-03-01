@@ -22,7 +22,8 @@ from . import cuda
 from . import rasp
 from . import mali
 from . import opengl
-from . import testing
 from . import util
 from . import rocm
 from . import cpp
+# not import testing by default
+# from . import testing

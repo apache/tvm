@@ -1,9 +1,11 @@
 # pylint: disable=invalid-name
 """Utility to invoke Xcode compiler toolchain"""
 from __future__ import absolute_import as _abs
+
 import os
 import sys
 import subprocess
+from .._ffi.base import py_str
 from . import util
 
 def xcrun(cmd):
@@ -49,7 +51,7 @@ def codesign(lib):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Codesign error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)
 
 
@@ -92,7 +94,7 @@ def create_dylib(output, objects, arch, sdk="macosx"):
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)
 
 
