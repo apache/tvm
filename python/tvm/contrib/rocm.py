@@ -2,6 +2,7 @@
 import subprocess
 from os.path import join
 from . import util
+from .._ffi.base import py_str
 from ..api import register_func, convert
 
 def rocm_link(in_file, out_file):
@@ -24,7 +25,7 @@ def rocm_link(in_file, out_file):
 
     if proc.returncode != 0:
         msg = "Linking error using ld.lld:\n"
-        msg += str(out)
+        msg += py_str(out)
         raise RuntimeError(msg)
 
 
