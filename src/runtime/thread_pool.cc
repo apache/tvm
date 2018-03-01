@@ -277,7 +277,7 @@ class ThreadPool {
           << " workers=" << num_workers_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
-    thread_local ParallelTaskQueue::Task tsk;  // is this shared?????????
+    ParallelTaskQueue::Task tsk;
     tsk.launcher = launcher;
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
