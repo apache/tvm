@@ -3,9 +3,9 @@
 from __future__ import absolute_import as _abs
 import sys
 import subprocess
+import os
 
 from .._ffi.base import py_str
-import os
 from .util import tempdir
 
 
