@@ -18,7 +18,7 @@
 #include <memory>
 #include <sstream>
 #include <sched.h>
-//#include <iostream>
+#include <iostream>
 //#include <chrono>
 
 //thread_local std::chrono::steady_clock::time_point t1, t2, t3, t4;
@@ -283,6 +283,7 @@ class ThreadPool {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
+    std::cout<<"master thread runs on "<<sched_getcpu()<<std::endl;
     //t2 = std::chrono::steady_clock::now();
     return launcher->WaitForJobs();
   }
