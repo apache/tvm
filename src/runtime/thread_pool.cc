@@ -307,7 +307,7 @@ class ThreadPool {
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
-      int rc = pthread_setaffinity_np(threads[i].native_handle(),
+      int rc = pthread_setaffinity_np(threads_[i].native_handle(),
                                     sizeof(cpu_set_t), &cpuset);
     }
   }
