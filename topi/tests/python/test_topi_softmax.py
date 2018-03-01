@@ -3,6 +3,7 @@ import os
 import numpy as np
 import tvm
 import topi
+import topi.testing
 import logging
 from topi.util import get_const_tuple
 
