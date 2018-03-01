@@ -74,10 +74,16 @@ def _recvall(sock, nbytes):
     return b"".join(res)
 
 
-def _listen_loop(sock):
+def _listen_loop(sock, exclusive):
     """Lisenting loop"""
+    last_proc = None
     while True:
         conn, addr = sock.accept()
+
+        if last_proc and last_proc.is_alive() and exclusive:
+            logging.info("Kill last call")
+            last_proc.terminate()
+
         logging.info("RPCServer: connection from %s", addr)
         magic = struct.unpack("@i", _recvall(conn, 4))[0]
         if magic != RPC_MAGIC:
@@ -90,9 +96,11 @@ def _listen_loop(sock):
         else:
             conn.sendall(struct.pack("@i", RPC_MAGIC))
         logging.info("Connection from %s", addr)
+
         process = multiprocessing.Process(target=_serve_loop, args=(conn, addr))
         process.deamon = True
         process.start()
+        last_proc = process
         # close from our side.
         conn.close()
 
@@ -158,6 +166,11 @@ class Server(object):
         This is recommended to switch on if we want to do local RPC demonstration
         for GPU devices to avoid fork safety issues.
 
+    exclusive : bool, optional
+        If this is enabled, the server will kill old connection
+        when new connection comes. This can make sure the current call
+        monopolize the hardware resource.
+
     key : str, optional
         The key used to identify the server in Proxy connection.
     """
@@ -167,6 +180,7 @@ class Server(object):
                  port_end=9199,
                  is_proxy=False,
                  use_popen=False,
+                 exclusive=False,
                  key=""):
         self.host = host
         self.port = port
@@ -201,7 +215,7 @@ class Server(object):
             sock.listen(1)
             self.sock = sock
             self.proc = multiprocessing.Process(
-                target=_listen_loop, args=(self.sock,))
+                target=_listen_loop, args=(self.sock, exclusive))
             self.proc.deamon = True
             self.proc.start()
         else:
@@ -209,8 +223,6 @@ class Server(object):
                 target=_connect_proxy_loop, args=((host, port), key))
             self.proc.deamon = True
             self.proc.start()
-
-
 
     def terminate(self):
         """Terminate the server process"""
@@ -220,7 +232,6 @@ class Server(object):
 
     def __del__(self):
         self.terminate()
-
 
 
 class RPCSession(object):
