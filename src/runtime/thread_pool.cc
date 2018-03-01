@@ -18,7 +18,7 @@
 #include <memory>
 #include <sstream>
 #include <sched.h>
-#include <iostream>
+//#include <iostream>
 //#include <chrono>
 
 //thread_local std::chrono::steady_clock::time_point t1, t2, t3, t4;
@@ -277,13 +277,12 @@ class ThreadPool {
           << " workers=" << num_workers_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
-    ParallelTaskQueue::Task tsk;  // is this shared?????????
+    thread_local ParallelTaskQueue::Task tsk;  // is this shared?????????
     tsk.launcher = launcher;
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
-    std::cout<<"master thread runs on "<<sched_getcpu()<<std::endl;
     //t2 = std::chrono::steady_clock::now();
     return launcher->WaitForJobs();
   }
@@ -307,7 +306,7 @@ class ThreadPool {
         });
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
-      CPU_SET(i, &cpuset);
+      CPU_SET(i+1, &cpuset);
       int rc = pthread_setaffinity_np(threads_[i].native_handle(),
                                     sizeof(cpu_set_t), &cpuset);
     }
