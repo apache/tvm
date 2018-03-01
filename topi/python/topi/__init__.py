@@ -26,4 +26,6 @@ from . import util
 from . import rocm
 from . import cpp
 # not import testing by default
+# because testing can have extra deps that are not necessary
+# we can import them from test cases explicitly
 # from . import testing
