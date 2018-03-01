@@ -528,7 +528,6 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
   GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
 
-  auto target = Target::current_target(false);
   generic_func
     .CallPacked(func_args, ret);
   });

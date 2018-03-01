@@ -34,7 +34,7 @@ def test_target_dispatch():
     with tvm.target.create("metal"):
         assert mygeneric(1) == 3
 
-    assert tvm.target.current_target(allow_none=True) == None
+    assert tvm.target.current_target() == None
 
 if __name__ == "__main__":
     test_target_dispatch()
