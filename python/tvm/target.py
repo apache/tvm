@@ -287,6 +287,7 @@ def generic_func(fdefault):
         return _do_reg
 
     def dispatch_func(func, *args, **kwargs):
+        #pylint: disable=unused-argument
         """The wrapped dispath function"""
         if kwargs:
             raise RuntimeError(
