@@ -17,10 +17,11 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
-#include <iostream>
-#include <chrono>
+#include <sched.h>
+//#include <iostream>
+//#include <chrono>
 
-thread_local std::chrono::steady_clock::time_point t1, t2, t3, t4;
+//thread_local std::chrono::steady_clock::time_point t1, t2, t3, t4;
 namespace tvm {
 namespace runtime {
 
@@ -303,6 +304,11 @@ class ThreadPool {
       threads_[i] = std::thread([this, i] {
           this->RunWorker(queues_[i].get());
         });
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(i, &cpuset);
+      int rc = pthread_setaffinity_np(threads[i].native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
     }
   }
   // Internal worker function.
