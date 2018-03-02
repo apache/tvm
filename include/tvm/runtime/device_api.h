@@ -20,7 +20,6 @@ enum DeviceAttrKind : int {
   kMaxThreadsPerBlock = 1,
   kWarpSize = 2,
   kComputeVersion = 3,
-  kStreamAPI = 4,
 };
 
 /*! \brief Number of bytes each allocation must align to */
@@ -130,9 +129,9 @@ class DeviceAPI {
    * \param event_src The source stream to synchronize.
    * \param event_dst The destination stream to synchronize.
    */
-  TVM_DLL virtual void SyncStreams(TVMContext ctx,
-                                   TVMStreamHandle event_src,
-                                   TVMStreamHandle event_dst);
+  TVM_DLL virtual void SyncStreamFromTo(TVMContext ctx,
+                                        TVMStreamHandle event_src,
+                                        TVMStreamHandle event_dst);
   /*!
    * \brief Allocate temporal workspace for backend execution.
    *

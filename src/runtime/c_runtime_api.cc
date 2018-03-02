@@ -115,9 +115,9 @@ void DeviceAPI::FreeStream(TVMContext ctx, TVMStreamHandle stream) {
   LOG(FATAL) << "Device does not support stream api.";
 }
 
-void DeviceAPI::SyncStreams(TVMContext ctx,
-                            TVMStreamHandle event_src,
-                            TVMStreamHandle event_dst) {
+void DeviceAPI::SyncStreamFromTo(TVMContext ctx,
+                                 TVMStreamHandle event_src,
+                                 TVMStreamHandle event_dst) {
   LOG(FATAL) << "Device does not support stream api.";
 }
 
@@ -507,7 +507,7 @@ int TVMStreamStreamSynchronize(int device_type,
   TVMContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
-  DeviceAPIManager::Get(ctx)->SyncStreams(ctx, src, dst);
+  DeviceAPIManager::Get(ctx)->SyncStreamFromTo(ctx, src, dst);
   API_END();
 }
 

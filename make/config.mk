@@ -29,7 +29,7 @@ ADD_CFLAGS =
 # Backend runtimes.
 #---------------------------------------------
 # whether enable CUDA during compile
-USE_CUDA = 1
+USE_CUDA = 0
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable.
@@ -39,7 +39,7 @@ USE_CUDA = 1
 USE_ROCM = 0
 
 # whether enable OpenCL during compile
-USE_OPENCL = 1
+USE_OPENCL = 0
 
 # whether enable Metal during compile
 USE_METAL = 0
@@ -57,13 +57,13 @@ USE_GRAPH_RUNTIME_DEBUG = 0
 # Requires LLVM version >= 4.0
 # Set LLVM_CONFIG to your version, uncomment to build with llvm support
 #
-LLVM_CONFIG = llvm-config
+# LLVM_CONFIG = llvm-config
 
 #---------------------------------------------
 # Contrib optional libraries.
 #---------------------------------------------
 # Whether use BLAS, choices: openblas, atlas, blas, apple
-USE_BLAS = blas
+USE_BLAS = none
 
 # Whether use contrib.random in runtime
 USE_RANDOM = 0
@@ -82,7 +82,7 @@ USE_MIOPEN = 0
 USE_MPS = 0
 
 # Whether use cuBLAS
-USE_CUBLAS = 1
+USE_CUBLAS = 0
 
 # Whether use rocBlas
 USE_ROCBLAS = 0

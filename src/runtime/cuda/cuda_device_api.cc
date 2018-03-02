@@ -115,7 +115,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDA_CALL(cudaStreamDestroy(cu_stream));
   }
 
-  void SyncStreams(TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
+  void SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
     CUDA_CALL(cudaSetDevice(ctx.device_id));
     cudaStream_t src_stream = static_cast<cudaStream_t>(event_src);
     cudaStream_t dst_stream = static_cast<cudaStream_t>(event_dst);
