@@ -11,8 +11,73 @@ namespace contrib {
 
 using namespace runtime;
 
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      DLTensor *buf = args[0];
+      DLTensor *img = args[1];
+      // copy to temp
+      id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
+      MetalThreadEntry *entry_ptr = MetalThreadEntry::ThreadLocal();
+      runtime::metal::MetalThreadEntry *rt =
+          runtime::metal::MetalThreadEntry::ThreadLocal();
+      id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->ctx);
+      id<MTLBuffer> temp = rt->GetTempBuffer(buf->ctx, [mtlbuf length]);
+      entry_ptr->metal_api->CopyDataFromTo(
+          (__bridge void *)mtlbuf, 0, (__bridge void *)temp, 0, [mtlbuf length],
+          buf->ctx, buf->ctx, nullptr
+
+      );
+
+      MPSImageDescriptor *desc = [MPSImageDescriptor
+          imageDescriptorWithChannelFormat:MPSImageFeatureChannelFormatFloat32
+                                     width:buf->shape[2]
+                                    height:buf->shape[1]
+                           featureChannels:buf->shape[3]];
+
+      MPSImage *mpsimg = entry_ptr->AllocMPSImage(dev, desc);
+
+      [mpsimg writeBytes:[temp contents]
+              dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+              imageIndex:0];
+
+      img->data = (__bridge void *)([mpsimg retain]);
+    });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      DLTensor *img = args[0];
+      DLTensor *buf = args[1];
+      id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
+      MPSImage *mpsimg = (__bridge MPSImage *)(img->data);
+      MetalThreadEntry *entry_ptr = MetalThreadEntry::ThreadLocal();
+      runtime::metal::MetalThreadEntry *rt =
+          runtime::metal::MetalThreadEntry::ThreadLocal();
+      id<MTLBuffer> temp = rt->GetTempBuffer(buf->ctx, [mtlbuf length]);
+      id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->ctx);
+      [mpsimg readBytes:[temp contents]
+             dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+             imageIndex:0];
+
+      entry_ptr->metal_api->CopyDataFromTo(
+          (__bridge void *)temp, 0, (__bridge void *)mtlbuf, 0, [mtlbuf length],
+          buf->ctx, buf->ctx, nullptr);
+    });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.test_copy")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      DLTensor *a = args[0];
+      DLTensor *b = args[1];
+      auto f_buf2img = runtime::Registry::Get("tvm.contrib.mps.buffer2img");
+      auto f_img2buf = runtime::Registry::Get("tvm.contrib.mps.img2buffer");
+      DLTensor tmp;
+      DLTensor *img = &tmp;
+      (*f_buf2img)(a, img);
+      (*f_img2buf)(img, b);
+    });
+
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
+
       // MPS-NHWC
       DLTensor *data = args[0];
       DLTensor *weight = args[1];
@@ -26,86 +91,48 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
       CHECK(weight->strides == nullptr);
       CHECK(data->strides == nullptr);
 
+      CHECK_EQ(data->shape[0], 1);
+      CHECK_EQ(output->shape[0], 1);
+
       int oCh = weight->shape[0];
-      int iCh = weight->shape[1];
-      int kH = weight->shape[2];
-      int kW = weight->shape[3];
+      int kH = weight->shape[1];
+      int kW = weight->shape[2];
+      int iCh = weight->shape[3];
+
+      auto f_buf2img = runtime::Registry::Get("tvm.contrib.mps.buffer2img");
+      auto f_img2buf = runtime::Registry::Get("tvm.contrib.mps.img2buffer");
       // Get Metal device API
       MetalThreadEntry *entry_ptr = MetalThreadEntry::ThreadLocal();
-
+      runtime::metal::MetalThreadEntry *rt =
+          runtime::metal::MetalThreadEntry::ThreadLocal();
       id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(data->ctx);
       id<MTLCommandQueue> queue =
           entry_ptr->metal_api->GetCommandQueue(data->ctx);
       id<MTLCommandBuffer> cb = [queue commandBuffer];
+      // MPSDataType dtype = MPSType::DLTypeToMPSType(data->dtype);
 
-
-      MPSDataType dtype = MPSType::DLTypeToMPSType(data->dtype);
-      id<MTLBuffer> bufA = (__bridge id<MTLBuffer>)(data->data);
+      // data to MPSImage
+      DLTensor tmp_in;
+      (*f_buf2img)(data, &tmp_in);
+      MPSImage *tempA = (__bridge MPSImage *)tmp_in.data;
+      // weight to temp memory
       id<MTLBuffer> bufB = (__bridge id<MTLBuffer>)(weight->data);
-      id<MTLBuffer> bufC = (__bridge id<MTLBuffer>)(output->data);
-      
+      id<MTLBuffer> tempB = rt->GetTempBuffer(weight->ctx, [bufB length]);
+      entry_ptr->metal_api->CopyDataFromTo(
+          (__bridge void *)bufB, 0, (__bridge void *)tempB, 0, [bufB length],
+          weight->ctx, weight->ctx, nullptr);
+      float *ptr_w = (float *)[tempB contents];
+      // output to MPSImage
+      DLTensor tmp_out;
+      (*f_buf2img)(output, &tmp_out);
+      MPSImage *tempC = (__bridge MPSImage *)tmp_out.data;
+      // conv desc
 
-      // copy gpu mem to cpu
-      id<MTLBuffer> tempA = [dev newBufferWithLength:[bufA length]
-            options:MTLStorageModeShared];
-      id<MTLBuffer> tempB = [dev newBufferWithLength:[bufB length]
-            options:MTLStorageModeShared];
-      id<MTLBuffer> tempC = [dev newBufferWithLength:[bufC length]
-            options:MTLStorageModeShared];
-
-      id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
-      [encoder copyFromBuffer:bufA
-               sourceOffset:0
-               toBuffer:tempA
-               destinationOffset:0
-               size:[bufA length]];
-      
-       [encoder copyFromBuffer:bufB
-               sourceOffset:0
-               toBuffer:tempB
-               destinationOffset:0
-               size:[bufB length]];
-
-      [encoder endEncoding];
-      [cb commit];
-      [cb waitUntilCompleted];
-
-      MPSImageDescriptor *descA = [MPSImageDescriptor
-          imageDescriptorWithChannelFormat:MPSImageFeatureChannelFormatFloat32
-                                     width:data->shape[2]
-                                    height:data->shape[1]
-                           featureChannels:data->shape[3]];
-
-      // MPSTemporaryImage * imgA = [MPSTemporaryImage temporaryImageWithCommandBuffer:cb imageDescriptor:descA];
-      MPSImage *imgA =
-           [[MPSImage alloc] initWithDevice:dev imageDescriptor:descA];
-
-      [imgA readBytes:[tempA contents]
-           dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
-           imageIndex:0];
-    
-
-      const float *ptr_w = (float *)[tempB contents];
-
-      // mps output
-      
-      MPSImageDescriptor *descC = [MPSImageDescriptor
-          imageDescriptorWithChannelFormat:MPSImageFeatureChannelFormatFloat32
-                                     width:output->shape[2]
-                                    height:output->shape[1]
-                           featureChannels:output->shape[3]];
-      // MPSTemporaryImage * imgC = [MPSTemporaryImage temporaryImageWithCommandBuffer:cb imageDescriptor:descC];
-      MPSImage *imgC =
-          [[MPSImage alloc] initWithDevice:dev imageDescriptor:descC];
-      // kernel
-
-      // Set up the convolution operator with description
-      MPSCNNConvolutionDescriptor *conv_desc =
-          [MPSCNNConvolutionDescriptor new];
-      [conv_desc setKernelWidth:kW];
-      [conv_desc setKernelHeight:kH];
-      [conv_desc setInputFeatureChannels:iCh];
-      [conv_desc setOutputFeatureChannels:oCh];
+      MPSCNNConvolutionDescriptor *conv_desc = [MPSCNNConvolutionDescriptor
+          cnnConvolutionDescriptorWithKernelWidth:kW
+                                     kernelHeight:kH
+                             inputFeatureChannels:iCh
+                            outputFeatureChannels:oCh];
       // [conv_desc setStrideInPixelsX:stride];
       // [conv_desc setStrideInPixelsY:stride];
 
@@ -115,39 +142,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
                                       kernelWeights:ptr_w
                                           biasTerms:nil
                                               flags:MPSCNNConvolutionFlagsNone];
+      [conv encodeToCommandBuffer:cb sourceImage:tempA destinationImage:tempC];
 
-      
-      [conv encodeToCommandBuffer:cb
-                      sourceImage:imgA
-                 destinationImage:imgC];
-      
-      #if TARGET_OS_OSX
-      id<MTLBlitCommandEncoder> bilt = cb.blitCommandEncoder;
-      [bilt synchronizeResource:imgC.texture];
-      [bilt endEncoding];
-      #endif
-      
       [cb commit];
-      [cb waitUntilCompleted];
-      
-      [imgC writeBytes:[tempC contents]
-            dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
-            imageIndex:0];
-
-      encoder = [cb blitCommandEncoder];
- 
-      [encoder copyFromBuffer:tempC
-               sourceOffset:0
-               toBuffer:bufC
-               destinationOffset:0
-               size:[bufC length]];
+      id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
+      [encoder synchronizeResource:tempC.texture];
       [encoder endEncoding];
-      [cb commit];
       [cb waitUntilCompleted];
-      
-      [tempA release];
-      [tempB release];
-      [tempC release];
+
+      (*f_img2buf)(&tmp_out, output);
     });
 
 } // namespace contrib

@@ -41,9 +41,24 @@ MPSDataType MPSType::DLTypeToMPSType(const DLDataType &dtype) {
   default:
     LOG(FATAL) << "Unsupported type";
   }
+  return MPSDataTypeFloat32;
 }
 
 // MetalThreadEntry
+
+MPSImage *MetalThreadEntry::AllocMPSImage(id<MTLDevice> dev,
+                                          MPSImageDescriptor *desc) {
+  MPSImage *mpsimg = [[MPSImage alloc] initWithDevice:dev imageDescriptor:desc];
+  img_table.push_back(mpsimg);
+  return mpsimg;
+}
+
+MPSTemporaryImage *MetalThreadEntry::AllocTempImage(id<MTLCommandBuffer> cb,
+                                                    MPSImageDescriptor *desc) {
+  MPSTemporaryImage *mpsimg =
+      [MPSTemporaryImage temporaryImageWithCommandBuffer:cb
+                                         imageDescriptor:desc];
+}
 
 MetalThreadEntry::MetalThreadEntry() {
   auto func = runtime::Registry::Get("device_api.metal");
@@ -51,7 +66,11 @@ MetalThreadEntry::MetalThreadEntry() {
   metal_api = static_cast<runtime::metal::MetalWorkspace *>(ret);
 }
 
-MetalThreadEntry::~MetalThreadEntry() {}
+MetalThreadEntry::~MetalThreadEntry() {
+  for (int i = 0; i < img_table.size(); ++i) {
+    [img_table[i] dealloc];
+  }
+}
 
 typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 

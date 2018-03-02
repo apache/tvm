@@ -43,11 +43,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
       CHECK_EQ(A->shape[1 - (transa ? 1 : 0)], K);
       // mps a
       MPSDataType dtype = MPSType::DLTypeToMPSType(A->dtype);
-      MPSMatrixDescriptor *descA =
-          [MPSMatrixDescriptor matrixDescriptorWithDimensions:M
-                                                      columns:K
-                                                     rowBytes:K * sizeof(MPSDataTypeFloat32)
-                                                     dataType:MPSDataTypeFloat32];
+      MPSMatrixDescriptor *descA = [MPSMatrixDescriptor
+          matrixDescriptorWithDimensions:M
+                                 columns:K
+                                rowBytes:K * sizeof(MPSDataTypeFloat32)
+                                dataType:MPSDataTypeFloat32];
       id<MTLBuffer> bufA = (__bridge id<MTLBuffer>)(A->data);
       MPSMatrix *matrixA =
           [[MPSMatrix alloc] initWithBuffer:bufA descriptor:descA];
