@@ -108,6 +108,7 @@ void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
 
 TVMStreamHandle DeviceAPI::CreateStream(TVMContext ctx) {
   LOG(FATAL) << "Device does not support stream api.";
+  return 0;
 }
 
 void DeviceAPI::FreeStream(TVMContext ctx, TVMStreamHandle stream) {
