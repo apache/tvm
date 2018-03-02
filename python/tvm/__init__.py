@@ -34,4 +34,3 @@ from .tag import tag_scope
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc
-from .contrib import mps

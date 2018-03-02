@@ -62,4 +62,3 @@ def conv2d(data, weight):
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.mps.conv2d", ins[0], ins[1], outs[0]),
         name="C")
-

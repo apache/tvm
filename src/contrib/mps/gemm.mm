@@ -1,10 +1,4 @@
-#include <MetalPerformanceShaders/MetalPerformanceShaders.h>
-#include <dmlc/logging.h>
-#include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
 
-#include "../../runtime/metal/metal_common.h"
 #include "mps_utils.h"
 
 namespace tvm {

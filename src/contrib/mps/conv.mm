@@ -1,10 +1,4 @@
 #include "mps_utils.h"
-#import <Foundation/Foundation.h>
-#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
-#include <dmlc/logging.h>
-#include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
 
 namespace tvm {
 namespace contrib {
@@ -53,7 +47,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
       runtime::metal::MetalThreadEntry *rt =
           runtime::metal::MetalThreadEntry::ThreadLocal();
       id<MTLBuffer> temp = rt->GetTempBuffer(buf->ctx, [mtlbuf length]);
-      id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->ctx);
+      //  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->ctx);
       [mpsimg readBytes:[temp contents]
              dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
              imageIndex:0];

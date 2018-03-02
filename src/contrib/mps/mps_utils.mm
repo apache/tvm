@@ -3,9 +3,6 @@
  * \file Use external mps utils function
  */
 #include "mps_utils.h"
-#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
-#include <dmlc/thread_local.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace contrib {
@@ -58,6 +55,7 @@ MPSTemporaryImage *MetalThreadEntry::AllocTempImage(id<MTLCommandBuffer> cb,
   MPSTemporaryImage *mpsimg =
       [MPSTemporaryImage temporaryImageWithCommandBuffer:cb
                                          imageDescriptor:desc];
+  return mpsimg;
 }
 
 MetalThreadEntry::MetalThreadEntry() {
