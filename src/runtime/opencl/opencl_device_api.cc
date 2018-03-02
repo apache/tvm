@@ -45,8 +45,9 @@ void OpenCLWorkspace::GetAttr(
       *rv = 1;
       break;
     }
-    case kComputeVersion: return;
-    case kExist: break;
+  case kComputeVersion: return;
+  case kExist: break;
+  case kStreamAPI: break;
   }
 }
 
