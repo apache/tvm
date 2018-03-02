@@ -339,6 +339,7 @@ void CodeGenLLVM::GetAlignment(Type t,
   }
 
   arith::ModularEntry me = arith::EvalModular(index, align_map_);
+
   int align_bits = t.bits();
   while (align_bits < max_align_bits &&
          me.base % 2  == 0 &&
@@ -814,13 +815,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Let* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
   Type t = op->type;
-  int alignment, native_bits;
   bool is_volatile = volatile_buf_.count(op->buffer_var.get());
-  GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
   llvm::Value* buffer = MakeValue(op->buffer_var);
   llvm::Value* index = MakeValue(op->index);
 
   if (t.lanes() == 1) {
+    int alignment, native_bits;
+    GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
     llvm::Value* ptr = CreateBufferPtr(t, buffer, index);
     llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, alignment, is_volatile);
     AddAliasInfo(load, op->buffer_var.get(), op->index, t);
@@ -831,6 +832,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
       buffer->getType())->getAddressSpace();
     if (const Ramp* ramp = op->index.as<Ramp>()) {
       if (is_one(ramp->stride)) {
+        int alignment, native_bits;
+        GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
         CHECK_EQ(ramp->lanes, t.lanes());
         llvm::Value* ptr = CreateBufferPtr(
             t.element_of(), buffer, MakeValue(ramp->base));
@@ -885,14 +888,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {
 void CodeGenLLVM::VisitStmt_(const Store* op) {
   CHECK(is_one(op->predicate));
   Type t = op->value.type();
-  int alignment, native_bits;
   bool is_volatile = volatile_buf_.count(op->buffer_var.get());
-  GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
   llvm::Value* buffer = MakeValue(op->buffer_var);
   llvm::Value* index = MakeValue(op->index);
   llvm::Value* value = MakeValue(op->value);
 
   if (t.lanes() == 1) {
+    int alignment, native_bits;
+    GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
     llvm::Value* ptr = CreateBufferPtr(t, buffer, index);
     llvm::StoreInst* store = builder_->CreateAlignedStore(value, ptr, alignment, is_volatile);
     AddAliasInfo(store, op->buffer_var.get(), op->index, op->value.type());
@@ -903,6 +906,8 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
         buffer->getType())->getAddressSpace();
     if (const Ramp* ramp = op->index.as<Ramp>()) {
       if (is_one(ramp->stride)) {
+        int alignment, native_bits;
+        GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
         CHECK_EQ(ramp->lanes, t.lanes());
         llvm::Value* ptr = CreateBufferPtr(
             t.element_of(), buffer, MakeValue(ramp->base));
