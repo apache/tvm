@@ -292,7 +292,6 @@ def _init_api(namespace, target_module_name=None):
     target_module_name = (
         target_module_name if target_module_name else namespace)
     if namespace.startswith("tvm."):
-        prefix = namespace[4:]
         _init_api_prefix(target_module_name, namespace[4:])
     else:
         _init_api_prefix(target_module_name, namespace)
