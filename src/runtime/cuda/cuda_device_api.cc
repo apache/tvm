@@ -30,9 +30,6 @@ class CUDADeviceAPI final : public DeviceAPI {
                 &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id)
             == cudaSuccess);
         break;
-    case kStreamAPI:
-      value = 1;
-      break;
     case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(
             &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id));

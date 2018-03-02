@@ -439,7 +439,6 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
 
 /*!
  * \brief Create a new runtime stream.  
- * For this API to exist, the device must support the kStreamAPI attribute.
  *
  * \param device_type The device type of context
  * \param device_id The device id of context
@@ -450,7 +449,6 @@ TVM_DLL int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out
 
 /*!
  * \brief Free a created stream handle.
- * For this API to exist, the device must support the kStreamAPI attribute.
  *
  * \param device_type The device type of context
  * \param device_id The device id of context
@@ -484,7 +482,6 @@ TVM_DLL int TVMSynchronize(int device_type, int device_id, TVMStreamHandle strea
 
 /*!
  * \brief Synchronize two streams of execution.
- * For this API to exist, the device must support the kStreamAPI attribute.
  *
  * \param device_type The device type of context
  * \param device_id The device id of context
