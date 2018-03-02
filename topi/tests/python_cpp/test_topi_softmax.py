@@ -4,6 +4,7 @@ import numpy as np
 import tvm
 import topi
 import logging
+import topi.testing
 from topi.util import get_const_tuple
 
 def verify_softmax(m, n):

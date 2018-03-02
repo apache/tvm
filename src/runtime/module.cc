@@ -8,23 +8,12 @@
 #include <tvm/runtime/packed_func.h>
 #include <unordered_set>
 #include <cstring>
+#ifndef _LIBCPP_SGX_CONFIG
 #include "./file_util.h"
+#endif
 
 namespace tvm {
 namespace runtime {
-
-PackedFunc Module::GetFunction(
-    const std::string& name, bool query_imports) {
-  PackedFunc pf = node_->GetFunction(name, node_);
-  if (pf != nullptr) return pf;
-  if (query_imports) {
-    for (const Module& m : node_->imports_) {
-      pf = m.node_->GetFunction(name, m.node_);
-      if (pf != nullptr) return pf;
-    }
-  }
-  return pf;
-}
 
 void Module::Import(Module other) {
   // specially handle rpc
@@ -57,6 +46,7 @@ void Module::Import(Module other) {
 
 Module Module::LoadFromFile(const std::string& file_name,
                             const std::string& format) {
+#ifndef _LIBCPP_SGX_CONFIG
   std::string fmt = GetFileFormat(file_name, format);
   CHECK(fmt.length() != 0)
       << "Cannot deduce format of file " << file_name;
@@ -70,6 +60,9 @@ Module Module::LoadFromFile(const std::string& file_name,
       << load_f_name << ") is not presented.";
   Module m = (*f)(file_name, format);
   return m;
+#else
+  LOG(FATAL) << "SGX does not support LoadFromFile";
+#endif
 }
 
 void ModuleNode::SaveToFile(const std::string& file_name,

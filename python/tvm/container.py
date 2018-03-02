@@ -20,7 +20,7 @@ class Array(NodeBase):
             return [self[idx] for idx in range(start, stop, step)]
 
         if i >= len(self):
-            raise IndexError("array index out ot range")
+            raise IndexError("array index out of range")
         return _api_internal._ArrayGetItem(self, i)
 
     def __len__(self):
