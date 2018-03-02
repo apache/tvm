@@ -24,6 +24,8 @@ void OpenCLWorkspace::SetDevice(TVMContext ctx) {
 
 void OpenCLWorkspace::GetAttr(
     TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
+  //Initialize RV to a known value!
+  *rv = 0;
   this->Init();
   size_t index = static_cast<size_t>(ctx.device_id);
   if (kind == kExist) {
