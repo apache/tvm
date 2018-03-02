@@ -30,7 +30,7 @@ class CUDADeviceAPI final : public DeviceAPI {
                 &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id)
             == cudaSuccess);
         break;
-      case kMaxThreadsPerBlock: {
+    case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(
             &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id));
         break;
@@ -100,6 +100,30 @@ class CUDADeviceAPI final : public DeviceAPI {
     } else {
       LOG(FATAL) << "expect copy from/to GPU or between GPU";
     }
+  }
+
+  TVMStreamHandle CreateStream(TVMContext ctx) {
+    CUDA_CALL(cudaSetDevice(ctx.device_id));
+    cudaStream_t retval;
+    CUDA_CALL(cudaStreamCreate(&retval));
+    return static_cast<TVMStreamHandle>(retval);
+  }
+
+  void FreeStream(TVMContext ctx, TVMStreamHandle stream) {
+    CUDA_CALL(cudaSetDevice(ctx.device_id));
+    cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
+    CUDA_CALL(cudaStreamDestroy(cu_stream));
+  }
+
+  void SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
+    CUDA_CALL(cudaSetDevice(ctx.device_id));
+    cudaStream_t src_stream = static_cast<cudaStream_t>(event_src);
+    cudaStream_t dst_stream = static_cast<cudaStream_t>(event_dst);
+    cudaEvent_t evt;
+    CUDA_CALL(cudaEventCreate(&evt));
+    CUDA_CALL(cudaEventRecord(evt, src_stream));
+    CUDA_CALL(cudaStreamWaitEvent(dst_stream, evt, 0));
+    CUDA_CALL(cudaEventDestroy(evt));
   }
 
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
