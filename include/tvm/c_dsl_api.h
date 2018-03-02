@@ -17,7 +17,7 @@
 #include "./runtime/c_runtime_api.h"
 
 #ifdef __cplusplus
-TVM_EXTERN_C {
+extern "C" {
 #endif
 
 /*! \brief handle to node */

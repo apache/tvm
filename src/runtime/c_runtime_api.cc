@@ -106,6 +106,21 @@ void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
   FreeDataSpace(ctx, ptr);
 }
 
+TVMStreamHandle DeviceAPI::CreateStream(TVMContext ctx) {
+  LOG(FATAL) << "Device does not support stream api.";
+  return 0;
+}
+
+void DeviceAPI::FreeStream(TVMContext ctx, TVMStreamHandle stream) {
+  LOG(FATAL) << "Device does not support stream api.";
+}
+
+void DeviceAPI::SyncStreamFromTo(TVMContext ctx,
+                                 TVMStreamHandle event_src,
+                                 TVMStreamHandle event_dst) {
+  LOG(FATAL) << "Device does not support stream api.";
+}
+
 inline TVMArray* TVMArrayCreate_() {
   TVMArray* arr = new TVMArray();
   arr->shape = nullptr;
@@ -448,6 +463,24 @@ int TVMArrayCopyToBytes(TVMArrayHandle handle,
   API_END();
 }
 
+int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  *out = DeviceAPIManager::Get(ctx)->CreateStream(ctx);
+  API_END();
+}
+
+int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->FreeStream(ctx, stream);
+  API_END();
+}
+
 int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   TVMContext ctx;
@@ -463,6 +496,18 @@ int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
   DeviceAPIManager::Get(ctx)->StreamSync(ctx, stream);
+  API_END();
+}
+
+int TVMStreamStreamSynchronize(int device_type,
+                               int device_id,
+                               TVMStreamHandle src,
+                               TVMStreamHandle dst) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->SyncStreamFromTo(ctx, src, dst);
   API_END();
 }
 
