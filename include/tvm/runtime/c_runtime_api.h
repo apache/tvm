@@ -492,7 +492,10 @@ TVM_DLL int TVMSynchronize(int device_type, int device_id, TVMStreamHandle strea
  * \param dst The destination stream to synchronize.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMStreamStreamSynchronize( int device_type, int device_id, TVMStreamHandle src, TVMStreamHandle dst);
+TVM_DLL int TVMStreamStreamSynchronize(int device_type,
+                                       int device_id,
+                                       TVMStreamHandle src,
+                                       TVMStreamHandle dst);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

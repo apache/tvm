@@ -107,17 +107,19 @@ void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
 }
 
 TVMStreamHandle DeviceAPI::CreateStream(TVMContext ctx) {
-  throw std::runtime_error("Device does not support stream api.");
+  LOG(FATAL) << "Device does not support stream api.";
 }
 
 void DeviceAPI::FreeStream(TVMContext ctx, TVMStreamHandle stream) {
-  throw std::runtime_error("Device does not support stream api.");
+  LOG(FATAL) << "Device does not support stream api.";
 }
 
-void DeviceAPI::SyncStreams(TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
-  throw std::runtime_error("Device does not support stream api.");
+void DeviceAPI::SyncStreams(TVMContext ctx,
+                            TVMStreamHandle event_src,
+                            TVMStreamHandle event_dst) {
+  LOG(FATAL) << "Device does not support stream api.";
 }
-  
+
 inline TVMArray* TVMArrayCreate_() {
   TVMArray* arr = new TVMArray();
   arr->shape = nullptr;
@@ -496,8 +498,10 @@ int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   API_END();
 }
 
-int TVMStreamStreamSynchronize( int device_type, int device_id, TVMStreamHandle src, TVMStreamHandle dst)
-{
+int TVMStreamStreamSynchronize(int device_type,
+                               int device_id,
+                               TVMStreamHandle src,
+                               TVMStreamHandle dst) {
   API_BEGIN();
   TVMContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);

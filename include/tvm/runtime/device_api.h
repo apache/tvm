@@ -130,7 +130,9 @@ class DeviceAPI {
    * \param event_src The source stream to synchronize.
    * \param event_dst The destination stream to synchronize.
    */
-  TVM_DLL virtual void SyncStreams( TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst );
+  TVM_DLL virtual void SyncStreams(TVMContext ctx,
+                                   TVMStreamHandle event_src,
+                                   TVMStreamHandle event_dst);
   /*!
    * \brief Allocate temporal workspace for backend execution.
    *
@@ -157,7 +159,7 @@ class DeviceAPI {
    * \param ptr The pointer to be freed.
    */
   TVM_DLL virtual void FreeWorkspace(TVMContext ctx, void* ptr);
-  
+
   /*!
    * \brief Get device API base don context.
    * \param ctx The context
