@@ -146,6 +146,28 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     return libbin
 
 
+class XCodeRPCServer(object):
+    """Wrapper for RPC server
+
+    Parameters
+    ----------
+    cmd : list of str
+       The command to run
+
+    lock: FileLock
+       Lock on the path
+    """
+    def __init__(self, cmd, lock):
+        self.proc = subprocess.Popen(cmd)
+        self.lock = lock
+
+    def join(self):
+        """Wait server to finish and release its resource
+        """
+        self.proc.wait()
+        self.lock.release()
+
+
 def popen_test_rpc(host,
                    port,
                    key,
@@ -190,6 +212,10 @@ def popen_test_rpc(host,
     if not os.path.exists(proj_path):
         raise RuntimeError("Cannot find tvmrpc.xcodeproj in %s," +
                            (" please set env TVM_IOS_RPC_ROOT correctly" % rpc_root))
+
+    # Lock the path so only one file can run
+    lock = util.filelock(os.path.join(rpc_root, "ios_rpc.lock"))
+
     with open(os.path.join(rpc_root, "rpc_config.txt"), "w") as fo:
         fo.write("%s %d %s\n" % (host, port, key))
         libs = libs if libs else []
@@ -203,11 +229,6 @@ def popen_test_rpc(host,
     if options:
         cmd += options
     cmd += ["test"]
-    if "-quiet" in options:
-        with open(os.devnull, 'w') as devnull:
-            proc = subprocess.Popen(cmd,
-                                    stderr=subprocess.STDOUT,
-                                    stdout=devnull)
-    else:
-        proc = subprocess.Popen(cmd)
-    return proc
+
+    return XCodeRPCServer(cmd, lock)
+

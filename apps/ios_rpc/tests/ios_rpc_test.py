@@ -59,7 +59,6 @@ def test_rpc_module():
     # Start RPC test server that contains the compiled library.
     server = xcode.popen_test_rpc(proxy_host, proxy_port, key,
                                   destination=destination,
-                                  options=['-quiet'],
                                   libs=[path_dso1, path_dso2])
 
     # connect to the proxy
@@ -83,5 +82,6 @@ def test_rpc_module():
     cost = time_f(a, b).mean
     print('%g secs/op' % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    server.join()
 
 test_rpc_module()
