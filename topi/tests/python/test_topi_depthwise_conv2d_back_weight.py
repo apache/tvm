@@ -1,5 +1,6 @@
 import tvm
 import topi
+import topi.testing
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
