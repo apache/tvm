@@ -3,8 +3,9 @@
 from __future__ import absolute_import as _abs
 import sys
 import subprocess
-
 import os
+
+from .._ffi.base import py_str
 from .util import tempdir
 
 
@@ -53,7 +54,7 @@ def _linux_shared(output, objects, options, cc="g++"):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += str(out)
+        msg += py_str(out)
         raise RuntimeError(msg)
 
 
@@ -88,7 +89,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
                            "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += str(out)
+        msg += py_str(out)
         raise RuntimeError(msg)
     link_cmd = ["link"]
     link_cmd += ["-dll", "-FORCE:MULTIPLE"]
@@ -114,6 +115,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
                            "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += str(out)
+        msg += py_str(out)
 
         raise RuntimeError(msg)
