@@ -50,15 +50,16 @@ def test_conv2d():
         print("skip because %s is not enabled..." % "metal")
         return
     n = 1
-    h = 7
-    w = 7
+    h = 14
+    w = 14
     ci = 2
     co = 4
     kh = 3
     kw = 3
+    stride = 2
     A = tvm.placeholder((n, h, w, ci), name="x")
     B = tvm.placeholder((co, kh, kw, ci), name="w")
-    C = mps.conv2d(A, B)
+    C = mps.conv2d(A, B, 'SAME', 2)
     s1 = tvm.create_schedule(C.op)
 
     def verify(A, B, C, target="llvm"):
@@ -69,11 +70,11 @@ def test_conv2d():
         f = tvm.build(s1, [A, B, C], "metal")
         a = tvm.nd.array(np.random.uniform(size=(n, h, w, ci)).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=(co, kh, kw, ci)).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros((n, h, w, co), dtype=C.dtype), ctx)
+        c = tvm.nd.array(np.zeros((n, h // stride, w // stride, co), dtype=C.dtype), ctx)
         f(a, b, c)
-        print(c.asnumpy())
-        #np.testing.assert_allclose(
-        #    c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+        # print(c.asnumpy())
+        # print(c.shape)
+        
     verify(A, B, C, s1)
 
 

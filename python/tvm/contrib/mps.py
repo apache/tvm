@@ -38,7 +38,7 @@ def matmul(lhs, rhs, transa=False, transb=False):
             "tvm.contrib.mps.matmul", ins[0], ins[1], outs[0], transa, transb),
         name="C")
 
-def conv2d(data, weight):
+def conv2d(data, weight, pad='SAME', stride=1):
     """
     Create an extern op that compute data * weight and return result in output
 
@@ -48,6 +48,10 @@ def conv2d(data, weight):
         The input data, format NHWC
     weight: Tensor
         The conv weight, format output_feature * kH * kW * input_feature
+    pad: str
+        Padding method, 'SAME' or 'VALID'
+    stride: int
+        convolution stride
 
     Returns
     -------
@@ -56,9 +60,12 @@ def conv2d(data, weight):
     """
     n, hi, wi, ci = data.shape
     co, kh, kw, ciw = weight.shape
+    padding = 0 if pad == 'SAME' else 1
+    ho = hi // stride
+    wo = wi // stride
 
     return _api.extern(
-        (n, hi, wi, co), [data, weight],
+        (n, ho, wo, co), [data, weight],
         lambda ins, outs: _intrin.call_packed(
-            "tvm.contrib.mps.conv2d", ins[0], ins[1], outs[0]),
+            "tvm.contrib.mps.conv2d", ins[0], ins[1], outs[0], padding, stride),
         name="C")

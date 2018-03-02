@@ -35,11 +35,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
               imageIndex:0];
 
       img->data = (__bridge void *)mpsimg;
-      
-      [mpsimg readBytes: [temp contents]
-              dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
-              imageIndex:0];
-    
+
+      [mpsimg readBytes:[temp contents]
+             dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+             imageIndex:0];
+
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
@@ -69,7 +69,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
       DLTensor *data = args[0];
       DLTensor *weight = args[1];
       DLTensor *output = args[2];
-      // int stride = args[3]; TODO: stride != 1
+      int pad = args[3];
+      int stride = args[4];
 
       CHECK_EQ(data->ndim, 4);
       CHECK_EQ(weight->ndim, 4);
@@ -96,7 +97,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
       id<MTLCommandQueue> queue =
           entry_ptr->metal_api->GetCommandQueue(data->ctx);
       id<MTLCommandBuffer> cb = [queue commandBuffer];
-      // MPSDataType dtype = MPSType::DLTypeToMPSType(data->dtype);
 
       // data to MPSImage
       DLTensor tmp_in;
@@ -120,8 +120,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
                                      kernelHeight:kH
                              inputFeatureChannels:iCh
                             outputFeatureChannels:oCh];
-      // [conv_desc setStrideInPixelsX:stride];
-      // [conv_desc setStrideInPixelsY:stride];
+      [conv_desc setStrideInPixelsX:stride];
+      [conv_desc setStrideInPixelsY:stride];
 
       MPSCNNConvolution *conv =
           [[MPSCNNConvolution alloc] initWithDevice:dev
@@ -129,6 +129,17 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
                                       kernelWeights:ptr_w
                                           biasTerms:nil
                                               flags:MPSCNNConvolutionFlagsNone];
+      if (pad == 0) {
+        conv.padding = [MPSNNDefaultPadding
+            paddingWithMethod:MPSNNPaddingMethodAddRemainderToTopLeft |
+                              MPSNNPaddingMethodAlignCentered |
+                              MPSNNPaddingMethodSizeSame];
+      } else if (pad == 1) {
+        conv.padding = [MPSNNDefaultPadding
+            paddingWithMethod:MPSNNPaddingMethodAddRemainderToTopLeft |
+                              MPSNNPaddingMethodAlignCentered |
+                              MPSNNPaddingMethodSizeValidOnly];
+      }
       [conv encodeToCommandBuffer:cb sourceImage:tempA destinationImage:tempC];
 
       [cb commit];
