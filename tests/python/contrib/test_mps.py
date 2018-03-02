@@ -78,5 +78,6 @@ def test_conv2d():
 
 
 if __name__ == "__main__":
-    test_matmul()
+    #test_matmul()
+    test_conv2d()
 

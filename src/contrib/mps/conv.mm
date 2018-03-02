@@ -34,7 +34,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
               dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
               imageIndex:0];
 
-      img->data = (__bridge void *)([mpsimg retain]);
+      img->data = (__bridge void *)mpsimg;
+      
+      [mpsimg readBytes: [temp contents]
+              dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+              imageIndex:0];
+    
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
@@ -55,18 +60,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
       entry_ptr->metal_api->CopyDataFromTo(
           (__bridge void *)temp, 0, (__bridge void *)mtlbuf, 0, [mtlbuf length],
           buf->ctx, buf->ctx, nullptr);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.test_copy")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      DLTensor *a = args[0];
-      DLTensor *b = args[1];
-      auto f_buf2img = runtime::Registry::Get("tvm.contrib.mps.buffer2img");
-      auto f_img2buf = runtime::Registry::Get("tvm.contrib.mps.img2buffer");
-      DLTensor tmp;
-      DLTensor *img = &tmp;
-      (*f_buf2img)(a, img);
-      (*f_img2buf)(img, b);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
