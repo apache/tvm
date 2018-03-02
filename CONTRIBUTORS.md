@@ -37,3 +37,4 @@ List of Contributors
 - [Masahiro Masuda](https://github.com/masahi)
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
+- [Chris Nuernberger](https://github.com/cnuernber)
