@@ -297,7 +297,22 @@ def test_rank_zero():
     check_llvm(64)
 
 
+def test_alignment():
+    n = tvm.convert(1024)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda i: A[i] * 3, name='B')
+    s = tvm.create_schedule(B.op)
+    bx, tx = s[B].split(B.op.axis[0], factor=8)
+    s[B].vectorize(tx)
+    f = tvm.build(s, [A, B], "llvm")
+
+    for l in f.get_source().split("\n"):
+        if "align" in l and "4 x float" in l:
+            assert "align 32" in l
+
+
 if __name__ == "__main__":
+    test_alignment()
     test_rank_zero()
     test_llvm_bool()
     test_llvm_persist_parallel()
