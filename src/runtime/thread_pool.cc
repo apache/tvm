@@ -17,11 +17,12 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
+#if defined(__linux__)
 #include <sched.h>
-//#include <iostream>
+#endif
 //#include <chrono>
 
-//thread_local std::chrono::steady_clock::time_point t1, t2, t3, t4;
+std::chrono::steady_clock::time_point t1, t2, t3, t4;
 namespace tvm {
 namespace runtime {
 
@@ -71,12 +72,6 @@ class ParallelLauncher {
     cv_.wait(lock, [this] {
         return num_pending_ == 0;
       });
-    //t4 = std::chrono::steady_clock::now();
-    //long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
-    //long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t3 - t2).count());
-    //long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t3).count());
-    //std::cout<<i2<<" "<<i3<<std::endl;
-    //std::cout<<d1<<" "<<d2<<" "<<d3<<std::endl;
     if (!has_error_) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
@@ -283,8 +278,10 @@ class ThreadPool {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
-    //t2 = std::chrono::steady_clock::now();
-    return launcher->WaitForJobs();
+    t2 = std::chrono::steady_clock::now();
+    int res = launcher->WaitForJobs();
+    t3 = std::chrono::steady_clock::now();
+    return res;
   }
 
   static ThreadPool* Global() {
@@ -304,11 +301,13 @@ class ThreadPool {
       threads_[i] = std::thread([this, i] {
           this->RunWorker(queues_[i].get());
         });
+#if defined(__linux__)
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
-      int rc = pthread_setaffinity_np(threads_[i].native_handle(),
+      pthread_setaffinity_np(threads_[i].native_handle(),
                                     sizeof(cpu_set_t), &cpuset);
+#endif
     }
   }
   // Internal worker function.
@@ -339,9 +338,15 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
-  //t1 = std::chrono::steady_clock::now();
-  return tvm::runtime::ThreadPool::Global()->Launch(
+  t1 = std::chrono::steady_clock::now();
+  int res = tvm::runtime::ThreadPool::Global()->Launch(
       flambda, cdata, num_task, 1);
+  t4 = std::chrono::steady_clock::now();
+  long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
+  long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t3 - t2).count());
+  long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t3).count());
+  LOG(INFO) << d1 << " " << d2 << " " << d3;
+  return res;
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
