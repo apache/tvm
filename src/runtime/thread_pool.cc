@@ -69,6 +69,7 @@ class ParallelLauncher {
   // Wait n jobs to finish
   int WaitForJobs() {
     std::unique_lock<std::mutex> lock(mutex_);
+    if (num_pending_ == 0) t3 = std::chrono::steady_clock::now();
     cv_.wait(lock, [this] {
         return num_pending_ == 0;
       });
@@ -280,7 +281,6 @@ class ThreadPool {
     }
     t2 = std::chrono::steady_clock::now();
     int res = launcher->WaitForJobs();
-    t3 = std::chrono::steady_clock::now();
     return res;
   }
 
