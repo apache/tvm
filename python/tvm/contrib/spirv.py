@@ -2,7 +2,7 @@
 import subprocess
 import os
 from . import util
-
+from .._ffi.base import py_str
 
 def optimize(spv_bin):
     """Optimize SPIRV using spirv-opt via CLI
@@ -37,7 +37,7 @@ def optimize(spv_bin):
 
     if proc.returncode != 0:
         msg = "Opitmizationerror using spirv-opt:\n"
-        msg += str(out)
+        msg += py_str(out)
         raise RuntimeError(msg)
 
     return bytearray(open(tmp_out, "rb").read())

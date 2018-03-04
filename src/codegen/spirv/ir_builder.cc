@@ -159,7 +159,8 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
     return GetConst_(dtype, reinterpret_cast<uint64_t*>(&value));
   } else if (dtype.type.bits() == 32) {
     float fvalue = static_cast<float>(value);
-    uint64_t data =  reinterpret_cast<uint32_t*>(&fvalue)[0];
+    uint32_t* ptr = reinterpret_cast<uint32_t*>(&fvalue);
+    uint64_t data = ptr[0];
     return GetConst_(dtype, &data);
   } else {
     CHECK_EQ(dtype.type.bits(), 16);

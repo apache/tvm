@@ -2,6 +2,7 @@
 import numpy as np
 import tvm
 import topi
+import topi.testing
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 

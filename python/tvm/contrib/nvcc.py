@@ -72,7 +72,7 @@ def compile_cuda(code,
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)
 
     return bytearray(open(file_target, "rb").read())

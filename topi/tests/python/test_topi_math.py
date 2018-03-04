@@ -1,6 +1,7 @@
 import numpy as np
 import tvm
 import topi
+import topi.testing
 from topi import util
 
 

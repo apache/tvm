@@ -99,7 +99,7 @@ class Target(object):
                 self.libs += libs.split(",")
             elif item.startswith("-device="):
                 self.device_name = item.split("=")[1]
-        # Target query searchs device name first
+        # Target query searches device name first
         if self.device_name:
             self.keys = (self.device_name,)
         else:
@@ -122,7 +122,7 @@ class Target(object):
         elif target_name in ("opengl",):
             self.keys += ("opengl",)
         elif target_name in ("stackvm", "ext_dev"):
-            # Do not now class for stacvm or ext_dev
+            # Do not now class for stackvm or ext_dev
             pass
         else:
             raise ValueError("Unknown target name %s" % target_name)
