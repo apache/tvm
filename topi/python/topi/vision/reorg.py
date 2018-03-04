@@ -1,7 +1,6 @@
 """
 REORG Operator
 ====================
-**Author**: `Siju Samuel <https://github.com/siju-samuel/>`_
 Reorg operator, used in darknet.
 """
 from __future__ import absolute_import as _abs

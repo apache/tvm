@@ -34,6 +34,8 @@ def shortcut_python(a_np1, a_np2):
     minh = min(in_height1, in_height2)
     minc = min(in_channel1, in_channel2)
 
+    for i in range((batch1*in_channel1*in_height1*in_width1)):
+        b_np[i] = a_np1_temp[i]
     for b in range(batch1):
         for k in range(minc):
             for j in range(minh):
