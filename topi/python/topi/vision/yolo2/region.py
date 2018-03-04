@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name, unused-variable
 """
 REGION Operator
 ====================
