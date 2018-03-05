@@ -184,7 +184,7 @@ class ParallelTaskQueue {
    * \param timeout The number of cycles to spin before sleep.
    * \return Whether pop is successful or we need to exit now.
    */
-  bool Pop(Task* task, int timeout = 10) {
+  bool Pop(Task* task, uint32_t timeout = 100000) {
     std::unique_lock<std::mutex> lock(mutex_);
     if (num_pending_ != 0) {
       *task = ring_[head_];
@@ -194,7 +194,7 @@ class ParallelTaskQueue {
     } else {
       lock.unlock();
       // do a bit spin and busy waiting before sleep.
-      for (int i = 0; i < timeout && num_pending_ == 0; ++i) {
+      for (uint32_t i = 0; i < timeout && num_pending_ == 0; ++i) {
         std::this_thread::yield();
       }
       lock.lock();
