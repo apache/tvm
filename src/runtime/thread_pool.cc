@@ -345,7 +345,7 @@ int TVMBackendParallelLaunch(
   long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
   long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t3 - t2).count());
   long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t3).count());
-  LOG(INFO) << d1 << " " << d2 << " " << d3;
+  LOG_EVERY_N(INFO, 1000) << d1 << " " << d2 << " " << d3;
   return res;
 }
 
