@@ -23,10 +23,9 @@ def schedule_reorg(outs):
     target = tvm.target.current_target()
     if target.target_name == "cuda" and "cublas" in target.libs:
         return generic.schedule_extern(outs)
-
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
-    def _schedule(Reorg):
+    def _schedule_reorg(Reorg):
         num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
         bx, tx = s[Reorg].split(Reorg.op.axis[0], factor=num_thread)
         s[Reorg].bind(bx, tvm.thread_axis("blockIdx.x"))
@@ -47,12 +46,13 @@ def schedule_reorg(outs):
         # schedule reorg
         elif OP.tag == 'reorg':
             Reorg = OP.output(0)
-            _schedule(Reorg)
+            _schedule_reorg(Reorg)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
     _traverse(outs[0].op)
     return s
 
+@generic.schedule_shortcut.register(["cuda", "gpu"])
 def schedule_shortcut(outs):
     """Schedule for shortcut operator.
 
@@ -71,7 +71,7 @@ def schedule_shortcut(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
-    def _schedule(Shortcut):
+    def _schedule_shortcut(Shortcut):
         num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
         if Shortcut.op in s.outputs:
             Out = Shortcut
@@ -96,12 +96,13 @@ def schedule_shortcut(outs):
                     _traverse(tensor.op)
         elif OP.tag == 'shortcut':
             Shortcut = OP.output(0)
-            _schedule(Shortcut)
+            _schedule_shortcut(Shortcut)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
     _traverse(outs[0].op)
     return s
 
+@generic.schedule_region.register(["cuda", "gpu"])
 def schedule_region(outs):
     """Schedule for region operator.
     Parameters
@@ -116,8 +117,8 @@ def schedule_region(outs):
 
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
-
-    def _schedule(Softmax):
+    Out = outs[0].op.output(0)
+    def _schedule_softmax(Softmax):
         num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
         softmax = Softmax.input_tensors[0]
         max_elem = Softmax.input_tensors[1]
@@ -138,29 +139,22 @@ def schedule_region(outs):
         s[Softmax].bind(tx, thread_x)
         return max_elem.op.input_tensors[0]
 
-    def _sigmoid(OP):
-        sigmoid_out = OP.input_tensors[0]
-        num_thread = 64
-        k = OP.axis[0]
-        bx, tx = s[OP].split(k, factor=num_thread)
-        s[OP].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[OP].bind(tx, tvm.thread_axis("threadIdx.x"))
-
     def _traverse(OP):
         if tag.is_injective(OP.tag):
             if OP not in s.outputs:
-                if OP.tag in ("elemwise",):
-                    _sigmoid(OP)
-                else:
-                    s[OP].compute_inline()
+                s[OP].compute_inline()
             for tensor in OP.input_tensors:
                 if tensor.op.input_tensors:
                     _traverse(tensor.op)
         elif OP.tag == 'softmax_output':
-            tensor = _schedule(OP)
+            tensor = _schedule_softmax(OP)
             if tensor.op.input_tensors:
                 _traverse(tensor.op)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
     _traverse(outs[0].op)
+    k = Out.op.axis[0]
+    bx, tx = s[Out].split(k, factor=64)
+    s[Out].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[Out].bind(tx, tvm.thread_axis("threadIdx.x"))
     return s

@@ -7,7 +7,7 @@ def entry_index(batch, w, h, outputs, classes, coords, location, entry):
     loc = location%(w*h)
     return batch*outputs + n*w*h*(coords+classes+1) + entry*w*h + loc
 
-def region_python(a_np, N, classes, coords, background, _):
+def region_python(a_np, N, classes, coords, background, softmax):
     """Region operator
     Parameters
     ----------
@@ -25,6 +25,9 @@ def region_python(a_np, N, classes, coords, background, _):
 
     background : int
         Darknet layer parameter background
+
+    softmax : int
+        Darknet layer parameter softmax
 
     Returns
     -------
@@ -45,6 +48,8 @@ def region_python(a_np, N, classes, coords, background, _):
             index = entry_index(b, in_width, in_height, outputs, classes, coords, n*in_width*in_height, coords)
             if not background:
                 b_np[index: index+in_width*in_height] = 1/(1+np.exp(-1*b_np[index: index+in_width*in_height]))
+
+    b_np = np.reshape(b_np, (batch, in_channel, in_height, in_width))
     def local_softmax(data_in):
         data_c, data_h, data_w = data_in.shape
         largest = np.max(data_in, axis=1)
@@ -54,12 +59,11 @@ def region_python(a_np, N, classes, coords, background, _):
                 data_out[:, i, j] = np.exp(data_in[:, i, j] - largest[i, j])
         return data_out/data_out.sum(axis=0)
 
-    index = coords + int(not background)
-    b_np = np.reshape(b_np, (batch, in_channel, in_height, in_width))
-
-    for b in range(batch):
-        for i in range(N):
-            b_np_index = int(i*(in_channel/N) + index)
-            b_np[b, b_np_index: b_np_index + classes, :, :] = local_softmax(b_np[b, b_np_index:b_np_index + classes, :, :])
+    if softmax:
+        index = coords + int(not background)
+        for b in range(batch):
+            for i in range(N):
+                b_np_index = int(i*(in_channel/N) + index)
+                b_np[b, b_np_index: b_np_index + classes+background, :, :] = local_softmax(b_np[b, b_np_index:b_np_index + classes+background, :, :])
 
     return b_np
