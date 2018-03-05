@@ -182,6 +182,11 @@ class Server(object):
                  use_popen=False,
                  exclusive=False,
                  key=""):
+        try:
+            if _ServerLoop is None:
+                raise RuntimeError("Please compile with USE_RPC=1")
+        except NameError:
+            raise RuntimeError("Please compile with USE_RPC=1")
         self.host = host
         self.port = port
         self.libs = []
