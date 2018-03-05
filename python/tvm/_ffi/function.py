@@ -280,15 +280,22 @@ def _get_api(f):
         return flocal(*args)
     return my_api_func
 
-def _init_api(namespace):
+def _init_api(namespace, target_module_name=None):
     """Initialize api for a given module name
 
-    mod : str
-       The name of the module.
+    namespace : str
+       The namespace of the source registry
+
+    target_module_name : str
+       The target module name if different from namespace
     """
-    assert namespace.startswith("tvm.")
-    prefix = namespace[4:]
-    _init_api_prefix(namespace, prefix)
+    target_module_name = (
+        target_module_name if target_module_name else namespace)
+    if namespace.startswith("tvm."):
+        _init_api_prefix(target_module_name, namespace[4:])
+    else:
+        _init_api_prefix(target_module_name, namespace)
+
 
 def _init_api_prefix(module_name, prefix):
     module = sys.modules[module_name]

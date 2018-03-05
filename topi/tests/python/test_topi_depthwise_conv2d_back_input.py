@@ -5,6 +5,7 @@ from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
 from topi.util import get_const_tuple
 from topi.nn.util import get_pad_tuple
+import topi.testing
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
 
 
