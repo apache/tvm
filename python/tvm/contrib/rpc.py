@@ -186,7 +186,7 @@ class Server(object):
             if _ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
         except NameError:
-                raise RuntimeError("Please compile with USE_RPC=1")
+            raise RuntimeError("Please compile with USE_RPC=1")
         self.host = host
         self.port = port
         self.libs = []
