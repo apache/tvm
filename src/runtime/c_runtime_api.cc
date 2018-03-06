@@ -413,19 +413,22 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
   size_t from_size = GetDataSize(from);
   size_t to_size = GetDataSize(to);
   CHECK_EQ(from_size, to_size)
-      << "TVMArrayCopyFromTo: The size must exactly match";
-  TVMContext ctx = from->ctx;
-  if (ctx.device_type == kDLCPU) {
-    ctx = to->ctx;
-  } else {
-    CHECK(to->ctx.device_type == kDLCPU ||
-          to->ctx.device_type == from->ctx.device_type)
-        << "Can not copy across different ctx types directly";
-  }
+    << "TVMArrayCopyFromTo: The size must exactly match";
+
+  CHECK(from->ctx.device_type == to->ctx.device_type
+        || from->ctx.device_type == kDLCPU
+        || to->ctx.device_type == kDLCPU)
+    << "Can not copy across different ctx types directly";
+
+  // Use the context that is *not* a cpu context to get the correct device
+  // api manager.
+  TVMContext ctx = from->ctx.device_type != kDLCPU ? from->ctx : to->ctx;
+
   DeviceAPIManager::Get(ctx)->CopyDataFromTo(
-      from->data, static_cast<size_t>(from->byte_offset),
-      to->data, static_cast<size_t>(to->byte_offset),
-      from_size, from->ctx, to->ctx, stream);
+    from->data, static_cast<size_t>(from->byte_offset),
+    to->data, static_cast<size_t>(to->byte_offset),
+    from_size, from->ctx, to->ctx, stream);
+
   API_END();
 }
 
