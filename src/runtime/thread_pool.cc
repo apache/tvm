@@ -23,7 +23,7 @@
 #include <tvm/runtime/mpmc-bounded-queue.h>
 //#include <chrono>
 
-std::chrono::steady_clock::time_point t1, t2, t3, t4, t5;
+//std::chrono::steady_clock::time_point t1, t2, t3, t4, t5;
 namespace tvm {
 namespace runtime {
 
@@ -278,12 +278,12 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     ParallelTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    t5 = std::chrono::steady_clock::now();
+    //t5 = std::chrono::steady_clock::now();
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->enqueue(tsk);
     }
-    t2 = std::chrono::steady_clock::now();
+    //t2 = std::chrono::steady_clock::now();
     int res = launcher->WaitForJobs();
     return res;
   }
@@ -344,14 +344,14 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
-  t1 = std::chrono::steady_clock::now();
+  //t1 = std::chrono::steady_clock::now();
   int res = tvm::runtime::ThreadPool::Global()->Launch(
       flambda, cdata, num_task, 1);
-  t4 = std::chrono::steady_clock::now();
-  long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
-  long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t2).count());
-  long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t5).count());
-  LOG_EVERY_N(INFO, 1000) << d1 << " " << d2 << " " << d3;
+  //t4 = std::chrono::steady_clock::now();
+  //long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
+  //long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t2).count());
+  //long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t5).count());
+  //LOG_EVERY_N(INFO, 1000) << d1 << " " << d2 << " " << d3;
   return res;
 }
 
