@@ -20,8 +20,6 @@
 #if defined(__linux__)
 #include <sched.h>
 #endif
-#include <tvm/runtime/mpmc-bounded-queue.h>
-//#include <chrono>
 
 //std::chrono::steady_clock::time_point t1, t2, t3, t4, t5;
 namespace tvm {
@@ -136,99 +134,113 @@ class ParallelLauncher {
   std::vector<std::string> par_errors_;
 };
 
-/*! \brief Working queue for each thread */
-class ParallelTaskQueue {
+/*! \brief Single-producer-single-consumer queue for each thread */
+class SPSCTaskQueue {
  public:
-  /*! \brief The task entry */
   struct Task {
     ParallelLauncher* launcher;
     int32_t task_id;
   };
-  ParallelTaskQueue() {
-    ring_.resize(2);
+
+  /*! \brief The task entry */
+  SPSCTaskQueue() :
+    head_(reinterpret_cast<node_t*>(new node_aligned_t)),
+    tail_(head_)
+  {
+    head_->next = NULL;
   }
+
+  ~SPSCTaskQueue()
+  {
+    Task output;
+    while (this->Dequeue(output)) {}
+    delete head_;
+  }
+
+  void Enqueue(const Task& input)
+  {
+    node_t* node = reinterpret_cast<node_t*>(new node_aligned_t);
+    node->data = input;
+    node->next = NULL;
+
+    std::atomic_thread_fence(std::memory_order_acq_rel);
+    head_->next = node;
+    head_ = node;
+      }
+
+  bool Dequeue(Task& output)
+  {
+    std::atomic_thread_fence(std::memory_order_consume);
+    if (!tail_->next) {
+      return false;
+    }
+
+    output = tail_->next->data;
+    std::atomic_thread_fence(std::memory_order_acq_rel);
+    back_ = tail_;
+    tail_ = back_->next;
+
+    delete back_;
+    return true;
+  }
+
+  void Push(const Task& input)
+  {    
+    Enqueue(input);
+    if (pending_.fetch_add(1) == -1) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      //++pending_;
+      cv_.notify_one();
+    }
+  }
+
+  bool Pop(Task& output, uint32_t timeout = 100000) {
+    // busy wait a bit when the queue is empty
+    for (uint32_t i = 0; i < timeout && pending_.load() == 0; ++i) {
+        std::this_thread::yield();
+      }
+    if (pending_.fetch_sub(1) == 0) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      cv_.wait(lock, [this] {
+          return pending_.load() >= 0 || exit_now_.load();
+        });
+    }
+    return Dequeue(output);
+    }
+
   /*!
    * \brief Signal to kill the job.
    */
   void SignalForKill() {
-    std::lock_guard<std::mutex> lock(mutex_);
     exit_now_.store(true);
     cv_.notify_all();
   }
-  /*!
-   * \brief Push task into the queue.
-   * \param task The task to be pushed.
-   */
-  void Push(Task task) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (num_pending_ < ring_.size()) {
-      CHECK_NE(ring_.size(), 0U);
-      ring_[(head_ + num_pending_) % ring_.size()] = task;
-      ++num_pending_;
-    } else {
-      size_t old_size = ring_.size();
-      ring_.resize(old_size * 2);
-      if (head_ + num_pending_ > old_size) {
-        // copy the ring overflow part into the tail.
-        size_t ncopy = head_ + num_pending_ - old_size;
-        memcpy(&ring_[0] + old_size, &ring_[0], ncopy * sizeof(Task));
-      }
-      ring_[(head_ + num_pending_) % ring_.size()] = task;
-      ++num_pending_;
-    }
-    if (nwait_consumer_ != 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
-  }
-  /*!
-   * \brief Pop task from the queue
-   * \param task The task to be poped.
-   * \param timeout The number of cycles to spin before sleep.
-   * \return Whether pop is successful or we need to exit now.
-   */
-  bool Pop(Task* task, uint32_t timeout = 100000) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (num_pending_ != 0) {
-      *task = ring_[head_];
-      head_ = (head_ + 1) % ring_.size();
-      --num_pending_;
-      if (exit_now_.load()) return false;
-    } else {
-      lock.unlock();
-      // do a bit spin and busy waiting before sleep.
-      for (uint32_t i = 0; i < timeout && num_pending_ == 0; ++i) {
-        std::this_thread::yield();
-      }
-      lock.lock();
-      ++nwait_consumer_;
-      cv_.wait(lock, [this] {
-          return num_pending_ != 0 || exit_now_.load();
-        });
-      --nwait_consumer_;
-      *task = ring_[head_];
-      head_ = (head_ + 1) % ring_.size();
-      --num_pending_;
-      if (exit_now_.load()) return false;
-    }
-    return true;
-  }
 
  private:
-  // Number of the elments in the queue
-  uint32_t num_pending_{0};
-  // Queue head
-  uint32_t head_{0};
-  // Number of consumers to wait.
-  uint32_t nwait_consumer_{0};
+
+  struct node_t
+  {
+    node_t* next;
+    Task data;
+  };
+
+  typedef typename std::aligned_storage<sizeof(node_t), \
+    std::alignment_of<node_t>::value>::type node_aligned_t;
+
+  // queue head
+  node_t* head_;
+  // queue tail
+  node_t* tail_;
+  // buffer pointer
+  node_t* back_;
   // internal mutex
   std::mutex mutex_;
   // cv for consumer
   std::condition_variable cv_;
+  // tasks in the queue
+  std::atomic<int> pending_{0};
   // signal for exit now
   std::atomic<bool> exit_now_{false};
-  // The internal ring.
-  std::vector<Task> ring_;
 };
 
 // The thread pool
@@ -253,7 +265,7 @@ class ThreadPool {
     this->Init();
   }
   ~ThreadPool() {
-    for (std::unique_ptr<mpmc_bounded_queue_t<ParallelTaskQueue::Task>>& q : queues_) {
+    for (std::unique_ptr<SPSCTaskQueue>& q : queues_) {
       q->SignalForKill();
     }
     for (std::thread& t : threads_) {
@@ -276,12 +288,12 @@ class ThreadPool {
           << " workers=" << num_workers_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
-    ParallelTaskQueue::Task tsk;
+    SPSCTaskQueue::Task tsk;
     tsk.launcher = launcher;
     //t5 = std::chrono::steady_clock::now();
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
-      queues_[i]->enqueue(tsk);
+      queues_[i]->Push(tsk);
     }
     //t2 = std::chrono::steady_clock::now();
     int res = launcher->WaitForJobs();
@@ -298,7 +310,7 @@ class ThreadPool {
   void Init() {
     for (int i = 0; i < num_workers_; ++i) {
       queues_.emplace_back(
-          std::unique_ptr<mpmc_bounded_queue_t<ParallelTaskQueue::Task>>(new mpmc_bounded_queue_t<ParallelTaskQueue::Task>(2)));
+          std::unique_ptr<SPSCTaskQueue>(new SPSCTaskQueue()));
     }
     threads_.resize(num_workers_);
     for (int i = 0; i < num_workers_; ++i) {
@@ -315,12 +327,13 @@ class ThreadPool {
     }
   }
   // Internal worker function.
-  void RunWorker(mpmc_bounded_queue_t<ParallelTaskQueue::Task>* queue) {
-    ParallelTaskQueue::Task task;
+  void RunWorker(SPSCTaskQueue* queue) {
+    SPSCTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
-    while (1) {
-    while (!queue->dequeue(task) && !queue->exit_now_.load()) {}
-    if (queue->exit_now_.load()) break;
+    //while (1) {
+    //while (!queue->Dequeue(task) && !queue->exit_now_.load()) {}
+    //if (queue->exit_now_.load()) break;
+    while(queue->Pop(task)) {
       CHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
@@ -333,7 +346,7 @@ class ThreadPool {
   }
   // Number of workers
   int num_workers_;
-  std::vector<std::unique_ptr<mpmc_bounded_queue_t<ParallelTaskQueue::Task>> > queues_;
+  std::vector<std::unique_ptr<SPSCTaskQueue> > queues_;
   std::vector<std::thread> threads_;
 };
 
