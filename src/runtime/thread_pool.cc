@@ -21,7 +21,6 @@
 #include <sched.h>
 #endif
 
-//std::chrono::steady_clock::time_point t1, t2, t3, t4, t5;
 namespace tvm {
 namespace runtime {
 
@@ -68,10 +67,7 @@ class ParallelLauncher {
   // Wait n jobs to finish
   int WaitForJobs() {
     std::unique_lock<std::mutex> lock(mutex_);
-    //t3 = std::chrono::steady_clock::now();
     cv_.wait(lock, [this] {
-        //LOG_EVERY_N(INFO, 1000) << num_pending_;
-        //if (num_pending_ > 0) t3 = std::chrono::steady_clock::now();
         return num_pending_ == 0;
       });
     if (!has_error_) return 0;
@@ -134,7 +130,7 @@ class ParallelLauncher {
   std::vector<std::string> par_errors_;
 };
 
-/*! \brief Single-producer-single-consumer queue for each thread */
+/*! \brief Lock-free single-producer-single-consumer queue for each thread */
 class SPSCTaskQueue {
  public:
   struct Task {
@@ -147,16 +143,21 @@ class SPSCTaskQueue {
     head_(reinterpret_cast<node_t*>(new node_aligned_t)),
     tail_(head_)
   {
-    head_->next = NULL;
+    tail_->next = NULL;
   }
 
   ~SPSCTaskQueue()
   {
     Task output;
+    // destroy all tasks before deleting the queue point
     while (this->Dequeue(output)) {}
     delete head_;
   }
 
+  /*!
+   * \brief Lock-free enqueue.
+   * \param input The task to be enqueued.
+   */
   void Enqueue(const Task& input)
   {
     node_t* node = reinterpret_cast<node_t*>(new node_aligned_t);
@@ -164,38 +165,53 @@ class SPSCTaskQueue {
     node->next = NULL;
 
     std::atomic_thread_fence(std::memory_order_acq_rel);
-    head_->next = node;
-    head_ = node;
+    tail_->next = node;
+    tail_ = node;
       }
 
+  /*!
+   * \brief Lock-free dequeue.
+   * \param output The task to be dequeued.
+   * \return whether a task is dequeued.
+   */
   bool Dequeue(Task& output)
   {
     std::atomic_thread_fence(std::memory_order_consume);
-    if (!tail_->next) {
+    if (!head_->next) {
       return false;
     }
 
-    output = tail_->next->data;
+    output = head_->next->data;
     std::atomic_thread_fence(std::memory_order_acq_rel);
-    back_ = tail_;
-    tail_ = back_->next;
+    back_ = head_;
+    head_ = back_->next;
 
     delete back_;
     return true;
   }
 
+  /*!
+   * \brief Push a task into the queue and notify the comsumer if it is on wait.
+   * \param input The task to be dequeued.
+   */
   void Push(const Task& input)
   {    
     Enqueue(input);
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
-      //++pending_;
       cv_.notify_one();
     }
   }
 
+  /*!
+   * \brief Pop a task out of the queue and condition wait if no tasks.
+   * \param output The task to be dequeued.
+   * \param timeout The number of iterations to spin before sleep.
+   * \return Whether pop is successful (true) or we need to exit now (false).
+   */
   bool Pop(Task& output, uint32_t timeout = 100000) {
     // busy wait a bit when the queue is empty
+    // if a new task comes to the queue quickly, this wait avoid the worker from sleeping
     for (uint32_t i = 0; i < timeout && pending_.load() == 0; ++i) {
         std::this_thread::yield();
       }
@@ -209,7 +225,7 @@ class SPSCTaskQueue {
     }
 
   /*!
-   * \brief Signal to kill the job.
+   * \brief Signal to terminate the worker.
    */
   void SignalForKill() {
     exit_now_.store(true);
@@ -224,12 +240,12 @@ class SPSCTaskQueue {
     Task data;
   };
 
-  typedef typename std::aligned_storage<sizeof(node_t), \
-    std::alignment_of<node_t>::value>::type node_aligned_t;
+  typedef std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type \
+    node_aligned_t;
 
-  // queue head
+  // queue head, where one gets a task from the queue
   node_t* head_;
-  // queue tail
+  // queue tail, when one puts a task to the queue
   node_t* tail_;
   // buffer pointer
   node_t* back_;
@@ -290,12 +306,10 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SPSCTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    //t5 = std::chrono::steady_clock::now();
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
-    //t2 = std::chrono::steady_clock::now();
     int res = launcher->WaitForJobs();
     return res;
   }
@@ -317,14 +331,8 @@ class ThreadPool {
       threads_[i] = std::thread([this, i] {
           this->RunWorker(queues_[i].get());
         });
-#if defined(__linux__)
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      CPU_SET(i, &cpuset);
-      pthread_setaffinity_np(threads_[i].native_handle(),
-                                    sizeof(cpu_set_t), &cpuset);
-#endif
     }
+    SetThreadAffinity();
   }
   // Internal worker function.
   void RunWorker(SPSCTaskQueue* queue) {
@@ -344,6 +352,18 @@ class ThreadPool {
       }
     }
   }
+  // bind worker threads to disjoint cores
+  void SetThreadAffinity() {
+    for (int i=0; i < num_workers_; ++i) {
+#if defined(__linux__)
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(i, &cpuset);
+      pthread_setaffinity_np(threads_[i].native_handle(), 
+        sizeof(cpu_set_t), &cpuset);
+#endif
+    }
+  }
   // Number of workers
   int num_workers_;
   std::vector<std::unique_ptr<SPSCTaskQueue> > queues_;
@@ -357,14 +377,8 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
-  //t1 = std::chrono::steady_clock::now();
   int res = tvm::runtime::ThreadPool::Global()->Launch(
       flambda, cdata, num_task, 1);
-  //t4 = std::chrono::steady_clock::now();
-  //long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
-  //long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t2).count());
-  //long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t5).count());
-  //LOG_EVERY_N(INFO, 1000) << d1 << " " << d2 << " " << d3;
   return res;
 }
 
