@@ -133,12 +133,12 @@ class ParallelLauncher {
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
 class SPSCTaskQueue {
  public:
+ /*! \brief The task entry */
   struct Task {
     ParallelLauncher* launcher;
     int32_t task_id;
   };
 
-  /*! \brief The task entry */
   SPSCTaskQueue() :
     head_(reinterpret_cast<node_t*>(new node_aligned_t)),
     tail_(head_)
@@ -338,9 +338,6 @@ class ThreadPool {
   void RunWorker(SPSCTaskQueue* queue) {
     SPSCTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
-    //while (1) {
-    //while (!queue->Dequeue(task) && !queue->exit_now_.load()) {}
-    //if (queue->exit_now_.load()) break;
     while(queue->Pop(task)) {
       CHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
