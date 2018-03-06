@@ -20,9 +20,10 @@
 #if defined(__linux__)
 #include <sched.h>
 #endif
+#include <tvm/runtime/mpmc-bounded-queue.h>
 //#include <chrono>
 
-std::chrono::steady_clock::time_point t1, t2, t3, t4;
+std::chrono::steady_clock::time_point t1, t2, t3, t4, t5;
 namespace tvm {
 namespace runtime {
 
@@ -69,8 +70,10 @@ class ParallelLauncher {
   // Wait n jobs to finish
   int WaitForJobs() {
     std::unique_lock<std::mutex> lock(mutex_);
+    //t3 = std::chrono::steady_clock::now();
     cv_.wait(lock, [this] {
-        if (num_pending_ == 0) t3 = std::chrono::steady_clock::now();
+        //LOG_EVERY_N(INFO, 1000) << num_pending_;
+        //if (num_pending_ > 0) t3 = std::chrono::steady_clock::now();
         return num_pending_ == 0;
       });
     if (!has_error_) return 0;
@@ -250,7 +253,7 @@ class ThreadPool {
     this->Init();
   }
   ~ThreadPool() {
-    for (std::unique_ptr<ParallelTaskQueue>& q : queues_) {
+    for (std::unique_ptr<mpmc_bounded_queue_t<ParallelTaskQueue::Task>>& q : queues_) {
       q->SignalForKill();
     }
     for (std::thread& t : threads_) {
@@ -275,9 +278,10 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     ParallelTaskQueue::Task tsk;
     tsk.launcher = launcher;
+    t5 = std::chrono::steady_clock::now();
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
-      queues_[i]->Push(tsk);
+      queues_[i]->enqueue(tsk);
     }
     t2 = std::chrono::steady_clock::now();
     int res = launcher->WaitForJobs();
@@ -294,7 +298,7 @@ class ThreadPool {
   void Init() {
     for (int i = 0; i < num_workers_; ++i) {
       queues_.emplace_back(
-          std::unique_ptr<ParallelTaskQueue>(new ParallelTaskQueue()));
+          std::unique_ptr<mpmc_bounded_queue_t<ParallelTaskQueue::Task>>(new mpmc_bounded_queue_t<ParallelTaskQueue::Task>(2)));
     }
     threads_.resize(num_workers_);
     for (int i = 0; i < num_workers_; ++i) {
@@ -311,10 +315,12 @@ class ThreadPool {
     }
   }
   // Internal worker function.
-  void RunWorker(ParallelTaskQueue* queue) {
+  void RunWorker(mpmc_bounded_queue_t<ParallelTaskQueue::Task>* queue) {
     ParallelTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
-    while (queue->Pop(&task)) {
+    while (1) {
+    while (!queue->dequeue(task) && !queue->exit_now_.load()) {}
+    if (queue->exit_now_.load()) break;
       CHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
@@ -327,7 +333,7 @@ class ThreadPool {
   }
   // Number of workers
   int num_workers_;
-  std::vector<std::unique_ptr<ParallelTaskQueue> > queues_;
+  std::vector<std::unique_ptr<mpmc_bounded_queue_t<ParallelTaskQueue::Task>> > queues_;
   std::vector<std::thread> threads_;
 };
 
@@ -343,8 +349,8 @@ int TVMBackendParallelLaunch(
       flambda, cdata, num_task, 1);
   t4 = std::chrono::steady_clock::now();
   long d1 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t1).count());
-  long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t3 - t2).count());
-  long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t3).count());
+  long d2 = static_cast<long>(std::chrono::duration<double, std::micro>(t4 - t2).count());
+  long d3 = static_cast<long>(std::chrono::duration<double, std::micro>(t2 - t5).count());
   LOG_EVERY_N(INFO, 1000) << d1 << " " << d2 << " " << d3;
   return res;
 }
