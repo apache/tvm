@@ -42,7 +42,7 @@ def verify_shortcut(batch, in_size, in_channel):
         func(a1, a2, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'cuda']:
         check_device(device)
 
 def test_shortcut():

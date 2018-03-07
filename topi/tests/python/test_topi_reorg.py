@@ -40,11 +40,11 @@ def verify_reorg(batch, in_size, in_channel, stride):
         func(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'cuda']:
         check_device(device)
 
 def test_reorg():
-    verify_reorg(1, 110, 32, 2)
+    verify_reorg(1, 20, 8, 2)
 
 if __name__ == "__main__":
     test_reorg()

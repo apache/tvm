@@ -25,30 +25,32 @@ def schedule_reorg(outs):
         return generic.schedule_extern(outs)
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
-    def _schedule_reorg(Reorg):
+    def _schedule_reorg(reorg_op):
         num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
-        bx, tx = s[Reorg].split(Reorg.op.axis[0], factor=num_thread)
-        s[Reorg].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[Reorg].bind(tx, tvm.thread_axis((0, num_thread), "threadIdx.x"))
-        Out = outs[0].op.output(0)
-        s[Reorg].compute_at(s[Out], s[Out].op.axis[1])
-        tx, xi = s[Out].split(Out.op.axis[0], nparts=num_thread)
-        s[Out].bind(tx, tvm.thread_axis((0, num_thread), "threadIdx.x"))
+        bx, tx = s[reorg_op].split(reorg_op.op.axis[0], factor=num_thread)
+        s[reorg_op].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[reorg_op].bind(tx, tvm.thread_axis((0, num_thread), "threadIdx.x"))
+        output = outs[0].op.output(0)
+        s[reorg_op].compute_at(s[output], s[output].op.axis[1])
+        tx, xi = s[output].split(output.op.axis[0], nparts=num_thread)
+        s[output].bind(tx, tvm.thread_axis((0, num_thread), "threadIdx.x"))
+        s[reorg_op].set_store_predicate(tx.var.equal(0))
+        s[output].set_store_predicate(tx.var.equal(0))
 
-    def _traverse(OP):
+    def _traverse(op):
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_injective(OP.tag):
-            if OP not in s.outputs:
-                s[OP].compute_inline()
-            for tensor in OP.input_tensors:
+        if tag.is_injective(op.tag):
+            if op not in s.outputs:
+                s[op].compute_inline()
+            for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     _traverse(tensor.op)
         # schedule reorg
-        elif OP.tag == 'reorg':
-            Reorg = OP.output(0)
-            _schedule_reorg(Reorg)
+        elif op.tag == 'reorg':
+            reorg_op = op.output(0)
+            _schedule_reorg(reorg_op)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError("Unsupported operator: %s" % op.tag)
     _traverse(outs[0].op)
     return s
 
@@ -71,34 +73,32 @@ def schedule_shortcut(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
-    def _schedule_shortcut(Shortcut):
+    def _schedule_shortcut(shortcut_op):
         num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
-        if Shortcut.op in s.outputs:
-            Out = Shortcut
+        if shortcut_op.op in s.outputs:
+            output = shortcut_op
         else:
-            Out = outs[0].op.output(0)
-            s[Shortcut].compute_at(s[Out], s[Out].op.axis[1])
-        k = Out.op.axis[0]
-        bx, tx = s[Out].split(k, factor=num_thread)
-        s[Out].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[Out].bind(tx, tvm.thread_axis("threadIdx.x"))
+            output = outs[0].op.output(0)
+            s[shortcut_op].compute_at(s[output], s[output].op.axis[1])
+        k = output.op.axis[0]
+        bx, tx = s[output].split(k, factor=num_thread)
+        s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-    def _traverse(OP):
-        print("Traverse OPs:", OP, OP.tag, OP.input_tensors)
-
+    def _traverse(op):
         # inline all one-to-one-mapping operators except the last stage (output)
         # schedule shortcut
-        if tag.is_injective(OP.tag):
-            if OP not in s.outputs:
-                s[OP].compute_inline()
-            for tensor in OP.input_tensors:
+        if tag.is_injective(op.tag):
+            if op not in s.outputs:
+                s[op].compute_inline()
+            for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     _traverse(tensor.op)
-        elif OP.tag == 'shortcut':
-            Shortcut = OP.output(0)
-            _schedule_shortcut(Shortcut)
+        elif op.tag == 'shortcut':
+            shortcut_op = op.output(0)
+            _schedule_shortcut(shortcut_op)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError("Unsupported operator: %s" % op.tag)
     _traverse(outs[0].op)
     return s
 
@@ -110,6 +110,8 @@ def schedule_region(outs):
     outs: Array of Tensor
         The computation graph description of region
         in the format of an array of tensors.
+
+    Returns
     -------
     s: Schedule
         The computation schedule for region.
@@ -117,44 +119,43 @@ def schedule_region(outs):
 
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
-    Out = outs[0].op.output(0)
-    def _schedule_softmax(Softmax):
-        num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
-        softmax = Softmax.input_tensors[0]
-        max_elem = Softmax.input_tensors[1]
-        expsum = Softmax.input_tensors[2]
-        num_thread = 64
+    output = outs[0].op.output(0)
+    num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
+    def _schedule_softmax(softmax_op):
+        softmax = softmax_op.input_tensors[0]
+        max_elem = softmax_op.input_tensors[1]
+        expsum = softmax_op.input_tensors[2]
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
         s[max_elem].bind(max_elem.op.axis[0], block_x)
         k = expsum.op.reduce_axis[0]
         ko, ki = s[expsum].split(k, factor=num_thread)
-        EF = s.rfactor(expsum, ki)
+        ef = s.rfactor(expsum, ki)
         s[expsum].bind(s[expsum].op.axis[0], block_x)
         s[expsum].bind(s[expsum].op.reduce_axis[0], thread_x)
-        s[EF].compute_at(s[expsum], s[expsum].op.reduce_axis[0])
+        s[ef].compute_at(s[expsum], s[expsum].op.reduce_axis[0])
         s[expsum].set_store_predicate(thread_x.var.equal(0))
-        tx, xi = s[Softmax].split(Softmax.axis[1], nparts=num_thread)
-        s[Softmax].bind(Softmax.axis[0], block_x)
-        s[Softmax].bind(tx, thread_x)
+        tx, xi = s[softmax_op].split(softmax_op.axis[1], nparts=num_thread)
+        s[softmax_op].bind(softmax_op.axis[0], block_x)
+        s[softmax_op].bind(tx, thread_x)
         return max_elem.op.input_tensors[0]
 
-    def _traverse(OP):
-        if tag.is_injective(OP.tag):
-            if OP not in s.outputs:
-                s[OP].compute_inline()
-            for tensor in OP.input_tensors:
+    def _traverse(op):
+        if tag.is_injective(op.tag):
+            if op not in s.outputs:
+                s[op].compute_inline()
+            for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     _traverse(tensor.op)
-        elif OP.tag == 'softmax_output':
-            tensor = _schedule_softmax(OP)
+        elif op.tag == 'softmax_output':
+            tensor = _schedule_softmax(op)
             if tensor.op.input_tensors:
                 _traverse(tensor.op)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError("Unsupported operator: %s" % op.tag)
     _traverse(outs[0].op)
-    k = Out.op.axis[0]
-    bx, tx = s[Out].split(k, factor=64)
-    s[Out].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[Out].bind(tx, tvm.thread_axis("threadIdx.x"))
+    k = output.op.axis[0]
+    bx, tx = s[output].split(k, factor=num_thread)
+    s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
     return s
