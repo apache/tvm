@@ -139,55 +139,53 @@ class SPSCTaskQueue {
     int32_t task_id;
   };
 
-  SPSCTaskQueue() :
-    head_(reinterpret_cast<node_t*>(new node_aligned_t)),
-    tail_(head_)
-  {
-    tail_->next = NULL;
+  SPSCTaskQueue(size_t size) :
+    size_(size),
+    mask_(size - 1),
+    buffer_(reinterpret_cast<Task*>(new aligned_t[size_ + 1])), // need one extra element for a guard
+    head_(0),
+    tail_(0) {
+    // make sure it's a power of 2
+    assert((size_ != 0) && ((size_ & (~size_ + 1)) == size_));
   }
 
   ~SPSCTaskQueue()
   {
-    Task output;
-    // destroy all tasks before deleting the queue point
-    while (this->Dequeue(output)) {}
-    delete head_;
+    delete[] buffer_;
   }
 
   /*!
    * \brief Lock-free enqueue.
    * \param input The task to be enqueued.
+   * \return Whether the task is enqueued.
    */
-  void Enqueue(const Task& input)
+  bool Enqueue(const Task& input)
   {
-    node_t* node = reinterpret_cast<node_t*>(new node_aligned_t);
-    node->data = input;
-    node->next = NULL;
+    const size_t head = head_.load(std::memory_order_relaxed);
 
-    std::atomic_thread_fence(std::memory_order_acq_rel);
-    tail_->next = node;
-    tail_ = node;
-      }
+    if (((tail_.load(std::memory_order_acquire) - (head + 1)) & mask_) >= 1) {
+      buffer_[head & mask_] = input;
+      head_.store(head + 1, std::memory_order_release);
+      return true;
+    }
+    return false;
+  }
 
   /*!
    * \brief Lock-free dequeue.
    * \param output The task to be dequeued.
-   * \return whether a task is dequeued.
+   * \return Whether a task is dequeued.
    */
   bool Dequeue(Task& output)
   {
-    std::atomic_thread_fence(std::memory_order_consume);
-    if (!head_->next) {
-      return false;
+    const size_t tail = tail_.load(std::memory_order_relaxed);
+
+    if (((head_.load(std::memory_order_acquire) - tail) & mask_) >= 1) {
+      output = buffer_[tail_ & mask_];
+      tail_.store(tail + 1, std::memory_order_release);
+      return true;
     }
-
-    output = head_->next->data;
-    std::atomic_thread_fence(std::memory_order_acq_rel);
-    back_ = head_;
-    head_ = back_->next;
-
-    delete back_;
-    return true;
+    return false;
   }
 
   /*!
@@ -196,6 +194,9 @@ class SPSCTaskQueue {
    */
   void Push(const Task& input)
   {    
+    while (!Enqueue(input)) {
+      std::this_thread::yield();
+    }
     Enqueue(input);
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -240,15 +241,23 @@ class SPSCTaskQueue {
     Task data;
   };
 
-  typedef std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type \
-    node_aligned_t;
+  typedef std::aligned_storage<sizeof(Task), std::alignment_of<Task>::value>::type \
+    aligned_t;
 
+  const size_t size_;
+  const size_t mask_;
+  Task* const buffer_;
+
+  std::atomic<size_t> head_;
+
+  std::atomic<size_t> tail_;
+  
   // queue head, where one gets a task from the queue
-  node_t* head_;
+  //node_t* head_;
   // queue tail, when one puts a task to the queue
-  node_t* tail_;
+  //node_t* tail_;
   // buffer pointer
-  node_t* back_;
+  //node_t* back_;
   // internal mutex
   std::mutex mutex_;
   // cv for consumer
@@ -324,7 +333,7 @@ class ThreadPool {
   void Init() {
     for (int i = 0; i < num_workers_; ++i) {
       queues_.emplace_back(
-          std::unique_ptr<SPSCTaskQueue>(new SPSCTaskQueue()));
+          std::unique_ptr<SPSCTaskQueue>(new SPSCTaskQueue(4)));
     }
     threads_.resize(num_workers_);
     for (int i = 0; i < num_workers_; ++i) {
