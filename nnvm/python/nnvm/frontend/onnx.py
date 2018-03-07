@@ -235,6 +235,15 @@ def _pad():
             custom_check=lambda attrs: attrs.get('mode') == 'constant')(inputs, attr)
     return _impl
 
+def _sum():
+    def _impl(inputs, attr, params):
+        # Onnx Sum Operator
+        for in_index in range(len(inputs)-1):
+            inputs[in_index+1] = _sym.broadcast_add(inputs[in_index], inputs[in_index+1])
+
+        return inputs[len(inputs)-1]
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -296,7 +305,7 @@ _convert_map = {
     # 'HardSigmoid'
     # 'Max' : this is the elemwise maximum
     # 'Min' : this is the elemwise minimum
-    # 'Sum' : elemwise sum
+    'Sum'           : _sum(),
     # 'Mean'
     # 'Clip'
     # softmax default axis is different in onnx
