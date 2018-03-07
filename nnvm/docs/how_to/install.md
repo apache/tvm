@@ -22,6 +22,7 @@ Note that it is necessary to build TVM with LLVM support to take full benefit of
 ## Contents
 - [Build the Shared Library](#build-the-shared-library)
 - [Python Package Installation](#python-package-installation)
+- [Solution to Installation Error](#solution-to-installation-error)
 
 ## Build the Shared Library
 
@@ -75,3 +76,14 @@ There are several ways to install the package, in all these cases the TVM librar
     #       providing --user flag may trigger error during installation in such case.
     cd python; python setup.py install --user; cd ..
     ```
+
+## Solution to Installation Error
+
+If you encounter the problem while installation process, you can solve by updating submodules to the latest commit set.
+To update submodules to the latest commit set, type the following command.
+
+```bash
+git submodule update --init --recursive
+```
+
+*WARNING: The default commit set in submodule is the recommended setting. Using the latest commit set may lead to another compilation error or something else.*
