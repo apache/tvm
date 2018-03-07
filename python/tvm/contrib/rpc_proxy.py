@@ -70,6 +70,7 @@ class ForwardHandler(object):
         ProxyServerHandler.current.handler_ready(self)
 
     def on_data(self, message):
+        """on data"""
         assert isinstance(message, bytes)
         if self.forward_proxy:
             self.forward_proxy.send_data(message)
@@ -98,6 +99,7 @@ class ForwardHandler(object):
         self.close()
 
     def on_close_event(self):
+        """on close event"""
         assert not self._done
         logging.info("RPCProxy:on_close %s ...", self.name())
         self._done = True
