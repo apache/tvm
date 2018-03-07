@@ -144,8 +144,6 @@ class SPSCTaskQueue {
     buffer_(reinterpret_cast<Task*>(new aligned_t[size_])),
     head_(0),
     tail_(0) {
-    // make sure it's a power of 2
-    //assert((size_ != 0) && ((size_ & (~size_ + 1)) == size_));
   }
 
   ~SPSCTaskQueue()
@@ -160,11 +158,11 @@ class SPSCTaskQueue {
    */
   bool Enqueue(const Task& input)
   {
-    const char head = head_.load(std::memory_order_relaxed);
+    const uint8_t tail = tail_.load(std::memory_order_relaxed);
 
-    if ((tail_.load(std::memory_order_acquire) + 1) % size_ + 1 != head) {
-      buffer_[head] = input;
-      head_.store((head + 1) % size_, std::memory_order_release);
+    if ((tail + 1) % size_ + 1 != (head_.load(std::memory_order_acquire))) {
+      buffer_[tail] = input;
+      tail_.store((tail + 1) % size_, std::memory_order_release);
       return true;
     }
     return false;
@@ -177,11 +175,11 @@ class SPSCTaskQueue {
    */
   bool Dequeue(Task& output)
   {
-    const char tail = tail_.load(std::memory_order_relaxed);
+    const uint8_t head = head_.load(std::memory_order_relaxed);
 
-    if (head_.load(std::memory_order_acquire) != tail) {
-      output = buffer_[tail_];
-      tail_.store((tail + 1) % size_, std::memory_order_release);
+    if (tail_.load(std::memory_order_acquire) != head) {
+      output = buffer_[head];
+      head_.store((head + 1) % size_, std::memory_order_release);
       return true;
     }
     return false;
@@ -243,40 +241,31 @@ class SPSCTaskQueue {
     aligned_t;
 
   typedef char cache_line_pad_t[64];
-  //cache_line_pad_t    _pad0;
-
-  const char size_;
-
-  //cache_line_pad_t    _pad1;
-
+  cache_line_pad_t _pad0;
+  const uint8_t size_;
   Task* const buffer_;
 
-  cache_line_pad_t    _pad2;
-
-  std::atomic<char> head_;
-
-  cache_line_pad_t    _pad3;
-
-  std::atomic<char> tail_;
-  
+  cache_line_pad_t _pad1;
   // queue head, where one gets a task from the queue
-  //node_t* head_;
+  std::atomic<uint8_t> head_;
+
+  cache_line_pad_t _pad2;
   // queue tail, when one puts a task to the queue
-  //node_t* tail_;
-  // buffer pointer
-  //node_t* back_;
+  std::atomic<uint8_t> tail_;
+
+  cache_line_pad_t _pad3;
+  // pending tasks in the queue
+  std::atomic<int8_t> pending_{0};
+
+  cache_line_pad_t _pad4;
+  // signal for exit now
+  std::atomic<bool> exit_now_{false};
+  
+  cache_line_pad_t _pad5;
   // internal mutex
-  cache_line_pad_t    _pad6;
   std::mutex mutex_;
   // cv for consumer
-  //cache_line_pad_t    _pad7;
   std::condition_variable cv_;
-  // tasks in the queue
-  cache_line_pad_t    _pad4;
-  std::atomic<int> pending_{0};
-  // signal for exit now
-  cache_line_pad_t    _pad5;
-  std::atomic<bool> exit_now_{false};
 };
 
 // The thread pool
