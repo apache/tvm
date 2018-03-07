@@ -3,21 +3,16 @@ import numpy as np
 import topi
 from topi.util import get_const_tuple
 import tvm
-from tvm.contrib.pickle_memoize import memoize
-
 def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_softmax):
     '''Verify region operator by comparing outputs from tvm and numpy implementation'''
     in_height = in_width = in_size
 
-    with tvm.target.rasp():
-        A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-        B = topi.vision.yolo2.region(A, n, classes, coords, background, l_softmax)
-        s = topi.generic.vision.schedule_region([B])
+    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
+    B = topi.vision.yolo2.region(A, n, classes, coords, background, l_softmax)
 
     a_shape = get_const_tuple(A.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_region.verify_region")
     def get_ref_data_region():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         b_np = topi.testing.region_python(a_np, n, classes, coords, background, l_softmax)
@@ -31,8 +26,8 @@ def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-
-        ctx = tvm.cpu(0)
+        with tvm.target.create(device):
+            s = topi.generic.vision.schedule_region([B])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         func = tvm.build(s, [A, B], device)

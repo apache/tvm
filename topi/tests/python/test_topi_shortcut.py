@@ -3,23 +3,17 @@ import numpy as np
 import topi
 from topi.util import get_const_tuple
 import tvm
-from tvm.contrib.pickle_memoize import memoize
-
 
 def verify_shortcut(batch, in_size, in_channel):
     '''Verify shortcut operator by comparing outputs from tvm and numpy implementation'''
     in_height = in_width = in_size
 
-    with tvm.target.rasp():
-        A1 = tvm.placeholder((batch, in_channel, in_height, in_width), name='A1')
-        A2 = tvm.placeholder((batch, in_channel, in_height, in_width), name='A2')
-        B = topi.vision.shortcut(A1, A2)
-        s = topi.generic.vision.schedule_shortcut([B])
+    A1 = tvm.placeholder((batch, in_channel, in_height, in_width), name='A1')
+    A2 = tvm.placeholder((batch, in_channel, in_height, in_width), name='A2')
+    B = topi.vision.shortcut(A1, A2)
 
     a_shape = get_const_tuple(A1.shape)
     dtype = A1.dtype
-
-    @memoize("topi.tests.test_topi_reorg.verify_reorg")
     def get_ref_data_shortcut():
         a_np1 = np.random.uniform(size=a_shape).astype(dtype)
         a_np2 = np.random.uniform(size=a_shape).astype(dtype)
@@ -34,7 +28,9 @@ def verify_shortcut(batch, in_size, in_channel):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        ctx = tvm.cpu(0)
+        with tvm.target.create(device):
+            s = topi.generic.vision.schedule_shortcut([B])
+
         a1 = tvm.nd.array(a_np1, ctx)
         a2 = tvm.nd.array(a_np2, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
