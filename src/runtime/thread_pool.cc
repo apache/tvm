@@ -139,14 +139,13 @@ class SPSCTaskQueue {
     int32_t task_id;
   };
 
-  SPSCTaskQueue(size_t size) :
+  SPSCTaskQueue(char size) :
     size_(size),
-    mask_(size - 1),
-    buffer_(reinterpret_cast<Task*>(new aligned_t[size_ + 1])), // need one extra element for a guard
+    buffer_(reinterpret_cast<Task*>(new aligned_t[size_])),
     head_(0),
     tail_(0) {
     // make sure it's a power of 2
-    assert((size_ != 0) && ((size_ & (~size_ + 1)) == size_));
+    //assert((size_ != 0) && ((size_ & (~size_ + 1)) == size_));
   }
 
   ~SPSCTaskQueue()
@@ -161,11 +160,11 @@ class SPSCTaskQueue {
    */
   bool Enqueue(const Task& input)
   {
-    const size_t head = head_.load(std::memory_order_relaxed);
+    const char head = head_.load(std::memory_order_relaxed);
 
-    if (((tail_.load(std::memory_order_acquire) - (head + 1)) & mask_) >= 1) {
-      buffer_[head & mask_] = input;
-      head_.store(head + 1, std::memory_order_release);
+    if ((tail_.load(std::memory_order_acquire) + 1) % size_ + 1 != head) {
+      buffer_[head] = input;
+      head_.store((head + 1) % size_, std::memory_order_release);
       return true;
     }
     return false;
@@ -178,11 +177,11 @@ class SPSCTaskQueue {
    */
   bool Dequeue(Task& output)
   {
-    const size_t tail = tail_.load(std::memory_order_relaxed);
+    const char tail = tail_.load(std::memory_order_relaxed);
 
-    if (((head_.load(std::memory_order_acquire) - tail) & mask_) >= 1) {
-      output = buffer_[tail_ & mask_];
-      tail_.store(tail + 1, std::memory_order_release);
+    if (head_.load(std::memory_order_acquire) != tail) {
+      output = buffer_[tail_];
+      tail_.store((tail + 1) % size_, std::memory_order_release);
       return true;
     }
     return false;
@@ -197,7 +196,6 @@ class SPSCTaskQueue {
     while (!Enqueue(input)) {
       std::this_thread::yield();
     }
-    Enqueue(input);
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
       cv_.notify_one();
@@ -244,13 +242,22 @@ class SPSCTaskQueue {
   typedef std::aligned_storage<sizeof(Task), std::alignment_of<Task>::value>::type \
     aligned_t;
 
-  const size_t size_;
-  const size_t mask_;
+  typedef char cache_line_pad_t[64];
+  //cache_line_pad_t    _pad0;
+
+  const char size_;
+
+  //cache_line_pad_t    _pad1;
+
   Task* const buffer_;
 
-  std::atomic<size_t> head_;
+  cache_line_pad_t    _pad2;
 
-  std::atomic<size_t> tail_;
+  std::atomic<char> head_;
+
+  cache_line_pad_t    _pad3;
+
+  std::atomic<char> tail_;
   
   // queue head, where one gets a task from the queue
   //node_t* head_;
@@ -259,12 +266,16 @@ class SPSCTaskQueue {
   // buffer pointer
   //node_t* back_;
   // internal mutex
+  cache_line_pad_t    _pad6;
   std::mutex mutex_;
   // cv for consumer
+  //cache_line_pad_t    _pad7;
   std::condition_variable cv_;
   // tasks in the queue
+  cache_line_pad_t    _pad4;
   std::atomic<int> pending_{0};
   // signal for exit now
+  cache_line_pad_t    _pad5;
   std::atomic<bool> exit_now_{false};
 };
 
