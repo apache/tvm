@@ -1,5 +1,6 @@
 import tvm
 import topi
+import topi.testing
 import numpy as np
 from scipy import signal
 from topi.util import get_const_tuple

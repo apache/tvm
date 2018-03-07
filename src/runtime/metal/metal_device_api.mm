@@ -96,7 +96,7 @@ MetalWorkspace::~MetalWorkspace() {
 
 void MetalWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mutex);
+  std::lock_guard<std::mutex> lock(this->mutex);
   if (initialized_) return;
   initialized_ = true;
   if (devices.size() != 0) return;
@@ -126,10 +126,18 @@ void* MetalWorkspace::AllocDataSpace(
     TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
   this->Init();
   id<MTLDevice> dev = GetDevice(ctx);
-  // allocate buffer in GPU only mode.
+  // GPU memory only
+  MTLResourceOptions storage_mode = MTLResourceStorageModePrivate;
+  /*
+  #if TARGET_OS_IPHONE
+  storage_mode = MTLResourceStorageModeShared;
+  #else
+  storage_mode = MTLResourceStorageModeManaged;
+  #endif
+  */
   id<MTLBuffer> buf = [
       dev newBufferWithLength:nbytes
-          options:MTLResourceStorageModePrivate];
+          options:storage_mode];
   CHECK(buf != nil);
   return (__bridge void*)([buf retain]);
 }

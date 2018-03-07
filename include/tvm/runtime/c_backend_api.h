@@ -13,7 +13,7 @@
 #include "./c_runtime_api.h"
 
 #ifdef __cplusplus
-TVM_EXTERN_C {
+extern "C" {
 #endif
 
 // Backend related functions.

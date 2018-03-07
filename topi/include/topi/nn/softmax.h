@@ -47,7 +47,7 @@ inline Tensor softmax(const Tensor &x,
     Array<Expr> eval_range;
     int arg_counter = 0;
     for (size_t i = 0; i < ndim; ++i) {
-      if (i == axis)
+      if (static_cast<int>(i) == axis)
         eval_range.push_back(reduce_index);
       else
         eval_range.push_back(indices[arg_counter++]);
@@ -70,7 +70,7 @@ inline Tensor softmax(const Tensor &x,
                         const Array<Var> &indices) {
     Array<Expr> non_reduce_indices;
     for (size_t i = 0; i < ndim; ++i) {
-      if (i != axis)
+      if (static_cast<int>(i) != axis)
         non_reduce_indices.push_back(indices[i]);
     }
     return tvm::exp(x(indices) - max_elem(non_reduce_indices)) /
