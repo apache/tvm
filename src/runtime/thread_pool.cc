@@ -131,7 +131,7 @@ class ParallelLauncher {
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
-class SPSCTaskQueue {
+class SpscTaskQueue {
  public:
  /*! \brief The task entry */
   struct Task {
@@ -139,14 +139,14 @@ class SPSCTaskQueue {
     int32_t task_id;
   };
 
-  SPSCTaskQueue(char size) :
+  SpscTaskQueue(char size) :
     size_(size),
     buffer_(reinterpret_cast<Task*>(new aligned_t[size_])),
     head_(0),
     tail_(0) {
   }
 
-  ~SPSCTaskQueue()
+  ~SpscTaskQueue()
   {
     delete[] buffer_;
   }
@@ -160,7 +160,7 @@ class SPSCTaskQueue {
   {
     const uint8_t tail = tail_.load(std::memory_order_relaxed);
 
-    if ((tail + 1) % size_ + 1 != (head_.load(std::memory_order_acquire))) {
+    if ((tail + 1) % size_ != (head_.load(std::memory_order_acquire))) {
       buffer_[tail] = input;
       tail_.store((tail + 1) % size_, std::memory_order_release);
       return true;
@@ -242,7 +242,9 @@ class SPSCTaskQueue {
 
   typedef char cache_line_pad_t[64];
   cache_line_pad_t _pad0;
+  // size of the queue, the queue can host size_ - 1 items at most
   const uint8_t size_;
+  // pointer to access the item
   Task* const buffer_;
 
   cache_line_pad_t _pad1;
@@ -290,7 +292,7 @@ class ThreadPool {
     this->Init();
   }
   ~ThreadPool() {
-    for (std::unique_ptr<SPSCTaskQueue>& q : queues_) {
+    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
       q->SignalForKill();
     }
     for (std::thread& t : threads_) {
@@ -313,7 +315,7 @@ class ThreadPool {
           << " workers=" << num_workers_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
-    SPSCTaskQueue::Task tsk;
+    SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
     for (int i = 0; i < num_task; ++i) {
       tsk.task_id = i;
@@ -332,8 +334,9 @@ class ThreadPool {
   // Initialize the pool.
   void Init() {
     for (int i = 0; i < num_workers_; ++i) {
+      // The SpscTaskQueue only host ONE item at a time
       queues_.emplace_back(
-          std::unique_ptr<SPSCTaskQueue>(new SPSCTaskQueue(4)));
+          std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue(2)));
     }
     threads_.resize(num_workers_);
     for (int i = 0; i < num_workers_; ++i) {
@@ -344,8 +347,8 @@ class ThreadPool {
     SetThreadAffinity();
   }
   // Internal worker function.
-  void RunWorker(SPSCTaskQueue* queue) {
-    SPSCTaskQueue::Task task;
+  void RunWorker(SpscTaskQueue* queue) {
+    SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
     while(queue->Pop(task)) {
       CHECK(task.launcher != nullptr);
@@ -372,7 +375,7 @@ class ThreadPool {
   }
   // Number of workers
   int num_workers_;
-  std::vector<std::unique_ptr<SPSCTaskQueue> > queues_;
+  std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::vector<std::thread> threads_;
 };
 
