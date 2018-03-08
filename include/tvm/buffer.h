@@ -55,7 +55,7 @@ class Buffer : public NodeRef {
    * \param offset The offset of ptr.
    */
   TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle(),
-                          int content_lanes = 1, int offset = 0) const;
+                          int content_lanes = 1, Expr offset = make_const(Int(32), 0)) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
