@@ -10,13 +10,13 @@
 #include "../../src/runtime/registry.cc"
 #include "../../src/runtime/system_lib_module.cc"
 
-// dummy parallel runtime
+// dummy parallel runtime (for now)
 int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
-  TVMAPISetLastError("Parallel is not (yet) supported in SGX runtime");
-  return -1;
+  TVMParallelGroupEnv env = { nullptr /* sync_handle */, 1 /* num_task */ };
+  return flambda(0 /* task_id */, &env, cdata);
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
