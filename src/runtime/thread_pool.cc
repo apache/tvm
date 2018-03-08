@@ -336,11 +336,10 @@ class ThreadPool {
 #endif
       if (num_workers_ <= num_cores) {
         SetThreadAffinity();
-      }
-      else {
-        LOG(WARNING) << 
-          "The thread affinity cannot be set when the number of workers is larger \
-          than the number of available cores in the system.";
+      } else {
+        LOG(WARNING)
+          << "The thread affinity cannot be set when the number of workers is larger "
+          << "than the number of available cores in the system.";
       }
     }
   }
@@ -363,10 +362,9 @@ class ThreadPool {
   void SetThreadAffinity() {
 #if defined __ANDROID__
   #define CPU_SETSIZE 1024
-  #define __NCPUBITS (8 * sizeof (unsigned long))
-  typedef struct
-  {
-    unsigned long __bits[CPU_SETSIZE / __NCPUBITS];
+  #define __NCPUBITS (8 * sizeof (uint64_t))
+  typedef struct {
+    uint64_t __bits[CPU_SETSIZE / __NCPUBITS];
   } cpu_set_t;
 
   #define CPU_SET(cpu, cpusetp) \
