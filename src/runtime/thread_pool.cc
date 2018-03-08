@@ -21,6 +21,8 @@
 #include <sched.h>
 #endif
 
+#define L1CacheBytes 64
+
 namespace tvm {
 namespace runtime {
 
@@ -139,47 +141,14 @@ class SpscTaskQueue {
     int32_t task_id;
   };
 
-  explicit SpscTaskQueue(char size) :
-    size_(size),
-    buffer_(reinterpret_cast<Task*>(new aligned_t[size_])),
+  SpscTaskQueue() :
+    buffer_(reinterpret_cast<Task*>(new Task[size_])),
     head_(0),
     tail_(0) {
   }
 
   ~SpscTaskQueue() {
     delete[] buffer_;
-  }
-
-  /*!
-   * \brief Lock-free enqueue.
-   * \param input The task to be enqueued.
-   * \return Whether the task is enqueued.
-   */
-  bool Enqueue(const Task& input) {
-    const uint8_t tail = tail_.load(std::memory_order_relaxed);
-
-    if ((tail + 1) % size_ != (head_.load(std::memory_order_acquire))) {
-      buffer_[tail] = input;
-      tail_.store((tail + 1) % size_, std::memory_order_release);
-      return true;
-    }
-    return false;
-  }
-
-  /*!
-   * \brief Lock-free dequeue.
-   * \param output The pointer to task to be dequeued.
-   * \return Whether a task is dequeued.
-   */
-  bool Dequeue(Task* output) {
-    const uint8_t head = head_.load(std::memory_order_relaxed);
-
-    if (tail_.load(std::memory_order_acquire) != head) {
-      *output = buffer_[head];
-      head_.store((head + 1) % size_, std::memory_order_release);
-      return true;
-    }
-    return false;
   }
 
   /*!
@@ -199,13 +168,14 @@ class SpscTaskQueue {
   /*!
    * \brief Pop a task out of the queue and condition wait if no tasks.
    * \param output The pointer to the task to be dequeued.
-   * \param timeout The number of iterations to spin before sleep.
+   * \param spin_count The number of iterations to spin before sleep.
    * \return Whether pop is successful (true) or we need to exit now (false).
    */
-  bool Pop(Task* output, uint32_t timeout = 100000) {
-    // busy wait a bit when the queue is empty
-    // if a new task comes to the queue quickly, this wait avoid the worker from sleeping
-    for (uint32_t i = 0; i < timeout && pending_.load() == 0; ++i) {
+  bool Pop(Task* output, uint32_t spin_count = 300000) {
+    // Busy wait a bit when the queue is empty.
+    // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
+    // The default spin count is set by following the typical omp convention
+    for (uint32_t i = 0; i < spin_count && pending_.load() == 0; ++i) {
         std::this_thread::yield();
       }
     if (pending_.fetch_sub(1) == 0) {
@@ -214,40 +184,58 @@ class SpscTaskQueue {
           return pending_.load() >= 0 || exit_now_.load();
         });
     }
-    return Dequeue(output);
+    if (exit_now_.load())
+      return false;
+    const uint32_t head = head_.load(std::memory_order_relaxed);
+    // sanity check if the queue is empty
+    CHECK(tail_.load(std::memory_order_acquire) != head);
+    *output = buffer_[head];
+    head_.store((head + 1) % size_, std::memory_order_release);
+    return true;
     }
 
   /*!
    * \brief Signal to terminate the worker.
    */
   void SignalForKill() {
+    std::lock_guard<std::mutex> lock(mutex_);
     exit_now_.store(true);
     cv_.notify_all();
   }
 
  private:
-  struct node_t {
-    node_t* next;
-    Task data;
-  };
+  /*!
+   * \brief Lock-free enqueue.
+   * \param input The task to be enqueued.
+   * \return Whether the task is enqueued.
+   */
+  bool Enqueue(const Task& input) {
+    const uint32_t tail = tail_.load(std::memory_order_relaxed);
 
-  typedef std::aligned_storage<sizeof(Task), std::alignment_of<Task>::value>::type \
-    aligned_t;
+    if ((tail + 1) % size_ != (head_.load(std::memory_order_acquire))) {
+      buffer_[tail] = input;
+      tail_.store((tail + 1) % size_, std::memory_order_release);
+      return true;
+    }
+    return false;
+  }
 
-  typedef char cache_line_pad_t[64];
+  // the cache line paddings are used for avoid false sharing between atomic variables
+  typedef char cache_line_pad_t[L1CacheBytes];
   cache_line_pad_t _pad0;
   // size of the queue, the queue can host size_ - 1 items at most
-  const uint8_t size_;
+  // define it as a constant for better compiler optimization
+  const uint32_t size_ = 2;
   // pointer to access the item
   Task* const buffer_;
 
   cache_line_pad_t _pad1;
   // queue head, where one gets a task from the queue
-  std::atomic<uint8_t> head_;
+  std::atomic<uint32_t> head_;
 
   cache_line_pad_t _pad2;
   // queue tail, when one puts a task to the queue
-  std::atomic<uint8_t> tail_;
+  std::atomic<uint32_t> tail_;
 
   cache_line_pad_t _pad3;
   // pending tasks in the queue
@@ -257,7 +245,6 @@ class SpscTaskQueue {
   // signal for exit now
   std::atomic<bool> exit_now_{false};
 
-  cache_line_pad_t _pad5;
   // internal mutex
   std::mutex mutex_;
   // cv for consumer
@@ -330,7 +317,7 @@ class ThreadPool {
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only host ONE item at a time
       queues_.emplace_back(
-          std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue(2)));
+          std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
     }
     threads_.resize(num_workers_);
     for (int i = 0; i < num_workers_; ++i) {
@@ -338,7 +325,24 @@ class ThreadPool {
           this->RunWorker(queues_[i].get());
         });
     }
-    SetThreadAffinity();
+    const char *val = getenv("TVM_BIND_THREADS");
+    if (val == nullptr || atoi(val) == 1) {
+      uint32_t num_cores;
+#if defined(_M_X64) || defined(__x86_64__)
+      // Half to not count hyper threading.
+      num_cores = std::thread::hardware_concurrency() / 2;
+#else
+      num_cores = std::thread::hardware_concurrency();
+#endif
+      if (num_workers_ <= num_cores) {
+        SetThreadAffinity();
+      }
+      else {
+        LOG(WARNING) << 
+          "The thread affinity cannot be set when the number of workers is larger \
+          than the number of available cores in the system.";
+      }
+    }
   }
   // Internal worker function.
   void RunWorker(SpscTaskQueue* queue) {
@@ -357,8 +361,21 @@ class ThreadPool {
   }
   // bind worker threads to disjoint cores
   void SetThreadAffinity() {
+#if defined __ANDROID__
+  #define CPU_SETSIZE 1024
+  #define __NCPUBITS (8 * sizeof (unsigned long))
+  typedef struct
+  {
+    unsigned long __bits[CPU_SETSIZE / __NCPUBITS];
+  } cpu_set_t;
+
+  #define CPU_SET(cpu, cpusetp) \
+    ((cpusetp)->__bits[(cpu)/__NCPUBITS] |= (1UL << ((cpu) % __NCPUBITS)))
+  #define CPU_ZERO(cpusetp) \
+    memset((cpusetp), 0, sizeof(cpu_set_t))
+#endif
     for (int i=0; i < num_workers_; ++i) {
-#if defined(__linux__)
+#if defined __linux__ || defined __ANDROID__
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
