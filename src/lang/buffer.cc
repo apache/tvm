@@ -335,7 +335,7 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           0);
 }
 
-Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, int offset) const {
+Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr offset) const {
   const BufferNode* self = operator->();
   Expr e_dtype;
   Expr extent;
