@@ -2,43 +2,8 @@
 """Schedule for vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
-import topi
 from .. import tag
 from .. import generic
-
-@generic.schedule_reorg.register(["cuda", "gpu"])
-def schedule_reorg(outs):
-    """Schedule for reorg operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of reorg
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for reorg.
-    """
-    return topi.cuda.schedule_injective(outs)
-
-@generic.schedule_shortcut.register(["cuda", "gpu"])
-def schedule_shortcut(outs):
-    """Schedule for shortcut operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of shortcut
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for shortcut.
-    """
-    return topi.cuda.schedule_injective(outs)
 
 @generic.schedule_region.register(["cuda", "gpu"])
 def schedule_region(outs):
@@ -58,7 +23,8 @@ def schedule_region(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     output = outs[0].op.output(0)
-    num_thread = 64#tvm.target.current_target(allow_none=False).max_num_threads
+    #thread = 64 for higher size tensors, give resource_unavailable error for higher values
+    num_thread = 64
     def _schedule_softmax(softmax_op):
         softmax = softmax_op.input_tensors[0]
         max_elem = softmax_op.input_tensors[1]
