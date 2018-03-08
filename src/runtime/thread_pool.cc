@@ -133,21 +133,20 @@ class ParallelLauncher {
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
 class SpscTaskQueue {
  public:
- /*! \brief The task entry */
+  /*! \brief The task entry */
   struct Task {
     ParallelLauncher* launcher;
     int32_t task_id;
   };
 
-  SpscTaskQueue(char size) :
+  explicit SpscTaskQueue(char size) :
     size_(size),
     buffer_(reinterpret_cast<Task*>(new aligned_t[size_])),
     head_(0),
     tail_(0) {
   }
 
-  ~SpscTaskQueue()
-  {
+  ~SpscTaskQueue() {
     delete[] buffer_;
   }
 
@@ -156,8 +155,7 @@ class SpscTaskQueue {
    * \param input The task to be enqueued.
    * \return Whether the task is enqueued.
    */
-  bool Enqueue(const Task& input)
-  {
+  bool Enqueue(const Task& input) {
     const uint8_t tail = tail_.load(std::memory_order_relaxed);
 
     if ((tail + 1) % size_ != (head_.load(std::memory_order_acquire))) {
@@ -170,15 +168,14 @@ class SpscTaskQueue {
 
   /*!
    * \brief Lock-free dequeue.
-   * \param output The task to be dequeued.
+   * \param output The pointer to task to be dequeued.
    * \return Whether a task is dequeued.
    */
-  bool Dequeue(Task& output)
-  {
+  bool Dequeue(Task* output) {
     const uint8_t head = head_.load(std::memory_order_relaxed);
 
     if (tail_.load(std::memory_order_acquire) != head) {
-      output = buffer_[head];
+      *output = buffer_[head];
       head_.store((head + 1) % size_, std::memory_order_release);
       return true;
     }
@@ -189,8 +186,7 @@ class SpscTaskQueue {
    * \brief Push a task into the queue and notify the comsumer if it is on wait.
    * \param input The task to be dequeued.
    */
-  void Push(const Task& input)
-  {    
+  void Push(const Task& input) {
     while (!Enqueue(input)) {
       std::this_thread::yield();
     }
@@ -202,11 +198,11 @@ class SpscTaskQueue {
 
   /*!
    * \brief Pop a task out of the queue and condition wait if no tasks.
-   * \param output The task to be dequeued.
+   * \param output The pointer to the task to be dequeued.
    * \param timeout The number of iterations to spin before sleep.
    * \return Whether pop is successful (true) or we need to exit now (false).
    */
-  bool Pop(Task& output, uint32_t timeout = 100000) {
+  bool Pop(Task* output, uint32_t timeout = 100000) {
     // busy wait a bit when the queue is empty
     // if a new task comes to the queue quickly, this wait avoid the worker from sleeping
     for (uint32_t i = 0; i < timeout && pending_.load() == 0; ++i) {
@@ -230,9 +226,7 @@ class SpscTaskQueue {
   }
 
  private:
-
-  struct node_t
-  {
+  struct node_t {
     node_t* next;
     Task data;
   };
@@ -262,7 +256,7 @@ class SpscTaskQueue {
   cache_line_pad_t _pad4;
   // signal for exit now
   std::atomic<bool> exit_now_{false};
-  
+
   cache_line_pad_t _pad5;
   // internal mutex
   std::mutex mutex_;
@@ -350,7 +344,7 @@ class ThreadPool {
   void RunWorker(SpscTaskQueue* queue) {
     SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
-    while(queue->Pop(task)) {
+    while (queue->Pop(&task)) {
       CHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
@@ -368,7 +362,7 @@ class ThreadPool {
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
-      pthread_setaffinity_np(threads_[i].native_handle(), 
+      pthread_setaffinity_np(threads_[i].native_handle(),
         sizeof(cpu_set_t), &cpuset);
 #endif
     }
