@@ -223,10 +223,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     }
   } else {
     std::ostringstream stride_null_err_msg;
-    stride_err_msg << arg_name << ".strides:"
-                   << " expected non-null strides.";
-    asserts_.emplace_back(AssertStmt::make(Not::make(is_null), stride_err_msg.str(), nop));
-    init_nest.emplace_back( AssertStmt::make( 
+    stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
+    asserts_.emplace_back(AssertStmt::make(Not::make(is_null), stride_null_err_msg.str(), nop));
+
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';
