@@ -29,7 +29,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.vision.schedule_reorg([B])
+            s = topi.generic.schedule_injective([B])
 
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

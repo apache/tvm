@@ -29,7 +29,7 @@ def verify_shortcut(batch, in_size, in_channel):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.vision.schedule_shortcut([B])
+            s = topi.generic.schedule_injective([B])
 
         a1 = tvm.nd.array(a_np1, ctx)
         a2 = tvm.nd.array(a_np2, ctx)
