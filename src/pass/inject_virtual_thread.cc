@@ -418,7 +418,8 @@ class VTInjector : public IRMutator {
     // reset the flags after processing.
     vt_loop_injected_ = false;
     visit_touched_var_ = false;
-    if (max_loop_depth_ == 0) {
+    // only unroll if number of vthreads are small
+    if (max_loop_depth_ == 0 && num_threads_ < 16) {
       // do unrolling if it is inside innermost content.
       Stmt blk = Substitute(stmt, {{var_, make_zero(var_.type())}});
       for (int i = 1; i < num_threads_; ++i) {
