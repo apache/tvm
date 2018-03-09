@@ -21,7 +21,7 @@
 #include <sched.h>
 #endif
 
-#define L1CacheBytes 64
+const constexpr int kL1CacheBytes = 64;
 
 namespace tvm {
 namespace runtime {
@@ -142,7 +142,7 @@ class SpscTaskQueue {
   };
 
   SpscTaskQueue() :
-    buffer_(reinterpret_cast<Task*>(new Task[size_])),
+    buffer_(new Task[kRingSize]),
     head_(0),
     tail_(0) {
   }
@@ -184,15 +184,16 @@ class SpscTaskQueue {
           return pending_.load() >= 0 || exit_now_.load();
         });
     }
-    if (exit_now_.load())
+    if (exit_now_.load(std::memory_order_relaxed)) {
       return false;
+    }
     const uint32_t head = head_.load(std::memory_order_relaxed);
     // sanity check if the queue is empty
     CHECK(tail_.load(std::memory_order_acquire) != head);
     *output = buffer_[head];
-    head_.store((head + 1) % size_, std::memory_order_release);
+    head_.store((head + 1) % kRingSize, std::memory_order_release);
     return true;
-    }
+  }
 
   /*!
    * \brief Signal to terminate the worker.
@@ -212,36 +213,36 @@ class SpscTaskQueue {
   bool Enqueue(const Task& input) {
     const uint32_t tail = tail_.load(std::memory_order_relaxed);
 
-    if ((tail + 1) % size_ != (head_.load(std::memory_order_acquire))) {
+    if ((tail + 1) % kRingSize != (head_.load(std::memory_order_acquire))) {
       buffer_[tail] = input;
-      tail_.store((tail + 1) % size_, std::memory_order_release);
+      tail_.store((tail + 1) % kRingSize, std::memory_order_release);
       return true;
     }
     return false;
   }
 
   // the cache line paddings are used for avoid false sharing between atomic variables
-  typedef char cache_line_pad_t[L1CacheBytes];
-  cache_line_pad_t _pad0;
+  typedef char cache_line_pad_t[kL1CacheBytes];
+  cache_line_pad_t pad0_;
   // size of the queue, the queue can host size_ - 1 items at most
   // define it as a constant for better compiler optimization
-  const uint32_t size_ = 2;
+  static constexpr const int kRingSize = 2;
   // pointer to access the item
   Task* const buffer_;
 
-  cache_line_pad_t _pad1;
+  cache_line_pad_t pad1_;
   // queue head, where one gets a task from the queue
   std::atomic<uint32_t> head_;
 
-  cache_line_pad_t _pad2;
+  cache_line_pad_t pad2_;
   // queue tail, when one puts a task to the queue
   std::atomic<uint32_t> tail_;
 
-  cache_line_pad_t _pad3;
+  cache_line_pad_t pad3_;
   // pending tasks in the queue
   std::atomic<int8_t> pending_{0};
 
-  cache_line_pad_t _pad4;
+  cache_line_pad_t pad4_;
   // signal for exit now
   std::atomic<bool> exit_now_{false};
 
@@ -327,14 +328,7 @@ class ThreadPool {
     }
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
-      uint32_t num_cores;
-#if defined(_M_X64) || defined(__x86_64__)
-      // Half to not count hyper threading.
-      num_cores = std::thread::hardware_concurrency() / 2;
-#else
-      num_cores = std::thread::hardware_concurrency();
-#endif
-      if (num_workers_ <= num_cores) {
+      if (num_workers_ <= std::thread::hardware_concurrency()) {
         SetThreadAffinity();
       } else {
         LOG(WARNING)
@@ -360,7 +354,7 @@ class ThreadPool {
   }
   // bind worker threads to disjoint cores
   void SetThreadAffinity() {
-#if defined __ANDROID__
+#if defined(__ANDROID__)
   #define CPU_SETSIZE 1024
   #define __NCPUBITS (8 * sizeof (uint64_t))
   typedef struct {
@@ -373,7 +367,7 @@ class ThreadPool {
     memset((cpusetp), 0, sizeof(cpu_set_t))
 #endif
     for (int i=0; i < num_workers_; ++i) {
-#if defined __linux__ || defined __ANDROID__
+#if defined(__linux__) || defined(__ANDROID__)
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
