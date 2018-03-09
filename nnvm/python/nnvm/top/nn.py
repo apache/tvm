@@ -182,8 +182,10 @@ def compute_upsampling(attrs, inputs, _):
     """Compute definition of upsampling"""
     scale = attrs.get_int("scale")
     layout = attrs["layout"]
-    assert layout == "NCHW" or layout == "NHWC"
-    return topi.nn.upsampling(inputs[0], scale, layout)
+    if layout:
+        assert layout == "NCHW" or layout == "NHWC"
+        return topi.nn.upsampling(inputs[0], scale, layout)
+    return topi.nn.upsampling(inputs[0], scale)
 
 @reg.register_schedule("upsampling")
 def schedule_upsampling(_, outs, target):
