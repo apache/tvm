@@ -1,7 +1,7 @@
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
-import topi
+import topi.testing
 import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
