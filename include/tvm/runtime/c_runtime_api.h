@@ -320,7 +320,7 @@ typedef void (*TVMPackedCFuncFinalizer)(void* resource_handle);
  *  TVM call this function to get the extension functions
  *  The declarer will call register_func to register function and their name.
  *
- * \param resource_func_handle The register function
+ * \param register_func_handle The register function
  * \return 0 if success, -1 if failure happens
  */
 typedef int (*TVMExtensionFuncDeclarer)(TVMFunctionHandle register_func_handle);

@@ -57,7 +57,7 @@ class GraphRuntime : public ModuleNode {
   }
   /*!
    * \brief Initialize the graph executor with graph and context.
-   * \param graph The execution graph.
+   * \param graph_json The execution graph.
    * \param module The module containing the compiled functions.
    * \param ctx The context where the graph should sit on
    */
@@ -94,7 +94,7 @@ class GraphRuntime : public ModuleNode {
   /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
-   * \param data The input data.
+   * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
