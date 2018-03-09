@@ -231,4 +231,3 @@ def popen_test_rpc(host,
     cmd += ["test"]
 
     return XCodeRPCServer(cmd, lock)
-
