@@ -5,6 +5,7 @@ from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
 from topi.util import get_const_tuple
 from topi.nn.util import get_pad_tuple
+import topi.testing
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
 
 
@@ -32,11 +33,11 @@ def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multipli
     schedule = schedule_depthwise_conv2d_backward_input_nhwc(In_grad)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        ctx = tvm.context(device, 0)
         # build the kernel
         f = tvm.build(schedule, [Filter, Out_grad, In_grad], device)
         # prepare pod type for test data closure
@@ -85,6 +86,7 @@ def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multipli
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("vulkan")
 
 def test_topi_depthwise_conv2d_backward_input_nhwc():
     verify_depthwise_conv2d_back_input(16, 256, 56, 1, 3, 1, 1)

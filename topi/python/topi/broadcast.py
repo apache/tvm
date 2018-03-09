@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .import tag
-from .util import get_const_tuple, equal_const_int
+from .util import get_const_tuple, equal_const_int, get_const_int
 
 def _get_bcast_info(original_shape, target_shape):
     """Get the broadcasting info.
@@ -106,6 +106,7 @@ def broadcast_to(data, shape):
                 indices_tuple.append(0)
         return data[tuple(indices_tuple)]
     original_shape = data.shape
+    shape = [get_const_int(i) for i in shape]
     bcast_info = _get_bcast_info(original_shape=original_shape, target_shape=shape)
     ret = tvm.compute(shape,
                       lambda *indices: _bcast_to_arg_eval(data,

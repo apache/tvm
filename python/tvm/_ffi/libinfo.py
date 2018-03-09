@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import sys
 import os
-import warnings
+
 
 def find_lib_path(name=None, search_path=None, optional=False):
     """Find dynamic library files.
@@ -91,9 +91,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
                    str('\n'.join(lib_dll_path + runtime_dll_path)))
         if not optional:
             raise RuntimeError(message)
-        else:
-            warnings.warn(message)
-            return None
+        return None
 
     if use_runtime:
         sys.stderr.write("Loading runtime library %s... exec only\n" % lib_found[0])
@@ -102,4 +100,4 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
 
 # current version
-__version__ = "0.1.0"
+__version__ = "0.2.0"

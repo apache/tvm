@@ -3,6 +3,7 @@ import os
 import numpy as np
 import tvm
 import topi
+import topi.testing
 import logging
 from topi.util import get_const_tuple
 
@@ -17,20 +18,21 @@ def verify_softmax(m, n):
     b_np = topi.testing.softmax_python(a_np)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_softmax(B)
-        ctx = tvm.context(device, 0)
+
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         foo = tvm.build(s, [A, B], device, name="softmax")
         foo(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
 def test_softmax():
@@ -48,20 +50,20 @@ def verify_log_softmax(m, n):
     b_np = topi.testing.log_softmax_python(a_np)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_softmax(B)
-        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         foo = tvm.build(s, [A, B], device, name="log_softmax")
         foo(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ["cuda", "opencl", "metal", "rocm"]:
+    for device in ["cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 

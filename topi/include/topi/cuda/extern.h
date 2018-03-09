@@ -25,9 +25,9 @@ namespace cuda {
  *
  * \return The schedule given by sch
  */
-Schedule ScheduleOutputForExtern(Target target, Operation op, Schedule sch) {
+inline Schedule ScheduleOutputForExtern(Target target, Operation op, Schedule sch) {
   auto x = op.output(0);
-  auto fused = Fuse(sch[x], sch[x]->op.as<ComputeOpNode>()->axis);
+  auto fused = detail::Fuse(sch[x], sch[x]->op.as<ComputeOpNode>()->axis);
   auto num_thread = target.max_num_threads;
   IterVar bx, tx;
   sch[x].split(fused, num_thread, &bx, &tx);
@@ -45,7 +45,7 @@ Schedule ScheduleOutputForExtern(Target target, Operation op, Schedule sch) {
 *
 * \return A schedule for the op.
 */
-Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
+inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

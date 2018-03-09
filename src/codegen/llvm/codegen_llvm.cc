@@ -9,6 +9,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include "./codegen_llvm.h"
 #include "./codegen_cpu.h"
+#include "../codegen_common.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -338,10 +339,11 @@ void CodeGenLLVM::GetAlignment(Type t,
   }
 
   arith::ModularEntry me = arith::EvalModular(index, align_map_);
+
   int align_bits = t.bits();
   while (align_bits < max_align_bits &&
          me.base % 2  == 0 &&
-         me.coeff %2 == 0) {
+         me.coeff % 2 == 0) {
     me.base =  me.base / 2;
     me.coeff =  me.coeff / 2;
     align_bits *= 2;
@@ -813,13 +815,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Let* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
   Type t = op->type;
-  int alignment, native_bits;
   bool is_volatile = volatile_buf_.count(op->buffer_var.get());
-  GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
   llvm::Value* buffer = MakeValue(op->buffer_var);
   llvm::Value* index = MakeValue(op->index);
 
   if (t.lanes() == 1) {
+    int alignment, native_bits;
+    GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
     llvm::Value* ptr = CreateBufferPtr(t, buffer, index);
     llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, alignment, is_volatile);
     AddAliasInfo(load, op->buffer_var.get(), op->index, t);
@@ -830,6 +832,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
       buffer->getType())->getAddressSpace();
     if (const Ramp* ramp = op->index.as<Ramp>()) {
       if (is_one(ramp->stride)) {
+        int alignment, native_bits;
+        GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
         CHECK_EQ(ramp->lanes, t.lanes());
         llvm::Value* ptr = CreateBufferPtr(
             t.element_of(), buffer, MakeValue(ramp->base));
@@ -884,14 +888,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {
 void CodeGenLLVM::VisitStmt_(const Store* op) {
   CHECK(is_one(op->predicate));
   Type t = op->value.type();
-  int alignment, native_bits;
   bool is_volatile = volatile_buf_.count(op->buffer_var.get());
-  GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
   llvm::Value* buffer = MakeValue(op->buffer_var);
   llvm::Value* index = MakeValue(op->index);
   llvm::Value* value = MakeValue(op->value);
 
   if (t.lanes() == 1) {
+    int alignment, native_bits;
+    GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
     llvm::Value* ptr = CreateBufferPtr(t, buffer, index);
     llvm::StoreInst* store = builder_->CreateAlignedStore(value, ptr, alignment, is_volatile);
     AddAliasInfo(store, op->buffer_var.get(), op->index, op->value.type());
@@ -902,6 +906,8 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
         buffer->getType())->getAddressSpace();
     if (const Ramp* ramp = op->index.as<Ramp>()) {
       if (is_one(ramp->stride)) {
+        int alignment, native_bits;
+        GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
         CHECK_EQ(ramp->lanes, t.lanes());
         llvm::Value* ptr = CreateBufferPtr(
             t.element_of(), buffer, MakeValue(ramp->base));
@@ -1026,31 +1032,9 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
-  // Detect useful invariant pattern and use them to visit child.
-  // Pattern: Var % const  == 0
-  // TODO(tqchen) move these pattern to a generic scope info visitor.
-  if (const EQ* eq = op->condition.as<EQ>()) {
-    const Mod* mod = eq->a.as<Mod>();
-    int64_t factor = 0, offset = 0;
-    if (mod && arith::GetConst(eq->b, &offset)) {
-      const Variable *var = mod->a.as<Variable>();
-      if (var && arith::GetConst(mod->b, &factor)) {
-        arith::ModularEntry old = align_map_[var];
-        if (factor > old.coeff) {
-          arith::ModularEntry e;
-          e.coeff = static_cast<int>(factor);
-          e.base = static_cast<int>(offset);
-          // new alignment info,
-          align_map_[var] = e;
-          this->VisitStmt(op->body);
-          // restore old info
-          align_map_[var] = old;
-          return;
-        }
-      }
-    }
-  }
-  this->VisitStmt(op->body);
+  VisitAssert(op, &align_map_, [this](const Stmt& body) {
+      this->VisitStmt(body);
+    });
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmt* op) {

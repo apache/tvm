@@ -18,10 +18,11 @@
 #ifndef TVM_RUNTIME_C_RUNTIME_API_H_
 #define TVM_RUNTIME_C_RUNTIME_API_H_
 
-#ifdef __cplusplus
-#define TVM_EXTERN_C extern "C"
+// Macros to do weak linking
+#ifdef _MSC_VER
+#define TVM_WEAK __declspec(selectany)
 #else
-#define TVM_EXTERN_C
+#define TVM_WEAK __attribute__((weak))
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -45,7 +46,7 @@
 #include <dlpack/dlpack.h>
 
 #ifdef __cplusplus
-TVM_EXTERN_C {
+extern "C" {
 #endif
 #include <stdint.h>
 #include <stddef.h>
@@ -55,8 +56,8 @@ typedef int64_t tvm_index_t;
 
 /*! \brief Extension device types in TVM */
 typedef enum {
+  kDLVulkan = 7,
   kOpenGL = 11,
-
   // Extension DRAM type, used for quickly test extension device
   // The device api can differ depending on the xpu driver registered.
   kExtDev = 12,
@@ -314,6 +315,17 @@ typedef int (*TVMPackedCFunc)(
 typedef void (*TVMPackedCFuncFinalizer)(void* resource_handle);
 
 /*!
+ * \brief Signature for extension function declarer.
+ *
+ *  TVM call this function to get the extension functions
+ *  The declarer will call register_func to register function and their name.
+ *
+ * \param resource_func_handle The register function
+ * \return 0 if success, -1 if failure happens
+ */
+typedef int (*TVMExtensionFuncDeclarer)(TVMFunctionHandle register_func_handle);
+
+/*!
  * \brief Wrap a TVMPackedCFunc to become a FunctionHandle.
  *
  * The resource_handle will be managed by TVM API, until the function is no longer used.
@@ -426,6 +438,26 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
                                TVMStreamHandle stream);
 
 /*!
+ * \brief Create a new runtime stream.  
+ *
+ * \param device_type The device type of context
+ * \param device_id The device id of context
+ * \param out The new stream handle
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out);
+
+/*!
+ * \brief Free a created stream handle.
+ *
+ * \param device_type The device type of context
+ * \param device_id The device id of context
+ * \param stream The stream to be freed
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream);
+
+/*!
  * \brief Set the runtime stream of current thread to be stream.
  *  The subsequent calls to the same device_type
  *  will use the setted stream handle.
@@ -447,6 +479,20 @@ TVM_DLL int TVMSetStream(int device_type, int device_id, TVMStreamHandle handle)
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream);
+
+/*!
+ * \brief Synchronize two streams of execution.
+ *
+ * \param device_type The device type of context
+ * \param device_id The device id of context
+ * \param src The source stream to synchronize.
+ * \param dst The destination stream to synchronize.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMStreamStreamSynchronize(int device_type,
+                                       int device_id,
+                                       TVMStreamHandle src,
+                                       TVMStreamHandle dst);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

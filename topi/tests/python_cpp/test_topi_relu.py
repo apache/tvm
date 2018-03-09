@@ -5,9 +5,10 @@ import tvm
 import topi
 from topi.util import get_const_tuple
 
-def verify_relu(m, n):
-    A = tvm.placeholder((m, n), name='A')
+def verify_relu(m, n, dtype):
+    A = tvm.placeholder((m, n), name='A', dtype=dtype)
     B = topi.cpp.nn.relu(A)
+    assert B.dtype == dtype
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0)
@@ -51,7 +52,8 @@ def verify_leaky_relu(m, alpha):
 
 
 def test_relu():
-    verify_relu(10, 128)
+    for dtype in ['float32', 'float64', 'int32', 'int16', 'int8', 'int64']:
+        verify_relu(10, 128, dtype)
 
 def test_leaky_relu():
     verify_leaky_relu(100, 0.1)

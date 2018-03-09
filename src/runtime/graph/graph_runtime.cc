@@ -64,7 +64,11 @@ class GraphRuntime : public ModuleNode {
   void Init(const std::string& graph_json,
             tvm::runtime::Module module,
             TVMContext ctx) {
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
     std::istringstream is(graph_json);
+#else
+    std::string is = graph_json;
+#endif
     dmlc::JSONReader reader(&is);
     this->Load(&reader);
     module_ = module;
@@ -138,8 +142,8 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = index;
 
     for (size_t i = 0; i < op_execs_.size(); ++i) {
-      if (static_cast<int>(i) == index) break;
       if (op_execs_[i]) op_execs_[i]();
+      if (static_cast<int>(i) == index) break;
     }
 
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
@@ -198,27 +202,19 @@ class GraphRuntime : public ModuleNode {
       std::string key, value;
       reader->BeginObject();
       while (reader->NextObjectItem(&key)) {
+        reader->Read(&value);
         if (key == "func_name") {
-          reader->Read(&value);
           param->func_name = value;
           bitmask |= 1;
         } else if (key == "num_inputs") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->num_inputs;
+          param->num_inputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 2;
         } else if (key == "num_outputs") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->num_outputs;
+          param->num_outputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 4;
         } else if (key == "flatten_data") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->flatten_data;
+          param->flatten_data = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 8;
-        } else {
-          reader->Read(&value);
         }
       }
       CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
@@ -563,6 +559,9 @@ std::function<void()> GraphRuntime::CreateTVMOp(
       t->ndim = 1;
       t->shape = &(arg_ptr->shape_data[i]);
     }
+  }
+  if (param.func_name == "__nop") {
+    return [](){};
   }
   // get compiled function from module.
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);

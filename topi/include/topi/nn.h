@@ -15,6 +15,7 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+using namespace tvm;
 namespace detail {
 
 template <typename T>
@@ -46,7 +47,10 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
                         std::string tag = kElementWise) {
   return tvm::compute(
       t->shape,
-      [&](const tvm::Array<tvm::Var>& i) { return tvm::max(t(i), threshold); },
+      [&](const tvm::Array<tvm::Var>& i) {
+        auto threshold_const = tvm::make_const(t->dtype, threshold);
+        return tvm::max(t(i), threshold_const);
+      },
       name,
       tag);
 }

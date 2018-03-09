@@ -40,7 +40,8 @@ struct Target {
          int thread_warp_size,
          const std::unordered_set<std::string>& keys,
          const std::vector<std::string>& options,
-         const std::unordered_set<std::string>& libs = {}) :
+         const std::unordered_set<std::string>& libs =
+           std::unordered_set<std::string>()) :
     target_name(target_name),
     device_type(device_type),
     max_num_threads(max_num_threads),
@@ -85,10 +86,13 @@ EXPORT Target stackvm();
 
 }  // namespace target
 
+class BuildConfig;
+
 /*!
 * \brief Container for build configuration options
 */
-struct BuildConfig {
+class BuildConfigNode : public Node {
+ public:
   /*!
    * \brief The data alignment to use when constructing buffers. If this is set to
    * -1, then TVM's internal default will be used
@@ -126,9 +130,30 @@ struct BuildConfig {
   /*! \brief Whether to partition const loop */
   bool partition_const_loop = false;
 
-  BuildConfig() {
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("data_alignment", &data_alignment);
+    v->Visit("offset_factor", &offset_factor);
+    v->Visit("double_buffer_split_loop", &double_buffer_split_loop);
+    v->Visit("auto_unroll_max_step", &auto_unroll_max_step);
+    v->Visit("auto_unroll_max_depth", &auto_unroll_max_depth);
+    v->Visit("auto_unroll_max_extent", &auto_unroll_max_extent);
+    v->Visit("unroll_explicit", &unroll_explicit);
+    v->Visit("restricted_func", &restricted_func);
+    v->Visit("detect_global_barrier", &detect_global_barrier);
+    v->Visit("partition_const_loop", &partition_const_loop);
   }
+
+  static constexpr const char* _type_key = "BuildConfig";
+  TVM_DECLARE_NODE_TYPE_INFO(BuildConfigNode, Node);
 };
+
+TVM_DEFINE_NODE_REF(BuildConfig, BuildConfigNode);
+
+/*!
+* \brief Construct a BuildConfig containing a new BuildConfigNode
+* \return The new BuildConfig
+*/
+EXPORT BuildConfig build_config();
 
 /*!
 * \brief Build a LoweredFunc given a schedule, args and binds

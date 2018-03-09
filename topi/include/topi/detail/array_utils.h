@@ -21,7 +21,7 @@ using namespace tvm;
  * \return True iff the given array contains the given item.
  */
 template<typename T>
-bool contains(Array<T> array, T item) {
+inline bool contains(Array<T> array, T item) {
   for (auto& i : array) {
     if (i == item) {
       return true;

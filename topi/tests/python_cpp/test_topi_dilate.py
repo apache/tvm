@@ -1,5 +1,6 @@
 import tvm
 import topi
+import topi.testing
 import numpy as np
 
 def test_dilate():

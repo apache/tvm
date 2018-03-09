@@ -45,8 +45,8 @@ void OpenCLWorkspace::GetAttr(
       *rv = 1;
       break;
     }
-    case kComputeVersion: return;
-    case kExist: break;
+  case kComputeVersion: return;
+  case kExist: break;
   }
 }
 
@@ -180,7 +180,7 @@ bool MatchPlatformInfo(
 
 void OpenCLWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mu);
+  std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
   initialized_ = true;
   if (context != nullptr) return;

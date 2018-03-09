@@ -7,6 +7,8 @@ from __future__ import absolute_import as _abs
 import warnings
 import types
 
+from ._ffi.node import NodeBase, register_node
+from ._ffi.base import _RUNTIME_ONLY
 from . import api
 from . import tensor
 from . import schedule
@@ -18,18 +20,19 @@ from . import module
 from . import codegen
 from . import ndarray
 from . import target as _target
+from . import make
 
 class DumpIR(object):
-    """Dump IR for each pass.
-       With it, you can dump ir just like gcc/llvm.
+    """
+    Dump IR for each pass.
+    With it, you can dump ir just like gcc/llvm.
 
-       How to use:
-       -----------
-       .. code-block:: python
+    How to use:
+    -----------
+    .. code-block:: python
 
-          with tvm.build_config(dump_pass_ir=True)
-              run()
-
+        with tvm.build_config(dump_pass_ir=True)
+            run()
     """
     scope_level = 0
     def __init__(self):
@@ -37,9 +40,9 @@ class DumpIR(object):
         self._recover_list = []
 
     def decorate(self, func):
-        ''' decorate the pass function'''
+        """ decorate the pass function"""
         def dump(*args, **kwargs):
-            '''dump function'''
+            """dump function"""
             retv = func(*args, **kwargs)
             if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
                 return retv
@@ -56,7 +59,7 @@ class DumpIR(object):
         return dump
 
     def decorate_irpass(self):
-        '''decorate ir_pass and ScheduleOps'''
+        """decorate ir_pass and ScheduleOps"""
         self._old_sgpass = schedule.ScheduleOps
         schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
         vset = vars(ir_pass)
@@ -68,7 +71,7 @@ class DumpIR(object):
             vset[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
 
     def decorate_custompass(self):
-        ''' decorate add_lower_pass pass in BuildConfig'''
+        """ decorate add_lower_pass pass in BuildConfig"""
         cfg = BuildConfig.current
         self._old_custom_pass = cfg.add_lower_pass
         custom_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
@@ -76,7 +79,7 @@ class DumpIR(object):
         BuildConfig.current.add_lower_pass = pass_list
 
     def enter(self):
-        '''only decorate outermost nest'''
+        """only decorate outermost nest"""
         if DumpIR.scope_level > 0:
             return
         self.decorate_irpass()
@@ -85,7 +88,7 @@ class DumpIR(object):
         DumpIR.scope_level += 1
 
     def exit(self):
-        '''recover outermost nest'''
+        """recover outermost nest"""
         if DumpIR.scope_level > 1:
             return
         # recover decorated functions
@@ -95,16 +98,23 @@ class DumpIR(object):
         BuildConfig.current.add_lower_pass = self._old_custom_pass
         DumpIR.scope_level -= 1
 
-class BuildConfig(object):
+@register_node
+class BuildConfig(NodeBase):
     """Configuration scope to set a build config option.
 
-    Parameters
-    ----------
-    kwargs
-        Keyword arguments of configurations to set.
+    Note
+    ----
+    This object is backed by node system in C++, with arguments that can be
+    exchanged between python and C++.
+
+    Do not construct directly, use build_config instead.
+
+    The fields that are backed by the C++ node are immutable once an instance
+    is constructed. See _node_defaults for the fields.
     """
+
     current = None
-    defaults = {
+    _node_defaults = {
         "auto_unroll_max_step": 0,
         "auto_unroll_max_depth": 8,
         "auto_unroll_max_extent": 0,
@@ -114,30 +124,28 @@ class BuildConfig(object):
         "offset_factor": 0,
         "data_alignment": -1,
         "restricted_func": True,
-        "double_buffer_split_loop": 1,
-        "add_lower_pass": None,
-        "dump_pass_ir": False
+        "double_buffer_split_loop": 1
     }
-    def __init__(self, **kwargs):
+
+    # pylint: disable=no-member
+    def __init__(self, handle):
+        """Initialize the function with handle
+
+        Parameters
+        ----------
+        handle : SymbolHandle
+            the handle to the underlying C++ Symbol
+        """
+        super(BuildConfig, self).__init__(handle)
+        self.handle = handle
         self._old_scope = None
         self._dump_ir = DumpIR()
-        for k, _ in kwargs.items():
-            if k not in BuildConfig.defaults:
-                raise ValueError(
-                    "invalid argument %s, candidates are %s" % (k, BuildConfig.defaults.keys()))
-        self._attr = kwargs
-
-    def __getattr__(self, name):
-        if name not in self._attr:
-            return BuildConfig.defaults[name]
-        return self._attr[name]
+        self.dump_pass_ir = False
+        self.add_lower_pass = None
 
     def __enter__(self):
         # pylint: disable=protected-access
         self._old_scope = BuildConfig.current
-        attr = BuildConfig.current._attr.copy()
-        attr.update(self._attr)
-        self._attr = attr
         BuildConfig.current = self
         if self.dump_pass_ir is True:
             self._dump_ir.enter()
@@ -149,8 +157,11 @@ class BuildConfig(object):
             self._dump_ir.exit()
         BuildConfig.current = self._old_scope
 
-
-BuildConfig.current = BuildConfig()
+    def __setattr__(self, name, value):
+        if name in BuildConfig._node_defaults:
+            raise AttributeError(
+                "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
+        return super(BuildConfig, self).__setattr__(name, value)
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -206,8 +217,18 @@ def build_config(**kwargs):
     config: BuildConfig
         The build configuration
     """
-    return BuildConfig(**kwargs)
+    node_args = {k: v if k not in kwargs else kwargs[k]
+                 for k, v in BuildConfig._node_defaults.items()}
+    config = make.node("BuildConfig", **node_args)
 
+    for k in kwargs:
+        if not k in node_args:
+            setattr(config, k, kwargs[k])
+    return config
+
+if not _RUNTIME_ONLY:
+    # BuildConfig is not available in tvm_runtime
+    BuildConfig.current = build_config()
 
 def get_binds(args, binds=None):
     """Internal function to get binds and arg_list given arguments.

@@ -44,6 +44,25 @@ def test_copy_pad():
         return tvm.make.Evaluate(0)
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
+def test_single_point_test():
+    A = tvm.placeholder((1,), name='A')
+    B = tvm.compute((1,), lambda i:
+                    A[i], name='B')
+    s = tvm.create_schedule(B.op)
+    s[B].pragma(B.op.axis[0], "memcpy")
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
+    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    def cb(src, dst, pad_before, pad_after, pad_value):
+        assert tvm.ir_pass.Simplify(src.elem_offset).value == 0
+        assert tvm.ir_pass.Simplify(dst.elem_offset).value == 0
+        assert tvm.ir_pass.Simplify(src.strides[0]).value == 1
+        assert tvm.ir_pass.Simplify(dst.strides[0]).value == 1
+        return tvm.make.Evaluate(0)
+    stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+
 def assert_expr_equal(a, b):
     assert tvm.ir_pass.Simplify(a - b).value == 0
 
@@ -80,3 +99,4 @@ if __name__ == "__main__":
     test_copy2d()
     test_copy_pad()
     test_copy_pad_split()
+    test_single_point_test()

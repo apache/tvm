@@ -27,7 +27,7 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({ A, B, C });
   std::unordered_map<Tensor, Buffer> binds;
 
-  BuildConfig config;
+  auto config = build_config();
   auto target = target::llvm();
 
   auto lowered = lower(s, args, "func", binds, config);

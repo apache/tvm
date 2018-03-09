@@ -16,7 +16,7 @@ using namespace tvm;
 
 namespace x86 {
 /*!
-* \brief Create a default x86 schedule for the given ops.
+* \brief Helper to create a default x86 schedule for the given ops.
 *
 * \param target The target to generate a schedule for.
 * \param outs The output tensors.
@@ -24,7 +24,9 @@ namespace x86 {
 *
 * \return A schedule for the given ops.
 */
-Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool auto_inline) {
+inline Schedule MakeDefaultSchedule(const Target &target,
+                                    const Array<Tensor>& outs,
+                                    bool auto_inline) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -36,7 +38,7 @@ Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool 
   if (auto_inline) {
     tvm::schedule::AutoInlineInjective(s);
     if (axis.size() > 0) {
-      Fuse(s[x], axis);
+      detail::Fuse(s[x], axis);
     }
     return s;
   }
@@ -44,13 +46,37 @@ Schedule default_schedule(const Target &target, const Array<Tensor>& outs, bool 
   if (axis.size() == 4) {
     auto n = axis[0];
     auto c = axis[1];
-    auto fused = Fuse(s[x], { n, c });  // for nhwc layout, fuse n and h
+    auto fused = detail::Fuse(s[x], { n, c });  // for nhwc layout, fuse n and h
     s[x].parallel(fused);
   } else {
     s[x].parallel(axis[0]);
   }
 
   return s;
+}
+
+/*!
+* \brief Create a default x86 schedule for the given ops.
+*
+* \param target The target to generate a schedule for.
+* \param outs The output tensors.
+*
+* \return A schedule for the given ops.
+*/
+inline Schedule default_schedule(const Target &target, const Array<Tensor>& outs) {
+  return MakeDefaultSchedule(target, outs, false);
+}
+
+/*!
+* \brief Create a default x86 schedule for the given ops, with auto inline
+*
+* \param target The target to generate a schedule for.
+* \param outs The output tensors.
+*
+* \return A schedule for the given ops.
+*/
+inline Schedule default_schedule_auto_inline(const Target &target, const Array<Tensor>& outs) {
+  return MakeDefaultSchedule(target, outs, true);
 }
 
 }  // namespace x86

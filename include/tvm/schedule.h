@@ -313,10 +313,12 @@ class Schedule : public NodeRef {
    *
    * \param tensor The tensor to be factored.
    * \param axis The reduction axis in tensor's schedule to be factored.
+   * \param factor_axis The position where the new axis is placed.
    * \return The created factored tensors.
    */
   EXPORT Array<Tensor> rfactor(const Tensor& tensor,
-                        const IterVar& axis);
+                        const IterVar& axis,
+                        int factor_axis = 0);
   /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
@@ -427,6 +429,8 @@ class StageNode : public Node {
   std::string scope;
   /*! \brief Whether this is an output stage */
   bool is_output{false};
+  /*! \brief Whether this is an OpenGL stage */
+  bool is_opengl{false};
   /*! \brief Whether apply double buffer optimization to this stage */
   bool double_buffer{false};
   /*!
@@ -450,6 +454,7 @@ class StageNode : public Node {
     v->Visit("attach_stage", &attach_stage);
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
+    v->Visit("is_opengl", &is_opengl);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);

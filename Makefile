@@ -27,10 +27,12 @@ LLVM_CFLAGS= -fno-rtti -DDMLC_ENABLE_RTTI=0 -DDMLC_USE_FOPEN64=0
 LDFLAGS = -pthread -lm -ldl
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include -IHalideIR/src -Itopi/include
 CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
+PKG_LDFLAGS =
 FRAMEWORKS =
 OBJCFLAGS = -fno-objc-arc
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\
+	-s TOTAL_MEMORY=1073741824\
 	-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap','getValue','setValue','addFunction']"\
 	-s USE_GLFW=3 -s USE_WEBGL2=1 -lglfw\
 	$(INCLUDE_FLAGS)
@@ -55,6 +57,7 @@ CUDA_SRC = $(wildcard src/runtime/cuda/*.cc)
 ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
 OPENGL_SRC = $(wildcard src/runtime/opengl/*.cc)
+VULKAN_SRC = $(wildcard src/runtime/vulkan/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
@@ -68,6 +71,7 @@ CUDA_OBJ = $(patsubst src/%.cc, build/%.o, $(CUDA_SRC))
 ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
 OPENGL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENGL_SRC))
+VULKAN_OBJ = $(patsubst src/%.cc, build/%.o, $(VULKAN_SRC))
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
@@ -79,6 +83,10 @@ CONTRIB_OBJ =
 ALL_DEP = $(CC_OBJ) $(CONTRIB_OBJ) $(LIB_HALIDEIR)
 RUNTIME_DEP = $(RUNTIME_OBJ)
 TOPI_DEP = $(TOPI_OBJ)
+
+ifeq ($(UNAME_S), Darwin)
+	PKG_LDFLAGS += -undefined dynamic_lookup
+endif
 
 # Dependency specific rules
 ifdef CUDA_PATH
@@ -122,6 +130,20 @@ ifeq ($(USE_OPENCL), 1)
 	RUNTIME_DEP += $(OPENCL_OBJ)
 else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
+endif
+
+ifdef VULKAN_SDK
+	CFLAGS += -I$(VULKAN_SDK)/include
+	LDFLAGS += -L$(VULKAN_SDK)/lib
+	LDFLAGS += -L$(VULKAN_SDK)/lib/spirv-tools
+endif
+
+ifeq ($(USE_VULKAN), 1)
+	CFLAGS += -DTVM_VULKAN_RUNTIME=1
+	LDFLAGS += -lvulkan -lSPIRV-Tools
+	RUNTIME_DEP += $(VULKAN_OBJ)
+else
+	CFLAGS += -DTVM_VULKAN_RUNTIME=0
 endif
 
 ifeq ($(USE_OPENGL), 1)
@@ -201,7 +223,10 @@ else
 	JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-cpu
 endif
 
-BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) \
+	lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) \
+  lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
@@ -235,29 +260,18 @@ build/src/%.o: topi/src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libtvm.dylib: $(ALL_DEP) $(RUNTIME_DEP)
+lib/libtvm.${SHARED_LIBRARY_SUFFIX}: $(ALL_DEP) $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm_topi.dylib: lib/libtvm.so $(TOPI_DEP)
+lib/libtvm_topi.${SHARED_LIBRARY_SUFFIX}: $(TOPI_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS) $(PKG_LDFLAGS)
 
-lib/libtvm_runtime.dylib: $(RUNTIME_DEP)
+lib/libtvm_runtime.${SHARED_LIBRARY_SUFFIX}: $(RUNTIME_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-lib/libtvm.so: $(ALL_DEP) $(RUNTIME_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
-
-lib/libtvm_topi.so: lib/libtvm.so $(TOPI_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -L./lib -ltvm -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
-
-lib/libtvm_runtime.so: $(RUNTIME_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(FRAMEWORKS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libtvm_web_runtime.bc: web/web_runtime.cc
 	@mkdir -p build/web

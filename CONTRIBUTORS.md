@@ -26,7 +26,7 @@ and are qualified to lead development and review changes of the owned module.
 - [Aditya Atluri](https://github.com/adityaatluri) ROCM
 - [Leyuan Wang](https://github.com/Laurawly) TOPI
 - [Yuwei Hu](https://github.com/Huyuwei) TOPI
-- [Yizhi Liu](https://github.com/javelinjs) JVM package
+- [Yizhi Liu](https://github.com/yzhliu) JVM package
 
 List of Contributors
 --------------------
@@ -37,3 +37,4 @@ List of Contributors
 - [Masahiro Masuda](https://github.com/masahi)
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
+- [Chris Nuernberger](https://github.com/cnuernber)

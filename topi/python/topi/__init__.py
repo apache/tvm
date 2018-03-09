@@ -12,6 +12,7 @@ from __future__ import absolute_import as _abs
 from tvm._ffi.libinfo import __version__
 
 from .math import *
+from .tensor import *
 from .reduction import *
 from .transform import *
 from .broadcast import *
@@ -20,7 +21,12 @@ from . import x86
 from . import cuda
 from . import rasp
 from . import mali
-from . import testing
+from . import opengl
 from . import util
 from . import rocm
 from . import cpp
+from . import vision
+# not import testing by default
+# because testing can have extra deps that are not necessary
+# we can import them from test cases explicitly
+# from . import testing

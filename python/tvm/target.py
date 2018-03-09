@@ -99,7 +99,7 @@ class Target(object):
                 self.libs += libs.split(",")
             elif item.startswith("-device="):
                 self.device_name = item.split("=")[1]
-        # Target query searchs device name first
+        # Target query searches device name first
         if self.device_name:
             self.keys = (self.device_name,)
         else:
@@ -116,13 +116,13 @@ class Target(object):
             # For now assume rocm schedule for opencl
             self.keys += ("rocm", "gpu")
             self.max_num_threads = 256
-        elif target_name in ("metal",):
-            self.keys += ("gpu",)
+        elif target_name in ("metal", "vulkan"):
+            self.keys += (target_name, "gpu",)
             self.max_num_threads = 256
         elif target_name in ("opengl",):
             self.keys += ("opengl",)
         elif target_name in ("stackvm", "ext_dev"):
-            # Do not now class for stacvm or ext_dev
+            # Do not now class for stackvm or ext_dev
             pass
         else:
             raise ValueError("Unknown target name %s" % target_name)
@@ -212,7 +212,7 @@ def generic_func(fdefault):
                 dispatch_dict[k] = myf
             return myf
         if func:
-            return _do_reg(myf)
+            return _do_reg(func)
         return _do_reg
 
     def dispatch_func(func, *args, **kwargs):
@@ -278,6 +278,17 @@ def mali(options=None):
     opts = ["-device=mali"]
     opts = _merge_opts(opts, options)
     return Target("opencl", opts)
+
+
+def opengl(options=None):
+    """Returns a OpenGL target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    return Target("opengl", options)
 
 
 def create(target_str):

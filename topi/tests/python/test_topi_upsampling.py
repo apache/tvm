@@ -2,6 +2,7 @@
 import numpy as np
 import tvm
 import topi
+import topi.testing
 import math
 
 def verify_upsampling(batch, in_channel, in_height, in_width, scale):
@@ -14,13 +15,13 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale):
     b_np = topi.testing.upsampling_python(a_np, scale)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
-        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -28,7 +29,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale):
 
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda']:
+    for device in ['llvm', 'cuda', 'vulkan']:
         check_device(device)
 
 def test_upsampling():

@@ -483,7 +483,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     // create the function handle
     hptr = new llvm::GlobalVariable(
         *module_, t_tvm_func_handle_, false,
-        llvm::GlobalValue::LinkOnceAnyLinkage, 0, ".tvm_func." + fname);
+        llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
     hptr->setAlignment(align);
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;

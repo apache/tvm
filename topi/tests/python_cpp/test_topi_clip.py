@@ -4,7 +4,6 @@ import tvm
 import topi
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
-from util import make_vector
 
 
 def verify_clip(N, a_min, a_max, dtype):

@@ -320,7 +320,7 @@ TVM_REGISTER_GLOBAL("topi.nn.pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::pool(args[0], args[1], args[2], args[3],
                  static_cast<nn::PoolType>(static_cast<int>(args[4])),
-                 args[5]);
+                 args[5], args[6]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.global_pool")
@@ -332,7 +332,7 @@ TVM_REGISTER_GLOBAL("topi.nn.global_pool")
 /* Ops from nn/softmax.h */
 TVM_REGISTER_GLOBAL("topi.nn.softmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::softmax(args[0]);
+  *rv = nn::softmax(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
@@ -343,7 +343,11 @@ TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
 /* Generic schedules */
 TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::generic::default_schedule(args[0], args[1], args[2]);
+  if (args[2]) {
+    *rv = topi::generic::default_schedule_auto_inline(args[0], args[1]);
+  } else {
+    *rv = topi::generic::default_schedule(args[0], args[1]);
+  }
   });
 
 TVM_REGISTER_GLOBAL("topi.generic.schedule_extern")
@@ -369,7 +373,11 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_binary_dense")
 
 TVM_REGISTER_GLOBAL("topi.x86.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::default_schedule(args[0], args[1], args[2]);
+  if (args[2]) {
+    *rv = topi::x86::default_schedule_auto_inline(args[0], args[1]);
+  } else {
+    *rv = topi::x86::default_schedule(args[0], args[1]);
+  }
   });
 
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")

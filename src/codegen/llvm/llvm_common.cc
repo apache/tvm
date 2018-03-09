@@ -24,7 +24,7 @@ struct LLVMEnv {
 void InitializeLLVM() {
   LLVMEnv* e = LLVMEnv::Global();
   if (!e->all_initialized) {
-    std::lock_guard<std::mutex>(e->mu);
+    std::lock_guard<std::mutex> lock(e->mu);
     if (!e->all_initialized) {
       e->all_initialized = true;
       llvm::InitializeAllTargetInfos();
@@ -85,7 +85,7 @@ void ParseLLVMTargetOptions(const std::string& target_str,
       } else {
         LOG(FATAL) << "invalid -mfloat-abi option " << value;
       }
-    } else if (key == "-device" || key == "-libs") {
+    } else if (key == "-device" || key == "-libs" || key == "-model") {
       // pass
     } else {
       LOG(FATAL) << "unknown option " << key;

@@ -82,6 +82,8 @@ def conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
         return conv2d_nchw(data, kernel, stride, padding, out_dtype)
     elif layout == 'HWCN':
         return conv2d_hwcn(data, kernel, stride, padding, out_dtype)
+    elif layout == 'NHWC':
+        return conv2d_nhwc(data, kernel, stride, padding, out_dtype)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
