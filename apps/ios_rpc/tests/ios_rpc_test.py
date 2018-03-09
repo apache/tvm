@@ -82,6 +82,5 @@ def test_rpc_module():
     cost = time_f(a, b).mean
     print('%g secs/op' % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-    server.join()
 
 test_rpc_module()
