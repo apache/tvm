@@ -128,6 +128,10 @@ ifeq ($(USE_OPENCL), 1)
 		LDFLAGS += -lOpenCL
 	endif
 	RUNTIME_DEP += $(OPENCL_OBJ)
+ifdef OPENCL_PATH
+        CFLAGS += -I$(OPENCL_PATH)/include
+        LDFLAGS += -L$(OPENCL_PATH)/lib
+endif
 else
 	CFLAGS += -DTVM_OPENCL_RUNTIME=0
 endif
