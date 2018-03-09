@@ -328,6 +328,15 @@ class Schedule(NodeBase):
         factored = _api_internal._ScheduleRFactor(self, tensor, axis, factor_axis)
         return factored[0] if len(factored) == 1 else factored
 
+    def autotensorize(self, tensor_intrin):
+        """Tensorize all matching computations with tensor_intrin
+
+        Parameters
+        ----------
+        tensor_intrin : TensorIntrin
+            The tensor intrinsic used for computation.
+        """
+        _api_internal._ScheduleAutoTensorize(self, tensor_intrin)
 
 @register_node
 class Stage(NodeBase):
