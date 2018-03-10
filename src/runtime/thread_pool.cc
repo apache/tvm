@@ -39,12 +39,12 @@ class ParallelLauncher {
             void* cdata,
             int num_task,
             bool need_sync) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    num_pending_ = num_task;
+    //std::lock_guard<std::mutex> lock(mutex_);
+    num_pending_.store(num_task);
     this->cdata = cdata;
     this->flambda = flambda;
     this->env.num_task = num_task;
-    has_error_ = false;
+    has_error_.store(false);
     // reshape
     if (static_cast<size_t>(num_task) > par_errors_.size()) {
       par_errors_.resize(num_task + 1);
@@ -68,11 +68,14 @@ class ParallelLauncher {
   }
   // Wait n jobs to finish
   int WaitForJobs() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] {
-        return num_pending_ == 0;
-      });
-    if (!has_error_) return 0;
+    //std::unique_lock<std::mutex> lock(mutex_);
+    //cv_.wait(lock, [this] {
+    //    return num_pending_ == 0;
+    //  });
+    while (num_pending_.load() != 0) {
+      std::this_thread::yield();
+    }
+    if (!has_error_.load()) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
@@ -85,23 +88,24 @@ class ParallelLauncher {
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    --num_pending_;
+    //std::unique_lock<std::mutex> lock(mutex_);
+    num_pending_.fetch_sub(1);
     par_errors_[task_id] = TVMGetLastError();
-    has_error_ = true;
-    if (num_pending_ == 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    has_error_.store(true);
+    //if (num_pending_ == 0) {
+    //  lock.unlock();
+    //  cv_.notify_one();
+    //}
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    --num_pending_;
-    if (num_pending_ == 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    //std::unique_lock<std::mutex> lock(mutex_);
+    num_pending_.fetch_sub(1);
+    //--num_pending_;
+    //if (num_pending_ == 0) {
+    //  lock.unlock();
+    //  cv_.notify_one();
+    //}
   }
   // Get thread local version of the store.
   static ParallelLauncher* ThreadLocal() {
@@ -119,13 +123,13 @@ class ParallelLauncher {
 
  private:
   // The mutex to access local env.
-  std::mutex mutex_;
+  //std::mutex mutex_;
   // The conditional variable.
-  std::condition_variable cv_;
+  //std::condition_variable cv_;
   // The pending jobs.
-  uint32_t num_pending_;
+  std::atomic<int32_t> num_pending_;
   // Whether error has been countered.
-  bool has_error_;
+  std::atomic<bool> has_error_;
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
@@ -366,15 +370,21 @@ class ThreadPool {
   #define CPU_ZERO(cpusetp) \
     memset((cpusetp), 0, sizeof(cpu_set_t))
 #endif
-    for (int i=0; i < num_workers_; ++i) {
 #if defined(__linux__) || defined(__ANDROID__)
+    for (int i=0; i < num_workers_; ++i) {
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
       pthread_setaffinity_np(threads_[i].native_handle(),
         sizeof(cpu_set_t), &cpuset);
-#endif
     }
+    // bind the master thread to core 0
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(num_workers_, &cpuset);
+    pthread_setaffinity_np(pthread_self(),
+      sizeof(cpu_set_t), &cpuset);
+#endif
   }
   // Number of workers
   int num_workers_;
