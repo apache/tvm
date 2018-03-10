@@ -596,7 +596,11 @@ PackedFunc GraphRuntime::GetFunction(
       });
   } else if (name == "get_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->GetInput(args[0], args[1]);
+        if (args[0].type_code() == kStr) {
+          this->GetInput(this->GetInputIndex(args[0]), args[1]);
+        } else {
+          this->GetInput(args[0], args[1]);
+        }
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {
