@@ -204,7 +204,7 @@ class SpscTaskQueue {
     cv_.notify_all();
   }
 
- private:
+ protected:
   /*!
    * \brief Lock-free enqueue.
    * \param input The task to be enqueued.
