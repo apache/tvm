@@ -173,6 +173,48 @@ NNVM_REGISTER_PASS(GraphFusePartition)
 .depend_graph_attr("shape")
 .depend_graph_attr("dtype");
 
+
+// Decorate the result of PlanMemory
+// This function does two things:
+// - Give separate memory to each variable
+// - Tie the memory of output/lhs in assign node properly
+//   so the execution of assign can have side effect.
+nnvm::Graph DecorateMemoryPlan(
+    nnvm::Graph g,
+    const std::vector<int>& assign_flag) {
+  // setup ref counter
+  const IndexedGraph& idx = g.indexed_graph();
+  StorageVector storage_vec = g.MoveCopyAttr<StorageVector>("storage_id");
+  g.attrs.erase("storage_allocated_bytes");
+  g.attrs.erase("storage_inplace_index");
+  size_t num_not_allocated = g.MoveCopyAttr<size_t>(
+      "storage_num_not_allocated");
+  CHECK_EQ(num_not_allocated, 0U)
+      << "Can only build inference graph with all statically allocated memory";
+
+  // reassign variable id so that they are different.
+  int max_id = 0;
+  for (size_t i = 0; i < storage_vec.size(); ++i) {
+    max_id = std::max(storage_vec[i] + 1, max_id);
+  }
+  for (uint32_t nid : idx.input_nodes()) {
+    storage_vec[idx.entry_id(nid, 0)] = max_id++;
+  }
+  // tie up the assign node storage properly
+  for (uint32_t nid = 0 ; nid < idx.num_nodes(); ++nid) {
+    if (assign_flag[nid] == 0) continue;
+    const auto& inode = idx[nid];
+    int var_storage_id = storage_vec[idx.entry_id(inode.inputs[0])];
+    storage_vec[idx.entry_id(nid, 0)] = var_storage_id;
+
+    if (assign_flag[nid] == 2) {
+      storage_vec[idx.entry_id(inode.inputs[1])] = var_storage_id;
+    }
+  }
+  g.attrs["storage_id"] = std::make_shared<any>(std::move(storage_vec));
+  return g;
+}
+
 struct INodeEntryHash {
   size_t operator()(const IndexedGraph::NodeEntry& e) const {
     return e.node_id;
@@ -218,8 +260,12 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
       g.GetAttr<std::vector<TOpPattern> >("pattern");
   std::string target = g.GetAttr<std::string>("target");
   std::string target_host;
-  if (g.HasAttr("target_host"))
+
+  if (g.HasAttr("target_host")) {
     target_host = g.GetAttr<std::string>("target_host");
+  }
+  // specially handle assign
+  const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
   std::vector<FuseEntry> fuse_vec(idx.num_nodes());
   // setup inputs and placeholder.
@@ -229,7 +275,8 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
     CHECK_GE(group_vec[nid], 0);
     int root_id = group_vec[nid];
     FuseEntry& fe = fuse_vec[root_id];
-    fe.flatten_data = (pattern_vec[root_id] == kElemWise);
+    fe.flatten_data = (pattern_vec[root_id] == kElemWise ||
+                       inode.source->op() == assign_op);
     for (const auto& e : inode.inputs) {
       if (group_vec[e.node_id] != root_id && fe.imap.count(e) == 0) {
         Array<Expr> shape;
@@ -331,8 +378,9 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
       }
     }
   }
-  // Rebuild the fused graph
+
   const nnvm::Op* tvm_op = nnvm::Op::Get("tvm_op");
+
   std::unordered_map<uint32_t, nnvm::NodePtr> old_new;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
@@ -345,6 +393,8 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
     }
     int root_id = group_vec[nid];
     if (static_cast<int>(nid) != root_id) continue;
+
+    // Handle normal op
     FuseEntry& fe = fuse_vec[root_id];
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     nnvm::NodePtr np = nnvm::Node::Create();
@@ -385,13 +435,48 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
         nnvm::NodeEntry{it->second, e.index, e.version});
   }
 
+  // Reference counter of each op node
+  // For now, always store result when an op is referred more than once.
+  std::vector<uint32_t> ref_count = GetNodeRefCounts(idx);
+  for (const auto& e : idx.outputs()) {
+    // this line will realize all the outputs
+    ref_count[e.node_id] += 1;
+  }
+
   const IndexedGraph& new_idx = ret.indexed_graph();
+
+  // Handling assign:
+  //
+  //  assign is a special operator that mutates the variable.
+  //  Currently assign is implemented as output = copy(input[1])
+  //  Then we run DecorageMemoryPlan to force
+  //  output.storage = input[0].storage
+  //
+  std::vector<int> assign_flag(new_idx.num_nodes(), 0);
   ShapeVector new_shape_vec = ShapeVector(new_idx.num_node_entries(), TShape());
   DTypeVector new_dtype_vec = DTypeVector(new_idx.num_node_entries());
   std::vector<std::string> new_dltype_vec(new_idx.num_node_entries());
+
   for (const auto& kv : old_new) {
     uint32_t nid = kv.first;
     const auto& inode = idx[nid];
+    uint32_t new_nid = new_idx.node_id(kv.second.get());
+    if (inode.source->op() == assign_op) {
+      // Check if rhs of assign can be comute inplace
+      // If yes, we can simply set that memory to be assign target
+      // and change assign to nop
+      const IndexedGraph::NodeEntry& rhs = inode.inputs[1];
+      if (ref_count[rhs.node_id] <= 1 &&
+          !(idx[rhs.node_id].source->is_variable()) &&
+          pattern_vec[group_vec[rhs.node_id]] <= kBroadcast) {
+        assign_flag[new_nid] = 2;
+        TVMOpParam& param = dmlc::get<TVMOpParam>(kv.second->attrs.parsed);
+        param.func_name = "__nop";
+        param.UpdateDict(&(kv.second->attrs.dict));
+      } else {
+        assign_flag[new_nid] = 1;
+      }
+    }
     for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
       uint32_t new_eid = new_idx.entry_id(new_idx.node_id(kv.second.get()), i);
       uint32_t old_eid = idx.entry_id(nid, i);
@@ -409,6 +494,7 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
   tvm::runtime::Module module = fbuild(func_list, target, target_host);
   ret.attrs["module"] = std::make_shared<any>(std::move(module));
   ret = nnvm::ApplyPass(ret, "PlanMemory");
+  ret = DecorateMemoryPlan(ret, assign_flag);
   return ret;
 }
 

@@ -42,6 +42,12 @@ _fschedule_injective = tvm.convert(_schedule_injective)
 _fschedule_broadcast = _fschedule_injective
 _fschedule_elemwise = _fschedule_injective
 
+# Assign requires special treatment in the compiler
+# The compute and schedule are designed as
+# copy from rhs to output
+reg.register_pattern("_assign", OpPattern.OPAQUE)
+reg.register_schedule("_assign", _fschedule_broadcast)
+
 # copy
 reg.register_pattern("copy", OpPattern.ELEMWISE)
 reg.register_schedule("copy", _fschedule_broadcast)

@@ -224,10 +224,11 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
     for (auto rit = eids.rbegin(); rit != eids.rend(); ++rit) {
         uint32_t eid = rit->second;
         auto sid = allocator->Request(dev_id, dtype_vec[eid], shape_vec[eid], nid);
-        storage_ref_count[sid] = entry_ref_count[eid];
+        if (sid >= 0) {
+          storage_ref_count[sid] = entry_ref_count[eid];
+        }
         storage[eid] = sid;
     }
-
     // check if certain inputs is ignored.
     static auto& fignore_inputs = Op::GetAttr<FIgnoreInputs>("FIgnoreInputs");
     std::vector<uint32_t> ignore_inputs;
@@ -330,6 +331,7 @@ Graph PlanMemory(Graph ret) {
       AllocMemory(ret, idx, node_range, &storage_vec, &storage_inplace_index,
                   ref_count, &allocator);
     size_t storage_allocated_bytes = allocator.TotalAllocBytes();
+
     // Choose the plan which leads to minimal memory usage
     if (min_allocated_bytes > storage_allocated_bytes) {
       ret.attrs["storage_id"] = std::make_shared<any>(std::move(storage_vec));
