@@ -546,7 +546,7 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
       bias = nullptr;
     } else {
       bias_val = args[2];
-      bias = &bias_val;
+      bias = bias_val.defined() ? &bias_val : nullptr;
     }
 
     *ret = builder(*target, data, weight, bias);

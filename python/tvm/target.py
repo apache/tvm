@@ -200,7 +200,7 @@ def get_generic_func(name):
     func : GenericFunc
         The generic function for the given name
     """
-    return _api_internal._GenericFuncGet(name)
+    return _api_internal._GenericFuncGetGlobal(name)
 
 def register_generic_func(func, name):
     """Store a GenericFunc in the global registry. If the
@@ -215,7 +215,7 @@ def register_generic_func(func, name):
         The name to store the generic function under
 
     """
-    _api_internal._GenericFuncAddToRegistry(func, name)
+    _api_internal._GenericFuncRegisterGlobal(func, name)
 
 def generic_func(fdefault):
     """Wrap a target generic function.

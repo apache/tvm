@@ -481,7 +481,7 @@ TVM_REGISTER_API("_GenericFuncCreate")
   *ret = GenericFunc(std::make_shared<GenericFuncNode>());
   });
 
-TVM_REGISTER_API("_GenericFuncAddToRegistry")
+TVM_REGISTER_API("_GenericFuncRegisterGlobal")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc func = args[0];
   std::string func_name = args[1];
@@ -489,7 +489,7 @@ TVM_REGISTER_API("_GenericFuncAddToRegistry")
   GenericFunc::RegisterGenericFunc(func, func_name);
   });
 
-TVM_REGISTER_API("_GenericFuncGet")
+TVM_REGISTER_API("_GenericFuncGetGlobal")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
