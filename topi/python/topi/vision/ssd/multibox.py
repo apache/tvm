@@ -17,7 +17,7 @@ def multibox_prior_IR(data, out, sizes, ratios, steps, offsets):
     offset_h = offsets[0]
     offset_w = offsets[1]
 
-    with ib.for_range(0, in_height, name='i') as i:
+    with ib.for_range(0, in_height, for_type='parallel', name='i') as i:
         center_h = (i + offset_h) * steps_h
         with ib.for_range(0, in_width, name='j') as j:
             center_w = (j + offset_w) * steps_w
@@ -43,8 +43,8 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     num_ratios = len(ratios)
     oshape = (1, data.shape[2] * data.shape[3] * (num_sizes + num_ratios - 1), 4)
     out = tvm.extern(oshape, [data], lambda ins, outs:
-    multibox_prior_IR(ins[0], outs[0],sizes, ratios, steps, offsets),
-                     name="multibox_priot")
+                     multibox_prior_IR(ins[0], outs[0],sizes, ratios, steps, offsets),
+                     tag="multibox_prior")
     if clip:
         out = topi.clip(out, 0, 1)
     return out
