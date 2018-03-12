@@ -44,7 +44,8 @@ class NodeBase(object):
         self.handle = handle
 
     def __del__(self):
-        check_call(_LIB.TVMNodeFree(self.handle))
+        if _LIB is not None:
+            check_call(_LIB.TVMNodeFree(self.handle))
 
     def __getattr__(self, name):
         ret_val = TVMValue()
