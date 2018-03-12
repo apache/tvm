@@ -88,8 +88,9 @@ class Target : public NodeRef {
 
   /*!
   * \brief Get the current target context from thread local storage.
-  * \param allow_null If the context stack is empty and this is set to true, an undefined Target
-  * will be returned. Otherwise, an empty context stack will cause a runtime error.
+  * \param allow_not_defined If the context stack is empty and this is set to true, an
+  * undefined Target will be returned. Otherwise, an empty context stack will cause a
+  * runtime error.
   * \return The target that is the current context. The target may not be defined if
   * allow_not_defined is true.
   */
