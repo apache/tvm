@@ -88,7 +88,7 @@ Target CreateTarget(const std::string& target_name,
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
   }
-  
+
   return target;
 }
 
@@ -217,7 +217,8 @@ tvm::Target Target::current_target(bool allow_not_defined) {
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
   }
-  CHECK(allow_not_defined) << "Target context required. Please set it by constructing a TargetContext";
+  CHECK(allow_not_defined)
+    << "Target context required. Please set it by constructing a TargetContext";
 
   return Target();
 }
