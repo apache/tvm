@@ -70,3 +70,20 @@ def schedule_region(outs):
     target = tvm.target.current_target(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
+
+@tvm.target.generic_func
+def schedule_multibox_prior(outs):
+    """Schedule for region
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of multibox_prior
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
