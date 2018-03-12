@@ -372,8 +372,8 @@ class ThreadPool {
     memset((cpusetp), 0, sizeof(cpu_set_t))
 #endif
 #endif
-    for (int i=0; i < num_workers_; ++i) {
 #if defined(__linux__) || defined(__ANDROID__)
+    for (int i=0; i < num_workers_; ++i) {
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
