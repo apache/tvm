@@ -41,9 +41,7 @@ import nnvm.testing
 
 # This tutorial must be run with OpenGL backend enabled in TVM.
 # The NNVM CI does not enable OpenGL yet. But the user can run this script.
-if not tvm.module.enabled("opengl"):
-    print("OpenGL backend not enabled. This tutorial cannot be run.")
-    exit(0)
+opengl_enabled = tvm.module.enabled("opengl")
 
 # To run the local demo, set this flag to True.
 run_deploy_local = False
@@ -308,7 +306,7 @@ def deploy_local():
     synset = download_synset()
     print('TVM prediction top-1:', top1, synset[top1])
 
-if run_deploy_local:
+if run_deploy_local and opengl_enabled:
     deploy_local()
 
 ######################################################################
@@ -412,7 +410,7 @@ def deploy_rpc():
     # Print first 10 elements of output.
     print(out.asnumpy()[0][0:10])
 
-if run_deploy_rpc:
+if run_deploy_rpc and opengl_enabled:
     deploy_rpc()
 
 ######################################################################
@@ -501,5 +499,5 @@ def deploy_web():
     print("Please open http://localhost:" + str(port) + "/resnet.html")
     httpd.serve_forever()
 
-if run_deploy_web:
+if run_deploy_web and opengl_enabled:
     deploy_web()
