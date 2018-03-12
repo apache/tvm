@@ -24,7 +24,7 @@ class TargetNode : public Node {
   /*! \brief The name of the target device */
   std::string target_name;
   /*! \brief The type of the target device */
-  DLDeviceType device_type;
+  int device_type;
   /*! \brief The maximum threads that a schedule should use for this device */
   int max_num_threads = 1;
   /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
