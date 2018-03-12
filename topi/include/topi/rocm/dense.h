@@ -43,7 +43,7 @@ inline tvm::Tensor dense_rocm(const Target& target,
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  if (target.libs.count("rocblas") > 0) {
+  if (target->libs().count("rocblas") > 0) {
     auto mm = topi::contrib::rocblas_matmul(data, weight, false, true);
     if (bias != nullptr) {
       auto bias_val = *bias;
@@ -68,8 +68,8 @@ inline tvm::Tensor dense_rocm(const Target& target,
 * \return A schedule for the given ops.
 */
 inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
-  if (target.target_name == "rocm" &&
-    target.libs.count("rocblas") > 0) {
+  if (target->target_name == "rocm" &&
+    target->libs().count("rocblas") > 0) {
     return topi::generic::schedule_extern(target, outs);
   }
 

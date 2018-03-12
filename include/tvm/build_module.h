@@ -19,7 +19,8 @@ using namespace tvm::runtime;
 * \brief Container for target device information.
 * Use target::llvm, target::cuda etc functions instead of constructing directly.
 */
-struct Target {
+class TargetNode : public Node {
+ public:
   /*! \brief The name of the target device */
   std::string target_name;
   /*! \brief The type of the target device */
@@ -29,59 +30,76 @@ struct Target {
   /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
   int thread_warp_size = 1;
   /*! \brief Keys for this target */
-  std::vector<std::string> keys;
+  Array<Expr> keys_array;
   /*! \brief Options for this target */
-  std::vector<std::string> options;
-  /*! \brief Set of imported libs */
-  std::unordered_set<std::string> libs;
-
-  Target(const std::string& target_name,
-         DLDeviceType device_type,
-         int max_num_threads,
-         int thread_warp_size,
-         const std::vector<std::string>& keys,
-         const std::vector<std::string>& options,
-         const std::unordered_set<std::string>& libs =
-           std::unordered_set<std::string>()) :
-    target_name(target_name),
-    device_type(device_type),
-    max_num_threads(max_num_threads),
-    thread_warp_size(thread_warp_size),
-    keys(keys),
-    options(options),
-    libs(libs) {
-  }
+  Array<Expr> options_array;
+  /*! \brief Collection of imported libs */
+  Array<Expr> libs_array;
 
   /*! \return the full device string to pass to codegen::Build */
   EXPORT std::string str() const;
 
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("target_name", &target_name);
+    v->Visit("device_type", &device_type);
+    v->Visit("max_num_threads", &max_num_threads);
+    v->Visit("thread_warp_size", &thread_warp_size);
+    v->Visit("keys_array", &keys_array);
+    v->Visit("options_array", &options_array);
+    v->Visit("libs_array", &libs_array);
+  }
+
+  /*! \brief Get the keys for this target as a vector of string */
+  EXPORT std::vector<std::string> keys() const;
+
+  /*! \brief Get the options for this target as a vector of string */
+  EXPORT std::vector<std::string> options() const;
+
+  /*! \brief Get the keys for this target as an unordered_set of string */
+  EXPORT std::unordered_set<std::string> libs() const;
+
+  static constexpr const char* _type_key = "Target";
+  TVM_DECLARE_NODE_TYPE_INFO(TargetNode, Node);
+};
+
+class Target : public NodeRef {
+ public:
+  Target() {}
+  explicit Target(std::shared_ptr<Node> n) : NodeRef(n) {}
+
   /*!
-   * \brief Create a Target given a string
-   * \param target_str the string to parse
-   */
+  * \brief Create a Target given a string
+  * \param target_str the string to parse
+  */
   EXPORT static Target create(const std::string& target_str);
 
   /*!
-   * \brief Push a new target context onto the thread local stack. The Target on top of
-   * the stack is used to determine which specialization to use when invoking a GenericFunc.
-   * \param target The target to set as the current context.
-   */
+  * \brief Push a new target context onto the thread local stack. The Target on top of
+  * the stack is used to determine which specialization to use when invoking a GenericFunc.
+  * \param target The target to set as the current context.
+  */
   EXPORT static void EnterTargetScope(const tvm::Target& target);
 
   /*!
-   * \brief Pop a target off the thread local context stack, restoring the previous target
-   * as the current context.
-   */
+  * \brief Pop a target off the thread local context stack, restoring the previous target
+  * as the current context.
+  */
   EXPORT static void ExitTargetScope();
 
   /*!
-   * \brief Get the current target context from thread local storage.
-   * \param allow_null If the context stack is empty and this is set to true, a nullptr
-   * will be returned. Otherwise, an empty context stack will cause a runtime error.
-   * \return The target that is the current context. nullptr may be returned if
-   * allow_null is true.
-   */
-  EXPORT static tvm::Target* current_target(bool allow_null = true);
+  * \brief Get the current target context from thread local storage.
+  * \param allow_null If the context stack is empty and this is set to true, an undefined Target
+  * will be returned. Otherwise, an empty context stack will cause a runtime error.
+  * \return The target that is the current context. The target may not be defined if
+  * allow_not_defined is true.
+  */
+  EXPORT static tvm::Target current_target(bool allow_not_defined = true);
+
+  inline const TargetNode* operator->() const {
+      return static_cast<const TargetNode*>(node_.get());
+  }
+
+  using ContainerType = TargetNode;
 };
 
 /*!
@@ -107,25 +125,28 @@ struct TargetContext {
 /*! \brief This namespace provides functions to construct Target instances */
 namespace target {
 /*! \return A target for LLVM */
-EXPORT Target llvm();
+EXPORT Target llvm(const std::unordered_set<std::string>& options = {});
 
 /*! \return A target for CUDA */
-EXPORT Target cuda();
+EXPORT Target cuda(const std::unordered_set<std::string>& options = {});
 
 /*! \return A target for ROCm */
-EXPORT Target rocm();
+EXPORT Target rocm(const std::unordered_set<std::string>& options = {});
+
+/*! \return A target for OpenCL */
+EXPORT Target opencl(const std::unordered_set<std::string>& options = {});
 
 /*! \return A target for Metal */
-EXPORT Target metal();
+EXPORT Target metal(const std::unordered_set<std::string>& options = {});
 
 /*! \return A target for rasp */
-EXPORT Target rasp();
+EXPORT Target rasp(const std::unordered_set<std::string>& options = {});
 
 /*! \return A target for Mali */
-EXPORT Target mali();
+EXPORT Target mali(const std::unordered_set<std::string>& options = {});
 
 /*! \return A target for stackvm */
-EXPORT Target stackvm();
+EXPORT Target stackvm(const std::unordered_set<std::string>& options = {});
 
 }  // namespace target
 

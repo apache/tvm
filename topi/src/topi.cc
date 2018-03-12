@@ -478,7 +478,7 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
       outs = Array<Tensor> { args[0] };
     }
 
-    *ret = builder(*target, outs);
+    *ret = builder(target, outs);
   });
 }
 
@@ -549,7 +549,7 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
       bias = bias_val.defined() ? &bias_val : nullptr;
     }
 
-    *ret = builder(*target, data, weight, bias);
+    *ret = builder(target, data, weight, bias);
   });
 }
 

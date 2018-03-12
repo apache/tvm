@@ -15,34 +15,135 @@
 
 namespace tvm {
 
-std::string Target::str() const {
+TVM_REGISTER_NODE_TYPE(TargetNode);
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<TargetNode>([](const TargetNode *op, IRPrinter *p) {
+  p->stream << op->str();
+  });
+
+
+/*!
+* \brief Construct a Target node from the given name and options.
+* \param target_name The major target name. Should be one of
+* {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev"}
+* \param options Additional options appended to the target
+* \return The constructed Target
+*/
+Target CreateTarget(const std::string& target_name,
+                    const std::unordered_set<std::string>& options) {
+  auto target = Target(std::make_shared<TargetNode>());
+  auto t = static_cast<TargetNode*>(target.node_.get());
+
+  t->target_name = target_name;
+
+  std::string device_name = "";
+
+  std::string libs_flag = "-libs=";
+  std::string device_flag = "-device=";
+  for (auto& item : options) {
+    t->options_array.push_back(ir::StringImm::make(item));
+
+    if (item.find(libs_flag) == 0) {
+      std::stringstream ss(item.substr(libs_flag.length()));
+      std::string lib_item;
+      while (std::getline(ss, lib_item, ',')) {
+        t->libs_array.push_back(ir::StringImm::make(lib_item));
+      }
+    } else if (item.find(device_flag) == 0) {
+      device_name = item.substr(device_flag.length());
+    }
+  }
+
+  if (device_name.length() > 0) {
+    t->keys_array.push_back(ir::StringImm::make(device_name));
+  }
+
+  t->device_type = kDLCPU;
+  t->thread_warp_size = 1;
+  if (target_name == "llvm") {
+    t->keys_array.push_back(ir::StringImm::make("cpu"));
+  } else if (target_name == "cuda" || target_name == "nvptx") {
+    t->device_type = kDLGPU;
+    t->keys_array.push_back(ir::StringImm::make("cuda"));
+    t->keys_array.push_back(ir::StringImm::make("gpu"));
+    t->max_num_threads = 512;
+    t->thread_warp_size = 32;
+  } else if (target_name == "rocm" || target_name == "opencl") {
+    // For now assume rocm schedule for opencl
+    t->device_type = kDLGPU;
+    t->keys_array.push_back(ir::StringImm::make("rocm"));
+    t->keys_array.push_back(ir::StringImm::make("gpu"));
+    t->max_num_threads = 256;
+  } else if (target_name == "metal" || target_name == "vulkan") {
+    t->device_type = kDLGPU;
+    t->keys_array.push_back(ir::StringImm::make(target_name));
+    t->keys_array.push_back(ir::StringImm::make("gpu"));
+    t->max_num_threads = 256;
+  } else if (target_name == "opengl") {
+    t->device_type = kDLGPU;
+    t->keys_array.push_back(ir::StringImm::make("opengl"));
+  } else if (target_name == "stackvm" || target_name == "ext_dev") {
+  } else {
+    LOG(ERROR) << "Unknown target name " << target_name;
+    return target::stackvm();
+  }
+  
+  return target;
+}
+
+TVM_REGISTER_API("_TargetCreate")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string target_name = args[0];
+  std::unordered_set<std::string> options;
+  for (int i = 1; i < args.num_args; ++i) {
+    std::string arg = args[i];
+    options.insert(arg);
+  }
+
+  *ret = CreateTarget(target_name, options);
+  });
+
+TVM_REGISTER_API("_TargetFromString")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string target_str = args[0];
+
+  *ret = Target::create(target_str);
+  });
+
+std::vector<std::string> TargetNode::keys() const {
+  std::vector<std::string> result;
+  for (auto& expr : keys_array) {
+    result.push_back(expr.as<ir::StringImm>()->value);
+  }
+  return result;
+}
+
+std::vector<std::string> TargetNode::options() const {
+  std::vector<std::string> result;
+  for (auto& expr : options_array) {
+    result.push_back(expr.as<ir::StringImm>()->value);
+  }
+  return result;
+}
+
+std::unordered_set<std::string> TargetNode::libs() const {
+  std::unordered_set<std::string> result;
+  for (auto& expr : libs_array) {
+    result.insert(expr.as<ir::StringImm>()->value);
+  }
+  return result;
+}
+
+std::string TargetNode::str() const {
   std::ostringstream result;
   result << target_name;
-  for (const auto &x : options) {
+  for (const auto &x : options()) {
     result << " " << x;
   }
   return result.str();
 }
 
-Target TargetFromName(const std::string& name) {
-  if (name == "llvm") {
-    return target::llvm();
-  } else if (name == "cuda" || name == "nvptx") {
-    return target::cuda();
-  } else if (name == "rocm" || name == "opencl") {
-    /* For now, assume rocm schedule for opencl */
-    auto rocm = target::rocm();
-    rocm.target_name = name;  // preserve the original target name for opencl
-    return rocm;
-  } else if (name == "metal") {
-    return target::metal();
-  } else if (name == "stackvm" || name == "ext_dev") {
-    return target::stackvm();
-  } else {
-    LOG(ERROR) << "Unknown target name " << name;
-    return target::stackvm();
-  }
-}
 
 bool StartsWith(const std::string& str, const std::string& pattern) {
   return str.compare(0, pattern.length(), pattern) == 0;
@@ -74,17 +175,19 @@ Target Target::create(const std::string& target_str) {
   ss >> target_name;
   auto device_name = GetDeviceName(target_str);
 
-  auto result = device_name == "rasp" ?
-    target::rasp() :
-    (device_name == "mali" ? target::mali() :
-    TargetFromName(target_name));
-
+  std::unordered_set<std::string> options;
   std::string item;
   while (ss >> item) {
-    result.options.push_back(item);
+    options.insert(item);
   }
 
-  return result;
+  if (device_name == "rasp") {
+    return target::rasp(options);
+  } else if (device_name == "mail") {
+    return target::mali(options);
+  } else {
+    return CreateTarget(target_name, options);
+  }
 }
 
 /*! \brief Entry to hold the Target context stack. */
@@ -109,71 +212,61 @@ void Target::ExitTargetScope() {
   entry->context_stack.pop();
 }
 
-tvm::Target* Target::current_target(bool allow_null) {
+tvm::Target Target::current_target(bool allow_not_defined) {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
-    return &entry->context_stack.top();
+    return entry->context_stack.top();
   }
-  CHECK(allow_null) << "Target context required. Please set it by constructing a TargetContext";
+  CHECK(allow_not_defined) << "Target context required. Please set it by constructing a TargetContext";
 
-  return nullptr;
+  return Target();
 }
 
 namespace target {
-Target llvm() {
-  std::vector<std::string> keys({ "llvm", "cpu" });
-  std::vector<std::string> options;
-  return Target("llvm", kDLCPU, 512, 1, keys, options,
-           std::unordered_set<std::string>());
+std::unordered_set<std::string> MergeOptions(std::unordered_set<std::string> opts,
+                                             const std::unordered_set<std::string>& new_opts) {
+  opts.insert(new_opts.begin(), new_opts.end());
+  return opts;
 }
 
-Target cuda() {
-  std::vector<std::string> keys({ "cuda", "gpu" });
-  std::vector<std::string> options;
-  return Target("cuda", kDLGPU, 512, 32, keys, options,
-           std::unordered_set<std::string>());
+Target llvm(const std::unordered_set<std::string>& options) {
+  return CreateTarget("llvm", options);
 }
 
-Target rocm() {
-  std::vector<std::string> keys({ "rocm", "gpu" });
-  std::vector<std::string> options;
-  return Target("rocm", kDLROCM, 256, 1, keys, options,
-           std::unordered_set<std::string>());
+Target cuda(const std::unordered_set<std::string>& options) {
+  return CreateTarget("cuda", options);
 }
 
-Target metal() {
-  std::vector<std::string> keys({ "gpu" });
-  std::vector<std::string> options;
-  return Target("metal", kDLMetal, 256, 1, keys, options,
-           std::unordered_set<std::string>());
+Target rocm(const std::unordered_set<std::string>& options) {
+  return CreateTarget("rocm", options);
 }
 
-Target rasp() {
-  std::vector<std::string> keys({ "llvm", "cpu" });
-  std::vector<std::string> options({
+Target opencl(const std::unordered_set<std::string>& options) {
+  return CreateTarget("opencl", options);
+}
+
+Target metal(const std::unordered_set<std::string>& options) {
+  return CreateTarget("metal", options);
+}
+
+Target rasp(const std::unordered_set<std::string>& options) {
+  return CreateTarget("llvm", MergeOptions(options, {
     "-device=rasp",
     "-mtriple=armv7l-none-linux-gnueabihf",
     "-mcpu=cortex-a53",
     "-mattr=+neon"
-  });
-  return Target("llvm", kDLCPU, 512, 1, keys, options,
-           std::unordered_set<std::string>());
+  }));
 }
 
-Target mali() {
-  std::vector<std::string> keys({ "rocm", "gpu" });
-  std::vector<std::string> options({
+Target mali(const std::unordered_set<std::string>& options) {
+  return CreateTarget("opencl", MergeOptions(options, {
     "-device=mali"
-  });
-  return Target("opencl", kDLOpenCL, 256, 1, keys, options);
+  }));
 }
 
 
-Target stackvm() {
-  std::vector<std::string> keys({ "stackvm", "cpu" });
-  std::vector<std::string> options;
-  return Target("stackvm", kDLCPU, 512, 1, keys, options,
-           std::unordered_set<std::string>());
+Target stackvm(const std::unordered_set<std::string>& options) {
+  return CreateTarget("stackvm", options);
 }
 }  // namespace target
 
@@ -184,7 +277,7 @@ bool LLVMEnabled() {
 
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
-  if (target.device_type == kDLCPU) {
+  if (target->device_type == kDLCPU) {
     return target;
   } else {
     if (LLVMEnabled()) {
@@ -315,7 +408,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
       }
 
       func = ir::ThreadSync(func, "shared");
-      func = ir::LowerThreadAllreduce(func, target.thread_warp_size);
+      func = ir::LowerThreadAllreduce(func, target->thread_warp_size);
       auto fsplits = ir::SplitHostDevice(func);
       fhost.push_back(fsplits[0]);
       for (auto f = fsplits.begin() + 1; f != fsplits.end(); ++f) {
@@ -330,16 +423,17 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     }
   }
 
+  auto keys = target->keys();
   bool target_is_gpu =
-    std::find(target.keys.begin(), target.keys.end(), "gpu") != target.keys.end();
+    std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && fdevice.size() == 0) {
-    LOG(WARNING) << "Specified target " + target.str() +
+    LOG(WARNING) << "Specified target " + target->str() +
       " but cannot find device code. Did you forget to bind?";
   }
 
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
-    func = ir::BindDeviceType(func, target.device_type);
+    func = ir::BindDeviceType(func, target->device_type);
     func = ir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
@@ -347,21 +441,21 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 
   for (size_t i = 0; i < fdevice.size(); ++i) {
     auto func = fdevice[i];
-    func = ir::LowerIntrin(func, target.target_name);
+    func = ir::LowerIntrin(func, target->target_name);
     fdevice.Set(i, func);
   }
 
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
-    func = ir::LowerIntrin(func, target_host_val.target_name);
+    func = ir::LowerIntrin(func, target_host_val->target_name);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
 
-  auto mhost = codegen::Build(fhost, target_host_val.str());
+  auto mhost = codegen::Build(fhost, target_host_val->str());
 
   if (fdevice.size() > 0) {
-    auto mdev = codegen::Build(fdevice, target.str());
+    auto mdev = codegen::Build(fdevice, target->str());
     mhost.Import(mdev);
   }
 
@@ -457,8 +551,8 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   auto target = Target::current_target(true);
   PackedFunc func;
 
-  if (target != nullptr) {
-    for (auto &k : target->keys) {
+  if (target.defined()) {
+    for (auto &k : target->keys()) {
       auto iter = node->dispatch_dict_.find(k);
       if (iter != node->dispatch_dict_.end()) {
         func = iter->second;
@@ -534,24 +628,19 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
 
 TVM_REGISTER_API("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  bool allow_null = args[0];
-  auto target = Target::current_target(allow_null);
-  if (target) {
-    *ret = target->str();
-  } else {
-    *ret = nullptr;
-  }
+  bool allow_not_defined = args[0];
+  *ret = Target::current_target(allow_not_defined);
   });
 
 TVM_REGISTER_API("_EnterTargetScope")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string target_str = args[0];
+  Target target = args[0];
   auto current = Target::current_target();
-  if (current && target_str != current->str()) {
+  if (current.defined() && target->str() != current->str()) {
     LOG(WARNING) << "Overriding target " << current->str()
-      << " with new target scope " << target_str;
+      << " with new target scope " << target->str();
   }
-  Target::EnterTargetScope(Target::create(target_str));
+  Target::EnterTargetScope(target);
   });
 
 TVM_REGISTER_API("_ExitTargetScope")
