@@ -15,3 +15,4 @@ from .upsampling_python import upsampling_python
 from .reorg_python import reorg_python
 from .region_python import region_python
 from .shortcut_python import shortcut_python
+from .lrn_python import lrn_nchw_python
