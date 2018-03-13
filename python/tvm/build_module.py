@@ -424,10 +424,14 @@ def build(sch,
 
     target = _target.current_target() if target is None else target
     target = _target.create(target) if target else _target.create("llvm")
+    device_type = ndarray.context(target.target_name, 0).device_type
 
     fhost = []
     fdevice = []
     for func in flist:
+        if not ir_pass.VerifyMemory(func, device_type):
+            raise ValueError(
+                "Illegal memory access is detected in %s. Did you forget to bind?" % func.name)
         if func.func_type == container.LoweredFunc.MixedFunc:
             if BuildConfig.current.detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
@@ -449,7 +453,6 @@ def build(sch,
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
 
-    device_type = ndarray.context(target.target_name, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
 
