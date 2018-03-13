@@ -303,9 +303,15 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    for (int i = 0; i < num_task; ++i) {
+    for (int i = 0; i < num_task-1; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
+    }
+    TVMParallelGroupEnv* penv = &(tsk.launcher->env);
+    if ((*tsk.launcher->flambda)(num_task-1, penv, cdata) == 0) {
+      tsk.launcher->SignalJobFinish();
+    } else {
+      tsk.launcher->SignalJobError(tsk.task_id);
     }
     int res = launcher->WaitForJobs();
     return res;
@@ -384,10 +390,10 @@ class ThreadPool {
         sizeof(cpu_set_t), &cpuset);
 #endif
     }
-    // bind the master thread to core 0
+    // bind the master thread to core num_workers_-1
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(num_workers_, &cpuset);
+    CPU_SET(num_workers_-1, &cpuset);
     pthread_setaffinity_np(pthread_self(),
       sizeof(cpu_set_t), &cpuset);
 #endif
