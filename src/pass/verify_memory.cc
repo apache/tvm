@@ -6,7 +6,6 @@
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
-#include <tvm/operation.h>
 
 namespace tvm {
 namespace ir {
@@ -26,7 +25,7 @@ class MemoryAccessVerifier final : protected IRVisitor {
  public:
   /// Special member functions
   //@{
-  explicit MemoryAccessVerifier(LoweredFunc f, DLDeviceType device_type)
+  explicit MemoryAccessVerifier(LoweredFunc f, int device_type)
       : func_(f), dev_type_(device_type) {}
   virtual ~MemoryAccessVerifier() = default;
   MemoryAccessVerifier(const MemoryAccessVerifier &) = delete;
@@ -37,12 +36,12 @@ class MemoryAccessVerifier final : protected IRVisitor {
 
   /// Interface to perform memory access verification
   void Run() {
-    if (kDLGPU != dev_type_) return;
+    if (!IsGPUDevice(dev_type_)) return;
     IRVisitor::Visit(func_->body);
   }
 
   /// Verification result
-  inline bool Failed() const { return failure_; }
+  bool Failed() const { return failure_; }
 
  protected:
   /// Visitor implementation
@@ -89,7 +88,7 @@ class MemoryAccessVerifier final : protected IRVisitor {
   /// Check if the value of a Variable comes from function argument.
   bool IsFromFunctionArgs(const Variable *var) const {
     const Variable *V = var;
-    while (1) {
+    while (true) {
       CHECK(V) << "Invalid Variable\n";
 
       // Variable is from function args. Return true.
@@ -128,19 +127,22 @@ class MemoryAccessVerifier final : protected IRVisitor {
 
   /// Status getter/setter
   //@{
-  inline bool InThreadEnv() const { return in_thread_env_; }
-  inline void EnterThreadEnv() { in_thread_env_ = true; }
-  inline void ExitThreadEnv() { in_thread_env_ = false; }
-  inline bool InProducerConsumer() const { return pc_ != nullptr; }
-  inline const ProducerConsumer *GetCurrentProducerConsumer() const {
-    return pc_;
-  }
-  inline void EnterProducerConsumer(const ProducerConsumer *pc) {
-    this->pc_ = pc;
-  }
-  inline void ExitProducerConsumer() { pc_ = nullptr; }
-  inline void SetFailure() { failure_ = true; }
+  bool InThreadEnv() const { return in_thread_env_; }
+  void EnterThreadEnv() { in_thread_env_ = true; }
+  void ExitThreadEnv() { in_thread_env_ = false; }
+  bool InProducerConsumer() const { return pc_ != nullptr; }
+  const ProducerConsumer *GetCurrentProducerConsumer() const { return pc_; }
+  void EnterProducerConsumer(const ProducerConsumer *pc) { this->pc_ = pc; }
+  void ExitProducerConsumer() { pc_ = nullptr; }
+  void SetFailure() { failure_ = true; }
   //@}
+
+  /// Check if a given DLDeviceType/TVMDeviceExtType value denotes GPU device.
+  static bool IsGPUDevice(int dev_type) {
+    return kDLGPU == dev_type || kDLOpenCL == dev_type ||
+           kDLVulkan == dev_type || kDLMetal == dev_type ||
+           kDLROCM == dev_type || kOpenGL == dev_type;
+  }
 
  private:
   /// Status of visitor
@@ -149,15 +151,15 @@ class MemoryAccessVerifier final : protected IRVisitor {
   const ProducerConsumer *pc_{nullptr};
   bool failure_{false};  ///< If the verification fails (i.e. has illegal access)
   //@}
-  LoweredFunc func_{nullptr};      ///< Function to be verified.
-  DLDeviceType dev_type_{kDLCPU};  ///< Device type
+  LoweredFunc func_{nullptr};  ///< Function to be verified.
+  int dev_type_{kDLCPU};       ///< Device type
   std::unordered_map<const Variable *, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace
 
 /// Interface of VerifyMemory pass
 bool VerifyMemory(LoweredFunc func, int device_type) {
-  MemoryAccessVerifier v(func, static_cast<DLDeviceType>(device_type));
+  MemoryAccessVerifier v(func, device_type);
   v.Run();
   return !v.Failed();
 }

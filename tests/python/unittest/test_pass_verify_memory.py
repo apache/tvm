@@ -1,8 +1,9 @@
 import tvm
 
-# The following DLDeviceType values are originally defined in dlpack.h.
-device_gpu = 2
-all_device_types = [1, 2, 3, 4, 8, 9, 10]
+# The following DLDeviceType/TVMDeviceExtType values
+# are originally defined in dlpack.h and c_runtime_api.h.
+gpu_devices = [2, 4, 7, 8, 10, 11]
+other_devices = [1, 3, 9, 12]
 
 
 def lower(sch, args):
@@ -41,7 +42,7 @@ def test_verify_memory_all_bind():
 
   func = lower(s, [A, B])
   
-  for dev_type in all_device_types:
+  for dev_type in gpu_devices + other_devices:
     assert tvm.ir_pass.VerifyMemory(func, dev_type)
 
 
@@ -58,8 +59,9 @@ def test_verify_memory_not_bind():
 
   func = lower(s, [A, B])  
 
-  assert not tvm.ir_pass.VerifyMemory(func, device_gpu)
-  for dev_type in [x for x in all_device_types if x != device_gpu]:
+  for dev_type in gpu_devices:
+    assert not tvm.ir_pass.VerifyMemory(func, dev_type)
+  for dev_type in other_devices:
     assert tvm.ir_pass.VerifyMemory(func, dev_type)
 
 
@@ -81,8 +83,9 @@ def test_verify_memory_partially_bind():
 
   func = lower(s, [A, B, C, D])  
 
-  assert not tvm.ir_pass.VerifyMemory(func, device_gpu)
-  for dev_type in [x for x in all_device_types if x != device_gpu]:
+  for dev_type in gpu_devices:
+    assert not tvm.ir_pass.VerifyMemory(func, dev_type)
+  for dev_type in other_devices:
     assert tvm.ir_pass.VerifyMemory(func, dev_type)
 
 

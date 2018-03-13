@@ -271,7 +271,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 
   for (const auto& x : funcs) {
     CHECK(ir::VerifyMemory(x, target.device_type))
-        << "Illegal memory access is detected in " << x->func_name()
+        << "Direct host side access to device memory is detected in " << x->func_name()
         << ". Did you forget to bind?";
 
     if (x->func_type == kMixedFunc) {

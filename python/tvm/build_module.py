@@ -431,7 +431,8 @@ def build(sch,
     for func in flist:
         if not ir_pass.VerifyMemory(func, device_type):
             raise ValueError(
-                "Illegal memory access is detected in %s. Did you forget to bind?" % func.name)
+                "Direct host side access to device memory is detected in %s. "
+                "Did you forget to bind?" % func.name)
         if func.func_type == container.LoweredFunc.MixedFunc:
             if BuildConfig.current.detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
