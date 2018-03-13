@@ -204,7 +204,7 @@ class SpscTaskQueue {
     cv_.notify_all();
   }
 
- private:
+ protected:
   /*!
    * \brief Lock-free enqueue.
    * \param input The task to be enqueued.
@@ -355,6 +355,7 @@ class ThreadPool {
   // bind worker threads to disjoint cores
   void SetThreadAffinity() {
 #if defined(__ANDROID__)
+#ifndef CPU_SET
   #define CPU_SETSIZE 1024
   #define __NCPUBITS (8 * sizeof (uint64_t))
   typedef struct {
@@ -366,13 +367,18 @@ class ThreadPool {
   #define CPU_ZERO(cpusetp) \
     memset((cpusetp), 0, sizeof(cpu_set_t))
 #endif
+#endif
     for (int i=0; i < num_workers_; ++i) {
 #if defined(__linux__) || defined(__ANDROID__)
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
+#if defined(__ANDROID__)
+      sched_setaffinity(threads_[i].native_handle(), sizeof(cpu_set_t), &cpuset);
+#else
       pthread_setaffinity_np(threads_[i].native_handle(),
         sizeof(cpu_set_t), &cpuset);
+#endif
 #endif
     }
   }
