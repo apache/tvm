@@ -2,13 +2,14 @@ enclave {
     from "sgx_tstdc.edl" import *;
 
     trusted {
-        public int run_module();
-        public void stop_module();
-        public void ecall_run_worker();
+        public void tvm_ecall_run_module([user_check] const void* tvm_args,
+                                         [user_check] void* tvm_ret_value);
+        public void tvm_ecall_run_worker();
+        public void tvm_ecall_shutdown();
     };
 
     untrusted {
-        void ocall_thread_pool_launch(int num_workers);
+        void tvm_ocall_thread_pool_launch(int num_workers);
     };
 };
 

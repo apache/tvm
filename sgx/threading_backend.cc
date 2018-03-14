@@ -5,8 +5,13 @@
  */
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/logging.h>
+#include <sgx_edger8r.h>
 #include <mutex>
 #include <queue>
+
+extern "C" {
+sgx_status_t SGX_CDECL tvm_ocall_thread_pool_launch(int num_workers);
+}
 
 namespace tvm {
 namespace runtime {
@@ -18,12 +23,12 @@ class ThreadGroup::ThreadGroupImpl {
     std::lock_guard<std::mutex> lock(qmut_);
     CHECK(Size() + task_callbacks.size() <= MaxConcurrency())
       << "Tried spawning more threads than allowed by max concurrency.";
-    for (std::function<void()> cb : task_callbacks) {
+    for (const auto& cb : task_callbacks) {
       pending_tasks_.push(cb);
     }
     num_tasks_ += task_callbacks.size();
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status = ocall_thread_pool_launch(task_callbacks.size());
+    sgx_status = tvm_ocall_thread_pool_launch(task_callbacks.size());
     CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
   }
 
@@ -69,7 +74,7 @@ void Yield() {}
 int MaxConcurrency() { return std::max(TVM_SGX_MAX_CONCURRENCY, 1); }
 
 extern "C" {
-void ecall_run_worker() {
+void tvm_ecall_run_worker() {
   (new ThreadGroup())->RunTask();
 }
 }

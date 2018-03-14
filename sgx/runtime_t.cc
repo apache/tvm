@@ -17,7 +17,7 @@
 #include "../../src/runtime/thread_pool.cc"
 
 extern "C" {
-void stop_module() {
+void tvm_ecall_shutdown() {
   tvm::runtime::ThreadPool::Global()->Shutdown();
 }
 }

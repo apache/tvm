@@ -22,7 +22,7 @@ class ThreadGroup::ThreadGroupImpl {
   }
 
   void Launch(std::vector<std::function<void()>> task_callbacks) {
-    for (std::function<void()>& cb : task_callbacks) {
+    for (const auto& cb : task_callbacks) {
       threads_.emplace_back(cb);
     }
     const char *val = getenv("TVM_BIND_THREADS");
@@ -40,7 +40,7 @@ class ThreadGroup::ThreadGroupImpl {
   size_t Size() { return threads_.size(); }
 
   size_t Join() {
-    for (std::thread& t : threads_) {
+    for (auto& t : threads_) {
       if (t.joinable()) t.join();
     }
   }
