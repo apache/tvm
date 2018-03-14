@@ -11,6 +11,8 @@ def prepare_test_libs(base_path):
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name='B')
     s = tvm.create_schedule(B.op)
+    s[B].parallel(s[B].op.axis[0])
+    print(tvm.lower(s, [A, B], simple_mode=True))
 
     # Compile library in system library mode
     fadd_syslib = tvm.build(s, [A, B], 'llvm --system-lib', name='addonesys')

@@ -5,7 +5,13 @@
  *   Please refer to the Makefile (rule lib/tvm_runtime_pack.o) for how to build.
  *
  */
-#include "../../sgx/sgx_runtime.cc"
+int TVM_SGX_MAX_CONCURRENCY = 4;
+
+#ifdef _LIBCPP_SGX_CONFIG
+#include "lib/test_addone_t.h"
+#endif
+#include "../../sgx/runtime_t.cc"
+
 #ifndef _LIBCPP_SGX_CONFIG
 #include "../../src/runtime/file_util.cc"
 #endif

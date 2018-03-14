@@ -6,6 +6,8 @@
 #include <iostream>
 #endif
 
+extern void Shutdown();
+
 /* This function mirrors the one in howto_deploy except without the iostream */
 int Verify(tvm::runtime::Module mod, std::string fname) {
   // Get the function from the module.
@@ -43,7 +45,7 @@ int Verify(tvm::runtime::Module mod, std::string fname) {
 
 
 extern "C" {
-int enclave_main() {
+int run_module() {
   tvm::runtime::Module mod_syslib = (*tvm::runtime::Registry::Get("module._GetSystemLib"))();
   return Verify(mod_syslib, "addonesys");
 }
