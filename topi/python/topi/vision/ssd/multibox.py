@@ -4,7 +4,7 @@ import tvm
 import topi
 import math
 
-def multibox_prior_IR(data, out, sizes, ratios, steps, offsets):
+def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     ib = tvm.ir_builder.create()
     p_out = ib.buffer_ptr(out)
     in_height = data.shape[2]
@@ -37,21 +37,21 @@ def multibox_prior_IR(data, out, sizes, ratios, steps, offsets):
 
     return ib.get()
 
+
 @tvm.target.generic_func
 def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
     num_sizes = len(sizes)
     num_ratios = len(ratios)
     oshape = (1, data.shape[2] * data.shape[3] * (num_sizes + num_ratios - 1), 4)
     out = tvm.extern(oshape, [data], lambda ins, outs:
-                     multibox_prior_IR(ins[0], outs[0],sizes, ratios, steps, offsets),
+                     multibox_prior_ir(ins[0], outs[0],sizes, ratios, steps, offsets),
                      tag="multibox_prior")
     if clip:
         out = topi.clip(out, 0, 1)
     return out
 
 
-
-def multibox_detection_IR(cls_prob, loc_pred, anchor, out, clip, threshold,
+def multibox_detection_ir(cls_prob, loc_pred, anchor, out, clip, threshold,
                           nms_threshold, force_suppress, variances, nms_topk):
     def transform_loc(loc_pred, loc_base_idx, anchor, anchor_base_idx, clip, vx, vy, vw, vh):
         al = anchor[anchor_base_idx]
@@ -75,12 +75,16 @@ def multibox_detection_IR(cls_prob, loc_pred, anchor, out, clip, threshold,
                tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, ox + ow)), ox + ow), \
                tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, oy + oh)), oy + oh)
 
-    def calculate_overlap(box_a, box_b):
-        w = tvm.make.Max(0, tvm.make.Min(box_a[2], box_b[2])) - tvm.make.Max(box_a[0], box_b[0])
-        h = tvm.make.Max(0, tvm.make.Min(box_a[3], box_b[3])) - tvm.make.Max(box_a[1], box_b[1])
+    def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
+        w = tvm.make.Max(0, tvm.make.Min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])) \
+            - tvm.make.Max(out_tensor[box_a_idx], out_tensor[box_b_idx])
+        h = tvm.make.Max(0, tvm.make.Min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])) \
+            - tvm.make.Max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1])
         i = w * h
-        u = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1]) + \
-            (box_b[2] - box_b[0]) * (box_b[3] - box_b[1]) - i
+        u = (out_tensor[box_a_idx + 2], out_tensor[box_a_idx]) * \
+            (out_tensor[box_a_idx + 3], out_tensor[box_a_idx + 1]) + \
+            (out_tensor[box_b_idx + 2], out_tensor[box_b_idx]) * \
+            (out_tensor[box_b_idx + 3], out_tensor[box_b_idx] + 1) - i
         return tvm.select(u <= 0, 0.0, i / u)
 
     batch_size = cls_prob.shape[0]
@@ -89,7 +93,6 @@ def multibox_detection_IR(cls_prob, loc_pred, anchor, out, clip, threshold,
 
     ib = tvm.ir_builder.create()
     p_out = ib.buffer_ptr(out)
-    temp_space = ib.allocate('float32', (num_anchors, 6), name="temp_space", scope="local")
     inner_loop_type = "parallel" if batch_size == 1 else "serial"
     with ib.for_range(0, batch_size, for_type="parallel", name="n") as n:
         valid_count = 0
@@ -116,23 +119,46 @@ def multibox_detection_IR(cls_prob, loc_pred, anchor, out, clip, threshold,
                                                       variances[1], variances[2], variances[3])
                 valid_count += 1
 
-        with ib.if_scope(valid_count > 0 and nms_threshold > 0 and nms_threshold <= 1):
+        with ib.if_scope(valid_count > 0 and 0 < nms_threshold <= 1):
             # Sort and apply NMS
-            with ib.for_range(0, num_anchors, name="i") as i:
+            temp_space = ib.allocate('float32', (valid_count, 6), name="temp_space", scope="local")
+            with ib.for_range(0, valid_count, name="i") as i:
                 with ib.for_range(0, 6, name="j") as j:
                     temp_space[i * 6 + j] = p_out[n * num_anchors * 6 + i * 6 + j]
-            # sort confidence in descend order
-            sorter = temp_space
-            nkeep = sorter.shape[0]
-            with ib.if_scope( 0 < nms_topk < nkeep and nms_topk < nkeep):
+            # Sort confidence in descend order
+            sort_result = tvm.extern((valid_count,), [temp_space], lambda ins, outs: \
+                tvm.intrin.call_packed("tvm.contrib.generic.utils.stable_sort",
+                                       ins[0], outs[0], 1, True), dtype='int64', name="C")
+            # Redorder output
+            nkeep = sort_result.shape[0]
+            with ib.if_scope( 0 < nms_topk < nkeep):
+                nkeep = nms_topk
+            with ib.for_range(0, nkeep, name="i") as i:
+                with ib.for_range(0, 6, name="j") as j:
+                    p_out[n * num_anchors * 6 + i * 6 + j] = temp_space[sort_result[i] * 6 + j]
+            # Apply nms
+            with ib.for_range(0, valid_count, name="i") as i:
+                offset_i = i * 6
+                with ib.if_scope(p_out[n * num_anchors * 6 + offset_i] >= 0):
+                    with ib.for_range(i + 1, valid_count, name="j") as j:
+                        offset_j = j * 6
+                        with ib.if_scope(p_out[n * num_anchors * 6 + offset_j] >= 0):
+                            with ib.if_scope(force_suppress or p_out[n * num_anchors * 6 + offset_i]
+                                             == p_out[n * num_anchors * 6 + offset_j]):
+                                # When force_suppress == True or class_id equals
+                                iou = calculate_overlap(p_out, n * num_anchors * 6 + offset_i + 2,
+                                                        n * num_anchors * 6 + offset_j + 2)
+                                with ib.if_scope(iou >= nms_threshold):
+                                    p_out[n * num_anchors * 6 + offset_j] = -1
 
 
-
-
-
-
-
-
-
-
-
+@tvm.target.generic_func
+def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
+                       force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
+    batch_size = cls_prob.shape[0]
+    num_anchor = anchor.shape[1]
+    oshape = (batch_size, num_anchor, 6)
+    out = tvm.extern(oshape, [cls_prob, loc_pred, anchor], lambda ins, outs:
+                     multibox_detection_ir(ins[0], ins[1], ins[2], outs[0], clip, threshold, nms_threshold,
+                                           force_suppress, variances, nms_topk), tag="multibox_detection")
+    return out
