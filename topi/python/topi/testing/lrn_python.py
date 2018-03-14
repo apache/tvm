@@ -1,7 +1,7 @@
 """Local response normalization in python"""
-import mxnet as mx
+import numpy as np
 
-def lrn_nchw_python(a_np, size, bias, alpha, beta, b_np):
+def lrn_nchw_python(a_np, size, bias, alpha, beta):
     """Local response norm operator in NCHW layout.
 
     Parameters
@@ -27,4 +27,34 @@ def lrn_nchw_python(a_np, size, bias, alpha, beta, b_np):
     b_np : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return mx.ndarray.LRN(mx.nd.array(a_np), alpha, beta, bias, size, mx.nd.array(b_np))
+    batch, channel, height, weight = a_np.shape
+    radius = size / 2
+    sqr_sum = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+    sqr_sum_up = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+    lrn_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+    def add_dot_values(i, c, j, k):
+        for rxk in range(-radius, radius+1):
+            if ((c + rxk) < channel) and ((c + rxk) >= 0):
+                sqr_sum[i, c, j, k] = sqr_sum[i, c, j, k] + \
+                                       (a_np[i, c + rxk, j, k] * \
+                                        a_np[i, c + rxk, j, k])
+    for i in range(batch):
+        for c in range(channel):
+            for j in range(height):
+                for k in range(weight):
+                    add_dot_values(i, c, j, k)
+    for i in range(batch):
+        for c in range(channel):
+            for j in range(height):
+                for k in range(weight):
+                    sqr_sum_up[i, c, j, k] = \
+                        np.power((bias + (alpha * sqr_sum[i, c, j, k] / \
+                                          size)), beta)
+    for i in range(batch):
+        for c in range(channel):
+            for j in range(height):
+                for k in range(weight):
+                    lrn_out[i, c, j, k] = a_np[i, c, j, k] / \
+                                           sqr_sum_up[i, c, j, k]
+
+    return lrn_out

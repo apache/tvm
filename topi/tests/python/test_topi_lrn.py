@@ -14,8 +14,7 @@ def verify_lrn(n, c, h, w, size, bias, alpha, beta):
     dtype = A.dtype
 
     a_np = np.random.uniform(size=(n, c, h, w)).astype(dtype)
-    b_np = np.zeros(shape=(n, c, h, w)).astype(dtype)
-    b_np = topi.testing.lrn_nchw_python(a_np, size, bias, alpha, beta, b_np)
+    b_np = topi.testing.lrn_nchw_python(a_np, size, bias, alpha, beta)
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -29,7 +28,7 @@ def verify_lrn(n, c, h, w, size, bias, alpha, beta):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np.asnumpy(), rtol=1e-1)
+        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-1)
 
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
@@ -37,7 +36,6 @@ def verify_lrn(n, c, h, w, size, bias, alpha, beta):
 def test_lrn():
     verify_lrn(1, 3, 5, 5, 3, 1, 1, 0.5)
     verify_lrn(1, 3, 20, 20, 3, 2, 1, 0.75)
-
 
 if __name__ == "__main__":
     test_lrn()
