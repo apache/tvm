@@ -1,0 +1,14 @@
+enclave {
+    from "sgx_tstdc.edl" import *;
+
+    trusted {
+        public int run_module();
+        public void stop_module();
+        public void ecall_run_worker();
+    };
+
+    untrusted {
+        void ocall_thread_pool_launch(int num_workers);
+    };
+};
+
