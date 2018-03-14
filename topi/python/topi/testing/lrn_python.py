@@ -28,7 +28,7 @@ def lrn_nchw_python(a_np, size, bias, alpha, beta):
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     batch, channel, height, weight = a_np.shape
-    radius = size / 2
+    radius = int(size / 2)
     sqr_sum = np.zeros(shape=a_np.shape).astype(a_np.dtype)
     sqr_sum_up = np.zeros(shape=a_np.shape).astype(a_np.dtype)
     lrn_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
