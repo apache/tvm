@@ -16,3 +16,4 @@ from .reorg_python import reorg_python
 from .region_python import region_python
 from .shortcut_python import shortcut_python
 from .lrn_python import lrn_nchw_python
+from .l2norm_python import l2norm_nchw_python
