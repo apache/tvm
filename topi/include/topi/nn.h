@@ -84,6 +84,31 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
 }
 
 /*!
+* \brief Creates an operation that performs a parametric rectified linear unit
+*
+* \param x The input data tensor
+* \param w The input weight tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the relu operation
+*/
+template <typename T>
+inline tvm::Tensor prelu(const tvm::Tensor& x,
+                              const tvm::Tensor& w,
+                              std::string name = "tensor",
+                              std::string tag = kBroadcast) {
+  auto m = broadcast_mul(x, w);
+  return tvm::compute(
+    x->shape,
+    [&](const tvm::Array<tvm::Var>& i) {
+      return tvm::select(x(i) > 0, x(i), m(i));
+    },
+    name,
+    tag);
+}
+
+/*!
  * \brief Creates an operation that performs padding
  *
  * \param t The input tensor
