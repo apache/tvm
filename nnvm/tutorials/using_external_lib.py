@@ -1,5 +1,5 @@
 """
-Using external libaries with NNVM
+Using external libraries with NNVM
 =====================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
@@ -214,5 +214,5 @@ np.testing.assert_allclose(out_cuda, out_cudnn, rtol=1e-5)
 # For example, MIOpen only supports NCHW layout and fp32 data type at the moment, so you cannot use other layouts or data type in TVM.
 #
 # Second, and more importantly, external libraries restrict the possibility of operator fusion during graph compilation, as shown above.
-# TVM and NNVM aim to achieve the best performance on a varity of hardwares, with joint operator level and graph level optimization.
+# TVM and NNVM aim to achieve the best performance on a variety of hardwares, with joint operator level and graph level optimization.
 # To achieve this goal, we should continue developing better optimizations for TVM and NNVM, while using external libraries as a nice way to fall back to existing implementation when necessary.
