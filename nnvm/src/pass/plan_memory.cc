@@ -151,6 +151,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
                    GraphAllocator* allocator) {
   static auto& finplace_option = Op::GetAttr<FInplaceOption>("FInplaceOption");
   static auto& finplace_identity = Op::GetAttr<FInplaceIdentity>("FInplaceIdentity");
+  static auto& fignore_inputs = Op::GetAttr<FIgnoreInputs>("FIgnoreInputs");
 
   // Get reference
   auto &storage = *storage_ptr;
@@ -189,10 +190,13 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         uint32_t eid_in = idx.entry_id(inode.inputs[kv.first]);
         auto sid_out = storage[eid_out];
         auto sid_in = storage[eid_in];
+        bool ignore_all_inputs = (fignore_inputs.count(inode.source->op()) != 0 &&
+                                  fignore_inputs[inode.source->op()](
+                                      inode.source->attrs).size() == inode.source->num_inputs());
         if (taken[kv.first] == false &&
             sid_out == GraphAllocator::kBadStorageID &&
             sid_in >= 0 &&
-            (storage_ref_count[sid_in] == 1 || identity[ipair]) &&
+            (storage_ref_count[sid_in] == 1 && !ignore_all_inputs || identity[ipair]) &&
             entry_ref_count[eid_out] > 0 &&
             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
             dtype_vec[eid_out] == dtype_vec[eid_in]) {
@@ -230,7 +234,6 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         storage[eid] = sid;
     }
     // check if certain inputs is ignored.
-    static auto& fignore_inputs = Op::GetAttr<FIgnoreInputs>("FIgnoreInputs");
     std::vector<uint32_t> ignore_inputs;
     if (fignore_inputs.count(inode.source->op()) != 0) {
       ignore_inputs = fignore_inputs[inode.source->op()](inode.source->attrs);

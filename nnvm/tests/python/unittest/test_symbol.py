@@ -6,6 +6,13 @@ def test_dense():
     y = sym.dense(x, units=30, name="fc")
     assert y.list_input_names() == ["x", "fc_weight", "fc_bias"]
 
+def test_batch_norm():
+    x = sym.Variable('x')
+    y = sym.dense(x, units=30, name="fc")
+    z = sym.batch_norm(x, name='bn')
+    assert z.list_input_names('aux_state') == ['bn_moving_mean', 'bn_moving_var']
+    assert z.list_input_names('read_only') == ['x', 'bn_gamma', 'bn_beta']
+
 def test_compose():
     x = sym.Variable('x')
     z = sym.Variable('z')
@@ -51,3 +58,4 @@ if __name__ == "__main__":
     test_copy()
     test_default_input()
     test_compose()
+    test_batch_norm()
