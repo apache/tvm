@@ -134,8 +134,11 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(relu)
     NodeEntry zero = MakeNode("zeros_like", n->attrs.name + "_grad_zero",
                               {n->inputs[0]});
     return std::vector<NodeEntry>{
-      MakeNode("greater", n->attrs.name + "_grad",
-               {n->inputs[0], zero}, {{"exclude", "true"}})
+      MakeNode("elemwise_mul", n->attrs.name + "_grad", {
+        ograds[0],
+        MakeNode("greater", n->attrs.name + "_grad_mask",
+                 {n->inputs[0], zero}, {{"exclude", "true"}})
+      })
     };
 })
 .set_support_level(1);
@@ -249,7 +252,7 @@ axis to be the last item in the input shape.
 .set_attr<FNumVisibleOutputs>("FNumVisibleOutputs", [](const NodeAttrs& attrs) {
     return 1;
   })
-.set_attr<FMutateInputs>("FListMutateInputs", [](const NodeAttrs& attrs) {
+.set_attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
     return std::vector<uint32_t>{3, 4};
   })
 .set_support_level(1);

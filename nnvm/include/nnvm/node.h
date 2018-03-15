@@ -146,11 +146,9 @@ inline NodeEntry MakeNode(
   NodePtr p = Node::Create();
   p->attrs.op = nnvm::Op::Get(op_name);
   p->attrs.name = std::move(node_name);
-  if (attrs.size() != 0) {
-    p->attrs.dict = attrs;
-    if (p->attrs.op->attr_parser) {
-      p->attrs.op->attr_parser(&(p->attrs));
-    }
+  p->attrs.dict = attrs;
+  if (p->attrs.op->attr_parser) {
+    p->attrs.op->attr_parser(&(p->attrs));
   }
   p->inputs = std::move(inputs);
   return NodeEntry{p, 0, 0};
