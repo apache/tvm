@@ -58,7 +58,7 @@ The configuration of tvm can be modified by ```config.mk```
   any local modification will be ignored by git, then modify the according flags.
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
   - LLVM 4.0 or higher is needed for build with LLVM. Note that verison of LLVM from default apt may lower than 4.0.
-  - Since LLVM takes long time to build from source, you can download pre-built version of LLVM frorm
+  - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
     [LLVM Download Page](http://releases.llvm.org/download.html).
     - Unzip to a certain location, modify ```config.mk``` to add ```LLVM_CONFIG=/path/to/your/llvm/bin/llvm-config```
   - You can also use [LLVM Nightly Ubuntu Build](https://apt.llvm.org/)
