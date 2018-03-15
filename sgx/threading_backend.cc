@@ -6,76 +6,64 @@
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/logging.h>
 #include <sgx_edger8r.h>
-#include <mutex>
-#include <queue>
+#include <sgx_trts.h>
+#include <atomic>
 
 extern "C" {
-sgx_status_t SGX_CDECL tvm_ocall_thread_pool_launch(int num_workers);
+sgx_status_t SGX_CDECL tvm_ocall_thread_pool_launch(int num_workers, void* cb);
 }
+
+#ifndef TVM_SGX_MAX_CONCURRENCY
+#define TVM_SGX_MAX_CONCURRENCY 1
+#endif
 
 namespace tvm {
 namespace runtime {
 namespace threading {
 
-class ThreadGroup::ThreadGroupImpl {
+class ThreadGroup::Impl {
  public:
-  void Launch(std::vector<std::function<void()>> task_callbacks) {
-    std::lock_guard<std::mutex> lock(qmut_);
-    CHECK(Size() + task_callbacks.size() <= MaxConcurrency())
-      << "Tried spawning more threads than allowed by max concurrency.";
-    for (const auto& cb : task_callbacks) {
-      pending_tasks_.push(cb);
-    }
-    num_tasks_ += task_callbacks.size();
+  Impl(int num_workers, std::function<void(int)> worker_callback,
+       bool exclude_worker0)
+      : num_workers_(num_workers),
+        worker_callback_(worker_callback),
+        next_task_id_(exclude_worker0) {
+    CHECK(num_workers <= TVM_SGX_MAX_CONCURRENCY)
+      << "Tried spawning more threads than allowed by TVM_SGX_MAX_CONCURRENCY.";
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status = tvm_ocall_thread_pool_launch(task_callbacks.size());
+    sgx_status = tvm_ocall_thread_pool_launch(num_workers, this);
     CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
   }
 
-  size_t Size() { return num_tasks_; }
-
   void RunTask() {
-    std::function<void()> task = GetPendingTask();
-    if (task == nullptr) return;
-    task();
-    std::lock_guard<std::mutex> lock(qmut_);
-    --num_tasks_;
-  }
-
-  static ThreadGroupImpl* Global() {
-    static ThreadGroupImpl inst;
-    return &inst;
+    int task_id = next_task_id_++;
+    CHECK(task_id < num_workers_)
+      << "More workers entered enclave than allowed by TVM_SGX_MAX_CONCURRENCY";
+    worker_callback_(task_id);
   }
 
  private:
-  std::function<void()> GetPendingTask() {
-    std::lock_guard<std::mutex> lock(qmut_);
-    if (pending_tasks_.size() == 0) return nullptr;
-    std::function<void()> task = pending_tasks_.front();
-    pending_tasks_.pop();
-    return task;
-  }
-
-  size_t num_tasks_;
-  std::mutex qmut_;
-  std::queue<std::function<void()>> pending_tasks_;
+  int num_workers_;
+  std::function<void(int)> worker_callback_;
+  std::atomic<int> next_task_id_;
 };
 
-ThreadGroup::ThreadGroup(): impl_(ThreadGroup::ThreadGroupImpl::Global()) {}
-ThreadGroup::~ThreadGroup() {}
-void ThreadGroup::Launch(std::vector<std::function<void()>> task_callbacks) {
-  return impl_->Launch(task_callbacks);
-}
-size_t ThreadGroup::Size() { return impl_->Size(); }
-void ThreadGroup::RunTask() { return impl_->RunTask(); }
+ThreadGroup::ThreadGroup(int num_workers,
+                         std::function<void(int)> worker_callback,
+                         bool exclude_worker0)
+  : impl_(new ThreadGroup::Impl(num_workers, worker_callback,
+                                exclude_worker0)) {}
+void ThreadGroup::Join() {}
+ThreadGroup::~ThreadGroup() { delete impl_; }
 
 void Yield() {}
 
-int MaxConcurrency() { return std::max(TVM_SGX_MAX_CONCURRENCY, 1); }
+int MaxConcurrency() { return TVM_SGX_MAX_CONCURRENCY; }
 
 extern "C" {
-void tvm_ecall_run_worker() {
-  (new ThreadGroup())->RunTask();
+void tvm_ecall_run_worker(const void* impl) {
+  if (!sgx_is_within_enclave(impl, sizeof(ThreadGroup::Impl))) return;
+  ((ThreadGroup::Impl*)impl)->RunTask();
 }
 }
 

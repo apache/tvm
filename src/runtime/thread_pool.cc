@@ -18,9 +18,6 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
-#ifndef _LIBCPP_SGX_CONFIG
-#include <iostream>
-#endif
 
 const constexpr int kL1CacheBytes = 64;
 
@@ -212,6 +209,8 @@ class SpscTaskQueue {
    * \return Whether the task is enqueued.
    */
   bool Enqueue(const Task& input) {
+    if (exit_now_.load(std::memory_order_relaxed)) return false;
+
     const uint32_t tail = tail_.load(std::memory_order_relaxed);
 
     if ((tail + 1) % kRingSize != (head_.load(std::memory_order_acquire))) {
@@ -256,13 +255,17 @@ class SpscTaskQueue {
 // The thread pool
 class ThreadPool {
  public:
-  ThreadPool() {
-    num_workers_ = tvm::runtime::threading::MaxConcurrency();
-    this->Init();
+  ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
+    for (int i = 0; i < num_workers_; ++i) {
+      // The SpscTaskQueue only host ONE item at a time
+      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
+    }
+    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
+        new tvm::runtime::threading::ThreadGroup(
+          num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+          false /* include_main_thread */));
   }
-  ~ThreadPool() {
-    if (num_workers_ > 0) Shutdown();
-  }
+  ~ThreadPool() { Shutdown(); }
   int Launch(FTVMParallelLambda flambda,
              void* cdata,
              int num_task,
@@ -293,8 +296,7 @@ class ThreadPool {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
       q->SignalForKill();
     }
-    delete threads_;
-    num_workers_ = 0;
+    threads_.reset();
   }
 
   static ThreadPool* Global() {
@@ -303,22 +305,9 @@ class ThreadPool {
   }
 
  private:
-  // Initialize the pool.
-  void Init() {
-    for (int i = 0; i < num_workers_; ++i) {
-      // The SpscTaskQueue only host ONE item at a time
-      queues_.emplace_back(
-          std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
-    }
-    std::vector<std::function<void()>> callbacks;
-    for (int i = 0; i < num_workers_; ++i) {
-      callbacks.push_back(std::bind(ThreadPool::RunWorker, queues_[i].get()));
-    }
-    threads_ = new tvm::runtime::threading::ThreadGroup();
-    threads_->Launch(callbacks);
-  }
   // Internal worker function.
-  static void RunWorker(SpscTaskQueue* queue) {
+  void RunWorker(int worker_id) {
+    SpscTaskQueue* queue = queues_[worker_id].get();
     SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
     while (queue->Pop(&task)) {
@@ -332,10 +321,9 @@ class ThreadPool {
       }
     }
   }
-  // Number of workers
   int num_workers_;
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
-  tvm::runtime::threading::ThreadGroup* threads_;
+  std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
 }  // namespace runtime

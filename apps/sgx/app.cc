@@ -6,7 +6,6 @@
 #include "test_addone_u.h"
 #include "../../sgx/runtime_u.cc"
 
-#define TVM_SGX_NUM_WORKERS 4
 #define TOKEN_FILENAME   "bin/test_addone.token"
 #define ENCLAVE_FILENAME "lib/test_addone.signed.so"
 
@@ -84,7 +83,6 @@ int initialize_enclave(void)
   /* Step 2: call sgx_create_enclave to initialize an enclave instance */
   /* Debug Support: set 2nd parameter to 1 */
   sgx_status = sgx_create_enclave(ENCLAVE_FILENAME, SGX_DEBUG_FLAG, &token, &updated, &tvm_sgx_eid, NULL);
-  std::cout << tvm_sgx_eid << std::endl;
   if (sgx_status != SGX_SUCCESS) {
     print_error_message(sgx_status);
     if (fp != NULL) fclose(fp);
@@ -117,11 +115,11 @@ int SGX_CDECL main(int argc, char *argv[]) {
   /* Run TVM within the enclave */
   int addone_status;
   sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-  sgx_status = run_module(tvm_sgx_eid, &addone_status);
+  sgx_status = tvm_ecall_run_module(tvm_sgx_eid, nullptr, &addone_status);
   if (sgx_status != SGX_SUCCESS) {
     print_error_message(sgx_status);
   }
-  stop_module(tvm_sgx_eid);
+  tvm_ecall_shutdown(tvm_sgx_eid);
   tvm::runtime::sgx::Shutdown();
   sgx_destroy_enclave(tvm_sgx_eid);
 

@@ -26,6 +26,7 @@ pkg_cflags := -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/dlpack/include\
 	-I.\
 	-DDMLC_LOG_STACK_TRACE=0\
+	-fmax-errors=4
 
 pkg_ldflags := -L${TVM_ROOT}/lib
 
@@ -40,7 +41,7 @@ enclave_cflags := -static -nostdinc\
 	-DDMLC_CXX11_THREAD_LOCAL=0\
 	$(enclave_include_paths)\
 
-enclave_cxxflags := -nostdinc++ $(enclave_cflags)
+enclave_cxxflags := -nostdinc++ $(enclave_cflags) -DTVM_SGX_MAX_CONCURRENCY=4
 
 enclave_ldflags :=\
 	-Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_SDK)/lib64\
