@@ -149,7 +149,13 @@ def nms_ir(inter_out, sort_result, valid_count, out, nms_threshold, force_suppre
                 nkeep[0] = nms_topk
             with ib.for_range(0, nkeep[0], name="l") as l:
                 with ib.for_range(0, 6, name="m") as m:
-                    p_out[n * num_anchors * 6 + l * 6 + m] = p_inter_out[p_sort_result[n * num_anchors + l] * 6 + m]
+                    p_out[n * num_anchors * 6 + l * 6 + m] \
+                        = p_inter_out[n * num_anchors * 6 + p_sort_result[n * num_anchors + l] * 6 + m]
+            with ib.if_scope(nkeep[0] < p_valid_count[n]):
+                with ib.for_range(0, p_valid_count[n] - nkeep[0], name="l") as l:
+                    with ib.for_range(0, 6, name="m") as m:
+                        p_out[n * num_anchors * 6 + (l + nkeep[0]) * 6 + m] \
+                            = p_inter_out[n * num_anchors * 6 + (l + nkeep[0]) * 6 + m]
             # Apply nms
             with ib.for_range(0, p_valid_count[n], name="l") as l:
                 offset_l = l * 6
@@ -167,9 +173,13 @@ def nms_ir(inter_out, sort_result, valid_count, out, nms_threshold, force_suppre
                                 with ib.if_scope(iou >= nms_threshold):
                                     p_out[n * num_anchors * 6 + offset_m] = -1.0
         with ib.else_scope():
-            with ib.for_range(0, num_anchors, name="l") as l:
+            with ib.for_range(0, p_valid_count[n], name="l") as l:
                 with ib.for_range(0, 6, name="m") as m:
                     p_out[n * num_anchors * 6 + l * 6 + m] = p_inter_out[n * num_anchors * 6 + l * 6 + m]
+        # Set invalid entry to be -1
+        with ib.for_range(0, num_anchors - p_valid_count[n], name="l") as l:
+            with ib.for_range(0, 6, name="m") as m:
+                p_out[n * num_anchors * 6 + (l + p_valid_count[n]) * 6 + m] = -1.0
     return ib.get()
 
 

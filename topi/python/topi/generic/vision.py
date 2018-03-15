@@ -73,12 +73,29 @@ def schedule_region(outs):
 
 @tvm.target.generic_func
 def schedule_multibox_prior(outs):
-    """Schedule for region
+    """Schedule for multibox_prior
 
     Parameters
     ----------
     outs: Array of Tensor
       The computation graph description of multibox_prior
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_multibox_detection(outs):
+    """Schedule for multibox_detection
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of multibox_detection
       in the format of an array of tensors.
 
     Returns
