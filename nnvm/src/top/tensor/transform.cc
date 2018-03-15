@@ -574,7 +574,7 @@ the input array into an output array with the same shape as the second input arr
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Input data.")
 .add_argument("shape_like", "Tensor", "Input data.")
-.set_num_inputs(1)
+.set_num_inputs(2)
 .set_num_outputs(1)
 .set_attr<FInferShape>(
   "FInferShape", [](const NodeAttrs& attrs,
@@ -585,7 +585,7 @@ the input array into an output array with the same shape as the second input arr
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, in_attrs->at(1));
     return true;
 })
-.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {

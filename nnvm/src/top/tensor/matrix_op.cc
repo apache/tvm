@@ -33,9 +33,9 @@ inline bool DotShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(lshape[lshape.ndim() - 1], rshape[0])
     << "dot shape inconsistent: " << lshape << " X " << rshape;
 
-  TShape oshape(lshape.ndim() + rshape.ndim() - 1);
-  for (size_t i = 0; i < lshape.ndim() - 1; i++) oshape[i] = lshape[i];
-  for (size_t i = 1; i < rshape.ndim(); i++) oshape[i + lshape.ndim() - 1] = rshape[i];
+  TShape oshape(lshape.ndim() + rshape.ndim() - 2);
+  for (int i = 0; i < lshape.ndim() - 1; i++) oshape[i] = lshape[i];
+  for (int i = 1; i < rshape.ndim(); i++) oshape[i + lshape.ndim() - 2] = rshape[i];
 
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, oshape);
   return true;

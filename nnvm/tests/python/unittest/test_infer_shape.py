@@ -23,6 +23,36 @@ def test_dense():
     assert(sdict["fc_bias"][0] == [30])
 
 
+def test_matmul():
+    a = sym.Variable('a', shape=(10, 20))
+    b = sym.Variable('b', shape=(20, 30))
+    c = sym.matmul(a, b, name="matmul")
+    sdict = infer_shape(c)
+    assert(sdict["matmul"][0] == [10, 30])
+    a = sym.Variable('a', shape=(20, 10))
+    c = sym.matmul(a, b, name="matmul", transpose_a=True)
+    sdict = infer_shape(c)
+    assert(sdict["matmul"][0] == [10, 30])
+    b = sym.Variable('b', shape=(30, 20))
+    c = sym.matmul(a, b, name="matmul", transpose_a=True, transpose_b=True)
+    sdict = infer_shape(c)
+    assert(sdict["matmul"][0] == [10, 30])
+    a = sym.Variable('a', shape=(10, 20))
+    c = sym.matmul(a, b, name="matmul", transpose_b=True)
+    sdict = infer_shape(c)
+    assert(sdict["matmul"][0] == [10, 30])
+    a = sym.Variable('a', shape=(10, 20, 30))
+    b = sym.Variable('b', shape=(30, 40, 50))
+    c = sym.matmul(a, b, name="matmul")
+    sdict = infer_shape(c)
+    assert(sdict["matmul"][0] == [10, 20, 40, 50])
+    a = sym.Variable('a', shape=(30, 20, 10))
+    b = sym.Variable('b', shape=(50, 40, 30))
+    c = sym.matmul(a, b, name="matmul", transpose_a=True, transpose_b=True)
+    sdict = infer_shape(c)
+    assert(sdict["matmul"][0] == [10, 20, 40, 50])
+
+
 def test_concatenate():
     x1 = sym.Variable("x", shape=(10, 20))
     x2 = sym.Variable("y", shape=(10, 30))
@@ -275,6 +305,7 @@ def test_reduce():
 if __name__ == "__main__":
     test_expand_dims()
     test_dense()
+    test_matmul()
     test_concatenate()
     test_split()
     test_batchnorm()
