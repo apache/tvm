@@ -43,9 +43,8 @@ class ArgBinder {
    *   ArgBinder will update this def_map when adding new definitions.
    */
   explicit ArgBinder(
-      std::unordered_map<const Variable*, Expr>* def_map,
-      bool quit_on_assert = true)
-      : def_map_(def_map), quit_on_assert_(quit_on_assert) {
+      std::unordered_map<const Variable*, Expr>* def_map)
+      : def_map_(def_map) {
   }
   /*!
    * \brief Try to bind arg to value, generate constraint if necessary.
@@ -53,9 +52,8 @@ class ArgBinder {
    * \param value The target expression value
    * \param arg_name argument name.
    * \param with_let Whether add lets during bind
-   * \return false if it can be proved that constraints are unsatisfiable, true otherwise.
    */
-  bool Bind(const Expr& arg,
+  void Bind(const Expr& arg,
             const Expr& value,
             const std::string& arg_name,
             bool with_let = false);
@@ -64,9 +62,8 @@ class ArgBinder {
    * \param arg The argument to be binded.
    * \param value The target expression value
    * \param arg_name argument name.
-   * \return false if it can be proved that constraints are unsatisfiable, true otherwise.
    */
-  bool BindArray(const Array<Expr>& arg,
+  void BindArray(const Array<Expr>& arg,
                  const Array<Expr>& value,
                  const std::string& arg_name);
   /*!
@@ -75,9 +72,8 @@ class ArgBinder {
    * \param value The target expression value
    * \param arg_name argument name.
    * \param fuzzy_match If enabled, we allow value's dimension to be smaller than arg, as long as arg's higher dimensions are of 1.
-   * \return false if it can be proved that constraints are unsatisfiable, true otherwise.
    */
-  bool BindBuffer(const Buffer& arg,
+  void BindBuffer(const Buffer& arg,
                   const Buffer& value,
                   const std::string& arg_name,
                   bool fuzzy_match);
@@ -123,14 +119,11 @@ class ArgBinder {
   }
 
  private:
-  // Internal bind functions
+  // Internal bind function
   bool Bind_(const Expr& arg,
              const Expr& value,
              const std::string& arg_name,
-             bool with_lets,
-             bool* new_variable_added);
-  bool BinderAddAssert(Expr cond,
-                       const std::string& arg_name);
+             bool with_lets);
   /*! \brief The definition map, can be uses to substitute */
   std::unordered_map<const Variable*, Expr>* def_map_;
   /*! \brief defs generated in the current binder */
@@ -141,9 +134,6 @@ class ArgBinder {
   Map<Var, Expr> def_handle_dtype_;
   /*! \brief asserts generated */
   std::vector<Stmt> asserts_;
-  /*! \brief determines what we do when assertions (*CHECK* macros) are not satisfied.
-   * If true, we exit, otherwise we return results and move on */
-  bool quit_on_assert_;
 };
 }  // namespace ir
 }  // namespace tvm

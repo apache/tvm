@@ -386,8 +386,8 @@ void InjectInline(ScheduleNode* sch) {
   }
 }
 
-Schedule Schedule::normalize(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap) {
-  Schedule sn = copy(smap);
+Schedule Schedule::normalize() {
+  Schedule sn = copy();
   InjectInline(sn.operator->());
   RebaseNonZeroMinLoop(sn);
   return sn;

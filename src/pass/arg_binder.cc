@@ -2,12 +2,10 @@
  *  Copyright (c) 2017 by Contributors
  * \file arg_binder.cc
  * \brief Helper utility to match and bind arguments.
- * \end
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/logging.h>
 #include "./ir_util.h"
 #include "./arg_binder.h"
 #include "../arithmetic/compute_expr.h"
@@ -15,35 +13,25 @@
 namespace tvm {
 namespace ir {
 
-/**!
- * \brief if quit_on_assert_ is false (true, resp.): returns false (quit, resp.) if cond can
- * be proven to be unsatisfiable, return true (return true, resp.) otherwise.
- */
-bool ArgBinder::BinderAddAssert(Expr cond,
-                                const std::string& arg_name) {
+void BinderAddAssert(Expr cond,
+                     const std::string& arg_name,
+                     std::vector<Stmt>* asserts) {
   Expr scond = Simplify(cond);
   if (is_zero(scond)) {
-    COND_LOG(quit_on_assert_, FATAL) << "Bind have an unmet assertion: "
+    LOG(FATAL) << "Bind have an unmet assertion: "
                << cond << ", " << " on argument " << arg_name;
   }
   if (!is_one(scond)) {
     std::ostringstream os;
     os << "Argument " << arg_name << " has an unsatisfied constraint";
-    asserts_.emplace_back(AssertStmt::make(scond, os.str(), Evaluate::make(0)));
+    asserts->emplace_back(AssertStmt::make(scond, os.str(), Evaluate::make(0)));
   }
-  return true;
 }
 
-/**!
- * \brief if quit_on_assert_ is false (true, resp.): returns false (quit, resp.) if
- * arg == value can be proven to be unsatisfiable, return true (return true, resp.) otherwise.
- */
 bool ArgBinder::Bind_(const Expr& arg,
                       const Expr& value,
                       const std::string& arg_name,
-                      bool with_lets,
-                      bool* new_variable_added) {
-  bool result = false;
+                      bool with_lets) {
   CHECK_EQ(arg.type(), value.type());
   if (const Variable* v = arg.as<Variable>()) {
     auto it = def_map_->find(v);
@@ -56,36 +44,24 @@ bool ArgBinder::Bind_(const Expr& arg,
       } else {
         (*def_map_)[v] = value;
       }
-      (*new_variable_added) = true;
       return true;
     } else {
-      result = BinderAddAssert(it->second == value, arg_name);
+      BinderAddAssert(it->second == value, arg_name, &asserts_);
     }
   } else {
-    result = BinderAddAssert(arg == value, arg_name);
+    BinderAddAssert(arg == value, arg_name, &asserts_);
   }
-  (*new_variable_added) = false;
-  return result;
+  return false;
 }
 
-/**!
- * \brief if quit_on_assert_ is false (true, resp.) : returns false (quit, resp.) if
- * arg == value can be proven to be unsatisfiable, return true (return true, resp.) otherwise.
- */
-bool ArgBinder::Bind(const Expr& arg,
+void ArgBinder::Bind(const Expr& arg,
                      const Expr& value,
                      const std::string& arg_name,
                      bool with_let) {
-  bool new_var_added = false;
-  return Bind_(arg, value, arg_name, with_let, &new_var_added);
+  Bind_(arg, value, arg_name, with_let);
 }
 
-/**!
- * \brief if quit_on_assert_ is false (true, resp.) : returns false (quit, resp.) if
- * arg[i] == value[i] can be proven to be unsatisfiable for any i, return true (return
- * true, resp.) otherwise.
- */
-bool ArgBinder::BindArray(const Array<Expr>& arg,
+void ArgBinder::BindArray(const Array<Expr>& arg,
                           const Array<Expr>& value,
                           const std::string& arg_name) {
   CHECK_EQ(arg.size(), value.size())
@@ -93,17 +69,11 @@ bool ArgBinder::BindArray(const Array<Expr>& arg,
   for (size_t i = 0; i < arg.size(); ++i) {
     std::ostringstream os;
     os << arg_name << "[" << i << "]";
-    COND_CHECK(quit_on_assert_, this->Bind(arg[i], value[i], os.str()));
+    this->Bind(arg[i], value[i], os.str());
   }
-  return true;
 }
 
-/**!
- * \brief if quit_on_assert_ is false (true, resp.): returns false (quit, resp.) if
- * any of the constraints passed to the binder can be proven to be unsatisfiable,
- * return true (return true, resp.) otherwise.
- */
-bool ArgBinder::BindBuffer(const Buffer& arg,
+void ArgBinder::BindBuffer(const Buffer& arg,
                            const Buffer& value,
                            const std::string& arg_name,
                            bool fuzzy_match) {
@@ -120,21 +90,17 @@ bool ArgBinder::BindBuffer(const Buffer& arg,
   }
   // bind pointer and offset.
   if (is_zero(arg->elem_offset)) {
-    COND_CHECK(quit_on_assert_, is_zero(value->elem_offset))
+    CHECK(is_zero(value->elem_offset))
         << "Trying to bind a Buffer with offset into one without offset";
   }
 
-  COND_CHECK(quit_on_assert_, this->Bind(arg->data, value->data, arg_name + ".data"));
-  bool new_var_added = false;
-  COND_CHECK(quit_on_assert_, Bind_(arg->elem_offset, value->elem_offset,
-                                    arg_name + ".elem_offset", false, &new_var_added));
-  if (new_var_added) {
+  this->Bind(arg->data, value->data, arg_name + ".data");
+  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
     if (arg->offset_factor > 1) {
       Expr offset = value->elem_offset;
       Expr factor = make_const(offset.type(), arg->offset_factor);
       Expr zero = make_zero(offset.type());
-      COND_CHECK(quit_on_assert_,
-                 BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset"));
+      BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
     }
   }
 
@@ -142,14 +108,14 @@ bool ArgBinder::BindBuffer(const Buffer& arg,
     CHECK(fuzzy_match) << "Argument " << arg_name << " size mismatch";
     size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
-      COND_CHECK(quit_on_assert_, is_one(value->shape[i]))
+      CHECK(is_one(value->shape[i]))
           << "Argument " << arg_name << " shape mismatch"
           << arg->shape << " vs " << value->shape;
     }
     for (size_t i = 0; i < arg->shape.size(); ++i) {
       std::ostringstream os;
       os << arg_name << ".shape[" << i << "]";
-      COND_CHECK(quit_on_assert_, this->Bind(arg->shape[i], value->shape[i + diff], os.str()));
+      this->Bind(arg->shape[i], value->shape[i + diff], os.str());
     }
     if (value->strides.size() != 0) {
       CHECK_EQ(arg->strides.size(), arg->shape.size());
@@ -157,17 +123,13 @@ bool ArgBinder::BindBuffer(const Buffer& arg,
       for (size_t i = 0; i < arg->strides.size(); ++i) {
         std::ostringstream os;
         os << arg_name << ".strides[" << i << "]";
-        COND_CHECK(quit_on_assert_,
-                   this->Bind(arg->strides[i], value->strides[i + diff], os.str()));
+        this->Bind(arg->strides[i], value->strides[i + diff], os.str());
       }
     }
   } else {
-    COND_CHECK(quit_on_assert_,
-               this->BindArray(arg->shape, value->shape, arg_name + ".shape"));
-    COND_CHECK(quit_on_assert_,
-               this->BindArray(arg->strides, value->strides, arg_name + ".strides"));
+    this->BindArray(arg->shape, value->shape, arg_name + ".shape");
+    this->BindArray(arg->strides, value->strides, arg_name + ".strides");
   }
-  return true;
 }
 
 inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
@@ -203,10 +165,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                UIntImm::make(UInt(16), dtype.lanes()));
   asserts_.emplace_back(AssertStmt::make(cond, type_err_msg.str(), nop));
   // data field
-  bool new_var_added = false;
-  Bind_(buffer->data, TVMArrayGet(Handle(), handle, intrinsic::kArrData),
-        arg_name + ".data", true, &new_var_added);
-  if (new_var_added) {
+  if (Bind_(buffer->data, TVMArrayGet(Handle(), handle, intrinsic::kArrData),
+            arg_name + ".data", true)) {
     Var vptr(buffer->data);
     def_handle_dtype_.Set(vptr, make_const(buffer->dtype, 0));
     // mark alignment of external bufs
@@ -222,12 +182,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
     std::ostringstream field_name;
     field_name << v_shape->name_hint << '[' << k << ']';
-    bool new_var_added = false;
     Bind_(buffer->shape[k],
           cast(buffer->shape[k].type(),
                Load::make(tvm_shape_type, v_shape,
                           IntImm::make(Int(32), k), const_true(1))),
-          field_name.str(), true, &new_var_added);
+          field_name.str(), true);
   }
   // strides field
   Var v_strides(arg_name + ".strides", Handle());
@@ -270,45 +229,41 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';
-      bool new_var_added = false;
       Bind_(buffer->strides[k],
             cast(buffer->shape[k].type(),
                  Load::make(tvm_shape_type, v_strides,
                             IntImm::make(Int(32), k), const_true(1))),
-            field_name.str(), true, &new_var_added);
+            field_name.str(), true);
     }
   }
   // Byte_offset field.
   int data_bytes = GetVectorBytes(buffer->dtype);
   int64_t const_offset;
   if (arith::GetConst(buffer->elem_offset, &const_offset)) {
-    bool new_var_added = false;
     Bind_(make_const(UInt(64), const_offset * data_bytes),
                TVMArrayGet(UInt(64), handle, intrinsic::kArrByteOffset),
-          arg_name + ".byte_offset", true, &new_var_added);
+          arg_name + ".byte_offset", true);
   } else {
-    bool new_var_added = false;
-    Bind_(buffer->elem_offset,
-          cast(buffer->elem_offset.type(),
-               (TVMArrayGet(UInt(64), handle, intrinsic::kArrByteOffset) /
-                make_const(UInt(64), data_bytes))),
-              arg_name + ".elem_offset", true, &new_var_added);
-    if (new_var_added) {
+    if (Bind_(buffer->elem_offset,
+              cast(buffer->elem_offset.type(),
+                   (TVMArrayGet(UInt(64), handle, intrinsic::kArrByteOffset) /
+                    make_const(UInt(64), data_bytes))),
+              arg_name + ".elem_offset", true)) {
       if (buffer->offset_factor > 1) {
         Expr offset = buffer->elem_offset;
         Expr factor = make_const(offset.type(), buffer->offset_factor);
         Expr zero = make_zero(offset.type());
-        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset");
+        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
       }
     }
   }
   // device info.
   Bind_(device_type,
         TVMArrayGet(Int(32), handle, intrinsic::kArrDeviceType),
-        arg_name + ".device_type", true, &new_var_added);
+        arg_name + ".device_type", true);
   Bind_(device_id,
         TVMArrayGet(Int(32), handle, intrinsic::kArrDeviceId),
-        arg_name + ".device_id", true, &new_var_added);
+        arg_name + ".device_id", true);
 }
 
 }  // namespace ir

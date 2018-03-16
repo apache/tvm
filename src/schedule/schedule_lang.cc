@@ -3,7 +3,6 @@
  * \file schedule_lang.cc
  */
 #include <tvm/schedule.h>
-#include <tvm/schedule_pass.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_set>
@@ -446,52 +445,49 @@ Stage CopyStage(const Stage& s) {
   return Stage(n);
 }
 
-Schedule Schedule::copy(std::unordered_map<Stage, Stage, NodeHash, NodeEqual>* smap) const {
+Schedule Schedule::copy() const {
   // map of stages.
   const ScheduleNode* self = operator->();
-  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap_local;
-  if (smap == nullptr) {
-    smap = &smap_local;
-  }
+  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
   std::shared_ptr<ScheduleNode> n = std::make_shared<ScheduleNode>();
   n->outputs = self->outputs;
   // Copy the stages.
   for (Stage s : self->stages) {
     Stage scopy = CopyStage(s);
-    (*smap)[s] = scopy;
+    smap[s] = scopy;
     n->stages.push_back(scopy);
   }
   for (Stage g : self->groups) {
     Stage gcopy = CopyStage(g);
-    (*smap)[g] = gcopy;
+    smap[g] = gcopy;
     n->groups.push_back(gcopy);
   }
   // Remaps the reference relations.
   for (auto kv : self->stage_map) {
-    n->stage_map.Set(kv.first, smap->at(kv.second));
+    n->stage_map.Set(kv.first, smap.at(kv.second));
   }
   for (Stage s : n->stages) {
     if (s->attach_stage.defined()) {
-      CHECK(smap->find(s->attach_stage) != smap->end())
+      CHECK(smap.find(s->attach_stage) != smap.end())
         << s->attach_stage << " not found in " << (*this);
-      s->attach_stage = smap->at(s->attach_stage);
+      s->attach_stage = smap.at(s->attach_stage);
     }
     if (s->group.defined()) {
-      CHECK(smap->find(s->group) != smap->end())
+      CHECK(smap.find(s->group) != smap.end())
         << s->group << " not found in " << (*this);
-      s->group = smap->at(s->group);
+      s->group = smap.at(s->group);
     }
   }
   for (Stage s : n->groups) {
     if (s->attach_stage.defined()) {
-      CHECK(smap->find(s->attach_stage) != smap->end())
+      CHECK(smap.find(s->attach_stage) != smap.end())
         << s->attach_stage << " not found in " << (*this);
-      s->attach_stage = smap->at(s->attach_stage);
+      s->attach_stage = smap.at(s->attach_stage);
     }
     if (s->group.defined()) {
-      CHECK(smap->find(s->group) != smap->end())
+      CHECK(smap.find(s->group) != smap.end())
         << s->group << " not found in " << (*this);
-      s->group = smap->at(s->group);
+      s->group = smap.at(s->group);
     }
   }
   return Schedule(n);
@@ -645,32 +641,6 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
 
   self->groups.push_back(gstage);
   return gstage;
-}
-
-void Schedule::auto_tensorize(TensorIntrin f) {
-  CHECK(defined());
-  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
-  Schedule sch = normalize(&smap);
-  Map<IterVar, Range> bounds = schedule::InferBound(sch);
-  std::unordered_map<IterVar, Range> dom_map = as_unordered_map(bounds);
-  const ScheduleNode *self = operator->();
-  for (auto s : self->stages) {
-    Stage stage_copy = smap[s];
-    const ComputeOpNode *opnode = stage_copy.operator->()->op.as<ComputeOpNode>();
-    if (opnode == nullptr) {
-      continue;
-    }
-    // pseudocode:
-    /*
-    if (CheckTensorize(opnode, stage_copy, dom_map, f, ..., &tloc, ...)) {
-      IterVar var = s->leaf_iter_vars[tloc];
-      UpdateIterVarAttr(s.operator->(), var, [f](IterVarAttrNode *n) {
-        n->iter_type     = kTensorized;
-        n->tensor_intrin = f;
-      });
-    }
-    */
-  }
 }
 
 void ScheduleNode::InvalidateCache() {
