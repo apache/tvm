@@ -239,13 +239,13 @@ EXPORT Array<LoweredFunc> lower(Schedule sch,
 * \brief Build a device and host module for a specific target from an array of lowered functions.
 * \param funcs The functions to be built.
 * \param target The target device to build for.
-* \param target_host The target for building host code. If null, a suitable default will be used.
+* \param target_host The target for building host code. To use the default, pass Target()
 * \param config The build configuration.
 * \return The built module.
 */
 EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
                              const Target& target,
-                             Target* target_host,
+                             const Target& target_host,
                              const BuildConfig& config);
 
 class GenericFuncNode;

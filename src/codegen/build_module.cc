@@ -386,17 +386,15 @@ Array<LoweredFunc> lower(Schedule sch,
 
 runtime::Module build(const Array<LoweredFunc>& funcs,
                       const Target& target,
-                      Target* target_host,
+                      const Target& target_host,
                       const BuildConfig& config) {
   std::unordered_set<std::string> all_names;
   for (const auto &x : funcs) {
     CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
     all_names.insert(x->name);
   }
-
-  Target target_host_val = target_host == nullptr ?
-    DefaultTargetHost(target) :
-    *target_host;
+  
+  auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
 
   Array<LoweredFunc> fhost;
   Array<LoweredFunc> fdevice;
