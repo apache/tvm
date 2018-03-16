@@ -97,7 +97,6 @@ class Target(NodeBase):
     def __exit__(self, ptype, value, trace):
         _api_internal._ExitTargetScope()
 
-@register_node
 class GenericFunc(NodeBase):
     """GenericFunc node reference. This represents a generic function
     that may be specialized for different targets. When this object is
@@ -142,7 +141,7 @@ class GenericFunc(NodeBase):
         key_list = [key_list] if isinstance(key_list, str) else key_list
         _api_internal._GenericFuncRegisterFunc(self, func, key_list, allow_override)
 
-def get_generic_func(name):
+def get_native_generic_func(name):
     """Get a generic function from the global registry. If no
     function is registered under the given name, a new generic
     function is created.
@@ -159,7 +158,7 @@ def get_generic_func(name):
     """
     return _api_internal._GenericFuncGetGlobal(name)
 
-def register_generic_func(func, name):
+def register_native_generic_func(func, name):
     """Store a GenericFunc in the global registry. If the
     name is already in use, an error is logged.
 
@@ -174,7 +173,7 @@ def register_generic_func(func, name):
     """
     _api_internal._GenericFuncRegisterGlobal(func, name)
 
-def generic_func(fdefault):
+def native_generic_func(fdefault):
     """Wrap a target generic function.
 
     Generic function allows registration of further functions
@@ -254,6 +253,87 @@ def generic_func(fdefault):
     fdecorate.register = register
     return fdecorate
 
+def generic_func(fdefault):
+    """Wrap a target generic function.
+
+    Generic function allows registeration of further functions
+    that can be dispatched on current target context.
+    If no registered dispatch is matched, the fdefault will be called.
+
+    Parameters
+    ----------
+    fdefault : function
+        The default function.
+
+    Returns
+    -------
+    fgeneric : function
+        A wrapped generic function.
+
+    Example
+    -------
+    .. code-block:: python
+
+      import tvm
+      # wrap function as target generic
+      @tvm.target.generic_func
+      def my_func(a):
+          return a + 1
+      # register specialization of my_func under target cuda
+      @my_func.register("cuda")
+      def my_func_cuda(a):
+          return a + 2
+      # displays 3, because my_func is called
+      print(my_func(2))
+      # displays 4, because my_func_cuda is called
+      with tvm.target.cuda():
+          print(my_func(2))
+    """
+    dispatch_dict = {}
+    func_name = fdefault.__name__
+
+    def register(key, func=None, override=False):
+        """Register function to be the dispatch function.
+
+        Parameters
+        ----------
+        key : str or list of str
+            The key to be registered.
+
+        func : function
+            The function to be registered.
+
+        override : bool
+            Whether override existing registeration.
+
+        Returns
+        -------
+        The register function is necessary.
+        """
+        def _do_reg(myf):
+            key_list = [key] if isinstance(key, str) else key
+            for k in key_list:
+                if k in dispatch_dict and not override:
+                    raise ValueError(
+                        "Key is already registered for %s" % func_name)
+                dispatch_dict[k] = myf
+            return myf
+        if func:
+            return _do_reg(func)
+        return _do_reg
+
+    def dispatch_func(func, *args, **kwargs):
+        """The wrapped dispath function"""
+        target = current_target()
+        if target is None:
+            return func(*args, **kwargs)
+        for k in target.keys:
+            if k in dispatch_dict:
+                return dispatch_dict[k](*args, **kwargs)
+        return func(*args, **kwargs)
+    fdecorate = decorate(fdefault, dispatch_func)
+    fdecorate.register = register
+    return fdecorate
 
 def cuda(options=None):
     """Returns a cuda target.

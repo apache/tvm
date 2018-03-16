@@ -71,12 +71,12 @@ Target CreateTarget(const std::string& target_name,
     t->thread_warp_size = 32;
   } else if (target_name == "rocm" || target_name == "opencl") {
     // For now assume rocm schedule for opencl
-    t->device_type = target_name == "rocm" ? kDLROCM : kDLOpenCL;
+    t->device_type = int(target_name == "rocm" ? kDLROCM : kDLOpenCL);
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
   } else if (target_name == "metal" || target_name == "vulkan") {
-    t->device_type = target_name == "metal" ? kDLMetal : kDLVulkan;
+    t->device_type = int(target_name == "metal" ? kDLMetal : kDLVulkan);
     t->keys_array.push_back(ir::StringImm::make(target_name));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
