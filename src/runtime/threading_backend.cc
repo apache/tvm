@@ -61,8 +61,8 @@ class ThreadGroup::Impl {
     memset((cpusetp), 0, sizeof(cpu_set_t))
 #endif
 #endif
-    for (unsigned i=0; i < threads_.size(); ++i) {
 #if defined(__linux__) || defined(__ANDROID__)
+    for (unsigned i=0; i < threads_.size(); ++i) {
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
@@ -72,8 +72,14 @@ class ThreadGroup::Impl {
       pthread_setaffinity_np(threads_[i].native_handle(),
           sizeof(cpu_set_t), &cpuset);
 #endif
-#endif
     }
+    // bind the master thread to core num_workers_-1
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(num_workers_-1, &cpuset);
+    pthread_setaffinity_np(pthread_self(),
+      sizeof(cpu_set_t), &cpuset);
+#endif
   }
 
   int num_workers_;
