@@ -5,6 +5,7 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
 #include <thread>
@@ -17,9 +18,6 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
-#if defined(__linux__)
-#include <sched.h>
-#endif
 
 const constexpr int kL1CacheBytes = 64;
 
@@ -76,14 +74,14 @@ class ParallelLauncher {
       std::this_thread::yield();
     }
     if (!has_error_.load()) return 0;
-    std::ostringstream os;
+    std::string err("");
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
-        os << "Task " << i << " error: " << par_errors_[i] << '\n';
+        err += "Task " + std::to_string(i) + " error: " + par_errors_[i] + '\n';
         par_errors_[i].clear();
       }
     }
-    TVMAPISetLastError(os.str().c_str());
+    TVMAPISetLastError(err.c_str());
     return -1;
   }
   // Signal that one job has finished.
@@ -161,7 +159,7 @@ class SpscTaskQueue {
    */
   void Push(const Task& input) {
     while (!Enqueue(input)) {
-      std::this_thread::yield();
+      tvm::runtime::threading::Yield();
     }
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -180,8 +178,8 @@ class SpscTaskQueue {
     // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
     // The default spin count is set by following the typical omp convention
     for (uint32_t i = 0; i < spin_count && pending_.load() == 0; ++i) {
-        std::this_thread::yield();
-      }
+      tvm::runtime::threading::Yield();
+    }
     if (pending_.fetch_sub(1) == 0) {
       std::unique_lock<std::mutex> lock(mutex_);
       cv_.wait(lock, [this] {
@@ -215,6 +213,8 @@ class SpscTaskQueue {
    * \return Whether the task is enqueued.
    */
   bool Enqueue(const Task& input) {
+    if (exit_now_.load(std::memory_order_relaxed)) return false;
+
     const uint32_t tail = tail_.load(std::memory_order_relaxed);
 
     if ((tail + 1) % kRingSize != (head_.load(std::memory_order_acquire))) {
@@ -259,32 +259,17 @@ class SpscTaskQueue {
 // The thread pool
 class ThreadPool {
  public:
-  ThreadPool() {
-    const char *val = getenv("TVM_NUM_THREADS");
-    if (val == nullptr) {
-      val = getenv("OMP_NUM_THREADS");
+  ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
+    for (int i = 0; i < num_workers_; ++i) {
+      // The SpscTaskQueue only host ONE item at a time
+      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
     }
-    if (val != nullptr) {
-      num_workers_ = atoi(val);
-    } else {
-#if defined(_M_X64) || defined(__x86_64__)
-      // Half to not count hyper threading.
-      num_workers_ = std::thread::hardware_concurrency() / 2;
-#else
-      num_workers_ = std::thread::hardware_concurrency();
-#endif
-    }
-    num_workers_ = std::max(num_workers_, 1);
-    this->Init();
+    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
+        new tvm::runtime::threading::ThreadGroup(
+          num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+          false /* include_main_thread */));
   }
-  ~ThreadPool() {
-    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
-      q->SignalForKill();
-    }
-    for (std::thread& t : threads_) {
-      t.join();
-    }
-  }
+  ~ThreadPool() { Shutdown(); }
   int Launch(FTVMParallelLambda flambda,
              void* cdata,
              int num_task,
@@ -317,38 +302,22 @@ class ThreadPool {
     return res;
   }
 
+  void Shutdown() {
+    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
+      q->SignalForKill();
+    }
+    threads_.reset();
+  }
+
   static ThreadPool* Global() {
     static ThreadPool inst;
     return &inst;
   }
 
  private:
-  // Initialize the pool.
-  void Init() {
-    for (int i = 0; i < num_workers_; ++i) {
-      // The SpscTaskQueue only host ONE item at a time
-      queues_.emplace_back(
-          std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
-    }
-    threads_.resize(num_workers_);
-    for (int i = 0; i < num_workers_; ++i) {
-      threads_[i] = std::thread([this, i] {
-          this->RunWorker(queues_[i].get());
-        });
-    }
-    const char *val = getenv("TVM_BIND_THREADS");
-    if (val == nullptr || atoi(val) == 1) {
-      if (num_workers_ <= std::thread::hardware_concurrency()) {
-        SetThreadAffinity();
-      } else {
-        LOG(WARNING)
-          << "The thread affinity cannot be set when the number of workers is larger "
-          << "than the number of available cores in the system.";
-      }
-    }
-  }
   // Internal worker function.
-  void RunWorker(SpscTaskQueue* queue) {
+  void RunWorker(int worker_id) {
+    SpscTaskQueue* queue = queues_[worker_id].get();
     SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
     while (queue->Pop(&task)) {
@@ -362,46 +331,9 @@ class ThreadPool {
       }
     }
   }
-  // bind worker threads to disjoint cores
-  void SetThreadAffinity() {
-#if defined(__ANDROID__)
-#ifndef CPU_SET
-  #define CPU_SETSIZE 1024
-  #define __NCPUBITS (8 * sizeof (uint64_t))
-  typedef struct {
-    uint64_t __bits[CPU_SETSIZE / __NCPUBITS];
-  } cpu_set_t;
-
-  #define CPU_SET(cpu, cpusetp) \
-    ((cpusetp)->__bits[(cpu)/__NCPUBITS] |= (1UL << ((cpu) % __NCPUBITS)))
-  #define CPU_ZERO(cpusetp) \
-    memset((cpusetp), 0, sizeof(cpu_set_t))
-#endif
-#endif
-#if defined(__linux__) || defined(__ANDROID__)
-    for (int i=0; i < num_workers_; ++i) {
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      CPU_SET(i, &cpuset);
-#if defined(__ANDROID__)
-      sched_setaffinity(threads_[i].native_handle(), sizeof(cpu_set_t), &cpuset);
-#else
-      pthread_setaffinity_np(threads_[i].native_handle(),
-        sizeof(cpu_set_t), &cpuset);
-#endif
-    }
-    // bind the master thread to core num_workers_-1
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(num_workers_-1, &cpuset);
-    pthread_setaffinity_np(pthread_self(),
-      sizeof(cpu_set_t), &cpuset);
-#endif
-  }
-  // Number of workers
   int num_workers_;
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
-  std::vector<std::thread> threads_;
+  std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
 }  // namespace runtime
@@ -427,7 +359,7 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
     if (i != task_id) {
       while (sync_counter[i * kSyncStride].load(
                  std::memory_order_relaxed) <= old_counter) {
-        std::this_thread::yield();
+        tvm::runtime::threading::Yield();
       }
     }
   }

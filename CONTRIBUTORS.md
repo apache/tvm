@@ -1,14 +1,32 @@
 Contributors of TVM
 ===================
-TVM adopts Apache style committer model. The package is developed and used by the community.
+TVM adopts Apache style committer model.
+The package is developed and used by the community.
 
-We actively seek committers that comes from contributors who:
-- Made substantial contribution to the project.
-- Willing to spent time on maintaining and lead the project.
+We actively seek committers that come from community contributors who:
+- Made substantial contributions to the project.
+  - All forms of contributions are valued (see detail in next section).
+- Willing to spend time on maintaining and lead the project.
+
+Contributions
+-------------
+We value all forms of contributions, here is a non-comprehensive
+list of contributions that are welcomed
+
+- Documentation and usage examples
+- Community participation, answering questions and issues.
+- Code readability and developer guide
+  - We welcome contributions that add code comments
+    to improve readability
+  - We also welcome contributions to docs to explain the
+    design choices of the internal.
+- Test cases to make the codebase more robust
+- Tutorials, blog posts, talks that promote the project.
+
 
 How to Contribute
 -----------------
-See [Contributor guide](docs/how_to/contribute.md) on how to contribute
+See [Contributor guide](docs/how_to/contribute.md) on how to contribute.
 
 Committers
 ----------
@@ -27,6 +45,7 @@ and are qualified to lead development and review changes of the owned module.
 - [Leyuan Wang](https://github.com/Laurawly) TOPI
 - [Yuwei Hu](https://github.com/Huyuwei) TOPI
 - [Yizhi Liu](https://github.com/yzhliu) JVM package
+
 
 List of Contributors
 --------------------
