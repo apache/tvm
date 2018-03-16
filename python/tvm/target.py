@@ -175,19 +175,16 @@ def register_native_generic_func(func, name):
     _api_internal._GenericFuncRegisterGlobal(func, name)
 
 def override_native_generic_func(func_name):
-    """Wrap a target generic function.
+    """Override a generic function defined in C++
 
     Generic function allows registration of further functions
     that can be dispatched on current target context.
     If no registered dispatch is matched, the fdefault will be called.
 
-    The default function and registered functions are tracked by C++ in
-    a tvm::GenericFunc object.
-
     Parameters
     ----------
-    fdefault : function
-        The default function.
+    func_name : string
+        The name of the generic func to be overridden
 
     Returns
     -------
@@ -200,7 +197,7 @@ def override_native_generic_func(func_name):
 
     import tvm
     # wrap function as target generic
-    @tvm.target.generic_func
+    @tvm.target.override_native_generic_func("my_func")
     def my_func(a):
         return a + 1
     # register specialization of my_func under target cuda
@@ -216,6 +213,20 @@ def override_native_generic_func(func_name):
     generic_func_node = get_native_generic_func(func_name)
 
     def fdecorate(fdefault):
+        """Wrap a target generic function, overriding the previous
+        default that was set for the generic function.
+
+        Parameters
+        ----------
+        fdefault : function
+            The default function.
+
+        Returns
+        -------
+        fgeneric : function
+            A wrapped generic function.
+
+        """
         generic_func_node.set_default(fdefault, allow_override=True)
 
         def register(key, func=None, override=True):
