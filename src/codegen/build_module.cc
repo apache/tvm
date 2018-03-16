@@ -393,7 +393,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
     all_names.insert(x->name);
   }
-  
+
   auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
 
   Array<LoweredFunc> fhost;
