@@ -824,6 +824,7 @@ class StoragePlanRewriter : public IRMutator {
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->type.element_of()) continue;
+        e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
       }
