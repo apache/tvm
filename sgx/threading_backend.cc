@@ -51,8 +51,7 @@ class ThreadGroup::Impl {
 ThreadGroup::ThreadGroup(int num_workers,
                          std::function<void(int)> worker_callback,
                          bool exclude_worker0)
-  : impl_(new ThreadGroup::Impl(num_workers, worker_callback,
-                                exclude_worker0)) {}
+  : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 void ThreadGroup::Join() {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 

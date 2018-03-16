@@ -16,8 +16,10 @@ namespace threading {
 
 class ThreadGroup::Impl {
  public:
-  Impl(int num_workers, std::function<void(int)> worker_callback,
-       bool exclude_worker0): num_workers_(num_workers) {
+  Impl(int num_workers,
+       std::function<void(int)> worker_callback,
+       bool exclude_worker0)
+      : num_workers_(num_workers) {
     CHECK_GE(num_workers, 1)
       << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
@@ -81,8 +83,7 @@ class ThreadGroup::Impl {
 ThreadGroup::ThreadGroup(int num_workers,
                          std::function<void(int)> worker_callback,
                          bool exclude_worker0)
-  : impl_(new ThreadGroup::Impl(num_workers, worker_callback,
-                                exclude_worker0)) {}
+  : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
 

@@ -14,12 +14,16 @@ namespace tvm {
 namespace runtime {
 namespace threading {
 
+/*!
+ * \brief A platform-agnostic abstraction for managing a collection of
+ *        thread pool threads.
+ */
 class ThreadGroup {
  public:
   class Impl;
 
    /*!
-    * \brief Starts and manages threads which back a thread pool.
+    * \brief Creates a collection of threads which run a provided function.
     *
     * \param num_workers The total number of worker threads in this group.
              Includes main thread if `exclude_worker0 = true`
@@ -30,7 +34,8 @@ class ThreadGroup {
     *        `worker_callback` will only be called for values >= 1. This
     *        allows use of the main thread as a worker.
     */
-  ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
+  ThreadGroup(int num_workers,
+              std::function<void(int)> worker_callback,
               bool exclude_worker0 = false);
   ~ThreadGroup();
 
@@ -44,12 +49,12 @@ class ThreadGroup {
 };
 
 /*!
- * \brief Platform-agnostic no-op
+ * \brief Platform-agnostic no-op.
  */
 void Yield();
 
 /*!
- * \brief Returns the maximum number of effective workers for this system.
+ * \return the maximum number of effective workers for this system.
  */
 int MaxConcurrency();
 
