@@ -440,6 +440,20 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
  * \return Transformed function.
  */
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Verify if memory accesses are legal for a specific target device type.
+ *
+ *  In the case that tgt is cuda, if not all workload is bound with
+ *  threads, CPU code is generated that tries to access GPU memory,
+ *  which is illegal. This pass performs verification for this case.
+ *
+ * \param func The function to be verified.
+ * \param device_type The target device type.
+ * \return Success of memory verification.
+ */
+bool VerifyMemory(LoweredFunc func, int device_type);
+
 }  // namespace ir
 }  // namespace tvm
 

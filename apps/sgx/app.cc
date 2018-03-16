@@ -1,13 +1,15 @@
 #include <cstdio>
+#include <iostream>
 
 #include "sgx_urts.h"
 #include "sgx_eid.h"
 #include "test_addone_u.h"
+#include "../../sgx/runtime_u.cc"
 
 #define TOKEN_FILENAME   "bin/test_addone.token"
 #define ENCLAVE_FILENAME "lib/test_addone.signed.so"
 
-sgx_enclave_id_t global_eid = 0;  // global EID shared by multiple threads
+sgx_enclave_id_t tvm_sgx_eid;
 
 typedef struct _sgx_errlist_t {
   sgx_status_t err;
@@ -80,7 +82,7 @@ int initialize_enclave(void)
 
   /* Step 2: call sgx_create_enclave to initialize an enclave instance */
   /* Debug Support: set 2nd parameter to 1 */
-  sgx_status = sgx_create_enclave(ENCLAVE_FILENAME, SGX_DEBUG_FLAG, &token, &updated, &global_eid, NULL);
+  sgx_status = sgx_create_enclave(ENCLAVE_FILENAME, SGX_DEBUG_FLAG, &token, &updated, &tvm_sgx_eid, NULL);
   if (sgx_status != SGX_SUCCESS) {
     print_error_message(sgx_status);
     if (fp != NULL) fclose(fp);
@@ -105,7 +107,7 @@ int initialize_enclave(void)
 }
 
 int SGX_CDECL main(int argc, char *argv[]) {
-  if(initialize_enclave() < 0){
+  if(initialize_enclave() < 0) {
     printf("Failed to initialize enclave.\n");
     return -1;
   }
@@ -113,12 +115,12 @@ int SGX_CDECL main(int argc, char *argv[]) {
   /* Run TVM within the enclave */
   int addone_status;
   sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-  sgx_status = enclave_main(global_eid, &addone_status);
+  sgx_status = tvm_ecall_run_module(tvm_sgx_eid, nullptr, &addone_status);
   if (sgx_status != SGX_SUCCESS) {
     print_error_message(sgx_status);
   }
 
-  sgx_destroy_enclave(global_eid);
+  sgx_destroy_enclave(tvm_sgx_eid);
 
   if (addone_status == 1) {
     printf("It works!");
@@ -126,4 +128,10 @@ int SGX_CDECL main(int argc, char *argv[]) {
   }
   printf("It doesn't work.");
   return -1;
+}
+
+extern "C" {
+void ocall_println(const char* str) {
+  std::cout << "Enclave says: " << str << std::endl;
+}
 }

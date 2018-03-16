@@ -399,7 +399,11 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
   Array<LoweredFunc> fhost;
   Array<LoweredFunc> fdevice;
 
-  for (const auto &x : funcs) {
+  for (const auto& x : funcs) {
+    CHECK(ir::VerifyMemory(x, target.device_type))
+        << "Direct host side access to device memory is detected in " << x->func_name()
+        << ". Did you forget to bind?";
+
     if (x->func_type == kMixedFunc) {
       auto func = x;
       if (config->detect_global_barrier) {

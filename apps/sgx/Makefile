@@ -26,6 +26,7 @@ pkg_cflags := -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/dlpack/include\
 	-I.\
 	-DDMLC_LOG_STACK_TRACE=0\
+	-fmax-errors=4
 
 pkg_ldflags := -L${TVM_ROOT}/lib
 
@@ -40,7 +41,7 @@ enclave_cflags := -static -nostdinc\
 	-DDMLC_CXX11_THREAD_LOCAL=0\
 	$(enclave_include_paths)\
 
-enclave_cxxflags := -nostdinc++ $(enclave_cflags)
+enclave_cxxflags := -nostdinc++ $(enclave_cflags) -DTVM_SGX_MAX_CONCURRENCY=4
 
 enclave_ldflags :=\
 	-Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_SDK)/lib64\
@@ -62,7 +63,7 @@ app_ldflags := -L$(SGX_SDK)/lib64\
 all: lib/test_addone.signed.so bin/test_addone
 
 # Build rule for all-in-one TVM package library
-lib/tvm_runtime_pack.o: tvm_runtime_pack.cc
+lib/tvm_runtime_pack.o: tvm_runtime_pack.cc lib/test_addone_t.o
 	@mkdir -p $(@D)
 	$(CXX) -c $< -o $@ $(pkg_cflags) $(pkg_ldflags) $(enclave_cxxflags) -g
 
@@ -94,7 +95,7 @@ lib/test_addone.signed.so: lib/test_addone.so enclave_config.xml
 # An app that runs the enclave
 bin/test_addone: app.cc lib/test_addone_u.o
 	@mkdir -p $(@D)
-	$(CXX) $^ -o $@ $(app_cflags) $(app_ldflags)
+	$(CXX) $^ -o $@ $(app_cflags) $(app_ldflags) $(pkg_cflags) -g
 
 # Debugging runtime pack built without SGX (c.f. howto_deploy/tvm_runtime_pack.cc)
 lib/tvm_runtime_pack_nosgx.o: tvm_runtime_pack.cc
@@ -104,7 +105,7 @@ lib/tvm_runtime_pack_nosgx.o: tvm_runtime_pack.cc
 # Debugging binary that runs TVM without SGX
 bin/addone_nosgx: enclave.cc lib/tvm_runtime_pack_nosgx.o lib/test_addone_sys.o
 	@mkdir -p $(@D)
-	$(CXX) $^ -o $@ $(pkg_cflags) $(pkg_ldflags) -g
+	$(CXX) $^ -o $@ $(pkg_cflags) $(pkg_ldflags) -g -lpthread
 
 clean:
 	rm -rf lib bin
