@@ -265,7 +265,12 @@ class ThreadPool {
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
           false /* include_main_thread */));
   }
-  ~ThreadPool() { Shutdown(); }
+  ~ThreadPool() {
+    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
+      q->SignalForKill();
+    }
+    threads_.reset();
+  }
   int Launch(FTVMParallelLambda flambda,
              void* cdata,
              int num_task,
@@ -290,13 +295,6 @@ class ThreadPool {
     }
     int res = launcher->WaitForJobs();
     return res;
-  }
-
-  void Shutdown() {
-    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
-      q->SignalForKill();
-    }
-    threads_.reset();
   }
 
   static ThreadPool* Global() {
