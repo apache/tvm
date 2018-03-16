@@ -4,11 +4,12 @@ import numpy as np
 import tvm
 import topi
 import logging
+import topi.testing
 from topi.util import get_const_tuple
 
 def verify_softmax(m, n):
     A = tvm.placeholder((m, n), name='A')
-    B = topi.cpp.nn.softmax(A)
+    B = topi.cpp.nn.softmax(A, 1)
     # confirm lower works
     s = tvm.create_schedule([B.op])
     tvm.lower(s, [A, B], simple_mode=True)

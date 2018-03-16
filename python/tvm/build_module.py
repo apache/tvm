@@ -6,9 +6,9 @@ LoweredFunc and compiled Module.
 from __future__ import absolute_import as _abs
 import warnings
 import types
-import os
 
 from ._ffi.node import NodeBase, register_node
+from ._ffi.base import _RUNTIME_ONLY
 from . import api
 from . import tensor
 from . import schedule
@@ -23,16 +23,16 @@ from . import target as _target
 from . import make
 
 class DumpIR(object):
-    """Dump IR for each pass.
-       With it, you can dump ir just like gcc/llvm.
+    """
+    Dump IR for each pass.
+    With it, you can dump ir just like gcc/llvm.
 
-       How to use:
-       -----------
-       .. code-block:: python
+    How to use:
+    -----------
+    .. code-block:: python
 
-          with tvm.build_config(dump_pass_ir=True)
-              run()
-
+        with tvm.build_config(dump_pass_ir=True)
+            run()
     """
     scope_level = 0
     def __init__(self):
@@ -40,9 +40,9 @@ class DumpIR(object):
         self._recover_list = []
 
     def decorate(self, func):
-        ''' decorate the pass function'''
+        """ decorate the pass function"""
         def dump(*args, **kwargs):
-            '''dump function'''
+            """dump function"""
             retv = func(*args, **kwargs)
             if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
                 return retv
@@ -59,7 +59,7 @@ class DumpIR(object):
         return dump
 
     def decorate_irpass(self):
-        '''decorate ir_pass and ScheduleOps'''
+        """decorate ir_pass and ScheduleOps"""
         self._old_sgpass = schedule.ScheduleOps
         schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
         vset = vars(ir_pass)
@@ -71,7 +71,7 @@ class DumpIR(object):
             vset[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
 
     def decorate_custompass(self):
-        ''' decorate add_lower_pass pass in BuildConfig'''
+        """ decorate add_lower_pass pass in BuildConfig"""
         cfg = BuildConfig.current
         self._old_custom_pass = cfg.add_lower_pass
         custom_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
@@ -79,7 +79,7 @@ class DumpIR(object):
         BuildConfig.current.add_lower_pass = pass_list
 
     def enter(self):
-        '''only decorate outermost nest'''
+        """only decorate outermost nest"""
         if DumpIR.scope_level > 0:
             return
         self.decorate_irpass()
@@ -88,7 +88,7 @@ class DumpIR(object):
         DumpIR.scope_level += 1
 
     def exit(self):
-        '''recover outermost nest'''
+        """recover outermost nest"""
         if DumpIR.scope_level > 1:
             return
         # recover decorated functions
@@ -226,7 +226,7 @@ def build_config(**kwargs):
             setattr(config, k, kwargs[k])
     return config
 
-if not os.environ.get("TVM_USE_RUNTIME_LIB", False):
+if not _RUNTIME_ONLY:
     # BuildConfig is not available in tvm_runtime
     BuildConfig.current = build_config()
 
@@ -424,10 +424,15 @@ def build(sch,
 
     target = _target.current_target() if target is None else target
     target = _target.create(target) if target else _target.create("llvm")
+    device_type = ndarray.context(target.target_name, 0).device_type
 
     fhost = []
     fdevice = []
     for func in flist:
+        if not ir_pass.VerifyMemory(func, device_type):
+            raise ValueError(
+                "Direct host side access to device memory is detected in %s. "
+                "Did you forget to bind?" % func.name)
         if func.func_type == container.LoweredFunc.MixedFunc:
             if BuildConfig.current.detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
@@ -449,7 +454,6 @@ def build(sch,
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
 
-    device_type = ndarray.context(target.target_name, 0).device_type
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
 

@@ -57,14 +57,18 @@ class GraphRuntime : public ModuleNode {
   }
   /*!
    * \brief Initialize the graph executor with graph and context.
-   * \param graph The execution graph.
+   * \param graph_json The execution graph.
    * \param module The module containing the compiled functions.
    * \param ctx The context where the graph should sit on
    */
   void Init(const std::string& graph_json,
             tvm::runtime::Module module,
             TVMContext ctx) {
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
     std::istringstream is(graph_json);
+#else
+    std::string is = graph_json;
+#endif
     dmlc::JSONReader reader(&is);
     this->Load(&reader);
     module_ = module;
@@ -90,12 +94,22 @@ class GraphRuntime : public ModuleNode {
   /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
-   * \param data The input data.
+   * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
     uint32_t eid = this->entry_id(input_nodes_[index], 0);
     TVM_CCALL(TVMArrayCopyFromTo(data_in, &data_entry_[eid], nullptr));
+  }
+  /*!
+   * \brief Copy index-th input to data_out
+   * \param index The input index.
+   * \param data_out The output
+   */
+  void GetInput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+    uint32_t eid = this->entry_id(input_nodes_[index], 0);
+    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
   /*!
    * \brief Copy index-th output to data_out.
@@ -198,27 +212,19 @@ class GraphRuntime : public ModuleNode {
       std::string key, value;
       reader->BeginObject();
       while (reader->NextObjectItem(&key)) {
+        reader->Read(&value);
         if (key == "func_name") {
-          reader->Read(&value);
           param->func_name = value;
           bitmask |= 1;
         } else if (key == "num_inputs") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->num_inputs;
+          param->num_inputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 2;
         } else if (key == "num_outputs") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->num_outputs;
+          param->num_outputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 4;
         } else if (key == "flatten_data") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->flatten_data;
+          param->flatten_data = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 8;
-        } else {
-          reader->Read(&value);
         }
       }
       CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
@@ -467,14 +473,6 @@ void GraphRuntime::SetupStorage() {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
   data_entry_.resize(num_node_entries());
-  // Find the maximum space size.
-  int max_id = 0;
-  for (size_t i = 0; i < attrs_.shape.size(); ++i) {
-    max_id = std::max(attrs_.storage_id[i] + 1, max_id);
-  }
-  for (uint32_t nid : input_nodes_) {
-    attrs_.storage_id[this->entry_id(nid, 0)] = max_id++;
-  }
   // size of each storage pool entry
   std::vector<size_t> pool_entry_bytes;
   // Find the maximum space size.
@@ -564,6 +562,9 @@ std::function<void()> GraphRuntime::CreateTVMOp(
       t->shape = &(arg_ptr->shape_data[i]);
     }
   }
+  if (param.func_name == "__nop") {
+    return [](){};
+  }
   // get compiled function from module.
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
@@ -592,6 +593,14 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->GetOutput(args[0], args[1]);
+      });
+  } else if (name == "get_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          this->GetInput(this->GetInputIndex(args[0]), args[1]);
+        } else {
+          this->GetInput(args[0], args[1]);
+        }
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {

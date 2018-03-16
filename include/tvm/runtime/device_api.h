@@ -19,7 +19,7 @@ enum DeviceAttrKind : int {
   kExist = 0,
   kMaxThreadsPerBlock = 1,
   kWarpSize = 2,
-  kComputeVersion = 3
+  kComputeVersion = 3,
 };
 
 /*! \brief Number of bytes each allocation must align to */
@@ -90,6 +90,21 @@ class DeviceAPI {
                               TVMContext ctx_from,
                               TVMContext ctx_to,
                               TVMStreamHandle stream) = 0;
+    /*!
+   * \brief Create a new stream of execution.
+   *
+   * \param ctx The context of allocation.
+   */
+  TVM_DLL virtual TVMStreamHandle CreateStream(TVMContext ctx);
+
+  /*!
+   * \brief Free a stream of execution
+   *
+   * \param ctx The context of the stream
+   * \param stream The pointer to be freed.
+   */
+  TVM_DLL virtual void FreeStream(TVMContext ctx, TVMStreamHandle stream);
+
   /*!
    * \brief Synchronize the stream
    * \param ctx The context to perform operation.
@@ -102,6 +117,21 @@ class DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
+  /*!
+   * \brief Synchronize 2 streams of execution.
+   *
+   * An event is created in event_src stream that the second then 
+   * stream waits on.  Neither event_src or event_dst need to be of
+   * the same device ID as the context, but they must be of the same
+   * device type.
+   *
+   * \param ctx The context of the streams.
+   * \param event_src The source stream to synchronize.
+   * \param event_dst The destination stream to synchronize.
+   */
+  TVM_DLL virtual void SyncStreamFromTo(TVMContext ctx,
+                                        TVMStreamHandle event_src,
+                                        TVMStreamHandle event_dst);
   /*!
    * \brief Allocate temporal workspace for backend execution.
    *
@@ -128,6 +158,7 @@ class DeviceAPI {
    * \param ptr The pointer to be freed.
    */
   TVM_DLL virtual void FreeWorkspace(TVMContext ctx, void* ptr);
+
   /*!
    * \brief Get device API base don context.
    * \param ctx The context

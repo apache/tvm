@@ -1,0 +1,7 @@
+enclave {
+    from "../../sgx/tvm.edl" import *;
+
+    untrusted {
+        void ocall_println([in, string] const char *str);
+    };
+};

@@ -2,11 +2,33 @@
 from __future__ import absolute_import as _abs
 from ._ffi.base import string_types
 from ._ffi.node import NodeBase, register_node
-from ._ffi.function import _init_api
+from ._ffi.node import convert_to_node as _convert_to_node
+from ._ffi.function import _init_api, Function
+from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
 from . import tensor as _tensor
 from . import expr as _expr
 from . import container as _container
+
+def convert(value):
+    """Convert value to TVM node or function.
+
+    Parameters
+    ----------
+    value : python value
+
+    Returns
+    -------
+    tvm_val : Node or Function
+        Converted value in TVM
+    """
+    if isinstance(value, (Function, NodeBase)):
+        return value
+
+    if callable(value):
+        return _convert_tvm_func(value)
+
+    return _convert_to_node(value)
 
 @register_node
 class Buffer(NodeBase):
@@ -45,7 +67,7 @@ class Buffer(NodeBase):
             The number of lanes for the data type. This value
             is greater than one for vector types.
 
-        offset: int, optional
+        offset: Expr, optional
             The offset of pointer. We can use it to offset by
             the number of elements from the address of ptr.
 
@@ -60,6 +82,8 @@ class Buffer(NodeBase):
           buffer.access_ptr(Buffer.READ | Buffer.WRITE)
           # Get access ptr for read/write with str flag
           buffer.access_ptr("rw")
+          # Get access ptr for read with offset
+          buffer.access_ptr("r", offset = 100)
         """
         if isinstance(access_mask, string_types):
             mask = 0
@@ -71,6 +95,7 @@ class Buffer(NodeBase):
                 else:
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
+        offset = convert(offset)
         return _api_internal._BufferAccessPtr(self, access_mask, ptr_type,
                                               content_lanes, offset)
 
@@ -279,7 +304,7 @@ class Schedule(NodeBase):
         """
         return _api_internal._ScheduleCacheWrite(self, tensor, scope)
 
-    def rfactor(self, tensor, axis):
+    def rfactor(self, tensor, axis, factor_axis=0):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.
 
         This will create a new stage that generated the new tensor with axis
@@ -292,13 +317,15 @@ class Schedule(NodeBase):
             The tensor to be factored.
         axis : IterVar
             The reduction axis in the schedule to be factored.
+        factor_axis : int
+            The position where the new axis is placed.
 
         Returns
         -------
         tfactor : Tensor or Array of Tensor
             The created factored tensor.
         """
-        factored = _api_internal._ScheduleRFactor(self, tensor, axis)
+        factored = _api_internal._ScheduleRFactor(self, tensor, axis, factor_axis)
         return factored[0] if len(factored) == 1 else factored
 
     def autotensorize(self, tensor_intrin):

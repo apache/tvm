@@ -54,12 +54,29 @@ def test_alloc_different_dtypes():
         ib = tvm.ir_builder.create()
         base_dtype = dtype_list[0]
         global_a = tvm.placeholder((length,), name = "global_a", dtype = base_dtype)
-        for index, dtype in enumerate(dtype_list):
-            with ib.for_range(0, length, name="j") as j:
-                A = ib.allocate(dtype, length, name="A_" + str(index), scope="local.L0A")
-                A[j] = tvm.const(1, dtype = dtype)
+        assert len(dtype_list) == 4
+        with ib.for_range(0, length, name="j") as j:
+            dtype = dtype_list[0]
+            A = ib.allocate(dtype, length, name="A", scope="local.L0A")
+            A[j] = tvm.const(1, dtype = dtype)
+        with ib.for_range(0, length, name="j") as j:
+            dtype = dtype_list[1]
+            B = ib.allocate(dtype, length, name="B", scope="local.L0A")
+            B[j] = tvm.const(1, dtype = dtype)
+        with ib.for_range(0, length, name="j") as j:
+            dtype = dtype_list[2]
+            C = ib.allocate(dtype, length, name="C", scope="local.L0A")
+            C[j] = tvm.const(1, dtype = dtype)
+        with ib.for_range(0, length, name="j") as j:
+            dtype = dtype_list[3]
+            D = ib.allocate(dtype, length, name="D", scope="local.L0A")
+            D[j] = tvm.const(1, dtype = dtype)
+        with ib.for_range(0, length, name="j") as j:
+            dtype = "int8"
+            E = ib.allocate(dtype, length, name="E", scope="local.L0A")
+            E[j] = A[j].astype(dtype) + B[j].astype(dtype) + C[j].astype(dtype) + D[j].astype(dtype)
         return ib.get()
-    
+
     def dtype_bit_len(dtype):
         index = 0
         for i in dtype:
@@ -92,7 +109,7 @@ def test_alloc_different_dtypes():
 
     dtype_list = ["float64", "int32", "uint16", "int8"]
     dtype_test(dtype_list, length)
-    
+
     dtype_list = ["int8", "int32", "uint16", "uint8"]
     dtype_test(dtype_list, length)
 
@@ -296,7 +313,7 @@ def test_inplace_rule3():
     B2L = s.cache_read(B2, scope_tb, [B7, B9])
     B4L = s.cache_read(B4, scope_tb, [B7, B12])
     B3L = s.cache_read(B3, scope_tb, [B9, B13])
-    B0L = s.cache_read(B0, scope_tb, [B10, B12])   
+    B0L = s.cache_read(B0, scope_tb, [B10, B12])
 
     B8L = s.cache_write(B8, scope_tb)
     B11L = s.cache_write(B11, scope_tb)
@@ -307,7 +324,7 @@ def test_inplace_rule3():
     B10L = s.cache_write(B10, scope_tb)
     B12L = s.cache_write(B12, scope_tb)
     B13L = s.cache_write(B13, scope_tb)
-	
+
     s[B12].compute_inline()
     s[B13].compute_inline()
     s[B8].compute_inline()
@@ -317,12 +334,12 @@ def test_inplace_rule3():
     s[B7].compute_inline()
     s[B9].compute_inline()
     s[B10].compute_inline()
-   
-    s = s.normalize() 
+
+    s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    
+
     B0a = tvm.decl_buffer(B0.shape, B0.dtype, name='B0')
     B1a = tvm.decl_buffer(B1.shape, B1.dtype, name='B1')
     B2a = tvm.decl_buffer(B2.shape, B2.dtype, name='B2')
@@ -342,6 +359,90 @@ def test_inplace_rule3():
             assert n.extents[0].value == 70
     tvm.ir_pass.PostOrderVisit(stmt, verify)
 
+def test_alloc_seq_type():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.for_range(0, 10, name="j") as j:
+            A = ib.allocate("float32", 200, name="A", scope="local.L0A")
+            A1 = ib.allocate("float32", 200, name="A1", scope="local.L0A")
+            A[j] = 1.2
+            A1[j] = 1.3
+            B = ib.allocate("int16", 200, name="B", scope="local.L0A")
+            B[j] = tvm.const(1, "int16")
+            C = ib.allocate("int16", 200, name="C", scope="local.L0A")
+            C[j] = tvm.const(1, "int16")
+            D = ib.allocate("int16", 200, name="D", scope="local.L0A")
+            D[j] = B[j] + C[j]
+            A2 = ib.allocate("float32", 200, name="A2", scope="local.L0A")
+            A2[j] = A[j]
+
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+    num_alloc = [0]
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
+            assert n.extents[0].value == 500
+    tvm.ir_pass.PostOrderVisit(body, verify)
+    assert num_alloc[0] == 1
+
+def test_alloc_seq_type2():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.for_range(0, 10, name="j") as j:
+            A = ib.allocate("float32", 200, name="A", scope="local.L0A")
+            A[j] = 1.2
+        with ib.for_range(0, 20, name="j") as j:
+            B = ib.allocate("int16", 400, name="B", scope="local.L0A")
+            B[j] = tvm.const(1, "int16")
+        with ib.for_range(0, 10, name="j") as j:
+            C = ib.allocate("float32", 200, name="C", scope="local.L0A")
+            C[j] = 1.2
+
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+    num_alloc = [0]
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
+            assert n.extents[0].value == 200
+    tvm.ir_pass.PostOrderVisit(body, verify)
+    assert num_alloc[0] == 1
+
+
+def test_reuse_small_buffer():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.for_range(0, 10, name="j") as j:
+            A = ib.allocate("int16", 200, name="A", scope="local.L0A")
+            A[j] = tvm.const(1, "int16")
+            B = ib.allocate("int16", 200, name="B", scope="local.L0A")
+            B[j] = tvm.const(1, "int16")
+            B1 = ib.allocate("int16", 200, name="B1", scope="local.L0A")
+            B1[j] = A[j] + B[j]
+            C = ib.allocate("int16", 400, name="C", scope="local.L0A")
+            C[j] = tvm.const(1, "int16")
+            D = ib.allocate("int16", 400, name="D", scope="local.L0A")
+            D[j] = tvm.const(1, "int16")
+            E = ib.allocate("int16", 400, name="E", scope="local.L0A")
+            E[j] = C[j]
+
+    body = ib.get()
+    body = tvm.ir_pass.StorageRewrite(body)
+
+    num_alloc = [0]
+
+    def verify(n):
+        if isinstance(n, tvm.stmt.Allocate):
+            num_alloc[0] += 1
+            assert n.extents[0].value == 800
+    tvm.ir_pass.PostOrderVisit(body, verify)
+    assert num_alloc[0] == 1
+
+
 if __name__ == "__main__":
     test_alloc_seq()
     test_alloc_different_dtypes()
@@ -352,3 +453,6 @@ if __name__ == "__main__":
     test_storage_share_gpu()
     test_inplace_rule2()
     test_inplace_rule3()
+    test_alloc_seq_type()
+    test_alloc_seq_type2()
+    test_reuse_small_buffer()

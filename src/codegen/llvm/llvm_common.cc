@@ -24,7 +24,7 @@ struct LLVMEnv {
 void InitializeLLVM() {
   LLVMEnv* e = LLVMEnv::Global();
   if (!e->all_initialized) {
-    std::lock_guard<std::mutex>(e->mu);
+    std::lock_guard<std::mutex> lock(e->mu);
     if (!e->all_initialized) {
       e->all_initialized = true;
       llvm::InitializeAllTargetInfos();
