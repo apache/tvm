@@ -6,8 +6,6 @@
 #include <iostream>
 #endif
 
-extern void Shutdown();
-
 /* This function mirrors the one in howto_deploy except without the iostream */
 int Verify(tvm::runtime::Module mod, std::string fname) {
   // Get the function from the module.

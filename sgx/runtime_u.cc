@@ -14,7 +14,8 @@ namespace sgx {
 static std::unique_ptr<tvm::runtime::threading::ThreadGroup> sgx_thread_group;
 
 extern "C" {
-void tvm_ocall_thread_pool_launch(int num_tasks, void* cb) {
+
+void tvm_ocall_thread_group_launch(int num_tasks, void* cb) {
   std::function<void(int)> runner = [cb](int _worker_id) {
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
     sgx_status = tvm_ecall_run_worker(tvm_sgx_eid, cb);
@@ -23,10 +24,11 @@ void tvm_ocall_thread_pool_launch(int num_tasks, void* cb) {
   sgx_thread_group.reset(new tvm::runtime::threading::ThreadGroup(
         num_tasks, runner, false /* include_main_thread */));
 }
+
+void tvm_ocall_thread_group_join() {
+  sgx_thread_group->Join();
 }
 
-void Shutdown() {
-  sgx_thread_group->Join();
 }
 
 }  // namespace sgx
