@@ -475,6 +475,8 @@ class StoragePlanRewriter : public IRMutator {
     // This allows effective sharing among different types as long as their alignment
     // requirement fits into the max_simd_bits.
     uint64_t bits_offset{0};
+    // indicates whether it's a clone of sevral small buffers
+    bool clone;
   };
 
   // Alllocate entry of node.
@@ -524,7 +526,8 @@ class StoragePlanRewriter : public IRMutator {
           CHECK_NE(e->const_nbits, 0U)
               << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
-            if (e->scope == vec[j]->scope) {
+            // no need to merge cloned entry
+            if (e->scope == vec[j]->scope && !e->clone) {
               vec[j]->merged_children.push_back(e);
               break;
             }
@@ -534,6 +537,16 @@ class StoragePlanRewriter : public IRMutator {
       // Start allocation
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
+        // update cloned buffer
+        if (e->clone) {
+          // make sure get minimum offset of small buffers
+          auto f = [](StorageEntry* a, StorageEntry* b)->bool {
+                      return a->bits_offset < b->bits_offset; };
+          sort(e->merged_children.begin(), e->merged_children.end(), f);
+          e->bits_offset = e->merged_children[0]->bits_offset;
+          e->alloc_var = e->merged_children[0]->alloc_var;
+          continue;
+        }
         // already merged
         if (e->bits_offset != 0) continue;
         if (e->merged_children.size() != 0) {
@@ -605,6 +618,7 @@ class StoragePlanRewriter : public IRMutator {
       total_bits += align  - (total_bits % align);
     }
     e->alloc_var = e->allocs[0]->buffer_var;
+
     for (StorageEntry* child : e->merged_children) {
       CHECK_NE(child->const_nbits, 0U);
       CHECK_NE(total_bits, 0U);
@@ -818,6 +832,9 @@ class StoragePlanRewriter : public IRMutator {
         return e;
       }
       // then start looking at smaller buffers.
+      // record available bits and entries
+      uint64_t av_bits = 0;
+      std::vector<StorageEntry*> av_e;
       for (auto it = mid; it != begin;) {
         --it;
         StorageEntry *e = it->second;
@@ -825,7 +842,25 @@ class StoragePlanRewriter : public IRMutator {
         if (e->scope != scope) continue;
         if (e->elem_type != op->type.element_of()) continue;
         const_free_map_.erase(it);
-        return e;
+        av_bits += e->const_nbits;
+        av_e.push_back(e);
+
+        // alloc a clone for small buffers
+        // TODO(xqdan): consider av_bits > const_nbits alone
+        if (av_bits >= const_nbits) {
+          StorageEntry *new_e = NewAlloc(op, attach_scope, scope, av_bits);
+          new_e->clone = true;
+          new_e->merged_children.assign(av_e.begin(), av_e.end());
+          return new_e;
+        }
+      }
+
+      // no enough space for target, rollback
+      // TODO(xqdan): resue av_bits, only need to alloc (const_nbits - av_bits) space
+      if (av_bits < const_nbits) {
+        for (auto e : av_e) {
+          const_free_map_.insert({e->const_nbits, e});
+        }
       }
     } else {
       // Simple strategy: round roubin.
@@ -858,7 +893,12 @@ class StoragePlanRewriter : public IRMutator {
     }
     // normal free.
     if (e->const_nbits != 0) {
-      const_free_map_.insert({e->const_nbits, e});
+      // insert orignal buffer into const_free_map_
+      if (e->clone) {
+        for (auto i : e->merged_children) { const_free_map_.insert({i->const_nbits, i}); }
+      } else {
+        const_free_map_.insert({e->const_nbits, e});
+      }
     } else {
       sym_free_list_.push_back(e);
     }
