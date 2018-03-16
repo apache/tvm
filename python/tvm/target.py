@@ -97,6 +97,7 @@ class Target(NodeBase):
     def __exit__(self, ptype, value, trace):
         _api_internal._ExitTargetScope()
 
+@register_node
 class GenericFunc(NodeBase):
     """GenericFunc node reference. This represents a generic function
     that may be specialized for different targets. When this object is
@@ -173,7 +174,7 @@ def register_native_generic_func(func, name):
     """
     _api_internal._GenericFuncRegisterGlobal(func, name)
 
-def native_generic_func(fdefault):
+def override_native_generic_func(func_name):
     """Wrap a target generic function.
 
     Generic function allows registration of further functions
@@ -212,45 +213,46 @@ def native_generic_func(fdefault):
     with tvm.target.cuda():
         print(my_func(2))
     """
-    func_name = fdefault.__name__
+    generic_func_node = get_native_generic_func(func_name)
 
-    generic_func_node = _api_internal._GenericFuncCreate()
-    generic_func_node.set_default(fdefault)
+    def fdecorate(fdefault):
+        generic_func_node.set_default(fdefault, allow_override=True)
 
-    def register(key, func=None, override=False):
-        """Register function to be the dispatch function.
+        def register(key, func=None, override=True):
+            """Register function to be the dispatch function.
 
-        Parameters
-        ----------
-        key : str or list of str
-            The key to be registered.
+            Parameters
+            ----------
+            key : str or list of str
+                The key to be registered.
 
-        func : function
-            The function to be registered.
+            func : function
+                The function to be registered.
 
-        override : bool, optional
-            Whether override existing registration.
+            override : bool, optional
+                Whether override existing registration.
 
-        Returns
-        -------
-        The register function is necessary.
-        """
-        def _do_reg(myf):
-            generic_func_node.register(myf, key, override)
-            return myf
-        if func:
-            return _do_reg(func)
-        return _do_reg
+            Returns
+            -------
+            The register function is necessary.
+            """
+            def _do_reg(myf):
+                generic_func_node.register(myf, key, override)
+                return myf
+            if func:
+                return _do_reg(func)
+            return _do_reg
 
-    def dispatch_func(func, *args, **kwargs):
-        #pylint: disable=unused-argument
-        """The wrapped dispath function"""
-        if kwargs:
-            raise RuntimeError(
-                "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
-        return generic_func_node(*args)
-    fdecorate = decorate(fdefault, dispatch_func)
-    fdecorate.register = register
+        def dispatch_func(func, *args, **kwargs):
+            #pylint: disable=unused-argument
+            """The wrapped dispath function"""
+            if kwargs:
+                raise RuntimeError(
+                    "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
+            return generic_func_node(*args)
+        fresult = decorate(fdefault, dispatch_func)
+        fresult.register = register
+        return fresult
     return fdecorate
 
 def generic_func(fdefault):
