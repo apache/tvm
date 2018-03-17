@@ -31,7 +31,7 @@ namespace cuda {
 inline tvm::Tensor dense_cuda(const Target& target,
                               const tvm::Tensor& data,
                               const tvm::Tensor& weight,
-                              tvm::Tensor bias) {
+                              const tvm::Tensor& bias) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -42,7 +42,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  if (target->libs().count("cublas") > 0) {
+  if (target->libs().count("cublas")) {
     auto mm = topi::contrib::cublas_matmul(data, weight, false, true);
     if (bias.defined()) {
       mm = tvm::compute({ batch, out_dim },
@@ -67,7 +67,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
 */
 inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
   if (target->target_name == "cuda" &&
-    target->libs().count("cublas") > 0) {
+    target->libs().count("cublas")) {
     return topi::generic::schedule_extern(target, outs);
   }
 

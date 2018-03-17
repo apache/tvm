@@ -500,7 +500,7 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
                                                      const tvm::Tensor& data,
                                                      const tvm::Tensor& weight,
-                                                     tvm::Tensor bias)>;
+                                                     const tvm::Tensor& bias)>;
 
 /*!
 * \brief Helper function for registering dense ops matching the
@@ -524,9 +524,9 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
 
 TVM_REGISTER_GENERIC_FUNC(dense)
 .set_default(WrapDenseOp([](const Target& target,
-                                 const tvm::Tensor& data,
-                                 const tvm::Tensor& weight,
-                                 tvm::Tensor bias) {
+                            const tvm::Tensor& data,
+                            const tvm::Tensor& weight,
+                            const tvm::Tensor& bias) {
   return topi::nn::dense(data, weight, bias);
 }))
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
