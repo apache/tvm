@@ -8,9 +8,9 @@
 
 #include <string>
 #include <vector>
-#include "./tvm/runtime/packed_func.h"
-#include "./tvm/schedule_pass.h"
-#include "./tvm/lowered_func.h"
+#include "./runtime/packed_func.h"
+#include "./schedule_pass.h"
+#include "./lowered_func.h"
 
 namespace tvm {
 using namespace tvm::runtime;

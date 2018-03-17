@@ -77,18 +77,29 @@ class Target(NodeBase):
     - :any:`tvm.target.rocm` create ROCM target
     - :any:`tvm.target.mali` create Mali target
     """
+    def __init__(self, handle):
+        super(Target, self).__init__(handle)
+        self._keys = None
+        self._options = None
+        self._libs = None
 
     @property
     def keys(self):
-        return [k.value for k in self.keys_array]
+        if not self._keys:
+            self._keys = [k.value for k in self.keys_array]
+        return self._keys
 
     @property
     def options(self):
-        return [o.value for o in self.options_array]
+        if not self._options:
+            self._options = [o.value for o in self.options_array]
+        return self._options
 
     @property
     def libs(self):
-        return [l.value for l in self.libs_array]
+        if not self._libs:
+            self._libs = [l.value for l in self.libs_array]
+        return self._libs
 
     def __enter__(self):
         _api_internal._EnterTargetScope(self)
@@ -158,21 +169,6 @@ def get_native_generic_func(name):
         The generic function for the given name
     """
     return _api_internal._GenericFuncGetGlobal(name)
-
-def register_native_generic_func(func, name):
-    """Store a GenericFunc in the global registry. If the
-    name is already in use, an error is logged.
-
-    Parameters
-    ----------
-    func : GenericFunc
-        The function to store
-
-    name : string
-        The name to store the generic function under
-
-    """
-    _api_internal._GenericFuncRegisterGlobal(func, name)
 
 def override_native_generic_func(func_name):
     """Override a generic function defined in C++

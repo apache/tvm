@@ -282,15 +282,7 @@ TVM_REGISTER_GLOBAL("topi.nn.binary_dense")
 /* Ops from nn/dense.h */
 TVM_REGISTER_GLOBAL("topi.nn.dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[2].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[2];
-    bias = &bias_val;
-  }
-  *rv = nn::dense(args[0], args[1], bias);
+  *rv = nn::dense(args[0], args[1], args[2]);
   });
 
 /* Ops from nn/dilate.h */
@@ -389,15 +381,7 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[3].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[3];
-    bias = &bias_val;
-  }
-  *rv = rocm::dense_rocm(args[0], args[1], args[2], bias);
+  *rv = rocm::dense_rocm(args[0], args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
@@ -408,15 +392,7 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
 /* CUDA schedules */
 TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[3].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[3];
-    bias = &bias_val;
-  }
-  *rv = cuda::dense_cuda(args[0], args[1], args[2], bias);
+  *rv = cuda::dense_cuda(args[0], args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_dense")
@@ -524,7 +500,7 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
                                                      const tvm::Tensor& data,
                                                      const tvm::Tensor& weight,
-                                                     tvm::Tensor* bias)>;
+                                                     tvm::Tensor bias)>;
 
 /*!
 * \brief Helper function for registering dense ops matching the
@@ -540,14 +516,7 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
     auto target = Target::current_target(false);
     Tensor data = args[0];
     Tensor weight = args[1];
-    Tensor bias_val;
-    Tensor *bias;
-    if (args[2].type_code() == kNull) {
-      bias = nullptr;
-    } else {
-      bias_val = args[2];
-      bias = bias_val.defined() ? &bias_val : nullptr;
-    }
+    Tensor bias = args[2];
 
     *ret = builder(target, data, weight, bias);
   });
@@ -557,7 +526,7 @@ TVM_REGISTER_GENERIC_FUNC(dense)
 .set_default(WrapDenseOp([](const Target& target,
                                  const tvm::Tensor& data,
                                  const tvm::Tensor& weight,
-                                 tvm::Tensor* bias) {
+                                 tvm::Tensor bias) {
   return topi::nn::dense(data, weight, bias);
 }))
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
