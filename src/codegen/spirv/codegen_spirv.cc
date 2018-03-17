@@ -561,13 +561,13 @@ void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
   spirv::Value buf;
   StorageInfo& info = storage_info_[op->buffer_var.get()];
   spirv::SType etype = builder_->GetSType(op->type);
-  if (info.scope.rank == 2) {
+  if (info.scope.rank == runtime::StorageRank::kLocal) {
     buf = builder_->Allocate(
         etype, static_cast<uint32_t>(constant_size),
         spv::StorageClassFunction);
   } else {
     // shared memory
-    CHECK_EQ(info.scope.rank, 1)
+    CHECK(info.scope.rank == runtime::StorageRank::kShared)
         << "Can only allocate shared or local memory inside kernel";
     // Shared memory
     buf = builder_->Allocate(

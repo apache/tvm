@@ -47,7 +47,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       if (info.alignment > 16) {
         info.alignment = 16;
       }
-      if (info.scope.rank == 2) {
+      if (info.scope.rank == runtime::StorageRank::kLocal) {
         // const int local_address_space = 5;
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = builder_->CreateAlloca(
@@ -57,7 +57,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         }
         buf = alloca;
       } else {
-        CHECK_EQ(info.scope.rank, 1)
+        CHECK(info.scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
