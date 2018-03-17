@@ -210,7 +210,8 @@ void StorageAccessVisitor::Visit_(const Call* op) {
 
 StorageScope StorageAccessVisitor::GetScope(const Variable* buf) const {
   auto it = storage_scope_.find(buf);
-  StorageScope s; s.rank = 0;
+  StorageScope s;
+  s.rank = StorageRank::kGlobal;
   if (it == storage_scope_.end()) return s;
   return it->second;
 }
