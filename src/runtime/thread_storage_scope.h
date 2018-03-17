@@ -13,10 +13,47 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief Memory hierachy rank in the storage system
+ * \note The global rank and shared rank have one to one
+ *       correspondence to the thread rank.
+ */
+enum class StorageRank {
+  /*! \brief global memory */
+  kGlobal = 0,
+  /*! \brief shared memory among thread group */
+  kShared = 1,
+  /*!
+   * \brief reserved for warp memory.
+   *  This is only used by programming model.
+   *  There is no such memory usually in GPU.
+   *  Instead, we can simulate it by registers and shuffle.
+   */
+  kWarp = 2,
+  /*! \brief thread local memory */
+  kLocal = 3
+};
+
+/*!
+ * \param thread_scope_rank The thread scope rank
+ * \return default storage rank given the thread scope
+ */
+inline StorageRank DefaultStorageRank(int thread_scope_rank) {
+  switch (thread_scope_rank) {
+    case -1: return StorageRank::kGlobal;
+    case 0: return StorageRank::kShared;
+    case 1: return StorageRank::kLocal;
+    default: {
+      LOG(FATAL) << "unknown rank";
+      return StorageRank::kGlobal;
+    }
+  }
+}
+
 /*! \brief class to represent storage scope */
 struct StorageScope {
   /*! \brief The rank of the storage */
-  int rank{0};
+  StorageRank rank{StorageRank::kGlobal};
   /*! \brief tag for special purpose memory. */
   std::string tag;
   // comparator
@@ -29,9 +66,10 @@ struct StorageScope {
   inline std::string to_string() const {
     std::string ret;
     switch (rank) {
-      case 0: return "global" + tag;
-      case 1: return "shared" + tag;
-      case 2: return "local" + tag;
+      case StorageRank::kGlobal: return "global" + tag;
+      case StorageRank::kShared: return "shared" + tag;
+      case StorageRank::kWarp: return "warp" + tag;
+      case StorageRank::kLocal: return "local" + tag;
       default: LOG(FATAL) << "unknown storage scope"; return "";
     }
   }
@@ -43,13 +81,16 @@ struct StorageScope {
   static StorageScope make(const std::string& s) {
     StorageScope r;
     if (s.compare(0, 6, "global")  == 0) {
-      r.rank = 0;
+      r.rank = StorageRank::kGlobal;
       r.tag = s.substr(6, std::string::npos);
     } else if (s.compare(0, 6, "shared") == 0) {
-      r.rank = 1;
+      r.rank = StorageRank::kShared;
       r.tag = s.substr(6, std::string::npos);
+    } else if (s.compare(0, 4, "warp") == 0) {
+      r.rank = StorageRank::kWarp;
+      r.tag = s.substr(4, std::string::npos);
     } else if (s.compare(0, 5, "local") == 0) {
-      r.rank = 2;
+      r.rank = StorageRank::kLocal;
       r.tag = s.substr(5, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
