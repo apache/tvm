@@ -1,10 +1,10 @@
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/sgx/trusted.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
-#include "../../src/runtime/sgx/runtime_t.cc"
+#include "../../src/runtime/sgx/trusted/runtime.h"
+#include "../../src/runtime/sgx/trusted/runtime.cc"
 
 using namespace tvm::runtime;
 

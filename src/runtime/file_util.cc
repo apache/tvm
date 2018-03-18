@@ -68,10 +68,12 @@ std::string GetFileFormat(const std::string& file_name,
 std::string GetCacheDir() {
   char* env_cache_dir;
   if ((env_cache_dir = getenv("TVM_CACHE_DIR"))) return env_cache_dir;
-  if ((env_cache_dir = getenv("XDG_CACHE_HOME")))
+  if ((env_cache_dir = getenv("XDG_CACHE_HOME"))) {
     return std::string(env_cache_dir) + "/tvm";
-  if ((env_cache_dir = getenv("HOME")))
+  }
+  if ((env_cache_dir = getenv("HOME"))) {
     return std::string(env_cache_dir) + "/.cache/tvm";
+  }
   return ".";
 }
 

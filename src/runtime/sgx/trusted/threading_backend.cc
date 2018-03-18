@@ -3,12 +3,12 @@
  * \file sgx/threading_backend.cc
  * \brief SGX threading backend
  */
-#include <tvm/runtime/sgx/trusted.h>
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/logging.h>
 #include <sgx_edger8r.h>
 #include <sgx_trts.h>
 #include <atomic>
+#include "runtime.h"
 
 #ifndef TVM_SGX_MAX_CONCURRENCY
 #define TVM_SGX_MAX_CONCURRENCY 1

@@ -5,10 +5,10 @@
  */
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/sgx/untrusted.h>
 #include <tvm/runtime/threading_backend.h>
 #include <sgx_edger8r.h>
 #include <memory>
+#include "runtime.h"
 
 namespace tvm {
 namespace runtime {

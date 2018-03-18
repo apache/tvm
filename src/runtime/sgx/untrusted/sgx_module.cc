@@ -5,13 +5,13 @@
  */
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/sgx/untrusted.h>
 #include <sgx_eid.h>
 #include <sgx_urts.h>
 #include <cstring>
 #include <fstream>
-#include "../file_util.h"
-#include "../module_util.h"
+#include "../../file_util.h"
+#include "../../module_util.h"
+#include "runtime.h"
 
 namespace tvm {
 namespace runtime {

@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file untrusted.h
+ * \file untrusted/runtime.h
  * \brief TVM SGX untrusted API.
  */
-#ifndef TVM_RUNTIME_SGX_UNTRUSTED_H_
-#define TVM_RUNTIME_SGX_UNTRUSTED_H_
+#ifndef TVM_RUNTIME_SGX_UNTRUSTED_RUNTIME_H_
+#define TVM_RUNTIME_SGX_UNTRUSTED_RUNTIME_H_
 
 #include <sgx_edger8r.h>
 
@@ -16,4 +16,4 @@ sgx_status_t ecall_tvm_main(sgx_enclave_id_t eid,
 sgx_status_t ecall_tvm_run_worker(sgx_enclave_id_t eid, const void* cb);
 }
 
-#endif  // TVM_RUNTIME_SGX_UNTRUSTED_H_
+#endif  // TVM_RUNTIME_SGX_UNTRUSTED_RUNTIME_H_

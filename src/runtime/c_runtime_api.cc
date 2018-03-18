@@ -11,7 +11,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
 #ifdef _LIBCPP_SGX_CONFIG
-#include <tvm/runtime/sgx/trusted.h>
+#include "sgx/trusted/runtime.h"
 #endif
 #include <array>
 #include <algorithm>

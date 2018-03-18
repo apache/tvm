@@ -58,7 +58,7 @@ ROCM_SRC = $(wildcard src/runtime/rocm/*.cc)
 OPENCL_SRC = $(wildcard src/runtime/opencl/*.cc)
 OPENGL_SRC = $(wildcard src/runtime/opengl/*.cc)
 VULKAN_SRC = $(wildcard src/runtime/vulkan/*.cc)
-SGX_SRC = $(filter-out src/runtime/sgx/%_t.cc, $(wildcard src/runtime/sgx/*.cc))
+SGX_SRC = $(wildcard src/runtime/sgx/untrusted/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
@@ -73,7 +73,7 @@ ROCM_OBJ = $(patsubst src/%.cc, build/%.o, $(ROCM_SRC))
 OPENCL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENCL_SRC))
 OPENGL_OBJ = $(patsubst src/%.cc, build/%.o, $(OPENGL_SRC))
 VULKAN_OBJ = $(patsubst src/%.cc, build/%.o, $(VULKAN_SRC))
-SGX_OBJ = $(patsubst src/%.cc, build/%.o, $(SGX_SRC)) build/runtime/sgx/tvm_u.o
+SGX_OBJ = $(patsubst src/%.cc, build/%.o, $(SGX_SRC)) build/runtime/sgx/untrusted/tvm_u.o
 RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
@@ -269,11 +269,11 @@ build/runtime/metal/%.o: src/runtime/metal/%.mm
 	$(CXX) $(OBJCFLAGS) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
-build/runtime/sgx/tvm_u.c: src/runtime/sgx/tvm.edl
+build/runtime/sgx/untrusted/tvm_u.c: src/runtime/sgx/tvm.edl
 	@mkdir -p $(@D)
 	$(EDGER8R) $< --untrusted --untrusted-dir $(@D) --search-path $(SGX_SDK)/include
 
-build/runtime/sgx/tvm_u.o: build/runtime/sgx/tvm_u.c
+build/runtime/sgx/untrusted/tvm_u.o: build/runtime/sgx/untrusted/tvm_u.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/%.o: src/%.cc
