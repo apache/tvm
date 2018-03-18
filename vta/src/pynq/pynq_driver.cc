@@ -4,15 +4,31 @@
  * \brief VTA driver for Pynq board.
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "vta_pynq_driver.h"
-#ifdef __cplusplus
-}
-#endif
+#include <vta/driver.h>
+#include "./pynq_driver.h"
 
-void *MapRegister(uint32_t addr, size_t length) {
+
+void* VTAMemAlloc(size_t size, int cached) {
+  return cma_alloc(size, cached);
+}
+
+void VTAMemFree(void* buf) {
+  cma_free(buf);
+}
+
+uint32_t VTAGetMemPhysAddr(void* buf) {
+  return cma_get_phy_addr(buf);
+}
+
+void VTAFlushCache(void* buf, int size) {
+  xlnkFlushCache(buf, size);
+}
+
+void VTAInvalidateCache(void* buf, int size) {
+  xlnkInvalidateCache(buf, size);
+}
+
+void *VTAMapRegister(uint32_t addr, size_t length) {
 
   // Align the base address with the pages
   uint32_t virt_base = addr & ~(getpagesize() - 1);
@@ -24,21 +40,21 @@ void *MapRegister(uint32_t addr, size_t length) {
   return mmap(NULL, (length+virt_offset), PROT_READ|PROT_WRITE, MAP_SHARED, mmap_file, virt_base);
 }
 
-void UnmapRegister(void *vta, size_t length) {
+void VTAUnmapRegister(void *vta, size_t length) {
   // Unmap memory
   int status = munmap(vta, length);
   assert(status==0);
 }
 
-void WriteMappedReg(void* base_addr, uint32_t offset, uint32_t val) {
+void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val) {
   *((volatile uint32_t *) (((char *) base_addr) + offset)) = val;
 }
 
-uint32_t ReadMappedReg(void* base_addr, uint32_t offset) {
+uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset) {
   return *((volatile uint32_t *) (((char *) base_addr) + offset));
 }
 
-void ProgramVTA(const char* bitstream) {
+void VTAProgram(const char* bitstream) {
 
     int elem;
     FILE *src, *dst, *partial;

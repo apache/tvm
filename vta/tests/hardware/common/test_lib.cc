@@ -4,7 +4,7 @@
  * \brief Test library for the VTA design simulation and driver tests.
  */
 
-#include "vta_test_lib.h"
+#include "./test_lib.h"
 
 const char* getOpcodeString(int opcode, bool use_imm) {
   // Returns string name
@@ -153,7 +153,7 @@ void free3dArray(T *** array, int rows, int cols, int depth) {
 
 void * allocBuffer(size_t num_bytes) {
 #ifdef NO_SIM
-  return cma_alloc(num_bytes, CACHED);
+  return VTAMemAlloc(num_bytes, CACHED);
 #else
   return malloc(num_bytes);
 #endif
@@ -161,7 +161,7 @@ void * allocBuffer(size_t num_bytes) {
 
 void freeBuffer(void * buffer) {
 #ifdef NO_SIM
-  return cma_free(buffer);
+  return VTAMemFree(buffer);
 #else
   return free(buffer);
 #endif
@@ -353,7 +353,7 @@ VTAUop * getCopyUops(int y_size, int x_size, int uop_compression) {
 
   // Allocate buffer
 #ifdef NO_SIM
-  VTAUop *uop_buf = (VTAUop *) cma_alloc(sizeof(VTAUop) * uop_size, CACHED);
+  VTAUop *uop_buf = (VTAUop *) VTAMemAlloc(sizeof(VTAUop) * uop_size, CACHED);
 #else
   VTAUop *uop_buf = (VTAUop *) malloc(sizeof(VTAUop) * uop_size);
 #endif
@@ -388,7 +388,7 @@ VTAUop * getGEMMUops(int batch, int in_feat, int out_feat, bool uop_compression,
 
   // Allocate buffer
 #ifdef NO_SIM
-  VTAUop *uop_buf = (VTAUop *) cma_alloc(sizeof(VTAUop) * uop_size, CACHED);
+  VTAUop *uop_buf = (VTAUop *) VTAMemAlloc(sizeof(VTAUop) * uop_size, CACHED);
 #else
   VTAUop *uop_buf = (VTAUop *) malloc(sizeof(VTAUop) * uop_size);
 #endif
@@ -449,7 +449,7 @@ VTAUop * getMapALUUops(int vector_size, bool uop_compression) {
 
   // Allocate buffer
 #ifdef NO_SIM
-  VTAUop *uop_buf = (VTAUop *) cma_alloc(sizeof(VTAUop) * uop_size, CACHED);
+  VTAUop *uop_buf = (VTAUop *) VTAMemAlloc(sizeof(VTAUop) * uop_size, CACHED);
 #else
   VTAUop *uop_buf = (VTAUop *) malloc(sizeof(VTAUop) * uop_size);
 #endif
@@ -762,7 +762,7 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
   }
 
   // Compute reference output
-  inp_T **outputs_ref = alloc2dArray<inp_T>(batch, vector_size);
+  out_T **outputs_ref = alloc2dArray<out_T>(batch, vector_size);
   for (int i = 0; i < batch; i ++) {
     for (int j = 0; j < vector_size; j ++) {
       acc_T tmp = 0;
@@ -802,7 +802,7 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
         tmp = inputs[i][j] >> immediate[i / BATCH];
       }
       // Set
-      outputs_ref[i][j] = (inp_T) tmp;
+      outputs_ref[i][j] = (out_T) tmp;
     }
   }
 
@@ -811,7 +811,7 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
   packBuffer<acc_T, ACC_WIDTH>(bias_buf, inputs, batch, vector_size * input_sets, BATCH, BLOCK_OUT);
 
   // Prepare output buffer
-  inp_T *output_buf = (inp_T *) allocBuffer(INP_ELEM_BYTES * batch * tx_size * input_sets);
+  out_T *output_buf = (out_T *) allocBuffer(INP_ELEM_BYTES * batch * tx_size * input_sets);
 
 #ifdef NO_SIM
   // Invoke the VTA
@@ -833,8 +833,8 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
 #endif
 
   // Unpack output buffer
-  inp_T **outputs = alloc2dArray<inp_T>(batch, vector_size);
-  unpackBuffer<inp_T, INP_WIDTH>(outputs, output_buf, batch, vector_size, BATCH, BLOCK_OUT);
+  out_T **outputs = alloc2dArray<out_T>(batch, vector_size);
+  unpackBuffer<out_T, OUT_WIDTH>(outputs, output_buf, batch, vector_size, BATCH, BLOCK_OUT);
 
   // Correctness checks
   int err = 0;
@@ -853,8 +853,8 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
   // Free all allocated arrays
   free(immediate);
   free2dArray<acc_T>(inputs, batch, vector_size * input_sets);
-  free2dArray<inp_T>(outputs_ref, batch, vector_size);
-  free2dArray<inp_T>(outputs, batch, vector_size);
+  free2dArray<out_T>(outputs_ref, batch, vector_size);
+  free2dArray<out_T>(outputs, batch, vector_size);
   freeBuffer(insn_buf);
   freeBuffer(uop_buf);
   freeBuffer(bias_buf);
@@ -891,17 +891,17 @@ virtual_threads=%d\n",
   int ins_size = batch / block * out_feat / block * (2 + in_feat / block * 3) + 2;
   int uop_size = uop_compression ? block / BATCH * virtual_threads :
     block / BATCH * block / BLOCK_IN * block / BLOCK_OUT * virtual_threads;
-  int wgt_size = in_feat / BLOCK_IN * out_feat / BLOCK_OUT;
   int inp_size = batch / BATCH * in_feat / BLOCK_IN;
+  int wgt_size = in_feat / BLOCK_IN * out_feat / BLOCK_OUT;
   int out_size = batch / BATCH * out_feat / BLOCK_OUT;
   // Blocked buffer sizes (in terms of elements)
-  int wgt_block_size = block / BLOCK_IN * block / BLOCK_OUT;
   int inp_block_size = block / BATCH * block / BLOCK_IN;
+  int wgt_block_size = block / BLOCK_IN * block / BLOCK_OUT;
   int out_block_size = block / BATCH * block / BLOCK_OUT;
   // Make sure we don't exceed buffer bounds
   assert(uop_size <= UOP_BUFF_DEPTH);
-  assert(wgt_block_size <= WGT_BUFF_DEPTH);
   assert(inp_block_size <= INP_BUFF_DEPTH);
+  assert(wgt_block_size <= WGT_BUFF_DEPTH);
   assert(out_block_size <= ACC_BUFF_DEPTH);
 
   // Initialize instruction buffer
@@ -1017,15 +1017,15 @@ virtual_threads=%d\n",
   printMicroOp(uop_size, uop_buf);
 #endif
 
-  // Initialize weights
-  wgt_T **weights = allocInit2dArray<wgt_T, WGT_WIDTH>(out_feat, in_feat);
   // Initialize inputs
   inp_T **inputs = allocInit2dArray<inp_T, INP_WIDTH>(batch, in_feat);
+  // Initialize weights
+  wgt_T **weights = allocInit2dArray<wgt_T, WGT_WIDTH>(out_feat, in_feat);
   // Initialize biases
   acc_T **biases = allocInit2dArray<acc_T, ACC_WIDTH>(batch, out_feat);
 
   // Reference GEMM implementation
-  inp_T **outputs_ref = alloc2dArray<inp_T>(batch, out_feat);
+  out_T **outputs_ref = alloc2dArray<out_T>(batch, out_feat);
   for (int i = 0; i < batch; i ++) {
     for (int j = 0; j < out_feat; j ++) {
       acc_T sum = biases[i][j];
@@ -1033,21 +1033,21 @@ virtual_threads=%d\n",
         sum += (acc_T) (inputs[i][k] * weights[j][k]);
       }
       // Set
-      outputs_ref[i][j] = (inp_T) sum;
+      outputs_ref[i][j] = (out_T) sum;
     }
   }
 
-  // Prepare the weight buffer
-  wgt_T *weight_buf = (wgt_T *) allocBuffer(WGT_ELEM_BYTES * wgt_size);
-  packBuffer<wgt_T, WGT_WIDTH>(weight_buf, weights, out_feat, in_feat, BLOCK_OUT, BLOCK_IN);
   // Prepare the input buffer
   inp_T *input_buf = (inp_T *) allocBuffer(INP_ELEM_BYTES * inp_size);
   packBuffer<inp_T, INP_WIDTH>(input_buf, inputs, batch, in_feat, BATCH, BLOCK_IN);
+  // Prepare the weight buffer
+  wgt_T *weight_buf = (wgt_T *) allocBuffer(WGT_ELEM_BYTES * wgt_size);
+  packBuffer<wgt_T, WGT_WIDTH>(weight_buf, weights, out_feat, in_feat, BLOCK_OUT, BLOCK_IN);
   // Prepare the bias buffer
   acc_T *bias_buf = (acc_T *) allocBuffer(ACC_ELEM_BYTES * out_size);
   packBuffer<acc_T, ACC_WIDTH>(bias_buf, biases, batch, out_feat, BATCH, BLOCK_OUT);
   // Prepare the output buffer
-  inp_T *output_buf = (inp_T *) allocBuffer(INP_ELEM_BYTES * out_size);
+  out_T *output_buf = (out_T *) allocBuffer(INP_ELEM_BYTES * out_size);
 
 #ifdef NO_SIM
   // Invoke the VTA
@@ -1069,8 +1069,8 @@ virtual_threads=%d\n",
 #endif
 
   // Unpack output data
-  inp_T **outputs = alloc2dArray<inp_T>(batch, out_feat);
-  unpackBuffer<inp_T, INP_WIDTH>(outputs, output_buf, batch, out_feat, BATCH, BLOCK_OUT);
+  out_T **outputs = alloc2dArray<out_T>(batch, out_feat);
+  unpackBuffer<out_T, OUT_WIDTH>(outputs, output_buf, batch, out_feat, BATCH, BLOCK_OUT);
 
   // Correctness checks
   int err = 0;
@@ -1087,15 +1087,15 @@ virtual_threads=%d\n",
   }
 
   // Free all allocated arrays
-  free2dArray<wgt_T>(weights, out_feat, in_feat);
   free2dArray<inp_T>(inputs, batch, in_feat);
+  free2dArray<wgt_T>(weights, out_feat, in_feat);
   free2dArray<acc_T>(biases, batch, out_feat);
-  free2dArray<inp_T>(outputs_ref, batch, out_feat);
-  free2dArray<inp_T>(outputs, batch, out_feat);
+  free2dArray<out_T>(outputs_ref, batch, out_feat);
+  free2dArray<out_T>(outputs, batch, out_feat);
   freeBuffer((void *) insn_buf);
   freeBuffer((void *) uop_buf);
-  freeBuffer((void *) weight_buf);
   freeBuffer((void *) input_buf);
+  freeBuffer((void *) weight_buf);
   freeBuffer((void *) bias_buf);
   freeBuffer((void *) output_buf);
 
