@@ -54,9 +54,13 @@ endif
 
 all: lib/libvta.$(SHARED_LIBRARY_SUFFIX)
 
-SRC = $(wildcard src/*.cc src/*.cc)
-ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-ALL_DEP = $(ALL_OBJ)
+VTA_LIB_SRC = $(wildcard src/*.cc src/tvm/*.cc)
+ifeq ($(TARGET), PYNQ_TARGET)
+	VTA_LIB_SRC += $(wildcard src/pynq/*.cc)
+	LDFLAGS += -L/usr/lib -lsds_lib
+	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/ -l:libdma.so
+endif
+VTA_LIB_OBJ = $(patsubst %.cc, build/%.o, $(VTA_LIB_SRC))
 
 test: $(TEST)
 
@@ -65,7 +69,7 @@ build/src/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libvta.$(SHARED_LIBRARY_SUFFIX): $(ALL_DEP)
+lib/libvta.$(SHARED_LIBRARY_SUFFIX): $(VTA_LIB_OBJ)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS)
 

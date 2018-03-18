@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <iostream>
 
-#include "vta.h"
-#include "vta_test_lib.h"
+#include "../src/vta.h"
+#include "../../../tests/hardware/common/test_lib.h"
 
 int main(void)
 {

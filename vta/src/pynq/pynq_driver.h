@@ -23,7 +23,7 @@ extern "C" {
 #include <unistd.h>
 
 #ifdef __arm__
-#include "libxlnk_cma.h"
+#include <libxlnk_cma.h>
 #else
 void* cma_alloc(size_t size, int cached);
 void cma_free(void* buf);
@@ -31,31 +31,6 @@ uint32_t cma_get_phy_addr(void* buf);
 void xlnkFlushCache(void* buf, int size);
 void xlnkInvalidateCache(void* buf, int size);
 #endif
-
-/*! \brief VTA command handle */
-typedef void * VTAHandle;
-
-/*! \brief DMA command handle */
-typedef struct {
-  /*! \brief Register map to the AXI DMA control registers*/
-  void *dma_register_map;
-  /*! \brief Transmit data descriptor*/
-  void *mm2s_descriptor_register_map;
-  /*! \brief Receive data descriptor*/
-  void *s2mm_descriptor_register_map;
-  /*! \brief Transmit data descriptor physical address*/
-  uint32_t mm2s_descriptor_phy;
-  /*! \brief Receive data descriptor physical address*/
-  uint32_t s2mm_descriptor_phy;
-  /*! \brief Descriptor size */
-  uint32_t descriptor_size;
-  /*! \brief Transaction count for tx channel */
-  uint32_t mm2s_count;
-  /*! \brief Transaction count for rx channel */
-  uint32_t s2mm_count;
-  /*! \brief Multi-channel mode enable */
-  int multichannel_en;
-} DMAHandle;
 
 /*! \brief partial bitstream status file path */
 #define BS_IS_PARTIAL "/sys/devices/soc0/amba/f8007000.devcfg/is_partial_bitstream"
@@ -99,52 +74,8 @@ typedef struct {
 */
 #define VTA_STORE_ADDR    0x43C30000
 
-/*! \brief Memory management constants with libxlnk_cma */
-#define CACHED 1
-/*! \brief Memory management constants with libxlnk_cma */
-#define NOT_CACHED 0
-
-/*! \brief log2 of SDS buffer size limit */
-#define LOG_MAX_XFER 22
-/*! \brief SDS buffer size limit */
-#define MAX_XFER (1<<LOG_MAX_XFER)
-
-/*!
- * \brief Returns a memory map to FPGA configuration registers.
- * \param addr The base physical address of the configuration registers.
- * \param length The size of the memory mapped region in bytes.
- * \return A pointer to the memory mapped region.
- */
-void *MapRegister(unsigned addr, size_t length);
-
-/*!
- * \brief Deletes the configuration register memory map.
- * \param vta The memory mapped region.
- * \param length The size of the memory mapped region in bytes.
- */
-void UnmapRegister(void *vta, size_t length);
-
-/*!
- * \brief Writes to a memory mapped configuration register.
- * \param vta_base The handle to the memory mapped configuration registers.
- * \param offset The offset of the register to write to.
- * \param val The value to be written to the memory mapped register.
- */
-void WriteMappedReg(VTAHandle vta_base, unsigned offset, unsigned val);
-
-/*!
- * \brief Reads from the memory mapped configuration register.
- * \param vta_base The handle to the memory mapped configuration registers.
- * \param offset The offset of the register to read from.
- * \return The value read from the memory mapped register.
- */
-unsigned ReadMappedReg(VTAHandle vta_base, unsigned offset);
-
-/*!
- * \brief Programming the bit stream on the FPGA.
- * \param bitstream The path to the bit stream file.
- */
-void ProgramVTA(const char* bitstream);
+/*! \brief Buffer size limit */
+#define MAX_XFER (1<<22)
 
 #ifdef __cplusplus
 }
