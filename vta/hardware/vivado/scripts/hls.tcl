@@ -62,7 +62,7 @@ if { [llength $argv] eq 19 } {
 }
 
 # C define flags to pass to compiler
-set cflags "-I $include_dir -I $include_dir/hardware/hls \
+set cflags "-I $include_dir -I $src_dir -I $test_dir \
 	-DDEBUG=0 -DLOG_WGT_WIDTH=$wgt_width -DLOG_INP_WIDTH=$inp_width \
 	-DLOG_ACC_WIDTH=$acc_width -DLOG_OUT_WIDTH=$out_width \
 	-DLOG_BATCH=$batch -DLOG_BLOCK_OUT=$block_out -DLOG_BLOCK_IN=$block_in \
@@ -127,7 +127,7 @@ open_project vta_sim
 set_top vta
 add_files $src_dir/vta.cc -cflags $cflags
 add_files -tb $sim_dir/vta_test.cc -cflags $cflags
-add_files -tb $test_dir/vta_test_lib.cc -cflags $cflags
+add_files -tb $test_dir/test_lib.cc -cflags $cflags
 open_solution "solution0"
 init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
 csim_design -clean

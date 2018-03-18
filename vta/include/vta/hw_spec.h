@@ -3,8 +3,13 @@
  * \file vta_defines.h
  * \brief Preprocessor definitions for VTA HLS design and runtime.
  */
-#ifndef VTA_DEFINES_H_
-#define VTA_DEFINES_H_
+
+#ifndef VTA_HW_SPEC_H_
+#define VTA_HW_SPEC_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 
@@ -556,4 +561,7 @@ typedef struct {
   uint32_t wgt_idx    : LOG_WGT_BUFF_DEPTH;
 } VTAUop;
 
-#endif // VTA_DEFINES_H_
+#ifdef __cplusplus
+}
+#endif
+#endif // VTA_HW_SPEC_H_

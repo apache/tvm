@@ -7,21 +7,25 @@
 #ifndef VTA_TESTLIB_H_
 #define VTA_TESTLIB_H_
 
-#include "vta_params.h"
-
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vta/hw_spec.h>
 
 #ifdef NO_SIM
 
-#include "vta_pynq_driver.h"
+#include <vta/driver.h>
+
+#ifdef PYNQ_TARGET
+#include "../../../src/pynq/pynq_driver.h"
+#endif //PYNQ_TARGET
 
 typedef uint64_t axi_T;
 typedef uint32_t uop_T;
 typedef int8_t wgt_T;
 typedef int8_t inp_T;
+typedef int8_t out_T;
 typedef int32_t acc_T;
 
 uint64_t vta (
@@ -35,8 +39,7 @@ uint64_t vta (
 
 #else //NO_SIM
 
-#include "vta.h"
-#include "vta_typedefs.h"
+#include "../../../hardware/vivado/src/vta.h"
 
 #endif //NO_SIM
 
