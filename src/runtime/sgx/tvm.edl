@@ -1,0 +1,17 @@
+enclave {
+    from "sgx_tstdc.edl" import *;
+
+    trusted {
+        public void ecall_tvm_main([user_check] const void* args,
+                                   [user_check] const int* type_codes,
+                                   int num_args);
+        public void ecall_tvm_run_worker([user_check] const void* cb);
+    };
+
+    untrusted {
+        void ocall_tvm_thread_group_launch(int num_workers, [user_check] void* cb);
+        void ocall_tvm_thread_group_join();
+        void ocall_tvm_api_set_last_error([in, string] const char* err);
+    };
+};
+

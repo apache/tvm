@@ -53,59 +53,27 @@ enclave_ldflags :=\
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic\
 	-Wl,--defsym,__ImageBase=0 -Wl,--gc-sections
 
-app_cflags := -I$(SGX_SDK)/include -Ilib
-
-app_ldflags := -L$(SGX_SDK)/lib64\
-	-l$(urts_library_name) -l$(uservice_library_name) -lpthread\
-
 .PHONY: clean all
 
-all: lib/test_addone.signed.so bin/test_addone
-
-# Build rule for all-in-one TVM package library
-lib/tvm_runtime_pack.o: tvm_runtime_pack.cc lib/test_addone_t.o
-	@mkdir -p $(@D)
-	$(CXX) -c $< -o $@ $(pkg_cflags) $(pkg_ldflags) $(enclave_cxxflags) -g
+all: lib/test_addone.signed.so
 
 # The code library built by TVM
 lib/test_addone_sys.o: prepare_test_libs.py
 	python prepare_test_libs.py
 
-# EDL files
-lib/test_addone_u.c: $(sgx_edger8r) test_addone.edl
-	$(sgx_edger8r) --untrusted test_addone.edl --untrusted-dir lib --search-path $(SGX_SDK)/include
-
-lib/test_addone_u.o: lib/test_addone_u.c
-	$(CC) $(enclave_cflags) -c $< -o $@
-
-lib/test_addone_t.c: test_addone.edl
+lib/tvm_t.c: ../../src/runtime/sgx/tvm.edl
 	$(sgx_edger8r) --trusted $< --trusted-dir lib --search-path $(SGX_SDK)/include
 
-lib/test_addone_t.o: lib/test_addone_t.c
+lib/tvm_t.o: lib/tvm_t.c
 	$(CC) $(enclave_cflags) -c $< -o $@
 
 # The enclave library
-lib/test_addone.so: enclave.cc lib/tvm_runtime_pack.o lib/test_addone_t.o lib/test_addone_sys.o
+lib/test_addone.so: enclave.cc lib/tvm_t.o lib/test_addone_sys.o
 	$(CXX) $^ -o $@ $(pkg_cflags) $(pkg_ldflags) $(enclave_cxxflags) $(enclave_ldflags) -g
 
 # The signed enclave
 lib/test_addone.signed.so: lib/test_addone.so enclave_config.xml
 	$(sgx_enclave_signer) sign -key enclave_private.pem -enclave $< -out $@ -config enclave_config.xml
 
-# An app that runs the enclave
-bin/test_addone: app.cc lib/test_addone_u.o
-	@mkdir -p $(@D)
-	$(CXX) $^ -o $@ $(app_cflags) $(app_ldflags) $(pkg_cflags) -g
-
-# Debugging runtime pack built without SGX (c.f. howto_deploy/tvm_runtime_pack.cc)
-lib/tvm_runtime_pack_nosgx.o: tvm_runtime_pack.cc
-	@mkdir -p $(@D)
-	$(CXX) -c $< -o $@ $(pkg_cflags) $(pkg_ldflags) -g
-
-# Debugging binary that runs TVM without SGX
-bin/addone_nosgx: enclave.cc lib/tvm_runtime_pack_nosgx.o lib/test_addone_sys.o
-	@mkdir -p $(@D)
-	$(CXX) $^ -o $@ $(pkg_cflags) $(pkg_ldflags) -g -lpthread
-
 clean:
-	rm -rf lib bin
+	rm -rf lib

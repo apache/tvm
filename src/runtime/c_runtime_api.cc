@@ -10,6 +10,9 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
+#ifdef _LIBCPP_SGX_CONFIG
+#include <tvm/runtime/sgx/trusted.h>
+#endif
 #include <array>
 #include <algorithm>
 #include <string>
@@ -186,7 +189,11 @@ const char *TVMGetLastError() {
 }
 
 void TVMAPISetLastError(const char* msg) {
+#ifndef _LIBCPP_SGX_CONFIG
   TVMAPIRuntimeStore::Get()->last_error = msg;
+#else
+  ocall_tvm_api_set_last_error(msg);
+#endif
 }
 
 int TVMModLoadFromFile(const char* file_name,

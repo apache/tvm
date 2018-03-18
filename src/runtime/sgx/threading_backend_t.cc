@@ -3,16 +3,12 @@
  * \file sgx/threading_backend.cc
  * \brief SGX threading backend
  */
+#include <tvm/runtime/sgx/trusted.h>
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/logging.h>
 #include <sgx_edger8r.h>
 #include <sgx_trts.h>
 #include <atomic>
-
-extern "C" {
-sgx_status_t SGX_CDECL tvm_ocall_thread_group_launch(int num_workers, void* cb);
-sgx_status_t SGX_CDECL tvm_ocall_thread_group_join();
-}
 
 #ifndef TVM_SGX_MAX_CONCURRENCY
 #define TVM_SGX_MAX_CONCURRENCY 1
@@ -32,12 +28,12 @@ class ThreadGroup::Impl {
     CHECK(num_workers <= TVM_SGX_MAX_CONCURRENCY)
       << "Tried spawning more threads than allowed by TVM_SGX_MAX_CONCURRENCY.";
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status = tvm_ocall_thread_group_launch(num_workers, this);
+    sgx_status = ocall_tvm_thread_group_launch(num_workers_, this);
     CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
   }
 
   ~Impl() {
-    tvm_ocall_thread_group_join();
+    ocall_tvm_thread_group_join();
   }
 
   void RunTask() {
@@ -65,7 +61,7 @@ void Yield() {}
 int MaxConcurrency() { return TVM_SGX_MAX_CONCURRENCY; }
 
 extern "C" {
-void tvm_ecall_run_worker(const void* impl) {
+void ecall_tvm_run_worker(const void* impl) {
   if (!sgx_is_within_enclave(impl, sizeof(ThreadGroup::Impl))) return;
   ((ThreadGroup::Impl*)impl)->RunTask();
 }
