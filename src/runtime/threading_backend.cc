@@ -78,11 +78,11 @@ class ThreadGroup::Impl {
 #endif
     }
     if (exclude_worker0) {  // bind the master thread to core 0
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset);
-    pthread_setaffinity_np(pthread_self(),
-      sizeof(cpu_set_t), &cpuset);
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(0, &cpuset);
+      pthread_setaffinity_np(pthread_self(),
+        sizeof(cpu_set_t), &cpuset);
     }
 #endif
   }
