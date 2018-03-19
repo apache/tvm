@@ -4,8 +4,8 @@
  * \brief VTA driver for Pynq board.
  */
 
-#ifndef VTA_PYNQ_DRIVER_H_
-#define VTA_PYNQ_DRIVER_H_
+#ifndef VTA_PYNQ_PYNQ_DRIVER_H_
+#define VTA_PYNQ_PYNQ_DRIVER_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,17 +32,20 @@ void xlnkFlushCache(void* buf, int size);
 void xlnkInvalidateCache(void* buf, int size);
 #endif
 
-/*! \brief partial bitstream status file path */
-#define BS_IS_PARTIAL "/sys/devices/soc0/amba/f8007000.devcfg/is_partial_bitstream"
-/*! \brief bitstream destination file path */
-#define BS_XDEVCFG "/dev/xdevcfg"
+/*! \brief (Pynq only) Partial bitstream status file path */
+#define VTA_PYNQ_BS_IS_PARTIAL "/sys/devices/soc0/amba/f8007000.devcfg/is_partial_bitstream"
+/*! \brief (Pynq only) Bitstream destination file path */
+#define VTA_PYNQ_BS_XDEVCFG "/dev/xdevcfg"
 
-/*! \brief Path to /dev/mem */
-#define DEV_MEM_PATH "/dev/mem"
-/*! \brief MMIO driver constant */
-#define MMIO_WORD_LENGTH 4
-/*! \brief MMIO driver constant */
-#define MMIO_WORD_MASK (~(MMIO_WORD_LENGTH - 1))
+/*! \brief (Pynq only) Path to /dev/mem */
+#define VTA_PYNQ_DEV_MEM_PATH "/dev/mem"
+/*! \brief (Pynq only) MMIO driver constant */
+#define VTA_PYNQ_MMIO_WORD_LENGTH 4
+/*! \brief (Pynq only) MMIO driver constant */
+#define VTA_PYNQ_MMIO_WORD_MASK (~(MMIO_WORD_LENGTH - 1))
+
+/*! \brief Physically contiguous buffer size limit */
+#define VTA_MAX_XFER (1<<22)
 
 /*! \brief VTA configuration register address range */
 #define VTA_RANGE 0x100
@@ -74,10 +77,7 @@ void xlnkInvalidateCache(void* buf, int size);
 */
 #define VTA_STORE_ADDR    0x43C30000
 
-/*! \brief Buffer size limit */
-#define MAX_XFER (1<<22)
-
 #ifdef __cplusplus
 }
 #endif
-#endif  // VTA_PYNQ_DRIVER_H_
+#endif  // VTA_PYNQ_PYNQ_DRIVER_H_

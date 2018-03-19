@@ -63,12 +63,12 @@ if { [llength $argv] eq 19 } {
 
 # C define flags to pass to compiler
 set cflags "-I $include_dir -I $src_dir -I $test_dir \
-	-DDEBUG=0 -DLOG_WGT_WIDTH=$wgt_width -DLOG_INP_WIDTH=$inp_width \
-	-DLOG_ACC_WIDTH=$acc_width -DLOG_OUT_WIDTH=$out_width \
-	-DLOG_BATCH=$batch -DLOG_BLOCK_OUT=$block_out -DLOG_BLOCK_IN=$block_in \
-	-DLOG_UOP_BUFF_SIZE=$uop_buff_size -DLOG_INP_BUFF_SIZE=$inp_buff_size \
-	-DLOG_WGT_BUFF_SIZE=$wgt_buff_size -DLOG_ACC_BUFF_SIZE=$acc_buff_size \
-	-DLOG_OUT_BUFF_SIZE=$out_buff_size"
+	-DVTA_DEBUG=0 -DVTA_LOG_WGT_WIDTH=$wgt_width -DVTA_LOG_INP_WIDTH=$inp_width \
+	-DVTA_LOG_ACC_WIDTH=$acc_width -DVTA_LOG_OUT_WIDTH=$out_width \
+	-DVTA_LOG_BATCH=$batch -DVTA_LOG_BLOCK_OUT=$block_out -DVTA_LOG_BLOCK_IN=$block_in \
+	-DVTA_LOG_UOP_BUFF_SIZE=$uop_buff_size -DVTA_LOG_INP_BUFF_SIZE=$inp_buff_size \
+	-DVTA_LOG_WGT_BUFF_SIZE=$wgt_buff_size -DVTA_LOG_ACC_BUFF_SIZE=$acc_buff_size \
+	-DVTA_LOG_OUT_BUFF_SIZE=$out_buff_size"
 
 # Initializes the HLS design and sets HLS pragmas for memory partitioning.
 # This is necessary because of a Vivado restriction that doesn't allow for

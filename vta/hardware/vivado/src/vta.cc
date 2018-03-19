@@ -10,80 +10,78 @@
 
 #include "./vta.h"
 
-void fetch (
+void fetch(
   uint32_t insn_count,
   volatile insn_T *insns,
-  hls::stream<insn_T> &load_queue,
-  hls::stream<insn_T> &gemm_queue,
-  hls::stream<insn_T> &store_queue) {
-#pragma HLS INTERFACE s_axilite port=insn_count bundle=CONTROL_BUS
-#pragma HLS INTERFACE m_axi port=insns offset=slave bundle=ins_port
-#pragma HLS INTERFACE axis port=load_queue
-#pragma HLS INTERFACE axis port=gemm_queue
-#pragma HLS INTERFACE axis port=store_queue
-#pragma HLS INTERFACE s_axilite port=return bundle=CONTROL_BUS
+  hls::stream<insn_T> *load_queue,
+  hls::stream<insn_T> *gemm_queue,
+  hls::stream<insn_T> *store_queue) {
+#pragma HLS INTERFACE s_axilite port = insn_count bundle = CONTROL_BUS
+#pragma HLS INTERFACE m_axi port = insns offset = slave bundle = ins_port
+#pragma HLS INTERFACE axis port = load_queue
+#pragma HLS INTERFACE axis port = gemm_queue
+#pragma HLS INTERFACE axis port = store_queue
+#pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 
-  INSN_DECODE: for (int pc = 0; pc < insn_count; pc ++) {
-#pragma HLS PIPELINE II=1
+  INSN_DECODE: for (int pc = 0; pc < insn_count; pc++) {
+#pragma HLS PIPELINE II = 1
     // Read instruction fields
     insn_T insn = insns[pc];
     // Do some partial decoding
-    opcode_T opcode = insn.range(INSN_MEM_0_1, INSN_MEM_0_0);
-    memop_id_T memory_type = insn.range(INSN_MEM_5_1, INSN_MEM_5_0);
+    opcode_T opcode = insn.range(VTA_INSN_MEM_0_1, VTA_INSN_MEM_0_0);
+    memop_id_T memory_type = insn.range(VTA_INSN_MEM_5_1, VTA_INSN_MEM_5_0);
     // Push to appropriate instruction queue
-    if (opcode == OPCODE_STORE) {
-      store_queue.write(insn);
-    } else if (opcode == OPCODE_LOAD &&
-               (memory_type == MEM_ID_INP || memory_type == MEM_ID_WGT)) {
-      load_queue.write(insn);
+    if (opcode == VTA_OPCODE_STORE) {
+      store_queue->write(insn);
+    } else if (opcode == VTA_OPCODE_LOAD &&
+          (memory_type == VTA_MEM_ID_INP || memory_type == VTA_MEM_ID_WGT)) {
+      load_queue->write(insn);
     } else {
-      gemm_queue.write(insn);
+      gemm_queue->write(insn);
     }
   }
-
 }
 
-void load (
+void load(
   volatile inp_vec_T *inputs,
   volatile wgt_vec_T *weights,
-  hls::stream<insn_T> &load_queue,
-  hls::stream<bool> &g2l_dep_queue,
-  hls::stream<bool> &l2g_dep_queue,
-  inp_vec_T inp_mem[INP_BUFF_DEPTH][BATCH],
-  wgt_vec_T wgt_mem[WGT_BUFF_DEPTH][BLOCK_OUT]
+  hls::stream<insn_T> *load_queue,
+  hls::stream<bool> *g2l_dep_queue,
+  hls::stream<bool> *l2g_dep_queue,
+  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]
   ) {
-#pragma HLS INTERFACE m_axi port=weights offset=slave bundle=data_port
-#pragma HLS INTERFACE m_axi port=inputs offset=slave bundle=data_port
-#pragma HLS INTERFACE axis port=load_queue
-#pragma HLS INTERFACE axis port=g2l_dep_queue
-#pragma HLS INTERFACE axis port=l2g_dep_queue
-#pragma HLS INTERFACE bram port=wgt_mem
-#pragma HLS INTERFACE bram port=inp_mem
-#pragma HLS INTERFACE s_axilite port=return bundle=CONTROL_BUS
-// #pragma HLS ARRAY_PARTITION variable=inp_mem complete dim=2
+#pragma HLS INTERFACE m_axi port = weights offset = slave bundle = data_port
+#pragma HLS INTERFACE m_axi port = inputs offset = slave bundle = data_port
+#pragma HLS INTERFACE axis port = load_queue
+#pragma HLS INTERFACE axis port = g2l_dep_queue
+#pragma HLS INTERFACE axis port = l2g_dep_queue
+#pragma HLS INTERFACE bram port = wgt_mem
+#pragma HLS INTERFACE bram port = inp_mem
+#pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 
   // Pop load instruction
-  insn_T insn = load_queue.read();
+  insn_T insn = load_queue->read();
 
   // Decode instruction
-  bool pop_prev_dependence = insn[INSN_MEM_1];
-  bool pop_next_dependence = insn[INSN_MEM_2];
-  bool push_prev_dependence = insn[INSN_MEM_3];
-  bool push_next_dependence = insn[INSN_MEM_4];
-  memop_id_T memory_type = insn.range(INSN_MEM_5_1, INSN_MEM_5_0);
-  memop_sram_T sram_base = insn.range(INSN_MEM_6_1, INSN_MEM_6_0);
-  memop_dram_T dram_base = insn.range(INSN_MEM_7_1, INSN_MEM_7_0);
-  memop_size_T y_size = insn.range(INSN_MEM_8_1, INSN_MEM_8_0);
-  memop_size_T x_size = insn.range(INSN_MEM_9_1, INSN_MEM_9_0);
-  memop_stride_T x_stride = insn.range(INSN_MEM_A_1, INSN_MEM_A_0);
-  memop_pad_T y_pad_0 = insn.range(INSN_MEM_B_1, INSN_MEM_B_0);
-  memop_pad_T y_pad_1 = insn.range(INSN_MEM_C_1, INSN_MEM_C_0);
-  memop_pad_T x_pad_0 = insn.range(INSN_MEM_D_1, INSN_MEM_D_0);
-  memop_pad_T x_pad_1 = insn.range(INSN_MEM_E_1, INSN_MEM_E_0);
+  bool pop_prev_dependence = insn[VTA_INSN_MEM_1];
+  bool pop_next_dependence = insn[VTA_INSN_MEM_2];
+  bool push_prev_dependence = insn[VTA_INSN_MEM_3];
+  bool push_next_dependence = insn[VTA_INSN_MEM_4];
+  memop_id_T memory_type = insn.range(VTA_INSN_MEM_5_1, VTA_INSN_MEM_5_0);
+  memop_sram_T sram_base = insn.range(VTA_INSN_MEM_6_1, VTA_INSN_MEM_6_0);
+  memop_dram_T dram_base = insn.range(VTA_INSN_MEM_7_1, VTA_INSN_MEM_7_0);
+  memop_size_T y_size = insn.range(VTA_INSN_MEM_8_1, VTA_INSN_MEM_8_0);
+  memop_size_T x_size = insn.range(VTA_INSN_MEM_9_1, VTA_INSN_MEM_9_0);
+  memop_stride_T x_stride = insn.range(VTA_INSN_MEM_A_1, VTA_INSN_MEM_A_0);
+  memop_pad_T y_pad_0 = insn.range(VTA_INSN_MEM_B_1, VTA_INSN_MEM_B_0);
+  memop_pad_T y_pad_1 = insn.range(VTA_INSN_MEM_C_1, VTA_INSN_MEM_C_0);
+  memop_pad_T x_pad_0 = insn.range(VTA_INSN_MEM_D_1, VTA_INSN_MEM_D_0);
+  memop_pad_T x_pad_1 = insn.range(VTA_INSN_MEM_E_1, VTA_INSN_MEM_E_0);
 
   // Pop dependence token if instructed
   if (pop_next_dependence) {
-    g2l_dep_queue.read();
+    g2l_dep_queue->read();
   }
 
   // Initialize indices
@@ -94,29 +92,26 @@ void load (
   memop_size_T y_size_total = y_pad_0 + y_size + y_pad_1;
   memop_size_T x_size_total = x_pad_0 + x_size + x_pad_1;
   memop_sram_T y_offset = x_size_total * y_pad_0;
-#pragma HLS RESOURCE variable=y_offset core=Mul_LUT
+// Force this computation to be done with LUTs to avoid using too many DSPs
+#pragma HLS RESOURCE variable = y_offset core = Mul_LUT
 
   // Skip padding along y dimension
   sram_idx += y_offset;
 
   // Perform data transfer from DRAM
-  for (int y = 0; y < y_size; y ++) {
+  for (int y = 0; y < y_size; y++) {
 #pragma HLS PIPELINE rewind
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
-    if (memory_type == MEM_ID_INP) {
-      memcpy(
-        &inp_mem[sram_idx][0],
-        (const inp_vec_T*) &inputs[dram_idx * BATCH],
-        x_size * INP_ELEM_BYTES
-      );
+    if (memory_type == VTA_MEM_ID_INP) {
+      memcpy(&inp_mem[sram_idx][0],
+             (const inp_vec_T*) &inputs[dram_idx * VTA_BATCH],
+             x_size * VTA_INP_ELEM_BYTES);
     } else {
-      memcpy(
-        &wgt_mem[sram_idx][0],
-        (const wgt_vec_T*) &weights[dram_idx * BLOCK_OUT],
-        x_size * WGT_ELEM_BYTES
-      );
+      memcpy(&wgt_mem[sram_idx][0],
+             (const wgt_vec_T*) &weights[dram_idx * VTA_BLOCK_OUT],
+             x_size * VTA_WGT_ELEM_BYTES);
     }
     sram_idx += x_size;
     dram_idx += x_stride;
@@ -127,136 +122,130 @@ void load (
   // Reset SRAM index
   sram_idx = sram_base;
   // Pad x/y edges with zeros
-  for (int y = 0; y < y_size_total; y ++) {
+  for (int y = 0; y < y_size_total; y++) {
     if (y < y_pad_0 || y >= y_pad_0 + y_size) {
-      for (int x = 0; x < x_size_total; x ++) {
-#pragma HLS PIPELINE II=1 rewind
-        if (memory_type == MEM_ID_INP) {
-          for (int i = 0; i < BATCH; i ++) {
+      for (int x = 0; x < x_size_total; x++) {
+#pragma HLS PIPELINE II = 1 rewind
+        if (memory_type == VTA_MEM_ID_INP) {
+          for (int i = 0; i < VTA_BATCH; i++) {
             inp_mem[sram_idx][i] = 0;
           }
         } else {
-          for (int i = 0; i < BLOCK_OUT; i ++) {
+          for (int i = 0; i < VTA_BLOCK_OUT; i++) {
             wgt_mem[sram_idx][i] = 0;
           }
         }
-        sram_idx ++;
+        sram_idx++;
       }
     } else {
-      for (int x = 0; x < x_pad_0; x ++) {
-#pragma HLS PIPELINE II=1 rewind
-        if (memory_type == MEM_ID_INP) {
-          for (int i = 0; i < BATCH; i ++) {
+      for (int x = 0; x < x_pad_0; x++) {
+#pragma HLS PIPELINE II = 1 rewind
+        if (memory_type == VTA_MEM_ID_INP) {
+          for (int i = 0; i < VTA_BATCH; i++) {
             inp_mem[sram_idx][i] = 0;
           }
         } else {
-          for (int i = 0; i < BLOCK_OUT; i ++) {
+          for (int i = 0; i < VTA_BLOCK_OUT; i++) {
             wgt_mem[sram_idx][i] = 0;
           }
         }
-        sram_idx ++;
+        sram_idx++;
       }
       sram_idx += x_size;
-      for (int x = 0; x < x_pad_1; x ++) {
-#pragma HLS PIPELINE II=1 rewind
-        if (memory_type == MEM_ID_INP) {
-          for (int i = 0; i < BATCH; i ++) {
+      for (int x = 0; x < x_pad_1; x++) {
+#pragma HLS PIPELINE II = 1 rewind
+        if (memory_type == VTA_MEM_ID_INP) {
+          for (int i = 0; i < VTA_BATCH; i++) {
             inp_mem[sram_idx][i] = 0;
           }
         } else {
-          for (int i = 0; i < BLOCK_OUT; i ++) {
+          for (int i = 0; i < VTA_BLOCK_OUT; i++) {
             wgt_mem[sram_idx][i] = 0;
           }
         }
-        sram_idx ++;
+        sram_idx++;
       }
-
     }
   }
 
   // Push dependence token if instructed
   if (push_next_dependence) {
-    l2g_dep_queue.write(1);
+    l2g_dep_queue->write(1);
   }
 }
 
-void compute (
-  volatile uint32_t &done,
+void compute(
+  volatile uint32_t *done,
   volatile uop_T *uops,
   volatile acc_vec_T *biases,
-  hls::stream<insn_T> &gemm_queue,
-  hls::stream<bool> &l2g_dep_queue,
-  hls::stream<bool> &s2g_dep_queue,
-  hls::stream<bool> &g2l_dep_queue,
-  hls::stream<bool> &g2s_dep_queue,
-  out_vec_T inp_mem[INP_BUFF_DEPTH][BATCH],
-  wgt_vec_T wgt_mem[WGT_BUFF_DEPTH][BLOCK_OUT],
-  out_vec_T out_mem[ACC_BUFF_DEPTH][BATCH]
+  hls::stream<insn_T> *gemm_queue,
+  hls::stream<bool> *l2g_dep_queue,
+  hls::stream<bool> *s2g_dep_queue,
+  hls::stream<bool> *g2l_dep_queue,
+  hls::stream<bool> *g2s_dep_queue,
+  out_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
+  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
   ) {
-#pragma HLS INTERFACE s_axilite port=done bundle=CONTROL_BUS
-#pragma HLS INTERFACE m_axi port=uops offset=slave bundle=uop_port
-#pragma HLS INTERFACE m_axi port=biases offset=slave bundle=data_port
-#pragma HLS INTERFACE axis port=gemm_queue
-#pragma HLS INTERFACE axis port=l2g_dep_queue
-#pragma HLS INTERFACE axis port=s2g_dep_queue
-#pragma HLS INTERFACE axis port=g2l_dep_queue
-#pragma HLS INTERFACE axis port=g2s_dep_queue
-#pragma HLS INTERFACE bram port=inp_mem
-#pragma HLS INTERFACE bram port=wgt_mem
-#pragma HLS INTERFACE bram port=out_mem
-#pragma HLS INTERFACE s_axilite port=return bundle=CONTROL_BUS
-// #pragma HLS ARRAY_PARTITION variable=inp_mem complete dim=2
-// #pragma HLS ARRAY_PARTITION variable=out_mem complete dim=2
+#pragma HLS INTERFACE s_axilite port = done bundle = CONTROL_BUS
+#pragma HLS INTERFACE m_axi port = uops offset = slave bundle = uop_port
+#pragma HLS INTERFACE m_axi port = biases offset = slave bundle = data_port
+#pragma HLS INTERFACE axis port = gemm_queue
+#pragma HLS INTERFACE axis port = l2g_dep_queue
+#pragma HLS INTERFACE axis port = s2g_dep_queue
+#pragma HLS INTERFACE axis port = g2l_dep_queue
+#pragma HLS INTERFACE axis port = g2s_dep_queue
+#pragma HLS INTERFACE bram port = inp_mem
+#pragma HLS INTERFACE bram port = wgt_mem
+#pragma HLS INTERFACE bram port = out_mem
+#pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 // This is necessary connect the SRAM to the load module
-#pragma HLS RESOURCE variable=wgt_mem core=RAM_1P
+#pragma HLS RESOURCE variable = wgt_mem core = RAM_1P
 
   // Micro-op storage
-  static uop_T uop_mem[UOP_BUFF_DEPTH];
+  static uop_T uop_mem[VTA_UOP_BUFF_DEPTH];
 
   // Accumulator storage
-  static acc_vec_T acc_mem[ACC_BUFF_DEPTH][BATCH];
-#pragma HLS ARRAY_PARTITION variable=acc_mem complete dim=2
+  static acc_vec_T acc_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
+#pragma HLS ARRAY_PARTITION variable = acc_mem complete dim = 2
 
   // Pop GEMM instruction
-  insn_T insn = gemm_queue.read();
+  insn_T insn = gemm_queue->read();
 
   // Decode
-  opcode_T opcode = insn.range(INSN_MEM_0_1, INSN_MEM_0_0);
-  bool pop_prev_dependence = insn[INSN_MEM_1];
-  bool pop_next_dependence = insn[INSN_MEM_2];
-  bool push_prev_dependence = insn[INSN_MEM_3];
-  bool push_next_dependence = insn[INSN_MEM_4];
+  opcode_T opcode = insn.range(VTA_INSN_MEM_0_1, VTA_INSN_MEM_0_0);
+  bool pop_prev_dependence = insn[VTA_INSN_MEM_1];
+  bool pop_next_dependence = insn[VTA_INSN_MEM_2];
+  bool push_prev_dependence = insn[VTA_INSN_MEM_3];
+  bool push_next_dependence = insn[VTA_INSN_MEM_4];
 
   // Pop dependence token if instructed
   if (pop_prev_dependence) {
-    l2g_dep_queue.read();
+    l2g_dep_queue->read();
   }
   if (pop_next_dependence) {
-    s2g_dep_queue.read();
+    s2g_dep_queue->read();
   }
 
   // Perform action based on opcode
-  if (opcode == OPCODE_FINISH) {
-
+  if (opcode == VTA_OPCODE_FINISH) {
     // Set done flag if we reach a FINISH instruction
-    done = 1;
-
-  } else if (opcode == OPCODE_LOAD || opcode == OPCODE_STORE) {
-
+    *done = 1;
+  } else if (opcode == VTA_OPCODE_LOAD || opcode == VTA_OPCODE_STORE) {
     // Set done value
-    done = 0;
+    *done = 0;
 
     // Decode instruction
-    memop_id_T memory_type = insn.range(INSN_MEM_5_1, INSN_MEM_5_0);
-    memop_sram_T sram_base = insn.range(INSN_MEM_6_1, INSN_MEM_6_0);
-    memop_dram_T dram_base = insn.range(INSN_MEM_7_1, INSN_MEM_7_0);
-    memop_size_T y_size = insn.range(INSN_MEM_8_1, INSN_MEM_8_0);
-    memop_size_T x_size = insn.range(INSN_MEM_9_1, INSN_MEM_9_0);
-    memop_stride_T x_stride = insn.range(INSN_MEM_A_1, INSN_MEM_A_0);
-    memop_pad_T y_pad_0 = insn.range(INSN_MEM_B_1, INSN_MEM_B_0);
-    memop_pad_T y_pad_1 = insn.range(INSN_MEM_C_1, INSN_MEM_C_0);
-    memop_pad_T x_pad_0 = insn.range(INSN_MEM_D_1, INSN_MEM_D_0);
-    memop_pad_T x_pad_1 = insn.range(INSN_MEM_E_1, INSN_MEM_E_0);
+    memop_id_T memory_type = insn.range(VTA_INSN_MEM_5_1, VTA_INSN_MEM_5_0);
+    memop_sram_T sram_base = insn.range(VTA_INSN_MEM_6_1, VTA_INSN_MEM_6_0);
+    memop_dram_T dram_base = insn.range(VTA_INSN_MEM_7_1, VTA_INSN_MEM_7_0);
+    memop_size_T y_size = insn.range(VTA_INSN_MEM_8_1, VTA_INSN_MEM_8_0);
+    memop_size_T x_size = insn.range(VTA_INSN_MEM_9_1, VTA_INSN_MEM_9_0);
+    memop_stride_T x_stride = insn.range(VTA_INSN_MEM_A_1, VTA_INSN_MEM_A_0);
+    memop_pad_T y_pad_0 = insn.range(VTA_INSN_MEM_B_1, VTA_INSN_MEM_B_0);
+    memop_pad_T y_pad_1 = insn.range(VTA_INSN_MEM_C_1, VTA_INSN_MEM_C_0);
+    memop_pad_T x_pad_0 = insn.range(VTA_INSN_MEM_D_1, VTA_INSN_MEM_D_0);
+    memop_pad_T x_pad_1 = insn.range(VTA_INSN_MEM_E_1, VTA_INSN_MEM_E_0);
 
     // Initialize indices
     memop_sram_T sram_idx = sram_base;
@@ -266,220 +255,202 @@ void compute (
     memop_size_T y_size_total = y_pad_0 + y_size + y_pad_1;
     memop_size_T x_size_total = x_pad_0 + x_size + x_pad_1;
     memop_sram_T y_offset = x_size_total * y_pad_0;
-#pragma HLS RESOURCE variable=y_offset core=Mul_LUT
+// Force this computation to be done with LUTs to avoid using too many DSPs
+#pragma HLS RESOURCE variable = y_offset core = Mul_LUT
 
-    if (memory_type == MEM_ID_UOP) {
+    if (memory_type == VTA_MEM_ID_UOP) {
       // Perform data transfer
-      memcpy(
-        &uop_mem[sram_base],
-        (const uop_T*) &uops[dram_base],
-        x_size * sizeof(uop_T)
-      );
+      memcpy(&uop_mem[sram_base],
+             (const uop_T*) &uops[dram_base],
+             x_size * sizeof(uop_T));
     } else {
       // Skip vertical padding
       sram_idx += y_offset;
       // Perform data transfer from DRAM
-      for (int y = 0; y < y_size; y ++) {
+      for (int y = 0; y < y_size; y++) {
 #pragma HLS PIPELINE rewind
         // Skip padding along x dimension
         sram_idx += x_pad_0;
         // Perform data transfer
-        memcpy(
-            &acc_mem[sram_idx][0],
-            (const acc_vec_T*) &biases[dram_idx * BATCH],
-            x_size*ACC_ELEM_BYTES
-        );
+        memcpy(&acc_mem[sram_idx][0],
+               (const acc_vec_T*) &biases[dram_idx * VTA_BATCH],
+               x_size*VTA_ACC_ELEM_BYTES);
         sram_idx += x_size;
         dram_idx += x_stride;
         // Skip padding along x dimension
         sram_idx += x_pad_1;
       }
     }
-
-  } else if (opcode == OPCODE_GEMM || opcode == OPCODE_ALU) {
-
+  } else if (opcode == VTA_OPCODE_GEMM || opcode == VTA_OPCODE_ALU) {
     // Set done value
-    done = 0;
+    *done = 0;
 
     // Decode
-    uop_idx_T uop_bgn = insn.range(INSN_GEM_5_1, INSN_GEM_5_0);
-    uop_idx_T uop_end = insn.range(INSN_GEM_6_1, INSN_GEM_6_0);
-    loop_T iter_out  = insn.range(INSN_GEM_7_1, INSN_GEM_7_0);
-    loop_T iter_in  = insn.range(INSN_GEM_8_1, INSN_GEM_8_0);
-    acc_idx_T dst_factor_out = insn.range(INSN_GEM_9_1, INSN_GEM_9_0);
-    acc_idx_T dst_factor_in = insn.range(INSN_GEM_A_1, INSN_GEM_A_0);
-    inp_idx_T src_factor_out = insn.range(INSN_GEM_B_1, INSN_GEM_B_0);
-    inp_idx_T src_factor_in = insn.range(INSN_GEM_C_1, INSN_GEM_C_0);
+    uop_idx_T uop_bgn = insn.range(VTA_INSN_GEM_5_1, VTA_INSN_GEM_5_0);
+    uop_idx_T uop_end = insn.range(VTA_INSN_GEM_6_1, VTA_INSN_GEM_6_0);
+    loop_T iter_out  = insn.range(VTA_INSN_GEM_7_1, VTA_INSN_GEM_7_0);
+    loop_T iter_in  = insn.range(VTA_INSN_GEM_8_1, VTA_INSN_GEM_8_0);
+    acc_idx_T dst_factor_out = insn.range(VTA_INSN_GEM_9_1, VTA_INSN_GEM_9_0);
+    acc_idx_T dst_factor_in = insn.range(VTA_INSN_GEM_A_1, VTA_INSN_GEM_A_0);
+    inp_idx_T src_factor_out = insn.range(VTA_INSN_GEM_B_1, VTA_INSN_GEM_B_0);
+    inp_idx_T src_factor_in = insn.range(VTA_INSN_GEM_C_1, VTA_INSN_GEM_C_0);
 
     // GEMM-specific fields
-    wgt_idx_T wgt_factor_out = insn.range(INSN_GEM_D_1, INSN_GEM_D_0);
-    wgt_idx_T wgt_factor_in = insn.range(INSN_GEM_E_1, INSN_GEM_E_0);
+    wgt_idx_T wgt_factor_out = insn.range(VTA_INSN_GEM_D_1, VTA_INSN_GEM_D_0);
+    wgt_idx_T wgt_factor_in = insn.range(VTA_INSN_GEM_E_1, VTA_INSN_GEM_E_0);
 
     // ALU-specific field
-    aluop_opcode_T alu_opcode = insn.range(INSN_ALU_D_1, INSN_ALU_D_0);
-    bool use_imm = insn[INSN_ALU_E];
-    aluop_imm_T imm = insn.range(INSN_ALU_F_1, INSN_ALU_F_0);
-
+    aluop_opcode_T alu_opcode = insn.range(VTA_INSN_ALU_D_1, VTA_INSN_ALU_D_0);
+    bool use_imm = insn[VTA_INSN_ALU_E];
+    aluop_imm_T imm = insn.range(VTA_INSN_ALU_F_1, VTA_INSN_ALU_F_0);
     acc_idx_T dst_offset_out = 0;
     inp_idx_T src_offset_out = 0;
     wgt_idx_T wgt_offset_out = 0;
 
     // Outer Loop
-    EXE_OUT_LOOP: for (int it_out = 0; it_out < iter_out; it_out ++) {
-#pragma HLS DEPENDENCE variable=acc_mem inter false
-
+    EXE_OUT_LOOP: for (int it_out = 0; it_out < iter_out; it_out++) {
+#pragma HLS DEPENDENCE variable = acc_mem inter false
       acc_idx_T dst_offset_in = dst_offset_out;
       inp_idx_T src_offset_in = src_offset_out;
       wgt_idx_T wgt_offset_in = wgt_offset_out;
 
       // Inner Loop
-      EXE_IN_LOOP: for (int it_in = 0; it_in < iter_in; it_in ++) {
-
+      EXE_IN_LOOP: for (int it_in = 0; it_in < iter_in; it_in++) {
         // Perform appropriate computation based on opcode
-        if (opcode == OPCODE_GEMM) {
-
+        if (opcode == VTA_OPCODE_GEMM) {
           // Iterate over micro op
-          READ_GEMM_UOP: for (int upc = uop_bgn; upc < uop_end; upc ++) {
-#pragma HLS PIPELINE II=1 rewind
+          READ_GEMM_UOP: for (int upc = uop_bgn; upc < uop_end; upc++) {
+#pragma HLS PIPELINE II = 1 rewind
 
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
             // Decode indices
-            bool reset_out = uop[UOP_GEM_0];
+            bool reset_out = uop[VTA_UOP_GEM_0];
             acc_idx_T dst_idx =
-              uop.range(UOP_GEM_1_1, UOP_GEM_1_0) + dst_offset_in;
+                uop.range(VTA_UOP_GEM_1_1, VTA_UOP_GEM_1_0) + dst_offset_in;
             acc_idx_T src_idx =
-              uop.range(UOP_GEM_2_1, UOP_GEM_2_0) + src_offset_in;
+                uop.range(VTA_UOP_GEM_2_1, VTA_UOP_GEM_2_0) + src_offset_in;
             wgt_idx_T wgt_idx =
-              uop.range(UOP_GEM_3_1, UOP_GEM_3_0) + wgt_offset_in;
+                uop.range(VTA_UOP_GEM_3_1, VTA_UOP_GEM_3_0) + wgt_offset_in;
 
             // Read weight matrix
-            wgt_vec_T w_matrix[BLOCK_OUT];
-            for (int i = 0; i < BLOCK_OUT; i ++) {
+            wgt_vec_T w_matrix[VTA_BLOCK_OUT];
+            for (int i = 0; i < VTA_BLOCK_OUT; i++) {
               w_matrix[i] = wgt_mem[wgt_idx][i];
             }
             // Read input matrix and accum matrix
-            acc_vec_T o_matrix[BATCH];
-            out_vec_T i_matrix[BATCH];
-            for (int i = 0; i < BATCH; i ++) {
+            acc_vec_T o_matrix[VTA_BATCH];
+            out_vec_T i_matrix[VTA_BATCH];
+            for (int i = 0; i < VTA_BATCH; i++) {
               o_matrix[i] = acc_mem[dst_idx][i];
               i_matrix[i] = inp_mem[src_idx][i];
             }
             // Result matrices
-            acc_vec_T acc_mem_val[BATCH];
-            out_vec_T st_buf_val[BATCH];
+            acc_vec_T acc_mem_val[VTA_BATCH];
+            out_vec_T st_buf_val[VTA_BATCH];
 
             // Inner GEMM loop
-            for (int i = 0; i < BATCH; i ++) {
-              for (int b = 0; b < BLOCK_OUT; b ++) {
+            for (int i = 0; i < VTA_BATCH; i++) {
+              for (int b = 0; b < VTA_BLOCK_OUT; b++) {
                 // Initialize the accumulator values
                 acc_T accum =
-                  o_matrix[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH);
+                  o_matrix[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
                 // Dot product sum
                 sum_T tmp = 0;
                 // Inner matrix multiplication loop (input channel/feature)
-                for (int k=0; k<BLOCK_IN; k++) {
+                for (int k = 0; k < VTA_BLOCK_IN; k++) {
                   wgt_T w_elem =
-                    w_matrix[b].range((k + 1) * WGT_WIDTH - 1, k * WGT_WIDTH);
+                      w_matrix[b].range((k + 1) * VTA_WGT_WIDTH - 1, k * VTA_WGT_WIDTH);
                   inp_T i_elem =
-                    i_matrix[i].range((k + 1) * INP_WIDTH - 1, k * INP_WIDTH);
+                      i_matrix[i].range((k + 1) * VTA_INP_WIDTH - 1, k * VTA_INP_WIDTH);
                   mul_T prod = i_elem * w_elem;
                   tmp += (sum_T) prod;
                 }
                 // Update summation
                 accum += (acc_T) tmp;
                 // Update result vector
-                acc_mem_val[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH) =
-                  reset_out ? (acc_T) 0 : accum;
-                st_buf_val[i].range((b + 1) * INP_WIDTH - 1, b * INP_WIDTH) =
-                  (inp_T) accum.range(INP_WIDTH - 1, 0);
+                acc_mem_val[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) =
+                    reset_out ? (acc_T) 0 : accum;
+                st_buf_val[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (inp_T) accum.range(VTA_OUT_WIDTH - 1, 0);
               }
               // Write to buffers
               acc_mem[dst_idx][i] = acc_mem_val[i];
               out_mem[dst_idx][i] = st_buf_val[i];
             }
           }
-
-        } else if (opcode == OPCODE_ALU) {
-
+        } else if (opcode == VTA_OPCODE_ALU) {
           // Iterate over micro op
-          READ_ALU_UOP: for (int upc = uop_bgn; upc < uop_end; upc ++) {
-
+          READ_ALU_UOP: for (int upc = uop_bgn; upc < uop_end; upc++) {
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
             // Decode
-            bool reset_out = uop[UOP_ALU_0];
+            bool reset_out = uop[VTA_UOP_ALU_0];
             acc_idx_T dst_idx =
-              uop.range(UOP_ALU_1_1, UOP_ALU_1_0) + dst_offset_in;
+                uop.range(VTA_UOP_ALU_1_1, VTA_UOP_ALU_1_0) + dst_offset_in;
             acc_idx_T src_idx =
-              uop.range(UOP_ALU_2_1, UOP_ALU_2_0) + src_offset_in;
+                uop.range(VTA_UOP_ALU_2_1, VTA_UOP_ALU_2_0) + src_offset_in;
 
             // Read input matrix and accum matrix
-            acc_vec_T dst_matrix[BATCH];
-            acc_vec_T src_matrix[BATCH];
-            for (int i = 0; i < BATCH; i ++) {
+            acc_vec_T dst_matrix[VTA_BATCH];
+            acc_vec_T src_matrix[VTA_BATCH];
+            for (int i = 0; i < VTA_BATCH; i++) {
 #pragma HLS UNROLL complete
               dst_matrix[i] = acc_mem[dst_idx][i];
               src_matrix[i] = acc_mem[src_idx][i];
             }
 
             // Result matrices
-            acc_vec_T cmp_res[BATCH];
-            acc_vec_T add_res[BATCH];
-            acc_vec_T shr_res[BATCH];
-            out_vec_T short_cmp_res[BATCH];
-            out_vec_T short_add_res[BATCH];
-            out_vec_T short_shr_res[BATCH];
+            acc_vec_T cmp_res[VTA_BATCH];
+            acc_vec_T add_res[VTA_BATCH];
+            acc_vec_T shr_res[VTA_BATCH];
+            out_vec_T short_cmp_res[VTA_BATCH];
+            out_vec_T short_add_res[VTA_BATCH];
+            out_vec_T short_shr_res[VTA_BATCH];
 
             // Perform ALU op over matrix elements
-            for (int i = 0; i < BATCH; i ++) {
-#pragma HLS PIPELINE II=1 rewind
+            for (int i = 0; i < VTA_BATCH; i++) {
+#pragma HLS PIPELINE II = 1 rewind
               // Results vector
               acc_vec_T res_vec = 0;
-              for (int b = 0; b < BLOCK_OUT; b ++) {
+              for (int b = 0; b < VTA_BLOCK_OUT; b++) {
                 // Read in operands
-                acc_T src_0 =
-                  dst_matrix[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH);
-                acc_T src_1 =
-                  use_imm ?
+                acc_T src_0 = dst_matrix[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
+                acc_T src_1 = use_imm ?
                     (acc_T) imm :
-                    src_matrix[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH);
+                    src_matrix[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
                 // Compute Min/Max
-                acc_T mix_val =
-                  src_0 < src_1 ?
-                    (alu_opcode == ALU_OPCODE_MIN ? src_0 : src_1) :
-                    (alu_opcode == ALU_OPCODE_MIN ? src_1 : src_0);
-                cmp_res[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH) =
-                  mix_val;
-                short_cmp_res[i].range((b + 1) * INP_WIDTH - 1, b * INP_WIDTH) =
-                  (inp_T) mix_val.range(INP_WIDTH - 1, 0);
+                acc_T mix_val = src_0 < src_1 ?
+                    (alu_opcode == VTA_ALU_OPCODE_MIN ? src_0 : src_1) :
+                    (alu_opcode == VTA_ALU_OPCODE_MIN ? src_1 : src_0);
+                cmp_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = mix_val;
+                short_cmp_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (inp_T) mix_val.range(VTA_OUT_WIDTH - 1, 0);
                 // Compute Sum
                 acc_T add_val =
-                  src_0.range(ACC_WIDTH - 1, 0) + src_1.range(ACC_WIDTH - 1, 0);
-                add_res[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH) =
-                  add_val;
-                short_add_res[i].range((b + 1) * INP_WIDTH - 1, b * INP_WIDTH) =
-                  (inp_T) add_val.range(INP_WIDTH - 1, 0);
+                    src_0.range(VTA_ACC_WIDTH - 1, 0) + src_1.range(VTA_ACC_WIDTH - 1, 0);
+                add_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = add_val;
+                short_add_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (inp_T) add_val.range(VTA_OUT_WIDTH - 1, 0);
                 // Compute Shift
                 acc_T shr_val =
-                  src_0 >> (aluop_sh_imm_T) src_1.range(LOG_ACC_WIDTH - 1, 0);
-                shr_res[i].range((b + 1) * ACC_WIDTH - 1, b * ACC_WIDTH) =
-                  shr_val;
-                short_shr_res[i].range((b + 1) * INP_WIDTH - 1, b * INP_WIDTH) =
-                  (inp_T) shr_val.range(INP_WIDTH-1, 0);
+                    src_0 >> (aluop_sh_imm_T) src_1.range(VTA_LOG_ACC_WIDTH - 1, 0);
+                shr_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = shr_val;
+                short_shr_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (inp_T) shr_val.range(VTA_OUT_WIDTH-1, 0);
               }
 
               // Store to accum memory/store buffer
-              if (alu_opcode == ALU_OPCODE_MIN ||
-                  alu_opcode == ALU_OPCODE_MAX) {
+              if (alu_opcode == VTA_ALU_OPCODE_MIN ||
+                  alu_opcode == VTA_ALU_OPCODE_MAX) {
                 acc_mem[dst_idx][i] = cmp_res[i];
                 out_mem[dst_idx][i] = short_cmp_res[i];
-              } else if (alu_opcode==ALU_OPCODE_ADD) {
+              } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
                 acc_mem[dst_idx][i] = add_res[i];
                 out_mem[dst_idx][i] = short_add_res[i];
-              } else if (alu_opcode==ALU_OPCODE_SHR) {
+              } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
                 acc_mem[dst_idx][i] = shr_res[i];
                 out_mem[dst_idx][i] = short_shr_res[i];
               }
@@ -502,51 +473,49 @@ void compute (
 
   // Push dependence token if instructed
   if (push_prev_dependence) {
-    g2l_dep_queue.write(1);
+    g2l_dep_queue->write(1);
   }
   if (push_next_dependence) {
-    g2s_dep_queue.write(1);
+    g2s_dep_queue->write(1);
   }
-
 }
 
-void store (
+void store(
   volatile out_vec_T *outputs,
-  hls::stream<insn_T> &store_queue,
-  hls::stream<bool> &g2s_dep_queue,
-  hls::stream<bool> &s2g_dep_queue,
-  out_vec_T out_mem[ACC_BUFF_DEPTH][BATCH]
+  hls::stream<insn_T> *store_queue,
+  hls::stream<bool> *g2s_dep_queue,
+  hls::stream<bool> *s2g_dep_queue,
+  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
   ) {
-#pragma HLS INTERFACE m_axi port=outputs offset=slave bundle=data_port
-#pragma HLS INTERFACE axis port=store_queue
-#pragma HLS INTERFACE axis port=g2s_dep_queue
-#pragma HLS INTERFACE axis port=s2g_dep_queue
-#pragma HLS INTERFACE bram port=out_mem
-#pragma HLS INTERFACE s_axilite port=return bundle=CONTROL_BUS
-// #pragma HLS ARRAY_PARTITION variable=out_mem complete dim=2
+#pragma HLS INTERFACE m_axi port = outputs offset = slave bundle = data_port
+#pragma HLS INTERFACE axis port = store_queue
+#pragma HLS INTERFACE axis port = g2s_dep_queue
+#pragma HLS INTERFACE axis port = s2g_dep_queue
+#pragma HLS INTERFACE bram port = out_mem
+#pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 
   // Load buffer
-  insn_T insn = store_queue.read();
+  insn_T insn = store_queue->read();
 
   // Decode
-  bool pop_prev_dependence = insn[INSN_MEM_1];
-  bool pop_next_dependence = insn[INSN_MEM_2];
-  bool push_prev_dependence = insn[INSN_MEM_3];
-  bool push_next_dependence = insn[INSN_MEM_4];
-  memop_id_T memory_type = insn.range(INSN_MEM_5_1, INSN_MEM_5_0);
-  memop_sram_T sram_base = insn.range(INSN_MEM_6_1, INSN_MEM_6_0);
-  memop_dram_T dram_base = insn.range(INSN_MEM_7_1, INSN_MEM_7_0);
-  memop_size_T y_size = insn.range(INSN_MEM_8_1, INSN_MEM_8_0);
-  memop_size_T x_size = insn.range(INSN_MEM_9_1, INSN_MEM_9_0);
-  memop_stride_T x_stride = insn.range(INSN_MEM_A_1, INSN_MEM_A_0);
-  memop_pad_T y_pad_0 = insn.range(INSN_MEM_B_1, INSN_MEM_B_0);
-  memop_pad_T y_pad_1 = insn.range(INSN_MEM_C_1, INSN_MEM_C_0);
-  memop_pad_T x_pad_0 = insn.range(INSN_MEM_D_1, INSN_MEM_D_0);
-  memop_pad_T x_pad_1 = insn.range(INSN_MEM_E_1, INSN_MEM_E_0);
+  bool pop_prev_dependence = insn[VTA_INSN_MEM_1];
+  bool pop_next_dependence = insn[VTA_INSN_MEM_2];
+  bool push_prev_dependence = insn[VTA_INSN_MEM_3];
+  bool push_next_dependence = insn[VTA_INSN_MEM_4];
+  memop_id_T memory_type = insn.range(VTA_INSN_MEM_5_1, VTA_INSN_MEM_5_0);
+  memop_sram_T sram_base = insn.range(VTA_INSN_MEM_6_1, VTA_INSN_MEM_6_0);
+  memop_dram_T dram_base = insn.range(VTA_INSN_MEM_7_1, VTA_INSN_MEM_7_0);
+  memop_size_T y_size = insn.range(VTA_INSN_MEM_8_1, VTA_INSN_MEM_8_0);
+  memop_size_T x_size = insn.range(VTA_INSN_MEM_9_1, VTA_INSN_MEM_9_0);
+  memop_stride_T x_stride = insn.range(VTA_INSN_MEM_A_1, VTA_INSN_MEM_A_0);
+  memop_pad_T y_pad_0 = insn.range(VTA_INSN_MEM_B_1, VTA_INSN_MEM_B_0);
+  memop_pad_T y_pad_1 = insn.range(VTA_INSN_MEM_C_1, VTA_INSN_MEM_C_0);
+  memop_pad_T x_pad_0 = insn.range(VTA_INSN_MEM_D_1, VTA_INSN_MEM_D_0);
+  memop_pad_T x_pad_1 = insn.range(VTA_INSN_MEM_E_1, VTA_INSN_MEM_E_0);
 
   // Pop dependence token if instructed
   if (pop_prev_dependence) {
-    g2s_dep_queue.read();
+    g2s_dep_queue->read();
   }
 
   // Initialize indices
@@ -556,18 +525,19 @@ void store (
   // Skip padding along y dimension
   memop_sram_T y_offset = (x_pad_0 + x_size + x_pad_1) * y_pad_0;
   sram_idx += y_offset;
-#pragma HLS RESOURCE variable=y_offset core=Mul_LUT
+// Force this computation to be done with LUTs to avoid using too many DSPs
+#pragma HLS RESOURCE variable = y_offset core = Mul_LUT
 
   // Copy along y dimension
-  for (int y = 0; y < y_size; y ++) {
+  for (int y = 0; y < y_size; y++) {
 #pragma HLS PIPELINE rewind
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
     memcpy(
-      (out_vec_T *) &outputs[dram_idx*BATCH],
+      const_cast<out_vec_T*>(&outputs[dram_idx*VTA_BATCH]),
       (const out_vec_T*) &out_mem[sram_idx][0],
-      x_size * INP_ELEM_BYTES);
+      x_size * VTA_INP_ELEM_BYTES);
     sram_idx += x_size;
     dram_idx += x_stride;
     // Skip padding along x dimension
@@ -576,11 +546,11 @@ void store (
 
   // Push dependence token if instructed
   if (push_prev_dependence) {
-    s2g_dep_queue.write(1);
+    s2g_dep_queue->write(1);
   }
 }
 
-void vta (
+void vta(
   uint32_t insn_count,
   volatile insn_T *insns,
   volatile uop_T *uops,
@@ -588,14 +558,14 @@ void vta (
   volatile wgt_vec_T *weights,
   volatile acc_vec_T *biases,
   volatile out_vec_T *outputs) {
-#pragma HLS INTERFACE s_axilite port=insn_count bundle=CONTROL_BUS
-#pragma HLS INTERFACE m_axi port=insns offset=slave bundle=ins_port
-#pragma HLS INTERFACE m_axi port=uops offset=slave bundle=uop_port
-#pragma HLS INTERFACE m_axi port=inputs offset=slave bundle=data_port
-#pragma HLS INTERFACE m_axi port=weights offset=slave bundle=data_port
-#pragma HLS INTERFACE m_axi port=biases offset=slave bundle=data_port
-#pragma HLS INTERFACE m_axi port=outputs offset=slave bundle=data_port
-#pragma HLS INTERFACE s_axilite port=return bundle=CONTROL_BUS
+#pragma HLS INTERFACE s_axilite port = insn_count bundle = CONTROL_BUS
+#pragma HLS INTERFACE m_axi port = insns offset = slave bundle = ins_port
+#pragma HLS INTERFACE m_axi port = uops offset = slave bundle = uop_port
+#pragma HLS INTERFACE m_axi port = inputs offset = slave bundle = data_port
+#pragma HLS INTERFACE m_axi port = weights offset = slave bundle = data_port
+#pragma HLS INTERFACE m_axi port = biases offset = slave bundle = data_port
+#pragma HLS INTERFACE m_axi port = outputs offset = slave bundle = data_port
+#pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 
   // Instantiate temporary instruction queues (used for peeking)
   hls::stream<insn_T> tmp_load_queue;
@@ -614,18 +584,12 @@ void vta (
   hls::stream<bool> g2s_dep_queue;
 
   // Instantiate memories
-  inp_vec_T inp_mem[INP_BUFF_DEPTH][BATCH];
-  wgt_vec_T wgt_mem[WGT_BUFF_DEPTH][BLOCK_OUT];
-  out_vec_T out_mem[ACC_BUFF_DEPTH][BATCH];
+  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH];
+  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT];
+  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
 
   // Push all instructions into the queues
-  fetch(
-    insn_count,
-    insns,
-    tmp_load_queue,
-    tmp_gemm_queue,
-    tmp_store_queue
-  );
+  fetch(insn_count, insns, &tmp_load_queue, &tmp_gemm_queue, &tmp_store_queue);
 
   // Global done indicator
   uint32_t done = 0;
@@ -651,21 +615,13 @@ void vta (
         tmp_load_popped = true;
       }
       // Check dependences and invoke the load stage
-      bool pop_next_dependence = tmp_load[INSN_MEM_2];
+      bool pop_next_dependence = tmp_load[VTA_INSN_MEM_2];
       if ((pop_next_dependence && !g2l_dep_queue.empty()) ||
           !pop_next_dependence) {
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
         tmp_load_popped = false;
-        load(
-          inputs,
-          weights,
-          load_queue,
-          g2l_dep_queue,
-          l2g_dep_queue,
-          inp_mem,
-          wgt_mem
-        );
+        load(inputs, weights, &load_queue, &g2l_dep_queue, &l2g_dep_queue, inp_mem, wgt_mem);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -679,8 +635,8 @@ void vta (
         tmp_gemm_popped = true;
       }
       // Check dependences and invoke the load stage
-      bool pop_prev_dependence = tmp_gemv[INSN_MEM_1];
-      bool pop_next_dependence = tmp_gemv[INSN_MEM_2];
+      bool pop_prev_dependence = tmp_gemv[VTA_INSN_MEM_1];
+      bool pop_next_dependence = tmp_gemv[VTA_INSN_MEM_2];
       if (
         (pop_prev_dependence && !l2g_dep_queue.empty() &&
          pop_next_dependence && !s2g_dep_queue.empty()) ||
@@ -693,19 +649,8 @@ void vta (
         // Push the instruction in the load queue
         gemm_queue.write(tmp_gemv);
         tmp_gemm_popped = false;
-        compute(
-          done,
-          uops,
-          biases,
-          gemm_queue,
-          l2g_dep_queue,
-          s2g_dep_queue,
-          g2l_dep_queue,
-          g2s_dep_queue,
-          inp_mem,
-          wgt_mem,
-          out_mem
-        );
+        compute(&done, uops, biases, &gemm_queue, &l2g_dep_queue, &s2g_dep_queue,
+                &g2l_dep_queue, &g2s_dep_queue, inp_mem, wgt_mem, out_mem);
       } else {
         // Execution of load stage pending on completion of other stages,
         // so break here...
@@ -720,19 +665,13 @@ void vta (
         tmp_store_popped = true;
       }
       // Check dependences and invoke the load stage
-      bool pop_prev_dependence = tmp_store[INSN_MEM_1];
+      bool pop_prev_dependence = tmp_store[VTA_INSN_MEM_1];
       if ((pop_prev_dependence && !g2s_dep_queue.empty()) ||
           !pop_prev_dependence) {
         // Push the instruction in the load queue
         store_queue.write(tmp_store);
         tmp_store_popped = false;
-        store(
-          outputs,
-          store_queue,
-          g2s_dep_queue,
-          s2g_dep_queue,
-          out_mem
-        );
+        store(outputs, &store_queue, &g2s_dep_queue, &s2g_dep_queue, out_mem);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -742,7 +681,7 @@ void vta (
     if (done) {
       break;
     }
-    exit_counter ++;
+    exit_counter++;
     if (exit_counter > 1000) {
       if (tmp_load_popped) {
         if (g2l_dep_queue.empty()) {
@@ -750,10 +689,10 @@ void vta (
         }
       }
       if (tmp_gemm_popped) {
-        if (l2g_dep_queue.empty() && tmp_gemv[INSN_MEM_1]) {
+        if (l2g_dep_queue.empty() && tmp_gemv[VTA_INSN_MEM_1]) {
           printf("waiting on l2g\n");
         }
-        if (s2g_dep_queue.empty() && tmp_gemv[INSN_MEM_2]) {
+        if (s2g_dep_queue.empty() && tmp_gemv[VTA_INSN_MEM_2]) {
           printf("waiting on s2g\n");
         }
       }
@@ -772,17 +711,17 @@ void vta (
   int s2g_count = 0;
   int g2l_count = 0;
   int g2s_count = 0;
-  while(l2g_dep_queue.read_nb(tmp_tok)) {
-    l2g_count ++;
+  while (l2g_dep_queue.read_nb(tmp_tok)) {
+    l2g_count++;
   }
-  while(s2g_dep_queue.read_nb(tmp_tok)) {
-    s2g_count ++;
+  while (s2g_dep_queue.read_nb(tmp_tok)) {
+    s2g_count++;
   }
-  while(g2l_dep_queue.read_nb(tmp_tok)) {
-    g2l_count ++;
+  while (g2l_dep_queue.read_nb(tmp_tok)) {
+    g2l_count++;
   }
-  while(g2s_dep_queue.read_nb(tmp_tok)) {
-    g2s_count ++;
+  while (g2s_dep_queue.read_nb(tmp_tok)) {
+    g2s_count++;
   }
 
   assert(l2g_count == 0 && g2s_count == 0 && g2l_count == 0 && g2s_count == 0);

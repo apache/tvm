@@ -1,8 +1,14 @@
-// simply include the driver for now.
+/*!
+ *  Copyright (c) 2018 by Contributors
+ * \file vta_device_api.cc
+ * \brief VTA device API for TVM
+ */
+
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
 #include <vta/runtime.h>
-#include "../../tvm/src/runtime/workspace_pool.h"
+
+#include "../../nnvm/tvm/src/runtime/workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
