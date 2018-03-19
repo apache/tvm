@@ -39,6 +39,7 @@ enclave_cflags := -static -nostdinc\
 	-fvisibility=hidden -fpie -fstack-protector-strong\
 	-ffunction-sections -fdata-sections\
 	-DDMLC_CXX11_THREAD_LOCAL=0\
+	-include "lib/tvm_t.h"\
 	$(enclave_include_paths)\
 
 enclave_cxxflags := -nostdinc++ $(enclave_cflags) -DTVM_SGX_MAX_CONCURRENCY=4

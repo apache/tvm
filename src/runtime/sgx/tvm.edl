@@ -1,17 +1,26 @@
 enclave {
     from "sgx_tstdc.edl" import *;
 
+    struct export_t {
+      int id;
+      unsigned name_len;
+      int global;
+    };
+
     trusted {
-        public void ecall_tvm_main([user_check] const void* args,
-                                   [user_check] const int* type_codes,
-                                   int num_args);
-        public void ecall_tvm_run_worker([user_check] const void* cb);
+        public void tvm_ecall_packed_func([in, string] const char* name,
+                                          [user_check] void* tvm_args,
+                                          [user_check] void* tvm_ret_val);
+        public void tvm_ecall_run_worker([user_check] const void* cb);
+        public void tvm_ecall_init();
     };
 
     untrusted {
-        void ocall_tvm_thread_group_launch(int num_workers, [user_check] void* cb);
-        void ocall_tvm_thread_group_join();
-        void ocall_tvm_api_set_last_error([in, string] const char* err);
+        void tvm_ocall_thread_group_launch(int num_workers,
+                                           [user_check] const void* cb);
+        void tvm_ocall_thread_group_join();
+        void tvm_ocall_api_set_last_error([in, string] const char* err);
+        void tvm_ocall_register_func([in, string] const char* name);
     };
 };
 

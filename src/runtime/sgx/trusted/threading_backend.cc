@@ -28,12 +28,12 @@ class ThreadGroup::Impl {
     CHECK(num_workers <= TVM_SGX_MAX_CONCURRENCY)
       << "Tried spawning more threads than allowed by TVM_SGX_MAX_CONCURRENCY.";
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status = ocall_tvm_thread_group_launch(num_workers_, this);
+    sgx_status = tvm_ocall_thread_group_launch(num_workers_, this);
     CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
   }
 
   ~Impl() {
-    ocall_tvm_thread_group_join();
+    tvm_ocall_thread_group_join();
   }
 
   void RunTask() {
@@ -61,7 +61,7 @@ void Yield() {}
 int MaxConcurrency() { return TVM_SGX_MAX_CONCURRENCY; }
 
 extern "C" {
-void ecall_tvm_run_worker(const void* impl) {
+void tvm_ecall_run_worker(const void* impl) {
   if (!sgx_is_within_enclave(impl, sizeof(ThreadGroup::Impl))) return;
   ((ThreadGroup::Impl*)impl)->RunTask();
 }

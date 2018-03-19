@@ -180,7 +180,7 @@ ifeq ($(USE_SGX), 1)
 		sgx_sim := _sim
 	endif
 	urts_library_name := sgx_urts$(sgx_sim)
-	CFLAGS += -DTVM_SGX_RUNTIME=1 -I$(SGX_SDK)/include
+	CFLAGS += -DTVM_SGX_RUNTIME=1 -I$(SGX_SDK)/include -include "build/runtime/sgx/untrusted/tvm_u.h"
 	LDFLAGS += -L$(SGX_SDK)/lib64 -l$(urts_library_name)
 	RUNTIME_DEP += $(SGX_OBJ)
 else
