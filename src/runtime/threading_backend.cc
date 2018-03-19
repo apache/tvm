@@ -6,6 +6,7 @@
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/logging.h>
 #include <thread>
+#include <algorithm>
 #if defined(__linux__)
 #include <sched.h>
 #endif
