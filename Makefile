@@ -180,7 +180,8 @@ ifeq ($(USE_SGX), 1)
 		sgx_sim := _sim
 	endif
 	urts_library_name := sgx_urts$(sgx_sim)
-	CFLAGS += -DTVM_SGX_RUNTIME=1 -I$(SGX_SDK)/include -include "build/runtime/sgx/untrusted/tvm_u.h"
+	CFLAGS += -DTVM_SGX_RUNTIME=1
+	SGX_CFLAGS = -include "build/runtime/sgx/untrusted/tvm_u.h" -I$(SGX_SDK)/include
 	LDFLAGS += -L$(SGX_SDK)/lib64 -l$(urts_library_name)
 	RUNTIME_DEP += $(SGX_OBJ)
 else
@@ -269,12 +270,16 @@ build/runtime/metal/%.o: src/runtime/metal/%.mm
 	$(CXX) $(OBJCFLAGS) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
-build/runtime/sgx/untrusted/tvm_u.c: src/runtime/sgx/tvm.edl
+build/runtime/sgx/untrusted/tvm_u.o: build/runtime/sgx/untrusted/tvm_u.c
+	$(CC) $(CFLAGS) $(SGX_CFLAGS) -c $< -o $@
+
+build/runtime/sgx/untrusted/tvm_u.%: src/runtime/sgx/tvm.edl
 	@mkdir -p $(@D)
 	$(EDGER8R) $< --untrusted --untrusted-dir $(@D) --search-path $(SGX_SDK)/include
 
-build/runtime/sgx/untrusted/tvm_u.o: build/runtime/sgx/untrusted/tvm_u.c
-	$(CC) $(CFLAGS) -c $< -o $@
+build/runtime/sgx/untrusted/%.o: src/runtime/sgx/untrusted/%.cc build/runtime/sgx/untrusted/tvm_u.h
+	$(CXX) $(CFLAGS) $(SGX_CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) -c $(CFLAGS) $(SGX_CFLAGS) -c $< -o $@
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
