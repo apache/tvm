@@ -10,7 +10,8 @@
 #include <atomic>
 
 extern "C" {
-sgx_status_t SGX_CDECL tvm_ocall_thread_pool_launch(int num_workers, void* cb);
+sgx_status_t SGX_CDECL tvm_ocall_thread_group_launch(int num_workers, void* cb);
+sgx_status_t SGX_CDECL tvm_ocall_thread_group_join();
 }
 
 #ifndef TVM_SGX_MAX_CONCURRENCY
@@ -31,8 +32,12 @@ class ThreadGroup::Impl {
     CHECK(num_workers <= TVM_SGX_MAX_CONCURRENCY)
       << "Tried spawning more threads than allowed by TVM_SGX_MAX_CONCURRENCY.";
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status = tvm_ocall_thread_pool_launch(num_workers, this);
+    sgx_status = tvm_ocall_thread_group_launch(num_workers, this);
     CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
+  }
+
+  ~Impl() {
+    tvm_ocall_thread_group_join();
   }
 
   void RunTask() {

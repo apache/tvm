@@ -13,9 +13,9 @@ try these schedules efficiently to enhance the performance.
 In this tutorial, we will demonstrate how to use TVM to optimize square matrix multiplication
 and achieve 200 times faster than baseline by simply adding 18 extra lines of code.
 
-There are two important optmizations on intense computation applications executed on CPU:
+There are two important optimizations on intense computation applications executed on CPU:
     1. Increase the cache hit rate of memory access. Both complex numerical computation and hot-spot
-       memory access can be acclerated from high cache hit rate. This requires us to transform the
+       memory access can be accelerated from high cache hit rate. This requires us to transform the
        origin memory access pattern to the pattern fits the cache policy.
     2. SIMD (Single instruction multi-data), or we call it vector processing unit. Every time, a
        small batch of data, rather than a single grid, will be processed. This requires us to
@@ -26,7 +26,7 @@ Actually, all the methodologies used in this tutorial is a subset of tricks ment
 `repo <https://github.com/flame/how-to-optimize-gemm>`_. Some of them have been applied by TVM
 abstraction automatically, but some of them cannot be simply applied due to TVM constraints.
 
-All the experiment results mentioned below, are executed on 2015's 15' MacBook equiped with
+All the experiment results mentioned below, are executed on 2015's 15' MacBook equipped with
 Intel i7-4770HQ CPU. The cache line size should be 64 bytes for all the x86 CPUs.
 """
 

@@ -119,8 +119,7 @@ int SGX_CDECL main(int argc, char *argv[]) {
   if (sgx_status != SGX_SUCCESS) {
     print_error_message(sgx_status);
   }
-  tvm_ecall_shutdown(tvm_sgx_eid);
-  tvm::runtime::sgx::Shutdown();
+
   sgx_destroy_enclave(tvm_sgx_eid);
 
   if (addone_status == 1) {

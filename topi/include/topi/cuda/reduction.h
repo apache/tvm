@@ -51,7 +51,7 @@ Schedule ScheduleReduce(const Target& target,
   if (out_stage->op.as<ComputeOpNode>()->axis.size() > 0) {
     all_reduce = false;
     num_thread = 32;
-    if (target.target_name == "opencl") {
+    if (target->target_name == "opencl") {
       // Without this, CL_INVALID_WORK_GROUP_SIZE occurs with python tests.
       // Don't know why.
       num_thread = 16;
@@ -61,7 +61,7 @@ Schedule ScheduleReduce(const Target& target,
     thread_y = tvm::thread_axis(Range(0, num_thread), "threadIdx.y");
   } else {
     all_reduce = true;
-    num_thread = target.max_num_threads;
+    num_thread = target->max_num_threads;
     thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
   }
 

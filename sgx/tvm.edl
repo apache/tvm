@@ -5,11 +5,11 @@ enclave {
         public void tvm_ecall_run_module([user_check] const void* tvm_args,
                                          [user_check] void* tvm_ret_value);
         public void tvm_ecall_run_worker([user_check] const void* cb);
-        public void tvm_ecall_shutdown();
     };
 
     untrusted {
-        void tvm_ocall_thread_pool_launch(int num_workers, [user_check] void* cb);
+        void tvm_ocall_thread_group_launch(int num_workers, [user_check] void* cb);
+        void tvm_ocall_thread_group_join();
     };
 };
 
