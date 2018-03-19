@@ -4,19 +4,20 @@
  * \brief VTA runtime for PYNQ in C++11
  */
 
+#ifdef VTA_PYNQ_TARGET
+#include "./pynq/pynq_driver.h"
+#endif  // VTA_PYNQ_TARGET
+
+#include <vta/driver.h>
+#include <vta/hw_spec.h>
+#include <vta/runtime.h>
+
 #include <cassert>
 #include <cstring>
 #include <vector>
 #include <thread>
 #include <memory>
 #include <atomic>
-#include <vta/driver.h>
-#include <vta/hw_spec.h>
-#include <vta/runtime.h>
-
-#ifdef PYNQ_TARGET
-#include "./pynq/pynq_driver.h"
-#endif //PYNQ_TARGET
 
 namespace vta {
 
@@ -193,21 +194,21 @@ class UopKernel {
     op.wgt_idx = wgt_index;
     seq_.push_back(op);
     // Ensure that mode is consistent if set
-    if (mode_==0xFFFFFFFF) {
+    if (mode_ == 0xFFFFFFFF) {
       mode_ = mode;
     } else {
-      assert(mode_==mode);
+      assert(mode_ == mode);
     }
     // Check kernel op and imm/imm_val in ALU mode
-    if (mode==1) {
-      if (opcode_==0xFFFFFFFF) {
-        opcode_=opcode;
-        use_imm_=use_imm;
-        imm_val_=imm_val;
+    if (mode == 1) {
+      if (opcode_ == 0xFFFFFFFF) {
+        opcode_ = opcode;
+        use_imm_ = use_imm;
+        imm_val_ = imm_val;
       } else {
-        assert(opcode_==opcode);
-        assert(use_imm_==use_imm);
-        assert(imm_val_==imm_val);
+        assert(opcode_ == opcode);
+        assert(use_imm_ == use_imm);
+        assert(imm_val_ == imm_val);
       }
     }
   }
@@ -222,17 +223,17 @@ class UopKernel {
              seq_[i].src_idx,
              seq_[i].wgt_idx,
              seq_[i].reset_out);
-
     }
     printf("\n");
   }
 
  public:
   // The kernel's mode, opcode, immediate setting and value
-  uint32_t mode_{0xFFFFFFFF}; // UOP type: 0xFFFFFFFF - unset, 0 - GEMM, 1 - ALU
+  uint32_t mode_{0xFFFFFFFF};  // UOP type: 0xFFFFFFFF - unset, 0 - GEMM, 1 - ALU
   uint32_t opcode_{0xFFFFFFFF};
   bool use_imm_{false};
   uint16_t imm_val_{0};
+
  private:
   // Verify that we don't write to the same acc_mem index two cycles in a row
   void VerifyDep(uint32_t dst_index) {
@@ -375,7 +376,7 @@ class UopQueue : public BaseQueue {
     }
     // Simple eviction policy
     uint32_t evict_begin = cache_ptr_;
-    for (;cache_ptr_ < cache_.size(); ++cache_ptr_) {
+    for (; cache_ptr_ < cache_.size(); ++cache_ptr_) {
       if (cache_[cache_ptr_]->sram_begin_ >= sram_end_) break;
       cache_[cache_ptr_]->sram_begin_ = 0;
       cache_[cache_ptr_]->sram_end_ = 0;
@@ -395,7 +396,7 @@ class UopQueue : public BaseQueue {
   void FlushUopLoad(VTAMemInsn* insn) {
     if (sram_begin_ != sram_end_) {
       assert((dram_end_ - dram_begin_) == (sram_end_ - sram_begin_));
-      insn->memory_type = MEM_ID_UOP;
+      insn->memory_type = VTA_MEM_ID_UOP;
       insn->sram_base = sram_begin_;
       insn->dram_base = dram_phy_addr_ / kElemBytes + dram_begin_;
       insn->y_size = 1;
@@ -418,7 +419,7 @@ class UopQueue : public BaseQueue {
   std::vector<UopKernel*> cache_;
   // Constants
   static constexpr int kElemBytes = sizeof(VTAUop);
-  static constexpr int kMaxNumUop = UOP_BUFF_DEPTH;
+  static constexpr int kMaxNumUop = VTA_UOP_BUFF_DEPTH;
   static constexpr int kMaxElems = kMaxBytes / kElemBytes;
 };
 
@@ -541,22 +542,22 @@ class InsnQueue : public BaseQueue {
     for (int i = 1; i < insn_count; ++i) {
       PipelineStage prev = GetPipelineStage(mem_ptr + i - 1);
       PipelineStage now = GetPipelineStage(mem_ptr + i);
-      if (prev==kLoadStage && now==kComputeStage) {
+      if (prev == kLoadStage && now == kComputeStage) {
         mem_ptr[i - 1].push_prev_dep = false;
         mem_ptr[i - 1].push_next_dep = true;
         mem_ptr[i].pop_prev_dep = true;
         mem_ptr[i].pop_next_dep = false;
-      } else if (prev==kComputeStage && now==kLoadStage) {
+      } else if (prev == kComputeStage && now == kLoadStage) {
         mem_ptr[i - 1].push_prev_dep = true;
         mem_ptr[i - 1].push_next_dep = false;
         mem_ptr[i].pop_prev_dep = false;
         mem_ptr[i].pop_next_dep = true;
-      } else if (prev==kStoreStage && now==kComputeStage) {
+      } else if (prev == kStoreStage && now == kComputeStage) {
         mem_ptr[i - 1].push_prev_dep = true;
         mem_ptr[i - 1].push_next_dep = false;
         mem_ptr[i].pop_prev_dep = false;
         mem_ptr[i].pop_next_dep = true;
-      } else if (prev==kComputeStage && now==kStoreStage) {
+      } else if (prev == kComputeStage && now == kStoreStage) {
         mem_ptr[i - 1].push_prev_dep = false;
         mem_ptr[i - 1].push_next_dep = true;
         mem_ptr[i].pop_prev_dep = true;
@@ -573,39 +574,39 @@ class InsnQueue : public BaseQueue {
   // Helper function: Get Opcode string
   const char* getOpcodeString(int opcode, bool use_imm) {
       // The string name
-      if (opcode==ALU_OPCODE_MIN) {
+      if (opcode == VTA_ALU_OPCODE_MIN) {
           if (use_imm) {
               return "min imm";
           } else {
               return "min";
           }
-      } else if (opcode==ALU_OPCODE_MAX) {
+      } else if (opcode == VTA_ALU_OPCODE_MAX) {
           if (use_imm) {
               return "max imm";
           } else {
               return "max";
           }
-      } else if (opcode==ALU_OPCODE_ADD) {
+      } else if (opcode == VTA_ALU_OPCODE_ADD) {
           if (use_imm) {
               return "add imm";
           } else {
               return "add";
           }
-      } else if (opcode==ALU_OPCODE_SUB) {
+      } else if (opcode == VTA_ALU_OPCODE_SUB) {
           if (use_imm) {
               return "sub imm";
           } else {
               return "sub";
           }
-      } else if (opcode==ALU_OPCODE_MUL) {
+      } else if (opcode == VTA_ALU_OPCODE_MUL) {
           if (use_imm) {
               return "mul imm";
           } else {
               return "mul";
           }
-      } else if (opcode==ALU_OPCODE_SHL) {
+      } else if (opcode == VTA_ALU_OPCODE_SHL) {
           return "shl";
-      } else if (opcode==ALU_OPCODE_SHR) {
+      } else if (opcode == VTA_ALU_OPCODE_SHR) {
           return "shr";
       }
 
@@ -629,12 +630,11 @@ class InsnQueue : public BaseQueue {
       // Fetch instruction and decode opcode
       c.generic = insn[i];
       printf("INSTRUCTION %u: ", i);
-      if (c.mem.opcode == OPCODE_LOAD || c.mem.opcode == OPCODE_STORE) {
+      if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
         if (c.mem.x_size == 0) {
-          if (c.mem.opcode == OPCODE_STORE) {
+          if (c.mem.opcode == VTA_OPCODE_STORE) {
             printf("NOP-STORE-STAGE\n");
-          }
-          else if (GetMemPipelineStage(c.mem.memory_type) == kComputeStage) {
+          } else if (GetMemPipelineStage(c.mem.memory_type) == kComputeStage) {
             printf("NOP-COMPUTE-STAGE\n");
           } else {
             printf("NOP-MEMORY-STAGE\n");
@@ -645,15 +645,15 @@ class InsnQueue : public BaseQueue {
                  static_cast<int>(c.mem.push_prev_dep),
                  static_cast<int>(c.mem.push_next_dep));
           // Count status in queues
-          if (c.mem.opcode == OPCODE_LOAD || c.mem.opcode == OPCODE_STORE) {
-            if (c.mem.opcode == OPCODE_STORE) {
+          if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
+            if (c.mem.opcode == VTA_OPCODE_STORE) {
                 assert(c.mem.pop_next_dep == false);
                 assert(c.mem.push_next_dep == false);
                 if (c.mem.pop_prev_dep) g2s_queue--;
                 if (c.mem.push_prev_dep) s2g_queue++;
-            } else if (c.mem.opcode == OPCODE_LOAD &&
-                       (c.mem.memory_type == MEM_ID_INP ||
-                        c.mem.memory_type == MEM_ID_WGT) ) {
+            } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
+                       (c.mem.memory_type == VTA_MEM_ID_INP ||
+                        c.mem.memory_type == VTA_MEM_ID_WGT) ) {
                 assert(c.mem.pop_prev_dep == false);
                 assert(c.mem.push_prev_dep == false);
                 if (c.mem.pop_next_dep) g2l_queue--;
@@ -664,7 +664,7 @@ class InsnQueue : public BaseQueue {
                 if (c.mem.pop_next_dep) s2g_queue--;
                 if (c.mem.push_next_dep) g2s_queue++;
             }
-          } else if (c.mem.opcode == OPCODE_GEMM) {
+          } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
             // Print instruction field information
             if (c.gemm.pop_prev_dep) l2g_queue--;
             if (c.gemm.push_prev_dep) g2l_queue++;
@@ -676,14 +676,14 @@ class InsnQueue : public BaseQueue {
           continue;
         }
         // Print instruction field information
-        if (c.mem.opcode==OPCODE_LOAD) {
+        if (c.mem.opcode == VTA_OPCODE_LOAD) {
             printf("LOAD ");
-            if (c.mem.memory_type == MEM_ID_UOP) printf("UOP\n");
-            if (c.mem.memory_type == MEM_ID_WGT) printf("WGT\n");
-            if (c.mem.memory_type == MEM_ID_INP) printf("INP\n");
-            if (c.mem.memory_type == MEM_ID_ACC) printf("ACC\n");
+            if (c.mem.memory_type == VTA_MEM_ID_UOP) printf("UOP\n");
+            if (c.mem.memory_type == VTA_MEM_ID_WGT) printf("WGT\n");
+            if (c.mem.memory_type == VTA_MEM_ID_INP) printf("INP\n");
+            if (c.mem.memory_type == VTA_MEM_ID_ACC) printf("ACC\n");
         }
-        if (c.mem.opcode==OPCODE_STORE) {
+        if (c.mem.opcode == VTA_OPCODE_STORE) {
             printf("STORE\n");
         }
         printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
@@ -703,7 +703,7 @@ class InsnQueue : public BaseQueue {
                static_cast<int>(c.mem.x_stride),
                static_cast<int>(c.mem.x_pad_0),
                static_cast<int>(c.mem.x_pad_1));
-      } else if (c.mem.opcode==OPCODE_GEMM) {
+      } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
         // Print instruction field information
         printf("GEMM\n");
 
@@ -725,7 +725,7 @@ class InsnQueue : public BaseQueue {
                static_cast<int>(c.gemm.wgt_factor_in),
                static_cast<int>(c.gemm.src_factor_in),
                static_cast<int>(c.gemm.dst_factor_in));
-      } else if (c.mem.opcode == OPCODE_ALU) {
+      } else if (c.mem.opcode == VTA_OPCODE_ALU) {
         // Print instruction field information
         printf("ALU - %s\n", getOpcodeString(c.alu.alu_opcode, c.alu.use_imm));
         printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
@@ -744,20 +744,20 @@ class InsnQueue : public BaseQueue {
                static_cast<int>(c.alu.iter_in),
                static_cast<int>(c.alu.dst_factor_in),
                static_cast<int>(c.alu.src_factor_in));
-      } else if (c.mem.opcode == OPCODE_FINISH) {
+      } else if (c.mem.opcode == VTA_OPCODE_FINISH) {
         printf("FINISH\n");
       }
 
       // Count status in queues
-      if (c.mem.opcode == OPCODE_LOAD || c.mem.opcode == OPCODE_STORE) {
-        if (c.mem.opcode == OPCODE_STORE) {
+      if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
+        if (c.mem.opcode == VTA_OPCODE_STORE) {
             assert(c.mem.pop_next_dep == false);
             assert(c.mem.push_next_dep == false);
             if (c.mem.pop_prev_dep) g2s_queue--;
             if (c.mem.push_prev_dep) s2g_queue++;
-        } else if (c.mem.opcode == OPCODE_LOAD &&
-                   (c.mem.memory_type == MEM_ID_INP ||
-                    c.mem.memory_type == MEM_ID_WGT) ) {
+        } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
+                   (c.mem.memory_type == VTA_MEM_ID_INP ||
+                    c.mem.memory_type == VTA_MEM_ID_WGT) ) {
             assert(c.mem.pop_prev_dep == false);
             assert(c.mem.push_prev_dep == false);
             if (c.mem.pop_next_dep) g2l_queue--;
@@ -768,8 +768,8 @@ class InsnQueue : public BaseQueue {
             if (c.mem.pop_next_dep) s2g_queue--;
             if (c.mem.push_next_dep) g2s_queue++;
         }
-      } else if (c.mem.opcode == OPCODE_GEMM ||
-                 c.mem.opcode == OPCODE_ALU) {
+      } else if (c.mem.opcode == VTA_OPCODE_GEMM ||
+                 c.mem.opcode == VTA_OPCODE_ALU) {
         // Print instruction field information
         if (c.gemm.pop_prev_dep) l2g_queue--;
         if (c.gemm.push_prev_dep) g2l_queue++;
@@ -832,23 +832,24 @@ class InsnQueue : public BaseQueue {
   }
   // Get stage of the memory
   static PipelineStage GetMemPipelineStage(int memory_type) {
-    if (memory_type == MEM_ID_ACC) return kComputeStage;
-    if (memory_type == MEM_ID_UOP) return kComputeStage;
+    if (memory_type == VTA_MEM_ID_ACC) return kComputeStage;
+    if (memory_type == VTA_MEM_ID_UOP) return kComputeStage;
     return kLoadStage;
   }
   // Get stage of the computation
   static PipelineStage GetPipelineStage(VTAMemInsn* insn) {
-    if (insn->opcode == OPCODE_GEMM) return kComputeStage;
-    if (insn->opcode == OPCODE_ALU) return kComputeStage;
-    if (insn->opcode == OPCODE_LOAD) {
+    if (insn->opcode == VTA_OPCODE_GEMM) return kComputeStage;
+    if (insn->opcode == VTA_OPCODE_ALU) return kComputeStage;
+    if (insn->opcode == VTA_OPCODE_LOAD) {
       if (insn->x_size == 0) return kNoneStage;
-      if (insn->memory_type == MEM_ID_ACC) return kComputeStage;
-      if (insn->memory_type == MEM_ID_UOP) return kComputeStage;
+      if (insn->memory_type == VTA_MEM_ID_ACC) return kComputeStage;
+      if (insn->memory_type == VTA_MEM_ID_UOP) return kComputeStage;
       return kLoadStage;
     }
-    if (insn->opcode == OPCODE_STORE) {
-      // FIXME: Right now memory_type is a 2-bit field which means that MEM_ID_OUT will appear as 0
-      //        For now we'll refrain from checking the memory_type to avoid an assertion error...
+    if (insn->opcode == VTA_OPCODE_STORE) {
+      // FIXME: Right now memory_type is a 2-bit field which means that
+      //        VTA_MEM_ID_OUT will appear as 0. For now we'll refrain from
+      //        checking the memory_type to avoid an assertion error...
       return kStoreStage;
     }
     assert(false);
@@ -859,7 +860,7 @@ class InsnQueue : public BaseQueue {
                 bool push_prev_dep, bool push_next_dep,
                 bool pop_prev_dep, bool pop_next_dep) {
     VTAMemInsn* insn = reinterpret_cast<VTAMemInsn*>(NextInsn());
-    insn->opcode = (stage==kStoreStage ? OPCODE_STORE : OPCODE_LOAD);
+    insn->opcode = (stage == kStoreStage ? VTA_OPCODE_STORE : VTA_OPCODE_LOAD);
     insn->push_prev_dep = push_prev_dep;
     insn->push_next_dep = push_next_dep;
     insn->pop_prev_dep = pop_prev_dep;
@@ -873,7 +874,7 @@ class InsnQueue : public BaseQueue {
     insn->y_pad_1 = 0;
     insn->x_pad_0 = 0;
     insn->x_pad_1 = 0;
-    insn->memory_type = (stage == kLoadStage ? MEM_ID_INP : MEM_ID_UOP);
+    insn->memory_type = (stage == kLoadStage ? VTA_MEM_ID_INP : VTA_MEM_ID_UOP);
   }
 
  private:
@@ -913,12 +914,12 @@ class CommandQueue {
   }
 
   uint32_t GetElemBytes(uint32_t memory_id) {
-    switch (memory_id){
-      case MEM_ID_UOP: return UOP_ELEM_BYTES;
-      case MEM_ID_INP: return INP_ELEM_BYTES;
-      case MEM_ID_WGT: return WGT_ELEM_BYTES;
-      case MEM_ID_ACC: return ACC_ELEM_BYTES;
-      case MEM_ID_OUT: return INP_ELEM_BYTES;
+    switch (memory_id) {
+      case VTA_MEM_ID_UOP: return VTA_UOP_ELEM_BYTES;
+      case VTA_MEM_ID_INP: return VTA_INP_ELEM_BYTES;
+      case VTA_MEM_ID_WGT: return VTA_WGT_ELEM_BYTES;
+      case VTA_MEM_ID_ACC: return VTA_ACC_ELEM_BYTES;
+      case VTA_MEM_ID_OUT: return VTA_INP_ELEM_BYTES;
       default: break;
     }
     printf("Memory id not recognized: %d\n", memory_id);
@@ -938,7 +939,7 @@ class CommandQueue {
                     uint32_t dst_sram_index,
                     uint32_t dst_memory_type) {
     VTAMemInsn* insn = insn_queue_.CreateMemInsn(dst_memory_type);
-    insn->opcode = OPCODE_LOAD;
+    insn->opcode = VTA_OPCODE_LOAD;
     insn->memory_type = dst_memory_type;
     insn->sram_base = dst_sram_index;
     DataBuffer* src = DataBuffer::FromHandle(src_dram_addr);
@@ -961,7 +962,7 @@ class CommandQueue {
                      uint32_t y_size,
                      uint32_t x_stride) {
     VTAMemInsn* insn = insn_queue_.CreateStoreInsn();
-    insn->opcode = OPCODE_STORE;
+    insn->opcode = VTA_OPCODE_STORE;
     insn->memory_type = src_memory_type;
     insn->sram_base = src_sram_index;
     DataBuffer* dst = DataBuffer::FromHandle(dst_dram_addr);
@@ -1013,7 +1014,7 @@ class CommandQueue {
     insn_queue_.CommitPendingPop(kComputeStage);
     // NOTE: FINISH cannot contain pop
     VTAGemInsn* insn = insn_queue_.CreateGemInsn();
-    insn->opcode = OPCODE_FINISH;
+    insn->opcode = VTA_OPCODE_FINISH;
     assert(!insn_queue_.PendingPop());
     // Check if there are no instruction to execute at all
     if (insn_queue_.count() == 0) return;
@@ -1026,11 +1027,11 @@ class CommandQueue {
     }
     // Make sure that the last instruction is a finish instruction
     assert(reinterpret_cast<VTAMemInsn*>(
-        insn_queue_.data())[insn_queue_.count()-1].opcode == OPCODE_FINISH);
+        insn_queue_.data())[insn_queue_.count()-1].opcode == VTA_OPCODE_FINISH);
 
-#ifdef PYNQ_TARGET
+#ifdef VTA_PYNQ_TARGET
     // Make sure that we don't exceed contiguous physical memory limits
-    assert(insn_queue_.count() < MAX_XFER);
+    assert(insn_queue_.count() < VTA_MAX_XFER);
 
     // NOTE: Register address map is derived from the auto-generated
     // driver files available under hardware/build/vivado/<design>/export/driver
@@ -1064,7 +1065,7 @@ class CommandQueue {
     }
     // Report error if timeout
     assert(t < wait_cycles);
-#endif //PYNQ_TARGET
+#endif  // VTA_PYNQ_TARGET
 
     // Reset buffers
     uop_queue_.Reset();
@@ -1142,12 +1143,12 @@ class CommandQueue {
     uop_queue_.Push(kernel,
                     [this]() { this->AutoSync(); });
     if (uop_queue_.pending()) {
-      VTAMemInsn* insn = insn_queue_.CreateMemInsn(MEM_ID_UOP);
-      insn->opcode = OPCODE_LOAD;
+      VTAMemInsn* insn = insn_queue_.CreateMemInsn(VTA_MEM_ID_UOP);
+      insn->opcode = VTA_OPCODE_LOAD;
       uop_queue_.FlushUopLoad(insn);
     }
     VTAGemInsn* insn = insn_queue_.CreateGemInsn();
-    insn->opcode = OPCODE_GEMM;
+    insn->opcode = VTA_OPCODE_GEMM;
     insn->uop_bgn = kernel->sram_begin_;
     insn->uop_end = kernel->sram_end_;
     const std::vector<UopKernel::LoopEntry> &loop = kernel->loop();
@@ -1180,12 +1181,12 @@ class CommandQueue {
     uop_queue_.Push(kernel,
                     [this]() { this->AutoSync(); });
     if (uop_queue_.pending()) {
-      VTAMemInsn* insn = insn_queue_.CreateMemInsn(MEM_ID_UOP);
-      insn->opcode = OPCODE_LOAD;
+      VTAMemInsn* insn = insn_queue_.CreateMemInsn(VTA_MEM_ID_UOP);
+      insn->opcode = VTA_OPCODE_LOAD;
       uop_queue_.FlushUopLoad(insn);
     }
     VTAAluInsn* insn = insn_queue_.CreateAluInsn();
-    insn->opcode = OPCODE_ALU;
+    insn->opcode = VTA_OPCODE_ALU;
     insn->uop_bgn = kernel->sram_begin_;
     insn->uop_end = kernel->sram_end_;
     insn->alu_opcode = kernel->opcode_;
@@ -1219,7 +1220,7 @@ class CommandQueue {
   void CheckInsnOverFlow() {
     // At each API call, we can at most commit:
     // one pending store, one pending load, and one uop
-    if (insn_queue_.count() >= MAX_XFER) {
+    if (insn_queue_.count() >= VTA_MAX_XFER) {
       this->AutoSync();
     }
   }
@@ -1237,9 +1238,9 @@ class CommandQueue {
   // The kernel we currently recording
   UopKernel* record_kernel_{nullptr};
   // Micro op queue
-  UopQueue<MAX_XFER, true, true> uop_queue_;
+  UopQueue<VTA_MAX_XFER, true, true> uop_queue_;
   // instruction queue
-  InsnQueue<MAX_XFER, true, true> insn_queue_;
+  InsnQueue<VTA_MAX_XFER, true, true> insn_queue_;
 };
 
 }  // namespace vta
@@ -1342,10 +1343,10 @@ void VTAStoreBuffer2D(VTACommandHandle cmd,
                       uint32_t x_size,
                       uint32_t y_size,
                       uint32_t x_stride) {
- static_cast<vta::CommandQueue*>(cmd)->
-     StoreBuffer2D(src_sram_index, src_memory_type,
-                   dst_dram_addr, dst_elem_offset,
-                   x_size, y_size, x_stride);
+  static_cast<vta::CommandQueue*>(cmd)->
+      StoreBuffer2D(src_sram_index, src_memory_type,
+                    dst_dram_addr, dst_elem_offset,
+                    x_size, y_size, x_stride);
 }
 
 void VTAUopPush(uint32_t mode,

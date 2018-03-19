@@ -76,7 +76,7 @@ lib/libvta.$(SHARED_LIBRARY_SUFFIX): $(VTA_LIB_OBJ)
 lint: pylint cpplint
 
 cpplint:
-	python nnvm/dmlc-core/scripts/lint.py vta cpp include src
+	python nnvm/dmlc-core/scripts/lint.py vta cpp include src hardware tests
 
 pylint:
 	pylint python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc

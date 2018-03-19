@@ -1,6 +1,6 @@
 # Directories
 ROOTDIR = $(CURDIR)
-BUILD_DIR = $(ROOTDIR)/build
+BUILD_DIR = $(ROOTDIR)/../../build/hardware/vivado
 SCRIPT_DIR = $(ROOTDIR)/scripts
 SRC_DIR = $(ROOTDIR)/src
 SIM_DIR = $(ROOTDIR)/sim
@@ -27,20 +27,21 @@ include $(config)
 #--------------------
 
 #  Number of threads during compilation
-NUM_THREADS = 8
+VTA_HW_COMP_THREADS = 8
 
 #  Target Frequency
-CLOCK_FREQ = 100
+VTA_HW_COMP_CLOCK_FREQ = 100
 
 #  Timing closure compensation (0 for none, 3 for highest)
-TIMING_CLOSURE_COMP = 0
+VTA_HW_COMP_TIMING_COMP = 0
 
 # Derive clock target period
-TARGET_PER = $(shell echo "$$(( (1000 + $(CLOCK_FREQ) - 1) / $(CLOCK_FREQ) - 0))" )
+TARGET_PER = \
+$(shell echo "$$(( (1000 + $(VTA_HW_COMP_CLOCK_FREQ) - 1) / $(VTA_HW_COMP_CLOCK_FREQ) - $(VTA_HW_COMP_TIMING_COMP)))" )
 
 # Derive config name
 CONF = \
-	$(BATCH)x$(IN_BLOCK)x$(OUT_BLOCK)_$(INP_WIDTH)bx$(WGT_WIDTH)b_$(CLOCK_FREQ)MHz_$(TARGET_PER)ns
+$(VTA_BATCH)x$(VTA_IN_BLOCK)x$(VTA_OUT_BLOCK)_$(VTA_INP_WIDTH)bx$(VTA_WGT_WIDTH)b_$(VTA_HW_COMP_CLOCK_FREQ)MHz_$(TARGET_PER)ns
 IP_BUILD_PATH = $(BUILD_DIR)/hls/$(CONF)
 HW_BUILD_PATH = $(BUILD_DIR)/vivado/$(CONF)
 
@@ -53,23 +54,23 @@ ip:
 	cd $(IP_BUILD_PATH) && \
 		$(VIVADO_HLS) -f $(SCRIPT_DIR)/hls.tcl \
 			-tclargs $(SRC_DIR) $(SIM_DIR) $(TEST_DIR) $(INCLUDE_DIR) $(TARGET_PER) \
-			$(LOG_INP_WIDTH) $(LOG_WGT_WIDTH) $(LOG_ACC_WIDTH) $(LOG_OUT_WIDTH) \
-			$(LOG_BATCH) $(LOG_BLOCK_OUT) $(LOG_BLOCK_IN) \
-			$(LOG_UOP_BUFF_SIZE) $(LOG_INP_BUFF_SIZE) $(LOG_WGT_BUFF_SIZE) \
-			$(LOG_ACC_BUFF_SIZE) $(LOG_OUT_BUFF_SIZE)
+			$(VTA_LOG_INP_WIDTH) $(VTA_LOG_WGT_WIDTH) $(VTA_LOG_ACC_WIDTH) $(VTA_LOG_OUT_WIDTH) \
+			$(VTA_LOG_BATCH) $(VTA_LOG_BLOCK_OUT) $(VTA_LOG_BLOCK_IN) \
+			$(VTA_LOG_UOP_BUFF_SIZE) $(VTA_LOG_INP_BUFF_SIZE) $(VTA_LOG_WGT_BUFF_SIZE) \
+			$(VTA_LOG_ACC_BUFF_SIZE) $(VTA_LOG_OUT_BUFF_SIZE)
 
 bit: ip
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
 		$(VIVADO) -mode tcl -source $(SCRIPT_DIR)/vivado.tcl \
-		-tclargs $(IP_BUILD_PATH) $(NUM_THREADS) $(CLOCK_FREQ) \
-		$(INP_WIDTH) $(WGT_WIDTH) $(OUT_WIDTH) \
-		$(BATCH) $(IN_BLOCK) $(OUT_BLOCK) \
-		$(INP_BUFF_SIZE) $(WGT_BUFF_SIZE) $(OUT_BUFF_SIZE)
+		-tclargs $(IP_BUILD_PATH) $(VTA_HW_COMP_THREADS) $(VTA_HW_COMP_CLOCK_FREQ) \
+		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(OUT_WIDTH) \
+		$(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) \
+		$(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) $(VTA_OUT_BUFF_SIZE)
 
 driver: bit
 	cd $(HW_BUILD_PATH) && $(HSI) -mode tcl -source $(SCRIPT_DIR)/hsi.tcl -nojournal -nolog
 	cd $(HW_BUILD_PATH)/bsp && make
 
 clean:
-	rm -rf build
+	rm -rf $(BUILD_DIR)
