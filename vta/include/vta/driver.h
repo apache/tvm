@@ -14,10 +14,10 @@ extern "C" {
 #include <stdlib.h>
 #include <stdint.h>
 
-/*! \brief Memory management constants with libxlnk_cma */
-#define CACHED 1
-/*! \brief Memory management constants with libxlnk_cma */
-#define NOT_CACHED 0
+/*! \brief Memory management constants */
+#define VTA_CACHED 1
+/*! \brief Memory management constants */
+#define VTA_NOT_CACHED 0
 
 /*! \brief VTA command handle */
 typedef void * VTAHandle;
@@ -97,4 +97,4 @@ void VTAProgram(const char* bitstream);
 #ifdef __cplusplus
 }
 #endif
-#endif // VTA_DRIVER_H_
+#endif  // VTA_DRIVER_H_

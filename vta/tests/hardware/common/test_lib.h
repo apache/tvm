@@ -4,8 +4,8 @@
  * \brief Test library for the VTA design simulation and driver tests.
  */
 
-#ifndef VTA_TESTLIB_H_
-#define VTA_TESTLIB_H_
+#ifndef TESTS_HARDWARE_COMMON_TEST_LIB_H_
+#define TESTS_HARDWARE_COMMON_TEST_LIB_H_
 
 #include <assert.h>
 #include <stdint.h>
@@ -17,9 +17,9 @@
 
 #include <vta/driver.h>
 
-#ifdef PYNQ_TARGET
+#ifdef VTA_PYNQ_TARGET
 #include "../../../src/pynq/pynq_driver.h"
-#endif //PYNQ_TARGET
+#endif  // VTA_PYNQ_TARGET
 
 typedef uint64_t axi_T;
 typedef uint32_t uop_T;
@@ -28,7 +28,7 @@ typedef int8_t inp_T;
 typedef int8_t out_T;
 typedef int32_t acc_T;
 
-uint64_t vta (
+uint64_t vta(
   uint32_t insn_count,
   VTAGenericInsn *insns,
   VTAUop *uops,
@@ -37,11 +37,11 @@ uint64_t vta (
   acc_T *biases,
   inp_T *outputs);
 
-#else //NO_SIM
+#else  // NO_SIM
 
 #include "../../../hardware/vivado/src/vta.h"
 
-#endif //NO_SIM
+#endif  // NO_SIM
 
 /*!
 * \brief Returns opcode string.
@@ -300,4 +300,4 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
 int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
   int virtual_threads);
 
-#endif  // VTA_TESTLIB_H_
+#endif  //  TESTS_HARDWARE_COMMON_TEST_LIB_H_
