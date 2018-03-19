@@ -355,7 +355,7 @@ def _convert_reshape(insym, keras_layer, _):
 
 def _default_skip(insym, keras_layer, _): # pylint: disable=unused-argument
     """Layers that can be skipped because they are train time only."""
-    return
+    return insym
 
 
 _convert_map = {
