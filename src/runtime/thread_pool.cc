@@ -37,7 +37,6 @@ class ParallelLauncher {
             void* cdata,
             int num_task,
             bool need_sync) {
-    //std::lock_guard<std::mutex> lock(mutex_);
     num_pending_.store(num_task);
     this->cdata = cdata;
     this->flambda = flambda;
@@ -66,12 +65,8 @@ class ParallelLauncher {
   }
   // Wait n jobs to finish
   int WaitForJobs() {
-    //std::unique_lock<std::mutex> lock(mutex_);
-    //cv_.wait(lock, [this] {
-    //    return num_pending_ == 0;
-    //  });
     while (num_pending_.load() != 0) {
-      std::this_thread::yield();
+      tvm::runtime::threading::Yield();
     }
     if (!has_error_.load()) return 0;
     std::string err("");
@@ -86,24 +81,13 @@ class ParallelLauncher {
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
-    //std::unique_lock<std::mutex> lock(mutex_);
     num_pending_.fetch_sub(1);
     par_errors_[task_id] = TVMGetLastError();
     has_error_.store(true);
-    //if (num_pending_ == 0) {
-    //  lock.unlock();
-    //  cv_.notify_one();
-    //}
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
-    //std::unique_lock<std::mutex> lock(mutex_);
     num_pending_.fetch_sub(1);
-    //--num_pending_;
-    //if (num_pending_ == 0) {
-    //  lock.unlock();
-    //  cv_.notify_one();
-    //}
   }
   // Get thread local version of the store.
   static ParallelLauncher* ThreadLocal() {
@@ -120,10 +104,6 @@ class ParallelLauncher {
   bool is_worker{false};
 
  private:
-  // The mutex to access local env.
-  //std::mutex mutex_;
-  // The conditional variable.
-  //std::condition_variable cv_;
   // The pending jobs.
   std::atomic<int32_t> num_pending_;
   // Whether error has been countered.
