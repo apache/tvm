@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <tuple>
 #include "./runtime/packed_func.h"
 #include "./schedule_pass.h"
 #include "./lowered_func.h"
