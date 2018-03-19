@@ -261,13 +261,13 @@ class ThreadPool {
  public:
   ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
     for (int i = 0; i < num_workers_; ++i) {
-      // The SpscTaskQueue only host ONE item at a time
+      // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
     }
     threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-          false /* include_main_thread */));
+          exclude_worker0_ /* include_main_thread */));
   }
   ~ThreadPool() { Shutdown(); }
   int Launch(FTVMParallelLambda flambda,
@@ -288,15 +288,17 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    for (int i = 0; i < num_task-1; ++i) {
+    for (int i = exclude_worker0_; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
-    TVMParallelGroupEnv* penv = &(tsk.launcher->env);
-    if ((*tsk.launcher->flambda)(num_task-1, penv, cdata) == 0) {
-      tsk.launcher->SignalJobFinish();
-    } else {
-      tsk.launcher->SignalJobError(tsk.task_id);
+    if (exclude_worker0_) {
+      TVMParallelGroupEnv* penv = &(tsk.launcher->env);
+      if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
+        tsk.launcher->SignalJobFinish();
+      } else {
+        tsk.launcher->SignalJobError(tsk.task_id);
+      }
     }
     int res = launcher->WaitForJobs();
     return res;
@@ -332,6 +334,7 @@ class ThreadPool {
     }
   }
   int num_workers_;
+  bool exclude_worker0_{true};
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
