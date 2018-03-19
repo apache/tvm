@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <cctype>
 #include "./codegen_c.h"
+#include "../pass/ir_util.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
@@ -544,15 +545,6 @@ void CodeGenC::PrintVecBinaryOp(
   }
 }
 
-inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
-  const Ramp* r = index.as<Ramp>();
-  if (!r) return false;
-  if (!is_one(r->stride)) return false;
-  CHECK_EQ(r->lanes, lanes);
-  *base = r->base;
-  return true;
-}
-
 void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
   // delcare type.
@@ -563,7 +555,7 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
     Expr base;
-    if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
+    if (GetRamp1Base(op->index, op->type.lanes(), &base)) {
       std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
       os << ref;
     } else {
@@ -617,7 +609,7 @@ void CodeGenC::VisitStmt_(const Store* op) {
     CHECK(is_one(op->predicate))
         << "Predicated store is not supported";
     Expr base;
-    if (TryGetRamp1Base(op->index, t.lanes(), &base)) {
+    if (GetRamp1Base(op->index, t.lanes(), &base)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base, value);
     } else {

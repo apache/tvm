@@ -42,7 +42,16 @@ bool NeedRelax(const IterVar& iv,
   if (tag.length() == 0 || tag == "pipeline") {
     return !found_attach;
   }
-  return static_cast<int>(scope.rank) <= ThreadScope::make(tag).rank;
+  ThreadScope ts = ThreadScope::make(tag);
+
+  // When there is warp memory
+  // threadIdx.x must be set to be warp index.
+  if (scope.rank == StorageRank::kWarp &&
+      ts.rank == 1 &&
+      ts.dim_index == 0) {
+    return true;
+  }
+  return static_cast<int>(scope.rank) <= ts.rank;
 }
 
 // infer storage scope, if not given
