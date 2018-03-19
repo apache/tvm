@@ -34,11 +34,16 @@ def test_target_dispatch():
     with tvm.target.create("metal"):
         assert mygeneric(1) == 3
 
-    try:
-        mygeneric(0)
-        raise RuntimeError("not reached")
-    except RuntimeError:
-        pass
+    assert tvm.target.current_target() == None
+
+def test_target_string_parse():
+    target = tvm.target.create("cuda -libs=cublas,cudnn")
+
+    assert target.target_name == "cuda"
+    assert target.options == ['-libs=cublas,cudnn']
+    assert target.keys == ['cuda', 'gpu']
+    assert target.libs == ['cublas', 'cudnn']
 
 if __name__ == "__main__":
     test_target_dispatch()
+    test_target_string_parse()
