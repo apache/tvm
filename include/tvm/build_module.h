@@ -195,6 +195,12 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to partition const loop */
   bool partition_const_loop = false;
 
+  /*! \brief Whether to dump the IR of each pass (only when building from python) */
+  std::vector<std::tuple<int, PackedFunc>> add_lower_pass;
+
+  /*! \brief Whether to dump the IR of each pass (only when building from python) */
+  bool dump_pass_ir = false;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
@@ -206,13 +212,71 @@ class BuildConfigNode : public Node {
     v->Visit("restricted_func", &restricted_func);
     v->Visit("detect_global_barrier", &detect_global_barrier);
     v->Visit("partition_const_loop", &partition_const_loop);
+    v->Visit("dump_pass_ir", &dump_pass_ir);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
   TVM_DECLARE_NODE_TYPE_INFO(BuildConfigNode, Node);
 };
 
-TVM_DEFINE_NODE_REF(BuildConfig, BuildConfigNode);
+/*!
+* \brief Container for build configuration options
+*/
+class BuildConfig : public ::tvm::NodeRef {
+ public:
+  BuildConfig() {}
+  explicit BuildConfig(std::shared_ptr<::tvm::Node> n) : NodeRef(n) {}
+
+  const BuildConfigNode* operator->() const {
+    return static_cast<const BuildConfigNode*>(node_.get());
+  }
+
+  inline void set_add_lower_pass(const std::vector<std::tuple<int, PackedFunc>>& add_lower_pass) {
+    auto node = static_cast<BuildConfigNode*>(node_.get());
+    node->add_lower_pass = add_lower_pass;
+  }
+
+  /*!
+   * \brief Push a new BuildConfig context onto the thread local stack.
+   * \param build_config The configuration to set as the current context.
+   */
+  EXPORT static void EnterBuildConfigScope(const tvm::BuildConfig& build_config);
+
+  /*!
+   * \brief Pop a build config off the thread local context stack, restoring the previous
+   * configuration as the current context.
+   */
+  EXPORT static void ExitBuildConfigScope();
+
+  /*!
+   * \brief Get the current BuildConfig context from thread local storage, or a default
+   * configuration if a BuildConfig scope has not been entered.
+   * \return The configuration that is the current context.
+   */
+  EXPORT static tvm::BuildConfig current_build_config();
+
+  using ContainerType = BuildConfigNode;
+};
+
+/*!
+ * \brief RAII container to provide a scoped BuildConfig context. Pushes a configuration onto the
+ * context stack when constructed, and pops it when destructed.
+ */
+struct BuildConfigContext {
+  /*!
+   * \brief Enter a new BuildConfig context. The given BuildConfig becomes the new current
+   * context. When the BuildConfigContext is destructed, the previous context is restored.
+   * \param build_config The BuildConfig to set as the new current context.
+   */
+  explicit BuildConfigContext(const tvm::BuildConfig& build_config) {
+    BuildConfig::EnterBuildConfigScope(build_config);
+  }
+
+  /*! \brief Destructor. Pops the context off the thread local stack. */
+  ~BuildConfigContext() {
+    BuildConfig::ExitBuildConfigScope();
+  }
+};
 
 /*!
 * \brief Construct a BuildConfig containing a new BuildConfigNode
