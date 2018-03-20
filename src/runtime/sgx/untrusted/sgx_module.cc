@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file cur_module.cc
+ * \file sgx_module.cc
  * \brief SGX enclave module.
  */
 #include <dmlc/logging.h>
@@ -18,13 +18,44 @@ namespace runtime {
 class SGXModuleNode;
 
 namespace sgx {
-  thread_local SGXModuleNode* cur_mod;
+
+class EnclaveContext {
+ public:
+  explicit EnclaveContext(SGXModuleNode* mod) {
+    CHECK(Global()->mod_ == nullptr)
+      << "Tried overriding existing enclave context.";
+    CHECK(mod != nullptr) << "Tried setting null enclave context.";
+    Global()->mod_ = mod;
+  }
+  ~EnclaveContext() {
+    Global()->mod_ = nullptr;
+  }
+
+  static EnclaveContext* Global() {
+    static EnclaveContext inst;
+    return &inst;
+  }
+
+  static SGXModuleNode* GetCurrent() {
+    SGXModuleNode* ctx = Global()->mod_;
+    CHECK(ctx != nullptr) << "No current enclave context";
+    return ctx;
+  }
+
+ private:
+  EnclaveContext() {}
+  SGXModuleNode* mod_;
+};
+
 }  // namespace sgx
 
 class SGXModuleNode : public ModuleNode {
  public:
   ~SGXModuleNode() {
-    if (eid_) sgx_destroy_enclave(eid_);
+    if (eid_) {
+      sgx::EnclaveContext ctx(this);
+      sgx_destroy_enclave(eid_);
+    }
   }
 
   void Init(const std::string& enclave_file) {
@@ -48,7 +79,7 @@ class SGXModuleNode : public ModuleNode {
     CHECK_EQ(sgx_status, SGX_SUCCESS)
       << "Failed to load enclave. SGX Error: " << sgx_status;
 
-    sgx::cur_mod = this;
+    sgx::EnclaveContext ctx(this);
     sgx_status = tvm_ecall_init(eid_);
     CHECK_EQ(sgx_status, SGX_SUCCESS)
       << "Failed to initialize enclave. SGX Error: " << sgx_status;
@@ -76,7 +107,7 @@ class SGXModuleNode : public ModuleNode {
     if (it != exports_.end()) {
       return PackedFunc([this, ecall_name](TVMArgs args, TVMRetValue* rv) {
           sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-          sgx::cur_mod = this;
+          sgx::EnclaveContext ctx(this);
           sgx_status = tvm_ecall_packed_func(eid_, ecall_name.c_str(), &args, rv);
           CHECK_EQ(sgx_status, SGX_SUCCESS) << "SGX Error: " << sgx_status;
         });
@@ -121,11 +152,11 @@ namespace sgx {
 extern "C" {
 
 void tvm_ocall_thread_group_launch(int num_tasks, const void* cb) {
-  cur_mod->RunWorker(num_tasks, cb);
+  EnclaveContext::GetCurrent()->RunWorker(num_tasks, cb);
 }
 
 void tvm_ocall_thread_group_join() {
-  cur_mod->JoinThreads();
+  EnclaveContext::GetCurrent()->JoinThreads();
 }
 
 void tvm_ocall_api_set_last_error(const char* err) {
@@ -133,7 +164,7 @@ void tvm_ocall_api_set_last_error(const char* err) {
 }
 
 void tvm_ocall_register_func(const char* name) {
-  cur_mod->RegisterFunc(name);
+  EnclaveContext::GetCurrent()->RegisterFunc(name);
 }
 
 }  // extern "C"
