@@ -37,12 +37,11 @@ class ParallelLauncher {
             void* cdata,
             int num_task,
             bool need_sync) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    num_pending_ = num_task;
+    num_pending_.store(num_task);
     this->cdata = cdata;
     this->flambda = flambda;
     this->env.num_task = num_task;
-    has_error_ = false;
+    has_error_.store(false);
     // reshape
     if (static_cast<size_t>(num_task) > par_errors_.size()) {
       par_errors_.resize(num_task + 1);
@@ -66,11 +65,10 @@ class ParallelLauncher {
   }
   // Wait n jobs to finish
   int WaitForJobs() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] {
-        return num_pending_ == 0;
-      });
-    if (!has_error_) return 0;
+    while (num_pending_.load() != 0) {
+      tvm::runtime::threading::Yield();
+    }
+    if (!has_error_.load()) return 0;
     std::string err("");
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
@@ -83,23 +81,13 @@ class ParallelLauncher {
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    --num_pending_;
+    num_pending_.fetch_sub(1);
     par_errors_[task_id] = TVMGetLastError();
-    has_error_ = true;
-    if (num_pending_ == 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    has_error_.store(true);
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    --num_pending_;
-    if (num_pending_ == 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    num_pending_.fetch_sub(1);
   }
   // Get thread local version of the store.
   static ParallelLauncher* ThreadLocal() {
@@ -116,14 +104,10 @@ class ParallelLauncher {
   bool is_worker{false};
 
  private:
-  // The mutex to access local env.
-  std::mutex mutex_;
-  // The conditional variable.
-  std::condition_variable cv_;
   // The pending jobs.
-  uint32_t num_pending_;
+  std::atomic<int32_t> num_pending_;
   // Whether error has been countered.
-  bool has_error_;
+  std::atomic<bool> has_error_;
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
@@ -257,13 +241,13 @@ class ThreadPool {
  public:
   ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
     for (int i = 0; i < num_workers_; ++i) {
-      // The SpscTaskQueue only host ONE item at a time
+      // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
     }
     threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-          false /* include_main_thread */));
+          exclude_worker0_ /* include_main_thread */));
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
@@ -289,9 +273,19 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    for (int i = 0; i < num_task; ++i) {
+    // if worker0 is taken by the master, queues_[0] is abandoned
+    for (int i = exclude_worker0_; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
+    }
+    // use the master thread to run task 0
+    if (exclude_worker0_) {
+      TVMParallelGroupEnv* penv = &(tsk.launcher->env);
+      if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
+        tsk.launcher->SignalJobFinish();
+      } else {
+        tsk.launcher->SignalJobError(tsk.task_id);
+      }
     }
     int res = launcher->WaitForJobs();
     return res;
@@ -320,6 +314,8 @@ class ThreadPool {
     }
   }
   int num_workers_;
+  // if excluding worker 0 and using master to run task 0
+  bool exclude_worker0_{true};
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
