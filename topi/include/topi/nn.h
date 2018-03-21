@@ -10,6 +10,7 @@
 #include <string>
 
 #include "topi/tags.h"
+#include "topi/detail/constant_utils.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
 #include "tvm/tvm.h"
@@ -84,28 +85,34 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
 }
 
 /*!
-* \brief Creates an operation that performs a parametric rectified linear unit
-*
-* \param x The input data tensor
-* \param w The input weight tensor
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is the relu operation
-*/
+ * \brief Creates an operation that performs a parametric rectified linear unit
+ *
+ * \param x The input data tensor
+ * \param w The input weight tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the relu operation
+ */
 template <typename T>
-inline tvm::Tensor prelu(const tvm::Tensor& x,
-                              const tvm::Tensor& w,
-                              std::string name = "tensor",
-                              std::string tag = kBroadcast) {
-  auto m = broadcast_mul(x, w);
-  return tvm::compute(
-    x->shape,
-    [&](const tvm::Array<tvm::Var>& i) {
-      return tvm::select(x(i) > 0, x(i), m(i));
-    },
-    name,
-    tag);
+inline tvm::Tensor prelu(const tvm::Tensor &x, const tvm::Tensor &slope,
+                         const std::string &layout = "NCHW",
+                         std::string name = "tensor",
+                         std::string tag = kElementWise) {
+  CHECK_EQ(4, x->shape.size());
+  CHECK(layout == "NCHW" || layout == "NHWC") << "Unsupported layout.";
+  CHECK((layout == "NCHW" && (topi::detail::GetConstInt(slope->shape[0]) ==
+                              topi::detail::GetConstInt(x->shape[1]))) ||
+        (layout == "NHWC" && (topi::detail::GetConstInt(slope->shape[0]) ==
+                              topi::detail::GetConstInt(x->shape[3]))))
+      << "Wrong slope shape received.";
+  int idx = (layout == "NHWC") ? 3 : 1;
+  return tvm::compute(x->shape,
+                      [&](const tvm::Array<tvm::Var> &indices) {
+                        return tvm::select(x(indices) > 0, x(indices),
+                                           x(indices) * slope(indices[idx]));
+                      },
+                      name, tag);
 }
 
 /*!

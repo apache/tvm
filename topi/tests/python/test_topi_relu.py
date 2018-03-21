@@ -52,17 +52,19 @@ def verify_prelu(x, w):
     x_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(X.shape)).astype(X.dtype)
     w_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(W.shape)).astype(W.dtype)
 
-    def _get_extended_shape(W, x):
-        return (1,) + W.shape + (1,) * (x.ndim - W.ndim - 1)
-
     def _prelu_numpy(x, W):
-            y = x.copy()
-            masked = np.ma.masked_greater_equal(y, 0, copy=False)
-            masked *= W
-            return y
+        out = np.zeros(x.shape)
+        for b in range (x.shape[0]):
+            for c in range (x.shape[1]):
+                for h in range (x.shape[2]):
+                    for w in range (x.shape[3]):
+                        if x[b][c][h][w] < 0:
+                           out[b][c][h][w] = x[b][c][h][w] * W[c]
+                        else:
+                           out[b][c][h][w] = x[b][c][h][w]
+        return out
 
     B = topi.nn.prelu(X, W)
-    out_np = _prelu_numpy(x_np, w_np)
     s = tvm.create_schedule([B.op])
 
     ctx = tvm.cpu(0)
@@ -72,6 +74,7 @@ def verify_prelu(x, w):
     b = tvm.nd.array(np.zeros(get_const_tuple(X.shape), dtype=B.dtype), ctx)
     foo = tvm.build(s, [X, W, B], "llvm", name="prelu")
     foo(x_tvm, w_tvm, b)
+    out_np = _prelu_numpy(x_np, w_np)
     np.testing.assert_allclose(b.asnumpy(), out_np, rtol=1e-5)
 
 def test_relu():
@@ -81,8 +84,7 @@ def test_leaky_relu():
     verify_leaky_relu(100, 0.1)
 
 def test_prelu():
-    verify_prelu((20,3), (3,))
-    verify_prelu((1, 3, 32, 32), (1, 3, 32, 32))
+    verify_prelu((1, 3, 2, 2), (3,))
 
 if __name__ == "__main__":
     test_relu()
