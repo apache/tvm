@@ -88,7 +88,8 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
  * \brief Creates an operation that performs a parametric rectified linear unit
  *
  * \param x The input data tensor
- * \param w The input weight tensor
+ * \param slope The channel-wise slope tensor
+ * \param layout The layout of input data, NCHW or NHWC
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *

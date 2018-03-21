@@ -55,8 +55,11 @@ def prelu(x, slope, layout='NCHW'):
     x : tvm.Tensor
         Input argument.
 
-    w : tvm.Tensor
-        Weight Tensor.
+    slope : tvm.Tensor
+        Channelised tensor, if its a scalar, then do the leaky relu, otherwise compute prelu.
+
+    layout : string
+        Layout of data, whether NCHW or NHWC
 
     Returns:
     y : tvm.Tensor
