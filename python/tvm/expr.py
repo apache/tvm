@@ -21,26 +21,45 @@ from . import make as _make
 from . import _api_internal
 
 class ExprOp(object):
+    __op_priority__ = 1
+
+    def _is_prior(self, other):
+        """Check if self has high precedence than other.
+
+        It can be used to determine the precedence when
+        overloadeding binary operator.
+
+        For example, when it comes to (Expr + X), compiler calls
+        Expr.__add__ by default; but we sometimes would like X.__radd__
+        to be called instread of Expr.__add__.
+
+        So, in this case, we can perform _is_prior checking in Expr.__add__;
+        if we get False, then Expr.__add__ returns NotImplemented, and
+        compiler will trigger X.__radd__ consequently.
+        """
+        return not isinstance(other, ExprOp) \
+            or (type(self)).__op_priority__ >= (type(other)).__op_priority__
+
     def __add__(self, other):
-        return _make.Add(self, other)
+        return _make.Add(self, other) if self._is_prior(other) else NotImplemented
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __sub__(self, other):
-        return _make.Sub(self, other)
+        return _make.Sub(self, other) if self._is_prior(other) else NotImplemented
 
     def __rsub__(self, other):
         return _make.Sub(other, self)
 
     def __mul__(self, other):
-        return _make.Mul(self, other)
+        return _make.Mul(self, other) if self._is_prior(other) else NotImplemented
 
     def __rmul__(self, other):
         return _make.Mul(other, self)
 
     def __div__(self, other):
-        return _make.Div(self, other)
+        return _make.Div(self, other) if self._is_prior(other) else NotImplemented
 
     def __rdiv__(self, other):
         return _make.Div(other, self)
