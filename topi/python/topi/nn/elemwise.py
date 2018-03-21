@@ -2,7 +2,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
-from ..broadcast import broadcast_mul
 from ..util import get_const_int
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -79,7 +78,7 @@ def prelu(x, slope, layout='NCHW'):
     assert len(x.shape) == 4 and len(slope.shape) == 1
     assert layout == "NCHW" or layout == "NHWC"
     assert ((layout == "NCHW" and get_const_int(slope.shape[0]) == get_const_int(x.shape[1])) or
-          (layout == "NHWC" and get_const_int(slope.shape[0]) == get_const_int(x.shape[3])))
+            (layout == "NHWC" and get_const_int(slope.shape[0]) == get_const_int(x.shape[3])))
 
     idx = 1 if (layout == "NCHW") else 3
 
