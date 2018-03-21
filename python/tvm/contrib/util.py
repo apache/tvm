@@ -2,8 +2,12 @@
 from __future__ import absolute_import as _abs
 import os
 import tempfile
-import fcntl
 import shutil
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
 
 class TempDirectory(object):
     """Helper object to manage temp directory during testing.
@@ -70,13 +74,15 @@ class FileLock(object):
     """
     def __init__(self, path):
         self.lock_file = open(path, "w")
-        fcntl.lockf(self.lock_file, fcntl.LOCK_EX)
+        if fcntl:
+            fcntl.lockf(self.lock_file, fcntl.LOCK_EX)
 
 
     def release(self):
         """Release the lock"""
         if self.lock_file:
-            fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
+            if fcntl:
+                fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
             self.lock_file.close()
             self.lock_file = None
 

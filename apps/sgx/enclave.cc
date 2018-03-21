@@ -43,9 +43,9 @@ int Verify(tvm::runtime::Module mod, std::string fname) {
 
 
 extern "C" {
-int enclave_main() {
+void tvm_ecall_run_module(const void* tvm_args, void* tvm_return_value) {
   tvm::runtime::Module mod_syslib = (*tvm::runtime::Registry::Get("module._GetSystemLib"))();
-  return Verify(mod_syslib, "addonesys");
+  *(int*)tvm_return_value = Verify(mod_syslib, "addonesys");
 }
 }
 

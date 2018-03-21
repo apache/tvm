@@ -5,6 +5,7 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
 #include <thread>
@@ -17,9 +18,6 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
-#if defined(__linux__)
-#include <sched.h>
-#endif
 
 const constexpr int kL1CacheBytes = 64;
 
@@ -39,12 +37,11 @@ class ParallelLauncher {
             void* cdata,
             int num_task,
             bool need_sync) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    num_pending_ = num_task;
+    num_pending_.store(num_task);
     this->cdata = cdata;
     this->flambda = flambda;
     this->env.num_task = num_task;
-    has_error_ = false;
+    has_error_.store(false);
     // reshape
     if (static_cast<size_t>(num_task) > par_errors_.size()) {
       par_errors_.resize(num_task + 1);
@@ -68,40 +65,29 @@ class ParallelLauncher {
   }
   // Wait n jobs to finish
   int WaitForJobs() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] {
-        return num_pending_ == 0;
-      });
-    if (!has_error_) return 0;
-    std::ostringstream os;
+    while (num_pending_.load() != 0) {
+      tvm::runtime::threading::Yield();
+    }
+    if (!has_error_.load()) return 0;
+    std::string err("");
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
-        os << "Task " << i << " error: " << par_errors_[i] << '\n';
+        err += "Task " + std::to_string(i) + " error: " + par_errors_[i] + '\n';
         par_errors_[i].clear();
       }
     }
-    TVMAPISetLastError(os.str().c_str());
+    TVMAPISetLastError(err.c_str());
     return -1;
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    --num_pending_;
+    num_pending_.fetch_sub(1);
     par_errors_[task_id] = TVMGetLastError();
-    has_error_ = true;
-    if (num_pending_ == 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    has_error_.store(true);
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    --num_pending_;
-    if (num_pending_ == 0) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    num_pending_.fetch_sub(1);
   }
   // Get thread local version of the store.
   static ParallelLauncher* ThreadLocal() {
@@ -118,14 +104,10 @@ class ParallelLauncher {
   bool is_worker{false};
 
  private:
-  // The mutex to access local env.
-  std::mutex mutex_;
-  // The conditional variable.
-  std::condition_variable cv_;
   // The pending jobs.
-  uint32_t num_pending_;
+  std::atomic<int32_t> num_pending_;
   // Whether error has been countered.
-  bool has_error_;
+  std::atomic<bool> has_error_;
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
@@ -157,7 +139,7 @@ class SpscTaskQueue {
    */
   void Push(const Task& input) {
     while (!Enqueue(input)) {
-      std::this_thread::yield();
+      tvm::runtime::threading::Yield();
     }
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -176,8 +158,8 @@ class SpscTaskQueue {
     // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
     // The default spin count is set by following the typical omp convention
     for (uint32_t i = 0; i < spin_count && pending_.load() == 0; ++i) {
-        std::this_thread::yield();
-      }
+      tvm::runtime::threading::Yield();
+    }
     if (pending_.fetch_sub(1) == 0) {
       std::unique_lock<std::mutex> lock(mutex_);
       cv_.wait(lock, [this] {
@@ -211,6 +193,8 @@ class SpscTaskQueue {
    * \return Whether the task is enqueued.
    */
   bool Enqueue(const Task& input) {
+    if (exit_now_.load(std::memory_order_relaxed)) return false;
+
     const uint32_t tail = tail_.load(std::memory_order_relaxed);
 
     if ((tail + 1) % kRingSize != (head_.load(std::memory_order_acquire))) {
@@ -255,31 +239,21 @@ class SpscTaskQueue {
 // The thread pool
 class ThreadPool {
  public:
-  ThreadPool() {
-    const char *val = getenv("TVM_NUM_THREADS");
-    if (val == nullptr) {
-      val = getenv("OMP_NUM_THREADS");
+  ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
+    for (int i = 0; i < num_workers_; ++i) {
+      // The SpscTaskQueue only hosts ONE item at a time
+      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
     }
-    if (val != nullptr) {
-      num_workers_ = atoi(val);
-    } else {
-#if defined(_M_X64) || defined(__x86_64__)
-      // Half to not count hyper threading.
-      num_workers_ = std::thread::hardware_concurrency() / 2;
-#else
-      num_workers_ = std::thread::hardware_concurrency();
-#endif
-    }
-    num_workers_ = std::max(num_workers_, 1);
-    this->Init();
+    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
+        new tvm::runtime::threading::ThreadGroup(
+          num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+          exclude_worker0_ /* include_main_thread */));
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
       q->SignalForKill();
     }
-    for (std::thread& t : threads_) {
-      t.join();
-    }
+    threads_.reset();
   }
   int Launch(FTVMParallelLambda flambda,
              void* cdata,
@@ -299,9 +273,19 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    for (int i = 0; i < num_task; ++i) {
+    // if worker0 is taken by the master, queues_[0] is abandoned
+    for (int i = exclude_worker0_; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
+    }
+    // use the master thread to run task 0
+    if (exclude_worker0_) {
+      TVMParallelGroupEnv* penv = &(tsk.launcher->env);
+      if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
+        tsk.launcher->SignalJobFinish();
+      } else {
+        tsk.launcher->SignalJobError(tsk.task_id);
+      }
     }
     int res = launcher->WaitForJobs();
     return res;
@@ -313,32 +297,9 @@ class ThreadPool {
   }
 
  private:
-  // Initialize the pool.
-  void Init() {
-    for (int i = 0; i < num_workers_; ++i) {
-      // The SpscTaskQueue only host ONE item at a time
-      queues_.emplace_back(
-          std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
-    }
-    threads_.resize(num_workers_);
-    for (int i = 0; i < num_workers_; ++i) {
-      threads_[i] = std::thread([this, i] {
-          this->RunWorker(queues_[i].get());
-        });
-    }
-    const char *val = getenv("TVM_BIND_THREADS");
-    if (val == nullptr || atoi(val) == 1) {
-      if (num_workers_ <= std::thread::hardware_concurrency()) {
-        SetThreadAffinity();
-      } else {
-        LOG(WARNING)
-          << "The thread affinity cannot be set when the number of workers is larger "
-          << "than the number of available cores in the system.";
-      }
-    }
-  }
   // Internal worker function.
-  void RunWorker(SpscTaskQueue* queue) {
+  void RunWorker(int worker_id) {
+    SpscTaskQueue* queue = queues_[worker_id].get();
     SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
     while (queue->Pop(&task)) {
@@ -352,40 +313,11 @@ class ThreadPool {
       }
     }
   }
-  // bind worker threads to disjoint cores
-  void SetThreadAffinity() {
-#if defined(__ANDROID__)
-#ifndef CPU_SET
-  #define CPU_SETSIZE 1024
-  #define __NCPUBITS (8 * sizeof (uint64_t))
-  typedef struct {
-    uint64_t __bits[CPU_SETSIZE / __NCPUBITS];
-  } cpu_set_t;
-
-  #define CPU_SET(cpu, cpusetp) \
-    ((cpusetp)->__bits[(cpu)/__NCPUBITS] |= (1UL << ((cpu) % __NCPUBITS)))
-  #define CPU_ZERO(cpusetp) \
-    memset((cpusetp), 0, sizeof(cpu_set_t))
-#endif
-#endif
-    for (int i=0; i < num_workers_; ++i) {
-#if defined(__linux__) || defined(__ANDROID__)
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      CPU_SET(i, &cpuset);
-#if defined(__ANDROID__)
-      sched_setaffinity(threads_[i].native_handle(), sizeof(cpu_set_t), &cpuset);
-#else
-      pthread_setaffinity_np(threads_[i].native_handle(),
-        sizeof(cpu_set_t), &cpuset);
-#endif
-#endif
-    }
-  }
-  // Number of workers
   int num_workers_;
+  // if excluding worker 0 and using master to run task 0
+  bool exclude_worker0_{true};
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
-  std::vector<std::thread> threads_;
+  std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
 }  // namespace runtime
@@ -411,7 +343,7 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
     if (i != task_id) {
       while (sync_counter[i * kSyncStride].load(
                  std::memory_order_relaxed) <= old_counter) {
-        std::this_thread::yield();
+        tvm::runtime::threading::Yield();
       }
     }
   }
