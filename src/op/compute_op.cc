@@ -329,7 +329,10 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
     provide = op::Substitute(provide, n.main_vmap);
     provide = MergeNest(reduce, provide);
-    return MergeNest(common, Block::make(init, provide));
+    if (del_trivial_loop)
+      return MergeNest(common, Block::make(init, provide));
+    else
+      return MergeNest(common, provide);
   } else {
     std::vector<Stmt> provides;
     for (size_t i = 0; i < self->body.size(); ++i) {
