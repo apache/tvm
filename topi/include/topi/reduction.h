@@ -11,6 +11,8 @@
 #include <vector>
 #include <iterator>
 
+#include "topi/broadcast.h"
+#include "topi/elemwise.h"
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
