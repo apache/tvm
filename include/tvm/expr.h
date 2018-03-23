@@ -36,6 +36,7 @@ using HalideIR::Internal::Variable;
 
 using HalideIR::Internal::make_const;
 using HalideIR::Internal::make_zero;
+using HalideIR::Internal::make_one;
 using HalideIR::Internal::as_const_int;
 using HalideIR::Internal::as_const_uint;
 using HalideIR::Internal::const_true;
