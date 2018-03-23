@@ -206,6 +206,16 @@ TVM_REGISTER_GLOBAL("topi.sum")
   *rv = topi::sum(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
+TVM_REGISTER_GLOBAL("topi.mean")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::mean(args[0], ArrayOrInt(args[1]), args[2]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.var")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::var(args[0], ArrayOrInt(args[1]), args[2]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.min")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::min(args[0], ArrayOrInt(args[1]), args[2]);

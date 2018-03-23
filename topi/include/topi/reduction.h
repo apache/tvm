@@ -282,6 +282,55 @@ inline Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 }
 
 /*!
+* \brief Creates an operation that averages array elements over a given axis.
+*
+* \param data The input tensor
+* \param axis The axis to average over. If axis is empty, the operation will
+* average over all elements of the array.
+* \param keepdims If this is set to true, the axes which are reduced are
+* left in the result as dimensions with size one. This enables the result
+* to broadcast correctly against the input array.
+*
+* \return A Tensor whose op member is the mean operation
+*/
+inline Tensor mean(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+  Expr numel;
+  if (!axis.size()) {
+    numel = data.numel();
+  } else {
+    numel = tvm::make_one(data->dtype);
+    for (const int& ax : detail::GetConstIntValues(axis, "axis")) {
+      numel *= data->shape[ax];
+    }
+  }
+  auto tsum = sum(data, axis, keepdims);
+  return tvm::compute(
+    tsum->shape,
+    [&](const Array<Var>& i) { return tsum(i) / numel; },
+    "tensor", "mean_div");
+}
+
+/*!
+* \brief Creates an operation that takes the variance over a given axis.
+*
+* \param data The input tensor
+* \param axis The axis to take the variance over. If axis is empty, the
+* operation will take the variance over all elements of the array.
+* \param keepdims If this is set to true, the axes which are reduced are
+* left in the result as dimensions with size one. This enables the result
+* to broadcast correctly against the input array.
+*
+* \return A Tensor whose op member is the variance operation
+*/
+inline Tensor var(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+  return sum(
+      pow(
+        broadcast_sub(data, mean(data, axis, true)),
+        make_const(data->dtype, 2)),
+      axis, keepdims);
+}
+
+/*!
 * \brief Creates an operation that finds the minimum of elements over
 * a given axis.
 *
