@@ -1043,9 +1043,9 @@ class CommandQueue {
     VTAWriteMappedReg(vta_load_handle_, 0x10, 0);
     // LOAD @ 0x18 : Data signal of weight_V
     VTAWriteMappedReg(vta_load_handle_, 0x18, 0);
-    // COMPUTE @ 0x10 : Data signal of uops_V
+    // COMPUTE @ 0x20 : Data signal of uops_V
     VTAWriteMappedReg(vta_compute_handle_, 0x20, 0);
-    // COMPUTE @ 0x18 : Data signal of biases_V
+    // COMPUTE @ 0x28 : Data signal of biases_V
     VTAWriteMappedReg(vta_compute_handle_, 0x28, 0);
     // STORE @ 0x10 : Data signal of outputs_V
     VTAWriteMappedReg(vta_store_handle_, 0x10, 0);
