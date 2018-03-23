@@ -126,28 +126,36 @@ struct TargetContext {
 /*! \brief This namespace provides functions to construct Target instances */
 namespace target {
 /*! \return A target for LLVM */
-EXPORT Target llvm(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target llvm(const std::unordered_set<std::string>& options =
+                   std::unordered_set<std::string>());
 
 /*! \return A target for CUDA */
-EXPORT Target cuda(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target cuda(const std::unordered_set<std::string>& options =
+                   std::unordered_set<std::string>());
 
 /*! \return A target for ROCm */
-EXPORT Target rocm(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target rocm(const std::unordered_set<std::string>& options =
+                   std::unordered_set<std::string>());
 
 /*! \return A target for OpenCL */
-EXPORT Target opencl(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target opencl(const std::unordered_set<std::string>& options =
+                     std::unordered_set<std::string>());
 
 /*! \return A target for Metal */
-EXPORT Target metal(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target metal(const std::unordered_set<std::string>& options =
+                    std::unordered_set<std::string>());
 
 /*! \return A target for rasp */
-EXPORT Target rasp(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target rasp(const std::unordered_set<std::string>& options =
+                   std::unordered_set<std::string>());
 
 /*! \return A target for Mali */
-EXPORT Target mali(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target mali(const std::unordered_set<std::string>& options =
+                   std::unordered_set<std::string>());
 
 /*! \return A target for stackvm */
-EXPORT Target stackvm(const std::unordered_set<std::string>& options = std::unordered_set<std::string>());
+EXPORT Target stackvm(const std::unordered_set<std::string>& options =
+                      std::unordered_set<std::string>());
 
 }  // namespace target
 
