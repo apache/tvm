@@ -1,6 +1,6 @@
 # Directories
 ROOTDIR = $(CURDIR)
-BUILD_DIR = $(ROOTDIR)/../../build/hardware/vivado
+BUILD_DIR = $(ROOTDIR)/../../build/hardware/xilinx
 SCRIPT_DIR = $(ROOTDIR)/scripts
 SRC_DIR = $(ROOTDIR)/src
 SIM_DIR = $(ROOTDIR)/sim
@@ -64,7 +64,7 @@ bit: ip
 	cd $(HW_BUILD_PATH) && \
 		$(VIVADO) -mode tcl -source $(SCRIPT_DIR)/vivado.tcl \
 		-tclargs $(IP_BUILD_PATH) $(VTA_HW_COMP_THREADS) $(VTA_HW_COMP_CLOCK_FREQ) \
-		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(OUT_WIDTH) \
+		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_OUT_WIDTH) \
 		$(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) \
 		$(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) $(VTA_OUT_BUFF_SIZE)
 

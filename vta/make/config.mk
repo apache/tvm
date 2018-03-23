@@ -84,7 +84,7 @@ VTA_ACC_BUFF_SIZE = $(shell echo "$$(( 1 << $(VTA_LOG_ACC_BUFF_SIZE) ))" )
 VTA_LOG_OUT_BUFF_SIZE = \
 $(shell echo "$$(( $(VTA_LOG_ACC_BUFF_SIZE) + $(VTA_LOG_OUT_WIDTH) - $(VTA_LOG_ACC_WIDTH) ))" )
 #  Out buffer size in Bytes
-VTA_OUT_BUFF_SIZE = $(shell echo "$$(( 1 << $(LOG_OUT_BUFF_SIZE) ))" )
+VTA_OUT_BUFF_SIZE = $(shell echo "$$(( 1 << $(VTA_LOG_OUT_BUFF_SIZE) ))" )
 
 # Update ADD_CFLAGS
 ADD_CFLAGS += \

@@ -39,7 +39,7 @@ uint64_t vta(
 
 #else  // NO_SIM
 
-#include "../../../hardware/vivado/src/vta.h"
+#include "../../../hardware/xilinx/src/vta.h"
 
 #endif  // NO_SIM
 

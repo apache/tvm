@@ -13,9 +13,9 @@
 void fetch(
   uint32_t insn_count,
   volatile insn_T *insns,
-  hls::stream<insn_T> *load_queue,
-  hls::stream<insn_T> *gemm_queue,
-  hls::stream<insn_T> *store_queue) {
+  hls::stream<insn_T> &load_queue,
+  hls::stream<insn_T> &gemm_queue,
+  hls::stream<insn_T> &store_queue) {
 #pragma HLS INTERFACE s_axilite port = insn_count bundle = CONTROL_BUS
 #pragma HLS INTERFACE m_axi port = insns offset = slave bundle = ins_port
 #pragma HLS INTERFACE axis port = load_queue
@@ -32,12 +32,12 @@ void fetch(
     memop_id_T memory_type = insn.range(VTA_INSN_MEM_5_1, VTA_INSN_MEM_5_0);
     // Push to appropriate instruction queue
     if (opcode == VTA_OPCODE_STORE) {
-      store_queue->write(insn);
+      store_queue.write(insn);
     } else if (opcode == VTA_OPCODE_LOAD &&
           (memory_type == VTA_MEM_ID_INP || memory_type == VTA_MEM_ID_WGT)) {
-      load_queue->write(insn);
+      load_queue.write(insn);
     } else {
-      gemm_queue->write(insn);
+      gemm_queue.write(insn);
     }
   }
 }
@@ -45,9 +45,9 @@ void fetch(
 void load(
   volatile inp_vec_T *inputs,
   volatile wgt_vec_T *weights,
-  hls::stream<insn_T> *load_queue,
-  hls::stream<bool> *g2l_dep_queue,
-  hls::stream<bool> *l2g_dep_queue,
+  hls::stream<insn_T> &load_queue,
+  hls::stream<bool> &g2l_dep_queue,
+  hls::stream<bool> &l2g_dep_queue,
   inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]
   ) {
@@ -61,7 +61,7 @@ void load(
 #pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 
   // Pop load instruction
-  insn_T insn = load_queue->read();
+  insn_T insn = load_queue.read();
 
   // Decode instruction
   bool pop_prev_dependence = insn[VTA_INSN_MEM_1];
@@ -81,7 +81,7 @@ void load(
 
   // Pop dependence token if instructed
   if (pop_next_dependence) {
-    g2l_dep_queue->read();
+    g2l_dep_queue.read();
   }
 
   // Initialize indices
@@ -170,19 +170,19 @@ void load(
 
   // Push dependence token if instructed
   if (push_next_dependence) {
-    l2g_dep_queue->write(1);
+    l2g_dep_queue.write(1);
   }
 }
 
 void compute(
-  volatile uint32_t *done,
+  volatile uint32_t &done,
   volatile uop_T *uops,
   volatile acc_vec_T *biases,
-  hls::stream<insn_T> *gemm_queue,
-  hls::stream<bool> *l2g_dep_queue,
-  hls::stream<bool> *s2g_dep_queue,
-  hls::stream<bool> *g2l_dep_queue,
-  hls::stream<bool> *g2s_dep_queue,
+  hls::stream<insn_T> &gemm_queue,
+  hls::stream<bool> &l2g_dep_queue,
+  hls::stream<bool> &s2g_dep_queue,
+  hls::stream<bool> &g2l_dep_queue,
+  hls::stream<bool> &g2s_dep_queue,
   out_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
@@ -210,7 +210,7 @@ void compute(
 #pragma HLS ARRAY_PARTITION variable = acc_mem complete dim = 2
 
   // Pop GEMM instruction
-  insn_T insn = gemm_queue->read();
+  insn_T insn = gemm_queue.read();
 
   // Decode
   opcode_T opcode = insn.range(VTA_INSN_MEM_0_1, VTA_INSN_MEM_0_0);
@@ -221,19 +221,19 @@ void compute(
 
   // Pop dependence token if instructed
   if (pop_prev_dependence) {
-    l2g_dep_queue->read();
+    l2g_dep_queue.read();
   }
   if (pop_next_dependence) {
-    s2g_dep_queue->read();
+    s2g_dep_queue.read();
   }
 
   // Perform action based on opcode
   if (opcode == VTA_OPCODE_FINISH) {
     // Set done flag if we reach a FINISH instruction
-    *done = 1;
+    done = 1;
   } else if (opcode == VTA_OPCODE_LOAD || opcode == VTA_OPCODE_STORE) {
     // Set done value
-    *done = 0;
+    done = 0;
 
     // Decode instruction
     memop_id_T memory_type = insn.range(VTA_INSN_MEM_5_1, VTA_INSN_MEM_5_0);
@@ -283,7 +283,7 @@ void compute(
     }
   } else if (opcode == VTA_OPCODE_GEMM || opcode == VTA_OPCODE_ALU) {
     // Set done value
-    *done = 0;
+    done = 0;
 
     // Decode
     uop_idx_T uop_bgn = insn.range(VTA_INSN_GEM_5_1, VTA_INSN_GEM_5_0);
@@ -383,6 +383,7 @@ void compute(
         } else if (opcode == VTA_OPCODE_ALU) {
           // Iterate over micro op
           READ_ALU_UOP: for (int upc = uop_bgn; upc < uop_end; upc++) {
+#pragma HLS PIPELINE II = 2 rewind
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
@@ -405,14 +406,15 @@ void compute(
             // Result matrices
             acc_vec_T cmp_res[VTA_BATCH];
             acc_vec_T add_res[VTA_BATCH];
-            acc_vec_T shr_res[VTA_BATCH];
+            acc_vec_T rshr_res[VTA_BATCH];
+            acc_vec_T lshr_res[VTA_BATCH];
             out_vec_T short_cmp_res[VTA_BATCH];
             out_vec_T short_add_res[VTA_BATCH];
-            out_vec_T short_shr_res[VTA_BATCH];
+            out_vec_T short_rshr_res[VTA_BATCH];
+            out_vec_T short_lshr_res[VTA_BATCH];
 
             // Perform ALU op over matrix elements
             for (int i = 0; i < VTA_BATCH; i++) {
-#pragma HLS PIPELINE II = 1 rewind
               // Results vector
               acc_vec_T res_vec = 0;
               for (int b = 0; b < VTA_BLOCK_OUT; b++) {
@@ -434,12 +436,18 @@ void compute(
                 add_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = add_val;
                 short_add_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
                     (inp_T) add_val.range(VTA_OUT_WIDTH - 1, 0);
-                // Compute Shift
-                acc_T shr_val =
+                // Compute Right Shift
+                acc_T rshr_val =
                     src_0 >> (aluop_sh_imm_T) src_1.range(VTA_LOG_ACC_WIDTH - 1, 0);
-                shr_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = shr_val;
-                short_shr_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
-                    (inp_T) shr_val.range(VTA_OUT_WIDTH-1, 0);
+                rshr_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = rshr_val;
+                short_rshr_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (inp_T) rshr_val.range(VTA_OUT_WIDTH-1, 0);
+                // Compute Left Shift
+                acc_T lshr_val =
+                    src_0 << (aluop_sh_imm_T) src_1.range(VTA_LOG_ACC_WIDTH - 1, 0);
+                lshr_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = lshr_val;
+                short_lshr_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (inp_T) lshr_val.range(VTA_OUT_WIDTH-1, 0);
               }
 
               // Store to accum memory/store buffer
@@ -451,8 +459,11 @@ void compute(
                 acc_mem[dst_idx][i] = add_res[i];
                 out_mem[dst_idx][i] = short_add_res[i];
               } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
-                acc_mem[dst_idx][i] = shr_res[i];
-                out_mem[dst_idx][i] = short_shr_res[i];
+                acc_mem[dst_idx][i] = rshr_res[i];
+                out_mem[dst_idx][i] = short_rshr_res[i];
+              } else if (alu_opcode == VTA_ALU_OPCODE_SHL) {
+                acc_mem[dst_idx][i] = lshr_res[i];
+                out_mem[dst_idx][i] = short_lshr_res[i];
               }
             }
           }
@@ -473,18 +484,18 @@ void compute(
 
   // Push dependence token if instructed
   if (push_prev_dependence) {
-    g2l_dep_queue->write(1);
+    g2l_dep_queue.write(1);
   }
   if (push_next_dependence) {
-    g2s_dep_queue->write(1);
+    g2s_dep_queue.write(1);
   }
 }
 
 void store(
   volatile out_vec_T *outputs,
-  hls::stream<insn_T> *store_queue,
-  hls::stream<bool> *g2s_dep_queue,
-  hls::stream<bool> *s2g_dep_queue,
+  hls::stream<insn_T> &store_queue,
+  hls::stream<bool> &g2s_dep_queue,
+  hls::stream<bool> &s2g_dep_queue,
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
   ) {
 #pragma HLS INTERFACE m_axi port = outputs offset = slave bundle = data_port
@@ -495,7 +506,7 @@ void store(
 #pragma HLS INTERFACE s_axilite port = return bundle = CONTROL_BUS
 
   // Load buffer
-  insn_T insn = store_queue->read();
+  insn_T insn = store_queue.read();
 
   // Decode
   bool pop_prev_dependence = insn[VTA_INSN_MEM_1];
@@ -515,7 +526,7 @@ void store(
 
   // Pop dependence token if instructed
   if (pop_prev_dependence) {
-    g2s_dep_queue->read();
+    g2s_dep_queue.read();
   }
 
   // Initialize indices
@@ -546,7 +557,7 @@ void store(
 
   // Push dependence token if instructed
   if (push_prev_dependence) {
-    s2g_dep_queue->write(1);
+    s2g_dep_queue.write(1);
   }
 }
 
@@ -589,7 +600,7 @@ void vta(
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
 
   // Push all instructions into the queues
-  fetch(insn_count, insns, &tmp_load_queue, &tmp_gemm_queue, &tmp_store_queue);
+  fetch(insn_count, insns, tmp_load_queue, tmp_gemm_queue, tmp_store_queue);
 
   // Global done indicator
   uint32_t done = 0;
@@ -621,7 +632,7 @@ void vta(
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
         tmp_load_popped = false;
-        load(inputs, weights, &load_queue, &g2l_dep_queue, &l2g_dep_queue, inp_mem, wgt_mem);
+        load(inputs, weights, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem, wgt_mem);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -649,8 +660,8 @@ void vta(
         // Push the instruction in the load queue
         gemm_queue.write(tmp_gemv);
         tmp_gemm_popped = false;
-        compute(&done, uops, biases, &gemm_queue, &l2g_dep_queue, &s2g_dep_queue,
-                &g2l_dep_queue, &g2s_dep_queue, inp_mem, wgt_mem, out_mem);
+        compute(done, uops, biases, gemm_queue, l2g_dep_queue, s2g_dep_queue,
+                g2l_dep_queue, g2s_dep_queue, inp_mem, wgt_mem, out_mem);
       } else {
         // Execution of load stage pending on completion of other stages,
         // so break here...
@@ -671,7 +682,7 @@ void vta(
         // Push the instruction in the load queue
         store_queue.write(tmp_store);
         tmp_store_popped = false;
-        store(outputs, &store_queue, &g2s_dep_queue, &s2g_dep_queue, out_mem);
+        store(outputs, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
