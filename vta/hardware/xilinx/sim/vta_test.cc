@@ -40,6 +40,8 @@ int main(void) {
     status |= alu_test(VTA_ALU_OPCODE_ADD, true, 16, 128, false);
     status |= alu_test(VTA_ALU_OPCODE_SHR, true, 16, 128, true);
     status |= alu_test(VTA_ALU_OPCODE_SHR, true, 16, 128, false);
+    status |= alu_test(VTA_ALU_OPCODE_SHL, true, 16, 128, true);
+    status |= alu_test(VTA_ALU_OPCODE_SHL, true, 16, 128, false);
 
     // Run ALU test (vector-vector operators)
     status |= alu_test(VTA_ALU_OPCODE_MIN, false, 16, 128, true);

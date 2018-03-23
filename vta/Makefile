@@ -55,10 +55,10 @@ endif
 all: lib/libvta.$(SHARED_LIBRARY_SUFFIX)
 
 VTA_LIB_SRC = $(wildcard src/*.cc src/tvm/*.cc)
-ifeq ($(TARGET), PYNQ_TARGET)
+ifeq ($(TARGET), VTA_PYNQ_TARGET)
 	VTA_LIB_SRC += $(wildcard src/pynq/*.cc)
 	LDFLAGS += -L/usr/lib -lsds_lib
-	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/ -l:libdma.so
+	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/ -l:libdma.so
 endif
 VTA_LIB_OBJ = $(patsubst %.cc, build/%.o, $(VTA_LIB_SRC))
 
@@ -79,7 +79,7 @@ cpplint:
 	python nnvm/dmlc-core/scripts/lint.py vta cpp include src hardware tests
 
 pylint:
-	pylint python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	pylint python/tvm_vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 doc:
 	doxygen docs/Doxyfile

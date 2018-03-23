@@ -107,9 +107,9 @@ typedef ap_uint<VTA_LOG_ACC_WIDTH> aluop_sh_imm_T;
 void fetch(
   uint32_t insn_count,
   volatile insn_T *insns,
-  hls::stream<insn_T> *load_queue,
-  hls::stream<insn_T> *gemm_queue,
-  hls::stream<insn_T> *store_queue);
+  hls::stream<insn_T> &load_queue,
+  hls::stream<insn_T> &gemm_queue,
+  hls::stream<insn_T> &store_queue);
 
 /*!
 * \brief Load module.
@@ -129,9 +129,9 @@ void fetch(
 void load(
   volatile inp_vec_T *inputs,
   volatile wgt_vec_T *weights,
-  hls::stream<insn_T> *load_queue,
-  hls::stream<bool> *g2l_dep_queue,
-  hls::stream<bool> *l2g_dep_queue,
+  hls::stream<insn_T> &load_queue,
+  hls::stream<bool> &g2l_dep_queue,
+  hls::stream<bool> &l2g_dep_queue,
   inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]);
 
@@ -159,14 +159,14 @@ void load(
 * \param out_mem Local output SRAM buffer. Write only single port BRAM.
 */
 void compute(
-  volatile uint32_t *done,
+  volatile uint32_t &done,
   volatile uop_T *uops,
   volatile acc_vec_T *biases,
-  hls::stream<insn_T> *gemm_queue,
-  hls::stream<bool> *l2g_dep_queue,
-  hls::stream<bool> *s2g_dep_queue,
-  hls::stream<bool> *g2l_dep_queue,
-  hls::stream<bool> *g2s_dep_queue,
+  hls::stream<insn_T> &gemm_queue,
+  hls::stream<bool> &l2g_dep_queue,
+  hls::stream<bool> &s2g_dep_queue,
+  hls::stream<bool> &g2l_dep_queue,
+  hls::stream<bool> &g2s_dep_queue,
   out_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]);
@@ -186,9 +186,9 @@ void compute(
 */
 void store(
   volatile out_vec_T *outputs,
-  hls::stream<insn_T> *store_queue,
-  hls::stream<bool> *g2s_dep_queue,
-  hls::stream<bool> *s2g_dep_queue,
+  hls::stream<insn_T> &store_queue,
+  hls::stream<bool> &g2s_dep_queue,
+  hls::stream<bool> &s2g_dep_queue,
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]);
 
 /*!

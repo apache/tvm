@@ -1,6 +1,6 @@
 CC ?= g++
 CFLAGS = -Wall -O3 -std=c++11 -I/usr/include
-LDFLAGS = -L/usr/lib -L/home/xilinx/pynq/drivers
+LDFLAGS = -L/usr/lib -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/
 LIBS = -l:libsds_lib.so -l:libdma.so
 INCLUDE_DIR = ../../../include
 DRIVER_DIR = ../../../src/pynq
