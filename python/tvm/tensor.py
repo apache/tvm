@@ -1,5 +1,5 @@
 """Tensor and Operation class for computation declaration."""
-# pylint: disable=invalid-name,abstract-method
+# pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 from ._ffi.node import NodeBase, NodeGeneric, register_node, convert_to_node
 from . import _api_internal
@@ -31,74 +31,8 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
 
 itervar_cls = None
 
-
-class TensorOp(_expr.ExprOp):
-    """Overloading binary operators provided by topi.
-
-    When topi is imported, _make_bop is implemented.
-    If _make_bop raises NotImplementedError, the operator is not
-    overloaded (i.e. stick to ExprOp); otherwise, the overloaded
-    operator is applied, as implemented in topi.
-    """
-
-    __op_priority__ = 2
-
-    @staticmethod
-    def _make_bop(lhs, rhs, op):
-        """Binary operator of two tensors. Activated when topi is imported. """
-        raise NotImplementedError("Please import topi to enable broadcast operators.")
-
-    def __add__(self, other):
-        try:
-            return TensorOp._make_bop(self, other, "add")
-        except NotImplementedError:
-            return super(TensorOp, self).__add__(other)
-
-    def __radd__(self, other):
-        try:
-            return TensorOp._make_bop(other, self, "add")
-        except NotImplementedError:
-            return super(TensorOp, self).__radd__(other)
-
-    def __sub__(self, other):
-        try:
-            return TensorOp._make_bop(self, other, "sub")
-        except NotImplementedError:
-            return super(TensorOp, self).__sub__(other)
-
-    def __rsub__(self, other):
-        try:
-            return TensorOp._make_bop(other, self, "sub")
-        except NotImplementedError:
-            return super(TensorOp, self).__rsub__(other)
-
-    def __mul__(self, other):
-        try:
-            return TensorOp._make_bop(self, other, "mul")
-        except NotImplementedError:
-            return super(TensorOp, self).__mul__(other)
-
-    def __rmul__(self, other):
-        try:
-            return TensorOp._make_bop(other, self, "mul")
-        except NotImplementedError:
-            return super(TensorOp, self).__rmul__(other)
-
-    def __div__(self, other):
-        try:
-            return TensorOp._make_bop(self, other, "div")
-        except NotImplementedError:
-            return super(TensorOp, self).__div__(other)
-
-    def __rdiv__(self, other):
-        try:
-            return TensorOp._make_bop(other, self, "div")
-        except NotImplementedError:
-            return super(TensorOp, self).__rdiv__(other)
-
-
 @register_node
-class Tensor(NodeBase, TensorOp):
+class Tensor(NodeBase, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
     def __call__(self, *indices):
         ndim = self.ndim

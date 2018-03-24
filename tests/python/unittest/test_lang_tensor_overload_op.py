@@ -54,36 +54,6 @@ def test_operator_type():
     assert isinstance(B2 + B, tvm.tensor.Tensor)
     assert isinstance(B + B2, tvm.tensor.Tensor)
 
-    try:
-        B1 + n
-        assert False
-    except (ValueError, tvm.TVMError):
-        pass
-
-    try:
-        B1 + A
-        assert False
-    except (ValueError, tvm.TVMError):
-        pass
-
-    try:
-        B1 + B
-        assert False
-    except (ValueError, tvm.TVMError):
-        pass
-
-    try:
-        B1 + B1
-        assert False
-    except (ValueError, tvm.TVMError):
-        pass
-
-    try:
-        B1 + B2
-        assert False
-    except (ValueError, tvm.TVMError):
-        pass
-
 
 def test_tensor_scalar_bop():
     import topi
