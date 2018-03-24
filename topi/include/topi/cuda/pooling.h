@@ -39,7 +39,7 @@ inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
     Tensor OL;
     if (detail::contains(s->outputs, pool->op)) {
       out = pool;
-      OL = s.cache_write(pool, "local");
+      OL = (s.cache_write({pool}, "local"))[0];
     } else {
       out = outs[0]->op.output(0);
       s[pool].set_scope("local");
@@ -107,7 +107,7 @@ inline Schedule schedule_global_pool(const Target &target, const Array<Tensor>& 
     Tensor OL;
     if (detail::contains(s->outputs, pool->op)) {
       out = pool;
-      OL = s.cache_write(pool, "local");
+      OL = (s.cache_write({pool}, "local"))[0];
     } else {
       out = outs[0]->op.output(0);
       s[pool].set_scope("local");

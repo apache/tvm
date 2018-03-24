@@ -298,11 +298,11 @@ class Schedule : public NodeRef {
    *  User can further call compute_inline to inline the original layout and keep
    *  the data stored in the transformed layout.
    *
-   * \param tensor The tensor to be produced.
+   * \param tensor The tensors to be produced.
    * \param scope The scope of the storage.
    * \return The created tensor.
    */
-  EXPORT Tensor cache_write(const Tensor& tensor, const std::string& scope);
+  EXPORT Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
    * This will create a new stage that generated the new tensor with axis

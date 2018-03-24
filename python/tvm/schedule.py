@@ -292,8 +292,8 @@ class Schedule(NodeBase):
 
         Parameters
         ----------
-        tensor : Tensor
-            The tensor to be feed to.
+        tensor : Tensor, list or tuple
+            The tensors to be feed to. All the tensors must be produced computeOp
         scope : str
             The scope of cached
 
@@ -302,7 +302,13 @@ class Schedule(NodeBase):
         cache : Tensor
             The created cache tensor.
         """
-        return _api_internal._ScheduleCacheWrite(self, tensor, scope)
+        if not isinstance(tensor, (tuple,list)):
+            tensor = [tensor]
+        tensor = convert(tensor)
+        cahce_tensor = _api_internal._ScheduleCacheWrite(self, tensor, scope)
+        if len(cahce_tensor) == 1:
+            return cahce_tensor[0]
+        return cahce_tensor
 
     def rfactor(self, tensor, axis, factor_axis=0):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.

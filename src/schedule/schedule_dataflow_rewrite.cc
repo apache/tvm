@@ -128,13 +128,11 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   return cache;
 }
 
-
-// Cache write and relayout the data according to loop pattern
-Tensor CacheWriteWithReLayout(Schedule sch,
-                              const Tensor& tensor,
-                              const std::string& scope) {
-  sch->InvalidateCache();
-  Stage orig_stage = sch[tensor->op];
+//duplicate original stage
+//return a new compputeOp with new axis, new name and new body
+Operation DuplicateStage(Stage& orig_stage, 
+                        const std::string& scope, 
+                        Array<Expr>& args) {
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
 
   std::unordered_set<IterVar> red_axis;
@@ -182,11 +180,33 @@ Tensor CacheWriteWithReLayout(Schedule sch,
       vsub[iv->var.get()] = value_map.at(iv);
     }
   }
-  Expr body = VarReplacer(vsub).Mutate(compute->body[tensor->value_index]);
-  body = InjectPredicate(predicates, body);
-  body = VarReplacer(vsub2newvar).Mutate(body);
+  Expr body;
+  Array<Expr> body_list;
+  const ir::Reduce* first_reduce;
+  bool has_reduce = false;
+  for (auto cbody: compute->body) {
+    body = VarReplacer(vsub).Mutate(cbody);
+    body = InjectPredicate(predicates, body);
+    body = VarReplacer(vsub2newvar).Mutate(body);
+    //Reduce nodes in ONE computeOp must be the same except value_index
+    //This is right only if the oringinal body ensures Reduce nodes are the same
+    if (body->is_type<ir::Reduce>()) {
+      const ir::Reduce* reduce_body = body.as<ir::Reduce>();
+      if (has_reduce) {
+        body = ir::Reduce::make(first_reduce->combiner,
+                                first_reduce->source,
+                                first_reduce->axis,
+                                first_reduce->condition,
+                                reduce_body->value_index);
+      }
+      else {
+        has_reduce = true;
+        first_reduce = reduce_body;
+      }
+    }
+    body_list.push_back(body);
+  }
   // The reader args
-  Array<Expr> args;
   {
     // cache->compute
     std::unordered_map<IterVar, Expr> value_map;
@@ -199,12 +219,48 @@ Tensor CacheWriteWithReLayout(Schedule sch,
       args.push_back(value_map.at(iv));
     }
   }
-  Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, compute->tag, new_axis, {body});
-  Tensor cache_tensor = cache_op.output(0);
-  Operation orig_new_op = ComputeOpNode::make(
+  std::string name = compute->name;
+  if (0 != scope.size()) {
+    name += ".";
+  }
+  return ComputeOpNode::make(
+      name + scope, compute->tag, new_axis, body_list);
+}
+
+// Cache write and relayout the data according to loop pattern
+Array<Tensor> CacheWriteWithReLayout(Schedule sch,
+                              const Array<Tensor>& tensor_array,
+                              const std::string& scope) {
+  size_t tensor_size = tensor_array.size();
+  sch->InvalidateCache();
+  Tensor tensor = tensor_array[0];
+  Stage orig_stage = sch[tensor->op];
+  const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
+  Array<Expr> args;
+  Operation cache_op = DuplicateStage(orig_stage, scope, args);
+  std::vector<Operation> orig_new_op_list;
+  //record for dataflow replace
+  std::unordered_map<Tensor, Tensor> vmap;
+  //for the first output tensor, the original computeOp can be reused
+  {
+    Tensor cache_tensor = cache_op.output(0);
+    Operation orig_new_op = ComputeOpNode::make(
       compute->name, compute->tag, compute->axis,
       {cache_tensor(args)});
+    vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
+    orig_new_op_list.push_back(orig_new_op);
+  }
+  //for the rest output tensors, a new computeOp should be created by DuplicateStage function
+  for (size_t i = 1; i < tensor_size; i++) {
+    Tensor cache_tensor = cache_op.output(i);
+    Operation orig_new_op = ComputeOpNode::make(
+      compute->name, compute->tag, compute->axis,
+      {cache_tensor(args)});
+    Array<Expr> args_new;
+    Stage tmp_stage = Stage(orig_new_op);
+    orig_new_op = DuplicateStage(tmp_stage, "", args_new);
+    orig_new_op_list.push_back(orig_new_op);
+  }
   // The replace of the dataflow
   std::unordered_map<Tensor, Tensor> vmap;
   std::unordered_map<Tensor, Tensor> rvmap;
@@ -219,31 +275,55 @@ Tensor CacheWriteWithReLayout(Schedule sch,
   // create schedule for new cached stage.
   ArrayNode* stages = sch->stages.CopyOnWrite();
   size_t pos = FindNodeRef(stages, orig_stage);
-  Stage cache_stage = Stage(cache_op);
-  cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos,
                       cache_stage.node_);
   sch->stage_map.Set(cache_op, cache_stage);
+  // mutate orig stage
+  Stage replaced_orig_stage;
+  {
+    orig_stage->op = orig_new_op_list[0];
+    orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
+    orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
+    orig_stage->relations = Array<IterVarRelation>();
+  }
+  for (size_t i = 1; i < tensor_size; i++) {
+    pos ++;
+    Stage replaced_orig_stage = Stage(orig_new_op_list[i]);
+    ArrayNode* stages = sch->stages.CopyOnWrite();
+    stages->data.insert(stages->data.begin() + pos,
+                      replaced_orig_stage.node_);
+    sch->stage_map.Set(replaced_orig_stage->op, replaced_orig_stage);
+  }
   // Update group
   cache_stage->group = orig_stage->group;
   if (cache_stage->group.defined()) {
     ++cache_stage->group->num_child_stages;
   }
-  return cache_tensor;
+  Array<Tensor> cache_op_list;
+  for (size_t i = 0; i < tensor_size; i++) {
+    cache_op_list.push_back(cache_op.output(i));
+  }
+  return cache_op_list;
 }
 
-Tensor Schedule::cache_write(const Tensor& tensor,
+Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array,
                              const std::string& scope) {
   (*this)->InvalidateCache();
+  CHECK(tensor_array.size() > 0)
+      << "size of tensor_array must be greater than 0";
+  Tensor tensor = tensor_array[0];
   Stage orig_stage = operator[](tensor->op);
   const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
-  CHECK(compute)
-      << "cache write only take ComputeOp as writers";
-  CHECK_EQ(compute->num_outputs(), 1)
-      << "cache write only support single output ComputeOp";
+  CHECK(static_cast<size_t>(compute->num_outputs()) == tensor_array.size())
+      << "size of input tensor list must be same as number of stage outputs";
+  for (size_t i = 1; i < tensor_array.size(); i++) {
+    Stage tmp_stage = operator[](tensor_array[i]->op);
+    CHECK(orig_stage.same_as(tmp_stage))
+        << "Input tensor list must be generated by ONE computeOp";
+  }
 
-  return CacheWriteWithReLayout(*this, tensor, scope);
+  return CacheWriteWithReLayout(*this, tensor_array, scope);
 }
 
 void RebaseNonZeroMinLoop(const Schedule& sch) {
