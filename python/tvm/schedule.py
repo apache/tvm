@@ -302,7 +302,7 @@ class Schedule(NodeBase):
         cache : Tensor
             The created cache tensor.
         """
-        if not isinstance(tensor, (tuple,list)):
+        if not isinstance(tensor, (tuple, list)):
             tensor = [tensor]
         tensor = convert(tensor)
         cahce_tensor = _api_internal._ScheduleCacheWrite(self, tensor, scope)
