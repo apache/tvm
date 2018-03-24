@@ -128,11 +128,11 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   return cache;
 }
 
-//duplicate original stage
-//return a new compputeOp with new axis, new name and new body
-Operation DuplicateStage(Stage& orig_stage, 
-                        const std::string& scope, 
-                        Array<Expr>& args) {
+// duplicate original stage
+// return a new compputeOp with new axis, new name and new body
+Operation DuplicateStage(const Stage& orig_stage,
+                        const std::string& scope,
+                        Array<Expr>* args) {
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
 
   std::unordered_set<IterVar> red_axis;
@@ -184,12 +184,12 @@ Operation DuplicateStage(Stage& orig_stage,
   Array<Expr> body_list;
   const ir::Reduce* first_reduce;
   bool has_reduce = false;
-  for (auto cbody: compute->body) {
+  for (auto cbody : compute->body) {
     body = VarReplacer(vsub).Mutate(cbody);
     body = InjectPredicate(predicates, body);
     body = VarReplacer(vsub2newvar).Mutate(body);
-    //Reduce nodes in ONE computeOp must be the same except value_index
-    //This is right only if the oringinal body ensures Reduce nodes are the same
+    // Reduce nodes in ONE computeOp must be the same except value_index
+    // This is right only if the oringinal body ensures Reduce nodes are the same
     if (body->is_type<ir::Reduce>()) {
       const ir::Reduce* reduce_body = body.as<ir::Reduce>();
       if (has_reduce) {
@@ -198,8 +198,7 @@ Operation DuplicateStage(Stage& orig_stage,
                                 first_reduce->axis,
                                 first_reduce->condition,
                                 reduce_body->value_index);
-      }
-      else {
+      } else {
         has_reduce = true;
         first_reduce = reduce_body;
       }
@@ -216,7 +215,7 @@ Operation DuplicateStage(Stage& orig_stage,
     schedule::PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
       if (red_axis.count(iv)) continue;
-      args.push_back(value_map.at(iv));
+      args->push_back(value_map.at(iv));
     }
   }
   std::string name = compute->name;
@@ -237,11 +236,11 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Stage orig_stage = sch[tensor->op];
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
   Array<Expr> args;
-  Operation cache_op = DuplicateStage(orig_stage, scope, args);
+  Operation cache_op = DuplicateStage(orig_stage, scope, &args);
   std::vector<Operation> orig_new_op_list;
-  //record for dataflow replace
+  // record for dataflow replace
   std::unordered_map<Tensor, Tensor> vmap;
-  //for the first output tensor, the original computeOp can be reused
+  // for the first output tensor, the original computeOp can be reused
   {
     Tensor cache_tensor = cache_op.output(0);
     Operation orig_new_op = ComputeOpNode::make(
@@ -250,7 +249,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
     orig_new_op_list.push_back(orig_new_op);
   }
-  //for the rest output tensors, a new computeOp should be created by DuplicateStage function
+  // for the rest output tensors, a new computeOp should be created by DuplicateStage function
   for (size_t i = 1; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
     Operation orig_new_op = ComputeOpNode::make(
@@ -258,7 +257,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
       {cache_tensor(args)});
     Array<Expr> args_new;
     Stage tmp_stage = Stage(orig_new_op);
-    orig_new_op = DuplicateStage(tmp_stage, "", args_new);
+    orig_new_op = DuplicateStage(tmp_stage, "", &args_new);
     orig_new_op_list.push_back(orig_new_op);
   }
   // The replace of the dataflow
@@ -288,7 +287,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     orig_stage->relations = Array<IterVarRelation>();
   }
   for (size_t i = 1; i < tensor_size; i++) {
-    pos ++;
+    pos++;
     Stage replaced_orig_stage = Stage(orig_new_op_list[i]);
     ArrayNode* stages = sch->stages.CopyOnWrite();
     stages->data.insert(stages->data.begin() + pos,
