@@ -14,58 +14,51 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.expr.Add))
   assert(y.a == x)
 """
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, unnecessary-lambda
 from __future__ import absolute_import as _abs
 from ._ffi.node import NodeBase, NodeGeneric, register_node
 from . import make as _make
 from . import generic as _generic
 from . import _api_internal
 
+__op_priority__ = 1
+
+def _bind_generic_ops():
+    """Bind generic operators for Expr."""
+    if __op_priority__ > _generic.__op_priority__:
+        _generic.__op_priority__ = __op_priority__
+        _generic.add = lambda lhs, rhs: _make.Add(lhs, rhs)
+        _generic.subtract = lambda lhs, rhs: _make.Sub(lhs, rhs)
+        _generic.multiply = lambda lhs, rhs: _make.Mul(lhs, rhs)
+        _generic.divide = lambda lhs, rhs: _make.Div(lhs, rhs)
+
+_bind_generic_ops()
+
+
 class ExprOp(object):
     def __add__(self, other):
-        try:
-            return _generic.add(self, other)
-        except NotImplementedError:
-            return _make.Add(self, other)
+        return _generic.add(self, other)
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __sub__(self, other):
-        try:
-            return _generic.sub(self, other)
-        except NotImplementedError:
-            return _make.Sub(self, other)
+        return _generic.subtract(self, other)
 
     def __rsub__(self, other):
-        try:
-            return _generic.sub(other, self)
-        except NotImplementedError:
-            return _make.Sub(other, self)
+        return _generic.subtract(other, self)
 
     def __mul__(self, other):
-        try:
-            return _generic.mul(self, other)
-        except NotImplementedError:
-            return _make.Mul(self, other)
+        return _generic.multiply(self, other)
 
     def __rmul__(self, other):
-        try:
-            return _generic.mul(other, self)
-        except NotImplementedError:
-            return _make.Mul(other, self)
+        return _generic.multiply(other, self)
 
     def __div__(self, other):
-        try:
-            return _generic.div(self, other)
-        except NotImplementedError:
-            return _make.Div(self, other)
+        return _generic.divide(self, other)
 
     def __rdiv__(self, other):
-        try:
-            return _generic.div(other, self)
-        except NotImplementedError:
-            return _make.Div(other, self)
+        return _generic.divide(other, self)
 
     def __truediv__(self, other):
         return self.__div__(other)
