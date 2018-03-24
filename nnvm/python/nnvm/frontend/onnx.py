@@ -217,7 +217,7 @@ def _softsign():
 
 def _softplus():
     def _impl(inputs, attr, params):
-        return _sym.log(_sym.exp(x) + 1)
+        return _sym.log(_sym.exp(inputs[0]) + 1)
     return _impl
 
 def _pad():
