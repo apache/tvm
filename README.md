@@ -1,4 +1,4 @@
-<img src=https://raw.githubusercontent.com/tqchen/tvmlang.org/master/images/logo/tvm-logo-small.png width=100/> Tensor IR Stack for Deep Learning Systems
+<img src=https://raw.githubusercontent.com/tqchen/tvmlang.org/master/images/logo/tvm-logo-small.png width=128/> Tensor IR Stack for Deep Learning Systems
 ==============================================
 
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
