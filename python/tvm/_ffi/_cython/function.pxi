@@ -74,10 +74,10 @@ def convert_to_tvm_func(object pyfunc):
     return ret
 
 
-cdef inline void make_arg(object arg,
-                          TVMValue* value,
-                          int* tcode,
-                          list temp_args):
+cdef inline int make_arg(object arg,
+                         TVMValue* value,
+                         int* tcode,
+                         list temp_args) except -1:
     """Pack arguments into c args tvm call accept"""
     cdef unsigned long long ptr
     if isinstance(arg, NodeBase):
@@ -152,6 +152,7 @@ cdef inline void make_arg(object arg,
         temp_args.append(arg)
     else:
         raise TypeError("Don't know how to handle type %s" % type(arg))
+    return 0
 
 cdef inline bytearray make_ret_bytes(void* chandle):
     handle = ctypes_handle(chandle)
