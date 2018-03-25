@@ -21,19 +21,6 @@ from . import make as _make
 from . import generic as _generic
 from . import _api_internal
 
-__op_priority__ = 1
-
-def _bind_generic_ops():
-    """Bind generic operators for Expr."""
-    if __op_priority__ > _generic.__op_priority__:
-        _generic.__op_priority__ = __op_priority__
-        _generic.add = lambda lhs, rhs: _make.Add(lhs, rhs)
-        _generic.subtract = lambda lhs, rhs: _make.Sub(lhs, rhs)
-        _generic.multiply = lambda lhs, rhs: _make.Mul(lhs, rhs)
-        _generic.divide = lambda lhs, rhs: _make.Div(lhs, rhs)
-
-_bind_generic_ops()
-
 
 class ExprOp(object):
     def __add__(self, other):
