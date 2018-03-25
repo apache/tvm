@@ -3,6 +3,7 @@
  * \file reduce.cc
  * \brief reduce operator.
  */
+#include <numeric>
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
@@ -23,29 +24,29 @@ using namespace nnvm::compiler;
 // reduce
 DMLC_REGISTER_PARAMETER(ReduceParam);
 
-inline TShape GetReduceAxes(const TShape& ishape,
+inline TShape GetReduceAxes(const uint32_t indim,
                             const TShape& axis,
                             bool exclude) {
   if (axis.ndim() == 0) {
-    TShape r_axes(ishape.ndim());
+    TShape r_axes(indim);
     std::iota(r_axes.begin(), r_axes.end(), 0);
     return r_axes;
   }
 
-  CHECK_LT(axis[axis.ndim() - 1], ishape.ndim())
+  CHECK_LT(axis[axis.ndim() - 1], indim)
     << "Reduction axis " << axis[axis.ndim() - 1]
-    << " exceeds input dimensions " << ishape;
+    << " exceeds input dimensions " << indim;
 
   TShape in_axis = axis;
   for (auto& i : in_axis) {
-    i = i < 0 ? i + ishape.ndim() : i;
+    i = i < 0 ? i + indim : i;
     CHECK_GE(i, 0) << "axis out of bounds in reduce operator";
-    CHECK_LT(i, ishape.ndim()) << "axis out of bounds in reduce operator";
+    CHECK_LT(i, indim) << "axis out of bounds in reduce operator";
   }
   std::sort(in_axis.begin(), in_axis.end());
   if (!exclude) return in_axis;
-  TShape r_axis(ishape.ndim() - in_axis.ndim());
-  for (unsigned i = 0, j = 0, k = 0; i < ishape.ndim(); ++i) {
+  TShape r_axis(indim - in_axis.ndim());
+  for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
     if (i == in_axis[j]) {
         ++j;
         continue;
@@ -59,14 +60,15 @@ inline TShape ReduceShapeImpl(const TShape& ishape,
                               const TShape& axis,
                               bool keepdims,
                               bool exclude) {
-  TShape r_axes = GetReduceAxes(ishape, axis, exclude);
+  uint32_t indim = ishape.ndim();
+  TShape r_axes = GetReduceAxes(indim, axis, exclude);
   if (!r_axes.ndim()) return ishape;
-  if (r_axes.ndim() == ishape.ndim())
-    return TShape(keepdims ? ishape.ndim() : 1);
+  if (r_axes.ndim() == indim)
+    return TShape(keepdims ? indim : 1);
 
   if (keepdims) {
     TShape oshape(ishape);
-    for (unsigned i = 0, j = 0; i < ishape.ndim(); ++i) {
+    for (unsigned i = 0, j = 0; i < indim; ++i) {
       if (i != r_axes[j]) continue;
       oshape[i] = 1;
       ++j;
@@ -74,8 +76,8 @@ inline TShape ReduceShapeImpl(const TShape& ishape,
     return oshape;
   }
 
-  TShape oshape(ishape.ndim() - r_axes.ndim());
-  for (unsigned i = 0, j = 0, k = 0; i < ishape.ndim(); ++i) {
+  TShape oshape(indim - r_axes.ndim());
+  for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
     if (i == r_axes[j]) {
       ++j;
       continue;
@@ -164,20 +166,9 @@ Example::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
-    Array<Expr> axis;
-    if (param.exclude) {
-      std::set<dim_t> exclude_axis;
-      for (dim_t i = 0; i < param.axis.ndim(); ++i) {
-        exclude_axis.insert(param.axis[i]);
-      }
-      for (dim_t i = 0; i < static_cast<int>(inputs[0].ndim()); ++i) {
-        if (exclude_axis.count(i) == 0) {
-          axis.push_back(make_const(Int(32), i));
-        }
-      }
-    } else {
-      axis = ShapeToArray(param.axis);
-    }
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    auto axis = ShapeToArray(r_axes);
     return Array<Tensor>{
       topi::sum(inputs[0], axis, param.keepdims) };
 })
@@ -203,7 +194,9 @@ NNVM_REGISTER_REDUCE_OP(max)
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
-    auto axis = ShapeToArray(param.axis);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    auto axis = ShapeToArray(r_axes);
     return Array<Tensor>{
       topi::max(inputs[0], axis, param.keepdims) };
 })
@@ -235,7 +228,9 @@ NNVM_REGISTER_REDUCE_OP(min)
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
-    auto axis = ShapeToArray(param.axis);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    auto axis = ShapeToArray(r_axes);
     return Array<Tensor>{
       topi::min(inputs[0], axis, param.keepdims) };
 })
