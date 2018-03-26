@@ -412,6 +412,14 @@ constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
  */
 constexpr const char* tvm_storage_sync = "tvm_storage_sync";
 /*!
+ * \brief See pseudo code
+ *
+ *  Type tvm_warp_shuffle(Type value, warp_id) {
+ *     return (value passed in by warp indicated by warp_id);
+ *  }
+ */
+constexpr const char* tvm_warp_shuffle = "tvm_warp_shuffle";
+/*!
  * \brief Initialize the global barrier.
  *  Call this at beginning of kernel that need global barrier.
  */

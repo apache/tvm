@@ -450,6 +450,10 @@ def build(sch,
         else:
             raise ValueError("unknown function type %d" % func.func_type)
 
+    for i, func in enumerate(fdevice):
+        warp_size = target.thread_warp_size
+        fdevice[i] = ir_pass.LowerWarpMemory(func, warp_size)
+
     if "gpu" in target.keys and not fdevice:
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do bind?" % target)
