@@ -2,17 +2,52 @@
 import numpy as np
 import tvm
 import topi
-import topi.testing
 from topi.util import get_const_tuple
+
+def l2norm_instance_python(a_np, eps):
+    """L2 norm operator in NCHW layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    eps : float
+        epsilon constant value
+
+    Returns
+    -------
+    l2norm_out : np.ndarray
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    batch, axis1, axis2, axis3 = a_np.shape
+    sqr_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
+    sqrt_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
+    l2norm_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+
+    for i in range(batch):
+        for j in range(axis1):
+            for k in range(axis2):
+                for m in range(axis3):
+                    sqr_sum[i] = sqr_sum[i] + (a_np[i, j, k, m] * \
+                                               a_np[i, j, k, m])
+    for b in range(batch):
+        sqrt_sum[b] = np.sqrt(sqr_sum[b] + eps)
+    for b in range(batch):
+        for j in range(axis1):
+            for k in range(axis2):
+                for m in range(axis3):
+                    l2norm_out[b, j, k, m] = a_np[b, j, k, m]/sqrt_sum[b]
+    return l2norm_out
 
 def verify_l2norm(n, c, h, w, eps):
 
     A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.l2norm_instance_nchw(A, eps)
+    B = topi.nn.l2norm_instance(A, eps)
     dtype = A.dtype
 
     a_np = np.random.uniform(size=(n, c, h, w)).astype(dtype)
-    b_np = topi.testing.l2norm_nchw_python(a_np, eps)
+    b_np = l2norm_instance_python(a_np, eps)
 
     def check_device(device):
         if not tvm.module.enabled(device):

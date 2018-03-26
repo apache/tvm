@@ -2,11 +2,19 @@
 """TVM operator for local response norm compute."""
 from __future__ import absolute_import
 import tvm
+import topi
 from .pad import pad
 
 @tvm.target.generic_func
 def lrn_nchw(data, size, alpha=0.0001, beta=0.75, bias=2):
-    """Perform local response normalisation on the data
+    """Perform the across channels local response normalisation
+    on the input data.
+
+    sum_sqr_up^i{x, y} = (bias+((alpha/size)* \
+                                {sum_{j=max(0, i-size/2)}^{min(N-1,i+size/2)} \
+                                     (data^j{x,y})^2}))^beta
+    output^i{x, y} = data^i{x, y}/sum_sqr_up^i{x, y}
+    N is the number for input channels
 
     Parameters
     ----------
@@ -35,8 +43,8 @@ def lrn_nchw(data, size, alpha=0.0001, beta=0.75, bias=2):
     assert (size % 2) == 1, "size should be odd number"
 
     ##Add padding on left & right of size radius first
-    pad_before = [0, int(size/2), 0, 0]
-    pad_after = [0, int(size/2), 0, 0]
+    pad_before = [0, (size/2), 0, 0]
+    pad_after = [0, (size/2), 0, 0]
     pad_data = pad(data, pad_before, pad_after, name="pad_data")
 
     rxk = tvm.reduce_axis((0, size), name='rxk')
@@ -44,8 +52,7 @@ def lrn_nchw(data, size, alpha=0.0001, beta=0.75, bias=2):
         pad_data[i, l + rxk, j, k] * pad_data[i, l + rxk, j, k],
         axis=rxk))
 
-    sqr_sum_up = tvm.compute((b, c, h, w), lambda i, j, k, l: tvm.intrin.power(
+    sqr_sum_up = tvm.compute((b, c, h, w), lambda i, j, k, l: tvm.power(
         (bias + (alpha * sqr_sum[i, j, k, l] / size)), beta))
 
-    return tvm.compute(data.shape,
-                       lambda b, c, h, w: data[b, c, h, w] / sqr_sum_up[b, c, h, w])
+    return topi.broadcast_div(data, sqr_sum_up)
