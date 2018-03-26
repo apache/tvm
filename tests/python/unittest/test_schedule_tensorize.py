@@ -11,6 +11,78 @@ def intrin_vadd(n):
     with tvm.build_config(offset_factor=16):
         return tvm.decl_tensor_intrin(z.op, intrin_func)
 
+def _argmax_comp(lhs, rhs):
+    idx = tvm.make.Select((lhs[1] >= rhs[1]), lhs[0], rhs[0])
+    val = tvm.make.Select((lhs[1] >= rhs[1]), lhs[1], rhs[1])
+    return idx, val
+
+def _argmax_init(idx_type, val_type):
+    return tvm.const(-1, idx_type), tvm.min_value(val_type)
+
+def intrin_vargmax(m, n):
+    # (4, 128) tensorized argmax
+    _argmax = tvm.comm_reducer(fcombine=_argmax_comp, fidentity=_argmax_init, name='argmax')
+    x = tvm.placeholder((m, n), name='x')
+    r = tvm.reduce_axis((0, n), name='r')
+    idx, val = tvm.compute((m, ), lambda j: _argmax((r.var, x[j][r]), axis=r), name='argmax_op')
+    op = idx.op
+
+    x_layout = tvm.decl_buffer(x.shape, x.dtype, 'x_buffer',
+        offset_factor=16, data_alignment=16, strides=[1024, 1])
+    idx_layout = tvm.decl_buffer(idx.shape, idx.dtype, 'idx_buffer',
+        offset_factor=16, data_alignment=16, strides=[1, ])
+    val_layout = tvm.decl_buffer(val.shape, val.dtype, 'val_buffer',
+        offset_factor=16, data_alignment=16, strides=[1, ])
+
+    def intrin_func(ins, outs):
+        xx = ins[0]
+        yy, zz = outs
+
+        xx_ptr = xx.access_ptr("r")
+        yy_ptr = yy.access_ptr("w")
+        zz_ptr = zz.access_ptr("w")
+
+        body = tvm.call_packed(
+            "argmax", xx_ptr, yy_ptr, zz_ptr)
+        reset = tvm.call_packed(
+            "argmax_init", yy_ptr, zz_ptr)
+        update = tvm.call_packed(
+            "argmax_cmp", xx_ptr, yy_ptr, zz_ptr)
+        return body, reset, update
+
+    return tvm.decl_tensor_intrin(op, intrin_func, name='argmax',
+            binds={x: x_layout, idx: idx_layout, val: val_layout})
+
+def test_tensorize_argmax():
+    _argmax = tvm.comm_reducer(fcombine=_argmax_comp, fidentity=_argmax_init, name='argmax')
+    m = 1024
+    n = 1024
+    k = tvm.reduce_axis((0, n), name='k')
+    data = tvm.placeholder((m, n), name='A')
+    T_idx, T_val = tvm.compute((m, ), lambda i: _argmax((k.var, data[i][k]), axis=k), name='T')
+    T = T_idx.op
+
+    factor = 4
+    rfactor = 16
+    s = tvm.create_schedule(T)
+    xo, xi = s[T].split(T.axis[0], factor=factor)
+    ko, ki = s[T].split(k, factor=rfactor)
+    s[T].reorder(xo, ko, xi, ki)
+
+    # tensorize
+    vargmax = intrin_vargmax(factor, rfactor)
+    s[T].tensorize(xi, vargmax)
+    s = s.normalize()
+    dom_map = tvm.schedule.InferBound(s)
+    finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
+    out_dom, in_dom = finfer(s[T], dom_map)
+    fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
+    body = fmatch(s[T], out_dom, in_dom, vargmax)
+    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(body[0]),
+                             tvm.ir_pass.CanonicalSimplify(vargmax.op.body[0]))
+    tvm.lower(s, [data, T_idx, T_val])
+
+
 def intrin_gemv(m, n):
     w = tvm.placeholder((m, n), name='w')
     x = tvm.placeholder((n,), name='x')
@@ -198,7 +270,7 @@ def test_tensorize_matmul():
         tvm.lower(s, [A, B, C])
 
     check(16)
-    check_rfactor(16, 16)
+    check_rfactor(4, 16)
     check_rfactor_no_reset(16, 16)
     check_rfactor_no_reset_multi_reduction(16, 16)
 
@@ -233,3 +305,4 @@ if __name__ == "__main__":
     test_tensorize_vadd()
     test_tensorize_matmul()
     test_tensorize_op()
+    test_tensorize_argmax()
