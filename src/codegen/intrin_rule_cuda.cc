@@ -49,6 +49,12 @@ struct CUDAPopcount {
   }
 };
 
+struct CUDAShuffle {
+  std::string operator()(Type t, std::string name) const {
+    return "__shfl";
+  }
+};
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
 .set_body(DispatchExtern<CUDAFastMath>);
 
@@ -66,6 +72,10 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
 .set_body(DispatchExtern<CUDAPopcount>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
+.set_body(DispatchExtern<CUDAShuffle>);
+
 
 }  // namespace intrin
 }  // namespace codegen
