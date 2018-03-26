@@ -53,6 +53,13 @@ class Tuple {
     this->assign(init.begin(), init.end());
   }
   /*!
+   * \brief constructor from vector
+   * \param init the vector
+   */
+  inline Tuple(std::vector<ValueType> init) {
+    this->assign(init.begin(), init.end());
+  }
+  /*!
    * \brief move constructor from Tuple
    * \param src the source shape
    */

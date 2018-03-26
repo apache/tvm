@@ -95,6 +95,16 @@ inline bool ReduceShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+inline bool CollapseShape(const nnvm::NodeAttrs& attrs,
+                          std::vector<TShape>* in_attrs,
+                          std::vector<TShape>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  if ((*in_attrs)[0].ndim() == 1) return false;
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *out_attrs, 0, (*in_attrs)[1]);
+  return true;
+}
+
 template<typename PType>
 inline void AxesParamParser(nnvm::NodeAttrs* attrs) {
   PType param;
@@ -114,6 +124,17 @@ inline void AxesParamParser(nnvm::NodeAttrs* attrs) {
   .set_attr<FCorrectLayout>("FCorrectLayout",                           \
     ElemwiseFixedLayoutUnknownOut<1, 1>)                                \
   .set_num_inputs(1)                                                    \
+  .set_num_outputs(1)
+
+#define NNVM_REGISTER_COLLAPSE_OP(op)                                     \
+  NNVM_REGISTER_OP(collapse_ ## op)                                      \
+  .add_argument("data", "Tensor", "The input")                          \
+  .add_argument("as", "Tensor", "The reference")                          \
+  .add_arguments(ReduceParam::__FIELDS__())                             \
+  .set_attr_parser(AxesParamParser<ReduceParam>)                        \
+  .set_attr<FInferShape>("FInferShape", CollapseShape)                    \
+  .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)               \
+  .set_num_inputs(2)                                                    \
   .set_num_outputs(1)
 
 NNVM_REGISTER_REDUCE_OP(sum)
@@ -233,6 +254,29 @@ NNVM_REGISTER_REDUCE_OP(min)
     };
 });
 
+NNVM_REGISTER_COLLAPSE_OP(sum)
+.describe(R"code(Reduces lhs to the shape of rhs via sum)code" NNVM_ADD_FILELINE)
+.set_attr<FExpandCompute>(
+  "FExpandCompute", [](const NodePtr& n,
+                 const std::vector<NodeEntry>& inputs,
+                 const std::vector<TShape>& input_shapes) {
+    auto ishape = input_shapes[0];
+    auto oshape = input_shapes[1];
+    CHECK_GE(ishape.ndim(), oshape.ndim());
+    std::vector<dim_t> r_axes;
+    for (uint32_t i = 0; i < ishape.ndim(); ++i) {
+      int ii = ishape.ndim() - i - 1;
+      int oi = oshape.ndim() - i - 1;
+      if (oi < 0 || ishape[ii] != oshape[oi]) {
+        r_axes.push_back(ii);
+      }
+    }
+    if (r_axes.size() == 0) { return std::vector<NodeEntry>{n->inputs[0]}; }
+    std::ostringstream ax_oss; ax_oss << TShape(r_axes);
+    return std::vector<NodeEntry>{
+      MakeNode("sum", n->attrs.name, {inputs[0]}, {{"axis", ax_oss.str()}})
+    };
+});
 
 }  // namespace top
 }  // namespace nnvm
