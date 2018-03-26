@@ -90,7 +90,7 @@ First select model and save compiled deploy_lib.so, deploy_graph.json and deploy
 Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to tutorials/deployment/android/app/src/main/assets/ and make changes TVM target on MainActivity.java
 
 ```
-            // create tvm context
+            // create java tvm context
             TVMContext tvmCtx = TVMContext.opencl();
 ```
 

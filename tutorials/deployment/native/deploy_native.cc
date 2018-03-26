@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     uint64_t num_samples=1;
     TVMArrayAlloc(in_shape, in_ndim, dtype_code, dtype_bits, dtype_lanes, kDLCPU, device_id, &x);
 
-    // Initlalize the Input
+    // Initialize the Input
     for (int ii=0; ii < in_ndim; ii++)
         num_samples *= in_arr.shape[ii];
 
