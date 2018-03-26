@@ -14,7 +14,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.expr.Add))
   assert(y.a == x)
 """
-# pylint: disable=missing-docstring, unnecessary-lambda
+# pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
 from ._ffi.node import NodeBase, NodeGeneric, register_node
 from . import make as _make

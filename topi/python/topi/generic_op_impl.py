@@ -1,8 +1,9 @@
 """Implementation of generic operators in the presence of Tensor"""
-# pylint: disable=invalid-name, too-many-arguments, no-else-return
+# pylint: disable=invalid-name, too-many-arguments
 from __future__ import absolute_import as _abs
 import tvm
 from . import broadcast as _broadcast
+from . import tag
 
 
 def _make_bop(elementwise_bop, broadcast_bop, orig_bop):
@@ -86,10 +87,14 @@ def _make_bop(elementwise_bop, broadcast_bop, orig_bop):
             return broadcast_bop(lhs, rhs)
         elif rl == 0:
             f = lambda *i: elementwise_bop(lhs, rhs(*i))
-            return tvm.compute(rhs.shape, f, "tensor_" + name)
-        else:#rr == 0 in this case
+            with tvm.tag_scope(tag=tag.ELEMWISE):
+                return tvm.compute(rhs.shape, f, "tensor_" + name)
+        elif rr == 0:
             f = lambda *i: elementwise_bop(lhs(*i), rhs)
-            return tvm.compute(lhs.shape, f, "tensor_" + name)
+            with tvm.tag_scope(tag=tag.ELEMWISE):
+                return tvm.compute(lhs.shape, f, "tensor_" + name)
+        else:
+            raise AssertionError("Cannot reach this line.")
 
     _tensor_bop_impl.__doc__ = _tensor_bop_impl.__doc__.format(op=name)
     return _tensor_bop_impl
