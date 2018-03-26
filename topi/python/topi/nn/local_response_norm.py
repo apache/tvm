@@ -43,8 +43,8 @@ def lrn_nchw(data, size, alpha=0.0001, beta=0.75, bias=2):
     assert (size % 2) == 1, "size should be odd number"
 
     ##Add padding on left & right of size radius first
-    pad_before = [0, (size/2), 0, 0]
-    pad_after = [0, (size/2), 0, 0]
+    pad_before = [0, (size//2), 0, 0]
+    pad_after = [0, (size//2), 0, 0]
     pad_data = pad(data, pad_before, pad_after, name="pad_data")
 
     rxk = tvm.reduce_axis((0, size), name='rxk')
