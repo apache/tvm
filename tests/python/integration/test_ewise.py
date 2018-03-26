@@ -1,4 +1,5 @@
 import tvm
+from tvm.contrib import nvcc
 import numpy as np
 import time
 
@@ -155,7 +156,46 @@ def test_add():
     run("uint64")
 
 
+def try_warp_memory():
+    """skip this in default test because it require higher arch"""
+    m = 128
+    A = tvm.placeholder((m,), name='A')
+    B = tvm.compute((m,), lambda i: A[i] + 3, name='B')
+    warp_size = 32
+    s = tvm.create_schedule(B.op)
+    AA = s.cache_read(A, "warp", [B])
+    xo, xi = s[B].split(B.op.axis[0], warp_size * 2)
+    xi0, xi1 = s[B].split(xi, factor=warp_size)
+    tx = tvm.thread_axis("threadIdx.x")
+    s[B].bind(xi1, tx)
+    s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[AA].compute_at(s[B], xo)
+    xo, xi = s[AA].split(s[AA].op.axis[0], warp_size)
+    s[AA].bind(xi, tx)
+
+    @tvm.register_func
+    def tvm_callback_cuda_compile(code):
+        ptx =  nvcc.compile_cuda(code, target="ptx")
+        return ptx
+
+    # one line to build the function.
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("skip because %s is not enabled.." % device)
+            return
+        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array((np.random.uniform(size=m) * 256).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        f(a, b)
+        np.testing.assert_allclose(
+            b.asnumpy(), a.asnumpy() + 3, rtol=1e-6)
+
+    check_device("cuda")
+
+
 if __name__ == "__main__":
+    try_warp_memory()
     test_add()
     test_log_pow_llvm()
     test_exp()
