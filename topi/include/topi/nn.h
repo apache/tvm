@@ -72,7 +72,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
                               T threshold = static_cast<T>(0),
                               T alpha = static_cast<T>(0.1),
                               std::string name = "tensor",
-                              std::string tag = kBroadcast) {
+                              std::string tag = kElementWise) {
   return tvm::compute(
     t->shape,
     [&](const tvm::Array<tvm::Var>& i) {
@@ -100,7 +100,7 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
                          const tvm::Tensor &slope,
                          const int axis = 1,
                          std::string name = "tensor",
-                         std::string tag = kElementWise) {
+                         std::string tag = kBroadcast) {
   CHECK_EQ(4, x->shape.size());
   CHECK((size_t)axis < x->shape.size()) <<
         "Wrong axis ("  << axis << ")value. ";
