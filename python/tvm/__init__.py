@@ -15,6 +15,7 @@ from . import module
 from . import node
 from . import ir_builder
 from . import target
+from . import generic
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
