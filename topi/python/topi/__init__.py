@@ -17,6 +17,7 @@ from . import cpp
 
 from .math import *
 from .tensor import *
+from .generic_op_impl import *
 from .reduction import *
 from .transform import *
 from .broadcast import *
