@@ -83,7 +83,7 @@ inline Tensor softmax(const Tensor &x,
   });
   return tvm::compute(input_shape, [&](const Array<Var> &indices) {
       return _normalize(max_elem, expsum, indices);
-  });
+  }, name, tag);
 }
 
 /*!
@@ -116,7 +116,7 @@ inline Tensor log_softmax(const Tensor& x,
   return tvm::compute(
     x->shape, [&](Var i, Var j) {
       return x(i, j) - max_elem(i) - tvm::log(expsum(i));
-    });
+    }, name, tag);
 }
 
 }  // namespace nn
