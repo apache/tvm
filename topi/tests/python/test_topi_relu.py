@@ -53,16 +53,7 @@ def verify_prelu(x, w):
     w_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(W.shape)).astype(W.dtype)
 
     def _prelu_numpy(x, W):
-        out = np.zeros(x.shape)
-        for b in range (x.shape[0]):
-            for c in range (x.shape[1]):
-                for h in range (x.shape[2]):
-                    for w in range (x.shape[3]):
-                        if x[b][c][h][w] < 0:
-                           out[b][c][h][w] = x[b][c][h][w] * W[c]
-                        else:
-                           out[b][c][h][w] = x[b][c][h][w]
-        return out
+        return (x < 0) * (x *W.reshape(3, 1, 1)) + (x>=0) * x
 
     B = topi.nn.prelu(X, W)
     s = tvm.create_schedule([B.op])

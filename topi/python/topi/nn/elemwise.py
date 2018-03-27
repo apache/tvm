@@ -44,8 +44,8 @@ def leaky_relu(x, alpha):
         return tvm.select(value > 0, value, value * calpha)
     return tvm.compute(x.shape, _compute)
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
-def prelu(x, slope, layout='NCHW'):
+@tvm.tag_scope(tag=tag.BROADCAST)
+def prelu(x, slope, axis=1):
     """ PReLU.
     It accepts two arguments: an input ``x`` and a weight array ``W``
     and computes the output as :math:`PReLU(x) y = x > 0 ? x : W * x`,
@@ -56,10 +56,10 @@ def prelu(x, slope, layout='NCHW'):
         Input argument.
 
     slope : tvm.Tensor
-        Channelised tensor, if its a scalar, then do the leaky relu, otherwise compute prelu.
+        Channelised slope tensor for prelu
 
-    layout : string
-        Layout of data, whether NCHW or NHWC
+    axis : int
+        The axis where the channel data needs to be applied
 
     Returns:
     y : tvm.Tensor
@@ -69,22 +69,10 @@ def prelu(x, slope, layout='NCHW'):
         [http://arxiv.org/pdf/1502.01852v1.pdf]
     """
 
-    if not isinstance(slope, tvm.tensor.Tensor):
-        #here need to do leaky_relu since the slope is scalar.
-        #leaky_relu function above cannot be invoked from here as it will give nested optag error
-        def _compute(*indices):
-            value = x(*indices)
-            calpha = tvm.const(slope, value.dtype)
-            return tvm.select(value > 0, value, value * calpha)
-        return tvm.compute(x.shape, _compute)
-
     assert len(x.shape) == 4 and len(slope.shape) == 1
-    assert layout == "NCHW" or layout == "NHWC"
-    assert ((layout == "NCHW" and get_const_int(slope.shape[0]) == get_const_int(x.shape[1])) or
-            (layout == "NHWC" and get_const_int(slope.shape[0]) == get_const_int(x.shape[3])))
-
-    idx = 1 if (layout == "NCHW") else 3
+    assert axis < len(x.shape)
+    assert get_const_int(slope.shape[0]) == get_const_int(x.shape[axis])
 
     def _compute_channelwise(*indices):
-        return tvm.select(x(*indices) > 0, x(*indices), x(*indices) * slope(indices[idx]))
+        return tvm.select(x(*indices) > 0, x(*indices), x(*indices) * slope(indices[axis]))
     return tvm.compute(x.shape, _compute_channelwise)
