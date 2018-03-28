@@ -139,6 +139,7 @@ xcuserdata/
 .DS_Store
 tags
 cscope*
+*.lock
 
 # vim temporary files
 *.swp

@@ -189,7 +189,7 @@ class ThreadSyncInserter : public IRMutator {
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
       Stmt barrier;
-      if (sync_scope_.rank == 0) {
+      if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else {
         barrier = Evaluate::make(
@@ -206,15 +206,15 @@ class ThreadSyncInserter : public IRMutator {
     return stmt;
   }
   Expr Mutate_(const Load* op, const Expr& e) final {
-    if (sync_scope_.rank == 0 &&
-        GetScope(op->buffer_var.get()).rank == 0) {
+    if (sync_scope_.rank == StorageRank::kGlobal &&
+        GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].read_count;
     }
     return IRMutator::Mutate_(op, e);
   }
   Stmt Mutate_(const Store* op, const Stmt& s) final {
-    if (sync_scope_.rank == 0 &&
-        GetScope(op->buffer_var.get()).rank == 0) {
+    if (sync_scope_.rank == StorageRank::kGlobal &&
+        GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].write_count;
     }
     return IRMutator::Mutate_(op, s);
@@ -228,7 +228,7 @@ class ThreadSyncInserter : public IRMutator {
       thread_extents_.pop_back();
       std::swap(temp, in_thread_env_);
       // first thread scope.
-      if (!in_thread_env_ && sync_scope_.rank == 0) {
+      if (!in_thread_env_ && sync_scope_.rank == StorageRank::kGlobal) {
         ret = InitGlobalBarrier(ret.as<AttrStmt>());
         num_blocks_ = Expr();
         is_lead_ = Expr();
@@ -253,7 +253,8 @@ class ThreadSyncInserter : public IRMutator {
   // Get current storage scope.
   StorageScope GetScope(const Variable* buf) const {
     auto it = storage_scope_.find(buf);
-    StorageScope s; s.rank = 0;
+    StorageScope s;
+    s.rank = StorageRank::kGlobal;
     if (it == storage_scope_.end()) return s;
     return it->second;
   }
@@ -279,7 +280,7 @@ class ThreadSyncInserter : public IRMutator {
     return Block::make(prep, body);
   }
   Stmt MakeGlobalBarrier() {
-    CHECK_EQ(sync_scope_.rank, 0);
+    CHECK(sync_scope_.rank == StorageRank::kGlobal);
     if (!num_blocks_.defined()) {
       CHECK(!is_lead_.defined());
       num_work_dim_ = thread_extents_.size();

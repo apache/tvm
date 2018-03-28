@@ -25,6 +25,7 @@
 #include "../../src/runtime/module.cc"
 #include "../../src/runtime/registry.cc"
 #include "../../src/runtime/file_util.cc"
+#include "../../src/runtime/threading_backend.cc"
 #include "../../src/runtime/thread_pool.cc"
 
 // NOTE: all the files after this are optional modules
@@ -55,7 +56,7 @@
 
 // Uncomment the following lines to enable CUDA
 // #include "../../src/runtime/cuda/cuda_device_api.cc"
-// #include "../../src/runtime/cuda/cuda_runtime.cc"
+// #include "../../src/runtime/cuda/cuda_module.cc"
 
 // Uncomment the following lines to enable OpenCL
 // #include "../../src/runtime/opencl/opencl_device_api.cc"

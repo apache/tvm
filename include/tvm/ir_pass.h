@@ -408,6 +408,15 @@ LoweredFunc ThreadSync(LoweredFunc stmt, std::string storage_scope);
 LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
 
 /*!
+ * \brief Lower warp memory in stmt.
+ * \param f The device function to be lowered.
+ * \param warp_size the size of warp where no sync is needed.
+ *        this function will only take in effect if warp_size is bigger than one.
+ * \return Transformed function.
+ */
+LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
+
+/*!
  * \brief Lower packed function call.
  * \param f The function to be lowered.
  * \return Transformed function.
@@ -440,6 +449,20 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
  * \return Transformed function.
  */
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Verify if memory accesses are legal for a specific target device type.
+ *
+ *  In the case that tgt is cuda, if not all workload is bound with
+ *  threads, CPU code is generated that tries to access GPU memory,
+ *  which is illegal. This pass performs verification for this case.
+ *
+ * \param func The function to be verified.
+ * \param device_type The target device type.
+ * \return Success of memory verification.
+ */
+bool VerifyMemory(LoweredFunc func, int device_type);
+
 }  // namespace ir
 }  // namespace tvm
 

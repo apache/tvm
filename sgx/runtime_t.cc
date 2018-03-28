@@ -9,17 +9,9 @@
 #include "../../src/runtime/module.cc"
 #include "../../src/runtime/registry.cc"
 #include "../../src/runtime/system_lib_module.cc"
-
-// dummy parallel runtime (for now)
-int TVMBackendParallelLaunch(
-    FTVMParallelLambda flambda,
-    void* cdata,
-    int num_task) {
-  TVMParallelGroupEnv env = { nullptr /* sync_handle */, 1 /* num_task */ };
-  return flambda(0 /* task_id */, &env, cdata);
-}
-
-int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
-  return 0;
-}
-
+#ifndef _LIBCPP_SGX_CONFIG
+#include "../../src/runtime/threading_backend.cc"
+#else
+#include "threading_backend.cc"
+#endif
+#include "../../src/runtime/thread_pool.cc"

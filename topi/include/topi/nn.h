@@ -10,6 +10,7 @@
 #include <string>
 
 #include "topi/tags.h"
+#include "topi/detail/constant_utils.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
 #include "tvm/tvm.h"
@@ -81,6 +82,40 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
     },
     name,
     tag);
+}
+
+/*!
+ * \brief Creates an operation that performs a parametric rectified linear unit
+ *
+ * \param x The input data tensor
+ * \param slope The channel-wise slope tensor
+ * \param axis The axis where the channel data needs to be applied
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the relu operation
+ */
+template <typename T>
+inline tvm::Tensor prelu(const tvm::Tensor &x,
+                         const tvm::Tensor &slope,
+                         const int axis = 1,
+                         std::string name = "tensor",
+                         std::string tag = kBroadcast) {
+  CHECK_EQ(4, x->shape.size());
+  CHECK((size_t)axis < x->shape.size()) <<
+        "Wrong axis ("  << axis << ")value. ";
+  CHECK(topi::detail::GetConstInt(slope->shape[0]) ==
+        topi::detail::GetConstInt(x->shape[axis]))
+        << "Wrong slope shape received.";
+
+  return tvm::compute(x->shape,
+                     [&](const tvm::Array<tvm::Var> &indices) {
+                        return tvm::select(x(indices) > 0,
+                                           x(indices),
+                                           x(indices) * slope(indices[axis]));
+                      },
+                      name,
+                      tag);
 }
 
 /*!

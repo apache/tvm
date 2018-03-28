@@ -19,6 +19,7 @@
 namespace tvm {
 namespace ir {
 
+using runtime::StorageRank;
 using runtime::StorageScope;
 
 // Find a linear pattern of storage acess
@@ -794,7 +795,7 @@ class StoragePlanRewriter : public IRMutator {
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {
-      if (scope.rank > 1 || op->type.is_handle()) {
+      if (scope.rank >= StorageRank::kWarp || op->type.is_handle()) {
         return NewAlloc(op, attach_scope, scope, const_nbits);
       }
       if (const_nbits > 0  &&  const_nbits <= 32) {
@@ -824,6 +825,7 @@ class StoragePlanRewriter : public IRMutator {
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->type.element_of()) continue;
+        e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
       }
@@ -852,7 +854,8 @@ class StoragePlanRewriter : public IRMutator {
     // This rules only apply if we are using non special memory
     if (e->scope.tag.length() == 0) {
       // Disable sharing of local memory.
-      if (e->scope.rank > 1 || e->allocs[0]->type.is_handle()) return;
+      if (e->scope.rank >= StorageRank::kWarp ||
+          e->allocs[0]->type.is_handle()) return;
       // disable reuse of small arrays
       if (e->const_nbits > 0 && e->const_nbits <= 32) return;
     }

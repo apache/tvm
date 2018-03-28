@@ -57,7 +57,7 @@ class GraphRuntime : public ModuleNode {
   }
   /*!
    * \brief Initialize the graph executor with graph and context.
-   * \param graph The execution graph.
+   * \param graph_json The execution graph.
    * \param module The module containing the compiled functions.
    * \param ctx The context where the graph should sit on
    */
@@ -88,18 +88,28 @@ class GraphRuntime : public ModuleNode {
         return static_cast<int>(i);
       }
     }
-    LOG(FATAL) << "cannot find " << name << " among input";
+    LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
     return -1;
   }
   /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
-   * \param data The input data.
+   * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
     uint32_t eid = this->entry_id(input_nodes_[index], 0);
     TVM_CCALL(TVMArrayCopyFromTo(data_in, &data_entry_[eid], nullptr));
+  }
+  /*!
+   * \brief Copy index-th input to data_out
+   * \param index The input index.
+   * \param data_out The output
+   */
+  void GetInput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+    uint32_t eid = this->entry_id(input_nodes_[index], 0);
+    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
   /*!
    * \brief Copy index-th output to data_out.
@@ -449,7 +459,8 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   CHECK(size == names.size())
       << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
-    uint32_t in_idx = GetInputIndex(names[i]);
+    int in_idx = GetInputIndex(names[i]);
+    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
     LoadDLTensor(strm, &data_entry_[eid]);
@@ -463,14 +474,6 @@ void GraphRuntime::SetupStorage() {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
   data_entry_.resize(num_node_entries());
-  // Find the maximum space size.
-  int max_id = 0;
-  for (size_t i = 0; i < attrs_.shape.size(); ++i) {
-    max_id = std::max(attrs_.storage_id[i] + 1, max_id);
-  }
-  for (uint32_t nid : input_nodes_) {
-    attrs_.storage_id[this->entry_id(nid, 0)] = max_id++;
-  }
   // size of each storage pool entry
   std::vector<size_t> pool_entry_bytes;
   // Find the maximum space size.
@@ -583,7 +586,8 @@ PackedFunc GraphRuntime::GetFunction(
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         if (args[0].type_code() == kStr) {
-          this->SetInput(this->GetInputIndex(args[0]), args[1]);
+          int in_idx = this->GetInputIndex(args[0]);
+          if (in_idx >= 0) this->SetInput(in_idx, args[1]);
         } else {
           this->SetInput(args[0], args[1]);
         }
@@ -591,6 +595,16 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->GetOutput(args[0], args[1]);
+      });
+  } else if (name == "get_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          int in_idx = this->GetInputIndex(args[0]);
+          CHECK_GE(in_idx, 0);
+          this->GetInput(in_idx, args[1]);
+        } else {
+          this->GetInput(args[0], args[1]);
+        }
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {

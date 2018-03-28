@@ -72,6 +72,7 @@ class GraphModule(object):
         self._set_input = module["set_input"]
         self._run = module["run"]
         self._get_output = module["get_output"]
+        self._get_input = module["get_input"]
         try:
             self._debug_get_output = module["debug_get_output"]
         except AttributeError:
@@ -110,6 +111,20 @@ class GraphModule(object):
         if input_dict:
             self.set_input(**input_dict)
         self._run()
+
+    def get_input(self, index, out):
+        """Get index-th input to out
+
+        Parameters
+        ----------
+        index : int
+            The input index
+
+        out : NDArray
+            The output array container
+        """
+        self._get_input(index, out)
+        return out
 
     def get_output(self, index, out):
         """Get index-th output to out

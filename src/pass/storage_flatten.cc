@@ -23,6 +23,7 @@ namespace tvm {
 namespace ir {
 
 using HalideIR::Internal::Region;
+using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
 using intrinsic::tvm_address_of;
@@ -141,7 +142,8 @@ class StorageFlattener : public IRMutator {
       const std::string& strkey = it->second;
       if (strkey.length() == 0) {
         if (curr_thread_scope_.size() != 0) {
-          skey.rank = curr_thread_scope_.back().rank + 1;
+          skey.rank = runtime::DefaultStorageRank(
+              curr_thread_scope_.back().rank);
         }
       } else {
         skey = StorageScope::make(strkey);

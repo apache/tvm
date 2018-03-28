@@ -28,7 +28,7 @@ namespace cuda {
 inline Schedule ScheduleOutputForExtern(Target target, Operation op, Schedule sch) {
   auto x = op.output(0);
   auto fused = detail::Fuse(sch[x], sch[x]->op.as<ComputeOpNode>()->axis);
-  auto num_thread = target.max_num_threads;
+  auto num_thread = target->max_num_threads;
   IterVar bx, tx;
   sch[x].split(fused, num_thread, &bx, &tx);
   sch[x].bind(bx, tvm::thread_axis(Range(), "blockIdx.x"));

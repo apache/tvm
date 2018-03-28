@@ -51,6 +51,7 @@ struct extension_class_info<tvm::Target> {
 } // namespace runtime
 
 namespace topi {
+
 using namespace tvm;
 using namespace tvm::runtime;
 
@@ -189,6 +190,11 @@ TVM_REGISTER_GLOBAL("topi.nn.leaky_relu")
   *rv = leaky_relu<float>(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.nn.prelu")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = prelu<float>(args[0], args[1]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.nn.pad")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = pad(args[0], args[1], args[2], args[3]);
@@ -281,15 +287,7 @@ TVM_REGISTER_GLOBAL("topi.nn.binary_dense")
 /* Ops from nn/dense.h */
 TVM_REGISTER_GLOBAL("topi.nn.dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[2].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[2];
-    bias = &bias_val;
-  }
-  *rv = nn::dense(args[0], args[1], bias);
+  *rv = nn::dense(args[0], args[1], args[2]);
   });
 
 /* Ops from nn/dilate.h */
@@ -388,15 +386,7 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[3].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[3];
-    bias = &bias_val;
-  }
-  *rv = rocm::dense_rocm(args[0], args[1], args[2], bias);
+  *rv = rocm::dense_rocm(args[0], args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
@@ -407,15 +397,7 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
 /* CUDA schedules */
 TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  Tensor bias_val;
-  Tensor *bias;
-  if (args[3].type_code() == kNull) {
-    bias = nullptr;
-  } else {
-    bias_val = args[3];
-    bias = &bias_val;
-  }
-  *rv = cuda::dense_cuda(args[0], args[1], args[2], bias);
+  *rv = cuda::dense_cuda(args[0], args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_dense")
@@ -452,5 +434,107 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_softmax(args[0], args[1]);
   });
+
+/*! \brief Builder function for instantiating schedules. */
+using FTVMScheduleBuilder = std::function<
+  tvm::Schedule(const tvm::Target& target, const tvm::Array<tvm::Tensor>& outs)>;
+
+/*!
+ * \brief Helper function for registering generic functions matching the
+ * FTVMScheduleBuilder signature. The schedule builder function is wrapped
+ * with a PackedFunc suitable for passing to a tvm::GenericFunc.
+ *
+ * \param builder The schedule builder to wrap.
+ *
+ * \return The wrapped schedule builder
+ */
+inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
+  return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
+    auto target = Target::current_target(false);
+    Array<Tensor> outs;
+    NodeRef argNodeRef = args[0];
+    if (argNodeRef->type_index() == outs->type_index()) {
+      outs = args[0];
+    } else {
+      outs = Array<Tensor> { args[0] };
+    }
+
+    *ret = builder(target, outs);
+  });
+}
+
+TVM_REGISTER_GENERIC_FUNC(schedule_injective)
+.set_default(WrapSchedule(topi::generic::schedule_injective))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_injective))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_injective));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_softmax)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_softmax));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_dense)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_dense))
+.register_func({ "rocm" }, WrapSchedule(topi::rocm::schedule_dense));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_pool)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_pool));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_global_pool)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_global_pool));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_reduce)
+.set_default(WrapSchedule(topi::generic::default_schedule_auto_inline))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule_auto_inline))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_reduce));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_binarize_pack)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_binarize_pack));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_binary_dense));
+
+/*! \brief Builder function for instantiating dense ops. */
+using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
+                                                     const tvm::Tensor& data,
+                                                     const tvm::Tensor& weight,
+                                                     const tvm::Tensor& bias)>;
+
+/*!
+* \brief Helper function for registering dense ops matching the
+* FTVMDenseOpBuilder signature. The op builder function is wrapped
+* with a PackedFunc suitable for passing to a tvm::GenericFunc.
+*
+* \param builder The op builder to wrap.
+*
+* \return The wrapped op builder
+*/
+inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
+  return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
+    auto target = Target::current_target(false);
+    Tensor data = args[0];
+    Tensor weight = args[1];
+    Tensor bias = args[2];
+
+    *ret = builder(target, data, weight, bias);
+  });
+}
+
+TVM_REGISTER_GENERIC_FUNC(dense)
+.set_default(WrapDenseOp([](const Target& target,
+                            const tvm::Tensor& data,
+                            const tvm::Tensor& weight,
+                            const tvm::Tensor& bias) {
+  return topi::nn::dense(data, weight, bias);
+}))
+.register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
+.register_func({ "rocm" }, WrapDenseOp(topi::rocm::dense_rocm));
 
 }  // namespace topi
