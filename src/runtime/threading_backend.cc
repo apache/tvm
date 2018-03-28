@@ -28,7 +28,7 @@ class ThreadGroup::Impl {
     }
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
-      if (num_workers_ <= std::thread::hardware_concurrency()) {
+      if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
         SetAffinity(exclude_worker0);
       } else {
         LOG(WARNING)
