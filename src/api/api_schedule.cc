@@ -27,7 +27,7 @@ TVM_REGISTER_API("schedule.AutoInlineInjective")
 TVM_REGISTER_API("schedule.ScheduleOps")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   if (args.size() == 2)
-    *ret = ScheduleOps(args[0], args[1], true);
+    *ret = ScheduleOps(args[0], args[1], false);
   else
     *ret = ScheduleOps(args[0], args[1], args[2]);
 });

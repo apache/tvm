@@ -306,9 +306,9 @@ Stmt MakeProvide(const ComputeOpNode* op,
 Stmt MakeComputeStmt(const ComputeOpNode* self,
                      const Stage& stage,
                      const std::unordered_map<IterVar, Range>& dom_map,
-                     bool del_trivial_loop) {
+                     bool debug_keep_trivial_loop) {
   // grab the nest structure
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, del_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
   // Normal loop structure
   n.init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
   n.main_nest.emplace_back(op::MakeIfNest(n.main_predicates));
@@ -329,10 +329,11 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
     provide = op::Substitute(provide, n.main_vmap);
     provide = MergeNest(reduce, provide);
-    if (del_trivial_loop)
-      return MergeNest(common, Block::make(init, provide));
-    else
+    if (debug_keep_trivial_loop) {
       return MergeNest(common, provide);
+    } else {
+      return MergeNest(common, Block::make(init, provide));
+    }
   } else {
     std::vector<Stmt> provides;
     for (size_t i = 0; i < self->body.size(); ++i) {
@@ -392,16 +393,16 @@ ComputeType DetectComputeType(const ComputeOpNode* self,
 Stmt ComputeOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
-    bool del_trivial_loop) const {
+    bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   ComputeType ctype = DetectComputeType(this, stage);
   if (ctype == ComputeType::kCrossThreadReduction) {
     // specially handle cross thread reduction.
-    return MakeCrossThreadReduction(this, stage, dom_map, del_trivial_loop);
+    return MakeCrossThreadReduction(this, stage, dom_map, debug_keep_trivial_loop);
   } else if (ctype == ComputeType::kTensorize) {
-    return MakeTensorize(this, stage, dom_map, del_trivial_loop);
+    return MakeTensorize(this, stage, dom_map, debug_keep_trivial_loop);
   } else {
-    return MakeComputeStmt(this, stage, dom_map, del_trivial_loop);
+    return MakeComputeStmt(this, stage, dom_map, debug_keep_trivial_loop);
   }
 }
 
@@ -409,12 +410,12 @@ ComputeLoopNest ComputeLoopNest::make(
     const ComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
-    bool del_trivial_loop) {
+    bool debug_keep_trivial_loop) {
   CHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest
   ret.main_nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap, del_trivial_loop);
+      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap, debug_keep_trivial_loop);
   ret.main_predicates = schedule::MakeBoundCheck(
       stage, dom_map, ret.main_vmap, false,
       std::unordered_set<IterVar>());
@@ -456,7 +457,7 @@ ComputeLoopNest ComputeLoopNest::make(
     }
     ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
-        skip_iter, &(ret.init_vmap), del_trivial_loop);
+        skip_iter, &(ret.init_vmap), debug_keep_trivial_loop);
     ret.init_predicates = schedule::MakeBoundCheck(
         stage, dom_map, ret.init_vmap, true, skip_iter);
     for (auto& e : ret.init_predicates) {

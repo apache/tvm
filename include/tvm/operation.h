@@ -117,13 +117,13 @@ class OperationNode : public FunctionBaseNode {
    * \brief Build the statement that provide the output tensors.
    * \param stage The schedule stage of the op.
    * \param dom_map The domain map of all iteration domains.
-   * \param del_trivial_loop Whether eliminate trivial loop with extent of 1
+   * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
    * \return A statement that add production and wraps consumer.
    */
   virtual Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
-      bool del_trivial_loop) const = 0;
+      bool debug_keep_trivial_loop) const = 0;
 
   static constexpr const char* _type_key = "Operation";
 
@@ -163,7 +163,7 @@ class PlaceholderOpNode : public OperationNode {
   Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
-      bool del_trivial_loop) const final;
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -215,7 +215,7 @@ class ComputeOpNode : public OperationNode {
   Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
-      bool del_trivial_loop) const final;
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -287,7 +287,7 @@ class ScanOpNode : public OperationNode {
   Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
-      bool del_trivial_loop) const final;
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -351,7 +351,7 @@ class ExternOpNode : public OperationNode {
   Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
-      bool del_trivial_loop) const final;
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);

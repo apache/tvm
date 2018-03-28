@@ -23,8 +23,8 @@ using namespace ir;
 Stmt MakePipeline(const Stage& s,
                   const std::unordered_map<IterVar, Range>& dom_map,
                   Stmt consumer,
-                  bool del_trivial_loop) {
-  Stmt producer = s->op->BuildProvide(s, dom_map, del_trivial_loop);
+                  bool debug_keep_trivial_loop) {
+  Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
   if (producer.defined()) {
     producer = ProducerConsumer::make(s->op, true, producer);
   }
@@ -58,9 +58,9 @@ class InjectAttach : public IRMutator {
   InjectAttach(const Stage& stage,
                const Stage& attach_spec,
                const std::unordered_map<IterVar, Range>& dom_map,
-               bool del_trivial_loop)
+               bool debug_keep_trivial_loop)
       : stage_(stage), attach_spec_(attach_spec), dom_map_(dom_map),
-        del_trivial_loop_(del_trivial_loop) {}
+        debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
 
   Stmt Mutate(Stmt stmt) final {
     CHECK(stmt.defined());
@@ -76,7 +76,7 @@ class InjectAttach : public IRMutator {
         found_attach = true;
         stmt = AttrStmt::make(
             op->node, op->attr_key, op->value,
-            MakePipeline(stage_, dom_map_, op->body, del_trivial_loop_));
+            MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
     }
     return stmt;
@@ -91,8 +91,9 @@ class InjectAttach : public IRMutator {
   const Stage& attach_spec_;
   // domain map
   const std::unordered_map<IterVar, Range>& dom_map_;
-  // whether delete trivial loops with extent of 1
-  bool del_trivial_loop_;
+  // Whether keep trivial loops with extent of 1 during lowering.
+  // This is a debug feature for dataflow/axis analysis
+  bool debug_keep_trivial_loop_;
 };
 
 // inject the operator's realization on the stmt.
@@ -102,9 +103,9 @@ class InjectScanStep : public IRMutator {
                  const Operation& scan_op,
                  const std::unordered_map<IterVar, Range>& dom_map,
                  bool is_init,
-                 bool del_trivial_loop)
+                 bool debug_keep_trivial_loop)
       : stage_(stage), scan_op_(scan_op),
-        dom_map_(dom_map), is_init_(is_init), del_trivial_loop_(del_trivial_loop) {}
+        dom_map_(dom_map), is_init_(is_init), debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
 
   Stmt Mutate(Stmt stmt) final {
     CHECK(stmt.defined());
@@ -118,7 +119,7 @@ class InjectScanStep : public IRMutator {
         found_attach = true;
         stmt = AttrStmt::make(
             op->node, op->attr_key, op->value,
-            MakePipeline(stage_, dom_map_, op->body, del_trivial_loop_));
+            MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
     }
     return stmt;
@@ -135,8 +136,9 @@ class InjectScanStep : public IRMutator {
   const std::unordered_map<IterVar, Range>& dom_map_;
   // whether it is init.
   bool is_init_;
-  // whether delete trivial loops with extent of 1
-  bool del_trivial_loop_;
+  // Whether keep trivial loops with extent of 1 during lowering.
+  // This is a debug feature for dataflow/axis analysis
+  bool debug_keep_trivial_loop_;
 };
 
 // Postprocessing of schedule op
@@ -337,7 +339,7 @@ class SchedulePostProc : public IRMutator {
 };
 
 Stmt ScheduleOps(
-    Schedule sch, Map<IterVar, Range> dom_map_, bool del_trivial_loop) {
+    Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_trivial_loop) {
   Stmt body = Stmt();
   std::unordered_map<IterVar, Range> dom_map = as_unordered_map(dom_map_);
   // scan init and scan updates
@@ -372,14 +374,14 @@ Stmt ScheduleOps(
 
     if (scan_init.count(s->op)) {
       CHECK(body.defined());
-      InjectScanStep mu(s, scan_init.at(s->op), dom_map, true, del_trivial_loop);
+      InjectScanStep mu(s, scan_init.at(s->op), dom_map, true, debug_keep_trivial_loop);
       body = mu.Mutate(body);
       CHECK(mu.found_attach)
           << "did not find attachment point for scan.init";
     } else if (attach_spec->attach_type == kScanUpdate) {
       // Handle scan update
       CHECK(body.defined());
-      InjectScanStep mu(s, attach_spec->attach_stage->op, dom_map, false, del_trivial_loop);
+      InjectScanStep mu(s, attach_spec->attach_stage->op, dom_map, false, debug_keep_trivial_loop);
       body = mu.Mutate(body);
       CHECK(mu.found_attach)
           << "did not find attachment point for scan.update";
@@ -387,11 +389,11 @@ Stmt ScheduleOps(
       // do nothing
     } else if (attach_spec->attach_type == kGroupRoot) {
       CHECK(!s->group.defined());
-      body = MakePipeline(s, dom_map, body, del_trivial_loop);
+      body = MakePipeline(s, dom_map, body, debug_keep_trivial_loop);
     } else {
       CHECK_EQ(attach_spec->attach_type, kScope);
       CHECK(body.defined());
-      InjectAttach mutator(s, attach_spec, dom_map, del_trivial_loop);
+      InjectAttach mutator(s, attach_spec, dom_map, debug_keep_trivial_loop);
       body = mutator.Mutate(body);
       CHECK(mutator.found_attach)
           << "did not find attachment point for " << s << " in "
