@@ -21,7 +21,7 @@
 #include "../src/runtime/rpc/rpc_module.cc"
 #include "../src/runtime/rpc/rpc_socket_impl.cc"
 #include "../src/runtime/thread_pool.cc"
-
+#include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/graph/graph_runtime.cc"
 
 #ifdef TVM_OPENCL_RUNTIME
