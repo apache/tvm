@@ -57,6 +57,34 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 }
 
 /*!
+ * \brief Creates an operation that performs a bipolar rectified linear unit
+ * \[https://arxiv.org/pdf/1707.06728.pdf]
+ * \param t The input tensor
+ * \param lt The relu lower threshold (default 0) of BRelu
+ * \param ht The relu higher threshold (default 24) of BRelu
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the bounded relu operation
+ */
+template <typename T>
+inline tvm::Tensor brelu(const tvm::Tensor& t,
+                        T lt = static_cast<T>(0),
+                        T ht = static_cast<T>(24),
+                        std::string name = "tensor",
+                        std::string tag = kElementWise) {
+  return tvm::compute(
+      t->shape,
+      [&](const tvm::Array<tvm::Var>& i) {
+        auto lt_const = tvm::make_const(t->dtype, lt);
+        auto ht_const = tvm::make_const(t->dtype, ht);
+        return tvm::min(tvm::max(t(i), lt_const), ht_const);
+      },
+      name,
+      tag);
+}
+
+/*!
 * \brief Creates an operation that performs a leaky rectified linear unit
 *
 * \param t The input tensor

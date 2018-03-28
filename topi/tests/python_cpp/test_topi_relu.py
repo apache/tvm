@@ -33,6 +33,24 @@ def verify_relu(m, n, dtype):
     for device in ['cuda', 'opencl', 'metal', 'rocm']:
         check_device(device)
 
+def verify_brelu(shape, lt, ht):
+    A = tvm.placeholder(shape, name='A')
+    B = topi.cpp.nn.brelu(A, lt, ht)
+
+    assert B.dtype == A.dtype
+
+    a_np = np.random.uniform(low=-1.0, high=5.0, size=get_const_tuple(A.shape)).astype(A.dtype)
+    b_np = a_np * (a_np > lt) * (a_np < ht) + (a_np > ht) * ht
+    device = "llvm"
+    target = topi.cpp.TEST_create_target(device)
+    s = topi.cpp.generic.schedule_injective(target, [B])
+    ctx = tvm.cpu(0)
+    a = tvm.nd.array(a_np, ctx)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+    foo = tvm.build(s, [A, B], device, name="brelu")
+    foo(a, b)
+
+    np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 def verify_leaky_relu(m, alpha):
     A = tvm.placeholder((m,), name='A')
@@ -77,6 +95,10 @@ def test_relu():
     for dtype in ['float32', 'float64', 'int32', 'int16', 'int8', 'int64']:
         verify_relu(10, 128, dtype)
 
+def test_brelu():
+    verify_brelu((10, 5), 0.0, 3.0)
+    verify_brelu((1, 3, 2, 2), 0.0, 2.0)
+
 def test_leaky_relu():
     verify_leaky_relu(100, 0.1)
 
@@ -85,5 +107,6 @@ def test_prelu():
 
 if __name__ == "__main__":
     test_relu()
+    test_brelu()
     test_leaky_relu()
     test_prelu()
