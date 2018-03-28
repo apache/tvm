@@ -21,7 +21,7 @@ def relu(x):
     return tvm.compute(x.shape, lambda *i: tvm.max(x(*i), tvm.const(0, x.dtype)))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
-def brelu(x, lt=0, ht=24):
+def brelu(x, low_threshold=0, high_threshold=24):
     """Creates an operation that performs a bipolar rectified linear unit.
 
     Parameters
@@ -29,9 +29,9 @@ def brelu(x, lt=0, ht=24):
     x : tvm.Tensor
         Input argument.
 
-    lt : float
+    low_threshold : float
         The relu lower threshold (default 0) of BRelu
-    ht : float
+    high_threshold : float
         The relu higher threshold (default 24) of BRelu
 
     Links:
@@ -43,8 +43,8 @@ def brelu(x, lt=0, ht=24):
         The result.
     """
 
-    lt_const = tvm.const(lt, x.dtype)
-    ht_const = tvm.const(ht, x.dtype)
+    lt_const = tvm.const(low_threshold, x.dtype)
+    ht_const = tvm.const(high_threshold, x.dtype)
     return tvm.compute(x.shape, lambda *i: tvm.min(tvm.max(x(*i), lt_const), ht_const))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
