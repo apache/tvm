@@ -14,14 +14,14 @@ Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
-    bool del_trivial_loop) {
+    bool debug_keep_trivial_loop) {
   Array<Expr>  args;
   for (IterVar iv : self->axis) {
     args.push_back(iv->var);
   }
   std::unordered_map<IterVar, Expr> value_map;
   auto nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, del_trivial_loop);
+      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, debug_keep_trivial_loop);
   auto conds = schedule::MakeBoundCheck(
       stage, dom_map, value_map, false,
       std::unordered_set<IterVar>());

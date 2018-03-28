@@ -349,7 +349,7 @@ Stmt BuildStmt(Schedule sch,
 
   // Phase 0
   auto bounds = schedule::InferBound(sch);
-  auto stmt = schedule::ScheduleOps(sch, bounds, true);
+  auto stmt = schedule::ScheduleOps(sch, bounds, false);
   stmt = ir::InjectPrefetch(stmt);
 
   // Phase 1
