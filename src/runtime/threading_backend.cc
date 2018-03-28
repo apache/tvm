@@ -82,7 +82,7 @@ class ThreadGroup::Impl {
       CPU_ZERO(&cpuset);
       CPU_SET(0, &cpuset);
 #if defined(__ANDROID__)
-      sched_setaffinity(0,
+      sched_setaffinity(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #else
       pthread_setaffinity_np(pthread_self(),
