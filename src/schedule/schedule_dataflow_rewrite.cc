@@ -64,7 +64,7 @@ void ReplaceDataFlow(const Array<Stage>& stages,
     Operation op = s->op->ReplaceInputs(s->op, *vmap);
     if (!op.same_as(s->op)) {
       for (int i = 0; i < op->num_outputs(); ++i) {
-        if((*rvmap).find(s->op.output(i)) != (*rvmap).end()) {
+        if ((*rvmap).find(s->op.output(i)) != (*rvmap).end()) {
           (*vmap)[((*rvmap)[s->op.output(i)])] = op.output(i);
         } else {
           (*vmap)[s->op.output(i)] = op.output(i);
