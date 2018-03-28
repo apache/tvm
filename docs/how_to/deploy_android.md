@@ -1,20 +1,17 @@
-How to deploy and use compiled model on Android
-===============================================
+# How to deploy and use compiled model on Android
+
 
 This tutorial explain below aspects (Unlike the android_rpc approach we already have)
 
-    1: Build a model for android target.
-    2: TVM runtime building for android target.
-    3: A sample native application to test the model on ADB before integrating into android application (apk).
-
-Hope once we have working sample at android native, Android app developers know how to integrate with JNI.
+  * Build a model for android target
+  * TVM run on Android using Java API
+  * TVM run on Android using Native API
 
 As an example here is a reference block diagram.
 
-![](https://github.com/dmlc/tvm/tree/master/docs/how_to/android_deploy.png)
+![](http://www.tvmlang.org/images/release/tvm_flexible.png)
 
-Build model for Android Target
-------------------------------
+## Build model for Android Target
 
 NNVM compilation of model for android target could follow same approach like android_rpc.
 
@@ -23,25 +20,36 @@ An reference exampe can be found at [chainer-nnvm-example](https://github.com/tk
 Above example will directly run the compiled model on RPC target. Below modification at [rum_mobile.py](https://github.com/tkat0/chainer-nnvm-example/blob/5b97fd4d41aa4dde4b0aceb0be311054fb5de451/run_mobile.py#L64) will save the compilation output which is required on android target.
 
 ```
-lib.export_library("YOLOv2_tiny-aarch64.so", ndk.create_shared)
-with open("YOLOv2_tiny-aarch64.json", "w") as fo:
+lib.export_library("deploy_lib.so", ndk.create_shared)
+with open("deploy_graph.json", "w") as fo:
     fo.write(graph.json())
-with open("YOLOv2_tiny-aarch64.params", "wb") as fo:
+with open("deploy_param.params", "wb") as fo:
     fo.write(nnvm.compiler.save_param_dict(params))
 ```
 
-YOLOv2_tiny-aarch64.so, YOLOv2_tiny-aarch64.json, YOLOv2_tiny-aarch64.params will go to android target.
+deploy_lib.so, deploy_graph.json, deploy_param.params will go to android target.
+
+## TVM run on Android using Java API
+### TVM Runtime for android Target
+
+Refer [here](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/README.md#build-and-installation) to build CPU/OpenCL version flavor TVM runtime for android target.
+
+### Android Native API Reference
+
+From android java TVM API to load model & execute can be refered at this [java](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java) sample source.
 
 
-TVM Runtime for android Target
--------------------------------
+## TVM run on Android using Native API
+
+### TVM Runtime for android Target
 
 This is a cross compilation process of libtvm_runtime.so for android with OpenCL support.
 
-
 Prerequisites:
-Android stand alone tool chain : ANDROID_NDK_PATH/ndk/android-toolchain-arm64/bin/aarch64-linux-android-
-Pls refer to https://developer.android.com/ndk/guides/standalone_toolchain.html to generate standalone toolchain for your android device.
+- Android stand alone tool chain : ANDROID_NDK_PATH/ndk/android-toolchain-arm64/bin/aarch64-linux-android-g++.
+
+  Please refer [Android NDK toolchain](https://developer.android.com/ndk/guides/standalone_toolchain.html) to generate standalone toolchain for your android device.
+
 Android OpenCL dependencies as shown below under OPENCL_PATH. These can be picked from your android build which is compatible to the target.
 
 ```
@@ -76,9 +84,7 @@ OPENCL_PATH=<path to OPENCL> CXX=<ANDROID_NDK_PATH>/ndk/android-toolchain-arm64/
 Result of this step is the libtvm_runtime.so which is a dependency for Android native while building application.
 The same can be deployed under /system/lib64/ as a system library too.
 
-
-Android Native API Reference
-----------------------------
+### Android Native API Reference
 
 From android native TVM API to load model & execute can be refered at this [native](https://github.com/dmlc/tvm/tree/master/tutorials/deployment) sample source.
 

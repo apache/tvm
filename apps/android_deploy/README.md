@@ -2,11 +2,11 @@
 
 This folder contains Android Demo app that allows us to show how to deploy model using TVM runtime api on a Android phone.
 
-You will need JDK, [Android NDK](https://developer.android.com/ndk) and an Android device to use this.
+You will need [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html), [Android SDK](https://developer.android.com/studio/index.html), [Android NDK](https://developer.android.com/ndk) and an Android device to use this.
 
 ## Build and Installation
 
-### <a name="buildapk">Build APK</a>
+### Build APK
 
 We use [Gradle](https://gradle.org) to build. Please follow [the installation instruction](https://gradle.org/install) for your operating system.
 
@@ -26,6 +26,25 @@ dependencies {
 }
 ```
 
+Application default has CPU version TVM runtime flavor and follow below instruction to setup.
+In `app/src/main/jni/make` you will find JNI Makefile config `config.mk` and copy it to `app/src/main/jni` and modify it.
+
+```bash
+cd apps/android_deploy/app/src/main/jni
+cp make/config.mk .
+```
+
+Here's a piece of example for `config.mk`.
+
+```makefile
+APP_ABI = arm64-v8a
+
+APP_PLATFORM = android-17
+
+# whether enable OpenCL during compile
+USE_OPENCL = 0
+```
+
 Now use Gradle to compile JNI, resolve Java dependencies and build the Android application together with tvm4j. Run following script to generate the apk file.
 
 ```bash
@@ -40,12 +59,7 @@ Upload `tvmdemo-release.apk` to your Android device and install it.
 
 ### Build with OpenCL
 
-This application does not link any OpenCL library unless you configure it to. In `app/src/main/jni/make` you will find JNI Makefile config `config.mk`. Copy it to `app/src/main/jni` and modify it.
-
-```bash
-cd apps/android_deploy/app/src/main/jni
-cp make/config.mk .
-```
+Application does not link with OpenCL library unless you configure it to. Modify JNI Makefile config `app/src/main/jni` with proper target OpenCL configuration.
 
 Here's a piece of example for `config.mk`.
 
@@ -66,7 +80,7 @@ ADD_LDLIBS = libOpenCL.so
 
 Note that you should specify the correct GPU development headers for your android device. Run `adb shell dumpsys | grep GLES` to find out what GPU your android device uses. It is very likely the library (libOpenCL.so) is already present on the mobile device. For instance, I found it under `/system/vendor/lib64`. You can do `adb pull /system/vendor/lib64/libOpenCL.so ./` to get the file to your desktop.
 
-After you setup the `config.mk`, follow the instructions in [Build APK](#buildapk) to build the Android package.
+After you setup the `config.mk`, follow the instructions in [Build APK](#buildapk) to build the Android package with OpenCL flavor.
 
 ## Cross Compile and Run on Android Devices
 
@@ -83,15 +97,20 @@ cd /opt/android-ndk/build/tools/
 
 If everything goes well, you will find compile tools in `/opt/android-toolchain-arm64/bin`. For example, `bin/aarch64-linux-android-g++` can be used to compile C++ source codes and create shared libraries for arm64 Android devices.
 
-### Cross Compile model and place on Android application assets folder
+### Place compiled model on Android application assets folder
 
-First select model and save compiled deploy_lib.so, deploy_graph.json and deploy_param.params refer to https://github.com/dmlc/nnvm/blob/master/tutorials/define_and_compile_model.py
+Follow instruction to get compiled version model for android target [here.](https://github.com/dmlc/tvm/blob/master/docs/how_to/deploy_android.md#build-model-for-android-target)
 
-Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and make changes TVM target on MainActivity.java
+Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java#L81)
 
+`CPU Verison flavor`
 ```
-            // create java tvm context
-            TVMContext tvmCtx = TVMContext.opencl();
+    private static final boolean EXE_GPU            = false;
+```
+
+`OpenCL Verison flavor`
+```
+    private static final boolean EXE_GPU            = true;
 ```
 
 

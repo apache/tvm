@@ -4,7 +4,7 @@ MY_PATH := $(LOCAL_PATH)
 include $(CLEAR_VARS)
 
 LOCAL_PATH := $(MY_PATH)
-ROOT_PATH := $(MY_PATH)/../../../../../../..
+ROOT_PATH := $(MY_PATH)/../../../../../..
 
 ifndef config
 	ifneq ("$(wildcard ./config.mk)","")

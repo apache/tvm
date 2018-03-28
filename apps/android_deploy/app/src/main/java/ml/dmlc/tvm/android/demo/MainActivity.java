@@ -78,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
     // included with TVM and must be manually placed in the assets/ directory by the user.
     // Graphs and models downloaded from https://github.com/pjreddie/darknet/blob/ may be
     // converted e.g. via  define_and_compile_model.py.
-    private static final boolean EXE_GPU            = true;
+    private static final boolean EXE_GPU            = false;
     private static final int MODEL_INPUT_SIZE       = 224;
     private static final String MODEL_CL_LIB_FILE   = "file:///android_asset/deploy_lib_opencl.so";
     private static final String MODEL_CPU_LIB_FILE  = "file:///android_asset/deploy_lib_cpu.so";
