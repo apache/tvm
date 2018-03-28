@@ -415,7 +415,8 @@ ComputeLoopNest ComputeLoopNest::make(
   ComputeLoopNest ret;
   // make main loop nest
   ret.main_nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap, debug_keep_trivial_loop);
+      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap,
+      debug_keep_trivial_loop);
   ret.main_predicates = schedule::MakeBoundCheck(
       stage, dom_map, ret.main_vmap, false,
       std::unordered_set<IterVar>());
