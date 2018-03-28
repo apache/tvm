@@ -31,7 +31,7 @@ TEST(BuildModule, Basic) {
   auto target = target::llvm();
 
   auto lowered = lower(s, args, "func", binds, config);
-  auto module = build(lowered, target, nullptr, config);
+  auto module = build(lowered, target, Target(), config);
 }
 
 

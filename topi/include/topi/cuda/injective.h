@@ -25,7 +25,7 @@ namespace cuda {
 inline void ScheduleInjectiveOp(const Target &target, Operation op, Schedule s) {
   auto x = op.output(0);
   auto fused = detail::Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
-  auto num_thread = target.max_num_threads;
+  auto num_thread = target->max_num_threads;
   IterVar bx, tx;
   s[x].split(fused, num_thread, &bx, &tx);
   s[x].bind(bx, thread_axis(Range(), "blockIdx.x"));

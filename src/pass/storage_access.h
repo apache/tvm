@@ -17,6 +17,7 @@ namespace tvm {
 namespace ir {
 
 using runtime::StorageScope;
+using runtime::StorageRank;
 /*!
  * \brief Base class of storage access analysis
  */

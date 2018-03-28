@@ -11,8 +11,13 @@ from __future__ import absolute_import as _abs
 
 from tvm._ffi.libinfo import __version__
 
+# Ensure C++ schedules get registered first, so python schedules can
+# override them.
+from . import cpp
+
 from .math import *
 from .tensor import *
+from .generic_op_impl import *
 from .reduction import *
 from .transform import *
 from .broadcast import *
@@ -24,7 +29,6 @@ from . import mali
 from . import opengl
 from . import util
 from . import rocm
-from . import cpp
 from . import vision
 # not import testing by default
 # because testing can have extra deps that are not necessary
