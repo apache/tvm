@@ -30,7 +30,7 @@ Now use Gradle to compile JNI, resolve Java dependencies and build the Android a
 
 ```bash
 export ANDROID_HOME=[Path to your Android SDK, e.g., ~/Android/sdk]
-cd tutorials/deployment/android
+cd apps/android_deploy
 gradle clean build
 ```
 
@@ -43,7 +43,7 @@ Upload `tvmdemo-release.apk` to your Android device and install it.
 This application does not link any OpenCL library unless you configure it to. In `app/src/main/jni/make` you will find JNI Makefile config `config.mk`. Copy it to `app/src/main/jni` and modify it.
 
 ```bash
-cd tutorials/deployment/android/app/src/main/jni
+cd apps/android_deploy/app/src/main/jni
 cp make/config.mk .
 ```
 
@@ -87,7 +87,7 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 First select model and save compiled deploy_lib.so, deploy_graph.json and deploy_param.params refer to https://github.com/dmlc/nnvm/blob/master/tutorials/define_and_compile_model.py
 
-Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to tutorials/deployment/android/app/src/main/assets/ and make changes TVM target on MainActivity.java
+Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and make changes TVM target on MainActivity.java
 
 ```
             // create java tvm context
