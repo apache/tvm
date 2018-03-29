@@ -48,6 +48,15 @@ This is an experimental operator.
 .set_attr<FInplaceOption>(
   "FInplaceOption", [](const NodeAttrs& attrs) {
     return std::vector<std::pair<int, int> >{{1, 0}};
+})
+.set_attr<FGradient>(
+  "FGradient", [](const NodePtr& n,
+                  const std::vector<NodeEntry>& ograds){
+    return std::vector<NodeEntry>{
+      MakeNode("zeros_like", n->attrs.name + "_zero_grad",
+               {n->inputs[0]}),
+      ograds[0]
+    };
 });
 
 }  // namespace top

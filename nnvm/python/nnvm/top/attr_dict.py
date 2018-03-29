@@ -123,6 +123,21 @@ class AttrDict(object):
         else:
             raise ValueError("Wrong bool format for key %s" % key)
 
+    def get_string(self, key):
+        """Get string from attr dict
+
+        Parameters
+        ----------
+        key : str
+            The attr key
+
+        Returns
+        -------
+        value : str
+            The result value
+        """
+        return self[key]
+
     def __repr__(self):
         return str({k : self[k] for k in self.keys()})
 
