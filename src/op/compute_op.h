@@ -37,14 +37,14 @@ struct ComputeLoopNest {
    * \param self The pointer to compute op.
    * \param stage The scxhedule stage.
    * \param dom_map The domain map.
-   * \param del_trivial_loop Whether eliminate trivial loops with extent of 1
+   * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
    * \return The constructed loop nest
    */
   static ComputeLoopNest make(
       const ComputeOpNode* self,
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
-      bool del_trivial_loop);
+      bool debug_keep_trivial_loop);
 };
 
 /*!
@@ -52,27 +52,27 @@ struct ComputeLoopNest {
  * \param self The pointer to ComputeOpNode
  * \param stage The schedule stage.
  * \param dom_map The domain map.
- * \param del_trivial_loop Wheter eliminate trivial loops with extent of 1
+ * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  * \return The created statement.
  */
 Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
-    bool del_trivial_loop);
+    bool debug_keep_trivial_loop);
 
 /*!
  * \brief Build body of compute for tensorization.
  * \param self The pointer to ComputeOpNode
  * \param stage The schedule stage.
  * \param dom_map The domain map.
- * \param del_trivial_loop Wheter eliminate trivial loops with extent of 1
+ * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  * \return The created statement.
  */
 Stmt MakeTensorize(const ComputeOpNode* self,
                    const Stage& stage,
                    const std::unordered_map<IterVar, Range>& dom_map,
-                   bool del_trivial_loop);
+                   bool debug_keep_trivial_loop);
 }  // namespace tvm
 
 #endif  // TVM_OP_COMPUTE_OP_H_

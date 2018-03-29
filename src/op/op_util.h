@@ -29,7 +29,7 @@ using ir::MergeNest;
  * \param new_loop_var Whether create new loop variable.
  * \param skip_iter Whether skip certain iteration.
  * \param p_value_map The result value of each IterVar.
- * \param del_trivial_loop Whether eliminate trivial loops with extent of 1
+ * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  */
 std::vector<std::vector<Stmt> >
 MakeLoopNest(const Stage& stage,
@@ -38,7 +38,7 @@ MakeLoopNest(const Stage& stage,
              bool new_loop_var,
              const std::unordered_set<IterVar>& skip_iter,
              std::unordered_map<IterVar, Expr>* p_value_map,
-             bool del_trivial_loop);
+             bool debug_keep_trivial_loop);
 
 /*!
  * \brief Create a nest of if checking the predicates.
