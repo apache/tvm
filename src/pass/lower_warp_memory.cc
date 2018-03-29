@@ -133,7 +133,6 @@ class WarpIndexFinder : private IRVisitor {
   }
 
  private:
-
   /// Visitor implementation
   void Visit_(const AttrStmt *op) final {
     if (op->attr_key == attr::thread_extent) {
