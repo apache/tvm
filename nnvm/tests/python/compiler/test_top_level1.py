@@ -8,15 +8,14 @@ from nnvm.testing.config import ctx_list
 
 
 def helper(symbol, inputs, dtype,
-           np_forward, np_backward=None):
+           np_forward, np_backward=None, need_input=True, need_head_grads=True):
     ishapes = {}
     input_syms = []
     np_inputs = {}
-    for (k, v) in inputs.items():
-        ishapes.update({k: v[0]})
-        np_inputs.update({k: np.random.uniform(size=v[0]).astype(dtype)})
-        if len(v) > 1:
-            input_syms.append(v[1])
+    for (name, shape, s) in inputs:
+        ishapes.update({name: shape})
+        np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
+        input_syms.append(s)
 
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
@@ -25,23 +24,26 @@ def helper(symbol, inputs, dtype,
         y_np = np_forward(**np_inputs)
         out = m.get_output(0, tvm.nd.empty(y_np.shape, dtype))
         np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
-
         # backward
         if np_backward:
             graph._set_symbol_list_attr("grad_ys", symbol)
-            for x in input_syms:
-                graph._set_symbol_list_attr("grad_xs", x)
-            graph._set_symbol_list_attr("grad_ys_out_grad", sym.Variable("head_grads"))
+            graph._set_symbol_list_attr("grad_xs", input_syms)
+            graph._set_symbol_list_attr("grad_ys_out_grad", sym.Variable("head_grads", shape=y_np.shape))
             graph = graph.apply("Gradient")
             ishapes.update({"head_grads": y_np.shape})
             graph, lib, _ = nnvm.compiler.build(graph, target, ishapes)
             m = graph_runtime.create(graph, lib, ctx)
             head_grads = np.random.uniform(size=y_np.shape).astype(dtype)
-            y_np = head_grads * np_backward(**np_inputs)
-            m.run(head_grads=head_grads, **np_inputs)
-            out = m.get_output(0, tvm.nd.empty(y_np.shape, dtype))
-
-            np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+            y_np = np_backward(head_grads=head_grads, **np_inputs)
+            b_inputs = {}
+            if need_input:
+                b_inputs.update(np_inputs)
+            if need_head_grads:
+                b_inputs.update({"head_grads":head_grads})
+            m.run(**b_inputs)
+            for i in range(len(y_np)):
+                out = m.get_output(i, tvm.nd.empty(y_np[i].shape, dtype))
+                np.testing.assert_allclose(out.asnumpy(), y_np[i], atol=1e-5, rtol=1e-5)
 
 
 def test_relu():
@@ -52,10 +54,15 @@ def test_relu():
         x = (x < 0) * x * 0.3 + (x > 0) * x - 0.2
         return (x > 0) * x
 
+    def backward(head_grads, x):
+        sub = (x < 0) * x * 0.3 + (x > 0) * x - 0.2
+        return [(sub > 0).astype("float") * \
+                ((x > 0).astype("float") + 0.3 * (x < 0).astype("float")) * head_grads]
+
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
-    helper(y, inputs, dtype, forward)
+    inputs = [('x', dshape, x)]
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_sym_scalar_pow():
@@ -66,12 +73,12 @@ def test_sym_scalar_pow():
     def forward(x):
         return x**scalar
 
-    def backward(x):
-        return scalar * x**(scalar -  1)
+    def backward(head_grads, x):
+        return [scalar * x**(scalar -  1) * head_grads]
 
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
+    inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, forward, backward)
 
 
@@ -83,12 +90,12 @@ def test_scalar_sym_pow():
     def forward(x):
         return scalar**x
 
-    def backward(x):
-        return np.log(scalar) * scalar**x
+    def backward(head_grads, x):
+        return [np.log(scalar) * scalar**x * head_grads]
 
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
+    inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, forward, backward)
 
 
@@ -99,12 +106,12 @@ def test_exp():
     def forward(x):
         return np.exp(x)
 
-    def backward(x):
-        return np.exp(x)
+    def backward(head_grads, x):
+        return [np.exp(x) * head_grads]
 
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
+    inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, forward, backward)
 
 
@@ -115,12 +122,12 @@ def test_log():
     def forward(x):
         return np.log(x)
 
-    def backward(x):
-        return 1. / x
+    def backward(head_grads, x):
+        return [1. / x * head_grads]
 
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
+    inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, forward, backward)
 
 
@@ -131,13 +138,13 @@ def test_tanh():
     def forward(x):
         return np.sinh(x) / np.cosh(x)
 
-    def backward(x):
+    def backward(head_grads, x):
         y_np = forward(x)
-        return (1 - y_np**2)
+        return [(1 - y_np**2) * head_grads]
 
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
+    inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, forward, backward)
 
 
@@ -148,13 +155,13 @@ def test_sigmoid():
     def forward(x):
         return 1.0 / (1.0 + np.exp(-x))
 
-    def backward(x):
+    def backward(head_grads, x):
         y_np = forward(x)
-        return y_np *(1 - y_np)
+        return [y_np *(1 - y_np) * head_grads]
 
     dtype = "float32"
     dshape = (1, 3, 32, 32)
-    inputs = {'x': (dshape, x)}
+    inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, forward, backward)
 
 
@@ -165,10 +172,15 @@ def test_softmax():
     def forward(x):
         return topi.testing.softmax_python(x)
 
+    def backward(head_grads, x):
+        y = topi.testing.softmax_python(x)
+        grad = y * (head_grads - np.sum(y * head_grads, axis=1, keepdims=True))
+        return [grad]
+
     dtype = "float32"
     dshape = (10, 1000)
-    inputs = {'x': (dshape, x)}
-    helper(y, inputs, dtype, forward)
+    inputs = [('x', dshape, x)]
+    helper(y, inputs, dtype, forward), backward
 
 
 def test_log_softmax():
@@ -178,26 +190,32 @@ def test_log_softmax():
     def forward(x):
         return topi.testing.log_softmax_python(x)
 
+    def backward(head_grads, x):
+        y = topi.testing.log_softmax_python(x)
+        grad = head_grads - np.sum(y * head_grads, axis=1, keepdims=True)
+        return [grad]
+
     dtype = "float32"
     dshape = (10, 1000)
-    inputs = {'x': (dshape, x)}
-    helper(y, inputs, dtype, forward)
+    inputs = [('x', dshape, x)]
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_dense():
-    x = sym.Variable("x")
-    y = sym.dense(x, units=3, name="dense")
+    x = sym.Variable("x", shape=(10, 100))
+    w = sym.Variable("dense_weight", shape=(3, 100))
+    b = sym.Variable("dense_bias", shape=(3,))
+    y = sym.dense(x, w, b, use_bias=True, units=3, name="dense")
     y = sym.flatten(y)
 
     def forward(x, dense_weight, dense_bias):
         return np.dot(x, dense_weight.T) + dense_bias
-
     dtype = "float32"
-    inputs = {
-        'x': ((10, 100), x),
-        'dense_weight': ((3, 100),),
-        'dense_bias': ((3,),)
-    }
+    inputs = [
+        ('x', (10, 100), x),
+        ('dense_weight', (3, 100), w),
+        ('dense_bias', (3,), b)
+    ]
     helper(y, inputs, dtype, forward)
 
 
@@ -215,13 +233,13 @@ def test_batchnorm():
         return (x - moving_mean) / np.sqrt(moving_var + eps) * gamma + beta
 
     dtype = "float32"
-    inputs = {
-        'x': ((10, 20), x),
-        'gamma': ((20,),),
-        'beta': ((20,),),
-        'moving_mean': ((20,),),
-        'moving_var': ((20,),)
-    }
+    inputs = [
+        ('x', (10, 20), x),
+        ('gamma', (20,), gamma),
+        ('beta', (20,), beta),
+        ('moving_mean', (20,), moving_var),
+        ('moving_var', (20,), moving_mean)
+    ]
 
     helper(y, inputs,  dtype, forward)
 
@@ -283,9 +301,12 @@ def verify_squeeze(dshape, axis):
     def forward(x):
         return np.squeeze(x, axis=axis) + 1
 
+    def backward(head_grads, x):
+        return [np.reshape(head_grads, x.shape)]
+
     dtype = "float32"
-    inputs = {'x': (dshape, x)}
-    helper(y, inputs, dtype, forward)
+    inputs = [('x', dshape, x)]
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_squeeze():
@@ -304,7 +325,7 @@ def test_pad():
                       mode='constant', constant_values=1.)
 
     dtype = "float32"
-    inputs = {'x': ((1, 3, 28, 28), x)}
+    inputs = [('x', (1, 3, 28, 28), x)]
     helper(y, inputs, dtype, forward)
 
 

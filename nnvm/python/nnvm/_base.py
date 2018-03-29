@@ -54,6 +54,9 @@ OpHandle = ctypes.c_void_p
 SymbolHandle = ctypes.c_void_p
 GraphHandle = ctypes.c_void_p
 
+# Global dict of str to symbol to initialize variables
+_all_var_init = {}
+
 #----------------------------
 # helper function definition
 #----------------------------

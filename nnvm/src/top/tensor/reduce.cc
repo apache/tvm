@@ -137,7 +137,20 @@ Example::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
-    auto axis = ShapeToArray(param.axis);
+    Array<Expr> axis;
+    if (param.exclude) {
+      std::set<dim_t> exclude_axis;
+      for (dim_t i = 0; i < param.axis.ndim(); ++i) {
+        exclude_axis.insert(param.axis[i]);
+      }
+      for (dim_t i = 0; i < inputs[0].ndim(); ++i) {
+        if (exclude_axis.count(i) == 0) {
+          axis.push_back(make_const(Int(32), i));
+        }
+      }
+    } else {
+      axis = ShapeToArray(param.axis);
+    }
     return Array<Tensor>{
       topi::sum(inputs[0], axis, param.keepdims) };
 })
@@ -150,7 +163,6 @@ Example::
       MakeNode("expand_like", n->attrs.name + "_grad",
                {ograds[0], n->inputs[0]},
                {{"axis", axis.str()},
-                {"keepdims", std::to_string(param.keepdims)},
                 {"exclude", std::to_string(param.exclude)}})
   };
 });

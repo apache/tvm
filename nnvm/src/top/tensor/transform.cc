@@ -229,29 +229,24 @@ will return a new array with shape ``(2,5,3,4)``.
 
 NNVM_REGISTER_OP(expand_like)
   .describe(R"code(Expand an input array with the shape of second array.
-
 This operation can always be composed of unsqueezing and expanding dims.
-
 Examples::
   input = [ 12.  19.  27.]
   input.shape = (3,)
-
   new_shape_array = [[[1,2],[2,3],[1,3]],
                      [[1,4],[4,3],[5,2]],
                      [[7,1],[7,2],[7,3]]]
   new_shape_array.shape = (3, 3, 2)
-
   expand_like(input, [1,2], new_shape_array) =
                     [[[12,12],[12,12],[12,12]],
                      [[19,19],[19,19],[19,19]],
                      [[27,27],[27,27],[27,27]]]
-
 )code" NNVM_ADD_FILELINE)
 .add_argument("input", "Tensor", "Source input")
 .add_argument("shape_like", "Tensor", "Input with new shape")
-.add_arguments(ReduceParam::__FIELDS__())
-.set_attr_parser(ParamParser<ReduceParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ReduceParam>)
+.add_arguments(IndicatorParam::__FIELDS__())
+.set_attr_parser(ParamParser<IndicatorParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<IndicatorParam>)
 .set_attr<nnvm::FInferShape>("FInferShape", AssignOutputAttr<TShape, 1, 0>)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<2, 1>)
 .set_num_inputs(2)
@@ -259,7 +254,7 @@ Examples::
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
-    const ReduceParam& param = nnvm::get<ReduceParam>(n->attrs.parsed);
+    const IndicatorParam& param = nnvm::get<IndicatorParam>(n->attrs.parsed);
     std::ostringstream axis;
     axis << param.axis;
 
@@ -267,11 +262,11 @@ Examples::
       MakeNode("sum", n->attrs.name + "_grad",
                {ograds[0]},
                {{"axis", axis.str()},
-                {"keepdims", std::to_string(param.keepdims)},
-                {"exclude", std::to_string(param.exclude)}})
+                {"exclude", std::to_string(param.exclude)}}),
+      MakeNode("zeros_like", n->attrs.name + "_zero_grad", {n->inputs[1]})
     };
-})
-.set_support_level(1);
+  })
+  .set_support_level(4);
 
 // split
 DMLC_REGISTER_PARAMETER(SplitParam);
@@ -564,13 +559,10 @@ The significance of each is explained below:
 
 NNVM_REGISTER_OP(reshape_like)
   .describe(R"code(Reshapes the input array by the size of another array.
-
 For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
 the input array into an output array with the same shape as the second input array.
-
 .. note::
     Sizes for both array should be compatible.
-
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Input data.")
 .add_argument("shape_like", "Tensor", "Input data.")
@@ -589,10 +581,12 @@ the input array into an output array with the same shape as the second input arr
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
-    return MakeGradNode("reshape_like", n,
-                        {ograds[0], n->inputs[0]});
+    return std::vector<NodeEntry>{
+      MakeNode("reshape_like", n->attrs.name + "_grad", {ograds[0], n->inputs[0]}),
+      MakeNode("zeros_like", n->attrs.name + "_zero_grad", { n->inputs[1]})
+    };
 })
-.set_support_level(3);
+.set_support_level(4);
 
 // squeeze
 DMLC_REGISTER_PARAMETER(SqueezeParam);
@@ -680,7 +674,8 @@ Examples::
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
     return std::vector<NodeEntry>{
-      MakeNode("reshape_like", n->attrs.name + "_grad", {n->inputs[0]})
+      MakeNode("reshape_like", n->attrs.name + "_grad",
+               {ograds[0], n->inputs[0]})
     };
 })
 .set_support_level(1);
