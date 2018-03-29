@@ -5,7 +5,6 @@ This tutorial explain below aspects (Unlike the android_rpc approach we already 
 
   * Build a model for android target
   * TVM run on Android using Java API
-  * TVM run on Android using Native API
 
 As an example here is a reference block diagram.
 
@@ -37,55 +36,5 @@ Refer [here](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/README.
 ### Android Native API Reference
 
 From android java TVM API to load model & execute can be refered at this [java](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java) sample source.
-
-
-## TVM run on Android using Native API
-
-### TVM Runtime for android Target
-
-This is a cross compilation process of libtvm_runtime.so for android with OpenCL support.
-
-Prerequisites:
-- Android stand alone tool chain : ANDROID_NDK_PATH/ndk/android-toolchain-arm64/bin/aarch64-linux-android-g++.
-
-  Please refer [Android NDK toolchain](https://developer.android.com/ndk/guides/standalone_toolchain.html) to generate standalone toolchain for your android device.
-
-Android OpenCL dependencies as shown below under OPENCL_PATH. These can be picked from your android build which is compatible to the target.
-
-```
-.
-├── include
-│   └── CL
-│       ├── cl_d3d10.h
-│       ├── cl_d3d11.h
-│       ├── cl_dx9_media_sharing.h
-│       ├── cl_dx9_media_sharing_intel.h
-│       ├── cl_egl.h
-│       ├── cl_ext.h
-│       ├── cl_ext_intel.h
-│       ├── cl_gl_ext.h
-│       ├── cl_gl.h
-│       ├── cl.h
-│       ├── cl_platform.h
-│       ├── cl_va_api_media_sharing_intel.h
-│       └── opencl.h
-└── lib
-    └── libOpenCL.so
-```
-
-- Enable OPENCL in make/config.mk
-
-- Below command can build libtvm_runtime.so for android.
-
-```
-OPENCL_PATH=<path to OPENCL> CXX=<ANDROID_NDK_PATH>/ndk/android-toolchain-arm64/bin/aarch64-linux-android-g++ make lib/libtvm_runtime.so
-```
-
-Result of this step is the libtvm_runtime.so which is a dependency for Android native while building application.
-The same can be deployed under /system/lib64/ as a system library too.
-
-### Android Native API Reference
-
-From android native TVM API to load model & execute can be refered at this [native](https://github.com/dmlc/tvm/tree/master/tutorials/deployment) sample source.
 
 
