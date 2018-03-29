@@ -130,15 +130,14 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(relu)
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
     // y = relu(x)
-    // grad = indicator(x > 0)
-    NodeEntry zero = MakeNode("zeros_like", n->attrs.name + "_grad_zero",
+    // grad = indicator(x > 0) * ograd
+    NodeEntry sub0 = MakeNode("zeros_like", n->attrs.name + "_sub0",
                               {n->inputs[0]});
+    NodeEntry sub1 = MakeNode("greater", n->attrs.name + "_sub1",
+                              {n->inputs[0], sub0}, {{"exclude", "true"}});
     return std::vector<NodeEntry>{
-      MakeNode("elemwise_mul", n->attrs.name + "_grad", {
-        ograds[0],
-        MakeNode("greater", n->attrs.name + "_grad_mask",
-                 {n->inputs[0], zero}, {{"exclude", "true"}})
-      })
+      MakeNode("elemwise_mul", n->attrs.name + "_grad",
+               {ograds[0], sub1})
     };
 })
 .set_support_level(1);
@@ -358,23 +357,21 @@ NNVM_REGISTER_OP(log_softmax)
     // grad_x = sum(grad_x, keepdim, axis)
     // grad_x = neg grad_x
     // grad_x = grad_x + ones_like(grad_x)
-    // grad_x = expand_dims(grad_x, axis)
     const SoftmaxParam& param = nnvm::get<SoftmaxParam>(n->attrs.parsed);
     NodeEntry output =  NodeEntry{n, 0, 0};
     NodeEntry sub0 = MakeNode("elemwise_mul", n->attrs.name + "_grad_sub0", {ograds[0], output});
     NodeEntry sub1 = MakeNode("sum", n->attrs.name + "_grad_sub1", {sub0},
                               {{"axis", std::to_string(param.axis)}, {"keepdims", "true"}});
-    NodeEntry sub2 = MakeNode("negative", n->attrs.name + "_grad_sub2", {sub1});
-    NodeEntry sub3 = MakeNode("ones_like", n->attrs.name + "_grad_sub3", {sub2});
-    NodeEntry sub4 = MakeNode("elemwise_add", n->attrs.name + "_grad_sub4", {sub2, sub3});
+    NodeEntry sub2 = MakeNode("full_like", n->attrs.name + "_grad_sub2", {n->inputs[0]},
+                              {{"fill_value", "-1"}});
+    NodeEntry sub3 = MakeNode("broadcast_mul", n->attrs.name + "_grad_sub3", {sub1, sub2});
     return std::vector<NodeEntry> {
-      MakeNode("expand_like", n->attrs.name + "_grad", {sub4, output},
-               {{"axis", std::to_string(param.axis)}})
+      MakeNode("elemwise_add", n->attrs.name + "_grad", {sub3, ograds[0]})
     };
 })
 .set_support_level(1);
 
-// leaky_rlu
+// leaky_relu
 DMLC_REGISTER_PARAMETER(LeakyReLUParam);
 
 NNVM_REGISTER_OP(leaky_relu)
@@ -407,14 +404,15 @@ NNVM_REGISTER_OP(leaky_relu)
     NodeEntry zero = MakeNode("zeros_like", n->attrs.name + "_grad_zero",
                               {n->inputs[0]});
     NodeEntry sub0 = MakeNode("greater", n->attrs.name + "_pos_grad",
-                              {n->inputs[0], zero}, {{"exclude", "true"}});
+                              {n->inputs[0], zero});
     NodeEntry sub1 = MakeNode("less", n->attrs.name + "_neg_grad",
-                              {n->inputs[0], zero}, {{"exclude", "true"}});
+                              {n->inputs[0], zero});
     NodeEntry sub2 = MakeNode("__mul_scalar__", n->attrs.name + "_neg_mul_2",
                               {sub1},
                               {{"scalar", std::to_string(param.alpha)}});
+    NodeEntry sub3 = MakeNode("elemwise_add", n->attrs.name + "_sub3", {sub0, sub2});
     return std::vector<NodeEntry>{
-      MakeNode("elemwise_add", n->attrs.name + "_add_grad", {sub0, sub2})
+      MakeNode("elemwise_mul", n->attrs.name + "_grad", {ograds[0], sub3})
     };
 })
 .set_support_level(1);

@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, unused-import
+# pylint: disable=invalid-name, unused-import, protected-access
 """Symbolic graph construction API.
 
 This namespace contains most of the registered operators.
@@ -8,10 +8,12 @@ from __future__ import absolute_import as _abs
 import sys as _sys
 import os as _os
 import ctypes as _ctypes
-
 from numbers import Number as _Number
+
+import numpy as np
+
 from . import _base
-from ._base import _LIB, check_call as _check_call, _FFI_MODE
+from ._base import _LIB, check_call as _check_call, _FFI_MODE, _all_var_init
 from .attribute import AttrScope
 from . import _symbol_internal as _internal
 
@@ -309,13 +311,19 @@ class Symbol(SymbolBase):
             self.handle, deps.handle))
 
 
-def Variable(name, **kwargs):
+def Variable(name, init=None, **kwargs):
     """Create a symbolic variable with specified name.
 
     Parameters
     ----------
     name : str
         Name of the variable.
+    init : Symbol or numpy.ndarray
+        Symbol or numpy ndarray of initial value for the variable.
+        Note that for symbolic initialization value, it must be able
+        to be defined through InferShape, such as sym.zeros_like(v),
+        in which v is an input or parameter. Otherwise, pass a numpy
+        ndarray instead.
     kwargs : dict of string -> string
         Additional attributes to set on the variable.
 
@@ -333,6 +341,11 @@ def Variable(name, **kwargs):
     attr = AttrScope.current.get(kwargs)
     if attr:
         ret._set_attr(**attr)
+    if init is not None:
+        if not isinstance(init, (Symbol, np.ndarray)):
+            raise TypeError('Expect a Symbol or numpy ndarray'
+                            'for variable `init`')
+        _all_var_init[name] = init
     return ret
 
 

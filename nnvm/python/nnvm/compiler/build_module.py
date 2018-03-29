@@ -4,9 +4,12 @@ from __future__ import absolute_import as _abs
 
 import logging
 import tvm
+
 from tvm.contrib import graph_runtime
 from . import graph_attr, graph_util
 from .. import graph as _graph
+from .. import symbol as sym
+from .._base import _all_var_init
 
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
@@ -201,6 +204,9 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
         By default, llvm is used if it is enabled,
         otherwise a stackvm intepreter is used.
 
+    initialize : bool, optional
+        Whether to initialize variables in global dict _all_var_init.
+
     Returns
     -------
     graph : Graph
@@ -230,6 +236,10 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
     if not isinstance(dtype, str):
         idtype, _ = graph_util.infer_dtype(graph, **dtype)
         dtype.update(zip(graph.index.input_names, idtype))
+    # Initialize all variables specified in _all_var_init
+    init_var = {}
+    if _all_var_init:
+        init_var = initialize_variables(shape, dtype)
     # Apply optimization
     graph = optimize(graph, shape, dtype)
     # Precompute prune
@@ -250,6 +260,11 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
     with target:
         graph = graph.apply("GraphFusePartition").apply("GraphFuseCompile")
     libmod = graph_attr._move_out_module(graph, "module")
+    # Write variable initial values into params
+    if init_var:
+        if params is None:
+            params = {}
+        params.update(init_var)
     return graph, libmod, params
 
 
@@ -329,3 +344,45 @@ def precompute_prune(graph, params):
     with tvm.build_config(auto_unroll_max_step=0):
         out_arrs = _run_graph(pre_graph, params)
     return graph, dict(zip(out_names, out_arrs))
+
+
+def initialize_variables(ishape, idtype):
+    """ Initialize variables stored in _all_var_init dictionary.
+
+    Parameters
+    ----------
+    ishape : dict of str to tuple of int
+        The input shape to the graph
+
+    idtype : str or dict of str to str
+        The input types to the graph
+
+    Returns
+    -------
+    init_var : dict of str to tvm.ndarray
+    """
+    symbol_init_dict = {}
+    const_init_dict = {}
+    init_var = {}
+    for key, value in _all_var_init.items():
+        if isinstance(value, sym.Symbol):
+            symbol_init_dict[key] = value
+        else:
+            const_init_dict[key] = tvm.nd.array(value)
+    # Make sure variables are initialized only once.
+    _all_var_init.clear()
+    if symbol_init_dict:
+        # Create dummy params to run initialization graph
+        params = {}
+        for name, shape in ishape.items():
+            dtype = idtype if isinstance(idtype, str) else idtype[name]
+            params[name] = tvm.nd.empty(shape, dtype, ctx=tvm.cpu())
+        init_group_sym = sym.Group(symbol_init_dict.values())
+        graph = _graph.create(init_group_sym)
+        with tvm.build_config(auto_unroll_max_step=0):
+            init_values = _run_graph(graph, params)
+        init_var.update(dict(zip(symbol_init_dict.keys(), init_values)))
+    init_var.update(const_init_dict)
+    for name, data in init_var.items():
+        ishape[name] = data.shape
+    return init_var
