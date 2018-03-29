@@ -30,6 +30,32 @@ def verify_relu(m, n):
     for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
+def verify_brelu(shape, lt, ht):
+    A = tvm.placeholder(shape, name='A')
+    B = topi.nn.brelu(A, lt, ht)
+
+    assert B.dtype == A.dtype
+
+    a_np = np.random.uniform(low=-1.0, high=5.0, size=get_const_tuple(A.shape)).astype(A.dtype)
+    b_np = a_np * (a_np > lt) * (a_np < ht) + (a_np > ht) * ht
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_elemwise(B)
+
+        a = tvm.nd.array(a_np, ctx)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+        foo = tvm.build(s, [A, B], device, name="relu")
+        foo(a, b)
+        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+        check_device(device)
 
 def verify_leaky_relu(m, alpha):
     A = tvm.placeholder((m,), name='A')
@@ -71,6 +97,10 @@ def verify_prelu(x, w):
 def test_relu():
     verify_relu(10, 128)
 
+def test_brelu():
+    verify_brelu((10, 5), 0.0, 3.0)
+    verify_brelu((1, 3, 2, 2), 0.0, 2.0)
+
 def test_leaky_relu():
     verify_leaky_relu(100, 0.1)
 
@@ -79,5 +109,6 @@ def test_prelu():
 
 if __name__ == "__main__":
     test_relu()
+    test_brelu()
     test_leaky_relu()
     test_prelu()
