@@ -253,7 +253,7 @@ Stmt ScanOpNode::BuildRealize(
 Stmt ScanOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
-    bool del_trivial_loop) const {
+    bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt provide = AttrStmt::make(
       stage->op, attr::scan_update_scope, this->scan_axis->var,
@@ -271,7 +271,7 @@ Stmt ScanOpNode::BuildProvide(
   std::unordered_map<IterVar, Expr> vmap;
   std::unordered_set<IterVar> empty;
   auto nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, empty, &vmap, del_trivial_loop);
+      stage, dom_map, 0, false, empty, &vmap, debug_keep_trivial_loop);
   nest[begin_scan].push_back(init);
   nest.push_back(
       op::MakeIfNest(

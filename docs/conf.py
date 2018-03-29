@@ -137,6 +137,14 @@ if not on_rtd and html_theme == 'rtd':
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+html_theme_options = {
+    'analytics_id': 'UA-75982049-2',
+    'logo_only': True,
+}
+
+html_logo = "_static/img/tvm-logo-small.png"
+
+
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
 

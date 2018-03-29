@@ -129,7 +129,7 @@ Stmt ExternOpNode::BuildRealize(
 Stmt ExternOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
-    bool del_trivial_loop) const {
+    bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt ret = AttrStmt::make(make_zero(Int(32)), attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
