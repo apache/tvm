@@ -442,6 +442,19 @@ def test_reuse_small_buffer():
     tvm.ir_pass.PostOrderVisit(body, verify)
     assert num_alloc[0] == 1
 
+def test_replace_dataflow():
+    shape = (255,)
+    A = tvm.placeholder(shape, name = "A")
+    B = tvm.compute(shape, lambda i: A[i] + A[i], name = "B")
+    C = tvm.compute(shape, lambda i: A[i] + B[i], name = "C")
+    D = tvm.compute(shape, lambda i: A[i] + C[i], name = "D")
+    E = tvm.compute(shape, lambda i: A[i] + D[i], name = "E")
+
+    s = tvm.create_schedule(E.op)
+    s.cache_read(A, "local", [B, C, D, E])
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+
 
 if __name__ == "__main__":
     test_alloc_seq()
@@ -456,3 +469,4 @@ if __name__ == "__main__":
     test_alloc_seq_type()
     test_alloc_seq_type2()
     test_reuse_small_buffer()
+    test_replace_dataflow()
