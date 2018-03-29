@@ -11,15 +11,17 @@
 #include "../common.h"
 
 /*!
- * \brief Register a function globally.
+ * \brief Register an enclave function globally.
  * \code
- *   TVM_REGISTER_SGX_FUNC("DoThing")
+ *   TVM_REGISTER_ENCLAVE_FUNC("DoThing")
  *   .set_body([](TVMArgs args, TVMRetValue* rv) {
  *   });
  * \endcode
  */
 #define TVM_REGISTER_ENCLAVE_FUNC(OpName)                              \
-  static sgx_status_t _sgx_status = tvm_ocall_register_func(OpName);   \
+  static TVM_ATTRIBUTE_UNUSED sgx_status_t                             \
+      TVM_STR_CONCAT(_sgx_status_reg_, __COUNTER__) =                  \
+          tvm_ocall_register_func(OpName);                             \
   TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) =                  \
       ::tvm::runtime::Registry::Register(                              \
           tvm::runtime::sgx::ECALL_PACKED_PFX + OpName)
