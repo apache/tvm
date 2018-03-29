@@ -22,22 +22,17 @@ namespace sgx {
 class EnclaveContext {
  public:
   explicit EnclaveContext(SGXModuleNode* mod) {
-    CHECK(Global()->mod_ == nullptr)
+    CHECK(Context()->mod_ == nullptr)
       << "Tried overriding existing enclave context.";
     CHECK(mod != nullptr) << "Tried setting null enclave context.";
-    Global()->mod_ = mod;
+    Context()->mod_ = mod;
   }
   ~EnclaveContext() {
-    Global()->mod_ = nullptr;
+    Context()->mod_ = nullptr;
   }
 
-  static EnclaveContext* Global() {
-    static EnclaveContext inst;
-    return &inst;
-  }
-
-  static SGXModuleNode* GetCurrent() {
-    SGXModuleNode* ctx = Global()->mod_;
+  static SGXModuleNode* GetModule() {
+    SGXModuleNode* ctx = Context()->mod_;
     CHECK(ctx != nullptr) << "No current enclave context";
     return ctx;
   }
@@ -45,6 +40,11 @@ class EnclaveContext {
  private:
   EnclaveContext() {}
   SGXModuleNode* mod_;
+
+  static EnclaveContext* Context() {
+    static thread_local EnclaveContext inst;
+    return &inst;
+  }
 };
 
 }  // namespace sgx
@@ -127,7 +127,7 @@ class SGXModuleNode : public ModuleNode {
   void RunWorkers(int num_tasks, void* tg) {
     std::function<void(int)> runner = [this, tg](int _worker_id) {
       this->GetFunction("__tvm_run_worker__",
-                        std::shared_ptr<SGXModuleNode>(this))(tg);
+                        std::shared_ptr<SGXModuleNode>(nullptr))(tg);
     };
     thread_group_.reset(new tvm::runtime::threading::ThreadGroup(
           num_tasks, runner, false /* include_main_thread */));
@@ -156,11 +156,11 @@ namespace sgx {
 extern "C" {
 
 void tvm_ocall_thread_group_launch(int num_tasks, void* tg) {
-  EnclaveContext::GetCurrent()->RunWorkers(num_tasks, tg);
+  EnclaveContext::GetModule()->RunWorkers(num_tasks, tg);
 }
 
 void tvm_ocall_thread_group_join() {
-  EnclaveContext::GetCurrent()->JoinThreads();
+  EnclaveContext::GetModule()->JoinThreads();
 }
 
 void tvm_ocall_api_set_last_error(const char* err) {
@@ -168,7 +168,13 @@ void tvm_ocall_api_set_last_error(const char* err) {
 }
 
 void tvm_ocall_register_func(const char* name) {
-  EnclaveContext::GetCurrent()->RegisterFunc(name);
+  EnclaveContext::GetModule()->RegisterFunc(name);
+}
+
+void* tvm_ocall_malloc(size_t bytes) {
+  void* buf = calloc(bytes, 1);
+  CHECK(buf != NULL);
+  return buf;
 }
 
 }  // extern "C"
