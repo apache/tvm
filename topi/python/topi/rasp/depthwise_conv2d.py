@@ -76,7 +76,6 @@ def _schedule(s, data, data_pad, kernel, output, last):
     wkl = _get_workload(data, kernel, stride, padding, output.dtype)
 
     if wkl not in _WORKLOADS:
-        print('not in WORKLOADS')
         return s
 
     # use specified schedule
@@ -179,12 +178,10 @@ def schedule_depthwise_conv2d(outs):
     s: Schedule
         The computation schedule for depthwise_conv2d nchw.
     """
-    print('specialized depthwise schedule')
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
-        print(op.name)
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
