@@ -5,8 +5,8 @@ from nnvm.compiler import graph_util, graph_attr
 from model_zoo import super_resolution, super_resolution_sym
 
 def compare_graph(onnx_file, nnvm_sym, ishape):
-    onnx_graph = onnx.load(onnx_file)
-    onnx_sym, params = nnvm.frontend.from_onnx(onnx_graph)
+    onnx_model = onnx.load(onnx_file)
+    onnx_sym, params = nnvm.frontend.from_onnx(onnx_model)
     g1 = nnvm.graph.create(onnx_sym)
     g2 = nnvm.graph.create(nnvm_sym)
     ishapes = {'input_0': ishape}

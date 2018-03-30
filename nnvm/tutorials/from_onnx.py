@@ -44,9 +44,9 @@ model_url = ''.join(['https://gist.github.com/zhreshold/',
                      'super_resolution_0.2.onnx'])
 download(model_url, 'super_resolution.onnx', True)
 # now you have super_resolution.onnx on disk
-onnx_graph = onnx.load('super_resolution.onnx')
+onnx_model = onnx.load('super_resolution.onnx')
 # we can load the graph as NNVM compatible model
-sym, params = nnvm.frontend.from_onnx(onnx_graph)
+sym, params = nnvm.frontend.from_onnx(onnx_model)
 
 ######################################################################
 # Load a test image

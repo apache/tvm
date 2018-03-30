@@ -14,8 +14,8 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
         c2_out = prepared_backend.run(W)[0]
         return c2_out
 
-    def get_tvm_output(graph, x, target, ctx, dtype='float32'):
-        new_sym, params = nnvm.frontend.from_onnx(graph)
+    def get_tvm_output(model, x, target, ctx, dtype='float32'):
+        new_sym, params = nnvm.frontend.from_onnx(model)
         shape_dict = {'input_0': x.shape}
         graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
         m = graph_runtime.create(graph, lib, ctx)
