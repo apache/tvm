@@ -72,11 +72,14 @@ def compile_cuda(code,
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)
 
-    return bytearray(open(file_target, "rb").read())
-
+    data = bytearray(open(file_target, "rb").read())
+    if not data:
+        raise RuntimeError(
+            "Compilation error: empty result is generated")
+    return data
 
 def find_cuda_path():
     """Utility function to find cuda path

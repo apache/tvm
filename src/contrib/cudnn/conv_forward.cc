@@ -114,7 +114,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.output_shape")
   int x_dim3 = args[10];
   int w_dim0 = args[11];
   int w_dim1 = args[12];
-  int w_dim2 = args[12];
+  int w_dim2 = args[13];
   int w_dim3 = args[14];
   void *out_shape = args[15];
   // Set Format
@@ -153,7 +153,103 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.output_shape")
                                                    static_cast<int*>(out_shape) + 1,
                                                    static_cast<int*>(out_shape) + 2,
                                                    static_cast<int*>(out_shape) + 3));
-  });
+});
+
+
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.find_algo")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int format = args[0];
+  int pad_h = args[1];
+  int pad_w = args[2];
+  int stride_h = args[3];
+  int stride_w = args[4];
+  int dilation_h = args[5];
+  int dilation_w = args[6];
+  int x_dim0 = args[7];
+  int x_dim1 = args[8];
+  int x_dim2 = args[9];
+  int x_dim3 = args[10];
+  int w_dim0 = args[11];
+  int w_dim1 = args[12];
+  int w_dim2 = args[13];
+  int w_dim3 = args[14];
+  int y_dim0 = args[15];
+  int y_dim1 = args[16];
+  int y_dim2 = args[17];
+  int y_dim3 = args[18];
+
+  // Set Format
+  entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
+  // conv desc
+  CUDNN_CALL(cudnnSetConvolution2dDescriptor(entry_ptr->conv_entry.conv_desc,
+                                             pad_h,
+                                             pad_w,
+                                             stride_h,
+                                             stride_w,
+                                             dilation_h,
+                                             dilation_w,
+                                             CUDNN_CROSS_CORRELATION,
+                                             entry_ptr->conv_entry.data_type));
+  // input desc
+  CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
+                                        entry_ptr->conv_entry.tensor_format,
+                                        CUDNN_DATA_FLOAT,
+                                        x_dim0,
+                                        x_dim1,
+                                        x_dim2,
+                                        x_dim3));
+  // filter desc
+  CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
+                                        CUDNN_DATA_FLOAT,
+                                        CUDNN_TENSOR_NCHW,
+                                        w_dim0,
+                                        w_dim1,
+                                        w_dim2,
+                                        w_dim3));
+
+  // output desc
+  CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.output_desc,
+                                        entry_ptr->conv_entry.tensor_format,
+                                        entry_ptr->conv_entry.data_type,
+                                        y_dim0,
+                                        y_dim1,
+                                        y_dim2,
+                                        y_dim3));
+
+  int returned_algo_count = 0;
+  cudnnConvolutionFwdAlgoPerf_t perf_results[CUDNN_CONVOLUTION_FWD_ALGO_COUNT];
+  CUDNN_CALL(cudnnFindConvolutionForwardAlgorithm(entry_ptr->handle,
+                                                  entry_ptr->conv_entry.input_desc,
+                                                  entry_ptr->conv_entry.filter_desc,
+                                                  entry_ptr->conv_entry.conv_desc,
+                                                  entry_ptr->conv_entry.output_desc,
+                                                  CUDNN_CONVOLUTION_FWD_ALGO_COUNT,
+                                                  &returned_algo_count,
+                                                  perf_results));
+
+  const std::vector<std::string> fwd_algo_names{
+      "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM",
+      "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM",
+      "CUDNN_CONVOLUTION_FWD_ALGO_GEMM",
+      "CUDNN_CONVOLUTION_FWD_ALGO_DIRECT",
+      "CUDNN_CONVOLUTION_FWD_ALGO_FFT",
+      "CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING",
+      "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD",
+      "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED"
+  };
+
+  auto best_algo = perf_results[0].algo;
+  LOG(INFO) << "\tCUDNN Found " << returned_algo_count
+            << " fwd algorithms, choosing " << fwd_algo_names[best_algo];
+  for (int i = 0; i < returned_algo_count; ++i) {
+    LOG(INFO) << "\t\t" << i << ") " << fwd_algo_names[perf_results[i].algo]
+              << " - time: " << perf_results[i].time << " ms"
+              << ", Memory: " << perf_results[i].memory;
+  }
+
+  ret[0] = best_algo;
+});
 
 }  // namespace contrib
 }  // namespace tvm

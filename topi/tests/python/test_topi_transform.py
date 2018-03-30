@@ -7,13 +7,13 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.expand_dims(A, axis, num_newaxis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(B)
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="expand_dims")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = data_npy.reshape(out_shape)
@@ -22,7 +22,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
@@ -30,13 +30,13 @@ def verify_tranpose(in_shape, axes):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.transpose(A, axes)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="tranpose")
         data_npy = np.arange(np.prod(in_shape)).reshape(in_shape).astype(A.dtype)
         out_npy = data_npy.transpose(axes)
@@ -45,7 +45,7 @@ def verify_tranpose(in_shape, axes):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
@@ -53,13 +53,13 @@ def verify_reshape(src_shape, dst_shape):
     A = tvm.placeholder(shape=src_shape, name="A")
     B = topi.reshape(A, dst_shape)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="reshape")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.reshape(data_npy, newshape=dst_shape)
@@ -68,7 +68,7 @@ def verify_reshape(src_shape, dst_shape):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
@@ -76,13 +76,14 @@ def verify_squeeze(src_shape, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
     B = topi.squeeze(A, axis=axis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
-        ctx = tvm.context(device, 0)
+
         foo = tvm.build(s, [A, B], device, name="squeeze")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.squeeze(data_npy, axis=axis)
@@ -95,7 +96,7 @@ def verify_squeeze(src_shape, axis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 def verify_concatenate(shapes, axis):
@@ -104,13 +105,14 @@ def verify_concatenate(shapes, axis):
         tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
     out_tensor = topi.concatenate(a_tuple=tensor_l, axis=axis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(out_tensor)
-        ctx = tvm.context(device, 0)
+
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
         out_npy = np.concatenate(data_npys, axis=axis)
@@ -119,7 +121,7 @@ def verify_concatenate(shapes, axis):
         foo(*(data_nds + [out_nd]))
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
@@ -127,13 +129,14 @@ def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
     tensor_l = topi.split(A, indices_or_sections, axis=axis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(tensor_l)
-        ctx = tvm.context(device, 0)
+
         foo = tvm.build(s, [A] + tensor_l, device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npys = np.split(data_npy, indices_or_sections, axis=axis)
@@ -143,7 +146,42 @@ def verify_split(src_shape, indices_or_sections, axis):
         for out_nd, out_npy in zip(out_nds, out_npys):
             np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+        check_device(device)
+
+
+def verify_expand_like(in_shape, out_shape, axis):
+    A = tvm.placeholder(shape=in_shape, name="A")
+    B = tvm.placeholder(shape=out_shape, name="B")
+    C = topi.expand_like(A, B, axis)
+    s = tvm.create_schedule([C.op])
+
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+
+        ctx = tvm.context(device, 0)
+        f = tvm.build(s, [A, B, C], device, name="expand_like")
+        input = np.random.uniform(size=in_shape).astype(A.dtype)
+        tvm_input = tvm.nd.array(input, ctx)
+
+        odim = len(out_shape)
+        real_axis = [x if x >= 0 else x + odim for x in axis]
+        real_axis = sorted(real_axis)
+        for x in real_axis:
+            input = np.expand_dims(input, x).astype(A.dtype)
+        for x in real_axis:
+            input = np.concatenate([input]*out_shape[x], axis=x).astype(A.dtype)
+        assert input.shape == out_shape
+
+        tvm_shape_like = tvm.nd.array(np.zeros(out_shape).astype(B.dtype), ctx)
+        out = tvm.nd.array(np.zeros(out_shape).astype(A.dtype), ctx)
+        f(tvm_input, tvm_shape_like, out)
+        np.testing.assert_allclose(out.asnumpy(), input)
+
+    for device in ["llvm"]:
         check_device(device)
 
 
@@ -188,6 +226,14 @@ def test_split():
     verify_split((2, 12, 3), [2, 4], 1)
     verify_split((10, 12, 24), [5, 7, 9], -1)
 
+
+def test_expand_like():
+    verify_expand_like((3,), (2, 3), [0])
+    verify_expand_like((2,), (2, 3), [1])
+    verify_expand_like((3, 4), (3, 5, 4), [1])
+    verify_expand_like((5, 7), (5, 6, 7, 8), [1, 3])
+
+
 if __name__ == "__main__":
     test_concatenate()
     test_tranpose()
@@ -195,3 +241,4 @@ if __name__ == "__main__":
     test_reshape()
     test_squeeze()
     test_split()
+    test_expand_like()

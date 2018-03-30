@@ -7,7 +7,7 @@ def get_const_int(expr):
 
     Parameters
     ----------
-    expr : tvm.Expr
+    expr : tvm.Expr or int
         The input expression.
 
     Returns
@@ -15,6 +15,8 @@ def get_const_int(expr):
     out_value : int
         The output.
     """
+    if isinstance(expr, int):
+        return expr
     if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
         expr = tvm.ir_pass.Simplify(expr)
     if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
@@ -59,9 +61,8 @@ def get_const_tuple(in_tuple):
     """
     out_tuple = ()
     for elem in in_tuple:
-        if not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm)):
-            raise ValueError("Element of input tuple should be const int")
-        out_tuple = out_tuple + (elem.value, )
+        value = get_const_int(elem)
+        out_tuple = out_tuple + (value, )
     return out_tuple
 
 

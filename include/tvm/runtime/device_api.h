@@ -19,7 +19,7 @@ enum DeviceAttrKind : int {
   kExist = 0,
   kMaxThreadsPerBlock = 1,
   kWarpSize = 2,
-  kComputeVersion = 3
+  kComputeVersion = 3,
 };
 
 /*! \brief Number of bytes each allocation must align to */
@@ -55,11 +55,16 @@ class DeviceAPI {
   /*!
    * \brief Allocate a data space on device.
    * \param ctx The device context to perform operation.
-   * \param size The size of the memory
+   * \param nbytes The number of bytes in memory.
    * \param alignment The alignment of the memory.
-   * \return The allocated device pointer
+   * \param type_hint The type of elements. Only needed by certain backends such
+   * as OpenGL, as nbytes & alignment are sufficient for most backends.
+   * \return The allocated device pointer.
    */
-  virtual void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) = 0;
+  virtual void* AllocDataSpace(TVMContext ctx,
+                               size_t nbytes,
+                               size_t alignment,
+                               TVMType type_hint) = 0;
   /*!
    * \brief Free a data space on device.
    * \param ctx The device context to perform operation.
@@ -85,6 +90,21 @@ class DeviceAPI {
                               TVMContext ctx_from,
                               TVMContext ctx_to,
                               TVMStreamHandle stream) = 0;
+    /*!
+   * \brief Create a new stream of execution.
+   *
+   * \param ctx The context of allocation.
+   */
+  TVM_DLL virtual TVMStreamHandle CreateStream(TVMContext ctx);
+
+  /*!
+   * \brief Free a stream of execution
+   *
+   * \param ctx The context of the stream
+   * \param stream The pointer to be freed.
+   */
+  TVM_DLL virtual void FreeStream(TVMContext ctx, TVMStreamHandle stream);
+
   /*!
    * \brief Synchronize the stream
    * \param ctx The context to perform operation.
@@ -98,6 +118,21 @@ class DeviceAPI {
    */
   virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
   /*!
+   * \brief Synchronize 2 streams of execution.
+   *
+   * An event is created in event_src stream that the second then 
+   * stream waits on.  Neither event_src or event_dst need to be of
+   * the same device ID as the context, but they must be of the same
+   * device type.
+   *
+   * \param ctx The context of the streams.
+   * \param event_src The source stream to synchronize.
+   * \param event_dst The destination stream to synchronize.
+   */
+  TVM_DLL virtual void SyncStreamFromTo(TVMContext ctx,
+                                        TVMStreamHandle event_src,
+                                        TVMStreamHandle event_dst);
+  /*!
    * \brief Allocate temporal workspace for backend execution.
    *
    *  \note We have the following assumption about backend temporal
@@ -109,9 +144,13 @@ class DeviceAPI {
    *  - Workspace should not overlap between different threads(i.e. be threadlocal)
    *
    * \param ctx The context of allocation.
-   * \param size The size to be allocated.
+   * \param nbytes The size to be allocated.
+   * \param type_hint The type of elements. Only needed by certain backends such
+   * as OpenGL, as nbytes is sufficient for most backends.
    */
-  TVM_DLL virtual void* AllocWorkspace(TVMContext ctx, size_t size);
+  TVM_DLL virtual void* AllocWorkspace(TVMContext ctx,
+                                       size_t nbytes,
+                                       TVMType type_hint = {});
   /*!
    * \brief Free temporal workspace in backend execution.
    *
@@ -119,6 +158,7 @@ class DeviceAPI {
    * \param ptr The pointer to be freed.
    */
   TVM_DLL virtual void FreeWorkspace(TVMContext ctx, void* ptr);
+
   /*!
    * \brief Get device API base don context.
    * \param ctx The context

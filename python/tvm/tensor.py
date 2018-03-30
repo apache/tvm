@@ -32,7 +32,7 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
 itervar_cls = None
 
 @register_node
-class Tensor(NodeBase):
+class Tensor(NodeBase, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
     def __call__(self, *indices):
         ndim = self.ndim
@@ -60,7 +60,13 @@ class Tensor(NodeBase):
 
     def __eq__(self, other):
         if not isinstance(other, Tensor):
+            if isinstance(other, _expr.ExprOp):
+                return _expr.EqualOp(self, other)
             return False
+        if self.ndim == 0 and other.ndim == 0:
+            raise ValueError("Equal == comparison among rank-0 tensor is ambiguous, "
+                             "use Tensor.equal for content expression equvalence, "
+                             "use Tensor.same_as for exact reference comparison")
         return _api_internal._TensorEqual(self, other)
 
     @property

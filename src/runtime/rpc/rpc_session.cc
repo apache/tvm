@@ -844,8 +844,9 @@ void RPCSession::CopyFromRemote(void* from,
 }
 
 RPCFuncHandle RPCSession::GetTimeEvaluator(
-    RPCFuncHandle fhandle, TVMContext ctx, int nstep) {
-  return this->CallRemote(RPCCode::kGetTimeEvaluator, fhandle, ctx, nstep);
+    RPCFuncHandle fhandle, TVMContext ctx, int number, int repeat) {
+  return this->CallRemote(
+      RPCCode::kGetTimeEvaluator, fhandle, ctx, number, repeat);
 }
 
 // Event handler functions
@@ -887,9 +888,11 @@ void RPCDevGetAttr(TVMArgs args, TVMRetValue *rv) {
 
 void RPCDevAllocData(TVMArgs args, TVMRetValue *rv) {
   TVMContext ctx = args[0];
-  uint64_t size = args[1];
+  uint64_t nbytes = args[1];
   uint64_t alignment = args[2];
-  void* data = DeviceAPI::Get(ctx)->AllocDataSpace(ctx, size, alignment);
+  TVMType type_hint = args[3];
+  void* data = DeviceAPI::Get(ctx)->AllocDataSpace(
+      ctx, nbytes, alignment, type_hint);
   *rv = data;
 }
 
@@ -971,7 +974,7 @@ void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {
 
 void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
   PackedFunc *pf = static_cast<PackedFunc*>(args[0].operator void*());
-  void *fhandle = new PackedFunc(WrapTimeEvaluator(*pf, args[1], args[2]));
+  void *fhandle = new PackedFunc(WrapTimeEvaluator(*pf, args[1], args[2], args[3]));
   delete pf;
   *rv = fhandle;
 }
@@ -1022,23 +1025,31 @@ void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(state_, kRecvCode);
 }
 
-PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int nstep) {
-  auto ftimer = [pf, ctx, nstep](TVMArgs args, TVMRetValue *rv) {
+PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat) {
+  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) {
     TVMRetValue temp;
+    std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, &temp);
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-    // start timing
-    auto tbegin = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < nstep; ++i) {
-      pf.CallPacked(args, &temp);
+    for (int i = 0; i < repeat; ++i) {
+      // start timing
+      auto tbegin = std::chrono::high_resolution_clock::now();
+      for (int i = 0; i < number; ++i) {
+        pf.CallPacked(args, &temp);
+      }
+      DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+      auto tend = std::chrono::high_resolution_clock::now();
+      double speed = std::chrono::duration_cast<std::chrono::duration<double> >(
+          tend - tbegin).count() / number;
+      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
     }
-    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-    auto tend = std::chrono::high_resolution_clock::now();
-    double speed = std::chrono::duration_cast<std::chrono::duration<double> >(
-        tend - tbegin).count() / nstep;
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
     // return the time.
-    *rv = speed;
+    *rv = arr;
   };
   return PackedFunc(ftimer);
 }

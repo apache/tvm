@@ -10,6 +10,7 @@
 #include <tvm/buffer.h>
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
+#include <tvm/build_module.h>
 
 namespace tvm {
 
@@ -159,7 +160,7 @@ TVM_REGISTER_API("_Buffer")
 TVM_REGISTER_API("_BufferAccessPtr")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Buffer()
-        .access_ptr(args[1], args[2], args[3]);
+        .access_ptr(args[1], args[2], args[3], args[4]);
   });
 
 TVM_REGISTER_API("_BufferVLoad")
@@ -399,6 +400,11 @@ TVM_REGISTER_API("_StageDoubleBuffer")
     args[0].operator Stage().double_buffer();
   });
 
+TVM_REGISTER_API("_StageOpenGL")
+  .set_body([](TVMArgs args, TVMRetValue *ret) {
+    args[0].operator Stage().opengl();
+  });
+
 TVM_REGISTER_API("_ScheduleNormalize")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
@@ -426,7 +432,7 @@ TVM_REGISTER_API("_ScheduleCacheWrite")
 TVM_REGISTER_API("_ScheduleRFactor")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = args[0].operator Schedule()
-        .rfactor(args[1], args[2]);
+        .rfactor(args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_API("_CommReducerCombine")

@@ -40,8 +40,9 @@ We can also use other specific function in this module to create specific target
 """
 from __future__ import absolute_import
 
-import warnings
 from ._ffi.base import _LIB_NAME
+from ._ffi.node import NodeBase, register_node
+from . import _api_internal
 
 try:
     from decorator import decorate
@@ -62,16 +63,9 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-class Target(object):
+@register_node
+class Target(NodeBase):
     """Target device information, use through TVM API.
-
-    Parameters
-    ----------
-    target_name : {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "ext_dev"}
-        The major target name.
-
-    options : list of str, optional
-        Additional arguments appended to the target.
 
     Note
     ----
@@ -81,63 +75,192 @@ class Target(object):
     - :any:`tvm.target.rasp` create raspberry pi target
     - :any:`tvm.target.cuda` create CUDA target
     - :any:`tvm.target.rocm` create ROCM target
+    - :any:`tvm.target.mali` create Mali target
     """
-    current = None
+    def __init__(self, handle):
+        super(Target, self).__init__(handle)
+        self._keys = None
+        self._options = None
+        self._libs = None
 
-    def __init__(self,
-                 target_name,
-                 options=None):
-        self.target_name = target_name
-        self.options = _merge_opts([], options)
-        self.device_name = ""
-        # Parse device option
-        for item in self.options:
-            if item.startswith("-device="):
-                self.device_name = item.split("=")[1]
-        # Target query searchs device name first
-        if self.device_name:
-            self.keys = (self.device_name,)
-        else:
-            self.keys = ()
-        # Target configuration handling
-        self.thread_warp_size = 1
-        if target_name in ("llvm", ):
-            self.keys += ("cpu",)
-        elif target_name in ("cuda", "nvptx"):
-            self.keys += ("cuda", "gpu")
-            self.max_num_threads = 512
-            self.thread_warp_size = 32
-        elif target_name in ("rocm", "opencl"):
-            # For now assume rocm schedule for opencl
-            self.keys += ("rocm", "gpu")
-            self.max_num_threads = 256
-        elif target_name in ("metal",):
-            self.keys += ("gpu",)
-            self.max_num_threads = 256
-        elif target_name in ("stackvm", "ext_dev"):
-            # Do not now class for stacvm or ext_dev
-            pass
-        else:
-            raise ValueError("Unknown target name %s" % target_name)
+    @property
+    def keys(self):
+        if not self._keys:
+            self._keys = [k.value for k in self.keys_array]
+        return self._keys
 
-    def __str__(self):
-        return " ".join([self.target_name] + self.options)
+    @property
+    def options(self):
+        if not self._options:
+            self._options = [o.value for o in self.options_array]
+        return self._options
 
-    def __repr__(self):
-        return self.__str__()
+    @property
+    def libs(self):
+        if not self._libs:
+            self._libs = [l.value for l in self.libs_array]
+        return self._libs
 
     def __enter__(self):
-        self._old_target = Target.current
-        if self._old_target is not None and str(self) != str(self._old_target):
-            warnings.warn(
-                "Override target '%s' with new target scope '%s'" % (
-                    self._old_target, self))
-        Target.current = self
+        _api_internal._EnterTargetScope(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        Target.current = self._old_target
+        _api_internal._ExitTargetScope()
 
+@register_node
+class GenericFunc(NodeBase):
+    """GenericFunc node reference. This represents a generic function
+    that may be specialized for different targets. When this object is
+    called, a specialization is chosen based on the current target.
+
+    Note
+    ----
+    Do not construct an instance of this object, it should only ever be
+    used as a return value from calling into C++.
+    """
+    def __call__(self, *args):
+        return _api_internal._GenericFuncCallFunc(self, *args)
+
+    def set_default(self, func, allow_override=False):
+        """Set the default function to be used if no specializations match
+        the current target.
+
+        Parameters
+        ----------
+        func : function
+            The default function
+
+        allow_override : bool
+            Whether to allow the current default to be overridden
+        """
+        _api_internal._GenericFuncSetDefault(self, func, allow_override)
+
+    def register(self, func, key_list, allow_override=False):
+        """Register a specialization for this GenericFunc.
+
+        Parameters
+        ----------
+        func : function
+            The function to be registered.
+
+        key : str or list of str
+            The key to be registered.
+
+        allow_override : bool, optional
+            Whether to allow existing keys to be overridden.
+        """
+        key_list = [key_list] if isinstance(key_list, str) else key_list
+        _api_internal._GenericFuncRegisterFunc(self, func, key_list, allow_override)
+
+def get_native_generic_func(name):
+    """Get a generic function from the global registry. If no
+    function is registered under the given name, a new generic
+    function is created.
+
+    Parameters
+    ----------
+    name : string
+        The name of the generic function to get
+
+    Returns
+    -------
+    func : GenericFunc
+        The generic function for the given name
+    """
+    return _api_internal._GenericFuncGetGlobal(name)
+
+def override_native_generic_func(func_name):
+    """Override a generic function defined in C++
+
+    Generic function allows registration of further functions
+    that can be dispatched on current target context.
+    If no registered dispatch is matched, the fdefault will be called.
+
+    Parameters
+    ----------
+    func_name : string
+        The name of the generic func to be overridden
+
+    Returns
+    -------
+    fgeneric : function
+        A wrapped generic function.
+
+    Example
+    -------
+    .. code-block:: python
+
+    import tvm
+    # wrap function as target generic
+    @tvm.target.override_native_generic_func("my_func")
+    def my_func(a):
+        return a + 1
+    # register specialization of my_func under target cuda
+    @my_func.register("cuda")
+    def my_func_cuda(a):
+        return a + 2
+    # displays 3, because my_func is called
+    print(my_func(2))
+    # displays 4, because my_func_cuda is called
+    with tvm.target.cuda():
+        print(my_func(2))
+    """
+    generic_func_node = get_native_generic_func(func_name)
+
+    def fdecorate(fdefault):
+        """Wrap a target generic function, overriding the previous
+        default that was set for the generic function.
+
+        Parameters
+        ----------
+        fdefault : function
+            The default function.
+
+        Returns
+        -------
+        fgeneric : function
+            A wrapped generic function.
+
+        """
+        generic_func_node.set_default(fdefault, allow_override=True)
+
+        def register(key, func=None, override=True):
+            """Register function to be the dispatch function.
+
+            Parameters
+            ----------
+            key : str or list of str
+                The key to be registered.
+
+            func : function
+                The function to be registered.
+
+            override : bool, optional
+                Whether override existing registration.
+
+            Returns
+            -------
+            The register function is necessary.
+            """
+            def _do_reg(myf):
+                generic_func_node.register(myf, key, override)
+                return myf
+            if func:
+                return _do_reg(func)
+            return _do_reg
+
+        def dispatch_func(func, *args, **kwargs):
+            #pylint: disable=unused-argument
+            """The wrapped dispath function"""
+            if kwargs:
+                raise RuntimeError(
+                    "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
+            return generic_func_node(*args)
+        fresult = decorate(fdefault, dispatch_func)
+        fresult.register = register
+        return fresult
+    return fdecorate
 
 def generic_func(fdefault):
     """Wrap a target generic function.
@@ -205,7 +328,7 @@ def generic_func(fdefault):
                 dispatch_dict[k] = myf
             return myf
         if func:
-            return _do_reg(myf)
+            return _do_reg(func)
         return _do_reg
 
     def dispatch_func(func, *args, **kwargs):
@@ -221,7 +344,6 @@ def generic_func(fdefault):
     fdecorate.register = register
     return fdecorate
 
-
 def cuda(options=None):
     """Returns a cuda target.
 
@@ -230,7 +352,8 @@ def cuda(options=None):
     options : list of str
         Additional options
     """
-    return Target("cuda", options)
+    options = options if options else []
+    return _api_internal._TargetCreate("cuda", *options)
 
 
 def rocm(options=None):
@@ -241,7 +364,8 @@ def rocm(options=None):
     options : list of str
         Additional options
     """
-    return Target("rocm", options)
+    options = options if options else []
+    return _api_internal._TargetCreate("rocm", *options)
 
 
 def rasp(options=None):
@@ -257,7 +381,32 @@ def rasp(options=None):
             "-mcpu=cortex-a53",
             "-mattr=+neon"]
     opts = _merge_opts(opts, options)
-    return Target("llvm", opts)
+    return _api_internal._TargetCreate("llvm", *opts)
+
+
+def mali(options=None):
+    """Returns a ARM Mali GPU target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    opts = ["-device=mali"]
+    opts = _merge_opts(opts, options)
+    return _api_internal._TargetCreate("opencl", *opts)
+
+
+def opengl(options=None):
+    """Returns a OpenGL target.
+
+    Parameters
+    ----------
+    options : list of str
+        Additional options
+    """
+    options = options if options else []
+    return _api_internal._TargetCreate("opengl", *options)
 
 
 def create(target_str):
@@ -281,15 +430,8 @@ def create(target_str):
         return target_str
     if not isinstance(target_str, str):
         raise ValueError("target_str has to be string type")
-    arr = target_str.split()
-    # Parse device option
-    device_name = ""
-    for item in arr[1:]:
-        if item.startswith("-device="):
-            device_name = item.split("=")[1]
-    if device_name == "rasp":
-        return rasp(arr[1:])
-    return Target(arr[0], arr[1:])
+
+    return _api_internal._TargetFromString(target_str)
 
 
 def current_target(allow_none=True):
@@ -304,10 +446,5 @@ def current_target(allow_none=True):
     ------
     ValueError if current target is not set.
     """
-    if Target.current:
-        return Target.current
-    if not allow_none:
-        raise RuntimeError(
-            "Requires a current target in generic function, but it is not set. "
-            "Please set it using `with TargetObject:`")
-    return Target.current
+    target_str = _api_internal._GetCurrentTarget(allow_none)
+    return create(target_str) if target_str is not None else None

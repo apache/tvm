@@ -45,7 +45,7 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
       CastFromTo(iv->thread_tag, UInt(32), iv->var.type());
 }
 
-void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)
@@ -66,27 +66,46 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
     }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
-      os << 'u';
+      if (t.lanes() != 1) {
+        os << "u";
+      } else {
+        os << "unsigned ";
+      }
     }
     if (t.bits() == 8 && t.lanes() == 4) {
       // directly 4 8 bit int in integer.
       os << "int"; return;
     }
     switch (t.bits()) {
-      case 8: os << "char"; break;
+      case 8: {
+        if (!t.is_uint() && t.lanes() == 1) {
+          os << "signed char"; break;
+        } else {
+          os << "char"; break;
+        }
+      }
       case 16: os << "short"; break;
       case 32: os << "int"; break;
       case 64: {
-        if (lanes != 1 && sizeof(long) == 64) {  // NOLINT(*)
-          os << "long"; break;
+        if (sizeof(long) != 8) { // NOLINT(*)
+          if (t.lanes() == 1) {
+            os << "long long"; break;
+          } else if (t.lanes() == 2) {
+            os << "longlong"; break;
+          } else {
+            // No longlong3, longlong4
+            LOG(FATAL) << "Cannot convert type " << t << " to CUDA type on a L32 platform";
+          }
         } else {
-          os << "int64_t"; break;
+          os << "long"; break;
         }
       }
       case 1: os << "int"; break;
       default: fail = true; break;
     }
-    if (!fail && lanes == 1) return;
+    if (!fail && lanes == 1) {
+      return;
+    }
     if (!fail && (lanes >= 2 && lanes <= 4)) {
       os << lanes; return;
     }
@@ -101,6 +120,10 @@ void CodeGenCUDA::PrintVecBinaryOp(
   int lanes = t.lanes();
 
   {
+    // The assignment below introduces side-effect, and the resulting value cannot
+    // be reused across multiple expression, thus a new scope is needed
+    int vec_scope = BeginScope();
+
     // default: unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.type());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.type());
@@ -129,6 +152,7 @@ void CodeGenCUDA::PrintVecBinaryOp(
       PrintVecElemStore(sret, t, i, value_temp.str());
     }
     os << sret;
+    EndScope(vec_scope);
   }
 }
 
@@ -211,6 +235,16 @@ void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   } else {
     CodeGenC::VisitStmt_(op);
   }
+}
+
+void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
+  os << "((make_int" << op->lanes << ")(";
+  for (int i = 0; i < op->lanes; i++) {
+    os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
+    if (i != op->lanes - 1)
+      os << ", ";
+  }
+  os << "))";
 }
 
 void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)

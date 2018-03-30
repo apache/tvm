@@ -419,6 +419,16 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   builder_->SetInsertPoint(par_launch_end);
 }
 
+llvm::Value* CodeGenCPU::CreateStaticHandle() {
+  llvm::GlobalVariable* gv = new llvm::GlobalVariable(
+      *module_, t_void_p_, false,
+      llvm::GlobalValue::PrivateLinkage, 0,
+      "__tvm_static_handle");
+  gv->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
+  gv->setInitializer(llvm::Constant::getNullValue(t_void_p_));
+  return gv;
+}
+
 void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& body) {
   using llvm::BasicBlock;
   // closure data
@@ -426,12 +436,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
       ftype_tvm_static_init_callback_,
       llvm::Function::PrivateLinkage,
       "__tvm_static_init_lambda", module_.get());
-  llvm::GlobalVariable* gv = new llvm::GlobalVariable(
-      *module_, t_void_p_, false,
-      llvm::GlobalValue::PrivateLinkage, 0,
-      "__tvm_static_handle");
-  gv->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
-  gv->setInitializer(llvm::Constant::getNullValue(t_void_p_));
+  llvm::Value* gv = CreateStaticHandle();
   llvm::Function* finit = module_->getFunction(init_fname);
   if (finit == nullptr) {
     finit = llvm::Function::Create(
@@ -478,7 +483,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     // create the function handle
     hptr = new llvm::GlobalVariable(
         *module_, t_tvm_func_handle_, false,
-        llvm::GlobalValue::LinkOnceAnyLinkage, 0, ".tvm_func." + fname);
+        llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
     hptr->setAlignment(align);
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;
@@ -599,6 +604,8 @@ void CodeGenCPU::AddStartupFunction() {
 llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
   if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     return CreateCallPacked(op);
+  } else if (op->is_intrinsic(intrinsic::tvm_static_handle)) {
+    return CreateStaticHandle();
   } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
     builder_->CreateRet(ConstInt32(-1));
     return ConstInt32(-1);

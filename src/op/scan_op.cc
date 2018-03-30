@@ -238,7 +238,7 @@ Stmt ScanOpNode::BuildRealize(
   for (size_t i = 0; i < update.size(); ++i) {
     Tensor t = stage->op.output(i);
     CHECK_EQ(static_cast<size_t>(t->value_index), i);
-    Halide::Internal::Region bounds;
+    HalideIR::Internal::Region bounds;
     bounds.push_back(tdom);
     for (size_t k = 1; k < this->update[i]->shape.size(); ++k, ++sp_idx) {
       IterVar sp_ax = this->spatial_axis_[sp_idx];
@@ -252,7 +252,8 @@ Stmt ScanOpNode::BuildRealize(
 
 Stmt ScanOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map) const {
+    const std::unordered_map<IterVar, Range>& dom_map,
+    bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt provide = AttrStmt::make(
       stage->op, attr::scan_update_scope, this->scan_axis->var,
@@ -270,7 +271,7 @@ Stmt ScanOpNode::BuildProvide(
   std::unordered_map<IterVar, Expr> vmap;
   std::unordered_set<IterVar> empty;
   auto nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, empty, &vmap);
+      stage, dom_map, 0, false, empty, &vmap, debug_keep_trivial_loop);
   nest[begin_scan].push_back(init);
   nest.push_back(
       op::MakeIfNest(

@@ -273,7 +273,47 @@ def test_llvm_bool():
     check_llvm(64)
 
 
+def test_rank_zero():
+    def check_llvm(n):
+        if not tvm.module.enabled("llvm"):
+            return
+        A = tvm.placeholder((n, ), name='A')
+        scale = tvm.placeholder((), name='scale')
+        k = tvm.reduce_axis((0, n), name="k")
+        C = tvm.compute((), lambda : tvm.sum(A[k] * scale, axis=k), name="C")
+        D = tvm.compute((), lambda : C + 1)
+        s = tvm.create_schedule(D.op)
+        # build and invoke the kernel.
+        f = tvm.build(s, [A, scale, D], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), ctx)
+        sc = tvm.nd.array(
+            np.random.randint(0, 2, size=()).astype(scale.dtype), ctx)
+        d = tvm.nd.empty((), D.dtype, ctx)
+        f(a, sc, d)
+        d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
+        np.testing.assert_allclose(d.asnumpy(), d_np)
+    check_llvm(64)
+
+
+def test_alignment():
+    n = tvm.convert(1024)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda i: A[i] * 3, name='B')
+    s = tvm.create_schedule(B.op)
+    bx, tx = s[B].split(B.op.axis[0], factor=8)
+    s[B].vectorize(tx)
+    f = tvm.build(s, [A, B], "llvm")
+
+    for l in f.get_source().split("\n"):
+        if "align" in l and "4 x float" in l:
+            assert "align 32" in l
+
+
 if __name__ == "__main__":
+    test_alignment()
+    test_rank_zero()
     test_llvm_bool()
     test_llvm_persist_parallel()
     test_llvm_select()

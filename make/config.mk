@@ -50,6 +50,9 @@ USE_RPC = 1
 # Whether enable tiny embedded graph runtime.
 USE_GRAPH_RUNTIME = 1
 
+#  Whether enable additional graph debug functions
+USE_GRAPH_RUNTIME_DEBUG = 0
+
 # whether build with LLVM support
 # Requires LLVM version >= 4.0
 # Set LLVM_CONFIG to your version, uncomment to build with llvm support
@@ -62,9 +65,24 @@ USE_GRAPH_RUNTIME = 1
 # Whether use BLAS, choices: openblas, atlas, blas, apple
 USE_BLAS = none
 
+# Whether use contrib.random in runtime
+USE_RANDOM = 0
+
 # Whether use NNPack
 USE_NNPACK = 0
 # NNPACK_PATH = none
 
 # Whether use CuDNN
 USE_CUDNN = 0
+
+# Whether use MIOpen
+USE_MIOPEN = 0
+
+# Whether use MPS
+USE_MPS = 0
+
+# Whether use cuBLAS
+USE_CUBLAS = 0
+
+# Whether use rocBlas
+USE_ROCBLAS = 0

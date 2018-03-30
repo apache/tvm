@@ -136,12 +136,6 @@ inline Expr TVMArrayGet(Type t, Var arr, intrinsic::TVMStructFieldKind kind) {
   return TVMStructGet(t, arr, 0, kind);
 }
 
-inline Stmt AssertNull(Var handle, std::string msg) {
-  return AssertStmt::make(Call::make(
-      Bool(1), intrinsic::tvm_handle_is_null,
-      {handle}, Call::PureIntrinsic), msg, Evaluate::make(0));
-}
-
 void ArgBinder::BindDLTensor(const Buffer& buffer,
                              const Expr& device_type,
                              const Expr& device_id,
@@ -200,12 +194,38 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   init_nest_.emplace_back(LetStmt::make(
       v_strides, TVMArrayGet(Handle(), handle, intrinsic::kArrStrides),
       nop));
+  Expr is_null = Call::make(
+    Bool(1), intrinsic::tvm_handle_is_null,
+    {v_strides}, Call::PureIntrinsic);
   if (buffer->strides.size() == 0) {
+    // Assert the buffer is compact
+    Type stype = buffer->DefaultIndexType();
+    Expr expect_stride = make_const(stype, 1);
+    Array<Expr> conds;
+    for (size_t i = buffer->shape.size(); i != 0; --i) {
+      size_t k = i - 1;
+      Expr svalue = cast(
+          stype,
+          Load::make(tvm_shape_type, v_strides,
+                     IntImm::make(Int(32), k), const_true(1)));
+      conds.push_back(expect_stride == svalue);
+      expect_stride = expect_stride * buffer->shape[k];
+    }
     std::ostringstream stride_err_msg;
     stride_err_msg << arg_name << ".strides:"
-                   << " expected to be nullptr for contiguous array";
-    init_nest_.emplace_back(AssertNull(v_strides, stride_err_msg.str()));
+                   << " expected to be compact array";
+    if (conds.size() != 0) {
+      Stmt check =
+          AssertStmt::make(arith::ComputeReduce<ir::And>(conds, Expr()),
+                           stride_err_msg.str(), Evaluate::make(0));
+      check = IfThenElse::make(Not::make(is_null), check, Stmt());
+      init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
+    }
   } else {
+    std::ostringstream stride_null_err_msg;
+    stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
+    asserts_.emplace_back(AssertStmt::make(Not::make(is_null), stride_null_err_msg.str(), nop));
+
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';

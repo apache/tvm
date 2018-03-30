@@ -19,7 +19,7 @@ def lower(sch, args):
     sch = sch.normalize()
     bounds = tvm.schedule.InferBound(sch)
     stmt = tvm.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.VectorizeLoop(stmt)
@@ -37,7 +37,22 @@ def test_basic():
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert('if' not in str(stmt.body.body.body.first))
+
+def test_const_loop():
+    n = 21
+    A = tvm.placeholder((n, ), name='A')
+    B = tvm.placeholder((n, ), name='B')
+
+    T = tvm.compute((n, ), lambda i: A[i]+B[i])
+    s = tvm.create_schedule(T.op)
+    xo, xi = s[T].split(T.op.axis[0], factor=4)
+
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.body.body.first))
 
@@ -53,7 +68,7 @@ def test_multi_loop():
                 with ib.else_scope():
                     ib.emit(tvm.make.Evaluate(n))
     stmt = ib.get()
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt.body.first, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
@@ -73,7 +88,7 @@ def test_multi_if():
                 with ib.else_scope():
                     ib.emit(tvm.make.Evaluate(n))
     stmt = ib.get()
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.first))
 
@@ -92,7 +107,7 @@ def test_thread_axis():
 
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.body.body.first))
 
@@ -127,7 +142,7 @@ def test_select():
         ib.emit(tvm.make.Evaluate(
           tvm.make.Select(ib.likely(i*4+j<n), m, n)))
     stmt = ib.get()
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
 
@@ -158,12 +173,13 @@ def test_everything_during_deduction():
                 # this guard will produce everything during deduction
                 ib.emit(tvm.make.Evaluate(m))
     stmt = ib.get()
-    stmt = tvm.ir_pass.LoopPartition(stmt)
+    stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(isinstance(stmt.body.body, tvm.stmt.IfThenElse))
 
 if __name__ == "__main__":
     test_basic()
+    test_const_loop()
     test_multi_loop()
     test_multi_if()
     test_thread_axis()

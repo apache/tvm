@@ -45,13 +45,13 @@ void OpenCLWorkspace::GetAttr(
       *rv = 1;
       break;
     }
-    case kComputeVersion: return;
-    case kExist: break;
+  case kComputeVersion: return;
+  case kExist: break;
   }
 }
 
 void* OpenCLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
   this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
@@ -108,7 +108,9 @@ void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   OPENCL_CALL(clFinish(this->GetQueue(ctx)));
 }
 
-void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx,
+                                      size_t size,
+                                      TVMType type_hint) {
   return OpenCLThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
 }
 
@@ -178,7 +180,7 @@ bool MatchPlatformInfo(
 
 void OpenCLWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mu);
+  std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
   initialized_ = true;
   if (context != nullptr) return;
@@ -197,8 +199,13 @@ void OpenCLWorkspace::Init() {
   std::vector<cl_device_id> devices_matched =
       cl::GetDeviceIDs(this->platform_id, "gpu");
   if (devices_matched.size() == 0) {
-    LOG(WARNING) << "No OpenCL device any device matched given the options";
-    return;
+    LOG(WARNING) << "No OpenCL device any device matched given the options: gpu mode";
+    LOG(WARNING) << "Now try OpenCL cpu mode";
+    devices_matched = cl::GetDeviceIDs(this->platform_id, "cpu");
+    if (devices_matched.size() == 0) {
+      LOG(WARNING) << "No OpenCL device any device matched given the options: cpu mode";
+      return;
+    }
   }
   this->devices = devices_matched;
   cl_int err_code;

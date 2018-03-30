@@ -96,7 +96,7 @@ MetalWorkspace::~MetalWorkspace() {
 
 void MetalWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mutex);
+  std::lock_guard<std::mutex> lock(this->mutex);
   if (initialized_) return;
   initialized_ = true;
   if (devices.size() != 0) return;
@@ -123,13 +123,21 @@ void MetalWorkspace::SetDevice(TVMContext ctx) {
 }
 
 void* MetalWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
   this->Init();
   id<MTLDevice> dev = GetDevice(ctx);
-  // allocate buffer in GPU only mode.
+  // GPU memory only
+  MTLResourceOptions storage_mode = MTLResourceStorageModePrivate;
+  /*
+  #if TARGET_OS_IPHONE
+  storage_mode = MTLResourceStorageModeShared;
+  #else
+  storage_mode = MTLResourceStorageModeManaged;
+  #endif
+  */
   id<MTLBuffer> buf = [
-      dev newBufferWithLength:size
-          options:MTLResourceStorageModePrivate];
+      dev newBufferWithLength:nbytes
+          options:storage_mode];
   CHECK(buf != nil);
   return (__bridge void*)([buf retain]);
 }
@@ -228,7 +236,9 @@ void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   [cb waitUntilCompleted];
 }
 
-void* MetalWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+void* MetalWorkspace::AllocWorkspace(TVMContext ctx,
+                                     size_t size,
+                                     TVMType type_hint) {
   return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
 }
 

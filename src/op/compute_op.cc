@@ -24,6 +24,9 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 
+/// Verify if ComputeOp is valid with respect to Reduce operations.
+static void VerifyComputeOp(const ComputeOpNode *op);
+
 inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
   return (a->combiner.same_as(b->combiner)) &&
          (a->source.same_as(b->source)) &&
@@ -116,15 +119,9 @@ Operation ComputeOpNode::make(std::string name,
   n->body = body;
   if (n->body[0]->is_type<ir::Reduce>()) {
     const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
-    for (size_t i = 1; i < n->body.size(); ++i) {
-      const ir::Reduce* reduce_ = n->body[i].as<ir::Reduce>();
-      CHECK(reduce_);
-      CHECK(ReduceEqual(reduce_, reduce))
-        << "The Reduce inputs of ComputeOp should "
-        << "have the same attribute except value_index";
-    }
     n->reduce_axis = reduce->axis;
   }
+  VerifyComputeOp(n.get());
   return Operation(n);
 }
 
@@ -151,18 +148,11 @@ Operation ComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
+  VerifyComputeOp(this);
   Array<Expr> arr;
   if (this->body[0]->is_type<ir::Reduce>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
-    const ir::Reduce* reduce = this->body[0].as<ir::Reduce>();
-    for (size_t i = 1; i < this->body.size(); ++i) {
-      const ir::Reduce* reduce_ = this->body[i].as<ir::Reduce>();
-      CHECK(reduce_);
-      CHECK(ReduceEqual(reduce_, reduce))
-        << "The Reduce inputs of ComputeOp should "
-        << "have the same attribute except value_index";
-    }\
     Expr new_reduce = op::ReplaceTensor(this->body[0], rmap);
     if (!new_reduce.same_as(this->body[0])) {
       const ir::Reduce* r = new_reduce.as<ir::Reduce>();
@@ -228,7 +218,7 @@ Stmt ComputeOpNode::BuildRealize(
     const std::unordered_map<IterVar, Range>& realize_map,
     const Stmt& realize_body) const {
   CHECK_EQ(stage->op.get(), this);
-  Halide::Internal::Region bounds;
+  HalideIR::Internal::Region bounds;
   for (IterVar iv : this->axis) {
     bounds.push_back(realize_map.at(iv));
   }
@@ -305,9 +295,10 @@ Stmt MakeProvide(const ComputeOpNode* op,
 
 Stmt MakeComputeStmt(const ComputeOpNode* self,
                      const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map) {
+                     const std::unordered_map<IterVar, Range>& dom_map,
+                     bool debug_keep_trivial_loop) {
   // grab the nest structure
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map);
+  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
   // Normal loop structure
   n.init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
   n.main_nest.emplace_back(op::MakeIfNest(n.main_predicates));
@@ -328,7 +319,11 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
     provide = op::Substitute(provide, n.main_vmap);
     provide = MergeNest(reduce, provide);
-    return MergeNest(common, Block::make(init, provide));
+    if (debug_keep_trivial_loop) {
+      return MergeNest(common, provide);
+    } else {
+      return MergeNest(common, Block::make(init, provide));
+    }
   } else {
     std::vector<Stmt> provides;
     for (size_t i = 0; i < self->body.size(); ++i) {
@@ -387,28 +382,31 @@ ComputeType DetectComputeType(const ComputeOpNode* self,
 // implement the provide utility.
 Stmt ComputeOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map) const {
+    const std::unordered_map<IterVar, Range>& dom_map,
+    bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   ComputeType ctype = DetectComputeType(this, stage);
   if (ctype == ComputeType::kCrossThreadReduction) {
     // specially handle cross thread reduction.
-    return MakeCrossThreadReduction(this, stage, dom_map);
+    return MakeCrossThreadReduction(this, stage, dom_map, debug_keep_trivial_loop);
   } else if (ctype == ComputeType::kTensorize) {
-    return MakeTensorize(this, stage, dom_map);
+    return MakeTensorize(this, stage, dom_map, debug_keep_trivial_loop);
   } else {
-    return MakeComputeStmt(this, stage, dom_map);
+    return MakeComputeStmt(this, stage, dom_map, debug_keep_trivial_loop);
   }
 }
 
 ComputeLoopNest ComputeLoopNest::make(
     const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map) {
+    const std::unordered_map<IterVar, Range>& dom_map,
+    bool debug_keep_trivial_loop) {
   CHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest
   ret.main_nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap);
+      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap,
+      debug_keep_trivial_loop);
   ret.main_predicates = schedule::MakeBoundCheck(
       stage, dom_map, ret.main_vmap, false,
       std::unordered_set<IterVar>());
@@ -450,7 +448,7 @@ ComputeLoopNest ComputeLoopNest::make(
     }
     ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
-        skip_iter, &(ret.init_vmap));
+        skip_iter, &(ret.init_vmap), debug_keep_trivial_loop);
     ret.init_predicates = schedule::MakeBoundCheck(
         stage, dom_map, ret.init_vmap, true, skip_iter);
     for (auto& e : ret.init_predicates) {
@@ -463,4 +461,78 @@ ComputeLoopNest ComputeLoopNest::make(
   // copy elison here.
   return ret;
 }
+
+namespace {
+/*!
+ * \brief Verify if ComputeOp is valid with respect to Reduce operations.
+ *
+ *  The following two properties are verified:
+ *  (1) All Reduce operations must exist at top level.
+ *  (2) For a list of operations, if one is Reduce, then the others
+ *      must be Reduce as well; and their inputs should have the
+ *      same attribute except value_index.
+ */
+class ComputeVerifier final : protected ir::IRVisitor {
+ public:
+  /// Special member functions
+  //@{
+  explicit ComputeVerifier(const ComputeOpNode* compute)
+      : compute_(compute), reduce_(compute->body[0].as<ir::Reduce>()) {}
+  virtual ~ComputeVerifier() = default;
+  ComputeVerifier(const ComputeVerifier&) = delete;
+  ComputeVerifier(ComputeVerifier&&) = delete;
+  ComputeVerifier& operator=(const ComputeVerifier&) = delete;
+  ComputeVerifier& operator=(ComputeVerifier&&) = delete;
+  //@}
+
+  /// Interface to perform compute verification
+  void Run() {
+    for (const Expr e : compute_->body) {
+      // Check for consistency of top level reductions
+      const ir::Reduce* reduce = e.as<ir::Reduce>();
+      CHECK((reduce && reduce_) || (!reduce && !reduce_))
+          << "All ComputeOp should be consistent "
+          << "with being Reduce operation or not.";
+
+      if (reduce && reduce_) {
+        CHECK(ReduceEqual(reduce, reduce_))
+            << "The Reduce inputs of ComputeOp should "
+            << "have the same attribute except value_index";
+      }
+
+      level_ = 0;
+      ir::IRVisitor::Visit(e);
+    }
+  }
+
+ protected:
+  /// Visitor implementation
+  //@{
+  void Visit(const NodeRef& n) final {
+    ++level_;
+    ir::IRVisitor::Visit(n);
+    --level_;
+  }
+
+  void Visit_(const ir::Reduce* op) final {
+    // Check for non top level reductions
+    CHECK(0 == level_)
+        << "Reductions are only allowed at the top level of compute. "
+        << "Please create another tensor for further composition.";
+  }
+  //@}
+
+ private:
+  const ComputeOpNode* compute_{nullptr};  ///< ComputeOpNode to verify
+  const ir::Reduce* reduce_{nullptr};      ///< Top level Reduce operation
+  int level_{0};                           ///< Level of op being processed
+};
+}  // namespace
+
+/// Verify if ComputeOp is valid with respect to Reduce operations.
+static void VerifyComputeOp(const ComputeOpNode* op) {
+  ComputeVerifier v(op);
+  v.Run();
+}
+
 }  // namespace tvm

@@ -23,28 +23,32 @@ class WorkspacePool::Pool {
     allocated_.push_back(e);
   }
   // allocate from pool
-  void* Alloc(TVMContext ctx, DeviceAPI* device, size_t size) {
+  void* Alloc(TVMContext ctx, DeviceAPI* device, size_t nbytes) {
     // Allocate align to page.
-    size = (size + (kWorkspacePageSize - 1)) / kWorkspacePageSize * kWorkspacePageSize;
-    if (size == 0) size = kWorkspacePageSize;
+    nbytes = (nbytes + (kWorkspacePageSize - 1)) / kWorkspacePageSize * kWorkspacePageSize;
+    if (nbytes == 0) nbytes = kWorkspacePageSize;
     Entry e;
+    TVMType type;
+    type.code = kDLUInt;
+    type.bits = 8;
+    type.lanes = 1;
     if (free_list_.size() == 2) {
       e = free_list_.back();
       free_list_.pop_back();
-      if (e.size < size) {
+      if (e.size < nbytes) {
         // resize the page
         device->FreeDataSpace(ctx, e.data);
-        e.data = device->AllocDataSpace(ctx, size, kTempAllocaAlignment);
-        e.size = size;
+        e.data = device->AllocDataSpace(ctx, nbytes, kTempAllocaAlignment, type);
+        e.size = nbytes;
       }
     } else if (free_list_.size() == 1) {
-      e.data = device->AllocDataSpace(ctx, size, kTempAllocaAlignment);
-      e.size = size;
+      e.data = device->AllocDataSpace(ctx, nbytes, kTempAllocaAlignment, type);
+      e.size = nbytes;
     } else {
-      if (free_list_.back().size >= size) {
+      if (free_list_.back().size >= nbytes) {
         // find smallest fit
         auto it = free_list_.end() - 2;
-        for (; it->size >= size; --it) {}
+        for (; it->size >= nbytes; --it) {}
         e = *(it + 1);
         free_list_.erase(it + 1);
       } else {
@@ -52,8 +56,8 @@ class WorkspacePool::Pool {
         e = free_list_.back();
         free_list_.pop_back();
         device->FreeDataSpace(ctx, e.data);
-        e.data = device->AllocDataSpace(ctx, size, kTempAllocaAlignment);
-        e.size = size;
+        e.data = device->AllocDataSpace(ctx, nbytes, kTempAllocaAlignment, type);
+        e.size = nbytes;
       }
     }
     allocated_.push_back(e);

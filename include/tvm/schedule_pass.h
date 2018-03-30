@@ -29,9 +29,13 @@ Map<IterVar, Range> InferBound(const Schedule& sch);
  *
  * \param s The schedule to be realized
  * \param dom_map The domain of each iter vars.
+ * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1 during lowering.
+ *                                This is a debug feature for dataflow/axis analysis.
+ *                                Note: If this is true, The lowered IR may be incorrect,
+ *                                because we will also delete the init part of reduction
  * \return the result Stmt
  */
-Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map);
+Stmt ScheduleOps(Schedule s, Map<IterVar, Range> dom_map, bool debug_keep_trivial_loop);
 
 /*!
  * \brief To automatically inline the element-wise operations.
@@ -48,7 +52,7 @@ void AutoInlineElemWise(Schedule sch);
  *
  * \param sch The schedule to be inlined.
  */
-void AutoInlineInjective(Schedule sch);
+EXPORT void AutoInlineInjective(Schedule sch);
 
 }  // namespace schedule
 }  // namespace tvm

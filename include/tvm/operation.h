@@ -117,11 +117,13 @@ class OperationNode : public FunctionBaseNode {
    * \brief Build the statement that provide the output tensors.
    * \param stage The schedule stage of the op.
    * \param dom_map The domain map of all iteration domains.
+   * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
    * \return A statement that add production and wraps consumer.
    */
   virtual Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map) const = 0;
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const = 0;
 
   static constexpr const char* _type_key = "Operation";
 
@@ -160,7 +162,8 @@ class PlaceholderOpNode : public OperationNode {
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map) const final;
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -211,7 +214,8 @@ class ComputeOpNode : public OperationNode {
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map) const final;
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -282,7 +286,8 @@ class ScanOpNode : public OperationNode {
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map) const final;
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -345,7 +350,8 @@ class ExternOpNode : public OperationNode {
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map) const final;
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -353,7 +359,7 @@ class ExternOpNode : public OperationNode {
     v->Visit("inputs", &inputs);
     v->Visit("body", &body);
   }
-  static Operation make(std::string name,
+  EXPORT static Operation make(std::string name,
                         std::string tag,
                         Array<Tensor> inputs,
                         Array<Buffer> input_placeholders,

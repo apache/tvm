@@ -19,6 +19,17 @@ def test_tensor():
     assert(T[0][0][0].astype('float16').dtype == 'float16')
 
 
+def test_rank_zero():
+    m = tvm.var('m')
+    A = tvm.placeholder((m,), name='A')
+    scale = tvm.placeholder((), name='s')
+    k = tvm.reduce_axis((0, m), name="k")
+    T = tvm.compute((), lambda : tvm.sum(A[k] * scale(), axis=k))
+    print(T)
+    print(T.op.body)
+    assert(tuple(T.shape) == ())
+
+
 def test_conv1d():
     n = tvm.var('n')
     A = tvm.placeholder((n+2), name='A')
@@ -173,7 +184,9 @@ def test_tensor_inputs():
     y = tvm.compute(x.shape, lambda i: x[i] + x[i])
     assert tuple(y.op.input_tensors) == (x,)
 
+
 if __name__ == "__main__":
+    test_rank_zero()
     test_tensor_inputs()
     test_tensor_reduce_multi_axis()
     test_conv1d()

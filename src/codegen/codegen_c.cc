@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <cctype>
 #include "./codegen_c.h"
+#include "../pass/ir_util.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
@@ -38,14 +39,17 @@ void CodeGenC::AddFunction(LoweredFunc f) {
     if (i != 0) stream << ", ";
     if (v.type().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end()) {
+      if (it != alloc_storage_scope_.end())
         PrintStorageScope(it->second, stream);
-        stream << ' ';
+      stream << ' ';
+
+      if (handle_data_type_.count(v.get())) {
+        PrintType(handle_data_type_.at(v.get()), stream);
+      } else {
+        stream << "void";
       }
-    }
-    if (handle_data_type_.count(v.get())) {
-      PrintType(handle_data_type_.at(v.get()), stream);
       stream << "*";
+
       if (f->is_restricted && restrict_keyword_.length() != 0) {
         stream << ' ' << restrict_keyword_;
       }
@@ -228,7 +232,7 @@ void CodeGenC::RegisterHandleType(const Variable* buf_var, Type t) {
 void CodeGenC::PrintVecElemLoad(const std::string& vec,
                                 Type t, int i,
                                 std::ostream& os) {  // NOLINT(*)
-  os << vec << ".s" << std::hex << i;
+  os << vec << ".s" << std::hex << i << std::dec;
 }
 
 void CodeGenC::PrintVecElemStore(const std::string& vec,
@@ -236,7 +240,7 @@ void CodeGenC::PrintVecElemStore(const std::string& vec,
                                  const std::string& value) {
   this->PrintIndent();
   stream << vec << ".s" << std::hex << i
-         << " = " << value << ";\n";
+         << " = " << value << ";\n" << std::dec;
 }
 
 std::string CodeGenC::GetVecLoad(
@@ -272,7 +276,7 @@ void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { /
   CHECK_EQ(scope, "global");
 }
 
-void CodeGenC::PrintType(Type t, std::ostream& os) const {  // NOLINT(*)
+void CodeGenC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   CHECK_EQ(t.lanes(), 1)
       << "do not yet support vector types";
   if (t.is_handle()) {
@@ -402,10 +406,9 @@ inline void PrintBinaryIntrinsitc(const Call* op,
   }
 }
 void CodeGenC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
-  this->PrintType(op->type, os);
-  os << '(';
-  this->PrintExpr(op->value, os);
-  os << ')';
+  std::stringstream value;
+  this->PrintExpr(op->value, value);
+  os << CastFromTo(value.str(), op->value.type(), op->type);
 }
 void CodeGenC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
@@ -542,15 +545,6 @@ void CodeGenC::PrintVecBinaryOp(
   }
 }
 
-inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
-  const Ramp* r = index.as<Ramp>();
-  if (!r) return false;
-  if (!is_one(r->stride)) return false;
-  CHECK_EQ(r->lanes, lanes);
-  *base = r->base;
-  return true;
-}
-
 void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
   // delcare type.
@@ -561,10 +555,14 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
     Expr base;
-    if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
+    if (GetRamp1Base(op->index, op->type.lanes(), &base)) {
       std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
       os << ref;
     } else {
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
+      int vec_scope = BeginScope();
+
       // load seperately.
       std::string svalue = GetUniqueName("_");
       this->PrintIndent();
@@ -577,6 +575,13 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
         std::ostringstream value_temp;
         if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
           value_temp << "((";
+          if (op->buffer_var.get()->type.is_handle()) {
+            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+            if (it != alloc_storage_scope_.end()) {
+              PrintStorageScope(it->second, value_temp);
+              value_temp << ' ';
+            }
+          }
           PrintType(elem_type, value_temp);
           value_temp << "*)" << vid << ')';
         } else {
@@ -588,6 +593,7 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
         PrintVecElemStore(svalue, op->type, i, value_temp.str());
       }
       os << svalue;
+      EndScope(vec_scope);
     }
   }
 }
@@ -603,10 +609,14 @@ void CodeGenC::VisitStmt_(const Store* op) {
     CHECK(is_one(op->predicate))
         << "Predicated store is not supported";
     Expr base;
-    if (TryGetRamp1Base(op->index, t.lanes(), &base)) {
+    if (GetRamp1Base(op->index, t.lanes(), &base)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base, value);
     } else {
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
+      int vec_scope = BeginScope();
+
       // store elements seperately
       std::string index = SSAGetID(PrintExpr(op->index), op->index.type());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.type());
@@ -616,6 +626,13 @@ void CodeGenC::VisitStmt_(const Store* op) {
         Type elem_type = t.element_of();
         if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
           stream << "((";
+          if (op->buffer_var.get()->type.is_handle()) {
+            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+            if (it != alloc_storage_scope_.end()) {
+              PrintStorageScope(it->second, stream);
+              stream << ' ';
+            }
+          }
           PrintType(elem_type, stream);
           stream << "*)" << vid << ')';
         } else {
@@ -627,6 +644,7 @@ void CodeGenC::VisitStmt_(const Store* op) {
         PrintVecElemLoad(value, op->value.type(), i, stream);
         stream << ";\n";
       }
+      EndScope(vec_scope);
     }
   }
 }
@@ -640,7 +658,15 @@ void CodeGenC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Ramp: not supported ";
+  // constraint of current logic
+  CHECK_EQ(op->base.type(), Int(32));
+  os << "((int" << op->lanes << ")(";
+  for (int i = 0; i < op->lanes; i++) {
+    os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
+    if (i != op->lanes - 1)
+      os << ", ";
+  }
+  os << "))";
 }
 
 void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)

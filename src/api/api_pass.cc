@@ -16,18 +16,34 @@ namespace ir {
 TVM_REGISTER_API("ir_pass.Simplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
-      *ret = Simplify(args[0].operator Stmt());
+      if (args.size() > 1) {
+        *ret = Simplify(args[0].operator Stmt(), args[1]);
+      } else {
+        *ret = Simplify(args[0].operator Stmt());
+      }
     } else {
-      *ret = Simplify(args[0].operator Expr());
+      if (args.size() > 1) {
+        *ret = Simplify(args[0].operator Expr(), args[1]);
+      } else {
+        *ret = Simplify(args[0].operator Expr());
+      }
     }
   });
 
 TVM_REGISTER_API("ir_pass.CanonicalSimplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
-      *ret = CanonicalSimplify(args[0].operator Stmt());
+      if (args.size() > 1) {
+        *ret = CanonicalSimplify(args[0].operator Stmt(), args[1]);
+      } else {
+        *ret = CanonicalSimplify(args[0].operator Stmt());
+      }
     } else {
-      *ret = CanonicalSimplify(args[0].operator Expr());
+      if (args.size() > 1) {
+        *ret = CanonicalSimplify(args[0].operator Expr(), args[1]);
+      } else {
+        *ret = CanonicalSimplify(args[0].operator Expr());
+      }
     }
   });
 
@@ -91,7 +107,7 @@ REGISTER_PASS4(Inline);
 REGISTER_PASS3(StorageFlatten);
 REGISTER_PASS4(IRTransform);
 REGISTER_PASS1(VectorizeLoop);
-REGISTER_PASS4(UnrollLoop);
+REGISTER_PASS5(UnrollLoop);
 REGISTER_PASS3(InjectCopyIntrin);
 REGISTER_PASS2(ThreadSync);
 REGISTER_PASS5(MakeAPI);
@@ -103,14 +119,16 @@ REGISTER_PASS1(LowerStorageAccessInfo);
 REGISTER_PASS1(InjectVirtualThread);
 REGISTER_PASS1(InjectPrefetch);
 REGISTER_PASS2(InjectDoubleBuffer);
-REGISTER_PASS1(LoopPartition);
+REGISTER_PASS2(LoopPartition);
 REGISTER_PASS1(RemoveNoOp);
 REGISTER_PASS2(SplitPipeline);
 REGISTER_PASS2(LiftAttrScope);
 REGISTER_PASS1(NarrowChannelAccess);
 REGISTER_PASS2(LowerThreadAllreduce);
+REGISTER_PASS2(LowerWarpMemory);
 REGISTER_PASS2(LowerIntrin);
 REGISTER_PASS1(LowerTVMBuiltin);
 REGISTER_PASS1(CombineContextCall);
+REGISTER_PASS2(VerifyMemory);
 }  // namespace ir
 }  // namespace tvm

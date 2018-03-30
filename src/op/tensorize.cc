@@ -10,6 +10,7 @@
 #include "./op_util.h"
 #include "./compute_op.h"
 #include "../schedule/message_passing.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
@@ -187,7 +188,8 @@ class TensorIntrinMatcher final : public IRMutator {
             const Stage& stage,
             const std::unordered_map<IterVar, Range>& out_dom,
             const std::unordered_map<Tensor, Array<Range> >& in_region,
-            const TensorIntrin& intrin) {
+            const TensorIntrin& intrin,
+            Map<Var, Range>* compute_intrin_iter_space) {
     CHECK(self == stage->op.get());
     // input remap.
     Array<Tensor> inputs = self->InputTensors();
@@ -232,6 +234,7 @@ class TensorIntrinMatcher final : public IRMutator {
       Range r = out_dom.at(iv);
       var_remap_[iv->var.get()] = target_iv->var + r->min;
       axis_remap_[iv] = target_iv;
+      compute_intrin_iter_space->Set(target_iv->var, target_iv->dom);
     }
     // Remap reduction axis
     CHECK_GE(self->reduce_axis.size(), intrin_compute->reduce_axis.size())
@@ -251,6 +254,7 @@ class TensorIntrinMatcher final : public IRMutator {
       Range r = out_dom.at(iv);
       var_remap_[iv->var.get()] = target_iv->var + r->min;
       axis_remap_[iv] = target_iv;
+      compute_intrin_iter_space->Set(target_iv->var, target_iv->dom);
     }
   }
 
@@ -275,9 +279,10 @@ Array<Expr> MatchTensorizeBody(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
-    const TensorIntrin& intrin) {
+    const TensorIntrin& intrin,
+    Map<Var, Range>* compute_intrin_iter_space) {
   TensorIntrinMatcher matcher;
-  matcher.Init(self, stage, out_dom, in_region, intrin);
+  matcher.Init(self, stage, out_dom, in_region, intrin, compute_intrin_iter_space);
   Array<Expr> ret;
   for (Expr expr : self->body) {
     ret.push_back(matcher.Mutate(expr));
@@ -291,14 +296,18 @@ void VerifyTensorizeBody(
     const std::unordered_map<IterVar, Range>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin) {
-  Array<Expr> body = MatchTensorizeBody(self, stage, out_dom, in_region, intrin);
+  Map<Var, Range> compute_intrin_iter_space;
+  Array<Expr> body = MatchTensorizeBody(self, stage, out_dom, in_region, intrin,
+                                        &compute_intrin_iter_space);
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
   CHECK(intrin_compute) << "Only support compute intrinsic for now";
   CHECK_EQ(body.size(), intrin_compute->body.size())
       << "Tensorize failed: body size mismatch";
   for (size_t i = 0; i < body.size(); ++i) {
-    Expr lhs = CanonicalSimplify(body[i]);
-    Expr rhs = CanonicalSimplify(intrin_compute->body[i]);
+    Expr lhs = Simplify(body[i], compute_intrin_iter_space);
+    lhs = CanonicalSimplify(lhs, compute_intrin_iter_space);
+    Expr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
+    rhs = CanonicalSimplify(rhs, compute_intrin_iter_space);
     if (lhs.type() != rhs.type()) {
       LOG(FATAL)
           << "Failed to match the data type with TensorIntrin "
@@ -314,16 +323,61 @@ void VerifyTensorizeBody(
   }
 }
 
+/*!
+ * \brief Transform the update part when there is no init func in tensorizing
+ * \param stage The stage for tensorizing.
+ * \param dom_map The range of each iter var.
+ * \param n The loop nest structured used in compute. 
+ * \param body The body func in tensorize intrin
+ * \param update The update func in tensorize intrin
+ * \return Transformed result.
+ */
+Stmt TransformUpdate(const Stage& stage,
+                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const ComputeLoopNest& n,
+                     Stmt body,
+                     Stmt update) {
+  Array<Expr> conds;
+  std::unordered_set<const Variable*> banned;
+  for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+    IterVar iv = stage->leaf_iter_vars[i];
+    auto iit = stage->iter_var_attrs.find(iv);
+    if (iit != stage->iter_var_attrs.end()) {
+      const IterVarAttr& attr = (*iit).second;
+      if (attr->iter_type == kTensorized) {
+        break;
+      }
+    }
+    if (iv->iter_type == kCommReduce) {
+      auto vit = dom_map.find(iv);
+      CHECK(vit != dom_map.end());
+      const Range& vrange = vit->second;
+      conds.push_back(likely(iv->var > vrange->min));
+      banned.insert(iv->var.get());
+    }
+  }
+  for (const Expr& pred : n.main_predicates) {
+    if (ir::ExprUseVar(pred, banned)) {
+      LOG(FATAL) << "Tensorize update transform failed, the condition "
+                 << pred << " has a conflict with the reset condition";
+    }
+  }
+
+  return IfThenElse::make(arith::ComputeReduce<ir::Or>(conds, const_true(1)),
+                          update, body);
+}
+
 Stmt MakeTensorize(const ComputeOpNode* self,
                    const Stage& stage,
-                   const std::unordered_map<IterVar, Range>& dom_map) {
+                   const std::unordered_map<IterVar, Range>& dom_map,
+                   bool debug_keep_trivial_loop) {
   std::unordered_map<IterVar, Range> out_dom;
   std::unordered_map<Tensor, Array<Range> > in_region;
   size_t tloc = InferTensorizeRegion(self, stage, dom_map, &out_dom, &in_region);
   TensorIntrin intrin = stage->iter_var_attrs.at(
       stage->leaf_iter_vars[tloc])->tensor_intrin;
   CHECK(intrin.defined());
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map);
+  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
   VerifyTensorizeLoopNest(self, stage, n, tloc);
   VerifyTensorizeBody(self, stage, out_dom, in_region, intrin);
   // Start bind data.
@@ -408,32 +462,47 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     return MergeNest(nest, body);
   } else {
     // Need to split reduction
-    CHECK(intrin->reduce_init.defined())
-        << "Reduction init op for intrin " << intrin << " is not defined";
     CHECK(intrin->reduce_update.defined())
         << "Reduction update op for intrin " << intrin << " is not defined";
     // Need init and update steps
     CHECK_NE(self->reduce_axis.size(), 0U);
     std::vector<std::vector<Stmt> > common(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
-    // init nest
-    std::vector<std::vector<Stmt> > init_nest(
-        n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
-    init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
-    Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
-    init = Substitute(init, n.init_vmap);
-    init = MergeNest(init_nest, init);
-    // The update
     std::vector<std::vector<Stmt> > update_nest(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.begin() + tloc + 1);
     update_nest.emplace_back(op::MakeIfNest(n.main_predicates));
-    Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
-    update = MergeNest(input_bind_nest, update);
-    update = Substitute(update, vmap);
-    update = MergeNest(binder.asserts(), update);
-    update = Substitute(update, n.main_vmap);
-    update = MergeNest(update_nest, update);
-    return MergeNest(common, Block::make(init, update));
+
+    if (intrin->reduce_init.defined()) {
+      // init nest
+      std::vector<std::vector<Stmt> > init_nest(
+          n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
+      init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+      Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
+      init = Substitute(init, n.init_vmap);
+      init = MergeNest(init_nest, init);
+      // The update
+      Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
+      update = MergeNest(input_bind_nest, update);
+      update = Substitute(update, vmap);
+      update = MergeNest(binder.asserts(), update);
+      update = Substitute(update, n.main_vmap);
+      update = MergeNest(update_nest, update);
+      return MergeNest(common, Block::make(init, update));
+    } else {
+      // When init op is not available, use body op for reset in the first iter.
+      CHECK(intrin->body.defined())
+          << "Normal body op for intrin " << intrin << " is not defined";
+      Stmt update = TransformUpdate(stage, dom_map, n,
+                                    intrin->body,
+                                    intrin->reduce_update);
+      update = MergeNest(output_bind_nest, update);
+      update = MergeNest(input_bind_nest, update);
+      update = Substitute(update, vmap);
+      update = MergeNest(binder.asserts(), update);
+      update = Substitute(update, n.main_vmap);
+      update = MergeNest(update_nest, update);
+      return MergeNest(common, update);
+    }
   }
 }
 
@@ -459,11 +528,13 @@ TVM_REGISTER_API("test.op.MatchTensorizeBody")
     Map<IterVar, Range> out_dom = args[1];
     Map<Tensor, Array<Range> > in_region = args[2];
     TensorIntrin intrin = args[3];
+    Map<Var, Range> vrange;
     CHECK(stage->op.as<ComputeOpNode>());
     *ret = MatchTensorizeBody(stage->op.as<ComputeOpNode>(),
                               stage,
                               as_unordered_map(out_dom),
                               as_unordered_map(in_region),
-                              intrin);
+                              intrin,
+                              &vrange);
   });
 }  // namespace tvm

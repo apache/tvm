@@ -2,6 +2,7 @@
 import tvm
 import os
 from tvm.contrib import nvcc
+from tvm.contrib import spirv
 import numpy as np
 
 TASK="gemm"
@@ -24,6 +25,7 @@ def tvm_callback_cuda_postproc(code):
     if USE_MANUAL_CODE:
         code = open("perf/%s_manual.cu" % TASK).read()
     return code
+
 
 def test_gemm():
     # graph
@@ -101,12 +103,12 @@ def test_gemm():
     s[BB].double_buffer()
     # correctness
     def check_device(device):
-        print("Device %s" % device)
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
+        print("Device %s" % device)
         f = tvm.build(s, [A, B, C], device)
-        ctx = tvm.context(device, 0)
         # launch the kernel.
         n, m, l = nn, nn, nn
         a_np = np.random.uniform(size=(n, l)).astype(A.dtype)
@@ -126,7 +128,7 @@ def test_gemm():
         GFLOPS = num_flops / (t * 1e3) / 1e6
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
 
-    for device in ["cuda", "opencl", "rocm", "nvptx"]:
+    for device in ["cuda", "opencl", "rocm", "nvptx", "vulkan"]:
         with tvm.build_config(auto_unroll_max_step=128,
                               unroll_explicit=(device != "cuda")):
             check_device(device)

@@ -22,27 +22,39 @@
 namespace tvm {
 namespace ir {
 
-inline Expr Simplify(Expr a) {
-  return Halide::Internal::simplify(a);
-}
+/*!
+ * \brief Simplify the expression.
+ * \param expr The expression to be simplifed.
+ * \param vrange The range information about the variable.
+ * \return Canonicalized statement.
+ */
+EXPORT Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
-inline Stmt Simplify(Stmt a) {
-  return Halide::Internal::simplify(a);
-}
+/*!
+ * \brief Simplify the statement.
+ * \param stmt The statement to be simplifed.
+ * \param vrange The range information about the variable.
+ * \return Canonicalized statement.
+ */
+Stmt Simplify(Stmt stmt, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify by applying canonical form.
  * \param stmt The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Stmt CanonicalSimplify(Stmt stmt);
+Stmt CanonicalSimplify(Stmt stmt,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify by applying canonical form.
  * \param expr The statement to be canonically simplifed.
+ * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-Expr CanonicalSimplify(Expr expr);
+Expr CanonicalSimplify(Expr expr,
+                       Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -50,7 +62,7 @@ Expr CanonicalSimplify(Expr expr);
  * \param rhs The right operand
  * \return The comparison result.
  */
-bool Equal(const Expr& lhs, const Expr& rhs);
+EXPORT bool Equal(const Expr& lhs, const Expr& rhs);
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -204,11 +216,17 @@ Stmt NarrowChannelAccess(Stmt stmt);
  *
  * \param stmt The statment to be unrolled.
  * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_min_depth The minimum depth before we can start automatic unroll
+ * \param auto_max_depth The maximum depth before stop attach automatic unroll
+ * \param auto_max_extent The maximum extent of the loop we can unroll,
+ *                        this is an legacy option that donot take the loop total steps into account.
  * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
  * \return Transformed stmt.
  */
-Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_min_depth, bool explicit_unroll);
+Stmt UnrollLoop(Stmt stmt,
+                int auto_max_step,
+                int auto_max_depth,
+                int auto_max_extent,
+                bool explicit_unroll);
 
 /*!
  * \brief vectorize the constant loops
@@ -271,9 +289,10 @@ Stmt StorageRewrite(Stmt stmt);
 /*!
  * \brief partition loops in the stmt
  * \param stmt The stmt to do loop partition
+ * \param split_const_loop flag to enable partition for const loop
  * \return Transformed stmt.
  */
-Stmt LoopPartition(Stmt stmt);
+Stmt LoopPartition(Stmt stmt, bool split_const_loop);
 
 /*!
  * \brief Detect and insert sync points to co-processor.
@@ -389,6 +408,15 @@ LoweredFunc ThreadSync(LoweredFunc stmt, std::string storage_scope);
 LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
 
 /*!
+ * \brief Lower warp memory in stmt.
+ * \param f The device function to be lowered.
+ * \param warp_size the size of warp where no sync is needed.
+ *        this function will only take in effect if warp_size is bigger than one.
+ * \return Transformed function.
+ */
+LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
+
+/*!
  * \brief Lower packed function call.
  * \param f The function to be lowered.
  * \return Transformed function.
@@ -403,12 +431,38 @@ LoweredFunc LowerTVMBuiltin(LoweredFunc f);
 LoweredFunc CombineContextCall(LoweredFunc f);
 
 /*!
+ * \brief Rewrite the pointer content type of arguments,
+ *  as well as Alloc internal to the function to use
+ *  the most frequently accessed type for load/store
+ *  to avoid pointer casting in backend when possible.
+ *
+ * \note implemeneted in storage_rewrite.cc
+ * \param f The function to be trasnformed
+ * \return Transformed function.
+ */
+LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
+
+/*!
  * \brief Lower intrinsic function calls.
  * \param f The device function to be lowered.
  * \param target The target device.
  * \return Transformed function.
  */
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Verify if memory accesses are legal for a specific target device type.
+ *
+ *  In the case that tgt is cuda, if not all workload is bound with
+ *  threads, CPU code is generated that tries to access GPU memory,
+ *  which is illegal. This pass performs verification for this case.
+ *
+ * \param func The function to be verified.
+ * \param device_type The target device type.
+ * \return Success of memory verification.
+ */
+bool VerifyMemory(LoweredFunc func, int device_type);
+
 }  // namespace ir
 }  // namespace tvm
 

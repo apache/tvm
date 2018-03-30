@@ -22,14 +22,16 @@
 namespace tvm {
 namespace ir {
 
-using Halide::Internal::Region;
+using HalideIR::Internal::Region;
+using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
 using intrinsic::tvm_address_of;
 
 class StorageFlattener : public IRMutator {
  public:
-  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer, int cache_line_size) {
+  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
+                            int cache_line_size) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -38,6 +40,7 @@ class StorageFlattener : public IRMutator {
     }
     cache_line_size_ = cache_line_size;
   }
+
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Store>();
@@ -90,6 +93,8 @@ class StorageFlattener : public IRMutator {
       vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
       return this->Mutate(op->body);
+    } else if (op->attr_key == attr::opengl_stage_scope) {
+      is_opengl_ = true;
     }
     return IRMutator::Mutate_(op, s);
   }
@@ -104,7 +109,15 @@ class StorageFlattener : public IRMutator {
     const BufferEntry& e = it->second;
     CHECK(!e.released)
         << "Read a buffer that is already out of scope";
-    return e.buffer.vstore(e.RelIndex(op->args), op->value);
+    if (is_opengl_) {
+      return Evaluate::make(Call::make(
+          Type(),
+          Call::glsl_texture_store,
+          {e.buffer->data, op->value},
+          Call::Intrinsic));
+    } else {
+      return e.buffer.vstore(e.RelIndex(op->args), op->value);
+    }
   }
 
   Stmt Mutate_(const Realize* op, const Stmt& s) final {
@@ -129,7 +142,8 @@ class StorageFlattener : public IRMutator {
       const std::string& strkey = it->second;
       if (strkey.length() == 0) {
         if (curr_thread_scope_.size() != 0) {
-          skey.rank = curr_thread_scope_.back().rank + 1;
+          skey.rank = runtime::DefaultStorageRank(
+              curr_thread_scope_.back().rank);
         }
       } else {
         skey = StorageScope::make(strkey);
@@ -147,10 +161,11 @@ class StorageFlattener : public IRMutator {
         }
       }
       Array<Expr> strides;
-      if (dim_align_.count(key) != 0) {
+      if (dim_align_.count(key) != 0 && shape.size() != 0) {
         std::vector<Expr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
-        Expr stride = make_const(shape[0].type(), 1);
+        int first_dim = 0;
+        Expr stride = make_const(shape[first_dim].type(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
@@ -164,6 +179,7 @@ class StorageFlattener : public IRMutator {
         }
         strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
       }
+
       e.buffer = BufferNode::make(
           Var(key.GetName(), Handle()),
           op->type, shape, strides, Expr(),
@@ -176,13 +192,18 @@ class StorageFlattener : public IRMutator {
       Stmt ret;
 
       if (strides.size() != 0) {
+        int first_dim = 0;
         ret = Allocate::make(
             e.buffer->data, e.buffer->dtype,
-            {arith::ComputeExpr<Mul>(e.buffer->strides[0], e.buffer->shape[0])},
+            {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
+        shape = e.buffer->shape;
+        if (shape.size() == 0) {
+          shape.push_back(make_const(Int(32), 1));
+        }
         ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype, e.buffer->shape,
+            e.buffer->data, e.buffer->dtype, shape,
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       }
       ret = AttrStmt::make(
@@ -289,7 +310,40 @@ class StorageFlattener : public IRMutator {
   }
 
  private:
-  // Start bind
+  // The specific tensor data layout is not determined before
+  // StorageFlatten pass. We use buffer_bind_scope
+  // to specify before hand we want to bind a subregion
+  // of tensor to a symbolic buffer, which get used in extern.
+  //
+  // Example:
+  //
+  // realize A in range [i*4, extent=10) {
+  //   bind Ab to A in [i*4+1, extent=4) {
+  //     call_func(Ab.ptr, Ab.shape[0])
+  //   }
+  // }
+  //
+  // After StorageFlatten
+  //
+  // alloc A[10]
+  //   call(A + 1,  4)
+  //
+  // Buffer is a protocol to declare specific
+  // data layout and shape we expect.
+  // So this function need to check:
+  // - If the bind range is within the realize range
+  // - If we can match the requirement of buffer
+  // - Remap variables such as Ab.ptr to the actual value.
+  //
+  // Here are a few possible failure cases:
+  // - Buffer is declared to have constant shape,
+  //   but we try to bind it to a different one.
+  // - Buffer is declared to be compact(no strides)
+  //   but this binded region is a subregion of
+  //   a matrix(tensor), which means it requires strides.
+  //
+  // We do support a few relaxed case, such as bindingx
+  // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmt* op) {
     Array<NodeRef> arr(op->node.node_);
     CHECK_EQ(arr.size(), 2U);
@@ -381,6 +435,8 @@ class StorageFlattener : public IRMutator {
   std::vector<ThreadScope> curr_thread_scope_;
   // The size of cacheline
   int cache_line_size_;
+  // The current stage is an OpenGL shader.
+  bool is_opengl_{false};
 };
 
 Stmt StorageFlatten(Stmt stmt,

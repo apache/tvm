@@ -8,7 +8,7 @@ from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.function import Function
-from ._ffi.function import _init_api, register_func, get_global_func
+from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
 from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
@@ -19,6 +19,7 @@ from . import schedule as _schedule
 from . import container as _container
 from . import tag as _tag
 
+int8 = "int8"
 int32 = "int32"
 float32 = "float32"
 handle = "handle"
@@ -371,6 +372,8 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
             raise ValueError("Cannot infer output type, please provide dtype argument")
         infered_type = types.pop()
         dtype = [infered_type for _ in shape]
+    if isinstance(dtype, str):
+        dtype = [dtype]
 
     for shp, dt in zip(shape, dtype):
         output_placeholders.append(decl_buffer(shp, dt, name))
@@ -460,7 +463,6 @@ def decl_buffer(shape,
         elem_offset = var('%s_elem_offset' % name, shape[0].dtype)
     if data is None:
         data = var(name, "handle")
-
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)

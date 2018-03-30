@@ -24,7 +24,6 @@ _WORKLOADS = [
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
     _Workload('float32', 'float32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
-
     _Workload('int16', 'int32', 112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
     _Workload('int16', 'int32', 112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
     _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
@@ -46,7 +45,6 @@ _SCHEDULES = [
     _Schedule(1, 1, 8, 8, True),
     _Schedule(1, 1, 4, 1, False),
     _Schedule(1, 1, 4, 4, False),
-
     _Schedule(2, 4, 4, 2, False),
     _Schedule(2, 7, 4, 1, True),
     _Schedule(2, 4, 4, 4, False),
@@ -66,8 +64,6 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    wkl =  _Workload(data.dtype, out_dtype, IH, IW, C, MT, KH, KW, HPAD, WPAD, HSTR, WSTR)
-    print('depthwise workload: {}'.format(wkl))
     return _Workload(data.dtype, out_dtype, IH, IW, C, MT, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 

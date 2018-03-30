@@ -17,12 +17,17 @@
 #include "./c_runtime_api.h"
 #include "./module.h"
 
-namespace Halide {
+namespace HalideIR {
 // Forward declare type for extensions
 // The header works fine without depending on this.
 struct Type;
 struct Expr;
 }
+
+// Whether use TVM runtime in header only mode.
+#ifndef TVM_RUNTIME_HEADER_ONLY
+#define TVM_RUNTIME_HEADER_ONLY 0
+#endif
 
 namespace tvm {
 // Forward declare NodeRef and Node for extensions.
@@ -351,8 +356,8 @@ class TVMArgValue : public TVMPODValue_ {
            typename = typename std::enable_if<
              std::is_class<TNodeRef>::value>::type>
   inline bool IsNodeType() const;
-  inline operator Halide::Type() const;
-  inline operator Halide::Expr() const;
+  inline operator HalideIR::Type() const;
+  inline operator HalideIR::Expr() const;
   // get internal node ptr, if it is node
   inline std::shared_ptr<Node>& node_sptr();
 };
@@ -531,8 +536,8 @@ class TVMRetValue : public TVMPODValue_ {
   inline TVMRetValue& operator=(const NodeRef& other);
   inline TVMRetValue& operator=(const std::shared_ptr<Node>& other);
   // type related
-  inline operator Halide::Type() const;
-  inline TVMRetValue& operator=(const Halide::Type& other);
+  inline operator HalideIR::Type() const;
+  inline TVMRetValue& operator=(const HalideIR::Type& other);
 
  private:
   template<typename T>
@@ -564,11 +569,15 @@ class TVMRetValue : public TVMPODValue_ {
           SwitchToPOD(other.type_code());
           value_ = other.value_;
         } else {
+#if TVM_RUNTIME_HEADER_ONLY
+          LOG(FATAL) << "Header only mode do not support ext type";
+#else
           this->Clear();
           type_code_ = other.type_code();
           value_.v_handle =
               (*(ExtTypeVTable::Get(other.type_code())->clone))(
                   other.value().v_handle);
+#endif
         }
         break;
       }
@@ -600,7 +609,11 @@ class TVMRetValue : public TVMPODValue_ {
       case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
     }
     if (type_code_ > kExtBegin) {
+#if TVM_RUNTIME_HEADER_ONLY
+          LOG(FATAL) << "Header only mode do not support ext type";
+#else
       (*(ExtTypeVTable::Get(type_code_)->destroy))(value_.v_handle);
+#endif
     }
     type_code_ = kNull;
   }
@@ -627,6 +640,7 @@ inline const char* TypeCode2Str(int type_code) {
   }
 }
 
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   os << TypeCode2Str(t.code);
   if (t.code == kHandle) return os;
@@ -636,11 +650,23 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   }
   return os;
 }
+#endif
 
 inline std::string TVMType2String(TVMType t) {
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
   std::ostringstream os;
   os << t;
   return os.str();
+#else
+  std::string repr = "";
+  repr += TypeCode2Str(t.code);
+  if (t.code == kHandle) return repr;
+  repr += std::to_string(static_cast<int>(t.bits));
+  if (t.lanes != 1) {
+    repr += "x" + std::to_string(static_cast<int>(t.lanes));
+  }
+  return repr;
+#endif
 }
 
 inline TVMType String2TVMType(std::string s) {
@@ -661,10 +687,12 @@ inline TVMType String2TVMType(std::string s) {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
   }
-  unsigned bits = t.bits, lanes = t.lanes;
-  sscanf(scan, "%ux%u", &bits, &lanes);
-  t.bits = static_cast<uint8_t>(bits);
-  t.lanes = static_cast<uint16_t>(lanes);
+  char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
+  uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
+  if (bits != 0) t.bits = bits;
+  if (*xdelim == 'x') {
+    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, nullptr, 10));
+  }
   return t;
 }
 
@@ -800,7 +828,7 @@ class TVMArgsSetter {
   inline void operator()(size_t i, const T& value) const;
   // NodeRef related extenstions: in tvm/packed_func_ext.h
   inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
-  inline void operator()(size_t i, const Halide::Type& t) const;
+  inline void operator()(size_t i, const HalideIR::Type& t) const;
 
  private:
   /*! \brief The values fields */
@@ -881,6 +909,20 @@ inline ExtTypeVTable* ExtTypeVTable::Register_() {
   vt.clone = ExtTypeInfo<T>::clone;
   vt.destroy = ExtTypeInfo<T>::destroy;
   return ExtTypeVTable::RegisterInternal(code, vt);
+}
+
+// Implement Module::GetFunction
+// Put implementation in this file so we have seen the PackedFunc
+inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {
+  PackedFunc pf = node_->GetFunction(name, node_);
+  if (pf != nullptr) return pf;
+  if (query_imports) {
+    for (const Module& m : node_->imports_) {
+      pf = m.node_->GetFunction(name, m.node_);
+      if (pf != nullptr) return pf;
+    }
+  }
+  return pf;
 }
 }  // namespace runtime
 }  // namespace tvm

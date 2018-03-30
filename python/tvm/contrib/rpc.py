@@ -15,6 +15,8 @@ import socket
 import struct
 import logging
 import multiprocessing
+import subprocess
+import time
 from . import util, cc, tar
 from ..module import load as _load_module
 from .._ffi.function import _init_api, register_func
@@ -72,10 +74,16 @@ def _recvall(sock, nbytes):
     return b"".join(res)
 
 
-def _listen_loop(sock):
+def _listen_loop(sock, exclusive):
     """Lisenting loop"""
+    last_proc = None
     while True:
         conn, addr = sock.accept()
+
+        if last_proc and last_proc.is_alive() and exclusive:
+            logging.info("Kill last call")
+            last_proc.terminate()
+
         logging.info("RPCServer: connection from %s", addr)
         magic = struct.unpack("@i", _recvall(conn, 4))[0]
         if magic != RPC_MAGIC:
@@ -88,9 +96,11 @@ def _listen_loop(sock):
         else:
             conn.sendall(struct.pack("@i", RPC_MAGIC))
         logging.info("Connection from %s", addr)
+
         process = multiprocessing.Process(target=_serve_loop, args=(conn, addr))
         process.deamon = True
         process.start()
+        last_proc = process
         # close from our side.
         conn.close()
 
@@ -117,6 +127,17 @@ def _connect_proxy_loop(addr, key):
         process.join()
 
 
+def _popen(cmd):
+    proc = subprocess.Popen(cmd,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=os.environ)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "Server invoke error:\n"
+        msg += out
+        raise RuntimeError(msg)
+
+
 class Server(object):
     """Start RPC server on a seperate process.
 
@@ -140,15 +161,47 @@ class Server(object):
         If this is true, the host and port actually corresponds to the
         address of the proxy server.
 
+    use_popen : bool, optional
+        Whether to use Popen to start a fresh new process instead of fork.
+        This is recommended to switch on if we want to do local RPC demonstration
+        for GPU devices to avoid fork safety issues.
+
+    exclusive : bool, optional
+        If this is enabled, the server will kill old connection
+        when new connection comes. This can make sure the current call
+        monopolize the hardware resource.
+
     key : str, optional
         The key used to identify the server in Proxy connection.
     """
-    def __init__(self, host, port=9091, port_end=9199, is_proxy=False, key=""):
+    def __init__(self,
+                 host,
+                 port=9091,
+                 port_end=9199,
+                 is_proxy=False,
+                 use_popen=False,
+                 exclusive=False,
+                 key=""):
+        try:
+            if _ServerLoop is None:
+                raise RuntimeError("Please compile with USE_RPC=1")
+        except NameError:
+            raise RuntimeError("Please compile with USE_RPC=1")
         self.host = host
         self.port = port
         self.libs = []
 
-        if not is_proxy:
+        if use_popen:
+            cmd = ["python",
+                   "-m", "tvm.exec.rpc_server",
+                   "--host=%s" % host,
+                   "--port=%s" % port]
+            self.proc = multiprocessing.Process(
+                target=subprocess.check_call, args=(cmd,))
+            self.proc.deamon = True
+            self.proc.start()
+            time.sleep(1)
+        elif not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.port = None
             for my_port in range(port, port_end):
@@ -167,12 +220,14 @@ class Server(object):
             sock.listen(1)
             self.sock = sock
             self.proc = multiprocessing.Process(
-                target=_listen_loop, args=(self.sock,))
+                target=_listen_loop, args=(self.sock, exclusive))
+            self.proc.deamon = True
+            self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key))
-        self.proc.deamon = True
-        self.proc.start()
+            self.proc.deamon = True
+            self.proc.start()
 
     def terminate(self):
         """Terminate the server process"""
@@ -182,7 +237,6 @@ class Server(object):
 
     def __del__(self):
         self.terminate()
-
 
 
 class RPCSession(object):
@@ -246,6 +300,10 @@ class RPCSession(object):
     def metal(self, dev_id=0):
         """Construct remote Metal device."""
         return self.context(8, dev_id)
+
+    def opengl(self, dev_id=0):
+        """Construct remote OpenGL device."""
+        return self.context(11, dev_id)
 
     def ext_dev(self, dev_id=0):
         """Construct remote extension device."""

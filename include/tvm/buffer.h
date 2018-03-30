@@ -52,9 +52,10 @@ class Buffer : public NodeRef {
    * \param access_mask The access mask
    * \param ptr_type The type of the pointer.
    * \param content_lanes The number of lanes for the (data) type.
+   * \param offset The offset of ptr.
    */
   TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle(),
-                          int content_lanes = 1) const;
+                          int content_lanes = 1, Expr offset = make_const(Int(32), 0)) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
@@ -122,6 +123,11 @@ class BufferNode : public Node {
     v->Visit("scope", &scope);
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
+  }
+
+  /*! \return preferred index type for this buffer node */
+  Type DefaultIndexType() const {
+    return shape.size() != 0 ? shape[0].type() : Int(32);
   }
 
   // User can specify data_alignment and offset_factor to be 0

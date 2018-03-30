@@ -56,24 +56,24 @@ class Stage : public NodeRef {
    * \brief set the memory scope of the stage
    * \param scope The memory scope.
    */
-  Stage& set_scope(std::string scope);  // NOLINT(*)
+  EXPORT Stage& set_scope(std::string scope);  // NOLINT(*)
   /*!
    * \brief specify the schedule to be computed at the parent schedule's scope.
    * \param parent The parent schedule.
    * \param scope The iteration point to carry the schedule.
    * \return reference to self.
    */
-  Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
+  EXPORT Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
   /*!
    * \brief Compute the function inline.
    * \return reference to self.
    */
-  Stage& compute_inline();   // NOLINT(*)
+  EXPORT Stage& compute_inline();   // NOLINT(*)
   /*!
    * \brief Compute the function at group root.
    * \return reference to self.
    */
-  Stage& compute_root();  // NOLINT(*)
+  EXPORT Stage& compute_root();  // NOLINT(*)
   /*!
    * \brief Bind the ivar to thread index.
    *
@@ -81,7 +81,7 @@ class Stage : public NodeRef {
    * \param thread_ivar The thread axis to be binded.
    * \return reference to self.
    */
-  Stage& bind(IterVar ivar, IterVar thread_ivar);
+  EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
   /*!
    * \brief Set predicate under which store to the array can be performed.
    *  Use this when there are duplicated threads doing the same store and we only
@@ -92,7 +92,7 @@ class Stage : public NodeRef {
    * \param predicate The condition to be checked.
    * \return reference to self.
    */
-  Stage& set_store_predicate(Expr predicate);
+  EXPORT Stage& set_store_predicate(Expr predicate);
   /*!
    * \brief Specify environment threads that launched around the group's scope.
    *  This can only be used in group stage.
@@ -101,7 +101,7 @@ class Stage : public NodeRef {
    *    This is a beta feature.
    * \return reference to self.
    */
-  Stage& env_threads(Array<IterVar> threads);
+  EXPORT Stage& env_threads(Array<IterVar> threads);
   /*!
    * \brief Split the parent by factor, generate
    * \param parent The parent iteration domain.
@@ -110,7 +110,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
+  EXPORT Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
    * \brief Split the iteration with given number of parts.
    *
@@ -120,7 +120,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
+  EXPORT Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
    * \param outer The outer domain to be fused.
@@ -128,13 +128,13 @@ class Stage : public NodeRef {
    * \param p_target The result target domain.
    * \return reference to self.
    */
-  Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
+  EXPORT Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
   /*!
    * \brief Reorder the iteration
    * \param order The order of iteration variable.
    * \return reference to self.
    */
-  Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
+  EXPORT Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
   /*!
    * \brief Perform tiling on two dimensions
    *  The final loop order from outmost to inner most are
@@ -150,7 +150,7 @@ class Stage : public NodeRef {
    * \param p_y_inner Inner axis of y dimension
    * \return reference to self.
    */
-  Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
+  EXPORT Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
               Expr x_factor, Expr y_factor,
               IterVar* p_x_outer, IterVar* p_y_outer,
               IterVar* p_x_inner, IterVar* p_y_inner);
@@ -159,7 +159,7 @@ class Stage : public NodeRef {
    * \param var The axis to be vectorized.
    * \return reference to self.
    */
-  Stage& vectorize(IterVar var);   // NOLINT(*)
+  EXPORT Stage& vectorize(IterVar var);   // NOLINT(*)
   /*!
    * \brief Replace computation of the current stage by tensor intrinsic f.
    * \param var The axis marks beginning of tensorization.
@@ -167,19 +167,19 @@ class Stage : public NodeRef {
    * \param f The Tensor compute intrinsics.
    * \return reference to self.
    */
-  Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
+  EXPORT Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
   /*!
    * \brief Unroll iteration.
    * \param var The axis to be unrolled.
    * \return reference to self.
    */
-  Stage& unroll(IterVar var);   // NOLINT(*)
+  EXPORT Stage& unroll(IterVar var);   // NOLINT(*)
   /*!
    * \brief Parallelize iteration.
    * \param var The axis to be parallelized.
    * \return reference to self.
    */
-  Stage& parallel(IterVar var);   // NOLINT(*)
+  EXPORT Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
    * \brief Annotate the iteration with pragma
    *
@@ -188,7 +188,7 @@ class Stage : public NodeRef {
    *
    * \return reference to self.
    */
-  Stage& pragma(IterVar var, const std::string& pragma_type);   // NOLINT(*)
+  EXPORT Stage& pragma(IterVar var, const std::string& pragma_type);   // NOLINT(*)
   /*!
    * \brief Fetch data in advance.
    * \param domain the tensor to be prefetched
@@ -196,7 +196,7 @@ class Stage : public NodeRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
+  EXPORT Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
   /*!
    * \brief Set alignment requirement for specific dimension.
    *
@@ -207,12 +207,17 @@ class Stage : public NodeRef {
    * \param offset The required offset factor.
    * \return reference to self
    */
-  Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
+  EXPORT Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
   /*!
    * \brief Compute current stage with double buffering.
    * \return reference to self.
    */
-  Stage& double_buffer();   // NOLINT(*)
+  EXPORT Stage& double_buffer();   // NOLINT(*)
+  /*!
+   * \brief Schedule for OpenGL fragment shader.
+   * \return reference to self.
+   */
+  Stage& opengl(); // NOLINT(*)
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
@@ -248,13 +253,13 @@ class Schedule : public NodeRef {
    * \brief Get the stage corresponds to the op
    * \param op The operation.
    */
-  Stage operator[](const Operation& op);
+  EXPORT Stage operator[](const Operation& op);
   /*!
    * \brief Short hand for getting the stage of tensor's operation.
    * \param tensor The tensor
    * \return The stage corresponding to the tensor's op
    */
-  Stage operator[](const Tensor& tensor) {
+  EXPORT Stage operator[](const Tensor& tensor) {
     return this->operator[](tensor->op);
   }
   /*!
@@ -266,7 +271,7 @@ class Schedule : public NodeRef {
    * \param include_inputs Whether include inputs if they are reachable from outputs.
    * \return The new grouped stage.
    */
-  Stage create_group(const Array<Tensor>& outputs,
+  EXPORT Stage create_group(const Array<Tensor>& outputs,
                      const Array<Tensor>& inputs,
                      bool include_inputs = false);
   /*!
@@ -278,7 +283,7 @@ class Schedule : public NodeRef {
    * \param readers The readers to redirect to the tensor.
    * \return The created tensor.
    */
-  Tensor cache_read(const Tensor& tensor,
+  EXPORT Tensor cache_read(const Tensor& tensor,
                     const std::string& scope,
                     const Array<Operation>& readers);
   /*!
@@ -297,7 +302,7 @@ class Schedule : public NodeRef {
    * \param scope The scope of the storage.
    * \return The created tensor.
    */
-  Tensor cache_write(const Tensor& tensor, const std::string& scope);
+  EXPORT Tensor cache_write(const Tensor& tensor, const std::string& scope);
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
    * This will create a new stage that generated the new tensor with axis
@@ -308,10 +313,12 @@ class Schedule : public NodeRef {
    *
    * \param tensor The tensor to be factored.
    * \param axis The reduction axis in tensor's schedule to be factored.
+   * \param factor_axis The position where the new axis is placed.
    * \return The created factored tensors.
    */
-  Array<Tensor> rfactor(const Tensor& tensor,
-                        const IterVar& axis);
+  EXPORT Array<Tensor> rfactor(const Tensor& tensor,
+                        const IterVar& axis,
+                        int factor_axis = 0);
   /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
@@ -422,6 +429,8 @@ class StageNode : public Node {
   std::string scope;
   /*! \brief Whether this is an output stage */
   bool is_output{false};
+  /*! \brief Whether this is an OpenGL stage */
+  bool is_opengl{false};
   /*! \brief Whether apply double buffer optimization to this stage */
   bool double_buffer{false};
   /*!
@@ -445,6 +454,7 @@ class StageNode : public Node {
     v->Visit("attach_stage", &attach_stage);
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
+    v->Visit("is_opengl", &is_opengl);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);
@@ -493,7 +503,7 @@ class ScheduleNode : public Node {
    * \param ops The ops to be scheduled.
    * \return sch The created Schedule.
    */
-  static Schedule make(Array<Operation> ops);
+  EXPORT static Schedule make(Array<Operation> ops);
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);

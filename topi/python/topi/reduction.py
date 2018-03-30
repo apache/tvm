@@ -107,10 +107,8 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
     ret : tvm.Tensor
     """
     ndim = len(data.shape)
+    assert ndim != 0, "Reduce a dim-0 input is not supported!"
     real_axis = _get_real_axis(ndim, axis)
-    if real_axis == list(range(ndim)) and keepdims is False:
-        raise ValueError("Currently we do not support all reduce + keepdims = False!"
-                         " axis={}, keepdims={}".format(axis, keepdims))
     reduce_axes = [tvm.reduce_axis((0, data.shape[i]), "k%d" %i) for i in real_axis]
     if keepdims:
         target_shape = [1 if i in real_axis else data.shape[i] for i in range(ndim)]
@@ -188,9 +186,9 @@ def max(data, axis=None, keepdims=False):
         The input tvm tensor
 
     axis : None or int or tuple of int
-        Axis or axes along which a sum is performed.
-        The default, axis=None, will sum all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        Axis or axes along which the max operation is performed.
+        The default, axis=None, will find the max element from all of the elements of the input
+        array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -214,9 +212,9 @@ def min(data, axis=None, keepdims=False):
         The input tvm tensor
 
     axis : None or int or tuple of int
-        Axis or axes along which a sum is performed.
-        The default, axis=None, will sum all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a minimum operation is performed.
+        The default, axis=None, will find the minimum element from all of the elements of the
+        input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -240,9 +238,9 @@ def argmax(data, axis=None, keepdims=False):
         The input tvm tensor
 
     axis : None or int or tuple of int
-        Axis or axes along which a sum is performed.
-        The default, axis=None, will sum all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a argmax operation is performed.
+        The default, axis=None, will find the indices of the maximum element of the elements of
+        the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -267,9 +265,9 @@ def argmin(data, axis=None, keepdims=False):
         The input tvm tensor
 
     axis : None or int or tuple of int
-        Axis or axes along which a sum is performed.
-        The default, axis=None, will sum all of the elements of the input array.
-        If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a argmin operation is performed.
+        The default, axis=None, will find the indices of minimum element all of the elements of
+        the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions

@@ -28,9 +28,11 @@ inline std::string DeviceName(int type) {
     case kDLCPU: return "cpu";
     case kDLGPU: return "gpu";
     case kDLOpenCL: return "opencl";
+    case kDLVulkan: return "vulkan";
     case kDLMetal: return "metal";
     case kDLVPI: return "vpi";
     case kDLROCM: return "rocm";
+    case kOpenGL: return "opengl";
     case kExtDev: return "ext_dev";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
@@ -94,12 +96,29 @@ DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
       static_cast<int>(ctx.device_type), allow_missing);
 }
 
-void* DeviceAPI::AllocWorkspace(TVMContext ctx, size_t size) {
-  return AllocDataSpace(ctx, size, kTempAllocaAlignment);
+void* DeviceAPI::AllocWorkspace(TVMContext ctx,
+                                size_t size,
+                                TVMType type_hint) {
+  return AllocDataSpace(ctx, size, kTempAllocaAlignment, type_hint);
 }
 
 void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
   FreeDataSpace(ctx, ptr);
+}
+
+TVMStreamHandle DeviceAPI::CreateStream(TVMContext ctx) {
+  LOG(FATAL) << "Device does not support stream api.";
+  return 0;
+}
+
+void DeviceAPI::FreeStream(TVMContext ctx, TVMStreamHandle stream) {
+  LOG(FATAL) << "Device does not support stream api.";
+}
+
+void DeviceAPI::SyncStreamFromTo(TVMContext ctx,
+                                 TVMStreamHandle event_src,
+                                 TVMStreamHandle event_dst) {
+  LOG(FATAL) << "Device does not support stream api.";
 }
 
 inline TVMArray* TVMArrayCreate_() {
@@ -218,12 +237,22 @@ int TVMBackendGetFuncFromEnv(void* mod_node,
 }
 
 void* TVMBackendAllocWorkspace(int device_type,
-                             int device_id,
-                             uint64_t size) {
+                               int device_id,
+                               uint64_t size,
+                               int dtype_code_hint,
+                               int dtype_bits_hint) {
   TVMContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
-  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx, static_cast<size_t>(size));
+
+  TVMType type_hint;
+  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+  type_hint.lanes = 1;
+
+  return DeviceAPIManager::Get(ctx)->AllocWorkspace(ctx,
+                                                    static_cast<size_t>(size),
+                                                    type_hint);
 }
 
 int TVMBackendFreeWorkspace(int device_type,
@@ -310,9 +339,9 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
           int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
                          args.num_args, rv, resource_handle);
           if (ret != 0) {
-            std::ostringstream os;
-            os << "TVMCall CFunc Error:\n" << TVMGetLastError();
-            throw dmlc::Error(os.str());
+            std::string err = "TVMCall CFunc Error:\n";
+            err += TVMGetLastError();
+            throw dmlc::Error(err);
           }
         });
   } else {
@@ -324,9 +353,9 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
           int ret = func((TVMValue*)args.values, (int*)args.type_codes, // NOLINT(*)
                          args.num_args, rv, rpack.get());
           if (ret != 0) {
-            std::ostringstream os;
-            os << "TVMCall CFunc Error:\n" << TVMGetLastError();
-            throw dmlc::Error(os.str());
+            std::string err = "TVMCall CFunc Error:\n";
+            err += TVMGetLastError();
+            throw dmlc::Error(err);
           }
       });
   }
@@ -352,16 +381,20 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   arr->dtype.code = static_cast<uint8_t>(dtype_code);
   arr->dtype.bits = static_cast<uint8_t>(dtype_bits);
   arr->dtype.lanes = static_cast<uint16_t>(dtype_lanes);
-  tvm_index_t* shape_copy = new tvm_index_t[ndim];
-  std::copy(shape, shape + ndim, shape_copy);
-  arr->shape = shape_copy;
+  if (ndim != 0) {
+    tvm_index_t* shape_copy = new tvm_index_t[ndim];
+    std::copy(shape, shape + ndim, shape_copy);
+    arr->shape = shape_copy;
+  } else {
+    arr->shape = nullptr;
+  }
   // ctx
   arr->ctx.device_type = static_cast<DLDeviceType>(device_type);
   arr->ctx.device_id = device_id;
   size_t size = GetDataSize(arr);
   size_t alignment = GetDataAlignment(arr);
   arr->data = DeviceAPIManager::Get(arr->ctx)->AllocDataSpace(
-      arr->ctx, size, alignment);
+      arr->ctx, size, alignment, arr->dtype);
   *out = arr;
   API_END_HANDLE_ERROR(TVMArrayFree_(arr));
 }
@@ -380,19 +413,22 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
   size_t from_size = GetDataSize(from);
   size_t to_size = GetDataSize(to);
   CHECK_EQ(from_size, to_size)
-      << "TVMArrayCopyFromTo: The size must exactly match";
-  TVMContext ctx = from->ctx;
-  if (ctx.device_type == kDLCPU) {
-    ctx = to->ctx;
-  } else {
-    CHECK(to->ctx.device_type == kDLCPU ||
-          to->ctx.device_type == from->ctx.device_type)
-        << "Can not copy across different ctx types directly";
-  }
+    << "TVMArrayCopyFromTo: The size must exactly match";
+
+  CHECK(from->ctx.device_type == to->ctx.device_type
+        || from->ctx.device_type == kDLCPU
+        || to->ctx.device_type == kDLCPU)
+    << "Can not copy across different ctx types directly";
+
+  // Use the context that is *not* a cpu context to get the correct device
+  // api manager.
+  TVMContext ctx = from->ctx.device_type != kDLCPU ? from->ctx : to->ctx;
+
   DeviceAPIManager::Get(ctx)->CopyDataFromTo(
-      from->data, static_cast<size_t>(from->byte_offset),
-      to->data, static_cast<size_t>(to->byte_offset),
-      from_size, from->ctx, to->ctx, stream);
+    from->data, static_cast<size_t>(from->byte_offset),
+    to->data, static_cast<size_t>(to->byte_offset),
+    from_size, from->ctx, to->ctx, stream);
+
   API_END();
 }
 
@@ -430,6 +466,24 @@ int TVMArrayCopyToBytes(TVMArrayHandle handle,
   API_END();
 }
 
+int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  *out = DeviceAPIManager::Get(ctx)->CreateStream(ctx);
+  API_END();
+}
+
+int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->FreeStream(ctx, stream);
+  API_END();
+}
+
 int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   TVMContext ctx;
@@ -445,6 +499,18 @@ int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
   DeviceAPIManager::Get(ctx)->StreamSync(ctx, stream);
+  API_END();
+}
+
+int TVMStreamStreamSynchronize(int device_type,
+                               int device_id,
+                               TVMStreamHandle src,
+                               TVMStreamHandle dst) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->SyncStreamFromTo(ctx, src, dst);
   API_END();
 }
 

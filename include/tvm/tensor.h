@@ -23,7 +23,7 @@ class TensorNode;
 // internal node container for Operation
 class OperationNode;
 
-using Halide::IR::FunctionRef;
+using HalideIR::IR::FunctionRef;
 
 /*!
  * \brief Tensor structure representing a possible input,
@@ -188,7 +188,7 @@ inline bool Tensor::operator==(const Tensor& other) const {
 #define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op)                              \
   inline Expr operator Op (const Tensor::Slice& a) {                    \
     return Op a.operator Expr() ;                                       \
-  }
+  }                                                                     \
 
 #define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                             \
   template<typename T>                                                  \

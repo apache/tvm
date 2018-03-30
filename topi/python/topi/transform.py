@@ -2,6 +2,7 @@
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 import tvm
+import topi
 from . import tag
 from .util import ravel_index, unravel_index, get_const_int, get_const_tuple
 
@@ -27,6 +28,60 @@ def expand_dims(a, axis, num_newaxis=1):
         idx = indices[:axis] + indices[axis + num_newaxis:]
         return a(*idx)
     return tvm.compute(new_shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.BROADCAST)
+def expand_like(a, shape_like, axis):
+    """Expand an input array with the shape of second array.
+    This operation can always be composed of unsqueezing and
+    expanding dims on those unsqueezed axes.
+
+    Examples::
+    input = [ 12.  19.  27.]
+    input.shape = (3,)
+
+    new_shape_array = [[[1,2],[2,3],[1,3]],
+                      [[1,4],[4,3],[5,2]],
+                      [[7,1],[7,2],[7,3]]]
+    new_shape_array.shape = (3, 3, 2)
+
+    expand_like(input, [1,2], new_shape_array) =
+                      [[[12,12],[12,12],[12,12]],
+                      [[19,19],[19,19],[19,19]],
+                      [[27,27],[27,27],[27,27]]]
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+    shape_like : tvm.Tensor
+        The tensor to with target shape.
+    axis: list of int
+        axis to be expanded on
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    odim = len(axis) + len(a.shape)
+    if odim != len(shape_like.shape):
+        raise ValueError("shape inconsistent when expand_like ({}, {}, {})".format(
+            len(axis), len(a.shape), len(shape_like.shape)))
+
+    real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
+    real_axis = sorted(real_axis)
+
+    if not real_axis:
+        return a
+
+    def _compute(*idxs):
+        indices = []
+        axis_index = 0
+        for i in range(0, len(idxs)):
+            if i not in real_axis:
+                indices.append(idxs[i])
+                axis_index += 1
+        return a(*indices)
+    return tvm.compute(shape_like.shape, _compute)
 
 
 @tvm.tag_scope(tag=tag.INJECTIVE)

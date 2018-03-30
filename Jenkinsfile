@@ -7,7 +7,7 @@
 tvm_runtime = "lib/libtvm_runtime.so, config.mk"
 tvm_lib = "lib/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
-tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, " + tvm_runtime
+tvm_multilib = "lib/libtvm_llvm40.so, lib/libtvm_llvm50.so, lib/libtvm_llvm60.so, lib/libtvm_topi.so, " + tvm_runtime
 
 // command to start a docker container
 docker_run = 'tests/ci_build/ci_build.sh'
@@ -88,6 +88,7 @@ stage('Build') {
            echo USE_CUDNN=1 >> config.mk
            echo USE_CUDA=1 >> config.mk
            echo USE_OPENCL=1 >> config.mk
+           echo USE_OPENGL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
            echo USE_GRAPH_RUNTIME=1 >> config.mk
@@ -106,6 +107,7 @@ stage('Build') {
         sh """
            echo USE_ROCM=1 >> config.mk
            echo ROCM_PATH=/opt/rocm >> config.mk
+           echo USE_VULKAN=1 >> config.mk
            """
         make('gpu', '-j2')
       }
@@ -120,6 +122,8 @@ stage('Build') {
            echo USE_CUDA=0 >> config.mk
            echo USE_OPENCL=0 >> config.mk
            echo USE_RPC=0 >> config.mk
+           echo USE_OPENGL=1 >> config.mk
+           echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            """
         make('cpu', '-j2')
         pack_lib('cpu', tvm_lib)
@@ -213,7 +217,7 @@ stage('Unit Test') {
     }
   },
   'cpp': {
-    node('linux') {
+    node('CPU' && 'linux') {
       ws('workspace/tvm/ut-cpp') {
         init_git()
         unpack_lib('cpu', tvm_lib)
@@ -247,6 +251,7 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} gpu ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} gpu ./tests/scripts/task_python_topi.sh"
+          sh "${docker_run} gpu ./tests/scripts/task_cpp_topi.sh"
         }
       }
     }

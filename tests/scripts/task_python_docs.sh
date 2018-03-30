@@ -11,7 +11,7 @@ mv out docs/_build/html/jsdoc || exit -1
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc
 
 cd docs
-PYTHONPATH=../python make html || exit -1
+PYTHONPATH=`pwd`/../python make html || exit -1
 cd _build/html
 tar czf docs.tgz *
 mv docs.tgz ../../../

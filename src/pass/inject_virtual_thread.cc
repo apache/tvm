@@ -32,7 +32,7 @@ class ExprTouched final : public IRVisitor {
   }
   void Visit_(const Call *op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      int rw_mask;
+      int rw_mask = 0;
       CHECK(arith::GetConstInt(op->args[4], &rw_mask));
       const Variable* buffer_var = op->args[1].as<Variable>();
       CHECK(buffer_var);
@@ -376,7 +376,8 @@ class VTInjector : public IRMutator {
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      Expr stride = arith::ComputeReduce<Mul>(op->extents) * op->type.lanes();
+      Expr stride = arith::ComputeReduce<Mul>(
+          op->extents, Expr()) * op->type.lanes();
       Array<Expr> other;
       other.push_back(make_const(op->extents[0].type(), num_threads_));
       for (Expr e : extents) {
@@ -417,7 +418,8 @@ class VTInjector : public IRMutator {
     // reset the flags after processing.
     vt_loop_injected_ = false;
     visit_touched_var_ = false;
-    if (max_loop_depth_ == 0) {
+    // only unroll if number of vthreads are small
+    if (max_loop_depth_ == 0 && num_threads_ < 16) {
       // do unrolling if it is inside innermost content.
       Stmt blk = Substitute(stmt, {{var_, make_zero(var_.type())}});
       for (int i = 1; i < num_threads_; ++i) {

@@ -24,6 +24,11 @@ using namespace ir;
  * \brief A base class to generate C code.
  *
  *  CodeGenC have two modes: generate SSA formed C code or normal form.
+ *
+ * **NOTE** CodeGenC does not aim at generating C codes consumed by MSVC or GCC,
+ * Rather, it's providing infrastructural abstraction for C variants like CUDA
+ * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
+ * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
 class CodeGenC :
       public ExprFunctor<void(const Expr&, std::ostream&)>,
@@ -118,7 +123,7 @@ class CodeGenC :
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(Type t, std::ostream& os) const; // NOLINT(*)
+  virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
   /*!
    * \brief Print expr representing the thread tag
    * \param IterVar iv The thread index to be binded;
@@ -142,16 +147,16 @@ class CodeGenC :
   // print store of single element.
   virtual void PrintVecElemStore(
       const std::string& vec, Type t, int i, const std::string& value);
+  // Get a cast type from to
+  virtual std::string CastFromTo(std::string value, Type from, Type target);
 
  protected:
   // Print reference to struct location
   std::string GetStructRef(
       Type t, const Expr& buffer, const Expr& index, int kind);
   // print reference to a buffer as type t in index.
-  std::string GetBufferRef(
+  virtual std::string GetBufferRef(
       Type t, const Variable* buffer, Expr index);
-  // Get a cast type from to
-  std::string CastFromTo(std::string value, Type from, Type target);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
