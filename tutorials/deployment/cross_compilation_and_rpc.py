@@ -108,8 +108,6 @@ import tvm
 import numpy as np
 from tvm.contrib import rpc, util
 
-server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
-
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
 # -------------------------------------------------
