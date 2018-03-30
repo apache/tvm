@@ -152,31 +152,6 @@ stage('Build') {
         pack_lib('i386', tvm_multilib)
       }
     }
-  },
-  'web': {
-    node('emcc') {
-      ws('workspace/tvm/build-weblib') {
-        init_git()
-        sh """
-           cp make/config.mk .
-           echo USE_CUDA=0 >> config.mk
-           echo USE_OPENCL=0 >> config.mk
-           echo LLVM_CONFIG=llvm-config >> config.mk
-           echo USE_RPC=0 >> config.mk
-           """
-        sh "${docker_run} emscripten echo testing javascript..."
-        timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} emscripten ./tests/scripts/task_web_build.sh"
-          } catch (exc) {
-            echo 'Incremental compilation failed. Fall back to build from scratch'
-            sh "${docker_run} emscripten make clean"
-            sh "${docker_run} emscripten ./tests/scripts/task_web_build.sh"
-         }
-        }
-        pack_lib('weblib', tvm_lib)
-      }
-    }
   }
 }
 
@@ -252,18 +227,6 @@ stage('Integration Test') {
           sh "${docker_run} gpu ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} gpu ./tests/scripts/task_python_topi.sh"
           sh "${docker_run} gpu ./tests/scripts/task_cpp_topi.sh"
-        }
-      }
-    }
-  },
-  'web': {
-    node('emcc') {
-      ws('workspace/tvm/it-weblib') {
-        init_git()
-        unpack_lib('weblib', tvm_lib)
-        sh "${docker_run} emscripten echo testing javascript..."
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} emscripten ./tests/scripts/task_web_test.sh"
         }
       }
     }
