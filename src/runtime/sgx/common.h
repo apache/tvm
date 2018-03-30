@@ -13,6 +13,12 @@ namespace tvm {
 namespace runtime {
 namespace sgx {
 
+#define TVM_SGX_CHECKED_CALL(Function)                                         \
+  sgx_status_t TVM_STR_CONCAT(__sgx_status_, __LINE__) = SGX_ERROR_UNEXPECTED; \
+  TVM_STR_CONCAT(__sgx_status_, __LINE__) = Function;                          \
+  CHECK_EQ(TVM_STR_CONCAT(__sgx_status_, __LINE__), SGX_SUCCESS)               \
+    << "SGX Error: " << TVM_STR_CONCAT(__sgx_status_, __LINE__);
+
 static const std::string ECALL_PACKED_PFX = "__ECall_";  // NOLINT(*)
 
 }

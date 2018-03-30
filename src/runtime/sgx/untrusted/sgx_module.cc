@@ -61,9 +61,7 @@ class SGXModuleNode : public ModuleNode {
   void Init(const std::string& enclave_file) {
     std::string token_file = GetCacheDir() + "/" +
                              GetFileBasename(enclave_file) + ".token";
-
     sgx_launch_token_t token = {0};
-    sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
     int token_updated = 0;
 
     try {
@@ -74,15 +72,11 @@ class SGXModuleNode : public ModuleNode {
       memset(&token, 0x0, sizeof(sgx_launch_token_t));
     }
 
-    sgx_status = sgx_create_enclave(
-        enclave_file.c_str(), SGX_DEBUG_FLAG, &token, &token_updated, &eid_, NULL);
-    CHECK_EQ(sgx_status, SGX_SUCCESS)
-      << "Failed to load enclave. SGX Error: " << sgx_status;
+    TVM_SGX_CHECKED_CALL(sgx_create_enclave(
+        enclave_file.c_str(), SGX_DEBUG_FLAG, &token, &token_updated, &eid_, NULL));
 
     sgx::EnclaveContext ctx(this);
-    sgx_status = tvm_ecall_init(eid_);
-    CHECK_EQ(sgx_status, SGX_SUCCESS)
-      << "Failed to initialize enclave. SGX Error: " << sgx_status;
+    TVM_SGX_CHECKED_CALL(tvm_ecall_init(eid_));
 
     if (!token_updated) return;
 
@@ -106,15 +100,11 @@ class SGXModuleNode : public ModuleNode {
     auto it = exports_.find(name);
     if (it != exports_.end()) {
       return PackedFunc([this, ecall_name](TVMArgs args, TVMRetValue* rv) {
-          sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
           sgx::EnclaveContext ctx(this);
-          sgx_status = tvm_ecall_packed_func(eid_,
-                                             ecall_name.c_str(),
-                                             args.values,
-                                             args.type_codes,
-                                             args.num_args,
-                                             rv);
-          CHECK_EQ(sgx_status, SGX_SUCCESS) << "SGX Error: " << sgx_status;
+          TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_,
+                               ecall_name.c_str(),
+                               args.values, args.type_codes, args.num_args,
+                               rv));
         });
     }
     return PackedFunc();
