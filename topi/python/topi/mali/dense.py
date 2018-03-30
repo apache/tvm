@@ -82,6 +82,7 @@ def schedule_dense(outs):
 #        print(tvm.lower(s, [data, weight, bias, outs[0]], simple_mode=True))
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

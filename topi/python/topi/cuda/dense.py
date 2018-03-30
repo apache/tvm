@@ -87,6 +87,7 @@ def schedule_dense(outs):
         s[Out].set_store_predicate(thread_x.var.equal(0))
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

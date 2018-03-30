@@ -47,6 +47,7 @@ def schedule_global_pool(outs):
             s[Pool].compute_at(s[Out], tx)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -101,6 +102,7 @@ def schedule_pool(outs):
             s[Pool].compute_at(s[Out], tx)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

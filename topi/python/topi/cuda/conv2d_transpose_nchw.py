@@ -74,6 +74,7 @@ def schedule_conv2d_transpose_small_batch(outs):
             conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_injective(OP.tag):
             if OP not in s.outputs:
