@@ -145,11 +145,6 @@ std::string GetDeviceInfo(
 }
 
 std::vector<cl_platform_id> GetPlatformIDs() {
-  // Trigger CUDA initialziation when it exists
-  // on some NV platform opencl depends on CUDA to be loaded first
-  if (const PackedFunc* query = runtime::Registry::Get("_GetDeviceAttr")) {
-    (*query)(static_cast<int>(kDLGPU), 0, static_cast<int>(kExist));
-  }
   cl_uint ret_size;
   cl_int code = clGetPlatformIDs(0, nullptr, &ret_size);
   std::vector<cl_platform_id> ret;

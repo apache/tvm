@@ -87,7 +87,6 @@ stage('Build') {
            cp make/config.mk .
            echo USE_CUDNN=1 >> config.mk
            echo USE_CUDA=1 >> config.mk
-           echo USE_OPENCL=1 >> config.mk
            echo USE_OPENGL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
            echo USE_RPC=1 >> config.mk
@@ -105,6 +104,7 @@ stage('Build') {
         sh "mv lib/libtvm.so lib/libtvm_llvm60.so"
         pack_lib('gpu', tvm_multilib)
         sh """
+           echo USE_OPENCL=1 >> config.mk
            echo USE_ROCM=1 >> config.mk
            echo ROCM_PATH=/opt/rocm >> config.mk
            echo USE_VULKAN=1 >> config.mk
