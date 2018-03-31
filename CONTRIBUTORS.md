@@ -48,6 +48,7 @@ and are qualified to lead development and review changes of the owned module.
 - [Leyuan Wang](https://github.com/Laurawly) TOPI
 - [Yuwei Hu](https://github.com/Huyuwei) TOPI
 - [Yizhi Liu](https://github.com/yzhliu) JVM package
+- [Zhixun Tan](https://github.com/phisiart) OpenGL/WebGL backend
 
 
 List of Contributors
