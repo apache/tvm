@@ -6,6 +6,9 @@ The package is developed and used by the community.
 We actively seek committers that come from community contributors who:
 - Made substantial contributions to the project.
   - All forms of contributions are valued (see detail in next section).
+- Maintain quality standards in contributions
+  - e.g. consistently made contributions without requiring extensive
+    rewrites prior to being merged.
 - Willing to spend time on maintaining and lead the project.
 
 Contributions
@@ -23,10 +26,10 @@ list of contributions that are welcomed
 - Test cases to make the codebase more robust
 - Tutorials, blog posts, talks that promote the project.
 
-
 How to Contribute
 -----------------
-See [Contributor guide](docs/how_to/contribute.md) on how to contribute.
+See [Contributor guide](docs/how_to/contribute.md) on tips for contributions.
+
 
 Committers
 ----------
