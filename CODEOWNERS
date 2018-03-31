@@ -5,13 +5,17 @@
 *        @dmlc/tvm-committers
 
 # LLVM backends
-src/llvm/*          @aatluri
+src/codegen/llvm/*          @aatluri
 
 # ROCM runtime
 src/runtime/rocm/*    @aatluri
 
 # JVM language
 jvm/*   @yzhliu
+
+# WebGL backends
+src/runtime/opengl/*    @phisiart
+src/codegen/*opengl*    @phisiart
 
 # TOPI
 topi/python/topi/*  @Laurawly @Huyuwei
