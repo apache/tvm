@@ -108,8 +108,6 @@ import tvm
 import numpy as np
 from tvm.contrib import rpc, util
 
-server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
-
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
 # -------------------------------------------------
@@ -241,47 +239,52 @@ print('%g secs/op' % cost)
 #    But here we set 'llvm' to enable this tutorial to run locally.
 #
 #    Also we need to build the runtime with the flag `USE_OPENCL=1`.
-
 # build kernel (different from cpu, we need bind axis for OpenCL)
-s = tvm.create_schedule(B.op)
-xo, xi = s[B].split(B.op.axis[0], factor=32)
-s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
-f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
+#
+# The following functions shows how we can deploy CL
+def deploy_cl():
+    s = tvm.create_schedule(B.op)
+    xo, xi = s[B].split(B.op.axis[0], factor=32)
+    s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+    f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
 
-# save files
-path_o = temp.relpath("myadd.o")
-path_cl = temp.relpath("myadd.cl")
-path_json = temp.relpath("myadd.tvm_meta.json")
-f.save(path_o)
-f.imported_modules[0].save(path_cl)
+    # save files
+    path_o = temp.relpath("myadd.o")
+    path_cl = temp.relpath("myadd.cl")
+    path_json = temp.relpath("myadd.tvm_meta.json")
+    f.save(path_o)
+    f.imported_modules[0].save(path_cl)
 
-# upload files
-remote.upload(path_o)
-remote.upload(path_cl)
-remote.upload(path_json)
+    # upload files
+    remote.upload(path_o)
+    remote.upload(path_cl)
+    remote.upload(path_json)
 
-# load files on remote device
-fhost = remote.load_module("myadd.o")
-fdev = remote.load_module("myadd.cl")
-fhost.import_module(fdev)
+    # load files on remote device
+    fhost = remote.load_module("myadd.o")
+    fdev = remote.load_module("myadd.cl")
+    fhost.import_module(fdev)
 
-# run
-ctx = remote.cl(0)
-a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-fhost(a, b)
-np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    # run
+    ctx = remote.cl(0)
+    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
+    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+    fhost(a, b)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
 
 #####################################################################
 # Instead of uploading files separately, there is a more convinient way.
 # You can export libraray as a tar ball.
-path_tar = temp.relpath("myadd.tar")
-f.export_library(path_tar)
-remote.upload(path_tar)
-fhost = remote.load_module("myadd.tar")
-fhost(a, b)
-np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+# The following functions shows how we can deploy by tar ball
+def deploy_cl_by_tar():
+    path_tar = temp.relpath("myadd.tar")
+    f.export_library(path_tar)
+    remote.upload(path_tar)
+    fhost = remote.load_module("myadd.tar")
+    fhost(a, b)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 # terminate the server after experiment
 server.terminate()

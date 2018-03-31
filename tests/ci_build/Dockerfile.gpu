@@ -1,7 +1,6 @@
 FROM nvidia/cuda:8.0-cudnn7-devel
 
 # Base scripts
-RUN apt-get update --fix-missing
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
@@ -11,9 +10,6 @@ RUN bash /install/ubuntu_install_python.sh
 
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
-
-COPY install/ubuntu_install_opencl.sh /install/ubuntu_install_opencl.sh
-RUN bash /install/ubuntu_install_opencl.sh
 
 COPY install/ubuntu_install_iverilog.sh /install/ubuntu_install_iverilog.sh
 RUN bash /install/ubuntu_install_iverilog.sh
@@ -40,8 +36,11 @@ RUN bash /install/ubuntu_install_rocm.sh
 COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
 RUN bash /install/ubuntu_install_opengl.sh
 
+COPY install/ubuntu_install_opencl.sh /install/ubuntu_install_opencl.sh
+RUN bash /install/ubuntu_install_opencl.sh
+
 # Enable doxygen for c++ doc build
-RUN apt-get install -y doxygen graphviz
+RUN apt-get update && apt-get install -y doxygen graphviz
 
 # Install vulkan
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
