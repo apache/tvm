@@ -288,6 +288,57 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
 }
 
 /*!
+ * \brief Creates an operation that computes the gradient w.r.t. the weight of
+ * a NCHW-layout 2-D convolution.
+ *
+ * \param O The 4-D output gradient tensor
+ * \param I The 4-D input tensor
+ * \param W The 4-D weight tensor
+ * \param pad_h A static constant padding amount applied to the height of the
+ * image, before and after (symmetric padding)
+ * \param pad_w A static constant padding amount applied to the width of the
+ * image, before and after (symmetric padding)
+ * \param stride_h A static constant striding amount applied to the height of
+ * the image, before and after (symmetric padding)
+ * \param stride_w A static constant strindingamount applied to the width of
+ * the image, before and after (symmetric padding)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the 2-D convolution operation (NCHW
+ * layout)
+ */
+inline tvm::Tensor conv2d_nchw_grad_weight(const tvm::Tensor& O,
+                                           const tvm::Tensor& I,
+                                           const tvm::Tensor& W,
+                                           int pad_h = 0,
+                                           int pad_w = 0,
+                                           int stride_h = 1,
+                                           int stride_w = 1,
+                                           std::string name = "tensor",
+                                           std::string tag = kConv2dNCHW) {
+  CHECK_EQ(4, O->shape.size());
+  CHECK_EQ(4, I->shape.size());
+  CHECK_EQ(4, W->shape.size());
+
+  auto b = tvm::reduce_axis(tvm::Range{0, I->shape[0]}, "b");
+  auto h = tvm::reduce_axis(tvm::Range{0, I->shape[2]}, "h");
+  auto w = tvm::reduce_axis(tvm::Range{0, I->shape[3]}, "w");
+  auto T = (pad_h == 0 && pad_w == 0)
+               ? I
+               : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
+  Expr dh = make_const(UInt(64), stride_h);
+  Expr dw = make_const(UInt(64), stride_w);
+  auto l = [&](tvm::Var i, tvm::Var o, tvm::Var kh, tvm::Var kw) {
+    return tvm::sum(
+        // T(b, i, stride_h * h + kh, stride_w * w + kw) * O(b, o, h, w),
+        T(b, i, dh * h + kh, dw * w + kw) * O(b, o, h, w),
+        {b, h, w});
+  };
+  return tvm::compute(W->shape, l, name, tag);
+}
+
+/*!
  * \brief Creates an operation for 2-D convolution layer with an HWCN-layout
  *
  * \param I The 4-D input tensor
