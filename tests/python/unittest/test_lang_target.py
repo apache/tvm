@@ -43,6 +43,7 @@ def test_target_string_parse():
     assert target.options == ['-libs=cublas,cudnn']
     assert target.keys == ['cuda', 'gpu']
     assert target.libs == ['cublas', 'cudnn']
+    assert str(target) == str(tvm.target.cuda("-libs=cublas,cudnn"))
 
 if __name__ == "__main__":
     test_target_dispatch()
