@@ -102,6 +102,7 @@ def schedule_depthwise_conv2d_nchw(outs):
         s[FS].bind(tx, thread_x)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -178,6 +179,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
         s[FS].bind(fused, thread_x)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
