@@ -64,7 +64,8 @@ lib/test_addone_sys.o: prepare_test_libs.py
 
 lib/tvm_t.h: ../../src/runtime/sgx/tvm.edl
 	$(sgx_edger8r) --trusted $< --trusted-dir lib --search-path $(SGX_SDK)/include
-	gawk -i inplace 'NR==4{print "#include <tvm/runtime/c_runtime_api.h>"}1' lib/tvm_t.h
+	mv $@ $@.in
+	awk 'NR==4{print "#include <tvm/runtime/c_runtime_api.h>"}1' $@.in > $@
 
 lib/tvm_t.c: lib/tvm_t.h
 

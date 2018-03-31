@@ -273,7 +273,8 @@ build/runtime/metal/%.o: src/runtime/metal/%.mm
 build/runtime/sgx/untrusted/tvm_u.h: src/runtime/sgx/tvm.edl
 	@mkdir -p $(@D)
 	$(EDGER8R) $< --untrusted --untrusted-dir $(@D) --search-path $(SGX_SDK)/include
-	gawk -i inplace 'NR==4{print "#include <tvm/runtime/c_runtime_api.h>"}1' $@
+	mv $@ $@.in
+	awk 'NR==4{print "#include <tvm/runtime/c_runtime_api.h>"}1' $@.in > $@
 
 build/runtime/sgx/untrusted/tvm_u.c: build/runtime/sgx/untrusted/tvm_u.h
 
