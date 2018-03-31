@@ -42,10 +42,8 @@ Target CreateTarget(const std::string& target_name,
   std::string libs_flag = "-libs=";
   std::string device_flag = "-device=";
   for (auto& item : options) {
-    LOG(INFO) << "OPTION" << item;
     t->options_array.push_back(ir::StringImm::make(item));
 
-    LOG(INFO) << "options" << t->options_array;
     if (item.find(libs_flag) == 0) {
       std::stringstream ss(item.substr(libs_flag.length()));
       std::string lib_item;
@@ -60,7 +58,6 @@ Target CreateTarget(const std::string& target_name,
   if (device_name.length() > 0) {
     t->keys_array.push_back(ir::StringImm::make(device_name));
   }
-  LOG(INFO) << "keys" << t->keys_array;
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
   if (target_name == "llvm") {
