@@ -24,6 +24,15 @@ _WORKLOADS = [
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
     _Workload('float32', 'float32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
 ]
 
 _SCHEDULES = [
@@ -36,6 +45,15 @@ _SCHEDULES = [
     _Schedule(1, 1, 8, 8, True),
     _Schedule(1, 1, 4, 1, False),
     _Schedule(1, 1, 4, 4, False),
+    _Schedule(2, 4, 4, 2, False),
+    _Schedule(2, 7, 4, 1, True),
+    _Schedule(2, 4, 4, 4, False),
+    _Schedule(2, 2, 4, 4, False),
+    _Schedule(2, 2, 8, 4, False),
+    _Schedule(2, 2, 4, 4, True),
+    _Schedule(2, 2, 8, 4, False),
+    _Schedule(1, 2, 8, 4, True),
+    _Schedule(1, 1, 4, 8, True),
 ]
 
 def _get_workload(data, kernel, stride, padding, out_dtype):

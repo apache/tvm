@@ -37,6 +37,32 @@ _SCHEDULES = [
     SpatialPack(2, 2, 8, 1, 8, False),
     Im2ColPack(7, 4, 1, 16, False),
     Im2ColPack(7, 4, 1, 4, True),
+
+    # int8 imagenet
+    SpatialPack(2, 2, 4, 19, 8, False),
+    SpatialPack(2, 2, 8, 1, 4, True),
+    SpatialPack(2, 2, 8, 7, 4, False),
+    SpatialPack(2, 4, 4, 7, 16, False),
+    SpatialPack(1, 7, 4, 14, 4, True),
+    SpatialPack(2, 2, 8, 5, 1, False),
+    SpatialPack(1, 2, 16, 3, 8, True),
+    SpatialPack(1, 7, 4, 1, 16, True),
+    SpatialPack(2, 2, 8, 2, 16, True),
+    SpatialPack(1, 1, 8, 4, 4, True),
+    SpatialPack(1, 1, 4, 1, 8, False),
+    SpatialPack(1, 1, 8, 1, 16, True),
+
+    # int8 mobilenet
+    SpatialPack(2, 2, 8, 8, 1, True),
+    SpatialPack(1, 7, 4, 16, 4, True),
+    SpatialPack(1, 4, 8, 1, 1, True),
+    SpatialPack(1, 4, 8, 1, 1, True),
+    SpatialPack(1, 4, 8, 4, 8, True),
+    SpatialPack(1, 4, 8, 7, 1, True),
+    SpatialPack(1, 2, 8, 2, 32, True),
+    SpatialPack(1, 2, 16, 2, 16, True),
+    SpatialPack(1, 1, 32, 1, 16, False),
+    SpatialPack(1, 1, 16, 1, 32, True),
 ]
 
 @_get_schedule.register("rasp")
@@ -50,6 +76,8 @@ def _schedule_conv2d(wkl):
 
 @conv2d.register("rasp")
 def _declaration_conv2d(data, kernel, stride, padding, layout, out_dtype):
+    if out_dtype is None:
+        out_dtype = data.dtype
     assert layout == 'NCHW', "only support NCHW convolution on rasp"
     assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)
