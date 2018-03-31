@@ -60,12 +60,12 @@ void Yield() {}
 
 int MaxConcurrency() { return TVM_SGX_MAX_CONCURRENCY; }
 
-extern "C" {
-void tvm_ecall_run_worker(const void* impl) {
-  if (!sgx_is_within_enclave(impl, sizeof(ThreadGroup::Impl))) return;
-  ((ThreadGroup::Impl*)impl)->RunTask();
-}
-}
+TVM_REGISTER_ENCLAVE_FUNC("__tvm_run_worker__")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    void* tg = args[0];
+    if (!sgx_is_within_enclave(tg, sizeof(ThreadGroup::Impl))) return;
+    reinterpret_cast<ThreadGroup::Impl*>(tg)->RunTask();
+  });
 
 }  // namespace threading
 }  // namespace runtime

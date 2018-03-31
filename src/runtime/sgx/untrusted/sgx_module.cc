@@ -108,7 +108,12 @@ class SGXModuleNode : public ModuleNode {
       return PackedFunc([this, ecall_name](TVMArgs args, TVMRetValue* rv) {
           sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
           sgx::EnclaveContext ctx(this);
-          sgx_status = tvm_ecall_packed_func(eid_, ecall_name.c_str(), &args, rv);
+          sgx_status = tvm_ecall_packed_func(eid_,
+                                             ecall_name.c_str(),
+                                             args.values,
+                                             args.type_codes,
+                                             args.num_args,
+                                             rv);
           CHECK_EQ(sgx_status, SGX_SUCCESS) << "SGX Error: " << sgx_status;
         });
     }
@@ -119,11 +124,10 @@ class SGXModuleNode : public ModuleNode {
     exports_.insert(name);
   }
 
-  void RunWorker(int num_tasks, const void* cb) {
-    std::function<void(int)> runner = [this, cb](int _worker_id) {
-      sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-      sgx_status = tvm_ecall_run_worker(this->eid_, cb);
-      CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
+  void RunWorkers(int num_tasks, void* tg) {
+    std::function<void(int)> runner = [this, tg](int _worker_id) {
+      this->GetFunction("__tvm_run_worker__",
+                        std::shared_ptr<SGXModuleNode>(this))(tg);
     };
     thread_group_.reset(new tvm::runtime::threading::ThreadGroup(
           num_tasks, runner, false /* include_main_thread */));
@@ -151,8 +155,8 @@ TVM_REGISTER_GLOBAL("module.loadfile_sgx")
 namespace sgx {
 extern "C" {
 
-void tvm_ocall_thread_group_launch(int num_tasks, const void* cb) {
-  EnclaveContext::GetCurrent()->RunWorker(num_tasks, cb);
+void tvm_ocall_thread_group_launch(int num_tasks, void* tg) {
+  EnclaveContext::GetCurrent()->RunWorkers(num_tasks, tg);
 }
 
 void tvm_ocall_thread_group_join() {

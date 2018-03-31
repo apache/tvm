@@ -62,11 +62,14 @@ all: lib/test_addone.signed.so
 lib/test_addone_sys.o: prepare_test_libs.py
 	python prepare_test_libs.py
 
-lib/tvm_t.c: ../../src/runtime/sgx/tvm.edl
+lib/tvm_t.h: ../../src/runtime/sgx/tvm.edl
 	$(sgx_edger8r) --trusted $< --trusted-dir lib --search-path $(SGX_SDK)/include
+	gawk -i inplace 'NR==4{print "#include <tvm/runtime/c_runtime_api.h>"}1' lib/tvm_t.h
+
+lib/tvm_t.c: lib/tvm_t.h
 
 lib/tvm_t.o: lib/tvm_t.c
-	$(CC) $(enclave_cflags) -c $< -o $@
+	$(CC) $(enclave_cflags) $(pkg_cflags) -c $< -o $@ -include $(TVM_ROOT)/include/tvm/runtime/c_runtime_api.h
 
 # The enclave library
 lib/test_addone.so: enclave.cc lib/tvm_t.o lib/test_addone_sys.o

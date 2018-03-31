@@ -270,12 +270,15 @@ build/runtime/metal/%.o: src/runtime/metal/%.mm
 	$(CXX) $(OBJCFLAGS) $(CFLAGS) -MM -MT build/runtime/metal/$*.o $< >build/runtime/metal/$*.d
 	$(CXX) $(OBJCFLAGS) -c $(CFLAGS) -c $< -o $@
 
-build/runtime/sgx/untrusted/tvm_u.o: build/runtime/sgx/untrusted/tvm_u.c
-	$(CC) $(CFLAGS) $(SGX_CFLAGS) -c $< -o $@
-
-build/runtime/sgx/untrusted/tvm_u.%: src/runtime/sgx/tvm.edl
+build/runtime/sgx/untrusted/tvm_u.h: src/runtime/sgx/tvm.edl
 	@mkdir -p $(@D)
 	$(EDGER8R) $< --untrusted --untrusted-dir $(@D) --search-path $(SGX_SDK)/include
+	gawk -i inplace 'NR==4{print "#include <tvm/runtime/c_runtime_api.h>"}1' $@
+
+build/runtime/sgx/untrusted/tvm_u.c: build/runtime/sgx/untrusted/tvm_u.h
+
+build/runtime/sgx/untrusted/tvm_u.o: build/runtime/sgx/untrusted/tvm_u.c
+	$(CC) $(CFLAGS) $(SGX_CFLAGS) -c $< -o $@
 
 build/runtime/sgx/untrusted/%.o: src/runtime/sgx/untrusted/%.cc build/runtime/sgx/untrusted/tvm_u.h
 	$(CXX) $(CFLAGS) $(SGX_CFLAGS) -MM -MT build/$*.o $< >build/$*.d

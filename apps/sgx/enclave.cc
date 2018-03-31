@@ -12,14 +12,16 @@ extern "C" {
 void tvm_ecall_init() {}
 
 void tvm_ecall_packed_func(const char* cname,
-                           void* tvm_args,
+                           const TVMValue* arg_values,
+                           const int* type_codes,
+                           int num_args,
                            void* tvm_ret_val) {
   std::string name = std::string(cname);
   CHECK(name.substr(0, sgx::ECALL_PACKED_PFX.size()) == sgx::ECALL_PACKED_PFX)
     << "Function `" << name << "` is not an enclave export.";
   const PackedFunc* f = Registry::Get(name);
   CHECK(f != nullptr) << "Enclave function not found.";
-  f->CallPacked(*reinterpret_cast<TVMArgs*>(tvm_args),
+  f->CallPacked(TVMArgs(arg_values, type_codes, num_args),
       reinterpret_cast<TVMRetValue*>(tvm_ret_val));
 }
 
