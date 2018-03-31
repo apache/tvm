@@ -121,7 +121,9 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    assert data.dtype == kernel.dtype, "Do not support inputs with different data types now. {} vs. {}".format(data.dtype, kernel.dtype)
+    assert data.dtype == kernel.dtype, \
+        "Do not support inputs with different data types now. ' \
+        '{} vs. {}".format(data.dtype, kernel.dtype)
     return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
@@ -135,7 +137,7 @@ def _get_schedule(wkl):
     # This return has no use, merely to supress pylint warning
     return wkl
 
-  
+
 def _spatial_pack(data, kernel, stride, padding, out_dtype=None):
     """ Compute convolution with pack on spatial axes. """
     if out_dtype is None:
