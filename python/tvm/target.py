@@ -349,10 +349,10 @@ def cuda(options=None):
 
     Parameters
     ----------
-    options : list of str
+    options : str or list of str
         Additional options
     """
-    options = options if options else []
+    options = _merge_opts([], options)
     return _api_internal._TargetCreate("cuda", *options)
 
 
@@ -361,10 +361,10 @@ def rocm(options=None):
 
     Parameters
     ----------
-    options : list of str
+    options : str or list of str
         Additional options
     """
-    options = options if options else []
+    options = _merge_opts([], options)
     return _api_internal._TargetCreate("rocm", *options)
 
 
@@ -373,7 +373,7 @@ def rasp(options=None):
 
     Parameters
     ----------
-    options : list of str
+    options : str or list of str
         Additional options
     """
     opts = ["-device=rasp",
@@ -389,7 +389,7 @@ def mali(options=None):
 
     Parameters
     ----------
-    options : list of str
+    options : str or list of str
         Additional options
     """
     opts = ["-device=mali"]
@@ -402,10 +402,10 @@ def opengl(options=None):
 
     Parameters
     ----------
-    options : list of str
+    options : str or list of str
         Additional options
     """
-    options = options if options else []
+    options = _merge_opts([], options)
     return _api_internal._TargetCreate("opengl", *options)
 
 
