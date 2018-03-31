@@ -12,7 +12,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
   - [How to resolve conflict with master](#how-to-resolve-conflict-with-master)
   - [How to combine multiple commits into one](#how-to-combine-multiple-commits-into-one)
   - [What is the consequence of force push](#what-is-the-consequence-of-force-push)
-* [Document](#document)
+* [Code Quality](#code-quality)
 * [Testcases](#testcases)
 * [Core Library](#core-library)
 * [Python Package](#python-package)
@@ -84,6 +84,10 @@ git push --force
 ### What is the consequence of force push
 The previous two tips requires force push, this is because we altered the path of the commits.
 It is fine to force push to your own fork, as long as the commits changed are only yours.
+
+## Code Quality
+
+Each patch we made can also become a potential technical debt in the future. We value high-quality code that can be understood and maintained by the community. We encourage contributors to submit coverage test cases, write or contribute comments on their code to explain the logic and provide reviews feedbacks to hold these standards.
 
 ## Testcases
 - All the testcases are in tests
