@@ -1,8 +1,8 @@
 # Install OpenCL runtime in nvidia docker.
-apt-get install -y --no-install-recommends --force-yes \
-        ocl-icd-libopencl1 \
+apt-get update && apt-get install -y --no-install-recommends --force-yes \
+        ocl-icd-opencl-dev \
         clinfo && \
-        rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*
 
 mkdir -p /etc/OpenCL/vendors && \
     echo "libnvidia-opencl.so.1" > /etc/OpenCL/vendors/nvidia.icd

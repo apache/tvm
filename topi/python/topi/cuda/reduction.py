@@ -87,6 +87,7 @@ def schedule_reduce(outs):
     sch = tvm.create_schedule([x.op for x in outs])
 
     def traverse_before_reduce(operator):
+        """Internal travserse function"""
         if isinstance(operator, tvm.tensor.PlaceholderOp):
             return
         elif tag.is_injective(operator.tag):
@@ -97,6 +98,7 @@ def schedule_reduce(outs):
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
 
     def traverse_after_reduce(operator):
+        """Internal travserse function"""
         if tag.is_broadcast(operator.tag):
             raise RuntimeError("Not yet support ewise after reduce")
         elif operator.tag == 'comm_reduce':
