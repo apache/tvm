@@ -31,7 +31,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 * \return The constructed Target
 */
 Target CreateTarget(const std::string& target_name,
-                    const std::unordered_set<std::string>& options) {
+                    const std::vector<std::string>& options) {
   auto target = Target(std::make_shared<TargetNode>());
   auto t = static_cast<TargetNode*>(target.node_.get());
 
@@ -42,8 +42,10 @@ Target CreateTarget(const std::string& target_name,
   std::string libs_flag = "-libs=";
   std::string device_flag = "-device=";
   for (auto& item : options) {
+    LOG(INFO) << "OPTION" << item;
     t->options_array.push_back(ir::StringImm::make(item));
 
+    LOG(INFO) << "options" << t->options_array;
     if (item.find(libs_flag) == 0) {
       std::stringstream ss(item.substr(libs_flag.length()));
       std::string lib_item;
@@ -58,7 +60,7 @@ Target CreateTarget(const std::string& target_name,
   if (device_name.length() > 0) {
     t->keys_array.push_back(ir::StringImm::make(device_name));
   }
-
+  LOG(INFO) << "keys" << t->keys_array;
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
   if (target_name == "llvm") {
@@ -95,10 +97,10 @@ Target CreateTarget(const std::string& target_name,
 TVM_REGISTER_API("_TargetCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_name = args[0];
-  std::unordered_set<std::string> options;
+  std::vector<std::string> options;
   for (int i = 1; i < args.num_args; ++i) {
     std::string arg = args[i];
-    options.insert(arg);
+    options.push_back(arg);
   }
 
   *ret = CreateTarget(target_name, options);
@@ -175,10 +177,10 @@ Target Target::create(const std::string& target_str) {
   ss >> target_name;
   auto device_name = GetDeviceName(target_str);
 
-  std::unordered_set<std::string> options;
+  std::vector<std::string> options;
   std::string item;
   while (ss >> item) {
-    options.insert(item);
+    options.push_back(item);
   }
 
   if (device_name == "rasp") {
@@ -224,33 +226,33 @@ tvm::Target Target::current_target(bool allow_not_defined) {
 }
 
 namespace target {
-std::unordered_set<std::string> MergeOptions(std::unordered_set<std::string> opts,
-                                             const std::unordered_set<std::string>& new_opts) {
-  opts.insert(new_opts.begin(), new_opts.end());
+std::vector<std::string> MergeOptions(std::vector<std::string> opts,
+                                             const std::vector<std::string>& new_opts) {
+  opts.insert(opts.end(), new_opts.begin(), new_opts.end());
   return opts;
 }
 
-Target llvm(const std::unordered_set<std::string>& options) {
+Target llvm(const std::vector<std::string>& options) {
   return CreateTarget("llvm", options);
 }
 
-Target cuda(const std::unordered_set<std::string>& options) {
+Target cuda(const std::vector<std::string>& options) {
   return CreateTarget("cuda", options);
 }
 
-Target rocm(const std::unordered_set<std::string>& options) {
+Target rocm(const std::vector<std::string>& options) {
   return CreateTarget("rocm", options);
 }
 
-Target opencl(const std::unordered_set<std::string>& options) {
+Target opencl(const std::vector<std::string>& options) {
   return CreateTarget("opencl", options);
 }
 
-Target metal(const std::unordered_set<std::string>& options) {
+Target metal(const std::vector<std::string>& options) {
   return CreateTarget("metal", options);
 }
 
-Target rasp(const std::unordered_set<std::string>& options) {
+Target rasp(const std::vector<std::string>& options) {
   return CreateTarget("llvm", MergeOptions(options, {
     "-device=rasp",
     "-mtriple=armv7l-none-linux-gnueabihf",
@@ -259,14 +261,14 @@ Target rasp(const std::unordered_set<std::string>& options) {
   }));
 }
 
-Target mali(const std::unordered_set<std::string>& options) {
+Target mali(const std::vector<std::string>& options) {
   return CreateTarget("opencl", MergeOptions(options, {
     "-device=mali"
   }));
 }
 
 
-Target stackvm(const std::unordered_set<std::string>& options) {
+Target stackvm(const std::vector<std::string>& options) {
   return CreateTarget("stackvm", options);
 }
 }  // namespace target
