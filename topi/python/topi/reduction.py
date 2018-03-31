@@ -2,7 +2,7 @@
 """Reduce operators"""
 from __future__ import absolute_import as _abs
 import tvm
-from . import tag
+from . import tag, cpp
 from .util import ravel_index
 
 def _get_real_axis(ndim, axis):
@@ -175,6 +175,11 @@ def sum(data, axis=None, keepdims=False):
     """
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
 
+def mean(data, axis=None, keepdims=False):
+    return cpp.mean(data, axis, keepdims)
+
+def var(data, axis=None, keepdims=False):
+    return cpp.var(data, axis, keepdims)
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE)
 def max(data, axis=None, keepdims=False):

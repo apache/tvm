@@ -48,7 +48,7 @@ class Tensor : public NodeRef {
   /*! \return The dimension of the tensor */
   inline size_t ndim() const;
   /*! \return The number of elements in the tensor */
-  inline Expr numel() const;
+  inline Expr size() const;
   /*!
    * \brief Take elements from the tensor
    * \param args The indices
@@ -175,15 +175,14 @@ inline size_t Tensor::ndim() const {
   return (*this)->shape.size();
 }
 
-inline Expr Tensor::numel() const {
+inline Expr Tensor::size() const {
   Array<Expr> shape = (*this)->shape;
-  Type dtype = (*this)->dtype;
-  if (!shape.size()) return make_zero(dtype);
-  Expr numel = make_one(dtype);
-  for (const Expr& sh : shape) {
-    numel *= sh;
+  Expr size = make_one(UInt(64));
+  if (!shape.size()) return size;
+  for (const auto& sh : shape) {
+    size *= sh;
   }
-  return numel;
+  return size;
 }
 
 inline bool Tensor::operator==(const Tensor& other) const {

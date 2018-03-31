@@ -298,7 +298,7 @@ inline Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 inline Tensor mean(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   Expr numel;
   if (!axis.size()) {
-    numel = data.numel();
+    numel = data.size();
   } else {
     numel = tvm::make_one(data->dtype);
     for (const int& ax : detail::GetConstIntValues(axis, "axis")) {
@@ -309,7 +309,7 @@ inline Tensor mean(const Tensor& data, Array<Expr> axis, bool keepdims = false) 
   return tvm::compute(
     tsum->shape,
     [&](const Array<Var>& i) { return tsum(i) / numel; },
-    "tensor", "mean_div");
+    "tensor", kInjective);
 }
 
 /*!
@@ -325,11 +325,9 @@ inline Tensor mean(const Tensor& data, Array<Expr> axis, bool keepdims = false) 
 * \return A Tensor whose op member is the variance operation
 */
 inline Tensor var(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
-  return sum(
-      pow(
-        broadcast_sub(data, mean(data, axis, true)),
-        make_const(data->dtype, 2)),
-      axis, keepdims);
+  return mean(pow(broadcast_sub(data, mean(data, axis, true)),
+                 make_const(data->dtype, 2)),
+             axis, keepdims);
 }
 
 /*!
