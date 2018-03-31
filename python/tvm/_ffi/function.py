@@ -181,10 +181,10 @@ def register_func(func_name, f=None, override=False):
             myf = convert_to_tvm_func(myf)
         check_call(_LIB.TVMFuncRegisterGlobal(
             c_str(func_name), myf.handle, ioverride))
+        return myf
     if f:
-        register(f)
-    else:
-        return register
+        return register(f)
+    return register
 
 
 def get_global_func(name, allow_missing=False):

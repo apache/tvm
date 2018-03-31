@@ -43,6 +43,7 @@ def binarize_pack(data, axis=None, name="PackedInput"):
             if j == 31:
                 return packed
             packed = packed << 1
+        raise RuntimeError("not resach")
 
     return tvm.compute(oshape, _binarize_pack, name=name, tag='binarize_pack')
 

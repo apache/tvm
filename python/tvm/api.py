@@ -652,6 +652,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
                         for i in range(size))
         return outputs[0] if size == 1 else outputs
 
+    # pylint: disable=keyword-arg-before-vararg
     def reducer(expr, axis, where=None, *args):
         if isinstance(axis, (_schedule.IterVar, list, tuple)):
             assert not args

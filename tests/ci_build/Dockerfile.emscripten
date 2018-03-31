@@ -15,4 +15,8 @@ RUN bash /install/ubuntu_install_emscripten.sh
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
+RUN chmod a+rwx -R /emsdk-portable
+RUN cp -r /emsdk-portable  /emsdk-portable-backup
+RUN mv /emsdk-portable  /emsdk-portable-x
+RUN mv /emsdk-portable-backup /emsdk-portable
 RUN cp /root/.emscripten /emsdk-portable/
