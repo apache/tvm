@@ -34,7 +34,7 @@ TEST(BuildModule, Basic) {
   auto module = build(lowered, target, Target(), config);
 
   auto mali_target = Target::create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
-  CHECK_EQ(mali_target.str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali"); 
+  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali"); 
 }
 
 
