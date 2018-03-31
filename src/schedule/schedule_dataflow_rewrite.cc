@@ -57,6 +57,7 @@ Expr InjectPredicate(const Array<Expr>& predicates,
 
 // Replace data flow appears in all stages given the tensor change.
 // Also update vmap if subsequent dataflow need to be replaced.
+// Need to keep an update to the date transitive closure property on the vmap by a reverse map.
 void ReplaceDataFlow(const Array<Stage>& stages,
                      std::unordered_map<Tensor, Tensor>* vmap,
                      std::unordered_map<Tensor, Tensor>* rvmap) {
@@ -64,8 +65,9 @@ void ReplaceDataFlow(const Array<Stage>& stages,
     Operation op = s->op->ReplaceInputs(s->op, *vmap);
     if (!op.same_as(s->op)) {
       for (int i = 0; i < op->num_outputs(); ++i) {
-        if ((*rvmap).find(s->op.output(i)) != (*rvmap).end()) {
-          (*vmap)[((*rvmap)[s->op.output(i)])] = op.output(i);
+        auto it = rvmap->find(s->op.output(i));
+        if (it != rvmap->end()) {
+          (*vmap)[it->second] = op.output(i);
         } else {
           (*vmap)[s->op.output(i)] = op.output(i);
           (*rvmap)[op.output(i)] = s->op.output(i);
