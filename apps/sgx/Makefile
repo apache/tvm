@@ -72,7 +72,7 @@ lib/tvm_t.o: lib/tvm_t.c
 	$(CC) $(enclave_cflags) $(pkg_cflags) -c $< -o $@ -include $(TVM_ROOT)/include/tvm/runtime/c_runtime_api.h
 
 # The enclave library
-lib/test_addone.so: enclave.cc lib/tvm_t.o lib/test_addone_sys.o
+lib/test_addone.so: $(TVM_ROOT)/src/runtime/sgx/trusted/runtime.cc lib/tvm_t.o lib/test_addone_sys.o
 	$(CXX) $^ -o $@ $(pkg_cflags) $(pkg_ldflags) $(enclave_cxxflags) $(enclave_ldflags) -g
 
 # The signed enclave
