@@ -65,6 +65,7 @@ def _get_schedule_conv(wkl):
 
 @conv2d.register("cpu")
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
+    out_dtype = data.dtype if out_dtype is None else out_dtype
     target = tvm.target.current_target(allow_none=False)
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)
     if wkl in _WORKLOADS and 'avx' in str(target) and layout == 'NCHW':

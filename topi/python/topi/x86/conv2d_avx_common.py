@@ -12,6 +12,7 @@ from ..nn.pad import pad
 AVXConvCommonFwd = namedtuple('AVXConvCommonFwd', ['ic_bn', 'oc_bn', 'reg_n', 'unroll_kw'])
 
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
+    out_dtype = data.dtype if out_dtype is None else out_dtype
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)
     sch = _get_schedule(wkl)
