@@ -468,6 +468,41 @@ BuildConfig build_config() {
   return BuildConfig(std::make_shared<BuildConfigNode>());
 }
 
+/*! \brief Entry to hold the BuildConfig context stack. */
+struct TVMBuildConfigThreadLocalEntry {
+  /*! \brief The default build config if the stack is empty */
+  tvm::BuildConfig default_config;
+
+  /*! \brief The current build config context */
+  std::stack<tvm::BuildConfig> context_stack;
+
+  TVMBuildConfigThreadLocalEntry() :
+    default_config(build_config()) {
+  }
+};
+
+/*! \brief Thread local store to hold the BuildConfig context stack. */
+typedef dmlc::ThreadLocalStore<TVMBuildConfigThreadLocalEntry> TVMBuildConfigThreadLocalStore;
+
+void BuildConfig::EnterBuildConfigScope(const tvm::BuildConfig& build_config) {
+  TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
+  entry->context_stack.push(build_config);
+}
+
+void BuildConfig::ExitBuildConfigScope() {
+  TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
+  entry->context_stack.pop();
+}
+
+tvm::BuildConfig BuildConfig::Current() {
+  TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
+  if (entry->context_stack.size() > 0) {
+    return entry->context_stack.top();
+  }
+
+  return entry->default_config;
+}
+
 TVM_REGISTER_NODE_TYPE(BuildConfigNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -482,7 +517,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "unroll_explicit=" << op->unroll_explicit << ", ";
   p->stream << "restricted_func=" << op->restricted_func << ", ";
   p->stream << "detect_global_barrier=" << op->detect_global_barrier << ", ";
-  p->stream << "partition_const_loop=" << op->partition_const_loop;
+  p->stream << "partition_const_loop=" << op->partition_const_loop << ", ";
+  p->stream << "dump_pass_ir=" << op->dump_pass_ir;
   p->stream << ")";
 });
 
@@ -571,6 +607,55 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
+TVM_REGISTER_API("_GetCurrentBuildConfig")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = BuildConfig::Current();
+  });
+
+TVM_REGISTER_API("_EnterBuildConfigScope")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  BuildConfig target = args[0];
+  BuildConfig::EnterBuildConfigScope(target);
+  });
+
+TVM_REGISTER_API("_ExitBuildConfigScope")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  BuildConfig::ExitBuildConfigScope();
+  });
+
+TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  BuildConfig cfg = args[0];
+  std::vector< std::pair<int, PackedFunc> > add_lower_pass;
+  CHECK_EQ(args.size() % 2, 1);
+  for (int i = 1; i < args.size(); i += 2) {
+    add_lower_pass.push_back(std::make_pair(
+      args[i].operator int(),
+      args[i + 1].operator tvm::runtime::PackedFunc()));
+  }
+  cfg->add_lower_pass = add_lower_pass;
+  });
+
+TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  // Return one of the following:
+  //  * Size of add_lower_pass if num_args == 1
+  //  * Phase index of pass if args are (config, index, true)
+  //  * Function of pass if args are (config, index, false)
+  BuildConfig cfg = args[0];
+  if (args.num_args == 1) {
+    *ret = static_cast<int64_t>(cfg->add_lower_pass.size());
+  } else {
+    int index = args[1];
+    bool get_phase = args[2];
+    auto item = cfg->add_lower_pass[index];
+    if (get_phase) {
+      *ret = item.first;
+    } else {
+      *ret = item.second;
+    }
+  }
+  });
 
 TVM_REGISTER_API("_GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {

@@ -6,7 +6,7 @@ from . import expr as _expr
 from . import stmt as _stmt
 from . import make as _make
 from . import tensor as _tensor
-from .build_module import BuildConfig
+from .build_module import current_build_config
 from ._ffi.node import NodeBase, register_node
 
 @register_node
@@ -74,7 +74,7 @@ def decl_tensor_intrin(op,
         if not isinstance(t.op, _tensor.PlaceholderOp):
             raise ValueError("Donot yet support composition op")
 
-    cfg = BuildConfig.current
+    cfg = current_build_config()
     for t in tensors:
         buf = (binds[t] if t in binds else
                _api.decl_buffer(t.shape, t.dtype, t.op.name,
