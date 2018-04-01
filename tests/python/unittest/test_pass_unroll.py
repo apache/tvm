@@ -38,6 +38,7 @@ if __name__ == "__main__":
     file_list = os.listdir('./')
     cc_file = end_with('.cc')
     cc_file = filter(cc_file, file_list)
+    cc_file = [f for f in cc_file]
     assert len(cc_file) == 3
     for i in cc_file:
         os.remove(i)
