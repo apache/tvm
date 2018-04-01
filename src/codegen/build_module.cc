@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <mutex>
 #include <stack>
-#include <utility>
 
 namespace tvm {
 
