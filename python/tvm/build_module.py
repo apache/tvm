@@ -142,11 +142,11 @@ class BuildConfig(NodeBase):
 
     @property
     def add_lower_pass(self):
-        size = _api_internal._BuildConfigGetAddLowerPassSize(self)
+        size = _api_internal._BuildConfigGetAddLowerPassInfo(self)
         result = []
         for i in range(size):
-            phase = _api_internal._BuildConfigGetAddLowerPassItemPhase(self, i)
-            func = _api_internal._BuildConfigGetAddLowerPassItemFunc(self, i)
+            phase = _api_internal._BuildConfigGetAddLowerPassInfo(self, i, True)
+            func = _api_internal._BuildConfigGetAddLowerPassInfo(self, i, False)
             result += [(phase, func)]
         return result
 

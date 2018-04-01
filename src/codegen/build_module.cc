@@ -495,7 +495,7 @@ void BuildConfig::ExitBuildConfigScope() {
   entry->context_stack.pop();
 }
 
-tvm::BuildConfig BuildConfig::current_build_config() {
+tvm::BuildConfig BuildConfig::Current() {
   TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
@@ -610,7 +610,7 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
 
 TVM_REGISTER_API("_GetCurrentBuildConfig")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = BuildConfig::current_build_config();
+  *ret = BuildConfig::Current();
   });
 
 TVM_REGISTER_API("_EnterBuildConfigScope")
@@ -627,34 +627,35 @@ TVM_REGISTER_API("_ExitBuildConfigScope")
 TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   BuildConfig cfg = args[0];
-  std::vector<std::tuple<int, PackedFunc>> add_lower_pass;
+  std::vector< std::pair<int, PackedFunc> > add_lower_pass;
   CHECK_EQ(args.size() % 2, 1);
   for (int i = 1; i < args.size(); i += 2) {
-    add_lower_pass.push_back(std::make_tuple(
+    add_lower_pass.push_back(std::make_pair(
       args[i].operator int(),
       args[i + 1].operator tvm::runtime::PackedFunc()));
   }
-  cfg.set_add_lower_pass(add_lower_pass);
+  cfg->add_lower_pass = add_lower_pass;
   });
 
-TVM_REGISTER_API("_BuildConfigGetAddLowerPassSize")
+TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
+  // Return one of the following:
+  //  * Size of add_lower_pass if num_args == 1
+  //  * Phase index of pass if args are (config, index, true)
+  //  * Function of pass if args are (config, index, false)
   BuildConfig cfg = args[0];
-  *ret = static_cast<int64_t>(cfg->add_lower_pass.size());
-  });
-
-TVM_REGISTER_API("_BuildConfigGetAddLowerPassItemPhase")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  BuildConfig cfg = args[0];
-  int index = args[1];
-  *ret = std::get<0>(cfg->add_lower_pass[index]);
-  });
-
-TVM_REGISTER_API("_BuildConfigGetAddLowerPassItemFunc")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  BuildConfig cfg = args[0];
-  int index = args[1];
-  *ret = std::get<1>(cfg->add_lower_pass[index]);
+  if (args.num_args == 1) {
+    *ret = static_cast<int64_t>(cfg->add_lower_pass.size());
+  } else {
+    int index = args[1];
+    bool get_phase = args[2];
+    auto item = cfg->add_lower_pass[index];
+    if (get_phase) {
+      *ret = item.first;
+    } else {
+      *ret = item.second;
+    }
+  }
   });
 
 TVM_REGISTER_API("_GenericFuncCreate")

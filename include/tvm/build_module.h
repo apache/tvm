@@ -197,7 +197,7 @@ class BuildConfigNode : public Node {
   bool partition_const_loop = false;
 
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
-  std::vector<std::tuple<int, PackedFunc>> add_lower_pass;
+  std::vector< std::pair<int, PackedFunc> > add_lower_pass;
 
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
   bool dump_pass_ir = false;
@@ -232,9 +232,8 @@ class BuildConfig : public ::tvm::NodeRef {
     return static_cast<const BuildConfigNode*>(node_.get());
   }
 
-  inline void set_add_lower_pass(const std::vector<std::tuple<int, PackedFunc>>& add_lower_pass) {
-    auto node = static_cast<BuildConfigNode*>(node_.get());
-    node->add_lower_pass = add_lower_pass;
+  BuildConfigNode* operator->() {
+    return static_cast<BuildConfigNode*>(node_.get());
   }
 
   /*!
@@ -254,7 +253,7 @@ class BuildConfig : public ::tvm::NodeRef {
    * configuration if a BuildConfig scope has not been entered.
    * \return The configuration that is the current context.
    */
-  EXPORT static tvm::BuildConfig current_build_config();
+  EXPORT static tvm::BuildConfig Current();
 
   using ContainerType = BuildConfigNode;
 };
