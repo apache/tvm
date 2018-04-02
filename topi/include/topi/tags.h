@@ -17,6 +17,7 @@ constexpr auto kCommReduceIdx = "comm_reduce_idx";
 constexpr auto kBroadcast = "broadcast";
 constexpr auto kMatMult = "matmult";
 constexpr auto kConv2dNCHW = "conv2d_nchw";
+constexpr auto kConv2dNCHWdW = "conv2d_grad_weight_nchw";
 constexpr auto kConv2dHWCN = "conv2d_hwcn";
 constexpr auto kDepthwiseConv2dNCHW = "depthwise_conv2d_nchw";
 constexpr auto kDepthwiseConv2dNHWC = "depthwise_conv2d_nhwc";

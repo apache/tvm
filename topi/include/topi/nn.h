@@ -310,16 +310,16 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
  */
 inline tvm::Tensor conv2d_nchw_grad_weight(const tvm::Tensor& O,
                                            const tvm::Tensor& I,
-                                           const tvm::Tensor& W,
+                                           int kernel_h,
+                                           int kernel_w,
                                            int pad_h = 0,
                                            int pad_w = 0,
                                            int stride_h = 1,
                                            int stride_w = 1,
                                            std::string name = "tensor",
-                                           std::string tag = kConv2dNCHW) {
+                                           std::string tag = kConv2dNCHWdW) {
   CHECK_EQ(4, O->shape.size());
   CHECK_EQ(4, I->shape.size());
-  CHECK_EQ(4, W->shape.size());
 
   auto b = tvm::reduce_axis(tvm::Range{0, I->shape[0]}, "b");
   auto h = tvm::reduce_axis(tvm::Range{0, I->shape[2]}, "h");
@@ -327,15 +327,21 @@ inline tvm::Tensor conv2d_nchw_grad_weight(const tvm::Tensor& O,
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
-  Expr dh = make_const(UInt(64), stride_h);
-  Expr dw = make_const(UInt(64), stride_w);
+  Expr dh = make_const(UInt(32), stride_h);
+  Expr dw = make_const(UInt(32), stride_w);
   auto l = [&](tvm::Var i, tvm::Var o, tvm::Var kh, tvm::Var kw) {
     return tvm::sum(
-        // T(b, i, stride_h * h + kh, stride_w * w + kw) * O(b, o, h, w),
         T(b, i, dh * h + kh, dw * w + kw) * O(b, o, h, w),
         {b, h, w});
   };
-  return tvm::compute(W->shape, l, name, tag);
+
+  tvm::Array<tvm::Expr> output_shape{
+    I->shape[1],
+    O->shape[1],
+    make_const(Int(32), kernel_h),
+    make_const(Int(32), kernel_w)
+  };
+  return tvm::compute(output_shape, l, name, tag);
 }
 
 /*!

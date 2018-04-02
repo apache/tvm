@@ -81,6 +81,64 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
         raise ValueError("not support this layout {} yet".format(layout))
 
 
+def _traverse_conv2d(op, conv_tag, default_schedule):
+    """Traverse operators from computation graph"""
+    print('traversing', op.tag)
+    # inline all one-to-one-mapping operators except the last stage (output)
+    if tag.is_broadcast(op.tag):
+        if op not in s.outputs:
+            s[op].compute_inline()
+        else: # inject custom schedule
+            if len(op.axis) == 4 and 'avx' not in str(target): # schedule bias + bn + relu
+                n, c, h, w = op.axis
+                fused = s[op].fuse(n, c)
+                s[op].parallel(fused)
+                s[op].vectorize(w)
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors:
+                _traverse_conv2d(tensor.op, conv_tag, default_schedule)
+
+    if op.tag == conv_tag:
+        default_schedule(op)
+
+
+def _conv2d_default_schedule(s, conv, data):
+    """NCHW conv2d schedule for non imagenet workloads"""
+    data_pad = None
+    if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+        data_pad = data
+        data = data_pad.op.input_tensors[0]
+    elif isinstance(data.op, tvm.tensor.PlaceholderOp):
+        return
+
+    n_pad, c_pad, h_pad, w_pad = data_pad.op.axis
+    pad_fused = s[data_pad].fuse(n_pad, c_pad)
+    s[data_pad].parallel(pad_fused)
+    C = conv
+    n, c, h, w = C.op.axis
+    rc, ry, rx = C.op.reduce_axis
+    fused = s[C].fuse(n, c)
+    s[C].parallel(fused)
+    wo, wi = s[C].split(w, factor=16)
+    s[C].reorder(fused, rc, h, wo, ry, rx, wi)  # move rc to outer loop
+    s[C].unroll(rx)
+    s[C].unroll(ry)
+    s[C].vectorize(wi)
+
+
+@generic.schedule_conv2d_grad_weight_nchw.register(["cpu"])
+def schedule_conv2d_grad_weight(outs):
+    """Create schedule for tensors"""
+    s = tvm.create_schedule([x.op for x in outs])
+    target = tvm.target.current_target(allow_none=False)
+
+    def default_schedule(op):
+        _conv2d_default_schedule(s, op.output(0), op.input_tensors[1])
+
+    _traverse_conv2d(outs[0].op, 'conv2d_grad_weight_nchw', default_schedule)
+    return s
+
+
 @generic.schedule_conv2d_nchw.register(["cpu"])
 def schedule_conv2d(outs):
     """Create schedule for tensors"""
@@ -88,74 +146,41 @@ def schedule_conv2d(outs):
     target = tvm.target.current_target(allow_none=False)
 
     def default_schedule(op):
-        """NCHW conv2d schedule for non imagenet workloads"""
-        conv = op.output(0)
-        kernel = op.input_tensors[1]
-        data = op.input_tensors[0]
-        data_pad = None
-        if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
-            data_pad = data
-            data = data_pad.op.input_tensors[0]
+        _conv2d_default_schedule(
+            s, op.output(0), op.input_tensors[0])
 
-        n_pad, c_pad, h_pad, w_pad = data_pad.op.axis
-        pad_fused = s[data_pad].fuse(n_pad, c_pad)
-        s[data_pad].parallel(pad_fused)
-        C = conv
-        n, c, h, w = C.op.axis
-        rc, ry, rx = C.op.reduce_axis
-        fused = s[C].fuse(n, c)
-        s[C].parallel(fused)
-        wo, wi = s[C].split(w, factor=16)
-        s[C].reorder(fused, rc, h, wo, ry, rx, wi)  # move rc to outer loop
-        s[C].unroll(rx)
-        s[C].unroll(ry)
-        s[C].vectorize(wi)
-
-    def traverse(op):
-        """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag):
-            if op not in s.outputs:
-                s[op].compute_inline()
-            else: # inject custom schedule
-                if len(op.axis) == 4 and 'avx' not in str(target): # schedule bias + bn + relu
-                    n, c, h, w = op.axis
-                    fused = s[op].fuse(n, c)
-                    s[op].parallel(fused)
-                    s[op].vectorize(w)
-            for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
-                    traverse(tensor.op)
-
-        if 'conv2d_nchw' in op.tag:
-            if 'avx' in str(target):
-                try:
-                    output = op.output(0)
-                    conv_out = op.input_tensors[0]
-                    kernel_vec = conv_out.op.input_tensors[1]
-                    kernel = kernel_vec.op.input_tensors[0]
-                    data_vec = conv_out.op.input_tensors[0]
-                    data = data_vec.op.input_tensors[0]
-                    data_pad = None
-                    if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
-                        data_pad = data
-                        data = data_pad.op.input_tensors[0]
-                    padding = infer_pad(data, data_pad)
-                    if data_pad is None:
-                        stride = infer_stride(data, kernel, output)
-                    else:
-                        stride = infer_stride(data_pad, kernel, output)
-
-                    wkl = _get_workload(data, kernel, stride, padding, output.dtype)
-                    sch = _get_schedule(wkl)
-                    _AVX_SCH_TO_SCH_FUNC[type(sch)](s, data, data_pad, data_vec,
-                                                    kernel, kernel_vec, conv_out, output, outs[0])
-                except IndexError:
-                    default_schedule(op)
+    def _avx_default_schedule(op):
+        try:
+            output = op.output(0)
+            conv_out = op.input_tensors[0]
+            kernel_vec = conv_out.op.input_tensors[1]
+            kernel = kernel_vec.op.input_tensors[0]
+            data_vec = conv_out.op.input_tensors[0]
+            data = data_vec.op.input_tensors[0]
+            data_pad = None
+            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+                data_pad = data
+                data = data_pad.op.input_tensors[0]
+            padding = infer_pad(data, data_pad)
+            if data_pad is None:
+                stride = infer_stride(data, kernel, output)
             else:
-                default_schedule(op)
+                stride = infer_stride(data_pad, kernel, output)
 
-    traverse(outs[0].op)
+            wkl = _get_workload(data, kernel, stride, padding, output.dtype)
+            sch = _get_schedule(wkl)
+            _AVX_SCH_TO_SCH_FUNC[type(sch)](s, data, data_pad, data_vec,
+                                            kernel, kernel_vec, conv_out, output, outs[0])
+        except IndexError:
+            default_schedule(op)
+
+    def _default_schedule_switch(op):
+        if 'avx' in str(target):
+            _avx_default_schedule(op)
+        else:
+            default_schedule(op)
+
+    _traverse_conv2d(outs[0].op, 'conv2d_nchw', _default_schedule_switch)
     return s
 
 
