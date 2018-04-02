@@ -12,6 +12,8 @@
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/reduction.h"
+#include "topi/transform.h"
+#include "topi/detail/constant_utils.h"
 
 namespace nnvm {
 namespace top {
@@ -101,7 +103,7 @@ inline bool CollapseShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(in_attrs->size(), 2U);
   CHECK_EQ(out_attrs->size(), 1U);
   if ((*in_attrs)[0].ndim() == 1) return false;
-  NNVM_ASSIGN_INPUT_SHAPE(attrs, *out_attrs, 0, (*in_attrs)[1]);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, (*in_attrs)[1]);
   return true;
 }
 
@@ -256,26 +258,37 @@ NNVM_REGISTER_REDUCE_OP(min)
 
 NNVM_REGISTER_COLLAPSE_OP(sum)
 .describe(R"code(Reduces lhs to the shape of rhs via sum)code" NNVM_ADD_FILELINE)
-.set_attr<FExpandCompute>(
-  "FExpandCompute", [](const NodePtr& n,
-                 const std::vector<NodeEntry>& inputs,
-                 const std::vector<TShape>& input_shapes) {
-    auto ishape = input_shapes[0];
-    auto oshape = input_shapes[1];
-    CHECK_GE(ishape.ndim(), oshape.ndim());
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    auto ishape = topi::detail::GetConstIntValues(inputs[0]->shape, "ishape");
+    auto oshape = topi::detail::GetConstIntValues(inputs[1]->shape, "oshape");
+    CHECK_GE(ishape.size(), oshape.size()) << attrs.name;
     std::vector<dim_t> r_axes;
-    for (uint32_t i = 0; i < ishape.ndim(); ++i) {
-      int ii = ishape.ndim() - i - 1;
-      int oi = oshape.ndim() - i - 1;
-      if (oi < 0 || ishape[ii] != oshape[oi]) {
-        r_axes.push_back(ii);
+    bool keepdims = false;
+    std::vector<dim_t> squeeze_axes;
+    for (int i = ishape.size() - 1, j = oshape.size() - 1; i >= 0; --i) {
+      if (j < 0 || ishape[i] != oshape[j]) {
+        r_axes.push_back(i);
+        if (j < 0) {
+          squeeze_axes.push_back(i);
+        } else {
+          keepdims |= oshape[j] == 1;
+          j -= oshape[j] == 1;
+        }
+      } else {
+        --j;
       }
     }
-    if (r_axes.size() == 0) { return std::vector<NodeEntry>{n->inputs[0]}; }
-    std::ostringstream ax_oss; ax_oss << TShape(r_axes);
-    return std::vector<NodeEntry>{
-      MakeNode("sum", n->attrs.name, {inputs[0]}, {{"axis", ax_oss.str()}})
-    };
+
+    if (r_axes.size() == 0) return Array<Tensor>{topi::identity(inputs[0])};
+
+    Tensor sum = topi::sum(inputs[0], ShapeToArray(TShape(r_axes)), keepdims);
+    if (keepdims && squeeze_axes.size())
+      sum = topi::squeeze(sum, ShapeToArray(TShape(squeeze_axes)));
+
+    return Array<Tensor>{ sum };
 });
 
 }  // namespace top
