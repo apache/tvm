@@ -280,7 +280,7 @@ lib/libtvm_runtime.${SHARED_LIBRARY_SUFFIX}: $(RUNTIME_DEP)
 lib/libtvm_web_runtime.bc: web/web_runtime.cc
 	@mkdir -p build/web
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT lib/libtvm_web_runtime.bc $< >build/web/web_runtime.d
+	emcc $(EMCC_FLAGS) -MM -MT lib/libtvm_web_runtime.bc $< >build/web/web_runtime.d
 	emcc $(EMCC_FLAGS) -o $@ web/web_runtime.cc
 
 lib/libtvm_web_runtime.js: lib/libtvm_web_runtime.bc

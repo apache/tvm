@@ -49,6 +49,7 @@ class RPCModuleNode final : public ModuleNode {
   ~RPCModuleNode() {
     if (module_handle_ != nullptr) {
       sess_->CallRemote(RPCCode::kModuleFree, module_handle_);
+      module_handle_ = nullptr;
     }
   }
 
@@ -198,5 +199,6 @@ TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
     CHECK_EQ(tkey, "rpc");
     *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
   });
+
 }  // namespace runtime
 }  // namespace tvm
