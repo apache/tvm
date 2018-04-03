@@ -156,7 +156,7 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
                        tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
                        Expr pad_value = Expr(),
                        std::string name = "tensor",
-                       std::string tag = kElementWise) {
+                       std::string tag = std::string(kElementWise) + ",pad") {
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
