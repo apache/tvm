@@ -36,7 +36,7 @@ def schedule_conv2d_nchw(outs):
 
 
 @tvm.target.generic_func
-def schedule_conv2d_grad_weight_nchw(outs):
+def schedule_conv2d_grad_weight_nchw(outs): # pylint: disable=invalid-name
     """Schedule for conv2d_nchw_grad_weight
 
     Parameters
