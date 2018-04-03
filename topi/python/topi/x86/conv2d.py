@@ -138,6 +138,29 @@ def schedule_conv2d_grad_weight(outs):
     return s
 
 
+@generic.schedule_conv2d_transpose_nchw.register(["cpu"])
+def schedule_conv2d_transpose_nchw(outs):
+    """Create schedule for tensors"""
+    s = tvm.create_schedule([x.op for x in outs])
+    target = tvm.target.current_target(allow_none=False)
+
+    def default_schedule(op):
+        _conv2d_default_schedule(s, op.output(0), op.input_tensors[0])
+
+    deconv = outs[0]
+    out_pad = None
+    if isinstance(deconv.op, tvm.tensor.ComputeOp) and "pad" in deconv.op.tag:
+        out_pad = deconv
+        deconv = deconv.op.input_tensors[0].op
+
+    n_pad, c_pad, h_pad, w_pad = out_pad.op.axis
+    pad_fused = s[out_pad].fuse(n_pad, c_pad)
+    s[out_pad].parallel(pad_fused)
+
+    _traverse_conv2d(deconv, 'conv2d_transpose_nchw', default_schedule)
+    return s
+
+
 @generic.schedule_conv2d_nchw.register(["cpu"])
 def schedule_conv2d(outs):
     """Create schedule for tensors"""
