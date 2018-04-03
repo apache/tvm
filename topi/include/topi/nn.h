@@ -321,23 +321,23 @@ inline tvm::Tensor conv2d_nchw_grad_weight(const tvm::Tensor& O,
   CHECK_EQ(4, O->shape.size());
   CHECK_EQ(4, I->shape.size());
 
-  auto b = tvm::reduce_axis(tvm::Range{0, I->shape[0]}, "b");
-  auto h = tvm::reduce_axis(tvm::Range{0, I->shape[2]}, "h");
-  auto w = tvm::reduce_axis(tvm::Range{0, I->shape[3]}, "w");
+  auto b = tvm::reduce_axis(tvm::Range{0, O->shape[0]}, "b");
+  auto h = tvm::reduce_axis(tvm::Range{0, O->shape[2]}, "h");
+  auto w = tvm::reduce_axis(tvm::Range{0, O->shape[3]}, "w");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
   Expr dh = make_const(UInt(32), stride_h);
   Expr dw = make_const(UInt(32), stride_w);
-  auto l = [&](tvm::Var i, tvm::Var o, tvm::Var kh, tvm::Var kw) {
+  auto l = [&](tvm::Var o, tvm::Var i, tvm::Var kh, tvm::Var kw) {
     return tvm::sum(
         T(b, i, dh * h + kh, dw * w + kw) * O(b, o, h, w),
         {b, h, w});
   };
 
   tvm::Array<tvm::Expr> output_shape{
-    I->shape[1],
     O->shape[1],
+    I->shape[1],
     make_const(Int(32), kernel_h),
     make_const(Int(32), kernel_w)
   };

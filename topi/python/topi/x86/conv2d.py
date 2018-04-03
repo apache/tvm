@@ -83,7 +83,6 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
 
 def _traverse_conv2d(op, conv_tag, default_schedule):
     """Traverse operators from computation graph"""
-    print('traversing', op.tag)
     # inline all one-to-one-mapping operators except the last stage (output)
     if tag.is_broadcast(op.tag):
         if op not in s.outputs:
