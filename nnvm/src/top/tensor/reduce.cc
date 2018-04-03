@@ -12,9 +12,10 @@
 #include <nnvm/top/tensor.h>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
+#include "topi/detail/constant_utils.h"
+#include "topi/elemwise.h"
 #include "topi/reduction.h"
 #include "topi/transform.h"
-#include "topi/detail/constant_utils.h"
 
 namespace nnvm {
 namespace top {
@@ -168,6 +169,7 @@ Example::
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
+    if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
     auto axis = ShapeToArray(r_axes);
     return Array<Tensor>{
       topi::sum(inputs[0], axis, param.keepdims) };
