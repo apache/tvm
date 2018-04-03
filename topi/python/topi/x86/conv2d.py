@@ -101,7 +101,7 @@ def _traverse_conv2d(op, conv_tag, default_schedule):
         default_schedule(op)
 
 
-def _conv2d_default_schedule(s, conv, data):
+def _conv2d_default_schedule(s, conv, data, layout='nchw'):
     """NCHW conv2d schedule for non imagenet workloads"""
     data_pad = None
     if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
@@ -110,38 +110,51 @@ def _conv2d_default_schedule(s, conv, data):
     elif isinstance(data.op, tvm.tensor.PlaceholderOp):
         return
 
-    n_pad, c_pad, h_pad, w_pad = data_pad.op.axis
-    pad_fused = s[data_pad].fuse(n_pad, c_pad)
-    s[data_pad].parallel(pad_fused)
-    C = conv
-    n, c, h, w = C.op.axis
-    rc, ry, rx = C.op.reduce_axis
-    fused = s[C].fuse(n, c)
-    s[C].parallel(fused)
-    wo, wi = s[C].split(w, factor=16)
-    s[C].reorder(fused, rc, h, wo, ry, rx, wi)  # move rc to outer loop
-    s[C].unroll(rx)
-    s[C].unroll(ry)
-    s[C].vectorize(wi)
+    _schedule_pad(s, data_pad, layout)
+    n, c, h, w = conv.op.axis
+    rc, ry, rx = conv.op.reduce_axis
+    fused = s[conv].fuse(n, c)
+    s[conv].parallel(fused)
+    wo, wi = s[conv].split(w, factor=16)
+    s[conv].reorder(fused, rc, h, wo, ry, rx, wi)  # move rc to outer loop
+    s[conv].unroll(rx)
+    s[conv].unroll(ry)
+    s[conv].vectorize(wi)
+
+
+def _get_axes_nchw(tensor, layout):
+    """Returns operator axes as [N, C, H, W].
+
+    Parameters
+    ----------
+    tensor: The tensor
+    layout: should be a string containing each of the characters {n, c, h, w}
+    """
+    return [tensor.op.axis[i] for oa in 'nchw'
+            for i, ia in enumerate(layout) if oa == ia]
+
+
+def _schedule_pad(schedule, padded_tensor, layout='nchw'):
+    """Fuse and parallelize a padding op."""
+    n, c, h, w = _get_axes_nchw(padded_tensor, layout)
+    pad_fused = schedule[padded_tensor].fuse(n, c)
+    schedule[padded_tensor].parallel(pad_fused)
 
 
 @generic.schedule_conv2d_grad_weight_nchw.register(["cpu"])
-def schedule_conv2d_grad_weight(outs):
+def schedule_conv2d_grad_weight_nchw(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     target = tvm.target.current_target(allow_none=False)
 
-    dw = outs[0].op
-    data = dw.input_tensors[0].op
+    dw = outs[0]
+    data = dw.op.input_tensors[0]
 
-    if not isinstance(data, tvm.tensor.PlaceholderOp) and 'pad' in data.tag:
-        n_pad, c_pad, h_pad, w_pad = data.axis
-        pad_fused = s[data].fuse(n_pad, c_pad)
-        s[data].parallel(pad_fused)
+    if not isinstance(data, tvm.tensor.PlaceholderOp) and 'pad' in data.op.tag:
+        _schedule_pad(s, data)
 
-    C = dw
-    n, c, kh, kw = dw.axis
-    rn, ry, rx = dw.reduce_axis
+    n, c, kh, kw = _get_axes_nchw(dw, 'nchw')
+    rn, ry, rx = dw.op.reduce_axis
     nc = s[dw].fuse(n, c)
     k = s[dw].fuse(kh, kw)
     s[dw].parallel(nc)
@@ -167,9 +180,7 @@ def schedule_conv2d_transpose_nchw(outs):
         out_pad = deconv
         deconv = deconv.op.input_tensors[0].op
 
-    n_pad, c_pad, h_pad, w_pad = out_pad.op.axis
-    pad_fused = s[out_pad].fuse(n_pad, c_pad)
-    s[out_pad].parallel(pad_fused)
+    _schedule_pad(s, out_pad)
 
     _traverse_conv2d(deconv, 'conv2d_transpose_nchw', default_schedule)
     return s
