@@ -78,7 +78,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
     [&](const tvm::Array<tvm::Var>& i) {
       auto value = t(i);
       auto calpha = tvm::make_const(value.type(), alpha);
-      return tvm::select(value > 0, value, value * alpha);
+      return tvm::select(value > 0, value, value * calpha);
     },
     name,
     tag);
