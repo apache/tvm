@@ -278,10 +278,10 @@ def conv2d_find_algo(tensor_format,
                 w_shape[1].value,
                 w_shape[2].value,
                 w_shape[3].value,
-                y_shape[0],
-                y_shape[1],
-                y_shape[2],
-                y_shape[3])
+                int(y_shape[0]),
+                int(y_shape[1]),
+                int(y_shape[2]),
+                int(y_shape[3]))
 
 
 def conv2d_forward(x,
