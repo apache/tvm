@@ -1,4 +1,4 @@
-"""Base definitions for RPC"""
+"""Base definitions for RPC."""
 from __future__ import absolute_import
 
 import socket

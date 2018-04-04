@@ -246,8 +246,15 @@ class ProxyServerHandler(object):
     def _pair_up(self, lhs, rhs):
         lhs.forward_proxy = rhs
         rhs.forward_proxy = lhs
+
         lhs.send_data(struct.pack('@i', RPC_CODE_SUCCESS))
+        lhs.send_data(struct.pack('@i', len(rhs.rpc_key)))
+        lhs.send_data(rhs.rpc_key.encode("utf-8"))
+
         rhs.send_data(struct.pack('@i', RPC_CODE_SUCCESS))
+        rhs.send_data(struct.pack('@i', len(lhs.rpc_key)))
+        rhs.send_data(lhs.rpc_key.encode("utf-8"))
+
         logging.info("Pairup connect %s  and %s", lhs.name(), rhs.name())
 
     def handler_ready(self, handler):
@@ -391,7 +398,8 @@ def websocket_proxy_server(url, key=""):
             data = bytes(data)
             conn.write_message(data, binary=True)
             return len(data)
-        on_message = base._CreateEventDrivenServer(_fsend, "WebSocketProxyServer")
+        on_message = base._CreateEventDrivenServer(
+            _fsend, "WebSocketProxyServer", "%toinit")
         return on_message
 
     @gen.coroutine
@@ -413,8 +421,10 @@ def websocket_proxy_server(url, key=""):
             logging.info("RPCProxy do not have matching client key %s", key)
         elif magic != RPC_CODE_SUCCESS:
             raise RuntimeError("%s is not RPC Proxy" % url)
-        logging.info("Connection established")
         msg = msg[4:]
+
+        logging.info("Connection established with remote")
+
         if msg:
             on_message(bytearray(msg), 3)
 

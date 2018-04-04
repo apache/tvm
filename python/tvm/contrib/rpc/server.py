@@ -1,4 +1,13 @@
-"""RPC server implementation."""
+"""RPC server implementation.
+
+Note
+----
+Server is TCP based with the following protocol:
+- Initial handshake to the peer
+  - [RPC_MAGIC, keysize(int32), key-bytes]
+- The key is in format
+   - {server|client}:device-type[:matchkey] [-timeout=timeout]
+"""
 from __future__ import absolute_import
 
 import os
@@ -9,6 +18,7 @@ import logging
 import multiprocessing
 import subprocess
 import time
+from collections import namedtuple
 
 from ..._ffi.function import register_func
 from ..._ffi.base import py_str
@@ -55,6 +65,15 @@ def _serve_loop(sock, addr):
     logging.info("Finish serving %s", addr)
 
 
+def _parse_server_opt(opts):
+    # parse client options
+    ret = {}
+    for kv in opts:
+        if kv.startswith("-timeout="):
+            ret["timeout"] = float(kv[9:])
+    return ret
+
+
 def _listen_loop(sock, port, rpc_key, tracker_addr):
     """Lisenting loop of the server master."""
     def _accept_conn(listen_sock, tracker_conn, ping_period=0.1):
@@ -68,7 +87,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
         tracker_conn : connnection to tracker
             Tracker connection
 
-        ping_tracker_period : float, optional
+        ping_period : float, optional
             ping tracker every k seconds if no connection is accepted.
         """
         # Report resource to tracker
@@ -97,6 +116,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
             key = py_str(base.recvall(conn, keylen))
             arr = key.split()
             expect_header = "client:" + rpc_key + matchkey
+            server_key = "server:" + rpc_key
             if arr[0] != expect_header:
                 conn.sendall(struct.pack("@i", base.RPC_CODE_MISMATCH))
                 conn.close()
@@ -104,7 +124,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
                 continue
             else:
                 conn.sendall(struct.pack("@i", base.RPC_CODE_SUCCESS))
-                return conn, addr, arr[1:]
+                conn.sendall(struct.pack("@i", len(server_key)))
+                conn.sendall(server_key.encode("utf-8"))
+                return conn, addr, _parse_server_opt(arr[1:])
 
     # Server logic
     tracker_conn = None
@@ -118,18 +140,12 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
                 raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
         try:
             # step 2: wait for in-coming connections
-            conn, addr, client_args = _accept_conn(sock, tracker_conn)
+            conn, addr, opts = _accept_conn(sock, tracker_conn)
         except (socket.error, IOError):
             # retry when tracker is dropped
             tracker_conn.close()
             tracker_conn = None
             continue
-
-        # parse client options
-        timeout = None
-        for kv in client_args:
-            if kv.startswith("-timeout="):
-                timeout = float(kv[9:])
 
         # step 3: serving
         logging.info("RPCServer: connection from %s", addr)
@@ -139,7 +155,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
         # close from our side.
         conn.close()
         # wait until server process finish or timeout
-        server_proc.join(timeout)
+        server_proc.join(opts.get("timeout", None))
         if server_proc.is_alive():
             logging.info("Timeout in RPC session, kill..")
             server_proc.terminate()
@@ -160,12 +176,20 @@ def _connect_proxy_loop(addr, key):
             logging.info("RPCProxy do not have matching client key %s", key)
         elif magic != base.RPC_CODE_SUCCESS:
             raise RuntimeError("%s is not RPC Proxy" % str(addr))
+        keylen = struct.unpack("@i", base.recvall(sock, 4))[0]
+        remote_key = py_str(base.recvall(sock, keylen))
+        opts = _parse_server_opt(remote_key.split()[1:])
+
         logging.info("RPCProxy connected to %s", str(addr))
-        process = multiprocessing.Process(target=_serve_loop, args=(sock, addr))
+        process = multiprocessing.Process(
+            target=_serve_loop, args=(sock, addr))
         process.deamon = True
         process.start()
         sock.close()
-        process.join()
+        process.join(opts.get("timeout", None))
+        if process.is_alive():
+            logging.info("Timeout in RPC session, kill..")
+            process.terminate()
 
 
 def _popen(cmd):

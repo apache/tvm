@@ -896,7 +896,7 @@ var tvm_runtime = tvm_runtime || {};
             } else {
               return new TVMConstant(0, "int32");
             }
-          } , server_name);
+          } , server_name, "%toinit");
 
         function on_open(event) {
           var intbuf = new Int32Array(1);
@@ -913,6 +913,7 @@ var tvm_runtime = tvm_runtime || {};
             var msg = new Uint8Array(event.data);
             CHECK(msg.length >= 4, "Need message header to be bigger than 4");
             var magic = new Int32Array(event.data)[0];
+
             if (magic == RPC_MAGIC + 1) {
               throwError("key: " + key + " has already been used in proxy");
             } else if (magic == RPC_MAGIC + 2) {

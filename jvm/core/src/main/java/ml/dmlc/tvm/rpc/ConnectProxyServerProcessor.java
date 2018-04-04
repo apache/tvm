@@ -74,6 +74,9 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
       } else if (magic != RPC.RPC_MAGIC) {
         throw new RuntimeException(address + " is not RPC Proxy");
       }
+      // Get key from remote
+      int keylen = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
+      String remoteKey = Utils.decodeToStr(Utils.recvAll(in, keylen));
       System.err.println("RPCProxy connected to " + address);
 
       final int sockFd = socketFileDescriptorGetter.get(currSocket);

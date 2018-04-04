@@ -5,7 +5,8 @@ This folder implemements the tracker server logic.
 Note
 ----
 Tracker is a TCP based rest api with the following protocol:
-- Initial handshake: send the peer RPC_TRACKER_MAGIC
+- Initial handshake to the peer
+  - RPC_TRACKER_MAGIC
 - Normal message: [size(int32), json-data]
 - Each message is initiated by the client, and the tracker replies with a json.
 
@@ -152,7 +153,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                 else:
                     return
             if self._msg_size != 0 and len(self._data) >= self._msg_size + 4:
-                msg = py_str(self._data[4:4 + self._msg_size])
+                msg = py_str(bytes(self._data[4:4 + self._msg_size]))
                 del self._data[:4 + self._msg_size]
                 self._msg_size = 0
                 # pylint: disable=broad-except

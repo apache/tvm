@@ -5,8 +5,8 @@ import time
 import multiprocessing
 from tvm.contrib import rpc
 
-def test_server_drop():
-    """test when worker drops"""
+def check_server_drop():
+    """test when server drops"""
     try:
         from tvm.contrib.rpc import tracker, base
         from tvm.contrib.rpc.base import TrackerCode
@@ -56,4 +56,4 @@ def test_server_drop():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    test_server_drop()
+    check_server_drop()

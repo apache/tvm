@@ -59,9 +59,10 @@ class NSStreamChannel final : public RPCChannel {
   NSOutputStream* stream_;
 };
 
-FEventHandler CreateServerEventHandler(NSOutputStream *outputStream, std::string name) {
+FEventHandler CreateServerEventHandler(
+    NSOutputStream *outputStream, std::string name, std::string remote_key) {
   std::unique_ptr<NSStreamChannel> ch(new NSStreamChannel(outputStream));
-  std::shared_ptr<RPCSession> sess = RPCSession::Create(std::move(ch), name);
+  std::shared_ptr<RPCSession> sess = RPCSession::Create(std::move(ch), name, remote_key);
   return [sess](const std::string& in_bytes, int flag) {
     return sess->ServerEventHandler(in_bytes, flag);
   };
