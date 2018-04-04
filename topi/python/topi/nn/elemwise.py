@@ -4,7 +4,7 @@ import tvm
 from .. import tag
 from ..util import get_const_int
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.target.generic_func
 def relu(x):
     """Take relu of input x.
 

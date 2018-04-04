@@ -368,3 +368,11 @@ def conv2d_forward(x,
             ins[0],
             ins[1],
             outs[0]), name="y")
+
+
+def relu(x):
+    return _api.extern(
+        x.shape, [x],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.cudnn.relu",
+            ins[0], outs[0]), name="y")
