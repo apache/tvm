@@ -150,7 +150,7 @@ def schedule_conv2d_grad_weight_nchw(outs):
     dw = outs[0]
     data = dw.op.input_tensors[0]
 
-    if not isinstance(data, tvm.tensor.PlaceholderOp) and 'pad' in data.op.tag:
+    if not isinstance(data.op, tvm.tensor.PlaceholderOp) and 'pad' in data.op.tag:
         _schedule_pad(s, data)
 
     n, c, kh, kw = _get_axes_nchw(dw, 'nchw')
