@@ -75,10 +75,15 @@ class Scheduler(object):
         """
         raise NotImplementedError()
 
+    def summary(self):
+        """Get summary information of the scheduler."""
+        raise NotImplementedError()
+
 
 class PriorityScheduler(Scheduler):
     """Priority based scheduler, FIFO based on time"""
-    def __init__(self):
+    def __init__(self, key):
+        self._key = key
         self._values = []
         self._requests = []
 
@@ -98,6 +103,11 @@ class PriorityScheduler(Scheduler):
         heapq.heappush(self._requests, (-priority, time.time(), callback))
         self._schedule()
 
+    def summary(self):
+        """Get summary information of the scheduler."""
+        return {"free": len(self._values),
+                "pending": len(self._requests)}
+
 
 class TCPEventHandler(tornado_util.TCPHandler):
     """Base asynchronize message handler.
@@ -113,11 +123,16 @@ class TCPEventHandler(tornado_util.TCPHandler):
         self._msg_size = 0
         self._addr = addr
         self._init_req_nbytes = 4
+        self._info = {"addr": addr}
         self._tracker._connections.add(self)
 
     def name(self):
         """name of connection"""
         return "TCPSocket: %s" % str(self._addr)
+
+    def summary(self):
+        """Summary of this connection"""
+        return self._info
 
     def _init_conn(self, message):
         """Initialie the connection"""
@@ -193,6 +208,12 @@ class TCPEventHandler(tornado_util.TCPHandler):
                 self._tracker.stop()
             else:
                 self.ret_value(TrackerCode.FAIL)
+        elif code == TrackerCode.UPDATE_INFO:
+            self._info.update(args[1])
+            self.ret_value(TrackerCode.SUCCESS)
+        elif code == TrackerCode.SUMMARY:
+            status = self._tracker.summary()
+            self.ret_value([TrackerCode.SUCCESS, status])
         else:
             logging.info("Unknown tracker code %d", code)
             self.close()
@@ -230,8 +251,7 @@ class TrackerServerHandler(object):
 
     def create_scheduler(self, key):
         """Create a new scheduler."""
-        _ = key
-        return PriorityScheduler()
+        return PriorityScheduler(key)
 
     def put(self, key, value):
         """Report a new resource to the tracker."""
@@ -251,6 +271,19 @@ class TrackerServerHandler(object):
             conn.close()
         self._sock.close()
         self._ioloop.stop()
+
+    def summary(self):
+        """Return a dict summarizing current status."""
+        qinfo = {}
+        for k, v in self._scheduler_map.items():
+            qinfo[k] = v.summary()
+        cinfo = []
+        # ignore client connections without key
+        for conn in self._connections:
+            res = conn.summary()
+            if res.get("key", "").startswith("server"):
+                cinfo.append(res)
+        return {"queue_info": qinfo, "server_info": cinfo}
 
     def run(self):
         """Run the tracker server"""

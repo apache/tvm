@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import os
 import socket
 import struct
+import time
 
 from . import base
 from ..._ffi.base import TVMError
@@ -150,7 +151,6 @@ class TrackerSession(object):
     def __init__(self, addr):
         self._addr = addr
         self._sock = None
-        self._max_request_retry = 5
         self._connect()
 
     def __del__(self):
@@ -169,7 +169,38 @@ class TrackerSession(object):
             self._sock.close()
             self._sock = None
 
-    def request(self, key, priority=1, session_timeout=0):
+    def summary(self):
+        """Get the summary dict of the tracker."""
+        base.sendjson(self._sock, [base.TrackerCode.SUMMARY])
+        value = base.recvjson(self._sock)
+        if value[0] != base.TrackerCode.SUCCESS:
+            raise RuntimeError("Invalid return value %s" % str(value))
+        return value[1]
+
+    def text_summary(self):
+        """Get a text summary of the tracker."""
+        data = self.summary()
+        res = ""
+        res += "Server List\n"
+        res += "----------------------------\n"
+        res += "server-address\tkey\n"
+        res += "----------------------------\n"
+        for item in data["server_info"]:
+            addr = item["addr"]
+            res += addr[0] + ":" + str(addr[1])+ "\t"
+            res += item["key"] + "\n"
+        res += "----------------------------\n"
+        res += "\n"
+        res += "Queue Status\n"
+        res += "----------------------------\n"
+        res += "key\tfree\tpending\n"
+        res += "----------------------------\n"
+        for k, v in data["queue_info"].items():
+            res += "%s\t%d\t%g\n" % (k, v["free"], v["pending"])
+        res += "----------------------------\n"
+        return res
+
+    def request(self, key, priority=1, session_timeout=0, max_retry=5):
         """Request a new connection from the tracker.
 
         Parameters
@@ -184,8 +215,12 @@ class TrackerSession(object):
             The duration of the session, allows server to kill
             the connection when duration is longer than this value.
             When duration is zero, it means the request must always be kept alive.
+
+        max_retry : int, optional
+            Maximum number of times to retry before give up.
         """
-        for _ in range(self._max_request_retry):
+        last_err = None
+        for _ in range(max_retry):
             try:
                 if self._sock is None:
                     self._connect()
@@ -196,10 +231,63 @@ class TrackerSession(object):
                     raise RuntimeError("Invalid return value %s" % str(value))
                 url, port, matchkey = value[1]
                 return connect(url, port, key + matchkey, session_timeout)
-            except socket.error:
+            except socket.error as err:
                 self.close()
-            except TVMError:
-                pass
+                last_err = err
+            except TVMError as err:
+                last_err = err
+        raise RuntimeError(
+            "Cannot request %s after %d retry, last_error:%s" % (
+                key, max_retry, str(last_err)))
+
+    def request_and_run(self,
+                        key,
+                        func,
+                        priority=1,
+                        session_timeout=0,
+                        max_retry=2):
+        """Request a resource from tracker and run the func.
+
+        This function safe-guard rare server node dropout during execution.
+        In such case, a new resource will be requested and func will be ran again.
+
+        Parameters
+        ----------
+        key : str
+            The type key of the device.
+
+        func : function of session -> value
+            A stateless function
+
+        priority : int, optional
+            The priority of the request.
+
+        session_timeout : float, optional
+            The duration of the session, allows server to kill
+            the connection when duration is longer than this value.
+            When duration is zero, it means the request must always be kept alive.
+
+        max_retry : int, optional
+            Maximum number of times to retry the function before give up.
+        """
+        last_err = None
+        for _ in range(max_retry):
+            try:
+                sess = self.request(key,
+                                    priority=priority,
+                                    session_timeout=session_timeout)
+                tstart = time.time()
+                return func(sess)
+            except TVMError as err:
+                duration = time.time() - tstart
+                # roughly estimate if the error is due to timeout termination
+                if session_timeout and duration >= session_timeout * 0.95:
+                    raise RuntimeError(
+                        "Session timeout when running %s" % func.__name__)
+                last_err = err
+        raise RuntimeError(
+            "Failed to run on %s after %d retry, last_error:%s" % (
+                key, max_retry, str(last_err)))
 
 
 def connect(url, port, key="", session_timeout=0):

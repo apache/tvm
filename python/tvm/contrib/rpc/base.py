@@ -32,7 +32,8 @@ class TrackerCode(object):
     STOP = 2
     PUT = 3
     REQUEST = 4
-
+    UPDATE_INFO = 5
+    SUMMARY = 6
 
 RPC_SESS_MASK = 128
 
