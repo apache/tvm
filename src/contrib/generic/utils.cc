@@ -32,8 +32,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.generic.utils.stable_sort")
       "The first dimension should be batch axis.";
   CHECK_EQ(num_elem->ndim, 1) << "num_elem should be a 1-D tensor.";
 
-  float* data_ptr = static_cast<float*>(input->data);
-  int32_t* num_elem_ptr = static_cast<int32_t*>(num_elem->data);
+  auto data_ptr = static_cast<float*>(input->data);
+  auto num_elem_ptr = static_cast<int32_t*>(num_elem->data);
   SortElem<float>::is_descend = is_descend;
   std::vector<SortElem<float>> sorter;
 
