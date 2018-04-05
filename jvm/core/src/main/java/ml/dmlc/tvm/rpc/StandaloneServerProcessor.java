@@ -60,7 +60,12 @@ public class StandaloneServerProcessor implements ServerProcessor {
         out.write(Utils.toBytes(RPC.RPC_MAGIC + 2));
       } else {
         out.write(Utils.toBytes(RPC.RPC_MAGIC));
+        // send server key to the client
+        String serverKey = "server:java";
+        out.write(Utils.toBytes(serverKey.length()));
+        out.write(Utils.toBytes(serverKey));
       }
+
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
       final int sockFd = socketFileDescriptorGetter.get(socket);
       if (sockFd != -1) {

@@ -14,17 +14,20 @@ import socket
 import multiprocessing
 import errno
 import struct
+
 try:
     import tornado
     from tornado import gen
     from tornado import websocket
     from tornado import ioloop
-    from tornado import websocket
+    from . import tornado_util
 except ImportError as error_msg:
     raise ImportError("RPCProxy module requires tornado package %s" % error_msg)
-from . import rpc
-from .rpc import RPC_MAGIC, _server_env
-from .._ffi.base import py_str
+
+from . import base
+from .base import RPC_MAGIC, RPC_CODE_DUPLICATE, RPC_CODE_SUCCESS, RPC_CODE_MISMATCH
+from .server import _server_env
+from ..._ffi.base import py_str
 
 class ForwardHandler(object):
     """Forward handler to forward the message."""
@@ -102,102 +105,38 @@ class ForwardHandler(object):
         """on close event"""
         assert not self._done
         logging.info("RPCProxy:on_close %s ...", self.name())
-        self._done = True
-        self.forward_proxy = None
         if self.rpc_key:
-            key = self.rpc_key[6:]
+            key = self.rpc_key[7:]
             if ProxyServerHandler.current._client_pool.get(key, None) == self:
                 ProxyServerHandler.current._client_pool.pop(key)
             if ProxyServerHandler.current._server_pool.get(key, None) == self:
                 ProxyServerHandler.current._server_pool.pop(key)
+        self._done = True
+        self.forward_proxy = None
 
 
-class TCPHandler(ForwardHandler):
+class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
     """Event driven TCP handler."""
     def __init__(self, sock, addr):
+        super(TCPHandler, self).__init__(sock)
         self._init_handler()
-        self.sock = sock
-        assert self.sock
         self.addr = addr
-        self.loop = ioloop.IOLoop.current()
-        self.sock.setblocking(0)
-        self.pending_write = []
-        self._signal_close = False
-        def event_handler(_, events):
-            self._on_event(events)
-        ioloop.IOLoop.current().add_handler(
-            self.sock.fileno(), event_handler, self.loop.READ | self.loop.ERROR)
 
     def name(self):
         return "TCPSocket: %s:%s"  % (str(self.addr), self.rpc_key)
 
     def send_data(self, message, binary=True):
-        assert binary
-        self.pending_write.append(message)
-        self._on_write()
+        self.write_message(message, True)
 
-    def _on_write(self):
-        while self.pending_write:
-            try:
-                msg = self.pending_write[0]
-                nsend = self.sock.send(msg)
-                if nsend != len(msg):
-                    self.pending_write[0] = msg[nsend:]
-                else:
-                    del self.pending_write[0]
-            except socket.error as err:
-                if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                    break
-                else:
-                    self.on_error(err)
-        if self.pending_write:
-            self.loop.update_handler(
-                self.sock.fileno(), self.loop.READ | self.loop.ERROR | self.loop.WRITE)
-        else:
-            if self._signal_close:
-                self.close()
-            else:
-                self.loop.update_handler(
-                    self.sock.fileno(), self.loop.READ | self.loop.ERROR)
+    def on_message(self, message):
+        self.on_data(message)
 
-    def _on_read(self):
-        try:
-            msg = bytes(self.sock.recv(4096))
-            if msg:
-                self.on_data(msg)
-                return True
-            else:
-                self.close_pair()
-        except socket.error as err:
-            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                pass
-            else:
-                self.on_error(e)
-        return False
-
-    def _on_event(self, events):
-        if (events & self.loop.ERROR) or (events & self.loop.READ):
-            if self._on_read() and (events & self.loop.WRITE):
-                self._on_write()
-        elif events & self.loop.WRITE:
-            self._on_write()
-
-    def signal_close(self):
-        if not self.pending_write:
-            self.close()
-        else:
-            self._signal_close = True
-
-    def close(self):
-        if self.sock is not None:
-            logging.info("%s Close socket..", self.name())
-            try:
-                ioloop.IOLoop.current().remove_handler(self.sock.fileno())
-                self.sock.close()
-            except socket.error:
-                pass
-            self.sock = None
-            self.on_close_event()
+    def on_close(self):
+        if self.forward_proxy:
+            self.forward_proxy.signal_close()
+            self.forward_proxy = None
+        logging.info("%s Close socket..", self.name())
+        self.on_close_event()
 
 
 class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
@@ -207,7 +146,7 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
         self._init_handler()
 
     def name(self):
-        return "WebSocketProxy"
+        return "WebSocketProxy: %s" % (self.rpc_key)
 
     def on_message(self, message):
         self.on_data(message)
@@ -234,12 +173,16 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
 class RequestHandler(tornado.web.RequestHandler):
     """Handles html request."""
     def __init__(self, *args, **kwargs):
-        self.page = open(kwargs.pop("file_path")).read()
-        web_port = kwargs.pop("rpc_web_port", None)
-        if web_port:
-            self.page = self.page.replace(
-                "ws://localhost:9190/ws",
-                "ws://localhost:%d/ws" % web_port)
+        file_path = kwargs.pop("file_path")
+        if file_path.endswith("html"):
+            self.page = open(file_path).read()
+            web_port = kwargs.pop("rpc_web_port", None)
+            if web_port:
+                self.page = self.page.replace(
+                    "ws://localhost:9190/ws",
+                    "ws://localhost:%d/ws" % web_port)
+        else:
+            self.page = open(file_path, "rb").read()
         super(RequestHandler, self).__init__(*args, **kwargs)
 
     def data_received(self, _):
@@ -303,14 +246,22 @@ class ProxyServerHandler(object):
     def _pair_up(self, lhs, rhs):
         lhs.forward_proxy = rhs
         rhs.forward_proxy = lhs
-        lhs.send_data(struct.pack('@i', RPC_MAGIC))
-        rhs.send_data(struct.pack('@i', RPC_MAGIC))
+
+        lhs.send_data(struct.pack('@i', RPC_CODE_SUCCESS))
+        lhs.send_data(struct.pack('@i', len(rhs.rpc_key)))
+        lhs.send_data(rhs.rpc_key.encode("utf-8"))
+
+        rhs.send_data(struct.pack('@i', RPC_CODE_SUCCESS))
+        rhs.send_data(struct.pack('@i', len(lhs.rpc_key)))
+        rhs.send_data(lhs.rpc_key.encode("utf-8"))
+
         logging.info("Pairup connect %s  and %s", lhs.name(), rhs.name())
 
     def handler_ready(self, handler):
         """Report handler to be ready."""
         logging.info("Handler ready %s", handler.name())
-        key = handler.rpc_key[6:]
+        key = handler.rpc_key[7:]
+
         if handler.rpc_key.startswith("server:"):
             pool_src, pool_dst = self._client_pool, self._server_pool
             timeout = self.timeout_server
@@ -329,17 +280,18 @@ class ProxyServerHandler(object):
                     logging.info("Timeout client connection %s, cannot find match key=%s",
                                  handler.name(), key)
                     pool_dst.pop(key)
-                    handler.send_data(struct.pack('@i', RPC_MAGIC + 2))
+                    handler.send_data(struct.pack('@i', RPC_CODE_MISMATCH))
                     handler.signal_close()
             self.loop.call_later(timeout, cleanup)
         else:
             logging.info("Duplicate connection with same key=%s", key)
-            handler.send_data(struct.pack('@i', RPC_MAGIC + 1))
+            handler.send_data(struct.pack('@i', RPC_CODE_DUPLICATE))
             handler.signal_close()
 
     def run(self):
         """Run the proxy server"""
         ioloop.IOLoop.current().start()
+
 
 def _proxy_server(listen_sock,
                   web_port,
@@ -446,7 +398,8 @@ def websocket_proxy_server(url, key=""):
             data = bytes(data)
             conn.write_message(data, binary=True)
             return len(data)
-        on_message = rpc._CreateEventDrivenServer(_fsend, "WebSocketProxyServer")
+        on_message = base._CreateEventDrivenServer(
+            _fsend, "WebSocketProxyServer", "%toinit")
         return on_message
 
     @gen.coroutine
@@ -462,14 +415,16 @@ def websocket_proxy_server(url, key=""):
         msg = yield conn.read_message()
         assert len(msg) >= 4
         magic = struct.unpack('@i', msg[:4])[0]
-        if magic == RPC_MAGIC + 1:
+        if magic == RPC_CODE_DUPLICATE:
             raise RuntimeError("key: %s has already been used in proxy" % key)
-        elif magic == RPC_MAGIC + 2:
+        elif magic == RPC_CODE_MISMATCH:
             logging.info("RPCProxy do not have matching client key %s", key)
-        elif magic != RPC_MAGIC:
+        elif magic != RPC_CODE_SUCCESS:
             raise RuntimeError("%s is not RPC Proxy" % url)
-        logging.info("Connection established")
         msg = msg[4:]
+
+        logging.info("Connection established with remote")
+
         if msg:
             on_message(bytearray(msg), 3)
 
