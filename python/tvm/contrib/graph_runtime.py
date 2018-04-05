@@ -1,7 +1,7 @@
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
-from . import rpc
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
+from .rpc import base as rpc_base
 from .. import ndarray as nd
 
 
@@ -33,12 +33,12 @@ def create(graph_json_str, libmod, ctx):
             raise ValueError("Type %s is not supported" % type(graph_json_str))
     device_type = ctx.device_type
     device_id = ctx.device_id
-    if device_type >= rpc.RPC_SESS_MASK:
+    if device_type >= rpc_base.RPC_SESS_MASK:
         assert libmod.type_key == "rpc"
-        assert rpc._SessTableIndex(libmod) == ctx._rpc_sess._tbl_index
-        hmod = rpc._ModuleHandle(libmod)
+        assert rpc_base._SessTableIndex(libmod) == ctx._rpc_sess._tbl_index
+        hmod = rpc_base._ModuleHandle(libmod)
         fcreate = ctx._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        device_type = device_type % rpc.RPC_SESS_MASK
+        device_type = device_type % rpc_base.RPC_SESS_MASK
         return GraphModule(fcreate(graph_json_str, hmod, device_type, device_id), ctx)
     fcreate = get_global_func("tvm.graph_runtime.create")
     return GraphModule(fcreate(graph_json_str, libmod, device_type, device_id), ctx)

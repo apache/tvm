@@ -17,13 +17,14 @@ def main():
                         help='The port of the PRC')
     parser.add_argument('--port-end', type=int, default=9199,
                         help='The end search port of the PRC')
+    parser.add_argument('--key', type=str, default="",
+                        help="RPC key used to identify the connection type.")
     parser.add_argument('--with-executor', type=bool, default=False,
                         help="Whether to load executor runtime")
     parser.add_argument('--load-library', type=str, default="",
                         help="Additional library to load")
-    parser.add_argument('--exclusive', action='store_true',
-                        help="If this is enabled, the server will kill old connection"
-                             "when new connection comes")
+    parser.add_argument('--tracker', type=str, default="",
+                        help="Report to RPC tracker")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -38,7 +39,21 @@ def main():
         libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
         logging.info("Load additional library %s", file_name)
 
-    server = rpc.Server(args.host, args.port, args.port_end, exclusive=args.exclusive)
+    if args.tracker:
+        url, port = args.tracker.split(":")
+        port = int(port)
+        tracker_addr = (url, port)
+        if not args.key:
+            raise RuntimeError(
+                "Need key to present type of resource when tracker is available")
+    else:
+        tracker_addr = None
+
+    server = rpc.Server(args.host,
+                        args.port,
+                        args.port_end,
+                        key=args.key,
+                        tracker_addr=tracker_addr)
     server.libs += libs
     server.proc.join()
 

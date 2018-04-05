@@ -49,11 +49,19 @@ class RPCSession::EventHandler {
   EventHandler(common::RingBuffer* reader,
                common::RingBuffer* writer,
                int rpc_sess_table_index,
-               std::string name)
-      : reader_(reader), writer_(writer),
+               std::string name,
+               std::string* remote_key)
+      : reader_(reader),
+        writer_(writer),
         rpc_sess_table_index_(rpc_sess_table_index),
-        name_(name) {
+        name_(name),
+        remote_key_(remote_key) {
     this->Clear();
+    if (*remote_key == "%toinit") {
+      state_ = kInitHeader;
+      remote_key_->resize(0);
+      pending_request_bytes_ = sizeof(int32_t);
+    }
   }
   // Bytes needed to fulfill current request
   size_t BytesNeeded() {
@@ -75,6 +83,7 @@ class RPCSession::EventHandler {
     std::swap(client_mode_, client_mode);
     while (this->Ready()) {
       switch (state_) {
+        case kInitHeader: HandleInitHeader(); break;
         case kRecvCode: HandleRecvCode(); break;
         case kRecvCallHandle: {
           this->Read(&call_handle_, sizeof(call_handle_));
@@ -223,6 +232,7 @@ class RPCSession::EventHandler {
 
  protected:
   enum State {
+    kInitHeader,
     kRecvCode,
     kRecvCallHandle,
     kRecvPackedSeqNumArgs,
@@ -240,6 +250,8 @@ class RPCSession::EventHandler {
   RPCCode code_;
   // Handle for the remote function call.
   uint64_t call_handle_;
+  // Initialize remote header
+  bool init_header_step_{0};
   // Number of packed arguments.
   int num_packed_args_;
   // Current argument index.
@@ -266,6 +278,10 @@ class RPCSession::EventHandler {
         << "state=" << state;
     state_ = state;
     switch (state) {
+      case kInitHeader: {
+        LOG(FATAL) << "cannot switch to init header";
+        break;
+      }
       case kRecvCode: {
         this->RequestBytes(sizeof(RPCCode));
         break;
@@ -436,6 +452,21 @@ class RPCSession::EventHandler {
       ++arg_index_;
       arg_recv_stage_ = 0;
       this->SwitchToState(kRecvPackedSeqArg);
+    }
+  }
+  // handler for initial header read
+  void HandleInitHeader() {
+    if (init_header_step_ == 0) {
+      int32_t len;
+      this->Read(&len, sizeof(len));
+      remote_key_->resize(len);
+      init_header_step_ = 1;
+      this->RequestBytes(len);
+      return;
+    } else {
+      CHECK_EQ(init_header_step_, 1);
+      this->Read(dmlc::BeginPtr(*remote_key_), remote_key_->length());
+      this->SwitchToState(kRecvCode);
     }
   }
   // Handler for read code.
@@ -633,6 +664,8 @@ class RPCSession::EventHandler {
   int rpc_sess_table_index_;
   // Name of session.
   std::string name_;
+  // remote key
+  std::string* remote_key_;
 };
 
 struct RPCSessTable {
@@ -699,7 +732,8 @@ RPCCode RPCSession::HandleUntilReturnEvent(
 
 void RPCSession::Init() {
   // Event handler
-  handler_ = std::make_shared<EventHandler>(&reader_, &writer_, table_index_, name_);
+  handler_ = std::make_shared<EventHandler>(
+      &reader_, &writer_, table_index_, name_, &remote_key_);
   // Quick function to call remote.
   call_remote_ = PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       handler_->SendPackedSeq(args.values, args.type_codes, args.num_args);
@@ -709,10 +743,13 @@ void RPCSession::Init() {
 }
 
 std::shared_ptr<RPCSession> RPCSession::Create(
-    std::unique_ptr<RPCChannel> channel, std::string name) {
+    std::unique_ptr<RPCChannel> channel,
+    std::string name,
+    std::string remote_key) {
   std::shared_ptr<RPCSession> sess = std::make_shared<RPCSession>();
   sess->channel_ = std::move(channel);
   sess->name_ = std::move(name);
+  sess->remote_key_ = std::move(remote_key);
   sess->table_index_ = RPCSessTable::Global()->Insert(sess);
   sess->Init();
   return sess;

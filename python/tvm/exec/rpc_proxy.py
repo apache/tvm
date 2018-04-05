@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import logging
 import argparse
 import os
-from ..contrib.rpc_proxy import Proxy
+from ..contrib.rpc.proxy import Proxy
 
 def find_example_resource():
     """Find resource examples."""
