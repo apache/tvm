@@ -6,7 +6,9 @@ import topi
 
 @tvm.target.generic_func
 def l2norm_instance(data, eps, axis=None):
-    """Perform L2norm on the data
+    """Perform L2norm on the input data
+
+    For axis=None, y(i, j) = x(i, j) / sqrt(max(sum(x^2), eps))
 
     Parameters
     ----------

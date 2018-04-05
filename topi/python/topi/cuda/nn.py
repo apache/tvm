@@ -64,6 +64,7 @@ def schedule_l2norm(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(OP):
+        #inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_injective(OP.tag) or OP.tag == 'l2norm':
             if OP not in s.outputs:
                 s[OP].compute_inline()
