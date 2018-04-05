@@ -38,6 +38,15 @@ def check_server_drop():
 
         # Fault tolerence server timeout
         def check_timeout(timeout, sleeptime):
+            def myfunc(remote):
+                time.sleep(sleeptime)
+                f1 = remote.get_function("rpc.test2.addone")
+                assert f1(10) == 11
+            try:
+                tclient.request_and_run("xyz", myfunc, session_timeout=timeout)
+            except RuntimeError:
+                pass
+            print(tclient.text_summary())
             try:
                 remote = tclient.request("xyz", priority=0, session_timeout=timeout)
                 remote2 = tclient.request("xyz", session_timeout=timeout)
@@ -48,8 +57,11 @@ def check_server_drop():
                 assert f1(10) == 11
             except tvm.TVMError as e:
                 pass
+
         check_timeout(0.01, 0.1)
         check_timeout(2, 0)
+
+
     except ImportError:
         print("Skip because tornado is not available")
 

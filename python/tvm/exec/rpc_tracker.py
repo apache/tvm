@@ -1,4 +1,4 @@
-"""RPC web proxy, allows redirect to websocket based RPC servers(browsers)"""
+"""Tool to start RPC tracker"""
 from __future__ import absolute_import
 
 import logging
@@ -9,7 +9,7 @@ def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default="0.0.0.0",
-                        help='the hostname of the server')
+                        help='the hostname of the tracker')
     parser.add_argument('--port', type=int, default=9190,
                         help='The port of the PRC')
     args = parser.parse_args()
