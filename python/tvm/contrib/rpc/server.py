@@ -18,7 +18,6 @@ import logging
 import multiprocessing
 import subprocess
 import time
-from collections import namedtuple
 
 from ..._ffi.function import register_func
 from ..._ffi.base import py_str

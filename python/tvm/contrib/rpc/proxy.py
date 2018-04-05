@@ -105,14 +105,14 @@ class ForwardHandler(object):
         """on close event"""
         assert not self._done
         logging.info("RPCProxy:on_close %s ...", self.name())
-        self._done = True
-        self.forward_proxy = None
         if self.rpc_key:
-            key = self.rpc_key[6:]
+            key = self.rpc_key[7:]
             if ProxyServerHandler.current._client_pool.get(key, None) == self:
                 ProxyServerHandler.current._client_pool.pop(key)
             if ProxyServerHandler.current._server_pool.get(key, None) == self:
                 ProxyServerHandler.current._server_pool.pop(key)
+        self._done = True
+        self.forward_proxy = None
 
 
 class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
