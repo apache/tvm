@@ -49,7 +49,7 @@ def lrn_nchw(data, size, alpha=0.0001, beta=0.75, bias=2):
 
     rxk = tvm.reduce_axis((0, size), name='rxk')
     sqr_sum = tvm.compute((b, c, h, w), lambda i, l, j, k: tvm.sum(
-        pad_data[i, l + rxk, j, k] * pad_data[i, l + rxk, j, k],
+        tvm.power(pad_data[i, l + rxk, j, k], 2.0),
         axis=rxk))
 
     sqr_sum_up = tvm.compute((b, c, h, w), lambda i, j, k, l: tvm.power(

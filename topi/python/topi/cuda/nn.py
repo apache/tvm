@@ -1,8 +1,11 @@
+# pylint: disable=invalid-name
 """scheduler functions for cuda backend"""
 from __future__ import absolute_import as _abs
 
 import tvm
 from .. import generic
+from .. import tag
+from .reduction import _schedule_reduce
 
 @generic.schedule_lrn.register(["cuda"])
 def schedule_lrn(outs):
@@ -59,21 +62,28 @@ def schedule_l2norm(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+
+    def traverse(OP):
+        if tag.is_injective(OP.tag) or OP.tag == 'l2norm':
+            if OP not in s.outputs:
+                s[OP].compute_inline()
+            for tensor in OP.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+        elif OP.tag == 'comm_reduce':
+            _schedule_reduce(OP, s, is_idx_reduce=False)
+            for tensor in OP.input_tensors:
+                traverse(tensor.op)
+        else:
+            raise RuntimeError("Unsupported operator tag: %s" % OP.tag)
+    traverse(outs[0].op)
+
     num_thread = 64
+    l2norm = outs[0]
     block_x = tvm.thread_axis("blockIdx.x")
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-
-    l2norm = outs[0]
-    sqrt_sum = l2norm.op.input_tensors[1]
-    sqr_sum = sqrt_sum.op.input_tensors[0]
-    xrh = sqr_sum.op.reduce_axis[0]
-    _, rhi = s[sqr_sum].split(xrh, factor=num_thread)
-    shf = s.rfactor(sqr_sum, rhi)
-    s[sqr_sum].bind(s[sqr_sum].op.axis[0], block_x)
-    s[sqr_sum].bind(s[sqr_sum].op.reduce_axis[0], thread_x)
-    s[shf].compute_at(s[sqr_sum], s[sqr_sum].op.reduce_axis[0])
-    s[sqrt_sum].bind(sqrt_sum.op.axis[0], block_x)
     xto, _ = s[l2norm].split(l2norm.op.axis[1], nparts=num_thread)
     s[l2norm].bind(l2norm.op.axis[0], block_x)
     s[l2norm].bind(xto, thread_x)
+
     return s

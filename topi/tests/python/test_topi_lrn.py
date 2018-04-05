@@ -4,8 +4,6 @@ import tvm
 import topi
 from topi.util import get_const_tuple
 
-np.set_printoptions(threshold=np.nan)
-
 def lrn_nchw_python(a_np, size, bias, alpha, beta):
     """Local response norm operator in NCHW layout.
 

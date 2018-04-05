@@ -4,7 +4,7 @@ import tvm
 import topi
 from topi.util import get_const_tuple
 
-def l2norm_instance_python(a_np, eps):
+def l2norm_instance_python(a_np, eps, axis=None):
     """L2 norm operator in NCHW layout.
 
     Parameters
@@ -14,6 +14,8 @@ def l2norm_instance_python(a_np, eps):
 
     eps : float
         epsilon constant value
+    axis : list of int
+        axis over the normalization applied
 
     Returns
     -------
@@ -24,30 +26,19 @@ def l2norm_instance_python(a_np, eps):
     sqr_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
     sqrt_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
     l2norm_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+    dot_value = np.power(a_np, 2.0)
+    sqr_sum = np.sum(dot_value, axis, keepdims=True)
+    sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
+    return np.divide(a_np, sqrt_sum)
 
-    for i in range(batch):
-        for j in range(axis1):
-            for k in range(axis2):
-                for m in range(axis3):
-                    sqr_sum[i] = sqr_sum[i] + (a_np[i, j, k, m] * \
-                                               a_np[i, j, k, m])
-    for b in range(batch):
-        sqrt_sum[b] = np.sqrt(sqr_sum[b] + eps)
-    for b in range(batch):
-        for j in range(axis1):
-            for k in range(axis2):
-                for m in range(axis3):
-                    l2norm_out[b, j, k, m] = a_np[b, j, k, m]/sqrt_sum[b]
-    return l2norm_out
-
-def verify_l2norm(n, c, h, w, eps):
+def verify_l2norm(n, c, h, w, eps, axis=None):
 
     A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.l2norm_instance(A, eps)
+    B = topi.nn.l2norm_instance(A, eps, axis)
     dtype = A.dtype
 
     a_np = np.random.uniform(size=(n, c, h, w)).astype(dtype)
-    b_np = l2norm_instance_python(a_np, eps)
+    b_np = l2norm_instance_python(a_np, eps, axis)
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -68,6 +59,11 @@ def verify_l2norm(n, c, h, w, eps):
 
 def test_l2norm():
     verify_l2norm(1, 3, 20, 20, 0.001)
+    verify_l2norm(1, 3, 20, 20, 0.001, 1)
+    verify_l2norm(1, 3, 20, 20, 0.001, (1, 2))
+    verify_l2norm(1, 3, 20, 20, 0.001, (2, 3))
+    verify_l2norm(1, 3, 20, 20, 0.001, (0, 3))
+    verify_l2norm(1, 3, 20, 20, 0.001, (0, 2, 3))
 
 
 if __name__ == "__main__":

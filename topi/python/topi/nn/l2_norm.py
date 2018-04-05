@@ -2,9 +2,10 @@
 """TVM operator for l2norm"""
 from __future__ import absolute_import
 import tvm
+import topi
 
 @tvm.target.generic_func
-def l2norm_instance(data, eps):
+def l2norm_instance(data, eps, axis=None):
     """Perform L2norm on the data
 
     Parameters
@@ -15,6 +16,8 @@ def l2norm_instance(data, eps):
     eps : float
         epsilon value
 
+    axis : list of int
+        axis over the normalization applied
 
     Returns
     -------
@@ -22,15 +25,9 @@ def l2norm_instance(data, eps):
         4-D output with same shape
     """
     assert len(data.shape) == 4, "only support 4-dim lrn"
-    b, x1, x2, x3 = data.shape
-
-    rx1 = tvm.reduce_axis((0, x1), name='rx1')
-    rx2 = tvm.reduce_axis((0, x2), name='rx2')
-    rx3 = tvm.reduce_axis((0, x3), name='rx3')
-    sqr_sum = tvm.compute((b),
-                          lambda i: tvm.sum(data[i, rx1, rx2, rx3] * \
-                                                data[i, rx1, rx2, rx3],
-                                            axis=(rx1, rx2, rx3)))
-    sqrt_sum = tvm.compute((b), lambda i: tvm.sqrt(sqr_sum[i] + eps))
-    return tvm.compute(
-        data.shape, lambda b, c, h, w: data[b, c, h, w] / sqrt_sum[b])
+    dot_value = topi.cpp.pow(data, 2.0)
+    sum_value = topi.sum(dot_value, axis=axis, keepdims=True)
+    expand_sum = topi.broadcast_to(sum_value, data.shape)
+    return topi.broadcast_div(data, topi.sqrt(\
+                tvm.compute(expand_sum.shape, lambda i, j, k, l:\
+                tvm.max(expand_sum[i, j, k, l], eps), tag='l2norm')))
