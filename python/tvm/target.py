@@ -76,6 +76,7 @@ class Target(NodeBase):
     - :any:`tvm.target.cuda` create CUDA target
     - :any:`tvm.target.rocm` create ROCM target
     - :any:`tvm.target.mali` create Mali target
+    - :any:`tvm.target.intel_gpu` create Intel GPU target
     """
     def __init__(self, handle):
         super(Target, self).__init__(handle)
@@ -393,6 +394,19 @@ def mali(options=None):
         Additional options
     """
     opts = ["-device=mali"]
+    opts = _merge_opts(opts, options)
+    return _api_internal._TargetCreate("opencl", *opts)
+
+
+def intel_gpu(options=None):
+    """Returns an Intel GPU target.
+
+    Parameters
+    ----------
+    options : str or list of str
+        Additional options
+    """
+    opts = ["-device=intel_gpu"]
     opts = _merge_opts(opts, options)
     return _api_internal._TargetCreate("opencl", *opts)
 
