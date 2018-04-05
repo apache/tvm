@@ -611,6 +611,8 @@ struct hash<nnvm::TShape> {
 }  // namespace std
 
 namespace dmlc {
+/*! \brief description for optional TShape */
+DMLC_DECLARE_TYPE_NAME(optional<nnvm::TShape>, "Shape or None");
 // avoid low version of MSVC
 #if !defined(_MSC_VER)
 template<typename T>
