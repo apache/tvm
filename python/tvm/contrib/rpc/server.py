@@ -137,6 +137,11 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
             magic = struct.unpack("@i", base.recvall(tracker_conn, 4))[0]
             if magic != base.RPC_TRACKER_MAGIC:
                 raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
+            # report status of current queue
+            cinfo = {"key" : "server:" + rpc_key}
+            base.sendjson(tracker_conn,
+                          [TrackerCode.UPDATE_INFO, cinfo])
+            assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         try:
             # step 2: wait for in-coming connections
             conn, addr, opts = _accept_conn(sock, tracker_conn)
