@@ -40,6 +40,11 @@ class CUDADeviceAPI final : public DeviceAPI {
             &value, cudaDevAttrWarpSize, ctx.device_id));
         break;
       }
+      case kMaxSharedMemoryPerBlock: {
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrMaxSharedMemoryPerBlock, ctx.device_id));
+        break;
+      }
       case kComputeVersion: {
         std::ostringstream os;
         CUDA_CALL(cudaDeviceGetAttribute(
