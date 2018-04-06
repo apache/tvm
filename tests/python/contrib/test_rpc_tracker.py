@@ -8,7 +8,7 @@ from tvm.contrib import rpc
 def check_server_drop():
     """test when server drops"""
     try:
-        from tvm.contrib.rpc import tracker, base
+        from tvm.contrib.rpc import tracker, proxy, base
         from tvm.contrib.rpc.base import TrackerCode
 
         @tvm.register_func("rpc.test2.addone")
@@ -20,21 +20,24 @@ def check_server_drop():
             base.recvjson(tclient._sock)
 
         tserver = tracker.Tracker("localhost", 8888)
+        tproxy = proxy.Proxy("localhost", 8881,
+                             tracker_addr=("localhost", tserver.port))
         tclient = rpc.connect_tracker("localhost", tserver.port)
-
         server1 = rpc.Server(
             "localhost", port=9099,
             tracker_addr=("localhost", tserver.port),
             key="xyz")
         server2 = rpc.Server(
-            "localhost", port=9099,
-            tracker_addr=("localhost", tserver.port),
+            "localhost", tproxy.port, is_proxy=True,
             key="xyz")
+        server3 = rpc.Server(
+            "localhost", tproxy.port, is_proxy=True,
+            key="xyz1")
 
         # Fault tolerence to stale worker value
         _put(tclient, [TrackerCode.PUT, "xyz", (server1.port, "abc")])
         _put(tclient, [TrackerCode.PUT, "xyz", (server1.port, "abcxxx")])
-        _put(tclient, [TrackerCode.PUT, "xyz", (server2.port, "abcxxx11")])
+        _put(tclient, [TrackerCode.PUT, "xyz", (tproxy.port, "abcxxx11")])
 
         # Fault tolerence server timeout
         def check_timeout(timeout, sleeptime):
@@ -60,8 +63,11 @@ def check_server_drop():
 
         check_timeout(0.01, 0.1)
         check_timeout(2, 0)
-
-
+        tserver.terminate()
+        server2.terminate()
+        server1.terminate()
+        server3.terminate()
+        tproxy.terminate()
     except ImportError:
         print("Skip because tornado is not available")
 

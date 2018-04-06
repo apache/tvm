@@ -317,7 +317,7 @@ class Tracker(object):
                  port_end=9199):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.port = None
-        self.stop_key = base.random_key()
+        self.stop_key = base.random_key("tracker")
         for my_port in range(port, port_end):
             try:
                 sock.bind((host, my_port))
