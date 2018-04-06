@@ -97,7 +97,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
                           [TrackerCode.PUT, rpc_key, (port, matchkey)])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         else:
-            matchkey = ""
+            matchkey = rpc_key
 
         unmatch_period_count = 0
         unmatch_timeout = 4
