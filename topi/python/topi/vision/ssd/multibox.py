@@ -84,7 +84,6 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
     p_anchor = ib.buffer_ptr(anchor)
     p_valid_count = ib.buffer_ptr(valid_count)
     p_out = ib.buffer_ptr(out)
-    inner_loop_type = "parallel" if batch_size == 1 else "serial"
     with ib.for_range(0, batch_size, for_type="parallel", name="n") as n:
         p_valid_count[n] = 0
         with ib.for_range(0, num_anchors, name="i") as i:

@@ -69,5 +69,45 @@ def test_multibox_prior():
     verify_multibox_prior((1, 32, 32, 32), sizes=(0.5, 0.25), ratios=(1, 2), steps=(2, 2), clip=True)
 
 
+def test_multibox_detection():
+    batch_size = 1
+    num_anchors = 3
+    num_classes = 3
+    cls_prob = tvm.placeholder((batch_size, num_anchors, num_classes), name="cls_prob")
+    loc_preds = tvm.placeholder((batch_size, num_anchors * 4), name="loc_preds")
+    anchors = tvm.placeholder((1, num_anchors, 4), name="anchors")
+    out = ssd.multibox_detection(cls_prob, loc_preds, anchors)
+
+    # Manually create test case
+    np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
+    np_loc_preds = np.array([[0.1, -0.2, 0.3, 0.2, 0.2, 0.4, 0.5, -0.3, 0.7, -0.2, -0.4, -0.8]])
+    np_anchors = np.array([[[-0.1, -0.1, 0.1, 0.1], [-0.2, -0.2, 0.2, 0.2], [1.2, 1.2, 1.5, 1.5]]])
+
+    expected_np_out = np.array([[[1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
+                                 [0, 0.44999999, 1, 1, 1, 1],
+                                 [0, 0.30000001, 0, 0, 0.22903419, 0.20435292]]])
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_multibox_detection(out)
+
+        tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
+        tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), ctx)
+        tvm_anchors = tvm.nd.array(np_anchors.astype(anchors.dtype), ctx)
+        tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), ctx)
+        f = tvm.build(s, [cls_prob, loc_preds, anchors, out], device)
+        f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
+        np.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
+
+    for device in ['llvm', 'cuda']:
+        check_device(device)
+
+
 if __name__ == "__main__":
     test_multibox_prior()
+    test_multibox_detection()
