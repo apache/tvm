@@ -141,6 +141,12 @@ class TVMContext(ctypes.Structure):
             self.device_type, self.device_id, 2)
 
     @property
+    def max_shared_memory_per_block(self):
+        """Total amount of shared memory per block in bytes"""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 3)
+
+    @property
     def compute_version(self):
         """Get compute verison number in string.
 
@@ -152,7 +158,7 @@ class TVMContext(ctypes.Structure):
             The version string in `major.minor` format.
         """
         return _api_internal._GetDeviceAttr(
-            self.device_type, self.device_id, 3)
+            self.device_type, self.device_id, 4)
 
     def sync(self):
         """Synchronize until jobs finished at the context."""
