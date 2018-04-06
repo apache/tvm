@@ -48,6 +48,8 @@ class TCPHandler(object):
 
     def write_message(self, message, binary=True):
         assert binary
+        if self._sock is None:
+            raise IOError("socket is already closed")
         self._pending_write.append(message)
         self._update_write()
 

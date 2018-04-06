@@ -6,7 +6,7 @@ Server is TCP based with the following protocol:
 - Initial handshake to the peer
   - [RPC_MAGIC, keysize(int32), key-bytes]
 - The key is in format
-   - {server|client}:device-type[:matchkey] [-timeout=timeout]
+   - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
 from __future__ import absolute_import
 
@@ -75,7 +75,7 @@ def _parse_server_opt(opts):
 
 def _listen_loop(sock, port, rpc_key, tracker_addr):
     """Lisenting loop of the server master."""
-    def _accept_conn(listen_sock, tracker_conn, ping_period=0.1):
+    def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.
 
         Parameters
@@ -89,22 +89,40 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
         ping_period : float, optional
             ping tracker every k seconds if no connection is accepted.
         """
+        old_keyset = set()
         # Report resource to tracker
         if tracker_conn:
-            matchkey = base.random_key(":")
+            matchkey = base.random_key(rpc_key + ":")
             base.sendjson(tracker_conn,
                           [TrackerCode.PUT, rpc_key, (port, matchkey)])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         else:
-            matchkey = ""
+            matchkey = rpc_key
 
+        unmatch_period_count = 0
+        unmatch_timeout = 4
         # Wait until we get a valid connection
         while True:
             if tracker_conn:
                 trigger = select.select([listen_sock], [], [], ping_period)
                 if not listen_sock in trigger[0]:
-                    base.sendjson(tracker_conn, [TrackerCode.PING])
-                    assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
+                    base.sendjson(tracker_conn, [TrackerCode.GET_PENDING_MATCHKEYS])
+                    pending_keys = base.recvjson(tracker_conn)
+                    old_keyset.add(matchkey)
+                    # if match key not in pending key set
+                    # it means the key is aqquired by a client but not used.
+                    if matchkey not in pending_keys:
+                        unmatch_period_count += 1
+                    else:
+                        unmatch_period_count = 0
+                    # regenerate match key if key is aqquired but not used for a while
+                    if unmatch_period_count * ping_period > unmatch_timeout + ping_period:
+                        logging.info("RPCServer: no incoming connections, regenerate key ...")
+                        matchkey = base.random_key(rpc_key + ":", old_keyset)
+                        base.sendjson(tracker_conn,
+                                      [TrackerCode.PUT, rpc_key, (port, matchkey)])
+                        assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
+                        unmatch_period_count = 0
                     continue
             conn, addr = listen_sock.accept()
             magic = struct.unpack("@i", base.recvall(conn, 4))[0]
@@ -114,7 +132,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
             keylen = struct.unpack("@i", base.recvall(conn, 4))[0]
             key = py_str(base.recvall(conn, keylen))
             arr = key.split()
-            expect_header = "client:" + rpc_key + matchkey
+            expect_header = "client:" + matchkey
             server_key = "server:" + rpc_key
             if arr[0] != expect_header:
                 conn.sendall(struct.pack("@i", base.RPC_CODE_MISMATCH))

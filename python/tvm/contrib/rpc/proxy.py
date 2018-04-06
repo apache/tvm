@@ -14,6 +14,7 @@ import socket
 import multiprocessing
 import errno
 import struct
+import time
 
 try:
     import tornado
@@ -45,6 +46,7 @@ class ForwardHandler(object):
         self.rpc_key = None
         self.match_key = None
         self.forward_proxy = None
+        self.alloc_time = None
 
     def __del__(self):
         logging.info("Delete %s...", self.name())
@@ -237,6 +239,7 @@ class ProxyServerHandler(object):
             self.sock.fileno(), event_handler, self.loop.READ)
         self._client_pool = {}
         self._server_pool = {}
+        self.timeout_alloc = 5
         self.timeout_client = timeout_client
         self.timeout_server = timeout_server
         # tracker information
@@ -245,8 +248,12 @@ class ProxyServerHandler(object):
         self._tracker_conn = None
         self._tracker_pending_puts = []
         self._key_set = set()
+        self.update_tracker_period = 2
         if tracker_addr:
             logging.info("Tracker address:%s", str(tracker_addr))
+            def _callback():
+                self._update_tracker(True)
+            self.loop.call_later(self.update_tracker_period, _callback)
         logging.info("RPCProxy: Websock port bind to %d", web_port)
 
     def _on_event(self, _):
@@ -271,7 +278,22 @@ class ProxyServerHandler(object):
         rhs.send_data(lhs.rpc_key.encode("utf-8"))
         logging.info("Pairup connect %s  and %s", lhs.name(), rhs.name())
 
-    def _update_tracker(self):
+    def _regenerate_server_keys(self, keys):
+        """Regenerate keys for server pool"""
+        keyset = set(self._server_pool.keys())
+        new_keys = []
+        # re-generate the server match key, so old information is invalidated.
+        for key in keys:
+            rpc_key, _ = key.split(":")
+            handle = self._server_pool[key]
+            del self._server_pool[key]
+            new_key = base.random_key(rpc_key + ":", keyset)
+            self._server_pool[new_key] = handle
+            keyset.add(new_key)
+            new_keys.append(new_key)
+        return new_keys
+
+    def _update_tracker(self, period_update=False):
         """Update information on tracker."""
         try:
             if self._tracker_conn is None:
@@ -285,13 +307,33 @@ class ProxyServerHandler(object):
                 # just connect to tracker, need to update all keys
                 self._tracker_pending_puts = self._server_pool.keys()
 
+            if self._tracker_conn and period_update:
+                # periodically update tracker information
+                # regenerate key if the key is not in tracker anymore
+                # and there is no in-coming connection after timeout_alloc
+                base.sendjson(self._tracker_conn, [TrackerCode.GET_PENDING_MATCHKEYS])
+                pending_keys = set(base.recvjson(self._tracker_conn))
+                update_keys = []
+                for k, v in self._server_pool.items():
+                    if k not in pending_keys:
+                        if v.alloc_time is None:
+                            v.alloc_time = time.time()
+                        elif time.time() - v.alloc_time > self.timeout_alloc:
+                            update_keys.append(k)
+                            v.alloc_time = None
+                if update_keys:
+                    logging.info("RPCProxy: No incoming conn on %s, regenerate keys...",
+                                 str(update_keys))
+                    new_keys = self._regenerate_server_keys(update_keys)
+                    self._tracker_pending_puts += new_keys
+
             need_update_info = False
             # report new connections
             for key in self._tracker_pending_puts:
-                rpc_key, match_key = key.split(":")
+                rpc_key = key.split(":")[0]
                 base.sendjson(self._tracker_conn,
                               [TrackerCode.PUT, rpc_key,
-                               (self._listen_port, ":" + match_key)])
+                               (self._listen_port, key)])
                 assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
                 if rpc_key not in self._key_set:
                     self._key_set.add(rpc_key)
@@ -305,24 +347,17 @@ class ProxyServerHandler(object):
                 assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
             self._tracker_pending_puts = []
         except (socket.error, IOError) as err:
-            retry_period = 5
             logging.info(
                 "Lost tracker connection: %s, try reconnect in %g sec",
-                str(err), retry_period)
+                str(err), self.update_tracker_period)
             self._tracker_conn.close()
             self._tracker_conn = None
-            new_pool = {}
-            keyset = set(self._server_pool.keys())
-            # re-generate the server match key, so old information is invalidated.
-            for key, handle in self._server_pool.items():
-                rpc_key, _ = key.split(":")
-                key = base.random_key(rpc_key + ":", keyset)
-                new_pool[key] = handle
-                keyset.add(key)
-            self._server_pool = new_pool
+            self._regenerate_server_keys(self._server_pool.keys())
+
+        if period_update:
             def _callback():
-                self._update_tracker()
-            self.loop.call_later(retry_period, _callback)
+                self._update_tracker(True)
+            self.loop.call_later(self.update_tracker_period, _callback)
 
     def _handler_ready_tracker_mode(self, handler):
         """tracker mode to handle handler ready."""
