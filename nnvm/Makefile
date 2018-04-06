@@ -56,7 +56,7 @@ endif
 all: lib/libnnvm.a lib/libnnvm_compiler.$(SHARED_LIBRARY_SUFFIX)
 
 SRC = $(wildcard src/*.cc src/c_api/*.cc src/core/*.cc src/pass/*.cc)
-SRC_COMPILER = $(wildcard src/top/*/*.cc src/compiler/*.cc src/compiler/*/*.cc)
+SRC_COMPILER = $(wildcard src/top/*/*.cc wildcard src/top/vision/*/*.cc src/compiler/*.cc src/compiler/*/*.cc)
 ALL_OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 TOP_OBJ = $(patsubst %.cc, build/%.o, $(SRC_COMPILER))
 ALL_DEP = $(ALL_OBJ)
