@@ -94,9 +94,29 @@ def recvjson(sock):
     return data
 
 
-def random_key():
-    """Generate a random key n"""
-    return str(random.random())
+def random_key(prefix, cmap=None):
+    """Generate a random key
+
+    Parameters
+    ----------
+    prefix : str
+        The string prefix
+
+    cmap : dict
+        Conflict map
+
+    Returns
+    -------
+    key : str
+        The generated random key
+    """
+    if cmap:
+        while True:
+            key = prefix + str(random.random())
+            if key not in cmap:
+                return key
+    else:
+        return prefix + str(random.random())
 
 
 def connect_with_retry(addr, timeout=60, retry_period=5):

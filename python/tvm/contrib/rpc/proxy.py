@@ -25,9 +25,10 @@ except ImportError as error_msg:
     raise ImportError("RPCProxy module requires tornado package %s" % error_msg)
 
 from . import base
-from .base import RPC_MAGIC, RPC_CODE_DUPLICATE, RPC_CODE_SUCCESS, RPC_CODE_MISMATCH
+from .base import TrackerCode
 from .server import _server_env
 from ..._ffi.base import py_str
+
 
 class ForwardHandler(object):
     """Forward handler to forward the message."""
@@ -35,12 +36,15 @@ class ForwardHandler(object):
         """Initialize handler."""
         self._init_message = bytes()
         self._init_req_nbytes = 4
-        self.forward_proxy = None
         self._magic = None
         self.timeout = None
         self._rpc_key_length = None
-        self.rpc_key = None
         self._done = False
+        self._proxy = ProxyServerHandler.current
+        assert self._proxy
+        self.rpc_key = None
+        self.match_key = None
+        self.forward_proxy = None
 
     def __del__(self):
         logging.info("Delete %s...", self.name())
@@ -53,7 +57,7 @@ class ForwardHandler(object):
         if self._magic is None:
             assert len(message) == 4
             self._magic = struct.unpack('@i', message)[0]
-            if self._magic != RPC_MAGIC:
+            if self._magic != base.RPC_MAGIC:
                 logging.info("Invalid RPC magic from %s", self.name())
                 self.close()
             self._init_req_nbytes = 4
@@ -64,13 +68,15 @@ class ForwardHandler(object):
         elif self.rpc_key is None:
             assert len(message) == self._rpc_key_length
             self.rpc_key = py_str(message)
+            # match key is used to do the matching
+            self.match_key = self.rpc_key[7:].split()[0]
             self.on_start()
         else:
             assert False
 
     def on_start(self):
         """Event when the initialization is completed"""
-        ProxyServerHandler.current.handler_ready(self)
+        self._proxy.handler_ready(self)
 
     def on_data(self, message):
         """on data"""
@@ -105,12 +111,12 @@ class ForwardHandler(object):
         """on close event"""
         assert not self._done
         logging.info("RPCProxy:on_close %s ...", self.name())
-        if self.rpc_key:
-            key = self.rpc_key[7:]
-            if ProxyServerHandler.current._client_pool.get(key, None) == self:
-                ProxyServerHandler.current._client_pool.pop(key)
-            if ProxyServerHandler.current._server_pool.get(key, None) == self:
-                ProxyServerHandler.current._server_pool.pop(key)
+        if self.match_key:
+            key = self.match_key
+            if self._proxy._client_pool.get(key, None) == self:
+                self._proxy._client_pool.pop(key)
+            if self._proxy._server_pool.get(key, None) == self:
+                self._proxy._server_pool.pop(key)
         self._done = True
         self.forward_proxy = None
 
@@ -123,7 +129,7 @@ class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
         self.addr = addr
 
     def name(self):
-        return "TCPSocket: %s:%s"  % (str(self.addr), self.rpc_key)
+        return "TCPSocketProxy:%s:%s"  % (str(self.addr[0]), self.rpc_key)
 
     def send_data(self, message, binary=True):
         self.write_message(message, True)
@@ -146,7 +152,7 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
         self._init_handler()
 
     def name(self):
-        return "WebSocketProxy: %s" % (self.rpc_key)
+        return "WebSocketProxy:%s" % (self.rpc_key)
 
     def on_message(self, message):
         self.on_data(message)
@@ -192,15 +198,16 @@ class RequestHandler(tornado.web.RequestHandler):
         self.write(self.page)
 
 
-
 class ProxyServerHandler(object):
     """Internal proxy server handler class."""
     current = None
     def __init__(self,
                  sock,
+                 listen_port,
                  web_port,
                  timeout_client,
                  timeout_server,
+                 tracker_addr,
                  index_page=None,
                  resource_files=None):
         assert ProxyServerHandler.current is None
@@ -232,6 +239,14 @@ class ProxyServerHandler(object):
         self._server_pool = {}
         self.timeout_client = timeout_client
         self.timeout_server = timeout_server
+        # tracker information
+        self._listen_port = listen_port
+        self._tracker_addr = tracker_addr
+        self._tracker_conn = None
+        self._tracker_pending_puts = []
+        self._key_set = set()
+        if tracker_addr:
+            logging.info("Tracker address:%s", str(tracker_addr))
         logging.info("RPCProxy: Websock port bind to %d", web_port)
 
     def _on_event(self, _):
@@ -247,21 +262,85 @@ class ProxyServerHandler(object):
         lhs.forward_proxy = rhs
         rhs.forward_proxy = lhs
 
-        lhs.send_data(struct.pack('@i', RPC_CODE_SUCCESS))
+        lhs.send_data(struct.pack('@i', base.RPC_CODE_SUCCESS))
         lhs.send_data(struct.pack('@i', len(rhs.rpc_key)))
         lhs.send_data(rhs.rpc_key.encode("utf-8"))
 
-        rhs.send_data(struct.pack('@i', RPC_CODE_SUCCESS))
+        rhs.send_data(struct.pack('@i', base.RPC_CODE_SUCCESS))
         rhs.send_data(struct.pack('@i', len(lhs.rpc_key)))
         rhs.send_data(lhs.rpc_key.encode("utf-8"))
-
         logging.info("Pairup connect %s  and %s", lhs.name(), rhs.name())
 
-    def handler_ready(self, handler):
-        """Report handler to be ready."""
-        logging.info("Handler ready %s", handler.name())
-        key = handler.rpc_key[7:]
+    def _update_tracker(self):
+        """Update information on tracker."""
+        try:
+            if self._tracker_conn is None:
+                self._tracker_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self._tracker_conn.connect(self._tracker_addr)
+                self._tracker_conn.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
+                magic = struct.unpack("@i", base.recvall(self._tracker_conn, 4))[0]
+                if magic != base.RPC_TRACKER_MAGIC:
+                    self.loop.stop()
+                    raise RuntimeError("%s is not RPC Tracker" % str(self._tracker_addr))
+                # just connect to tracker, need to update all keys
+                self._tracker_pending_puts = self._server_pool.keys()
 
+            need_update_info = False
+            # report new connections
+            for key in self._tracker_pending_puts:
+                rpc_key, match_key = key.split(":")
+                base.sendjson(self._tracker_conn,
+                              [TrackerCode.PUT, rpc_key,
+                               (self._listen_port, ":" + match_key)])
+                assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
+                if rpc_key not in self._key_set:
+                    self._key_set.add(rpc_key)
+                    need_update_info = True
+
+            if need_update_info:
+                keylist = "[" + ",".join(self._key_set) + "]"
+                cinfo = {"key": "server:proxy" + keylist}
+                base.sendjson(self._tracker_conn,
+                              [TrackerCode.UPDATE_INFO, cinfo])
+                assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
+            self._tracker_pending_puts = []
+        except (socket.error, IOError) as err:
+            retry_period = 5
+            logging.info(
+                "Lost tracker connection: %s, try reconnect in %g sec",
+                str(err), retry_period)
+            self._tracker_conn.close()
+            self._tracker_conn = None
+            new_pool = {}
+            keyset = set(self._server_pool.keys())
+            # re-generate the server match key, so old information is invalidated.
+            for key, handle in self._server_pool.items():
+                rpc_key, _ = key.split(":")
+                key = base.random_key(rpc_key + ":", keyset)
+                new_pool[key] = handle
+                keyset.add(key)
+            self._server_pool = new_pool
+            def _callback():
+                self._update_tracker()
+            self.loop.call_later(retry_period, _callback)
+
+    def _handler_ready_tracker_mode(self, handler):
+        """tracker mode to handle handler ready."""
+        if handler.rpc_key.startswith("server:"):
+            key = base.random_key(handler.match_key + ":", self._server_pool)
+            handler.match_key = key
+            self._server_pool[key] = handler
+            self._tracker_pending_puts.append(key)
+            self._update_tracker()
+        else:
+            if handler.match_key in self._server_pool:
+                self._pair_up(self._server_pool.pop(handler.match_key), handler)
+            else:
+                handler.send_data(struct.pack('@i', base.RPC_CODE_MISMATCH))
+                handler.signal_close()
+
+    def _handler_ready_proxy_mode(self, handler):
+        """Normal proxy mode when handler is ready."""
         if handler.rpc_key.startswith("server:"):
             pool_src, pool_dst = self._client_pool, self._server_pool
             timeout = self.timeout_server
@@ -269,6 +348,7 @@ class ProxyServerHandler(object):
             pool_src, pool_dst = self._server_pool, self._client_pool
             timeout = self.timeout_client
 
+        key = handler.match_key
         if key in pool_src:
             self._pair_up(pool_src.pop(key), handler)
             return
@@ -280,13 +360,21 @@ class ProxyServerHandler(object):
                     logging.info("Timeout client connection %s, cannot find match key=%s",
                                  handler.name(), key)
                     pool_dst.pop(key)
-                    handler.send_data(struct.pack('@i', RPC_CODE_MISMATCH))
+                    handler.send_data(struct.pack('@i', base.RPC_CODE_MISMATCH))
                     handler.signal_close()
             self.loop.call_later(timeout, cleanup)
         else:
             logging.info("Duplicate connection with same key=%s", key)
-            handler.send_data(struct.pack('@i', RPC_CODE_DUPLICATE))
+            handler.send_data(struct.pack('@i', base.RPC_CODE_DUPLICATE))
             handler.signal_close()
+
+    def handler_ready(self, handler):
+        """Report handler to be ready."""
+        logging.info("Handler ready %s", handler.name())
+        if self._tracker_addr:
+            self._handler_ready_tracker_mode(handler)
+        else:
+            self._handler_ready_proxy_mode(handler)
 
     def run(self):
         """Run the proxy server"""
@@ -294,15 +382,19 @@ class ProxyServerHandler(object):
 
 
 def _proxy_server(listen_sock,
+                  listen_port,
                   web_port,
                   timeout_client,
                   timeout_server,
+                  tracker_addr,
                   index_page,
                   resource_files):
     handler = ProxyServerHandler(listen_sock,
+                                 listen_port,
                                  web_port,
                                  timeout_client,
                                  timeout_server,
+                                 tracker_addr,
                                  index_page,
                                  resource_files)
     handler.run()
@@ -346,6 +438,7 @@ class Proxy(object):
                  web_port=0,
                  timeout_client=600,
                  timeout_server=600,
+                 tracker_addr=None,
                  index_page=None,
                  resource_files=None):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -365,10 +458,12 @@ class Proxy(object):
         logging.info("RPCProxy: client port bind to %s:%d", host, self.port)
         sock.listen(1)
         self.proc = multiprocessing.Process(
-            target=_proxy_server, args=(sock, web_port,
-                                        timeout_client, timeout_server,
-                                        index_page, resource_files))
+            target=_proxy_server,
+            args=(sock, self.port, web_port,
+                  timeout_client, timeout_server,
+                  tracker_addr, index_page, resource_files))
         self.proc.start()
+        sock.close()
         self.host = host
 
     def terminate(self):
@@ -408,18 +503,18 @@ def websocket_proxy_server(url, key=""):
         on_message = create_on_message(conn)
         temp = _server_env()
         # Start connecton
-        conn.write_message(struct.pack('@i', RPC_MAGIC), binary=True)
+        conn.write_message(struct.pack('@i', base.RPC_MAGIC), binary=True)
         key = "server:" + key
         conn.write_message(struct.pack('@i', len(key)), binary=True)
         conn.write_message(key.encode("utf-8"), binary=True)
         msg = yield conn.read_message()
         assert len(msg) >= 4
         magic = struct.unpack('@i', msg[:4])[0]
-        if magic == RPC_CODE_DUPLICATE:
+        if magic == base.RPC_CODE_DUPLICATE:
             raise RuntimeError("key: %s has already been used in proxy" % key)
-        elif magic == RPC_CODE_MISMATCH:
+        elif magic == base.RPC_CODE_MISMATCH:
             logging.info("RPCProxy do not have matching client key %s", key)
-        elif magic != RPC_CODE_SUCCESS:
+        elif magic != base.RPC_CODE_SUCCESS:
             raise RuntimeError("%s is not RPC Proxy" % url)
         msg = msg[4:]
 

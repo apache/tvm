@@ -91,7 +91,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
         """
         # Report resource to tracker
         if tracker_conn:
-            matchkey = ":" + base.random_key()
+            matchkey = base.random_key(":")
             base.sendjson(tracker_conn,
                           [TrackerCode.PUT, rpc_key, (port, matchkey)])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
@@ -130,19 +130,20 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
     # Server logic
     tracker_conn = None
     while True:
-        # step 1: setup tracker and report to tracker
-        if tracker_addr and tracker_conn is None:
-            tracker_conn = base.connect_with_retry(tracker_addr)
-            tracker_conn.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
-            magic = struct.unpack("@i", base.recvall(tracker_conn, 4))[0]
-            if magic != base.RPC_TRACKER_MAGIC:
-                raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
-            # report status of current queue
-            cinfo = {"key" : "server:" + rpc_key}
-            base.sendjson(tracker_conn,
-                          [TrackerCode.UPDATE_INFO, cinfo])
-            assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         try:
+            # step 1: setup tracker and report to tracker
+            if tracker_addr and tracker_conn is None:
+                tracker_conn = base.connect_with_retry(tracker_addr)
+                tracker_conn.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
+                magic = struct.unpack("@i", base.recvall(tracker_conn, 4))[0]
+                if magic != base.RPC_TRACKER_MAGIC:
+                    raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
+                # report status of current queue
+                cinfo = {"key" : "server:" + rpc_key}
+                base.sendjson(tracker_conn,
+                              [TrackerCode.UPDATE_INFO, cinfo])
+                assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
+
             # step 2: wait for in-coming connections
             conn, addr, opts = _accept_conn(sock, tracker_conn)
         except (socket.error, IOError):
@@ -161,40 +162,49 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
         # wait until server process finish or timeout
         server_proc.join(opts.get("timeout", None))
         if server_proc.is_alive():
-            logging.info("Timeout in RPC session, kill..")
+            logging.info("RPCServer: Timeout in RPC session, kill..")
             server_proc.terminate()
 
 
 def _connect_proxy_loop(addr, key):
     key = "server:" + key
+    retry_count = 0
+    max_retry = 5
+    retry_period = 5
     while True:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(addr)
-        sock.sendall(struct.pack("@i", base.RPC_MAGIC))
-        sock.sendall(struct.pack("@i", len(key)))
-        sock.sendall(key.encode("utf-8"))
-        magic = struct.unpack("@i", base.recvall(sock, 4))[0]
-        if magic == base.RPC_CODE_DUPLICATE:
-            raise RuntimeError("key: %s has already been used in proxy" % key)
-        elif magic == base.RPC_CODE_MISMATCH:
-            logging.info("RPCProxy do not have matching client key %s", key)
-        elif magic != base.RPC_CODE_SUCCESS:
-            raise RuntimeError("%s is not RPC Proxy" % str(addr))
-        keylen = struct.unpack("@i", base.recvall(sock, 4))[0]
-        remote_key = py_str(base.recvall(sock, keylen))
-        opts = _parse_server_opt(remote_key.split()[1:])
-
-        logging.info("RPCProxy connected to %s", str(addr))
-        process = multiprocessing.Process(
-            target=_serve_loop, args=(sock, addr))
-        process.deamon = True
-        process.start()
-        sock.close()
-        process.join(opts.get("timeout", None))
-        if process.is_alive():
-            logging.info("Timeout in RPC session, kill..")
-            process.terminate()
-
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect(addr)
+            sock.sendall(struct.pack("@i", base.RPC_MAGIC))
+            sock.sendall(struct.pack("@i", len(key)))
+            sock.sendall(key.encode("utf-8"))
+            magic = struct.unpack("@i", base.recvall(sock, 4))[0]
+            if magic == base.RPC_CODE_DUPLICATE:
+                raise RuntimeError("key: %s has already been used in proxy" % key)
+            elif magic == base.RPC_CODE_MISMATCH:
+                logging.info("RPCProxy do not have matching client key %s", key)
+            elif magic != base.RPC_CODE_SUCCESS:
+                raise RuntimeError("%s is not RPC Proxy" % str(addr))
+            keylen = struct.unpack("@i", base.recvall(sock, 4))[0]
+            remote_key = py_str(base.recvall(sock, keylen))
+            opts = _parse_server_opt(remote_key.split()[1:])
+            logging.info("RPCProxy connected to %s", str(addr))
+            process = multiprocessing.Process(
+                target=_serve_loop, args=(sock, addr))
+            process.deamon = True
+            process.start()
+            sock.close()
+            process.join(opts.get("timeout", None))
+            if process.is_alive():
+                logging.info("RPCProxyServer: Timeout in RPC session, kill..")
+                process.terminate()
+            retry_count = 0
+        except (socket.error, IOError) as err:
+            retry_count += 1
+            logging.info("Error encountered %s, retry in %g sec", str(err), retry_period)
+            if retry_count > max_retry:
+                raise RuntimeError("Maximum retry error: last error: %s" % str(err))
+            time.sleep(retry_period)
 
 def _popen(cmd):
     proc = subprocess.Popen(cmd,
