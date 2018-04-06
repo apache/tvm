@@ -34,6 +34,7 @@ class TrackerCode(object):
     REQUEST = 4
     UPDATE_INFO = 5
     SUMMARY = 6
+    GET_PENDING_MATCHKEYS = 7
 
 RPC_SESS_MASK = 128
 

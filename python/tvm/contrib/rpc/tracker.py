@@ -92,7 +92,9 @@ class PriorityScheduler(Scheduler):
             value = self._values.pop(0)
             item = heapq.heappop(self._requests)
             callback = item[-1]
-            if not callback(value):
+            if callback(value[1:]):
+                value[0].pending_matchkeys.remove(value[-1])
+            else:
                 self._values.append(value)
 
     def put(self, value):
@@ -124,6 +126,8 @@ class TCPEventHandler(tornado_util.TCPHandler):
         self._addr = addr
         self._init_req_nbytes = 4
         self._info = {"addr": addr}
+        # list of pending match keys that has not been used.
+        self.pending_matchkeys = set()
         self._tracker._connections.add(self)
 
     def name(self):
@@ -189,18 +193,27 @@ class TCPEventHandler(tornado_util.TCPHandler):
         if code == TrackerCode.PUT:
             key = args[1]
             port, matchkey = args[2]
-            self._tracker.put(key, (self._addr[0], port, matchkey))
+            self.pending_matchkeys.add(matchkey)
+            self._tracker.put(key, (self, self._addr[0], port, matchkey))
             self.ret_value(TrackerCode.SUCCESS)
         elif code == TrackerCode.REQUEST:
             key = args[1]
             user = args[2]
             priority = args[3]
             def _cb(value):
-                self.ret_value([TrackerCode.SUCCESS, value])
+                # if the connection is already closed
+                if not self._sock:
+                    return False
+                try:
+                    self.ret_value([TrackerCode.SUCCESS, value])
+                except (socket.sock_error, IOError):
+                    return False
                 return True
             self._tracker.request(key, user, priority, _cb)
         elif code == TrackerCode.PING:
             self.ret_value(TrackerCode.SUCCESS)
+        elif code == TrackerCode.GET_PENDING_MATCHKEYS:
+            self.ret_value(list(self.pending_matchkeys))
         elif code == TrackerCode.STOP:
             # safe stop tracker
             if self._tracker._stop_key == args[1]:

@@ -23,6 +23,11 @@ def check_server_drop():
         tproxy = proxy.Proxy("localhost", 8881,
                              tracker_addr=("localhost", tserver.port))
         tclient = rpc.connect_tracker("localhost", tserver.port)
+
+        server0 = rpc.Server(
+            "localhost", port=9099,
+            tracker_addr=("localhost", tserver.port),
+            key="abc")
         server1 = rpc.Server(
             "localhost", port=9099,
             tracker_addr=("localhost", tserver.port),
@@ -33,6 +38,10 @@ def check_server_drop():
         server3 = rpc.Server(
             "localhost", tproxy.port, is_proxy=True,
             key="xyz1")
+
+        # Fault tolerence to un-handled requested value
+        _put(tclient, [TrackerCode.REQUEST, "abc", "", 1])
+        _put(tclient, [TrackerCode.REQUEST, "xyz1", "", 1])
 
         # Fault tolerence to stale worker value
         _put(tclient, [TrackerCode.PUT, "xyz", (server1.port, "abc")])
@@ -58,14 +67,21 @@ def check_server_drop():
                 assert f1(10) == 11
                 f1 = remote2.get_function("rpc.test2.addone")
                 assert f1(10) == 11
+
             except tvm.TVMError as e:
                 pass
+            remote3 = tclient.request("abc")
+            f1 = remote3.get_function("rpc.test2.addone")
+            remote3 = tclient.request("xyz1")
+            f1 = remote3.get_function("rpc.test2.addone")
+            assert f1(10) == 11
 
         check_timeout(0.01, 0.1)
         check_timeout(2, 0)
         tserver.terminate()
-        server2.terminate()
+        server0.terminate()
         server1.terminate()
+        server2.terminate()
         server3.terminate()
         tproxy.terminate()
     except ImportError:
