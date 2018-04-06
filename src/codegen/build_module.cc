@@ -185,10 +185,6 @@ Target Target::create(const std::string& target_str) {
 
   if (device_name == "rasp") {
     return target::rasp(options);
-  //} else if (device_name == "mail") {
-  //  return target::mali(options);
-  //} else if (device_name == "intel_gpu") {
-  //  return target::intel_gpu(options);
   } else {
     return CreateTarget(target_name, options);
   }
