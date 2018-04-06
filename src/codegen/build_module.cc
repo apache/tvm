@@ -74,7 +74,7 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
-    if(device_name == "intel_gpu") {
+    if (device_name == "intel_gpu") {
       t->thread_warp_size = 16;
     }
   } else if (target_name == "metal" || target_name == "vulkan") {
