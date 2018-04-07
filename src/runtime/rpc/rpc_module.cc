@@ -26,7 +26,11 @@ struct RPCWrappedFunc {
     sess_->CallFunc(handle_, args, rv, &fwrap_);
   }
   ~RPCWrappedFunc() {
-    sess_->CallRemote(RPCCode::kFreeFunc, handle_);
+    try {
+      sess_->CallRemote(RPCCode::kFreeFunc, handle_);
+    } catch (const dmlc::Error& e) {
+      // fault tolerance to remote close
+    }
   }
 
   static void WrapRemote(std::shared_ptr<RPCSession> sess,
@@ -48,7 +52,11 @@ class RPCModuleNode final : public ModuleNode {
   }
   ~RPCModuleNode() {
     if (module_handle_ != nullptr) {
-      sess_->CallRemote(RPCCode::kModuleFree, module_handle_);
+      try {
+        sess_->CallRemote(RPCCode::kModuleFree, module_handle_);
+      } catch (const dmlc::Error& e) {
+        // fault tolerance to remote close
+      }
       module_handle_ = nullptr;
     }
   }
