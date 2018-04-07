@@ -74,6 +74,9 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
+    if (device_name == "intel_gpu") {
+      t->thread_warp_size = 16;
+    }
   } else if (target_name == "metal" || target_name == "vulkan") {
     t->device_type = static_cast<int>(target_name == "metal" ? kDLMetal : kDLVulkan);
     t->keys_array.push_back(ir::StringImm::make(target_name));
@@ -182,8 +185,6 @@ Target Target::create(const std::string& target_str) {
 
   if (device_name == "rasp") {
     return target::rasp(options);
-  } else if (device_name == "mail") {
-    return target::mali(options);
   } else {
     return CreateTarget(target_name, options);
   }
@@ -264,6 +265,11 @@ Target mali(const std::vector<std::string>& options) {
   }));
 }
 
+Target intel_gpu(const std::vector<std::string>& options) {
+  return CreateTarget("opencl", MergeOptions(options, {
+    "-device=intel_gpu"
+  }));
+}
 
 Target stackvm(const std::vector<std::string>& options) {
   return CreateTarget("stackvm", options);
