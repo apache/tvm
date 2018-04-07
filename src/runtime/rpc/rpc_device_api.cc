@@ -34,8 +34,12 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
     RemoteSpace* space = static_cast<RemoteSpace*>(ptr);
-    GetSess(ctx)->CallRemote(
-        RPCCode::kDevFreeData, ctx, space->data);
+    try {
+      GetSess(ctx)->CallRemote(
+          RPCCode::kDevFreeData, ctx, space->data);
+    } catch (const dmlc::Error& e) {
+      // fault tolerance to remote close.
+    }
     delete space;
   }
   void CopyDataFromTo(const void* from,
