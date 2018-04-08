@@ -77,8 +77,8 @@ export PYTHONPATH=<nnvm root>/python:${PYTHONPATH}
 ```
 
 ## Pynq RPC Server Setup
-
-Follow the [Pynq RPC Server Guide](https://github.com/saml/vta/tree/master/apps/pynq_rpc/README.md)
+                                                       
+Follow the [Pynq RPC Server Guide](https://github.com/uwsaml/vta/tree/master/apps/pynq_rpc/README.md)
 
 ## Running the example
 
