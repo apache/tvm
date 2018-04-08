@@ -37,8 +37,6 @@ Target CreateTarget(const std::string& target_name,
 
   t->target_name = target_name;
 
-  std::string device_name = "";
-
   std::string libs_flag = "-libs=";
   std::string device_flag = "-device=";
   for (auto& item : options) {
@@ -51,12 +49,12 @@ Target CreateTarget(const std::string& target_name,
         t->libs_array.push_back(ir::StringImm::make(lib_item));
       }
     } else if (item.find(device_flag) == 0) {
-      device_name = item.substr(device_flag.length());
+      t->device_name = item.substr(device_flag.length());
     }
   }
 
-  if (device_name.length() > 0) {
-    t->keys_array.push_back(ir::StringImm::make(device_name));
+  if (t->device_name.length() > 0) {
+    t->keys_array.push_back(ir::StringImm::make(t->device_name));
   }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
@@ -70,22 +68,33 @@ Target CreateTarget(const std::string& target_name,
     t->thread_warp_size = 32;
   } else if (target_name == "rocm" || target_name == "opencl") {
     // For now assume rocm schedule for opencl
-    t->device_type = static_cast<int>(target_name == "rocm" ? kDLROCM : kDLOpenCL);
+    if (target_name == "opencl") {
+      t->device_type = kDLOpenCL;
+    } else {
+      t->device_type = kDLROCM;
+    }
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
-    if (device_name == "intel_gpu") {
+    if (t->device_name == "intel_gpu") {
       t->thread_warp_size = 16;
     }
   } else if (target_name == "metal" || target_name == "vulkan") {
-    t->device_type = static_cast<int>(target_name == "metal" ? kDLMetal : kDLVulkan);
+    if (target_name == "metal") {
+      t->device_type = kDLMetal;
+    } else {
+      t->device_type = kDLVulkan;
+    }
     t->keys_array.push_back(ir::StringImm::make(target_name));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
   } else if (target_name == "opengl") {
-    t->device_type = kDLGPU;
+    t->device_type = kOpenGL;
     t->keys_array.push_back(ir::StringImm::make("opengl"));
-  } else if (target_name == "stackvm" || target_name == "ext_dev") {
+  } else if (target_name == "stackvm") {
+    t->device_type = kDLCPU;
+  } else if (target_name == "ext_dev") {
+    t->device_type = kExtDev;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();

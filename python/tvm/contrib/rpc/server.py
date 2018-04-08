@@ -166,8 +166,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
             conn, addr, opts = _accept_conn(sock, tracker_conn)
         except (socket.error, IOError):
             # retry when tracker is dropped
-            tracker_conn.close()
-            tracker_conn = None
+            if tracker_conn:
+                tracker_conn.close()
+                tracker_conn = None
             continue
 
         # step 3: serving

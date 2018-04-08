@@ -24,6 +24,8 @@ class TargetNode : public Node {
  public:
   /*! \brief The name of the target device */
   std::string target_name;
+  /*! \brief The name of the target device */
+  std::string device_name;
   /*! \brief The type of the target device */
   int device_type;
   /*! \brief The maximum threads that a schedule should use for this device */
@@ -42,6 +44,7 @@ class TargetNode : public Node {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("target_name", &target_name);
+    v->Visit("device_name", &device_name);
     v->Visit("device_type", &device_type);
     v->Visit("max_num_threads", &max_num_threads);
     v->Visit("thread_warp_size", &thread_warp_size);
