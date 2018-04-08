@@ -249,6 +249,18 @@ def test_schedule_cache_relayout3():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
+def test_schedule_bound_condition():
+   A = tvm.placeholder((64,), name='A', dtype="float32")
+   Apad = tvm.compute((66,), lambda i: tvm.select(tvm.all(i>0, i < 65), A[i-1], tvm.const(0.)), name='Apad')
+   Apad2 = tvm.compute((66,), lambda i: Apad[i]*2, name='Apad2')
+   s = tvm.create_schedule(Apad2.op)
+   AL1 = s.cache_read(A,"local",[Apad])
+   s = s.normalize()
+   bounds = tvm.schedule.InferBound(s)
+   stmt = tvm.schedule.ScheduleOps(s, bounds)
+   stmt = tvm.ir_pass.Simplify(stmt)
+   assert (isinstance(stmt.body.body.first.body.body.then_case, tvm.stmt.IfThenElse))
+
 if __name__ == "__main__":
     test_schedule_middle_cache()
     test_inline_multi_reduce()
@@ -265,3 +277,4 @@ if __name__ == "__main__":
     test_schedule1()
     test_schedule2()
     test_schedule_cache()
+    test_schedule_bound_condition()
