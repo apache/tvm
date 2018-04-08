@@ -150,6 +150,13 @@ class BuildConfig(NodeBase):
             result += [(phase, func)]
         return result
 
+    @add_lower_pass.setter
+    def add_lower_pass(self, value):
+        add_lower_pass_args = []
+        for x in value:
+            add_lower_pass_args += [x[0], x[1]]
+        _api_internal._BuildConfigSetAddLowerPass(self, *add_lower_pass_args)
+
     def __enter__(self):
         # pylint: disable=protected-access
         _api_internal._EnterBuildConfigScope(self)
@@ -168,8 +175,11 @@ class BuildConfig(NodeBase):
                 "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
         return super(BuildConfig, self).__setattr__(name, value)
 
+
 def current_build_config():
+    """Get the current build configuration."""
     return _api_internal._GetCurrentBuildConfig()
+
 
 def build_config(**kwargs):
     """Configure the build behavior by setting config variables.
@@ -230,10 +240,7 @@ def build_config(**kwargs):
     config = make.node("BuildConfig", **node_args)
 
     if "add_lower_pass" in kwargs:
-        add_lower_pass_args = []
-        for x in kwargs["add_lower_pass"]:
-            add_lower_pass_args += [x[0], x[1]]
-        _api_internal._BuildConfigSetAddLowerPass(config, *add_lower_pass_args)
+        config.add_lower_pass = kwargs["add_lower_pass"]
 
     return config
 

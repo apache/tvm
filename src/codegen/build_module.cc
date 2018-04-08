@@ -37,8 +37,6 @@ Target CreateTarget(const std::string& target_name,
 
   t->target_name = target_name;
 
-  std::string device_name = "";
-
   std::string libs_flag = "-libs=";
   std::string device_flag = "-device=";
   for (auto& item : options) {
@@ -51,12 +49,12 @@ Target CreateTarget(const std::string& target_name,
         t->libs_array.push_back(ir::StringImm::make(lib_item));
       }
     } else if (item.find(device_flag) == 0) {
-      device_name = item.substr(device_flag.length());
+      t->device_name = item.substr(device_flag.length());
     }
   }
 
-  if (device_name.length() > 0) {
-    t->keys_array.push_back(ir::StringImm::make(device_name));
+  if (t->device_name.length() > 0) {
+    t->keys_array.push_back(ir::StringImm::make(t->device_name));
   }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
@@ -78,7 +76,7 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
-    if (device_name == "intel_gpu") {
+    if (t->device_name == "intel_gpu") {
       t->thread_warp_size = 16;
     }
   } else if (target_name == "metal" || target_name == "vulkan") {
