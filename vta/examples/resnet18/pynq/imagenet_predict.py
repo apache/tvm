@@ -29,7 +29,7 @@ BITSTREAM_FILE = 'vta.bit'
 for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE, BITSTREAM_FILE]:
     if not os.path.isfile(file):
         print ("Downloading {}".format(file))
-        wget.download(url+file) 
+        wget.download(url+file)
 
 # Program the FPGA remotely
 assert tvm.module.enabled("rpc")
@@ -129,7 +129,6 @@ with nnvm.compiler.build_config(opt_level=3):
             sym, target, shape_dict, dtype_dict,
             params=params)
 
-remote = rpc.connect(host, port)
 temp = util.tempdir()
 lib.save(temp.relpath("graphlib.o"))
 remote.upload(temp.relpath("graphlib.o"))

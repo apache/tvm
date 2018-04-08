@@ -58,7 +58,7 @@ VTA_LIB_SRC = $(wildcard src/*.cc src/tvm/*.cc)
 ifeq ($(TARGET), VTA_PYNQ_TARGET)
 	VTA_LIB_SRC += $(wildcard src/pynq/*.cc)
 	LDFLAGS += -L/usr/lib -lsds_lib
-	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/ -l:libdma.so
+	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/ -l:libdma.so
 endif
 VTA_LIB_OBJ = $(patsubst %.cc, build/%.o, $(VTA_LIB_SRC))
 
