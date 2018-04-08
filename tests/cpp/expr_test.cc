@@ -15,6 +15,15 @@ TEST(Expr, Basic) {
 }
 
 
+TEST(ExprNodeRef, Basic) {
+  using namespace tvm;
+  Var x("x");
+  Expr z = max(x + 1 + 2, 100);
+  const ir::Max* op = z.as<ir::Max>();
+  CHECK(op->GetNodeRef().same_as(z));
+}
+
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
