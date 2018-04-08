@@ -7,5 +7,4 @@ from . import mobilenet
 from . import mlp
 from . import resnet
 from . import vgg
-from . import darknet
 from . import yolo2_detection

@@ -24,6 +24,7 @@ import math
 import random
 import nnvm
 import nnvm.frontend.darknet
+import nnvm.testing.darknet
 from nnvm.testing.darknet import __darknetffi__
 import matplotlib.pyplot as plt
 import numpy as np
