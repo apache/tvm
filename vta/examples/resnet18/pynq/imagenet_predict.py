@@ -28,7 +28,7 @@ RESNET_PARAMS_FILE = 'quantize_params.pkl'
 BITSTREAM_FILE = 'vta.bit'
 for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE, BITSTREAM_FILE]:
     if not os.path.isfile(file):
-        print "Downloading {}".format(file)
+        print ("Downloading {}".format(file))
         wget.download(url+file) 
 
 # Program the FPGA remotely
