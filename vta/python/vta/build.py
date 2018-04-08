@@ -52,4 +52,4 @@ def debug_mode(debug_flag):
 
 
 # Add a lower pass to sync uop
-build_module.BuildConfig.current.add_lower_pass = debug_mode(0)
+build_module.current_build_config().add_lower_pass = debug_mode(0)
