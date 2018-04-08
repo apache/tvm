@@ -18,7 +18,7 @@ def test_rpc_simple():
     def remotethrow(name):
         raise ValueError("%s" % name)
 
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.addone")
     assert f1(10) == 11
@@ -41,7 +41,6 @@ def test_rpc_array():
         np.testing.assert_equal(y.asnumpy(), x)
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
-    print("second connect")
     r_cpu = tvm.nd.array(x, remote.cpu(0))
     assert str(r_cpu.context).startswith("remote")
     np.testing.assert_equal(r_cpu.asnumpy(), x)
@@ -141,7 +140,7 @@ def test_rpc_return_func():
     @tvm.register_func("rpc.test.remote_func")
     def addone(x):
         return lambda y: x+y
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.remote_func")
     fadd = f1(10)

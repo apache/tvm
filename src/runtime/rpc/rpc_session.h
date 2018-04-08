@@ -171,12 +171,15 @@ class RPCSession {
   /*!
    * \brief Create a RPC session with given channel.
    * \param channel The communication channel.
-   * \param name The name of the session, used for debug
-   * \return The session.
+   * \param name The local name of the session, used for debug
+   * \param remote_key The remote key of the session
+   *   if remote_key equals "%toinit", we need to re-intialize
+   *   it by event handler.
    */
   static std::shared_ptr<RPCSession> Create(
       std::unique_ptr<RPCChannel> channel,
-      std::string name);
+      std::string name,
+      std::string remote_key);
   /*!
    * \brief Try get session from the global session table by table index.
    * \param table_index The table index of the session.
@@ -208,6 +211,8 @@ class RPCSession {
   int table_index_{0};
   // The name of the session.
   std::string name_;
+  // The remote key
+  std::string remote_key_;
 };
 
 /*!

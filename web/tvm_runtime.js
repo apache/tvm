@@ -851,6 +851,7 @@ var tvm_runtime = tvm_runtime || {};
       }
       // Node js, import websocket
       var bkey = StringToUint8Array("server:" + key);
+      bkey = bkey.slice(0, bkey.length - 1);
       var server_name = "WebSocketRPCServer[" + key + "]";
       var RPC_MAGIC = 0xff271;
       function checkEndian() {
@@ -895,7 +896,7 @@ var tvm_runtime = tvm_runtime || {};
             } else {
               return new TVMConstant(0, "int32");
             }
-          } , server_name);
+          } , server_name, "%toinit");
 
         function on_open(event) {
           var intbuf = new Int32Array(1);
@@ -912,6 +913,7 @@ var tvm_runtime = tvm_runtime || {};
             var msg = new Uint8Array(event.data);
             CHECK(msg.length >= 4, "Need message header to be bigger than 4");
             var magic = new Int32Array(event.data)[0];
+
             if (magic == RPC_MAGIC + 1) {
               throwError("key: " + key + " has already been used in proxy");
             } else if (magic == RPC_MAGIC + 2) {
@@ -1014,7 +1016,7 @@ var tvm_runtime = tvm_runtime || {};
 
       /**
        * Load parameters from serialized byte array of parameter dict.
-       * 
+       *
        * @param {Uint8Array} params The serialized parameter dict.
        */
       "load_params" : function(params) {
@@ -1024,7 +1026,7 @@ var tvm_runtime = tvm_runtime || {};
 
       /**
        * Load parameters from serialized base64 string of parameter dict.
-       * 
+       *
        * @param {string} base64_params The serialized parameter dict.
        */
       "load_base64_params" : function(base64_params) {
@@ -1046,7 +1048,7 @@ var tvm_runtime = tvm_runtime || {};
 
       /**
        * Get index-th output to out.
-       * 
+       *
        * @param {NDArray} out The output array container.
        * @return {NDArray} The output array container.
        */
@@ -1076,7 +1078,7 @@ var tvm_runtime = tvm_runtime || {};
       var tvm_graph_module = fcreate(graph_json_str, libmod,
                                      new TVMConstant(ctx.device_type, "int32"),
                                      new TVMConstant(ctx.device_id, "int32"));
-      
+
       return new GraphModule(tvm_graph_module, ctx);
     };
 
