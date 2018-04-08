@@ -51,6 +51,13 @@ void VulkanWorkspace::GetAttr(
       *rv = value;
       break;
     }
+    case kMaxSharedMemoryPerBlock: {
+      VkPhysicalDeviceProperties phy_prop;
+      vkGetPhysicalDeviceProperties(context_[ctx.device_id].phy_device, &phy_prop);
+      int64_t value = phy_prop.limits.maxComputeSharedMemorySize;
+      *rv = value;
+      break;
+    }
     case kWarpSize: {
       *rv = 1;
       break;

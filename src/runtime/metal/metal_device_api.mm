@@ -39,6 +39,7 @@ void MetalWorkspace::GetAttr(
       *rv = 1;
       break;
     }
+    case kMaxSharedMemoryPerBlock: return;
     case kComputeVersion: return;
     case kExist: break;
   }
