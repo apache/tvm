@@ -23,40 +23,20 @@ extern "C" {
 #define VTA_DEBUG_SKIP_WRITE_BARRIER (1 << 4)
 #define VTA_DEBUG_FORCE_SERIAL (1 << 5)
 
-/*! \brief VTA command handle */
-typedef void * VTACommandHandle;
-
-/*! \brief Shutdown hook of VTA to cleanup resources */
-void VTARuntimeShutdown();
-
-/*!
- * \brief Get thread local command handle.
- * \return A thread local command handle.
- */
-VTACommandHandle VTATLSCommandHandle();
-
 /*!
  * \brief Allocate data buffer.
  * \param cmd The VTA command handle.
  * \param size Buffer size.
  * \return A pointer to the allocated buffer.
  */
-void* VTABufferAlloc(VTACommandHandle cmd, size_t size);
+void* VTABufferAlloc(size_t size);
 
 /*!
  * \brief Free data buffer.
  * \param cmd The VTA command handle.
  * \param buffer The data buffer to be freed.
  */
-void VTABufferFree(VTACommandHandle cmd, void* buffer);
-
-/*!
- * \brief Get the buffer access pointer on CPU.
- * \param cmd The VTA command handle.
- * \param buffer The data buffer.
- * \return The pointer that can be accessed by the CPU.
- */
-void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
+void VTABufferFree(void* buffer);
 
 /*!
  * \brief Copy data buffer from one location to another.
@@ -68,20 +48,32 @@ void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
  * \param size Size of copy.
  * \param kind_mask The memory copy kind.
  */
-void VTABufferCopy(VTACommandHandle cmd,
-                   const void* from,
+void VTABufferCopy(const void* from,
                    size_t from_offset,
                    void* to,
                    size_t to_offset,
                    size_t size,
                    int kind_mask);
 
+/*! \brief VTA command handle */
+typedef void* VTACommandHandle;
+
+/*! \brief Shutdown hook of VTA to cleanup resources */
+void VTARuntimeShutdown();
+
 /*!
- * \brief Set debug mode on the command handle.
- * \param cmd The VTA command handle.
- * \param debug_flag The debug flag.
+ * \brief Get thread local command handle.
+ * \return A thread local command handle.
  */
-void VTASetDebugMode(VTACommandHandle cmd, int debug_flag);
+VTACommandHandle VTATLSCommandHandle();
+
+/*!
+ * \brief Get the buffer access pointer on CPU.
+ * \param cmd The VTA command handle.
+ * \param buffer The data buffer.
+ * \return The pointer that can be accessed by the CPU.
+ */
+void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
 
 /*!
  * \brief Perform a write barrier to make a memory region visible to the CPU.
@@ -92,9 +84,10 @@ void VTASetDebugMode(VTACommandHandle cmd, int debug_flag);
  * \param extent The end of the region (in elements).
  */
 void VTAWriteBarrier(VTACommandHandle cmd,
-                     void* buffer, uint32_t elem_bits,
-                     uint32_t start, uint32_t extent);
-
+                     void* buffer,
+                     uint32_t elem_bits,
+                     uint32_t start,
+                     uint32_t extent);
 /*!
  * \brief Perform a read barrier to a memory region visible to VTA.
  * \param cmd The VTA command handle.
@@ -104,8 +97,17 @@ void VTAWriteBarrier(VTACommandHandle cmd,
  * \param extent The end of the region (in elements).
  */
 void VTAReadBarrier(VTACommandHandle cmd,
-                    void* buffer, uint32_t elem_bits,
-                    uint32_t start, uint32_t extent);
+                    void* buffer,
+                    uint32_t elem_bits,
+                    uint32_t start,
+                    uint32_t extent);
+
+/*!
+ * \brief Set debug mode on the command handle.
+ * \param cmd The VTA command handle.
+ * \param debug_flag The debug flag.
+ */
+void VTASetDebugMode(VTACommandHandle cmd, int debug_flag);
 
 /*!
  * \brief Perform a 2D data load from DRAM.

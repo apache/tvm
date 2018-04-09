@@ -25,7 +25,6 @@ def get_task_qid(qid):
     """Get transformed queue index."""
     return 1 if DEBUG_NO_SYNC else qid
 
-
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")
 def coproc_sync(op):
     return tvm.call_extern(
