@@ -142,7 +142,7 @@ class TVMContext(ctypes.Structure):
 
     @property
     def max_shared_memory_per_block(self):
-        """Total amount of shared memory per block in bytes"""
+        """Total amount of shared memory per block in bytes."""
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 3)
 
@@ -159,6 +159,12 @@ class TVMContext(ctypes.Structure):
         """
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 4)
+
+    @property
+    def device_name(self):
+        """Return the string name of device."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 5)
 
     def sync(self):
         """Synchronize until jobs finished at the context."""

@@ -73,6 +73,7 @@ void VulkanWorkspace::GetAttr(
       *rv = os.str();
       break;
     }
+    case kDeviceName: return;
     case kExist: break;
   }
 }
