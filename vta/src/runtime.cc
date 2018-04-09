@@ -117,7 +117,6 @@ class UopKernel {
     // The loop nest structure
     VerifyDep(dst_index);
     VTAUop op;
-    op.reset_out = reset_out;
     op.dst_idx = dst_index;
     op.src_idx = src_index;
     op.wgt_idx = wgt_index;
@@ -127,6 +126,12 @@ class UopKernel {
       mode_ = mode;
     } else {
       assert(mode_ == mode);
+    }
+    // Set reset_out field if unset
+    if (reset_out_ == 0xFFFFFFFF) {
+      reset_out_ = reset_out;
+    } else {
+      assert(reset_out_ == reset_out);
     }
     // Check kernel op and imm/imm_val in ALU mode
     if (mode == 1) {
@@ -146,12 +151,11 @@ class UopKernel {
     uint32_t size = seq_.size();
     printf("There are %u uops\n", size);
     for (uint32_t i = 0; i < size; ++i) {
-      printf("[%04u]\t acc=%u, inp=%u, wgt=%u, reset_out=%u\n",
+      printf("[%04u]\t acc=%u, inp=%u, wgt=%u\n",
              i,
              seq_[i].dst_idx,
              seq_[i].src_idx,
-             seq_[i].wgt_idx,
-             seq_[i].reset_out);
+             seq_[i].wgt_idx);
     }
     printf("\n");
   }
@@ -160,6 +164,7 @@ class UopKernel {
   // The kernel's mode, opcode, immediate setting and value
   uint32_t mode_{0xFFFFFFFF};  // UOP type: 0xFFFFFFFF - unset, 0 - GEMM, 1 - ALU
   uint32_t opcode_{0xFFFFFFFF};
+  uint32_t reset_out_{0xFFFFFFFF};
   bool use_imm_{false};
   uint16_t imm_val_{0};
 
@@ -521,20 +526,6 @@ class InsnQueue : public BaseQueue {
           } else {
               return "add";
           }
-      } else if (opcode == VTA_ALU_OPCODE_SUB) {
-          if (use_imm) {
-              return "sub imm";
-          } else {
-              return "sub";
-          }
-      } else if (opcode == VTA_ALU_OPCODE_MUL) {
-          if (use_imm) {
-              return "mul imm";
-          } else {
-              return "mul";
-          }
-      } else if (opcode == VTA_ALU_OPCODE_SHL) {
-          return "shl";
       } else if (opcode == VTA_ALU_OPCODE_SHR) {
           return "shr";
       }
@@ -641,6 +632,7 @@ class InsnQueue : public BaseQueue {
                static_cast<int>(c.mem.pop_next_dep),
                static_cast<int>(c.mem.push_prev_dep),
                static_cast<int>(c.mem.push_next_dep));
+        printf("\treset_out: %d\n", static_cast<int>(c.gemm.reset_reg));
         printf("\trange (%d, %d)\n",
                static_cast<int>(c.gemm.uop_bgn),
                static_cast<int>(c.gemm.uop_end));
@@ -662,6 +654,7 @@ class InsnQueue : public BaseQueue {
                static_cast<int>(c.mem.pop_next_dep),
                static_cast<int>(c.mem.push_prev_dep),
                static_cast<int>(c.mem.push_next_dep));
+        printf("\treset_out: %d\n", static_cast<int>(c.alu.reset_reg));
         printf("\trange (%d, %d)\n",
                static_cast<int>(c.alu.uop_bgn),
                static_cast<int>(c.alu.uop_end));
@@ -1081,6 +1074,7 @@ class CommandQueue {
     }
     VTAGemInsn* insn = insn_queue_.CreateGemInsn();
     insn->opcode = VTA_OPCODE_GEMM;
+    insn->reset_reg = kernel->reset_out_;
     insn->uop_bgn = kernel->sram_begin_;
     insn->uop_end = kernel->sram_end_;
     const std::vector<UopKernel::LoopEntry> &loop = kernel->loop();
@@ -1119,6 +1113,7 @@ class CommandQueue {
     }
     VTAAluInsn* insn = insn_queue_.CreateAluInsn();
     insn->opcode = VTA_OPCODE_ALU;
+    insn->reset_reg = kernel->reset_out_;
     insn->uop_bgn = kernel->sram_begin_;
     insn->uop_end = kernel->sram_end_;
     insn->alu_opcode = kernel->opcode_;

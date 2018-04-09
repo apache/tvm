@@ -183,7 +183,7 @@ void compute(
   hls::stream<bool> &s2g_dep_queue,
   hls::stream<bool> &g2l_dep_queue,
   hls::stream<bool> &g2s_dep_queue,
-  out_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
   ) {
@@ -286,23 +286,24 @@ void compute(
     done = 0;
 
     // Decode
-    uop_idx_T uop_bgn = insn.range(VTA_INSN_GEM_5_1, VTA_INSN_GEM_5_0);
-    uop_idx_T uop_end = insn.range(VTA_INSN_GEM_6_1, VTA_INSN_GEM_6_0);
-    loop_T iter_out  = insn.range(VTA_INSN_GEM_7_1, VTA_INSN_GEM_7_0);
-    loop_T iter_in  = insn.range(VTA_INSN_GEM_8_1, VTA_INSN_GEM_8_0);
-    acc_idx_T dst_factor_out = insn.range(VTA_INSN_GEM_9_1, VTA_INSN_GEM_9_0);
-    acc_idx_T dst_factor_in = insn.range(VTA_INSN_GEM_A_1, VTA_INSN_GEM_A_0);
-    inp_idx_T src_factor_out = insn.range(VTA_INSN_GEM_B_1, VTA_INSN_GEM_B_0);
-    inp_idx_T src_factor_in = insn.range(VTA_INSN_GEM_C_1, VTA_INSN_GEM_C_0);
+    bool reset_out = insn[VTA_INSN_GEM_5];
+    uop_idx_T uop_bgn = insn.range(VTA_INSN_GEM_6_1, VTA_INSN_GEM_6_0);
+    uop_idx_T uop_end = insn.range(VTA_INSN_GEM_7_1, VTA_INSN_GEM_7_0);
+    loop_T iter_out  = insn.range(VTA_INSN_GEM_8_1, VTA_INSN_GEM_8_0);
+    loop_T iter_in  = insn.range(VTA_INSN_GEM_9_1, VTA_INSN_GEM_9_0);
+    acc_idx_T dst_factor_out = insn.range(VTA_INSN_GEM_A_1, VTA_INSN_GEM_A_0);
+    acc_idx_T dst_factor_in = insn.range(VTA_INSN_GEM_B_1, VTA_INSN_GEM_B_0);
+    inp_idx_T src_factor_out = insn.range(VTA_INSN_GEM_C_1, VTA_INSN_GEM_C_0);
+    inp_idx_T src_factor_in = insn.range(VTA_INSN_GEM_D_1, VTA_INSN_GEM_D_0);
 
     // GEMM-specific fields
-    wgt_idx_T wgt_factor_out = insn.range(VTA_INSN_GEM_D_1, VTA_INSN_GEM_D_0);
-    wgt_idx_T wgt_factor_in = insn.range(VTA_INSN_GEM_E_1, VTA_INSN_GEM_E_0);
+    wgt_idx_T wgt_factor_out = insn.range(VTA_INSN_GEM_E_1, VTA_INSN_GEM_E_0);
+    wgt_idx_T wgt_factor_in = insn.range(VTA_INSN_GEM_F_1, VTA_INSN_GEM_F_0);
 
     // ALU-specific field
-    aluop_opcode_T alu_opcode = insn.range(VTA_INSN_ALU_D_1, VTA_INSN_ALU_D_0);
-    bool use_imm = insn[VTA_INSN_ALU_E];
-    aluop_imm_T imm = insn.range(VTA_INSN_ALU_F_1, VTA_INSN_ALU_F_0);
+    aluop_opcode_T alu_opcode = insn.range(VTA_INSN_ALU_E_1, VTA_INSN_ALU_E_0);
+    bool use_imm = insn[VTA_INSN_ALU_F];
+    aluop_imm_T imm = insn.range(VTA_INSN_ALU_G_1, VTA_INSN_ALU_G_0);
     acc_idx_T dst_offset_out = 0;
     inp_idx_T src_offset_out = 0;
     wgt_idx_T wgt_offset_out = 0;
@@ -326,13 +327,12 @@ void compute(
             uop_T uop = uop_mem[upc];
 
             // Decode indices
-            bool reset_out = uop[VTA_UOP_GEM_0];
             acc_idx_T dst_idx =
-                uop.range(VTA_UOP_GEM_1_1, VTA_UOP_GEM_1_0) + dst_offset_in;
-            acc_idx_T src_idx =
-                uop.range(VTA_UOP_GEM_2_1, VTA_UOP_GEM_2_0) + src_offset_in;
+                uop.range(VTA_UOP_GEM_0_1, VTA_UOP_GEM_0_0) + dst_offset_in;
+            inp_idx_T src_idx =
+                uop.range(VTA_UOP_GEM_1_1, VTA_UOP_GEM_1_0) + src_offset_in;
             wgt_idx_T wgt_idx =
-                uop.range(VTA_UOP_GEM_3_1, VTA_UOP_GEM_3_0) + wgt_offset_in;
+                uop.range(VTA_UOP_GEM_2_1, VTA_UOP_GEM_2_0) + wgt_offset_in;
 
             // Read weight matrix
             wgt_vec_T w_matrix[VTA_BLOCK_OUT];
@@ -341,7 +341,7 @@ void compute(
             }
             // Read input matrix and accum matrix
             acc_vec_T o_matrix[VTA_BATCH];
-            out_vec_T i_matrix[VTA_BATCH];
+            inp_vec_T i_matrix[VTA_BATCH];
             for (int i = 0; i < VTA_BATCH; i++) {
               o_matrix[i] = acc_mem[dst_idx][i];
               i_matrix[i] = inp_mem[src_idx][i];
@@ -365,6 +365,9 @@ void compute(
                   inp_T i_elem =
                       i_matrix[i].range((k + 1) * VTA_INP_WIDTH - 1, k * VTA_INP_WIDTH);
                   mul_T prod = i_elem * w_elem;
+#ifdef NO_DSP
+#pragma HLS RESOURCE variable = prod core = Mul_LUT
+#endif //  NO_DSP
                   tmp += (sum_T) prod;
                 }
                 // Update summation
@@ -373,101 +376,85 @@ void compute(
                 acc_mem_val[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) =
                     reset_out ? (acc_T) 0 : accum;
                 st_buf_val[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
-                    (inp_T) accum.range(VTA_OUT_WIDTH - 1, 0);
+                    (out_T) accum.range(VTA_OUT_WIDTH - 1, 0);
               }
               // Write to buffers
               acc_mem[dst_idx][i] = acc_mem_val[i];
               out_mem[dst_idx][i] = st_buf_val[i];
             }
           }
-        } else if (opcode == VTA_OPCODE_ALU) {
+        }
+#ifndef NO_ALU
+        else if (opcode == VTA_OPCODE_ALU) {
           // Iterate over micro op
           READ_ALU_UOP: for (int upc = uop_bgn; upc < uop_end; upc++) {
-#pragma HLS PIPELINE II = 2 rewind
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
             // Decode
-            bool reset_out = uop[VTA_UOP_ALU_0];
             acc_idx_T dst_idx =
-                uop.range(VTA_UOP_ALU_1_1, VTA_UOP_ALU_1_0) + dst_offset_in;
+                uop.range(VTA_UOP_ALU_0_1, VTA_UOP_ALU_0_0) + dst_offset_in;
             acc_idx_T src_idx =
-                uop.range(VTA_UOP_ALU_2_1, VTA_UOP_ALU_2_0) + src_offset_in;
-
-            // Read input matrix and accum matrix
-            acc_vec_T dst_matrix[VTA_BATCH];
-            acc_vec_T src_matrix[VTA_BATCH];
-            for (int i = 0; i < VTA_BATCH; i++) {
-#pragma HLS UNROLL complete
-              dst_matrix[i] = acc_mem[dst_idx][i];
-              src_matrix[i] = acc_mem[src_idx][i];
-            }
-
-            // Result matrices
-            acc_vec_T cmp_res[VTA_BATCH];
-            acc_vec_T add_res[VTA_BATCH];
-            acc_vec_T rshr_res[VTA_BATCH];
-            acc_vec_T lshr_res[VTA_BATCH];
-            out_vec_T short_cmp_res[VTA_BATCH];
-            out_vec_T short_add_res[VTA_BATCH];
-            out_vec_T short_rshr_res[VTA_BATCH];
-            out_vec_T short_lshr_res[VTA_BATCH];
+                uop.range(VTA_UOP_ALU_1_1, VTA_UOP_ALU_1_0) + src_offset_in;
 
             // Perform ALU op over matrix elements
             for (int i = 0; i < VTA_BATCH; i++) {
+              // Read input matrix and accum matrix
+              acc_vec_T dst_vector = acc_mem[dst_idx][i];
+              acc_vec_T src_vector = acc_mem[src_idx][i];
+              // Result matrices
+              acc_vec_T cmp_res;
+              acc_vec_T add_res;
+              acc_vec_T shr_res;
+              out_vec_T short_cmp_res;
+              out_vec_T short_add_res;
+              out_vec_T short_shr_res;
               // Results vector
               acc_vec_T res_vec = 0;
               for (int b = 0; b < VTA_BLOCK_OUT; b++) {
+#pragma HLS PIPELINE II = 1 rewind
                 // Read in operands
-                acc_T src_0 = dst_matrix[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
+                acc_T src_0 = dst_vector.range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
                 acc_T src_1 = use_imm ?
                     (acc_T) imm :
-                    src_matrix[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
+                    src_vector.range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH);
                 // Compute Min/Max
                 acc_T mix_val = src_0 < src_1 ?
                     (alu_opcode == VTA_ALU_OPCODE_MIN ? src_0 : src_1) :
                     (alu_opcode == VTA_ALU_OPCODE_MIN ? src_1 : src_0);
-                cmp_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = mix_val;
-                short_cmp_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
-                    (inp_T) mix_val.range(VTA_OUT_WIDTH - 1, 0);
+                cmp_res.range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = mix_val;
+                short_cmp_res.range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (out_T) mix_val.range(VTA_OUT_WIDTH - 1, 0);
                 // Compute Sum
                 acc_T add_val =
                     src_0.range(VTA_ACC_WIDTH - 1, 0) + src_1.range(VTA_ACC_WIDTH - 1, 0);
-                add_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = add_val;
-                short_add_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
-                    (inp_T) add_val.range(VTA_OUT_WIDTH - 1, 0);
-                // Compute Right Shift
-                acc_T rshr_val =
+                add_res.range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = add_val;
+                short_add_res.range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (out_T) add_val.range(VTA_OUT_WIDTH - 1, 0);
+                // Compute Shift Right
+                acc_T shr_val =
                     src_0 >> (aluop_sh_imm_T) src_1.range(VTA_LOG_ACC_WIDTH - 1, 0);
-                rshr_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = rshr_val;
-                short_rshr_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
-                    (inp_T) rshr_val.range(VTA_OUT_WIDTH-1, 0);
-                // Compute Left Shift
-                acc_T lshr_val =
-                    src_0 << (aluop_sh_imm_T) src_1.range(VTA_LOG_ACC_WIDTH - 1, 0);
-                lshr_res[i].range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = lshr_val;
-                short_lshr_res[i].range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
-                    (inp_T) lshr_val.range(VTA_OUT_WIDTH-1, 0);
+                shr_res.range((b + 1) * VTA_ACC_WIDTH - 1, b * VTA_ACC_WIDTH) = shr_val;
+                short_shr_res.range((b + 1) * VTA_OUT_WIDTH - 1, b * VTA_OUT_WIDTH) =
+                    (out_T) shr_val.range(VTA_OUT_WIDTH-1, 0);
               }
 
               // Store to accum memory/store buffer
               if (alu_opcode == VTA_ALU_OPCODE_MIN ||
                   alu_opcode == VTA_ALU_OPCODE_MAX) {
-                acc_mem[dst_idx][i] = cmp_res[i];
-                out_mem[dst_idx][i] = short_cmp_res[i];
+                acc_mem[dst_idx][i] = cmp_res;
+                out_mem[dst_idx][i] = short_cmp_res;
               } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
-                acc_mem[dst_idx][i] = add_res[i];
-                out_mem[dst_idx][i] = short_add_res[i];
+                acc_mem[dst_idx][i] = add_res;
+                out_mem[dst_idx][i] = short_add_res;
               } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
-                acc_mem[dst_idx][i] = rshr_res[i];
-                out_mem[dst_idx][i] = short_rshr_res[i];
-              } else if (alu_opcode == VTA_ALU_OPCODE_SHL) {
-                acc_mem[dst_idx][i] = lshr_res[i];
-                out_mem[dst_idx][i] = short_lshr_res[i];
+                acc_mem[dst_idx][i] = shr_res;
+                out_mem[dst_idx][i] = short_shr_res;
               }
             }
           }
         }
+#endif  // NO_ALU
 
         // Update offsets
         dst_offset_in += dst_factor_in;
