@@ -30,7 +30,7 @@ class CUDADeviceAPI final : public DeviceAPI {
                 &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id)
             == cudaSuccess);
         break;
-    case kMaxThreadsPerBlock: {
+      case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(
             &value, cudaDevAttrMaxThreadsPerBlock, ctx.device_id));
         break;
@@ -54,6 +54,12 @@ class CUDADeviceAPI final : public DeviceAPI {
             &value, cudaDevAttrComputeCapabilityMinor, ctx.device_id));
         os << value;
         *rv = os.str();
+        return;
+      }
+      case kDeviceName: {
+        cudaDeviceProp props;
+        CUDA_CALL(cudaGetDeviceProperties(&props, ctx.device_id));
+        *rv = std::string(props.name);
         return;
       }
     }
