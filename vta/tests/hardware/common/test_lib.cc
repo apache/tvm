@@ -28,20 +28,6 @@ const char* getOpcodeString(int opcode, bool use_imm) {
     } else {
       return "add";
     }
-  } else if (opcode == VTA_ALU_OPCODE_SUB) {
-    if (use_imm) {
-      return "sub imm";
-    } else {
-      return "sub";
-    }
-  } else if (opcode == VTA_ALU_OPCODE_MUL) {
-    if (use_imm) {
-      return "mul imm";
-    } else {
-      return "mul";
-    }
-  } else if (opcode == VTA_ALU_OPCODE_SHL) {
-    return "shl";
   } else if (opcode == VTA_ALU_OPCODE_SHR) {
     return "shr";
   }
@@ -170,31 +156,6 @@ void freeBuffer(void * buffer) {
 #endif
 }
 
-VTAGenericInsn reset2DInsn(int type, int sram_offset, int y_size, int x_size, int x_stride,
-    int pop_prev_dep, int pop_next_dep, int push_prev_dep, int push_next_dep) {
-  // Converter
-  union VTAInsn converter;
-  // Memory instruction initialization
-  VTAMemInsn insn = {};
-  insn.opcode = VTA_OPCODE_LOAD;
-  insn.pop_prev_dep = pop_prev_dep;
-  insn.pop_next_dep = pop_next_dep;
-  insn.push_prev_dep = push_prev_dep;
-  insn.push_next_dep = push_next_dep;
-  insn.memory_type = type;
-  insn.sram_base = sram_offset;
-  insn.dram_base = 0;
-  insn.y_size = 0;
-  insn.x_size = x_size;
-  insn.x_stride = x_stride;
-  insn.y_pad_0 = y_size;
-  insn.y_pad_1 = 0;
-  insn.x_pad_0 = 0;
-  insn.x_pad_1 = 0;
-  converter.mem = insn;
-  return converter.generic;
-}
-
 VTAGenericInsn get2DLoadStoreInsn(int opcode, int type, int sram_offset, int dram_offset,
     int y_size, int x_size, int x_stride, int y_pad, int x_pad, int pop_prev_dep, int pop_next_dep,
     int push_prev_dep, int push_next_dep) {
@@ -258,6 +219,7 @@ VTAGenericInsn getGEMMInsn(int uop_offset, int batch, int in_feat, int out_feat,
   insn.pop_next_dep = pop_next_dep;
   insn.push_prev_dep = push_prev_dep;
   insn.push_next_dep = push_next_dep;
+  insn.reset_reg = false;
   if (!uop_compression) {
     insn.uop_bgn = uop_offset;
     insn.uop_end = uop_offset + batch * in_feat * out_feat;
@@ -296,6 +258,7 @@ VTAGenericInsn getALUInsn(int opcode, int vector_size, bool use_imm, int imm, bo
   insn.pop_next_dep = pop_next_dep;
   insn.push_prev_dep = push_prev_dep;
   insn.push_next_dep = push_next_dep;
+  insn.reset_reg = false;
   if (!uop_compression) {
     insn.uop_bgn = 0;
     insn.uop_end = vector_size;
@@ -335,6 +298,7 @@ VTAGenericInsn getFinishInsn(bool pop_prev, bool pop_next) {
   insn.pop_next_dep = pop_next;
   insn.push_prev_dep = 0;
   insn.push_next_dep = 0;
+  insn.reset_reg = false;
   insn.uop_bgn = 0;
   insn.uop_end = 0;
   insn.iter_out = 0;
@@ -364,7 +328,6 @@ VTAUop * getCopyUops(int y_size, int x_size, int uop_compression) {
     int uop_idx = 0;
     for (int i = 0; i < y_size; i++) {
       for (int j = 0; j < x_size; j++) {
-        uop_buf[uop_idx].reset_out = false;
         uop_buf[uop_idx].dst_idx = i * x_size + j;
         uop_buf[uop_idx].src_idx = 0;
         uop_buf[uop_idx].wgt_idx = 0;
@@ -372,7 +335,6 @@ VTAUop * getCopyUops(int y_size, int x_size, int uop_compression) {
       }
     }
   } else {
-    uop_buf[0].reset_out = false;
     uop_buf[0].dst_idx = 1;
     uop_buf[0].src_idx = 0;
     uop_buf[0].wgt_idx = 0;
@@ -399,7 +361,6 @@ VTAUop * getGEMMUops(int batch, int in_feat, int out_feat, bool uop_compression,
     for (int i = 0; i < batch; i++) {
       for (int j = 0; j < in_feat; j++) {
         for (int k = 0; k < out_feat; k++) {
-          uop_buf[uop_idx].reset_out = false;
           uop_buf[uop_idx].dst_idx = i * out_feat + k;
           uop_buf[uop_idx].src_idx = i * in_feat + j;
           uop_buf[uop_idx].wgt_idx = k * in_feat + j;
@@ -409,7 +370,6 @@ VTAUop * getGEMMUops(int batch, int in_feat, int out_feat, bool uop_compression,
     }
   } else {
     for (int i = 0; i < batch; i++) {
-      uop_buf[i].reset_out = false;
       uop_buf[i].dst_idx = i * out_feat;
       uop_buf[i].src_idx = i * in_feat;
       uop_buf[i].wgt_idx = 0;
@@ -422,7 +382,6 @@ VTAUop * getGEMMUops(int batch, int in_feat, int out_feat, bool uop_compression,
       for (int i = 0; i < batch; i++) {
         for (int j = 0; j < in_feat; j++) {
           for (int k = 0; k < out_feat; k++) {
-            uop_buf[uop_idx].reset_out = false;
             uop_buf[uop_idx].dst_idx = i * out_feat + k;
             uop_buf[uop_idx].src_idx = batch * in_feat + i * in_feat + j;
             uop_buf[uop_idx].wgt_idx = out_feat * in_feat + k * in_feat + j;
@@ -432,7 +391,6 @@ VTAUop * getGEMMUops(int batch, int in_feat, int out_feat, bool uop_compression,
       }
     } else {
       for (int i = 0; i < batch; i++) {
-        uop_buf[batch+i].reset_out = false;
         uop_buf[batch+i].dst_idx = i * out_feat;
         uop_buf[batch+i].src_idx = batch * in_feat + i * in_feat;
         uop_buf[batch+i].wgt_idx = out_feat * in_feat;
@@ -456,12 +414,10 @@ VTAUop * getMapALUUops(int vector_size, bool uop_compression) {
 
   if (!uop_compression) {
     for (int i = 0; i < vector_size; i++) {
-      uop_buf[i].reset_out = 0;
       uop_buf[i].dst_idx = i;
       uop_buf[i].src_idx = vector_size + i;
     }
   } else {
-    uop_buf[0].reset_out = 0;
     uop_buf[0].dst_idx = 0;
     uop_buf[0].src_idx = vector_size;
   }
@@ -511,7 +467,7 @@ void printParameters() {
   printf("VTA_INSN_GEM_2 [%d]\n", VTA_INSN_GEM_2);
   printf("VTA_INSN_GEM_3 [%d]\n", VTA_INSN_GEM_3);
   printf("VTA_INSN_GEM_4 [%d]\n", VTA_INSN_GEM_4);
-  printf("VTA_INSN_GEM_5 [%d-%d]\n", VTA_INSN_GEM_5_0, VTA_INSN_GEM_5_1);
+  printf("VTA_INSN_GEM_5 [%d]\n", VTA_INSN_GEM_5);
   printf("VTA_INSN_GEM_6 [%d-%d]\n", VTA_INSN_GEM_6_0, VTA_INSN_GEM_6_1);
   printf("VTA_INSN_GEM_7 [%d-%d]\n", VTA_INSN_GEM_7_0, VTA_INSN_GEM_7_1);
   printf("VTA_INSN_GEM_8 [%d-%d]\n", VTA_INSN_GEM_8_0, VTA_INSN_GEM_8_1);
@@ -521,17 +477,15 @@ void printParameters() {
   printf("VTA_INSN_GEM_C [%d-%d]\n", VTA_INSN_GEM_C_0, VTA_INSN_GEM_C_1);
   printf("VTA_INSN_GEM_D [%d-%d]\n", VTA_INSN_GEM_D_0, VTA_INSN_GEM_D_1);
   printf("VTA_INSN_GEM_E [%d-%d]\n", VTA_INSN_GEM_E_0, VTA_INSN_GEM_E_1);
-  printf("VTA_INSN_ALU_D [%d-%d]\n", VTA_INSN_ALU_D_0, VTA_INSN_ALU_D_1);
-  printf("VTA_INSN_ALU_E [%d]\n", VTA_INSN_ALU_E);
-  printf("VTA_INSN_ALU_F [%d-%d]\n", VTA_INSN_ALU_F_0, VTA_INSN_ALU_F_1);
-  printf("VTA_UOP_GEM_0 [%d]\n", VTA_UOP_GEM_0);
+  printf("VTA_INSN_GEM_F [%d-%d]\n", VTA_INSN_GEM_F_0, VTA_INSN_GEM_F_1);
+  printf("VTA_INSN_ALU_E [%d-%d]\n", VTA_INSN_ALU_E_0, VTA_INSN_ALU_E_1);
+  printf("VTA_INSN_ALU_F [%d]\n", VTA_INSN_ALU_F);
+  printf("VTA_INSN_ALU_G [%d-%d]\n", VTA_INSN_ALU_G_0, VTA_INSN_ALU_G_1);
+  printf("VTA_UOP_GEM_0 [%d-%d]\n", VTA_UOP_GEM_0_0, VTA_UOP_GEM_0_1);
   printf("VTA_UOP_GEM_1 [%d-%d]\n", VTA_UOP_GEM_1_0, VTA_UOP_GEM_1_1);
   printf("VTA_UOP_GEM_2 [%d-%d]\n", VTA_UOP_GEM_2_0, VTA_UOP_GEM_2_1);
-  printf("VTA_UOP_GEM_3 [%d-%d]\n", VTA_UOP_GEM_3_0, VTA_UOP_GEM_3_1);
-  printf("VTA_UOP_ALU_0 [%d]\n", VTA_UOP_ALU_0);
+  printf("VTA_UOP_ALU_0 [%d-%d]\n", VTA_UOP_ALU_0_0, VTA_UOP_ALU_0_1);
   printf("VTA_UOP_ALU_1 [%d-%d]\n", VTA_UOP_ALU_1_0, VTA_UOP_ALU_1_1);
-  printf("VTA_UOP_ALU_2 [%d-%d]\n", VTA_UOP_ALU_2_0, VTA_UOP_ALU_2_1);
-  printf("VTA_UOP_ALU_3 [%d-%d]\n", VTA_UOP_ALU_3_0, VTA_UOP_ALU_3_1);
 }
 
 void printInstruction(int num_insn, VTAGenericInsn *insns) {
@@ -601,6 +555,7 @@ void printInstruction(int num_insn, VTAGenericInsn *insns) {
       printf("\trange (%d, %d)\n",
              static_cast<int>(c.gemm.uop_bgn),
              static_cast<int>(c.gemm.uop_end));
+      printf("\treset_out: %d\n", static_cast<int>(c.gemm.reset_reg));
       printf("\touter loop - iter: %d, acc: %d, inp: %d, wgt: %d\n",
              static_cast<int>(c.gemm.iter_out),
              static_cast<int>(c.gemm.dst_factor_out),
@@ -634,6 +589,7 @@ void printInstruction(int num_insn, VTAGenericInsn *insns) {
              static_cast<int>(c.mem.pop_next_dep),
              static_cast<int>(c.mem.push_prev_dep),
              static_cast<int>(c.mem.push_next_dep));
+      printf("\treset_out: %d\n", static_cast<int>(c.alu.reset_reg));
       printf("\trange (%d, %d)\n",
              static_cast<int>(c.alu.uop_bgn),
              static_cast<int>(c.alu.uop_end));
@@ -662,8 +618,7 @@ void printMicroOp(int num_uop, VTAUop *uops) {
   for (int i = 0; i < num_uop; i++) {
     // Read micro-op
     printf("DEBUG - UOP %u: ", i);
-    printf("rst_out=%u, acc=%u, inp= %u, wgt=%u\n", uops[i].reset_out, uops[i].dst_idx,
-        uops[i].src_idx, uops[i].wgt_idx);
+    printf("acc=%u, inp= %u, wgt=%u\n", uops[i].dst_idx, uops[i].src_idx, uops[i].wgt_idx);
   }
 }
 
@@ -671,7 +626,6 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
   // Some assertions
   assert(batch % VTA_BATCH == 0);
   assert(vector_size % VTA_BLOCK_OUT == 0);
-  assert(!(opcode == VTA_ALU_OPCODE_SHL && !use_imm));
   assert(!(opcode == VTA_ALU_OPCODE_SHR && !use_imm));
   printf("=====================================================================================\n");
   printf("INFO - ALU test of %s: batch=%d, vector_size=%d, uop_compression=%d\n",
@@ -701,16 +655,9 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
     } else if (opcode == VTA_ALU_OPCODE_ADD) {
       immediate[b] = static_cast<acc_T>(
           rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH / 2)) - (1LL << (VTA_INP_WIDTH / 2 - 1)));
-    } else if (opcode == VTA_ALU_OPCODE_SUB) {
-      immediate[b] = static_cast<acc_T>(
-          rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH / 2)) - (1LL << (VTA_INP_WIDTH / 2 - 1)));
-    } else if (opcode == VTA_ALU_OPCODE_MUL) {
-      immediate[b] = static_cast<acc_T>(
-          rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH / 2)) - (1LL << (VTA_INP_WIDTH / 2 - 1)));
-    } else if (opcode == VTA_ALU_OPCODE_SHL) {
-      immediate[b] = static_cast<acc_T>(rand_r(&globalSeed) % (VTA_INP_WIDTH + 1));
     } else if (opcode == VTA_ALU_OPCODE_SHR) {
-      immediate[b] = static_cast<acc_T>(rand_r(&globalSeed) % (VTA_INP_WIDTH + 1));
+      immediate[b] = static_cast<acc_T>(
+          rand_r(&globalSeed) % VTA_ACC_WIDTH - VTA_ACC_WIDTH/2);
     }
   }
 
@@ -783,18 +730,6 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
       } else if (opcode == VTA_ALU_OPCODE_ADD) {
         inputs[i][j] = static_cast<acc_T>(
             rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH - 1)) - (1LL << (VTA_INP_WIDTH - 2)));
-      } else if (opcode == VTA_ALU_OPCODE_SUB) {
-        inputs[i][j] = static_cast<acc_T>(
-            rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH - 1)) - (1LL << (VTA_INP_WIDTH - 2)));
-      } else if (opcode == VTA_ALU_OPCODE_MUL) {
-        inputs[i][j] = static_cast<acc_T>(
-            rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH / 2)) - (1LL << (VTA_INP_WIDTH / 2 - 1)));
-      } else if (opcode == VTA_ALU_OPCODE_SHL) {
-        inputs[i][j] = static_cast<acc_T>(
-            rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH - 1)) - (1LL << (VTA_INP_WIDTH - 2)));
-      } else if (opcode == VTA_ALU_OPCODE_SHR) {
-        inputs[i][j] = static_cast<acc_T>(
-            rand_r(&globalSeed) % (1LL << (VTA_INP_WIDTH - 1)) - (1LL << (VTA_INP_WIDTH - 2)));
       }
     }
   }
@@ -830,22 +765,12 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
         } else {
           tmp = inputs[i][j] + immediate[i / VTA_BATCH];
         }
-      } else if (opcode == VTA_ALU_OPCODE_SUB) {
-        if (!use_imm) {
-          tmp = inputs[i][j] - inputs[i][j + vector_size];
-        } else {
-          tmp = inputs[i][j] - immediate[i / VTA_BATCH];
-        }
-      } else if (opcode == VTA_ALU_OPCODE_MUL) {
-        if (!use_imm) {
-          tmp = inputs[i][j] * inputs[i][j + vector_size];
-        } else {
-          tmp = inputs[i][j] * immediate[i / VTA_BATCH];
-        }
-      } else if (opcode == VTA_ALU_OPCODE_SHL) {
-        tmp = inputs[i][j] << immediate[i / VTA_BATCH];
       } else if (opcode == VTA_ALU_OPCODE_SHR) {
-        tmp = inputs[i][j] >> immediate[i / VTA_BATCH];
+        if (immediate[i / VTA_BATCH] >= 0) {
+          tmp = inputs[i][j] >> immediate[i / VTA_BATCH];
+        } else {
+          tmp = inputs[i][j] << (0 - immediate[i / VTA_BATCH]);
+        }
       }
       // Set
       outputs_ref[i][j] = (out_T) tmp;
@@ -876,7 +801,7 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
       (volatile inp_vec_T *) NULL,
       (volatile wgt_vec_T *) NULL,
       (volatile acc_vec_T *) bias_buf,
-      (volatile inp_vec_T *) output_buf);
+      (volatile out_vec_T *) output_buf);
 #endif
 
   // Unpack output buffer
@@ -1149,7 +1074,7 @@ int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
       (volatile inp_vec_T *) input_buf,
       (volatile wgt_vec_T *) weight_buf,
       (volatile acc_vec_T *) bias_buf,
-      (volatile inp_vec_T *) output_buf);
+      (volatile out_vec_T *) output_buf);
 #endif
 
   // Unpack output data

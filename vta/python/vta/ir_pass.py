@@ -617,7 +617,6 @@ def inject_alu_intrin(stmt_in):
                 extents.append(tmp_body.extent)
                 tmp_body = tmp_body.body
             # Derive opcode
-            alu_opcode = spec.VTA_ALU_OPCODE_UNSET
             if isinstance(loop_body.value, tvm.expr.Add):
                 alu_opcode = spec.VTA_ALU_OPCODE_ADD
                 lhs = loop_body.value.a
@@ -640,9 +639,9 @@ def inject_alu_intrin(stmt_in):
                 rhs = loop_body.value.b
             elif isinstance(loop_body.value, tvm.expr.Call):
                 if loop_body.value.name == 'shift_left':
-                    alu_opcode = spec.VTA_ALU_OPCODE_SHL
+                    alu_opcode = spec.VTA_ALU_OPCODE_SHR
                     lhs = loop_body.value.args[0]
-                    rhs = loop_body.value.args[1]
+                    rhs = tvm.ir_pass.Simplify(-loop_body.value.args[1])
                 elif loop_body.value.name == 'shift_right':
                     alu_opcode = spec.VTA_ALU_OPCODE_SHR
                     lhs = loop_body.value.args[0]
@@ -732,7 +731,8 @@ def inject_alu_intrin(stmt_in):
                 tvm.ir_pass.Simplify(c/(spec.VTA_BATCH*spec.VTA_BLOCK_OUT)) for c in dst_coeff]
 
             # Flatten the outer loops
-            src_coeff, dst_coeff, extents = _flatten_loop(src_coeff, dst_coeff, extents)
+            if extents:
+                src_coeff, dst_coeff, extents = _flatten_loop(src_coeff, dst_coeff, extents)
 
             # Insert ALU micro-ops
             irb = tvm.ir_builder.create()

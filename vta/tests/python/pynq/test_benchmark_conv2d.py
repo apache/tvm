@@ -16,18 +16,20 @@ inp_dtype = "int%d" % vta.VTA_INP_WIDTH
 wgt_dtype = "int%d" % vta.VTA_WGT_WIDTH
 
 Workload = namedtuple("Conv2DWorkload",
-                      ['height', 'width', 'in_filter', 'out_filter',
+                      ['batch', 'height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
 class Conv2DSchedule(object):
     def __init__(self,
-                 oc_factor,
+                 b_factor=1,
+                 oc_factor=1,
                  ko_factor=1,
                  h_factor=1,
                  w_factor=0,
                  oc_nthread=0,
                  h_nthread=0,
                  debug_sync=False):
+        self.b_factor = b_factor
         self.oc_factor = oc_factor
         self.ko_factor = ko_factor
         self.h_factor = h_factor
@@ -35,10 +37,140 @@ class Conv2DSchedule(object):
         self.oc_nthread = oc_nthread
         self.h_nthread = h_nthread
         self.debug_sync = debug_sync
+    def __str__(self):
+        return "{}.{}.{}.{}.{}.{}.{}".format(
+            self.b_factor, self.oc_factor, self.ko_factor,
+            self.h_factor, self.w_factor,
+            self.oc_nthread, self.h_nthread)
 
 Schedule = Conv2DSchedule
 
-def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
+def get_insn_count(layer, sched):
+    b, h, w, ci, co = sched
+    b_factor = b
+    h_factor = layer.height / h
+    w_factor = layer.width / w
+    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * vta.VTA_BLOCK_IN)))
+    co_factor = int(np.ceil(float(layer.out_filter) / (co * vta.VTA_BLOCK_OUT)))
+    input_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
+    weight_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
+    output_xfers = b_factor * h_factor * w_factor * co_factor
+    # compute instruction count
+    # output transfer factor: 4 (INIT, GEMM, ALU, STORE)
+    # offset: 5 (3 uop kernels, 1 initial dep push, 1 finish, co_factor)
+    insn_count = input_xfers + weight_xfers + (output_xfers * 4) + 5 + co_factor
+    return insn_count
+
+def find_schedules(layer, mtOnly=False, bestOnly=False):
+    # Helper function to get factors
+    def find_factors(n):
+        factors = []
+        for i in range(1, n+1):
+            if n % i == 0:
+                factors.append(i)
+        return factors
+    # Scheduling exploration
+    batch_factors = find_factors(int(np.ceil(float(layer.batch) / vta.VTA_BATCH)))
+    height_factors = find_factors(layer.height / layer.hstride)
+    width_factors = find_factors(layer.width / layer.wstride)
+    cin_factors = find_factors(int(np.ceil(float(layer.in_filter) / vta.VTA_BLOCK_IN)))
+    cout_factors = find_factors(int(np.ceil(float(layer.out_filter) / vta.VTA_BLOCK_OUT)))
+    ht_factors = [1, 2]
+    cot_factors = [1, 2]
+    # Explore schedules
+    schedules = []
+    for b in batch_factors:
+        for h in height_factors:
+            for w in width_factors:
+                for ci in cin_factors:
+                    for co in cout_factors:
+                        # FIXME: filter because of 2D load
+                        if w == layer.width/layer.wstride or (w != layer.width/layer.wstride and co == 1):
+                            # FIXME: filter because of 2D load
+                            if ci == 1:
+                                schedules.append([b, h, w, ci, co])
+    # Filter the schedules that wouldn't work in the available BRAM sizes
+    input_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_IN * vta.VTA_INP_WIDTH
+    weight_elem_size_b = vta.VTA_BLOCK_IN * vta.VTA_BLOCK_OUT * vta.VTA_WGT_WIDTH
+    output_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_OUT * vta.VTA_OUT_WIDTH
+    input_brams_capacity_b = vta.VTA_INP_BUFF_SIZE * 8
+    weight_brams_capacity_b = vta.VTA_WGT_BUFF_SIZE * 8
+    output_brams_capacity_b = vta.VTA_OUT_BUFF_SIZE * 8
+    fil_sched = []
+    xfer_size = []
+    for sched in schedules:
+        b, h, w, ci, co = sched
+        for ht in [1, 2]:
+            for cot in [1, 2]:
+                # Make sure to filter cases where we apply threading on two axes
+                # or cases where the threading factors for h and co are not
+                # factors of h and co
+                if not (ht == 2 and cot == 2) and h % ht == 0 and co % cot == 0:
+                    # If in multi-threaded mode, only allow for mt configs:
+                    if (mtOnly and (ht == 2 or cot == 2)) or not mtOnly:
+                        h /= ht
+                        co /= cot
+                        input_tile_elems = b * \
+                                ((h - 1) * layer.hstride + layer.hkernel) * \
+                                ((w - 1) * layer.wstride + layer.wkernel) * ci
+                        weight_tile_elems = layer.hkernel * layer.wkernel * ci * co
+                        output_tile_elems = b * h * w * co
+                        insn_count = get_insn_count(layer, sched)
+                        # 1. Check input capacity
+                        # 2. Check weight capacity
+                        # 3. Check output capacity
+                        # 4. Check instruction capacity
+                        # 5. Make sure that we don't write to the same acc location
+                        #    within 2 consecutive cycles
+                        if input_tile_elems*input_elem_size_b <= input_brams_capacity_b/(cot*ht) and \
+                           weight_tile_elems*weight_elem_size_b <= weight_brams_capacity_b and \
+                           output_tile_elems*output_elem_size_b <= output_brams_capacity_b/(cot*ht) and \
+                           insn_count <= vta.VTA_MAX_XFER / 16 and \
+                           h > 2 and w > 2:
+                            schedule = Schedule(oc_factor=co, ko_factor=ci, h_factor=h,
+                                                w_factor=w, oc_nthread=cot, h_nthread=ht)
+                            fil_sched.append(schedule)
+                            xfer_size.append(get_data_movementB(schedule, layer))
+    if bestOnly:
+        return [fil_sched[xfer_size.index(min(xfer_size))]]
+    else:
+        return fil_sched
+
+def get_data_movementB(sched, layer):
+    # Derive data movement
+    input_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_IN * vta.VTA_INP_WIDTH
+    weight_elem_size_b = vta.VTA_BLOCK_IN * vta.VTA_BLOCK_OUT * vta.VTA_WGT_WIDTH
+    output_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_OUT * vta.VTA_OUT_WIDTH
+    b = sched.b_factor
+    h = sched.h_factor
+    w = sched.w_factor
+    ci = sched.ko_factor
+    co = sched.oc_factor
+    ht = sched.h_nthread
+    cot = sched.oc_nthread
+    input_tile_elems = b * \
+            ((h - 1) * layer.hstride + layer.hkernel) * \
+            ((w - 1) * layer.wstride + layer.wkernel) * ci
+    weight_tile_elems = layer.hkernel * layer.wkernel * ci
+    output_tile_elems = b * h * w * co
+    # Derive factors
+    b_factor = int(np.ceil(float(layer.batch) / (b * vta.VTA_BATCH)))
+    h_factor = (layer.height / layer.hstride) / h
+    w_factor = (layer.width / layer.wstride) / w
+    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * vta.VTA_BLOCK_IN)))
+    co_factor = int(np.ceil(float(layer.out_filter) / (co * vta.VTA_BLOCK_OUT)))
+    # Derive transfers
+    input_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
+    weight_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
+    output_xfers = b_factor * h_factor * w_factor * co_factor
+    # Compute total transfer sizes
+    input_xfer_B = input_tile_elems * input_xfers * input_elem_size_b / 8
+    weight_xfer_B = weight_tile_elems * weight_xfers * weight_elem_size_b / 8
+    output_xfer_B = output_tile_elems * output_xfers * output_elem_size_b / 8
+    total_xfer_B = input_xfer_B + weight_xfer_B + output_xfer_B
+    return total_xfer_B
+
+def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True):
     assert batch_size % vta.VTA_BATCH == 0
     assert wl.in_filter % vta.VTA_BLOCK_IN == 0
     assert wl.out_filter % vta.VTA_BLOCK_OUT == 0
@@ -71,6 +203,7 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
     res_shf = tvm.compute(res_shape, lambda *i: res_cnv(*i) >> 8, name="res_shf")
     res = tvm.compute(res_shape, lambda *i: res_shf(*i).astype(inp_dtype), name="res")
     num_ops = batch_size * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
+    total_xfer_B = get_data_movementB(sched, wl)
 
     def verify(s, check_correctness):
         mod = tvm.build(s, [data, kernel, res], "ext_dev", target, name="conv2d")
@@ -98,7 +231,7 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
         data_arr = tvm.nd.array(data_packed, ctx)
         kernel_arr = tvm.nd.array(kernel_packed, ctx)
         res_arr = tvm.nd.array(res_np, ctx)
-        time_f = f.time_evaluator("conv2d", ctx, number=10)
+        time_f = f.time_evaluator("conv2d", ctx, number=1)
         cost = time_f(data_arr, kernel_arr, res_arr)
         res_unpack = res_arr.asnumpy().transpose(
             (0, 4, 1, 5, 2, 3)).reshape(batch_size, wl.out_filter, fout_height, fout_width)
@@ -125,10 +258,10 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
         s[res_cnv].set_scope(vta.SCOPE_OUT)
         s[res_shf].set_scope(vta.SCOPE_OUT)
         # tile
-        oc_factor = (plan.oc_factor if plan.oc_factor
+        oc_factor = (sched.oc_factor if sched.oc_factor
                      else wl.out_filter // vta.VTA_BLOCK_OUT)
-        h_factor = (plan.h_factor if plan.h_factor else fout_height)
-        w_factor = (plan.w_factor if plan.w_factor else fout_width)
+        h_factor = (sched.h_factor if sched.h_factor else fout_height)
+        w_factor = (sched.w_factor if sched.w_factor else fout_width)
         xbo, xco, xi, xj, xbi, xci = s[res].op.axis
         xco0, xco1 = s[res].split(xco, factor=oc_factor)
         xi0, xi1 = s[res].split(xi, factor=h_factor)
@@ -137,21 +270,21 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
         s[res_cnv].compute_at(s[res], xj0)
         s[res_shf].compute_at(s[res], xj0)
 
-        if plan.oc_nthread:
-            _, tx = s[res].split(xco0, factor=plan.oc_nthread)
+        if sched.oc_nthread > 1:
+            _, tx = s[res].split(xco0, factor=sched.oc_nthread)
             s[res].reorder(tx, xbo)
             s[res].bind(tx, tvm.thread_axis("cthread"))
 
-        if plan.h_nthread:
-            xo, tx = s[res].split(xi0, factor=plan.h_nthread)
+        if sched.h_nthread > 1:
+            xo, tx = s[res].split(xi0, factor=sched.h_nthread)
             s[res].reorder(tx, xbo)
             s[res].bind(tx, tvm.thread_axis("cthread"))
 
         xbo, xco, xi, xj, xbi, xci = s[res_cnv].op.axis
         s[res_cnv].reorder(xbo, ko, xj, dj, di, xco, xi, xbi, xci, ki)
 
-        if plan.ko_factor:
-            ko0, ko1 = s[res_cnv].split(ko, factor=plan.ko_factor)
+        if sched.ko_factor:
+            ko0, ko1 = s[res_cnv].split(ko, factor=sched.ko_factor)
             s[data_buf].compute_at(s[res_cnv], ko0)
             s[kernel_buf].compute_at(s[res_cnv], ko0)
         # Use VTA instructions
@@ -160,7 +293,7 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
         s[res_cnv].tensorize(xbi, gemm)
         s[res_shf].pragma(s[res_shf].op.axis[0], alu)
         s[res].pragma(xco1, store_out)
-        if plan.debug_sync:
+        if sched.debug_sync:
             s[res].pragma(xco0, "coproc_sync")
         if print_ir:
             print(tvm.lower(s, [data, kernel, res], simple_mode=True))
@@ -169,6 +302,7 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
     def conv_normal(print_ir):
         print("----- CONV2D End-to-End Test-------")
         def run_test(header, print_ir, check_correctness):
+            s = [1, sched.oc_factor, sched.ko_factor, sched.h_factor, sched.w_factor]
             cost = run_schedule(
                 vta.DMA_COPY, vta.DMA_COPY,
                 vta.GEMM, vta.ALU, vta.DMA_COPY,
@@ -177,8 +311,27 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
             log_frame["key"].append(key)
+            log_frame["layer"].append(layer)
+            log_frame["total-data"].append(total_xfer_B)
             log_frame["total-gops"].append(gops)
             log_frame["total-cost"].append(cost.mean)
+            log_frame["total-insn"].append(get_insn_count(wl, s))
+            log_frame["block-batch"].append(vta.VTA_BATCH)
+            log_frame["block-in"].append(vta.VTA_BLOCK_IN)
+            log_frame["block-out"].append(vta.VTA_BLOCK_OUT)
+            log_frame["inp-width"].append(vta.VTA_INP_WIDTH)
+            log_frame["wgt-width"].append(vta.VTA_WGT_WIDTH)
+            log_frame["uop-size"].append(vta.VTA_UOP_BUFF_SIZE)
+            log_frame["inp-size"].append(vta.VTA_INP_BUFF_SIZE)
+            log_frame["wgt-size"].append(vta.VTA_WGT_BUFF_SIZE)
+            log_frame["out-size"].append(vta.VTA_OUT_BUFF_SIZE)
+            log_frame["oc-factor"].append(sched.oc_factor)
+            log_frame["ic-factor"].append(sched.ko_factor)
+            log_frame["h-factor"].append(sched.h_factor)
+            log_frame["w-factor"].append(sched.w_factor)
+            log_frame["oc-threads"].append(sched.oc_nthread)
+            log_frame["h-threads"].append(sched.h_nthread)
+            log_frame["threaded"].append(True if sched.oc_nthread > 1 or sched.h_nthread > 1 else False)
 
         with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
             run_test("NORMAL", print_ir, True)
@@ -325,90 +478,63 @@ def test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile=True):
     load_wgt_unittest(False)
     store_out_unittest(False)
 
+# Perform profiling
+profile = False
+# Data set batch size
+batch_size = 1
+# Use multi-threading for latency hiding
+multi_threaded = False
+
 # ResNet18 workloads
 resnet = {
     # Workloads of resnet18 on imagenet
-    0: Workload(224, 224, 16, 64, 7, 7, 3, 3, 2, 2),
-    1: Workload(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-    2: Workload(56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-    3: Workload(56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-    4: Workload(56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-    5: Workload(28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-    6: Workload(28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-    7: Workload(28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-    8: Workload(14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-    9: Workload(14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-    10: Workload(14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-    11: Workload(7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
+    0: Workload(1, 224, 224, 16, 64, 7, 7, 3, 3, 2, 2),
+    1: Workload(1, 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
+    2: Workload(1, 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
+    3: Workload(1, 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
+    4: Workload(1, 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
+    5: Workload(1, 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
+    6: Workload(1, 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
+    7: Workload(1, 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
+    8: Workload(1, 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
+    9: Workload(1, 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
+    10: Workload(1, 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
+    11: Workload(1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
 }
 
-# List of simple benchmarks
-simple = [
-    Workload(height=22, width=22, in_filter=256, out_filter=64,
-             hkernel=3, wkernel=3, hpad=1, wpad=1, hstride=1, wstride=1)
-]
-
-# Serial schedule
-resnet_serial = [
-    [None, None],
-    [resnet[1], Schedule(oc_factor=2, ko_factor=1, h_factor=14, w_factor=0)],
-    [resnet[2], Schedule(oc_factor=4, ko_factor=4, h_factor=8, w_factor=0)],
-    [resnet[3], Schedule(oc_factor=4, ko_factor=1, h_factor=14, w_factor=0)],
-    [resnet[4], Schedule(oc_factor=8, ko_factor=1, h_factor=4, w_factor=0)],
-    [resnet[5], Schedule(oc_factor=8, ko_factor=1, h_factor=7, w_factor=0)],
-    [resnet[6], Schedule(oc_factor=8, ko_factor=1, h_factor=14, w_factor=0)],
-    [resnet[7], Schedule(oc_factor=16, ko_factor=1, h_factor=7, w_factor=0)],
-    [resnet[8], Schedule(oc_factor=8, ko_factor=1, h_factor=7, w_factor=0)],
-    [resnet[9], Schedule(oc_factor=8, ko_factor=1, h_factor=7, w_factor=0)],
-    [resnet[10], Schedule(oc_factor=16, ko_factor=1, h_factor=7, w_factor=0)],
-    [resnet[11], Schedule(oc_factor=8, ko_factor=1, h_factor=7, w_factor=0)],
-]
-
-# SMT schedule
-resnet_smt = [
-    [resnet[0], Schedule(oc_factor=1, ko_factor=1, h_factor=4, w_factor=56)],
-    [resnet[1], Schedule(oc_factor=2, ko_factor=1, h_factor=7, h_nthread=2)],
-    [resnet[2], Schedule(oc_factor=4, ko_factor=2, h_factor=4, w_factor=0, h_nthread=2)],
-    [resnet[3], Schedule(oc_factor=4, ko_factor=1, h_factor=7, w_factor=0, h_nthread=2)],
-    [resnet[4], Schedule(oc_factor=4, ko_factor=1, h_factor=7, h_nthread=2)],
-    [resnet[5], Schedule(oc_factor=4, ko_factor=1, h_factor=7, w_factor=0, h_nthread=2)],
-    [resnet[6], Schedule(oc_factor=4, ko_factor=1, h_factor=7, w_factor=0, oc_nthread=2)],
-    [resnet[7], Schedule(oc_factor=8, ko_factor=1, h_factor=7, w_factor=0, oc_nthread=2)],
-    [resnet[8], Schedule(oc_factor=4, ko_factor=1, h_factor=7, w_factor=0, oc_nthread=2)],
-    [resnet[9], Schedule(oc_factor=4, ko_factor=1, h_factor=7, w_factor=0, oc_nthread=2)],
-    [resnet[10], Schedule(oc_factor=8, ko_factor=1, h_factor=7, w_factor=0, oc_nthread=2)],
-    [resnet[11], Schedule(oc_factor=4, ko_factor=1, h_factor=7, w_factor=0, oc_nthread=2)],
-]
-
-# Perform profiling
-profile = False
-# Whether use SMT
-use_smt = True
-# Data set batch size
-batch_size = 1
-
-resnet_schedule = resnet_smt if use_smt else resnet_serial
-
 begin = 0
-end = len(resnet_schedule)
-keys = ["key", "total-gops", "total-cost",
-        "skip-alu-gops", "skip-alu-cost",
-        "gemm-gops", "gemm-cost", "alu-gops", "alu-cost",
-        "ld-inp-cost", "ld-wgt-cost", "st-out-cost",
-        "ld-inp-gbits", "ld-wgt-gbits", "st-out-gbits",]
+end = len(resnet)
+
+resnet_schedules = []
+for i in range(begin, end):
+    scheds = find_schedules(resnet[i], mtOnly=multi_threaded, bestOnly=True)
+    resnet_schedules.append([i, scheds])
+
+keys = ["key", "layer", "total-data", "total-gops", "total-cost", "total-insn",
+        "block-batch", "block-in", "block-out", "wgt-width", "inp-width",
+        "uop-size", "inp-size", "wgt-size", "out-size",
+        "oc-factor", "ic-factor", "h-factor", "w-factor",
+        "oc-threads", "h-threads", "threaded"]
+
+if profile:
+    keys += ["skip-alu-gops", "skip-alu-cost",
+             "gemm-gops", "gemm-cost", "alu-gops", "alu-cost",
+             "ld-inp-cost", "ld-wgt-cost", "st-out-cost",
+             "ld-inp-gbits", "ld-wgt-gbits", "st-out-gbits"]
 log_frame = {
     k : [] for k in keys
 }
-for i, x in enumerate(resnet_schedule[begin:end]):
-    wl, plan = x
-    if not wl:
-        continue
-    key = "resnet-cfg[%d]" % i
-    test_conv2d_chwv(key, batch_size, wl, plan, log_frame, profile)
 
-if profile:
-    pd.set_option('expand_frame_repr', False)
-    log_df = pd.DataFrame()
-    for k  in keys:
-        log_df[k] = log_frame[k]
-    print(log_df)
+for x in resnet_schedules:
+    l, plans = x
+    for plan in plans:
+        key = "resnet-cfg[{}-{}]".format(l, plan)
+        test_conv2d_chwv(l, key, batch_size, resnet[l], plan, log_frame, profile)
+
+pd.set_option('expand_frame_repr', False)
+log_df = pd.DataFrame()
+for k  in keys:
+    log_df[k] = log_frame[k]
+print(log_df)
+
+log_df.to_csv("conv2d.csv")
