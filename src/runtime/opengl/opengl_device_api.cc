@@ -93,9 +93,11 @@ void OpenGLWorkspace::GetAttr(
       *rv = 1;
       break;
     }
+    case kMaxSharedMemoryPerBlock: return;
     case kComputeVersion: {
       break;
     }
+    case kDeviceName: return;
   }
 }
 
