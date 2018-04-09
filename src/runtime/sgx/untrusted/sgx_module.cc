@@ -8,7 +8,12 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #include <sgx_urts.h>
+#include <algorithm>
 #include <fstream>
+#include <iostream>
+#include <iterator>
+#include <sstream>
+#include <string>
 #include "../common.h"
 #include "../../file_util.h"
 
@@ -76,7 +81,13 @@ class SGXModuleNode : public ModuleNode {
         enclave_file.c_str(), SGX_DEBUG_FLAG, &token, &token_updated, &eid_, NULL));
 
     sgx::EnclaveContext ctx(this);
-    TVM_SGX_CHECKED_CALL(tvm_ecall_init(eid_));
+    TVMRetValue rv;
+    TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_, 0, nullptr, nullptr, 0, &rv));
+    std::string exports = rv;
+    std::istringstream exports_iss(exports);
+    std::copy(std::istream_iterator<std::string>(exports_iss),
+        std::istream_iterator<std::string>(),
+        std::back_inserter(exports_));
 
     if (!token_updated) return;
 
@@ -96,22 +107,16 @@ class SGXModuleNode : public ModuleNode {
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
-    std::string ecall_name = sgx::ECALL_PACKED_PFX + name;
-    auto it = exports_.find(name);
-    if (it != exports_.end()) {
-      return PackedFunc([this, ecall_name](TVMArgs args, TVMRetValue* rv) {
-          sgx::EnclaveContext ctx(this);
-          TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_,
-                               ecall_name.c_str(),
-                               args.values, args.type_codes, args.num_args,
-                               rv));
-        });
-    }
-    return PackedFunc();
-  }
-
-  void RegisterFunc(const std::string& name) {
-    exports_.insert(name);
+    size_t func_id = std::distance(exports_.begin(),
+        std::find(exports_.begin(), exports_.end(), name));
+    CHECK_LT(func_id, exports_.size())
+      << "\"" << name << "\" is not an enclave export.";
+    if (func_id >= exports_.size()) return PackedFunc();
+    return PackedFunc([this, func_id](TVMArgs args, TVMRetValue* rv) {
+        sgx::EnclaveContext ctx(this);
+        TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_, func_id,
+              args.values, args.type_codes, args.num_args, rv));
+      });
   }
 
   void RunWorkers(int num_tasks, void* tg) {
@@ -131,44 +136,73 @@ class SGXModuleNode : public ModuleNode {
   // ID of the loaded enclave
   sgx_enclave_id_t eid_;
   // Names and IDs of functions exported by the enclave module
-  std::unordered_set<std::string> exports_;
+  std::vector<std::string> exports_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> thread_group_;
 };
 
-TVM_REGISTER_GLOBAL("module.loadfile_sgx")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<SGXModuleNode> node = std::make_shared<SGXModuleNode>();
-    node->Init(args[0]);
-    *rv = runtime::Module(node);
-  });
-
 namespace sgx {
+
+TVM_REGISTER_GLOBAL("__sgx_thread_group_launch__")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  EnclaveContext::GetModule()->RunWorkers(args[0], args[1]);
+});
+
+TVM_REGISTER_GLOBAL("__sgx_thread_group_join__")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  EnclaveContext::GetModule()->JoinThreads();
+});
+
+TVM_REGISTER_GLOBAL("__sgx_set_last_error__")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::string err = args[0];
+  TVMAPISetLastError(err.c_str());
+});
+
 extern "C" {
 
-void tvm_ocall_thread_group_launch(int num_tasks, void* tg) {
-  EnclaveContext::GetModule()->RunWorkers(num_tasks, tg);
+void tvm_ocall_packed_func(const char* name,
+                           const TVMValue* arg_values,
+                           const int* type_codes,
+                           int num_args,
+                           TVMValue* ret_val,
+                           int* ret_type_code) {
+  const PackedFunc* f = Registry::Get(name);
+  CHECK(f != nullptr) << "ocall to nonexistent function \"" << name << "\"";
+  TVMRetValue rv;
+  f->CallPacked(TVMArgs(arg_values, type_codes, num_args), &rv);
+  rv.MoveToCHost(ret_val, ret_type_code);  // only support POD types for now
 }
 
-void tvm_ocall_thread_group_join() {
-  EnclaveContext::GetModule()->JoinThreads();
-}
-
-void tvm_ocall_api_set_last_error(const char* err) {
-  TVMAPISetLastError(err);
-}
-
-void tvm_ocall_register_func(const char* name) {
-  EnclaveContext::GetModule()->RegisterFunc(name);
-}
-
-void* tvm_ocall_malloc(size_t bytes) {
-  void* buf = calloc(bytes, 1);
-  CHECK(buf != NULL);
+void* tvm_ocall_malloc(size_t num_bytes) {
+  void* buf = calloc(1, num_bytes);
+  CHECK(buf != nullptr);
   return buf;
+}
+
+void tvm_ocall_free(void* ptr) {
+  free(ptr);
+}
+
+void tvm_ocall_set_return(TVMRetValueHandle ret,
+                           const TVMValue* value,
+                           const int* type_code,
+                           int num_ret) {
+  CHECK_EQ(num_ret, 1) << "Only one return value is currently supported.";
+  CHECK(type_code[0] != kStr) << "Return kBytes, not kStr.";
+  TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
+  *rv = TVMArgValue(value[0], type_code[0]);
+  if (type_code[0] == kBytes) free(value[0].v_handle);
 }
 
 }  // extern "C"
 }  // namespace sgx
+
+TVM_REGISTER_GLOBAL("module.loadfile_sgx")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::shared_ptr<SGXModuleNode> node = std::make_shared<SGXModuleNode>();
+  node->Init(args[0]);
+  *rv = runtime::Module(node);
+});
 
 }  // namespace runtime
 }  // namespace tvm

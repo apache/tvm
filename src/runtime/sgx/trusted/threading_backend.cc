@@ -27,13 +27,12 @@ class ThreadGroup::Impl {
         next_task_id_(exclude_worker0) {
     CHECK(num_workers <= TVM_SGX_MAX_CONCURRENCY)
       << "Tried spawning more threads than allowed by TVM_SGX_MAX_CONCURRENCY.";
-    sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status = tvm_ocall_thread_group_launch(num_workers_, this);
-    CHECK(sgx_status == SGX_SUCCESS) << "SGX Error: " << sgx_status;
+    sgx::OCallPackedFunc("__sgx_thread_group_launch__",
+        num_workers_, reinterpret_cast<void*>(this));
   }
 
   ~Impl() {
-    tvm_ocall_thread_group_join();
+    sgx::OCallPackedFunc("__sgx_thread_group_join__");
   }
 
   void RunTask() {

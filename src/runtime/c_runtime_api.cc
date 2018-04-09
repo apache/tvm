@@ -192,7 +192,7 @@ void TVMAPISetLastError(const char* msg) {
 #ifndef _LIBCPP_SGX_CONFIG
   TVMAPIRuntimeStore::Get()->last_error = msg;
 #else
-  tvm_ocall_api_set_last_error(msg);
+  sgx::OCallPackedFunc("__sgx_set_last_error__", msg);
 #endif
 }
 

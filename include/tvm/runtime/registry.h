@@ -76,7 +76,7 @@ class Registry {
   // Internal class.
   struct Manager;
 
- private:
+ protected:
   /*! \brief name of the function */
   std::string name_;
   /*! \brief internal packed function */

@@ -6,9 +6,6 @@
 #ifndef TVM_RUNTIME_SGX_COMMON_H_
 #define TVM_RUNTIME_SGX_COMMON_H_
 
-#include <tvm/runtime/registry.h>
-#include <string>
-
 namespace tvm {
 namespace runtime {
 namespace sgx {
@@ -19,10 +16,8 @@ namespace sgx {
   CHECK_EQ(TVM_STR_CONCAT(__sgx_status_, __LINE__), SGX_SUCCESS)               \
     << "SGX Error: " << TVM_STR_CONCAT(__sgx_status_, __LINE__);
 
-static const std::string ECALL_PACKED_PFX = "__ECall_";  // NOLINT(*)
-
-}
-}
-}
+}  // namespace sgx
+}  // namespace runtime
+}  // namespace tvm
 
 #endif  // TVM_RUNTIME_SGX_COMMON_H_
