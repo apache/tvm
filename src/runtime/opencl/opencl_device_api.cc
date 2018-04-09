@@ -54,6 +54,14 @@ void OpenCLWorkspace::GetAttr(
       break;
     }
     case kComputeVersion: return;
+    case kDeviceName: {
+      char value[128] = {0};
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_NAME,
+          sizeof(value) - 1, value, nullptr));
+      *rv = std::string(value);
+      break;
+    }
     case kExist: break;
   }
 }

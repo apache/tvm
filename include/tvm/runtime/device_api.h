@@ -21,6 +21,7 @@ enum DeviceAttrKind : int {
   kWarpSize = 2,
   kMaxSharedMemoryPerBlock = 3,
   kComputeVersion = 4,
+  kDeviceName = 5
 };
 
 /*! \brief Number of bytes each allocation must align to */
