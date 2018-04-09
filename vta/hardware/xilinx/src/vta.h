@@ -92,7 +92,7 @@ typedef ap_uint<VTA_ALU_OPCODE_BIT_WIDTH> aluop_opcode_T;
 typedef ap_int<VTA_ALUOP_IMM_BIT_WIDTH> aluop_imm_T;
 
 /* \typedef aluop_opcode_T ALU operation shift immediate datatype*/
-typedef ap_uint<VTA_LOG_ACC_WIDTH> aluop_sh_imm_T;
+typedef ap_int<VTA_LOG_ACC_WIDTH> aluop_sh_imm_T;
 
 /*!
 * \brief Fetch module.

@@ -59,44 +59,31 @@ if { [llength $argv] eq 12 } {
 
 # Derive input mem parameters
 set inp_mem_width [expr $inp_width * $batch * $in_block]
-set inp_mem_depth [expr $inp_mem_size * 8 / $inp_mem_width]
 set inp_bus_width 1024
 set inp_part [expr $inp_mem_width / $inp_bus_width]
 if {[expr $inp_part == 0]} {
   set inp_part 1
   set inp_bus_width $inp_mem_width
 }
+set inp_mem_depth [expr $inp_mem_size * 8 / ($inp_mem_width * $inp_part)]
 # Derive weight mem parameters
 set wgt_mem_width [expr $wgt_width * $out_block * $in_block]
-set wgt_mem_depth [expr $wgt_mem_size * 8 / $wgt_mem_width]
 set wgt_bus_width 1024
 set wgt_part [expr $wgt_mem_width / $wgt_bus_width]
 if {[expr $wgt_part == 0]} {
   set wgt_part 1
   set wgt_bus_width $wgt_mem_width
 }
+set wgt_mem_depth [expr $wgt_mem_size * 8 / ($wgt_mem_width * $wgt_part)]
 # Derive output mem parameters
 set out_mem_width [expr $out_width * $batch * $out_block]
-set out_mem_depth [expr $out_mem_size * 8 / $out_mem_width]
 set out_bus_width 1024
 set out_part [expr $out_mem_width / $out_bus_width]
 if {[expr $out_part == 0]} {
   set out_part 1
   set out_bus_width $out_mem_width
 }
-
-puts $inp_mem_width
-puts $inp_mem_depth
-puts $inp_bus_width
-puts $inp_part
-puts $wgt_mem_width
-puts $wgt_mem_depth
-puts $wgt_bus_width
-puts $wgt_part
-puts $out_mem_width
-puts $out_mem_depth
-puts $out_bus_width
-puts $out_part
+set out_mem_depth [expr $out_mem_size * 8 / ($out_mem_width * $out_part)]
 
 # User defined paths
 set proj_name vta
@@ -937,10 +924,12 @@ launch_runs impl_1 -to_step write_bitstream -jobs $num_threads
 wait_on_run impl_1
 
 # Export hardware description file and bitstream files to export/ dir
-file mkdir $proj_path/export
-file copy -force $proj_path/$proj_name.runs/impl_1/${proj_name}_wrapper.sysdef \
-  $proj_path/export/vta.hdf
-file copy -force $proj_path/$proj_name.runs/impl_1/${proj_name}_wrapper.bit \
-  $proj_path/export/vta.bit
+if {[file exist $proj_path/$proj_name.runs/impl_1/${proj_name}_wrapper.bit]} {
+  file mkdir $proj_path/export
+  file copy -force $proj_path/$proj_name.runs/impl_1/${proj_name}_wrapper.sysdef \
+    $proj_path/export/vta.hdf
+  file copy -force $proj_path/$proj_name.runs/impl_1/${proj_name}_wrapper.bit \
+    $proj_path/export/vta.bit
+}
 
 exit

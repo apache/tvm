@@ -22,8 +22,11 @@
 # Arg 15: wgt buffer size in B (log)
 # Arg 16: acc buffer size in B (log)
 # Arg 17: out buffer size in B (log)
+# Arg 18: mode
+# Arg 19: no_dsp
+# Arg 20: no_alu
 
-if { [llength $argv] eq 19 } {
+if { [llength $argv] eq 22 } {
 	set src_dir [lindex $argv 2]
 	set sim_dir [lindex $argv 3]
 	set test_dir [lindex $argv 4]
@@ -41,10 +44,13 @@ if { [llength $argv] eq 19 } {
 	set wgt_buff_size [lindex $argv 16]
 	set acc_buff_size [lindex $argv 17]
 	set out_buff_size [lindex $argv 18]
+	set mode [lindex $argv 19]
+	set no_dsp [lindex $argv 20]
+	set no_alu [lindex $argv 21]
 } else {
-	set src_dir "../src/"
-	set sim_dir "../sim/"
-	set test_dir "../../src/test/"
+	set src_dir "../src"
+	set sim_dir "../sim"
+	set test_dir "../../src/test"
 	set include_dir "../../include"
 	set target_period 10
 	set inp_width 3
@@ -59,16 +65,10 @@ if { [llength $argv] eq 19 } {
 	set wgt_buff_size 15
 	set acc_buff_size 17
 	set out_buff_size 15
+	set mode "all"
+	set no_dsp "true"
+	set no_alu "false"
 }
-
-# C define flags to pass to compiler
-set cflags "-I $include_dir -I $src_dir -I $test_dir \
-	-DVTA_DEBUG=0 -DVTA_LOG_WGT_WIDTH=$wgt_width -DVTA_LOG_INP_WIDTH=$inp_width \
-	-DVTA_LOG_ACC_WIDTH=$acc_width -DVTA_LOG_OUT_WIDTH=$out_width \
-	-DVTA_LOG_BATCH=$batch -DVTA_LOG_BLOCK_OUT=$block_out -DVTA_LOG_BLOCK_IN=$block_in \
-	-DVTA_LOG_UOP_BUFF_SIZE=$uop_buff_size -DVTA_LOG_INP_BUFF_SIZE=$inp_buff_size \
-	-DVTA_LOG_WGT_BUFF_SIZE=$wgt_buff_size -DVTA_LOG_ACC_BUFF_SIZE=$acc_buff_size \
-	-DVTA_LOG_OUT_BUFF_SIZE=$out_buff_size"
 
 # Initializes the HLS design and sets HLS pragmas for memory partitioning.
 # This is necessary because of a Vivado restriction that doesn't allow for
@@ -122,56 +122,89 @@ proc init_design {per inp_width wgt_width out_width batch block_in block_out} {
 	}
 }
 
+# C define flags to pass to compiler
+set cflags "-I $include_dir -I $src_dir -I $test_dir \
+	-DVTA_DEBUG=0 -DVTA_LOG_WGT_WIDTH=$wgt_width -DVTA_LOG_INP_WIDTH=$inp_width \
+	-DVTA_LOG_ACC_WIDTH=$acc_width -DVTA_LOG_OUT_WIDTH=$out_width \
+	-DVTA_LOG_BATCH=$batch -DVTA_LOG_BLOCK_OUT=$block_out -DVTA_LOG_BLOCK_IN=$block_in \
+	-DVTA_LOG_UOP_BUFF_SIZE=$uop_buff_size -DVTA_LOG_INP_BUFF_SIZE=$inp_buff_size \
+	-DVTA_LOG_WGT_BUFF_SIZE=$wgt_buff_size -DVTA_LOG_ACC_BUFF_SIZE=$acc_buff_size \
+	-DVTA_LOG_OUT_BUFF_SIZE=$out_buff_size"
+if {$no_dsp=="true"} {
+	append cflags " -DNO_DSP"
+}
+if {$no_alu=="true"} {
+	append cflags " -DNO_ALU"
+}
+
 # HLS behavioral sim
-open_project vta_sim
-set_top vta
-add_files $src_dir/vta.cc -cflags $cflags
-add_files -tb $sim_dir/vta_test.cc -cflags $cflags
-add_files -tb $test_dir/test_lib.cc -cflags $cflags
-open_solution "solution0"
-init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
-csim_design -clean
-close_project
+if {$mode=="all" || $mode=="sim"} {
+	open_project vta_sim
+	set_top vta
+	add_files $src_dir/vta.cc -cflags $cflags
+	add_files -tb $sim_dir/vta_test.cc -cflags $cflags
+	add_files -tb $test_dir/test_lib.cc -cflags $cflags
+	open_solution "solution0"
+	init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
+	csim_design -clean
+	close_project
+}
 
 # Generate fetch stage
-open_project vta_fetch
-set_top fetch
-add_files $src_dir/vta.cc -cflags $cflags
-open_solution "solution0"
-init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
-csynth_design
-export_design -format ip_catalog
-close_project
+if {$mode=="all" || $mode=="skip_sim" || $mode=="fetch"} {
+	open_project vta_fetch
+	set_top fetch
+	add_files $src_dir/vta.cc -cflags $cflags
+	open_solution "solution0"
+	init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
+	csynth_design
+	if {$mode=="all" || $mode=="skip_sim"} {
+		export_design -format ip_catalog
+	}
+	close_project
+}
 
 # Generate load stage
-open_project vta_load
-set_top load
-add_files $src_dir/vta.cc -cflags $cflags
-open_solution "solution0"
-init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
-csynth_design
-export_design -format ip_catalog
-close_project
+if {$mode=="all" || $mode=="skip_sim" || $mode=="load"} {
+	open_project vta_load
+	set_top load
+	add_files $src_dir/vta.cc -cflags $cflags
+	open_solution "solution0"
+	init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
+	csynth_design
+	if {$mode=="all" || $mode=="skip_sim"} {
+		export_design -format ip_catalog
+	}
+	close_project
+}
 
 # Generate compute stage
-open_project vta_compute
-set_top compute
-add_files $src_dir/vta.cc -cflags $cflags
-open_solution "solution0"
-init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
-csynth_design
-export_design -format ip_catalog
-close_project
+if {$mode=="all" || $mode=="skip_sim" || $mode=="compute"} {
+	open_project vta_compute
+	set_top compute
+	add_files $src_dir/vta.cc -cflags $cflags
+	open_solution "solution0"
+	init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
+	csynth_design
+	if {$mode=="all" || $mode=="skip_sim"} {
+		export_design -format ip_catalog
+	}
+	close_project
+}
 
 # Generate store stage
-open_project vta_store
-set_top store
-add_files $src_dir/vta.cc -cflags $cflags
-open_solution "solution0"
-init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
-csynth_design
-export_design -format ip_catalog
-close_project
+if {$mode=="all" || $mode=="skip_sim" || $mode=="store"} {
+	open_project vta_store
+	set_top store
+	add_files $src_dir/vta.cc -cflags $cflags
+	open_solution "solution0"
+	init_design $target_period $inp_width $wgt_width $out_width $batch $block_in $block_out
+	csynth_design
+	if {$mode=="all" || $mode=="skip_sim"} {
+		export_design -format ip_catalog
+	}
+	close_project
+}
 
 exit
 

@@ -1,47 +1,61 @@
 """VTA configuration constants (should match hw_spec.h"""
 from __future__ import absolute_import as _abs
 
-#  Log of input/activation width in bits (default 3 -> 8 bits)
-VTA_LOG_INP_WIDTH = 3
-#  Log of kernel weight width in bits (default 3 -> 8 bits)
-VTA_LOG_WGT_WIDTH = 3
-#  Log of accum width in bits (default 5 -> 32 bits)
-VTA_LOG_ACC_WIDTH = 5
-#  Log of tensor batch size (A in (A,B)x(B,C) matrix multiplication)
-VTA_LOG_BATCH = 0
-#  Log of tensor inner block size (B in (A,B)x(B,C) matrix multiplication)
-VTA_LOG_BLOCK_IN = 4
-#  Log of tensor outer block size (C in (A,B)x(B,C) matrix multiplication)
-VTA_LOG_BLOCK_OUT = 4
-VTA_LOG_OUT_WIDTH = VTA_LOG_INP_WIDTH
-#  Log of uop buffer size in Bytes
-VTA_LOG_UOP_BUFF_SIZE = 15
-#  Log of acc buffer size in Bytes
-VTA_LOG_ACC_BUFF_SIZE = 17
+import os
+python_vta_dir = os.path.dirname(__file__)
+print python_vta_dir
+filename = os.path.join(python_vta_dir, '../../config.mk')
+
+VTA_PYNQ_BRAM_W = 32
+VTA_PYNQ_BRAM_D = 1024
+VTA_PYNQ_NUM_BRAM = 124
+
+keys = ["VTA_LOG_INP_WIDTH", "VTA_LOG_WGT_WIDTH", "VTA_LOG_ACC_WIDTH",
+        "VTA_LOG_BATCH", "VTA_LOG_BLOCK_IN", "VTA_LOG_BLOCK_OUT",
+        "VTA_LOG_UOP_BUFF_SIZE", "VTA_LOG_INP_BUFF_SIZE",
+        "VTA_LOG_WGT_BUFF_SIZE", "VTA_LOG_ACC_BUFF_SIZE"]
+
+params = {}
+
+if os.path.isfile(filename):
+  with open(filename) as f:
+    for line in f:
+      for k in keys:
+        if k+" =" in line:
+          val = line.split("=")[1].strip()
+          params[k] = int(val)
+  # print params
+else:
+  print "Error: {} not found. Please make sure you have config.mk in your vta root".format(filename)
+  exit()
 
 # The Constants
-VTA_WGT_WIDTH = 8
-VTA_INP_WIDTH = VTA_WGT_WIDTH
-VTA_OUT_WIDTH = 32
+VTA_INP_WIDTH = 1 << params["VTA_LOG_INP_WIDTH"]
+VTA_WGT_WIDTH = 1 << params["VTA_LOG_WGT_WIDTH"]
+VTA_OUT_WIDTH = 1 << params["VTA_LOG_ACC_WIDTH"]
 
 VTA_TARGET = "VTA_PYNQ_TARGET"
 
 # Dimensions of the GEMM unit
 # (BATCH,BLOCK_IN) x (BLOCK_IN,BLOCK_OUT)
-VTA_BATCH = 1
-VTA_BLOCK_IN = 16
-VTA_BLOCK_OUT = 16
+VTA_BATCH = 1 << params["VTA_LOG_BATCH"]
+VTA_BLOCK_IN = 1 << params["VTA_LOG_BLOCK_IN"]
+VTA_BLOCK_OUT = 1 << params["VTA_LOG_BLOCK_OUT"]
 
-# log-2 On-chip wgt buffer size in Bytes
-VTA_LOG_WGT_BUFF_SIZE = 15
+# log-2 On-chip uop buffer size in Bytes
+VTA_LOG_UOP_BUFF_SIZE = params["VTA_LOG_UOP_BUFF_SIZE"]
 # log-2 On-chip input buffer size in Bytes
-VTA_LOG_INP_BUFF_SIZE = 15
+VTA_LOG_INP_BUFF_SIZE = params["VTA_LOG_INP_BUFF_SIZE"]
+# log-2 On-chip wgt buffer size in Bytes
+VTA_LOG_WGT_BUFF_SIZE = params["VTA_LOG_WGT_BUFF_SIZE"]
 # log-2 On-chip output buffer size in Bytes
-VTA_LOG_OUT_BUFF_SIZE = 17
-# On-chip wgt buffer size in Bytes
-VTA_WGT_BUFF_SIZE = 1 << VTA_LOG_WGT_BUFF_SIZE
+VTA_LOG_OUT_BUFF_SIZE = params["VTA_LOG_ACC_BUFF_SIZE"]
+# Uop buffer size
+VTA_UOP_BUFF_SIZE = 1 << VTA_LOG_UOP_BUFF_SIZE
 # Input buffer size
 VTA_INP_BUFF_SIZE = 1 << VTA_LOG_INP_BUFF_SIZE
+# On-chip wgt buffer size in Bytes
+VTA_WGT_BUFF_SIZE = 1 << VTA_LOG_WGT_BUFF_SIZE
 # Output buffer size.
 VTA_OUT_BUFF_SIZE = 1 << VTA_LOG_OUT_BUFF_SIZE
 
@@ -69,11 +83,7 @@ VTA_MEM_ID_OUT = 4
 VTA_ALU_OPCODE_MIN = 0
 VTA_ALU_OPCODE_MAX = 1
 VTA_ALU_OPCODE_ADD = 2
-VTA_ALU_OPCODE_SUB = 3
-VTA_ALU_OPCODE_MUL = 4
-VTA_ALU_OPCODE_SHL = 5
-VTA_ALU_OPCODE_SHR = 6
-VTA_ALU_OPCODE_UNSET = 7
+VTA_ALU_OPCODE_SHR = 3
 
 # Task queue id (pipeline stage)
 VTA_QID_LOAD_INP = 1
