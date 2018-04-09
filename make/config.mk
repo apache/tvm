@@ -53,10 +53,8 @@ USE_GRAPH_RUNTIME = 1
 #  Whether enable additional graph debug functions
 USE_GRAPH_RUNTIME_DEBUG = 0
 
-# whether build with LLVM support
-# Requires LLVM version >= 4.0
-# Set LLVM_CONFIG to your version, uncomment to build with llvm support
-#
+# Whether build with LLVM support, which requires LLVM version >= 4.0
+# Set LLVM_CONFIG to your version, uncomment to build without llvm support
 # LLVM_CONFIG = llvm-config
 
 #---------------------------------------------
