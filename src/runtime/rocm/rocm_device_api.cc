@@ -51,6 +51,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = prop.gcnArch;
         return;
       }
+      case kDeviceName: return;
     }
     *rv = value;
   }
