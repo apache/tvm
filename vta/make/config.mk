@@ -54,6 +54,7 @@ VTA_LOG_WGT_BUFF_SIZE = 15
 #  Log of acc buffer size in Bytes
 VTA_LOG_ACC_BUFF_SIZE = 17
 
+
 #---------------------
 # Derived VTA hardware parameters
 #--------------------

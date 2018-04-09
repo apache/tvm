@@ -34,9 +34,7 @@ for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE, BITST
 # Program the FPGA remotely
 assert tvm.module.enabled("rpc")
 remote = rpc.connect(host, port)
-remote.upload(BITSTREAM_FILE, BITSTREAM_FILE)
-fprogram = remote.get_function("tvm.contrib.vta.init")
-fprogram(BITSTREAM_FILE)
+vta.program_fpga(remote, BITSTREAM_FILE)
 
 if verbose:
     logging.basicConfig(level=logging.INFO)

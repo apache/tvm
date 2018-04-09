@@ -7,31 +7,17 @@
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
 #include <vta/runtime.h>
+#include <dlfcn.h>
 
 #include "../../nnvm/tvm/src/runtime/workspace_pool.h"
 
-namespace tvm {
-namespace runtime {
-
-std::string VTARPCGetPath(const std::string& name) {
-  static const PackedFunc* f =
-      runtime::Registry::Get("tvm.contrib.rpc.server.workpath");
-  CHECK(f != nullptr) << "require tvm.contrib.rpc.server.workpath";
-  return (*f)(name);
+extern "C" {
+  typedef void (*FShutdown)();
+  typedef int (*FDynamicMagic)();
 }
 
-// Global functions that can be called
-TVM_REGISTER_GLOBAL("tvm.contrib.vta.init")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::string path = VTARPCGetPath(args[0]);
-    VTAProgram(path.c_str());
-    LOG(INFO) << "VTA initialization end with bistream " << path;
-  });
-
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.shutdown")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    VTARuntimeShutdown();
-  });
+namespace tvm {
+namespace runtime {
 
 class VTADeviceAPI final : public DeviceAPI {
  public:
@@ -46,11 +32,11 @@ class VTADeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t size, size_t alignment,
                        TVMType type_hint) final {
-    return VTABufferAlloc(VTATLSCommandHandle(), size);
+    return VTABufferAlloc(size);
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    VTABufferFree(VTATLSCommandHandle(), ptr);
+    VTABufferFree(ptr);
   }
 
   void CopyDataFromTo(const void* from,
@@ -68,8 +54,7 @@ class VTADeviceAPI final : public DeviceAPI {
     if (ctx_to.device_type != kDLCPU) {
       kind_mask |= 1;
     }
-    VTABufferCopy(VTATLSCommandHandle(),
-                  from, from_offset,
+    VTABufferCopy(from, from_offset,
                   to, to_offset,
                   size, kind_mask);
   }
@@ -86,6 +71,9 @@ class VTADeviceAPI final : public DeviceAPI {
         std::make_shared<VTADeviceAPI>();
     return inst;
   }
+
+ private:
+  void* runtime_dll_{nullptr};
 };
 
 struct VTAWorkspacePool : public WorkspacePool {
@@ -102,6 +90,21 @@ void* VTADeviceAPI::AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hin
 void VTADeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
   dmlc::ThreadLocalStore<VTAWorkspacePool>::Get()->FreeWorkspace(ctx, data);
 }
+
+std::string VTARPCGetPath(const std::string& name) {
+  static const PackedFunc* f =
+      runtime::Registry::Get("tvm.contrib.rpc.server.workpath");
+  CHECK(f != nullptr) << "require tvm.contrib.rpc.server.workpath";
+  return (*f)(name);
+}
+
+// Global functions that can be called
+TVM_REGISTER_GLOBAL("tvm.contrib.vta.init")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::string path = VTARPCGetPath(args[0]);
+    VTAProgram(path.c_str());
+    LOG(INFO) << "VTA initialization end with bistream " << path;
+  });
 
 TVM_REGISTER_GLOBAL("device_api.ext_dev")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
