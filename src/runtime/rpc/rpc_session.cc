@@ -783,6 +783,9 @@ void RPCSession::Shutdown() {
 
 void RPCSession::ServerLoop() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
+  if (const auto* f = Registry::Get("tvm.contrib.rpc.server.start")) {
+    (*f)();
+  }
   TVMRetValue rv;
   CHECK(HandleUntilReturnEvent(&rv, false, nullptr) == RPCCode::kShutdown);
   LOG(INFO) << "Shutdown...";
