@@ -40,36 +40,31 @@ ifneq ($(ADD_LDFLAGS), NONE)
 	LDFLAGS += $(ADD_LDFLAGS)
 endif
 
-ifeq ($(UNAME_S), Darwin)
-	SHARED_LIBRARY_SUFFIX := dylib
-	WHOLE_ARCH= -all_load
-	NO_WHOLE_ARCH= -noall_load
-	LDFLAGS += -undefined dynamic_lookup
-else
-	SHARED_LIBRARY_SUFFIX := so
-	WHOLE_ARCH= --whole-archive
-	NO_WHOLE_ARCH= --no-whole-archive
-endif
 
-
-all: lib/libvta.$(SHARED_LIBRARY_SUFFIX)
+all: lib/libvta.so lib/libvta_runtime.so
 
 VTA_LIB_SRC = $(wildcard src/*.cc src/tvm/*.cc)
+
 ifeq ($(TARGET), VTA_PYNQ_TARGET)
 	VTA_LIB_SRC += $(wildcard src/pynq/*.cc)
 	LDFLAGS += -L/usr/lib -lsds_lib
-	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/ -l:libdma.so
+	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/
+	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/
+	LDFLAGS += -l:libdma.so
 endif
-VTA_LIB_OBJ = $(patsubst %.cc, build/%.o, $(VTA_LIB_SRC))
 
-test: $(TEST)
+VTA_LIB_OBJ = $(patsubst src/%.cc, build/%.o, $(VTA_LIB_SRC))
 
-build/src/%.o: src/%.cc
+build/%.o: src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libvta.$(SHARED_LIBRARY_SUFFIX): $(VTA_LIB_OBJ)
+lib/libvta.so: $(filter-out build/runtime.o, $(VTA_LIB_OBJ))
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS)
+
+lib/libvta_runtime.so: build/runtime.o
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS)
 
@@ -79,7 +74,7 @@ cpplint:
 	python nnvm/dmlc-core/scripts/lint.py vta cpp include src hardware tests
 
 pylint:
-	pylint python/tvm_vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	pylint python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 doc:
 	doxygen docs/Doxyfile

@@ -1,10 +1,30 @@
 """VTA configuration constants (should match hw_spec.h"""
 from __future__ import absolute_import as _abs
 
+#  Log of input/activation width in bits (default 3 -> 8 bits)
+VTA_LOG_INP_WIDTH = 3
+#  Log of kernel weight width in bits (default 3 -> 8 bits)
+VTA_LOG_WGT_WIDTH = 3
+#  Log of accum width in bits (default 5 -> 32 bits)
+VTA_LOG_ACC_WIDTH = 5
+#  Log of tensor batch size (A in (A,B)x(B,C) matrix multiplication)
+VTA_LOG_BATCH = 0
+#  Log of tensor inner block size (B in (A,B)x(B,C) matrix multiplication)
+VTA_LOG_BLOCK_IN = 4
+#  Log of tensor outer block size (C in (A,B)x(B,C) matrix multiplication)
+VTA_LOG_BLOCK_OUT = 4
+VTA_LOG_OUT_WIDTH = VTA_LOG_INP_WIDTH
+#  Log of uop buffer size in Bytes
+VTA_LOG_UOP_BUFF_SIZE = 15
+#  Log of acc buffer size in Bytes
+VTA_LOG_ACC_BUFF_SIZE = 17
+
 # The Constants
 VTA_WGT_WIDTH = 8
 VTA_INP_WIDTH = VTA_WGT_WIDTH
 VTA_OUT_WIDTH = 32
+
+VTA_TARGET = "VTA_PYNQ_TARGET"
 
 # Dimensions of the GEMM unit
 # (BATCH,BLOCK_IN) x (BLOCK_IN,BLOCK_OUT)

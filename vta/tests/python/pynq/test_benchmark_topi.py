@@ -27,6 +27,7 @@ inp_dtype = "int%d" % vta.VTA_INP_WIDTH
 target = "llvm -target=armv7-none-linux-gnueabihf -mattr=+neon"
 print_ir = False
 
+
 def test_vta_conv2d(key, batch_size, wl, profile=True):
     data_shape = (batch_size, wl.in_filter//vta.VTA_BLOCK_IN,
                   wl.height, wl.width, vta.VTA_BLOCK_IN)
@@ -54,6 +55,7 @@ def test_vta_conv2d(key, batch_size, wl, profile=True):
         mod = tvm.build(s, [data, kernel, bias, res], "ext_dev", target, name="conv2d")
         temp = util.tempdir()
         remote = rpc.connect(host, port)
+
         mod.save(temp.relpath("conv2d.o"))
         remote.upload(temp.relpath("conv2d.o"))
         f = remote.load_module("conv2d.o")

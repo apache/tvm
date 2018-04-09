@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file vta_runtime.cc
+ * \file runtime.cc
  * \brief VTA runtime for PYNQ in C++11
  */
 
@@ -13,85 +13,14 @@
 #include <vta/runtime.h>
 
 #include <cassert>
-#include <cstring>
 #include <vector>
 #include <thread>
 #include <memory>
 #include <atomic>
 
+#include "./data_buffer.h"
+
 namespace vta {
-
-/*! \brief Enable coherent access between VTA and CPU. */
-static const bool kBufferCoherent = true;
-
-/*!
- * \brief Data buffer represents data on CMA.
- */
-struct DataBuffer {
-  /*! \return Virtual address of the data. */
-  void* virt_addr() const {
-    return data_;
-  }
-  /*! \return Physical address of the data. */
-  uint32_t phy_addr() const {
-    return phy_addr_;
-  }
-  /*!
-   * \brief Invalidate the cache of given location in data buffer.
-   * \param offset The offset to the data.
-   * \param size The size of the data.
-   */
-  void InvalidateCache(size_t offset, size_t size) {
-    if (!kBufferCoherent) {
-      VTAInvalidateCache(reinterpret_cast<void*>(phy_addr_ + offset), size);
-    }
-  }
-  /*!
-   * \brief Invalidate the cache of certain location in data buffer.
-   * \param offset The offset to the data.
-   * \param size The size of the data.
-   */
-  void FlushCache(size_t offset, size_t size) {
-    if (!kBufferCoherent) {
-      VTAFlushCache(reinterpret_cast<void*>(phy_addr_ + offset), size);
-    }
-  }
-  /*!
-   * \brief Allocate a buffer of a given size.
-   * \param size The size of the buffer.
-   */
-  static DataBuffer* Alloc(size_t size) {
-    void* data = VTAMemAlloc(size, 1);
-    assert(data != nullptr);
-    DataBuffer* buffer = new DataBuffer();
-    buffer->data_ = data;
-    buffer->phy_addr_ = VTAGetMemPhysAddr(data);
-    return buffer;
-  }
-  /*!
-   * \brief Free the data buffer.
-   * \param buffer The buffer to be freed.
-   */
-  static void Free(DataBuffer* buffer) {
-    VTAMemFree(buffer->data_);
-    delete buffer;
-  }
-  /*!
-   * \brief Create data buffer header from buffer ptr.
-   * \param buffer The buffer pointer.
-   * \return The corresponding data buffer header.
-   */
-  static DataBuffer* FromHandle(const void* buffer) {
-    return const_cast<DataBuffer*>(
-        reinterpret_cast<const DataBuffer*>(buffer));
-  }
-
- private:
-  /*! \brief The internal data. */
-  void* data_;
-  /*! \brief The physical address of the buffer, excluding header. */
-  uint32_t phy_addr_;
-};
 
 /*!
  * \brief Micro op kernel.
@@ -1130,6 +1059,9 @@ class CommandQueue {
   static std::shared_ptr<CommandQueue>& ThreadLocal() {
     static std::shared_ptr<CommandQueue> inst =
         std::make_shared<CommandQueue>();
+    if (inst == nullptr) {
+      inst = std::make_shared<CommandQueue>();
+    }
     return inst;
   }
 
@@ -1254,63 +1186,29 @@ void VTARuntimeShutdown() {
   vta::CommandQueue::Shutdown();
 }
 
-void* VTABufferAlloc(VTACommandHandle cmd, size_t size) {
-  return vta::DataBuffer::Alloc(size);
-}
-
-void VTABufferFree(VTACommandHandle cmd, void* buffer) {
-  vta::DataBuffer::Free(vta::DataBuffer::FromHandle(buffer));
+void VTASetDebugMode(VTACommandHandle cmd, int debug_flag) {
+  static_cast<vta::CommandQueue*>(cmd)->
+      SetDebugFlag(debug_flag);
 }
 
 void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer) {
   return vta::DataBuffer::FromHandle(buffer)->virt_addr();
 }
 
-void VTABufferCopy(VTACommandHandle cmd,
-                   const void* from,
-                   size_t from_offset,
-                   void* to,
-                   size_t to_offset,
-                   size_t size,
-                   int kind_mask) {
-  vta::DataBuffer* from_buffer = nullptr;
-  vta::DataBuffer* to_buffer = nullptr;
-
-  if (kind_mask & 2) {
-    from_buffer = vta::DataBuffer::FromHandle(from);
-    from = from_buffer->virt_addr();
-  }
-  if (kind_mask & 1) {
-    to_buffer = vta::DataBuffer::FromHandle(to);
-    to = to_buffer->virt_addr();
-  }
-  if (from_buffer) {
-    from_buffer->InvalidateCache(from_offset, size);
-  }
-
-  memcpy(static_cast<char*>(to) + to_offset,
-         static_cast<const char*>(from) + from_offset,
-         size);
-  if (to_buffer) {
-    to_buffer->FlushCache(to_offset, size);
-  }
-}
-
-void VTASetDebugMode(VTACommandHandle cmd, int debug_flag) {
-  static_cast<vta::CommandQueue*>(cmd)->
-      SetDebugFlag(debug_flag);
-}
-
 void VTAWriteBarrier(VTACommandHandle cmd,
-                     void* buffer, uint32_t elem_bits,
-                     uint32_t start, uint32_t extent) {
+                     void* buffer,
+                     uint32_t elem_bits,
+                     uint32_t start,
+                     uint32_t extent) {
   static_cast<vta::CommandQueue*>(cmd)->
       WriteBarrier(buffer, elem_bits, start, extent);
 }
 
 void VTAReadBarrier(VTACommandHandle cmd,
-                    void* buffer, uint32_t elem_bits,
-                    uint32_t start, uint32_t extent) {
+                    void* buffer,
+                    uint32_t elem_bits,
+                    uint32_t start,
+                    uint32_t extent) {
   static_cast<vta::CommandQueue*>(cmd)->
       ReadBarrier(buffer, elem_bits, start, extent);
 }
@@ -1408,4 +1306,12 @@ int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid) {
 void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles) {
   static_cast<vta::CommandQueue*>(cmd)->
       Synchronize(wait_cycles);
+}
+
+extern "C" int VTARuntimeDynamicMagic() {
+#ifdef VTA_DYNAMIC_MAGIC
+  return VTA_DYNAMIC_MAGIC;
+#else
+  return 0;
+#endif
 }

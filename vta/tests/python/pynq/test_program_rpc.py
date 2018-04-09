@@ -14,8 +14,12 @@ bitstream = os.path.join(curr_path, "./", bit)
 def test_program_rpc():
     assert tvm.module.enabled("rpc")
     remote = rpc.connect(host, port)
-    remote.upload(bitstream, bit)
-    fprogram = remote.get_function("tvm.contrib.vta.init")
-    fprogram(bit)
+    vta.program_fpga(remote, bit)
+
+def test_reconfig_runtime():
+    assert tvm.module.enabled("rpc")
+    remote = rpc.connect(host, port)
+    vta.reconfig_runtime(remote)
 
 test_program_rpc()
+test_reconfig_runtime()
