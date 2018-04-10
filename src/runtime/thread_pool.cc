@@ -315,7 +315,11 @@ class ThreadPool {
   }
   int num_workers_;
   // if excluding worker 0 and using master to run task 0
+#ifndef _LIBCPP_SGX_CONFIG
   bool exclude_worker0_{true};
+#else
+  bool exclude_worker0_{false};
+#endif
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };

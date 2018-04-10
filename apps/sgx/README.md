@@ -5,7 +5,7 @@ This application demonstrates the use of a simple TVM model in the [Intel SGX](h
 ## Prerequisites
 
 1. A GNU/Linux environment
-2. TVM compiled with LLVM and the `tvm` Python module
+2. TVM compiled with LLVM and SGX; and the `tvm` Python module
 3. The [Linux SGX SDK](https://github.com/intel/linux-sgx) [link to pre-built libraries](https://01.org/intel-software-guard-extensions/downloads)
 
 ## Running the example
