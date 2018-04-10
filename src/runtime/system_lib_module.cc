@@ -55,16 +55,12 @@ class SystemLibModuleNode : public ModuleNode {
       module_blob_ = ptr;
     } else {
       auto it = tbl_.find(name);
-      if (it != tbl_.end()) {
-        if (ptr != it->second) {
-          LOG(WARNING) << "SystemLib symbol " << name
-                       << " get overriden to a different address "
-                   << ptr << "->" << it->second;
-          tbl_[name] = ptr;
-        }
-      } else {
-        tbl_[name] = ptr;
+      if (it != tbl_.end() && ptr != it->second) {
+        LOG(WARNING) << "SystemLib symbol " << name
+                     << " get overriden to a different address "
+                     << ptr << "->" << it->second;
       }
+      tbl_[name] = ptr;
     }
   }
 

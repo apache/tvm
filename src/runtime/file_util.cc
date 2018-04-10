@@ -53,6 +53,7 @@ std::string GetFileFormat(const std::string& file_name,
                           const std::string& format) {
   std::string fmt = format;
   if (fmt.length() == 0) {
+    if (file_name.find(".signed.so") != std::string::npos) return "sgx";
     size_t pos = file_name.find_last_of(".");
     if (pos != std::string::npos) {
       return file_name.substr(pos + 1, file_name.length() - pos - 1);
@@ -62,6 +63,24 @@ std::string GetFileFormat(const std::string& file_name,
   } else {
     return format;
   }
+}
+
+std::string GetCacheDir() {
+  char* env_cache_dir;
+  if ((env_cache_dir = getenv("TVM_CACHE_DIR"))) return env_cache_dir;
+  if ((env_cache_dir = getenv("XDG_CACHE_HOME"))) {
+    return std::string(env_cache_dir) + "/tvm";
+  }
+  if ((env_cache_dir = getenv("HOME"))) {
+    return std::string(env_cache_dir) + "/.cache/tvm";
+  }
+  return ".";
+}
+
+std::string GetFileBasename(const std::string& file_name) {
+  size_t last_slash = file_name.find_last_of("/");
+  if (last_slash == std::string::npos) return file_name;
+  return file_name.substr(last_slash + 1);
 }
 
 std::string GetMetaFilePath(const std::string& file_name) {
