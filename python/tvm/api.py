@@ -300,7 +300,8 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
     return res[0] if len(res) == 1 else res
 
 
-def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
+def extern(shape, inputs, fcompute, name="extern", dtype=None, in_data_alignment=-1,
+           out_data_alignment=-1, tag=""):
     """Compute several tensor via extern function.
 
     Parameters
@@ -332,6 +333,14 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
         The data types of outputs,
         by default dtype will be same as inputs.
 
+    in_data_alignment: int or list of int, optional
+        The data alignment for input buffer.
+        By default data alignment is 64.
+
+    out_data_alignment: int or list of int, optional
+        The data alignment for output buffer.
+        By default data alignment is 64.
+
     Returns
     -------
     tensor: Tensor or list of Tensors
@@ -360,11 +369,13 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
     input_placeholders = []
     output_placeholders = []
     types = set()
-    for t in inputs:
+    if not isinstance(in_data_alignment, list):
+        in_data_alignment = [in_data_alignment for _ in range(len(inputs))]
+    for t, dal in zip(inputs, in_data_alignment):
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
         input_placeholders.append(
-            decl_buffer(t.shape, t.dtype, t.op.name))
+            decl_buffer(t.shape, t.dtype, t.op.name, data_alignment=dal))
         types.add(t.dtype)
 
     if dtype is None:
@@ -375,8 +386,10 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
     if isinstance(dtype, str):
         dtype = [dtype]
 
-    for shp, dt in zip(shape, dtype):
-        output_placeholders.append(decl_buffer(shp, dt, name))
+    if not isinstance(out_data_alignment, list):
+        out_data_alignment = [out_data_alignment for _ in range(len(shape))]
+    for shp, dt, dal in zip(shape, dtype, out_data_alignment):
+        output_placeholders.append(decl_buffer(shp, dt, name, data_alignment=dal))
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, _expr.Expr):
         body = _make.Evaluate(body)

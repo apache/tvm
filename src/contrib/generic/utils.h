@@ -3,8 +3,8 @@
  * \file Use external generic C library function
  */
 
-#ifndef NNVM_ALGORITHM_H
-#define NNVM_ALGORITHM_H
+#ifndef TVM_SRC_CONTRIB_GENERIC_UTILS_H_
+#define TVM_SRC_CONTRIB_GENERIC_UTILS_H_
 
 #include <tvm/runtime/registry.h>
 
@@ -27,7 +27,7 @@ struct SortElem {
   }
 };
 
-} // namespace contrib
-} // namespace tvm
+}  // namespace contrib
+}  // namespace tvm
 
-#endif //NNVM_ALGORITHM_H
+#endif  // TVM_SRC_CONTRIB_GENERIC_UTILS_H_
