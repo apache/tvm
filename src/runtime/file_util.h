@@ -34,6 +34,7 @@ std::string GetMetaFilePath(const std::string& file_name);
 /*!
  * \brief Get file basename (i.e. without leading directories)
  * \param file_name The name of the file.
+ * \return the base name
  */
 std::string GetFileBasename(const std::string& file_name);
 

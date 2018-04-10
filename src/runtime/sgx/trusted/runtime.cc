@@ -4,7 +4,6 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
-#include "runtime.h"
 #include "../../c_runtime_api.cc"
 #include "../../cpu_device_api.cc"
 #include "../../module.cc"
@@ -13,35 +12,17 @@
 #include "../../system_lib_module.cc"
 #include "../../thread_pool.cc"
 #include "../../workspace_pool.cc"
-#include "ecall_registry.cc"
-#include "threading_backend.cc"
+#include "./ecall_registry.h"
+#include "./runtime.h"
+#include "./threading_backend.cc"
 
 namespace tvm {
 namespace runtime {
 namespace sgx {
 
-template<typename... Args>
-inline TVMRetValue OCallPackedFunc(std::string name, Args&& ...args) {  // NOLINT(*)
-  const int kNumArgs = sizeof...(Args);
-  const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
-  TVMValue values[kArraySize];
-  int type_codes[kArraySize];
-  detail::for_each(TVMArgsSetter(values, type_codes),
-                   std::forward<Args>(args)...);
-  TVMValue ret_val;
-  int ret_type_code;
-  TVM_SGX_CHECKED_CALL(tvm_ocall_packed_func(name.c_str(),
-                                             values,
-                                             type_codes,
-                                             kNumArgs,
-                                             &ret_val,
-                                             &ret_type_code));
-  TVMRetValue* rv = new TVMRetValue();
-  *rv = TVMArgValue(ret_val, ret_type_code);
-  return *rv;
-}
-
 extern "C" {
+
+void tvm_ecall_init(TVMRetValueHandle ret) {}
 
 void tvm_ecall_packed_func(int func_id,
                            const TVMValue* arg_values,
@@ -63,7 +44,7 @@ void tvm_ecall_packed_func(int func_id,
     std::string bytes = rv;
 
     void* ret_buf;
-    TVM_SGX_CHECKED_CALL(tvm_ocall_malloc(
+    TVM_SGX_CHECKED_CALL(tvm_ocall_reserve_space(
           &ret_buf, bytes.size() + sizeof(TVMByteArray)));
 
     char* data_buf = static_cast<char*>(ret_buf) + sizeof(TVMByteArray);
@@ -81,13 +62,13 @@ void tvm_ecall_packed_func(int func_id,
   TVM_SGX_CHECKED_CALL(tvm_ocall_set_return(ret, &ret_value, &ret_type_code, 1));
 }
 
+}  // extern "C"
+
 TVM_REGISTER_ENCLAVE_FUNC("__tvm_main__")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    Module mod = (*Registry::Get("module._GetSystemLib"))();
-    mod.GetFunction("default_function").CallPacked(args, rv);
-  });
-
-}  // extern "C"
+  Module mod = (*Registry::Get("module._GetSystemLib"))();
+  mod.GetFunction("default_function").CallPacked(args, rv);
+});
 
 }  // namespace sgx
 }  // namespace runtime

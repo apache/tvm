@@ -14,6 +14,7 @@
 #include <iterator>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include "../common.h"
 #include "../../file_util.h"
 
@@ -82,12 +83,7 @@ class SGXModuleNode : public ModuleNode {
 
     sgx::EnclaveContext ctx(this);
     TVMRetValue rv;
-    TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_, 0, nullptr, nullptr, 0, &rv));
-    std::string exports = rv;
-    std::istringstream exports_iss(exports);
-    std::copy(std::istream_iterator<std::string>(exports_iss),
-        std::istream_iterator<std::string>(),
-        std::back_inserter(exports_));
+    TVM_SGX_CHECKED_CALL(tvm_ecall_init(eid_, &rv));
 
     if (!token_updated) return;
 
@@ -107,11 +103,9 @@ class SGXModuleNode : public ModuleNode {
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
-    size_t func_id = std::distance(exports_.begin(),
-        std::find(exports_.begin(), exports_.end(), name));
-    CHECK_LT(func_id, exports_.size())
-      << "\"" << name << "\" is not an enclave export.";
-    if (func_id >= exports_.size()) return PackedFunc();
+    auto exported = exports_.find(name);
+    if (exported == exports_.end()) return PackedFunc();
+    int func_id = exported->second;
     return PackedFunc([this, func_id](TVMArgs args, TVMRetValue* rv) {
         sgx::EnclaveContext ctx(this);
         TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_, func_id,
@@ -132,11 +126,15 @@ class SGXModuleNode : public ModuleNode {
     thread_group_->Join();
   }
 
+  void RegisterExport(std::string name, int func_id) {
+    exports_[name] = func_id;
+  }
+
  private:
   // ID of the loaded enclave
   sgx_enclave_id_t eid_;
   // Names and IDs of functions exported by the enclave module
-  std::vector<std::string> exports_;
+  std::unordered_map<std::string, int> exports_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> thread_group_;
 };
 
@@ -160,6 +158,10 @@ TVM_REGISTER_GLOBAL("__sgx_set_last_error__")
 
 extern "C" {
 
+void tvm_ocall_register_export(const char* name, int func_id) {
+  EnclaveContext::GetModule()->RegisterExport(name, func_id);
+}
+
 void tvm_ocall_packed_func(const char* name,
                            const TVMValue* arg_values,
                            const int* type_codes,
@@ -170,17 +172,15 @@ void tvm_ocall_packed_func(const char* name,
   CHECK(f != nullptr) << "ocall to nonexistent function \"" << name << "\"";
   TVMRetValue rv;
   f->CallPacked(TVMArgs(arg_values, type_codes, num_args), &rv);
-  rv.MoveToCHost(ret_val, ret_type_code);  // only support POD types for now
+  rv.MoveToCHost(ret_val, ret_type_code);
 }
 
-void* tvm_ocall_malloc(size_t num_bytes) {
-  void* buf = calloc(1, num_bytes);
-  CHECK(buf != nullptr);
-  return buf;
-}
-
-void tvm_ocall_free(void* ptr) {
-  free(ptr);
+// Allocates space for return values. The returned pointer is only valid between
+// successive calls to `tvm_ocall_reserve_space`.
+void* tvm_ocall_reserve_space(size_t num_bytes) {
+  static thread_local std::vector<uint64_t> buf;
+  buf.reserve(num_bytes);
+  return buf.data();
 }
 
 void tvm_ocall_set_return(TVMRetValueHandle ret,
@@ -191,7 +191,6 @@ void tvm_ocall_set_return(TVMRetValueHandle ret,
   CHECK(type_code[0] != kStr) << "Return kBytes, not kStr.";
   TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
   *rv = TVMArgValue(value[0], type_code[0]);
-  if (type_code[0] == kBytes) free(value[0].v_handle);
 }
 
 }  // extern "C"

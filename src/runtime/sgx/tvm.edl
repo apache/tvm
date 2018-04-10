@@ -2,7 +2,7 @@ enclave {
     from "sgx_tstdc.edl" import *;
 
     trusted {
-        /* public void tvm_ecall_init([isptr, user_check] TVMRetValueHandle ret); */
+        public void tvm_ecall_init([isptr, user_check] TVMRetValueHandle ret);
         public void tvm_ecall_packed_func(int func_id,
                                           [in, count=num_args] const TVMValue* arg_values,
                                           [in, count=num_args] const int* type_codes,
@@ -21,8 +21,8 @@ enclave {
                                    [in, count=num_ret] const TVMValue* value,
                                    [in, count=num_ret] const int* type_code,
                                    int num_ret);
-        void* tvm_ocall_malloc(size_t num_bytes);
-        void tvm_ocall_free([user_check] void* ptr);
+        void tvm_ocall_register_export([in, string] const char* name, int func_id);
+        void* tvm_ocall_reserve_space(size_t num_bytes);
     };
 };
 
