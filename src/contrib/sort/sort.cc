@@ -3,7 +3,7 @@
  * \file Use standard C library call.
  */
 
-#include "utils.h"
+#include "sort.h"
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
@@ -24,7 +24,7 @@ bool SortElem<float>::is_descend = true;
 // by num_elem tensor.
 // Index of value to be used for sorting is defined by sort_value_index.
 // Return index of sorted elements in each sample.
-TVM_REGISTER_GLOBAL("tvm.contrib.generic.utils.stable_sort")
+TVM_REGISTER_GLOBAL("tvm.contrib.sort.stable_sort")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   DLTensor *input = args[0];
   DLTensor *num_elem = args[1];

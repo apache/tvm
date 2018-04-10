@@ -11,7 +11,7 @@ def test_sort():
     is_descend = True
     out = tvm.extern((n, l), [data, num_element],
                      lambda ins, outs: tvm.call_packed(
-                         "tvm.contrib.generic.utils.stable_sort", ins[0], ins[1],
+                         "tvm.contrib.sort.stable_sort", ins[0], ins[1],
                          outs[0], n, sorted_value_index, is_descend),
                      dtype='int32', name="sort_tensor")
     input = [[[1, 2, 3], [2, 4.5, 3], [1, 0.5, 1], [3.2, -5, 0], [1, 0, 0]]]

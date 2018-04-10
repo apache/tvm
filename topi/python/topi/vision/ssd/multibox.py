@@ -329,7 +329,7 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     sort_tensor = \
         tvm.extern((batch_size, num_anchors), [inter_out, valid_count],
                    lambda ins, outs: tvm.call_packed(
-                       "tvm.contrib.generic.utils.stable_sort", ins[0], ins[1], outs[0],
+                       "tvm.contrib.sort.stable_sort", ins[0], ins[1], outs[0],
                        batch_size, 1, True),
                    dtype='int32', in_data_alignment=[inter_out_dal, valid_count_dal],
                    out_data_alignment=sort_tensor_dal, name="multibox_detection_sort")
