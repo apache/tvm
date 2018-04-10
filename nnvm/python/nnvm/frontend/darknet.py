@@ -100,7 +100,10 @@ def _darknet_maxpooling(inputs, attrs):
     new_attrs['pool_size'] = [kernel[0], kernel[0]]
     new_attrs['strides'] = str((strides, strides))
     new_attrs['padding'] = str((pads, pads))
-
+    extra_pad_size = attrs.get('extra_pad_size', 0)
+    if extra_pad_size:
+        pad_width = ((0, 0), (0, 0), (0, extra_pad_size), (0, extra_pad_size))
+        inputs = _sym.pad(*inputs, pad_width=pad_width, pad_value=np.finfo(np.float32).min)
     return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_avgpooling(inputs, attrs):
@@ -502,7 +505,10 @@ def _get_darknet_attrs(net, layer_num):
         attr.update({'pad' : str(layer.pad)})
         attr.update({'stride' : str(layer.stride)})
         attr.update({'kernel' : str(layer.size)})
-
+        max_output = (layer.w - layer.size + 2 * layer.pad)/float(layer.stride) + 1
+        if max_output < layer.out_w:
+            extra_pad = (layer.out_w - max_output)*layer.stride
+            attr.update({'extra_pad_size' : int(extra_pad)})
     elif LAYERTYPE.AVGPOOL == layer.type:
         attr.update({'pad' : str(layer.pad)})
         if layer.stride == 0:
