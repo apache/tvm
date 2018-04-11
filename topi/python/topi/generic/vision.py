@@ -16,23 +16,6 @@ def _default_schedule(outs, auto_inline):
     return s
 
 @tvm.target.generic_func
-def schedule_shortcut(outs):
-    """Schedule for shortcut
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of shortcut
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-@tvm.target.generic_func
 def schedule_reorg(outs):
     """Schedule for reorg
 
