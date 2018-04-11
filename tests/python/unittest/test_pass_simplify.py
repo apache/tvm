@@ -33,6 +33,22 @@ def test_bound():
     ret = tvm.ir_pass.Simplify(m % 10, vrange)
     assert ret == m
 
+def test_modular():
+    rx = tvm.var("rx")
+    ry = tvm.var("ry")
+    y = tvm.var("y")
+    x = tvm.var("x")
+    vmap = {rx: tvm.Range(tvm.const(0), tvm.const(3)),
+            ry: tvm.Range(tvm.const(0), tvm.const(3)),
+            y: tvm.Range(tvm.const(0), tvm.const(2)),
+            x: tvm.Range(tvm.const(0), tvm.const(14))}
+    idx = ry * 16 + rx + y * 16 + x
+    z1 = tvm.ir_pass.CanonicalSimplify(idx // 16, vmap)
+    z2 = tvm.ir_pass.CanonicalSimplify(idx % 16, vmap)
+    assert tvm.ir_pass.CanonicalSimplify(z1 - (ry + y)).value == 0
+    assert tvm.ir_pass.CanonicalSimplify(z2 - (rx + x)).value == 0
+
+
 
 def test_canonical():
     x = tvm.var("x")
@@ -54,6 +70,7 @@ def test_canonical():
     assert (tvm.ir_pass.Equal(ret1, ret2))
 
 if __name__ == "__main__":
+    test_modular()
     test_bound()
     test_basic()
     test_simplify()

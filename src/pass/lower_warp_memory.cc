@@ -279,7 +279,9 @@ class WarpMemoryRewriter : private IRMutator {
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
-    return this->Mutate(stmt);
+    stmt = this->Mutate(stmt);
+    stmt = CanonicalSimplify(stmt);
+    return stmt;
   }
 
  private:
