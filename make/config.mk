@@ -44,6 +44,10 @@ USE_OPENCL = 0
 # whether enable Metal during compile
 USE_METAL = 0
 
+# whether enable SGX during compile
+USE_SGX = 0
+SGX_SDK = /opt/sgxsdk
+
 # Whether enable RPC during compile
 USE_RPC = 1
 

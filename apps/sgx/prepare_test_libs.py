@@ -15,7 +15,7 @@ def prepare_test_libs(base_path):
     print(tvm.lower(s, [A, B], simple_mode=True))
 
     # Compile library in system library mode
-    fadd_syslib = tvm.build(s, [A, B], 'llvm --system-lib', name='addonesys')
+    fadd_syslib = tvm.build(s, [A, B], 'llvm --system-lib')
     syslib_path = osp.join(base_path, 'test_addone_sys.o')
     fadd_syslib.save(syslib_path)
 

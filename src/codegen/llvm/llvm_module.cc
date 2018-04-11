@@ -51,13 +51,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     BackendPackedCFunc faddr =
         reinterpret_cast<BackendPackedCFunc>(GetFunctionAddr(fname));
     if (faddr == nullptr) return PackedFunc();
-    return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        int ret = (*faddr)(
-            (void*)args.values, // NOLINT(*)
-            (int*)args.type_codes, // NOLINT(*)
-            args.num_args);
-        CHECK_EQ(ret, 0) << TVMGetLastError();
-      });
+    return WrapPackedFunc(faddr, sptr_to_self);
   }
 
   void SaveToFile(const std::string& file_name,

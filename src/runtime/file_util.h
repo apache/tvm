@@ -20,10 +20,23 @@ std::string GetFileFormat(const std::string& file_name,
                           const std::string& format);
 
 /*!
+ * \return the directory in which TVM stores cached files.
+ *         May be set using TVM_CACHE_DIR; defaults to system locations.
+ */
+std::string GetCacheDir();
+
+/*!
  * \brief Get meta file path given file name and format.
  * \param file_name The name of the file.
  */
 std::string GetMetaFilePath(const std::string& file_name);
+
+/*!
+ * \brief Get file basename (i.e. without leading directories)
+ * \param file_name The name of the file.
+ * \return the base name
+ */
+std::string GetFileBasename(const std::string& file_name);
 
 /*!
  * \brief Load binary file into a in-memory buffer.
