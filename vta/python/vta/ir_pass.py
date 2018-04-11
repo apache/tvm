@@ -1,20 +1,37 @@
 """Additional IR Pass for VTA"""
+# pylint: disable=len-as-condition
 from __future__ import absolute_import as _abs
 
 import tvm
 from topi import util as util
 
-from . import hw_spec as spec
-from . runtime import CB_HANDLE, VTA_AXIS, VTA_PUSH_UOP
-from . runtime import SCOPE_OUT, SCOPE_INP, SCOPE_WGT, DMA_COPY, get_task_qid
+from .environment import get_env
 
 
 def fold_uop_loop(stmt_in):
-    """Pass to fold uop loops"""
+    """Detect and fold uop loop.
+
+    VTA support uop programming model
+    that recognizes loop structure.
+    This pass detect the loop structure
+    and extract that into uop loop AST.
+
+    Parameters
+    ----------
+    stmt_in : Stmt
+        Input statement
+
+    Returns
+    -------
+    stmt_out : Stmt
+        Output statement.
+    """
+    env = get_env()
+
     def _fold_outermost_loop(body):
         stmt = body
         while not isinstance(stmt, tvm.stmt.For):
-            if isinstance(stmt, (tvm.stmt.ProducerConsumer, )):
+            if isinstance(stmt, (tvm.stmt.ProducerConsumer,)):
                 stmt = stmt.body
             else:
                 return None, body, None
@@ -30,7 +47,8 @@ def fold_uop_loop(stmt_in):
                 args = []
                 args += op.args[:base_args]
                 for i in range(3):
-                    m = tvm.arith.DetectLinearEquation(op.args[i + base_args], [loop_var])
+                    m = tvm.arith.DetectLinearEquation(
+                        op.args[i + base_args], [loop_var])
                     if not m:
                         fail[0] = True
                         return op
@@ -68,7 +86,7 @@ def fold_uop_loop(stmt_in):
     def _do_fold(stmt):
         if (stmt.attr_key == "coproc_uop_scope" and
                 isinstance(stmt.value, tvm.expr.StringImm) and
-                stmt.value.value == VTA_PUSH_UOP.value):
+                stmt.value.value == env.dev.vta_push_uop.value):
             body = stmt.body
             begins = []
             ends = []
@@ -98,7 +116,12 @@ def fold_uop_loop(stmt_in):
 
 
 def cpu_access_rewrite(stmt_in):
-    """Rewrite the code when there is CPU access happening.
+    """Detect CPU access to VTA buffer and get address correctly.
+
+    VTA's buffer is an opaque handle that do not
+    correspond to address in CPU.
+    This pass detect CPU access and rewrite to use pointer
+    returned VTABufferCPUPtr for CPU access.
 
     Parameters
     ----------
@@ -110,6 +133,7 @@ def cpu_access_rewrite(stmt_in):
     stmt_out : Stmt
         Transformed statement
     """
+    env = get_env()
     rw_info = {}
     def _post_order(op):
         if isinstance(op, tvm.stmt.Allocate):
@@ -119,7 +143,8 @@ def cpu_access_rewrite(stmt_in):
             new_var = rw_info[buffer_var]
             let_stmt = tvm.make.LetStmt(
                 new_var, tvm.call_extern(
-                    "handle", "VTABufferCPUPtr", CB_HANDLE,
+                    "handle", "VTABufferCPUPtr",
+                    env.dev.command_handle,
                     buffer_var), op.body)
             alloc = tvm.make.Allocate(
                 buffer_var, op.dtype, op.extents,
@@ -147,7 +172,8 @@ def cpu_access_rewrite(stmt_in):
     for buffer_var, new_var in rw_info.items():
         stmt = tvm.make.LetStmt(
             new_var, tvm.call_extern(
-                "handle", "VTABufferCPUPtr", CB_HANDLE,
+                "handle", "VTABufferCPUPtr",
+                env.dev.command_handle,
                 buffer_var), stmt)
     return stmt
 
@@ -184,9 +210,6 @@ def lift_alloc_to_scope_begin(stmt_in):
             else:
                 raise RuntimeError("unexpected op")
         del slist[:]
-        # n = len(slist)
-        # for i in range(n):
-        #     slist.pop()
         return body
 
     def _pre_order(op):
@@ -220,7 +243,7 @@ def lift_alloc_to_scope_begin(stmt_in):
 
 
 def inject_skip_copy(stmt_in):
-    """Pass to inject skip copy stmt, used in debug.
+    """Pass to inject skip copy stmt, used for debug purpose.
 
     Parameters
     ----------
@@ -233,7 +256,7 @@ def inject_skip_copy(stmt_in):
         Transformed statement
     """
     def _do_fold(stmt):
-        if stmt.attr_key == "pragma_scope" and stmt.value.value == "skip_dma_copy":
+        if (stmt.attr_key == "pragma_scope" and stmt.value.value == "skip_dma_copy"):
             return tvm.make.Evaluate(0)
         return None
     return tvm.ir_pass.IRTransform(
@@ -286,6 +309,7 @@ def inject_dma_intrin(stmt_in):
     stmt_out : Stmt
         Transformed statement
     """
+    env = get_env()
     def _check_compact(buf):
         ndim = len(buf.shape)
         size = tvm.const(1, buf.shape[0].dtype)
@@ -321,8 +345,9 @@ def inject_dma_intrin(stmt_in):
             x_stride = buf.strides[ndim - base]
             next_base = base
             if not util.equal_const_int(x_stride % elem_block, 0):
-                raise RuntimeError("scope %s need to have block=%d, shape=%s, strides=%s" % (
-                    scope, elem_block, buf.shape, buf.strides))
+                raise RuntimeError(
+                    "scope %s need to have block=%d, shape=%s, strides=%s" % (
+                        scope, elem_block, buf.shape, buf.strides))
             for i in range(base, ndim + 1):
                 k = ndim - i
                 if not util.equal_const_int(x_size * x_stride - buf.strides[k], 0):
@@ -337,7 +362,6 @@ def inject_dma_intrin(stmt_in):
         strides = list(reversed(strides))
         shape = list(reversed(shape))
         return shape, strides
-
 
     def _get_2d_pattern(buf, elem_width, elem_bytes, dtype, scope, allow_fold):
         elem_block = elem_bytes * 8 // elem_width
@@ -425,47 +449,50 @@ def inject_dma_intrin(stmt_in):
 
     def _inject_copy(src, dst, pad_before, pad_after, pad_value):
         # FIXME: pad_value is ignored...
+        _ = pad_value
         if dst.scope == "global":
             # Store
             if pad_before or pad_after:
                 raise RuntimeError("Do not support copy into DRAM with pad")
-            if src.scope == SCOPE_OUT:
-                elem_width = spec.VTA_INP_WIDTH # output compression to inp type
-                elem_bytes = spec.VTA_INP_ELEM_BYTES # output compression to inp type
-                mem_type = spec.VTA_MEM_ID_OUT
-                data_type = "int%d" % spec.VTA_INP_WIDTH
-                task_qid = spec.VTA_QID_STORE_OUT
+            if src.scope == env.acc_scope:
+                elem_width = env.INP_WIDTH # output compression to inp type
+                elem_bytes = env.INP_ELEM_BYTES # output compression to inp type
+                mem_type = env.dev.MEM_ID_OUT
+                data_type = "int%d" % env.INP_WIDTH
+                task_qid = env.dev.QID_STORE_OUT
             else:
                 raise RuntimeError("Do not support copy %s->dram" % (src.scope))
             _check_compact(src)
             x_size, y_size, x_stride, offset = _get_2d_pattern(
                 dst, elem_width, elem_bytes, data_type, src.scope, allow_fold=True)
             irb = tvm.ir_builder.create()
-            irb.scope_attr(VTA_AXIS, "coproc_scope", get_task_qid(task_qid))
+            irb.scope_attr(env.dev.vta_axis, "coproc_scope",
+                           env.dev.get_task_qid(task_qid))
             irb.emit(tvm.call_extern(
-                "int32", "VTAStoreBuffer2D", CB_HANDLE,
+                "int32", "VTAStoreBuffer2D",
+                env.dev.command_handle,
                 src.access_ptr("r", "int32"),
                 mem_type, dst.data, offset, x_size, y_size, x_stride))
             return irb.get()
         elif src.scope == "global":
-            if dst.scope == SCOPE_OUT:
-                elem_width = spec.VTA_OUT_WIDTH
-                elem_bytes = spec.VTA_OUT_ELEM_BYTES
-                mem_type = spec.VTA_MEM_ID_ACC
-                data_type = "int%d" % spec.VTA_OUT_WIDTH
-                task_qid = spec.VTA_QID_LOAD_OUT
-            elif dst.scope == SCOPE_INP:
-                elem_width = spec.VTA_INP_WIDTH
-                elem_bytes = spec.VTA_INP_ELEM_BYTES
-                mem_type = spec.VTA_MEM_ID_INP
-                data_type = "int%d" % spec.VTA_INP_WIDTH
-                task_qid = spec.VTA_QID_LOAD_INP
-            elif dst.scope == SCOPE_WGT:
-                elem_width = spec.VTA_WGT_WIDTH
-                elem_bytes = spec.VTA_WGT_ELEM_BYTES
-                mem_type = spec.VTA_MEM_ID_WGT
-                data_type = "int%d" % spec.VTA_WGT_WIDTH
-                task_qid = spec.VTA_QID_LOAD_WGT
+            if dst.scope == env.acc_scope:
+                elem_width = env.ACC_WIDTH
+                elem_bytes = env.ACC_ELEM_BYTES
+                mem_type = env.dev.MEM_ID_ACC
+                data_type = "int%d" % env.ACC_WIDTH
+                task_qid = env.dev.QID_LOAD_OUT
+            elif dst.scope == env.inp_scope:
+                elem_width = env.INP_WIDTH
+                elem_bytes = env.INP_ELEM_BYTES
+                mem_type = env.dev.MEM_ID_INP
+                data_type = "int%d" % env.INP_WIDTH
+                task_qid = env.dev.QID_LOAD_INP
+            elif dst.scope == env.wgt_scope:
+                elem_width = env.WGT_WIDTH
+                elem_bytes = env.WGT_ELEM_BYTES
+                mem_type = env.dev.MEM_ID_WGT
+                data_type = "int%d" % env.WGT_WIDTH
+                task_qid = env.dev.QID_LOAD_WGT
             else:
                 raise RuntimeError("Do not support copy dram->%s" % (dst.scope))
             # collect pad statistics
@@ -498,13 +525,16 @@ def inject_dma_intrin(stmt_in):
 
             _check_compact(dst)
             x_size, y_size, x_stride, offset = _get_2d_pattern(
-                src, elem_width, elem_bytes, data_type, dst.scope, allow_fold=allow_fold)
+                src, elem_width, elem_bytes, data_type,
+                dst.scope, allow_fold=allow_fold)
 
             irb = tvm.ir_builder.create()
-            irb.scope_attr(VTA_AXIS, "coproc_scope", get_task_qid(task_qid))
+            irb.scope_attr(env.dev.vta_axis, "coproc_scope",
+                           env.dev.get_task_qid(task_qid))
 
             irb.emit(tvm.call_extern(
-                "int32", "VTALoadBuffer2D", CB_HANDLE,
+                "int32", "VTALoadBuffer2D",
+                env.dev.command_handle,
                 src.data, offset, x_size, y_size, x_stride,
                 x_pad_before, y_pad_before,
                 x_pad_after, y_pad_after,
@@ -514,7 +544,7 @@ def inject_dma_intrin(stmt_in):
         else:
             raise RuntimeError("Donot support copy %s->%s" % (src.scope, dst.scope))
 
-    return tvm.ir_pass.InjectCopyIntrin(stmt_in, DMA_COPY, _inject_copy)
+    return tvm.ir_pass.InjectCopyIntrin(stmt_in, "dma_copy", _inject_copy)
 
 
 def annotate_alu_coproc_scope(stmt_in):
@@ -530,11 +560,14 @@ def annotate_alu_coproc_scope(stmt_in):
     stmt_out : Stmt
         Transformed statement
     """
+    env = get_env()
     def _do_fold(stmt):
         if (stmt.attr_key == "pragma_scope" and stmt.value.value == "alu"):
             irb = tvm.ir_builder.create()
-            irb.scope_attr(VTA_AXIS, "coproc_scope", get_task_qid(spec.VTA_QID_COMPUTE))
-            irb.scope_attr(VTA_AXIS, "coproc_uop_scope", tvm.make.StringImm("VTAPushALUOp"))
+            irb.scope_attr(env.dev.vta_axis, "coproc_scope",
+                           env.dev.get_task_qid(env.dev.QID_COMPUTE))
+            irb.scope_attr(env.dev.vta_axis, "coproc_uop_scope",
+                           tvm.make.StringImm("VTAPushALUOp"))
             irb.emit(stmt)
             return irb.get()
         elif (stmt.attr_key == "pragma_scope" and stmt.value.value == "skip_alu"):
@@ -560,6 +593,7 @@ def inject_alu_intrin(stmt_in):
     stmt_out : Stmt
         Transformed statement
     """
+    env = get_env()
     def _do_fold(stmt):
         def _equal(x, y):
             return tvm.ir_pass.Equal(tvm.ir_pass.Simplify(x - y), 0)
@@ -618,32 +652,32 @@ def inject_alu_intrin(stmt_in):
                 tmp_body = tmp_body.body
             # Derive opcode
             if isinstance(loop_body.value, tvm.expr.Add):
-                alu_opcode = spec.VTA_ALU_OPCODE_ADD
+                alu_opcode = env.dev.ALU_OPCODE_ADD
                 lhs = loop_body.value.a
                 rhs = loop_body.value.b
             elif isinstance(loop_body.value, tvm.expr.Sub):
-                alu_opcode = spec.VTA_ALU_OPCODE_SUB
+                alu_opcode = env.dev.ALU_OPCODE_SUB
                 lhs = loop_body.value.a
                 rhs = loop_body.value.b
             elif isinstance(loop_body.value, tvm.expr.Mul):
-                alu_opcode = spec.VTA_ALU_OPCODE_MUL
+                alu_opcode = env.dev.ALU_OPCODE_MUL
                 lhs = loop_body.value.a
                 rhs = loop_body.value.b
             elif isinstance(loop_body.value, tvm.expr.Min):
-                alu_opcode = spec.VTA_ALU_OPCODE_MIN
+                alu_opcode = env.dev.ALU_OPCODE_MIN
                 lhs = loop_body.value.a
                 rhs = loop_body.value.b
             elif isinstance(loop_body.value, tvm.expr.Max):
-                alu_opcode = spec.VTA_ALU_OPCODE_MAX
+                alu_opcode = env.dev.ALU_OPCODE_MAX
                 lhs = loop_body.value.a
                 rhs = loop_body.value.b
             elif isinstance(loop_body.value, tvm.expr.Call):
                 if loop_body.value.name == 'shift_left':
-                    alu_opcode = spec.VTA_ALU_OPCODE_SHR
+                    alu_opcode = env.dev.ALU_OPCODE_SHR
                     lhs = loop_body.value.args[0]
                     rhs = tvm.ir_pass.Simplify(-loop_body.value.args[1])
                 elif loop_body.value.name == 'shift_right':
-                    alu_opcode = spec.VTA_ALU_OPCODE_SHR
+                    alu_opcode = env.dev.ALU_OPCODE_SHR
                     lhs = loop_body.value.args[0]
                     rhs = loop_body.value.args[1]
                 else:
@@ -696,26 +730,26 @@ def inject_alu_intrin(stmt_in):
             extents = list(extents)
             assert len(src_coeff) > 1
             assert len(dst_coeff) > 1
-            assert len(extents) > 0
+            assert len(extents) != 0
             assert tvm.ir_pass.Equal(
                 tvm.ir_pass.Simplify(
-                    src_coeff[-1]%(spec.VTA_BATCH*spec.VTA_BLOCK_OUT)), 0)
+                    src_coeff[-1] % (env.BATCH * env.BLOCK_OUT)), 0)
             assert tvm.ir_pass.Equal(
                 tvm.ir_pass.Simplify(
-                    dst_coeff[-1]%(spec.VTA_BATCH*spec.VTA_BLOCK_OUT)), 0)
+                    dst_coeff[-1] % (env.BATCH * env.BLOCK_OUT)), 0)
             assert tvm.ir_pass.Equal(src_coeff[-2], 1)
             assert tvm.ir_pass.Equal(dst_coeff[-2], 1)
-            if spec.VTA_BATCH > 1:
+            if env.BATCH > 1:
                 assert len(src_coeff) > 2
                 assert len(dst_coeff) > 2
                 assert len(extents) > 1
-                assert tvm.ir_pass.Equal(src_coeff[-3], spec.VTA_BLOCK_OUT)
-                assert tvm.ir_pass.Equal(dst_coeff[-3], spec.VTA_BLOCK_OUT)
+                assert tvm.ir_pass.Equal(src_coeff[-3], env.BLOCK_OUT)
+                assert tvm.ir_pass.Equal(dst_coeff[-3], env.BLOCK_OUT)
 
             # Apply tensorization of the loop coefficients
             src_offset = src_coeff[-1]
             dst_offset = dst_coeff[-1]
-            if spec.VTA_BATCH == 1:
+            if env.BATCH == 1:
                 src_coeff = src_coeff[:-2]
                 dst_coeff = dst_coeff[:-2]
                 extents = extents[:-1]
@@ -726,9 +760,9 @@ def inject_alu_intrin(stmt_in):
             src_coeff.append(src_offset)
             dst_coeff.append(dst_offset)
             src_coeff = [
-                tvm.ir_pass.Simplify(c/(spec.VTA_BATCH*spec.VTA_BLOCK_OUT)) for c in src_coeff]
+                tvm.ir_pass.Simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in src_coeff]
             dst_coeff = [
-                tvm.ir_pass.Simplify(c/(spec.VTA_BATCH*spec.VTA_BLOCK_OUT)) for c in dst_coeff]
+                tvm.ir_pass.Simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in dst_coeff]
 
             # Flatten the outer loops
             if extents:
@@ -750,13 +784,25 @@ def inject_alu_intrin(stmt_in):
                 irb.emit(tvm.call_extern(
                     "int32", "VTAUopLoopEnd"))
             return irb.get()
-
         return stmt
 
     stmt_out = tvm.ir_pass.IRTransform(
         stmt_in, None, _do_fold, ["AttrStmt"])
     return stmt_out
 
+
 def debug_print(stmt):
-    print stmt
+    """A debug pass that print the stmt
+
+    Parameters
+    ----------
+    stmt : Stmt
+        The input statement
+
+    Returns
+    -------
+    stmt : Stmt
+        The
+    """
+    print(stmt)
     return stmt

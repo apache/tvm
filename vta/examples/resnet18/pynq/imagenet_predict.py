@@ -39,8 +39,9 @@ vta.program_fpga(remote, BITSTREAM_FILE)
 if verbose:
     logging.basicConfig(level=logging.INFO)
 
-# Change to -device=tcpu to run cpu only inference.
+# Change to -device=vta-cpu to run cpu only inference.
 target = "llvm -device=vta"
+target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
 
 synset = eval(open(os.path.join(CATEG_FILE)).read())
 image = Image.open(os.path.join(TEST_FILE)).resize((224, 224))
@@ -117,15 +118,16 @@ graph_attr.set_dtype_inputs(sym, dtype_dict)
 sym = sym.apply("InferType")
 
 with nnvm.compiler.build_config(opt_level=3):
-    bdict = {}
     if "vta" not in target:
-        bdict = {"add_lower_pass": []}
-    else:
-        bdict = {"add_lower_pass": vta.debug_mode(0)}
-    with tvm.build_config(**bdict):
         graph, lib, params = nnvm.compiler.build(
             sym, target, shape_dict, dtype_dict,
-            params=params)
+            params=params, target_host=target_host)
+    else:
+        with vta.build_config():
+            graph, lib, params = nnvm.compiler.build(
+                sym, target, shape_dict, dtype_dict,
+                params=params, target_host=target_host)
+
 
 temp = util.tempdir()
 lib.save(temp.relpath("graphlib.o"))

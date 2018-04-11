@@ -11,9 +11,6 @@ import pandas as pd
 host = "pynq"
 port = 9091
 target = "llvm -target=armv7-none-linux-gnueabihf -mattr=+neon"
-out_dtype = "int%d" % vta.VTA_OUT_WIDTH
-inp_dtype = "int%d" % vta.VTA_INP_WIDTH
-wgt_dtype = "int%d" % vta.VTA_WGT_WIDTH
 
 Workload = namedtuple("Conv2DWorkload",
                       ['batch', 'height', 'width', 'in_filter', 'out_filter',
@@ -46,12 +43,13 @@ class Conv2DSchedule(object):
 Schedule = Conv2DSchedule
 
 def get_insn_count(layer, sched):
+    env = vta.get_env()
     b, h, w, ci, co = sched
     b_factor = b
     h_factor = layer.height / h
     w_factor = layer.width / w
-    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * vta.VTA_BLOCK_IN)))
-    co_factor = int(np.ceil(float(layer.out_filter) / (co * vta.VTA_BLOCK_OUT)))
+    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * env.BLOCK_IN)))
+    co_factor = int(np.ceil(float(layer.out_filter) / (co * env.BLOCK_OUT)))
     input_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     weight_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     output_xfers = b_factor * h_factor * w_factor * co_factor
@@ -62,6 +60,7 @@ def get_insn_count(layer, sched):
     return insn_count
 
 def find_schedules(layer, mtOnly=False, bestOnly=False):
+    env = vta.get_env()
     # Helper function to get factors
     def find_factors(n):
         factors = []
@@ -70,11 +69,11 @@ def find_schedules(layer, mtOnly=False, bestOnly=False):
                 factors.append(i)
         return factors
     # Scheduling exploration
-    batch_factors = find_factors(int(np.ceil(float(layer.batch) / vta.VTA_BATCH)))
+    batch_factors = find_factors(int(np.ceil(float(layer.batch) / env.BATCH)))
     height_factors = find_factors(layer.height / layer.hstride)
     width_factors = find_factors(layer.width / layer.wstride)
-    cin_factors = find_factors(int(np.ceil(float(layer.in_filter) / vta.VTA_BLOCK_IN)))
-    cout_factors = find_factors(int(np.ceil(float(layer.out_filter) / vta.VTA_BLOCK_OUT)))
+    cin_factors = find_factors(int(np.ceil(float(layer.in_filter) / env.BLOCK_IN)))
+    cout_factors = find_factors(int(np.ceil(float(layer.out_filter) / env.BLOCK_OUT)))
     ht_factors = [1, 2]
     cot_factors = [1, 2]
     # Explore schedules
@@ -90,12 +89,12 @@ def find_schedules(layer, mtOnly=False, bestOnly=False):
                             if ci == 1:
                                 schedules.append([b, h, w, ci, co])
     # Filter the schedules that wouldn't work in the available BRAM sizes
-    input_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_IN * vta.VTA_INP_WIDTH
-    weight_elem_size_b = vta.VTA_BLOCK_IN * vta.VTA_BLOCK_OUT * vta.VTA_WGT_WIDTH
-    output_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_OUT * vta.VTA_OUT_WIDTH
-    input_brams_capacity_b = vta.VTA_INP_BUFF_SIZE * 8
-    weight_brams_capacity_b = vta.VTA_WGT_BUFF_SIZE * 8
-    output_brams_capacity_b = vta.VTA_OUT_BUFF_SIZE * 8
+    input_elem_size_b = env.BATCH * env.BLOCK_IN * env.INP_WIDTH
+    weight_elem_size_b = env.BLOCK_IN * env.BLOCK_OUT * env.WGT_WIDTH
+    output_elem_size_b = env.BATCH * env.BLOCK_OUT * env.OUT_WIDTH
+    input_brams_capacity_b = env.INP_BUFF_SIZE * 8
+    weight_brams_capacity_b = env.WGT_BUFF_SIZE * 8
+    output_brams_capacity_b = env.OUT_BUFF_SIZE * 8
     fil_sched = []
     xfer_size = []
     for sched in schedules:
@@ -125,7 +124,7 @@ def find_schedules(layer, mtOnly=False, bestOnly=False):
                         if input_tile_elems*input_elem_size_b <= input_brams_capacity_b/(cot*ht) and \
                            weight_tile_elems*weight_elem_size_b <= weight_brams_capacity_b and \
                            output_tile_elems*output_elem_size_b <= output_brams_capacity_b/(cot*ht) and \
-                           insn_count <= vta.VTA_MAX_XFER / 16 and \
+                           insn_count <= env.MAX_XFER / 16 and \
                            h > 2 and w > 2:
                             schedule = Schedule(oc_factor=co, ko_factor=ci, h_factor=h,
                                                 w_factor=w, oc_nthread=cot, h_nthread=ht)
@@ -137,10 +136,11 @@ def find_schedules(layer, mtOnly=False, bestOnly=False):
         return fil_sched
 
 def get_data_movementB(sched, layer):
+    env = vta.get_env()
     # Derive data movement
-    input_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_IN * vta.VTA_INP_WIDTH
-    weight_elem_size_b = vta.VTA_BLOCK_IN * vta.VTA_BLOCK_OUT * vta.VTA_WGT_WIDTH
-    output_elem_size_b = vta.VTA_BATCH * vta.VTA_BLOCK_OUT * vta.VTA_OUT_WIDTH
+    input_elem_size_b = env.BATCH * env.BLOCK_IN * env.INP_WIDTH
+    weight_elem_size_b = env.BLOCK_IN * env.BLOCK_OUT * env.WGT_WIDTH
+    output_elem_size_b = env.BATCH * env.BLOCK_OUT * env.OUT_WIDTH
     b = sched.b_factor
     h = sched.h_factor
     w = sched.w_factor
@@ -154,11 +154,11 @@ def get_data_movementB(sched, layer):
     weight_tile_elems = layer.hkernel * layer.wkernel * ci
     output_tile_elems = b * h * w * co
     # Derive factors
-    b_factor = int(np.ceil(float(layer.batch) / (b * vta.VTA_BATCH)))
+    b_factor = int(np.ceil(float(layer.batch) / (b * env.BATCH)))
     h_factor = (layer.height / layer.hstride) / h
     w_factor = (layer.width / layer.wstride) / w
-    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * vta.VTA_BLOCK_IN)))
-    co_factor = int(np.ceil(float(layer.out_filter) / (co * vta.VTA_BLOCK_OUT)))
+    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * env.BLOCK_IN)))
+    co_factor = int(np.ceil(float(layer.out_filter) / (co * env.BLOCK_OUT)))
     # Derive transfers
     input_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     weight_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
@@ -171,19 +171,20 @@ def get_data_movementB(sched, layer):
     return total_xfer_B
 
 def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True):
-    assert batch_size % vta.VTA_BATCH == 0
-    assert wl.in_filter % vta.VTA_BLOCK_IN == 0
-    assert wl.out_filter % vta.VTA_BLOCK_OUT == 0
-    data_shape = (batch_size//vta.VTA_BATCH, wl.in_filter//vta.VTA_BLOCK_IN,
-                  wl.height, wl.width, vta.VTA_BATCH, vta.VTA_BLOCK_IN)
-    kernel_shape = (wl.out_filter//vta.VTA_BLOCK_OUT, wl.in_filter//vta.VTA_BLOCK_IN,
-                    wl.hkernel, wl.wkernel, vta.VTA_BLOCK_OUT, vta.VTA_BLOCK_IN)
+    env = vta.get_env()
+    assert batch_size % env.BATCH == 0
+    assert wl.in_filter % env.BLOCK_IN == 0
+    assert wl.out_filter % env.BLOCK_OUT == 0
+    data_shape = (batch_size//env.BATCH, wl.in_filter//env.BLOCK_IN,
+                  wl.height, wl.width, env.BATCH, env.BLOCK_IN)
+    kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
+                    wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
     fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
     fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
-    res_shape = (batch_size//vta.VTA_BATCH, wl.out_filter//vta.VTA_BLOCK_OUT,
-                 fout_height, fout_width, vta.VTA_BATCH, vta.VTA_BLOCK_OUT)
-    data = tvm.placeholder(data_shape, name="data", dtype=inp_dtype)
-    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=wgt_dtype)
+    res_shape = (batch_size//env.BATCH, wl.out_filter//env.BLOCK_OUT,
+                 fout_height, fout_width, env.BATCH, env.BLOCK_OUT)
+    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
     if wl.hpad or wl.wpad:
         data_buf = topi.nn.pad(data, [0, 0, wl.hpad, wl.wpad, 0, 0], name="data_buf")
     else:
@@ -191,22 +192,22 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
     kernel_buf = tvm.compute(kernel_shape, lambda *i: kernel(*i), "kernel_buf")
     di = tvm.reduce_axis((0, wl.hkernel), name='di')
     dj = tvm.reduce_axis((0, wl.wkernel), name='dj')
-    ko = tvm.reduce_axis((0, wl.in_filter//vta.VTA_BLOCK_IN), name='ko')
-    ki = tvm.reduce_axis((0, vta.VTA_BLOCK_IN), name='ki')
+    ko = tvm.reduce_axis((0, wl.in_filter//env.BLOCK_IN), name='ko')
+    ki = tvm.reduce_axis((0, env.BLOCK_IN), name='ki')
     res_cnv = tvm.compute(
         res_shape,
         lambda bo, co, i, j, bi, ci: tvm.sum(
-            data_buf[bo, ko, i*wl.hstride+di, j*wl.wstride+dj, bi, ki].astype(out_dtype) *
-            kernel_buf[co, ko, di, dj, ci, ki].astype(out_dtype),
+            data_buf[bo, ko, i*wl.hstride+di, j*wl.wstride+dj, bi, ki].astype(env.acc_dtype) *
+            kernel_buf[co, ko, di, dj, ci, ki].astype(env.acc_dtype),
         axis=[ko, di, dj, ki]),
         name="res_cnv")
     res_shf = tvm.compute(res_shape, lambda *i: res_cnv(*i) >> 8, name="res_shf")
-    res = tvm.compute(res_shape, lambda *i: res_shf(*i).astype(inp_dtype), name="res")
+    res = tvm.compute(res_shape, lambda *i: res_shf(*i).astype(env.inp_dtype), name="res")
     num_ops = batch_size * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
     total_xfer_B = get_data_movementB(sched, wl)
 
     def verify(s, check_correctness):
-        mod = tvm.build(s, [data, kernel, res], "ext_dev", target, name="conv2d")
+        mod = vta.build(s, [data, kernel, res], "ext_dev", target, name="conv2d")
         temp = util.tempdir()
         remote = rpc.connect(host, port)
         mod.save(temp.relpath("conv2d.o"))
@@ -220,12 +221,12 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
         kernel_orig = np.random.randint(
             -128, 128, size=(wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)).astype(kernel.dtype)
         data_packed = data_orig.reshape(
-            batch_size//vta.VTA_BATCH, vta.VTA_BATCH,
-            wl.in_filter//vta.VTA_BLOCK_IN, vta.VTA_BLOCK_IN,
+            batch_size//env.BATCH, env.BATCH,
+            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
             wl.height, wl.width).transpose((0, 2, 4, 5, 1, 3))
         kernel_packed = kernel_orig.reshape(
-            wl.out_filter//vta.VTA_BLOCK_OUT, vta.VTA_BLOCK_OUT,
-            wl.in_filter//vta.VTA_BLOCK_IN, vta.VTA_BLOCK_IN,
+            wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
+            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
             wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
         res_np = np.zeros(res_shape).astype(res.dtype)
         data_arr = tvm.nd.array(data_packed, ctx)
@@ -237,13 +238,13 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             (0, 4, 1, 5, 2, 3)).reshape(batch_size, wl.out_filter, fout_height, fout_width)
         if check_correctness:
             res_ref = mx.nd.Convolution(
-                mx.nd.array(data_orig.astype(out_dtype), mx.cpu(0)),
-                mx.nd.array(kernel_orig.astype(out_dtype), mx.cpu(0)),
+                mx.nd.array(data_orig.astype(env.acc_dtype), mx.cpu(0)),
+                mx.nd.array(kernel_orig.astype(env.acc_dtype), mx.cpu(0)),
                 stride=(wl.hstride, wl.wstride),
                 kernel=(wl.hkernel, wl.wkernel),
                 num_filter=wl.out_filter,
                 no_bias=True,
-                pad=(wl.hpad, wl.wpad)).asnumpy().astype(out_dtype)
+                pad=(wl.hpad, wl.wpad)).asnumpy().astype(env.acc_dtype)
             res_ref = np.right_shift(res_ref, 8).astype(res.dtype)
             np.testing.assert_allclose(res_unpack, res_ref)
             print("Correctness check pass...")
@@ -253,13 +254,13 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
                      print_ir, check_correctness):
         # schedule1
         s = tvm.create_schedule(res.op)
-        s[data_buf].set_scope(vta.SCOPE_INP)
-        s[kernel_buf].set_scope(vta.SCOPE_WGT)
-        s[res_cnv].set_scope(vta.SCOPE_OUT)
-        s[res_shf].set_scope(vta.SCOPE_OUT)
+        s[data_buf].set_scope(env.inp_scope)
+        s[kernel_buf].set_scope(env.wgt_scope)
+        s[res_cnv].set_scope(env.acc_scope)
+        s[res_shf].set_scope(env.acc_scope)
         # tile
         oc_factor = (sched.oc_factor if sched.oc_factor
-                     else wl.out_filter // vta.VTA_BLOCK_OUT)
+                     else wl.out_filter // env.BLOCK_OUT)
         h_factor = (sched.h_factor if sched.h_factor else fout_height)
         w_factor = (sched.w_factor if sched.w_factor else fout_width)
         xbo, xco, xi, xj, xbi, xci = s[res].op.axis
@@ -304,8 +305,8 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
         def run_test(header, print_ir, check_correctness):
             s = [1, sched.oc_factor, sched.ko_factor, sched.h_factor, sched.w_factor]
             cost = run_schedule(
-                vta.DMA_COPY, vta.DMA_COPY,
-                vta.GEMM, vta.ALU, vta.DMA_COPY,
+                env.dma_copy, env.dma_copy,
+                env.gemm, env.alu, env.dma_copy,
                 print_ir, check_correctness)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
@@ -316,15 +317,15 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             log_frame["total-gops"].append(gops)
             log_frame["total-cost"].append(cost.mean)
             log_frame["total-insn"].append(get_insn_count(wl, s))
-            log_frame["block-batch"].append(vta.VTA_BATCH)
-            log_frame["block-in"].append(vta.VTA_BLOCK_IN)
-            log_frame["block-out"].append(vta.VTA_BLOCK_OUT)
-            log_frame["inp-width"].append(vta.VTA_INP_WIDTH)
-            log_frame["wgt-width"].append(vta.VTA_WGT_WIDTH)
-            log_frame["uop-size"].append(vta.VTA_UOP_BUFF_SIZE)
-            log_frame["inp-size"].append(vta.VTA_INP_BUFF_SIZE)
-            log_frame["wgt-size"].append(vta.VTA_WGT_BUFF_SIZE)
-            log_frame["out-size"].append(vta.VTA_OUT_BUFF_SIZE)
+            log_frame["block-batch"].append(env.BATCH)
+            log_frame["block-in"].append(env.BLOCK_IN)
+            log_frame["block-out"].append(env.BLOCK_OUT)
+            log_frame["inp-width"].append(env.INP_WIDTH)
+            log_frame["wgt-width"].append(env.WGT_WIDTH)
+            log_frame["uop-size"].append(env.UOP_BUFF_SIZE)
+            log_frame["inp-size"].append(env.INP_BUFF_SIZE)
+            log_frame["wgt-size"].append(env.WGT_BUFF_SIZE)
+            log_frame["out-size"].append(env.OUT_BUFF_SIZE)
             log_frame["oc-factor"].append(sched.oc_factor)
             log_frame["ic-factor"].append(sched.ko_factor)
             log_frame["h-factor"].append(sched.h_factor)
@@ -333,16 +334,16 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             log_frame["h-threads"].append(sched.h_nthread)
             log_frame["threaded"].append(True if sched.oc_nthread > 1 or sched.h_nthread > 1 else False)
 
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir, True)
 
     def skip_alu_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- Skip ALU Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                vta.DMA_COPY, vta.DMA_COPY,
-                vta.GEMM, mock.ALU, vta.DMA_COPY,
+                env.dma_copy, env.dma_copy,
+                env.gemm, mock.alu, env.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
@@ -350,118 +351,118 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             log_frame["skip-alu-gops"].append(gops)
             log_frame["skip-alu-cost"].append(cost.mean)
 
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def gemm_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- GEMM Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, mock.DMA_COPY,
-                vta.GEMM, mock.ALU, mock.DMA_COPY,
+                mock.dma_copy, mock.dma_copy,
+                env.gemm, mock.alu, mock.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
             log_frame["gemm-gops"].append(gops)
             log_frame["gemm-cost"].append(cost.mean)
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def alu_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- ALU Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, mock.DMA_COPY,
-                mock.GEMM, vta.ALU, mock.DMA_COPY,
+                mock.dma_copy, mock.dma_copy,
+                env.gemm, env.alu, mock.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
             log_frame["alu-gops"].append(gops)
             log_frame["alu-cost"].append(cost.mean)
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def load_inp_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- LoadInp Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                vta.DMA_COPY, mock.DMA_COPY,
-                mock.GEMM, mock.ALU, mock.DMA_COPY,
+                env.dma_copy, mock.dma_copy,
+                env.gemm, mock.alu, mock.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             bandwith = (batch_size * wl.in_filter * wl.height *
-                        wl.width * vta.INP_WIDTH / cost.mean) / float(10 ** 9)
+                        wl.width * env.INP_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS, bandwith=%g gbits" % (
                 cost.mean, gops, bandwith))
             log_frame["ld-inp-gbits"].append(bandwith)
             log_frame["ld-inp-cost"].append(cost.mean)
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def load_wgt_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- LoadWgt Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, vta.DMA_COPY,
-                mock.GEMM, mock.ALU, mock.DMA_COPY, print_ir,
+                mock.dma_copy, env.dma_copy,
+                env.gemm, mock.alu, mock.dma_copy, print_ir,
                 False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             bandwith = (wl.out_filter * wl.in_filter * wl.hkernel *
-                        wl.wkernel * vta.WGT_WIDTH / cost.mean) / float(10 ** 9)
+                        wl.wkernel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS, bandwith=%g gbits" % (
                 cost.mean, gops, bandwith))
             log_frame["ld-wgt-gbits"].append(bandwith)
             log_frame["ld-wgt-cost"].append(cost.mean)
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def store_out_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- StoreOut Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, mock.DMA_COPY,
-                mock.GEMM, mock.ALU, vta.DMA_COPY, print_ir,
+                mock.dma_copy, mock.dma_copy,
+                env.gemm, mock.alu, env.dma_copy, print_ir,
                 False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             bandwith = (batch_size * wl.out_filter * fout_height *
-                        fout_width * vta.OUT_WIDTH / cost.mean) / float(10 ** 9)
+                        fout_width * env.OUT_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS, bandwith=%g gbits" % (
                 cost.mean, gops, bandwith))
             log_frame["st-out-gbits"].append(bandwith)
             log_frame["st-out-cost"].append(cost.mean)
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def manual_unittest(print_ir):
         # Manual section used to teak the components
-        mock = vta.mock
+        mock = env.mock
         print("----- Manual Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                vta.DMA_COPY, vta.DMA_COPY,
-                vta.GEMM, vta.ALU, mock.DMA_COPY, print_ir,
+                env.dma_copy, env.dma_copy,
+                env.gemm, env.alu, mock.dma_copy, print_ir,
                 False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (
                 cost.mean, gops))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
