@@ -82,11 +82,15 @@ class MetalModuleNode final :public runtime::ModuleNode {
     NSError* err_msg = nil;
     if (e.lib == nil) {
       if (fmt_ == "metal") {
+        MTLCompileOptions *opts = [MTLCompileOptions alloc];
+        opts.languageVersion = MTLLanguageVersion2_0;
+        opts.fastMathEnabled = YES;
         e.lib = [
             w->devices[device_id]
              newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
-             options:nil
+             options:opts
              error:&err_msg];
+        [opts dealloc];
         if (err_msg != nil || e.lib == nil) {
           LOG(FATAL) << "Fail to compile metal lib:"
                      << [[err_msg localizedDescription] UTF8String];
