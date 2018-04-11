@@ -7,16 +7,12 @@ import tvm
 import topi
 
 from nnvm.top import registry as reg, OpPattern
+from . import environment as vta
 
-from . import intrin, runtime as vta
-from intrin import GEVM
-
-TARGET_BOARD = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
 
 Workload = namedtuple("Conv2DWorkload",
                       ['height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
-
 
 def packed_conv2d(data,
                   kernel,
@@ -58,10 +54,9 @@ def packed_conv2d(data,
 def _build(funcs, target, target_host):
     tvm_t = tvm.target.create(target)
     if tvm_t.device_name == "vta":
-        return tvm.build(funcs, target="ext_dev",
-                         target_host=TARGET_BOARD)
-    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "tcpu":
-        return tvm.build(funcs, target=TARGET_BOARD)
+        return tvm.build(funcs, target="ext_dev", target_host=target_host)
+    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vta-cpu":
+        return tvm.build(funcs, target=target_host)
     return tvm.build(funcs, target=target)
 
 
@@ -224,36 +219,39 @@ def schedule_packed_conv2d(outs):
     wrkld = _get_workload(data, pad_data, kernel, output)
 
     plan = _WL2PLAN[wrkld]
-    load_inp = load_wgt = load_out = store_out = "dma_copy"
-    alu = "alu"
-    gevm = GEVM
+    env = vta.get_env()
+
+    load_inp = load_wgt = load_out = store_out = env.dma_copy
+    alu = env.alu
+    gevm = env.gevm
 
     # schedule1
     oshape = topi.util.get_const_tuple(output.shape)
     s = tvm.create_schedule(output.op)
 
+
     # setup pad
     if pad_data is not None:
         cdata = pad_data
-        s[pad_data].set_scope(vta.SCOPE_INP)
+        s[pad_data].set_scope(env.inp_scope)
     else:
-        cdata = s.cache_read(data, vta.SCOPE_INP, [conv2d_stage])
-    ckernel = s.cache_read(kernel, vta.SCOPE_WGT, [conv2d_stage])
-    s[conv2d_stage].set_scope(vta.SCOPE_OUT)
+        cdata = s.cache_read(data, env.inp_scope, [conv2d_stage])
+    ckernel = s.cache_read(kernel, env.wgt_scope, [conv2d_stage])
+    s[conv2d_stage].set_scope(env.acc_scope)
     # cache read input
     cache_read_ewise = []
 
     for consumer, tensor in ewise_inputs:
         cache_read_ewise.append(
-            s.cache_read(tensor, vta.SCOPE_OUT, [consumer]))
+            s.cache_read(tensor, env.acc_scope, [consumer]))
     # set ewise scope
     for op in ewise_ops:
-        s[op].set_scope(vta.SCOPE_OUT)
+        s[op].set_scope(env.acc_scope)
         s[op].pragma(s[op].op.axis[0], alu)
 
     # tile
     oc_factor = (plan.oc_factor if plan.oc_factor
-                 else wrkld.out_filter // vta.VTA_BLOCK_OUT)
+                 else wrkld.out_filter // vta.BLOCK_OUT)
     h_factor = (plan.h_factor if plan.h_factor else oshape[2])
     w_factor = (plan.w_factor if plan.w_factor else oshape[3])
 

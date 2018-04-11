@@ -8,34 +8,33 @@ from tvm.contrib import rpc, util
 host = "pynq"
 port = 9091
 target = "llvm -target=armv7-none-linux-gnueabihf"
-out_dtype = "int%d" % vta.VTA_OUT_WIDTH
-inp_dtype = "int%d" % vta.VTA_INP_WIDTH
-wgt_dtype = "int%d" % vta.VTA_WGT_WIDTH
+
 
 def test_gemm_packed(batch_size, channel, block):
-    data_shape = (batch_size//vta.VTA_BATCH,
-                  channel//vta.VTA_BLOCK_IN,
-                  vta.VTA_BATCH,
-                  vta.VTA_BLOCK_IN)
-    weight_shape = (channel//vta.VTA_BLOCK_OUT,
-                    channel//vta.VTA_BLOCK_IN,
-                    vta.VTA_BLOCK_OUT,
-                    vta.VTA_BLOCK_IN)
-    res_shape = (batch_size//vta.VTA_BATCH,
-                 channel//vta.VTA_BLOCK_OUT,
-                 vta.VTA_BATCH,
-                 vta.VTA_BLOCK_OUT)
+    env = vta.get_env()
+    data_shape = (batch_size // env.BATCH,
+                  channel // env.BLOCK_IN,
+                  env.BATCH,
+                  env.BLOCK_IN)
+    weight_shape = (channel // env.BLOCK_OUT,
+                    channel // env.BLOCK_IN,
+                    env.BLOCK_OUT,
+                    env.BLOCK_IN)
+    res_shape = (batch_size // env.BATCH,
+                 channel // env.BLOCK_OUT,
+                 env.BATCH,
+                 env.BLOCK_OUT)
     num_ops = channel * channel * batch_size
 
-    ko = tvm.reduce_axis((0, channel//vta.VTA_BLOCK_IN), name='ko')
-    ki = tvm.reduce_axis((0, vta.VTA_BLOCK_IN), name='ki')
+    ko = tvm.reduce_axis((0, channel // env.BLOCK_IN), name='ko')
+    ki = tvm.reduce_axis((0, env.BLOCK_IN), name='ki')
 
     data = tvm.placeholder(data_shape,
                            name="data",
-                           dtype=inp_dtype)
+                           dtype=env.inp_dtype)
     weight = tvm.placeholder(weight_shape,
                              name="weight",
-                             dtype=wgt_dtype)
+                             dtype=env.wgt_dtype)
     data_buf = tvm.compute(data_shape,
                            lambda *i: data(*i),
                            "data_buf")
@@ -44,8 +43,8 @@ def test_gemm_packed(batch_size, channel, block):
                              "weight_buf")
     res_gem = tvm.compute(res_shape,
                           lambda bo, co, bi, ci: tvm.sum(
-                              data_buf[bo, ko, bi, ki].astype(out_dtype) *
-                              weight_buf[co, ko, ci, ki].astype(out_dtype),
+                              data_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
+                              weight_buf[co, ko, ci, ki].astype(env.acc_dtype),
                               axis=[ko, ki]),
                           name="res_gem")
     res_shf = tvm.compute(res_shape,
@@ -55,14 +54,14 @@ def test_gemm_packed(batch_size, channel, block):
                           lambda *i: tvm.max(res_shf(*i), 0),
                           "res_max") #relu
     res_min = tvm.compute(res_shape,
-                          lambda *i: tvm.min(res_max(*i), (1<<(vta.VTA_INP_WIDTH-1))-1),
+                          lambda *i: tvm.min(res_max(*i), (1<<(env.INP_WIDTH-1))-1),
                           "res_min") #relu
     res = tvm.compute(res_shape,
-                      lambda *i: res_min(*i).astype(inp_dtype),
+                      lambda *i: res_min(*i).astype(env.inp_dtype),
                       name="res")
 
     def verify(s, check_correctness=True):
-        mod = tvm.build(s, [data, weight, res], "ext_dev", target, name="gemm")
+        mod = vta.build(s, [data, weight, res], "ext_dev", target, name="gemm")
         temp = util.tempdir()
         remote = rpc.connect(host, port)
         mod.save(temp.relpath("gemm.o"))
@@ -76,29 +75,29 @@ def test_gemm_packed(batch_size, channel, block):
         weight_orig = np.random.randint(
             -128, 128, size=(channel, channel)).astype(weight.dtype)
         data_packed = data_orig.reshape(
-            batch_size//vta.VTA_BATCH, vta.VTA_BATCH,
-            channel//vta.VTA_BLOCK_IN, vta.VTA_BLOCK_IN).transpose((0, 2, 1, 3))
+            batch_size // env.BATCH, env.BATCH,
+            channel // env.BLOCK_IN, env.BLOCK_IN).transpose((0, 2, 1, 3))
         weight_packed = weight_orig.reshape(
-            channel//vta.VTA_BLOCK_OUT, vta.VTA_BLOCK_OUT,
-            channel//vta.VTA_BLOCK_IN, vta.VTA_BLOCK_IN).transpose((0, 2, 1, 3))
+            channel // env.BLOCK_OUT, env.BLOCK_OUT,
+            channel // env.BLOCK_IN, env.BLOCK_IN).transpose((0, 2, 1, 3))
         res_np = np.zeros(res_shape).astype(res.dtype)
         data_arr = tvm.nd.array(data_packed, ctx)
         weight_arr = tvm.nd.array(weight_packed, ctx)
         res_arr = tvm.nd.array(res_np, ctx)
-        res_ref = np.zeros(res_shape).astype(out_dtype)
-        for b in range(batch_size//vta.VTA_BATCH):
-            for i in range(channel//vta.VTA_BLOCK_OUT):
-                for j in range(channel//vta.VTA_BLOCK_IN):
-                    res_ref[b,i,:] += np.dot(data_packed[b,j,:].astype(out_dtype),
-                                             weight_packed[i,j].T.astype(out_dtype))
+        res_ref = np.zeros(res_shape).astype(env.acc_dtype)
+        for b in range(batch_size // env.BATCH):
+            for i in range(channel // env.BLOCK_OUT):
+                for j in range(channel // env.BLOCK_IN):
+                    res_ref[b,i,:] += np.dot(data_packed[b,j,:].astype(env.acc_dtype),
+                                             weight_packed[i,j].T.astype(env.acc_dtype))
         res_ref = np.right_shift(res_ref, 8)
-        res_ref = np.clip(res_ref, 0, (1<<(vta.VTA_INP_WIDTH-1))-1).astype(res.dtype)
+        res_ref = np.clip(res_ref, 0, (1<<(env.INP_WIDTH-1))-1).astype(res.dtype)
         time_f = f.time_evaluator("gemm", ctx, number=20)
         cost = time_f(data_arr, weight_arr, res_arr)
-        res_unpack = res_arr.asnumpy().reshape(batch_size//vta.VTA_BATCH,
-                                               channel//vta.VTA_BLOCK_OUT,
-                                               vta.VTA_BATCH,
-                                               vta.VTA_BLOCK_OUT)
+        res_unpack = res_arr.asnumpy().reshape(batch_size // env.BATCH,
+                                               channel // env.BLOCK_OUT,
+                                               env.BATCH,
+                                               env.BLOCK_OUT)
         if check_correctness:
             np.testing.assert_allclose(res_unpack, res_ref)
         return cost
@@ -111,17 +110,17 @@ def test_gemm_packed(batch_size, channel, block):
                      print_ir,
                      check_correctness):
         s = tvm.create_schedule(res.op)
-        s[data_buf].set_scope(vta.SCOPE_INP)
-        s[weight_buf].set_scope(vta.SCOPE_WGT)
-        s[res_gem].set_scope(vta.SCOPE_OUT)
-        s[res_shf].set_scope(vta.SCOPE_OUT)
-        s[res_min].set_scope(vta.SCOPE_OUT)
-        s[res_max].set_scope(vta.SCOPE_OUT)
+        s[data_buf].set_scope(env.inp_scope)
+        s[weight_buf].set_scope(env.wgt_scope)
+        s[res_gem].set_scope(env.acc_scope)
+        s[res_shf].set_scope(env.acc_scope)
+        s[res_min].set_scope(env.acc_scope)
+        s[res_max].set_scope(env.acc_scope)
 
         if block:
-            bblock = block // vta.VTA_BATCH
-            iblock = block // vta.VTA_BLOCK_IN
-            oblock = block // vta.VTA_BLOCK_OUT
+            bblock = block // env.BATCH
+            iblock = block // env.BLOCK_IN
+            oblock = block // env.BLOCK_OUT
             xbo, xco, xbi, xci = s[res].op.axis
             xb1, xco1, xb2, xco2 = s[res].tile(xbo, xco, bblock, oblock)
             store_pt = xb2
@@ -162,91 +161,91 @@ def test_gemm_packed(batch_size, channel, block):
         return verify(s, check_correctness)
 
     def gemm_normal(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- GEMM GFLOPS End-to-End Test-------")
         def run_test(header, print_ir, check_correctness):
             cost = run_schedule(
-                vta.DMA_COPY, vta.DMA_COPY, vta.GEMM, vta.ALU, vta.DMA_COPY,
+                env.dma_copy, env.dma_copy, env.gemm, env.alu, env.dma_copy,
                 print_ir, check_correctness)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(vta.DEBUG_DUMP_INSN)):
+        with vta.build_config():
             run_test("NORMAL", print_ir, True)
 
         print("")
 
     def gevm_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- GEMM Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, mock.DMA_COPY, vta.GEMM, mock.ALU, mock.DMA_COPY,
+                mock.dma_copy, mock.dma_copy, env.gemm, mock.alu, mock.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def alu_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- ALU Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, mock.DMA_COPY, mock.GEMM, vta.ALU, mock.DMA_COPY,
+                mock.dma_copy, mock.dma_copy, mock.gemm, env.alu, mock.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def load_inp_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- LoadInp Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                vta.DMA_COPY, mock.DMA_COPY, mock.GEMM, mock.ALU, mock.DMA_COPY, print_ir, False)
+                env.dma_copy, mock.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
-            bandwith = (batch_size * channel * vta.VTA_INP_WIDTH / cost.mean) / float(10 ** 9)
+            bandwith = (batch_size * channel * env.INP_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS, bandwidth=%g Gbits" % (
                 cost.mean, gops, bandwith))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def load_wgt_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- LoadWgt Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, vta.DMA_COPY, mock.GEMM, mock.ALU, mock.DMA_COPY, print_ir, False)
+                mock.dma_copy, env.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
-            bandwith = (channel * channel * vta.VTA_WGT_WIDTH / cost.mean) / float(10 ** 9)
+            bandwith = (channel * channel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS, bandwidth=%g Gbits" % (
                 cost.mean, gops, bandwith))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
     def store_out_unittest(print_ir):
-        mock = vta.mock
+        mock = env.mock
         print("----- StoreOut Unit Test-------")
         def run_test(header, print_ir):
             cost = run_schedule(
-                mock.DMA_COPY, mock.DMA_COPY, mock.GEMM, mock.ALU, vta.DMA_COPY,
+                mock.dma_copy, mock.dma_copy, mock.gemm, mock.alu, env.dma_copy,
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
-            bandwith = (batch_size * channel * vta.VTA_OUT_WIDTH / cost.mean) / float(10 ** 9)
+            bandwith = (batch_size * channel * env.OUT_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
             print("\tTime cost = %g sec/op, %g GFLOPS, bandwidth=%g Gbits" % (
                 cost.mean, gops, bandwith))
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             run_test("NORMAL", print_ir)
         print("")
 
