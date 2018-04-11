@@ -482,10 +482,13 @@ class Canonical::Internal : public IRMutator {
       }
     }
     Expr yres = Sum2Expr(ComExpr(ynode), type);
-    Expr one = make_const(type, 1);
-    if (EvalSet(yres + one , var_range_).can_prove_positive() &&
-        EvalSet(coeff - yres, var_range_).can_prove_positive() &&
-        EvalSet(Sum2Expr(ComExpr(xnode), type) + one, var_range_).can_prove_positive()) {
+    IntSet yset = EvalSet(yres, var_range_);
+    // This relies on the integer division rounds down
+    // Most cases it is good for integer division.
+    if (yset.min().type() == type &&
+        can_prove(yset.min() >= make_zero(type)) &&
+        yset.max().type() == type &&
+        can_prove(yset.max() < coeff)) {
       xnode->base /= value;
       for (auto &e : xnode->elem) {
         e.scale /= value;
