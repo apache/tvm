@@ -1,7 +1,9 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file vta_driver.h
- * \brief General driver interface.
+ * \brief Driver interface that is used by runtime.
+ *
+ * Driver's implementation is device specific.
  */
 
 #ifndef VTA_DRIVER_H_
@@ -11,16 +13,50 @@
 extern "C" {
 #endif
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
-/*! \brief Memory management constants */
+/*! \brief Memory management constants for cached memory */
 #define VTA_CACHED 1
-/*! \brief Memory management constants */
+/*! \brief Memory management constants for non-cached memory */
 #define VTA_NOT_CACHED 0
 
-/*! \brief VTA command handle */
-typedef void * VTAHandle;
+/*! \brief Physically contiguous buffer size limit */
+#ifndef VTA_MAX_XFER
+#define VTA_MAX_XFER (1<<22)
+#endif
+
+/*! \brief Device resource context  */
+typedef void * VTADeviceHandle;
+
+/*! \brief physical address */
+typedef uint32_t vta_phy_addr_t;
+
+/*!
+ * \brief Allocate a device resource handle
+ * \return The device handle.
+ */
+VTADeviceHandle VTADeviceAlloc();
+
+/*!
+ * \brief Free a device handle
+ * \param handle The device handle to be freed.
+ */
+void VTADeviceFree(VTADeviceHandle handle);
+
+/*!
+ * \brief Launch the instructions block until done.
+ * \param The device handle.
+ * \param insn_phy_addr The physical address of instruction stream.
+ * \param insn_count Instruction count.
+ * \param wait_cycles The maximum of cycles to wait
+ *
+ * \return 0 if running is successful, 1 if timeout.
+ */
+int VTADeviceRun(VTADeviceHandle device,
+                 vta_phy_addr_t insn_phy_addr,
+                 uint32_t insn_count,
+                 uint32_t wait_cycles);
 
 /*!
  * \brief Allocates physically contiguous region in memory (limited by MAX_XFER).
@@ -41,52 +77,23 @@ void VTAMemFree(void* buf);
  * \param buf Pointer to memory region allocated with VTAMemAlloc.
  * \return The physical address of the memory region.
  */
-uint32_t VTAGetMemPhysAddr(void* buf);
+vta_phy_addr_t VTAGetMemPhysAddr(void* buf);
 
 /*!
  * \brief Flushes the region of memory out of the CPU cache to DRAM.
  * \param buf Pointer to memory region allocated with VTAMemAlloc to be flushed.
+ *            This need to be the physical address.
  * \param size Size of the region to flush in Bytes.
  */
-void VTAFlushCache(void* buf, int size);
+void VTAFlushCache(vta_phy_addr_t buf, int size);
 
 /*!
  * \brief Invalidates the region of memory that is cached.
  * \param buf Pointer to memory region allocated with VTAMemAlloc to be invalidated.
+ *            This need to be the physical address.
  * \param size Size of the region to invalidate in Bytes.
  */
-void VTAInvalidateCache(void* buf, int size);
-
-/*!
- * \brief Returns a memory map to FPGA configuration registers.
- * \param addr The base physical address of the configuration registers.
- * \param length The size of the memory mapped region in bytes.
- * \return A pointer to the memory mapped region.
- */
-void *VTAMapRegister(unsigned addr, size_t length);
-
-/*!
- * \brief Deletes the configuration register memory map.
- * \param vta The memory mapped region.
- * \param length The size of the memory mapped region in bytes.
- */
-void VTAUnmapRegister(void *vta, size_t length);
-
-/*!
- * \brief Writes to a memory mapped configuration register.
- * \param vta_base The handle to the memory mapped configuration registers.
- * \param offset The offset of the register to write to.
- * \param val The value to be written to the memory mapped register.
- */
-void VTAWriteMappedReg(VTAHandle vta_base, unsigned offset, unsigned val);
-
-/*!
- * \brief Reads from the memory mapped configuration register.
- * \param vta_base The handle to the memory mapped configuration registers.
- * \param offset The offset of the register to read from.
- * \return The value read from the memory mapped register.
- */
-unsigned VTAReadMappedReg(VTAHandle vta_base, unsigned offset);
+void VTAInvalidateCache(vta_phy_addr_t buf, int size);
 
 /*!
  * \brief Programming the bit stream on the FPGA.

@@ -32,6 +32,11 @@ void xlnkFlushCache(void* buf, int size);
 void xlnkInvalidateCache(void* buf, int size);
 #endif
 
+void *VTAMapRegister(uint32_t addr, size_t length);
+void VTAUnmapRegister(void *vta, size_t length);
+void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
+uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
+
 /*! \brief (Pynq only) Partial bitstream status file path */
 #define VTA_PYNQ_BS_IS_PARTIAL "/sys/devices/soc0/amba/f8007000.devcfg/is_partial_bitstream"
 /*! \brief (Pynq only) Bitstream destination file path */
@@ -43,9 +48,6 @@ void xlnkInvalidateCache(void* buf, int size);
 #define VTA_PYNQ_MMIO_WORD_LENGTH 4
 /*! \brief (Pynq only) MMIO driver constant */
 #define VTA_PYNQ_MMIO_WORD_MASK (~(MMIO_WORD_LENGTH - 1))
-
-/*! \brief Physically contiguous buffer size limit */
-#define VTA_MAX_XFER (1<<22)
 
 /*! \brief VTA configuration register address range */
 #define VTA_RANGE 0x100
