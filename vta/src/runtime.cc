@@ -1,13 +1,13 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file runtime.cc
- * \brief VTA runtime for PYNQ in C++11
+ * \brief Generic VTA runtime in C++11.
+ *
+ *  The runtime depends on specific instruction
+ *  stream spec as specified in hw_spec.h
+ *  It is intended to be used as a dynamic library
+ *  to enable hot swapping of hardware configurations.
  */
-
-#ifdef VTA_PYNQ_TARGET
-#include "./pynq/pynq_driver.h"
-#endif  // VTA_PYNQ_TARGET
-
 #include <vta/driver.h>
 #include <vta/hw_spec.h>
 #include <vta/runtime.h>
@@ -245,8 +245,8 @@ class BaseQueue {
     if (!coherent_ && always_cache_ && dram_extent != 0) {
       dram_begin = dram_begin * elem_bits / 8;
       dram_extent = dram_extent * elem_bits / 8;
-      VTAFlushCache(reinterpret_cast<void*>(dram_phy_addr_ + dram_begin),
-                     dram_extent);
+      VTAFlushCache(dram_phy_addr_ + dram_begin,
+                    dram_extent);
     }
   }
   /*! \brief Read barrier to make sure that data written by VTA is visible to CPU. */
@@ -254,8 +254,8 @@ class BaseQueue {
     if (!coherent_ && always_cache_ && dram_extent != 0) {
       dram_begin = dram_begin * elem_bits / 8;
       dram_extent = dram_extent * elem_bits / 8;
-      VTAInvalidateCache(reinterpret_cast<void*>(dram_phy_addr_ + dram_begin),
-                          dram_extent);
+      VTAInvalidateCache(dram_phy_addr_ + dram_begin,
+                         dram_extent);
     }
   }
 
@@ -818,20 +818,13 @@ class CommandQueue {
   void InitSpace() {
     uop_queue_.InitSpace();
     insn_queue_.InitSpace();
-    // VTA stage handles
-    vta_fetch_handle_ = VTAMapRegister(VTA_FETCH_ADDR, VTA_RANGE);
-    vta_load_handle_ = VTAMapRegister(VTA_LOAD_ADDR, VTA_RANGE);
-    vta_compute_handle_ = VTAMapRegister(VTA_COMPUTE_ADDR, VTA_RANGE);
-    vta_store_handle_ = VTAMapRegister(VTA_STORE_ADDR, VTA_RANGE);
+    device_ = VTADeviceAlloc();
+    assert(device_ != nullptr);
     printf("Initialize VTACommandHandle...\n");
   }
 
   ~CommandQueue() {
-    // Close VTA stage handle
-    VTAUnmapRegister(vta_fetch_handle_, VTA_RANGE);
-    VTAUnmapRegister(vta_load_handle_, VTA_RANGE);
-    VTAUnmapRegister(vta_compute_handle_, VTA_RANGE);
-    VTAUnmapRegister(vta_store_handle_, VTA_RANGE);
+    VTADeviceFree(device_);
     printf("Close VTACommandhandle...\n");
   }
 
@@ -951,44 +944,14 @@ class CommandQueue {
     assert(reinterpret_cast<VTAMemInsn*>(
         insn_queue_.data())[insn_queue_.count()-1].opcode == VTA_OPCODE_FINISH);
 
-#ifdef VTA_PYNQ_TARGET
     // Make sure that we don't exceed contiguous physical memory limits
-    assert(insn_queue_.count() < VTA_MAX_XFER);
-
-    // NOTE: Register address map is derived from the auto-generated
-    // driver files available under hardware/build/vivado/<design>/export/driver
-    // FETCH @ 0x10 : Data signal of insn_count_V
-    VTAWriteMappedReg(vta_fetch_handle_, 0x10, insn_queue_.count());
-    // FETCH @ 0x18 : Data signal of insns_V
-    VTAWriteMappedReg(vta_fetch_handle_, 0x18, insn_queue_.dram_phy_addr());
-    // LOAD @ 0x10 : Data signal of inputs_V
-    VTAWriteMappedReg(vta_load_handle_, 0x10, 0);
-    // LOAD @ 0x18 : Data signal of weight_V
-    VTAWriteMappedReg(vta_load_handle_, 0x18, 0);
-    // COMPUTE @ 0x20 : Data signal of uops_V
-    VTAWriteMappedReg(vta_compute_handle_, 0x20, 0);
-    // COMPUTE @ 0x28 : Data signal of biases_V
-    VTAWriteMappedReg(vta_compute_handle_, 0x28, 0);
-    // STORE @ 0x10 : Data signal of outputs_V
-    VTAWriteMappedReg(vta_store_handle_, 0x10, 0);
-
-    // VTA start
-    VTAWriteMappedReg(vta_fetch_handle_, 0x0, VTA_START);
-    VTAWriteMappedReg(vta_load_handle_, 0x0, VTA_AUTORESTART);
-    VTAWriteMappedReg(vta_compute_handle_, 0x0, VTA_AUTORESTART);
-    VTAWriteMappedReg(vta_store_handle_, 0x0, VTA_AUTORESTART);
-
-    // Loop until the VTA is done
-    unsigned t, flag = 0;
-    for (t = 0; t < wait_cycles; ++t) {
-      flag = VTAReadMappedReg(vta_compute_handle_, 0x18);
-      if (flag == VTA_DONE) break;
-      std::this_thread::yield();
-    }
-    // Report error if timeout
-    assert(t < wait_cycles);
-#endif  // VTA_PYNQ_TARGET
-
+    assert(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+    int timeout = VTADeviceRun(
+        device_,
+        insn_queue_.dram_phy_addr(),
+        insn_queue_.count(),
+        wait_cycles);
+    assert(timeout == 0);
     // Reset buffers
     uop_queue_.Reset();
     insn_queue_.Reset();
@@ -1147,7 +1110,7 @@ class CommandQueue {
   void CheckInsnOverFlow() {
     // At each API call, we can at most commit:
     // one pending store, one pending load, and one uop
-    if (insn_queue_.count() >= VTA_MAX_XFER) {
+    if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
       this->AutoSync();
     }
   }
@@ -1155,11 +1118,7 @@ class CommandQueue {
   void AutoSync() {
     this->Synchronize(1 << 31);
   }
-  // VTA handles (register maps)
-  VTAHandle vta_fetch_handle_{nullptr};
-  VTAHandle vta_load_handle_{nullptr};
-  VTAHandle vta_compute_handle_{nullptr};
-  VTAHandle vta_store_handle_{nullptr};
+
   // Internal debug flag
   int debug_flag_{0};
   // The kernel we currently recording
@@ -1168,6 +1127,8 @@ class CommandQueue {
   UopQueue<VTA_MAX_XFER, true, true> uop_queue_;
   // instruction queue
   InsnQueue<VTA_MAX_XFER, true, true> insn_queue_;
+  // Device handle
+  VTADeviceHandle device_{nullptr};
 };
 
 }  // namespace vta
@@ -1301,12 +1262,4 @@ int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid) {
 void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles) {
   static_cast<vta::CommandQueue*>(cmd)->
       Synchronize(wait_cycles);
-}
-
-extern "C" int VTARuntimeDynamicMagic() {
-#ifdef VTA_DYNAMIC_MAGIC
-  return VTA_DYNAMIC_MAGIC;
-#else
-  return 0;
-#endif
 }
