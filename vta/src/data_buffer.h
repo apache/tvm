@@ -35,7 +35,7 @@ struct DataBuffer {
    */
   void InvalidateCache(size_t offset, size_t size) {
     if (!kBufferCoherent) {
-      VTAInvalidateCache(reinterpret_cast<void*>(phy_addr_ + offset), size);
+      VTAInvalidateCache(phy_addr_ + offset, size);
     }
   }
   /*!
@@ -45,7 +45,7 @@ struct DataBuffer {
    */
   void FlushCache(size_t offset, size_t size) {
     if (!kBufferCoherent) {
-      VTAFlushCache(reinterpret_cast<void*>(phy_addr_ + offset), size);
+      VTAFlushCache(phy_addr_ + offset, size);
     }
   }
   /*!

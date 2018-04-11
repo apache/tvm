@@ -11,10 +11,6 @@
 
 #include "../../nnvm/tvm/src/runtime/workspace_pool.h"
 
-extern "C" {
-  typedef void (*FShutdown)();
-  typedef int (*FDynamicMagic)();
-}
 
 namespace tvm {
 namespace runtime {
