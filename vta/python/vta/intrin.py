@@ -2,65 +2,46 @@
 from __future__ import absolute_import as _abs
 
 import tvm
-from . import hw_spec as spec
-from .runtime import VTA_AXIS, VTA_PUSH_UOP, get_task_qid
-from .runtime import SCOPE_OUT, SCOPE_INP, SCOPE_WGT
 
-# The memory information for the compiler
-@tvm.register_func("tvm.info.mem.%s" % SCOPE_INP)
-def mem_info_inp_buffer():
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.VTA_INP_ELEM_BYTES * 8,
-                         max_simd_bits=spec.VTA_INP_ELEM_BYTES * 8,
-                         max_num_bits=spec.VTA_INP_BUFF_SIZE * 8,
-                         head_address=None)
+def gevm(env, mock=False):
+    """Vector-matrix multiply intrinsic
 
-@tvm.register_func("tvm.info.mem.%s" % SCOPE_WGT)
-def mem_info_wgt_buffer():
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.VTA_WGT_ELEM_BYTES * 8,
-                         max_simd_bits=spec.VTA_WGT_ELEM_BYTES * 8,
-                         max_num_bits=spec.VTA_WGT_BUFF_SIZE * 8,
-                         head_address=None)
+    Parameters
+    ----------
+    env : Environment
+        The Environment
 
-@tvm.register_func("tvm.info.mem.%s" % SCOPE_OUT)
-def mem_info_out_buffer():
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.VTA_OUT_ELEM_BYTES * 8,
-                         max_simd_bits=spec.VTA_OUT_ELEM_BYTES * 8,
-                         max_num_bits=spec.VTA_OUT_BUFF_SIZE * 8,
-                         head_address=None)
-
-def intrin_gevm(mock=False):
-    """Vector-matrix multiply intrinsic"""
-    wgt_lanes = spec.VTA_WGT_ELEM_BYTES * 8 // spec.VTA_WGT_WIDTH
-    assert wgt_lanes == spec.VTA_BLOCK_OUT * spec.VTA_BLOCK_IN
-    wgt_shape = (spec.VTA_BLOCK_OUT, spec.VTA_BLOCK_IN)
+    mock : bool
+        Whether create a mock version.
+    """
+    wgt_lanes = env.WGT_ELEM_BITS // env.WGT_WIDTH
+    assert wgt_lanes == env.BLOCK_OUT * env.BLOCK_IN
+    wgt_shape = (env.BLOCK_OUT, env.BLOCK_IN)
     assert wgt_shape[0] * wgt_shape[1] == wgt_lanes
-    inp_lanes = spec.VTA_INP_ELEM_BYTES * 8 // spec.VTA_INP_WIDTH
-    out_lanes = spec.VTA_OUT_ELEM_BYTES * 8 // spec.VTA_OUT_WIDTH
+    inp_lanes = env.INP_ELEM_BITS // env.INP_WIDTH
+    out_lanes = env.ACC_ELEM_BITS // env.ACC_WIDTH
     wgt = tvm.placeholder((wgt_shape[0], wgt_shape[1]),
-                          dtype="int%d" % spec.VTA_WGT_WIDTH,
-                          name=SCOPE_WGT)
+                          dtype="int%d" % env.WGT_WIDTH,
+                          name=env.wgt_scope)
     inp = tvm.placeholder((wgt_shape[1], ),
-                          dtype="int%d" % spec.VTA_INP_WIDTH,
-                          name=SCOPE_INP)
+                          dtype="int%d" % env.INP_WIDTH,
+                          name=env.inp_scope)
     k = tvm.reduce_axis((0, wgt_shape[1]), name="k")
-    out_dtype = "int%d" % spec.VTA_OUT_WIDTH
+    out_dtype = "int%d" % env.ACC_WIDTH
     out = tvm.compute((wgt_shape[0],),
                       lambda i: tvm.sum(inp[k].astype(out_dtype) *
                                         wgt[i, k].astype(out_dtype),
                                         axis=[k]),
                       name="out")
     wgt_layout = tvm.decl_buffer(
-        wgt.shape, wgt.dtype, SCOPE_WGT,
-        scope=SCOPE_WGT, offset_factor=wgt_lanes, data_alignment=wgt_lanes)
+        wgt.shape, wgt.dtype, env.wgt_scope,
+        scope=env.wgt_scope, offset_factor=wgt_lanes, data_alignment=wgt_lanes)
     inp_layout = tvm.decl_buffer(
-        inp.shape, inp.dtype, SCOPE_INP,
-        scope=SCOPE_INP, offset_factor=inp_lanes, data_alignment=inp_lanes)
+        inp.shape, inp.dtype, env.inp_scope,
+        scope=env.inp_scope, offset_factor=inp_lanes, data_alignment=inp_lanes)
     out_layout = tvm.decl_buffer(
-        out.shape, out.dtype, SCOPE_OUT,
-        scope=SCOPE_OUT, offset_factor=out_lanes, data_alignment=out_lanes)
+        out.shape, out.dtype, env.acc_scope,
+        scope=env.acc_scope, offset_factor=out_lanes, data_alignment=out_lanes)
 
     def intrin_func(ins, outs):
         """Vector-matrix multiply intrinsic function"""
@@ -69,8 +50,11 @@ def intrin_gevm(mock=False):
         def instr(index):
             """Generate vector-matrix multiply VTA instruction"""
             irb = tvm.ir_builder.create()
-            irb.scope_attr(VTA_AXIS, "coproc_scope", get_task_qid(spec.VTA_QID_COMPUTE))
-            irb.scope_attr(VTA_AXIS, "coproc_uop_scope", VTA_PUSH_UOP)
+            dev = env.dev
+            irb.scope_attr(dev.vta_axis, "coproc_scope",
+                           dev.get_task_qid(dev.QID_COMPUTE))
+            irb.scope_attr(dev.vta_axis, "coproc_uop_scope",
+                           dev.vta_push_uop)
             if index == 0 or index == 2:
                 irb.emit(tvm.call_extern(
                     "int32", "VTAUopPush",
@@ -101,45 +85,54 @@ def intrin_gevm(mock=False):
                                          out: out_layout})
 
 
-def intrin_gemm(mock=False):
-    """Matrix-matrix multiply intrinsic"""
-    wgt_lanes = spec.VTA_WGT_ELEM_BYTES * 8 // spec.VTA_WGT_WIDTH
-    assert wgt_lanes == spec.VTA_BLOCK_OUT * spec.VTA_BLOCK_IN
-    wgt_shape = (spec.VTA_BLOCK_OUT, spec.VTA_BLOCK_IN)
+def gemm(env, mock=False):
+    """Matrix-matrix multiply intrinsic
+
+    Parameters
+    ----------
+    env : Environment
+        The Environment
+
+    mock : bool
+        Whether create a mock version.
+    """
+    wgt_lanes = env.WGT_ELEM_BITS // env.WGT_WIDTH
+    assert wgt_lanes == env.BLOCK_OUT * env.BLOCK_IN
+    wgt_shape = (env.BLOCK_OUT, env.BLOCK_IN)
     assert wgt_shape[0] * wgt_shape[1] == wgt_lanes
 
-    inp_lanes = spec.VTA_INP_ELEM_BYTES * 8 // spec.VTA_INP_WIDTH
-    assert inp_lanes == spec.VTA_BATCH * spec.VTA_BLOCK_IN
-    inp_shape = (spec.VTA_BATCH, spec.VTA_BLOCK_IN)
+    inp_lanes = env.INP_ELEM_BITS // env.INP_WIDTH
+    assert inp_lanes == env.BATCH * env.BLOCK_IN
+    inp_shape = (env.BATCH, env.BLOCK_IN)
     assert inp_shape[0] * inp_shape[1] == inp_lanes
 
-    out_lanes = spec.VTA_OUT_ELEM_BYTES * 8 // spec.VTA_OUT_WIDTH
-    assert out_lanes == spec.VTA_BATCH * spec.VTA_BLOCK_OUT
-    out_shape = (spec.VTA_BATCH, spec.VTA_BLOCK_OUT)
+    out_lanes = env.ACC_ELEM_BITS // env.ACC_WIDTH
+    assert out_lanes == env.BATCH * env.BLOCK_OUT
+    out_shape = (env.BATCH, env.BLOCK_OUT)
     assert out_shape[0] * out_shape[1] == out_lanes
 
     wgt = tvm.placeholder((wgt_shape[0], wgt_shape[1]),
-                          dtype="int%d" % spec.VTA_WGT_WIDTH,
-                          name=SCOPE_WGT)
+                          dtype="int%d" % env.WGT_WIDTH,
+                          name=env.wgt_scope)
     inp = tvm.placeholder((inp_shape[0], inp_shape[1]),
-                          dtype="int%d" % spec.VTA_INP_WIDTH,
-                          name=SCOPE_INP)
+                          dtype="int%d" % env.INP_WIDTH,
+                          name=env.inp_scope)
     k = tvm.reduce_axis((0, wgt_shape[1]), name="k")
-    out_dtype = "int%d" % spec.VTA_OUT_WIDTH
+    out_dtype = "int%d" % env.ACC_WIDTH
     out = tvm.compute((out_shape[0], out_shape[1]),
                       lambda i, j: tvm.sum(inp[i, k].astype(out_dtype) *
                                            wgt[j, k].astype(out_dtype),
                                            axis=[k]),
                       name="out")
     wgt_layout = tvm.decl_buffer(
-        wgt.shape, wgt.dtype, SCOPE_WGT,
-        scope=SCOPE_WGT, offset_factor=wgt_lanes, data_alignment=wgt_lanes)
+        wgt.shape, wgt.dtype, env.wgt_scope,
+        scope=env.wgt_scope, offset_factor=wgt_lanes, data_alignment=wgt_lanes)
     inp_layout = tvm.decl_buffer(
-        inp.shape, inp.dtype, SCOPE_INP,
-        scope=SCOPE_INP, offset_factor=inp_lanes, data_alignment=inp_lanes)
+        inp.shape, inp.dtype, env.inp_scope,
+        scope=env.inp_scope, offset_factor=inp_lanes, data_alignment=inp_lanes)
     out_layout = tvm.decl_buffer(
-        out.shape, out.dtype, SCOPE_OUT,
-        scope=SCOPE_OUT, offset_factor=out_lanes, data_alignment=out_lanes)
+        out.shape, out.dtype, env.acc_scope,
+        scope=env.acc_scope, offset_factor=out_lanes, data_alignment=out_lanes)
 
     def intrin_func(ins, outs):
         """Matrix-matrix multiply intrinsic function"""
@@ -148,8 +141,11 @@ def intrin_gemm(mock=False):
         def instr(index):
             """Generate matrix-matrix multiply VTA instruction"""
             irb = tvm.ir_builder.create()
-            irb.scope_attr(VTA_AXIS, "coproc_scope", get_task_qid(spec.VTA_QID_COMPUTE))
-            irb.scope_attr(VTA_AXIS, "coproc_uop_scope", VTA_PUSH_UOP)
+            dev = env.dev
+            irb.scope_attr(dev.vta_axis, "coproc_scope",
+                           dev.get_task_qid(dev.QID_COMPUTE))
+            irb.scope_attr(dev.vta_axis, "coproc_uop_scope",
+                           dev.vta_push_uop)
             if index == 0 or index == 2:
                 irb.emit(tvm.call_extern(
                     "int32", "VTAUopPush",
@@ -178,6 +174,3 @@ def intrin_gemm(mock=False):
                                   binds={inp: inp_layout,
                                          wgt: wgt_layout,
                                          out: out_layout})
-
-GEMM = intrin_gemm()
-GEVM = intrin_gevm()

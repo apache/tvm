@@ -1,6 +1,7 @@
 """VTA RPC client function"""
 import os
-from . import hw_spec as spec
+
+from .environment import get_env
 
 def reconfig_runtime(remote):
     """Reconfigure remote runtime based on current hardware spec.
@@ -10,6 +11,7 @@ def reconfig_runtime(remote):
     remote : RPCSession
         The TVM RPC session
     """
+    env = get_env()
     keys = ["VTA_LOG_WGT_WIDTH",
             "VTA_LOG_INP_WIDTH",
             "VTA_LOG_ACC_WIDTH",
@@ -22,9 +24,10 @@ def reconfig_runtime(remote):
             "VTA_LOG_WGT_BUFF_SIZE",
             "VTA_LOG_ACC_BUFF_SIZE",
             "VTA_LOG_OUT_BUFF_SIZE"]
-    cflags = ["-D%s" % spec.VTA_TARGET]
+
+    cflags = ["-DVTA_%s_TARGET" % env.target.upper()]
     for k in keys:
-        cflags += ["-D%s=%s" % (k, str(getattr(spec, k)))]
+        cflags += ["-D%s=%s" % (k, str(getattr(env, k[4:])))]
     freconfig = remote.get_function("tvm.contrib.vta.reconfig_runtime")
     freconfig(" ".join(cflags))
 

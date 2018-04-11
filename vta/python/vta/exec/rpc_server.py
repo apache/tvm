@@ -9,11 +9,13 @@ import argparse
 import os
 import ctypes
 import tvm
-from tvm.contrib import rpc, util, cc
+from tvm.contrib import rpc, cc
 
 
 @tvm.register_func("tvm.contrib.rpc.server.start", override=True)
 def server_start():
+    """callback when server starts."""
+    # pylint: disable=unused-variable
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
     dll_path = os.path.abspath(

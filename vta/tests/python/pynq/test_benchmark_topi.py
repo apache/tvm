@@ -21,26 +21,26 @@ def my_clip(x, a_min, a_max):
 
 host = "pynq"
 port = 9091
-out_dtype = "int%d" % vta.VTA_OUT_WIDTH
-wgt_dtype = "int%d" % vta.VTA_WGT_WIDTH
-inp_dtype = "int%d" % vta.VTA_INP_WIDTH
 target = "llvm -target=armv7-none-linux-gnueabihf -mattr=+neon"
 print_ir = False
 
 
 def test_vta_conv2d(key, batch_size, wl, profile=True):
-    data_shape = (batch_size, wl.in_filter//vta.VTA_BLOCK_IN,
-                  wl.height, wl.width, vta.VTA_BLOCK_IN)
-    kernel_shape = (wl.out_filter//vta.VTA_BLOCK_OUT, wl.in_filter//vta.VTA_BLOCK_IN,
-                    wl.hkernel, wl.wkernel, vta.VTA_BLOCK_OUT, vta.VTA_BLOCK_IN)
-    bias_shape = (wl.out_filter//vta.VTA_BLOCK_OUT, 1, 1, vta.VTA_BLOCK_OUT)
+    env = vta.get_env()
+    data_shape = (batch_size, wl.in_filter // env.BLOCK_IN,
+                  wl.height, wl.width, env.BLOCK_IN)
+    kernel_shape = (wl.out_filter // env.BLOCK_OUT,
+                    wl.in_filter // env.BLOCK_IN,
+                    wl.hkernel, wl.wkernel,
+                    env.BLOCK_OUT, env.BLOCK_IN)
+    bias_shape = (wl.out_filter // env.BLOCK_OUT, 1, 1, env.BLOCK_OUT)
 
 
     fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
     fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
-    data = tvm.placeholder(data_shape, name="data", dtype=inp_dtype)
-    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=wgt_dtype)
-    bias = tvm.placeholder(bias_shape, name="kernel", dtype=out_dtype)
+    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    bias = tvm.placeholder(bias_shape, name="kernel", dtype=env.acc_dtype)
 
     res_conv = vta_conv2d.packed_conv2d(
         data, kernel, padding=(wl.hpad, wl.wpad), strides=(wl.hstride, wl.wstride))
@@ -73,14 +73,14 @@ def test_vta_conv2d(key, batch_size, wl, profile=True):
         bias_orig = np.abs(bias_orig)
 
         data_packed = data_orig.reshape(
-            batch_size, wl.in_filter//vta.VTA_BLOCK_IN, vta.VTA_BLOCK_IN,
+            batch_size, wl.in_filter // env.BLOCK_IN, env.BLOCK_IN,
             wl.height, wl.width).transpose((0, 1, 3, 4, 2))
         kernel_packed = kernel_orig.reshape(
-            wl.out_filter//vta.VTA_BLOCK_OUT, vta.VTA_BLOCK_OUT,
-            wl.in_filter//vta.VTA_BLOCK_IN, vta.VTA_BLOCK_IN,
+            wl.out_filter // env.BLOCK_OUT, env.BLOCK_OUT,
+            wl.in_filter // env.BLOCK_IN, env.BLOCK_IN,
             wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
         bias_packed = bias_orig.reshape(
-            wl.out_filter//vta.VTA_BLOCK_OUT, 1, 1, vta.VTA_BLOCK_OUT)
+            wl.out_filter // env.BLOCK_OUT, 1, 1, env.BLOCK_OUT)
         res_shape = topi.util.get_const_tuple(res.shape)
 
         res_np = np.zeros(res_shape).astype(res.dtype)
@@ -94,13 +94,13 @@ def test_vta_conv2d(key, batch_size, wl, profile=True):
             (0, 1, 4, 2, 3)).reshape(batch_size, wl.out_filter, fout_height, fout_width)
         if check_correctness:
             res_ref = mx.nd.Convolution(
-                mx.nd.array(data_orig.astype(out_dtype), mx.cpu(0)),
-                mx.nd.array(kernel_orig.astype(out_dtype), mx.cpu(0)),
+                mx.nd.array(data_orig.astype(env.acc_dtype), mx.cpu(0)),
+                mx.nd.array(kernel_orig.astype(env.acc_dtype), mx.cpu(0)),
                 stride=(wl.hstride, wl.wstride),
                 kernel=(wl.hkernel, wl.wkernel),
                 num_filter=wl.out_filter,
                 no_bias=True,
-                pad=(wl.hpad, wl.wpad)).asnumpy().astype(out_dtype)
+                pad=(wl.hpad, wl.wpad)).asnumpy().astype(env.acc_dtype)
             res_ref = res_ref >> 8
             res_ref += bias_orig.reshape(wl.out_filter, 1, 1)
             res_ref = np.clip(res_ref, 0, 127).astype("int8")
@@ -110,10 +110,10 @@ def test_vta_conv2d(key, batch_size, wl, profile=True):
 
     def conv_normal(print_ir):
         print("----- CONV2D End-to-End Test-------")
-        with tvm.build_config(add_lower_pass=vta.debug_mode(0)):
+        with vta.build_config():
             s = vta_conv2d.schedule_packed_conv2d([res])
             if print_ir:
-                print(tvm.lower(s, [data, kernel, bias, res], simple_mode=True))
+                print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
             cost = verify(s, True)
         gops = (num_ops / cost.mean) / float(10 ** 9)
         print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
