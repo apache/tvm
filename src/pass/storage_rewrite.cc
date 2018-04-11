@@ -611,6 +611,10 @@ class StoragePlanRewriter : public IRMutator {
       CHECK_NE(total_bits, 0U);
       child->bits_offset = total_bits;
       child->alloc_var = e->alloc_var;
+      total_bits += child->const_nbits;
+      if (total_bits % align != 0) {
+        total_bits += align  - (total_bits % align);
+      }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     Expr alloc_size = make_const(e->allocs[0]->extents[0].type(),
