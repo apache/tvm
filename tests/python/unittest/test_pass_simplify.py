@@ -33,7 +33,6 @@ def test_bound():
     ret = tvm.ir_pass.Simplify(m % 10, vrange)
     assert ret == m
 
-
 def test_canonical():
     x = tvm.var("x")
     z = tvm.const(3)
@@ -54,6 +53,7 @@ def test_canonical():
     assert (tvm.ir_pass.Equal(ret1, ret2))
 
 if __name__ == "__main__":
+    test_modular()
     test_bound()
     test_basic()
     test_simplify()
