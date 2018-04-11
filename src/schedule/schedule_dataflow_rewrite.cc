@@ -93,15 +93,9 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   std::unordered_map<Tensor, Tensor> vsub;
   Stage s = operator[](tensor->op);
   Tensor sugar_tensor = s->op.output(tensor->value_index);
-<<<<<<< b8bc3f2c13dd327bc5a5e8dcfa93f07f54a35662
-=======
-<<<<<<< 21172b0355ea11d2e05fbb8f7cc65ae6a09ff32c
   Tensor cache = compute(sugar_tensor->shape, [&sugar_tensor](const Array<Var>& i) {
       return sugar_tensor(Array<Expr>(i.begin(), i.end()));
     }, os.str());
-=======
->>>>>>> using tensor's value_index to index output of stage op
->>>>>>> using tensor's value_index to index output of stage op
   vsub[sugar_tensor] = cache;
 
   std::unordered_map<Tensor, Tensor> vmap;
