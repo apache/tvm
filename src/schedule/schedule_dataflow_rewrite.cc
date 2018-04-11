@@ -128,13 +128,15 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   return cache;
 }
 
-// duplicate original stage
-// return a new compputeOp with new axis, new name and new body
-Operation DuplicateStage(const Stage& orig_stage,
-                        const std::string& scope,
-                        Array<Expr>* args) {
+// Cache write and relayout the data according to loop pattern
+Array<Tensor> CacheWriteWithReLayout(Schedule sch,
+                              const Array<Tensor>& tensor_array,
+                              const std::string& scope) {
+  size_t tensor_size = tensor_array.size();
+  sch->InvalidateCache();
+  Tensor tensor = tensor_array[0];
+  Stage orig_stage = sch[tensor->op];
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
-
   std::unordered_set<IterVar> red_axis;
   for (IterVar iv : compute->reduce_axis) {
     red_axis.insert(iv);
@@ -180,6 +182,7 @@ Operation DuplicateStage(const Stage& orig_stage,
       vsub[iv->var.get()] = value_map.at(iv);
     }
   }
+
   Expr body;
   Array<Expr> body_list;
   const ir::Reduce* first_reduce;
@@ -206,6 +209,7 @@ Operation DuplicateStage(const Stage& orig_stage,
     body_list.push_back(body);
   }
   // The reader args
+  Array<Expr> args;
   {
     // cache->compute
     std::unordered_map<IterVar, Expr> value_map;
@@ -215,56 +219,29 @@ Operation DuplicateStage(const Stage& orig_stage,
     schedule::PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
       if (red_axis.count(iv)) continue;
-      args->push_back(value_map.at(iv));
+      args.push_back(value_map.at(iv));
     }
   }
-  std::string name = compute->name;
-  if (0 != scope.size()) {
-    name += ".";
-  }
-  return ComputeOpNode::make(
-      name + scope, compute->tag, new_axis, body_list);
-}
-
-// Cache write and relayout the data according to loop pattern
-Array<Tensor> CacheWriteWithReLayout(Schedule sch,
-                              const Array<Tensor>& tensor_array,
-                              const std::string& scope) {
-  size_t tensor_size = tensor_array.size();
-  sch->InvalidateCache();
-  Tensor tensor = tensor_array[0];
-  Stage orig_stage = sch[tensor->op];
-  const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
-  Array<Expr> args;
-  Operation cache_op = DuplicateStage(orig_stage, scope, &args);
-  std::vector<Operation> orig_new_op_list;
-  // record for dataflow replace
-  std::unordered_map<Tensor, Tensor> vmap;
-  // for the first output tensor, the original computeOp can be reused
-  {
-    Tensor cache_tensor = cache_op.output(0);
-    Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->tag, compute->axis,
-      {cache_tensor(args)});
-    vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
-    orig_new_op_list.push_back(orig_new_op);
-  }
-  // for the rest output tensors, a new computeOp should be created by DuplicateStage function
-  for (size_t i = 1; i < tensor_size; i++) {
+  Operation cache_op = ComputeOpNode::make(
+      compute->name + "." + scope, compute->tag, new_axis, body_list);
+  Array<Tensor> cache_tensor_list;
+  Array<Expr> cache_expr_list;
+  for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
-    Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->tag, compute->axis,
-      {cache_tensor(args)});
-    Array<Expr> args_new;
-    Stage tmp_stage = Stage(orig_new_op);
-    orig_new_op = DuplicateStage(tmp_stage, "", &args_new);
-    orig_new_op_list.push_back(orig_new_op);
+    cache_tensor_list.push_back(cache_tensor);
+    cache_expr_list.push_back(cache_tensor(args));
   }
+  Operation orig_new_op = ComputeOpNode::make(
+      compute->name, compute->tag, compute->axis, cache_expr_list);
   // The replace of the dataflow
   std::unordered_map<Tensor, Tensor> vmap;
   std::unordered_map<Tensor, Tensor> rvmap;
   vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
   rvmap[orig_new_op.output(0)] = orig_stage->op.output(0);
+  for (size_t i = 0; i < tensor_size; i++) {
+    vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
+    rvmap[orig_new_op.output(0)] = orig_stage->op.output(0);
+  }
   ReplaceDataFlow(sch->stages, &vmap, &rvmap);
   // mutate orig stage
   orig_stage->op = orig_new_op;
@@ -274,36 +251,18 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   // create schedule for new cached stage.
   ArrayNode* stages = sch->stages.CopyOnWrite();
   size_t pos = FindNodeRef(stages, orig_stage);
+  Stage cache_stage = Stage(cache_op);
+  cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos,
                       cache_stage.node_);
   sch->stage_map.Set(cache_op, cache_stage);
-  // mutate orig stage
-  Stage replaced_orig_stage;
-  {
-    orig_stage->op = orig_new_op_list[0];
-    orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
-    orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
-    orig_stage->relations = Array<IterVarRelation>();
-  }
-  for (size_t i = 1; i < tensor_size; i++) {
-    pos++;
-    Stage replaced_orig_stage = Stage(orig_new_op_list[i]);
-    ArrayNode* stages = sch->stages.CopyOnWrite();
-    stages->data.insert(stages->data.begin() + pos,
-                      replaced_orig_stage.node_);
-    sch->stage_map.Set(replaced_orig_stage->op, replaced_orig_stage);
-  }
   // Update group
   cache_stage->group = orig_stage->group;
   if (cache_stage->group.defined()) {
     ++cache_stage->group->num_child_stages;
   }
-  Array<Tensor> cache_op_list;
-  for (size_t i = 0; i < tensor_size; i++) {
-    cache_op_list.push_back(cache_op.output(i));
-  }
-  return cache_op_list;
+  return cache_tensor_list;
 }
 
 Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array,
