@@ -114,7 +114,7 @@ void MetalWorkspace::Init() {
       devices.push_back([d retain]);
       queues.push_back([[d newCommandQueue] retain]);
       LOG(INFO) << "Intializing Metal device " << i
-                <<  ", name=" << d.name;
+                <<  ", name=" << [d.name UTF8String];
       warp_size.push_back(GetWarpSize(d));
     }
 #endif
