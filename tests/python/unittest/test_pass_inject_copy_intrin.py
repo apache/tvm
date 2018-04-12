@@ -82,6 +82,7 @@ def test_copy_pad_split():
     Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.ir_pass.Simplify(stmt)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     def cb(src, dst, pad_before, pad_after, pad_value):
         assert(dst.elem_offset.value == 0)
