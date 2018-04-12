@@ -10,4 +10,4 @@ upload and run remote RPC server, get the result back to verify correctness.
 """
 
 from .server import Server
-from .client import RPCSession, connect, connect_tracker
+from .client import RPCSession, LocalSession, connect, connect_tracker

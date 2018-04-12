@@ -7,8 +7,11 @@ import struct
 import time
 
 from . import base
+from .. import util
 from ..._ffi.base import TVMError
-from ..._ffi.ndarray import context as _context
+from ..._ffi import function as function
+from ..._ffi import ndarray as nd
+from ...module import load as _load_module
 
 
 class RPCSession(object):
@@ -51,35 +54,11 @@ class RPCSession(object):
         ctx: TVMContext
             The corresponding encoded remote context.
         """
-        ctx = _context(dev_type, dev_id)
+        ctx = nd.context(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
         ctx.device_type += encode
         ctx._rpc_sess = self
         return ctx
-
-    def cpu(self, dev_id=0):
-        """Construct remote CPU device."""
-        return self.context(1, dev_id)
-
-    def gpu(self, dev_id=0):
-        """Construct remote GPU device."""
-        return self.context(2, dev_id)
-
-    def cl(self, dev_id=0):
-        """Construct remote OpenCL device."""
-        return self.context(4, dev_id)
-
-    def metal(self, dev_id=0):
-        """Construct remote Metal device."""
-        return self.context(8, dev_id)
-
-    def opengl(self, dev_id=0):
-        """Construct remote OpenGL device."""
-        return self.context(11, dev_id)
-
-    def ext_dev(self, dev_id=0):
-        """Construct remote extension device."""
-        return self.context(12, dev_id)
 
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder
@@ -138,6 +117,61 @@ class RPCSession(object):
             The remote module containing remote function.
         """
         return base._LoadRemoteModule(self._sess, path)
+
+    def cpu(self, dev_id=0):
+        """Construct CPU device."""
+        return self.context(1, dev_id)
+
+    def gpu(self, dev_id=0):
+        """Construct GPU device."""
+        return self.context(2, dev_id)
+
+    def cl(self, dev_id=0):
+        """Construct OpenCL device."""
+        return self.context(4, dev_id)
+
+    def metal(self, dev_id=0):
+        """Construct Metal device."""
+        return self.context(8, dev_id)
+
+    def opengl(self, dev_id=0):
+        """Construct OpenGL device."""
+        return self.context(11, dev_id)
+
+    def ext_dev(self, dev_id=0):
+        """Construct extension device."""
+        return self.context(12, dev_id)
+
+
+class LocalSession(RPCSession):
+    """RPCSession interface backed by local environment.
+
+    This class can be used to implement functions that
+    need to be ran both locally and remotely.
+    """
+    def __init__(self):
+        # pylint: disable=super-init-not-called
+        self.context = nd.context
+        self.get_function = function.get_global_func
+        self._temp = util.tempdir()
+
+    def upload(self, data, target=None):
+        if isinstance(data, bytearray):
+            if not target:
+                raise ValueError("target must present when file is a bytearray")
+            blob = data
+        else:
+            blob = bytearray(open(data, "rb").read())
+            if not target:
+                target = os.path.basename(data)
+        with open(self._temp.relpath(target), "wb") as f:
+            f.write(blob)
+
+    def download(self, path):
+        return bytearray(open(self._temp.relpath(path), "rb").read())
+
+    def load_module(self, path):
+        return _load_module(self._temp.relpath(path))
 
 
 class TrackerSession(object):
