@@ -78,8 +78,7 @@ def fold_uop_loop(stmt_in):
             if not fail[0]:
                 begin = tvm.call_extern(
                     "int32", "VTAUopLoopBegin", stmt.extent, *gemm_offsets)
-                end = tvm.call_extern(
-                    "int32", "VTAUopLoopEnd", stmt.extent, *gemm_offsets)
+                end = tvm.call_extern("int32", "VTAUopLoopEnd")
                 return [begin, ret, end]
         raise ValueError("Failed to fold the GEMM instructions..")
 
@@ -683,8 +682,14 @@ def inject_alu_intrin(stmt_in):
                 else:
                     raise RuntimeError(
                         "Function call not recognized %s" % (loop_body.value.name))
+            elif isinstance(loop_body.value, tvm.expr.Load):
+                alu_opcode = env.dev.ALU_OPCODE_SHR
+                lhs = loop_body.value
+                rhs = tvm.const(0)
             else:
-                raise RuntimeError("Expression not recognized %s" % (type(loop_body.value)))
+                raise RuntimeError(
+                    "Expression not recognized %s, %s, %s" % (
+                        type(loop_body.value), str(loop_body.value), str(stmt)))
 
             # Derive array index coefficients
             dst_coeff = tvm.arith.DetectLinearEquation(dst_idx, indices)
@@ -772,7 +777,9 @@ def inject_alu_intrin(stmt_in):
             irb = tvm.ir_builder.create()
             for idx, extent in enumerate(extents):
                 irb.emit(tvm.call_extern(
-                    "int32", "VTAUopLoopBegin", extent, dst_coeff[idx], src_coeff[idx]))
+                    "int32", "VTAUopLoopBegin",
+                    extent, dst_coeff[idx], src_coeff[idx], 0))
+            use_imm = int(use_imm)
             irb.emit(tvm.call_extern(
                 "int32", "VTAUopPush",
                 1, 0,
@@ -804,5 +811,6 @@ def debug_print(stmt):
     stmt : Stmt
         The
     """
+    # pylint: disable=superfluous-parens
     print(stmt)
     return stmt

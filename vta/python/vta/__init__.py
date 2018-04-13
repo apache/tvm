@@ -8,6 +8,7 @@ try:
     from . import arm_conv2d, vta_conv2d
     from .build_module import build_config, lower, build
     from .rpc_client import reconfig_runtime, program_fpga
+
     from . import graph
 except ImportError:
     pass

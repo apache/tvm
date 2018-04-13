@@ -11,6 +11,7 @@
 #include <vta/driver.h>
 #include <vta/hw_spec.h>
 #include <vta/runtime.h>
+#include <dmlc/logging.h>
 
 #include <cassert>
 #include <vector>
@@ -113,7 +114,7 @@ class UopKernel {
             uint32_t wgt_index,
             uint32_t opcode,
             uint32_t use_imm,
-            uint32_t imm_val) {
+            int32_t imm_val) {
     // The loop nest structure
     VerifyDep(dst_index);
     VTAUop op;
@@ -166,7 +167,7 @@ class UopKernel {
   uint32_t opcode_{0xFFFFFFFF};
   uint32_t reset_out_{0xFFFFFFFF};
   bool use_imm_{false};
-  uint16_t imm_val_{0};
+  int16_t imm_val_{0};
 
  private:
   // Verify that we don't write to the same acc_mem index two cycles in a row
@@ -195,10 +196,6 @@ class UopKernel {
 
 /*!
  * \brief Base class of all queues to send and recv serial data.
- * \param kElemBytes Element unit bytes.
- * \param kMaxBytes Maximum number of bytes.
- * \param kCoherent Whether we have coherent access to the buffer.
- * \param kAlwaysCache Wether we should use cached memory.
  */
 class BaseQueue {
  public:
@@ -227,7 +224,7 @@ class BaseQueue {
     dram_buffer_ = static_cast<char*>(VTAMemAlloc(
         max_bytes, coherent || always_cache_));
     assert(dram_buffer_ != nullptr);
-    dram_phy_addr_ = VTAGetMemPhysAddr(dram_buffer_);
+    dram_phy_addr_ = VTAMemGetPhyAddr(dram_buffer_);
   }
   /*!
    * \brief Reset the pointer of the buffer.
@@ -597,14 +594,14 @@ class InsnQueue : public BaseQueue {
         }
         // Print instruction field information
         if (c.mem.opcode == VTA_OPCODE_LOAD) {
-            printf("LOAD ");
-            if (c.mem.memory_type == VTA_MEM_ID_UOP) printf("UOP\n");
-            if (c.mem.memory_type == VTA_MEM_ID_WGT) printf("WGT\n");
-            if (c.mem.memory_type == VTA_MEM_ID_INP) printf("INP\n");
-            if (c.mem.memory_type == VTA_MEM_ID_ACC) printf("ACC\n");
+          printf("LOAD ");
+          if (c.mem.memory_type == VTA_MEM_ID_UOP) printf("UOP\n");
+          if (c.mem.memory_type == VTA_MEM_ID_WGT) printf("WGT\n");
+          if (c.mem.memory_type == VTA_MEM_ID_INP) printf("INP\n");
+          if (c.mem.memory_type == VTA_MEM_ID_ACC) printf("ACC\n");
         }
         if (c.mem.opcode == VTA_OPCODE_STORE) {
-            printf("STORE\n");
+          printf("STORE:\n");
         }
         printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
                static_cast<int>(c.mem.pop_prev_dep),
@@ -1210,7 +1207,7 @@ void VTAUopPush(uint32_t mode,
                 uint32_t wgt_index,
                 uint32_t opcode,
                 uint32_t use_imm,
-                uint32_t imm_val) {
+                int32_t imm_val) {
   vta::CommandQueue::ThreadLocal()->record_kernel()
       ->Push(mode, reset_out, dst_index, src_index,
              wgt_index, opcode, use_imm, imm_val);
