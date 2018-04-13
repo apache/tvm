@@ -81,9 +81,10 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
         raise ValueError("not support this layout {} yet".format(layout))
 
 
-def _traverse_conv2d(op, conv_tag, default_schedule):
+def _traverse_conv2d(s, op, conv_tag, default_schedule):
     """Traverse operators from computation graph"""
     # inline all one-to-one-mapping operators except the last stage (output)
+    target = tvm.target.current_target(allow_none=False)
     if tag.is_broadcast(op.tag):
         if op not in s.outputs:
             s[op].compute_inline()
@@ -95,7 +96,7 @@ def _traverse_conv2d(op, conv_tag, default_schedule):
                 s[op].vectorize(w)
         for tensor in op.input_tensors:
             if tensor.op.input_tensors:
-                _traverse_conv2d(tensor.op, conv_tag, default_schedule)
+                _traverse_conv2d(s, tensor.op, conv_tag, default_schedule)
 
     if op.tag == conv_tag:
         default_schedule(op)
@@ -154,6 +155,8 @@ def schedule_conv2d_grad_weight_nchw(outs):
         _schedule_pad(s, data)
 
     n, c, kh, kw = _get_axes_nchw(dw, 'nchw')
+    if not len(dw.op.reduce_axis):
+        return
     rn, ry, rx = dw.op.reduce_axis
     nc = s[dw].fuse(n, c)
     k = s[dw].fuse(kh, kw)
@@ -179,10 +182,9 @@ def schedule_conv2d_transpose_nchw(outs):
     if isinstance(deconv.op, tvm.tensor.ComputeOp) and "pad" in deconv.op.tag:
         out_pad = deconv
         deconv = deconv.op.input_tensors[0].op
+        _schedule_pad(s, out_pad)
 
-    _schedule_pad(s, out_pad)
-
-    _traverse_conv2d(deconv, 'conv2d_transpose_nchw', default_schedule)
+    _traverse_conv2d(s, deconv, 'conv2d_transpose_nchw', default_schedule)
     return s
 
 
@@ -227,7 +229,7 @@ def schedule_conv2d(outs):
         else:
             default_schedule(op)
 
-    _traverse_conv2d(outs[0].op, 'conv2d_nchw', _default_schedule_switch)
+    _traverse_conv2d(s, outs[0].op, 'conv2d_nchw', _default_schedule_switch)
     return s
 
 
