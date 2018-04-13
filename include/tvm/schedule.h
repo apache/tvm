@@ -303,6 +303,22 @@ class Schedule : public NodeRef {
    * \return The created tensor.
    */
   EXPORT Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
+  /*!
+   * \brief Create a cache write tensor for producing tensor.
+   *  The the tensor will take over body of original tensor op.
+   *
+   *  This function can be used to do data layout transformation.
+   *  If there is a split/fuse/reorder on the data parallel axis of tensor
+   *  before cache_write is called. The intermediate cache stores
+   *  the data in the layout as the iteration order of leave axis.
+   *  The data will be transformed back to the original layout in the original tensor.
+   *  User can further call compute_inline to inline the original layout and keep
+   *  the data stored in the transformed layout.
+   * 
+   * \param tensor The tensor to be produced.
+   * \param scope The scope of the storage.
+   * \return The created tensor.
+   */
   EXPORT Tensor cache_write(const Tensor& tensor, const std::string& scope);
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
