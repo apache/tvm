@@ -3,8 +3,8 @@
  * \file Use external generic C library function
  */
 
-#ifndef TVM_CONTRIB_GENERIC_UTILS_H_
-#define TVM_CONTRIB_GENERIC_UTILS_H_
+#ifndef TVM_CONTRIB_SORT_SORT_H_
+#define TVM_CONTRIB_SORT_SORT_H_
 
 #include <tvm/runtime/registry.h>
 
@@ -30,4 +30,4 @@ struct SortElem {
 }  // namespace contrib
 }  // namespace tvm
 
-#endif  // TVM_CONTRIB_GENERIC_UTILS_H_
+#endif  // TVM_CONTRIB_SORT_SORT_H_
