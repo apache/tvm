@@ -67,9 +67,6 @@ class VTADeviceAPI final : public DeviceAPI {
         std::make_shared<VTADeviceAPI>();
     return inst;
   }
-
- private:
-  void* runtime_dll_{nullptr};
 };
 
 struct VTAWorkspacePool : public WorkspacePool {

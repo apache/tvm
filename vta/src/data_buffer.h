@@ -57,7 +57,7 @@ struct DataBuffer {
     assert(data != nullptr);
     DataBuffer* buffer = new DataBuffer();
     buffer->data_ = data;
-    buffer->phy_addr_ = VTAGetMemPhysAddr(data);
+    buffer->phy_addr_ = VTAMemGetPhyAddr(data);
     return buffer;
   }
   /*!

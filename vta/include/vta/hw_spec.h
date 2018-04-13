@@ -519,8 +519,8 @@ typedef struct {
   uint64_t alu_opcode     : VTA_ALU_OPCODE_BIT_WIDTH;
   /*! \brief Use immediate is true */
   uint64_t use_imm        : 1;
-  /*! \brief Immediate value */
-  uint64_t imm            : VTA_ALUOP_IMM_BIT_WIDTH;
+  /*! \brief Immediate value: allow negative value */
+  int64_t imm            : VTA_ALUOP_IMM_BIT_WIDTH;
 } VTAAluInsn;
 
 /*! \brief VTA ALU instruction converter */

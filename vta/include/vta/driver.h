@@ -77,7 +77,7 @@ void VTAMemFree(void* buf);
  * \param buf Pointer to memory region allocated with VTAMemAlloc.
  * \return The physical address of the memory region.
  */
-vta_phy_addr_t VTAGetMemPhysAddr(void* buf);
+vta_phy_addr_t VTAMemGetPhyAddr(void* buf);
 
 /*!
  * \brief Flushes the region of memory out of the CPU cache to DRAM.

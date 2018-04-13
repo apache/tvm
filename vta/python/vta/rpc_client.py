@@ -24,8 +24,7 @@ def reconfig_runtime(remote):
             "VTA_LOG_WGT_BUFF_SIZE",
             "VTA_LOG_ACC_BUFF_SIZE",
             "VTA_LOG_OUT_BUFF_SIZE"]
-
-    cflags = ["-DVTA_%s_TARGET" % env.target.upper()]
+    cflags = []
     for k in keys:
         cflags += ["-D%s=%s" % (k, str(getattr(env, k[4:])))]
     freconfig = remote.get_function("tvm.contrib.vta.reconfig_runtime")

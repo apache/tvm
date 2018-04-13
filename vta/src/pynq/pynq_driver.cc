@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file vta_pynq_driver.c
+ * \file pynq_driver.c
  * \brief VTA driver for Pynq board.
  */
 
@@ -17,7 +17,7 @@ void VTAMemFree(void* buf) {
   cma_free(buf);
 }
 
-vta_phy_addr_t VTAGetMemPhysAddr(void* buf) {
+vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return cma_get_phy_addr(buf);
 }
 
