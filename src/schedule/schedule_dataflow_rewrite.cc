@@ -284,6 +284,19 @@ Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array,
   return CacheWriteWithReLayout(*this, tensor_array, scope);
 }
 
+Tensor Schedule::cache_write(const Tensor& tensor,
+                             const std::string& scope) {
+  (*this)->InvalidateCache();
+  Stage orig_stage = operator[](tensor->op);
+  const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
+  CHECK(compute)
+      << "cache write only take ComputeOp as writers";
+  CHECK_EQ(compute->num_outputs(), 1)
+      << "cache write only support single output ComputeOp";
+
+  return (CacheWriteWithReLayout(*this, {tensor}, scope))[0];
+}
+
 void RebaseNonZeroMinLoop(const Schedule& sch) {
   std::unordered_map<IterVar, IterVar> rebase_map;
   for (Stage s : sch->stages) {

@@ -303,6 +303,7 @@ class Schedule : public NodeRef {
    * \return The created tensor.
    */
   EXPORT Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
+  EXPORT Tensor cache_write(const Tensor& tensor, const std::string& scope);
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
    * This will create a new stage that generated the new tensor with axis

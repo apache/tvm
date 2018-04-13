@@ -302,13 +302,7 @@ class Schedule(NodeBase):
         cache : Tensor
             The created cache tensor.
         """
-        if not isinstance(tensor, (tuple, list)):
-            tensor = [tensor]
-        tensor = convert(tensor)
-        cahce_tensor = _api_internal._ScheduleCacheWrite(self, tensor, scope)
-        if len(cahce_tensor) == 1:
-            return cahce_tensor[0]
-        return cahce_tensor
+        return _api_internal._ScheduleCacheWrite(self, tensor, scope)
 
     def rfactor(self, tensor, axis, factor_axis=0):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.
