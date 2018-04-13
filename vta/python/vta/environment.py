@@ -89,7 +89,7 @@ class Environment(object):
     """
     current = None
     cfg_keys = [
-        "target",
+        "TARGET",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
@@ -204,8 +204,18 @@ class Environment(object):
 
     @property
     def gevm(self):
-        """GEMM intrinsic"""
+        """GEVM intrinsic"""
         return self.dev.gevm
+
+    @property
+    def target_host(self):
+        """The target host"""
+        if self.TARGET == "pynq":
+            return "llvm -target=armv7-none-linux-gnueabihf"
+        elif self.TARGET == "sim":
+            return "llvm"
+        else:
+            raise ValueError("Unknown target %s" % self.TARGET)
 
 
 def get_env():
@@ -278,6 +288,7 @@ def _init_env():
 
     for k in Environment.cfg_keys:
         keys.add("VTA_" + k)
+    keys.add("TARGET")
 
     if not os.path.isfile(filename):
         raise RuntimeError(
@@ -290,8 +301,11 @@ def _init_env():
             for k in keys:
                 if k  +" =" in line:
                     val = line.split("=")[1].strip()
-                    cfg[k[4:]] = int(val)
-    cfg["target"] = "pynq"
+                    if k.startswith("VTA_"):
+                        k = k[4:]
+                        cfg[k] = int(val)
+                    else:
+                        cfg[k] = val
     return Environment(cfg)
 
 Environment.current = _init_env()

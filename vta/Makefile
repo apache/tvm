@@ -40,6 +40,19 @@ ifneq ($(ADD_LDFLAGS), NONE)
 	LDFLAGS += $(ADD_LDFLAGS)
 endif
 
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S), Darwin)
+	SHARED_LIBRARY_SUFFIX := dylib
+	WHOLE_ARCH= -all_load
+	NO_WHOLE_ARCH= -noall_load
+	LDFLAGS += -undefined dynamic_lookup
+else
+	SHARED_LIBRARY_SUFFIX := so
+	WHOLE_ARCH= --whole-archive
+	NO_WHOLE_ARCH= --no-whole-archive
+endif
+
 
 all: lib/libvta.so lib/libvta_runtime.so
 
@@ -51,6 +64,10 @@ ifeq ($(TARGET), VTA_PYNQ_TARGET)
 	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/
 	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/
 	LDFLAGS += -l:libdma.so
+endif
+
+ifeq ($(TARGET), sim)
+	VTA_LIB_SRC += $(wildcard src/sim/*.cc)
 endif
 
 VTA_LIB_OBJ = $(patsubst src/%.cc, build/%.o, $(VTA_LIB_SRC))
@@ -71,7 +88,7 @@ lib/libvta_runtime.so: build/runtime.o
 lint: pylint cpplint
 
 cpplint:
-	python nnvm/dmlc-core/scripts/lint.py vta cpp include src hardware tests
+	python nnvm/dmlc-core/scripts/lint.py vta cpp include src
 
 pylint:
 	pylint python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
@@ -86,3 +103,4 @@ clean:
 -include build/*.d
 -include build/*/*.d
 -include build/*/*/*.d
+-include build/*/*/*/*.d

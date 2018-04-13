@@ -27,7 +27,7 @@ ADD_LDFLAGS=
 ADD_CFLAGS=
 
 # the hardware target
-TARGET = VTA_PYNQ_TARGET
+TARGET = pynq
 
 #---------------------
 # VTA hardware parameters
@@ -89,7 +89,6 @@ VTA_OUT_BUFF_SIZE = $(shell echo "$$(( 1 << $(VTA_LOG_OUT_BUFF_SIZE) ))" )
 
 # Update ADD_CFLAGS
 ADD_CFLAGS += \
-	-D$(TARGET) \
 	-DVTA_LOG_WGT_WIDTH=$(VTA_LOG_WGT_WIDTH) -DVTA_LOG_INP_WIDTH=$(VTA_LOG_INP_WIDTH) \
 	-DVTA_LOG_ACC_WIDTH=$(VTA_LOG_ACC_WIDTH) -DVTA_LOG_OUT_WIDTH=$(VTA_LOG_OUT_WIDTH) \
 	-DVTA_LOG_BATCH=$(VTA_LOG_BATCH) \

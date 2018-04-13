@@ -196,7 +196,7 @@ void VTAUopPush(uint32_t mode,
                 uint32_t wgt_index,
                 uint32_t opcode,
                 uint32_t use_imm,
-                uint32_t imm_val);
+                int32_t imm_val);
 
 /*!
  * \brief Mark start of a micro op loop.
