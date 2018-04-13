@@ -22,7 +22,7 @@ enclave {
                                    [in, count=num_ret] const int* type_code,
                                    int num_ret);
         void tvm_ocall_register_export([in, string] const char* name, int func_id);
-        void* tvm_ocall_reserve_space(size_t num_bytes);
+        void* tvm_ocall_reserve_space(size_t num_bytes, size_t alignment);
     };
 };
 

@@ -45,7 +45,7 @@ void tvm_ecall_packed_func(int func_id,
 
     void* ret_buf;
     TVM_SGX_CHECKED_CALL(tvm_ocall_reserve_space(
-          &ret_buf, bytes.size() + sizeof(TVMByteArray)));
+          &ret_buf, bytes.size() + sizeof(TVMByteArray), sizeof(uint64_t)));
 
     char* data_buf = static_cast<char*>(ret_buf) + sizeof(TVMByteArray);
     memcpy(data_buf, bytes.data(), bytes.size());

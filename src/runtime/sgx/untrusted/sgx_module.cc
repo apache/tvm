@@ -5,6 +5,7 @@
  */
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #include <sgx_urts.h>
@@ -156,6 +157,26 @@ TVM_REGISTER_GLOBAL("__sgx_set_last_error__")
   TVMAPISetLastError(err.c_str());
 });
 
+TVM_REGISTER_GLOBAL("__sgx_println__")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::ostringstream msg;
+  for (int i = 0; i < args.num_args; ++i) {
+    switch (args.type_codes[i]) {
+    case kDLInt: msg << static_cast<int64_t>(args[i]); break;
+    case kDLUInt: msg << static_cast<uint64_t>(args[i]); break;
+    case kDLFloat: msg << static_cast<double>(args[i]); break;
+    case kStr:
+    case kBytes: {
+      std::string val = args[i];
+      msg << val;
+    }
+    break;
+    }
+    msg << " ";
+  }
+  LOG(INFO) << msg.str();
+});
+
 extern "C" {
 
 void tvm_ocall_register_export(const char* name, int func_id) {
@@ -177,10 +198,20 @@ void tvm_ocall_packed_func(const char* name,
 
 // Allocates space for return values. The returned pointer is only valid between
 // successive calls to `tvm_ocall_reserve_space`.
-void* tvm_ocall_reserve_space(size_t num_bytes) {
-  static thread_local std::vector<uint64_t> buf;
-  buf.reserve(num_bytes);
-  return buf.data();
+void* tvm_ocall_reserve_space(size_t num_bytes, size_t alignment) {
+  static TVMContext ctx = { kDLCPU, 0 };
+  static thread_local void* buf;
+  static thread_local size_t buf_size;
+  static thread_local size_t buf_align;
+
+  if (buf_size >= num_bytes && buf_align >= alignment) return buf;
+
+  DeviceAPI::Get(ctx)->FreeDataSpace(ctx, buf);
+  buf = DeviceAPI::Get(ctx)->AllocDataSpace(ctx, num_bytes, alignment, {});
+  buf_size = num_bytes;
+  buf_align = alignment;
+
+  return buf;
 }
 
 void tvm_ocall_set_return(TVMRetValueHandle ret,

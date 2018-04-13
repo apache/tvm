@@ -82,7 +82,7 @@ std::vector<ECallRegistry> ECallRegistry::exports_;
  */
 #define TVM_REGISTER_ENCLAVE_FUNC(OpName)                              \
   TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) =                  \
-      ::tvm::runtime::sgx::ECallRegistry::Register(OpName)
+      ::tvm::runtime::sgx::ECallRegistry::Register(OpName, true)
 
 }  // namespace sgx
 }  // namespace runtime
