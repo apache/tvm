@@ -200,9 +200,9 @@ void tvm_ocall_packed_func(const char* name,
 // successive calls to `tvm_ocall_reserve_space`.
 void* tvm_ocall_reserve_space(size_t num_bytes, size_t alignment) {
   static TVMContext ctx = { kDLCPU, 0 };
-  static thread_local void* buf;
-  static thread_local size_t buf_size;
-  static thread_local size_t buf_align;
+  static thread_local void* buf = nullptr;
+  static thread_local size_t buf_size = 0;
+  static thread_local size_t buf_align = 0;
 
   if (buf_size >= num_bytes && buf_align >= alignment) return buf;
 
