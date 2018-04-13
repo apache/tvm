@@ -661,13 +661,18 @@ void VulkanWorkspace::Init() {
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
   initialized_ = true;
-  instance_ = CreateInstance();
-  context_ = GetContext(instance_);
-  LOG(INFO) << "Initialzie Vulkan with " << context_.size() << " devices..";
-  for (size_t i = 0; i < context_.size(); ++i) {
-    LOG(INFO) << "vulkan(" << i
-              <<  ")=\'" << context_[i].phy_device_prop.deviceName
-              << "\' phy_dev_id=" << context_[i].phy_device;
+  try {
+    instance_ = CreateInstance();
+    context_ = GetContext(instance_);
+    LOG(INFO) << "Initialzie Vulkan with " << context_.size() << " devices..";
+    for (size_t i = 0; i < context_.size(); ++i) {
+      LOG(INFO) << "vulkan(" << i
+                <<  ")=\'" << context_[i].phy_device_prop.deviceName
+                << "\' phy_dev_id=" << context_[i].phy_device;
+    }
+  } catch (const dmlc::Error& err) {
+    LOG(INFO) << "Cannot initialize vulkan: " << err.what() << "\n"
+              << "You can still compile vulkan module but cannot run locally";
   }
 }
 
