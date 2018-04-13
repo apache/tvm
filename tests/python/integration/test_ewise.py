@@ -98,8 +98,8 @@ def test_popcount():
         check_device("llvm")
         check_device("cuda")
         check_device("opencl")
-        check_device("metal")
         if dtype == "uint32":
+            check_device("metal")
             check_device("vulkan")
     run('uint32')
     run('uint64')
@@ -146,9 +146,10 @@ def test_add():
                 c.asnumpy(), a.asnumpy() + b.asnumpy(), rtol=1e-6)
 
         check_device("opencl")
-        check_device("metal")
         check_device("cuda")
-        check_device("vulkan")
+        if dtype == "float32":
+            check_device("metal")
+            check_device("vulkan")
 
     run("float32")
     run("int32")
