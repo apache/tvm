@@ -83,8 +83,11 @@ class MetalModuleNode final :public runtime::ModuleNode {
     if (e.lib == nil) {
       if (fmt_ == "metal") {
         MTLCompileOptions *opts = [MTLCompileOptions alloc];
-        opts.languageVersion = MTLLanguageVersion2_0;
-        opts.fastMathEnabled = YES;
+        // Use the default setting for now.
+        // by default most recent version is used.
+        // opts.languageVersion = MTLLanguageVersion2_0;
+        // opts.fastMathEnabled = YES;
+        opts = nil;
         e.lib = [
             w->devices[device_id]
              newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
