@@ -186,7 +186,7 @@ def system_lib():
 
 
 def load(path, fmt=""):
-    """Load module from file
+    """Load module from file.
 
     Parameters
     ----------
@@ -201,7 +201,24 @@ def load(path, fmt=""):
     -------
     module : Module
         The loaded module
+
+    Note
+    ----
+    This function will automatically call
+    cc.create_shared if the path is in format .o or .tar
     """
+    # High level handling for .o and .tar file.
+    # We support this to be consistent with RPC module load.
+    if path.endswith(".o"):
+        _cc.create_shared(path + ".so", path)
+        path += ".so"
+    elif path.endswith(".tar"):
+        tar_temp = _util.tempdir()
+        _tar.untar(path, tar_temp.temp_dir)
+        files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
+        _cc.create_shared(path + ".so", files)
+        path += ".so"
+    # Redirect to the load API
     return _LoadFromFile(path, fmt)
 
 

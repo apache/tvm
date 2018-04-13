@@ -61,14 +61,14 @@ def test_rpc_remote_module():
     if not tvm.module.enabled("rpc"):
         return
     server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
+    client = rpc.connect(server.host, server.port)
     # graph
     n = tvm.convert(1024)
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     s = tvm.create_schedule(B.op)
 
-    def check_remote():
+    def check_remote(remote):
         if not tvm.module.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
@@ -86,7 +86,7 @@ def test_rpc_remote_module():
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
-    def check_remote_link_cl():
+    def check_remote_link_cl(remote):
         """Test function to run remote code such as cl
 
         This is not enabled because there is forking issue
@@ -134,7 +134,9 @@ def test_rpc_remote_module():
         fhost(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
-    check_remote()
+    check_remote(client)
+    check_remote(rpc.LocalSession())
+
 
 def test_rpc_return_func():
     @tvm.register_func("rpc.test.remote_func")
@@ -147,6 +149,21 @@ def test_rpc_return_func():
     assert fadd(12) == 22
 
 
+def test_local_func():
+    @tvm.register_func("rpc.test.remote_func2")
+    def addone(x):
+        return lambda y: x+y
+    client = rpc.LocalSession()
+    f1 = client.get_function("rpc.test.remote_func2")
+    fadd = f1(10)
+    assert fadd(12) == 22
+
+    blob = bytearray(np.random.randint(0, 10, size=(10)))
+    client.upload(blob, "dat.bin")
+    rev = client.download("dat.bin")
+    assert rev == blob
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_rpc_remote_module()
@@ -154,3 +171,4 @@ if __name__ == "__main__":
     test_rpc_file_exchange()
     test_rpc_array()
     test_rpc_simple()
+    test_local_func()
