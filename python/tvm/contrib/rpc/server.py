@@ -22,7 +22,7 @@ import time
 from ..._ffi.function import register_func
 from ..._ffi.base import py_str
 from ...module import load as _load_module
-from .. import util, cc, tar
+from .. import util
 from . import base
 from . base import TrackerCode
 
@@ -38,17 +38,6 @@ def _server_env():
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)
-        # Try create a shared library in remote
-        if path.endswith(".o"):
-            logging.info("Create shared library based on %s", path)
-            cc.create_shared(path + ".so", path)
-            path += ".so"
-        elif path.endswith(".tar"):
-            tar_temp = util.tempdir()
-            tar.untar(path, tar_temp.temp_dir)
-            files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-            cc.create_shared(path + ".so", files)
-            path += ".so"
         m = _load_module(path)
         logging.info("load_module %s", path)
         return m
