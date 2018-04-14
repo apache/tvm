@@ -206,7 +206,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                     return False
                 try:
                     self.ret_value([TrackerCode.SUCCESS, value])
-                except (socket.sock_error, IOError):
+                except (socket.error, IOError):
                     return False
                 return True
             self._tracker.request(key, user, priority, _cb)
