@@ -1,11 +1,25 @@
-Open Hardware/Software Stack for Vertical Deep Learning System Optimization
-==============================================
+VTA: Open, Modular, Deep Learning Accelerator Stack
+===================================================
 
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 
-VTA is an open hardware/software co-design stack for deep learning systems systems.
-It provides a customizable hardware accelerator template for deep learning inference workloads,
-combined with a fully functional compiler stack built with TVM.
+VTA(versatile tensor accelerator) is an open-source deep learning accelerator stack.
+It is not just an open-source hardware, but is an end to end solution that includes
+the entire software stack on top of VTA open-source hardware.
+
+
+The key features include:
+
+- Generic, modular open-source hardware
+  - Streamlined workflow to deploy to FPGAs.
+  - Simulator support
+- Driver and JIT runtime for both simulated backend and FPGA.
+- End to end TVM stack integration
+  - Direct optimization and deploy models from deep learning frameworks via TVM stack.
+  - Customized and extendible TVM compiler backend
+  - Flexible RPC support to ease the deployment, you can program it with python :)
+
+VTA is part of our effort on [TVM Stack](http://www.tvmlang.org/).
 
 License
 -------

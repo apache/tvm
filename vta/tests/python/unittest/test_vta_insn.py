@@ -468,7 +468,22 @@ def test_shift_and_scale():
 
     vta.testing.run(_run)
 
+
+def test_runtime_array():
+    def _run(env, remote):
+        n = 100
+        ctx = remote.ext_dev(0)
+        x_np = np.random.randint(
+            1, 10, size=(n, n, env.BATCH, env.BLOCK_OUT)).astype("int8")
+        x_nd = tvm.nd.array(x_np, ctx)
+        np.testing.assert_equal(x_np, x_nd.asnumpy())
+
+    vta.testing.run(_run)
+
+
 if __name__ == "__main__":
+    print("Array test")
+    test_runtime_array()
     print("Load/store test")
     test_save_load_out()
     print("Padded load test")
