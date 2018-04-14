@@ -3,14 +3,10 @@
 from __future__ import absolute_import as _abs
 
 import os
+import glob
 import copy
-
-try:
-    # Allow missing import in config mode.
-    import tvm
-    from . import intrin
-except ImportError:
-    pass
+import tvm
+from . import intrin
 
 
 class DevContext(object):
@@ -63,6 +59,45 @@ class DevContext(object):
     def get_task_qid(self, qid):
         """Get transformed queue index."""
         return 1 if self.DEBUG_NO_SYNC else qid
+
+
+class PkgConfig(object):
+    """Simple package config tool for VTA.
+
+    This is used to provide runtime specific configurations.
+    """
+    def __init__(self, env):
+        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
+        # include path
+        self.include_path = [
+            "-I%s/include" % proj_root,
+            "-I%s/nnvm/tvm/include" % proj_root,
+            "-I%s/nnvm/tvm/dlpack/include" % proj_root,
+            "-I%s/nnvm/dmlc-core/include" % proj_root
+        ]
+        # List of source files that can be used to build standalone library.
+        self.lib_source = []
+        self.lib_source += glob.glob("%s/src/*.cc" % proj_root)
+        self.lib_source += glob.glob("%s/src/%s/*.cc" % (proj_root, env.TARGET))
+        # macro keys
+        self.macro_defs = []
+        for key in env.cfg_keys:
+            self.macro_defs.append("-DVTA_%s=%s" % (key, str(getattr(env, key))))
+
+        if env.TARGET == "pynq":
+            self.ldflags = [
+                "-L/usr/lib",
+                "-lsds_lib",
+                "-L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/",
+                "-L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/",
+                "-l:libdma.so"]
+        else:
+            self.ldflags = []
+
+    @property
+    def cflags(self):
+        return self.include_path + self.macro_defs
 
 
 class Environment(object):
@@ -160,6 +195,7 @@ class Environment(object):
         self.mock_mode = False
         self._mock_env = None
         self._dev_ctx = None
+        self._pkg_config = None
 
     @property
     def dev(self):
@@ -167,6 +203,13 @@ class Environment(object):
         if self._dev_ctx is None:
             self._dev_ctx = DevContext(self)
         return self._dev_ctx
+
+    @property
+    def pkg_config(self):
+        """PkgConfig instance"""
+        if self._pkg_config is None:
+            self._pkg_config = PkgConfig(self)
+        return self._pkg_config
 
     @property
     def mock(self):
@@ -249,7 +292,7 @@ def mem_info_wgt_buffer():
                          head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
-def mem_info_out_buffer():
+def mem_info_acc_buffer():
     spec = get_env()
     return tvm.make.node("MemoryInfo",
                          unit_bits=spec.ACC_ELEM_BITS,
@@ -265,12 +308,14 @@ def coproc_sync(op):
         "int32", "VTASynchronize",
         get_env().dev.command_handle, 1<<31)
 
+
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
 def coproc_dep_push(op):
     return tvm.call_extern(
         "int32", "VTADepPush",
         get_env().dev.command_handle,
         op.args[0], op.args[1])
+
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_pop")
 def coproc_dep_pop(op):
@@ -288,7 +333,6 @@ def _init_env():
 
     for k in Environment.cfg_keys:
         keys.add("VTA_" + k)
-    keys.add("TARGET")
 
     if not os.path.isfile(filename):
         raise RuntimeError(
@@ -303,8 +347,9 @@ def _init_env():
                     val = line.split("=")[1].strip()
                     if k.startswith("VTA_"):
                         k = k[4:]
+                    try:
                         cfg[k] = int(val)
-                    else:
+                    except ValueError:
                         cfg[k] = val
     return Environment(cfg)
 

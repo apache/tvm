@@ -1,15 +1,14 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file vta_device_api.cc
- * \brief VTA device API for TVM
+ * \file device_api.cc
+ * \brief TVM device API for VTA
  */
 
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
 #include <vta/runtime.h>
-#include <dlfcn.h>
 
-#include "../../nnvm/tvm/src/runtime/workspace_pool.h"
+#include "../nnvm/tvm/src/runtime/workspace_pool.h"
 
 
 namespace tvm {
@@ -26,7 +25,8 @@ class VTADeviceAPI final : public DeviceAPI {
   }
 
   void* AllocDataSpace(TVMContext ctx,
-                       size_t size, size_t alignment,
+                       size_t size,
+                       size_t alignment,
                        TVMType type_hint) final {
     return VTABufferAlloc(size);
   }
@@ -84,22 +84,9 @@ void VTADeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
   dmlc::ThreadLocalStore<VTAWorkspacePool>::Get()->FreeWorkspace(ctx, data);
 }
 
-std::string VTARPCGetPath(const std::string& name) {
-  static const PackedFunc* f =
-      runtime::Registry::Get("tvm.contrib.rpc.server.workpath");
-  CHECK(f != nullptr) << "require tvm.contrib.rpc.server.workpath";
-  return (*f)(name);
-}
-
-// Global functions that can be called
-TVM_REGISTER_GLOBAL("tvm.contrib.vta.init")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::string path = VTARPCGetPath(args[0]);
-    VTAProgram(path.c_str());
-    LOG(INFO) << "VTA initialization end with bistream " << path;
-  });
-
-TVM_REGISTER_GLOBAL("device_api.ext_dev")
+// Register device api with override.
+static TVM_ATTRIBUTE_UNUSED auto& __register_dev__ =
+::tvm::runtime::Registry::Register("device_api.ext_dev", true)
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = VTADeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);

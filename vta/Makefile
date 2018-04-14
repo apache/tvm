@@ -53,12 +53,9 @@ else
 	NO_WHOLE_ARCH= --no-whole-archive
 endif
 
-
-all: lib/libvta.so lib/libvta_runtime.so
-
 VTA_LIB_SRC = $(wildcard src/*.cc src/tvm/*.cc)
 
-ifeq ($(TARGET), VTA_PYNQ_TARGET)
+ifeq ($(VTA_TARGET), pynq)
 	VTA_LIB_SRC += $(wildcard src/pynq/*.cc)
 	LDFLAGS += -L/usr/lib -lsds_lib
 	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/
@@ -66,24 +63,23 @@ ifeq ($(TARGET), VTA_PYNQ_TARGET)
 	LDFLAGS += -l:libdma.so
 endif
 
-ifeq ($(TARGET), sim)
+ifeq ($(VTA_TARGET), sim)
 	VTA_LIB_SRC += $(wildcard src/sim/*.cc)
 endif
 
 VTA_LIB_OBJ = $(patsubst src/%.cc, build/%.o, $(VTA_LIB_SRC))
 
+all: lib/libvta.so
+
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-lib/libvta.so: $(filter-out build/runtime.o, $(VTA_LIB_OBJ))
+lib/libvta.so: $(VTA_LIB_OBJ)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS)
 
-lib/libvta_runtime.so: build/runtime.o
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS)
 
 lint: pylint cpplint
 
