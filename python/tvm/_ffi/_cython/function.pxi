@@ -6,7 +6,6 @@ from ..base import string_types
 from ..node_generic import convert_to_node, NodeGeneric
 from ..runtime_ctypes import TVMType, TVMContext, TVMByteArray
 
-print("TVM: Initializing cython mode...")
 
 cdef void tvm_callback_finalize(void* fhandle):
     local_pyfunc = <object>(fhandle)
