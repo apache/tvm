@@ -9,6 +9,7 @@ from .util import get_pad_tuple
 from ..util import simplify
 
 
+@tvm.target.generic_func
 def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
     """Depthwise convolution nchw forward operator.
 
@@ -63,6 +64,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
     return Output
 
 
+@tvm.target.generic_func
 def depthwise_conv2d_nhwc(Input, Filter, stride, padding):
     """Depthwise convolution nhwc forward operator.
 
