@@ -1,5 +1,6 @@
 """TVM-based VTA Compiler Toolchain"""
 from __future__ import absolute_import as _abs
+import sys
 
 from .environment import get_env, Environment
 
@@ -10,5 +11,5 @@ try:
     from .rpc_client import reconfig_runtime, program_fpga
 
     from . import graph
-except ImportError:
+except (ImportError, RuntimeError):
     pass

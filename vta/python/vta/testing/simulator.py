@@ -10,7 +10,6 @@ def _load_lib():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     dll_path = [
         os.path.abspath(os.path.join(curr_path, "../../../lib/libvta.so")),
-        os.path.abspath(os.path.join(curr_path, "../../../lib/libvta_runtime.so"))
     ]
     runtime_dll = []
     if not all(os.path.exists(f) for f in dll_path):

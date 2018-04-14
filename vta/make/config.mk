@@ -26,8 +26,8 @@ ADD_LDFLAGS=
 # the additional compile flags you want to add
 ADD_CFLAGS=
 
-# the hardware target
-TARGET = pynq
+# the hardware target, can be [sim, pynq]
+VTA_TARGET = pynq
 
 #---------------------
 # VTA hardware parameters
@@ -88,7 +88,8 @@ $(shell echo "$$(( $(VTA_LOG_ACC_BUFF_SIZE) + $(VTA_LOG_OUT_WIDTH) - $(VTA_LOG_A
 VTA_OUT_BUFF_SIZE = $(shell echo "$$(( 1 << $(VTA_LOG_OUT_BUFF_SIZE) ))" )
 
 # Update ADD_CFLAGS
-ADD_CFLAGS += \
+ADD_CFLAGS +=
+	-DVTA_TARGET=$(VTA_TARGET)\
 	-DVTA_LOG_WGT_WIDTH=$(VTA_LOG_WGT_WIDTH) -DVTA_LOG_INP_WIDTH=$(VTA_LOG_INP_WIDTH) \
 	-DVTA_LOG_ACC_WIDTH=$(VTA_LOG_ACC_WIDTH) -DVTA_LOG_OUT_WIDTH=$(VTA_LOG_OUT_WIDTH) \
 	-DVTA_LOG_BATCH=$(VTA_LOG_BATCH) \
