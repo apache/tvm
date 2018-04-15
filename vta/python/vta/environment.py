@@ -3,10 +3,11 @@
 from __future__ import absolute_import as _abs
 
 import os
-import glob
+import json
 import copy
 import tvm
 from . import intrin
+from .pkg_config import PkgConfig
 
 
 class DevContext(object):
@@ -61,45 +62,6 @@ class DevContext(object):
         return 1 if self.DEBUG_NO_SYNC else qid
 
 
-class PkgConfig(object):
-    """Simple package config tool for VTA.
-
-    This is used to provide runtime specific configurations.
-    """
-    def __init__(self, env):
-        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
-        # include path
-        self.include_path = [
-            "-I%s/include" % proj_root,
-            "-I%s/nnvm/tvm/include" % proj_root,
-            "-I%s/nnvm/tvm/dlpack/include" % proj_root,
-            "-I%s/nnvm/dmlc-core/include" % proj_root
-        ]
-        # List of source files that can be used to build standalone library.
-        self.lib_source = []
-        self.lib_source += glob.glob("%s/src/*.cc" % proj_root)
-        self.lib_source += glob.glob("%s/src/%s/*.cc" % (proj_root, env.TARGET))
-        # macro keys
-        self.macro_defs = []
-        for key in env.cfg_keys:
-            self.macro_defs.append("-DVTA_%s=%s" % (key, str(getattr(env, key))))
-
-        if env.TARGET == "pynq":
-            self.ldflags = [
-                "-L/usr/lib",
-                "-lsds_lib",
-                "-L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/",
-                "-L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/",
-                "-l:libdma.so"]
-        else:
-            self.ldflags = []
-
-    @property
-    def cflags(self):
-        return self.include_path + self.macro_defs
-
-
 class Environment(object):
     """Hareware configuration object.
 
@@ -123,19 +85,6 @@ class Environment(object):
           env = vta.get_env()
     """
     current = None
-    cfg_keys = [
-        "TARGET",
-        "LOG_INP_WIDTH",
-        "LOG_WGT_WIDTH",
-        "LOG_ACC_WIDTH",
-        "LOG_BATCH",
-        "LOG_BLOCK_IN",
-        "LOG_BLOCK_OUT",
-        "LOG_UOP_BUFF_SIZE",
-        "LOG_INP_BUFF_SIZE",
-        "LOG_WGT_BUFF_SIZE",
-        "LOG_ACC_BUFF_SIZE",
-    ]
     # constants
     MAX_XFER = 1 << 22
     # debug flags
@@ -152,10 +101,9 @@ class Environment(object):
     def __init__(self, cfg):
         # Log of input/activation width in bits
         self.__dict__.update(cfg)
-        for key in self.cfg_keys:
+        for key in PkgConfig.cfg_keys:
             if key not in cfg:
                 raise ValueError("Expect key %s in cfg" % key)
-        self.LOG_OUT_WIDTH = self.LOG_INP_WIDTH
         self.LOG_OUT_BUFF_SIZE = (
             self.LOG_ACC_BUFF_SIZE +
             self.LOG_OUT_WIDTH -
@@ -195,7 +143,12 @@ class Environment(object):
         self.mock_mode = False
         self._mock_env = None
         self._dev_ctx = None
-        self._pkg_config = None
+
+    def pkg_config(self):
+        """PkgConfig instance"""
+        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
+        return PkgConfig(self.__dict__, proj_root)
 
     @property
     def dev(self):
@@ -203,13 +156,6 @@ class Environment(object):
         if self._dev_ctx is None:
             self._dev_ctx = DevContext(self)
         return self._dev_ctx
-
-    @property
-    def pkg_config(self):
-        """PkgConfig instance"""
-        if self._pkg_config is None:
-            self._pkg_config = PkgConfig(self)
-        return self._pkg_config
 
     @property
     def mock(self):
@@ -327,30 +273,19 @@ def coproc_dep_pop(op):
 
 def _init_env():
     """Iniitalize the default global env"""
-    python_vta_dir = os.path.dirname(__file__)
-    filename = os.path.join(python_vta_dir, '../../config.mk')
-    keys = set()
-
-    for k in Environment.cfg_keys:
-        keys.add("VTA_" + k)
-
-    if not os.path.isfile(filename):
+    curr_path = os.path.dirname(
+        os.path.abspath(os.path.expanduser(__file__)))
+    proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
+    path_list = [
+        os.path.join(curr_path, "config.json"),
+        os.path.join(proj_root, "config.json"),
+        os.path.join(proj_root, "make/config.json")
+    ]
+    path_list = [p for p in path_list if os.path.exists(p)]
+    if not path_list:
         raise RuntimeError(
-            "Error: {} not found.make sure you have config.mk in your vta root"
+            "Error: {} not found.make sure you have config.json in your vta root"
             .format(filename))
-
-    cfg = {}
-    with open(filename) as f:
-        for line in f:
-            for k in keys:
-                if k  +" =" in line:
-                    val = line.split("=")[1].strip()
-                    if k.startswith("VTA_"):
-                        k = k[4:]
-                    try:
-                        cfg[k] = int(val)
-                    except ValueError:
-                        cfg[k] = val
-    return Environment(cfg)
+    return Environment(json.load(open(path_list[0])))
 
 Environment.current = _init_env()
