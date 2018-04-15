@@ -1,6 +1,6 @@
 VTA: Open, Modular, Deep Learning Accelerator Stack
 ===================================================
-
+[![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=uwsaml/vta/master)](http://mode-gpu.cs.washington.edu:8080/job/uwsaml/job/vta/job/master/)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 
 VTA(versatile tensor accelerator) is an open-source deep learning accelerator stack.
