@@ -75,20 +75,20 @@ def server_start():
         pkg = PkgConfig(cfg, proj_root)
         # check if the configuration is already the same
         if os.path.isfile(cfg_path):
-            old_cfg = json.load(open(cfg_path))
+            old_cfg = json.loads(open(cfg_path, "r").read())
             if pkg.same_config(old_cfg):
-                logging.info("Skip reconfiguration because runtime config is the same")
+                logging.info("Skip reconfig_runtime due to same config.")
                 return
-        cflags += ["-O2", "-std=c++11"]
+        cflags = ["-O2", "-std=c++11"]
         cflags += pkg.cflags
         ldflags = pkg.ldflags
         lib_name = dll_path
-        source = env.pkg_config.lib_source
+        source = pkg.lib_source
         logging.info("Rebuild runtime: output=%s, cflags=%s, source=%s, ldflags=%s",
                      dll_path, str(cflags), str(source), str(ldflags))
         cc.create_shared(lib_name, source, cflags + ldflags)
         with open(cfg_path, "w") as outputfile:
-            json.dump(pkg.cfg_json, outputfile)
+            outputfile.write(pkg.cfg_json)
 
 
 def main():
