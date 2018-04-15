@@ -44,7 +44,7 @@ _SCHEDULES = [
     Im2ColPack(7, 4, 1, 16, False),
 ]
 
-@_get_schedule.register(["tcpu", "vta"])
+@_get_schedule.register(["vtacpu", "vta"])
 def _schedule_conv2d(wkl):
     if wkl not in _WORKLOADS:
         raise ValueError("no schedule for such workload: {}".format(wkl))
@@ -53,10 +53,10 @@ def _schedule_conv2d(wkl):
     return sch
 
 
-@conv2d.register(["tcpu", "vta"])
+@conv2d.register(["vtacpu", "vta"])
 def _declaration_conv2d(data, kernel, stride, padding, layout, out_dtype):
-    assert layout == 'NCHW', "only support NCHW convolution on tcpu"
-    assert data.shape[0].value == 1, "only support batch size=1 convolution on tcpu"
+    assert layout == 'NCHW', "only support NCHW convolution on vtacpu"
+    assert data.shape[0].value == 1, "only support batch size=1 convolution on vtacpu"
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)
     sch = _get_schedule(wkl)
     return _SCH_TO_DECL_FUNC[type(sch)](data, kernel, stride, padding, out_dtype)
@@ -284,7 +284,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
 
     return s
 
-@generic.schedule_conv2d_nchw.register(["tcpu", "vta"])
+@generic.schedule_conv2d_nchw.register(["vtacpu", "vta"])
 def schedule_conv2d(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])

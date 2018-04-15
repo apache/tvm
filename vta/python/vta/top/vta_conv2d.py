@@ -1,4 +1,5 @@
 """Namespace for supporting packed_conv2d + ewise variant of nnvm."""
+from __future__ import absolute_import as _abs
 
 from collections import namedtuple
 
@@ -7,7 +8,7 @@ import tvm
 import topi
 
 from nnvm.top import registry as reg, OpPattern
-from . import environment as vta
+from ..environment import get_env
 
 
 Workload = namedtuple("Conv2DWorkload",
@@ -219,7 +220,7 @@ def schedule_packed_conv2d(outs):
     wrkld = _get_workload(data, pad_data, kernel, output)
 
     plan = _WL2PLAN[wrkld]
-    env = vta.get_env()
+    env = get_env()
 
     load_inp = load_wgt = load_out = store_out = env.dma_copy
     alu = env.alu
@@ -251,7 +252,7 @@ def schedule_packed_conv2d(outs):
 
     # tile
     oc_factor = (plan.oc_factor if plan.oc_factor
-                 else wrkld.out_filter // vta.BLOCK_OUT)
+                 else plan.out_filter // env.BLOCK_OUT)
     h_factor = (plan.h_factor if plan.h_factor else oshape[2])
     w_factor = (plan.w_factor if plan.w_factor else oshape[3])
 
