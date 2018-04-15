@@ -4,8 +4,8 @@
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
 // nnvm libraries
-vta_lib += "lib/libvta.so, lib/libvta.so.json"
-vta_lib += ", nnvm/tvm/lib/libtvm.so, nnvm/tvm/lib/libtopi.so, nnvm/lib/libnnvm_compiler.so"
+vta_lib = "lib/libvta.so, lib/libvta.so.json"
+vta_lib += ", nnvm/tvm/lib/libtvm.so, nnvm/tvm/lib/libtvm_topi.so, nnvm/lib/libnnvm_compiler.so"
 
 
 // command to start a docker container

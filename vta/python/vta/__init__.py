@@ -1,4 +1,9 @@
-"""TVM-based VTA Compiler Toolchain"""
+"""VTA Package is a TVM backend extension to support VTA hardwares
+
+Besides the compiler toolchain.
+It also include utility functions to
+configure the hardware Environment and  access remote through RPC
+"""
 from __future__ import absolute_import as _abs
 
 __version__ = "0.1.0"
