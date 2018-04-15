@@ -6,6 +6,8 @@
 #ifndef TVM_RUNTIME_SGX_COMMON_H_
 #define TVM_RUNTIME_SGX_COMMON_H_
 
+#include <sgx_error.h>
+
 namespace tvm {
 namespace runtime {
 namespace sgx {
