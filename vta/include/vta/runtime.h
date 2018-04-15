@@ -25,7 +25,6 @@ extern "C" {
 
 /*!
  * \brief Allocate data buffer.
- * \param cmd The VTA command handle.
  * \param size Buffer size.
  * \return A pointer to the allocated buffer.
  */
@@ -33,14 +32,12 @@ void* VTABufferAlloc(size_t size);
 
 /*!
  * \brief Free data buffer.
- * \param cmd The VTA command handle.
  * \param buffer The data buffer to be freed.
  */
 void VTABufferFree(void* buffer);
 
 /*!
  * \brief Copy data buffer from one location to another.
- * \param cmd The VTA command handle.
  * \param from The source buffer base address.
  * \param from_offset The offset of the source buffer.
  * \param to The target buffer base address.
@@ -145,6 +142,7 @@ void VTALoadBuffer2D(VTACommandHandle cmd,
  * \param src_sram_index Source SRAM index.
  * \param src_memory_type Source memory type.
  * \param dst_dram_addr Destination DRAM address.
+ * \param dst_elem_offset The destination DRAM offset in number of unit elements.
  * \param x_size The lowest dimension (x axis) size in number of unit elements.
  * \param y_size The number of rows.
  * \param x_stride The x axis stride.

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file vta_driver.h
+ * \file driver.h
  * \brief Driver interface that is used by runtime.
  *
  * Driver's implementation is device specific.
@@ -46,7 +46,7 @@ void VTADeviceFree(VTADeviceHandle handle);
 
 /*!
  * \brief Launch the instructions block until done.
- * \param The device handle.
+ * \param device The device handle.
  * \param insn_phy_addr The physical address of instruction stream.
  * \param insn_count Instruction count.
  * \param wait_cycles The maximum of cycles to wait

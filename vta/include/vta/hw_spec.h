@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file vta_defines.h
+ * \file hw_spec.h
  * \brief Preprocessor definitions for VTA HLS design and runtime.
  */
 
