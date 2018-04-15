@@ -164,7 +164,7 @@ def _schedule(s, data, data_pad, kernel, output, last):
 
 
 @generic.schedule_depthwise_conv2d_nchw.register(["cpu", "rasp"])
-def schedule_depthwise_conv2d(outs):
+def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 
     Parameters
