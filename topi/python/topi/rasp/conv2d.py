@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import target as _target
 from .. import tag
-from ..nn.conv2d import conv2d, _get_schedule
+from ..nn.conv2d import conv2d as _conv2d, _get_schedule
 from ..nn.conv2d import SpatialPack, Im2ColPack
 from ..nn.conv2d import _WORKLOADS, _SCH_TO_DECL_FUNC
 from ..nn.conv2d import _get_workload
@@ -66,7 +66,7 @@ _SCHEDULES = [
 ]
 
 @_get_schedule.register("rasp")
-def _schedule_conv2d(wkl):
+def _get_schedule_conv2d(wkl):
     if wkl not in _WORKLOADS:
         raise ValueError("no schedule for such workload: {}".format(wkl))
     idx = _WORKLOADS.index(wkl)
@@ -74,7 +74,7 @@ def _schedule_conv2d(wkl):
     return sch
 
 
-@conv2d.register("rasp")
+@_conv2d.register("rasp")
 def _declaration_conv2d(data, kernel, stride, padding, layout, out_dtype):
     if out_dtype is None:
         out_dtype = data.dtype
@@ -309,7 +309,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
     return s
 
 @generic.schedule_conv2d_nchw.register(["rasp"])
-def schedule_conv2d(outs):
+def schedule_conv2d_nchw(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
 
