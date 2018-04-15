@@ -37,10 +37,10 @@ remote = rpc.connect(host, port)
 vta.program_fpga(remote, BITSTREAM_FILE)
 
 if verbose:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
-# Change to -device=vta-cpu to run cpu only inference.
-target = "llvm -device=vta"
+# Change to -device=vtacpu to run cpu only inference.
+target = tvm.target.create("llvm -device=vta")
 target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
 
 synset = eval(open(os.path.join(CATEG_FILE)).read())
@@ -109,7 +109,7 @@ dtype = "float32"
 sym = vta.graph.remove_stochastic(sym)
 sym = vta.graph.clean_cast(sym)
 sym = vta.graph.clean_conv_fuse(sym)
-if "vta" in target:
+if target.device_name == "vta":
     sym = vta.graph.pack(sym, shape_dict, factor)
 
 graph_attr.set_shape_inputs(sym, shape_dict)
@@ -118,10 +118,10 @@ graph_attr.set_dtype_inputs(sym, dtype_dict)
 sym = sym.apply("InferType")
 
 with nnvm.compiler.build_config(opt_level=3):
-    if "vta" not in target:
+    if target.device_name != "vta":
         graph, lib, params = nnvm.compiler.build(
-            sym, target, shape_dict, dtype_dict,
-            params=params, target_host=target_host)
+            sym, target_host, shape_dict, dtype_dict,
+            params=params)
     else:
         with vta.build_config():
             graph, lib, params = nnvm.compiler.build(
@@ -133,7 +133,7 @@ temp = util.tempdir()
 lib.save(temp.relpath("graphlib.o"))
 remote.upload(temp.relpath("graphlib.o"))
 lib = remote.load_module("graphlib.o")
-ctx = remote.ext_dev(0) if "vta" in target else remote.cpu(0)
+ctx = remote.ext_dev(0) if target.device_name == "vta" else remote.cpu(0)
 
 print("Build complete...")
 
