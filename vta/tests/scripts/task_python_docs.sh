@@ -1,4 +1,9 @@
 #!/bin/bash
+cd nnvm/tvm
+make cython
+make cython3
+cd ../../
+
 mkdir -p docs/_build/html
 # C++ doc
 make doc
