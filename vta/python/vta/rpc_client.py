@@ -12,23 +12,8 @@ def reconfig_runtime(remote):
         The TVM RPC session
     """
     env = get_env()
-    keys = ["VTA_LOG_WGT_WIDTH",
-            "VTA_LOG_INP_WIDTH",
-            "VTA_LOG_ACC_WIDTH",
-            "VTA_LOG_OUT_WIDTH",
-            "VTA_LOG_BATCH",
-            "VTA_LOG_BLOCK_IN",
-            "VTA_LOG_BLOCK_OUT",
-            "VTA_LOG_UOP_BUFF_SIZE",
-            "VTA_LOG_INP_BUFF_SIZE",
-            "VTA_LOG_WGT_BUFF_SIZE",
-            "VTA_LOG_ACC_BUFF_SIZE",
-            "VTA_LOG_OUT_BUFF_SIZE"]
-    cflags = []
-    for k in keys:
-        cflags += ["-D%s=%s" % (k, str(getattr(env, k[4:])))]
     freconfig = remote.get_function("tvm.contrib.vta.reconfig_runtime")
-    freconfig(" ".join(cflags))
+    freconfig(env.pkg_config().cfg_json)
 
 
 def program_fpga(remote, bitstream):
