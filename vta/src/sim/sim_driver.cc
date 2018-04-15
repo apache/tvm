@@ -109,9 +109,12 @@ class DRAM {
    * \return The true virtual address;
    */
   void* GetAddr(uint64_t phy_addr) {
+    CHECK_NE(phy_addr, 0)
+        << "trying to get address that is nullptr";
     std::lock_guard<std::mutex> lock(mutex_);
     uint64_t loc = (phy_addr >> kPageBits) - 1;
-    CHECK_LT(loc, ptable_.size());
+    CHECK_LT(loc, ptable_.size())
+        << "phy_addr=" << phy_addr;
     Page* p = ptable_[loc];
     CHECK(p != nullptr);
     size_t offset = (loc - p->ptable_begin) << kPageBits;
@@ -173,7 +176,7 @@ class DRAM {
 
  private:
   // The bits in page table
-  static constexpr vta_phy_addr_t kPageBits = 16;
+  static constexpr vta_phy_addr_t kPageBits = 12;
   // page size, also the maximum allocable size 16 K
   static constexpr vta_phy_addr_t kPageSize = 1 << kPageBits;
   /*! \brief A page in the DRAM */
@@ -388,6 +391,7 @@ class Device {
   }
 
   void RunStore(const VTAMemInsn* op) {
+    if (op->x_size == 0) return;
     if (op->memory_type == VTA_MEM_ID_ACC ||
         op->memory_type == VTA_MEM_ID_UOP) {
       prof_->out_store_nbytes += (

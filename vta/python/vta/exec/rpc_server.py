@@ -8,11 +8,13 @@ import logging
 import argparse
 import os
 import ctypes
+import json
 import tvm
 from tvm._ffi.base import c_str
 from tvm.contrib import rpc, cc
 
 from ..environment import get_env
+from ..pkg_config import PkgConfig
 
 
 @tvm.register_func("tvm.contrib.rpc.server.start", override=True)
@@ -21,8 +23,9 @@ def server_start():
     # pylint: disable=unused-variable
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
-    dll_path = os.path.abspath(
-        os.path.join(curr_path, "../../../lib/libvta.so"))
+    proj_root = os.path.abspath(os.path.join(curr_path, "../../.."))
+    dll_path = os.path.abspath(os.path.join(proj_root, "lib/libvta.so"))
+    cfg_path = os.path.abspath(os.path.join(proj_root, "lib/libvta.so.json"))
     runtime_dll = []
     _load_module = tvm.get_global_func("tvm.contrib.rpc.server.load_module")
 
@@ -56,26 +59,36 @@ def server_start():
             runtime_dll.pop()
 
     @tvm.register_func("tvm.contrib.vta.reconfig_runtime", override=True)
-    def reconfig_runtime(cflags):
+    def reconfig_runtime(cfg_json):
         """Rebuild and reload runtime with new configuration.
 
         Parameters
         ----------
         cfg_json : str
-        JSON string used for configurations.
+            JSON string used for configurations.
         """
         if runtime_dll:
             raise RuntimeError("Can only reconfig in the beginning of session...")
-        cflags = cflags.split()
         env = get_env()
+        cfg = json.loads(cfg_json)
+        cfg["TARGET"] = env.TARGET
+        pkg = PkgConfig(cfg, proj_root)
+        # check if the configuration is already the same
+        if os.path.isfile(cfg_path):
+            old_cfg = json.load(open(cfg_path))
+            if pkg.same_config(old_cfg):
+                logging.info("Skip reconfiguration because runtime config is the same")
+                return
         cflags += ["-O2", "-std=c++11"]
-        cflags += env.pkg_config.include_path
-        ldflags = env.pkg_config.ldflags
+        cflags += pkg.cflags
+        ldflags = pkg.ldflags
         lib_name = dll_path
         source = env.pkg_config.lib_source
         logging.info("Rebuild runtime: output=%s, cflags=%s, source=%s, ldflags=%s",
                      dll_path, str(cflags), str(source), str(ldflags))
         cc.create_shared(lib_name, source, cflags + ldflags)
+        with open(cfg_path, "w") as outputfile:
+            json.dump(pkg.cfg_json, outputfile)
 
 
 def main():

@@ -1,44 +1,12 @@
 ROOTDIR = $(CURDIR)
 
-ifndef config
-ifneq ("$(wildcard ./config.mk)", "")
-	config = config.mk
-else
-	config = make/config.mk
-endif
-endif
-include $(config)
-
 export LDFLAGS = -pthread -lm
 export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
 
-ifdef NNVM_PATH
-	CFLAGS += -I$(NNVM_PATH)/include
-else
-	NNVM_PATH = $(ROOTDIR)/nnvm
-	CFLAGS += -I$(NNVM_PATH)/include
-endif
-
-ifdef TVM_PATH
-	CFLAGS += -I$(TVM_PATH)/include -I$(TVM_PATH)/dlpack/include -I$(TVM_PATH)/HalideIR/src
-else
-	TVM_PATH = $(NNVM_PATH)/tvm
-	CFLAGS += -I$(TVM_PATH)/include -I$(TVM_PATH)/dlpack/include -I$(TVM_PATH)/HalideIR/src
-endif
-
-ifdef DMLC_CORE_PATH
-  CFLAGS += -I$(DMLC_CORE_PATH)/include
-else
-  CFLAGS += -I$(NNVM_PATH)/dmlc-core/include
-endif
-
-ifneq ($(ADD_CFLAGS), NONE)
-	CFLAGS += $(ADD_CFLAGS)
-endif
-
-ifneq ($(ADD_LDFLAGS), NONE)
-	LDFLAGS += $(ADD_LDFLAGS)
-endif
+VTA_CONFIG = python make/vta_config.py
+CFLAGS += `${VTA_CONFIG} --cflags`
+LDFLAGS += `${VTA_CONFIG} --ldflags`
+VTA_TARGET := $(shell ${VTA_CONFIG} --target)
 
 UNAME_S := $(shell uname -s)
 
@@ -53,28 +21,29 @@ else
 	NO_WHOLE_ARCH= --no-whole-archive
 endif
 
-VTA_LIB_SRC = $(wildcard src/*.cc src/tvm/*.cc)
 
-ifeq ($(VTA_TARGET), pynq)
+VTA_LIB_SRC = $(wildcard src/*.cc)
+
+ifeq (${VTA_TARGET}, pynq)
 	VTA_LIB_SRC += $(wildcard src/pynq/*.cc)
-	LDFLAGS += -L/usr/lib -lsds_lib
-	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/
-	LDFLAGS += -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/
-	LDFLAGS += -l:libdma.so
 endif
 
-ifeq ($(VTA_TARGET), sim)
+ifeq (${VTA_TARGET}, sim)
 	VTA_LIB_SRC += $(wildcard src/sim/*.cc)
 endif
 
 VTA_LIB_OBJ = $(patsubst src/%.cc, build/%.o, $(VTA_LIB_SRC))
 
-all: lib/libvta.so
+all: lib/libvta.so lib/libvta.so.json
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
+
+lib/libvta.so.json: lib/libvta.so
+	@mkdir -p $(@D)
+	${VTA_CONFIG} --cfg-json > $@
 
 lib/libvta.so: $(VTA_LIB_OBJ)
 	@mkdir -p $(@D)
