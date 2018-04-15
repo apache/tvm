@@ -71,9 +71,15 @@ MakeLoopNest(const Stage& stage,
                               << it_attr->iter_type
                               << " in the iter_var_attrs";
         }
-        for (Expr p : it_attr->pragmas) {
+        CHECK_EQ(it_attr->pragma_keys.size(), it_attr->pragma_values.size());
+        for (size_t k = 0; k < it_attr->pragma_keys.size(); ++k) {
+          const std::string& pkey = it_attr->pragma_keys[k].as<StringImm>()->value;
+          Expr pvalue = it_attr->pragma_values[k];
+          if (!pvalue.defined()) {
+            pvalue = make_const(Int(32), 1);
+          }
           nest[i + 1].emplace_back(
-              AttrStmt::make(iv, ir::attr::pragma_scope, p, no_op));
+              AttrStmt::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
         }
       }
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {

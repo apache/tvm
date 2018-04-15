@@ -27,6 +27,19 @@ class LoopUnroller : public IRMutator {
         explicit_unroll_(explicit_unroll) {
   }
 
+  Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) final {
+    if (op->attr_key == "pragma_auto_unroll_max_step") {
+      int value;
+      CHECK(arith::GetConstInt(op->value, &value));
+      std::swap(value, auto_max_step_);
+      Stmt ret = this->Mutate(op->body);
+      std::swap(value, auto_max_step_);
+      return ret;
+    } else {
+      return IRMutator::Mutate_(op, stmt);
+    }
+  }
+
   Stmt Mutate_(const For* op, const Stmt& s) {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<For>();

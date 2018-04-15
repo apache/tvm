@@ -185,10 +185,13 @@ class Stage : public NodeRef {
    *
    * \param var The axis to be parallelized.
    * \param pragma_type The pragma type.
+   * \param pragma_value The pragma value
    *
    * \return reference to self.
    */
-  EXPORT Stage& pragma(IterVar var, const std::string& pragma_type);   // NOLINT(*)
+  EXPORT Stage& pragma(IterVar var,
+                       const std::string& pragma_type,
+                       const Expr& pragma_value = Expr());   // NOLINT(*)
   /*!
    * \brief Fetch data in advance.
    * \param domain the tensor to be prefetched
@@ -539,9 +542,13 @@ class IterVarAttrNode : public Node {
   /*! \brief Alignment offset of buffer dimension */
   int dim_align_offset{0};
   /*!
-   * \brief Additional pragmas, array of StringImm
+   * \brief Additional pragma keys, array of StringImm
    */
-  Array<Expr> pragmas;
+  Array<Expr> pragma_keys;
+  /*!
+   * \brief Additional values of pragma, if any
+   */
+  Array<Expr> pragma_values;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("iter_type", &iter_type);
@@ -551,7 +558,8 @@ class IterVarAttrNode : public Node {
     v->Visit("tensor_intrin", &tensor_intrin);
     v->Visit("dim_align_factor", &dim_align_factor);
     v->Visit("dim_align_offset", &dim_align_offset);
-    v->Visit("pragmas", &pragmas);
+    v->Visit("pragma_keys", &pragma_keys);
+    v->Visit("pragma_values", &pragma_values);
   }
 
   static constexpr const char* _type_key = "IterVarAttr";
