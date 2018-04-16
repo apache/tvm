@@ -401,7 +401,7 @@ class StoragePlanRewriter : public IRMutator {
       return this->Mutate(op->body);
     } else if (op->attr_key == attr::thread_extent ||
                op->attr_key == attr::virtual_thread ||
-               op->attr_key == attr::pragma_scope) {
+               attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
@@ -737,8 +737,8 @@ class StoragePlanRewriter : public IRMutator {
       if (s.stmt->is_type<AttrStmt>()) {
         const auto* op = static_cast<const AttrStmt*>(s.stmt);
         if (op->attr_key == attr::thread_extent ||
-            op->attr_key == attr::pragma_scope ||
-            op->attr_key == attr::virtual_thread) {
+            op->attr_key == attr::virtual_thread ||
+            attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
         } else {
           CHECK(op->attr_key == attr::extern_scope);
