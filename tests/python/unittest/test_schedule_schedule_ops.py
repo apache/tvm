@@ -20,6 +20,7 @@ def test_schedule1():
 
     s = tvm.create_schedule(A1.op)
     xo, xi = s[A1].split(A1.op.axis[0], 8)
+    s[A1].pragma(xo, "auto_unroll_max_step", 10)
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)

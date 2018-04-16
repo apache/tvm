@@ -77,7 +77,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
-    int size;
+    int size = 0;
     CHECK(arith::GetConstInt(extent, &size))
         << "SPIRV only allows constant thread group size " << " get " << extent;
     CHECK_LT(ts.dim_index, 3);

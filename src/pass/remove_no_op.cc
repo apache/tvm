@@ -20,11 +20,8 @@ class NoOpRemover : public IRMutator {
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (op->attr_key == ir::attr::pragma_scope) {
-      const std::string& pname = op->value.as<StringImm>()->value;
-      if (pname == "debug_skip_region") {
-        return MakeEvaluate(0);
-      }
+    if (op->attr_key == "pragma_debug_skip_region") {
+      return MakeEvaluate(0);
     }
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<AttrStmt>();
