@@ -1,19 +1,19 @@
 import tvm
 import os
 
+
 def test_unroll_loop():
+    ib = tvm.ir_builder.create()
     dtype = 'int64'
     n = tvm.var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.var('i')
-    j = tvm.var('j')
+    Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
-    stmt = tvm.make.For(
-        i, n, 2, 0, 0,
-        tvm.make.For(j, 0, 8, 3, 0,
-                     tvm.make.Store(Ab.data,
-                                    tvm.make.Load(dtype, Ab.data, i) + 1,
-                                    j + 1)))
+    with ib.for_range(n, n + 2, name="i") as i:
+        with ib.for_range(0, 8, name="i", for_type="unroll") as j:
+            Aptr[j + 1] = Aptr[i] + 1
+
+    stmt = ib.get()
     assert isinstance(stmt, tvm.stmt.For)
     ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, True)
     assert not isinstance(ret, tvm.stmt.For)
@@ -23,23 +23,18 @@ def test_unroll_loop():
     assert isinstance(ret, tvm.stmt.For)
     assert ret.for_type == tvm.stmt.For.Unrolled
 
+    ib = tvm.ir_builder.create()
+    ib.scope_attr(tvm.const(0), "pragma_auto_unroll_max_step", 16)
+    ib.emit(stmt)
+    wrapped = ib.get()
+    wrapped = tvm.make.Block(wrapped, stmt)
+    assert isinstance(ret, tvm.stmt.For)
+    ret = tvm.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
+    assert isinstance(ret.first, tvm.stmt.For)
+    assert ret.first.for_type == tvm.stmt.For.Unrolled
+    assert isinstance(ret.rest, tvm.stmt.For)
+    assert ret.rest.for_type != tvm.stmt.For.Unrolled
+
 
 if __name__ == "__main__":
-    with tvm.build_config(dump_pass_ir=True):
-        test_unroll_loop()
-
-    def end_with(*suffix):
-        ends = suffix
-        def run(s):
-            f = map(s.endswith, ends)
-            if True in f: return s
-        return run
-
-    file_list = os.listdir('./')
-    cc_file = end_with('.cc')
-    cc_file = filter(cc_file, file_list)
-    cc_file = [f for f in cc_file]
-    assert len(cc_file) == 3
-    for i in cc_file:
-        os.remove(i)
-    
+    test_unroll_loop()

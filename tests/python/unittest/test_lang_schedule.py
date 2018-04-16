@@ -110,7 +110,7 @@ def test_pragma():
     s[T].pragma(xo, "pragma1")
     s[T].pragma(xi, "vectorize")
     VECTORIZE = tvm.schedule.IterVar.Vectorized
-    assert s[T].iter_var_attrs[xo].pragmas[0].value == "pragma1"
+    assert s[T].iter_var_attrs[xo].pragma_keys[0].value == "pragma1"
     assert s[T].iter_var_attrs[xi].iter_type == VECTORIZE
 
 
