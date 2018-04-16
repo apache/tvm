@@ -33,7 +33,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
         if device == "llvm":
             s = topi.cpp.generic.default_schedule(target, [B], False)
         else:
-            s = topi.cpp.rocm.schedule_injective(target, [B])
+            s = topi.cpp.cuda.schedule_injective(target, [B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
