@@ -350,15 +350,19 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
-Stage& Stage::pragma(IterVar var, const std::string& pragma_type) {   // NOLINT(*)
+Stage& Stage::pragma(IterVar var,
+                     const std::string& pragma_type,
+                     const Expr& pragma_value) {   // NOLINT(*)
   if (pragma_type == "unroll") {
     this->unroll(var);
   } else if (pragma_type == "vectorize") {
     this->vectorize(var);
   } else {
-    UpdateIterVarAttr(operator->(), var, [pragma_type](IterVarAttrNode* n) {
-        n->pragmas.push_back(ir::StringImm::make(pragma_type));
-      });
+    UpdateIterVarAttr(
+        operator->(), var, [pragma_type, pragma_value](IterVarAttrNode* n) {
+          n->pragma_keys.push_back(ir::StringImm::make(pragma_type));
+          n->pragma_values.push_back(pragma_value);
+        });
   }
   return *this;
 }

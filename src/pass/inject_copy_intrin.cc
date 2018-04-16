@@ -17,7 +17,7 @@ class CopyIntrinInjector : public IRMutator {
  public:
   CopyIntrinInjector(const std::string& pragma_key,
                      const PackedFunc& flower_copy_fromto)
-      : pragma_key_(pragma_key),
+      : pragma_key_(attr::pragma_scope_prefix+  pragma_key),
         flower_copy_fromto_(flower_copy_fromto) {
   }
 
@@ -25,14 +25,11 @@ class CopyIntrinInjector : public IRMutator {
     if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       storage_scope_[buf] = op->value.as<StringImm>()->value;
-    } else if (op->attr_key == ir::attr::pragma_scope) {
-      const std::string& pname = op->value.as<StringImm>()->value;
-      if (pname == pragma_key_) {
-        Stmt ret;
-        CHECK(MatchCopyPattern(op->body, &ret))
-            << "Cannot match copy pattern of " << op->body;
-        return ret;
-      }
+    } else if (op->attr_key == pragma_key_) {
+      Stmt ret;
+      CHECK(MatchCopyPattern(op->body, &ret))
+          << "Cannot match copy pattern of " << op->body;
+      return ret;
     }
     return IRMutator::Mutate_(op, s);
   }

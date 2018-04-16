@@ -552,7 +552,7 @@ class Stage(NodeBase):
         """
         _api_internal._StageParallel(self, var)
 
-    def pragma(self, var, pragma_type):
+    def pragma(self, var, pragma_type, pragma_value=None):
         """Annotate the iteration with pragma
 
         This will translate to a pragma_scope surrounding
@@ -566,6 +566,9 @@ class Stage(NodeBase):
 
         pragma_type : str
              The pragma string to be annotated
+
+        pragma_value : Expr, optional
+             The pragma value to pass along the pragma
 
         Note
         ----
@@ -597,7 +600,7 @@ class Stage(NodeBase):
           :code:`for (int i = task_id; i < end; i += num_task)`
 
         """
-        _api_internal._StagePragma(self, var, pragma_type)
+        _api_internal._StagePragma(self, var, pragma_type, pragma_value)
 
     def prefetch(self, tensor, var, offset):
         """Prefetch the specified variable
