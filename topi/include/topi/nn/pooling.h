@@ -168,11 +168,13 @@ inline bool find_height_width(const std::string& layout,
 * \param pool_type The type of pooling operator
 * \param ceil_mode Whether to use ceil when calculating the output size
 * \param layout The input layout. Pooling supports any layout as long as 'H' and 'W' appear.
-*        The layout is supposed to be composed of upper cases, lower cases and numbers,
+*        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
 *        where upper case indicates a dimension and
 *        the corresponding lower case with factor size indicates the split dimension.
 *        For example, NCHW16c can describe a 5-D tensor of
 *        [batch_size, channel, height, width, channel_block].
+*        (in which factor size `16` will not be used in pooling but for other operators,
+*        it can be used to decide the output shape).
 *        Since pooling does not care about the factor size of dimensions
 *        other than `H` and `W`, one can pass `NCHWc` as well.
 * \return The output tensor in the same layout
@@ -203,11 +205,13 @@ inline Tensor pool(const Tensor& x,
 * \param x The input tensor represent as layout
 * \param pool_type The type of pooling operator
 * \param layout The input layout. global-pooling supports any layout as long as 'H' and 'W' appear.
-*        The layout is supposed to be composed of upper cases, lower cases and numbers,
+*        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
 *        where upper case indicates a dimension and
-*        the corresponding lower case with factor size indicates the sub-dimension.
+*        the corresponding lower case (with factor size) indicates the sub-dimension.
 *        For example, `NCHW16c` can describe a 5-D tensor of
 *        [batch_size, channel, height, width, channel_block].
+*        (in which factor size `16` will not be used in pooling but for other operators,
+*        it can be used to decide the output shape).
 *        Since pooling does not care about the factor size of
 *        dimensions other than `H` and `W`, one can pass `NCHWc` as well.
 *
