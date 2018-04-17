@@ -173,8 +173,8 @@ inline bool find_height_width(const std::string& layout,
 *        the corresponding lower case with factor size indicates the split dimension.
 *        For example, NCHW16c can describe a 5-D tensor of
 *        [batch_size, channel, height, width, channel_block].
-*        Here channel_block=16 is a split of dimension channel,
-*        which is defined as data[n, C, h, w, c] = origin_data[n, C*16+c, h, w]
+*        Since pooling does not care about the factor size of dimensions
+*        other than `H` and `W`, one can pass `NCHWc` as well.
 * \return The output tensor in the same layout
 */
 inline Tensor pool(const Tensor& x,
@@ -205,11 +205,11 @@ inline Tensor pool(const Tensor& x,
 * \param layout The input layout. global-pooling supports any layout as long as 'H' and 'W' appear.
 *        The layout is supposed to be composed of upper cases, lower cases and numbers,
 *        where upper case indicates a dimension and
-*        the corresponding lower case with factor size indicates the split dimension.
-*        For example, NCHW16c can describe a 5-D tensor of
+*        the corresponding lower case with factor size indicates the sub-dimension.
+*        For example, `NCHW16c` can describe a 5-D tensor of
 *        [batch_size, channel, height, width, channel_block].
-*        Here channel_block=16 is a split of dimension channel,
-*        which is defined as data[n, C, h, w, c] = origin_data[n, C*16+c, h, w]
+*        Since pooling does not care about the factor size of
+*        dimensions other than `H` and `W`, one can pass `NCHWc` as well.
 *
 * \return The output tensor in same layout with height and width dimension size of 1.
 *         e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
