@@ -170,7 +170,7 @@ inline bool find_height_width(const std::string& layout,
 * \param layout The input layout. Pooling supports any layout as long as 'H' and 'W' appear.
 *        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
 *        where upper case indicates a dimension and
-*        the corresponding lower case with factor size indicates the split dimension.
+*        the corresponding lower case (with factor size) indicates the split dimension.
 *        For example, NCHW16c can describe a 5-D tensor of
 *        [batch_size, channel, height, width, channel_block].
 *        (in which factor size `16` will not be used in pooling but for other operators,
