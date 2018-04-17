@@ -295,10 +295,8 @@ def _schedule_cl_spatialpack(s, op):
     # schedule conv_L
     s[conv_L].compute_at(s[conv], tx)
     i, oc, h, w = s[conv_L].op.axis
-    oh, ih = s[conv_L].split(h, factor = OUTPUT_BLOCK_HEIGHT)
-    ow, iw = s[conv_L].split(w, factor = OUTPUT_BLOCK_WIDTH)
     rc, ry, rx = s[conv_L].op.reduce_axis
-    s[conv_L].reorder(i, oc, oh, ow, rc, ry, rx, ih, iw)
+    s[conv_L].reorder(i, oc, rc, ry, rx, h, w)
 #    s[conv_L].unroll(ry)
 #    s[conv_L].unroll(rx)
 
@@ -318,7 +316,13 @@ def _schedule_cl_spatialpack(s, op):
     s[temp_W].bind(xi, thread_x)
     s[temp_W].storage_align(s[temp_W].op.axis[2], 16, 0)
     # schedule kernel_L
-    s[kernel_L].compute_at(s[conv_L], rx)
+    if "2_14" in s[conv].op.tag:
+#        i, oc, h, w = s[conv_L].op.axis
+#        s[conv_L].reorder(i, oc, rc, ry, h, w, rx)
+        s[kernel_L].compute_at(s[conv_L], ry)
+#        s[conv_L].vectorize(rx)
+    else:
+        s[kernel_L].compute_at(s[conv_L], rx)
 
     # schedule output
     if output.op in s.outputs:
