@@ -7,6 +7,7 @@
 #define TOPI_NN_POOLING_H_
 
 #include <string>
+#include <vector>
 
 #include "tvm/tvm.h"
 #include "tvm/ir_pass.h"
@@ -25,25 +26,28 @@ enum PoolType : int {
 };
 
 /*!
-* \brief Perform pooling on data in NCHW order
+* \brief Perform pooling on height and width dimension of data.
 *
-* \param x The input tensor in NCHW order
+* \param x The input tensor
 * \param kernel_size Vector of two ints: {kernel_height, kernel_width}
 * \param stride_size Vector of two ints: {stride_height, stride_width}
 * \param padding_size Vector of two ints: {padding_height, padding_width}
 * \param pool_type The type of pooling operator
 * \param ceil_mode Whether to use ceil when calculating the output size
+* \param height_idx index of the height dimension
+* \param width_idx index of the width dimension
 *
-* \return The output tensor in NCHW order
+* \return The output tensor in same layout order
 */
-
-inline Tensor pool_nchw(const Tensor& x,
+inline Tensor pool_impl(const Tensor& x,
                         const Array<Expr>& kernel_size,
                         const Array<Expr>& stride_size,
                         const Array<Expr>& padding_size,
                         PoolType pool_type,
-                        bool ceil_mode) {
-  CHECK_EQ(x->shape.size(), 4) << "Pooling input must be 4-D";
+                        bool ceil_mode,
+                        const size_t height_idx,
+                        const size_t width_idx) {
+  CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
   CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 2) << "Pooling padding_size must have 2 elements";
@@ -55,10 +59,8 @@ inline Tensor pool_nchw(const Tensor& x,
   auto padding_height = padding_size[0];
   auto padding_width = padding_size[1];
 
-  auto batch = x->shape[0];
-  auto channel = x->shape[1];
-  auto height = x->shape[2];
-  auto width = x->shape[3];
+  auto height = x->shape[height_idx];
+  auto width = x->shape[width_idx];
 
   auto pad_tuple = detail::GetPadTuple(padding_height, padding_width);
   auto pad_top = pad_tuple[0];
@@ -73,8 +75,13 @@ inline Tensor pool_nchw(const Tensor& x,
     pad_right += stride_width - 1;
   }
 
-  Array<Expr> pad_before{ 0, 0, pad_top, pad_left };
-  Array<Expr> pad_after{ 0, 0, pad_down, pad_right };
+  Array<Expr> pad_before(std::vector<Expr>(x->shape.size(), 0));
+  pad_before.Set(height_idx, pad_top);
+  pad_before.Set(width_idx, pad_left);
+
+  Array<Expr> pad_after(std::vector<Expr>(x->shape.size(), 0));
+  pad_after.Set(height_idx, pad_down);
+  pad_after.Set(width_idx, pad_right);
 
   auto out_height = tvm::ir::Simplify(
     (height - kernel_height + pad_top + pad_down) / stride_height + 1);
@@ -84,138 +91,92 @@ inline Tensor pool_nchw(const Tensor& x,
   auto dheight = tvm::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
 
+  Array<Expr> out_shape = x->shape;
+  out_shape.Set(height_idx, out_height);
+  out_shape.Set(width_idx, out_width);
+
+  const int64_t *padding_h = HalideIR::Internal::as_const_int(padding_height);
+  const int64_t *padding_w = HalideIR::Internal::as_const_int(padding_width);
+  const bool do_pad = ((padding_h && *padding_h) || (padding_w && *padding_w));
+
   if (pool_type == kMaxPool) {
-    auto temp = pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp");
-    return tvm::compute(
-      { batch, channel, out_height, out_width },
-      [&](Var n, Var c, Var h, Var w) {
-        return tvm::max(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
-        { dheight, dwidth });
-      }, "tensor", "pool_max");
+    auto temp = do_pad ? pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp") : x;
+    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+      Array<Expr> indices;
+      for (const Var& var : output) indices.push_back(var);
+      indices.Set(height_idx, output[height_idx] * stride_height + dheight);
+      indices.Set(width_idx, output[width_idx] * stride_width + dwidth);
+      return tvm::max(temp(indices), { dheight, dwidth });
+    }, "tensor", "pool_max");
   } else if (pool_type == kAvgPool) {
-    auto temp = pad(x, pad_before, pad_after, 0, "pad_temp");
+    auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
+    auto tsum = tvm::compute(out_shape, [&](const Array<Var>& output) {
+      Array<Expr> indices;
+      for (const Var& var : output) indices.push_back(var);
+      indices.Set(height_idx, output[height_idx] * stride_height + dheight);
+      indices.Set(width_idx, output[width_idx] * stride_width + dwidth);
+      return tvm::sum(temp(indices), { dheight, dwidth });
+    }, "tensor", "pool_avg");
 
-    auto tsum = tvm::compute(
-      { batch, channel, out_height, out_width },
-      [&](Var n, Var c, Var h, Var w) {
-        return tvm::sum(temp(n, c, h * stride_height + dheight, w * stride_width + dwidth),
-        { dheight, dwidth });
-      }, "tensor", "pool_avg");
-
-    return tvm::compute(
-      { batch, channel, out_height, out_width },
-      [&](Var n, Var c, Var h, Var w) {
-        return tsum(n, c, h, w) / (kernel_height * kernel_width);
-      }, "tensor", kElementWise);
+    return tvm::compute(out_shape,
+    [&](const Array<Var>& output) {
+      return tsum(output) / (kernel_height * kernel_width);
+    }, "tensor", kElementWise);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
   }
 }
 
-/*!
-* \brief Perform pooling on data in NHWC order
-*
-* \param x The input tensor in NHWC order
-* \param kernel_size Vector of two ints: {kernel_height, kernel_width}
-* \param stride_size Vector of two ints: {stride_height, stride_width}
-* \param padding_size Vector of two ints: {padding_height, padding_width}
-* \param pool_type The type of pooling operator
-* \param ceil_mode Whether to use ceil when calculating the output size
-*
-* \return The output tensor in NCHW order
-*/
-
-inline Tensor pool_nhwc(const Tensor& x,
-                        const Array<Expr>& kernel_size,
-                        const Array<Expr>& stride_size,
-                        const Array<Expr>& padding_size,
-                        PoolType pool_type,
-                        bool ceil_mode) {
-  CHECK_EQ(x->shape.size(), 4) << "Pooling input must be 4-D";
-  CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
-  CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
-  CHECK_EQ(padding_size.size(), 2) << "Pooling padding_size must have 2 elements";
-
-  auto kernel_height = kernel_size[0];
-  auto kernel_width = kernel_size[1];
-  auto stride_height = stride_size[0];
-  auto stride_width = stride_size[1];
-  auto padding_height = padding_size[0];
-  auto padding_width = padding_size[1];
-
-  auto batch = x->shape[0];
-  auto height = x->shape[1];
-  auto width = x->shape[2];
-  auto channel = x->shape[3];
-
-  auto pad_tuple = detail::GetPadTuple(padding_height, padding_width);
-  auto pad_top = pad_tuple[0];
-  auto pad_left = pad_tuple[1];
-  auto pad_down = pad_tuple[2];
-  auto pad_right = pad_tuple[3];
-
-  if (ceil_mode) {
-    // Additional padding to ensure we do ceil instead of floor when
-    // dividing by stride.
-    pad_down += stride_height - 1;
-    pad_right += stride_width - 1;
+inline bool find_height_width(const std::string& layout,
+                              int* height_idx,
+                              int* width_idx) {
+  *height_idx = -1, *width_idx = -1;
+  int curr_idx = 0;
+  for (size_t i = 0; i < layout.size(); ++i) {
+    if ((layout[i] >= 'A' && layout[i] <= 'Z') ||
+        (layout[i] >= 'a' && layout[i] <= 'z')) {
+      if (layout[i] == 'H') {
+        if (*height_idx != -1) return false;
+        *height_idx = curr_idx;
+      } else if (layout[i] == 'W') {
+        if (*width_idx != -1) return false;
+        *width_idx = curr_idx;
+      } else if (layout[i] == 'h' || layout[i] == 'w') {
+        // do not support split on height or width, e.g., NCHW16w
+        return false;
+      }
+      ++curr_idx;
+    }
   }
-
-  Array<Expr> pad_before{ 0, pad_top, pad_left, 0};
-  Array<Expr> pad_after{ 0, pad_down, pad_right, 0};
-
-  auto out_height = tvm::ir::Simplify(
-    (height - kernel_height + pad_top + pad_down) / stride_height + 1);
-  auto out_width = tvm::ir::Simplify(
-    (width - kernel_width + pad_left + pad_right) / stride_width + 1);
-
-  auto dheight = tvm::reduce_axis(Range(0, kernel_height));
-  auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
-
-  if (pool_type == kMaxPool) {
-    auto temp = pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp");
-    return tvm::compute(
-     { batch, out_height, out_width, channel },
-      [&](Var n, Var h, Var w, Var c) {
-        return tvm::max(temp(n, h * stride_height + dheight, w * stride_width + dwidth, c),
-        { dheight, dwidth });
-      }, "tensor", "pool_max");
-  } else if (pool_type == kAvgPool) {
-    auto temp = pad(x, pad_before, pad_after, 0, "pad_temp");
-
-    auto tsum = tvm::compute(
-     { batch, out_height, out_width, channel },
-      [&](Var n, Var h, Var w, Var c) {
-        return tvm::sum(temp(n, h * stride_height + dheight, w * stride_width + dwidth, c),
-        { dheight, dwidth });
-      }, "tensor", "pool_avg");
-
-    return tvm::compute(
-     { batch, out_height, out_width, channel },
-     [&](Var n, Var h, Var w, Var c) {
-       return tsum(n, h, w, c) / (kernel_height * kernel_width);
-      }, "tensor", kElementWise);
-  } else {
-    LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
-    return x;
-  }
+  if (*height_idx == -1 || *width_idx == -1) return false;
+  return true;
 }
 
 /*!
-* \brief Perform pooling on data
-*
-* \param x The input tensor in NCHW or NHWC order
+* \brief Perform pooling on height and width dimension of data.
+*        It decides the height and width dimension according to the layout string,
+*        in which 'W' and 'H' means width and height respectively.
+*        Width and height dimension cannot be split.
+*        For example, NCHW, NCHW16c, etc. are valid for pool,
+*        while NCHW16w, NCHW16h are not.
+*        See \a layout for more information of the layout string convention.
+* \param x The input tensor.
 * \param kernel_size Vector of two ints: {kernel_height, kernel_width}
 * \param stride_size Vector of two ints: {stride_height, stride_width}
 * \param padding_size Vector of two ints: {padding_height, padding_width}
 * \param pool_type The type of pooling operator
 * \param ceil_mode Whether to use ceil when calculating the output size
-* \param layout The input layout
-*
-* \return The output tensor in NCHW order
+* \param layout The input layout.
+*        The layout is supposed to be composed of upper cases, lower cases and numbers,
+*        where upper case indicates a dimension and
+*        the corresponding lower case with factor size indicates the split dimension.
+*        For example, NCHW16c can describe a 5-D tensor of
+*        [batch_size, channel, height, width, channel_block].
+*        Here channel_block=16 is a split of dimension channel,
+*        which is defined as data[n, C, h, w, c] = origin_data[n, C*16+c, h, w]
+* \return The output tensor in the same layout
 */
-
 inline Tensor pool(const Tensor& x,
                    const Array<Expr>& kernel_size,
                    const Array<Expr>& stride_size,
@@ -223,50 +184,77 @@ inline Tensor pool(const Tensor& x,
                    PoolType pool_type,
                    bool ceil_mode,
                    const std::string& layout = "NCHW") {
-  CHECK(layout == "NCHW" || layout == "NHWC") << "Unsupported layout.";
-  if (layout == "NCHW")
-    return pool_nchw(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode);
-  else
-    return pool_nhwc(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode);
+  int height_idx = -1, width_idx = -1;
+  CHECK(find_height_width(layout, &height_idx, &width_idx))
+    << "Unsupported layout " << layout;
+  return pool_impl(x, kernel_size, stride_size, padding_size,
+                   pool_type, ceil_mode, height_idx, width_idx);
 }
 
 /*!
-* \brief Perform global pooling on data in NCHW order
+* \brief Perform global pooling on height and width dimension of data.
+*        It decides the height and width dimension according to the layout string,
+*        in which 'W' and 'H' means width and height respectively.
+*        Width and height dimension cannot be split.
+*        For example, NCHW, NCHW16c, ... are valid for global_pool,
+*        while NCHW16w, NCHW16h are not.
+*        See \a layout for more information of the layout string convention.
 *
-* \param x The input tensor in NCHW order
+* \param x The input tensor represent as layout
 * \param pool_type The type of pooling operator
+* \param layout The input layout
+*        The layout is supposed to be composed of upper cases, lower cases and numbers,
+*        where upper case indicates a dimension and
+*        the corresponding lower case with factor size indicates the split dimension.
+*        For example, NCHW16c can describe a 5-D tensor of
+*        [batch_size, channel, height, width, channel_block].
+*        Here channel_block=16 is a split of dimension channel,
+*        which is defined as data[n, C, h, w, c] = origin_data[n, C*16+c, h, w]
 *
-* \return The output tensor with shape [batch, channel, 1, 1]
+* \return The output tensor in same layout with height and width dimension size of 1.
+*         e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
 */
 inline Tensor global_pool(const Tensor& x,
-                          PoolType pool_type) {
-  CHECK_EQ(x->shape.size(), 4) << "Pooling input must be 4-D";
+                          PoolType pool_type,
+                          const std::string& layout = "NCHW") {
+  CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
 
-  auto batch = x->shape[0];
-  auto channel = x->shape[1];
-  auto height = x->shape[2];
-  auto width = x->shape[3];
+  int height_idx = -1, width_idx = -1;
+  CHECK(find_height_width(layout, &height_idx, &width_idx))
+    << "Unsupported layout " << layout;
+
+  Array<Expr> out_shape = x->shape;
+  out_shape.Set(height_idx, 1);
+  out_shape.Set(width_idx, 1);
+
+  auto height = x->shape[height_idx];
+  auto width = x->shape[width_idx];
 
   auto dheight = tvm::reduce_axis(Range(0, height));
   auto dwidth = tvm::reduce_axis(Range(0, width));
 
   if (pool_type == kMaxPool) {
-    return tvm::compute(
-      { batch, channel, 1, 1 },
-      [&](Var n, Var c, Var h, Var w) {
-        return tvm::max(x(n, c, dheight, dwidth), { dheight, dwidth });  // NOLINT(*)
+    return tvm::compute(out_shape,
+      [&](const Array<Var>& output) {
+        Array<Expr> indices;
+        for (const Var& var : output) indices.push_back(var);
+        indices.Set(height_idx, dheight);
+        indices.Set(width_idx, dwidth);
+        return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
       }, "tensor", "global_pool_max");
   } else if (pool_type == kAvgPool) {
-    auto tsum = tvm::compute(
-      { batch, channel, 1, 1 },
-      [&](Var n, Var c, Var h, Var w) {
-        return tvm::sum(x(n, c, dheight, dwidth), { dheight, dwidth });
+    auto tsum = tvm::compute(out_shape,
+      [&](const Array<Var>& output) {
+        Array<Expr> indices;
+        for (const Var& var : output) indices.push_back(var);
+        indices.Set(height_idx, dheight);
+        indices.Set(width_idx, dwidth);
+        return tvm::sum(x(indices), { dheight, dwidth });
       }, "tensor", "global_pool_sum");
 
-    return tvm::compute(
-      { batch, channel, 1, 1 },
-      [&](Var n, Var c, Var h, Var w) {
-        return tsum(n, c, h, w) / tvm::cast(x->dtype, height * width);
+    return tvm::compute(out_shape,
+      [&](const Array<Var>& output) {
+        return tsum(output) / tvm::cast(x->dtype, height * width);
       }, "tensor", kElementWise);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
