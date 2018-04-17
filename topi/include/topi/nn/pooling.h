@@ -167,7 +167,7 @@ inline bool find_height_width(const std::string& layout,
 * \param padding_size Vector of two ints: {padding_height, padding_width}
 * \param pool_type The type of pooling operator
 * \param ceil_mode Whether to use ceil when calculating the output size
-* \param layout The input layout.
+* \param layout The input layout. Pooling supports any layout as long as 'H' and 'W' appear.
 *        The layout is supposed to be composed of upper cases, lower cases and numbers,
 *        where upper case indicates a dimension and
 *        the corresponding lower case with factor size indicates the split dimension.
@@ -202,7 +202,7 @@ inline Tensor pool(const Tensor& x,
 *
 * \param x The input tensor represent as layout
 * \param pool_type The type of pooling operator
-* \param layout The input layout
+* \param layout The input layout. global-pooling supports any layout as long as 'H' and 'W' appear.
 *        The layout is supposed to be composed of upper cases, lower cases and numbers,
 *        where upper case indicates a dimension and
 *        the corresponding lower case with factor size indicates the split dimension.
