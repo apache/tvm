@@ -38,6 +38,49 @@ def test_exp():
     check_device("vulkan")
     check_device("opencl")
 
+def test_multiple_cache_write():
+    # graph
+    n = tvm.convert(1024)
+    A0 = tvm.placeholder((n,), name='A0', dtype = "float32")
+    A1 = tvm.placeholder((n,), name='A1', dtype = "float32")
+    B0, B1 = tvm.compute((n,), 
+            lambda *i: (A0(*i) + A1(*i), A0(*i) * A1(*i)), 
+            name='B')
+    s = tvm.create_schedule([B0.op, B1.op])
+    # create iter var and assign them tags.
+    num_thread = 8
+    B0_cache, B1_cache = s.cache_write([B0, B1], "local")
+    bx, tx = s[B0].split(B0.op.axis[0], factor=num_thread)
+    s[B0_cache].compute_at(s[B0], bx)
+    s[B0].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[B0].bind(tx, tvm.thread_axis("threadIdx.x"))
+
+    # one line to build the function.
+    def check_device(device, host="stackvm"):
+        if not tvm.module.enabled(host):
+            return
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            return
+        fexp = tvm.build(s, [A0, A1, B0, B1],
+                         device, host,
+                         name="multiple_cache_write")
+        ctx = tvm.context(device, 0)
+        # launch the kernel.
+        n = 1024
+        a0 = tvm.nd.array(np.random.uniform(size=n).astype(A0.dtype), ctx)
+        a1 = tvm.nd.array(np.random.uniform(size=n).astype(A1.dtype), ctx)
+        b0 = tvm.nd.array(np.zeros(n, dtype=B0.dtype), ctx)
+        b1 = tvm.nd.array(np.zeros(n, dtype=B1.dtype), ctx)
+        fexp(a0, a1, b0, b1)
+        np.testing.assert_allclose(
+            b0.asnumpy(), a0.asnumpy() + a1.asnumpy(), rtol=1e-5)
+        np.testing.assert_allclose(
+            b1.asnumpy(), a0.asnumpy() * a1.asnumpy(), rtol=1e-5)
+
+    check_device("cuda", "llvm")
+    check_device("vulkan")
+    check_device("opencl")
 
 def test_log_pow_llvm():
     # graph
@@ -196,6 +239,7 @@ def try_warp_memory():
 
 if __name__ == "__main__":
     try_warp_memory()
+    test_multiple_cache_write()
     test_add()
     test_log_pow_llvm()
     test_exp()

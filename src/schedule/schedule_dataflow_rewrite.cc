@@ -185,8 +185,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
 
   Expr body;
   Array<Expr> body_list;
-  const ir::Reduce* first_reduce;
-  bool has_reduce = false;
+  const ir::Reduce* first_reduce = nullptr;
   for (auto cbody : compute->body) {
     body = VarReplacer(vsub).Mutate(cbody);
     body = InjectPredicate(predicates, body);
@@ -195,16 +194,18 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     // This is right only if the oringinal body ensures Reduce nodes are the same
     if (body->is_type<ir::Reduce>()) {
       const ir::Reduce* reduce_body = body.as<ir::Reduce>();
-      if (has_reduce) {
+      if (first_reduce != nullptr) {
         body = ir::Reduce::make(first_reduce->combiner,
                                 first_reduce->source,
                                 first_reduce->axis,
                                 first_reduce->condition,
                                 reduce_body->value_index);
       } else {
-        has_reduce = true;
         first_reduce = reduce_body;
       }
+    } else {
+      CHECK(first_reduce == nullptr)
+        << "cannot mix reduce and other node in ONE compute bodys";
     }
     body_list.push_back(body);
   }

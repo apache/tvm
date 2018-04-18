@@ -258,7 +258,6 @@ def test_schedule_cache_relayout4():
     C1, C2 = tvm.compute(A.shape, _compute, name='C')
     s = tvm.create_schedule([C1.op, C2.op])
     C1_cache, C2_cache = s.cache_write([C1, C2], "local")
-    #C1_cache = s.cache_write(C1, "local")
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
