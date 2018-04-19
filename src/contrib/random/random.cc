@@ -7,8 +7,11 @@
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <algorithm>
-#include <random>
-#include <ctime>
+#ifndef _LIBCPP_SGX_CONFIG
+#include "./mt_random_engine.cc"
+#else
+#include "./sgx_random_engine.cc"
+#endif
 
 #define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)    \
   if (type.code == kDLInt && type.bits == 32) {         \
@@ -37,57 +40,6 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-
-class RandomEngine {
- public:
-  RandomEngine() {
-    this->Seed(time(0));
-  }
-  explicit RandomEngine(int seed) {
-    this->Seed(seed);
-  }
-
-  ~RandomEngine() {}
-
-  inline void Seed(int seed) {
-    rnd_engine_.seed(seed);
-    this->rseed_ = static_cast<unsigned>(seed);
-  }
-
-  inline unsigned GetSeed() const {
-    return rseed_;
-  }
-
-  inline unsigned GetRandInt() {
-    return rnd_engine_();
-  }
-
-  void SampleUniform(DLTensor* data, float low, float high) {
-    CHECK_GT(high, low) << "high must be bigger than low";
-    CHECK(data->strides == nullptr);
-
-    DLDataType dtype = data->dtype;
-    int64_t size = 1;
-    for (int i = 0; i < data->ndim; ++i) {
-      size *= data->shape[i];
-    }
-
-    CHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
-
-    if (data->ctx.device_type == kDLCPU) {
-      std::uniform_real_distribution<float> uniform_dist(low, high);
-      std::generate_n(static_cast<float*>(data->data), size, [&] () {
-        return uniform_dist(rnd_engine_);
-      });
-    } else {
-      LOG(FATAL) << "Do not support random.randint on this device yet";
-    }
-  }
-
- private:
-  std::mt19937 rnd_engine_;
-  unsigned rseed_;
-};
 
 struct RandomThreadLocalEntry {
   RandomEngine random_engine;
