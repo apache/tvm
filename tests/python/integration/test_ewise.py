@@ -34,9 +34,10 @@ def test_exp():
         np.testing.assert_allclose(
             b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
 
+    check_device("opencl -device=intel_gpu")
     check_device("cuda", "llvm")
     check_device("vulkan")
-    check_device("opencl")
+
 
 
 def test_log_pow_llvm():
@@ -196,8 +197,8 @@ def try_warp_memory():
 
 
 if __name__ == "__main__":
+    test_exp()
     try_warp_memory()
     test_add()
     test_log_pow_llvm()
-    test_exp()
     test_popcount()
