@@ -75,7 +75,7 @@ def test_multiple_cache_write():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         func(a0, a1, c)
         np.testing.assert_allclose(
-            b0.asnumpy(), a0.asnumpy() + a1.asnumpy() + (a0.asnumpy() * a1.asnumpy()), 
+            c.asnumpy(), a0.asnumpy() + a1.asnumpy() + (a0.asnumpy() * a1.asnumpy()), 
             rtol=1e-5)
 
     check_device("cuda", "llvm")
