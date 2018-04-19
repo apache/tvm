@@ -6,7 +6,6 @@
 #ifndef TVM_RUNTIME_SGX_TRUSTED_RUNTIME_H_
 #define TVM_RUNTIME_SGX_TRUSTED_RUNTIME_H_
 
-#include <sgx_edger8r.h>
 #include <tvm/runtime/packed_func.h>
 #include <string>
 #include "../common.h"
