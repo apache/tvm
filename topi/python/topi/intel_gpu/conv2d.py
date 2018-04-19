@@ -280,11 +280,6 @@ def _schedule_cl_spatialpack(s, op):
         num_threads_y = 1
         num_threads_x = 17
 
-    PREFETCH = 4
-    SUBGROUP_SIZE = 16
-    STRIDE_SIZE_Y = out_height // OUTPUT_BLOCK_HEIGHT
-    STRIDE_SIZE_X = out_width // OUTPUT_BLOCK_WIDTH
-
     # schedule conv
     _, co, oh, ow = s[conv].op.axis
     ooh, ioh = s[conv].split(oh, factor = OUTPUT_BLOCK_HEIGHT)
