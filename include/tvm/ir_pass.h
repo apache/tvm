@@ -417,6 +417,20 @@ LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
 LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
 
 /*!
+ * \brief Remap the thread axis
+ *
+ *  This can be used to get equivalent program which uses
+ *  threadIdx.y in place of threadIdx.x by passing
+ *  {"threadIdx.x": thread_axis("threadIdx.y")}
+ *
+ *
+ * \param f The device function to be lowered.
+ * \param axis_map The map from StringImm -> ItrVar
+ * \return Transformed function.
+ */
+LoweredFunc RemapThreadAxis(LoweredFunc f, Map<Expr, IterVar> axis_map);
+
+/*!
  * \brief Lower packed function call.
  * \param f The function to be lowered.
  * \return Transformed function.
