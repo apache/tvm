@@ -109,6 +109,7 @@ class Target(NodeBase):
     def __exit__(self, ptype, value, trace):
         _api_internal._ExitTargetScope()
 
+
 @register_node
 class GenericFunc(NodeBase):
     """GenericFunc node reference. This represents a generic function

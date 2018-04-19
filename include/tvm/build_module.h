@@ -32,6 +32,11 @@ class TargetNode : public Node {
   int max_num_threads = 1;
   /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
   int thread_warp_size = 1;
+  /*!
+   * \brief The thread index that is the lowest(correspond to warp)
+   *  In cuda it is threadIdx.x, but can be different in some platform.
+   */
+  int thread_warp_index = 0;
   /*! \brief Keys for this target */
   Array<Expr> keys_array;
   /*! \brief Options for this target */
@@ -48,6 +53,7 @@ class TargetNode : public Node {
     v->Visit("device_type", &device_type);
     v->Visit("max_num_threads", &max_num_threads);
     v->Visit("thread_warp_size", &thread_warp_size);
+    v->Visit("thread_warp_index", &thread_warp_index);
     v->Visit("keys_array", &keys_array);
     v->Visit("options_array", &options_array);
     v->Visit("libs_array", &libs_array);
