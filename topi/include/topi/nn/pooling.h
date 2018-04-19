@@ -34,8 +34,8 @@ enum PoolType : int {
 * \param padding_size Vector of two ints: {padding_height, padding_width}
 * \param pool_type The type of pooling operator
 * \param ceil_mode Whether to use ceil when calculating the output size
-* \param height_idx index of the height dimension
-* \param width_idx index of the width dimension
+* \param height_axis index of the height dimension
+* \param width_axis index of the width dimension
 *
 * \return The output tensor in same layout order
 */
@@ -45,8 +45,8 @@ inline Tensor pool_impl(const Tensor& x,
                         const Array<Expr>& padding_size,
                         PoolType pool_type,
                         bool ceil_mode,
-                        const size_t height_idx,
-                        const size_t width_idx) {
+                        const size_t height_axis,
+                        const size_t width_axis) {
   CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
   CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
@@ -59,8 +59,8 @@ inline Tensor pool_impl(const Tensor& x,
   auto padding_height = padding_size[0];
   auto padding_width = padding_size[1];
 
-  auto height = x->shape[height_idx];
-  auto width = x->shape[width_idx];
+  auto height = x->shape[height_axis];
+  auto width = x->shape[width_axis];
 
   auto pad_tuple = detail::GetPadTuple(padding_height, padding_width);
   auto pad_top = pad_tuple[0];
@@ -76,12 +76,12 @@ inline Tensor pool_impl(const Tensor& x,
   }
 
   Array<Expr> pad_before(std::vector<Expr>(x->shape.size(), 0));
-  pad_before.Set(height_idx, pad_top);
-  pad_before.Set(width_idx, pad_left);
+  pad_before.Set(height_axis, pad_top);
+  pad_before.Set(width_axis, pad_left);
 
   Array<Expr> pad_after(std::vector<Expr>(x->shape.size(), 0));
-  pad_after.Set(height_idx, pad_down);
-  pad_after.Set(width_idx, pad_right);
+  pad_after.Set(height_axis, pad_down);
+  pad_after.Set(width_axis, pad_right);
 
   auto out_height = tvm::ir::Simplify(
     (height - kernel_height + pad_top + pad_down) / stride_height + 1);
@@ -92,8 +92,8 @@ inline Tensor pool_impl(const Tensor& x,
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
 
   Array<Expr> out_shape = x->shape;
-  out_shape.Set(height_idx, out_height);
-  out_shape.Set(width_idx, out_width);
+  out_shape.Set(height_axis, out_height);
+  out_shape.Set(width_axis, out_width);
 
   const int64_t *padding_h = HalideIR::Internal::as_const_int(padding_height);
   const int64_t *padding_w = HalideIR::Internal::as_const_int(padding_width);
@@ -104,8 +104,8 @@ inline Tensor pool_impl(const Tensor& x,
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
-      indices.Set(height_idx, output[height_idx] * stride_height + dheight);
-      indices.Set(width_idx, output[width_idx] * stride_width + dwidth);
+      indices.Set(height_axis, output[height_axis] * stride_height + dheight);
+      indices.Set(width_axis, output[width_axis] * stride_width + dwidth);
       return tvm::max(temp(indices), { dheight, dwidth });
     }, "tensor", "pool_max");
   } else if (pool_type == kAvgPool) {
@@ -113,8 +113,8 @@ inline Tensor pool_impl(const Tensor& x,
     auto tsum = tvm::compute(out_shape, [&](const Array<Var>& output) {
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
-      indices.Set(height_idx, output[height_idx] * stride_height + dheight);
-      indices.Set(width_idx, output[width_idx] * stride_width + dwidth);
+      indices.Set(height_axis, output[height_axis] * stride_height + dheight);
+      indices.Set(width_axis, output[width_axis] * stride_width + dwidth);
       return tvm::sum(temp(indices), { dheight, dwidth });
     }, "tensor", "pool_avg");
 
@@ -129,19 +129,19 @@ inline Tensor pool_impl(const Tensor& x,
 }
 
 inline bool find_height_width(const std::string& layout,
-                              int* height_idx,
-                              int* width_idx) {
-  *height_idx = -1, *width_idx = -1;
+                              int* height_axis,
+                              int* width_axis) {
+  *height_axis = -1, *width_axis = -1;
   int curr_idx = 0;
   for (size_t i = 0; i < layout.size(); ++i) {
     if ((layout[i] >= 'A' && layout[i] <= 'Z') ||
         (layout[i] >= 'a' && layout[i] <= 'z')) {
       if (layout[i] == 'H') {
-        if (*height_idx != -1) return false;
-        *height_idx = curr_idx;
+        if (*height_axis != -1) return false;
+        *height_axis = curr_idx;
       } else if (layout[i] == 'W') {
-        if (*width_idx != -1) return false;
-        *width_idx = curr_idx;
+        if (*width_axis != -1) return false;
+        *width_axis = curr_idx;
       } else if (layout[i] == 'h' || layout[i] == 'w') {
         // do not support split on height or width, e.g., NCHW16w
         return false;
@@ -149,7 +149,7 @@ inline bool find_height_width(const std::string& layout,
       ++curr_idx;
     }
   }
-  if (*height_idx == -1 || *width_idx == -1) return false;
+  if (*height_axis == -1 || *width_axis == -1) return false;
   return true;
 }
 
@@ -186,11 +186,11 @@ inline Tensor pool(const Tensor& x,
                    PoolType pool_type,
                    bool ceil_mode,
                    const std::string& layout = "NCHW") {
-  int height_idx = -1, width_idx = -1;
-  CHECK(find_height_width(layout, &height_idx, &width_idx))
+  int height_axis = -1, width_axis = -1;
+  CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
   return pool_impl(x, kernel_size, stride_size, padding_size,
-                   pool_type, ceil_mode, height_idx, width_idx);
+                   pool_type, ceil_mode, height_axis, width_axis);
 }
 
 /*!
@@ -223,16 +223,16 @@ inline Tensor global_pool(const Tensor& x,
                           const std::string& layout = "NCHW") {
   CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
 
-  int height_idx = -1, width_idx = -1;
-  CHECK(find_height_width(layout, &height_idx, &width_idx))
+  int height_axis = -1, width_axis = -1;
+  CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
 
   Array<Expr> out_shape = x->shape;
-  out_shape.Set(height_idx, 1);
-  out_shape.Set(width_idx, 1);
+  out_shape.Set(height_axis, 1);
+  out_shape.Set(width_axis, 1);
 
-  auto height = x->shape[height_idx];
-  auto width = x->shape[width_idx];
+  auto height = x->shape[height_axis];
+  auto width = x->shape[width_axis];
 
   auto dheight = tvm::reduce_axis(Range(0, height));
   auto dwidth = tvm::reduce_axis(Range(0, width));
@@ -242,8 +242,8 @@ inline Tensor global_pool(const Tensor& x,
       [&](const Array<Var>& output) {
         Array<Expr> indices;
         for (const Var& var : output) indices.push_back(var);
-        indices.Set(height_idx, dheight);
-        indices.Set(width_idx, dwidth);
+        indices.Set(height_axis, dheight);
+        indices.Set(width_axis, dwidth);
         return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
       }, "tensor", "global_pool_max");
   } else if (pool_type == kAvgPool) {
@@ -251,8 +251,8 @@ inline Tensor global_pool(const Tensor& x,
       [&](const Array<Var>& output) {
         Array<Expr> indices;
         for (const Var& var : output) indices.push_back(var);
-        indices.Set(height_idx, dheight);
-        indices.Set(width_idx, dwidth);
+        indices.Set(height_axis, dheight);
+        indices.Set(width_axis, dwidth);
         return tvm::sum(x(indices), { dheight, dwidth });
       }, "tensor", "global_pool_sum");
 
