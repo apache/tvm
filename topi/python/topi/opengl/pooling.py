@@ -67,7 +67,8 @@ def schedule_pool(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     def _schedule(PaddedInput, Pool):
-        s[PaddedInput].opengl()
+        if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
+            s[PaddedInput].opengl()
         if Pool.op in s.outputs:
             Out = Pool
         else:

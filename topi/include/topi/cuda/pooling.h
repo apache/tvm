@@ -33,7 +33,9 @@ inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
   auto s = create_schedule(out_ops);
 
   auto _schedule = [&](const Tensor& padded_input, const Tensor& pool) {
-    s[padded_input].compute_inline();
+    if (padded_input->op->is_type<ComputeOpNode>()) {
+      s[padded_input].compute_inline();
+    }
     auto num_thread = target->max_num_threads;
     Tensor out;
     Tensor OL;
