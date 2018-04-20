@@ -78,6 +78,13 @@ void ReplaceDataFlow(const Array<Stage>& stages,
   }
 }
 
+inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+  return (a->combiner.same_as(b->combiner)) &&
+         (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) &&
+         (a->condition.same_as(b->condition));
+}
+
 Tensor Schedule::cache_read(const Tensor& tensor,
                             const std::string& scope,
                             const Array<Operation>& readers) {
@@ -128,15 +135,15 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   return cache;
 }
 
-
 // Cache write and relayout the data according to loop pattern
-Tensor CacheWriteWithReLayout(Schedule sch,
-                              const Tensor& tensor,
+Array<Tensor> CacheWriteWithReLayout(Schedule sch,
+                              const Array<Tensor>& tensor_array,
                               const std::string& scope) {
+  size_t tensor_size = tensor_array.size();
   sch->InvalidateCache();
+  Tensor tensor = tensor_array[0];
   Stage orig_stage = sch[tensor->op];
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
-
   std::unordered_set<IterVar> red_axis;
   for (IterVar iv : compute->reduce_axis) {
     red_axis.insert(iv);
@@ -182,9 +189,34 @@ Tensor CacheWriteWithReLayout(Schedule sch,
       vsub[iv->var.get()] = value_map.at(iv);
     }
   }
-  Expr body = VarReplacer(vsub).Mutate(compute->body[tensor->value_index]);
-  body = InjectPredicate(predicates, body);
-  body = VarReplacer(vsub2newvar).Mutate(body);
+
+  Expr body;
+  Array<Expr> body_list;
+  const ir::Reduce* first_reduce = nullptr;
+  for (auto cbody : compute->body) {
+    body = VarReplacer(vsub).Mutate(cbody);
+    body = InjectPredicate(predicates, body);
+    body = VarReplacer(vsub2newvar).Mutate(body);
+    // Reduce nodes in ONE computeOp must be the same except value_index
+    // This is right only if the oringinal body ensures Reduce nodes are the same
+    if (body->is_type<ir::Reduce>()) {
+      const ir::Reduce* reduce_body = body.as<ir::Reduce>();
+      if (first_reduce != nullptr) {
+        CHECK(ReduceEqual(reduce_body, first_reduce));
+        body = ir::Reduce::make(first_reduce->combiner,
+                                first_reduce->source,
+                                first_reduce->axis,
+                                first_reduce->condition,
+                                reduce_body->value_index);
+      } else {
+        first_reduce = reduce_body;
+      }
+    } else {
+      CHECK(first_reduce == nullptr)
+        << "cannot mix reduce and other node in ONE compute bodys";
+    }
+    body_list.push_back(body);
+  }
   // The reader args
   Array<Expr> args;
   {
@@ -200,16 +232,25 @@ Tensor CacheWriteWithReLayout(Schedule sch,
     }
   }
   Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, compute->tag, new_axis, {body});
-  Tensor cache_tensor = cache_op.output(0);
+      compute->name + "." + scope, compute->tag, new_axis, body_list);
+  Array<Tensor> cache_tensor_list;
+  Array<Expr> cache_expr_list;
+  for (size_t i = 0; i < tensor_size; i++) {
+    Tensor cache_tensor = cache_op.output(i);
+    cache_tensor_list.push_back(cache_tensor);
+    cache_expr_list.push_back(cache_tensor(args));
+  }
   Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->tag, compute->axis,
-      {cache_tensor(args)});
+      compute->name, compute->tag, compute->axis, cache_expr_list);
   // The replace of the dataflow
   std::unordered_map<Tensor, Tensor> vmap;
   std::unordered_map<Tensor, Tensor> rvmap;
   vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
   rvmap[orig_new_op.output(0)] = orig_stage->op.output(0);
+  for (size_t i = 0; i < tensor_size; i++) {
+    vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
+    rvmap[orig_new_op.output(0)] = orig_stage->op.output(0);
+  }
   ReplaceDataFlow(sch->stages, &vmap, &rvmap);
   // mutate orig stage
   orig_stage->op = orig_new_op;
@@ -230,7 +271,26 @@ Tensor CacheWriteWithReLayout(Schedule sch,
   if (cache_stage->group.defined()) {
     ++cache_stage->group->num_child_stages;
   }
-  return cache_tensor;
+  return cache_tensor_list;
+}
+
+Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array,
+                             const std::string& scope) {
+  (*this)->InvalidateCache();
+  CHECK(tensor_array.size() > 0)
+      << "size of tensor_array must be greater than 0";
+  Tensor tensor = tensor_array[0];
+  Stage orig_stage = operator[](tensor->op);
+  const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
+  CHECK(static_cast<size_t>(compute->num_outputs()) == tensor_array.size())
+      << "size of input tensor list must be same as number of stage outputs";
+  for (size_t i = 1; i < tensor_array.size(); i++) {
+    Stage tmp_stage = operator[](tensor_array[i]->op);
+    CHECK(orig_stage.same_as(tmp_stage))
+        << "Input tensor list must be generated by ONE computeOp";
+  }
+
+  return CacheWriteWithReLayout(*this, tensor_array, scope);
 }
 
 Tensor Schedule::cache_write(const Tensor& tensor,
@@ -243,7 +303,7 @@ Tensor Schedule::cache_write(const Tensor& tensor,
   CHECK_EQ(compute->num_outputs(), 1)
       << "cache write only support single output ComputeOp";
 
-  return CacheWriteWithReLayout(*this, tensor, scope);
+  return (CacheWriteWithReLayout(*this, {tensor}, scope))[0];
 }
 
 void RebaseNonZeroMinLoop(const Schedule& sch) {
@@ -287,13 +347,6 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       s->attach_ivar = rebase_map.at(s->attach_ivar);
     }
   }
-}
-
-inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
-  return (a->combiner.same_as(b->combiner)) &&
-         (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) &&
-         (a->condition.same_as(b->condition));
 }
 
 void InjectInline(ScheduleNode* sch) {

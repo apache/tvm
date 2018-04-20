@@ -425,8 +425,13 @@ TVM_REGISTER_API("_ScheduleCacheRead")
 
 TVM_REGISTER_API("_ScheduleCacheWrite")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = args[0].operator Schedule()
-        .cache_write(args[1], args[2]);
+    if (args[1].IsNodeType<Tensor>()) {
+      *ret = args[0].operator Schedule()
+          .cache_write(args[1].operator Tensor(), args[2]);
+    } else {
+      *ret = args[0].operator Schedule()
+          .cache_write(args[1].operator Array<Tensor>(), args[2]);
+    }
   });
 
 TVM_REGISTER_API("_ScheduleRFactor")

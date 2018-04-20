@@ -292,8 +292,8 @@ class Schedule(NodeBase):
 
         Parameters
         ----------
-        tensor : Tensor
-            The tensor to be feed to.
+        tensor : Tensor, list or tuple
+            The tensors to be feed to. All the tensors must be produced by one computeOp
         scope : str
             The scope of cached
 
