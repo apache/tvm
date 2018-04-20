@@ -68,6 +68,7 @@ void OpenCLWorkspace::GetAttr(
           devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY,
           sizeof(cl_uint), &value, nullptr));
       *rv = static_cast<int32_t>(value);
+      break;
     }
     case kNumComputeUnits: {
       cl_uint value;
@@ -75,6 +76,7 @@ void OpenCLWorkspace::GetAttr(
           devices[index], CL_DEVICE_MAX_COMPUTE_UNITS,
           sizeof(cl_uint), &value, nullptr));
       *rv = static_cast<int32_t>(value);
+      break;
     }
     case kExist: break;
   }
