@@ -39,6 +39,49 @@ def test_exp():
     check_device("vulkan")
 
 
+def test_multiple_cache_write():
+    # graph
+    n = tvm.convert(1024)
+    A0 = tvm.placeholder((n,), name='A0', dtype = "float32")
+    A1 = tvm.placeholder((n,), name='A1', dtype = "float32")
+    B0, B1 = tvm.compute((n,), 
+            lambda *i: (A0(*i) + A1(*i), A0(*i) * A1(*i)), 
+            name='B')
+    C = tvm.compute((n,), lambda *i: B0(*i) + B1(*i), 
+            name='C')
+    s = tvm.create_schedule(C.op)
+    # create iter var and assign them tags.
+    num_thread = 8
+    B0_cache, B1_cache = s.cache_write([B0, B1], "local")
+    bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
+    s[B0].compute_at(s[C], bx)
+    s[B0_cache].compute_at(s[C], bx)
+    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    # one line to build the function.
+    def check_device(device, host="stackvm"):
+        if not tvm.module.enabled(host):
+            return
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            return
+        func = tvm.build(s, [A0, A1, C],
+                         device, host,
+                         name="multiple_cache_write")
+        ctx = tvm.context(device, 0)
+        # launch the kernel.
+        n = 1024
+        a0 = tvm.nd.array(np.random.uniform(size=n).astype(A0.dtype), ctx)
+        a1 = tvm.nd.array(np.random.uniform(size=n).astype(A1.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        func(a0, a1, c)
+        np.testing.assert_allclose(
+            c.asnumpy(), a0.asnumpy() + a1.asnumpy() + (a0.asnumpy() * a1.asnumpy()), 
+            rtol=1e-5)
+
+    check_device("cuda", "llvm")
+    check_device("vulkan")
+    check_device("opencl")
 
 def test_log_pow_llvm():
     # graph
@@ -199,6 +242,7 @@ def try_warp_memory():
 if __name__ == "__main__":
     test_exp()
     try_warp_memory()
+    test_multiple_cache_write()
     test_add()
     test_log_pow_llvm()
     test_popcount()
