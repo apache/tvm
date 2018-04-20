@@ -14,5 +14,6 @@ tvm.ndarray
 .. autofunction:: tvm.opencl
 .. autofunction:: tvm.metal
 .. autofunction:: tvm.ndarray.array
+.. autofunction:: tvm.ndarray.empty
 
 .. autofunction:: tvm.register_extension
