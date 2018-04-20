@@ -62,6 +62,20 @@ void OpenCLWorkspace::GetAttr(
       *rv = std::string(value);
       break;
     }
+    case kMaxClockFrequency: {
+      cl_uint value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY,
+          sizeof(cl_uint), &value, nullptr));
+      *rv = static_cast<int32_t>(value);
+    }
+    case kNumComputeUnits: {
+      cl_uint value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_COMPUTE_UNITS,
+          sizeof(cl_uint), &value, nullptr));
+      *rv = static_cast<int32_t>(value);
+    }
     case kExist: break;
   }
 }
@@ -160,13 +174,6 @@ std::string GetDeviceInfo(
   return ret;
 }
 
-template <class T>
-T GetDeviceSingleInfo(
-    cl_device_id pid, cl_device_info param_name, T ret) {
-  OPENCL_CALL(clGetDeviceInfo(pid, param_name, sizeof(T), &ret, nullptr));
-  return ret;
-}
-
 std::vector<cl_platform_id> GetPlatformIDs() {
   cl_uint ret_size;
   cl_int code = clGetPlatformIDs(0, nullptr, &ret_size);
@@ -245,15 +252,6 @@ void OpenCLWorkspace::Init() {
     LOG(INFO) << "opencl(" << i
               << ")=\'" << cl::GetDeviceInfo(did, CL_DEVICE_NAME)
               << "\' cl_device_id=" << did;
-    size_t tmp1;
-    LOG(INFO) << "device max work group size: "
-              << cl::GetDeviceSingleInfo(did, CL_DEVICE_MAX_WORK_GROUP_SIZE, tmp1);
-    cl_uint tmp2;
-    LOG(INFO) << "device max compute units: "
-              << (cl_uint)cl::GetDeviceSingleInfo(did, CL_DEVICE_MAX_COMPUTE_UNITS, tmp2);
-    LOG(INFO) << "device clock frequency: "
-              << (cl_uint)cl::GetDeviceSingleInfo(did, CL_DEVICE_MAX_CLOCK_FREQUENCY, tmp2)
-              << " MHz";
   }
 }
 

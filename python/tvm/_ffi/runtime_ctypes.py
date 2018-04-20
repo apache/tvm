@@ -166,6 +166,18 @@ class TVMContext(ctypes.Structure):
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 5)
 
+    @property
+    def max_clock_frequency(self):
+        """Return the max clock frequency of device."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 6)
+
+    @property
+    def num_compute_units(self):
+        """Return the number of compute units of device."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 7)
+
     def sync(self):
         """Synchronize until jobs finished at the context."""
         check_call(_LIB.TVMSynchronize(self.device_type, self.device_id, None))
