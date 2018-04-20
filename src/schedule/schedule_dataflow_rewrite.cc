@@ -78,6 +78,13 @@ void ReplaceDataFlow(const Array<Stage>& stages,
   }
 }
 
+inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+  return (a->combiner.same_as(b->combiner)) &&
+         (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) &&
+         (a->condition.same_as(b->condition));
+}
+
 Tensor Schedule::cache_read(const Tensor& tensor,
                             const std::string& scope,
                             const Array<Operation>& readers) {
@@ -195,6 +202,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     if (body->is_type<ir::Reduce>()) {
       const ir::Reduce* reduce_body = body.as<ir::Reduce>();
       if (first_reduce != nullptr) {
+        CHECK(ReduceEqual(reduce_body, first_reduce));
         body = ir::Reduce::make(first_reduce->combiner,
                                 first_reduce->source,
                                 first_reduce->axis,
@@ -339,13 +347,6 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       s->attach_ivar = rebase_map.at(s->attach_ivar);
     }
   }
-}
-
-inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
-  return (a->combiner.same_as(b->combiner)) &&
-         (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) &&
-         (a->condition.same_as(b->condition));
 }
 
 void InjectInline(ScheduleNode* sch) {
