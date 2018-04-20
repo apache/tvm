@@ -167,13 +167,13 @@ class TVMContext(ctypes.Structure):
             self.device_type, self.device_id, 5)
 
     @property
-    def max_clock_frequency(self):
+    def max_clock_rate(self):
         """Return the max clock frequency of device."""
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 6)
 
     @property
-    def num_compute_units(self):
+    def multi_processor_count(self):
         """Return the number of compute units of device."""
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 7)

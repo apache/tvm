@@ -62,7 +62,7 @@ void OpenCLWorkspace::GetAttr(
       *rv = std::string(value);
       break;
     }
-    case kMaxClockFrequency: {
+    case kMaxClockRate: {
       cl_uint value;
       OPENCL_CALL(clGetDeviceInfo(
           devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY,
@@ -70,7 +70,7 @@ void OpenCLWorkspace::GetAttr(
       *rv = static_cast<int32_t>(value);
       break;
     }
-    case kNumComputeUnits: {
+    case kMultiProcessorCount: {
       cl_uint value;
       OPENCL_CALL(clGetDeviceInfo(
           devices[index], CL_DEVICE_MAX_COMPUTE_UNITS,

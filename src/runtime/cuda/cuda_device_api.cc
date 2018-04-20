@@ -62,6 +62,16 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = std::string(props.name);
         return;
       }
+      case kMaxClockRate: {
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrClockRate, ctx.device_id));
+        break;
+      }
+      case kMultiProcessorCount: {
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &value, cudaDevAttrMultiProcessorCount, ctx.device_id));
+        break;
+      }
     }
     *rv = value;
   }
