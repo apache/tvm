@@ -156,7 +156,7 @@ class CopyIntrinInjector : public IRMutator {
     }
   }
   // pragma key
-  const std::string& pragma_key_;
+  std::string pragma_key_;
   // function to lower copy intrinsics.
   const PackedFunc& flower_copy_fromto_;
   // Storage scope

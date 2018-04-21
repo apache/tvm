@@ -470,13 +470,6 @@ def build(sch,
     for i, func in enumerate(fdevice):
         warp_size = target.thread_warp_size
         fdevice[i] = ir_pass.LowerWarpMemory(func, warp_size)
-        warp_index = target.thread_warp_index
-        if warp_index != 0:
-            assert warp_index == 2
-            # swap z and x
-            tmap = {api.convert("threadIdx.z"): api.thread_axis("threadIdx.x"),
-                    api.convert("threadIdx.x"): api.thread_axis("threadIdx.z")}
-            fdevice[i] = ir_pass.RemapThreadAxis(func, tmap)
 
     if "gpu" in target.keys and not fdevice:
         warnings.warn(
