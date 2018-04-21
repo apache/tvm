@@ -74,6 +74,8 @@ void VulkanWorkspace::GetAttr(
       break;
     }
     case kDeviceName: return;
+    case kMaxClockRate: return;
+    case kMultiProcessorCount: return;
     case kExist: break;
   }
 }

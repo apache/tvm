@@ -42,6 +42,11 @@ void OpenCLWorkspace::GetAttr(
       break;
     }
     case kWarpSize: {
+      /* TODO: the warp size of OpenCL device is not always 1
+               e.g. Intel GPU has a sub group concept which contains 8 - 32 work items,
+               corresponding to the number of SIMD entries the heardware configures.
+               We need to figure out a way to query this information from the hardware.
+      */
       *rv = 1;
       break;
     }
@@ -60,6 +65,22 @@ void OpenCLWorkspace::GetAttr(
           devices[index], CL_DEVICE_NAME,
           sizeof(value) - 1, value, nullptr));
       *rv = std::string(value);
+      break;
+    }
+    case kMaxClockRate: {
+      cl_uint value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY,
+          sizeof(cl_uint), &value, nullptr));
+      *rv = static_cast<int32_t>(value);
+      break;
+    }
+    case kMultiProcessorCount: {
+      cl_uint value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_COMPUTE_UNITS,
+          sizeof(cl_uint), &value, nullptr));
+      *rv = static_cast<int32_t>(value);
       break;
     }
     case kExist: break;

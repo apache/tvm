@@ -176,7 +176,7 @@ class OpenCLModuleNode : public ModuleNode {
 
 class OpenCLWrappedFunc {
  public:
-  // initialize the CUDA function.
+  // initialize the OpenCL function.
   void Init(OpenCLModuleNode* m,
             std::shared_ptr<ModuleNode> sptr,
             OpenCLModuleNode::KTRefEntry entry,
