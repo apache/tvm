@@ -52,6 +52,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         return;
       }
       case kDeviceName: return;
+      case kMaxClockRate: return;
+      case kMultiProcessorCount: return;
     }
     *rv = value;
   }
