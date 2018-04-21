@@ -42,6 +42,8 @@ void MetalWorkspace::GetAttr(
     case kMaxSharedMemoryPerBlock: return;
     case kComputeVersion: return;
     case kDeviceName: return;
+    case kMaxClockRate: return;
+    case kMultiProcessorCount: return;
     case kExist: break;
   }
 }
