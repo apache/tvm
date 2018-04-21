@@ -78,8 +78,6 @@ Target CreateTarget(const std::string& target_name,
     t->max_num_threads = 256;
     if (t->device_name == "intel_gpu") {
       t->thread_warp_size = 16;
-      // use threadIdx.z for index
-      t->thread_warp_index = 2;
     }
   } else if (target_name == "metal" || target_name == "vulkan") {
     if (target_name == "metal") {
