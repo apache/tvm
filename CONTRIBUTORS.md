@@ -49,6 +49,7 @@ and are qualified to lead development and review changes of the owned module.
 - [Yuwei Hu](https://github.com/Huyuwei) TOPI
 - [Yizhi Liu](https://github.com/yzhliu) JVM package
 - [Zhixun Tan](https://github.com/phisiart) OpenGL/WebGL backend
+- [Nick Hynes](https://github.com/nhynes) SGX and secured computing
 
 
 List of Contributors
