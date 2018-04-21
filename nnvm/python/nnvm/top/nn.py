@@ -18,6 +18,9 @@ reg.register_pattern("relu", OpPattern.ELEMWISE)
 reg.register_schedule("leaky_relu", _fschedule_broadcast)
 reg.register_pattern("leaky_relu", OpPattern.ELEMWISE)
 
+# prelu
+reg.register_schedule("prelu", _fschedule_broadcast)
+reg.register_pattern("prelu", OpPattern.BROADCAST)
 
 # flatten
 reg.register_schedule("flatten", _fschedule_broadcast)

@@ -417,6 +417,53 @@ NNVM_REGISTER_OP(leaky_relu)
 })
 .set_support_level(1);
 
+// prelu
+DMLC_REGISTER_PARAMETER(PReLUParam);
+
+inline bool PReluInferShape(const nnvm::NodeAttrs &attrs,
+                            std::vector<TShape> *in_shape,
+                            std::vector<TShape> *out_shape) {
+  const PReLUParam &param = nnvm::get<PReLUParam>(attrs.parsed);
+  TShape dshape = in_shape->at(0);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 0, dshape);
+
+  // The case of parametric relu
+  CHECK_EQ(dshape.ndim(), 4) << "Input data should be 4D, but got " << dshape.ndim();
+  CHECK(size_t(param.axis) < dshape.Size())
+      << "Wrong axis ("  << param.axis << ")value.";
+
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 1, TShape({dshape[param.axis]}));
+
+  TShape oshape(dshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+}
+
+NNVM_REGISTER_OP(prelu)
+.describe(R"code(Parametric version of a Rectified Linear Unit.
+It accepts two arguments: an input ``x`` and a channelwise slope ``alpha``
+and computes the output as :math:`PReLU(x) y = x > 0 ? x : alpha * x`,
+where :math:`*` is an channelwise multiplication for each sample in the
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.add_argument("alpha", "Tensor", "Input channelwise alpha.")
+.add_arguments(PReLUParam::__FIELDS__())
+.set_attr_parser(ParamParser<PReLUParam>)
+.set_num_inputs(2)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", PReluInferShape)
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+    return std::vector<std::string>{"data", "alpha"};
+  })
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const PReLUParam& param = nnvm::get<PReLUParam>(attrs.parsed);
+    return Array<Tensor>{ topi::prelu<float>(inputs[0], inputs[1], param.axis)};
+  })
+.set_support_level(4);
 
 DMLC_REGISTER_PARAMETER(PadParam);
 

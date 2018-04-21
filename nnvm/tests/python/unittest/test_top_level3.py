@@ -16,8 +16,15 @@ def test_leaky_relu():
     y = sym.leaky_relu(x, alpha=0.1)
     assert(y.list_input_names() == ["x"])
 
+def test_prelu():
+    x = sym.Variable("x")
+    w = sym.Variable("w")
+    y = sym.prelu(x, w)
+    assert(y.list_input_names()[0] == 'x')
+    assert(y.list_input_names()[1] == 'w')
 
 if __name__ == "__main__":
     test_scalar_op()
     test_reshape()
     test_leaky_relu()
+    test_prelu()
