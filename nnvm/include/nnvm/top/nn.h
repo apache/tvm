@@ -101,6 +101,13 @@ struct LeakyReLUParam : public dmlc::Parameter<LeakyReLUParam> {
   }
 };
 
+struct PReLUParam : public dmlc::Parameter<PReLUParam> {
+  int axis;
+  DMLC_DECLARE_PARAMETER(PReLUParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(1)
+      .describe("Specify which shape axis the channel is specified.");
+  }
+};
 
 struct PadParam : public dmlc::Parameter<PadParam> {
   float pad_value;

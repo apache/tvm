@@ -250,6 +250,17 @@ def test_reshape():
     check((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
 
 
+def test_prelu():
+    def check(in_shape, axis,  out_shape):
+        x = sym.Variable("x", shape=in_shape)
+        w = sym.Variable("w")
+        y = sym.prelu(x, w, axis=axis, name="y")
+        sdict = infer_shape(y)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+    check((1, 3, 2, 2), 1, (1, 3, 2, 2))
+    check((1, 2, 2, 3), 3, (1, 2, 2, 3))
+
+
 # Level 4
 def test_transpose():
     def check(in_shape, out_shape, **kwargs):
@@ -319,3 +330,4 @@ if __name__ == "__main__":
     test_broadcast_binary()
     test_reduce()
     test_transpose()
+    test_prelu()
