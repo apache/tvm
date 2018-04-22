@@ -289,6 +289,10 @@ def _schedule_spatialpack_conv2d(s, op):
     if data.dtype == 'float16' and (util.get_const_int(conv.shape[1]) == 4 or output_height == 28):
         num_thread //= 2
 
+    # schedule dilation
+    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        s[kernel].compute_inline()
+
     # schedule padding
     if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
         data_pad = data
@@ -430,6 +434,10 @@ def _schedule_im2col_conv2d(s, op):
         if last_work % (bnb * num_thread2) != 0:
             num_thread1 = num_thread * 2
             num_thread2 = num_thread // 2
+
+    # schedule dilation
+    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        s[kernel].compute_inline()
 
     # schedule padding
     if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
@@ -615,6 +623,10 @@ def _schedule_winograd(s, op):
     d, B = s[V].op.input_tensors
     data_pad = s[d].op.input_tensors[0]
     data = s[data_pad].op.input_tensors[0]
+
+    # dilation
+    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        s[kernel].compute_inline()
 
     # padding
     s[data_pad].compute_inline()

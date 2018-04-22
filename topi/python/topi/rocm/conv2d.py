@@ -5,6 +5,8 @@ from tvm.contrib import miopen
 import topi
 from .. import generic
 from ..nn.conv2d import conv2d
+from ..util import get_const_int
+
 
 @conv2d.register("rocm")
 def conv2d_rocm(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
@@ -42,6 +44,14 @@ def conv2d_rocm(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
         pad_h = pad_w = padding
     else:
         pad_h, pad_w = padding
+    # detect dilation
+    dilation_h = dilation_w = 1
+    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        kernel_before_dilation = kernel.op.input_tensors[0]
+        dilation_h = (get_const_int(kernel.shape[2]) + get_const_int(kernel_before_dilation.shape[2] - 1 ) \
+            // get_const_int(kernel_before_dilation.shape[2]))
+        dilation_w = (get_const_int(kernel.shape[3]) + get_const_int(kernel_before_dilation.shape[3] - 1 ) \
+            // get_const_int(kernel_before_dilation.shape[2]))
     target = tvm.target.current_target()
     if "miopen" in target.libs:
         return miopen.conv2d_forward(data,
@@ -50,8 +60,8 @@ def conv2d_rocm(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
                                      stride_w,
                                      pad_h,
                                      pad_w,
-                                     1,  # dilation_h
-                                     1,  # dilation_w
+                                     dilation_h,
+                                     dilation_w,
                                      conv_mode=0)
     return topi.nn.conv2d_nchw(data, kernel, stride, padding, out_dtype)
 

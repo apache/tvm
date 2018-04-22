@@ -43,6 +43,9 @@ def schedule_conv2d_nchw(outs):
         elif OP.tag.startswith('conv2d_nchw'):
             conv2d = OP.output(0)
             data = OP.input_tensors[0]
+            kernel = OP.input_tensors[1]
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+                s[kernel].compute_inline()
             _schedule(conv2d, data)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)

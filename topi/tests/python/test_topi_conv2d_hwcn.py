@@ -8,12 +8,13 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 
-def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, padding):
+def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
     A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    B = topi.nn.conv2d_hwcn(A, W, stride, padding)
+    dW = topi.nn.dilate(W, (dilation, dilation, 1, 1))
+    B = topi.nn.conv2d_hwcn(A, dW, stride, padding)
     C = topi.nn.relu(B)
     s1 = topi.cuda.schedule_conv2d_hwcn([B])
     s2 = topi.cuda.schedule_conv2d_hwcn([C])
@@ -26,7 +27,8 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = topi.testing.conv2d_hwcn_python(a_np, w_np, stride, padding)
+        dw_np = topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+        b_np = topi.testing.conv2d_hwcn_python(a_np, dw_np, stride, padding)
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
     a_np, w_np, b_np, c_np = get_ref_data()
@@ -63,7 +65,8 @@ def test_conv2d_hwcn():
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "VALID")
-
+    # dilation = 2
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
 
 if __name__ == "__main__":
     test_conv2d_hwcn()

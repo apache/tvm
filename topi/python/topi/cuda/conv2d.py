@@ -4,6 +4,7 @@ import tvm
 from tvm.contrib import cudnn
 import topi
 from ..nn.conv2d import conv2d
+from ..util import get_const_int
 
 @conv2d.register("cuda")
 def conv2d_cuda(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
@@ -40,6 +41,14 @@ def conv2d_cuda(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
         pad_h = pad_w = padding
     else:
         pad_h, pad_w = padding
+    # detect dilation
+    dilation_h = dilation_w = 1
+    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        kernel_before_dilation = kernel.op.input_tensors[0]
+        dilation_h = (get_const_int(kernel.shape[2]) + get_const_int(kernel_before_dilation.shape[2] - 1 ) \
+            // get_const_int(kernel_before_dilation.shape[2]))
+        dilation_w = (get_const_int(kernel.shape[3]) + get_const_int(kernel_before_dilation.shape[3] - 1 ) \
+            // get_const_int(kernel_before_dilation.shape[2]))
     target = tvm.target.current_target()
     if "cudnn" in target.libs:
         assert layout != 'HWCN', "HWCN layout not supported with CUDNN."
@@ -52,8 +61,8 @@ def conv2d_cuda(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
                                     stride_w,
                                     pad_h,
                                     pad_w,
-                                    1,  # dilation_h
-                                    1,  # dilation_w
+                                    dilation_h,
+                                    dilation_w,
                                     conv_mode=1,
                                     tensor_format=tensor_format,
                                     algo=-1) # let CUDNN choose the best algo

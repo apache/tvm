@@ -110,6 +110,8 @@ def schedule_conv2d_hwcn(outs):
         elif operator.tag == 'conv2d_hwcn':
             Apad = operator.input_tensors[0]
             W = operator.input_tensors[1]
+            if isinstance(W.op, tvm.tensor.ComputeOp) and 'dilate' in W.op.tag:
+                sch[W].compute_inline()
             B = operator.output(0)
             schedule(Apad, W, B)
         else:
