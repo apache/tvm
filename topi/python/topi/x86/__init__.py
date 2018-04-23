@@ -7,3 +7,4 @@ from .binarize_pack import schedule_binarize_pack
 from .binary_dense import schedule_binary_dense
 from .nn import *
 from .injective import *
+from .pooling import schedule_pool, schedule_global_pool
