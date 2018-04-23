@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -56,7 +57,7 @@ def schedule_conv2d_nhwc(outs):
 @tvm.target.generic_func
 def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding, outs):
     """Schedule for conv2d_NCHW[x]c
-    
+
     Parameters
     ----------
     num_filter: int
@@ -70,7 +71,7 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding, outs):
     outs: Array of Tensor
           The computation graph description of conv2d_NCHWc
           in the format of an array of tensors.
-    
+
     Returns
     -------
     sch: Schedule

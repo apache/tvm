@@ -483,6 +483,15 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
 }
 
 using FLayoutIndicesTransform = std::function<Array<Expr>(const Array<Var>& indices)>;
+/*!
+ * \brief Transform the layout according to the mapping function \p to_src_indices.
+ * \param src the source input.
+ * \param dst_shape the output shape.
+ * \param to_src_indices the mapping function from input index to output index.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor with shape \p dst_shape.
+ */
 inline Tensor layout_transform(const Tensor& src,
                                const Array<Expr>& dst_shape,
                                const FLayoutIndicesTransform& to_src_indices,
