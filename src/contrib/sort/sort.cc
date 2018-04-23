@@ -5,10 +5,9 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
-#include <dmlc/logging.h>
+#include <dlpack/dlpack.h>
 #include <algorithm>
 #include <vector>
-#include <dlpack/dlpack.h>
 
 namespace tvm {
 namespace contrib {
