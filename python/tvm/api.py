@@ -300,8 +300,8 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
     return res[0] if len(res) == 1 else res
 
 
-def extern(shape, inputs, fcompute, name="extern", dtype=None, in_data_alignment=-1,
-           out_data_alignment=-1, tag=""):
+def extern(shape, inputs, fcompute, name="extern", dtype=None, in_buffers=None,
+           out_buffers=None, tag=""):
     """Compute several tensor via extern function.
 
     Parameters
@@ -333,13 +333,11 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, in_data_alignment
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_data_alignment: int or list of int, optional
-        The data alignment for input buffer.
-        By default data alignment is 64.
+    in_buffers: Buffer or list of Buffer, optional
+        Input buffers.
 
-    out_data_alignment: int or list of int, optional
-        The data alignment for output buffer.
-        By default data alignment is 64.
+    out_buffers: Buffer or list of Buffers, optional
+        Output buffers.
 
     Returns
     -------
@@ -366,16 +364,25 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, in_data_alignment
         tag = _tag.TagScope.current.tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
     shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
-    input_placeholders = []
-    output_placeholders = []
+    if in_buffers is not None:
+        in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
+        if len(inputs) != len(in_buffers):
+            raise RuntimeError("Number of inputs and in_buffers mismatch: %d vs %d."
+                               % (len(inputs), len(in_buffers)))
+    if out_buffers is not None:
+        out_buffers = [out_buffers] if not isinstance(out_buffers, list) else out_buffers
+        if len(shape) != len(out_buffers):
+            raise RuntimeError("Number of outputs and out_buffers mismatch: %d vs %d."
+                               % (len(shape), len(out_buffers)))
+    input_placeholders = in_buffers or []
+    output_placeholders = out_buffers or []
     types = set()
-    if not isinstance(in_data_alignment, list):
-        in_data_alignment = [in_data_alignment for _ in range(len(inputs))]
-    for t, dal in zip(inputs, in_data_alignment):
+    for t in inputs:
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
-        input_placeholders.append(
-            decl_buffer(t.shape, t.dtype, t.op.name, data_alignment=dal))
+        if in_buffers is None:
+            input_placeholders.append(
+                decl_buffer(t.shape, t.dtype, t.op.name))
         types.add(t.dtype)
 
     if dtype is None:
@@ -386,10 +393,9 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, in_data_alignment
     if isinstance(dtype, str):
         dtype = [dtype]
 
-    if not isinstance(out_data_alignment, list):
-        out_data_alignment = [out_data_alignment for _ in range(len(shape))]
-    for shp, dt, dal in zip(shape, dtype, out_data_alignment):
-        output_placeholders.append(decl_buffer(shp, dt, name, data_alignment=dal))
+    if out_buffers is None:
+        for shp, dt in zip(shape, dtype):
+            output_placeholders.append(decl_buffer(shp, dt, name))
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, _expr.Expr):
         body = _make.Evaluate(body)

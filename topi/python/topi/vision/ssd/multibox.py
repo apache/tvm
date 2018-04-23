@@ -318,27 +318,35 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     oshape = (batch_size, num_anchors, 6)
     # Define data alignment for intermediate buffer
     valid_count_dal = 4
-    inter_out_dal = 64
+    inter_out_dal = 8
     sort_tensor_dal = 8
     valid_count, inter_out = \
-        tvm.extern([(batch_size,), oshape], [cls_prob, loc_pred, anchor],
+        tvm.extern([(batch_size,), oshape],
+                   [cls_prob, loc_pred, anchor],
                    lambda ins, outs: transform_loc_ir(
                        ins[0], ins[1], ins[2], outs[0], outs[1], clip, threshold, variances),
-                   dtype=["int32", "float32"], out_data_alignment=[valid_count_dal, inter_out_dal],
+                   dtype=["int32", "float32"],
+                   #out_data_alignment=[valid_count_dal, inter_out_dal],
                    tag="multibox_detection_transform_loc")
+    score_axis = 1
+    score_shape = (batch_size, num_anchors)
+    score_tensor = tvm.compute(score_shape, lambda i, j: inter_out[i, j, score_axis])
     sort_tensor = \
-        tvm.extern((batch_size, num_anchors), [inter_out, valid_count],
+        tvm.extern(score_shape,
+                   [score_tensor],
                    lambda ins, outs: tvm.call_packed(
-                       "tvm.contrib.sort.stable_sort", ins[0], ins[1], outs[0],
-                       batch_size, 1, True),
-                   dtype='int32', in_data_alignment=[inter_out_dal, valid_count_dal],
-                   out_data_alignment=sort_tensor_dal, name="multibox_detection_sort")
+                       "tvm.contrib.sort.argsort", ins[0], outs[0], score_axis, True),
+                   dtype='int32',
+                   #in_data_alignment=inter_out_dal,
+                   #out_data_alignment=sort_tensor_dal,
+                   name="multibox_detection_sort")
     out = \
-        tvm.extern(oshape, [inter_out, sort_tensor, valid_count],
+        tvm.extern(oshape,
+                   [inter_out, sort_tensor, valid_count],
                    lambda ins, outs: nms_ir(
                        ins[0], ins[1], ins[2], outs[0], nms_threshold,
                        force_suppress, nms_topk),
-                   dtype="float32", in_data_alignment=[inter_out_dal, sort_tensor_dal,
-                                                       valid_count_dal],
+                   dtype="float32",
+                   #in_data_alignment=[inter_out_dal, sort_tensor_dal, valid_count_dal],
                    tag="multibox_detection_nms")
     return out
