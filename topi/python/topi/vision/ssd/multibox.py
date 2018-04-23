@@ -3,6 +3,9 @@
 from __future__ import absolute_import as _abs
 import math
 import tvm
+
+from tvm import api
+
 import topi
 
 def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
@@ -317,28 +320,34 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     num_anchors = anchor.shape[1]
     oshape = (batch_size, num_anchors, 6)
     # Define data alignment for intermediate buffer
-    valid_count_dal = 4
-    inter_out_dal = 8
-    sort_tensor_dal = 8
+    valid_count_dtype = "int32"
+    valid_count_buf = api.decl_buffer((batch_size,), valid_count_dtype,
+                                      "valid_count_buf", data_alignment=4)
+    inter_out_buf = api.decl_buffer(oshape, cls_prob.dtype, "inter_out_buf", data_alignment=8)
     valid_count, inter_out = \
         tvm.extern([(batch_size,), oshape],
                    [cls_prob, loc_pred, anchor],
                    lambda ins, outs: transform_loc_ir(
                        ins[0], ins[1], ins[2], outs[0], outs[1], clip, threshold, variances),
-                   dtype=["int32", "float32"],
-                   #out_data_alignment=[valid_count_dal, inter_out_dal],
+                   dtype=[valid_count_dtype, cls_prob.dtype],
+                   out_buffers=[valid_count_buf, inter_out_buf],
                    tag="multibox_detection_transform_loc")
     score_axis = 1
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: inter_out[i, j, score_axis])
+    score_tensor_buf = api.decl_buffer(score_tensor.shape, cls_prob.dtype,
+                                       "score_tensor_buf", data_alignment=8)
+    sort_tensor_dtype = "int32"
+    sort_tensor_buf = api.decl_buffer(score_shape, sort_tensor_dtype,
+                                      "sort_tensor_buf", data_alignment=8)
     sort_tensor = \
         tvm.extern(score_shape,
                    [score_tensor],
                    lambda ins, outs: tvm.call_packed(
                        "tvm.contrib.sort.argsort", ins[0], outs[0], score_axis, True),
-                   dtype='int32',
-                   #in_data_alignment=inter_out_dal,
-                   #out_data_alignment=sort_tensor_dal,
+                   dtype=sort_tensor_dtype,
+                   in_buffers=score_tensor_buf,
+                   out_buffers=sort_tensor_buf,
                    name="multibox_detection_sort")
     out = \
         tvm.extern(oshape,
@@ -347,6 +356,6 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
                        ins[0], ins[1], ins[2], outs[0], nms_threshold,
                        force_suppress, nms_topk),
                    dtype="float32",
-                   #in_data_alignment=[inter_out_dal, sort_tensor_dal, valid_count_dal],
+                   in_buffers=[inter_out_buf, sort_tensor_buf, valid_count_buf],
                    tag="multibox_detection_nms")
     return out
