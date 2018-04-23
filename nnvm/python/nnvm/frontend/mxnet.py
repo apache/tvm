@@ -312,7 +312,7 @@ def _from_mxnet_impl(symbol, graph):
     attr = symbol.list_attr()
     # op_name = symbol.attr('op_name')
     childs = symbol.get_children()
-    if childs:
+    if childs is not None:
         op_name = symbol.attr('op_name')
         childs = [_from_mxnet_impl(childs[i], graph) for i in range(len(childs.list_outputs()))]
         childs = [x for y in childs for x in _as_list(y)]  # expand group symbol
