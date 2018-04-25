@@ -29,7 +29,7 @@ def schedule_grouped_conv2d(outs):
     out = outs[0]
 
     def traverse(OP):
-        # inline all one-to-one-mapping operators except the last stage
+        """ inline all one-to-one-mapping operators except the last stage """
         if tag.is_injective(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
