@@ -36,7 +36,9 @@ def schedule_grouped_conv2d(outs):
             for tensor in OP.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
-        elif OP.tag == 'conv2d_nchw':
+        elif OP.tag == 'conv2d_nchw'or \
+             OP.tag == 'conv2d_hwcn'or \
+             OP.tag == 'conv2d_nhwc':
             ttx, _ = s[OP].split(OP.axis[1], nparts=num_thread)
             s[OP].bind(OP.axis[0], block_x)
             s[OP].bind(ttx, thread_x)

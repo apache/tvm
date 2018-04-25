@@ -118,7 +118,6 @@ def grouped_conv2d_nhwc_python(a_np, w_np, groups, stride, padding):
 
     return np.concatenate(conv_out, 3)
 
-
 def verify_grouped_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, groups, stride, padding):
     in_height = in_width = in_size
 
@@ -225,7 +224,7 @@ def verify_grouped_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, g
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_conv2d_nhwc([B])
+            s = topi.generic.schedule_grouped_conv2d([B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
