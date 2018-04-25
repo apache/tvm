@@ -91,6 +91,8 @@ def schedule_conv2d(outs):
         """NCHW conv2d schedule for non imagenet workloads"""
         conv = op.output(0)
         kernel = op.input_tensors[1]
+        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            s[kernel].compute_inline()
         data = op.input_tensors[0]
         data_pad = None
         if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
@@ -134,6 +136,8 @@ def schedule_conv2d(outs):
                     conv_out = op.input_tensors[0]
                     kernel_vec = conv_out.op.input_tensors[1]
                     kernel = kernel_vec.op.input_tensors[0]
+                    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+                        s[kernel].compute_inline()
                     data_vec = conv_out.op.input_tensors[0]
                     data = data_vec.op.input_tensors[0]
                     data_pad = None
@@ -184,6 +188,9 @@ def schedule_conv2d_nhwc(outs):
         if 'conv2d_nhwc' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+                s[kernel].compute_inline()
+
             data = op.input_tensors[0]
             data_pad = None
             if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:

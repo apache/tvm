@@ -495,6 +495,8 @@ def schedule_conv2d_small_batch(outs):
         if 'conv2d_nchw' in OP.tag:
             temp = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
+            if isinstance(Filter.op, tvm.tensor.ComputeOp) and 'dilate' in Filter.op.tag:
+                s[Filter].compute_inline()
             Output = OP.output(0)
             schedule(temp, Filter, Output)
 

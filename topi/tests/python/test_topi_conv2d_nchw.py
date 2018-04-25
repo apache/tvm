@@ -3,10 +3,11 @@ import os
 import numpy as np
 import tvm
 import topi
+import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
-def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
+def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
@@ -16,11 +17,12 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_conv2d.verify_con2d_nchw")
+    @memoize("topi.tests.test_topi_conv2d_nchw.verify_conv2d_nchw")
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
+        dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+        b_np = topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
 
@@ -33,7 +35,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            B = topi.nn.conv2d(A, W, stride, padding, layout='NCHW')
+            dW = topi.nn.dilate(W, (1, 1, dilation, dilation))
+            B = topi.nn.conv2d(A, dW, stride, padding, layout='NCHW')
             C = topi.nn.relu(B)
             s1 = topi.generic.schedule_conv2d_nchw([B])
             s2 = topi.generic.schedule_conv2d_nchw([C])
@@ -43,8 +46,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         with tvm.build_config(auto_unroll_max_step=1400,
                               unroll_explicit=(device != "cuda")):
-            func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
-            func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
+            func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
+            func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func1(a, w, b)
             func2(a, w, c)
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
@@ -75,6 +78,8 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 64, 224, 64, 3, 1, 1)
     verify_conv2d_nchw(1, 64, 224, 32, 3, 1, 1)
     verify_conv2d_nchw(1, 32, 224, 9, 3, 1, 1)
+    # dilation = 2
+    verify_conv2d_nchw(1, 128, 122, 128, 3, 1, 1, dilation=2)
 
 if __name__ == "__main__":
     test_conv2d_nchw()

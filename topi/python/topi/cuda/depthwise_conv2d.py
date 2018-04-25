@@ -114,6 +114,8 @@ def schedule_depthwise_conv2d_nchw(outs):
         if OP.tag == 'depthwise_conv2d_nchw':
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
+            if isinstance(Filter.op, tvm.tensor.ComputeOp) and 'dilate' in Filter.op.tag:
+                s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
 
@@ -191,6 +193,8 @@ def schedule_depthwise_conv2d_nhwc(outs):
         if OP.tag == 'depthwise_conv2d_nhwc':
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
+            if isinstance(Filter.op, tvm.tensor.ComputeOp) and 'dilate' in Filter.op.tag:
+                s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
 

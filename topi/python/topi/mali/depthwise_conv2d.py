@@ -100,6 +100,8 @@ def schedule_depthwise_conv2d_nchw(outs):
         if op.tag == 'depthwise_conv2d_nchw':
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+                s[kernel].compute_inline()
             conv = op.output(0)
             _schedule(pad_data, kernel, conv)
 
