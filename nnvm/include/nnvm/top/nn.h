@@ -9,22 +9,11 @@
 #include <dmlc/base.h>
 #include <dmlc/parameter.h>
 #include <nnvm/tuple.h>
+#include <nnvm/layout.h>
+#include <string>
 
 namespace nnvm {
 namespace top {
-
-// Layout flag in spatial conv and pooling.
-enum LayoutFlag {
-  kNCHW,
-  kNHWC,
-  kCHWN,
-  kNCW,
-  kNWC,
-  kCWN,
-  kNCDHW,
-  kNDHWC,
-  kCDHWN
-};
 
 struct DenseParam : public dmlc::Parameter<DenseParam> {
   int units;
@@ -130,7 +119,9 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
   TShape padding;
   TShape dilation;
   int groups;
-  int layout;
+  std::string layout;
+  std::string kernel_layout;
+  std::string out_layout;
   bool use_bias;
 
   DMLC_DECLARE_PARAMETER(Conv2DParam) {
@@ -152,14 +143,19 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
                 "At groups=2, the operation becomes equivalent to having two convolution"
                 "layers side by side, each seeing half the input channels, and producing"
                 "half the output channels, and both subsequently concatenated.");
-    DMLC_DECLARE_FIELD(layout)
-      .add_enum("NCHW", kNCHW)
-      .add_enum("NHWC", kNHWC)
-      .set_default(kNCHW)
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+    DMLC_DECLARE_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
                 "'W' dimensions.");
+    DMLC_DECLARE_FIELD(out_layout).set_default("__undef__")
+      .describe("Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Default to be same as input layout.");
+    DMLC_DECLARE_FIELD(kernel_layout).set_default("OIHW")
+      .describe("Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+                "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+                "dimensions respectively.");
     DMLC_DECLARE_FIELD(use_bias).set_default(true)
       .describe("Whether the layer uses a bias vector.");
   }
@@ -178,7 +174,8 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
   TShape output_padding;
   TShape dilation;
   int groups;
-  int layout;
+  std::string layout;
+  std::string kernel_layout;
   bool use_bias;
 
   DMLC_DECLARE_PARAMETER(Conv2DTransposeParam) {
@@ -202,14 +199,15 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
                 "At groups=2, the operation becomes equivalent to having two convolution"
                 "layers side by side, each seeing half the input channels, and producing"
                 "half the output channels, and both subsequently concatenated.");
-    DMLC_DECLARE_FIELD(layout)
-      .add_enum("NCHW", kNCHW)
-      .add_enum("NHWC", kNHWC)
-      .set_default(kNCHW)
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+    DMLC_DECLARE_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
                 "'W' dimensions.");
+    DMLC_DECLARE_FIELD(kernel_layout).set_default("OIHW")
+      .describe("Dimension ordering of data and weight. Can be 'OIHW', 'OIHW16o16i', etc."
+                "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+                "dimensions respectively.");
     DMLC_DECLARE_FIELD(use_bias).set_default(true)
       .describe("Whether the layer uses a bias vector.");
   }
@@ -224,7 +222,7 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
   TShape pool_size;
   TShape strides;
   TShape padding;
-  int layout;
+  std::string layout;
   bool ceil_mode;
 
   DMLC_DECLARE_PARAMETER(Pool2DParam) {
@@ -235,10 +233,7 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
     DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
                 "on both sides for padding number of points");
-    DMLC_DECLARE_FIELD(layout)
-      .add_enum("NCHW", kNCHW)
-      .add_enum("NHWC", kNHWC)
-      .set_default(kNCHW)
+    DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
@@ -250,13 +245,10 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
 
 
 struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
-  int layout;
+  std::string layout;
 
   DMLC_DECLARE_PARAMETER(GlobalPool2DParam) {
-    DMLC_DECLARE_FIELD(layout)
-      .add_enum("NCHW", kNCHW)
-      .add_enum("NHWC", kNHWC)
-      .set_default(kNCHW)
+    DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
@@ -266,19 +258,29 @@ struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
 
 struct UpSamplingParam : public dmlc::Parameter<UpSamplingParam> {
   int scale;
-  int layout;
+  std::string layout;
 
   DMLC_DECLARE_PARAMETER(UpSamplingParam) {
     DMLC_DECLARE_FIELD(scale)
       .describe("upsampling scaling factor");
     DMLC_DECLARE_FIELD(layout)
-      .add_enum("NCHW", kNCHW)
-      .add_enum("NHWC", kNHWC)
-      .set_default(kNCHW)
+      .set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
                 "'W' dimensions.");
+  }
+};
+
+struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
+  std::string src_layout;
+  std::string dst_layout;
+
+  DMLC_DECLARE_PARAMETER(LayoutTransformParam) {
+    DMLC_DECLARE_FIELD(src_layout).set_default("__undef__")
+    .describe("Dimension ordering of data");
+    DMLC_DECLARE_FIELD(dst_layout).set_default("__undef__")
+    .describe("Dimension ordering of data.");
   }
 };
 

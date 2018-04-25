@@ -16,6 +16,7 @@
 #include <nnvm/graph.h>
 #include <vector>
 #include <string>
+#include "packed_func_ext.h"
 
 namespace nnvm {
 namespace compiler {
@@ -73,19 +74,17 @@ using FTVMSchedule = std::function<
            const Array<Tensor>& outs,
            const std::string& target)>;
 
-/*! \brief Layout Information about an entry */
-using TLayoutInfo = std::string;
-
 /*!
- * \brief The producer consumer function of node layout
- * \param attrs The attribute of the node.
- * \param ilayouts The input layouts that the node request.
- * \param olayouts The output layouts that the node produce.
- * \return bool The success flag.
+ * \brief Modify the op node to alter its input layout.
+ *  it is invoked in AlterOpLayout pass.
+ * \param attrs The attribute of the original node.
+ * \param inputs The input symbols of the original node.
+ * \param tinfos The inferred shape and dtype of the inputs.
  */
-using FTVMLayoutRequest = std::function<bool (const NodeAttrs& attrs,
-                                              std::vector<TLayoutInfo> *ilayouts,
-                                              std::vector<TLayoutInfo> *olayouts)>;
+using FTVMAlterOpLayout = std::function<
+  Symbol(const NodeAttrs& attrs,
+         const Symbol& inputs,
+         const Array<Tensor>& tinfos)>;
 
 /*!
  * \brief Transform from normal operator to vectorized operator

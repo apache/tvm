@@ -13,6 +13,7 @@
 #include "./base.h"
 #include "./node.h"
 #include "./tuple.h"
+#include "./layout.h"
 
 namespace nnvm {
 
@@ -175,6 +176,31 @@ using FSetInputVarAttrOnCompose = std::function<void(
     const NodeAttrs& attrs,
     NodePtr var,
     const int index)>;
+
+/*!
+ * \brief Inference function of node layout. See \p Layout for layout convention
+ * \param attrs The attribute of the node.
+ * \param ilayouts Given the input layouts produced by ancestor nodes,
+ *                 it should be filled by layouts that the node requests.
+ *                 If the requested layout is different from what ancestor produces,
+ *                 a __layout_transform__ operator will be inserted automatically.
+ * \param last_ilayouts The input layouts requested by the node
+ *                      at the last infer pass (if any).
+ *                      This can be useful when an operator wants to keep
+ *                      the input layout the same as the original one.
+ *                      For example, after the pass of AlterOpLayout,
+ *                      transpose(input, axis=[1, 2, 3, 0]) may receive an input of NCHW16c layout,
+ *                      with which it cannot calculate with axis=[1, 2, 3, 0].
+ *                      Last input layouts allow it to know what the layout it originally inferred,
+ *                      i.e., the layout in the imported model.
+ * \param olayouts Inferred output layouts.
+ * \return success flag.
+ */
+using FInferLayout = std::function<bool(
+    const NodeAttrs& attrs,
+    std::vector<Layout> *ilayouts,
+    const std::vector<Layout> *last_ilayouts,
+    std::vector<Layout> *olayouts)>;
 
 }  // namespace nnvm
 

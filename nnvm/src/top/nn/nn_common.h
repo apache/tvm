@@ -8,6 +8,7 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
+#include <nnvm/layout.h>
 #include <nnvm/top/nn.h>
 #include <string>
 #include <vector>
@@ -40,100 +41,47 @@ inline std::vector<std::string> UseBiasListInputNames(const NodeAttrs& attrs) {
  * \param dst_layout target layout
  * \return shape in target layout
  */
-inline TShape ConvertLayout(TShape src, int src_layout, int dst_layout, bool is_weight = false) {
-  if (src_layout == dst_layout) return src;
-  TShape dst = src;
-  if (src.ndim() == 3) {
-    switch (src_layout) {
-      case kNCW: break;
-      case kNWC: {
-        std::swap(dst[1], dst[2]);
-        break;
+inline TShape ConvertLayout(TShape src, const Layout& src_layout, const Layout& dst_layout) {
+  if (src_layout == dst_layout) {
+    return src;
+  } else if (!src_layout.defined()) {
+    LOG(FATAL) << "cannot convert undefined layout to " << dst_layout;
+  } else if (!dst_layout.defined()) {
+    LOG(FATAL) << "cannot convert " << src_layout << " to undefined layout";
+  }
+
+  CHECK(src_layout.convertible(dst_layout)) << "cannot convert from "
+                                            << src_layout << " to " << dst_layout;
+
+  TShape dst(dst_layout.ndim());
+  for (size_t i = 0; i < src_layout.ndim(); ++i) {
+    Layout::LayoutDim src_dim = src_layout[i];
+    if (Layout::is_superdim(src_dim)) {
+      int dst_major_pos = dst_layout.indexof(Layout::to_superdim(src_dim));
+      int dst_minor_pos = dst_layout.indexof(Layout::to_subdim(src_dim));
+      int src_minor_pos = src_layout.indexof(Layout::to_subdim(src_dim));
+      int src_factor = src_layout.subsizeof(src_dim);
+      int dst_factor = dst_layout.subsizeof(src_dim);
+
+      uint32_t src_dim_size = src[i];
+      if (src_minor_pos >= 0) {
+        CHECK_EQ(src_factor, src[src_minor_pos]) << "src shape " << src
+                                                 << " does not agree with layout " << src_layout;
+        src_dim_size *= src_factor;
       }
-      default: {
-        LOG(FATAL) << "inavlid layout for 3d shape" << src_layout;
-      }
-    }
-    switch (dst_layout) {
-      case kNCW: break;
-      case kNWC: {
-        std::swap(dst[1], dst[2]);
-        break;
-      }
-      default: {
-        LOG(FATAL) << "inavlid layout for 3d shape" << dst_layout;
-      }
-    }
-  } else if (src.ndim() == 4) {
-    switch (src_layout) {
-      case kNCHW: break;
-      case kNHWC: {
-        if (is_weight) {
-           dst[2] = src[0];
-           dst[3] = src[1];
-           dst[1] = src[2];
-           dst[0] = src[3];
-        } else {
-           dst[2] = src[1];
-           dst[3] = src[2];
-           dst[1] = src[3];
-        }
-        break;
-      }
-      default: {
-        LOG(FATAL) << "inavlid layout for 4d shape" << src_layout;
+
+      dst[dst_major_pos] = src_dim_size;
+      if (dst_minor_pos >= 0) {
+        CHECK_GT(dst_factor, 0);
+        CHECK_LE(dst_factor, src_dim_size) << "Converting " << src
+                                           << " from " << src_layout
+                                           << " to " << dst_factor
+                                           << ": cannot split dimension size of "
+                                           << src_dim_size << " by " << dst_factor;
+        dst[dst_major_pos] /= dst_factor;
+        dst[dst_minor_pos] = dst_factor;
       }
     }
-    src = dst;
-    switch (dst_layout) {
-      case kNCHW: break;
-      case kNHWC: {
-        if (is_weight) {
-            dst[0] = src[2];
-            dst[1] = src[3];
-            dst[2] = src[1];
-            dst[3] = src[0];
-        } else {
-            dst[1] = src[2];
-            dst[2] = src[3];
-            dst[3] = src[1];
-        }
-        break;
-      }
-      default: {
-        LOG(FATAL) << "inavlid layout for 4d shape" << dst_layout;
-      }
-    }
-  } else if (src.ndim() == 5) {
-    switch (src_layout) {
-      case kNCDHW: break;
-      case kNDHWC: {
-        dst[2] = src[1];
-        dst[3] = src[2];
-        dst[4] = src[3];
-        dst[1] = src[4];
-        break;
-      }
-      default: {
-        LOG(FATAL) << "inavlid layout for 5d shape" << src_layout;
-      }
-    }
-    src = dst;
-    switch (dst_layout) {
-      case kNCDHW: break;
-      case kNDHWC: {
-        dst[1] = src[2];
-        dst[2] = src[3];
-        dst[3] = src[4];
-        dst[4] = src[1];
-        break;
-      }
-      default: {
-        LOG(FATAL) << "inavlid layout for 5d shape" << dst_layout;
-      }
-    }
-  } else {
-    LOG(FATAL) << "no layout option for " << dst.ndim() << " dimensions";
   }
   return dst;
 }

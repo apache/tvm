@@ -333,6 +333,7 @@ NNVM_REGISTER_INIT_OP(full)
 .add_arguments(InitOpWithScalarParam::__FIELDS__())
 .set_attr<FInferShape>("FInferShape", ZeroShape<InitOpWithScalarParam>)
 .set_attr<FInferType>("FInferType", ZeroType<InitOpWithScalarParam>)
+.set_attr<FInferLayout>("FInferLayout", ZeroLayout)
 .set_support_level(4);
 
 NNVM_REGISTER_INIT_OP(zeros)
@@ -345,6 +346,7 @@ NNVM_REGISTER_INIT_OP(zeros)
 .add_arguments(InitOpParam::__FIELDS__())
 .set_attr<FInferShape>("FInferShape", ZeroShape<InitOpParam>)
 .set_attr<FInferType>("FInferType", ZeroType<InitOpParam>)
+.set_attr<FInferLayout>("FInferLayout", ZeroLayout)
 .set_support_level(4);
 
 NNVM_REGISTER_INIT_OP(ones)
@@ -357,6 +359,7 @@ NNVM_REGISTER_INIT_OP(ones)
 .add_arguments(InitOpParam::__FIELDS__())
 .set_attr<FInferShape>("FInferShape", ZeroShape<InitOpParam>)
 .set_attr<FInferType>("FInferType", ZeroType<InitOpParam>)
+.set_attr<FInferLayout>("FInferLayout", ZeroLayout)
 .set_support_level(4);
 
 // full_like
@@ -693,6 +696,7 @@ Example::
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ClipParam>)
 .set_attr<nnvm::FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<nnvm::FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,

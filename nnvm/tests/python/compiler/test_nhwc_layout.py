@@ -5,9 +5,10 @@ import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
 
-def get_sym(layout, channels):
+def get_sym(layout, kernel_layout, channels):
     data = sym.Variable(name="data")
-    data = sym.conv2d(data=data, kernel_size=(3,3), channels=channels, padding=(1, 1), layout=layout, use_bias=True)
+    data = sym.conv2d(data=data, kernel_size=(3,3), channels=channels, padding=(1, 1),
+                      layout=layout, kernel_layout=kernel_layout, use_bias=True)
     data = sym.max_pool2d(data=data, pool_size=(2, 2), strides=(2, 2), layout=layout)
     data = sym.upsampling(data=data, scale=2, layout=layout)
     softmax_axis = 1
@@ -31,8 +32,8 @@ def build_and_run(sym, params, data, out_shape):
 def test_nhwc():
     data_shape = (1, 3, 224, 224)
     out_channel = 8
-    nchw_sym = get_sym("NCHW", out_channel)
-    nhwc_sym = get_sym("NHWC", out_channel)
+    nchw_sym = get_sym("NCHW", "OIHW", out_channel)
+    nhwc_sym = get_sym("NHWC", "HWIO", out_channel)
     conv_weight = np.random.uniform(-1, 1, (out_channel, 3, 3, 3)).astype(np.float32)
     conv_bias = np.random.uniform(-1, 1, (out_channel)).astype(np.float32)
     nchw_params = {

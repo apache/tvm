@@ -158,7 +158,7 @@ Graph InferAttr(Graph &&ret,
         } else {
           CHECK(!last_iter)
               << "Attribute " << infer_name
-              << " is not registed by op " << inode.source->op()->name
+              << " is not registered by op " << inode.source->op()->name
               << " we are not able to complete the inference because of this";
         }
       }
