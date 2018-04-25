@@ -294,7 +294,7 @@ int NNSymbolGetNumOutputs(SymbolHandle symbol,
                            nn_uint *output_count) {
   Symbol *s = static_cast<Symbol*>(symbol);
   API_BEGIN();
-    *output_count = static_cast<nn_uint>(s->outputs.size());
+  *output_count = static_cast<nn_uint>(s->outputs.size());
   API_END();
 }
 

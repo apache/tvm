@@ -86,6 +86,10 @@ def _conv2d(inputs, attrs):
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
         _raise_not_supported('layout: ' + layout, 'conv2d')
+    if 'kernel_layout' in attrs:
+        kernel_layout = attrs['kernel_layout']
+    else:
+        kernel_layout = 'HWIO' if layout == 'NHWC' else 'OIHW'
     op_name, new_attrs = 'conv2d', {}
     new_attrs['channels'] = _required_attr(attrs, 'num_filter')
     new_attrs['kernel_size'] = kernel
@@ -94,6 +98,7 @@ def _conv2d(inputs, attrs):
     new_attrs['dilation'] = attrs.get('dilate', (1, 1))
     new_attrs['groups'] = attrs.get('num_group', 1)
     new_attrs['layout'] = layout
+    new_attrs['kernel_layout'] = kernel_layout
     new_attrs['use_bias'] = attrs.get('no_bias', 'False').strip() == 'False'
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
@@ -106,6 +111,10 @@ def _conv2d_transpose(inputs, attrs):
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
         _raise_not_supported('layout: ' + layout, 'conv2d_transpose')
+    if 'kernel_layout' in attrs:
+        kernel_layout = attrs['kernel_layout']
+    else:
+        kernel_layout = 'HWIO' if layout == 'NHWC' else 'OIHW'
     op_name, new_attrs = 'conv2d_transpose', {}
     new_attrs['channels'] = _required_attr(attrs, 'num_filter')
     new_attrs['kernel_size'] = kernel
@@ -115,6 +124,7 @@ def _conv2d_transpose(inputs, attrs):
     new_attrs['dilation'] = attrs.get('dilate', (1, 1))
     new_attrs['groups'] = attrs.get('num_group', 1)
     new_attrs['layout'] = layout
+    new_attrs['kernel_layout'] = kernel_layout
     new_attrs['use_bias'] = not _parse_bool_str(attrs, 'no_bias')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
@@ -237,7 +247,7 @@ _convert_map = {
     'min_axis'      : _rename('min'),
     'reshape'       : _reshape,
     'sum_axis'      : _rename('sum'),
-    'UpSampling'    : _upsampling
+    'UpSampling'    : _upsampling,
 }
 
 def _convert_symbol(op_name, inputs, attrs,

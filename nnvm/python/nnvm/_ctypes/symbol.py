@@ -211,12 +211,15 @@ def _init_symbol_module(symbol_class, root_namespace):
         op_names.append(py_str(plist[i]))
 
     module_obj = sys.modules["%s.symbol" % root_namespace]
+    module_obj_contrib = sys.modules["%s.contrib" % root_namespace]
     module_internal = sys.modules["%s._symbol_internal" % root_namespace]
     for name in op_names:
         hdl = OpHandle()
         check_call(_LIB.NNGetOpHandle(c_str(name), ctypes.byref(hdl)))
         function = _make_atomic_symbol_function(hdl, name)
-        if function.__name__.startswith('_'):
+        if function.__name__.startswith('_contrib_'):
+            setattr(module_obj_contrib, function.__name__.split('_contrib_')[1], function)
+        elif function.__name__.startswith('_'):
             setattr(module_internal, function.__name__, function)
             setattr(module_obj, function.__name__, function)
         else:

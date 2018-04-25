@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include "./tuple.h"
+#include "./layout.h"
 
 namespace nnvm {
 
@@ -46,13 +47,28 @@ using ShapeVector = std::vector<TShape>;
  * \code
  *  Graph g = ApplyPass(src_graph, "InferType");
  *  const DTypeVector& types = g.GetAttr<DTypeVector>("dtype");
- *  // get shape by entry id
+ *  // get type by entry id
  *  int entry_type = dtypes[g.indexed_graph().entry_id(my_entry)];
  * \endcode
  *
  * \sa FInferType
  */
 using DTypeVector = std::vector<int>;
+
+/*!
+ * \brief The result holder of layout of each NodeEntry in the graph.
+ * \note Stored under graph.attrs["layout"], provided by Pass "InferType"
+ *
+ * \code
+ *  Graph g = ApplyPass(src_graph, "LayoutTransform");
+ *  const LayoutVector& layouts = g.GetAttr<LayoutVector>("layout");
+ *  // get layout by entry id
+ *  int entry_layout = layouts[g.indexed_graph().entry_id(my_entry)];
+ * \endcode
+ *
+ * \sa FInferLayout
+ */
+using LayoutVector = std::vector<Layout>;
 
 /*!
  * \brief The result holder of device of each operator in the graph.

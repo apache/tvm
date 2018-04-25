@@ -22,7 +22,8 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
                        nnvm::NodeEntry beta,
                        nnvm::NodeEntry moving_mean,
                        nnvm::NodeEntry moving_var,
-                       TShape dshape) {
+                       TShape dshape,
+                       TShape bshape) {
   CHECK_NE(dshape.ndim(), 0);
   CHECK(attrs.op);
   static const  Op* bn_op = Op::Get("batch_norm");
@@ -60,13 +61,14 @@ BatchNormToInferUnpack(const nnvm::NodeAttrs& attrs,
         "elemwise_add", bn_name + "_add_beta", {shift, beta});
   }
   int axis = param.axis;
-  scale = ExpandBiasToMatchAxis(scale, dshape.ndim(), 1, axis);
-  shift = ExpandBiasToMatchAxis(shift, dshape.ndim(), 1, axis);
+  scale = ExpandBiasToMatchAxis(scale, dshape.ndim()-bshape.ndim()+1, 1, axis);
+  shift = ExpandBiasToMatchAxis(shift, dshape.ndim()-bshape.ndim()+1, 1, axis);
+
   NodeEntry out = MakeNode("broadcast_mul", bn_name + "_a_mul_data",
                            {data, scale});
   out = MakeNode("broadcast_add", bn_name + "_out",
                  {out, shift});
-  // It is invalid to ref the other values of BN after infernece transform.
+  // It is invalid to ref the other values of BN after inference transform.
   NodeEntry undef = MakeNode("__undef__", "undef", {});
   return {out, undef, undef};
 }
@@ -87,7 +89,8 @@ Graph SimplifyInference(nnvm::Graph src) {
           n->inputs[2],
           n->inputs[3],
           n->inputs[4],
-          shape_vec[idx.entry_id(nid, 0)]);
+          shape_vec[idx.entry_id(nid, 0)],
+          shape_vec[idx.entry_id(nid, 1)]);
       return true;
     } else if (n->op() == dropout_op) {
       NodeEntry undef = MakeNode("__undef__", "undef", {});
@@ -101,7 +104,8 @@ Graph SimplifyInference(nnvm::Graph src) {
 }
 
 NNVM_REGISTER_PASS(SimplifyInference)
-.set_body(SimplifyInference);
+.set_body(SimplifyInference)
+.set_change_graph(true);
 
 }  // namespace compiler
 }  // namespace nnvm

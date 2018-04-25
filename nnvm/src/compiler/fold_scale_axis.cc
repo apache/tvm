@@ -362,7 +362,7 @@ bool Pool2DBackward(
     std::vector<FoldChainInfo>* in_axis) {
   using top::Pool2DParam;
   const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
-  if (out_info.axis == 1 && param.layout == top::kNCHW) {
+  if (out_info.axis == 1 && param.layout == "NCHW") {
     (*in_axis)[0] = out_info;
   }
   return false;
@@ -376,7 +376,7 @@ bool Pool2DForward(
     FoldChainInfo* out_info) {
   using top::Pool2DParam;
   const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
-  if ((*in_info)[0].axis == 1 && param.layout == top::kNCHW) {
+  if ((*in_info)[0].axis == 1 && param.layout == "NCHW") {
     *out_info = (*in_info)[0];
   }
   return false;
@@ -467,7 +467,7 @@ bool Conv2DScaleAxisBackward(
   const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
   if (out_info.kind != kPending) return false;
   // only optimize for nchw for now
-  if (param.layout == top::kNCHW && out_info.axis == 1) {
+  if (param.layout == "NCHW" && out_info.axis == 1) {
     (*in_axis)[1].kind = kMulConsumer;
     (*in_axis)[1].axis = 0;
     (*in_axis)[1].source = out_info.source;
@@ -492,7 +492,7 @@ bool Conv2DScaleAxisForward(
   const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
   if ((*in_info)[0].kind != kPending) return false;
   // only optimize for nchw for now
-  if (param.layout == top::kNCHW && (*in_info)[0].axis == 1) {
+  if (param.layout == "NCHW" && (*in_info)[0].axis == 1) {
     (*in_info)[1].kind = kMulConsumer;
     (*in_info)[1].axis = 1;
     (*in_info)[1].source = (*in_info)[0].source;
