@@ -37,6 +37,24 @@ def schedule_conv2d_nchw(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_grad_weight_nchw(outs): # pylint: disable=invalid-name
+    """Schedule for conv2d_nchw_grad_weight
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nchw_grad_weight
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_nhwc(outs):
     """Schedule for conv2d_nhwc
 
