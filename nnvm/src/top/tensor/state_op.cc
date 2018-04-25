@@ -45,6 +45,15 @@ This is an experimental operator.
     return Array<Tensor>{ topi::identity(inputs[1]) };
 })
 .set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FInferLayout>(
+  "FInferLayout", [](const NodeAttrs& attrs,
+                     std::vector<Layout> *in_layouts,
+                     const std::vector<Layout> *last_in_layouts,
+                     std::vector<Layout> *out_layouts) {
+  NNVM_ASSIGN_LAYOUT(*in_layouts, 1, (*in_layouts)[0]);
+  NNVM_ASSIGN_LAYOUT(*out_layouts, 0, (*in_layouts)[0]);
+  return true;
+})
 .set_attr<FInplaceOption>(
   "FInplaceOption", [](const NodeAttrs& attrs) {
     return std::vector<std::pair<int, int> >{{1, 0}};

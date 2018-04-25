@@ -15,7 +15,8 @@ OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
     "PrecomputePrune": 2,
     "OpFusion": 1,
-    "FoldScaleAxis": 3
+    "FoldScaleAxis": 3,
+    "AlterOpLayout": 3,
 }
 
 # List of optimization pass and level when switch on
@@ -139,7 +140,7 @@ def _update_shape_dtype(shape, dtype, params):
     return shape, dtype
 
 
-def optimize(graph, shape, dtype="float32"):
+def optimize(graph, shape, dtype="float32", layout=None):
     """Perform target and parameter invariant graph optimization.
 
     This is an advanced function that usually do not need to be called.
@@ -157,6 +158,18 @@ def optimize(graph, shape, dtype="float32"):
     """
     # pylint: disable=unused-argument
     cfg = BuildConfig.current
+
+    if cfg.pass_enabled("AlterOpLayout"):
+        layout = layout if layout else {}
+        graph = graph_attr.set_layout_inputs(graph, layout)
+        graph = graph.apply(["CorrectLayout"])
+
+        graph = graph_attr.set_shape_inputs(graph, shape)
+        graph = graph_attr.set_dtype_inputs(graph, dtype)
+        graph = graph.apply(["InferShape", "InferType", "AlterOpLayout"])
+        graph = graph_attr.set_layout_inputs(graph, layout)
+        graph = graph.apply(["CorrectLayout"])
+
     if cfg.pass_enabled("SimplifyInference"):
         graph = graph_attr.set_shape_inputs(graph, shape)
         graph = graph.apply(["InferShape", "SimplifyInference"])
@@ -167,7 +180,8 @@ def optimize(graph, shape, dtype="float32"):
     return graph
 
 
-def build(graph, target=None, shape=None, dtype="float32", params=None, target_host=None):
+def build(graph, target=None, shape=None, dtype="float32",
+          params=None, target_host=None, layout=None):
     """Build graph into runtime library.
 
     The build function will optimize the graph and do the compilation.
@@ -204,8 +218,8 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
         By default, llvm is used if it is enabled,
         otherwise a stackvm intepreter is used.
 
-    initialize : bool, optional
-        Whether to initialize variables in global dict _all_var_init.
+    layout : dict of str to str or str optional
+        The input layout
 
     Returns
     -------
@@ -230,6 +244,15 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
     cfg = BuildConfig.current
     graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
     shape, dtype = _update_shape_dtype(shape, dtype, params)
+
+    # correct layout if necessary
+    layout = layout if layout else {}
+    graph = graph_attr.set_layout_inputs(graph, layout)
+    graph = graph.apply("CorrectLayout")
+    index = graph.index
+    layouts = graph.json_attr("layout")
+    layout = {x : layouts[index.entry_id(x)] for x in index.input_names}
+
     # Initial pass do shape type inference
     ishape, _ = graph_util.infer_shape(graph, **shape)
     shape.update(zip(graph.index.input_names, ishape))
@@ -241,13 +264,14 @@ def build(graph, target=None, shape=None, dtype="float32", params=None, target_h
     if _all_var_init:
         init_var = initialize_variables(shape, dtype)
     # Apply optimization
-    graph = optimize(graph, shape, dtype)
+    graph = optimize(graph, shape, dtype, layout)
     # Precompute prune
     if params and cfg.pass_enabled("PrecomputePrune"):
         graph, params = precompute_prune(graph, params)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
     # Operator Fusion and generation
     graph = graph_attr.set_shape_inputs(graph, shape)
+    graph = graph.apply("InferShape")
     graph = graph_attr.set_dtype_inputs(graph, dtype)
     graph._set_json_attr("target", str(target), "str")
     if target_host is not None:

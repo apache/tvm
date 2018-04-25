@@ -41,6 +41,31 @@ inline bool DotShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+inline bool DotInferLayout(const NodeAttrs& attrs,
+                           std::vector<Layout> *ilayouts,
+                           const std::vector<Layout> *last_ilayouts,
+                           std::vector<Layout> *olayouts) {
+  const MatMulParam& param = nnvm::get<MatMulParam>(attrs.parsed);
+  CHECK_EQ(ilayouts->size(), 2U);
+  CHECK_EQ(olayouts->size(), 1U);
+  const Layout& lhs = last_ilayouts->at(0).defined() ? last_ilayouts->at(0)
+                                                     : ilayouts->at(0);
+  const Layout& rhs = last_ilayouts->at(1).defined() ? last_ilayouts->at(1)
+                                                     : ilayouts->at(1);
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 0, lhs);
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 1, rhs);
+
+  if (lhs.ndim() > 1 && rhs.ndim() > 1) {
+    // concat lhs and rhs layout
+    const Layout& lhs_out = param.transpose_a ? lhs.reverse() : lhs;
+    const Layout& rhs_out = param.transpose_b ? rhs.reverse() : rhs;
+    Layout out = std::move(lhs_out.sublayout(0, lhs_out.ndim()-1) +
+                           rhs_out.sublayout(1, rhs_out.ndim()-1));
+    NNVM_ASSIGN_LAYOUT(*olayouts, 0, out);
+  }
+  return true;
+}
+
 NNVM_REGISTER_OP(matmul)
   .describe(R"doc(Matrix multiplication of two arrays.
 
@@ -67,6 +92,7 @@ NNVM_REGISTER_OP(matmul)
 .add_argument("rhs", "NDArray-or-Symbol", "The second input")
 .set_attr<FInferShape>("FInferShape", DotShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FInferLayout>("FInferLayout", DotInferLayout)
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {

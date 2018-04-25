@@ -11,6 +11,7 @@
 #include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/compiler/util.h>
 #include <nnvm/top/tensor.h>
+#include <nnvm/top/nn.h>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/broadcast.h"
@@ -74,6 +75,7 @@ So with `shape=(2,0)`, we will obtain the same result as in the above example.
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<BroadcastToParam>)
 .set_attr<FInferShape>("FInferShape", BroadcastToInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
     const Array<Tensor>& inputs,
@@ -115,7 +117,7 @@ inline bool BinaryBroadcastShape(const nnvm::NodeAttrs& attrs,
       } else {
         CHECK(l == 1 || r == 1)
           << "operands could not be broadcast together with shapes "
-          << lhs << " " << rhs;
+          << lhs << " " << rhs << ", l=" << l << ", r=" << r;
         out[i] = std::max(l, r);
       }
     } else {
@@ -126,6 +128,77 @@ inline bool BinaryBroadcastShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+inline bool BinaryBroadcastInferLayout(const NodeAttrs& attrs,
+                                       std::vector<Layout> *ilayouts,
+                                       const std::vector<Layout> *last_ilayouts,
+                                       std::vector<Layout> *olayouts) {
+  CHECK_EQ(ilayouts->size(), 2U);
+  CHECK_EQ(olayouts->size(), 1U);
+  Layout lhs = (*ilayouts)[0];
+  Layout rhs = (*ilayouts)[1];
+  Layout out(Layout::Undef());
+
+  if (lhs.defined() && rhs.defined()) {
+    if (lhs == rhs) {
+      NNVM_ASSIGN_LAYOUT(*olayouts, 0, lhs);
+      return true;
+    }
+    // For example, NCHW <-> CHW, N16nCH16cW <-> HCW16c, etc, are broadcast-convertible
+    // because as the definition, CHW can broadcast with NCHW.
+    // For the second case, we can convert HCW16c to CH16cW then it can broadcast with N16nCH16cW.
+    // But CNHW <-> CHW, NCHW16n <-> CHW are not,
+    // because not matter how we adjust the layout of 'CHW',
+    // we can never have an 'N' between 'C' and "HW".
+    size_t l_start = 0, r_start = 0;
+    size_t l = 0, r = 0;
+    bool find_first_match = false;
+    while (l < lhs.ndim() && r < rhs.ndim()) {
+      if (!rhs.contains(Layout::to_superdim(lhs[l]))) {
+        CHECK(!find_first_match) << lhs << " and " << rhs << " are not broadcast-convertible";
+        l_start = ++l;
+      } else if (!lhs.contains(Layout::to_superdim(rhs[r]))) {
+        CHECK(!find_first_match) << lhs << " and " << rhs << " are not broadcast-convertible";
+        r_start = ++r;
+      } else {
+        find_first_match = true;
+        ++l; ++r;
+      }
+    }
+    if (l_start > 0 && r_start > 0) {
+      LOG(FATAL) << lhs << " and " << rhs << " are not broadcast-convertible";
+    } else if (l_start > 0) {
+      rhs = lhs.sublayout(l_start, lhs.ndim()-l_start);
+      out = lhs;
+    } else if (r_start > 0) {
+      lhs = rhs.sublayout(r_start, rhs.ndim()-r_start);
+      out = rhs;
+    } else {
+      // prior to keep left layout
+      rhs = lhs;
+      out = lhs;
+    }
+  } else if (lhs.defined()) {
+    const Layout& last_lhs = last_ilayouts->at(0);
+    if (last_lhs.defined()) {
+      CHECK(lhs.convertible(last_lhs)) << "current lhs layout " << lhs
+                                       << " cannot be converted to the original one " << last_lhs;
+      lhs = last_lhs;
+      // cannot decide output layout
+    }
+  } else if (rhs.defined()) {
+    const Layout& last_rhs = last_ilayouts->at(1);
+    if (last_rhs.defined()) {
+      CHECK(rhs.convertible(last_rhs)) << "current rhs layout " << rhs
+                                       << " cannot be converted to the original one " << last_rhs;
+      rhs = last_rhs;
+      // cannot decide output layout
+    }
+  }
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 0, lhs);
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 1, rhs);
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, out);
+  return true;
+}
 
 #define NNVM_REGISTER_BINARY_BROADCAST_OP(name)                     \
   NNVM_REGISTER_OP(name)                                            \
@@ -133,6 +206,8 @@ inline bool BinaryBroadcastShape(const nnvm::NodeAttrs& attrs,
   .set_num_outputs(1)                                               \
   .set_attr<FInferShape>("FInferShape", BinaryBroadcastShape)       \
   .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)           \
+  .set_attr<FInferLayout>("FInferLayout",                           \
+    BinaryBroadcastInferLayout)                                     \
   .set_attr<FInplaceOption>("FInplaceOption",                       \
     [](const NodeAttrs& attrs) {                                    \
       return std::vector<std::pair<int, int> >{{0, 0}, {1, 0}};     \

@@ -203,6 +203,13 @@ inline std::string attr_assign_error_msg(const NodeAttrs& attrs,
     }                                                                    \
   }
 
+#define NNVM_ASSIGN_LAYOUT(outputs, index, layout)                       \
+  {                                                                      \
+    if (layout.defined()) {                                              \
+      (outputs)[index] = layout;                                         \
+    }                                                                    \
+  }
+
 /*!
  * \brief macro assign rhs shape to lhs
  *  Use macro so we can see the error file more clearly
@@ -251,6 +258,14 @@ inline bool ZeroShape(const NodeAttrs& attrs,
   } else {
     return false;
   }
+}
+
+// do not infer layout
+inline bool ZeroLayout(const NodeAttrs& attrs,
+                       std::vector<Layout> *in_layouts,
+                       const std::vector<Layout> *last_in_layouts,
+                       std::vector<Layout> *out_layouts) {
+  return true;
 }
 
 // simply assign output shape or type from input
