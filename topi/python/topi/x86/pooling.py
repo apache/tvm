@@ -9,8 +9,7 @@ def _parallel_sch(sch):
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1], sch.op.axis[2])
         sch.parallel(fused)
     elif len(sch.op.axis) >= 3:
-        n, c, _, _ = sch.op.axis
-        fused = sch.fuse(n, c) # for nhwc layout, fuse n and h
+        fused = sch.fuse(sch.op.axis[0], sch.op.axis[1])
         sch.parallel(fused)
     else:
         sch.parallel(sch.op.axis[0])
