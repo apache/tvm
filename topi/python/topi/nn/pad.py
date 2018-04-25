@@ -6,7 +6,7 @@ from .. import tag
 
 @tvm.tag_scope(tag=tag.INJECTIVE+",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
-    """Dilate Input with zeros.
+    """Pad Input with zeros.
 
     Parameters
     ----------
