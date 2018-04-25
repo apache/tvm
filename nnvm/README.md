@@ -55,7 +55,7 @@ rmodule.run()
 
 License
 -------
-Licensed under an [Apache-2.0](https://github.com/dmlc/tvm/blob/master/LICENSE) license.
+Licensed under an [Apache-2.0](https://github.com/dmlc/nnvm/blob/master/LICENSE) license.
 
 
 Links
