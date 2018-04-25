@@ -11,7 +11,7 @@ A quick solution is to install via pip
 ```bash
 pip install -U coremltools --user
 ```
-or please refer to offical site
+or please refer to official site
 https://github.com/apple/coremltools
 """
 import nnvm
@@ -37,7 +37,7 @@ def download(url, path, overwrite=False):
 # Load pretrained CoreML model
 # ----------------------------
 # We will download and load a pretrained mobilenet classification network
-# privided by apple in this example
+# provided by apple in this example
 model_url = 'https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel'
 model_file = 'mobilenet.mlmodel'
 download(model_url, model_file)
