@@ -75,3 +75,24 @@ def schedule_conv2d_nchw(outs):
     if target and "miopen" in target.libs:
         return topi.generic.schedule_extern(outs)
     return topi.cuda.schedule_conv2d_nchw(outs)
+
+@generic.schedule_grouped_conv2d.register(["rocm"])
+def schedule_grouped_conv2d(outs):
+    """Schedule for grouped_conv2d with rocm backend.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of grouped_conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for grouped_conv2d.
+    """
+
+    target = tvm.target.current_target()
+    if target and "miopen" in target.libs:
+        return topi.generic.schedule_extern(outs)
+    return topi.cuda.schedule_grouped_conv2d(outs)
