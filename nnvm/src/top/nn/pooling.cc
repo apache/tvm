@@ -66,10 +66,10 @@ inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool Pool2DInferLayout(const NodeAttrs& attrs,
-                              std::vector<Layout> *ilayouts,
-                              const std::vector<Layout> *last_ilayouts,
-                              std::vector<Layout> *olayouts) {
+inline bool Pool2DCorrectLayout(const NodeAttrs& attrs,
+                                std::vector<Layout> *ilayouts,
+                                const std::vector<Layout> *last_ilayouts,
+                                std::vector<Layout> *olayouts) {
   const Pool2DParam &param = nnvm::get<Pool2DParam>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), 1);
   CHECK_EQ(last_ilayouts->size(), 1);
@@ -121,7 +121,7 @@ NNVM_REGISTER_OP(max_pool2d)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", Pool2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", Pool2DInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Pool2DCorrectLayout)
 .set_attr<FTVMCompute>("FTVMCompute", [](const NodeAttrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Array<Tensor>& out_info) {
@@ -192,7 +192,7 @@ NNVM_REGISTER_OP(avg_pool2d)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Pool2DParam>)
 .set_attr<FInferShape>("FInferShape", Pool2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", Pool2DInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Pool2DCorrectLayout)
 .set_attr<FTVMCompute>("FTVMCompute", [](const NodeAttrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Array<Tensor>& out_info) {
@@ -252,10 +252,10 @@ inline bool GlobalPool2DInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool GlobalPool2DInferLayout(const NodeAttrs& attrs,
-                                    std::vector<Layout> *ilayouts,
-                                    const std::vector<Layout> *last_ilayouts,
-                                    std::vector<Layout> *olayouts) {
+inline bool GlobalPool2DCorrectLayout(const NodeAttrs& attrs,
+                                      std::vector<Layout> *ilayouts,
+                                      const std::vector<Layout> *last_ilayouts,
+                                      std::vector<Layout> *olayouts) {
   const GlobalPool2DParam &param = nnvm::get<GlobalPool2DParam>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), 1);
   CHECK_EQ(last_ilayouts->size(), 1);
@@ -298,7 +298,7 @@ NNVM_REGISTER_OP(global_max_pool2d)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<GlobalPool2DParam>)
 .set_attr<FInferShape>("FInferShape", GlobalPool2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", GlobalPool2DInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", GlobalPool2DCorrectLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
@@ -339,7 +339,7 @@ NNVM_REGISTER_OP(global_avg_pool2d)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<GlobalPool2DParam>)
 .set_attr<FInferShape>("FInferShape", GlobalPool2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", GlobalPool2DInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", GlobalPool2DCorrectLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,

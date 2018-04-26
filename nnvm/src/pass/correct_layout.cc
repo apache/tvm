@@ -33,7 +33,7 @@ using LayoutAttrDict = std::unordered_map<const Node*, std::vector<Layout> >;
  */
 nnvm::Graph CorrectLayout(nnvm::Graph src) {
   static auto& op_infer_layout =
-    nnvm::Op::GetAttr<FInferLayout>("FInferLayout");
+    nnvm::Op::GetAttr<FCorrectLayout>("FCorrectLayout");
 
   const IndexedGraph& idx = src.indexed_graph();
   std::vector<nnvm::NodePtr> mirror_vec(idx.num_nodes(), nullptr);
@@ -92,7 +92,7 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
     }
 
     const auto& flayout = op_infer_layout[new_node->op()];
-    CHECK(flayout != nullptr) << "Attribute FInferLayout"
+    CHECK(flayout != nullptr) << "Attribute FCorrectLayout"
                               << " is not registered by op " << inode.source->op()->name
                               << " we are not able to complete layout transform.";
     CHECK(flayout(new_node->attrs, &request_ilayouts, &last_request_ilayouts, &produce_olayouts))

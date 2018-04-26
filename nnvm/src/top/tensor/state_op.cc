@@ -45,8 +45,8 @@ This is an experimental operator.
     return Array<Tensor>{ topi::identity(inputs[1]) };
 })
 .set_attr<FInferShape>("FInferShape", SameShape)
-.set_attr<FInferLayout>(
-  "FInferLayout", [](const NodeAttrs& attrs,
+.set_attr<FCorrectLayout>(
+  "FCorrectLayout", [](const NodeAttrs& attrs,
                      std::vector<Layout> *in_layouts,
                      const std::vector<Layout> *last_in_layouts,
                      std::vector<Layout> *out_layouts) {

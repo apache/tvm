@@ -66,7 +66,7 @@ using DTypeVector = std::vector<int>;
  *  int entry_layout = layouts[g.indexed_graph().entry_id(my_entry)];
  * \endcode
  *
- * \sa FInferLayout
+ * \sa FCorrectLayout
  */
 using LayoutVector = std::vector<Layout>;
 
