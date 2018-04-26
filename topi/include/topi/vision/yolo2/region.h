@@ -55,22 +55,22 @@ inline Tensor region(const Tensor &data,
   auto data_block = reshape(data, intermediate_shape);
   Array <Expr> split_indices;
   for (int i = 1; i < split_size; ++i) {
-      split_indices.push_back(i);
+    split_indices.push_back(i);
   }
   Array <Tensor> split_res = split(data_block, split_indices, 2);
   split_res.Set(0, sigmoid(split_res[0]));
   split_res.Set(1, sigmoid(split_res[1]));
   if (!background) {
-      split_res.Set(coords, sigmoid(split_res[coords]));
+    split_res.Set(coords, sigmoid(split_res[coords]));
   }
 
   if (l_softmax) {
-      int offset = coords + static_cast<int>(!background);
-      Array <Tensor> softmax_input(split_res.begin() + offset, split_res.end());
-      auto softmax_output = softmax(concatenate(softmax_input, 2), 2);
-      Array <Tensor> data_block_1(split_res.begin(), split_res.begin() + offset);
-      data_block_1.push_back(softmax_output);
-      split_res = data_block_1;
+    int offset = coords + static_cast<int>(!background);
+    Array <Tensor> softmax_input(split_res.begin() + offset, split_res.end());
+    auto softmax_output = softmax(concatenate(softmax_input, 2), 2);
+    Array <Tensor> data_block_1(split_res.begin(), split_res.begin() + offset);
+    data_block_1.push_back(softmax_output);
+    split_res = data_block_1;
   }
   Tensor out = concatenate(split_res, 2);
   return reshape(out, input_shape);
