@@ -271,7 +271,7 @@ inline bool ElemwiseBinaryKeepLeftLayout(const NodeAttrs& attrs,
   .set_num_outputs(1)                                               \
   .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)        \
   .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)           \
-  .set_attr<FInferLayout>("FInferLayout",                           \
+  .set_attr<FCorrectLayout>("FCorrectLayout",                       \
     ElemwiseArbitraryLayout<1, 1>)                                  \
   .set_attr<FInplaceOption>("FInplaceOption",                       \
     [](const NodeAttrs& attrs){                                     \
@@ -298,7 +298,7 @@ inline bool ElemwiseBinaryKeepLeftLayout(const NodeAttrs& attrs,
   .set_num_outputs(1)                                               \
   .set_attr<FInferShape>("FInferShape", ElemwiseShape<2, 1>)        \
   .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)           \
-  .set_attr<FInferLayout>("FInferLayout",                           \
+  .set_attr<FCorrectLayout>("FCorrectLayout",                       \
     ElemwiseBinaryKeepLeftLayout)                                   \
   .set_attr<FInplaceOption>("FInplaceOption",                       \
     [](const NodeAttrs& attrs) {                                    \
@@ -319,7 +319,7 @@ inline bool ElemwiseBinaryKeepLeftLayout(const NodeAttrs& attrs,
     ParamGetAttrDict<ElementWiseReduceParam>)                       \
   .set_attr<nnvm::FInferShape>("FInferShape",                       \
     ElementWiseReduceShape)                                         \
-  .set_attr<FInferLayout>("FInferLayout",                           \
+  .set_attr<FCorrectLayout>("FCorrectLayout",                       \
     ElemwiseFixedLayoutCopyToOut<1, 1>)                             \
   .set_attr<nnvm::FInferType>("FInferType", ElementWiseReduceType)  \
   .add_argument("args", "Symbol[]", "Positional input arguments")
@@ -337,7 +337,7 @@ inline bool ElemwiseBinaryKeepLeftLayout(const NodeAttrs& attrs,
         static_cast<int>(kFloat32));                                \
       return true;                                                  \
   })                                                                \
-  .set_attr<FInferLayout>("FInferLayout",                           \
+  .set_attr<FCorrectLayout>("FCorrectLayout",                       \
     ElemwiseFixedLayoutUnknownOut<1, 1>)                            \
   .set_attr<FGradient>(                                             \
     "FGradient", [](const NodePtr& n,                               \

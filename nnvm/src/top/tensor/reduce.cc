@@ -111,7 +111,7 @@ inline void AxesParamParser(nnvm::NodeAttrs* attrs) {
   .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ReduceParam>) \
   .set_attr<FInferShape>("FInferShape", ReduceShape)                    \
   .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)               \
-  .set_attr<FInferLayout>("FInferLayout",                               \
+  .set_attr<FCorrectLayout>("FCorrectLayout",                           \
     ElemwiseFixedLayoutUnknownOut<1, 1>)                                \
   .set_num_inputs(1)                                                    \
   .set_num_outputs(1)
