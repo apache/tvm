@@ -60,7 +60,7 @@ NNVM_REGISTER_OP(upsampling)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<UpSamplingParam>)
 .set_attr<FInferShape>("FInferShape", UpSamplingInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", UpsamplingLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", UpsamplingLayout)
 .set_num_outputs(1)
 .set_num_inputs(1)
 .set_support_level(2);

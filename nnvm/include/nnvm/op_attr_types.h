@@ -178,7 +178,7 @@ using FSetInputVarAttrOnCompose = std::function<void(
     const int index)>;
 
 /*!
- * \brief Inference function of node layout. See \p Layout for layout convention
+ * \brief Infer & correct function of node layout. See \p Layout for layout convention
  * \param attrs The attribute of the node.
  * \param ilayouts Given the input layouts produced by ancestor nodes,
  *                 it should be filled by layouts that the node requests.
@@ -196,7 +196,7 @@ using FSetInputVarAttrOnCompose = std::function<void(
  * \param olayouts Inferred output layouts.
  * \return success flag.
  */
-using FInferLayout = std::function<bool(
+using FCorrectLayout = std::function<bool(
     const NodeAttrs& attrs,
     std::vector<Layout> *ilayouts,
     const std::vector<Layout> *last_ilayouts,

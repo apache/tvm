@@ -129,10 +129,10 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool Conv2DInferLayout(const NodeAttrs& attrs,
-                              std::vector<Layout> *ilayouts,
-                              const std::vector<Layout> *last_ilayouts,
-                              std::vector<Layout> *olayouts) {
+inline bool Conv2DCorrectLayout(const NodeAttrs& attrs,
+                                std::vector<Layout> *ilayouts,
+                                const std::vector<Layout> *last_ilayouts,
+                                std::vector<Layout> *olayouts) {
   const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
 
   const Layout in_layout(param.layout);
@@ -189,7 +189,7 @@ a bias vector is created and added to the outputs.
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.set_attr<FInferLayout>("FInferLayout", Conv2DInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(2)
@@ -214,7 +214,7 @@ NNVM_REGISTER_OP(_contrib_conv2d_NCHWc)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.set_attr<FInferLayout>("FInferLayout", Conv2DInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(2);
@@ -306,10 +306,10 @@ inline bool Conv2DTransposeInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool Conv2DTransposeInferLayout(const NodeAttrs& attrs,
-                                       std::vector<Layout> *ilayouts,
-                                       const std::vector<Layout> *last_ilayouts,
-                                       std::vector<Layout> *olayouts) {
+inline bool Conv2DTransposeCorrectLayout(const NodeAttrs& attrs,
+                                         std::vector<Layout> *ilayouts,
+                                         const std::vector<Layout> *last_ilayouts,
+                                         std::vector<Layout> *olayouts) {
   const Conv2DTransposeParam& param = nnvm::get<Conv2DTransposeParam>(attrs.parsed);
 
   const Layout in_layout(param.layout);
@@ -363,7 +363,7 @@ said convolution.
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DTransposeParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DTransposeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.set_attr<FInferLayout>("FInferLayout", Conv2DTransposeInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Conv2DTransposeCorrectLayout)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DTransposeParam>)
 .set_support_level(2);

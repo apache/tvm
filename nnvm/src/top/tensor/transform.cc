@@ -64,7 +64,7 @@ Example::
 .set_num_outputs(1)
 .set_attr<FInferShape>("FInferShape", FlattenInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .add_argument("data", "Tensor", "Input data.")
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -121,10 +121,10 @@ inline bool ConcatenateInferShape(const NodeAttrs& attrs,
   return dshape.Size() != 0;
 }
 
-inline bool ConcatenateInferLayout(const NodeAttrs& attrs,
-                                   std::vector<Layout> *ilayouts,
-                                   const std::vector<Layout> *last_ilayouts,
-                                   std::vector<Layout> *olayouts) {
+inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
+                                     std::vector<Layout> *ilayouts,
+                                     const std::vector<Layout> *last_ilayouts,
+                                     std::vector<Layout> *olayouts) {
   CHECK_EQ(ilayouts->size(), last_ilayouts->size());
   CHECK_EQ(olayouts->size(), 1U);
 
@@ -174,7 +174,7 @@ Example::
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ConcatenateParam>)
 .set_attr<FInferShape>("FInferShape", ConcatenateInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
-.set_attr<FInferLayout>("FInferLayout", ConcatenateInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", ConcatenateCorrectLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
@@ -227,7 +227,7 @@ will return a new array with shape ``(2,1,1,1,1,1,3,4)``.
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ExpandDimsParam>)
 .set_attr<FInferShape>("FInferShape", ExpandDimsInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_attr<FTVMCompute>(
@@ -271,7 +271,7 @@ Examples::
 .set_attr<nnvm::FInferShape>("FInferShape", AssignOutputAttr<TShape, 1, 0>)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<2, 1>)
 // never transform layout of the second input array.
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_num_inputs(2)
 .set_num_outputs(1)
 .set_attr<FGradient>(
@@ -368,7 +368,7 @@ along which to split the array.
 .set_attr_parser(SplitParamParser)
 .set_attr<FInferShape>("FInferShape", SplitInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, -1>)
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, -1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, -1>)
 .set_num_inputs(1)
 .set_num_outputs(SplitNumOutputs)
 .set_attr<FTVMCompute>(
@@ -411,7 +411,7 @@ NNVM_REGISTER_OP(cast)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<CastParam>)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", CastInferType)
-.set_attr<FInferLayout>("FInferLayout", ElemwiseArbitraryLayout<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_support_level(1);
@@ -564,7 +564,7 @@ The significance of each is explained below:
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ReshapeParam>)
 .set_attr<FInferShape>("FInferShape", ReshapeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_attr<FTVMCompute>(
@@ -605,7 +605,7 @@ the input array into an output array with the same shape as the second input arr
 })
 .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
 // never transform layout of the second input array.
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -688,7 +688,7 @@ Examples::
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<SqueezeParam>)
 .set_attr<nnvm::FInferShape>("FInferShape", SqueezeShape)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_attr<FTVMCompute>(
@@ -737,10 +737,10 @@ inline bool TransposeShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool TransposeInferLayout(const NodeAttrs& attrs,
-                                 std::vector<Layout> *ilayouts,
-                                 const std::vector<Layout> *last_ilayouts,
-                                 std::vector<Layout> *olayouts) {
+inline bool TransposeCorrectLayout(const NodeAttrs& attrs,
+                                   std::vector<Layout> *ilayouts,
+                                   const std::vector<Layout> *last_ilayouts,
+                                   std::vector<Layout> *olayouts) {
   const TransposeParam& param = nnvm::get<TransposeParam>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), 1U);
   CHECK_EQ(olayouts->size(), 1U);
@@ -805,7 +805,7 @@ Examples::
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<TransposeParam>)
 .set_attr<nnvm::FInferShape>("FInferShape", TransposeShape)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FInferLayout>("FInferLayout", TransposeInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", TransposeCorrectLayout)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_support_level(4)
