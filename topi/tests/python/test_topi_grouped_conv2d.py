@@ -118,7 +118,8 @@ def grouped_conv2d_nhwc_python(a_np, w_np, groups, stride, padding):
 
     return np.concatenate(conv_out, 3)
 
-def verify_grouped_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, groups, stride, padding):
+def verify_grouped_conv2d_nchw(batch, in_channel, in_size,
+        num_filter, kernel, groups, stride, padding):
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
@@ -150,8 +151,14 @@ def verify_grouped_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, g
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         with tvm.build_config(auto_unroll_max_step=1400,
                               unroll_explicit=(device != "cuda")):
-            func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
-            func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
+            func1 = tvm.build(s1, [A, W, B], device,
+                              name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch,
+                              in_channel, in_size, num_filter, kernel,
+                              stride, padding))
+            func2 = tvm.build(s2, [A, W, C], device,
+                              name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch,
+                              in_channel, in_size, num_filter, kernel,
+                              stride, padding))
             func1(a, w, b)
             func2(a, w, c)
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
@@ -161,7 +168,8 @@ def verify_grouped_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, g
         check_device(device)
 
 
-def verify_grouped_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, groups, stride, padding):
+def verify_grouped_conv2d_hwcn(batch, in_channel, in_size,
+        num_filter, kernel, groups, stride, padding):
     in_height = in_width = in_size
 
     A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
@@ -193,8 +201,14 @@ def verify_grouped_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, g
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         with tvm.build_config(auto_unroll_max_step=1400,
                               unroll_explicit=(device != "cuda")):
-            func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
-            func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
+            func1 = tvm.build(s1, [A, W, B], device,
+                              name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch,
+                              in_channel, in_size, num_filter, kernel,
+                              stride, padding))
+            func2 = tvm.build(s2, [A, W, C], device,
+                              name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch,
+                              in_channel, in_size, num_filter, kernel,
+                              stride, padding))
             func1(a, w, b)
             func2(a, w, c)
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
@@ -203,7 +217,8 @@ def verify_grouped_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, g
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
-def verify_grouped_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, groups, stride, padding):
+def verify_grouped_conv2d_nhwc(batch, in_channel, in_size,
+        num_filter, kernel, groups, stride, padding):
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
@@ -239,7 +254,7 @@ def verify_grouped_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, g
 def test_grouped_conv2d():
     verify_grouped_conv2d_nchw(1, 64, 56, 64, 3, 2, 1, 1)
     verify_grouped_conv2d_hwcn(1, 64, 56, 64, 3, 2, 1, 1)
-    verify_grouped_conv2d_nhwc(1, 64, 56, 64, 3, 2, 1, 1)
+    verify_grouped_conv2d_nhwc(1, 256, 32, 256, 4, 2, 1, 1)
 
 if __name__ == "__main__":
     test_grouped_conv2d()

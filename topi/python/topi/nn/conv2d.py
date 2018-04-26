@@ -462,14 +462,17 @@ def grouped_conv2d_nchw(Input, Filter, groups, strides, padding):
     batch, in_channel, in_height, in_width = Input.shape
     num_filter, channel, kernel_h, kernel_w = Filter.shape
 
-    assert get_const_int(in_channel) % groups == 0, "Input channel % groups must be zero"
-    assert get_const_int(num_filter) % groups == 0, "Filter's output channel % groups must be zero"
+    assert get_const_int(in_channel) % groups == 0, \
+            "Input channel % groups must be zero"
+    assert get_const_int(num_filter) % groups == 0, \
+            "Filter's output channel % groups must be zero"
     input_data = topi.split(Input, groups, axis=1)
     kernel_data = topi.split(Filter, groups, axis=0)
 
     conv_out = []
     for input_, kernel_ in zip(input_data, kernel_data):
-        conv_out.append(topi.nn.conv2d(input_, kernel_, strides, padding, layout='NCHW'))
+        conv_out.append(topi.nn.conv2d_nchw(input_, kernel_, strides,
+                                            padding, out_dtype=Input.dtype))
 
     return topi.concatenate(conv_out, axis=1)
 
@@ -501,14 +504,17 @@ def grouped_conv2d_hwcn(Input, Filter, groups, strides, padding):
     """
     in_height, in_width, in_channel, batch = Input.shape
     kernel_h, kernel_w, channel, num_filter = Filter.shape
-    assert get_const_int(in_channel) % groups == 0, "Input channel % groups must be zero"
-    assert get_const_int(num_filter) % groups == 0, "Filter's output channel % groups must be zero"
+    assert get_const_int(in_channel) % groups == 0, \
+            "Input channel % groups must be zero"
+    assert get_const_int(num_filter) % groups == 0, \
+            "Filter's output channel % groups must be zero"
     input_data = topi.split(Input, groups, axis=2)
     kernel_data = topi.split(Filter, groups, axis=3)
 
     conv_out = []
     for input_, kernel_ in zip(input_data, kernel_data):
-        conv_out.append(topi.nn.conv2d(input_, kernel_, strides, padding, layout='HWCN'))
+        conv_out.append(topi.nn.conv2d_hwcn(input_, kernel_, strides,
+                                            padding, out_dtype=Input.dtype))
 
     return topi.concatenate(conv_out, axis=2)
 
@@ -540,16 +546,20 @@ def grouped_conv2d_nhwc(Input, Filter, groups, strides, padding):
     """
     batch, in_height, in_width, in_channel = Input.shape
     kernel_h, kernel_w, channel, num_filter = Filter.shape
-    assert get_const_int(in_channel) % groups == 0, "Input channel % groups must be zero"
-    assert get_const_int(num_filter) % groups == 0, "Filter's output channel % groups must be zero"
+    assert get_const_int(in_channel) % groups == 0, \
+            "Input channel % groups must be zero"
+    assert get_const_int(num_filter) % groups == 0, \
+            "Filter's output channel % groups must be zero"
     input_data = topi.split(Input, groups, axis=3)
     kernel_data = topi.split(Filter, groups, axis=3)
 
     conv_out = []
     for input_, kernel_ in zip(input_data, kernel_data):
-        conv_out.append(topi.nn.conv2d(input_, kernel_, strides, padding, layout='NHWC'))
+        conv_out.append(topi.nn.conv2d_nhwc(input_, kernel_, strides,
+                                            padding, out_dtype=Input.dtype))
 
     return topi.concatenate(conv_out, axis=3)
+    #return topi.nn.conv2d_nhwc(Input, Filter, strides, padding)
 
 def grouped_conv2d(Input, Filter, groups, strides, padding, layout='NCHW'):
     """Grouped convolution
