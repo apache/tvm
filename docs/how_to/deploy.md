@@ -34,3 +34,8 @@ on how to generate the library and [cpp_deploy.cc](https://github.com/dmlc/tvm/t
 - Bundle the compiled library into your project in system module mode.
 
 Dynamic loading is more flexible and can load new modules on the fly. System module is a more ```static``` approach.  We can use system module in places where dynamic library loading is banned.
+
+
+How to Deploy on Android
+------------------------
+- [How to deploy on android](deploy_android.md)
