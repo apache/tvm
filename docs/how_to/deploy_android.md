@@ -1,6 +1,5 @@
 # How to deploy and use compiled model on Android
 
-
 This tutorial explain below aspects (Unlike the android_rpc approach we already have)
 
   * Build a model for android target
@@ -36,5 +35,3 @@ Refer [here](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/README.
 ### Android Native API Reference
 
 From android java TVM API to load model & execute can be refered at this [java](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java) sample source.
-
-
