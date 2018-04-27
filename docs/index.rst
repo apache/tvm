@@ -15,6 +15,7 @@ Contents
    tutorials/index
    faq
    how_to/deploy
+   how_to/integrate
    how_to/contribute
    api/python/index
    dev/index
