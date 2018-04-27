@@ -85,11 +85,18 @@ def compute_conv2d(attrs, inputs, _):
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
     assert layout == "NCHW" or layout == "NHWC"
-    assert dilation == (1, 1), "not support dilate now"
+    (dilation_h, dilation_w) = dilation
+    if dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+    elif layout == "NCHW":
+        kernel = topi.nn.dilate(inputs[1], [1, 1, dilation_h, dilation_w])
+    else: #layout == NHWC
+        kernel = topi.nn.dilate(inputs[1], [1, dilation_h, dilation_w, 1])
+
     if groups == 1:
-        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding, layout)
+        out = topi.nn.conv2d(inputs[0], kernel, strides, padding, layout)
     elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
-        out = topi.nn.depthwise_conv2d_nchw(inputs[0], inputs[1], strides, padding)
+        out = topi.nn.depthwise_conv2d_nchw(inputs[0], kernel, strides, padding)
     else:
         raise ValueError("not support arbitrary group number for now")
     if attrs.get_bool("use_bias"):
