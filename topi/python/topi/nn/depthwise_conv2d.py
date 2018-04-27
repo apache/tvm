@@ -10,7 +10,7 @@ from ..util import simplify
 
 
 @tvm.target.generic_func
-def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype='float32'):
+def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     """Depthwise convolution nchw forward operator.
 
     Parameters
