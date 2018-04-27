@@ -27,6 +27,7 @@ def elemwise_sum(xs, num_args):
 
     return tvm.compute(xs[0].shape, _compute)
 
+
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def full(shape, dtype, fill_value):
     """Fill tensor with fill_value
@@ -47,6 +48,7 @@ def full(shape, dtype, fill_value):
     """
     return tvm.compute(shape, lambda *i: tvm.const(fill_value, dtype))
 
+
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def full_like(x, fill_value):
     """Construct a tensor with same shape as input tensor,
@@ -66,6 +68,7 @@ def full_like(x, fill_value):
     """
     dtype = x.dtype
     return tvm.compute(x.shape, lambda *i: tvm.const(fill_value, dtype))
+
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def greater(lhs, rhs, out_type=tvm.int8):
