@@ -13,7 +13,7 @@ def test_outer_product():
     a = tvm.placeholder((n, ), name = 'a')
     b = tvm.placeholder((m, ), name = 'b')
     c = tvm.placeholder((n, m), name = 'c')
-    ir = frontend.parse(outer_product, inputs = [n, m, a, b, c])
+    ir = frontend.parse(outer_product, [n, m, a, b, c])
     #print(ir)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
@@ -53,7 +53,7 @@ def test_fanout():
     n = tvm.var('n')
     a = tvm.placeholder((n, ), name = 'a')
     b = tvm.placeholder((n-3, ), name = 'b')
-    ir = frontend.parse(fanout, inputs = [n, a, b])
+    ir = frontend.parse(fanout, [n, a, b])
     #print(ir)
     assert isinstance(ir, tvm.stmt.Realize)
     assert ir.bounds[0].min.value == 0
@@ -115,7 +115,7 @@ def failure():
 
 def test_failure():
     try:
-        frontend.parse(failure)
+        frontend.parse(failure, [])
     except AssertionError:
         _, _, tb = sys.exc_info()
         _, _, func, text = traceback.extract_tb(tb)[-1]

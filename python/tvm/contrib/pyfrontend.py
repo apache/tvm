@@ -72,12 +72,12 @@ class PyAST2HalideIR(ast.NodeVisitor):
         ast.BitXor: operator.xor
     }
 
-    def __init__(self, inputs, usage):
+    def __init__(self, args, usage):
         self.input_param = {}
         self.rw_status   = usage
         self.vars_buffer = {}
         self.vars_const  = {}
-        self.inputs      = inputs
+        self.args        = args
         self.loop_levels = {}
 
     def visit_Module(self, node):
@@ -85,19 +85,15 @@ class PyAST2HalideIR(ast.NodeVisitor):
         return self.visit(node.body[0])
 
     def visit_FunctionDef(self, node):
-        assert len(node.args.args) == len(self.inputs)
+        assert len(node.args.args) == len(self.args)
         for idx, arg in enumerate(node.args.args):
-            self.input_param[arg.arg] = self.inputs[idx]
+            self.input_param[arg.arg] = self.args[idx]
         res = [self.visit(i) for i in node.body]
         res = _list_to_block(res)
         one = _make.range_by_min_extent(0, 1)
         for k, v in self.vars_buffer.items():
             res = _make.Realize(v.op, 0, v.dtype, [one], _api.convert(True), res)
         return res
-        #TODO: Support this so that this module can be glued into mainstream!
-        #binds, args = builder.get_binds(self.inputs)
-        #return _ir_pass.MakeAPI(res, node.name, args, 0,
-                        #builder.current_build_config().restricted_func)
 
     def visit_Expr(self, node):
         return self.visit(node.value)
@@ -143,9 +139,9 @@ class PyAST2HalideIR(ast.NodeVisitor):
                     self.vars_const[lhs] = rhs
                     return _noop
                 else:
-                    self.vars_buffer[lhs] = _api.placeholder((1, ), dtype = rhs.dtype, name = lhs)
                     #print('read only non-const %s' % lhs)
-                    return _make.Provide(self.vars_lut[lhs].op, 0, rhs, [_api.const(0)])
+                    self.vars_buffer[lhs] = _api.placeholder((1, ), dtype = rhs.dtype, name = lhs)
+                    return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
         else:
             lhs = self.visit(node.targets[0])
             assert isinstance(lhs, _expr.Call)
@@ -153,7 +149,6 @@ class PyAST2HalideIR(ast.NodeVisitor):
             #TODO: support defined intermediate buffer later
             assert lhs.name in self.input_param.keys()
             return _make.Provide(self.input_param[lhs.name].op, 0, rhs, lhs.args)
-
 
     def visit_Index(self, node):
         #print(ast.dump(node))
@@ -171,7 +166,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
             array = node.value.id
             assert array in self.input_param.keys()
             _buf = self.input_param[array]
-            return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf, 0)
+            return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, 0)
         elif isinstance(node.value, ast.Attribute):
             assert isinstance(node.value.value, ast.Name)
             assert node.value.attr == "shape"
@@ -207,15 +202,22 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.loop_levels.pop(var)
         return res
 
-
-def parse(func, **kwargs):
+def parse(func, args, **kwargs):
     """Parse a subset of Python to HalideIR
 
     Parameters
     ----------
-    name : str or types.FunctionType
-        If it is a string, open the corresponding file and parse it.
+    func : str or types.FunctionType
+        If it is a string, parse the source code.
         If it is a function, parse the function.
+
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+        Leave it None if no buffer is related to the function to be parsed
+
+    dump : bool, optional
+        If it is true, Python ast will be dumped.
+        A debug parameter.
 
     Returns
     -------
@@ -224,21 +226,57 @@ def parse(func, **kwargs):
     """
     if isinstance(func, str):
         ir = ast.parse(func)
-    elif isinstance(func, types.FunctionType):
-        ir = ast.parse(inspect.getsource(func))
     else:
-        assert False
-    # TODO: To be finished...
+        assert isinstance(func, types.FunctionType)
+        ir = ast.parse(inspect.getsource(func))
     if kwargs.get('dump') is not None and kwargs.get('dump'):
         print(ast.dump(ir))
-    if kwargs.get('inputs') is not None:
-        assert isinstance(kwargs['inputs'], list)
-        inputs = kwargs['inputs']
-    else:
-        inputs = []
     var_usage = _find_all_variable_decl(ir)
     #print(var_usage)
-    return PyAST2HalideIR(inputs, var_usage).visit(ir)
+    return PyAST2HalideIR(args, var_usage).visit(ir)
+
+def lower(func, args, binds = None, **kwargs):
+    """Parse a subset of Python to HalideIR
+
+    Parameters
+    ----------
+    func : str or types.FunctionType
+        If it is a string, parse the source code.
+        If it is a function, parse the function.
+
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+        Leave it None if no buffer is related to the function to be parsed
+
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        Dictionary that maps the Tensor to Buffer which specified the data layout
+        requirement of the function. By default, a new compact buffer is created
+        for each tensor in the argument.
+
+    Returns
+    -------
+    ir : Module
+        The result Halide IR
+    """
+    if isinstance(func, str):
+        ir = ast.parse(func)
+    else:
+        assert isinstance(func, types.FunctionType)
+        ir = ast.parse(inspect.getsource(func))
+    var_usage = _find_all_variable_decl(ir)
+    parser = PyAST2HalideIR(args, var_usage)
+    stmt = parser.visit(ir)
+    binds_args, args = builder.get_binds(parser.args)
+    binds_vars, _    = builder.get_binds(parser.vars_buffer)
+    _binds = binds_args.copy()
+    _binds.update(binds_vars)
+    _binds.update(binds_vars)
+    _binds.update(binds)
+    stmt = _ir_pass.StorageFlatten(stmt, binds, 64)
+    return stmt
+    #return _ir_pass.MakeAPI(res, node.name, args, 0,
+                    #builder.current_build_config().restricted_func)
+
 
 def allocate(shape, dtype = None):
     return numpy.zeros(shape).tolist()
