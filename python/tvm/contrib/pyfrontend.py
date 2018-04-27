@@ -5,15 +5,20 @@ from .. import stmt as _stmt
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass  as _ir_pass
+from .. import build_module as builder
+
+_noop = _make.Evaluate(_api.const(0))
 
 def _list_to_block(lst):
+    lst = list(filter(lambda stmt: not _ir_pass.Equal(stmt, _noop), lst))
+    if not lst:
+        return _noop
     if len(lst) == 1:
         return lst[0]
-    else:
-        body = lst[0]
-        for i in lst[1:]:
-            body = _make.Block(body, i)
-        return body
+    body = lst[0]
+    for i in lst[1:]:
+        body = _make.Block(body, i)
+    return body
 
 
 # The AST visitor that detects the status of each variable, which is either
@@ -73,11 +78,11 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.vars_buffer = {}
         self.vars_const  = {}
         self.inputs      = inputs
-        self.loop_levels = []
+        self.loop_levels = {}
 
     def visit_Module(self, node):
-        res = [self.visit(i) for i in node.body]
-        return _list_to_block(res)
+        assert len(node.body) == 1
+        return self.visit(node.body[0])
 
     def visit_FunctionDef(self, node):
         assert len(node.args.args) == len(self.inputs)
@@ -89,6 +94,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
         for k, v in self.vars_buffer.items():
             res = _make.Realize(v.op, 0, v.dtype, [one], _api.convert(True), res)
         return res
+        #TODO: Support this so that this module can be glued into mainstream!
+        #binds, args = builder.get_binds(self.inputs)
+        #return _ir_pass.MakeAPI(res, node.name, args, 0,
+                        #builder.current_build_config().restricted_func)
 
     def visit_Expr(self, node):
         return self.visit(node.value)
@@ -97,8 +106,8 @@ class PyAST2HalideIR(ast.NodeVisitor):
         #print(node.id)
         if node.id in self.input_param.keys() and isinstance(self.input_param[node.id], _expr.Var):
             return self.input_param[node.id]
-        elif node.id in self.loop_levels:
-            return _api.var(node.id)
+        elif node.id in self.loop_levels.keys():
+            return self.loop_levels[node.id]
         else:
             assert node.id not in self.input_param.keys()
             assert node.id in self.rw_status.keys()
@@ -122,7 +131,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
             #print(ast.Store, self.rw_status[lhs])
             if lhs not in self.rw_status.keys():
                 print('Warning: Variable %s is not used after declaration! Discard stmt!' % lhs)
-                return _make.Evaluate(_api.const(0))
+                return _noop
             elif ast.Store in self.rw_status[lhs]:
                 #print('read write %s' % lhs)
                 if lhs not in self.vars_buffer.keys():
@@ -132,7 +141,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
                 if isinstance(rhs, _expr.FloatImm) or isinstance(rhs, _expr.IntImm):
                     #print('read only const %s' % lhs)
                     self.vars_const[lhs] = rhs
-                    return _make.Evaluate(_api.const(0))
+                    return _noop
                 else:
                     self.vars_buffer[lhs] = _api.placeholder((1, ), dtype = rhs.dtype, name = lhs)
                     #print('read only non-const %s' % lhs)
@@ -160,7 +169,6 @@ class PyAST2HalideIR(ast.NodeVisitor):
         #print(args)
         if isinstance(node.value, ast.Name):
             array = node.value.id
-            #TODO: detect the type
             assert array in self.input_param.keys()
             _buf = self.input_param[array]
             return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf, 0)
@@ -185,7 +193,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
     def visit_For(self, node):
         assert isinstance(node.target, ast.Name)
         var = node.target.id
-        self.loop_levels.append(var)
+        self.loop_levels[var] = _api.var(var)
         assert isinstance(node.iter, ast.Call)
         assert node.iter.func.id == 'range'
         if len(node.iter.args) == 1:
@@ -195,13 +203,14 @@ class PyAST2HalideIR(ast.NodeVisitor):
         ext  = high if isinstance(low, _expr.IntImm) and low.value == 0 else high - low
         _body = [self.visit(stmt) for stmt in node.body]
         _body = _list_to_block(_body)
-        self.loop_levels.pop()
-        return _make.For(_api.var(var), low, ext, _stmt.For.Serial, 0, _body)
+        res = _make.For(self.loop_levels[var], low, ext, _stmt.For.Serial, 0, _body)
+        self.loop_levels.pop(var)
+        return res
 
 
 def parse(func, **kwargs):
     """Parse a subset of Python to HalideIR
-    
+
     Parameters
     ----------
     name : str or types.FunctionType
