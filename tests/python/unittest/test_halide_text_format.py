@@ -1,5 +1,5 @@
 import tvm.contrib.pyfrontend as frontend
-import tvm, inspect, sys, traceback
+import tvm, inspect, sys, traceback, numpy
 
 #tests basic features
 def outer_product(n, m, a, b, c):
@@ -39,6 +39,22 @@ def test_outer_product():
     assert mul.a.name == 'a'
     assert mul.b.name == 'b'
 
+    func = frontend.lower(outer_product, [n, m, a, b, c])
+    func = tvm.build(func)
+
+    _n = 999
+    _m = 1001
+    _a = numpy.random.rand(_n).astype('float32')
+    _b = numpy.random.rand(_m).astype('float32')
+    c_python = numpy.zeros((_n, _m), dtype = 'float32')
+    outer_product(_n, _m, _a, _b, c_python)
+
+    tvm_a = tvm.ndarray.array(_a)
+    tvm_b = tvm.ndarray.array(_b)
+    tvm_c = tvm.ndarray.array(numpy.zeros((_n, _m), dtype = 'float32'))
+    func(_n, _m, tvm_a, tvm_b, tvm_c)
+    numpy.testing.assert_allclose(tvm_c.asnumpy(), c_python, rtol = 1e-5)
+    #print(func)
 
 def fanout(n, a, b):
     three = 3.0
@@ -124,8 +140,8 @@ def test_failure():
 
 #def annotation():
 #    sigma = 0
+#    with Unrolled as i:
 #    for i in range(100):
-#        with "unroll" as pragma:
 #            sigma = i
 #
 #def test_annotation():
