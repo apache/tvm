@@ -189,6 +189,7 @@ subsection_order = ExplicitOrder(
      '../tutorials/optimize',
      '../tutorials/deployment'])
 
+
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
     run_doxygen('..')

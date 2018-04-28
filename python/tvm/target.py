@@ -155,6 +155,7 @@ class GenericFunc(NodeBase):
         key_list = [key_list] if isinstance(key_list, str) else key_list
         _api_internal._GenericFuncRegisterFunc(self, func, key_list, allow_override)
 
+
 def get_native_generic_func(name):
     """Get a generic function from the global registry. If no
     function is registered under the given name, a new generic
@@ -171,6 +172,7 @@ def get_native_generic_func(name):
         The generic function for the given name
     """
     return _api_internal._GenericFuncGetGlobal(name)
+
 
 def override_native_generic_func(func_name):
     """Override a generic function defined in C++
@@ -193,20 +195,20 @@ def override_native_generic_func(func_name):
     -------
     .. code-block:: python
 
-    import tvm
-    # wrap function as target generic
-    @tvm.target.override_native_generic_func("my_func")
-    def my_func(a):
-        return a + 1
-    # register specialization of my_func under target cuda
-    @my_func.register("cuda")
-    def my_func_cuda(a):
-        return a + 2
-    # displays 3, because my_func is called
-    print(my_func(2))
-    # displays 4, because my_func_cuda is called
-    with tvm.target.cuda():
-        print(my_func(2))
+      import tvm
+      # wrap function as target generic
+      @tvm.target.override_native_generic_func("my_func")
+      def my_func(a):
+          return a + 1
+      # register specialization of my_func under target cuda
+      @my_func.register("cuda")
+      def my_func_cuda(a):
+          return a + 2
+      # displays 3, because my_func is called
+      print(my_func(2))
+      # displays 4, because my_func_cuda is called
+      with tvm.target.cuda():
+          print(my_func(2))
     """
     generic_func_node = get_native_generic_func(func_name)
 
@@ -345,6 +347,7 @@ def generic_func(fdefault):
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
     return fdecorate
+
 
 def cuda(options=None):
     """Returns a cuda target.
