@@ -254,7 +254,7 @@ def split(ary, indices_or_sections, axis=0):
             "Should be sorted, recieved %s" % str(indices_or_sections)
         begin_ids = [0] + list(indices_or_sections)
     else:
-        raise NotImplementedError
+        raise NotImplementedError()
     out_shapes = []
     for i in range(len(begin_ids)):
         if i == len(begin_ids) - 1:

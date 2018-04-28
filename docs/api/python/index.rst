@@ -14,6 +14,9 @@ Python API
    ndarray
    container
    function
+   graph_runtime
+   rpc
+   bridge
    contrib
    dev
    topi
