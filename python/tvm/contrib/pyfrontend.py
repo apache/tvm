@@ -79,6 +79,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.vars_const  = {}
         self.args        = args
         self.loop_levels = {}
+        self.func_name   = ""
 
     def visit_Module(self, node):
         assert len(node.body) == 1
@@ -93,6 +94,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         one = _make.range_by_min_extent(0, 1)
         for k, v in self.vars_buffer.items():
             res = _make.Realize(v.op, 0, v.dtype, [one], _api.convert(True), res)
+        self.func_name = node.name
         return res
 
     def visit_Expr(self, node):
@@ -202,7 +204,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.loop_levels.pop(var)
         return res
 
-def parse(func, args, **kwargs):
+def parse(func, args, dump = False):
     """Parse a subset of Python to HalideIR
 
     Parameters
@@ -221,7 +223,7 @@ def parse(func, args, **kwargs):
 
     Returns
     -------
-    ir : Module
+    ir : Stmt
         The result Halide IR
     """
     if isinstance(func, str):
@@ -229,14 +231,12 @@ def parse(func, args, **kwargs):
     else:
         assert isinstance(func, types.FunctionType)
         ir = ast.parse(inspect.getsource(func))
-    if kwargs.get('dump') is not None and kwargs.get('dump'):
-        print(ast.dump(ir))
     var_usage = _find_all_variable_decl(ir)
     #print(var_usage)
     return PyAST2HalideIR(args, var_usage).visit(ir)
 
-def lower(func, args, binds = None, **kwargs):
-    """Parse a subset of Python to HalideIR
+def lower(func, args, binds = None):
+    """Lower a subset of Python to LoweredFunc
 
     Parameters
     ----------
@@ -255,14 +255,16 @@ def lower(func, args, binds = None, **kwargs):
 
     Returns
     -------
-    ir : Module
-        The result Halide IR
+    ir : LoweredFunc
+        The result lowered function
     """
     if isinstance(func, str):
         ir = ast.parse(func)
     else:
         assert isinstance(func, types.FunctionType)
         ir = ast.parse(inspect.getsource(func))
+    if binds is None:
+        binds = {}
     var_usage = _find_all_variable_decl(ir)
     parser = PyAST2HalideIR(args, var_usage)
     stmt = parser.visit(ir)
@@ -272,11 +274,11 @@ def lower(func, args, binds = None, **kwargs):
     _binds.update(binds_vars)
     _binds.update(binds_vars)
     _binds.update(binds)
-    stmt = _ir_pass.StorageFlatten(stmt, binds, 64)
-    return stmt
-    #return _ir_pass.MakeAPI(res, node.name, args, 0,
-                    #builder.current_build_config().restricted_func)
-
+    #print(_binds)
+    stmt = _ir_pass.StorageFlatten(stmt, _binds, 64)
+    #print(stmt)
+    return _ir_pass.MakeAPI(stmt, parser.func_name, args, 0,
+                    builder.current_build_config().restricted_func)
 
 def allocate(shape, dtype = None):
     return numpy.zeros(shape).tolist()
