@@ -119,8 +119,9 @@ Graph AlterOpLayout(const Graph& src) {
       if (new_nodes.count(inode.source)) {
         const std::vector<Layout>& in_layouts =
           in_layouts_of_node[new_nodes[inode.source]];
-        for (const auto& e : inode.inputs) {
-          ret_layouts[ret_idx.entry_id(e)] = in_layouts[e.index];
+        for (uint32_t i = 0; i < inode.inputs.size(); ++i) {
+          const auto& e = inode.inputs[i];
+          ret_layouts[ret_idx.entry_id(e)] = in_layouts[i];
         }
         const std::vector<Layout>& out_layouts =
           out_layouts_of_node[new_nodes[inode.source]];
