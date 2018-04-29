@@ -19,10 +19,14 @@ def test_alter_conv2d_layout():
     conv = sym.conv2d(data, name="conv", channels=16,
                       kernel_size=(3,3), padding=(1,1),
                       use_bias=False, layout="NCHW")
-    relu = sym.relu(conv, name="relu")
+    # split here
+    convs = sym.split(conv, indices_or_sections=2)
+    relus = [sym.relu(x, name="relu") for x in convs]
+    relu = sym.concatenate(*relus)
     flatten = sym.flatten(relu, name="flatten")
     softmax = sym.softmax(flatten, name="softmax")
     g = graph.create(softmax)
+
     g = g.apply("CorrectLayout")
     g = graph_attr.set_dtype_inputs(g, "float32")
     g = g.apply(["InferShape", "InferType"])
