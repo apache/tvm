@@ -9,6 +9,7 @@ from .util import get_pad_tuple
 from ..util import simplify
 
 
+@tvm.target.generic_func
 def conv2d_transpose_nchw(Input, Filter, strides, padding):
     """Transposed 2D convolution nchw forward operator.
 
