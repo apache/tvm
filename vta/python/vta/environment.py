@@ -143,6 +143,15 @@ class Environment(object):
         self.mock_mode = False
         self._mock_env = None
         self._dev_ctx = None
+        self._last_env = None
+
+    def __enter__(self):
+        self._last_env = Environment.current
+        Environment.current = self
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        Environment.current = self._last_env
 
     def pkg_config(self):
         """PkgConfig instance"""
