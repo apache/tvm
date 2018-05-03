@@ -339,7 +339,7 @@ def inject_dma_intrin(stmt_in):
         base = 0
         for i in range(1, ndim + 1):
             if not util.equal_const_int(buf.strides[ndim - i] - x_size, 0):
-                raise RuntimeError("scope %s need need to have block=%d" % (scope, elem_block))
+                raise RuntimeError("scope %s needs to have block=%d" % (scope, elem_block))
             x_size = x_size * buf.shape[ndim - i]
             if util.equal_const_int(x_size - elem_block, 0):
                 base = i + 1
@@ -469,10 +469,10 @@ def inject_dma_intrin(stmt_in):
             if pad_before or pad_after:
                 raise RuntimeError("Do not support copy into DRAM with pad")
             if src.scope == env.acc_scope:
-                elem_width = env.INP_WIDTH # output compression to inp type
-                elem_bytes = env.INP_ELEM_BYTES # output compression to inp type
+                elem_width = env.OUT_WIDTH
+                elem_bytes = env.OUT_ELEM_BYTES
                 mem_type = env.dev.MEM_ID_OUT
-                data_type = "int%d" % env.INP_WIDTH
+                data_type = "int%d" % env.OUT_WIDTH
                 task_qid = env.dev.QID_STORE_OUT
             else:
                 raise RuntimeError("Do not support copy %s->dram" % (src.scope))

@@ -13,8 +13,10 @@ VIVADO_HLS = vivado_hls
 VIVADO = vivado
 HSI = hsi
 
-# HLS Mode
-MODE = all
+# HLS mode
+MODE = skip_sim
+# Debug flag
+DEBUG = false
 # SLURM
 SLURM = false
 # Prevent generation of DSP
@@ -22,15 +24,26 @@ NO_DSP = false
 # Prevent generation of ALU
 NO_ALU = false
 
-# Include top-level config file
-ifndef config
-ifneq ("$(wildcard ../../config.mk)", "")
-	config = ../../config.mk
-else
-	config = ../../make/config.mk
-endif
-endif
-include $(config)
+# Process VTA JSON config
+VTA_CONFIG = python $(CURDIR)/../../make/vta_config.py
+CFLAGS := $(shell ${VTA_CONFIG} --cflags)
+VTA_TARGET := $(shell ${VTA_CONFIG} --target)
+
+#---------------------
+# VTA Parameters
+#--------------------
+VTA_INP_WIDTH := $(shell ${VTA_CONFIG} --get-inpwidth)
+VTA_WGT_WIDTH := $(shell ${VTA_CONFIG} --get-wgtwidth)
+VTA_ACC_WIDTH := $(shell ${VTA_CONFIG} --get-accwidth)
+VTA_OUT_WIDTH := $(shell ${VTA_CONFIG} --get-outwidth)
+VTA_BATCH := $(shell ${VTA_CONFIG} --get-batch)
+VTA_IN_BLOCK := $(shell ${VTA_CONFIG} --get-blockin)
+VTA_OUT_BLOCK := $(shell ${VTA_CONFIG} --get-blockout)
+VTA_UOP_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-uopbuffsize)
+VTA_INP_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-inpbuffsize)
+VTA_WGT_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-wgtbuffsize)
+VTA_ACC_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-accbuffsize)
+VTA_OUT_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-outbuffsize)
 
 #---------------------
 # Compilation parameters
@@ -50,8 +63,8 @@ TARGET_PER = \
 $(shell echo "$$(( (1000 + $(VTA_HW_COMP_CLOCK_FREQ) - 1) / $(VTA_HW_COMP_CLOCK_FREQ) - $(VTA_HW_COMP_TIMING_COMP)))" )
 
 # Derive config name
-CONF = \
-$(VTA_BATCH)x$(VTA_IN_BLOCK)x$(VTA_OUT_BLOCK)_$(VTA_INP_WIDTH)bx$(VTA_WGT_WIDTH)b_$(VTA_LOG_UOP_BUFF_SIZE)_$(VTA_LOG_INP_BUFF_SIZE)_$(VTA_LOG_WGT_BUFF_SIZE)_$(VTA_LOG_ACC_BUFF_SIZE)_$(VTA_HW_COMP_CLOCK_FREQ)MHz_$(TARGET_PER)ns
+CONF_ROOT = $(shell ${VTA_CONFIG} --cfg-str)
+CONF = $(CONF_ROOT)_$(VTA_HW_COMP_CLOCK_FREQ)MHz_$(TARGET_PER)ns
 IP_BUILD_PATH = $(BUILD_DIR)/hls/$(CONF)
 HW_BUILD_PATH = $(BUILD_DIR)/vivado/$(CONF)
 
@@ -60,26 +73,34 @@ ifeq ($(SLURM), true)
 	HW_BUILD_PATH = /scratch/vivado/$(CONF)
 endif
 
-.PHONY: all ip bit driver clean clean_all
+# IP file path
+IP_PATH = $(BUILD_DIR)/hls/$(CONF)/solution0/impl/ip/xilinx_com_hls_vta_1_0.zip
 
-all: bit
+# Bitstream file path
+BIT_PATH = $(BUILD_DIR)/vivado/$(CONF)/export/$(CONF).bit
 
-ip: 
+.PHONY: all ip bit bsp clean clean_all
+
+all: bsp
+ip: $(IP_PATH)
+bit: $(BIT_PATH)
+
+$(IP_PATH): $(SRC_DIR)/*
 	mkdir -p $(IP_BUILD_PATH)
 	cd $(IP_BUILD_PATH) && \
 		$(VIVADO_HLS) -f $(SCRIPT_DIR)/hls.tcl \
-			-tclargs $(SRC_DIR) $(SIM_DIR) $(TEST_DIR) $(INCLUDE_DIR) $(TARGET_PER) \
-			$(VTA_LOG_INP_WIDTH) $(VTA_LOG_WGT_WIDTH) $(VTA_LOG_ACC_WIDTH) $(VTA_LOG_OUT_WIDTH) \
-			$(VTA_LOG_BATCH) $(VTA_LOG_BLOCK_OUT) $(VTA_LOG_BLOCK_IN) \
-			$(VTA_LOG_UOP_BUFF_SIZE) $(VTA_LOG_INP_BUFF_SIZE) $(VTA_LOG_WGT_BUFF_SIZE) \
-			$(VTA_LOG_ACC_BUFF_SIZE) $(VTA_LOG_OUT_BUFF_SIZE) \
-			$(MODE) $(NO_DSP) $(NO_ALU)
+		-tclargs $(SRC_DIR) $(SIM_DIR) $(TEST_DIR) $(INCLUDE_DIR) \
+		$(MODE) $(DEBUG) $(NO_DSP) $(NO_ALU) $(TARGET_PER) \
+		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_ACC_WIDTH) $(VTA_OUT_WIDTH) \
+		$(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) \
+		$(VTA_UOP_BUFF_SIZE) $(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) \
+		$(VTA_ACC_BUFF_SIZE) $(VTA_OUT_BUFF_SIZE)
 ifeq ($(SLURM), true)
 	mkdir -p $(BUILD_DIR)/hls
 	mv $(IP_BUILD_PATH) $(BUILD_DIR)/hls/.
 endif
 
-bit: ip
+$(BIT_PATH): $(IP_PATH)
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
 		$(VIVADO) -mode tcl -source $(SCRIPT_DIR)/vivado.tcl \
@@ -92,12 +113,12 @@ ifeq ($(SLURM), true)
 	mv $(HW_BUILD_PATH) $(BUILD_DIR)/vivado/.
 endif
 
-driver: bit
+bsp: $(BIT_PATH)
 	cd $(HW_BUILD_PATH) && $(HSI) -mode tcl -source $(SCRIPT_DIR)/hsi.tcl -nojournal -nolog
 	cd $(HW_BUILD_PATH)/bsp && make
 
 clean:
 	rm -rf *.out *.log *.sb figures
 
-clean_all: clean
+cleanall: clean
 	rm -rf $(BUILD_DIR)

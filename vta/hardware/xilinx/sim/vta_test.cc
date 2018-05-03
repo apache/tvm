@@ -53,5 +53,8 @@ int main(void) {
     status |= blocked_gemm_test(256, 256, VTA_BLOCK_OUT*4, true, 1);
     status |= blocked_gemm_test(256, 256, VTA_BLOCK_OUT*4, false, 1);
 
+    // Simple GEMM unit test
+    status |= gemm_test(64, 64, 64, true);
+
     return status;
 }

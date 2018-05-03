@@ -130,11 +130,15 @@ class Environment(object):
                               self.BLOCK_IN *
                               self.WGT_WIDTH)
         self.ACC_ELEM_BITS = (self.BATCH *
-                              self.BLOCK_IN *
+                              self.BLOCK_OUT *
                               self.ACC_WIDTH)
+        self.OUT_ELEM_BITS = (self.BATCH *
+                              self.BLOCK_OUT *
+                              self.OUT_WIDTH)
         self.INP_ELEM_BYTES = self.INP_ELEM_BITS // 8
         self.WGT_ELEM_BYTES = self.WGT_ELEM_BITS // 8
         self.ACC_ELEM_BYTES = self.ACC_ELEM_BITS // 8
+        self.OUT_ELEM_BYTES = self.OUT_ELEM_BITS // 8
         # dtypes
         self.acc_dtype = "int%d" % self.ACC_WIDTH
         self.inp_dtype = "int%d" % self.INP_WIDTH
