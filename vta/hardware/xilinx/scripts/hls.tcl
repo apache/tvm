@@ -9,65 +9,69 @@
 # Arg 2: path to sim sources
 # Arg 3: path to test sources
 # Arg 4: path to include sources
-# Arg 5: target clock period
-# Arg 6: input type width (log)
-# Arg 7: weight type width (log)
-# Arg 8: accum type width (log)
-# Arg 9: output type width (log)
-# Arg 10: batch size (log)
-# Arg 11: in block size (log)
-# Arg 12: out block size (log)
-# Arg 13: uop buffer size in B (log)
-# Arg 14: inp buffer size in B (log)
-# Arg 15: wgt buffer size in B (log)
-# Arg 16: acc buffer size in B (log)
-# Arg 17: out buffer size in B (log)
-# Arg 18: mode
-# Arg 19: no_dsp
-# Arg 20: no_alu
+# Arg 5: mode
+# Arg 6: debug
+# Arg 7: no_dsp
+# Arg 8: no_alu
+# Arg 9: target clock period
+# Arg 10: input type width (log)
+# Arg 11: weight type width (log)
+# Arg 12: accum type width (log)
+# Arg 13: output type width (log)
+# Arg 14: batch size (log)
+# Arg 15: in block size (log)
+# Arg 16: out block size (log)
+# Arg 17: uop buffer size in B (log)
+# Arg 18: inp buffer size in B (log)
+# Arg 19: wgt buffer size in B (log)
+# Arg 20: acc buffer size in B (log)
+# Arg 21: out buffer size in B (log)
 
-if { [llength $argv] eq 22 } {
+if { [llength $argv] eq 23 } {
 	set src_dir [lindex $argv 2]
 	set sim_dir [lindex $argv 3]
 	set test_dir [lindex $argv 4]
 	set include_dir [lindex $argv 5]
-	set target_period [lindex $argv 6]
-	set inp_width [lindex $argv 7]
-	set wgt_width [lindex $argv 8]
-	set acc_width [lindex $argv 9]
-	set out_width [lindex $argv 10]
-	set batch [lindex $argv 11]
-	set block_in [lindex $argv 12]
-	set block_out [lindex $argv 13]
-	set uop_buff_size [lindex $argv 14]
-	set inp_buff_size [lindex $argv 15]
-	set wgt_buff_size [lindex $argv 16]
-	set acc_buff_size [lindex $argv 17]
-	set out_buff_size [lindex $argv 18]
-	set mode [lindex $argv 19]
-	set no_dsp [lindex $argv 20]
-	set no_alu [lindex $argv 21]
+	set mode [lindex $argv 6]
+	set debug [lindex $argv 7]
+	set no_dsp [lindex $argv 8]
+	set no_alu [lindex $argv 9]
+	set target_period [lindex $argv 10]
+	set inp_width [lindex $argv 11]
+	set wgt_width [lindex $argv 12]
+	set acc_width [lindex $argv 13]
+	set out_width [lindex $argv 14]
+	set batch [lindex $argv 15]
+	set block_in [lindex $argv 16]
+	set block_out [lindex $argv 17]
+	set uop_buff_size [lindex $argv 18]
+	set inp_buff_size [lindex $argv 19]
+	set wgt_buff_size [lindex $argv 20]
+	set acc_buff_size [lindex $argv 21]
+	set out_buff_size [lindex $argv 22]
 } else {
 	set src_dir "../src"
 	set sim_dir "../sim"
 	set test_dir "../../src/test"
 	set include_dir "../../include"
+	set mode "all"
+	set debug "false"
+	set no_dsp "true"
+	set no_alu "false"
 	set target_period 10
 	set inp_width 3
 	set wgt_width 3
 	set acc_width 5
 	set out_width 3
 	set batch 1
-	set block_out 4
 	set block_in 4
+	set block_out 4
 	set uop_buff_size 15
 	set inp_buff_size 15
 	set wgt_buff_size 15
 	set acc_buff_size 17
 	set out_buff_size 15
-	set mode "all"
-	set no_dsp "true"
-	set no_alu "false"
+	exit
 }
 
 # Initializes the HLS design and sets HLS pragmas for memory partitioning.
@@ -124,12 +128,15 @@ proc init_design {per inp_width wgt_width out_width batch block_in block_out} {
 
 # C define flags to pass to compiler
 set cflags "-I $include_dir -I $src_dir -I $test_dir \
-	-DVTA_DEBUG=0 -DVTA_LOG_WGT_WIDTH=$wgt_width -DVTA_LOG_INP_WIDTH=$inp_width \
+	-DVTA_LOG_WGT_WIDTH=$wgt_width -DVTA_LOG_INP_WIDTH=$inp_width \
 	-DVTA_LOG_ACC_WIDTH=$acc_width -DVTA_LOG_OUT_WIDTH=$out_width \
 	-DVTA_LOG_BATCH=$batch -DVTA_LOG_BLOCK_OUT=$block_out -DVTA_LOG_BLOCK_IN=$block_in \
 	-DVTA_LOG_UOP_BUFF_SIZE=$uop_buff_size -DVTA_LOG_INP_BUFF_SIZE=$inp_buff_size \
 	-DVTA_LOG_WGT_BUFF_SIZE=$wgt_buff_size -DVTA_LOG_ACC_BUFF_SIZE=$acc_buff_size \
 	-DVTA_LOG_OUT_BUFF_SIZE=$out_buff_size"
+if {$debug=="true"} {
+	append cflags " -DVTA_DEBUG=1"
+}
 if {$no_dsp=="true"} {
 	append cflags " -DNO_DSP"
 }

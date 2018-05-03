@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file vta_test_lib.cpp
+ * \file test_lib.cpp
  * \brief Test library for the VTA design simulation and driver tests.
  */
 
@@ -17,9 +17,9 @@
 
 #include <vta/driver.h>
 
-#ifdef VTA_PYNQ_TARGET
+#ifdef VTA_TARGET_PYNQ
 #include "../../../src/pynq/pynq_driver.h"
-#endif  // VTA_PYNQ_TARGET
+#endif  // VTA_TARGET_PYNQ
 
 typedef uint64_t axi_T;
 typedef uint32_t uop_T;
@@ -299,5 +299,15 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
 */
 int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
   int virtual_threads);
+
+/*!
+* \brief VTA GEMM unit test.
+* \param batch Batch size.
+* \param in_channels Input channels.
+* \param out_channels Output channels.
+* \param uop_compression Apply micro-op compression.
+* \return Number of errors from the test run.
+*/
+int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression);
 
 #endif  //  TESTS_HARDWARE_COMMON_TEST_LIB_H_
