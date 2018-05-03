@@ -222,24 +222,29 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
     else:
         c_w = (out_width // block_w + 1) * block_w
 
-    cshape = (batch, out_channel, c_h, c_w)
+    nv = 16
+    cshape = (batch, out_channel // nv, c_h, c_w, nv)
+    kvshape = (num_filter // nv, channel, kernel_h, kernel_w, nv)
+
+    kernel_vec = tvm.compute(
+            kvshape, 
+            lambda co, ci, kh, kw, vc:
+                kernel[co*nv + vc][ci][kh][kw], name='kernel_vec')
 
     conv = tvm.compute(
         cshape,
-        lambda nn, ff, yy, xx: tvm.sum(
+        lambda nn, ff, yy, xx, vc:\
+          tvm.sum(
             temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
-            kernel[ff, rc, ry, rx].astype(out_dtype),
+            kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
             axis=[rc, ry, rx]), tag=conv_tag, name='conv')
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
-            conv[nn][ff][yy][xx],
+            conv[nn][ff//nv][yy][xx][ff%nv],
             name='output_unpack', tag=conv_tag)
 
-#    if out_height % block_h ==0 and out_width % block_w == 0:
-#        return conv
-    
     return output
 
 def _schedule_cl_spatialpack(s, op):
@@ -248,51 +253,69 @@ def _schedule_cl_spatialpack(s, op):
 
     conv = op.input_tensors[0]
     temp = s[conv].op.input_tensors[0]
-    kernel = s[conv].op.input_tensors[1]
+    kernel_vec = s[conv].op.input_tensors[1]
+    kernel = s[kernel_vec].op.input_tensors[0]
     temp_W = s.cache_read(temp, "warp", [conv])
     conv_L = s.cache_write(conv, "local")
 
-    kernel_L = s.cache_read(kernel, "local", [conv_L])
+    kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
     _, _, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
         OUTPUT_BLOCK_WIDTH  = 16
+#        kernel_vec_tile = "fuse"
     elif "2_14" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
         OUTPUT_BLOCK_WIDTH  = 14
+#        kernel_vec_tile = "fuse"
     elif "2_7" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
         OUTPUT_BLOCK_WIDTH  = 7
+#        kernel_vec_tile = "inline"
     elif "4_5" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
         OUTPUT_BLOCK_WIDTH  = 5
+#        kernel_vec_tile = "inline"
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
         OUTPUT_BLOCK_WIDTH  = 4
+#        kernel_vec_tile = "fuse"
 
     # schedule conv
-    _, co, oh, ow = s[conv].op.axis
+    z_factor = 1
+    y_factor = 1
+    x_factor = 16
+    thread_z = tvm.thread_axis((0, z_factor), "threadIdx.z")
+    thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
+    thread_x = tvm.thread_axis((0, x_factor), "threadIdx.x")
+    _, co, oh, ow, vc = s[conv].op.axis
     ooh, ioh = s[conv].split(oh, factor = OUTPUT_BLOCK_HEIGHT)
     oow, iow = s[conv].split(ow, factor = OUTPUT_BLOCK_WIDTH)
-    s[conv].reorder(_, co, ooh, oow, ioh, iow)
-    tx, thread_z, thread_y, thread_x  = tile_and_bind3d(s, conv, oow, ooh, co, 1, 1, 16)
+    s[conv].reorder(_, co, ooh, oow, vc, ioh, iow)
+    coo, coi = s[conv].split(co, nparts = 1)
+    ooho, oohi = s[conv].split(ooh, factor = z_factor) 
+    oowo, oowi = s[conv].split(oow, factor = y_factor)
+    vco, vci = s[conv].split(vc, factor = x_factor)
+    s[conv].reorder(_, coo, vco, ooho, oowo, coi, oohi, oowi, vci, ioh, iow)
+    s[conv].bind(oohi, thread_z)
+    s[conv].bind(oowi, thread_y)
+    s[conv].bind(vci, thread_x)
+    s[conv].bind(ooho, tvm.thread_axis("blockIdx.z"))
+    s[conv].bind(oowo, tvm.thread_axis("blockIdx.y"))
+    s[conv].bind(coi, tvm.thread_axis("blockIdx.x"))
 
     # schedule conv_L
-    s[conv_L].compute_at(s[conv], tx)
-    i, oc, h, w = s[conv_L].op.axis
+    s[conv_L].compute_at(s[conv], vci)
+    i, oc, h, w, vc = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
-    s[conv_L].reorder(i, oc, rc, ry, rx, h, w)
+    s[conv_L].reorder(i, oc, rc, ry, rx, vc, h, w)
     if kernel.shape[3].value != 7:
         s[conv_L].unroll(ry)
         s[conv_L].unroll(rx)
 
     # schedule temp
-    num_thread_z = 1
-    num_thread_y = 16
-    num_thread_x = 16
-
     _, ci, h, w = s[temp].op.axis
-    tile_and_bind3d(s, temp, ci, h, w, num_thread_z, num_thread_y, num_thread_x)
+    tile_and_bind3d(s, temp, ci,  h, w, 1, 16, 16)
 
     # schedule temp_W
     s[temp_W].compute_at(s[conv_L], rc)
@@ -305,6 +328,13 @@ def _schedule_cl_spatialpack(s, op):
     s[temp_W].bind(yi, thread_y)
     s[temp_W].bind(xi, thread_x)
     s[temp_W].storage_align(s[temp_W].op.axis[2], 16, 0)
+
+    #schedule kernel
+#    if kernel_vec_tile == "fuse":
+#        fuse_and_bind(s, kernel_vec, num_thread = 256)
+#    else:
+    s[kernel_vec].compute_inline()
+
     # schedule kernel_L
     if "2_14" in s[conv].op.tag:
         s[kernel_L].compute_at(s[conv_L], ry)
