@@ -282,8 +282,9 @@ def _schedule_cl_spatialpack(s, op):
     i, oc, h, w = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
     s[conv_L].reorder(i, oc, rc, ry, rx, h, w)
-    s[conv_L].unroll(ry)
-    s[conv_L].unroll(rx)
+    if kernel.shape[3].value != 7:
+        s[conv_L].unroll(ry)
+        s[conv_L].unroll(rx)
 
     # schedule temp
     num_thread_z = 1
@@ -306,10 +307,7 @@ def _schedule_cl_spatialpack(s, op):
     s[temp_W].storage_align(s[temp_W].op.axis[2], 16, 0)
     # schedule kernel_L
     if "2_14" in s[conv].op.tag:
-#        i, oc, h, w = s[conv_L].op.axis
-#        s[conv_L].reorder(i, oc, rc, ry, h, w, rx)
         s[kernel_L].compute_at(s[conv_L], ry)
-#        s[conv_L].vectorize(rx)
     else:
         s[kernel_L].compute_at(s[conv_L], rx)
 
