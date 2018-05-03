@@ -83,20 +83,23 @@ class MetalModuleNode final :public runtime::ModuleNode {
     if (e.lib == nil) {
       if (fmt_ == "metal") {
         MTLCompileOptions *opts = [MTLCompileOptions alloc];
-        // Use the default setting for now.
-        // by default most recent version is used.
-        // opts.languageVersion = MTLLanguageVersion2_0;
-        // opts.fastMathEnabled = YES;
-        opts = nil;
+        // Use the Metal 1.2 for now.
+        opts.languageVersion = MTLLanguageVersion1_2;
+        opts.fastMathEnabled = YES;
+        // opts = nil;
         e.lib = [
             w->devices[device_id]
              newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
              options:opts
              error:&err_msg];
         [opts dealloc];
-        if (err_msg != nil || e.lib == nil) {
+        if (e.lib == nil) {
           LOG(FATAL) << "Fail to compile metal lib:"
                      << [[err_msg localizedDescription] UTF8String];
+        }
+        if (err_msg != nil) {
+          LOG(INFO) << "Warning: "
+                    << [[err_msg localizedDescription] UTF8String];
         }
       } else {
         // Build from library.
