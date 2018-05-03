@@ -257,28 +257,18 @@ def _schedule_cl_spatialpack(s, op):
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
         OUTPUT_BLOCK_WIDTH  = 16
-        num_threads_y = 1
-        num_threads_x = 64
     elif "2_14" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
         OUTPUT_BLOCK_WIDTH  = 14
-        num_threads_y = 1
-        num_threads_x = temp_h 
     elif "2_7" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
         OUTPUT_BLOCK_WIDTH  = 7
-        num_threads_y = 10
-        num_threads_x = 9
     elif "4_5" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
         OUTPUT_BLOCK_WIDTH  = 5
-        num_threads_y = 1
-        num_threads_x = 235
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
         OUTPUT_BLOCK_WIDTH  = 4
-        num_threads_y = 1
-        num_threads_x = 17
 
     # schedule conv
     _, co, oh, ow = s[conv].op.axis
@@ -292,12 +282,16 @@ def _schedule_cl_spatialpack(s, op):
     i, oc, h, w = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
     s[conv_L].reorder(i, oc, rc, ry, rx, h, w)
-#    s[conv_L].unroll(ry)
-#    s[conv_L].unroll(rx)
+    s[conv_L].unroll(ry)
+    s[conv_L].unroll(rx)
 
     # schedule temp
+    num_thread_z = 1
+    num_thread_y = 16
+    num_thread_x = 16
+
     _, ci, h, w = s[temp].op.axis
-    tile_and_bind(s, temp, h, w, num_threads_y, num_threads_x)
+    tile_and_bind3d(s, temp, ci, h, w, num_thread_z, num_thread_y, num_thread_x)
 
     # schedule temp_W
     s[temp_W].compute_at(s[conv_L], rc)
@@ -327,5 +321,5 @@ def _schedule_cl_spatialpack(s, op):
         out = s.outputs[0]
 
     _, co, h, w = s[out].op.axis
-    tile_and_bind3d(s, out, w, h, co, 1, 1, 64)
+    tile_and_bind3d(s, out, w, h, co, 4, 8, 8)
 
