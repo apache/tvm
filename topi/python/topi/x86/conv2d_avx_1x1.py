@@ -11,6 +11,30 @@ from ..nn.pad import pad
 
 AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
 
+
+def _get_default_schedule(wkl, simd_width):
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
+    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+
+    for oc_bn in range(simd_width, 0, -1):
+        if wkl.out_filter % oc_bn == 0:
+            break
+
+    for ic_bn in range(oc_bn, 0, -1):
+        if wkl.in_filter % ic_bn == 0:
+            break
+
+    for ow_factor in range(out_width, 0, -1):
+        if out_width % ow_factor == 0:
+            for oh_factor in range(out_height, 0, -1):
+                if out_height % oh_factor == 0 and ow_factor * oh_factor < 32:
+                    return AVXConv1x1Fwd(ic_bn, oc_bn, oh_factor, ow_factor)
+
+    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
+
+
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)

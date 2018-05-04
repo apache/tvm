@@ -5,7 +5,7 @@ from nnvm.top import registry as reg
 from .. import generic, tag
 from .. import nn
 from ..nn.util import infer_pad, infer_stride
-from ..nn.conv2d import conv2d, conv2d_NCHWc, _get_workload, _get_schedule, _WORKLOADS
+from ..nn.conv2d import conv2d, conv2d_NCHWc, _get_workload, _get_schedule, Workload
 
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d_avx_common import AVXConvCommonFwd
@@ -13,9 +13,41 @@ from .conv2d_avx_1x1 import AVXConv1x1Fwd
 
 @_get_schedule.register("cpu")
 def _get_schedule_conv(wkl):
-    if wkl not in _WORKLOADS:
-        raise ValueError("no schedule for such workload: {}".format(wkl))
-    idx = _WORKLOADS.index(wkl)
+    _WORKLOADS_AVX = [
+        # workloads of resnet18_v1 on imagenet
+        Workload('float32', 'float32', 224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
+        Workload('float32', 'float32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
+        Workload('float32', 'float32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
+        Workload('float32', 'float32', 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
+        Workload('float32', 'float32', 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
+        Workload('float32', 'float32', 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
+        Workload('float32', 'float32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
+        Workload('float32', 'float32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
+        # workloads of resnet34_v1 on imagenet, no extra workload required
+        # workloads of resnet50_v1 on imagenet
+        Workload('float32', 'float32', 56, 56, 64, 256, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 56, 56, 256, 64, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 56, 56, 256, 128, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 28, 28, 128, 512, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 56, 56, 256, 512, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 28, 28, 512, 128, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 28, 28, 512, 256, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 14, 14, 256, 1024, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 28, 28, 512, 1024, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 14, 14, 1024, 256, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 14, 14, 1024, 512, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 7, 7, 512, 2048, 1, 1, 0, 0, 1, 1),
+        Workload('float32', 'float32', 14, 14, 1024, 2048, 1, 1, 0, 0, 2, 2),
+        Workload('float32', 'float32', 7, 7, 2048, 512, 1, 1, 0, 0, 1, 1),
+        # workloads of resnet101_v1 on imagenet, no extra workload required
+        # workloads of resnet152_v1 on imagenet, no extra workload required
+        # workloads of resnet18_v2 on imagenet, no extra workload required
+        # workloads of resnet34_v2 on imagenet, no extra workload required
+    ]
 
     fp32_vec_len = 8
     target = tvm.target.current_target(allow_none=False)
@@ -24,32 +56,47 @@ def _get_schedule_conv(wkl):
             fp32_vec_len = 16
 
     _SCHEDULES_AVX = [
-        # float32 resnet-18
+        # workloads of resnet18_v1 on imagenet
         AVXConvCommonFwd(3, fp32_vec_len, 28, False),
-        AVXConvCommonFwd(16, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConvCommonFwd(16, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConvCommonFwd(16, fp32_vec_len, 28, False),
-        AVXConvCommonFwd(16, fp32_vec_len, 14, False),
-        AVXConv1x1Fwd(16, fp32_vec_len, 2, 14),
-        AVXConvCommonFwd(16, fp32_vec_len, 14, True),
-        AVXConvCommonFwd(16, 32, 7, True),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 7),
-        AVXConvCommonFwd(16, fp32_vec_len, 7, True),
-        # float32 mobilenet
-        AVXConvCommonFwd(3, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 28),
-        AVXConv1x1Fwd(16, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(16, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 7),
-        AVXConv1x1Fwd(16, fp32_vec_len, 1, 7),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, False),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, True),
+        # AVX512ConvCommonFwd(16, 32, 7, True),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 7),
+        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
+        # workloads of resnet34_v1 on imagenet, no extra workload required
+        # workloads of resnet50_v1 on imagenet
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
+        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
+        # workloads of resnet101_v1 on imagenet, no extra workload required
+        # workloads of resnet152_v1 on imagenet, no extra workload required
+        # workloads of resnet18_v2 on imagenet, no extra workload required
+        # workloads of resnet34_v2 on imagenet, no extra workload required
     ]
 
+    if wkl not in _WORKLOADS_AVX:
+        if wkl.hkernel == 1 and wkl.wkernel == 1:
+            return conv2d_avx_1x1._get_default_schedule(wkl, fp32_vec_len)
+        return conv2d_avx_common._get_default_schedule(wkl, fp32_vec_len)
+    idx = _WORKLOADS_AVX.index(wkl)
     sch = _SCHEDULES_AVX[idx]
     return sch
 
@@ -63,7 +110,7 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     target = tvm.target.current_target(allow_none=False)
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)
-    if wkl in _WORKLOADS and 'avx' in str(target) and layout == 'NCHW':
+    if 'avx' in str(target) and layout == 'NCHW':
         sch = _get_schedule(wkl)
         return _AVX_SCH_TO_DECL_FUNC[type(sch)](data, kernel, stride, padding, layout, out_dtype)
     elif layout == 'NCHW':
@@ -81,8 +128,8 @@ def alter_conv2d_layout(attrs, inputs, tinfos):
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
-    # only optimize for NCHW
-    if attrs['layout'] != 'NCHW':
+    # only optimize for NCHW, groups=1 conv
+    if attrs['layout'] != 'NCHW' or attrs.get_int("groups") != 1:
         return sym.conv2d(*copy_inputs, **new_attrs)
 
     data = tinfos[0]
