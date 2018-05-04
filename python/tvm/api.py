@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 
 from numbers import Integral as _Integral
+from collections import namedtuple
 
 from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
@@ -14,6 +15,7 @@ from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
+from . import stmt as _stmt
 from . import tensor as _tensor
 from . import schedule as _schedule
 from . import container as _container
@@ -335,6 +337,86 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
     return res[0] if len(res) == 1 else res
 
 
+def tensor_op(out_dims,
+              in_dims,  # pylint: disable=unused-argument
+              finputs,
+              intrin,
+              raxis=None,
+              name='tensor_op',
+              tag=""):
+    """Construct new tensors with intrinsic.
+
+    Parameters
+    ----------
+    out_dims: tuple
+        The dimensions out of the tensorized region, which can be
+    scheduled through `reorder`, `split`.
+
+    in_dims: tuple
+        The dimensions inside of the tensorized region, which cannot
+    be manipulated.
+
+    finputs: lambda function of out_dims -> list of TensorSlice
+        Specifies involved regions of input tensors.
+
+    tensor_intrin : TensorIntrin
+        The tensor intrinsic used for computation.
+
+    raxis : IterVar
+        An iteration variable representing the value.
+
+    name: str, optional
+        The name hint of the tensor
+
+    tag: str, optional
+        Additonal tag information about the compute.
+    """
+    def _get_region(tslice):
+        region = []
+        for idx in tslice.indices:
+            if isinstance(idx, slice):
+                assert idx.step is None
+                region.append(Range(idx.start, idx.stop))
+            else:
+                if isinstance(idx, _schedule.IterVar):
+                    begin = idx.var
+                else:
+                    begin = idx
+                region.append(_make.range_by_min_extent(begin, 1))
+        return region
+
+    if _tag.TagScope.current is not None:
+        if tag != "":
+            raise ValueError("nested tag is not allowed for now")
+        tag = _tag.TagScope.current.tag
+
+    code = finputs.__code__
+    if finputs.__code__.co_argcount == 0:
+        arg_names = ["i%d" % i for i in range(ndim)]
+    else:
+        arg_names = code.co_varnames[:code.co_argcount]
+
+    if len(out_dims) != len(arg_names):
+        raise ValueError("finputs do not match dimension, ndim=%d" % out_dims)
+
+    out_var = [_IterVar((0, extent), arg_name, 0) for arg_name, extent in zip(arg_names, out_dims)]
+    if isinstance(raxis, _schedule.IterVar):
+        raxis = [raxis]
+    if raxis is None:
+        raxis = []
+    tensor_regions = finputs(*[v.var for v in out_var])
+
+    op = _api_internal._TensorOp(name,
+                                 tag,
+                                 out_var,
+                                 raxis,
+                                 [x.tensor for x in tensor_regions],
+                                 [_get_region(x) for x in tensor_regions],
+                                 intrin)
+    # only support single output
+    return op.output(0)
+
+
 def extern(shape,
            inputs,
            fcompute,
@@ -529,13 +611,13 @@ def decl_buffer(shape,
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
-        elem_offset = var('%s_elem_offset' % name, shape[0].dtype)
+        shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
+        elem_offset = var('%s_elem_offset' % name, shape_dtype)
     if data is None:
         data = var(name, "handle")
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
-
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
     """Internal function to create IterVar

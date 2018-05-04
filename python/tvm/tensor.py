@@ -106,6 +106,7 @@ class Tensor(NodeBase, _expr.ExprOp):
         return "%s.v%d" % (op.name, self.value_index)
 
 
+
 class Operation(NodeBase):
     """Represent an operation that generate a tensor"""
 
@@ -167,4 +168,10 @@ class ScanOp(Operation):
 @register_node
 class ExternOp(Operation):
     """Extern operation."""
+    pass
+
+
+@register_node
+class TensorOp(Operation):
+    """Tensor operation."""
     pass

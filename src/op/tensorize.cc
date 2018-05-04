@@ -10,7 +10,6 @@
 #include "op_util.h"
 #include "compute_op.h"
 #include "../schedule/message_passing.h"
-#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
@@ -321,50 +320,6 @@ void VerifyTensorizeBody(
         << " provided= " << lhs
         << ", intrin=  " << rhs;
   }
-}
-
-/*!
- * \brief Transform the update part when there is no init func in tensorizing
- * \param stage The stage for tensorizing.
- * \param dom_map The range of each iter var.
- * \param n The loop nest structured used in compute. 
- * \param body The body func in tensorize intrin
- * \param update The update func in tensorize intrin
- * \return Transformed result.
- */
-Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
-                     const ComputeLoopNest& n,
-                     Stmt body,
-                     Stmt update) {
-  Array<Expr> conds;
-  std::unordered_set<const Variable*> banned;
-  for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
-    IterVar iv = stage->leaf_iter_vars[i];
-    auto iit = stage->iter_var_attrs.find(iv);
-    if (iit != stage->iter_var_attrs.end()) {
-      const IterVarAttr& attr = (*iit).second;
-      if (attr->iter_type == kTensorized) {
-        break;
-      }
-    }
-    if (iv->iter_type == kCommReduce) {
-      auto vit = dom_map.find(iv);
-      CHECK(vit != dom_map.end());
-      const Range& vrange = vit->second;
-      conds.push_back(likely(iv->var > vrange->min));
-      banned.insert(iv->var.get());
-    }
-  }
-  for (const Expr& pred : n.main_predicates) {
-    if (ir::ExprUseVar(pred, banned)) {
-      LOG(FATAL) << "Tensorize update transform failed, the condition "
-                 << pred << " has a conflict with the reset condition";
-    }
-  }
-
-  return IfThenElse::make(arith::ComputeReduce<ir::Or>(conds, const_true(1)),
-                          update, body);
 }
 
 Stmt MakeTensorize(const ComputeOpNode* self,

@@ -85,6 +85,37 @@ def test_tensor_reduce():
     assert(str(C_loaded) == str(C))
 
 
+def test_tensor_tensor_op():
+    M = 1024
+    factor = 16
+
+    def intrin_vadd(n):
+        x = tvm.placeholder((n,))
+        y = tvm.placeholder((n,))
+        z = tvm.compute(x.shape, lambda i: x[i] + y[i])
+
+        def intrin_func(ins, outs):
+            ib = tvm.ir_builder.create()
+            ib.emit(tvm.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
+            return ib.get()
+
+        with tvm.build_config(offset_factor=n):
+            return tvm.decl_tensor_intrin(z.op, intrin_func)
+
+    A = tvm.placeholder((M/factor, factor), name="A")
+    B = tvm.placeholder((M/factor, factor), name="B")
+
+    intrin = intrin_vadd(factor)
+    C = tvm.tensor_op([M/factor,], [factor,],
+                      lambda i: [A[i, 0:factor], B[i, 0:factor]],
+                      intrin, name='C')
+
+    s = tvm.create_schedule(C.op)
+    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
+    intrin_code = stmt.body.body.value
+    assert isinstance(intrin_code, tvm.expr.Call)
+
+
 def test_tensor_scan():
     m = tvm.var("m")
     n = tvm.var("n")
@@ -193,6 +224,7 @@ if __name__ == "__main__":
     test_tensor_slice()
     test_tensor()
     test_tensor_reduce()
+    test_tensor_tensor_op()
     test_tensor_scan()
     test_scan_multi_out()
     test_extern()

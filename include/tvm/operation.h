@@ -49,7 +49,7 @@ class OperationNode : public FunctionBaseNode {
   }
   /*!
    * \return The list of iteration variable at root
-   * \note root_iter_vars dedides the shape of the outputs.
+   * \note root_iter_vars decides the shape of the outputs.
    */
   virtual Array<IterVar> root_iter_vars() const = 0;
   /*!
@@ -180,6 +180,70 @@ class PlaceholderOpNode : public OperationNode {
 
   static constexpr const char* _type_key = "PlaceholderOp";
   TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode, OperationNode);
+};
+
+class TensorOpNode : public OperationNode {
+ public:
+  Array<IterVar> axis;
+
+  Array<IterVar> tensor_axis;
+
+  Array<IterVar> reduce_axis;
+
+  Array<Tensor> inputs;
+
+  Array<Region> input_regions;
+
+  TensorIntrin intrin;
+
+  /*! \brief constructor */
+  TensorOpNode() {}
+
+  // override functions
+  int num_outputs() const final;
+  Array<IterVar> root_iter_vars() const final;
+  Type output_dtype(size_t i) const final;
+  Array<Expr> output_shape(size_t i) const final;
+  Array<Tensor> InputTensors() const final;
+  Operation ReplaceInputs(
+      const Operation& self,
+      const std::unordered_map<Tensor, Tensor>& rmap) const final;
+  void PropBoundToInputs(
+      const Operation& self,
+      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
+  void GatherBound(
+      const Operation& self,
+      const std::unordered_map<Tensor, TensorDom>& tensor_dom,
+      std::unordered_map<IterVar, Range>* out_dom_map) const final;
+  Stmt BuildRealize(
+      const Stage& stage,
+      const std::unordered_map<IterVar, Range>& realize_map,
+      const Stmt& body) const final;
+  Stmt BuildProvide(
+      const Stage& stage,
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const final;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("tag", &tag);
+    v->Visit("axis", &axis);
+    v->Visit("tensor_axis", &tensor_axis);
+    v->Visit("reduce_axis", &reduce_axis);
+    v->Visit("inputs", &inputs);
+  }
+
+  static Operation make(std::string name,
+                        std::string tag,
+                        Array<IterVar> axis,
+                        Array<IterVar> reduce_axis,
+                        Array<Tensor> inputs,
+                        Array<Region> input_regions,
+                        TensorIntrin intrin);
+
+  static constexpr const char* _type_key = "TensorOp";
+  TVM_DECLARE_NODE_TYPE_INFO(TensorOpNode, OperationNode);
 };
 
 /*!
@@ -326,7 +390,7 @@ class ExternOpNode : public OperationNode {
  public:
   /*! \brief The input tensors */
   Array<Tensor> inputs;
-  /*! \brief Symbolic placeholder representationinputs */
+  /*! \brief Symbolic placeholder representation of inputs */
   Array<Buffer> input_placeholders;
   /*! \brief Symbolic placeholder representation of outputs */
   Array<Buffer> output_placeholders;

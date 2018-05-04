@@ -278,6 +278,17 @@ TVM_REGISTER_API("_ScanOp")
                             args[7]);
   });
 
+TVM_REGISTER_API("_TensorOp")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = TensorOpNode::make(args[0],
+                              args[1],
+                              args[2],
+                              args[3],
+                              args[4],
+                              args[5],
+                              args[6]);
+  });
+
 TVM_REGISTER_API("_ExternOp")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = ExternOpNode::make(args[0],
