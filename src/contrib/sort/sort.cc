@@ -37,11 +37,8 @@ bool compare_descend(SortElem<DType> lhs, SortElem<DType> rhs) {
 
 
 // Argsort implemented C library sort.
-// Sort a 3-D tensor for axis 1.
-// Number of element to be sorted for each sample can be specified
-// by num_elem tensor.
-// Index of value to be used for sorting is defined by sort_value_index.
-// Return index of sorted elements in each sample.
+// Return indices of sorted tensor.
+// By default, the last axis will be used to sort.
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   DLTensor *input = args[0];

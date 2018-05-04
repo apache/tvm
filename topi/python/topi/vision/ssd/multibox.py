@@ -8,6 +8,8 @@ from tvm import api
 
 import topi
 
+from ..nms import nms
+
 def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     """Low level IR routing for multibox_prior operator.
 
@@ -15,14 +17,19 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     ----------
     data : Buffer
         Input data buffer.
+
     out : Buffer
         Output buffer.
+
     sizes : tuple of float
         Tuple of sizes for anchor boxes.
+
     ratios : tuple of float
         Tuple of ratios for anchor boxes.
+
     steps : Tuple of int
         Priorbox step across y and x, -1 for auto calculation.
+
     offsets : tuple of int
         Priorbox center offsets, y and x respectively.
 
@@ -71,15 +78,20 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     Parameters
     ----------
     data : tvm.Tensor
-        4-D with shape [batch, c_in, h_in, w_in]
+        4-D with shape [batch, c_in, h_in, w_in]]
+
     sizes : tuple of float
         Tuple of sizes for anchor boxes.
+
     ratios : tuple of float
         Tuple of ratios for anchor boxes.
+
     steps : Tuple of int
         Priorbox step across y and x, -1 for auto calculation.
+
     offsets : tuple of int
         Priorbox center offsets, y and x respectively.
+
     clip : boolean
         Whether to clip out-of-boundary boxes.
 
@@ -106,18 +118,25 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
     ----------
     cls_prob : Buffer
         Buffer of class probabilities.
+
     loc_pred : Buffer
         Buffer of location regression predictions.
+
     anchor : Buffer
         Buffer of prior anchor boxes.
+
     valid_count : Buffer
         Buffer of number of valid output boxes.
+
     out : Buffer
         Output buffer.
+
     clip : boolean
         Whether to clip out-of-boundary boxes.
+
     threshold : float
         Threshold to be a positive prediction.
+
     variances : tuple of float
         Variances to be decoded from box regression output.
 
@@ -191,100 +210,6 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
     return ib.get()
 
 
-def nms_ir(inter_out, sort_result, valid_count, out, nms_threshold, force_suppress, nms_topk):
-    """Low level IR routing for transform location in multibox_detection operator.
-
-    Parameters
-    ----------
-    inter_out : Buffer
-        Buffer of intermediate output for transform location.
-    sort_result : Buffer
-        Buffer of output boxes sorted by score.
-    valid_count : Buffer
-        Buffer of number of valid output boxes.
-    out : Buffer
-        Output buffer.
-    nms_threshold : float
-        Non-maximum suppression threshold.
-    force_suppress : boolean
-        Whether to suppress all detections regardless of class_id.
-    nms_topk : int
-        Keep maximum top k detections before nms, -1 for no limit.
-
-    Returns
-    -------
-    stmt : Stmt
-        The result IR statement.
-    """
-    def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
-        """Calculate overlap of two boxes.
-        """
-        w = tvm.make.Max(0.0, tvm.make.Min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
-                         - tvm.make.Max(out_tensor[box_a_idx], out_tensor[box_b_idx]))
-        h = tvm.make.Max(0.0, tvm.make.Min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
-                         - tvm.make.Max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]))
-        i = w * h
-        u = (out_tensor[box_a_idx + 2] - out_tensor[box_a_idx]) * \
-            (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1]) + \
-            (out_tensor[box_b_idx + 2] - out_tensor[box_b_idx]) * \
-            (out_tensor[box_b_idx + 3] - out_tensor[box_b_idx + 1]) - i
-        return tvm.select(u <= 0.0, 0.0, i / u)
-
-    ib = tvm.ir_builder.create()
-    p_inter_out = ib.buffer_ptr(inter_out)
-    p_sort_result = ib.buffer_ptr(sort_result)
-    p_valid_count = ib.buffer_ptr(valid_count)
-    p_out = ib.buffer_ptr(out)
-    batch_size = out.shape[0]
-    num_anchors = out.shape[1]
-
-    nms_threshold_node = tvm.make.node("FloatImm", dtype="float32", value=nms_threshold)
-    nms_topk_node = tvm.make.node("IntImm", dtype="int32", value=nms_topk)
-    force_suppress_node = tvm.make.node("IntImm", dtype="int32", value=1 if force_suppress else 0)
-    with ib.for_range(0, batch_size, for_type="parallel", name="n") as n:
-        with ib.if_scope(tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
-                                 p_valid_count[0] > 0)):
-            # Reorder output
-            nkeep = tvm.select(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
-                               nms_topk, p_valid_count[n])
-            with ib.for_range(0, nkeep, name="l") as l:
-                with ib.for_range(0, 6, name="m") as m:
-                    p_out[n * num_anchors * 6 + l * 6 + m] \
-                        = p_inter_out[n * num_anchors * 6 + p_sort_result[n * num_anchors + l]
-                                      * 6 + m]
-            with ib.if_scope(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n])):
-                with ib.for_range(0, p_valid_count[n] - nkeep, name="l") as l:
-                    with ib.for_range(0, 6, name="m") as m:
-                        p_out[n * num_anchors * 6 + (l + nkeep) * 6 + m] \
-                            = p_inter_out[n * num_anchors * 6 + (l + nkeep) * 6 + m]
-            # Apply nms
-            with ib.for_range(0, p_valid_count[n], name="l") as l:
-                offset_l = l * 6
-                with ib.if_scope(p_out[n * num_anchors * 6 + offset_l] >= 0):
-                    with ib.for_range(0, p_valid_count[n], name="m") as m:
-                        offset_m = m * 6
-                        with ib.if_scope(tvm.all(m > l, p_out[n * num_anchors * 6
-                                                              + offset_m] >= 0)):
-                            with ib.if_scope(tvm.any(force_suppress_node > 0,
-                                                     p_out[n * num_anchors * 6 + offset_l] ==
-                                                     p_out[n * num_anchors * 6 + offset_m])):
-                                # When force_suppress == True or class_id equals
-                                iou = calculate_overlap(p_out, n * num_anchors * 6 + offset_l + 2,
-                                                        n * num_anchors * 6 + offset_m + 2)
-                                with ib.if_scope(iou >= nms_threshold):
-                                    p_out[n * num_anchors * 6 + offset_m] = -1.0
-        with ib.else_scope():
-            with ib.for_range(0, p_valid_count[n], name="l") as l:
-                with ib.for_range(0, 6, name="m") as m:
-                    p_out[n * num_anchors * 6 + l * 6 + m] = \
-                        p_inter_out[n * num_anchors * 6 + l * 6 + m]
-        # Set invalid entry to be -1
-        with ib.for_range(0, num_anchors - p_valid_count[n], name="l") as l:
-            with ib.for_range(0, 6, name="m") as m:
-                p_out[n * num_anchors * 6 + (l + p_valid_count[n]) * 6 + m] = -1.0
-    return ib.get()
-
-
 @tvm.target.generic_func
 def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
                        force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
@@ -294,20 +219,28 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     ----------
     cls_prob : tvm.Tensor
         Class probabilities.
+
     loc_pred : tvm.Tensor
         Location regression predictions.
+
     anchor : tvm.Tensor
         Prior anchor boxes.
+
     clip : boolean
         Whether to clip out-of-boundary boxes.
+
     nms_threshold : float
         Non-maximum suppression threshold.
+
     force_suppress : boolean
         Whether to suppress all detections regardless of class_id.
+
     threshold : float
         Threshold to be a positive prediction.
+
     variances : tuple of float
         Variances to be decoded from box regression output.
+
     nms_topk : int
         Keep maximum top k detections before nms, -1 for no limit.
 
@@ -332,30 +265,5 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
                    dtype=[valid_count_dtype, cls_prob.dtype],
                    out_buffers=[valid_count_buf, inter_out_buf],
                    tag="multibox_detection_transform_loc")
-    score_axis = 1
-    score_shape = (batch_size, num_anchors)
-    score_tensor = tvm.compute(score_shape, lambda i, j: inter_out[i, j, score_axis])
-    score_tensor_buf = api.decl_buffer(score_tensor.shape, cls_prob.dtype,
-                                       "score_tensor_buf", data_alignment=8)
-    sort_tensor_dtype = "int32"
-    sort_tensor_buf = api.decl_buffer(score_shape, sort_tensor_dtype,
-                                      "sort_tensor_buf", data_alignment=8)
-    sort_tensor = \
-        tvm.extern(score_shape,
-                   [score_tensor],
-                   lambda ins, outs: tvm.call_packed(
-                       "tvm.contrib.sort.argsort", ins[0], outs[0], score_axis, True),
-                   dtype=sort_tensor_dtype,
-                   in_buffers=score_tensor_buf,
-                   out_buffers=sort_tensor_buf,
-                   name="multibox_detection_sort")
-    out = \
-        tvm.extern(oshape,
-                   [inter_out, sort_tensor, valid_count],
-                   lambda ins, outs: nms_ir(
-                       ins[0], ins[1], ins[2], outs[0], nms_threshold,
-                       force_suppress, nms_topk),
-                   dtype="float32",
-                   in_buffers=[inter_out_buf, sort_tensor_buf, valid_count_buf],
-                   tag="multibox_detection_nms")
+    out = nms(inter_out, valid_count, nms_threshold, force_suppress, nms_topk)
     return out
