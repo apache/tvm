@@ -246,6 +246,8 @@ class Reciprocal(OnnxOpConverter):
 
 
 class Reshape(OnnxOpConverter):
+    """ Operator converter for Reshape.
+    """
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -253,9 +255,11 @@ class Reshape(OnnxOpConverter):
 
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
-        return _sym.reshape(
-            inputs[0],
-            shape=tuple(params[inputs[1].list_output_names()[0]].asnumpy()))
+        if inputs[1].list_output_names()[0] in params:
+            shape = tuple(params[inputs[1].list_output_names()[0]].asnumpy())
+        else:
+            raise RuntimeError('Shape is not contained in graph initializer.')
+        return _sym.reshape(inputs[0], shape=shape)
 
 
 class Scale(OnnxOpConverter):
