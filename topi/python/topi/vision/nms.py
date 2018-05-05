@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments
 """Non-maximum suppression operator"""
 import tvm
 
@@ -33,6 +34,26 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     -------
     stmt : Stmt
         The result IR statement.
+
+    Examples
+    --------
+    >>> # An example to use nms
+    >>> dshape = (1, 5, 6)
+    >>> data = tvm.placeholder(dshape, name="data")
+    >>> valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+    >>> nms_threshold = 0.7
+    >>> force_suppress = True
+    >>> nms_topk = -1
+    >>> out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+    >>> np_data = np.random.uniform(dshape)
+    >>> np_valid_count = np.array([4])
+    >>> s = topi.generic.schedule_nms(out)
+    >>> f = tvm.build(s, [data, valid_count, out], "llvm")
+    >>> ctx = tvm.cpu()
+    >>> tvm_data = tvm.nd.array(np_data, ctx)
+    >>> tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
+    >>> tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
+    >>> f(tvm_data, tvm_valid_count, tvm_out)
     """
     def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
         """Calculate overlap of two boxes.
@@ -55,7 +76,6 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     p_out = ib.buffer_ptr(out)
     batch_size = out.shape[0]
     num_anchors = out.shape[1]
-    score_axis = 1
 
     nms_threshold_node = tvm.make.node("FloatImm", dtype="float32", value=nms_threshold)
     nms_topk_node = tvm.make.node("IntImm", dtype="int32", value=nms_topk)
@@ -63,20 +83,13 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     with ib.for_range(0, batch_size, for_type="parallel", name="n") as n:
         with ib.if_scope(tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
                                  p_valid_count[0] > 0)):
-            # Sort boxes by score
-            valid_box_scores = ib.allocate(dtype="float32", shape=(1, p_valid_count[n]))
-            sort_buffer = ib.allocate(dtype="int32", shape=(1, p_valid_count[n]))
-            with ib.for_range(0, p_valid_count[n], name="m") as m:
-                valid_box_scores[m] = p_data[m * 6 + 1]
-            tvm.call_packed("tvm.contrib.sort.argsort", valid_box_scores,
-                            sort_buffer, score_axis, True)
             # Reorder output
             nkeep = tvm.select(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
                                nms_topk, p_valid_count[n])
             with ib.for_range(0, nkeep, name="l") as l:
                 with ib.for_range(0, 6, name="m") as m:
                     p_out[n * num_anchors * 6 + l * 6 + m] \
-                        = p_data[n * num_anchors * 6 + sort_buffer[l] * 6 + m]
+                        = p_data[n * num_anchors * 6 + p_sort_result[n * num_anchors + l] * 6 + m]
             with ib.if_scope(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n])):
                 with ib.for_range(0, p_valid_count[n] - nkeep, name="l") as l:
                     with ib.for_range(0, 6, name="m") as m:
@@ -154,11 +167,12 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
                                       "sort_tensor_buf", data_alignment=8)
     sort_tensor = \
         tvm.extern(score_shape,
-                   [score_tensor],
+                   [score_tensor, valid_count],
                    lambda ins, outs: tvm.call_packed(
-                       "tvm.contrib.sort.argsort", ins[0], outs[0], score_axis, True),
+                       "tvm.contrib.sort.argsort", ins[0], ins[1],
+                       outs[0], score_axis, True),
                    dtype=sort_tensor_dtype,
-                   in_buffers=score_tensor_buf,
+                   in_buffers=[score_tensor_buf, valid_count_buf],
                    out_buffers=sort_tensor_buf,
                    name="nms_sort")
     out = \

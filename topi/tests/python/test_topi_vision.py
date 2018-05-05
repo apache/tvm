@@ -4,7 +4,44 @@ import tvm
 import topi
 import math
 
-from topi.vision import ssd
+from topi.vision import ssd, nms
+
+
+def test_nms():
+    dshape = (1, 5, 6)
+    data = tvm.placeholder(dshape, name="data")
+    valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+    nms_threshold = 0.7
+    force_suppress = True
+    nms_topk = 2
+    out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+
+    np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
+                         [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
+                         [1, 0.5, 100, 60, 70, 110]]]).astype(data.dtype)
+    np_valid_count = np.array([4]).astype(valid_count.dtype)
+    np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
+                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1]]])
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_nms(out)
+
+        tvm_data = tvm.nd.array(np_data, ctx)
+        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
+        f = tvm.build(s, [data, valid_count, out], device)
+        f(tvm_data, tvm_valid_count, tvm_out)
+        np.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
+
+    for device in ['llvm']:
+        check_device(device)
 
 
 def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
@@ -109,5 +146,6 @@ def test_multibox_detection():
 
 
 if __name__ == "__main__":
+    test_nms()
     test_multibox_prior()
     test_multibox_detection()
