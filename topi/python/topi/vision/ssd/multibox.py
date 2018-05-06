@@ -211,6 +211,58 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
 
 
 @tvm.target.generic_func
+def mutibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
+                          variances=(0.1, 0.1, 0.2, 0.2)):
+    """Location transformation for multibox detection
+
+    Parameters
+    ----------
+    cls_prob : tvm.Tensor
+        Class probabilities.
+
+    loc_pred : tvm.Tensor
+        Location regression predictions.
+
+    anchor : tvm.Tensor
+        Prior anchor boxes.
+
+    clip : boolean
+        Whether to clip out-of-boundary boxes.
+
+    threshold : float
+        Threshold to be a positive prediction.
+
+    variances : tuple of float
+        Variances to be decoded from box regression output.
+
+    Returns
+    -------
+    out : tvm.Tensor
+        3-D tensor with shape (batch_size, num_anchors, 6)
+
+    valid_count : tvm.Tensor
+        1-D tensor with shape (batch_size,), number of valid anchor boxes.
+    """
+    batch_size = cls_prob.shape[0]
+    num_anchors = anchor.shape[1]
+    oshape = (batch_size, num_anchors, 6)
+    # Define data alignment for intermediate buffer
+    valid_count_dtype = "int32"
+    valid_count_buf = api.decl_buffer((batch_size,), valid_count_dtype,
+                                      "valid_count_buf", data_alignment=4)
+    out_buf = api.decl_buffer(oshape, cls_prob.dtype, "out_buf", data_alignment=8)
+    valid_count, out = \
+        tvm.extern([(batch_size,), oshape],
+                   [cls_prob, loc_pred, anchor],
+                   lambda ins, outs: transform_loc_ir(
+                       ins[0], ins[1], ins[2], outs[0], outs[1], clip, threshold, variances),
+                   dtype=[valid_count_dtype, cls_prob.dtype],
+                   out_buffers=[valid_count_buf, out_buf],
+                   tag="multibox_transform_loc")
+    return out, valid_count
+
+
+@tvm.target.generic_func
 def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
                        force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
     """Convert multibox detection predictions.
@@ -247,23 +299,9 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     Returns
     -------
     out : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6]
+        3-D tensor with shape (batch_size, num_anchors, 6)
     """
-    batch_size = cls_prob.shape[0]
-    num_anchors = anchor.shape[1]
-    oshape = (batch_size, num_anchors, 6)
-    # Define data alignment for intermediate buffer
-    valid_count_dtype = "int32"
-    valid_count_buf = api.decl_buffer((batch_size,), valid_count_dtype,
-                                      "valid_count_buf", data_alignment=4)
-    inter_out_buf = api.decl_buffer(oshape, cls_prob.dtype, "inter_out_buf", data_alignment=8)
-    valid_count, inter_out = \
-        tvm.extern([(batch_size,), oshape],
-                   [cls_prob, loc_pred, anchor],
-                   lambda ins, outs: transform_loc_ir(
-                       ins[0], ins[1], ins[2], outs[0], outs[1], clip, threshold, variances),
-                   dtype=[valid_count_dtype, cls_prob.dtype],
-                   out_buffers=[valid_count_buf, inter_out_buf],
-                   tag="multibox_detection_transform_loc")
+    inter_out, valid_count = mutibox_transform_loc(cls_prob, loc_pred, anchor,
+                                                   clip, threshold, variances)
     out = nms(inter_out, valid_count, nms_threshold, force_suppress, nms_topk)
     return out
