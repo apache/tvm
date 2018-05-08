@@ -1,8 +1,9 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for vision operator"""
 from __future__ import absolute_import as _abs
-import topi
+import tvm
 from .. import generic
+from .. import cpp
 
 @generic.schedule_region.register(["rocm"])
 def schedule_region(outs):
@@ -19,4 +20,6 @@ def schedule_region(outs):
     s: Schedule
         The computation schedule for region.
     """
-    return topi.cuda.schedule_region(outs)
+    target = tvm.target.current_target(allow_none=False)
+    cpp_target = cpp.TEST_create_target(target.target_name)
+    return cpp.rocm.schedule_region(cpp_target, outs)

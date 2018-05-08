@@ -46,6 +46,10 @@ rocm = _create_module("rocm")
 _init_api_prefix("topi.cpp.rocm", "topi.rocm")
 x86 = _create_module("x86")
 _init_api_prefix("topi.cpp.x86", "topi.x86")
+vision = _create_module("vision")
+_init_api_prefix("topi.cpp.vision", "topi.vision")
+yolo2 = _create_module("vision.yolo2")
+_init_api_prefix("topi.cpp.vision.yolo2", "topi.vision.yolo2")
 
 class IntVector(object):
     """Handle to std::vector<int> instance """
