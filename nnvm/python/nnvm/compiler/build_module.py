@@ -241,6 +241,10 @@ def build(graph, target=None, shape=None, dtype="float32",
     shape = shape if shape else {}
     if not isinstance(shape, dict):
         raise TypeError("require shape to be dict")
+    for value in shape.values():
+        if not all(isinstance(x, int) for x in value):
+            raise TypeError("shape value must be int iterator")
+
     cfg = BuildConfig.current
     graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
     shape, dtype = _update_shape_dtype(shape, dtype, params)
