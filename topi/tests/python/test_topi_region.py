@@ -3,6 +3,8 @@ import numpy as np
 import topi
 from topi.util import get_const_tuple
 import tvm
+import topi.testing
+
 def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_softmax):
     '''Verify region operator by comparing outputs from tvm and numpy implementation'''
     in_height = in_width = in_size
@@ -27,7 +29,10 @@ def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.vision.schedule_region([B])
+            if device == 'llvm':
+                s = topi.generic.vision.schedule_region([B])
+            else:
+                s = topi.cuda.vision.schedule_region([B])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         func = tvm.build(s, [A, B], device)
