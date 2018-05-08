@@ -39,4 +39,4 @@ def schedule_region(outs):
     """
     target = tvm.target.current_target(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
-    return topi.cpp.cuda.schedule_region(cpp_target, outs)
+    return cpp.cuda.schedule_region(cpp_target, outs)
