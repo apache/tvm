@@ -451,6 +451,11 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
   *rv = topi::cuda::schedule_softmax(args[0], args[1]);
   });
 
+TVM_REGISTER_GLOBAL("topi.cuda.schedule_region")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::cuda::schedule_region(args[0], args[1]);
+  });
+
 /*! \brief Builder function for instantiating schedules. */
 using FTVMScheduleBuilder = std::function<
   tvm::Schedule(const tvm::Target& target, const tvm::Array<tvm::Tensor>& outs)>;
