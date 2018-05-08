@@ -24,6 +24,8 @@
 #include <topi/nn/pooling.h>
 #include <topi/nn/softmax.h>
 
+#include <topi/vision/reorg.h>
+#include <topi/vision/yolo2/region.h>
 #include <topi/generic/default.h>
 #include <topi/generic/extern.h>
 #include <topi/generic/injective.h>
@@ -34,12 +36,14 @@
 #include <topi/cuda/pooling.h>
 #include <topi/cuda/reduction.h>
 #include <topi/cuda/softmax.h>
+#include <topi/cuda/vision.h>
 
 #include <topi/x86/bnn.h>
 #include <topi/x86/default.h>
 #include <topi/x86/injective.h>
 
 #include <topi/rocm/dense.h>
+#include <topi/rocm/vision.h>
 
 namespace tvm {
 namespace runtime {
@@ -338,6 +342,14 @@ TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
   *rv = nn::log_softmax(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.vision.reorg")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = vision::reorg(args[0], args[1]);
+  });
+TVM_REGISTER_GLOBAL("topi.vision.yolo2.region")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = vision::yolo2::region(args[0], args[1], args[2], args[3], args[4], args[5]);
+  });
 /* Generic schedules */
 TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -394,6 +406,10 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
   *rv = topi::rocm::schedule_dense(args[0], args[1]);
   });
 
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_region")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_region(args[0], args[1]);
+  });
 /* CUDA schedules */
 TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -433,6 +449,11 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_reduce")
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_softmax(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.cuda.schedule_region")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::cuda::schedule_region(args[0], args[1]);
   });
 
 /*! \brief Builder function for instantiating schedules. */
