@@ -66,7 +66,6 @@ def _get_schedule_conv(wkl):
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, False),
         AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, True),
-        # AVX512ConvCommonFwd(16, 32, 7, True),
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
         AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 7),
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
