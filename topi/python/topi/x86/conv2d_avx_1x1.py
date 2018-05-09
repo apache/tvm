@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable,invalid-name
+# pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """1x1 Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
@@ -18,12 +18,16 @@ def _get_default_schedule(wkl, simd_width):
     out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
 
-    for oc_bn in range(simd_width, 0, -1):
-        if wkl.out_filter % oc_bn == 0:
+    oc_bn = 1
+    for bn in range(simd_width, 0, -1):
+        if wkl.out_filter % bn == 0:
+            oc_bn = bn
             break
 
-    for ic_bn in range(oc_bn, 0, -1):
-        if wkl.in_filter % ic_bn == 0:
+    ic_bn = 1
+    for bn in range(oc_bn, 0, -1):
+        if wkl.in_filter % bn == 0:
+            ic_bn = bn
             break
 
     for ow_factor in range(out_width, 0, -1):
@@ -170,9 +174,10 @@ def _declaration_conv_NCHWc(wkl, data, kernel):
     oshape = (batch_size, wkl.out_filter//sch.oc_bn, out_height, out_width, sch.oc_bn)
     ic = tvm.reduce_axis((0, wkl.in_filter), name='ic')
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-    tvm.sum(data_pad[n, ic//sch.ic_bn, oh*HSTR, ow*WSTR, ic%sch.ic_bn].astype(out_dtype) *
-            kernel[oc_chunk, ic // sch.ic_bn, ic % sch.ic_bn, oc_block, 0, 0],
-            axis=[ic]), name='conv2d_NCHWc', tag='conv2d_NCHWc')
+                       tvm.sum(data_pad[n, ic//sch.ic_bn, oh*HSTR, ow*WSTR, ic%sch.ic_bn]
+                               .astype(out_dtype) *
+                               kernel[oc_chunk, ic // sch.ic_bn, ic % sch.ic_bn, oc_block, 0, 0],
+                               axis=[ic]), name='conv2d_NCHWc', tag='conv2d_NCHWc')
 
     return conv
 

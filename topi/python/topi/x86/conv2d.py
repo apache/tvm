@@ -124,7 +124,7 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
 
 
 @reg.register_alter_op_layout("conv2d")
-def alter_conv2d_layout(attrs, inputs, tinfos):
+def _alter_conv2d_layout(attrs, inputs, tinfos):
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
@@ -175,11 +175,11 @@ def _declaration_conv_NCHWc(data, kernel, num_filter, kernel_size, stride, paddi
 
 @generic.schedule_conv2d_nchw.register(["cpu"])
 def schedule_conv2d(outs):
+    """Create schedule for tensors"""
     _AVX_SCH_TO_SCH_FUNC = {
         AVXConvCommonFwd: conv2d_avx_common._schedule_conv,
         AVXConv1x1Fwd: conv2d_avx_1x1._schedule_conv
     }
-    """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     target = tvm.target.current_target(allow_none=False)
 
@@ -313,11 +313,11 @@ def schedule_conv2d_nhwc(outs):
 
 @generic.schedule_conv2d_NCHWc.register(["cpu"])
 def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, outs):
+    """Create schedule for tensors"""
     _AVX_SCH_TO_SCH_FUNC = {
         AVXConvCommonFwd: conv2d_avx_common._schedule_conv_NCHWc,
         AVXConv1x1Fwd: conv2d_avx_1x1._schedule_conv_NCHWc
     }
-    """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
