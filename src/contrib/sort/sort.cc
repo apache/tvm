@@ -62,9 +62,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
       "to be float32.";
   std::vector<SortElem<float>> sorter;
   std::vector<int64_t> non_sort_axis;
-  if (axis == -1) {
-    axis = 0;
+  if (axis < 0) {
+    axis = -axis;
   }
+  CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+      "input ndim " << input->ndim;
   for (int i = 0; i < input->ndim; ++i) {
     if (i != axis) {
       num_sort_vec *= input->shape[i];
