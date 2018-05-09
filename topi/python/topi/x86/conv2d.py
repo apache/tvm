@@ -1,11 +1,11 @@
 # pylint: disable=invalid-name,unused-variable,invalid-name
 """Conv2D schedule on x86"""
 import tvm
-from nnvm.top import registry as reg
 from .. import generic, tag
 from .. import nn
 from ..nn.util import infer_pad, infer_stride
-from ..nn.conv2d import conv2d, conv2d_NCHWc, _get_workload, _get_schedule, Workload
+from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
+                        _get_workload, _get_schedule, Workload
 
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d_avx_common import AVXConvCommonFwd
@@ -122,14 +122,14 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
         raise ValueError("not support this layout {} yet".format(layout))
 
 
-@reg.register_alter_op_layout("conv2d")
+@conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfos):
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
     # only optimize for NCHW, groups=1 conv
     if attrs['layout'] != 'NCHW' or attrs.get_int("groups") != 1:
-        return sym.conv2d(*copy_inputs, **new_attrs)
+        return None
 
     data = tinfos[0]
     kernel = tinfos[1]

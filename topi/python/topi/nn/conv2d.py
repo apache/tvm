@@ -112,6 +112,23 @@ def conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype=None):
         raise ValueError("not support this layout {} yet".format(layout))
 
 
+@tvm.target.generic_func
+def conv2d_alter_layout(attrs, inputs, tinfos):
+    """Change Conv2D layout.
+
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict
+        Attributes of current convolution
+    inputs : nnvm.symbol
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    """
+    # not to change by default
+    return None
+
+
 def _get_workload(data, kernel, stride, padding, out_dtype):
     """ Get the workload structure. """
     _, CI, IH, IW = [x.value for x in data.shape]
