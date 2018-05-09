@@ -63,7 +63,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
   std::vector<SortElem<float>> sorter;
   std::vector<int64_t> non_sort_axis;
   if (axis < 0) {
-    axis = -axis;
+    axis = input->ndim + axis;
   }
   CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
       "input ndim " << input->ndim;
