@@ -10,7 +10,7 @@ def verify_relu(m, n, dtype):
     B = topi.cpp.nn.relu(A)
     assert B.dtype == dtype
 
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
+    a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0)
 
     def check_device(device):
