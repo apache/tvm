@@ -22,6 +22,26 @@ def relu(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def relu6(x):
+    """Take relu6 of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    def _compute(*indices):
+        value = x(*indices)
+        return tvm.min(tvm.max(value, tvm.const(0, x.dtype)), tvm.const(6, x.dtype))
+    return tvm.compute(x.shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def leaky_relu(x, alpha):
     """Take leaky relu of input x.
 
