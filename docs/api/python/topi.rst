@@ -29,6 +29,7 @@ Index
    topi.greater
    topi.less
    topi.nn.relu
+   topi.nn.relu6
    topi.nn.leaky_relu
    topi.nn.dilate
    topi.nn.pool
@@ -98,6 +99,7 @@ topi
 topi.nn
 ~~~~~~~
 .. autofunction:: topi.nn.relu
+.. autofunction:: topi.nn.relu6
 .. autofunction:: topi.nn.leaky_relu
 .. autofunction:: topi.nn.dilate
 .. autofunction:: topi.nn.pool

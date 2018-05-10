@@ -57,6 +57,34 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 }
 
 /*!
+ * \brief Creates an operation that performs a rectified linear 6
+ *
+ * \param t The input tensor
+ * \param lower_threshold The relu6 lower threshold (default 0)
+ * \param upper_threshold The relu6 upper threshold (default 6)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the relu6 operation
+ */
+template <typename T>
+inline tvm::Tensor relu6(const tvm::Tensor& t,
+                         T lower_threshold = static_cast<T>(0),
+                         T upper_threshold = static_cast<T>(6),
+                         std::string name = "tensor",
+                         std::string tag = kElementWise) {
+  return tvm::compute(
+      t->shape,
+      [&](const tvm::Array<tvm::Var>& i) {
+        auto lower_threshold_const = tvm::make_const(t->dtype, lower_threshold);
+        auto upper_threshold_const = tvm::make_const(t->dtype, upper_threshold);
+        return tvm::min(tvm::max(t(i), lower_threshold_const), upper_threshold_const);
+      },
+      name,
+      tag);
+}
+
+/*!
 * \brief Creates an operation that performs a leaky rectified linear unit
 *
 * \param t The input tensor

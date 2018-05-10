@@ -34,6 +34,35 @@ def verify_relu(m, n, dtype):
         check_device(device)
 
 
+def verify_relu6(m, n, dtype):
+    A = tvm.placeholder((m, n), name='A', dtype=dtype)
+    B = topi.cpp.nn.relu6(A)
+    assert B.dtype == dtype
+
+    a_np = np.random.uniform(low=-10.0, high=10.0, size=get_const_tuple(A.shape)).astype(A.dtype)
+    b_np = np.minimum(np.maximum(a_np, 0), 6)
+
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        target = topi.cpp.TEST_create_target(device)
+        if device == "llvm":
+            s = topi.cpp.generic.schedule_injective(target, [B])
+        else:
+            s = topi.cpp.cuda.schedule_injective(target, [B])
+        ctx = tvm.context(device, 0)
+        a = tvm.nd.array(a_np, ctx)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+        foo = tvm.build(s, [A, B], device, name="relu6")
+        foo(a, b)
+        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+
+    for device in ['cuda', 'opencl', 'metal', 'rocm']:
+        check_device(device)
+
+
 def verify_leaky_relu(m, alpha):
     A = tvm.placeholder((m,), name='A')
     B = topi.cpp.nn.leaky_relu(A, alpha)
@@ -77,6 +106,10 @@ def test_relu():
     for dtype in ['float32', 'float64', 'int32', 'int16', 'int8', 'int64']:
         verify_relu(10, 128, dtype)
 
+def test_relu6():
+    for dtype in ['float32', 'float64', 'int32', 'int16', 'int8', 'int64']:
+        verify_relu6(10, 128, dtype)
+
 def test_leaky_relu():
     verify_leaky_relu(100, 0.1)
 
@@ -85,5 +118,6 @@ def test_prelu():
 
 if __name__ == "__main__":
     test_relu()
+    test_relu6()
     test_leaky_relu()
     test_prelu()
