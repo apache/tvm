@@ -7,8 +7,8 @@ This functions will not be loaded by default.
 These are utility functions used for testing and tutorial file.
 """
 from __future__ import division
-from enum import IntEnum
 import math
+from enum import IntEnum
 import numpy as np
 import cv2
 from cffi import FFI
