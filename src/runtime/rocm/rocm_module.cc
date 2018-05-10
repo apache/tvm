@@ -229,6 +229,12 @@ TVM_REGISTER_GLOBAL("module.loadbinary_hsaco")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = ROCMModuleLoadBinary(args[0]);
   });
+
+
+TVM_REGISTER_GLOBAL("module.loadbinary_hip")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = ROCMModuleLoadBinary(args[0]);
+  });
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_ROCM_RUNTIME
