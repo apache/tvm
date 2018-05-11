@@ -265,6 +265,11 @@ TVM_REGISTER_GLOBAL("topi.split")
   }
   });
 
+TVM_REGISTER_GLOBAL("topi.take")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = take(args[0], args[1]);
+  });
+
 /* Ops from nn/batch_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.batch_norm_inference")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

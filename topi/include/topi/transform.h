@@ -358,5 +358,84 @@ inline Array<Tensor> split_sections(const Tensor& x,
   return split(x, split_indices, axis, name, tag);
 }
 
+/*!
+* \brief Take elements from an array along an axis.
+*
+* \param x[0] The input tensor
+* \param x[1] The indices of the values to extract.
+* \param axis The axis over which to select values.
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the take operation
+*/
+inline Tensor take(const Array<Tensor>& inputs,
+                          int axis = 0,
+                          std::string name = "tensor",
+                          std::string tag = "") {
+  const Tensor a_ary = inputs[0];
+  const Tensor indices_ary = inputs[1];
+
+  if (axis < 0) {
+    axis += static_cast<int>(a_ary->shape.size());
+  }
+
+  Array<Expr> out_shape;
+  for (size_t i = 0; i < static_cast<size_t>(a_ary->shape.size()); ++i) {
+    if (axis ==(int)i) {
+      for (size_t indices = 0; indices < static_cast<size_t>(indices_ary->shape.size()); ++indices) {
+        out_shape.push_back(indices_ary->shape[indices]);
+      }
+    } else {
+      out_shape.push_back(a_ary->shape[i]);
+    }
+  }
+
+  int indices_size = 1;
+  for (size_t indices = 0; indices < static_cast<size_t>(indices_ary->shape.size()); ++indices) {
+    indices_size = indices_size * static_cast<int>(GetConstInt(indices_ary->shape[indices]));
+  }
+
+  Array< Array<Expr> > extract_out_shapes;
+  for (int indices = 0; indices < indices_size; ++indices) {
+    Array<Expr> shape;
+    for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
+      shape.push_back(a_ary->shape[i]);
+    }
+    shape.push_back(1);
+    for (size_t i = axis + 1; i < a_ary->shape.size(); ++i) {
+      shape.push_back(a_ary->shape[i]);
+    }
+    extract_out_shapes.push_back(shape);
+  }
+
+  Array<Expr> indices_shape;
+  indices_shape.push_back(indices_size);
+  const Tensor flattern_indices = reshape(indices_ary, indices_shape);
+
+  Array<Tensor> result;
+  for (size_t i = 0; i < static_cast<size_t>(extract_out_shapes.size()); ++i) {
+    result.push_back(
+      compute(
+        extract_out_shapes[i], [&](const Array<Var>& indices) {
+          auto begin = flattern_indices[(int)i];
+          Array<Expr> real_indices;
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+            real_indices.push_back(indices[j]);
+          }
+          real_indices.push_back(indices[axis] + begin);
+          for (size_t j = axis + 1; j < indices.size(); ++j) {
+            real_indices.push_back(indices[j]);
+          }
+
+          return a_ary(real_indices);
+        }, name, tag));
+  }
+
+  const Tensor concat_result = concatenate(result, axis);
+
+  return reshape(concat_result, out_shape);
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

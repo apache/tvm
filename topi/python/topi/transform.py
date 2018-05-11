@@ -5,6 +5,7 @@ import tvm
 import topi
 from . import tag
 from .util import ravel_index, unravel_index, get_const_int, get_const_tuple
+from . import cpp
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -268,3 +269,25 @@ def split(ary, indices_or_sections, axis=0):
                         lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
             for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]
     # pylint: enable=cell-var-from-loop
+
+
+@tvm.target.generic_func
+def take(a_tuple, axis=0):
+    """Take elements from an array along an axis.
+
+    Parameters
+    ----------
+    ary[0] : tvm.Tensor
+        The source array.
+
+    ary[0] : tvm.Tensor
+        The indices of the values to extract.
+
+    axis : int, optional
+        The axis over which to select values. Default is 0.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.take(a_tuple, axis)
