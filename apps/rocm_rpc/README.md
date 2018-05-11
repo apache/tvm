@@ -21,7 +21,7 @@ This folder provides a workaround to this problem.
 ## Note
 With ROCm RPC, we can build AMDGPU program from a machine without AMD GPU
 and remotely upload and execute on a AMDGPU machine.
-Please note that you will need to set the gfx version correctly(via ```-model```` or ```-mcpu```)
+Please note that you will need to set the gfx version correctly(via ```-model``` or ```-mcpu```)
 because we can no longer query the GPU version dynamically during runtime.
 
 
