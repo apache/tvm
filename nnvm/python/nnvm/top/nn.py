@@ -88,6 +88,8 @@ def compute_conv2d(attrs, inputs, _):
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
+    elif dilation == (1, 1):
+        kernel = inputs[1]
     elif layout == "NCHW":
         kernel = topi.nn.dilate(inputs[1], [1, 1, dilation_h, dilation_w])
     else: #layout == NHWC
