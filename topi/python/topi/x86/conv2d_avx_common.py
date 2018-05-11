@@ -171,9 +171,7 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     return s
 
 
-def _declaration_conv_NCHWc(wkl, data, kernel):
-    sch = _get_schedule(wkl)
-
+def _declaration_conv_NCHWc(wkl, sch, data, kernel):
     out_dtype = wkl.out_dtype
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
@@ -205,9 +203,7 @@ def _declaration_conv_NCHWc(wkl, data, kernel):
     return conv
 
 
-def _schedule_conv_NCHWc(s, wkl, data, kernel, conv_out, last):
-    sch = _get_schedule(wkl)
-
+def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
     # schedule data
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
