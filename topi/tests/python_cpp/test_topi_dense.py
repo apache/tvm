@@ -29,7 +29,8 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -40,7 +41,6 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             s = topi.cpp.rocm.schedule_dense(target, [D])
         else:
             s = topi.cpp.cuda.schedule_dense(target, [D])
-        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
