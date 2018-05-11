@@ -382,9 +382,9 @@ inline Tensor take(const Array<Tensor>& inputs,
 
   Array<Expr> out_shape;
   for (size_t i = 0; i < static_cast<size_t>(a_ary->shape.size()); ++i) {
-    if (axis ==(int)i) {
-      for (size_t indices = 0; indices < static_cast<size_t>(indices_ary->shape.size()); ++indices) {
-        out_shape.push_back(indices_ary->shape[indices]);
+    if (axis == static_cast<int>(i)) {
+      for (size_t j = 0; j < static_cast<size_t>(indices_ary->shape.size()); ++j) {
+        out_shape.push_back(indices_ary->shape[j]);
       }
     } else {
       out_shape.push_back(a_ary->shape[i]);
@@ -418,7 +418,7 @@ inline Tensor take(const Array<Tensor>& inputs,
     result.push_back(
       compute(
         extract_out_shapes[i], [&](const Array<Var>& indices) {
-          auto begin = flattern_indices[(int)i];
+          auto begin = flattern_indices[static_cast<int>(i)];
           Array<Expr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(indices[j]);
