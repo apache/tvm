@@ -291,9 +291,8 @@ class ThreadPool {
     return res;
   }
 
-  static ThreadPool* Global() {
-    static ThreadPool inst;
-    return &inst;
+  static ThreadPool* ThreadLocal() {
+    return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
  private:
@@ -331,7 +330,7 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
-  int res = tvm::runtime::ThreadPool::Global()->Launch(
+  int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(
       flambda, cdata, num_task, 1);
   return res;
 }
