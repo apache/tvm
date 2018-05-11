@@ -361,8 +361,9 @@ inline Array<Tensor> split_sections(const Tensor& x,
 /*!
 * \brief Take elements from an array along an axis.
 *
-* \param inputs[0] The input tensor
-* \param inputs[1] The indices of the values to extract.
+* \param inputs
+*    0-The input tensor.
+*    1-The indices of the values to extract.
 * \param axis The axis over which to select values.
 * \param name The name of the operation
 * \param tag The tag to mark the operation
