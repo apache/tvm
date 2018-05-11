@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import argparse
+import logging
 from ..contrib import rpc
 
 def main():
@@ -31,6 +32,7 @@ def main():
     else:
         tracker_addr = None
 
+    logging.basicConfig(level=logging.INFO)
     server = rpc.Server(args.host,
                         args.port,
                         args.port_end,
