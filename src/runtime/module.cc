@@ -121,9 +121,9 @@ bool RuntimeEnabled(const std::string& target) {
   } else if (target == "vpi" || target == "verilog") {
     f_name = "device_api.vpi";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
-    f_name = "codegen.build_nvptx";
+    f_name = "device_api.gpu";
   } else if (target.length() >= 4 && target.substr(0, 4) == "rocm") {
-    f_name = "codegen.build_rocm";
+    f_name = "device_api.rocm";
   } else if (target.length() >= 4 && target.substr(0, 4) == "llvm") {
     const PackedFunc* pf = runtime::Registry::Get("codegen.llvm_target_enabled");
     if (pf == nullptr) return false;
