@@ -6,7 +6,6 @@ import argparse
 import os
 import ctypes
 from ..contrib import rpc
-from .._ffi.libinfo import find_lib_path
 
 def main():
     """Main funciton"""
@@ -19,8 +18,6 @@ def main():
                         help='The end search port of the PRC')
     parser.add_argument('--key', type=str, default="",
                         help="RPC key used to identify the connection type.")
-    parser.add_argument('--with-executor', type=bool, default=False,
-                        help="Whether to load executor runtime")
     parser.add_argument('--load-library', type=str, default="",
                         help="Additional library to load")
     parser.add_argument('--tracker', type=str, default="",
@@ -29,15 +26,6 @@ def main():
 
     logging.basicConfig(level=logging.INFO)
     load_library = [lib for lib in args.load_library.split(":") if len(lib) != 0]
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    apps_path = os.path.join(curr_path, "../../../apps/graph_executor/lib/")
-    libs = []
-    if args.with_executor:
-        load_library += ["libtvm_graph_exec.so"]
-    for file_name in load_library:
-        file_name = find_lib_path(file_name, apps_path)[0]
-        libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
-        logging.info("Load additional library %s", file_name)
 
     if args.tracker:
         url, port = args.tracker.split(":")
@@ -53,8 +41,8 @@ def main():
                         args.port,
                         args.port_end,
                         key=args.key,
-                        tracker_addr=tracker_addr)
-    server.libs += libs
+                        tracker_addr=tracker_addr,
+                        load_library=args.load_library)
     server.proc.join()
 
 if __name__ == "__main__":
