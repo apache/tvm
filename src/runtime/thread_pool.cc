@@ -292,7 +292,7 @@ class ThreadPool {
   }
 
   static ThreadPool* ThreadLocal() {
-    dmlc::ThreadLocalStore<ThreadPool>::Get();
+    return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
  private:
