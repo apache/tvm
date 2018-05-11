@@ -300,8 +300,14 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
     return res[0] if len(res) == 1 else res
 
 
-def extern(shape, inputs, fcompute, name="extern", dtype=None, in_buffers=None,
-           out_buffers=None, tag=""):
+def extern(shape,
+           inputs,
+           fcompute,
+           name="extern",
+           dtype=None,
+           in_buffers=None,
+           out_buffers=None,
+           tag=""):
     """Compute several tensor via extern function.
 
     Parameters

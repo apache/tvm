@@ -34,26 +34,6 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     -------
     stmt : Stmt
         The result IR statement.
-
-    Examples
-    --------
-    >>> # An example to use nms
-    >>> dshape = (1, 5, 6)
-    >>> data = tvm.placeholder(dshape, name="data")
-    >>> valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
-    >>> nms_threshold = 0.7
-    >>> force_suppress = True
-    >>> nms_topk = -1
-    >>> out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
-    >>> np_data = np.random.uniform(dshape)
-    >>> np_valid_count = np.array([4])
-    >>> s = topi.generic.schedule_nms(out)
-    >>> f = tvm.build(s, [data, valid_count, out], "llvm")
-    >>> ctx = tvm.cpu()
-    >>> tvm_data = tvm.nd.array(np_data, ctx)
-    >>> tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-    >>> tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
-    >>> f(tvm_data, tvm_valid_count, tvm_out)
     """
     def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
         """Calculate overlap of two boxes.
@@ -88,13 +68,15 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
                                nms_topk, p_valid_count[n])
             with ib.for_range(0, nkeep, name="l") as l:
                 with ib.for_range(0, 6, name="m") as m:
-                    p_out[n * num_anchors * 6 + l * 6 + m] \
-                        = p_data[n * num_anchors * 6 + p_sort_result[n * num_anchors + l] * 6 + m]
+                    p_out[(n * num_anchors * 6
+                           + l * 6 + m)] = p_data[(n * num_anchors * 6
+                                                   + p_sort_result[n * num_anchors + l] * 6 + m)]
             with ib.if_scope(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n])):
                 with ib.for_range(0, p_valid_count[n] - nkeep, name="l") as l:
                     with ib.for_range(0, 6, name="m") as m:
-                        p_out[n * num_anchors * 6 + (l + nkeep) * 6 + m] \
-                            = p_data[n * num_anchors * 6 + (l + nkeep) * 6 + m]
+                        p_out[(n * num_anchors * 6
+                               + (l + nkeep) * 6 + m)] = p_data[(n * num_anchors * 6
+                                                                 + (l + nkeep) * 6 + m)]
             # Apply nms
             with ib.for_range(0, p_valid_count[n], name="l") as l:
                 offset_l = l * 6
@@ -114,8 +96,8 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
         with ib.else_scope():
             with ib.for_range(0, p_valid_count[n], name="l") as l:
                 with ib.for_range(0, 6, name="m") as m:
-                    p_out[n * num_anchors * 6 + l * 6 + m] = \
-                        p_data[n * num_anchors * 6 + l * 6 + m]
+                    p_out[(n * num_anchors * 6
+                           + l * 6 + m)] = p_data[n * num_anchors * 6 + l * 6 + m]
         # Set invalid entry to be -1
         with ib.for_range(0, num_anchors - p_valid_count[n], name="l") as l:
             with ib.for_range(0, 6, name="m") as m:
@@ -150,6 +132,28 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
     -------
     out : tvm.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6].
+
+    Example
+    --------
+    .. code-block:: python
+
+        # An example to use nms
+        dshape = (1, 5, 6)
+        data = tvm.placeholder(dshape, name="data")
+        valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+        nms_threshold = 0.7
+        force_suppress = True
+        nms_topk = -1
+        out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+        np_data = np.random.uniform(dshape)
+        np_valid_count = np.array([4])
+        s = topi.generic.schedule_nms(out)
+        f = tvm.build(s, [data, valid_count, out], "llvm")
+        ctx = tvm.cpu()
+        tvm_data = tvm.nd.array(np_data, ctx)
+        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
+        f(tvm_data, tvm_valid_count, tvm_out)
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]

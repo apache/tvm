@@ -15,24 +15,15 @@ namespace contrib {
 using namespace runtime;
 
 template<typename DType>
-struct SortElem {
-  DType value;
-  int32_t index;
-
-  SortElem(DType v, int32_t i) {
-    value = v;
-    index = i;
-  }
-};
-
-template<typename DType>
-bool compare_ascend(SortElem<DType> lhs, SortElem<DType> rhs) {
-  return lhs.value < rhs.value;
+bool CompareAscend(const std::pair<int32_t, DType>& lhs,
+                   const std::pair<int32_t, DType>& rhs) {
+  return lhs.second < rhs.second;
 }
 
 template<typename DType>
-bool compare_descend(SortElem<DType> lhs, SortElem<DType> rhs) {
-  return lhs.value > rhs.value;
+bool CompareDescend(const std::pair<int32_t, DType>& lhs,
+                    const std::pair<int32_t, DType>& rhs) {
+  return lhs.second > rhs.second;
 }
 
 
@@ -40,7 +31,7 @@ bool compare_descend(SortElem<DType> lhs, SortElem<DType> rhs) {
 // Return indices of sorted tensor.
 // By default, the last axis will be used to sort.
 // sort_num specify the number of elements to be sorted.
-// If input tensor has dimension (d1, d2, ..., d(k-1), dk, d(k+1), ..., dn)
+// If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
@@ -54,66 +45,74 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
   auto dtype = input->dtype;
   auto data_ptr = static_cast<float *>(input->data);
   auto sort_num_ptr = static_cast<int32_t *>(sort_num->data);
-  int64_t num_sort_vec = 1;
+  std::vector<std::pair<int32_t, float>> sorter;
+  std::vector<int64_t> pos_multiplier {1};
+  int64_t total_num_sort = 1;
+
+  if (axis < 0) {
+    axis = input->ndim + axis;
+  }
+
   // Currently only supports input dtype to be float32.
   CHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
       "to be float32.";
   CHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
       "to be float32.";
-  std::vector<SortElem<float>> sorter;
-  std::vector<int64_t> non_sort_axis;
-  if (axis < 0) {
-    axis = input->ndim + axis;
-  }
   CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
       "input ndim " << input->ndim;
-  for (int i = 0; i < input->ndim; ++i) {
+
+  for (int i = input->ndim - 1; i >= 0; --i) {
+    if (i > 0) {
+      pos_multiplier.insert(pos_multiplier.begin(),
+                            pos_multiplier.front() * input->shape[i]);
+    }
     if (i != axis) {
-      num_sort_vec *= input->shape[i];
-      non_sort_axis.push_back(input->shape[i]);
+      total_num_sort *= input->shape[i];
     }
   }
 
-  for (int i = 0; i < non_sort_axis.size(); ++i) {
-    CHECK_EQ(non_sort_axis[i], sort_num->shape[i])
-      << "num_sort shape inconsistent";
-  }
-
-  for (int64_t i = 0; i < num_sort_vec; ++i) {
+  for (int64_t i = 0; i < total_num_sort; ++i) {
     sorter.clear();
-    std::vector<int64_t> position;
-    auto current_sort_num = *(sort_num_ptr + i);
-    auto pos_mul = i;
-    auto pos_len = num_sort_vec;
-
-    for (int j = 0; j < non_sort_axis.size(); ++j) {
-      pos_len /= non_sort_axis[j];
-      position.push_back(pos_mul / pos_len);
-      pos_mul %= pos_len;
-    }
-    position.insert(position.begin() + axis, 0);
-    int64_t tensor_base_pos = 0;
-    int64_t sort_axis_base_pos = 0;
-    pos_len = num_sort_vec * input->shape[axis];
-    for (int j = 0; j < position.size(); ++j) {
-      pos_len /= input->shape[j];
-      tensor_base_pos += position[j] * pos_len;
-      if (j == axis) {
-        sort_axis_base_pos = pos_len;
+    int32_t current_sort_num = *(sort_num_ptr + i);
+    /*
+       Store current_sort_num elements into sorter.
+       Given a flatten index i of reduced shape (d0, d1, ..., dk, d(k+1), ...,
+       d(n-1)) and the index j of sorting axis, calculate the corresponding flatten
+       index in full shape (d0, d1, ..., dk, sort_axis, d(k+1), ..., d(n-1)).
+       First, get the normal index (i0, i1, ..., i(n-1)) of i in reduced shape. The
+       normal index of j in full shape would be (i0, i1, ..., ik, j, i(k+1), ...,
+       i(n+1)). Multiply with pos_multiplier, we can get flatten index.
+    */
+    int64_t reduced_normal_idx;
+    int64_t reduced_flatten_idx = i;
+    int64_t full_flatten_base_idx = 0;
+    // Restore normal index for full shape except sorting axis.
+    for (int32_t j = 0; j < current_sort_num; ++j) {
+      for (int32_t k = 0; k < pos_multiplier.size(); ++k) {
+        if (k == axis) {
+          continue;
+        }
+        int64_t current_multiplier = k < axis ? pos_multiplier[k] /
+          input->shape[axis] : pos_multiplier[k];
+        reduced_normal_idx = reduced_flatten_idx / current_multiplier;
+        reduced_flatten_idx %= current_multiplier;
+        full_flatten_base_idx += reduced_normal_idx * pos_multiplier[k];
       }
     }
+    // Restore complete normal index for full shape and fill sorter.
     for (int32_t j = 0; j < current_sort_num; ++j) {
-        auto current_pos = tensor_base_pos + j * sort_axis_base_pos;
-        sorter.emplace_back(SortElem<float>(*(data_ptr + current_pos), j));
+        auto current_pos = full_flatten_base_idx + j * pos_multiplier[axis];
+        sorter.emplace_back(std::pair<int32_t, float>(j, *(data_ptr
+                                                           + current_pos)));
     }
     if (is_descend) {
-      std::stable_sort(sorter.begin(), sorter.end(), compare_descend<float>);
+      std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
     } else {
-      std::stable_sort(sorter.begin(), sorter.end(), compare_ascend<float>);
+      std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<float>);
     }
     for (int32_t j = 0; j < input->shape[axis]; ++j) {
-      *(static_cast<int32_t *>(output->data) + tensor_base_pos +
-        j * sort_axis_base_pos) = j < sorter.size() ? sorter[j].index : j;
+      *(static_cast<int32_t *>(output->data) + full_flatten_base_idx +
+        j * pos_multiplier[axis]) = j < sorter.size() ? sorter[j].first : j;
     }
   }
 });
