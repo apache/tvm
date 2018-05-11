@@ -46,8 +46,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
   auto data_ptr = static_cast<float *>(input->data);
   auto sort_num_ptr = static_cast<int32_t *>(sort_num->data);
   std::vector<std::pair<int32_t, float>> sorter;
-  std::vector<int64_t> pos_multiplier {1};
-  int64_t total_num_sort = 1;
+  int64_t axis_mul_before = 1;
+  int64_t axis_mul_after = 1;
 
   if (axis < 0) {
     axis = input->ndim + axis;
@@ -61,58 +61,30 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
   CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
       "input ndim " << input->ndim;
 
-  for (int i = input->ndim - 1; i >= 0; --i) {
-    if (i > 0) {
-      pos_multiplier.insert(pos_multiplier.begin(),
-                            pos_multiplier.front() * input->shape[i]);
-    }
-    if (i != axis) {
-      total_num_sort *= input->shape[i];
+  for (int i = 0; i < input->ndim; ++i) {
+    if (i < axis) {
+      axis_mul_before *= input->shape[i];
+    } else if (i > axis) {
+      axis_mul_after *= input->shape[i];
     }
   }
 
-  for (int64_t i = 0; i < total_num_sort; ++i) {
-    sorter.clear();
-    int32_t current_sort_num = *(sort_num_ptr + i);
-    /*
-       Store current_sort_num elements into sorter.
-       Given a flatten index i of reduced shape (d0, d1, ..., dk, d(k+1), ...,
-       d(n-1)) and the index j of sorting axis, calculate the corresponding flatten
-       index in full shape (d0, d1, ..., dk, sort_axis, d(k+1), ..., d(n-1)).
-       First, get the normal index (i0, i1, ..., i(n-1)) of i in reduced shape. The
-       normal index of j in full shape would be (i0, i1, ..., ik, j, i(k+1), ...,
-       i(n+1)). Multiply with pos_multiplier, we can get flatten index.
-    */
-    int64_t reduced_normal_idx;
-    int64_t reduced_flatten_idx = i;
-    int64_t full_flatten_base_idx = 0;
-    // Restore normal index for full shape except sorting axis.
-    for (int32_t j = 0; j < current_sort_num; ++j) {
-      for (int32_t k = 0; k < pos_multiplier.size(); ++k) {
-        if (k == axis) {
-          continue;
-        }
-        int64_t current_multiplier = k < axis ? pos_multiplier[k] /
-          input->shape[axis] : pos_multiplier[k];
-        reduced_normal_idx = reduced_flatten_idx / current_multiplier;
-        reduced_flatten_idx %= current_multiplier;
-        full_flatten_base_idx += reduced_normal_idx * pos_multiplier[k];
+  for (int64_t i = 0 ; i < axis_mul_before; ++i) {
+    for (int64_t j = 0 ; j < axis_mul_after; ++j) {
+      sorter.clear();
+      int32_t current_sort_num = *(sort_num_ptr + i * axis_mul_after + j);
+      int64_t base_idx = i * input->shape[axis] * axis_mul_after + j;
+      for (int64_t k = 0; k < current_sort_num; ++k) {
+        int64_t full_idx = base_idx + k * axis_mul_after;
+        sorter.emplace_back(std::make_pair(k, *(data_ptr + full_idx)));
       }
-    }
-    // Restore complete normal index for full shape and fill sorter.
-    for (int32_t j = 0; j < current_sort_num; ++j) {
-        auto current_pos = full_flatten_base_idx + j * pos_multiplier[axis];
-        sorter.emplace_back(std::pair<int32_t, float>(j, *(data_ptr
-                                                           + current_pos)));
-    }
-    if (is_descend) {
-      std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
-    } else {
-      std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<float>);
-    }
-    for (int32_t j = 0; j < input->shape[axis]; ++j) {
-      *(static_cast<int32_t *>(output->data) + full_flatten_base_idx +
-        j * pos_multiplier[axis]) = j < sorter.size() ? sorter[j].first : j;
+      std::stable_sort(sorter.begin(), sorter.end(),
+                       is_descend ? CompareDescend<float>
+                                  : CompareAscend<float>);
+      for (int32_t k = 0; k < input->shape[axis]; ++k) {
+        *(static_cast<int32_t *>(output->data) + base_idx + k * axis_mul_after)
+          = k < sorter.size() ? sorter[k].first : k;
+      }
     }
   }
 });
