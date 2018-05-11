@@ -1,10 +1,7 @@
 """Start an RPC server"""
 from __future__ import absolute_import
 
-import logging
 import argparse
-import os
-import ctypes
 from ..contrib import rpc
 
 def main():
@@ -23,9 +20,6 @@ def main():
     parser.add_argument('--tracker', type=str, default="",
                         help="Report to RPC tracker")
     args = parser.parse_args()
-
-    logging.basicConfig(level=logging.INFO)
-    load_library = [lib for lib in args.load_library.split(":") if len(lib) != 0]
 
     if args.tracker:
         url, port = args.tracker.split(":")
