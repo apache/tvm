@@ -41,13 +41,13 @@ def verify_l2norm(n, c, h, w, eps, axis=None):
     b_np = l2norm_instance_python(a_np, eps, axis)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_l2norm(B)
-        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)

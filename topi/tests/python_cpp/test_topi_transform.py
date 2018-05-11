@@ -7,7 +7,8 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.cpp.expand_dims(A, axis, num_newaxis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -16,7 +17,6 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
             s = topi.cpp.generic.schedule_injective(target, [B])
         else:
             s = topi.cpp.cuda.schedule_injective(target, [B])
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="expand_dims")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = data_npy.reshape(out_shape)
@@ -33,7 +33,8 @@ def verify_tranpose(in_shape, axes):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.cpp.transpose(A, axes)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -59,7 +60,8 @@ def verify_reshape(src_shape, dst_shape):
     A = tvm.placeholder(shape=src_shape, name="A")
     B = topi.cpp.reshape(A, dst_shape)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -68,7 +70,6 @@ def verify_reshape(src_shape, dst_shape):
             s = topi.cpp.generic.schedule_injective(target, [B])
         else:
             s = topi.cpp.cuda.schedule_injective(target, [B])
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="reshape")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.reshape(data_npy, newshape=dst_shape)
@@ -85,7 +86,8 @@ def verify_squeeze(src_shape, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
     B = topi.cpp.squeeze(A, axis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -94,7 +96,6 @@ def verify_squeeze(src_shape, axis):
             s = topi.cpp.generic.schedule_injective(target, [B])
         else:
             s = topi.cpp.cuda.schedule_injective(target, [B])
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="squeeze")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.squeeze(data_npy, axis=axis)
@@ -116,7 +117,8 @@ def verify_concatenate(shapes, axis):
         tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
     out_tensor = topi.cpp.concatenate(tensor_l, axis)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -125,7 +127,6 @@ def verify_concatenate(shapes, axis):
             s = topi.cpp.generic.schedule_injective(target, [out_tensor])
         else:
             s = topi.cpp.cuda.schedule_injective(target, [out_tensor])
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
         out_npy = np.concatenate(data_npys, axis=axis)
@@ -143,7 +144,8 @@ def verify_split(src_shape, indices_or_sections, axis):
     tensor_l = topi.cpp.split(A, indices_or_sections, axis)
     tensor_l = list(tensor_l)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)

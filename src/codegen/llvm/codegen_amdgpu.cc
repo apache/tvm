@@ -4,15 +4,18 @@
  * \brief AMDGPU code generator.
  */
 #ifdef TVM_LLVM_VERSION
-#if TVM_ROCM_RUNTIME
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
 #include "./codegen_llvm.h"
 #include "../build_common.h"
+#include "../codegen_source_base.h"
 #include "../../pass/ir_util.h"
+
+#if TVM_ROCM_RUNTIME
 #include "../../runtime/rocm/rocm_module.h"
+#endif   // TVM_ROCM_RUNTIME
 
 namespace tvm {
 namespace codegen {
@@ -131,19 +134,27 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-inline int DetectROCMComputeVersion() {
+inline int DetectROCMComputeVersion(const std::string& target) {
+  size_t pos = target.find("=gfx");
+  if (pos != std::string::npos) {
+    int value;
+    std::stringstream is(target.substr(pos + 4));
+    if (is >> value) return value;
+  }
   TVMContext tvm_ctx;
   tvm_ctx.device_type = kDLROCM;
   tvm_ctx.device_id = 0;
-  TVMRetValue val;
-  tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
-      tvm_ctx, tvm::runtime::kExist, &val);
-  if (val.operator int() == 1) {
-    tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
-    return val.operator int();
-  } else {
-    return 803;
+  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
+  if (api != nullptr) {
+    TVMRetValue val;
+    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
+    if (val.operator int() == 1) {
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
+      return val.operator int();
+    }
   }
+  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx803";
+  return 803;
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
@@ -151,7 +162,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
         target.substr(0, 4) == "rocm");
   std::ostringstream config;
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
-         << DetectROCMComputeVersion()
+         << DetectROCMComputeVersion(target)
          << target.substr(4, target.length() - 4);
   llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
@@ -216,7 +227,19 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::string hsaco = (*f)(arr);
   std::string ll(data_ll.begin(), data_ll.end());
 
+#if TVM_ROCM_RUNTIME
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll, assembly);
+#else
+  LOG(WARNING) << "ROCM runtime is not enabled, return a source module...";
+  auto fget_source = [ll, assembly](const std::string& format) {
+    if (format.length() == 0) return assembly;
+    if (format == "ll" || format == "llvm") return format;
+    if (format == "asm") return assembly;
+    return std::string("");
+  };
+  return DeviceSourceModuleCreate(
+      hsaco, "hsaco", ExtractFuncInfo(funcs), "hsaco", fget_source);
+#endif   // TVM_ROCM_RUNTIME
 }
 
 TVM_REGISTER_API("codegen.build_rocm")
@@ -226,5 +249,4 @@ TVM_REGISTER_API("codegen.build_rocm")
 
 }  // namespace codegen
 }  // namespace tvm
-#endif   // TVM_ROCM_RUNTIME
 #endif  // TVM_LLVM_VERSION
