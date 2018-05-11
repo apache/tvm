@@ -11,6 +11,7 @@ Server is TCP based with the following protocol:
 from __future__ import absolute_import
 
 import os
+import ctypes
 import socket
 import select
 import struct
@@ -21,12 +22,13 @@ import time
 
 from ..._ffi.function import register_func
 from ..._ffi.base import py_str
+from ..._ffi.libinfo import find_lib_path
 from ...module import load as _load_module
 from .. import util
 from . import base
 from . base import TrackerCode
 
-def _server_env():
+def _server_env(load_library):
     """Server environment function return temp dir"""
     temp = util.tempdir()
     # pylint: disable=unused-variable
@@ -41,13 +43,21 @@ def _server_env():
         m = _load_module(path)
         logging.info("load_module %s", path)
         return m
+
+    libs = []
+    load_library = load_library.split(":") if load_library else []
+    for file_name in load_library:
+        file_name = find_lib_path(file_name)[0]
+        libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
+        logging.info("Load additional library %s", file_name)
+    temp.libs = libs
     return temp
 
 
-def _serve_loop(sock, addr):
+def _serve_loop(sock, addr, load_library):
     """Server loop"""
     sockfd = sock.fileno()
-    temp = _server_env()
+    temp = _server_env(load_library)
     base._ServerLoop(sockfd)
     temp.remove()
     logging.info("Finish serving %s", addr)
@@ -62,7 +72,7 @@ def _parse_server_opt(opts):
     return ret
 
 
-def _listen_loop(sock, port, rpc_key, tracker_addr):
+def _listen_loop(sock, port, rpc_key, tracker_addr, load_library):
     """Lisenting loop of the server master."""
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.
@@ -162,7 +172,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
 
         # step 3: serving
         logging.info("RPCServer: connection from %s", addr)
-        server_proc = multiprocessing.Process(target=_serve_loop, args=(conn, addr))
+        server_proc = multiprocessing.Process(target=_serve_loop, args=(conn, addr, load_library))
         server_proc.deamon = True
         server_proc.start()
         # close from our side.
@@ -174,7 +184,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr):
             server_proc.terminate()
 
 
-def _connect_proxy_loop(addr, key):
+def _connect_proxy_loop(addr, key, load_library):
     key = "server:" + key
     retry_count = 0
     max_retry = 5
@@ -198,7 +208,7 @@ def _connect_proxy_loop(addr, key):
             opts = _parse_server_opt(remote_key.split()[1:])
             logging.info("RPCProxy connected to %s", str(addr))
             process = multiprocessing.Process(
-                target=_serve_loop, args=(sock, addr))
+                target=_serve_loop, args=(sock, addr, load_library))
             process.deamon = True
             process.start()
             sock.close()
@@ -256,6 +266,9 @@ class Server(object):
 
     key : str, optional
         The key used to identify the server in Proxy connection.
+
+    load_library : str, optional
+        List of additional libraries to be loaded during execution.
     """
     def __init__(self,
                  host,
@@ -264,7 +277,8 @@ class Server(object):
                  is_proxy=False,
                  use_popen=False,
                  tracker_addr=None,
-                 key=""):
+                 key="",
+                 load_library=None):
         try:
             if base._ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
@@ -283,6 +297,8 @@ class Server(object):
                 assert key
                 cmd += ["--tracker=%s:%d" % tracker_addr,
                         "--key=%s" % key]
+            if load_library:
+                cmd += ["--load-libary", load_library]
             self.proc = multiprocessing.Process(
                 target=subprocess.check_call, args=(cmd,))
             self.proc.deamon = True
@@ -308,12 +324,12 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop, args=(
-                    self.sock, self.port, key, tracker_addr))
+                    self.sock, self.port, key, tracker_addr, load_library))
             self.proc.deamon = True
             self.proc.start()
         else:
             self.proc = multiprocessing.Process(
-                target=_connect_proxy_loop, args=((host, port), key))
+                target=_connect_proxy_loop, args=((host, port), key, load_library))
             self.proc.deamon = True
             self.proc.start()
 

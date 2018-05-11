@@ -10,6 +10,7 @@
 #include <tvm/codegen.h>
 #include <string>
 #include <vector>
+#include <functional>
 #include <unordered_map>
 #include "../runtime/meta_data.h"
 
@@ -111,17 +112,19 @@ class CodeGenSourceBase {
 runtime::Module SourceModuleCreate(std::string code, std::string fmt);
 
 /*!
- * \brief Create a source module for viewing and limited saving
- * \param code The code to be viewed.
+ * \brief Create a source module for viewing and limited saving for device.
+ * \param data The code data to be viewed.
  * \param fmt The code. format.
  * \param fmap The map function information map of each function.
  * \param type_key The type_key of the runtime module of this source code
+ * \param fget_source a closure to replace default get source behavior.
  */
 runtime::Module DeviceSourceModuleCreate(
-  std::string code,
+  std::string data,
   std::string fmt,
   std::unordered_map<std::string, runtime::FunctionInfo> fmap,
-  std::string type_key);
+  std::string type_key,
+  std::function<std::string(const std::string&)> fget_source = nullptr);
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
