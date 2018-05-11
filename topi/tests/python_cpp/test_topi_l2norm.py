@@ -1,7 +1,9 @@
-"""Test code for L2 norm"""
+"""Test code for l2 normalization"""
+import os
 import numpy as np
 import tvm
 import topi
+import logging
 from topi.util import get_const_tuple
 
 def l2norm_instance_python(a_np, eps, axis=None):
@@ -32,35 +34,35 @@ def l2norm_instance_python(a_np, eps, axis=None):
     return np.divide(a_np, sqrt_sum)
 
 def verify_l2norm(n, c, h, w, eps, axis=None):
-
+    '''Verify l2 normalization operator by comparing outputs from tvm and numpy implementation'''
     A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.l2norm_instance(A, eps, axis)
+    B = topi.cpp.nn.l2norm_instance(A, eps, axis)
     dtype = A.dtype
 
     a_np = np.random.uniform(size=(n, c, h, w)).astype(dtype)
     b_np = l2norm_instance_python(a_np, eps, axis)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            if device == 'llvm':
-                s = topi.generic.schedule_l2norm([B])
-            else:
-                s = topi.cuda.schedule_l2norm([B])
+        target = topi.cpp.TEST_create_target(device)
+        if device == "llvm":
+            s = topi.cpp.generic.default_schedule(target, [B], False)
+        else:
+            s = topi.cpp.cuda.schedule_l2norm(target, [B])
+        ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
-        f(a, b)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+        func = tvm.build(s, [A, B], device, name="l2_norm")
+        func(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'llvm']:
         check_device(device)
 
-def test_l2norm():
+def test_l2_norm():
     verify_l2norm(1, 3, 20, 20, 0.001)
     verify_l2norm(1, 3, 20, 20, 0.001, (1,))
     verify_l2norm(1, 3, 20, 20, 0.001, (1, 2))
@@ -68,6 +70,6 @@ def test_l2norm():
     verify_l2norm(1, 3, 20, 20, 0.001, (0, 3))
     verify_l2norm(1, 3, 20, 20, 0.001, (0, 2, 3))
 
-
 if __name__ == "__main__":
-    test_l2norm()
+    logging.basicConfig(level=logging.DEBUG)
+    test_l2_norm()

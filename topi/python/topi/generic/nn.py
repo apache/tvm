@@ -2,7 +2,7 @@
 """Generic nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
-
+from .. import cpp
 
 def _default_schedule(outs, auto_inline):
     """Default schedule for llvm."""
@@ -273,8 +273,9 @@ def schedule_lrn(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    return _default_schedule(outs, False)
-
+    target = tvm.target.current_target(allow_none=False)
+    cpp_target = cpp.TEST_create_target(target.target_name)
+    return cpp.generic.default_schedule(cpp_target, outs, False)
 
 @tvm.target.generic_func
 def schedule_l2norm(outs):
@@ -291,4 +292,6 @@ def schedule_l2norm(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    return _default_schedule(outs, False)
+    target = tvm.target.current_target(allow_none=False)
+    cpp_target = cpp.TEST_create_target(target.target_name)
+    return cpp.generic.default_schedule(cpp_target, outs, False)

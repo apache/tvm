@@ -2,7 +2,7 @@
 """TVM operator for l2norm"""
 from __future__ import absolute_import
 import tvm
-import topi
+from .. import cpp
 
 @tvm.target.generic_func
 def l2norm_instance(data, eps, axis=None):
@@ -26,10 +26,4 @@ def l2norm_instance(data, eps, axis=None):
     output : tvm.Tensor
         4-D output with same shape
     """
-    assert len(data.shape) == 4, "only support 4-dim lrn"
-    dot_value = topi.cpp.pow(data, 2.0)
-    sum_value = topi.sum(dot_value, axis=axis, keepdims=True)
-    expand_sum = topi.broadcast_to(sum_value, data.shape)
-    return topi.broadcast_div(data, topi.sqrt(\
-                tvm.compute(expand_sum.shape, lambda i, j, k, l:\
-                tvm.max(expand_sum[i, j, k, l], eps), tag='l2norm')))
+    return cpp.nn.l2norm_instance(data, eps, axis)
