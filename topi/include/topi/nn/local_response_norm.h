@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief local response normalization op constructions
- * \file nn/local_response_normalization.h
+ * \file nn/local_response_norm.h
  */
 #ifndef TOPI_NN_LOCAL_RESPONSE_NORM_H_
 #define TOPI_NN_LOCAL_RESPONSE_NORM_H_
