@@ -31,11 +31,6 @@ for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE, BITST
         print ("Downloading {}".format(file))
         wget.download(url+file)
 
-# Program the FPGA remotely
-assert tvm.module.enabled("rpc")
-remote = rpc.connect(host, port)
-vta.program_fpga(remote, BITSTREAM_FILE)
-
 if verbose:
     logging.basicConfig(level=logging.DEBUG)
 
@@ -129,8 +124,10 @@ with nnvm.compiler.build_config(opt_level=3):
                 params=params, target_host=target_host)
 
 
+assert tvm.module.enabled("rpc")
 temp = util.tempdir()
 lib.save(temp.relpath("graphlib.o"))
+remote = rpc.connect(host, port)
 remote.upload(temp.relpath("graphlib.o"))
 lib = remote.load_module("graphlib.o")
 ctx = remote.ext_dev(0) if target.device_name == "vta" else remote.cpu(0)

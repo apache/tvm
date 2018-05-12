@@ -168,7 +168,7 @@ def test_gemm():
             with vta.build_config():
                 run_test("NORMAL", print_ir, True)
 
-        def gevm_unittest(print_ir):
+        def gemm_unittest(print_ir):
             mock = env.mock
             print("----- GEMM Unit Test-------")
             def run_test(header, print_ir):
@@ -244,7 +244,7 @@ def test_gemm():
 
 
         gemm_normal(False)
-        gevm_unittest(False)
+        gemm_unittest(False)
         alu_unittest(False)
 
     def _run(env, remote):

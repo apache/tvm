@@ -315,7 +315,7 @@ VTAGenericInsn getGEMMInsn(int uop_offset, int batch, int in_feat, int out_feat,
     int push_next_dep) {
   // Converter
   union VTAInsn converter;
-  // GEVM instruction initialization
+  // GEMM instruction initialization
   VTAGemInsn insn;
   insn.opcode = VTA_OPCODE_GEMM;
   insn.pop_prev_dep = pop_prev_dep;
@@ -394,7 +394,7 @@ VTAGenericInsn getALUInsn(int opcode, int vector_size, bool use_imm, int imm, bo
 VTAGenericInsn getFinishInsn(bool pop_prev, bool pop_next) {
   // Converter
   union VTAInsn converter;
-  // GEVM instruction initialization
+  // GEMM instruction initialization
   VTAGemInsn insn;
   insn.opcode = VTA_OPCODE_FINISH;
   insn.pop_prev_dep = pop_prev;
@@ -649,7 +649,7 @@ void printInstruction(int num_insn, VTAGenericInsn *insns) {
       }
     } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
       // Print instruction field information
-      printf("GEVM\n");
+      printf("GEMM\n");
       printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
              static_cast<int>(c.mem.pop_prev_dep),
              static_cast<int>(c.mem.pop_next_dep),
