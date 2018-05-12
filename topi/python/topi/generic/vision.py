@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name, no-member
 """Generic vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -70,3 +71,72 @@ def schedule_region(outs):
     target = tvm.target.current_target(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
+
+@tvm.target.generic_func
+def schedule_nms(outs):
+    """Schedule for non-maximum suppression
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of nms
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_multibox_prior(outs):
+    """Schedule for multibox_prior
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of multibox_prior
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_multibox_transform_loc(outs):
+    """Schedule for multibox_transform_loc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of
+      multibox_transform_loc in the format
+      of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_multibox_detection(outs):
+    """Schedule for multibox_detection
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of multibox_detection
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

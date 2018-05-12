@@ -126,6 +126,7 @@ stage('Build') {
            echo USE_SORT=1 >> config.mk
            echo USE_OPENGL=1 >> config.mk
            echo LLVM_CONFIG=llvm-config-4.0 >> config.mk
+           echo USE_SORT=1 >> config.mk
            """
         make('cpu', '-j2')
         pack_lib('cpu', tvm_lib)
