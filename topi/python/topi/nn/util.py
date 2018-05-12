@@ -1,6 +1,8 @@
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
 from __future__ import absolute_import
+
+import tvm
 from ..util import get_const_int
 
 def infer_pad(data, data_pad):
@@ -53,8 +55,8 @@ def infer_stride(data, kernel, out):
     _, _, IH, IW = data.shape
     _, _, KH, KW = kernel.shape
     _, _, OH, OW = out.shape
-    hstride = (IH - KH) // (OH - 1)
-    wstride = (IW - KW) // (OW - 1)
+    hstride = (IH - KH) // tvm.make.Max(OH - 1, 1) + tvm.select(OH == 1, 1, 0)
+    wstride = (IW - KW) // tvm.make.Max(OW - 1, 1) + tvm.select(OW == 1, 1, 0)
     return get_const_int(hstride), get_const_int(wstride)
 
 

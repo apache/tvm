@@ -201,6 +201,7 @@ ifeq ($(USE_GRAPH_RUNTIME_DEBUG), 1)
 endif
 
 include make/contrib/cblas.mk
+include make/contrib/sort.mk
 include make/contrib/random.mk
 include make/contrib/nnpack.mk
 include make/contrib/cudnn.mk
