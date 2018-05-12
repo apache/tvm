@@ -55,7 +55,6 @@ class DevContext(object):
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
-        self.gevm = intrin.gevm(env, env.mock_mode)
 
     def get_task_qid(self, qid):
         """Get transformed queue index."""
@@ -203,11 +202,6 @@ class Environment(object):
     def gemm(self):
         """GEMM intrinsic"""
         return self.dev.gemm
-
-    @property
-    def gevm(self):
-        """GEVM intrinsic"""
-        return self.dev.gevm
 
     @property
     def target_host(self):
