@@ -37,6 +37,8 @@ def find_lib_path():
         dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
     elif sys.platform.startswith('darwin') and os.environ.get('DYLD_LIBRARY_PATH', None):
         dll_path.extend([p.strip() for p in os.environ['DYLD_LIBRARY_PATH'].split(":")])
+    elif sys.platform.startswith('win32') and os.environ.get('PATH', None):
+        dll_path.extend([p.strip() for p in os.environ['PATH'].split(";")])
 
     if sys.platform.startswith('win32'):
         vs_configuration = 'Release'
