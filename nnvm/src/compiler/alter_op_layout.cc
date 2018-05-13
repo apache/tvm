@@ -67,7 +67,7 @@ Graph AlterOpLayout(const Graph& src) {
       in_layouts_of_node[nid] = in_layout;
 
       std::vector<Layout> out_layout;
-      for (uint i = 0; i < inode.source->num_outputs(); ++i) {
+      for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
         out_layout.emplace_back(layouts[idx_graph.entry_id(nid, i)]);
       }
       out_layouts_of_node[nid] = out_layout;
