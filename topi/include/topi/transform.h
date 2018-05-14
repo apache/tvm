@@ -374,10 +374,10 @@ inline Tensor take(const Tensor& a,
                            int axis,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
-
   if (axis < 0) {
     axis += static_cast<int>(a->shape.size());
   }
+  CHECK_LT(axis, a->shape.size()) << "axis out of bounds";
 
   Array<Expr> out_shape;
   for (size_t i = 0; i < static_cast<size_t>(a->shape.size()); ++i) {
