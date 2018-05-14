@@ -120,6 +120,10 @@ def schedule_conv2d(attrs, outs, target):
             return topi.generic.schedule_conv2d_nhwc(outs)
         return topi.generic.schedule_depthwise_conv2d_nchw(outs)
 
+@reg.register_alter_op_layout("conv2d")
+def alter_conv2d_layout(attrs, inputs, tinfos):
+    return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos)
+
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # convolution NCHWc

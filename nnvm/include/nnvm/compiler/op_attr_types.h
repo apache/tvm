@@ -80,11 +80,14 @@ using FTVMSchedule = std::function<
  * \param attrs The attribute of the original node.
  * \param inputs The input symbols of the original node.
  * \param tinfos The inferred shape and dtype of the inputs.
+ * \param ret The replaced operator.
+ * \return Whether to replace current operator.
  */
 using FTVMAlterOpLayout = std::function<
-  Symbol(const NodeAttrs& attrs,
-         const Symbol& inputs,
-         const Array<Tensor>& tinfos)>;
+  bool(const NodeAttrs& attrs,
+       const Symbol& inputs,
+       const Array<Tensor>& tinfos,
+       Symbol* ret)>;
 
 /*!
  * \brief Transform from normal operator to vectorized operator

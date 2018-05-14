@@ -103,9 +103,11 @@ Graph AlterOpLayout(const Graph& src) {
       tensor_infos.push_back(op_output_tinfos[input.index]);
     }
     // callback registered function to get a new operator.
-    auto op = fn_alter_op_layout(n->attrs, Symbol::CreateGroup(op_inputs), tensor_infos);
-    *ret = op.outputs;
-    return true;
+    Symbol op;
+    bool do_alter =
+      fn_alter_op_layout(n->attrs, Symbol::CreateGroup(op_inputs), tensor_infos, &op);
+    if (do_alter) *ret = op.outputs;
+    return do_alter;
   };
 
   Graph ret = nnvm::compiler::GraphTransform(src, transform);
