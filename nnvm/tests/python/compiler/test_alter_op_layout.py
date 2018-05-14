@@ -32,7 +32,7 @@ def test_alter_conv2d_layout():
     g = g.apply(["InferShape", "InferType"])
     layouts_origin = get_layouts(g)
 
-    @reg.register_alter_op_layout("conv2d")
+    @reg.register_alter_op_layout("conv2d", level=100)
     def alter_conv2d_layout(attrs, inputs, tinfos):
         new_attrs = {k : attrs[k] for k in attrs.keys()}
         new_attrs["layout"] = "NCHW16c"

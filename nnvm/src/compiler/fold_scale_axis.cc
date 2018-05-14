@@ -466,8 +466,8 @@ bool Conv2DScaleAxisBackward(
   using top::Conv2DParam;
   const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
   if (out_info.kind != kPending) return false;
-  // only optimize for nchw for now
-  if (param.layout == "NCHW" && out_info.axis == 1) {
+  // only optimize for kernel layout OIHW for now
+  if (param.kernel_layout == "OIHW" && out_info.axis == 1) {
     (*in_axis)[1].kind = kMulConsumer;
     (*in_axis)[1].axis = 0;
     (*in_axis)[1].source = out_info.source;
@@ -492,7 +492,7 @@ bool Conv2DScaleAxisForward(
   const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
   if ((*in_info)[0].kind != kPending) return false;
   // only optimize for nchw for now
-  if (param.layout == "NCHW" && (*in_info)[0].axis == 1) {
+  if (param.kernel_layout == "OIHW" && (*in_info)[0].axis == 1) {
     (*in_info)[1].kind = kMulConsumer;
     (*in_info)[1].axis = 1;
     (*in_info)[1].source = (*in_info)[0].source;

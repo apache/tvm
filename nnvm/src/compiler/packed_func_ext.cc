@@ -70,12 +70,17 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._register_alter_op_layout")
   Op& op = ::dmlc::Registry<nnvm::Op>::Get()->__REGISTER_OR_GET__(args[0]);
   auto fpack = [f](const NodeAttrs& attrs,
                    const Symbol& inputs,
-                   const Array<Tensor>& tinfos) {
+                   const Array<Tensor>& tinfos,
+                   Symbol* ret_symbol) {
     TVMRetValue ret = (*f)(GetAttrDict(attrs), inputs, tinfos);
+    if (ret.type_code() == TVMTypeCode::kNull) {
+      return false;
+    }
     CHECK_EQ(ret.type_code(), tvm::runtime::extension_class_info<Symbol>::code)
       << " expected " << "Symbol (code = " << tvm::runtime::extension_class_info<Symbol>::code
       << ") but get code = " << ret.type_code();
-    return *(static_cast<Symbol*>(ret.value().v_handle));
+    *ret_symbol = *(static_cast<Symbol*>(ret.value().v_handle));
+    return true;
   };
   op.set_attr<FTVMAlterOpLayout>("FTVMAlterOpLayout", fpack, args[2]);
 });
