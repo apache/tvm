@@ -112,6 +112,23 @@ def conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype=None):
         raise ValueError("not support this layout {} yet".format(layout))
 
 
+@tvm.target.generic_func
+def conv2d_alter_layout(attrs, inputs, tinfos):
+    """Change Conv2D layout.
+
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict
+        Attributes of current convolution
+    inputs : nnvm.symbol
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    """
+    # not to change by default
+    return None
+
+
 def _get_workload(data, kernel, stride, padding, out_dtype):
     """ Get the workload structure. """
     _, CI, IH, IW = [x.value for x in data.shape]
@@ -424,6 +441,44 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
             Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
         name="Conv2dOutput", tag="conv2d_nhwc")
     return Output
+
+@tvm.target.generic_func
+def conv2d_NCHWc(data, kernel, num_filter, kernel_size, stride, padding, out_dtype='float32'):
+    """Conv2D operator for nChw[x]c layout.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
+
+    kernel : tvm.Tensor
+        6-D with shape
+        [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
+        in_channel_block, num_filter_block]
+
+    num_filter : int
+        number of filters, i.e., output channel size
+
+    kernel_size : tuple of two ints
+       [kernel_height, kernel_width]
+
+    stride : int or a list/tuple of two ints
+        stride size, or [stride_height, stride_width]
+
+    padding : int or a list/tuple of two ints
+        padding size, or [pad_height, pad_width]
+
+    out_dtype : str
+        output data type
+
+    Returns
+    -------
+    output : tvm.Tensor
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
+    """
+    # search platform specific declaration first
+    # default declaration
+    raise ValueError("missing register for topi.nn.conv2d_NCHWc")
 
 # map from schedule type to declaration function
 _SCH_TO_DECL_FUNC = {

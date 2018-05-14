@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable,invalid-name
+# pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """1x1 Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
@@ -10,6 +10,34 @@ from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
 
 AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
+
+
+def _get_default_schedule(wkl, simd_width):
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
+    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+
+    oc_bn = 1
+    for bn in range(simd_width, 0, -1):
+        if wkl.out_filter % bn == 0:
+            oc_bn = bn
+            break
+
+    ic_bn = 1
+    for bn in range(oc_bn, 0, -1):
+        if wkl.in_filter % bn == 0:
+            ic_bn = bn
+            break
+
+    for ow_factor in range(out_width, 0, -1):
+        if out_width % ow_factor == 0:
+            for oh_factor in range(out_height, 0, -1):
+                if out_height % oh_factor == 0 and ow_factor * oh_factor < 32:
+                    return AVXConv1x1Fwd(ic_bn, oc_bn, oh_factor, ow_factor)
+
+    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
+
 
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
@@ -122,5 +150,82 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     s[O].vectorize(oc_block)
 
     s[O].parallel(parallel_axis)
+
+    return s
+
+
+def _declaration_conv_NCHWc(wkl, sch, data, kernel):
+    out_dtype = wkl.out_dtype
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+
+    batch_size = data.shape[0]
+    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
+    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+
+    DOPAD = (HPAD != 0 and WPAD != 0)
+    if DOPAD:
+        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+    else:
+        data_pad = data
+
+    oshape = (batch_size, wkl.out_filter//sch.oc_bn, out_height, out_width, sch.oc_bn)
+    ic = tvm.reduce_axis((0, wkl.in_filter), name='ic')
+    conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                       tvm.sum(data_pad[n, ic//sch.ic_bn, oh*HSTR, ow*WSTR, ic%sch.ic_bn]
+                               .astype(out_dtype) *
+                               kernel[oc_chunk, ic // sch.ic_bn, ic % sch.ic_bn, oc_block, 0, 0],
+                               axis=[ic]), name='conv2d_NCHWc', tag='conv2d_NCHWc')
+
+    return conv
+
+
+def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
+    # schedule data
+    A = data
+    if isinstance(s[A].op, tvm.tensor.ComputeOp):
+        batch, ic_chunk, ih, iw, ic_block = s[A].op.axis
+        parallel_axis = s[A].fuse(ic_chunk, ih)
+        s[A].parallel(parallel_axis)
+
+    C, O = conv_out, last
+    CC = s.cache_write(C, 'global')
+
+    batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
+    oh_outer, oh_inner = s[C].split(oh, factor=sch.oh_factor)
+    ow_outer, ow_inner = s[C].split(ow, factor=sch.ow_factor)
+    s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
+    s[C].vectorize(oc_block)
+
+    parallel_axis = s[C].fuse(oc_chunk, oh_outer)
+    s[CC].compute_at(s[C], parallel_axis)
+    if C == O:
+        s[C].parallel(parallel_axis)
+
+    _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
+    ic, = s[CC].op.reduce_axis
+
+    ic_chunk, ic_block = s[CC].split(ic, factor=sch.ic_bn)
+
+    oh_outer, oh_inner = s[CC].split(oh, factor=sch.oh_factor)
+    ow_outer, ow_inner = s[CC].split(ow, factor=sch.ow_factor)
+
+    s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_chunk, ic_block, oh_inner, ow_inner, oc_block)
+    s[CC].fuse(oc_chunk, oh_outer)
+    s[CC].vectorize(oc_block)
+
+    s[CC].unroll(ow_inner)
+    s[CC].unroll(oh_inner)
+
+    if C != O:
+        batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
+        oh_outer, oh_inner = s[O].split(oh, factor=sch.oh_factor)
+        ow_outer, ow_inner = s[O].split(ow, factor=sch.ow_factor)
+        s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
+
+        parallel_axis = s[O].fuse(oc_chunk, oh_outer)
+        s[C].compute_at(s[O], parallel_axis)
+        s[O].vectorize(oc_block)
+        s[O].parallel(parallel_axis)
 
     return s
