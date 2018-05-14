@@ -361,58 +361,56 @@ inline Array<Tensor> split_sections(const Tensor& x,
 /*!
 * \brief Take elements from an array along an axis.
 *
-* \param inputs
-*    0-The input tensor.
-*    1-The indices of the values to extract.
+* \param a The source array.
+* \param indices The indices of the values to extract.
 * \param axis The axis over which to select values.
-* \param name The name of the operation
-* \param tag The tag to mark the operation
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
 *
 * \return A Tensor whose op member is the take operation
 */
-inline Tensor take(const Array<Tensor>& inputs,
-                          int axis = 0,
-                          std::string name = "tensor",
-                          std::string tag = "") {
-  const Tensor a_ary = inputs[0];
-  const Tensor indices_ary = inputs[1];
+inline Tensor take(const Tensor& a,
+                           const Tensor& indices,
+                           int axis,
+                           std::string name = "tensor",
+                           std::string tag = kInjective) {
 
   if (axis < 0) {
-    axis += static_cast<int>(a_ary->shape.size());
+    axis += static_cast<int>(a->shape.size());
   }
 
   Array<Expr> out_shape;
-  for (size_t i = 0; i < static_cast<size_t>(a_ary->shape.size()); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(a->shape.size()); ++i) {
     if (axis == static_cast<int>(i)) {
-      for (size_t j = 0; j < static_cast<size_t>(indices_ary->shape.size()); ++j) {
-        out_shape.push_back(indices_ary->shape[j]);
+      for (size_t j = 0; j < static_cast<size_t>(indices->shape.size()); ++j) {
+        out_shape.push_back(indices->shape[j]);
       }
     } else {
-      out_shape.push_back(a_ary->shape[i]);
+      out_shape.push_back(a->shape[i]);
     }
   }
 
   int indices_size = 1;
-  for (size_t indices = 0; indices < static_cast<size_t>(indices_ary->shape.size()); ++indices) {
-    indices_size = indices_size * static_cast<int>(GetConstInt(indices_ary->shape[indices]));
+  for (size_t posi = 0; posi < static_cast<size_t>(indices->shape.size()); ++posi) {
+    indices_size = indices_size * static_cast<int>(GetConstInt(indices->shape[posi]));
   }
 
   Array< Array<Expr> > extract_out_shapes;
   for (int indices = 0; indices < indices_size; ++indices) {
     Array<Expr> shape;
     for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
-      shape.push_back(a_ary->shape[i]);
+      shape.push_back(a->shape[i]);
     }
     shape.push_back(1);
-    for (size_t i = axis + 1; i < a_ary->shape.size(); ++i) {
-      shape.push_back(a_ary->shape[i]);
+    for (size_t i = axis + 1; i < a->shape.size(); ++i) {
+      shape.push_back(a->shape[i]);
     }
     extract_out_shapes.push_back(shape);
   }
 
   Array<Expr> indices_shape;
   indices_shape.push_back(indices_size);
-  const Tensor flattern_indices = reshape(indices_ary, indices_shape);
+  const Tensor flattern_indices = reshape(indices, indices_shape);
 
   Array<Tensor> result;
   for (size_t i = 0; i < static_cast<size_t>(extract_out_shapes.size()); ++i) {
@@ -429,7 +427,7 @@ inline Tensor take(const Array<Tensor>& inputs,
             real_indices.push_back(indices[j]);
           }
 
-          return a_ary(real_indices);
+          return a(real_indices);
         }, name, tag));
   }
 
@@ -438,5 +436,28 @@ inline Tensor take(const Array<Tensor>& inputs,
   return reshape(concat_result, out_shape);
 }
 
+  /*!
+  * \brief Take elements from an flattened input array when axis is None.
+  *
+  * \param a The source array.
+  * \param indices The indices of the values to extract.
+  * \param name The name of the operation.
+  * \param tag The tag to mark the operation.
+  *
+  * \return A Tensor whose op member is the take operation
+  */
+
+inline Tensor take_flatten(const Tensor& a,
+                           const Tensor& indices,
+                           std::string name = "tensor",
+                           std::string tag = kInjective) {
+  int a_size = 1;
+  for (size_t posi = 0; posi < static_cast<size_t>(a->shape.size()); ++posi) {
+    a_size = a_size * static_cast<int>(GetConstInt(a->shape[posi]));
+  }
+  Array<Expr> a_shape_exp;
+  a_shape_exp.push_back(a_size);
+  return take(reshape(a, a_shape_exp), indices, 0);
+}
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

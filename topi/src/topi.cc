@@ -267,7 +267,11 @@ TVM_REGISTER_GLOBAL("topi.split")
 
 TVM_REGISTER_GLOBAL("topi.take")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = take(args[0], args[1]);
+  if (args.size() == 2) {
+    *rv = take_flatten(args[0], args[1]);
+  } else {
+    *rv = take(args[0], args[1], args[2]);
+  }
   });
 
 /* Ops from nn/batch_norm.h */

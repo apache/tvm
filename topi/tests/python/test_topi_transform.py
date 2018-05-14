@@ -185,14 +185,14 @@ def verify_expand_like(in_shape, out_shape, axis):
         check_device(device)
 
 
-def verify_take(src_shape, indices_shape, indices_val=0, axis=0):
-    a_tuple = []
+def verify_take(src_shape, indices_shape, indices_val, axis=None):
     dtype = "float32"
     A = tvm.placeholder(shape=src_shape, dtype=dtype, name="A")
-    a_tuple.append(A)
     indices = tvm.placeholder(shape=indices_shape, dtype="int32", name="indices")
-    a_tuple.append(indices)
-    out_tensor = topi.take(a_tuple=a_tuple, axis=axis)
+    if axis is None:
+        out_tensor = topi.take(a=A, indices=indices)
+    else:
+        out_tensor = topi.take(a=A, indices=indices, axis=axis)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -203,7 +203,7 @@ def verify_take(src_shape, indices_shape, indices_val=0, axis=0):
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(out_tensor)
 
-        foo = tvm.build(s, a_tuple + [out_tensor] , device, name="take")
+        foo = tvm.build(s, [A] + [indices] + [out_tensor] , device, name="take")
         shape_size = 1
         for i in range(len(src_shape)):
             shape_size = shape_size * src_shape[i]
@@ -221,14 +221,14 @@ def verify_take(src_shape, indices_shape, indices_val=0, axis=0):
                 indices_npy[i] = indices_val_flatten[i]
             indices_npy = indices_npy.reshape(indices_shape)
 
-        out_npys = np.take(data_npy, indices_npy, axis=axis)
-        a_tuple_nd = [[]]*2
+        if axis is None:
+            out_npys = np.take(data_npy, indices_npy)
+        else:
+            out_npys = np.take(data_npy, indices_npy, axis=axis)
         data_nd = tvm.nd.array(data_npy, ctx)
-        a_tuple_nd[0] =data_nd
         indices_nd = tvm.nd.array(indices_npy, ctx)
-        a_tuple_nd[1] =indices_nd
         out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=out_tensor.dtype)
-        foo(*(a_tuple_nd + [out_nd]))
+        foo(data_nd, indices_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npys)
 
     for device in ["llvm", "opencl"]:
@@ -284,11 +284,13 @@ def test_expand_like():
     verify_expand_like((5, 7), (5, 6, 7, 8), [1, 3])
 
 def test_take():
+    verify_take((4,), (1,), 1)
+    verify_take((4,), (1,4), [0,1,2,3])
+    verify_take((3,3,3), (1,2), [11,25])
+    verify_take((4,), (2,2), [[0,1],[2,3]])
     verify_take((4,), (1,), 1, 0)
-    verify_take((4,), (1,2,2), [[1,0],[0,1]], 0)
     verify_take((2,2), (1,2,2), [[1,0],[0,1]], 0)
     verify_take((2,2), (1,2,2), [[1,0],[0,1]], 1)
-    verify_take((3,3,3), (1,1,2), [[1,0]], 2)
     verify_take((4,3,5,6), (1,4), [[2,1,0,0]], -2)
 
 if __name__ == "__main__":
