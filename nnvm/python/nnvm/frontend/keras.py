@@ -52,7 +52,7 @@ def _convert_activation(insym, keras_layer, _):
     elif act_type == 'elu':
         raise NotImplementedError('elu not implemented')
     elif act_type == 'relu6':
-        raise NotImplementedError('relu6 not implemented')
+        return _sym.clip(insym, a_min=0, a_max=6)
     elif act_type == 'softsign':
         raise NotImplementedError('softsign not implemented')
     elif act_type == 'hard_sigmoid':
