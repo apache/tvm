@@ -290,5 +290,4 @@ def take(a, indices, axis=None):
     """
     if axis is None:
         return cpp.take(a, indices)
-    else:
-        return cpp.take(a, indices, int(axis))
+    return cpp.take(a, indices, int(axis))
