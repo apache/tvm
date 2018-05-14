@@ -50,7 +50,6 @@ RUN bash /install/ubuntu_install_vulkan.sh
 # Environment variables
 ENV PATH=/node_modules/.bin:${PATH}
 ENV PATH=/usr/local/nvidia/bin:${PATH}
-ENV PATH=/usr/clang+llvm-4.0.0-x86_64-linux-gnu-ubuntu-14.04/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
 ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
 ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
