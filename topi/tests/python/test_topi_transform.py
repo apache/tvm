@@ -184,9 +184,9 @@ def verify_expand_like(in_shape, out_shape, axis):
     for device in ["llvm"]:
         check_device(device)
 
-def verify_reverse(in_shape, axis):
+def verify_flip(in_shape, axis):
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.cpp.reverse(A, axis)
+    B = topi.cpp.flip(A, axis)
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -248,10 +248,13 @@ def test_split():
     verify_split((2, 12, 3), [2, 4], 1)
     verify_split((10, 12, 24), [5, 7, 9], -1)
 
-def test_reverse():
-    verify_reverse((3, 4, 3), 1)
-    verify_reverse((3, 4, 3), 0)
-    verify_reverse((3, 4, 3), 2)
+def test_flip():
+    verify_flip((3, 4, 3), 1)
+    verify_flip((3, 4, 3), 0)
+    verify_flip((3, 4, 3), 2)
+    verify_flip((3, 4, 3), -1)
+    verify_flip((3, 4, 3), -3)
+    verify_flip((3, 4, 3), -2)
 
 def test_expand_like():
     verify_expand_like((3,), (2, 3), [0])
@@ -267,5 +270,5 @@ if __name__ == "__main__":
     test_reshape()
     test_squeeze()
     test_split()
-    test_reverse()
+    test_flip()
     test_expand_like()
