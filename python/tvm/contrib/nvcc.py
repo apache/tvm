@@ -107,10 +107,15 @@ def find_cuda_path():
 def get_cuda_version(cuda_path):
     """Utility function to get cuda version
 
+    Parameters
+    ----------
+    cuda_path : str
+        Path to cuda root.
+
     Returns
-    -----
+    -------
     version : float
-        cuda version
+        The cuda version
     """
     version_file_path = os.path.join(cuda_path, "version.txt")
     try:
@@ -129,6 +134,11 @@ def find_libdevice_path(arch):
     ----------
     arch : int
         The compute architecture in int
+
+    Returns
+    -------
+    path : str
+        Path to libdevice.
     """
     cuda_path = find_cuda_path()
     lib_path = os.path.join(cuda_path, "nvvm/libdevice")
@@ -136,7 +146,7 @@ def find_libdevice_path(arch):
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
     if cuda_ver == 9.0 or cuda_ver == 9.1:
-        path = os.path.join(lib_path, ".10.bc")
+        path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
             if not fn.startswith("libdevice"):
