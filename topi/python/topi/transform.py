@@ -277,11 +277,14 @@ def take(a, indices, axis=None):
 
     Parameters
     ----------
-    a : tvm.Tensor, The source array.
+    a : tvm.Tensor
+        The source array.
 
-    indices : tvm.Tensor, The indices of the values to extract.
+    indices : tvm.Tensor
+        The indices of the values to extract.
 
-    axis : int, The axis over which to select values. By default,
+    axis : int, optional
+        The axis over which to select values. By default,
         the flattened input array is used.
 
     Returns
