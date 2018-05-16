@@ -8,7 +8,6 @@ These are utility functions used for testing and tutorial file.
 """
 from __future__ import division
 import math
-from enum import IntEnum
 import numpy as np
 import cv2
 from cffi import FFI
@@ -91,7 +90,7 @@ def load_image(image, resize_width, resize_height):
     img = load_image_color(image)
     return _letterbox_image(img, resize_width, resize_height)
 
-class LAYERTYPE(IntEnum):
+class LAYERTYPE(object):
     """Darknet LAYERTYPE Class constant."""
     CONVOLUTIONAL = 0
     DECONVOLUTIONAL = 1
@@ -119,7 +118,7 @@ class LAYERTYPE(IntEnum):
     REORG = 23
     BLANK = 24
 
-class ACTIVATION(IntEnum):
+class ACTIVATION(object):
     """Darknet ACTIVATION Class constant."""
     LOGISTIC = 0
     RELU = 1
