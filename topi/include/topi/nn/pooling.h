@@ -125,13 +125,13 @@ inline Tensor pool_impl(const Tensor& x,
       if (count_include_pad) {
         return tsum(output) / (kernel_height * kernel_width);
       } else {
-        auto h_start = output[height_axis] * stride_height - padding_height;
-        auto w_start = output[width_axis] * stride_width - padding_width;
-        auto h_end = ir::Min::make(h_start + kernel_height, height);
-        auto w_end = ir::Min::make(w_start + kernel_width, width);
+        Expr h_start = output[height_axis] * stride_height - padding_height;
+        Expr w_start = output[width_axis] * stride_width - padding_width;
+        Expr h_end = ir::Min::make(h_start + kernel_height, height);
+        Expr w_end = ir::Min::make(w_start + kernel_width, width);
         h_start = ir::Max::make(h_start, make_const(Int(32), 0));
         w_start = ir::Max::make(w_start, make_const(Int(32), 0));
-        auto divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
+        Expr divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
                                            make_const(Int(32), 1));
         return tsum(output) / divide_factor;
       }

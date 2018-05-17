@@ -42,7 +42,13 @@ def global_pool(data, pool_type, layout="NCHW"):
     return cpp.nn.global_pool(data, POOL_TYPE_CODE[pool_type], layout)
 
 
-def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW",
+def pool(data,
+         kernel,
+         stride,
+         padding,
+         pool_type,
+         ceil_mode=False,
+         layout="NCHW",
          count_include_pad=True):
     """Perform pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
