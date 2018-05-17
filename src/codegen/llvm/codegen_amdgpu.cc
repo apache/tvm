@@ -200,8 +200,8 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   dest_ll.SetUnbuffered();
   destAsm.SetUnbuffered();
   module->print(dest_ll, nullptr);
-  std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(module.get());
-  std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(module.get());
+  std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(*module.get());
+  std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(*module.get());
   llvm::legacy::PassManager pass;
 
   CHECK(tm->addPassesToEmitFile(
