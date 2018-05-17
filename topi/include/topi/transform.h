@@ -371,53 +371,73 @@ inline Array<Tensor> split_sections(const Tensor& x,
 * \return A Tensor whose op member is the take operation
 */
 inline Tensor take(const Tensor& a,
-                  const Tensor& indices,
-                  const int* axis = NULL,
-                  std::string name = "tensor",
-                  std::string tag = kInjective) {
-  Tensor a_ary = a;
-  if (axis == NULL) {
-    int a_size = 1;
-    for (size_t posi = 0; posi < a_ary->shape.size(); ++posi) {
-      a_size = a_size * static_cast<int>(GetConstInt(a_ary->shape[posi]));
-    }
-    Array<Expr> a_shape_exp;
-    a_shape_exp.push_back(a_size);
-    a_ary = reshape(a_ary, a_shape_exp);
+                   const Tensor& indices,
+                   int axis,
+                   std::string name = "tensor",
+                   std::string tag = kInjective) {
+  if (axis < 0) {
+    axis += static_cast<int>(a->shape.size());
   }
-  int axis_val = (axis == NULL) ? 0 : (*axis);
-  if (axis_val < 0) {
-    axis_val += static_cast<int>(a_ary->shape.size());
-  }
-  CHECK_LT(axis_val, a_ary->shape.size()) << "axis out of bounds";
+  CHECK_LT(axis, a->shape.size()) << "axis out of bounds";
 
   int indices_len = static_cast<int>(indices->shape.size());
   Array<Expr> out_shape;
-  for (size_t i = 0; i < a_ary->shape.size(); ++i) {
-    if (axis_val == static_cast<int>(i)) {
+  for (size_t i = 0; i < a->shape.size(); ++i) {
+    if (axis == static_cast<int>(i)) {
       for (size_t j = 0; j < indices->shape.size(); ++j) {
         out_shape.push_back(indices->shape[j]);
       }
     } else {
-      out_shape.push_back(a_ary->shape[i]);
+      out_shape.push_back(a->shape[i]);
     }
   }
   return compute(
         out_shape, [&](const Array<Var>& out_index) {
           Array<Expr> indices_position;
-          for (size_t j = axis_val; j < static_cast<size_t>(axis_val+indices_len); ++j) {
+          for (size_t j = axis; j < static_cast<size_t>(axis+indices_len); ++j) {
             indices_position.push_back(out_index[j]);
           }
           Array<Expr> real_indices;
-          for (size_t j = 0; j < static_cast<size_t>(axis_val); ++j) {
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
           real_indices.push_back(indices(indices_position));
-          for (size_t j = axis_val + indices_len; j < out_index.size(); ++j) {
+          for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
           }
-          return a_ary(real_indices);
+          return a(real_indices);
         }, name, tag);
 }
+
+/*!
+* \brief Take elements from an flattened input array when axis is None.
+*
+* \param a The source array.
+* \param indices The indices of the values to extract.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor whose op member is the take operation
+*/
+inline Tensor take_flattern(const Tensor& a,
+                   const Tensor& indices,
+                   std::string name = "tensor",
+                   std::string tag = kInjective) {
+  Expr a_shape = a->shape;
+  Array<Expr> out_shape;
+  for (size_t j = 0; j < indices->shape.size(); ++j) {
+    out_shape.push_back(indices->shape[j]);
+  }
+
+  return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          for (size_t j = 0; j < indices->shape.size(); ++j) {
+            indices_position.push_back(out_index[j]);
+          }
+          return a(UnavelIndex(indices(indices_position), a_shape));
+        }, name, tag);
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

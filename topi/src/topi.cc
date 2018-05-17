@@ -268,10 +268,9 @@ TVM_REGISTER_GLOBAL("topi.split")
 TVM_REGISTER_GLOBAL("topi.take")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   if (args.size() == 2) {
-    *rv = take(args[0], args[1]);
+    *rv = take_flattern(args[0], args[1]);
   } else {
-    int axis = args[2];
-    *rv = take(args[0], args[1], &axis);
+    *rv = take(args[0], args[1], args[2]);
   }
   });
 
