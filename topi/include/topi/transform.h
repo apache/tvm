@@ -423,7 +423,7 @@ inline Tensor take_flattern(const Tensor& a,
                    const Tensor& indices,
                    std::string name = "tensor",
                    std::string tag = kInjective) {
-  Expr a_shape = a->shape;
+  Array<Expr> a_shape = a->shape;
   Array<Expr> out_shape;
   for (size_t j = 0; j < indices->shape.size(); ++j) {
     out_shape.push_back(indices->shape[j]);
