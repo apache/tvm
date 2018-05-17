@@ -36,6 +36,7 @@ enum PoolType : int {
 * \param ceil_mode Whether to use ceil when calculating the output size
 * \param height_axis index of the height dimension
 * \param width_axis index of the width dimension
+* \param count_include_pad Whether include padding in the calculation
 *
 * \return The output tensor in same layout order
 */
@@ -46,7 +47,8 @@ inline Tensor pool_impl(const Tensor& x,
                         PoolType pool_type,
                         bool ceil_mode,
                         const size_t height_axis,
-                        const size_t width_axis) {
+                        const size_t width_axis,
+                        bool count_include_pad) {
   CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
   CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
@@ -120,7 +122,19 @@ inline Tensor pool_impl(const Tensor& x,
 
     return tvm::compute(out_shape,
     [&](const Array<Var>& output) {
-      return tsum(output) / (kernel_height * kernel_width);
+      if (count_include_pad) {
+        return tsum(output) / (kernel_height * kernel_width);
+      } else {
+        Expr h_start = output[height_axis] * stride_height - padding_height;
+        Expr w_start = output[width_axis] * stride_width - padding_width;
+        Expr h_end = ir::Min::make(h_start + kernel_height, height);
+        Expr w_end = ir::Min::make(w_start + kernel_width, width);
+        h_start = ir::Max::make(h_start, make_const(Int(32), 0));
+        w_start = ir::Max::make(w_start, make_const(Int(32), 0));
+        Expr divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
+                                           make_const(Int(32), 1));
+        return tsum(output) / divide_factor;
+      }
     }, "tensor", kElementWise);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
@@ -177,6 +191,9 @@ inline bool find_height_width(const std::string& layout,
 *        it can be used to decide the output shape).
 *        Since pooling does not care about the factor size of dimensions
 *        other than `H` and `W`, one can pass `NCHWc` as well.
+* \param  count_include_pad Whether include padding in the calculation when pool_type is 'avg'
+*        
+*
 * \return The output tensor in the same layout
 */
 inline Tensor pool(const Tensor& x,
@@ -185,12 +202,14 @@ inline Tensor pool(const Tensor& x,
                    const Array<Expr>& padding_size,
                    PoolType pool_type,
                    bool ceil_mode,
-                   const std::string& layout = "NCHW") {
+                   const std::string& layout = "NCHW",
+                   bool count_include_pad = true) {
   int height_axis = -1, width_axis = -1;
   CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
   return pool_impl(x, kernel_size, stride_size, padding_size,
-                   pool_type, ceil_mode, height_axis, width_axis);
+                   pool_type, ceil_mode, height_axis, width_axis,
+                   count_include_pad);
 }
 
 /*!

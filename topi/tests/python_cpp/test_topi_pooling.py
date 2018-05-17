@@ -9,14 +9,14 @@ pool_code = {
     "avg": 0,
     "max": 1
 }
-def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
+def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
     iw = ih
     kw = kh
     sw = sh
     ph, pw = padding
     A = tvm.placeholder((n, ic, ih, iw), name='A')
     B = topi.cpp.nn.pool(A, [kh, kw], [sh, sw], padding,
-                         pool_code[pool_type], ceil_mode, "NCHW")
+                         pool_code[pool_type], ceil_mode, "NCHW", count_include_pad)
     B = topi.cpp.nn.relu(B)
     dtype = A.dtype
 
@@ -40,7 +40,12 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     if pool_type == 'avg':
         for i in range(oh):
             for j in range(ow):
-                b_np[:,:,i,j] = np.mean(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw], axis=(2,3))
+                if count_include_pad:
+                    b_np[:,:,i,j] = np.mean(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw], axis=(2,3))
+                else:
+                    pad_count = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw] > 0, axis=(2,3))
+                    b_np[:,:,i,j] = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw], axis=(2,3)) / np.maximum(pad_count, 1)
+
     elif pool_type =='max':
         for i in range(oh):
             for j in range(ow):
@@ -68,8 +73,11 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
         check_device(device)
 
 def test_pool():
-    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg', False)
-    verify_pool(1, 256, 31, 3, 3, [1, 2], 'avg', False)
+    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg', False, True)
+    verify_pool(1, 256, 31, 3, 3, [1, 2], 'avg', False, True)
+    verify_pool(1, 256, 32, 2, 2, [1, 2], 'avg', False, False)
+    verify_pool(1, 256, 31, 4, 4, [3, 3], 'avg', False, False)
+    verify_pool(1, 256, 31, 4, 4, [0, 0], 'avg', False, False)
     verify_pool(1, 256, 32, 2, 2, [0, 0], 'max', False)
     verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', False)
     verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', True)

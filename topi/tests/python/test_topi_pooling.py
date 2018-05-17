@@ -5,14 +5,14 @@ import topi
 import math
 from topi.util import get_const_tuple
 
-def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
+def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
     iw = ih
     kw = kh
     sw = sh
     ph, pw = padding
     A = tvm.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
-                     pool_type=pool_type, ceil_mode=ceil_mode)
+                     pool_type=pool_type, ceil_mode=ceil_mode, count_include_pad=count_include_pad)
     B = topi.nn.relu(B)
     dtype = A.dtype
 
@@ -26,7 +26,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
         assert bshape[3] == int(math.floor(float(ashape[3] - kw + pw * 2) / sw) + 1)
 
 
-    a_np = np.random.uniform(size=(n, ic, ih, iw)).astype(dtype)
+    a_np = np.random.uniform(low=0.001, size=(n, ic, ih, iw)).astype(dtype)
     pad_np = np.zeros(shape=(n, ic, ih+2*ph, iw+2*pw)).astype(dtype)
     no_zero = (range(n), range(ic), (range(ph, ih+ph)), (range(pw, iw+pw)))
     pad_np[np.ix_(*no_zero)] = a_np
@@ -36,7 +36,12 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     if pool_type == 'avg':
         for i in range(oh):
             for j in range(ow):
-                b_np[:,:,i,j] = np.mean(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw], axis=(2,3))
+                if count_include_pad:
+                    b_np[:,:,i,j] = np.mean(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw], axis=(2,3))
+                else:
+                    pad_count = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw] > 0, axis=(2,3))
+                    b_np[:,:,i,j] = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw], axis=(2,3)) / np.maximum(pad_count, 1)
+
     elif pool_type =='max':
         for i in range(oh):
             for j in range(ow):
@@ -62,8 +67,11 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
         check_device(device)
 
 def test_pool():
-    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg', False)
-    verify_pool(1, 256, 31, 3, 3, [1, 2], 'avg', False)
+    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg', False, True)
+    verify_pool(1, 256, 31, 3, 3, [1, 2], 'avg', False, True)
+    verify_pool(1, 256, 32, 2, 2, [1, 2], 'avg', False, False)
+    verify_pool(1, 256, 31, 4, 4, [3, 3], 'avg', False, False)
+    verify_pool(1, 256, 31, 4, 4, [0, 0], 'avg', False, False)
     verify_pool(1, 256, 32, 2, 2, [0, 0], 'max', False)
     verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', False)
     verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', True)

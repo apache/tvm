@@ -42,7 +42,14 @@ def global_pool(data, pool_type, layout="NCHW"):
     return cpp.nn.global_pool(data, POOL_TYPE_CODE[pool_type], layout)
 
 
-def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW"):
+def pool(data,
+         kernel,
+         stride,
+         padding,
+         pool_type,
+         ceil_mode=False,
+         layout="NCHW",
+         count_include_pad=True):
     """Perform pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
        in which 'W' and 'H' means width and height respectively.
@@ -80,10 +87,13 @@ def pool(data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW
         [batch_size, channel, height, width, channel_block],
         in which channel_block=16 is a split of dimension channel.
 
+    count_include_pad: bool
+        Whether include padding in the calculation when pool_type is 'avg'
+
     Returns
     -------
     output : tvm.Tensor
         n-D in the same layout
     """
     return cpp.nn.pool(data, kernel, stride, padding,
-                       POOL_TYPE_CODE[pool_type], ceil_mode, layout)
+                       POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
