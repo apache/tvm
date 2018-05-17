@@ -119,9 +119,9 @@ inline Tensor transpose(const Tensor& x,
 * \return A Tensor whose op member is the reverse operation
 */
 inline Tensor flip(const Tensor& x,
-                      int axis = 0,
-                      std::string name = "tensor",
-                      std::string tag = kInjective) {
+                   int axis = 0,
+                   std::string name = "tensor",
+                   std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
   int axis_inp = axis;
 
@@ -138,7 +138,7 @@ inline Tensor flip(const Tensor& x,
     x->shape, [&](const Array<Var>& indices) {
       Array<Expr> real_indices;
       for (size_t i = 0; i < src_tensor_dim; ++i) {
-        if (i == (size_t)axis) {
+        if (i == static_cast<size_t>(axis)) {
           real_indices.push_back(x->shape[i] - indices[i] - 1);
         } else {
           real_indices.push_back(indices[i]);

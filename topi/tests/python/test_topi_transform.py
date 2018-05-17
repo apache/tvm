@@ -186,7 +186,7 @@ def verify_expand_like(in_shape, out_shape, axis):
 
 def verify_flip(in_shape, axis):
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.cpp.flip(A, axis)
+    B = topi.flip(A, axis) + 1
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -198,7 +198,7 @@ def verify_flip(in_shape, axis):
 
         foo = tvm.build(s, [A, B], device, name="reverse")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
-        out_npy = np.flip(x_np, axis)
+        out_npy = np.flip(x_np, axis) + 1
         data_nd = tvm.nd.array(x_np, ctx)
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=A.dtype)
         foo(data_nd, out_nd)
