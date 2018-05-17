@@ -209,17 +209,13 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
         block_h = 1
         block_w = 16
 
-    c_h = 0
-    c_w = 0
+    c_h = out_height
+    c_w = out_width
 
-    if out_height % block_h == 0:
-        c_h = out_height
-    else:
+    if not out_height % block_h == 0:
         c_h = (out_height // block_h + 1) * block_h
 
-    if out_width % block_w == 0:
-        c_w = out_width
-    else:
+    if not out_width % block_w == 0:
         c_w = (out_width // block_w + 1) * block_w
 
     nv = 16
