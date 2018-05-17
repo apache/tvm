@@ -62,3 +62,4 @@ List of Contributors
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
+- [Tatsuya Nishiyama](https://github.com/nishi-t)
