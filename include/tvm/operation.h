@@ -181,7 +181,7 @@ class PlaceholderOpNode : public OperationNode {
 /*!
  * \brief A Compute op that compute a tensor on certain domain.
  */
-class ComputeOpNode : public OperationNode {
+class TVM_DLL ComputeOpNode : public OperationNode {
  public:
   /*! \brief IterVar on each axis */
   Array<IterVar> axis;
