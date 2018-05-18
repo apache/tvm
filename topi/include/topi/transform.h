@@ -359,6 +359,36 @@ inline Array<Tensor> split_sections(const Tensor& x,
 }
 
 /*!
+* \brief Take elements from an flattened input array when axis is None.
+*
+* \param a The source array.
+* \param indices The indices of the values to extract.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor whose op member is the take operation
+*/
+inline Tensor take(const Tensor& a,
+                   const Tensor& indices,
+                   std::string name = "tensor",
+                   std::string tag = kInjective) {
+  Array<Expr> a_shape = a->shape;
+  Array<Expr> out_shape;
+  for (size_t j = 0; j < indices->shape.size(); ++j) {
+    out_shape.push_back(indices->shape[j]);
+  }
+
+  return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          for (size_t j = 0; j < indices->shape.size(); ++j) {
+            indices_position.push_back(out_index[j]);
+          }
+          return a(UnavelIndex(indices(indices_position), a_shape));
+        }, name, tag);
+}
+
+/*!
 * \brief Take elements from an array along an axis.
 *
 * \param a The source array.
@@ -406,36 +436,6 @@ inline Tensor take(const Tensor& a,
             real_indices.push_back(out_index[j]);
           }
           return a(real_indices);
-        }, name, tag);
-}
-
-/*!
-* \brief Take elements from an flattened input array when axis is None.
-*
-* \param a The source array.
-* \param indices The indices of the values to extract.
-* \param name The name of the operation.
-* \param tag The tag to mark the operation.
-*
-* \return A Tensor whose op member is the take operation
-*/
-inline Tensor take_flattern(const Tensor& a,
-                   const Tensor& indices,
-                   std::string name = "tensor",
-                   std::string tag = kInjective) {
-  Array<Expr> a_shape = a->shape;
-  Array<Expr> out_shape;
-  for (size_t j = 0; j < indices->shape.size(); ++j) {
-    out_shape.push_back(indices->shape[j]);
-  }
-
-  return compute(
-        out_shape, [&](const Array<Var>& out_index) {
-          Array<Expr> indices_position;
-          for (size_t j = 0; j < indices->shape.size(); ++j) {
-            indices_position.push_back(out_index[j]);
-          }
-          return a(UnavelIndex(indices(indices_position), a_shape));
         }, name, tag);
 }
 
