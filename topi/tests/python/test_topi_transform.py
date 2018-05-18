@@ -204,7 +204,7 @@ def verify_flip(in_shape, axis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm"]:
+    for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
 
 def test_expand_dims():
