@@ -442,11 +442,14 @@ inline Tensor strided_slice(const Tensor& x,
       rev_input.push_back(false);
     }
 
-    begin_ids[i] = begin_i;
-    end_ids[i] = end_i;
     int interval = std::abs(end_i - begin_i);
     int sliceinp = static_cast<int>((interval / stride_ids[i])
                                     + ((interval % stride_ids[i]) != 0 ? 1 : 0));
+    CHECK((0 != sliceinp) && (begin_i < end_i))
+      << ": Input [Begin=" << begin_ids[i] << ", End=" << end_ids[i]
+      << "] is invalid for axis=" << i;
+    begin_ids[i] = begin_i;
+    end_ids[i] = end_i;
     out_shape.push_back(sliceinp);
   }
 
