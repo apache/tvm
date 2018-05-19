@@ -241,6 +241,11 @@ TVM_REGISTER_GLOBAL("topi.transpose")
   *rv = transpose(args[0], args[1]);
   });
 
+TVM_REGISTER_GLOBAL("topi.flip")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = flip(args[0], args[1]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.reshape")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = reshape(args[0], args[1]);

@@ -107,6 +107,46 @@ inline Tensor transpose(const Tensor& x,
     }, name, tag);
 }
 
+/*!
+* \brief flip/reverse elements of an array in a particular axis
+*
+* \param x The input tensor
+* \param axis The axis along which the tensors will be reveresed
+* (allows negative indices)
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the reverse operation
+*/
+inline Tensor flip(const Tensor& x,
+                   int axis = 0,
+                   std::string name = "tensor",
+                   std::string tag = kInjective) {
+  size_t src_tensor_dim = x->shape.size();
+  int axis_inp = axis;
+
+  if (axis < 0) {
+    axis = static_cast<int>(x->shape.size()) + axis;
+  }
+
+  CHECK((0 <= axis) && (axis < static_cast<int>(x->shape.size())))
+    << "axis=" << axis_inp << " is invalid for the "
+    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
+
+  // Reverse the Input Tensor in the axis specified
+  return compute(
+    x->shape, [&](const Array<Var>& indices) {
+      Array<Expr> real_indices;
+      for (size_t i = 0; i < src_tensor_dim; ++i) {
+        if (i == static_cast<size_t>(axis)) {
+          real_indices.push_back(x->shape[i] - indices[i] - 1);
+        } else {
+          real_indices.push_back(indices[i]);
+        }
+      }
+      return x(real_indices);
+    }, name, tag);
+}
 
 /*!
 * \brief Reshape a tensor
