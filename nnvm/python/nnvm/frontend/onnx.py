@@ -558,17 +558,13 @@ class GraphProto(object):
             i_name = self._parse_value_proto(i)
             if i_name in self._params:
                 # i is a param instead of input
-                name_param = 'param_{}'.format(self._num_param)
                 self._num_param += 1
-                self._params[name_param] = self._params.pop(i_name)
-                self._nodes[name_param] = _sym.Variable(
-                    name=name_param, shape=self._params[name_param].shape)
-                self._renames[i_name] = name_param
+                self._params[i_name] = self._params.pop(i_name)
+                self._nodes[i_name] = _sym.Variable(
+                    name=i_name, shape=self._params[i_name].shape)
             else:
-                name_input = 'input_{}'.format(self._num_input)
                 self._num_input += 1
-                self._nodes[name_input] = _sym.Variable(name=name_input)
-                self._renames[i_name] = name_input
+                self._nodes[i_name] = _sym.Variable(name=i_name)
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
