@@ -12,7 +12,7 @@ from .. import ir_pass  as _ir_pass
 from .. import build_module as builder
 
 #pylint: disable=missing-docstring, invalid-name, consider-merging-isinstance, no-else-return
-#pylint: disable=inconsistent-return-statements
+#pylint: disable=inconsistent-return-statements, eval-used
 
 NOOP = _make.Evaluate(_api.const(0))
 
