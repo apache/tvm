@@ -5,6 +5,7 @@ import tvm
 import topi
 from . import tag
 from .util import ravel_index, unravel_index, get_const_int, get_const_tuple
+from . import cpp
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -110,6 +111,23 @@ def transpose(a, axes=None):
         return a(*idx)
     return tvm.compute(new_shape, _compute)
 
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def flip(a, axis=0):
+    """Flip/reverse elements of an array in a particular axis.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+
+    axis : int, optional
+        The axis along which the tensors will be reveresed.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.flip(a, axis)
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
 def reshape(a, newshape):
