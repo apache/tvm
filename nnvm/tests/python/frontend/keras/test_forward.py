@@ -180,6 +180,17 @@ def test_forward_multi_inputs():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_reuse_layers():
+    data = keras.layers.Input(shape=(32,32,3))
+    conv2d = keras.layers.Conv2D(8, (3, 3), padding="same")
+    x = conv2d(data)
+    y = conv2d(data)
+    z = keras.layers.add([x, y])
+    z = keras.layers.GlobalAveragePooling2D()(z)
+    keras_model = keras.models.Model(data, z)
+    verify_keras_frontend(keras_model)
+
+
 if __name__ == '__main__':
     test_forward_elemwise_add()
     test_forward_softmax()
@@ -198,3 +209,4 @@ if __name__ == '__main__':
     test_forward_mobilenet()
 
     test_forward_multi_inputs()
+    test_forward_reuse_layers()

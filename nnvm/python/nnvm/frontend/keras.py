@@ -152,8 +152,8 @@ def _convert_convolution(insym, keras_layer, symtab):
         pass
     # we insert a separate pad operator
     elif keras_layer.padding == 'same':
-        in_h = keras_layer.input.shape[1].value
-        in_w = keras_layer.input.shape[2].value
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
         pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
         pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         insym = _sym.pad(data=insym, pad_width=((0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
@@ -192,8 +192,8 @@ def _convert_separable_convolution(insym, keras_layer, symtab):
         pass
     # we insert a separate pad operator
     elif keras_layer.padding == 'same':
-        in_h = keras_layer.input.shape[1].value
-        in_w = keras_layer.input.shape[2].value
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
         pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
         pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         insym = _sym.pad(data=insym, pad_width=(
@@ -249,8 +249,8 @@ def _convert_pooling(insym, keras_layer, symtab):
             pass
         # we insert a separate pad operator
         elif keras_layer.padding == 'same':
-            in_h = keras_layer.input.shape[1].value
-            in_w = keras_layer.input.shape[2].value
+            in_h = keras_layer.input_shape[1]
+            in_w = keras_layer.input_shape[2]
             pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
             pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
             insym = _sym.pad(data=insym, pad_width=(
@@ -486,14 +486,20 @@ def from_keras(model):
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
             for node in inbound_nodes:
-                for pred in node.inbound_layers:
-                    predecessors.append(pred.name)
-            if len(predecessors) == 1:
-                insym = symtab.get_var(predecessors[0], must_contain=True)
-            else:
+                for i, pred in zip(node.node_indices, node.inbound_layers):
+                    if isinstance(pred, keras.engine.topology.InputLayer):
+                        predecessors.append(pred.name)
+                    else:
+                        predecessors.append(pred.name + str(i))
+            if _convert_map[type(keras_layer).__name__] == _convert_merge \
+                    or _convert_map[type(keras_layer).__name__] == _convert_concat:
                 insym = [symtab.get_var(pred, must_contain=True) for pred in predecessors]
-            keras_op_to_nnvm(insym, keras_layer, keras_layer.name, symtab)
+                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + '0', symtab)
+            else:
+                for i, pred in enumerate(predecessors):
+                    insym = symtab.get_var(pred, must_contain=True)
+                    keras_op_to_nnvm(insym, keras_layer, keras_layer.name + str(i), symtab)
 
-    returns = [symtab.get_var(i.name, must_contain=False) for i in model.output_layers]
+    outsym = symtab.get_var(model.output_layers[0].name + '0')
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
-    return returns[0], tvmparams
+    return outsym, tvmparams
