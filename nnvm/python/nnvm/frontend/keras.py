@@ -475,7 +475,7 @@ def from_keras(model):
     symtab = SymbolTable()
     for keras_layer in model.layers:
         if isinstance(keras_layer, keras.engine.topology.InputLayer):
-            keras_layer.name = 'data'
+            keras_layer.name = keras_layer.name
             symtab.get_var(keras_layer.name, must_contain=False)
         else:
             predecessors = []
