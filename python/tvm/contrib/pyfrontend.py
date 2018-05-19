@@ -26,6 +26,7 @@ class Unrolled(object):
     def __exit__(self, a, b, c):
         return self
 
+#TODO: uncomment these lines later to support intermediate buffer
 #def allocate(shape, dtype=None):
 #    return numpy.zeros(shape).tolist()
 
@@ -35,7 +36,7 @@ def py_frontend(func):
     return func
 
 def _list_to_block(lst):
-    lst = list(filter(lambda stmt: not _ir_pass.Equal(stmt, NOOP), lst))
+    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, NOOP)]
     if not lst:
         return NOOP
     if len(lst) == 1:
@@ -148,23 +149,17 @@ class PyAST2HalideIR(ast.NodeVisitor):
         rhs = _ir_pass.Simplify(rhs)
         if isinstance(node.targets[0], ast.Name):
             lhs = node.targets[0].id
-            #print(lhs, rhs)
-            #print(ast.Store, self.rw_status[lhs])
             if lhs not in self.rw_status.keys():
                 print('Warning: Variable %s is not used after declaration! Discard stmt!' % lhs)
                 return NOOP
             elif ast.Store in self.rw_status[lhs]:
-                #print('write %s' % lhs)
                 if lhs not in self.vars_buffer.keys():
                     self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
-                #print(_make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)]))
                 return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
             elif isinstance(rhs, _expr.FloatImm) or isinstance(rhs, _expr.IntImm):
-                #print('read only const %s' % lhs)
                 self.vars_const[lhs] = rhs
                 return NOOP
             else:
-                #print('read only non-const %s' % lhs)
                 self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
                 return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
         else:
@@ -176,16 +171,13 @@ class PyAST2HalideIR(ast.NodeVisitor):
             return _make.Provide(self.input_param[lhs.name].op, 0, rhs, lhs.args)
 
     def visit_Index(self, node):
-        #print(ast.dump(node))
         if isinstance(node.value, ast.Tuple):
             return [self.visit(i) for i in node.value.elts]
         return [self.visit(node.value)]
 
     def visit_Subscript(self, node):
-        #print(node.value)
         #assert isinstance(node.value, ast.Name) or isinstance(node.value, ast.Attribute)
         args = self.visit(node.slice)
-        #print(args)
         if isinstance(node.value, ast.Name):
             array = node.value.id
             assert array in self.input_param.keys()
@@ -210,13 +202,11 @@ class PyAST2HalideIR(ast.NodeVisitor):
         assert isinstance(context, ast.Call)
         assert isinstance(option, ast.Name)
         self.annotation[option.id] = context.func.id
-        #print(self.annotation[option.id])
         return _list_to_block([self.visit(i) for i in node.body])
 
     def visit_BinOp(self, node):
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)
-        #print(PyAST2HalideIR._binop_maker[type(node.op)](lhs, rhs))
         return PyAST2HalideIR._binop_maker[type(node.op)](lhs, rhs)
 
     def visit_For(self, node):
@@ -239,7 +229,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.loop_levels.pop(var)
         return res
 
-def parse(func, args, dump=False):
+def parse(func, args):
     """Parse a subset of Python to HalideIR
 
     Parameters
@@ -266,10 +256,7 @@ def parse(func, args, dump=False):
     else:
         assert isinstance(func, types.FunctionType)
         ir = ast.parse(inspect.getsource(func))
-    if dump:
-        print(ast.dump(ir))
     var_usage = _find_all_variable_decl(ir)
-    #print(var_usage)
     return PyAST2HalideIR(args, var_usage).visit(ir)
 
 def lower(func, args, binds=None):
@@ -311,8 +298,6 @@ def lower(func, args, binds=None):
     _binds.update(binds_vars)
     _binds.update(binds_vars)
     _binds.update(binds)
-    #print(_binds)
     stmt = _ir_pass.StorageFlatten(stmt, _binds, 64)
-    #print(stmt)
     _config = builder.current_build_config().restricted_func
     return _ir_pass.MakeAPI(stmt, parser.func_name, args, 0, _config)
