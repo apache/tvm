@@ -138,19 +138,23 @@ def test_failure():
         assert func == 'visit_Name'
         assert text == 'assert node.id not in self.loops_above'
 
-#def annotation():
-#    sigma = 0
-#    with Unrolled as i:
-#    for i in range(100):
-#            sigma = i
-#
-#def test_annotation():
-#    tvm.contrib.pyfrontend.parse(annotation, dump = True)
+@tvm.contrib.pyfrontend.py_frontend
+def annotation(a):
+    with Unrolled() as i:
+        for i in range(6):
+            a[i] = i
+
+def test_unroll():
+    a = tvm.placeholder((6, ), name = 'a')
+    ir = tvm.contrib.pyfrontend.parse(annotation, [a])
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.for_type == tvm.stmt.For.Unrolled
 
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
     test_failure()
+    test_unroll()
 
 #test_annotation()
 #test_outer_product()

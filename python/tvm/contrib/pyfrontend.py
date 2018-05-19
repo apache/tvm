@@ -103,6 +103,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.rw_status = usage
         self.func_name = ""
         self.args = args
+        self.annotation = {}
 
     def visit_Module(self, node):
         assert len(node.body) == 1
@@ -147,22 +148,25 @@ class PyAST2HalideIR(ast.NodeVisitor):
         rhs = _ir_pass.Simplify(rhs)
         if isinstance(node.targets[0], ast.Name):
             lhs = node.targets[0].id
+            #print(lhs, rhs)
             #print(ast.Store, self.rw_status[lhs])
             if lhs not in self.rw_status.keys():
                 print('Warning: Variable %s is not used after declaration! Discard stmt!' % lhs)
                 return NOOP
+            elif ast.Store in self.rw_status[lhs]:
+                #print('write %s' % lhs)
+                if lhs not in self.vars_buffer.keys():
+                    self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
+                #print(_make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)]))
+                return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
             elif isinstance(rhs, _expr.FloatImm) or isinstance(rhs, _expr.IntImm):
                 #print('read only const %s' % lhs)
                 self.vars_const[lhs] = rhs
                 return NOOP
-            else:# ast.Store in self.rw_status[lhs]:
-                #print('read write %s' % lhs)
-                if lhs not in self.vars_buffer.keys():
-                    self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
+            else:
+                #print('read only non-const %s' % lhs)
+                self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
                 return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
-            #print('read only non-const %s' % lhs)
-            self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
-            return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
         else:
             lhs = self.visit(node.targets[0])
             assert isinstance(lhs, _expr.Call)
@@ -199,6 +203,16 @@ class PyAST2HalideIR(ast.NodeVisitor):
         else:
             assert False
 
+    def visit_With(self, node):
+        assert len(node.items) == 1
+        context = node.items[0].context_expr
+        option = node.items[0].optional_vars
+        assert isinstance(context, ast.Call)
+        assert isinstance(option, ast.Name)
+        self.annotation[option.id] = context.func.id
+        #print(self.annotation[option.id])
+        return _list_to_block([self.visit(i) for i in node.body])
+
     def visit_BinOp(self, node):
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)
@@ -218,7 +232,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
         ext = high if isinstance(low, _expr.IntImm) and low.value == 0 else high - low
         _body = [self.visit(stmt) for stmt in node.body]
         _body = _list_to_block(_body)
-        res = _make.For(self.loop_levels[var], low, ext, _stmt.For.Serial, 0, _body)
+        _for_type = _stmt.For.Serial
+        if var in self.annotation.keys():
+            _for_type = eval('_stmt.For.%s' % self.annotation[var])
+        res = _make.For(self.loop_levels[var], low, ext, _for_type, 0, _body)
         self.loop_levels.pop(var)
         return res
 
@@ -250,7 +267,7 @@ def parse(func, args, dump=False):
         assert isinstance(func, types.FunctionType)
         ir = ast.parse(inspect.getsource(func))
     if dump:
-        print(ir.show())
+        print(ast.dump(ir))
     var_usage = _find_all_variable_decl(ir)
     #print(var_usage)
     return PyAST2HalideIR(args, var_usage).visit(ir)
