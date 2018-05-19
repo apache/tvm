@@ -286,3 +286,28 @@ def split(ary, indices_or_sections, axis=0):
                         lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
             for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]
     # pylint: enable=cell-var-from-loop
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def take(a, indices, axis=None):
+    """Take elements from an array along an axis.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The source array.
+
+    indices : tvm.Tensor
+        The indices of the values to extract.
+
+    axis : int, optional
+        The axis over which to select values. By default,
+        the flattened input array is used.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    if axis is None:
+        return cpp.take(a, indices)
+    return cpp.take(a, indices, int(axis))

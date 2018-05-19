@@ -167,6 +167,45 @@ def verify_split(src_shape, indices_or_sections, axis):
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
 
+def verify_take(src_shape, indices_src, axis=None):
+    src_dtype = "float32"
+    indices_dtype = "int32"
+    indices_src = np.array(indices_src, dtype=indices_dtype)
+    A = tvm.placeholder(shape=src_shape, dtype=src_dtype, name="A")
+    indices = tvm.placeholder(shape=indices_src.shape, dtype=indices_dtype, name="indices")
+    if axis is None:
+        out_tensor = topi.cpp.take(A, indices)
+    else:
+        out_tensor = topi.cpp.take(A, indices, axis)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
+
+        foo = tvm.build(s, [A] + [indices] + [out_tensor] , device, name="take")
+        shape_size = 1
+        for i in range(len(src_shape)):
+            shape_size = shape_size * src_shape[i]
+        data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
+
+        if axis is None:
+            out_npys = np.take(data_npy, indices_src)
+        else:
+            out_npys = np.take(data_npy, indices_src, axis=axis)
+        data_nd = tvm.nd.array(data_npy, ctx)
+        indices_nd = tvm.nd.array(indices_src, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
+        foo(data_nd, indices_nd, out_nd)
+        np.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in ["llvm", "opencl"]:
+        check_device(device)
+
 
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
@@ -209,6 +248,16 @@ def test_split():
     verify_split((2, 12, 3), [2, 4], 1)
     verify_split((10, 12, 24), [5, 7, 9], -1)
 
+def test_take():
+    verify_take((4,), [1])
+    verify_take((4,), [[0,1,2,3]])
+    verify_take((3,3,3), [[11,25]])
+    verify_take((4,), [[0,1],[2,3]])
+    verify_take((4,), [1], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 1)
+    verify_take((4,3,5,6), [[2,1,0,0]], -2)
+
 if __name__ == "__main__":
     test_concatenate()
     test_tranpose()
@@ -216,3 +265,4 @@ if __name__ == "__main__":
     test_reshape()
     test_squeeze()
     test_split()
+    test_take()
