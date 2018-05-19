@@ -150,7 +150,8 @@ class PyAST2HalideIR(ast.NodeVisitor):
         if isinstance(node.targets[0], ast.Name):
             lhs = node.targets[0].id
             if lhs not in self.rw_status.keys():
-                print('Warning: Variable %s is not used after declaration! Discard stmt!' % lhs)
+                # This means variable %s is not used after declaration!
+                # Thus, we discard this variable.
                 return NOOP
             elif ast.Store in self.rw_status[lhs]:
                 if lhs not in self.vars_buffer.keys():
@@ -215,6 +216,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.loop_levels[var] = _api.var(var)
         assert isinstance(node.iter, ast.Call)
         assert node.iter.func.id == 'range'
+        assert len(node.iter.args) == 1 or len(node.iter.args) == 2
         if len(node.iter.args) == 1:
             low, high = _api.const(0), self.visit(node.iter.args[0])
         elif len(node.iter.args) == 2:
