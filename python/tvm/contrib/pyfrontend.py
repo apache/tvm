@@ -113,7 +113,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         assert len(node.args.args) == len(self.args)
-        for idx, arg in enumerate(node.args.args):
+        for idx, arg in enumerate(node.args.args): #pylint: disable=unused-variable
             # I do not know how to fix it. The only thing I can do is to detect the runtime version.
             _attr = 'id' if sys.version_info[0] < 3 else 'arg'
             self.input_param[eval('arg.%s' % _attr)] = self.args[idx]
