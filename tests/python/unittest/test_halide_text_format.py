@@ -58,7 +58,7 @@ def test_outer_product():
 
 def fanout(n, a, b):
     three = 3.0
-    for i in range(n - 3):
+    for i in range(a.shape[0] - 3):
         sigma = 0.0
         for j in range(3):
             sigma = sigma + a[i + j]
