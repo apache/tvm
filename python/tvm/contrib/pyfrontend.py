@@ -3,6 +3,7 @@ import ast
 import inspect
 import types
 import operator
+import sys
 #import numpy
 from .. import expr as _expr
 from .. import stmt as _stmt
@@ -113,7 +114,9 @@ class PyAST2HalideIR(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         assert len(node.args.args) == len(self.args)
         for idx, arg in enumerate(node.args.args):
-            self.input_param[arg.arg] = self.args[idx]
+            # I do not know how to fix it. The only thing I can do is to detect the runtime version.
+            _attr = 'id' if sys.version_info[0] < 3 else 'arg'
+            self.input_param[eval('arg.%s' % _attr)] = self.args[idx]
         res = [self.visit(i) for i in node.body]
         res = _list_to_block(res)
         one = _make.range_by_min_extent(0, 1)
@@ -197,9 +200,13 @@ class PyAST2HalideIR(ast.NodeVisitor):
             assert False
 
     def visit_With(self, node):
-        assert len(node.items) == 1
-        context = node.items[0].context_expr
-        option = node.items[0].optional_vars
+        if sys.version_info[0] < 3:
+            context = node.context_expr
+            option = node.optional_vars
+        else:
+            assert len(node.items) == 1
+            context = node.items[0].context_expr
+            option = node.items[0].optional_vars
         assert isinstance(context, ast.Call)
         assert isinstance(option, ast.Name)
         self.annotation[option.id] = context.func.id
@@ -297,7 +304,6 @@ def lower(func, args, binds=None):
     binds_args, args = builder.get_binds(parser.args)
     binds_vars, _ = builder.get_binds(parser.vars_buffer)
     _binds = binds_args.copy()
-    _binds.update(binds_vars)
     _binds.update(binds_vars)
     _binds.update(binds)
     stmt = _ir_pass.StorageFlatten(stmt, _binds, 64)
