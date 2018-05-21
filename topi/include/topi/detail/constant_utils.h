@@ -65,6 +65,23 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
   return result;
 }
 
+/*!
+ * \brief Check weather the two expression are equal or not
+ *
+ * \param lhs First expreesion
+ * \param rhs Second expreesion
+ *
+ * \return result True if both expression are equal, else false
+ */
+inline bool EqualCheck(Expr lhs, Expr rhs) {
+  bool result = tvm::ir::Equal(lhs, rhs);
+  if (!result) {
+    Expr zero(0);
+    result = tvm::ir::Equal(tvm::ir::CanonicalSimplify(lhs-rhs), zero);
+  }
+  return result;
+}
+
 }  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_CONSTANT_UTILS_H_
