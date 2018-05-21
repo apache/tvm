@@ -140,15 +140,25 @@ def test_failure():
 
 @tvm.contrib.pyfrontend.py_frontend
 def annotation(a):
-    with Unrolled() as i:
+    with Parallel() as i:
         for i in range(6):
             a[i] = i
+    with Vectorized() as j:
+        for j in range(6):
+            a[j] = j
+    with Unrolled() as k:
+        for k in range(6):
+            a[k] = k
 
-def test_unroll():
+def test_annotation():
     a = tvm.placeholder((6, ), name='a')
     ir, _ = tvm.contrib.pyfrontend.parse(annotation, [a])
-    assert isinstance(ir, tvm.stmt.For)
-    assert ir.for_type == tvm.stmt.For.Unrolled
+    iloop = ir.first
+    jloop = ir.rest.first
+    kloop = ir.rest.rest
+    assert iloop.for_type == tvm.stmt.For.Parallel
+    assert jloop.for_type == tvm.stmt.For.Vectorized
+    assert kloop.for_type == tvm.stmt.For.Unrolled
 
 def if_then_else(a, b):
     for i in range(10):
@@ -182,6 +192,6 @@ if __name__ == "__main__":
     test_outer_product()
     test_fanout()
     test_failure()
-    test_unroll()
+    test_annotation()
     test_if()
 
