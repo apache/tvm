@@ -9,6 +9,61 @@ Refer to the Roadmap issue for complete list on on-going version features.
 If you check in something that is not reflected in Roadmap issue, please reply
 to that issue so it can get added.
 
+## 0.3
+
+This release features numerous improvements in TOPI and backends. We make the first step toward object detection support in TOPI, featuring operators necessary for YOLO and SSDs. The topi now supports numpy-style API and operator overloading. RPC is significantly improved to support resource allocation and using a pool of devices. We are adding two new backends: WebGL for running GPUs on the browser, and Vulkan for running on next-generation graphics API.
+
+- TOPI Vision operators
+   - SSD support
+   - YOLO support
+   - NMS operator support in vision
+- TOPI general numpy-style operators
+   - numpy style operator overload in topi
+   - more operators: flip, take
+   - dilation support on conv2d and depthwise
+- 8bit support
+    - ARM 8bit gemm
+    - ARM 8bit conv
+- Low bit operator support
+    - popcount intrinsics
+    - 1-bit fully connected
+- Contrib: MPSDNN fully-connected and conv2d support
+- Better RPC support
+   - RPC Tracker support to allow centralized resource management
+   - RPC protocol upgrade (this is a non-backward compatible change) to support timeout in the proxy
+     - This is a breaking change, need to use the latest version of TVM runtime with the RPC
+   - Fault-tolerant to early server termination with correct exception propagated
+   - RPC support enabled for ROCm AMDGPUs
+- Tutorials and docs
+  - How to deploy to android devices.
+- Optimizations for hardware backends
+  - intel CPU (AVX and AVX512)
+- Schedule Primitives
+   - rfactor now support factor_axis to specify the factored dimension in the result
+   - cache_write now support multiple output operators
+   - enable warp memory which generates shuffle instructions
+- Framework bridge
+  - MXNet bridge supported
+- C++ compiler API support
+   - build migration
+   - topi migration to c++
+   - Target system in c++
+- WebGL backend
+   - runtime and codegen
+   - topi integration
+   - end to end pipeline on the browser
+- Vulkan backend
+   - vulkan runtime
+   - spirv code generator
+- Security
+    - intel SGX runtime support
+    - multi-threaded SGX runtime
+- LLVM 7.0 support
+- Robustness
+   - VerifyMemory to verify incorrect GPU schedules that writes into GPU memory from cpu
+   - Verify compute formulas
+- Better CPU parallel runtime
+
 ## 0.2
 
 This release comes with a complete set of TOPI support for NNVM compiler, which allows compilation of end to end workloads.
