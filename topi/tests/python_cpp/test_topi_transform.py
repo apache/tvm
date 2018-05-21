@@ -206,8 +206,7 @@ def verify_take(src_shape, indices_src, axis=None):
     for device in ["llvm", "opencl"]:
         check_device(device)
 
-def verify_regression_test_1(shapes, axis, indices_or_sections):
-    '''Verify concatenate + split operation on same axis'''
+def verify_concatenate_split(shapes, axis, indices_or_sections):
     tensor_l_concatenate = []
     for i, shape in enumerate(shapes):
         tensor_l_concatenate.append(tvm.placeholder(shape, name="A" + str(i)))
@@ -238,8 +237,7 @@ def verify_regression_test_1(shapes, axis, indices_or_sections):
     for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
 
-def verify_regression_test_2(shapes, axis, rhs_shape):
-    '''Verify concatenate + broadcast operation '''
+def verify_concatenate_broadcast(shapes, axis, rhs_shape):
     B = tvm.placeholder(shape=rhs_shape, name="B")
     tensor_l = []
     for i, shape in enumerate(shapes):
@@ -325,12 +323,12 @@ def test_take():
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
 
 def test_regression_1():
-    verify_regression_test_1([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1, [3, 7])
-    verify_regression_test_1([(3, 4), (2, 4), (3, 4)], 0, [1, 2, 3, 4])
+    verify_concatenate_split([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1, [3, 7])
+    verify_concatenate_split([(3, 4), (2, 4), (3, 4)], 0, [1, 2, 3, 4])
 
 def test_regression_2():
-    verify_regression_test_2([(5, 1, 3), (5, 1, 3)], 1, [2, 1])
-    verify_regression_test_2([(5, 1, 2), (5, 1, 3)], 2, [1, 5])
+    verify_concatenate_broadcast([(5, 1, 3), (5, 1, 3)], 1, [2, 1])
+    verify_concatenate_broadcast([(5, 1, 2), (5, 1, 3)], 2, [1, 5])
 
 if __name__ == "__main__":
     test_concatenate()
