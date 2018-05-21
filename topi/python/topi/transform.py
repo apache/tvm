@@ -130,6 +130,32 @@ def flip(a, axis=0):
     return cpp.flip(a, axis)
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
+def strided_slice(a, begin, end, stride=None):
+    """Slice of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+
+    begin: list of int
+        The indices to begin with in the slicing.
+
+    end: list of int
+        Indicies indicating end of the slice.
+
+    stride: list of int
+        Specifies the stride values, it can be negative
+        in that case, the input tensor will be reversed
+        in that particular axis.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.strided_slice(a, begin, end, stride)
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
 def reshape(a, newshape):
     """Reshape the array
 

@@ -366,6 +366,105 @@ inline Array<Tensor> split(const Tensor& x,
 }
 
 /*!
+* \brief strided_slice of a tensor
+*
+* \param x The input tensor
+* \param begin The indices to begin with in the slicing
+* \param end Indicies indicating end of the slice
+* \param stride Specifies the stride values, it can be negative
+* in that case, the input tensor will be reversed in that particular axis
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the split operation
+*/
+inline Tensor strided_slice(const Tensor& x,
+                            Array<Expr> begin,
+                            Array<Expr> end,
+                            Array<Expr> stride,
+                            std::string name = "tensor",
+                            std::string tag = kInjective) {
+  size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
+  auto begin_val = GetConstIntValues(begin, "begin");
+  auto end_val = GetConstIntValues(end, "end");
+  auto stride_val = GetConstIntValues(stride, "stride");
+
+  auto expand_axis = [x](std::vector<int> list_ids,
+                         size_t src_tensor_dim, int fill_value, bool end) {
+    if (list_ids.size() < src_tensor_dim) {
+      for (size_t i = list_ids.size(); i < src_tensor_dim; ++i) {
+        if (end) {
+          list_ids.push_back(GetConstInt(x->shape[i]));
+        } else {
+          list_ids.push_back(fill_value);
+        }
+      }
+    }
+    return list_ids;
+  };
+
+  std::vector<int> begin_ids;
+  std::copy(begin_val.begin(), begin_val.end(), std::back_inserter(begin_ids));
+  begin_ids = expand_axis(begin_ids, src_tensor_dim, 0, false);
+
+  std::vector<int> end_ids;
+  std::copy(end_val.begin(), end_val.end(), std::back_inserter(end_ids));
+  end_ids = expand_axis(end_ids, src_tensor_dim, 0, true);
+
+  std::vector<int> stride_ids;
+  if (stride.size() != 0) {
+    std::copy(stride_val.begin(), stride_val.end(), std::back_inserter(stride_ids));
+  }
+  stride_ids = expand_axis(stride_ids, src_tensor_dim, 1, false);
+
+  Array<Expr> out_shape;
+  std::vector<bool> rev_input;
+
+  for (size_t i = 0; i < src_tensor_dim; ++i) {
+    int begin_range = stride_ids[i] < 0 ? -1 : 0;
+    int end_range = stride_ids[i] < 0 ? GetConstInt(x->shape[i]) - 1 : GetConstInt(x->shape[i]);
+
+    auto canonicalindices = [x, i, begin_range, end_range](int a) {
+      int64_t x_fwd = a < 0 ? GetConstInt(x->shape[i]) + a : a;
+      return x_fwd < begin_range ? begin_range : x_fwd > end_range ? end_range : x_fwd;
+    };
+
+    int begin_i = begin_ids[i];
+    int end_i = end_ids[i];
+    begin_i = canonicalindices(begin_i);
+    end_i = canonicalindices(end_i);
+    if (stride_ids[i] < 0) {
+      begin_i = GetConstInt(x->shape[i]) - begin_i - 1;
+      end_i = GetConstInt(x->shape[i]) - end_i - 1;
+      stride_ids[i] = -stride_ids[i];
+      rev_input.push_back(true);
+    } else {
+      rev_input.push_back(false);
+    }
+
+    begin_ids[i] = begin_i;
+    end_ids[i] = end_i;
+    int interval = std::abs(end_i - begin_i);
+    int sliceinp = static_cast<int>((interval / stride_ids[i])
+                                    + ((interval % stride_ids[i]) != 0 ? 1 : 0));
+    out_shape.push_back(sliceinp);
+  }
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+      Array<Expr> real_indices;
+      for (size_t i = 0; i < src_tensor_dim; ++i) {
+        if (rev_input[i]) {
+          real_indices.push_back(x->shape[i] - (indices[i] * stride_ids[i] + begin_ids[i]) - 1);
+        } else {
+          real_indices.push_back(indices[i] * stride_ids[i] + begin_ids[i]);
+        }
+      }
+      return x(real_indices);
+    }, name, tag);
+}
+
+/*!
 * \brief Split a tensor into a number of sub-tensors
 *
 * \param x The input tensor
