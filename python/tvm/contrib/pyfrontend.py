@@ -17,8 +17,8 @@ from .. import build_module as builder
 
 NOP = _make.Evaluate(_api.const(0))
 
-class Unrolled(object):
-    def __init__(self, factor=1):
+class LoopAnnotation(object):
+    def __init__(self):
         pass
 
     def __enter__(self):
@@ -27,13 +27,26 @@ class Unrolled(object):
     def __exit__(self, a, b, c):
         return self
 
+#Loop Annotation Classes
+class Serial(LoopAnnotation): pass     #pylint: disable=multiple-statements
+class Unrolled(LoopAnnotation): pass   #pylint: disable=multiple-statements
+class Vectorized(LoopAnnotation): pass #pylint: disable=multiple-statements
+class Parallel(LoopAnnotation): pass   #pylint: disable=multiple-statements
+
+
+ANNOTATION_GLOBALS = {
+    'Serial'    : Serial,
+    'Unrolled'  : Unrolled,
+    'Vectorized': Vectorized,
+    'Parallel'  : Parallel
+}
+
 #TODO: uncomment these lines later to support intermediate buffer
 #def allocate(shape, dtype=None):
 #    return numpy.zeros(shape).tolist()
 
 def py_frontend(func):
-    if 'Unrolled' not in func.__globals__.keys():
-        func.__globals__['Unrolled'] = Unrolled
+    func.__globals__.update(ANNOTATION_GLOBALS)
     return func
 
 def _list_to_block(lst):
