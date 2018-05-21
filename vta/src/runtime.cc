@@ -367,9 +367,10 @@ class UopQueue : public BaseQueue {
     }
     assert(num_op <= kMaxNumUop);
     uint32_t uop_begin = 0;
-    if (sram_end_ + num_op > kMaxElems) {
+    if (sram_end_ + num_op > kMaxNumUop) {
       // Need to evict
       cache_ptr_ = 0;
+      sram_begin_ = 0;
       sram_end_ = num_op;
     } else {
       uop_begin = sram_end_;
@@ -388,6 +389,7 @@ class UopQueue : public BaseQueue {
     dram_end_ += num_op;
     kernel->sram_begin_ = uop_begin;
     kernel->sram_end_ = sram_end_;
+    CHECK(kernel->cached());
     assert(uop_begin != sram_end_);
     cache_.insert(cache_.begin() + cache_ptr_, kernel);
     cache_.erase(cache_.begin() + evict_begin, cache_.begin() + cache_ptr_);

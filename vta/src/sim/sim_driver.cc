@@ -162,6 +162,7 @@ class DRAM {
    */
   void Free(void* data) {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (pmap_.size() == 0) return;
     auto it = pmap_.find(data);
     CHECK(it != pmap_.end());
     Page* p = it->second.get();

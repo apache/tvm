@@ -3,6 +3,7 @@ import nnvm
 import tvm
 from nnvm.compiler import graph_attr
 import vta
+import vta.testing
 import os
 import numpy as np
 from PIL import Image
@@ -12,7 +13,8 @@ import logging
 import wget
 from tvm.contrib import graph_runtime, rpc, util
 
-factor = 16
+bfactor = 1
+cfactor = 16
 host = "pynq"
 port = 9091
 verbose = False
@@ -37,6 +39,10 @@ if verbose:
 # Change to -device=vtacpu to run cpu only inference.
 target = tvm.target.create("llvm -device=vta")
 target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
+
+if vta.get_env().TARGET == "sim":
+    target_host = "llvm"
+
 
 synset = eval(open(os.path.join(CATEG_FILE)).read())
 image = Image.open(os.path.join(TEST_FILE)).resize((224, 224))
@@ -105,7 +111,7 @@ sym = vta.graph.remove_stochastic(sym)
 sym = vta.graph.clean_cast(sym)
 sym = vta.graph.clean_conv_fuse(sym)
 if target.device_name == "vta":
-    sym = vta.graph.pack(sym, shape_dict, factor)
+    sym = vta.graph.pack(sym, shape_dict, bfactor, cfactor)
 
 graph_attr.set_shape_inputs(sym, shape_dict)
 sym = sym.apply("InferShape")
@@ -127,7 +133,13 @@ with nnvm.compiler.build_config(opt_level=3):
 assert tvm.module.enabled("rpc")
 temp = util.tempdir()
 lib.save(temp.relpath("graphlib.o"))
-remote = rpc.connect(host, port)
+
+if vta.get_env().TARGET == "sim":
+    remote = rpc.LocalSession()
+    print("local session")
+else:
+    remote = rpc.connect(host, port)
+
 remote.upload(temp.relpath("graphlib.o"))
 lib = remote.load_module("graphlib.o")
 ctx = remote.ext_dev(0) if target.device_name == "vta" else remote.cpu(0)
@@ -154,16 +166,17 @@ def run_e2e(graph):
     print("t-cost=%g" % tcost.mean)
 
 
-def run_layer(old_graph):
+def run_layer(old_graph, layer_begin, layer_end):
     """Run a certain layer."""
-    for layer_id in range(1, 2):
+    for layer_id in range(layer_begin, layer_end):
+        print("run resnet[%d]..."% (layer_id))
         graph = mark_nop(old_graph, layer_id)
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
         m.set_input('data', tvm.nd.array(x.astype("float32")))
         m.set_input(**params)
         # execute
-        timer = m.module.time_evaluator("run", ctx, number=10)
+        timer = m.module.time_evaluator("run", ctx, number=1)
         tcost = timer()
         print("resnet[%d]: %g\n"% (layer_id, tcost.mean))
 
