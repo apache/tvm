@@ -454,6 +454,7 @@ def build(sch,
             if current_build_config().detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
+            func = ir_pass.ThreadSync(func, "warp")
             warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]
