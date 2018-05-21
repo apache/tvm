@@ -106,6 +106,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.func_name = ""
         self.args = args
         self.annotation = {}
+        self.iter_axis = []
 
     def visit_Module(self, node):
         assert len(node.body) == 1
@@ -221,6 +222,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         assert isinstance(node.target, ast.Name)
         var = node.target.id
         self.loop_levels[var] = _api.var(var)
+        self.iter_axis.append(var)
         assert isinstance(node.iter, ast.Call)
         assert node.iter.func.id == 'range'
         assert len(node.iter.args) == 1 or len(node.iter.args) == 2
@@ -251,14 +253,12 @@ def parse(func, args):
         The argument lists to the function.
         Leave it None if no buffer is related to the function to be parsed
 
-    dump : bool, optional
-        If it is true, Python ast will be dumped.
-        A debug parameter.
-
     Returns
     -------
-    ir : Stmt
-        The result Halide IR
+    (halide_ir, parser) : (Stmt, PyAST2HalideIR)
+        The result Halide IR and the parser class instance.
+        TODO: The parser class isinstance will later provide some interface for hybrid
+              programming model.
     """
     if isinstance(func, str):
         ir = ast.parse(func)
@@ -266,9 +266,12 @@ def parse(func, args):
         assert isinstance(func, types.FunctionType)
         ir = ast.parse(inspect.getsource(func))
     var_usage = _find_all_variable_decl(ir)
-    return PyAST2HalideIR(args, var_usage).visit(ir)
+    parser = PyAST2HalideIR(args, var_usage)
+    halide_ir = parser.visit(ir)
+    return (halide_ir, parser)
 
-def lower(func, args, binds=None):
+
+def lower(func, args, binds=None, simple_mode=False):
     """Lower a subset of Python to LoweredFunc
 
     Parameters
@@ -291,21 +294,14 @@ def lower(func, args, binds=None):
     ir : LoweredFunc
         The result lowered function
     """
-    if isinstance(func, str):
-        ir = ast.parse(func)
-    else:
-        assert isinstance(func, types.FunctionType)
-        ir = ast.parse(inspect.getsource(func))
-    if binds is None:
-        binds = {}
-    var_usage = _find_all_variable_decl(ir)
-    parser = PyAST2HalideIR(args, var_usage)
-    stmt = parser.visit(ir)
+    stmt, parser = parse(func, args)
+    if simple_mode:
+        return stmt
     binds_args, args = builder.get_binds(parser.args)
     binds_vars, _ = builder.get_binds(parser.vars_buffer)
     _binds = binds_args.copy()
     _binds.update(binds_vars)
-    _binds.update(binds)
+    _binds.update(binds if binds is not None else {})
     stmt = _ir_pass.StorageFlatten(stmt, _binds, 64)
     _config = builder.current_build_config().restricted_func
     return _ir_pass.MakeAPI(stmt, parser.func_name, args, 0, _config)

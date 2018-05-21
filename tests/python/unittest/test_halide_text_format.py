@@ -13,7 +13,7 @@ def test_outer_product():
     a = tvm.placeholder((n, ), name = 'a')
     b = tvm.placeholder((m, ), name = 'b')
     c = tvm.placeholder((n, m), name = 'c')
-    ir = frontend.parse(outer_product, [n, m, a, b, c])
+    ir, _ = frontend.parse(outer_product, [n, m, a, b, c])
     #print(ir)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
@@ -69,7 +69,7 @@ def test_fanout():
     n = tvm.var('n')
     a = tvm.placeholder((n, ), name = 'a')
     b = tvm.placeholder((n-3, ), name = 'b')
-    ir = frontend.parse(fanout, [n, a, b])
+    ir, _ = frontend.parse(fanout, [n, a, b])
     #print(ir)
     assert isinstance(ir, tvm.stmt.Realize)
     assert ir.bounds[0].min.value == 0
@@ -146,7 +146,7 @@ def annotation(a):
 
 def test_unroll():
     a = tvm.placeholder((6, ), name = 'a')
-    ir = tvm.contrib.pyfrontend.parse(annotation, [a])
+    ir, _ = tvm.contrib.pyfrontend.parse(annotation, [a])
     assert isinstance(ir, tvm.stmt.For)
     assert ir.for_type == tvm.stmt.For.Unrolled
 
