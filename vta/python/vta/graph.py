@@ -10,51 +10,58 @@ import nnvm
 from nnvm.compiler import graph_attr, graph_util
 
 
-def _pack_channel(data, dshape, factor):
+def _pack_batch_channel(data, dshape, bfactor, cfactor):
     """Pack the data channel dimension.
     """
-    assert dshape[1] % factor == 0
+    assert dshape[0] % bfactor == 0
+    assert dshape[1] % cfactor == 0
     data = nnvm.sym.reshape(data,
-                            shape=(dshape[0], dshape[1] // factor,
-                                   factor, dshape[2], dshape[3]))
-    data = nnvm.sym.transpose(
-        data, axes=(0, 1, 3, 4, 2))
-    return data
-
-
-def _unpack_channel(data, old_shape):
-    """Unpack the data channel dimension.
-    """
-    data = nnvm.sym.transpose(data, axes=(0, 1, 4, 2, 3))
-    data = nnvm.sym.reshape(data, shape=old_shape)
-    return data
-
-
-def _pack_weight(data, dshape, factor):
-    """Pack the weight into packed format.
-    """
-    assert len(dshape) == 4
-    assert dshape[0] % factor == 0
-    assert dshape[1] % factor == 0
-    data = nnvm.sym.reshape(data,
-                            shape=(dshape[0] // factor, factor,
-                                   dshape[1] // factor, factor,
+                            shape=(dshape[0] // bfactor, bfactor,
+                                   dshape[1] // cfactor, cfactor,
                                    dshape[2], dshape[3]))
     data = nnvm.sym.transpose(
         data, axes=(0, 2, 4, 5, 1, 3))
     return data
 
 
-def _pack_bias(data, dshape, factor):
+def _unpack_batch_channel(data, old_shape):
+    """Unpack the data channel dimension.
+    """
+    data = nnvm.sym.transpose(data, axes=(0, 4, 1, 5, 2, 3))
+    data = nnvm.sym.reshape(data, shape=old_shape)
+    return data
+
+
+def _pack_weight(data, dshape, cfactor):
+    """Pack the weight into packed format.
+    """
+    assert len(dshape) == 4
+    assert dshape[0] % cfactor == 0
+    assert dshape[1] % cfactor == 0
+    data = nnvm.sym.reshape(data,
+                            shape=(dshape[0] // cfactor, cfactor,
+                                   dshape[1] // cfactor, cfactor,
+                                   dshape[2], dshape[3]))
+    data = nnvm.sym.transpose(
+        data, axes=(0, 2, 4, 5, 1, 3))
+    return data
+
+
+def _pack_bias(data, dshape, bfactor, cfactor):
     """Pack the bias parameter.
     """
     assert len(dshape) == 3
-    assert dshape[0] % factor == 0
+    assert dshape[0] % cfactor == 0
     data = nnvm.sym.reshape(data,
-                            shape=(dshape[0] // factor,
-                                   factor, dshape[1], dshape[2]))
+                            shape=(dshape[0] // cfactor,
+                                   cfactor, dshape[1],
+                                   dshape[2], 1))
     data = nnvm.sym.transpose(
-        data, axes=(0, 2, 3, 1))
+        data, axes=(0, 2, 3, 4, 1))
+    # broadcast batch dimension to bfactor
+    data = nnvm.sym.broadcast_to(
+        data,
+        shape=(dshape[0] // cfactor, dshape[1], dshape[2], bfactor, cfactor))
     return data
 
 
@@ -245,8 +252,8 @@ def clean_cast(graph):
     return ret
 
 
-def pack(graph, shape_dict, factor, start_name=None):
-    """Pack the graph into channel packed format.
+def pack(graph, shape_dict, bfactor, cfactor, start_name=None):
+    """Pack the graph into batch&channel packed format.
 
     Parameters
     ----------
@@ -256,8 +263,11 @@ def pack(graph, shape_dict, factor, start_name=None):
     shape_dict : dict of str to shapex
        The input shape.
 
-    factor : int
-       The packing factor
+    bfactor : int
+       The packing factor in batch
+
+    cfactor : int
+       The packing factor in channel
 
     start_name: str, optional
        Start name start packing from certain known node.
@@ -290,42 +300,44 @@ def pack(graph, shape_dict, factor, start_name=None):
             new_node = nnvm.symbol.Variable(node_name)
             if start_name and node_name == start_name:
                 start_pack = True
-                new_node = _pack_channel(new_node, oshape, factor)
+                new_node = _pack_batch_channel(new_node, oshape, bfactor, cfactor)
         elif op_name == "max_pool2d":
             assert not start_pack
             start_pack = True
             new_node = get_clone(children, op_name, node_name, attrs)
-            new_node = _pack_channel(new_node, oshape, factor)
+            new_node = _pack_batch_channel(new_node, oshape, bfactor, cfactor)
         elif op_name == "global_avg_pool2d":
             if start_pack:
                 start_pack = False
-                children[0] = _unpack_channel(children[0], ishape[0])
+                children[0] = _unpack_batch_channel(children[0], ishape[0])
                 new_node = getattr(nnvm.symbol, op_name)(
                     *children, name=node_name, **attrs)
             else:
                 new_node = get_clone(children, op_name, node_name, attrs)
         elif op_name == "quantized_conv2d":
             if start_pack:
-                attrs["pack_channel"] = str(factor)
+                attrs["pack_batch"] = str(bfactor)
+                attrs["pack_channel"] = str(cfactor)
                 data, weight = children
-                weight = _pack_weight(weight, ishape[1], factor)
+                weight = _pack_weight(weight, ishape[1], cfactor)
                 new_node = nnvm.sym.quantized_conv2d(
                     data, weight, name=node_name, **attrs)
             elif counter == 1:
-                attrs["pack_channel"] = str(factor)
+                attrs["pack_batch"] = str(bfactor)
+                attrs["pack_channel"] = str(cfactor)
                 data, weight = children
-                data = _pack_channel(data, ishape[0], factor)
-                weight = _pack_weight(weight, ishape[1], factor)
+                data = _pack_batch_channel(data, ishape[0], bfactor, cfactor)
+                weight = _pack_weight(weight, ishape[1], cfactor)
                 new_node = nnvm.sym.quantized_conv2d(
                     data, weight, name=node_name, **attrs)
-                new_node = _unpack_channel(new_node, oshape)
+                new_node = _unpack_batch_channel(new_node, oshape)
                 counter = counter + 1
             else:
                 new_node = get_clone(children, op_name, node_name, attrs)
         elif op_name.startswith("broadcast"):
             if start_pack:
                 assert len(ishape[1]) == 3
-                children[1] = _pack_bias(children[1], ishape[1], factor)
+                children[1] = _pack_bias(children[1], ishape[1], bfactor, cfactor)
                 new_node = getattr(nnvm.symbol, op_name)(
                     *children, name=node_name, **attrs)
             else:
@@ -341,7 +353,7 @@ def pack(graph, shape_dict, factor, start_name=None):
     ret = node_map[graph.index.output_entries[0][0]]
     if start_pack:
         oshape = shape[graph.index.output_entries[0][0]]
-        ret = _unpack_channel(ret, oshape)
+        ret = _unpack_batch_channel(ret, oshape)
     graph = nnvm.graph.create(ret)
     graph = graph_attr.set_shape_inputs(graph, shape_dict)
     graph = graph.apply("InferShape")
