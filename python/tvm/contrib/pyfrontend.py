@@ -15,7 +15,7 @@ from .. import build_module as builder
 #pylint: disable=missing-docstring, invalid-name, consider-merging-isinstance, no-else-return
 #pylint: disable=inconsistent-return-statements, eval-used
 
-NOOP = _make.Evaluate(_api.const(0))
+NOP = _make.Evaluate(_api.const(0))
 
 class Unrolled(object):
     def __init__(self, factor=1):
@@ -37,9 +37,9 @@ def py_frontend(func):
     return func
 
 def _list_to_block(lst):
-    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, NOOP)]
+    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, NOP)]
     if not lst:
-        return NOOP
+        return NOP
     if len(lst) == 1:
         return lst[0]
     body = lst[0]
@@ -87,14 +87,26 @@ def _find_all_variable_decl(ir):
 class PyAST2HalideIR(ast.NodeVisitor):
 
     _binop_maker = {
-        ast.Add   : _make.Add,
-        ast.Sub   : _make.Sub,
-        ast.Mult  : _make.Mul,
+        ast.Add   : operator.add,
+        ast.Sub   : operator.sub,
+        ast.Mult  : operator.mul,
         ast.Div   : _make.Div,
-        ast.Mod   : _make.Mod,
+        ast.Mod   : operator.mod,
         ast.BitOr : operator.or_,
         ast.BitAnd: operator.and_,
-        ast.BitXor: operator.xor
+        ast.BitXor: operator.xor,
+        ast.Gt    : operator.gt,
+        ast.GtE   : operator.ge,
+        ast.Lt    : operator.lt,
+        ast.LtE   : operator.le,
+        ast.Eq    : operator.eq,
+        ast.NotEq : operator.ne,
+    }
+
+    _unaryop_maker = {
+        ast.USub   : operator.neg,
+        ast.Invert : operator.invert,
+        ast.Not    : operator.not_
     }
 
     def __init__(self, args, usage):
@@ -156,14 +168,14 @@ class PyAST2HalideIR(ast.NodeVisitor):
             if lhs not in self.rw_status.keys():
                 # This means variable %s is not used after declaration!
                 # Thus, we discard this variable.
-                return NOOP
+                return NOP
             elif ast.Store in self.rw_status[lhs]:
                 if lhs not in self.vars_buffer.keys():
                     self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
                 return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
             elif isinstance(rhs, _expr.FloatImm) or isinstance(rhs, _expr.IntImm):
                 self.vars_const[lhs] = rhs
-                return NOOP
+                return NOP
             else:
                 self.vars_buffer[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
                 return _make.Provide(self.vars_buffer[lhs].op, 0, rhs, [_api.const(0)])
@@ -212,6 +224,32 @@ class PyAST2HalideIR(ast.NodeVisitor):
         assert isinstance(option, ast.Name)
         self.annotation[option.id] = context.func.id
         return _list_to_block([self.visit(i) for i in node.body])
+
+    def visit_If(self, node):
+        cond = self.visit(node.test)
+        if_body = _list_to_block([self.visit(i) for i in node.body])
+        if node.orelse:
+            else_body = _list_to_block([self.visit(i) for i in node.orelse])
+        else:
+            else_body = NOP
+        return _make.IfThenElse(cond, if_body, else_body)
+
+    def visit_IfExp(self, node):
+        cond = self.visit(node.test)
+        if_body = self.visit(node.body)
+        else_body = self.visit(node.orelse)
+        return _make.Select(cond, if_body, else_body)
+
+    def visit_Compare(self, node):
+        lhs = self.visit(node.left)
+        assert len(node.ops) == 1
+        assert len(node.comparators) == 1
+        rhs = self.visit(node.comparators[0])
+        return PyAST2HalideIR._binop_maker[type(node.ops[0])](lhs, rhs)
+
+    def visit_UnaryOp(self, node):
+        operand = self.visit(node.operand)
+        return PyAST2HalideIR._unaryop_maker[type(node.op)](operand)
 
     def visit_BinOp(self, node):
         lhs = self.visit(node.left)
