@@ -10,66 +10,16 @@ from .. import generic
 from .. import util
 from .. import tag
 from ..nn import pad
-from ..nn.conv2d import conv2d
+from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
 from ..nn.util import get_pad_tuple
 from ..util import simplify
 
+import nnvm
+import nnvm.symbol as sym
+from nnvm.top import registry as reg
+
 
 ##### SCHEDULE UTILITIES #####
-def fuse_and_bind(s, tensor, axis=None, num_thread=None):
-    """ fuse all the axis and bind to GPU threads """
-    axis = axis or s[tensor].op.axis
-    fused = s[tensor].fuse(*axis)
-    max_threads = tvm.target.current_target(allow_none=False).max_num_threads
-    bx, tx = s[tensor].split(fused, num_thread or max_threads)
-    s[tensor].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(tx, tvm.thread_axis("threadIdx.x"))
-    return bx, tx
-
-def split_and_bind(s, tensor, x, x_factor=1):
-    bx, tx = s[tensor].split(x, factor = x_factor)
-    s[tensor].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[tensor].bind(bx, tvm.thread_axis("blockIdx.x"))
-    return bx, tx
-
-def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
-    """ tile and bind to GPU threads """
-    x_factor = x_factor or y_factor
-    yo, xo, yi, xi = s[tensor].tile(y, x, y_factor, x_factor)
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-    return yo, xo, yi, xi
-
-def cache_tile_and_bind3d(s, tensor, z, y, x, z_factor = 2, y_factor=None, x_factor=None):
-    """ tile and bind cache to GPU threads"""
-    x_factor = x_factor or z_factor
-    y_factor = y_factor or z_factor
-    zo, zi = s[tensor].split(z, z_factor)
-    yo, yi = s[tensor].split(y, y_factor)
-    xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].reorder(zo, yo, xo, zi, yi, xi)
-    s[tensor].bind(zi, tvm.thread_axis("threadIdx.z"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
-    return zo, yo, xo, zi, yi, xi
-
-def cache_tile_and_bind(s, tensor, y, x, y_factor=2, x_factor=None):
-    """ tile and bind cache to GPU threads"""
-    x_factor = x_factor or y_factor
-    yo, yi = s[tensor].split(y, y_factor)
-    xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].reorder(yo, xo, yi, xi)
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
-    return yo, xo, yi, xi
-
-def cache_split_and_bind(s, tensor, x, x_factor=1):
-    xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
-    return xo
-
 def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None):
     """ tile and bind 3d """
     y_factor = y_factor or z_factor
@@ -90,8 +40,27 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     s[tensor].bind(xi, thread_x)
     return xi, thread_z, thread_y, thread_x
 
-@conv2d.register(["intel_gpu"])
-def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
+@conv2d_alter_layout.register(["intel_gpu"])
+def _alter_conv2d_layout(attrs, inputs, tinfos):
+    copy_inputs = [s for s in inputs]
+
+    data = tinfos[0]
+    kernel = tinfos[1]
+
+    import ast
+    padding = ast.literal_eval(attrs['padding'])
+    stride  = ast.literal_eval(attrs['strides'])
+
+    wkl = _get_workload(data, kernel, stride, padding, data.dtype)
+    oc_bn = 16
+
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+    new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)
+
+    return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+
+@conv2d_NCHWc.register(["intel_gpu"])
+def _decl_conv2d(data, kernel, num_filter, kernel_size,  stride, padding, out_dtype='float32'):
     """Conv2D operator for Intel GPU backend.
 
     Parameters
@@ -100,7 +69,7 @@ def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
         4-D with shape [batch, in_channel, in_height, in_width]
 
     kernel : tvm.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+        5-D with shape [num_filter, in_channel, filter_height, filter_width, nnum_filter_vec]
 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -116,7 +85,6 @@ def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    assert layout == 'NCHW', "only support NCHW convolution on intel gpu"
     assert data.shape[0].value == 1, "only support batch size=1 convolution on intel gpu"
     assert data.dtype == kernel.dtype, "Do not support inputs with different data types now."
 
@@ -128,10 +96,10 @@ def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
     else:
         HSTR, WSTR = stride, stride
 
-    return _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype)
+    return _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype)
 
-@generic.schedule_conv2d_nchw.register(["intel_gpu"])
-def schedule_conv2d_nchw(outs):
+@generic.schedule_conv2d_NCHWc.register(["intel_gpu"])
+def schedule_conv2d_nchw(num_filter, kernel_size, stride, padding, outs):
     """Schedule for conv2d_nchw for Intel GPU
 
     Parameters
@@ -162,9 +130,10 @@ def schedule_conv2d_nchw(outs):
     traverse(outs[0].op)
     return s
     
-def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float16'):
+def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
     batch, in_channel, in_height, in_width = [util.get_const_int(x) for x in data.shape]
-    num_filter, channel, kernel_h, kernel_w = [util.get_const_int(x) for x in kernel.shape]
+    num_filter, channel, kernel_h, kernel_w, nv = [util.get_const_int(x) for x in kernel.shape]
+    num_filter = num_filter * nv
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, kernel)
 
     if isinstance(stride, (tuple, list)):
@@ -218,21 +187,14 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
     if not out_width % block_w == 0:
         c_w = (out_width // block_w + 1) * block_w
 
-    nv = 16
     cshape = (batch, out_channel // nv, c_h, c_w, nv)
-    kvshape = (num_filter // nv, channel, kernel_h, kernel_w, nv)
-
-    kernel_vec = tvm.compute(
-            kvshape, 
-            lambda co, ci, kh, kw, vc:
-                kernel[co*nv + vc][ci][kh][kw], name='kernel_vec')
 
     conv = tvm.compute(
         cshape,
         lambda nn, ff, yy, xx, vc:\
           tvm.sum(
             temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
-            kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
+            kernel[ff, rc, ry, rx, vc].astype(out_dtype),
             axis=[rc, ry, rx]), tag=conv_tag, name='conv')
 
     output = tvm.compute(
@@ -249,33 +211,27 @@ def _schedule_cl_spatialpack(s, op):
 
     conv = op.input_tensors[0]
     temp = s[conv].op.input_tensors[0]
-    kernel_vec = s[conv].op.input_tensors[1]
-    kernel = s[kernel_vec].op.input_tensors[0]
+    kernel = s[conv].op.input_tensors[1]
     temp_W = s.cache_read(temp, "warp", [conv])
     conv_L = s.cache_write(conv, "local")
 
-    kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
+    kernel_L = s.cache_read(kernel, "local", [conv_L])
     _, _, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
         OUTPUT_BLOCK_WIDTH  = 16
-#        kernel_vec_tile = "fuse"
     elif "2_14" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
         OUTPUT_BLOCK_WIDTH  = 14
-#        kernel_vec_tile = "fuse"
     elif "2_7" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
         OUTPUT_BLOCK_WIDTH  = 7
-#        kernel_vec_tile = "inline"
     elif "4_5" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
         OUTPUT_BLOCK_WIDTH  = 5
-#        kernel_vec_tile = "inline"
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
         OUTPUT_BLOCK_WIDTH  = 4
-#        kernel_vec_tile = "fuse"
 
     # schedule conv
     z_factor = 1
@@ -326,10 +282,6 @@ def _schedule_cl_spatialpack(s, op):
     s[temp_W].storage_align(s[temp_W].op.axis[2], 16, 0)
 
     #schedule kernel
-#    if kernel_vec_tile == "fuse":
-#        fuse_and_bind(s, kernel_vec, num_thread = 256)
-#    else:
-    s[kernel_vec].compute_inline()
 
     # schedule kernel_L
     if "2_14" in s[conv].op.tag:
@@ -346,4 +298,3 @@ def _schedule_cl_spatialpack(s, op):
 
     _, co, h, w = s[out].op.axis
     tile_and_bind3d(s, out, w, h, co, 4, 8, 8)
-
