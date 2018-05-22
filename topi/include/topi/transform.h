@@ -15,7 +15,6 @@
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
-#include "tvm/ir_pass.h"
 
 namespace topi {
 using namespace tvm;

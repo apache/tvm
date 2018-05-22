@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "tvm/tvm.h"
+#include "tvm/ir_pass.h"
 
 namespace topi {
 namespace detail {
