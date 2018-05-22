@@ -40,7 +40,7 @@ def _convert_activation(insym, keras_layer, _):
         return _sym.__add_scalar__(_sym.__mul_scalar__(insym, \
             scalar=alpha), scalar=beta)
     elif act_type == 'softmax':
-        return _sym.softmax(insym)
+        return _sym.softmax(insym, axis=1)
     elif act_type == 'sigmoid':
         return _sym.sigmoid(insym)
     elif act_type == 'tanh':
