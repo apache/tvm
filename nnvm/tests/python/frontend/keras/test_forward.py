@@ -59,6 +59,15 @@ def test_forward_elemwise_add():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_softmax():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Activation('softmax')(data)
+    x = keras.layers.Concatenate()([x, x])
+    x = keras.layers.GlobalMaxPooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+
 def test_forward_softrelu():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Activation('softplus')(data)
@@ -145,6 +154,7 @@ def test_forward_resnet50():
 
 if __name__ == '__main__':
     test_forward_elemwise_add()
+    test_forward_softmax()
     test_forward_softrelu()
     test_forward_leaky_relu()
     test_forward_dense()
