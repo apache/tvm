@@ -216,7 +216,7 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     conv_L = s.cache_write(conv, "local")
 
     kernel_L = s.cache_read(kernel, "local", [conv_L])
-    _, _, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
+    _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
         OUTPUT_BLOCK_WIDTH  = 16
@@ -260,7 +260,17 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     s[conv_L].compute_at(s[conv], vci)
     i, oc, h, w, vc = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
-    s[conv_L].reorder(i, oc, rc, ry, rx, vc, h, w)
+    if in_channel == 2048:
+        rco, rci = s[conv_L].split(rc, nparts = 128)
+        s[conv_L].unroll(rci)
+        s[conv_L].reorder(i, oc, rco, rci, ry, rx, vc, h, w)
+        s[temp_W].compute_at(s[conv_L], rco)
+    else:
+        s[conv_L].reorder(i, oc, rc, ry, rx, vc, h, w)
+        s[temp_W].compute_at(s[conv_L], rc)
+    if kernel.shape[3].value != 7:
+        s[conv_L].unroll(ry)
+        s[conv_L].unroll(rx)
     if kernel.shape[3].value != 7:
         s[conv_L].unroll(ry)
         s[conv_L].unroll(rx)
@@ -270,7 +280,6 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     tile_and_bind3d(s, temp, ci,  h, w, 1, 16, 16)
 
     # schedule temp_W
-    s[temp_W].compute_at(s[conv_L], rc)
     _, ci, h, w = s[temp_W].op.axis
     zo, zi = s[temp_W].split(ci, 1)
     yo, yi = s[temp_W].split(h, 1)
@@ -457,7 +466,7 @@ def _schedule_cl_spatialpack(s, op):
     conv_L = s.cache_write(conv, "local")
 
     kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
-    _, _, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
+    _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
 
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
@@ -502,7 +511,14 @@ def _schedule_cl_spatialpack(s, op):
     s[conv_L].compute_at(s[conv], vci)
     i, oc, h, w, vc = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
-    s[conv_L].reorder(i, oc, rc, ry, rx, vc, h, w)
+    if in_channel == 2048:
+        rco, rci = s[conv_L].split(rc, nparts = 128)
+        s[conv_L].unroll(rci)
+        s[conv_L].reorder(i, oc, rco, rci, ry, rx, vc, h, w)
+        s[temp_W].compute_at(s[conv_L], rco)
+    else:
+        s[conv_L].reorder(i, oc, rc, ry, rx, vc, h, w)
+        s[temp_W].compute_at(s[conv_L], rc)
     if kernel.shape[3].value != 7:
         s[conv_L].unroll(ry)
         s[conv_L].unroll(rx)
@@ -512,7 +528,6 @@ def _schedule_cl_spatialpack(s, op):
     tile_and_bind3d(s, temp, ci,  h, w, 1, 16, 16)
 
     # schedule temp_W
-    s[temp_W].compute_at(s[conv_L], rc)
     _, ci, h, w = s[temp_W].op.axis
     zo, zi = s[temp_W].split(ci, 1)
     yo, yi = s[temp_W].split(h, 1)
