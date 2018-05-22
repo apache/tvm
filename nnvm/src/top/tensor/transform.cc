@@ -760,7 +760,7 @@ inline bool TransposeCorrectLayout(const NodeAttrs& attrs,
     } else {
       CHECK_EQ(input.ndim(), param.axes.ndim());
       for (size_t i = 0; i < input.ndim(); ++i) {
-        CHECK(param.axes[i] < input.ndim());
+        CHECK(param.axes[i] < static_cast<int>(input.ndim()));
         new_layout << input.at(param.axes[i]);
       }
     }
