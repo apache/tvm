@@ -63,3 +63,4 @@ List of Contributors
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
 - [Tatsuya Nishiyama](https://github.com/nishi-t)
+- [Kazutaka Morita](https://github.com/kazum)
