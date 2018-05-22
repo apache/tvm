@@ -226,6 +226,7 @@ def concatenate(a_tuple, axis=0):
     axis_sizes = [a_tuple[i].shape[axis] for i in range(len(a_tuple))]
     out_shape = [a_tuple[0].shape[i] for i in range(0, axis)] + [sum(axis_sizes)]\
                 + [a_tuple[0].shape[i] for i in range(axis + 1, len(a_tuple[0].shape))]
+    out_shape[axis] = tvm.ir_pass.Simplify(out_shape[axis])
 
     def _compute(*indices):
         ret = a_tuple[0](*indices)

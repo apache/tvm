@@ -9,6 +9,7 @@
 #include <string>
 
 #include "topi/detail/broadcast.h"
+#include "topi/detail/constant_utils.h"
 #include "topi/tags.h"
 
 namespace topi {
@@ -34,7 +35,7 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
   auto bh = detail::BroadcastShape(output_shape, t->shape);
   CHECK_EQ(output_shape.size(), bh.common_shape.size());
   for (size_t i = 0; i < output_shape.size(); ++i) {
-    CHECK(tvm::ir::Equal(output_shape[i], bh.common_shape[i]));
+    CHECK(topi::detail::EqualCheck(output_shape[i], bh.common_shape[i]));
   }
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     return t(detail::InputIndexFromBroadcast(ovars, t, bh.vars2, bh.all_vars));

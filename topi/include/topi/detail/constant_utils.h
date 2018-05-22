@@ -65,6 +65,24 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
   return result;
 }
 
+/*!
+ * \brief Check weather the two expressions are equal or not, if not simplify the expressions and check again
+ * \note This is stronger equality check than tvm::ir::Equal
+ *
+ * \param lhs First expreesion
+ * \param rhs Second expreesion
+ *
+ * \return result True if both expressions are equal, else false
+ */
+inline bool EqualCheck(Expr lhs, Expr rhs) {
+  bool result = tvm::ir::Equal(lhs, rhs);
+  if (!result) {
+    Expr zero(0);
+    result = tvm::ir::Equal(tvm::ir::CanonicalSimplify(lhs-rhs), zero);
+  }
+  return result;
+}
+
 }  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_CONSTANT_UTILS_H_

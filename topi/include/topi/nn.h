@@ -186,13 +186,13 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
         indices.push_back(ovars[i]);
         continue;
       }
-      if (!tvm::ir::Equal(pad_before[i], 0)) {
+      if (!topi::detail::EqualCheck(pad_before[i], 0)) {
         sel.push_back(ovars[i] >= pad_before[i]);
         indices.push_back(ovars[i] - pad_before[i]);
       } else {
         indices.push_back(ovars[i]);
       }
-      if (!tvm::ir::Equal(pad_after[i], 0)) {
+      if (!topi::detail::EqualCheck(pad_after[i], 0)) {
         sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before[i] + t->shape[i]));
       }
     }
