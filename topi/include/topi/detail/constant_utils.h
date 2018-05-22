@@ -66,12 +66,13 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
 }
 
 /*!
- * \brief Check weather the two expression are equal or not
+ * \brief Check weather the two expressions are equal or not, if not simplify the expressions and check again
+ * \note This is stronger equality check than tvm::ir::Equal
  *
  * \param lhs First expreesion
  * \param rhs Second expreesion
  *
- * \return result True if both expression are equal, else false
+ * \return result True if both expressions are equal, else false
  */
 inline bool EqualCheck(Expr lhs, Expr rhs) {
   bool result = tvm::ir::Equal(lhs, rhs);
