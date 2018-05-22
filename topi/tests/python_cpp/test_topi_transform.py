@@ -206,6 +206,70 @@ def verify_take(src_shape, indices_src, axis=None):
     for device in ["llvm", "opencl"]:
         check_device(device)
 
+def verify_concatenate_split(shapes, axis, indices_or_sections):
+    tensor_l_concatenate = []
+    for i, shape in enumerate(shapes):
+        tensor_l_concatenate.append(tvm.placeholder(shape, name="A" + str(i)))
+    out_tensor = topi.cpp.concatenate(tensor_l_concatenate, axis)
+    tensor_l = topi.cpp.split(out_tensor, indices_or_sections, axis)
+    tensor_l = list(tensor_l)
+    def check_device(device):
+        if not tvm.module.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        target = topi.cpp.TEST_create_target(device)
+        if device == "llvm":
+            s = topi.cpp.generic.schedule_injective(target, tensor_l)
+        else:
+            s = topi.cpp.cuda.schedule_injective(target, tensor_l)
+        ctx = tvm.context(device, 0)
+        foo = tvm.build(s, tensor_l_concatenate + tensor_l, device, name="concatenate_split")
+        data_npys = [np.random.normal(size=shape).astype(tensor_l_concatenate[0].dtype) for shape in shapes]
+        out_npy_conc = np.concatenate(data_npys, axis=axis)
+        out_npys_split = np.split(out_npy_conc, indices_or_sections, axis=axis)
+        data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
+        out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys_split]
+        foo(*(data_nds + out_nds))
+        for out_nd, out_npy in zip(out_nds, out_npys_split):
+            np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
+def verify_concatenate_broadcast(shapes, axis, rhs_shape):
+    B = tvm.placeholder(shape=rhs_shape, name="B")
+    tensor_l = []
+    for i, shape in enumerate(shapes):
+        tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
+    out_tensor = topi.cpp.concatenate(tensor_l, axis)
+    C = topi.cpp.broadcast_add(out_tensor, B)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        target = topi.cpp.TEST_create_target(device)
+        if device == "llvm":
+            s = topi.cpp.generic.schedule_injective(target, [C])
+        else:
+            s = topi.cpp.cuda.schedule_injective(target, [C])
+        ctx = tvm.context(device, 0)
+        foo = tvm.build(s, tensor_l + [B, C], device, name="broadcast_binary_add")
+        data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
+        lhs_npy = np.concatenate(data_npys, axis=axis)
+        rhs_npy = np.random.uniform(size=rhs_shape).astype(B.dtype)
+        out_npy = lhs_npy + rhs_npy
+        data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
+        rhs_nd = tvm.nd.array(rhs_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
+        for _ in range(1):
+            foo(*(data_nds + [rhs_nd] + [out_nd]))
+        np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
 
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
@@ -258,6 +322,14 @@ def test_take():
     verify_take((2,2), [[[1,0],[0,1]]], 1)
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
 
+def test_regression_1():
+    verify_concatenate_split([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1, [3, 7])
+    verify_concatenate_split([(3, 4), (2, 4), (3, 4)], 0, [1, 2, 3, 4])
+
+def test_regression_2():
+    verify_concatenate_broadcast([(5, 1, 3), (5, 1, 3)], 1, [2, 1])
+    verify_concatenate_broadcast([(5, 1, 2), (5, 1, 3)], 2, [1, 5])
+
 if __name__ == "__main__":
     test_concatenate()
     test_tranpose()
@@ -266,3 +338,5 @@ if __name__ == "__main__":
     test_squeeze()
     test_split()
     test_take()
+    test_regression_1()
+    test_regression_2()

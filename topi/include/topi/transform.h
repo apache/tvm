@@ -15,6 +15,7 @@
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
+#include "tvm/ir_pass.h"
 
 namespace topi {
 using namespace tvm;
@@ -260,6 +261,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
   }
+  join_size = tvm::ir::Simplify(join_size);
   Array<Expr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);
