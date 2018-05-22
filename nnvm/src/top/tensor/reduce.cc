@@ -145,7 +145,7 @@ Example::
       for (dim_t i = 0; i < param.axis.ndim(); ++i) {
         exclude_axis.insert(param.axis[i]);
       }
-      for (dim_t i = 0; i < inputs[0].ndim(); ++i) {
+      for (dim_t i = 0; i < static_cast<int>(inputs[0].ndim()); ++i) {
         if (exclude_axis.count(i) == 0) {
           axis.push_back(make_const(Int(32), i));
         }
