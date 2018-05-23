@@ -22,6 +22,9 @@ class PkgConfig(object):
     """
     cfg_keys = [
         "TARGET",
+        "HW_FREQ",
+        "HW_CLK_TARGET",
+        "HW_VER",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",

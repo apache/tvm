@@ -8,10 +8,9 @@ from __future__ import absolute_import as _abs
 
 __version__ = "0.1.0"
 
-
+from .bitstream import get_bitstream_path, download_bitstream
 from .environment import get_env, Environment
 from .rpc_client import reconfig_runtime, program_fpga
-
 
 try:
     from . import top

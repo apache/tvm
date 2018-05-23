@@ -24,7 +24,7 @@ class DevContext(object):
     Note
     ----
     This class is introduced so we have a clear separation
-    of developer related stuffs and user facing attributes.
+    of developer related, and user facing attributes.
     """
     # Memory id for DMA
     MEM_ID_UOP = 0
@@ -62,7 +62,7 @@ class DevContext(object):
 
 
 class Environment(object):
-    """Hareware configuration object.
+    """Hardware configuration object.
 
     This object contains all the information
     needed for compiling to a specific VTA backend.
@@ -98,23 +98,24 @@ class Environment(object):
 
     # initialization function
     def __init__(self, cfg):
-        # Log of input/activation width in bits
         self.__dict__.update(cfg)
         for key in PkgConfig.cfg_keys:
             if key not in cfg:
                 raise ValueError("Expect key %s in cfg" % key)
+        # derive output buffer size
         self.LOG_OUT_BUFF_SIZE = (
             self.LOG_ACC_BUFF_SIZE +
             self.LOG_OUT_WIDTH -
             self.LOG_ACC_WIDTH)
-        # width
+        # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH
         self.ACC_WIDTH = 1 << self.LOG_ACC_WIDTH
+        self.OUT_WIDTH = self.INP_WIDTH
+        # tensor intrinsic shape
         self.BATCH = 1 << self.LOG_BATCH
         self.BLOCK_IN = 1 << self.LOG_BLOCK_IN
         self.BLOCK_OUT = 1 << self.LOG_BLOCK_OUT
-        self.OUT_WIDTH = self.INP_WIDTH
         # buffer size
         self.UOP_BUFF_SIZE = 1 << self.LOG_UOP_BUFF_SIZE
         self.INP_BUFF_SIZE = 1 << self.LOG_INP_BUFF_SIZE
@@ -138,6 +139,20 @@ class Environment(object):
         self.WGT_ELEM_BYTES = self.WGT_ELEM_BITS // 8
         self.ACC_ELEM_BYTES = self.ACC_ELEM_BITS // 8
         self.OUT_ELEM_BYTES = self.OUT_ELEM_BITS // 8
+        # Configuration bitstream name
+        self.BITSTREAM = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}_{}MHz_{}ns_v{}.bit".format(
+            (1 << cfg["LOG_BATCH"]),
+            (1 << cfg["LOG_BLOCK_IN"]),
+            (1 << cfg["LOG_BLOCK_OUT"]),
+            (1 << cfg["LOG_INP_WIDTH"]),
+            (1 << cfg["LOG_WGT_WIDTH"]),
+            cfg["LOG_UOP_BUFF_SIZE"],
+            cfg["LOG_INP_BUFF_SIZE"],
+            cfg["LOG_WGT_BUFF_SIZE"],
+            cfg["LOG_ACC_BUFF_SIZE"],
+            cfg["HW_FREQ"],
+            cfg["HW_CLK_TARGET"],
+            cfg["HW_VER"].replace('.', '_'))
         # dtypes
         self.acc_dtype = "int%d" % self.ACC_WIDTH
         self.inp_dtype = "int%d" % self.INP_WIDTH
