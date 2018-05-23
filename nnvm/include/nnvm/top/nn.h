@@ -218,14 +218,14 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
 };
 
 
-struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
+struct MaxPool2DParam : public dmlc::Parameter<MaxPool2DParam> {
   TShape pool_size;
   TShape strides;
   TShape padding;
   std::string layout;
   bool ceil_mode;
 
-  DMLC_DECLARE_PARAMETER(Pool2DParam) {
+  DMLC_DECLARE_PARAMETER(MaxPool2DParam) {
     DMLC_DECLARE_FIELD(pool_size)
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
@@ -240,6 +240,35 @@ struct Pool2DParam : public dmlc::Parameter<Pool2DParam> {
                 "'W' dimensions.");
     DMLC_DECLARE_FIELD(ceil_mode).set_default(false)
       .describe("When true, will use ceil instead of floor to compute the output shape.");
+  }
+};
+
+
+struct AvgPool2DParam : public dmlc::Parameter<AvgPool2DParam> {
+  TShape pool_size;
+  TShape strides;
+  TShape padding;
+  std::string layout;
+  bool ceil_mode;
+  bool count_include_pad;
+
+  DMLC_DECLARE_PARAMETER(AvgPool2DParam) {
+    DMLC_DECLARE_FIELD(pool_size)
+      .describe("Size of the pooling windows..");
+    DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "on both sides for padding number of points");
+    DMLC_DECLARE_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    DMLC_DECLARE_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+    DMLC_DECLARE_FIELD(count_include_pad).set_default(false)
+      .describe("When true, will include padding to compute the average");
   }
 };
 

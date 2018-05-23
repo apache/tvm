@@ -19,12 +19,13 @@ namespace top {
 using namespace tvm;
 using namespace nnvm::compiler;
 
-DMLC_REGISTER_PARAMETER(Pool2DParam);
+DMLC_REGISTER_PARAMETER(MaxPool2DParam);
 
+template <typename T>
 inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
                              std::vector<TShape>* in_shape,
                              std::vector<TShape>* out_shape) {
-  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
+  const T& param = nnvm::get<T>(attrs.parsed);
   CHECK_EQ(in_shape->size(), 1U);
   CHECK_EQ(out_shape->size(), 1U);
 
@@ -66,11 +67,12 @@ inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+template <typename T>
 inline bool Pool2DCorrectLayout(const NodeAttrs& attrs,
                                 std::vector<Layout> *ilayouts,
                                 const std::vector<Layout> *last_ilayouts,
                                 std::vector<Layout> *olayouts) {
-  const Pool2DParam &param = nnvm::get<Pool2DParam>(attrs.parsed);
+  const T &param = nnvm::get<T>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), 1);
   CHECK_EQ(last_ilayouts->size(), 1);
   CHECK_EQ(olayouts->size(), 1);
@@ -114,18 +116,18 @@ NNVM_REGISTER_OP(max_pool2d)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_arguments(Pool2DParam::__FIELDS__())
-.set_attr_parser(ParamParser<Pool2DParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Pool2DParam>)
+.add_arguments(MaxPool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<MaxPool2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<MaxPool2DParam>)
 .set_num_outputs(1)
 .set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", Pool2DInferShape)
+.set_attr<FInferShape>("FInferShape", Pool2DInferShape<MaxPool2DParam>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", Pool2DCorrectLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Pool2DCorrectLayout<MaxPool2DParam>)
 .set_attr<FTVMCompute>("FTVMCompute", [](const NodeAttrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Array<Tensor>& out_info) {
-  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
+  const MaxPool2DParam& param = nnvm::get<MaxPool2DParam>(attrs.parsed);
   auto pool_size = ShapeToArray(param.pool_size);
   auto strides = ShapeToArray(param.strides);
   auto padding = ShapeToArray(param.padding);
@@ -163,12 +165,13 @@ NNVM_REGISTER_OP(_max_pool2d_grad)
 .add_argument("output", "4D Tensor", "Output data of max_pool2d grad.")
 .set_num_inputs(3)
 .set_num_outputs(1)
-.set_attr_parser(ParamParser<Pool2DParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Pool2DParam>)
+.set_attr_parser(ParamParser<MaxPool2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<MaxPool2DParam>)
 .set_attr<FInferShape>("FInferShape", AssignOutputAttr<TShape, 1, 0>)
 .set_attr<FInferType>("FInferType", ElemwiseType<3, 1>)
 .set_attr<TIsBackward>("TIsBackward", true);
 
+DMLC_REGISTER_PARAMETER(AvgPool2DParam);
 
 NNVM_REGISTER_OP(avg_pool2d)
 .describe(R"code(Average pooling operation for one dimensional data.
@@ -187,20 +190,21 @@ NNVM_REGISTER_OP(avg_pool2d)
 
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_arguments(Pool2DParam::__FIELDS__())
-.set_attr_parser(ParamParser<Pool2DParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Pool2DParam>)
-.set_attr<FInferShape>("FInferShape", Pool2DInferShape)
+.add_arguments(AvgPool2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<AvgPool2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<AvgPool2DParam>)
+.set_attr<FInferShape>("FInferShape", Pool2DInferShape<AvgPool2DParam>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", Pool2DCorrectLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", Pool2DCorrectLayout<AvgPool2DParam>)
 .set_attr<FTVMCompute>("FTVMCompute", [](const NodeAttrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Array<Tensor>& out_info) {
-  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
+  const AvgPool2DParam& param = nnvm::get<AvgPool2DParam>(attrs.parsed);
   auto pool_size = ShapeToArray(param.pool_size);
   auto strides = ShapeToArray(param.strides);
   auto padding = ShapeToArray(param.padding);
   auto ceil_mode = param.ceil_mode;
+  auto count_include_pad = param.count_include_pad;
 
   Layout layout(param.layout);
   CHECK(layout.convertible(Layout("NCHW")))
@@ -214,7 +218,7 @@ NNVM_REGISTER_OP(avg_pool2d)
 
   return Array<Tensor>{
     topi::nn::pool(inputs[0], pool_size, strides, padding,
-                   topi::nn::kAvgPool, ceil_mode, layout.name())};
+                   topi::nn::kAvgPool, ceil_mode, layout.name(), count_include_pad)};
 })
 .set_num_outputs(1)
 .set_num_inputs(1)

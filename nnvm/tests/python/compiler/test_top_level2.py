@@ -141,6 +141,41 @@ def test_avg_pool2d():
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
+def test_avg_pool2d_no_count_pad():
+    kh, kw = (4, 4)
+    sh, sw = (2, 2)
+    ph, pw = (2, 2)
+    
+    x = sym.Variable("x")
+    y = sym.avg_pool2d(x, pool_size=(kh, kw), strides=(sw, sw), padding=(ph, pw),
+                       name="y", count_include_pad=False)
+    dtype = "float32"
+    n = 1
+    (ic, ih, iw) = (3, 28, 28)
+    (oc, oh, ow) = (3, 15, 15)
+
+    a_np = np.random.uniform(low=0.001, size=(n, ic, ih, iw)).astype(dtype)
+    pad_np = np.zeros(shape=(n, ic, ih+2*ph, iw+2*pw)).astype(dtype)
+    no_zero = (range(n), range(ic), (range(ph, ih+ph)), (range(pw, iw+pw)))
+    pad_np[np.ix_(*no_zero)] = a_np
+    b_np = np.zeros(shape=(n, oc, oh, ow)).astype(dtype)
+    
+    for i in range(oh):
+        for j in range(ow):
+            pad_count = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw] > 0, axis=(2,3))
+            b_np[:,:,i,j] = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw],
+                                   axis=(2,3)) / np.maximum(pad_count, 1)
+    b_np = np.maximum(b_np, 0.0)
+    shape_dict = {"x": (n, ic, ih, iw)}
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+        data = tvm.nd.array(a_np)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty((n, oc, oh, ow), dtype))
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+
+
 def test_global_max_pool2d():
     x = sym.Variable("x")
     y = sym.global_max_pool2d(x, name="y")
@@ -201,6 +236,7 @@ if __name__ == "__main__":
     test_conv2d_transpose()
     test_max_pool2d()
     test_avg_pool2d()
+    test_avg_pool2d_no_count_pad()
     test_global_max_pool2d()
     test_global_avg_pool2d()
     test_upsampling()
