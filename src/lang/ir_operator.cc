@@ -17,6 +17,15 @@ Expr sum(Expr source, Array<IterVar> rdom) {
   return ir::Reduce::make(combiner, {source}, rdom, make_const(Bool(1), true), 0);
 }
 
+Expr prod(Expr source, Array<IterVar> rdom) {
+  Var x("x"), y("y");
+  Expr result = ir::Add::make(x, y);
+  Expr identity_element = make_one(source.type());
+  ir::CommReducer combiner =
+    ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
+  return ir::Reduce::make(combiner, {source}, rdom, make_const(Bool(1), true), 0);
+}
+
 Expr max(Expr source, Array<IterVar> rdom) {
   Var x("x"), y("y");
   Expr result = ir::Max::make(x, y);

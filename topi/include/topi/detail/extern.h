@@ -27,7 +27,7 @@ using namespace tvm;
 inline Buffer DeclExternBuffer(Array<Expr> shape,
                         Type dtype,
                         std::string name) {
-  auto data = var(name, Handle());
+  auto data = tvm::var(name, Handle());
   auto elem_offset = Expr();
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
                           -1, 0);

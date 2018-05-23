@@ -30,20 +30,13 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     A = tvm.placeholder(shape=in_shape, name="A", dtype=dat_dtype)
     A1 = topi.cpp.sqrt(topi.cpp.exp(A))
     out_dtype = "float32"
-    if type == "sum":
-        B = topi.cpp.sum(A1, axis, keepdims)
-    elif type == "max":
-        B = topi.cpp.max(A1, axis, keepdims)
-    elif type == "min":
-        B = topi.cpp.min(A1, axis, keepdims)
-    elif type == "argmax":
-        B = topi.cpp.argmax(A1, axis, keepdims)
-        out_dtype = "int32"
-    elif type == "argmin":
-        B = topi.cpp.argmin(A1, axis, keepdims)
-        out_dtype = "int32"
+    topi_fn = getattr(topi.cpp, type, None)
+    if callable(topi_fn):
+        B = topi_fn(A1, axis, keepdims)
     else:
-        raise NotImplementedError
+        raise NotImplementedError(type)
+    if type in {"argmax", "argmin"}:
+        out_dtype = "int32"
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -61,16 +54,13 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         # Test
         in_npy = np.random.uniform(size=in_shape).astype(np.float32)
         in_npy_map = np.sqrt(np.exp(in_npy)).astype(np.float32)
-        if type == "sum":
-            out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
-        elif type == "max":
-            out_npy = in_npy_map.max(axis=axis, keepdims=keepdims)
-        elif type == "min":
-            out_npy = in_npy_map.min(axis=axis, keepdims=keepdims)
-        elif type == "argmax":
+        npy_fn = getattr(in_npy_map, type, None)
+        if type == "argmax":
             out_npy = _my_npy_argmax(in_npy_map, axis=axis, keepdims=keepdims)
         elif type == "argmin":
             out_npy = _my_npy_argmin(in_npy_map, axis=axis, keepdims=keepdims)
+        elif callable(npy_fn):
+            out_npy = npy_fn(axis=axis, keepdims=keepdims)
         else:
             raise NotImplementedError
         data_tvm = tvm.nd.array(in_npy, ctx=ctx)
@@ -92,7 +82,8 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
             elif type == "argmin":
                 np.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
         else:
-            np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
+            np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3,
+                                       err_msg=type)
     for device in ["cuda", "opencl", "metal", "llvm", "rocm"]:
         check_device(device)
 
@@ -130,6 +121,14 @@ def test_reduce_map():
                           axis=None,
                           keepdims=False,
                           type="sum")
+    verify_reduce_map_ele(in_shape=(31, 21, 15),
+                          axis=None,
+                          keepdims=False,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(32, 128, 1),
+                          axis=(0,),
+                          keepdims=True,
+                          type="var")
 
 if __name__ == "__main__":
     test_reduce_map()

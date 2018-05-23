@@ -285,7 +285,7 @@ class GraphRuntime : public ModuleNode {
           reader->Read(&storage_id);
           CHECK(!reader->NextArrayItem());
           bitmask |= 2;
-        } else if (key == "shape") {
+        } else if (key == "shape" || key == "shape_inputs") {
           reader->BeginArray();
           CHECK(reader->NextArrayItem());
           reader->Read(&type);
@@ -307,7 +307,8 @@ class GraphRuntime : public ModuleNode {
             size_t temp;
             reader->Read(&temp);
           } else {
-            LOG(FATAL) << "cannot skip graph attr " << key;
+            LOG(FATAL) << "cannot skip graph attr "
+              << key << ": " << type;
           }
           CHECK(!reader->NextArrayItem());
         }
