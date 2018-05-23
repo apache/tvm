@@ -15,8 +15,6 @@ from tvm.contrib import graph_runtime, rpc, util
 
 bfactor = 1
 cfactor = 16
-host = "pynq"
-port = 9091
 verbose = False
 # only run fpga component, mark non-conv ops as nop
 debug_fpga_only = False
@@ -27,8 +25,7 @@ TEST_FILE = 'cat.jpg'
 CATEG_FILE = 'synset.txt'
 RESNET_GRAPH_FILE = 'quantize_graph.json'
 RESNET_PARAMS_FILE = 'quantize_params.pkl'
-BITSTREAM_FILE = 'vta.bit'
-for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE, BITSTREAM_FILE]:
+for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE]:
     if not os.path.isfile(file):
         print ("Downloading {}".format(file))
         wget.download(url+file)
@@ -42,7 +39,6 @@ target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+
 
 if vta.get_env().TARGET == "sim":
     target_host = "llvm"
-
 
 synset = eval(open(os.path.join(CATEG_FILE)).read())
 image = Image.open(os.path.join(TEST_FILE)).resize((224, 224))
@@ -138,7 +134,16 @@ if vta.get_env().TARGET == "sim":
     remote = rpc.LocalSession()
     print("local session")
 else:
+    host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
+    assert host
+    port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
+    port = int(port)
     remote = rpc.connect(host, port)
+
+# Program FPGA, and build runtime if necessary
+# Overwrite bitstream with a path to your own if you built it yourself
+vta.reconfig_runtime(remote)
+vta.program_fpga(remote, bitstream=None)
 
 remote.upload(temp.relpath("graphlib.o"))
 lib = remote.load_module("graphlib.o")

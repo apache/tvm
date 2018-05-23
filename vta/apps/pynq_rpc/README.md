@@ -31,21 +31,10 @@ From there, clone the VTA repository:
 git clone git@github.com:uwsaml/vta.git --recursive
 ```
 
-Next, clone the TVM repository:
-```bash
-git clone git@github.com:dmlc/tvm.git --recursive
-```
-
-TVM is rapidly changing, and to ensure stability, we keep track of working TVM checkpoints.
-As of now, the TVM checkpoint `e4c2af9abdcb3c7aabafba8084414d7739c17c4c` is known to work with VTA.
-```bash
-git checkout e4c2af9abdcb3c7aabafba8084414d7739c17c4c
-```
-
 Now, ssh into your **Pynq board** to build the TVM runtime with the following commands:
 ```bash
 ssh xilinx@192.168.2.99 # ssh if you haven't done so
-cd ~/tvm
+cd ~/vta/nnvm/tvm
 cp make/config.mk .
 echo USE_RPC=1 >> config.mk
 make runtime -j2
@@ -57,7 +46,6 @@ We're now ready to build the Pynq RPC server on the Pynq board.
 ```bash
 ssh xilinx@192.168.2.99 # ssh if you haven't done so
 cd ~/vta
-export TVM_PATH = /home/xilinx/tvm
 make
 ```
 

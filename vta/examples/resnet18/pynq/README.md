@@ -4,6 +4,7 @@ In order to run this example you'll need to have:
 * VTA installed
 * TVM installed
 * NNVM installed
+* MxNet installed
 * A Pynq-based RPC server running
 
 ## VTA installation
@@ -26,9 +27,9 @@ git clone git@github.com:dmlc/tvm.git --recursive
 ```
 
 TVM is rapidly changing, and to ensure stability, we keep track of working TVM checkpoints.
-As of now, the TVM checkpoint `e4c2af9abdcb3c7aabafba8084414d7739c17c4c` is known to work with VTA.
+As of now, the TVM checkpoint `168f099155106d1188dbc54ac00acc02900a3c6f` is known to work with VTA.
 ```bash
-git checkout e4c2af9abdcb3c7aabafba8084414d7739c17c4c
+git checkout 168f099155106d1188dbc54ac00acc02900a3c6f
 ```
 
 Before building TVM, copy the `make/config.mk` file into the root TVM directory:
@@ -59,7 +60,7 @@ Clone the NNVM repository from `tqchen` in the directory of your choosing:
 git clone git@github.com:tqchen/nnvm.git --recursive
 ```
 
-To run this example, we rely on a special branch of NNVM: `qt`:
+To run this example, we rely on a special branch of NNVM until these changes get merged back into the main repo: `qt`:
 ```bash
 cd <nnvm root>
 git checkout qt
@@ -75,6 +76,10 @@ Finally update your `~/.bashrc` file to include the NNVM python libraries in you
 ```bash
 export PYTHONPATH=<nnvm root>/python:${PYTHONPATH}
 ```
+
+## MxNet Installation
+
+Follow the [MxNet Installation Instructions](https://mxnet.incubator.apache.org)
 
 ## Pynq RPC Server Setup
                                                        

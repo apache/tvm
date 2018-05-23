@@ -67,7 +67,5 @@ make
 
 The local `Makefile` containts several variables that can be tweaked by the user:
 * `VTA_HW_COMP_THREADS`: determines the number of threads used for the Vivado compilation job (default 8 threads).
-* `VTA_HW_COMP_CLOCK_FREQ`: determines the target frequency of the VTA design (default 100MHz). It can only be set to 100, 142, 167 or 200MHz.
-* `VTA_HW_COMP_TIMING_COMP`: determines how much additional slack must be provided to close timing (default 0ns). Generally when utilization is high for an FPGA design, setting this paramter to 1, 2 or 3 can help close timing.
 
 Once the compilation completes, the generated bitstream can be found under `<vta root>/build/hardware/xilinx/vivado/<design name>/export/vta.bit`. 

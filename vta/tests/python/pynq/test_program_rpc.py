@@ -1,30 +1,36 @@
-import tvm
-import vta
 import os
-from tvm.contrib import rpc, util
+import tvm
+from tvm.contrib import rpc
+from vta import get_bitstream_path, download_bitstream, program_fpga, reconfig_runtime
 
-env = vta.get_env()
-host = "pynq"
-port = 9091
-target = "llvm -target=armv7-none-linux-gnueabihf"
-bit = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}_100MHz_10ns.bit".format(
-		env.BATCH, env.BLOCK_IN, env.BLOCK_OUT,
-		env.INP_WIDTH, env.WGT_WIDTH,
-		env.LOG_UOP_BUFF_SIZE, env.LOG_INP_BUFF_SIZE,
-		env.LOG_WGT_BUFF_SIZE, env.LOG_ACC_BUFF_SIZE)
+def program_rpc_bitstream(path=None):
+    """Program the FPGA on the RPC server
 
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-bitstream = os.path.join(curr_path, "../../../../vta_bitstreams/bitstreams/", bit)
-
-def test_program_rpc():
+    Parameters
+    ----------
+    path : path to bitstream (optional)
+    """
     assert tvm.module.enabled("rpc")
+    host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
+    if not host:
+        raise RuntimeError(
+            "Error: VTA_PYNQ_RPC_HOST environment variable not set.")
+    # If a path to a bitstream is passed, make sure that it point to a valid bitstream
+    port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
+    port = int(port)
     remote = rpc.connect(host, port)
-    vta.program_fpga(remote, bit)
+    program_fpga(remote, path)
 
-def test_reconfig_runtime():
+def reconfig_rpc_runtime():
+    """Reconfig the RPC server runtime
+    """
     assert tvm.module.enabled("rpc")
-    remote = rpc.connect(host, port)
-    vta.reconfig_runtime(remote)
+    host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
+    if host:
+        port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
+        port = int(port)
+        remote = rpc.connect(host, port)
+        reconfig_runtime(remote)
 
-test_program_rpc()
-test_reconfig_runtime()
+program_rpc_bitstream()
+reconfig_rpc_runtime()
