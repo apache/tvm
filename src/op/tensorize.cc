@@ -141,7 +141,9 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
 class TensorIntrinMatcher final : public IRMutator {
  public:
   Expr Mutate_(const Call* op, const Expr& e) final {
+    in_data_ = true;
     Expr expr = IRMutator::Mutate_(op, e);
+    in_data_ = false;
     op = expr.as<Call>();
     if (op->call_type == Call::Halide) {
       Tensor t = Operation(op->func.node_).output(op->value_index);
@@ -164,6 +166,16 @@ class TensorIntrinMatcher final : public IRMutator {
   Expr Mutate_(const Variable* op, const Expr& e) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
+      auto it2 = orig_map_.find(op);
+      Expr min;
+      if (it2 != orig_map_.end()) {
+        min = it2->second;
+      }
+      for(auto ivar : source_) {
+        if (Equal(e, ivar) && !in_data_ && min.defined()) {;
+          return Simplify(it->second - min);
+        }
+      }
       return it->second;
     } else {
       return e;
@@ -171,6 +183,7 @@ class TensorIntrinMatcher final : public IRMutator {
   }
 
   Expr Mutate_(const Reduce* op, const Expr& e) final {
+    source_ = op->source;
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Reduce>();
     Array<IterVar> axis;
@@ -254,6 +267,7 @@ class TensorIntrinMatcher final : public IRMutator {
       Range r = out_dom.at(iv);
       var_remap_[iv->var.get()] = target_iv->var + r->min;
       axis_remap_[iv] = target_iv;
+      orig_map_[iv->var.get()] = r->min;
       compute_intrin_iter_space->Set(target_iv->var, target_iv->dom);
     }
   }
@@ -271,6 +285,10 @@ class TensorIntrinMatcher final : public IRMutator {
   std::unordered_map<const Variable*, Expr> var_remap_;
   // IterVar remap.
   std::unordered_map<IterVar, IterVar> axis_remap_;
+
+  bool in_data_{false};
+  std::unordered_map<const Variable*, Expr> orig_map_;
+  Array<Expr> source_;
 };
 
 // Try to match tensor dataflow of the stage with the intrinsic
@@ -327,7 +345,7 @@ void VerifyTensorizeBody(
  * \brief Transform the update part when there is no init func in tensorizing
  * \param stage The stage for tensorizing.
  * \param dom_map The range of each iter var.
- * \param n The loop nest structured used in compute. 
+ * \param n The loop nest structured used in compute.
  * \param body The body func in tensorize intrin
  * \param update The update func in tensorize intrin
  * \return Transformed result.
@@ -443,6 +461,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     CHECK(it != out_dom.end());
     binder.Bind(target->dom->min, make_const(iv->dom->min.type(), 0),
                 "tensir_intrin.reduction.min");
+    // error here
     binder.Bind(target->dom->extent, it->second->extent,
                 "tensir_intrin.reduction.extent");
   }
