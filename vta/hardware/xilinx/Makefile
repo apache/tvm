@@ -46,25 +46,20 @@ VTA_ACC_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-accbuffsize)
 VTA_OUT_BUFF_SIZE := $(shell ${VTA_CONFIG} --get-outbuffsize)
 
 #---------------------
+# FPGA Parameters
+#--------------------
+VTA_CLOCK_FREQ = $(shell ${VTA_CONFIG} --get-fpgafreq)
+VTA_TARGET_PER = $(shell ${VTA_CONFIG} --get-fpgaper)
+
+#---------------------
 # Compilation parameters
 #--------------------
 
 #  Number of threads during compilation
 VTA_HW_COMP_THREADS = 8
 
-#  Target Frequency
-VTA_HW_COMP_CLOCK_FREQ = 100
-
-#  Timing closure compensation (0 for none, 3 for highest)
-VTA_HW_COMP_TIMING_COMP = 0
-
-# Derive clock target period
-TARGET_PER = \
-$(shell echo "$$(( (1000 + $(VTA_HW_COMP_CLOCK_FREQ) - 1) / $(VTA_HW_COMP_CLOCK_FREQ) - $(VTA_HW_COMP_TIMING_COMP)))" )
-
 # Derive config name
-CONF_ROOT = $(shell ${VTA_CONFIG} --cfg-str)
-CONF = $(CONF_ROOT)_$(VTA_HW_COMP_CLOCK_FREQ)MHz_$(TARGET_PER)ns
+CONF = $(shell ${VTA_CONFIG} --cfg-str)
 IP_BUILD_PATH = $(BUILD_DIR)/hls/$(CONF)
 HW_BUILD_PATH = $(BUILD_DIR)/vivado/$(CONF)
 
@@ -90,7 +85,7 @@ $(IP_PATH): $(SRC_DIR)/*
 	cd $(IP_BUILD_PATH) && \
 		$(VIVADO_HLS) -f $(SCRIPT_DIR)/hls.tcl \
 		-tclargs $(SRC_DIR) $(SIM_DIR) $(TEST_DIR) $(INCLUDE_DIR) \
-		$(MODE) $(DEBUG) $(NO_DSP) $(NO_ALU) $(TARGET_PER) \
+		$(MODE) $(DEBUG) $(NO_DSP) $(NO_ALU) $(VTA_TARGET_PER) \
 		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_ACC_WIDTH) $(VTA_OUT_WIDTH) \
 		$(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) \
 		$(VTA_UOP_BUFF_SIZE) $(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) \
@@ -104,7 +99,7 @@ $(BIT_PATH): $(IP_PATH)
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
 		$(VIVADO) -mode tcl -source $(SCRIPT_DIR)/vivado.tcl \
-		-tclargs $(BUILD_DIR)/hls/$(CONF) $(VTA_HW_COMP_THREADS) $(VTA_HW_COMP_CLOCK_FREQ) \
+		-tclargs $(BUILD_DIR)/hls/$(CONF) $(VTA_HW_COMP_THREADS) $(VTA_CLOCK_FREQ) \
 		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_OUT_WIDTH) \
 		$(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) \
 		$(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) $(VTA_OUT_BUFF_SIZE)

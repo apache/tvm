@@ -54,6 +54,10 @@ def main():
                         help="returns log of accum buffer size in B")
     parser.add_argument("--get-outbuffsize", action="store_true",
                         help="returns log of output buffer size in B")
+    parser.add_argument("--get-fpgafreq", action="store_true",
+                        help="returns FPGA frequency")
+    parser.add_argument("--get-fpgaper", action="store_true",
+                        help="returns HLS target clock period")
     args = parser.parse_args()
 
     if len(sys.argv) == 1:
@@ -91,7 +95,8 @@ def main():
         print(pkg.cfg_json)
 
     if args.cfg_str:
-        cfg_str = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}".format(
+        # Needs to match the BITSTREAM string in python/vta/environment.py
+        cfg_str = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}_{}MHz_{}ns_v{}".format(
             (1 << cfg["LOG_BATCH"]),
             (1 << cfg["LOG_BLOCK_IN"]),
             (1 << cfg["LOG_BLOCK_OUT"]),
@@ -100,8 +105,11 @@ def main():
             cfg["LOG_UOP_BUFF_SIZE"],
             cfg["LOG_INP_BUFF_SIZE"],
             cfg["LOG_WGT_BUFF_SIZE"],
-            cfg["LOG_ACC_BUFF_SIZE"])
-        print cfg_str
+            cfg["LOG_ACC_BUFF_SIZE"],
+            cfg["HW_FREQ"],
+            cfg["HW_CLK_TARGET"],
+            cfg["HW_VER"].replace('.', '_'))
+        print(cfg_str)
 
     if args.get_inpwidth:
         print(cfg["LOG_INP_WIDTH"])
@@ -138,6 +146,12 @@ def main():
 
     if args.get_accbuffsize:
         print(cfg["LOG_ACC_BUFF_SIZE"])
+
+    if args.get_fpgafreq:
+        print(cfg["HW_FREQ"])
+
+    if args.get_fpgaper:
+        print(cfg["HW_CLK_TARGET"])
 
 if __name__ == "__main__":
     main()

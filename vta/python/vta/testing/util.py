@@ -6,7 +6,6 @@ from tvm.contrib import rpc
 from ..environment import get_env
 from . import simulator
 
-
 def run(run_func):
     """Run test function on all available env.
 
@@ -29,10 +28,10 @@ def run(run_func):
             run_func(env, rpc.LocalSession())
 
     # Run on PYNQ if env variable exists
-    pynq_host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
-    if pynq_host:
+    host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
+    if host:
         env.TARGET = "pynq"
         port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
         port = int(port)
-        remote = rpc.connect(pynq_host, port)
+        remote = rpc.connect(host, port)
         run_func(env, remote)
