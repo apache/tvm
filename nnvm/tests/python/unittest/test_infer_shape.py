@@ -116,6 +116,24 @@ def test_flatten():
     sdict = infer_shape(y)
     assert(sdict["y"][0] == [10, 200])
 
+def test_squeeze():
+    x = sym.Variable("x", shape=(1, 1, 1, 10))
+    y = sym.squeeze(x, axis=(1,2), name='squeeze')
+    sdict = infer_shape(y)
+    assert(sdict['squeeze'][0] == [1, 10])
+
+    x = sym.Variable("x", shape=(1, 3, 1))
+    y = sym.squeeze(x, name='squeeze')
+    sdict = infer_shape(y)
+    assert(sdict['squeeze'][0] == [3])
+
+    y = sym.squeeze(x, axis=(0), name='squeeze')
+    sdict = infer_shape(y)
+    assert(sdict['squeeze'][0] == [3, 1])
+
+    y = sym.squeeze(x, axis=(0,2), name='squeeze')
+    sdict = infer_shape(y)
+    assert(sdict['squeeze'][0] == [3])
 
 # Level 2
 def test_conv2d():
@@ -331,3 +349,4 @@ if __name__ == "__main__":
     test_reduce()
     test_transpose()
     test_prelu()
+    test_squeeze()
