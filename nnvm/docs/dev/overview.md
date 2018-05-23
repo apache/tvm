@@ -103,7 +103,7 @@ void MyFunction() {
   static auto& finplace_option_map = Op::GetAttr<FInplaceOption>("FInplaceOption");
 
   // quick look up attribute of add, O(1) time, vector index lookup internally.
-  auto add_inplace = finplace_option_tbl[add];
+  auto add_inplace = finplace_option_map[add];
 }
 ```
 Besides making the code minimum, this attribute store enables decentralization of projects.

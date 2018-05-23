@@ -47,7 +47,7 @@ inline Graph ApplyPass(Graph src, const std::string& pass) {
 
 
 /*!
- * \brief Registry entry for DataIterator factory functions.
+ * \brief Registry entry for pass functions.
  */
 struct PassFunctionReg
     : public dmlc::FunctionRegEntryBase<PassFunctionReg,
