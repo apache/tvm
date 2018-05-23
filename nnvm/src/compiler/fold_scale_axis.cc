@@ -354,28 +354,28 @@ NNVM_REGISTER_OP(leaky_relu)
 .set_attr<FScaleAxisForward>("FScaleAxisForward", ReluScaleAxisForward);
 
 // property registration.
+template <typename T>
 bool Pool2DBackward(
     const NodeAttrs& attrs,
     const std::vector<TShape>& in_shape,
     const std::vector<TShape>& out_shape,
     const FoldChainInfo& out_info,
     std::vector<FoldChainInfo>* in_axis) {
-  using top::Pool2DParam;
-  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
+  const T& param = nnvm::get<T>(attrs.parsed);
   if (out_info.axis == 1 && param.layout == "NCHW") {
     (*in_axis)[0] = out_info;
   }
   return false;
 }
 
+template <typename T>
 bool Pool2DForward(
     const NodeAttrs& attrs,
     const std::vector<TShape>& in_shape,
     const std::vector<TShape>& out_shape,
     std::vector<FoldChainInfo>* in_info,
     FoldChainInfo* out_info) {
-  using top::Pool2DParam;
-  const Pool2DParam& param = nnvm::get<Pool2DParam>(attrs.parsed);
+  const T& param = nnvm::get<T>(attrs.parsed);
   if ((*in_info)[0].axis == 1 && param.layout == "NCHW") {
     *out_info = (*in_info)[0];
   }
@@ -383,16 +383,16 @@ bool Pool2DForward(
 }
 
 NNVM_REGISTER_OP(max_pool2d)
-.set_attr<FScaleAxisBackward>("FScaleAxisBackward", Pool2DBackward);
+.set_attr<FScaleAxisBackward>("FScaleAxisBackward", Pool2DBackward<top::MaxPool2DParam>);
 
 NNVM_REGISTER_OP(avg_pool2d)
-.set_attr<FScaleAxisBackward>("FScaleAxisBackward", Pool2DBackward);
+.set_attr<FScaleAxisBackward>("FScaleAxisBackward", Pool2DBackward<top::AvgPool2DParam>);
 
 NNVM_REGISTER_OP(max_pool2d)
-.set_attr<FScaleAxisForward>("FScaleAxisForward", Pool2DForward);
+.set_attr<FScaleAxisForward>("FScaleAxisForward", Pool2DForward<top::MaxPool2DParam>);
 
 NNVM_REGISTER_OP(avg_pool2d)
-.set_attr<FScaleAxisForward>("FScaleAxisForward", Pool2DForward);
+.set_attr<FScaleAxisForward>("FScaleAxisForward", Pool2DForward<top::AvgPool2DParam>);
 
 
 
