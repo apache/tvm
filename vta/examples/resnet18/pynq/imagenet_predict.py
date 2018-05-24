@@ -139,11 +139,10 @@ else:
     port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
     port = int(port)
     remote = rpc.connect(host, port)
-
-# Program FPGA, and build runtime if necessary
-# Overwrite bitstream with a path to your own if you built it yourself
-vta.reconfig_runtime(remote)
-vta.program_fpga(remote, bitstream=None)
+    # Program FPGA, and build runtime if necessary
+    # Overwrite bitstream with a path to your own if you built it yourself
+    vta.reconfig_runtime(remote)
+    vta.program_fpga(remote, bitstream=None)
 
 remote.upload(temp.relpath("graphlib.o"))
 lib = remote.load_module("graphlib.o")
