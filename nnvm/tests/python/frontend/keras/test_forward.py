@@ -160,6 +160,12 @@ def test_forward_resnet50():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_mobilenet():
+    keras_model = keras.applications.mobilenet.MobileNet(include_top=True, weights=None,
+        input_shape=(224,224,3), classes=1000)
+    verify_keras_frontend(keras_model)
+
+
 if __name__ == '__main__':
     test_forward_elemwise_add()
     test_forward_softmax()
@@ -175,3 +181,4 @@ if __name__ == '__main__':
     test_forward_vgg16()
     test_forward_xception()
     test_forward_resnet50()
+    test_forward_mobilenet()
