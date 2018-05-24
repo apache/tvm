@@ -34,6 +34,9 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       }
       nnvm::NodePtr var = nnvm::Node::Create();
       var->attrs.name = e.node->attrs.name;
+      if (e.version) {
+          var->attrs.name += "_" + std::to_string(e.version);
+      }
       if (e.node->num_outputs() != 1) {
         var->attrs.name += "_output" + std::to_string(e.index);
       }
