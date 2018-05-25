@@ -90,6 +90,28 @@ def test_reduce():
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
 
+def verify_flip(ishape, axis):
+    x = sym.Variable("x")
+    y = sym.flip(x, axis=axis) + 1
+    dtype = "float32"
+    x_np = np.random.uniform(size=ishape).astype(dtype)
+    res = np.flip(x_np, axis) + 1
+
+    for target, ctx in ctx_list():
+        # set input
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(res.shape))
+        np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
+
+def test_flip():
+    verify_flip((3, 4, 3), 1)
+    verify_flip((3, 4, 3), 0)
+    verify_flip((3, 4, 3), 2)
+    verify_flip((3, 4, 3), -1)
+    verify_flip((3, 4, 3), -3)
+    verify_flip((3, 4, 3), -2)
 
 def verify_reshape(dshape, oshape):
     x = sym.Variable("x")
@@ -347,4 +369,5 @@ if __name__ == "__main__":
     test_elemwise_sum()
     test_block_grad()
     test_full()
+    test_flip()
     print(nnvm.compiler.engine.dump())

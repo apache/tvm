@@ -830,5 +830,54 @@ Examples::
     };
 });
 
+// Flip
+DMLC_REGISTER_PARAMETER(FlipParam);
+
+NNVM_REGISTER_OP(flip)
+.describe(R"code(Reverse the elements of an array.
+
+Examples::
+
+  x = [[ 1, 2],
+       [ 3, 4]]
+
+  flip(x) = [[ 3.,  4.],
+                  [ 1.,  2.]]
+
+  x = [[[ 1.,  2.],
+        [ 3.,  4.]],
+
+       [[ 5.,  6.],
+        [ 7.,  8.]]]
+
+  flip(x) = [[[ 5.,  6.],
+                   [ 7.,  8.]],
+
+                  [[ 1.,  2.],
+                   [ 3.,  4.]]]
+
+  flip(x, axis=1) = [[[ 3.,  4.],
+                                 [ 1.,  2.]],
+
+                                [[ 7.,  8.],
+                                 [ 5.,  6.]]]
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Source input")
+.add_arguments(FlipParam::__FIELDS__())
+.set_attr_parser(ParamParser<FlipParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<FlipParam>)
+.set_attr<nnvm::FInferShape>("FInferShape", ElemwiseShape<1, 1>)
+.set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_support_level(4)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const FlipParam& param = nnvm::get<FlipParam>(attrs.parsed);
+    return Array<Tensor>{ topi::flip(inputs[0], param.axis) };
+});
+
 }  // namespace top
 }  // namespace nnvm
