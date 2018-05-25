@@ -8,8 +8,8 @@ from collections import namedtuple
 from tvm.contrib import rpc, util
 import pandas as pd
 
-host = "pynq"
-port = 9091
+host = os.environ.get("VTA_PYNQ_RPC_HOST", "pynq")
+port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 target = "llvm -target=armv7-none-linux-gnueabihf -mattr=+neon"
 
 Workload = namedtuple("Conv2DWorkload",

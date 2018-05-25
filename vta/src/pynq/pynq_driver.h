@@ -28,9 +28,9 @@ extern "C" {
 void* cma_alloc(size_t size, int cached);
 void cma_free(void* buf);
 uint32_t cma_get_phy_addr(void* buf);
+#endif
 void xlnkFlushCache(void* buf, int size);
 void xlnkInvalidateCache(void* buf, int size);
-#endif
 
 void *VTAMapRegister(uint32_t addr, size_t length);
 void VTAUnmapRegister(void *vta, size_t length);
