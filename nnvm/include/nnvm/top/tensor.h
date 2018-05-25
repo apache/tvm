@@ -156,6 +156,14 @@ struct TransposeParam : public dmlc::Parameter<TransposeParam> {
   }
 };
 
+struct FlipParam : public dmlc::Parameter<FlipParam> {
+  int axis;
+  DMLC_DECLARE_PARAMETER(FlipParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(0)
+    .describe("the axis to be reveresed.");
+  }
+};
+
 struct BroadcastToParam : public dmlc::Parameter<BroadcastToParam> {
   TShape shape;
 

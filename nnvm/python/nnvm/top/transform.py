@@ -41,6 +41,10 @@ reg.register_schedule("reshape_like", _fschedule_injective)
 reg.register_pattern("transpose", OpPattern.INJECTIVE)
 reg.register_schedule("transpose", _fschedule_injective)
 
+# flip
+reg.register_pattern("flip", OpPattern.INJECTIVE)
+reg.register_schedule("flip", _fschedule_injective)
+
 # reshape
 reg.register_pattern("reshape", OpPattern.INJECTIVE)
 reg.register_schedule("reshape", _fschedule_injective)
