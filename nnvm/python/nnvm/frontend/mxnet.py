@@ -205,6 +205,12 @@ def _upsampling(inputs, attrs):
     new_attrs = {'scale':int(scale)}
     return _get_nnvm_op('upsampling')(inputs[0], **new_attrs)
 
+def _clip(inputs, attrs):
+    op_name, new_attrs = "clip", {}
+    new_attrs['a_min'] = _required_attr(attrs, 'a_min')
+    new_attrs['a_max'] = _required_attr(attrs, 'a_max')
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
@@ -248,6 +254,7 @@ _convert_map = {
     'reshape'       : _reshape,
     'sum_axis'      : _rename('sum'),
     'UpSampling'    : _upsampling,
+    'clip'          : _clip
 }
 
 def _convert_symbol(op_name, inputs, attrs,
