@@ -53,8 +53,8 @@ Stmt CanonicalSimplify(Stmt stmt,
  * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-Expr CanonicalSimplify(Expr expr,
-                       Map<Var, Range> vrange = Map<Var, Range>());
+EXPORT Expr CanonicalSimplify(Expr expr,
+                              Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs
