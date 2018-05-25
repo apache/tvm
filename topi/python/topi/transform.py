@@ -136,7 +136,7 @@ def strided_slice(a, begin, end, stride=None):
     Parameters
     ----------
     a : tvm.Tensor
-        The tensor to be expanded.
+        The tensor to be sliced.
 
     begin: list of int
         The indices to begin with in the slicing.
@@ -144,7 +144,7 @@ def strided_slice(a, begin, end, stride=None):
     end: list of int
         Indicies indicating end of the slice.
 
-    stride: list of int
+    stride: list of int, optional
         Specifies the stride values, it can be negative
         in that case, the input tensor will be reversed
         in that particular axis.
