@@ -1,21 +1,24 @@
-### PYNQ RPC Server for VTA
+# PYNQ RPC Server for VTA
 
 This guide describes how to setup a Pynq-based RPC server to accelerate deep learning workloads with VTA.
 
 ## Pynq Setup
 
 Follow the getting started tutorial for the [Pynq board](http://pynq.readthedocs.io/en/latest/getting_started.html).
-* For this RPC setup make sure to go with the *Connect to a Computer* Ethernet setup.
+* This assumes that you've downloaded the latest Pynq image, PYNQ-Z1 v2.1 (released 21 Feb 2018).
+* For this RPC setup, follow the ["Connect to a Computer"](http://pynq.readthedocs.io/en/latest/getting_started.html#connect-to-a-computer) Pynq setup instructions.
+* To be able to talk to the board, you'll need to make sure that you've followed the steps to [assign a static IP address](http://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip)
 
-Make sure that you can ssh into your Pynq board successfully:
+Make sure that you can talk to your Pynq board successfully:
 ```bash
-ssh xilinx@192.168.2.99
+ping 192.168.2.99
 ```
 
-When ssh-ing onto the board, the default password for the `xilinx` account is `xilinx`.
+When ssh-ing onto the board, the password for the `xilinx` username is `xilinx`.
 
-For convenience let's go ahead and mount the Pynq board's file system to easily access it and maintain it:
+For convenience let's go ahead and mount the Pynq board's file system to easily access it (this will require sshfs to be installed):
 ```bash
+mkdir <mountpoint>
 sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
 ```
 
@@ -31,7 +34,7 @@ From there, clone the VTA repository:
 git clone git@github.com:uwsaml/vta.git --recursive
 ```
 
-Now, ssh into your **Pynq board** to build the TVM runtime with the following commands:
+Now, ssh into your **Pynq board** to build the TVM runtime with the following commands. This build should take about 5 minutes.
 ```bash
 ssh xilinx@192.168.2.99 # ssh if you haven't done so
 cd ~/vta/nnvm/tvm
@@ -40,21 +43,18 @@ echo USE_RPC=1 >> config.mk
 make runtime -j2
 ```
 
-## Pynq RPC server setup
-
-We're now ready to build the Pynq RPC server on the Pynq board.
+We're now ready to build the Pynq RPC server on the Pynq board, which should take less than 30 seconds.
 ```bash
 ssh xilinx@192.168.2.99 # ssh if you haven't done so
 cd ~/vta
-make
+make -j2
 ```
 
-The last stage will build the `192.168.2.99:home/xilinx/vta/lib/libvta.so` library file. We are now ready to launch the RPC server on the Pynq. In order to enable the FPGA drivers, we need to run the RPC server with administrator privileges (using `su`, account: `xilinx`, pwd: `xilinx`).
+The last stage will build the `vta/lib/libvta.so` library file. We are now ready to launch the RPC server on the Pynq. In order to enable the FPGA drivers, we need to run the RPC server with `sudo` privileges.
 ```bash
 ssh xilinx@192.168.2.99 # ssh if you haven't done so
 cd ~/vta
-su
-./apps/pynq_rpc/start_rpc_server.sh
+sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is xilinx
 ```
 
 You should see the following being displayed when starting the RPC server:
