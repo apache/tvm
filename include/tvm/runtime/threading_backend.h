@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file threading_backend.h
+ * \file tvm/runtime/threading_backend.h
  * \brief Utilities for manipulating thread pool threads.
  */
 #ifndef TVM_RUNTIME_THREADING_BACKEND_H_

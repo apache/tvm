@@ -19,10 +19,10 @@ endif()
 
 # include path
 include_directories(BEFORE "include")
-include_directories("tvm/include")
-include_directories("tvm/dlpack/include")
-include_directories("tvm/HalideIR/src")
-include_directories("tvm/topi/include")
+include_directories("../include")
+include_directories("../dlpack/include")
+include_directories("../HalideIR/src")
+include_directories("../topi/include")
 
 set(NNVM_LINKER_LIBS "")
 set(NNVM_COMPILER_LINKER_LIBS "")
@@ -48,8 +48,7 @@ if(MSVC)
   endif()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   find_library(TVM_LIB tvm
-			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/../tvm/build/Release
-			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/tvm/build/Release)
+			   HINTS ${CMAKE_CURRENT_SOURCE_DIR}/../build/Release)
   message(STATUS "Build with TVM libary: " ${TVM_LIB})
   list(APPEND NNVM_COMPILER_LINKER_LIBS ${TVM_LIB})
 else(MSVC)
@@ -86,8 +85,8 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/top/*.cc
 )
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/CMakeLists.txt)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../dmlc-core/CMakeLists.txt)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../dmlc-core/include)
 elseif(DMLC_CORE_PATH)
   include_directories(${DMLC_CORE_PATH}/include)
 endif()

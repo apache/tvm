@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file tensor_intrin.h
+ * \file tvm/tensor_intrin.h
  * \brief Tensor intrinsic operations.
  */
 #ifndef TVM_TENSOR_INTRIN_H_

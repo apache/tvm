@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file lowered_func.h
+ * \file tvm/lowered_func.h
  * \brief Information about a lowered TVM function.
  *  This data structure is final step toward codegen.
  */

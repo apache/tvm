@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file c_backend_api.h
+ * \file tvm/runtime/c_backend_api.h
  * \brief TVM runtime backend API.
  *
  *  The functions defined in this header are intended to be

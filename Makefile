@@ -10,7 +10,8 @@ endif
 
 include $(config)
 
-.PHONY: clean install installdev all test doc pylint cpplint lint verilog cython cython2 cython3 web runtime
+.PHONY: clean install installdev all test doc pylint cpplint lint\
+	 verilog cython cython2 cython3 web topi nnvm runtime
 
 ifndef DMLC_CORE_PATH
   DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core
@@ -36,6 +37,7 @@ EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap','getValue','setValue','addFunction']"\
 	-s USE_GLFW=3 -s USE_WEBGL2=1 -lglfw\
 	$(INCLUDE_FLAGS)
+
 # llvm configuration
 ifdef LLVM_CONFIG
 	LLVM_VERSION=$(shell $(LLVM_CONFIG) --version| cut -b 1,3)
@@ -62,6 +64,8 @@ SGX_SRC = $(wildcard src/runtime/sgx/untrusted/*.cc)
 RPC_SRC = $(wildcard src/runtime/rpc/*.cc)
 GRAPH_SRC = $(wildcard src/runtime/graph/*.cc)
 RUNTIME_SRC = $(wildcard src/runtime/*.cc)
+
+# TOPI
 TOPI_SRC = $(wildcard topi/src/*.cc)
 
 # Objectives
@@ -78,7 +82,7 @@ RPC_OBJ = $(patsubst src/%.cc, build/%.o, $(RPC_SRC))
 GRAPH_OBJ = $(patsubst src/%.cc, build/%.o, $(GRAPH_SRC))
 CC_OBJ = $(patsubst src/%.cc, build/%.o, $(CC_SRC)) $(LLVM_OBJ)
 RUNTIME_OBJ = $(patsubst src/%.cc, build/%.o, $(RUNTIME_SRC))
-TOPI_OBJ = $(patsubst topi/%.cc, build/%.o, $(TOPI_SRC))
+TOPI_OBJ = $(patsubst topi/src/%.cc, build/topi/%.o, $(TOPI_SRC))
 CONTRIB_OBJ =
 
 # Deps
@@ -245,13 +249,14 @@ else
 endif
 
 BUILD_TARGETS ?= lib/libtvm.$(SHARED_LIBRARY_SUFFIX) \
-	lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) \
-  lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+				 lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) \
+				 lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
 
 all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
 topi: lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+
 
 include tests/cpp/unittest.mk
 
@@ -291,9 +296,9 @@ build/%.o: src/%.cc
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
-build/src/%.o: topi/src/%.cc
+build/topi/%.o: topi/src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
 lib/libtvm.${SHARED_LIBRARY_SUFFIX}: $(ALL_DEP) $(RUNTIME_DEP)
@@ -326,12 +331,14 @@ LIBHALIDEIR:
 
 cpplint:
 	python dmlc-core/scripts/lint.py topi cpp topi/include;
+	python dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
 	python dmlc-core/scripts/lint.py tvm cpp include src verilog\
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
 	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	pylint nnvm/python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 jnilint:
 	python dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src

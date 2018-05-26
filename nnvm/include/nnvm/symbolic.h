@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file symbolic.h
+ * \file nnvm/symbolic.h
  * \brief Symbolic graph construction API
  *
  *  This API is optional, but useful to allow user

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file pass_functions.h
+ * \file nnvm/pass_functions.h
  * \brief Pass functions that simply redirect the calls to ApplyPass
  *
  *  This file serves as documentation on how to use functions implemented in "src/pass".

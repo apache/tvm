@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file c_api.h
+ * \file nnvm/c_api.h
  * \brief C API of NNVM symbolic construction and pass.
  *  Enables construction and transformation of Graph
  *  in any other host languages.

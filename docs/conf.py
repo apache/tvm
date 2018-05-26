@@ -25,6 +25,7 @@ from recommonmark.transform import AutoStructify
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 sys.path.insert(0, os.path.join(curr_path, '../python/'))
 sys.path.insert(0, os.path.join(curr_path, '../topi/python'))
+sys.path.insert(0, os.path.join(curr_path, '../nnvm/python'))
 
 # -- General configuration ------------------------------------------------
 
@@ -40,6 +41,7 @@ source_parsers = {
     '.md': CommonMarkParser
 }
 os.environ['TVM_BUILD_DOC'] = '1'
+os.environ['NNVM_BUILD_DOC'] = '1'
 # Version information.
 import tvm
 version = tvm.__version__
@@ -187,7 +189,8 @@ gallery_dirs = ['tutorials']
 subsection_order = ExplicitOrder(
     ['../tutorials/language',
      '../tutorials/optimize',
-     '../tutorials/deployment'])
+     '../tutorials/deployment',
+     '../tutorials/nnvm'])
 
 
 def generate_doxygen_xml(app):

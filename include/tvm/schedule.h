@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file schedule.h
+ * \file tvm/schedule.h
  * \brief Define a schedule.
  */
 #ifndef TVM_SCHEDULE_H_
@@ -317,7 +317,7 @@ class Schedule : public NodeRef {
    *  The data will be transformed back to the original layout in the original tensor.
    *  User can further call compute_inline to inline the original layout and keep
    *  the data stored in the transformed layout.
-   * 
+   *
    * \param tensor The tensor to be produced.
    * \param scope The scope of the storage.
    * \return The created tensor.

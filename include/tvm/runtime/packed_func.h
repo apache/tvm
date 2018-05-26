@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file packed_func.h
+ * \file tvm/runtime/packed_func.h
  * \brief Type-erased function used across TVM API.
  */
 #ifndef TVM_RUNTIME_PACKED_FUNC_H_

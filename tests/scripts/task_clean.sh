@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "Cleanup data..."
-cd tvm
+cd nnvm
 make clean
 cd ..
 make clean
