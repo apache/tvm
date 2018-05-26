@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file arithmetic.h
+ * \file tvm/arithmetic.h
  * \brief Algebra and set operations and simplifications.
  */
 #ifndef TVM_ARITHMETIC_H_

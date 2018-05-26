@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file api_registry.h
+ * \file tvm/api_registry.h
  * \brief This files include necessary headers to
  *  be used to register an global API function.
  */

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file ir_operator.h
+ * \file tvm/ir_operator.h
  * \brief Common operators of Expr
  */
 #ifndef TVM_IR_OPERATOR_H_

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file buffer.h
+ * \file tvm/buffer.h
  * \brief Symbolic n-dimensional array, to represent a memory buffer.
  */
 #ifndef TVM_BUFFER_H_
