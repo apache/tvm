@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir_pass.h
+ * \file tvm/ir_pass.h
  * \brief Collection of IR pass functions
  *
  *  When the pass functions in this file are for Stmt,

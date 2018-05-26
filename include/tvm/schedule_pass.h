@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file schedule_pass.h
+ * \file tvm/schedule_pass.h
  * \brief  Collection of Schedule pass functions.
  *
  *  These passes works on the schedule hyper-graph

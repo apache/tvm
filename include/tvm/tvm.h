@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file tvm.h
+ * \file tvm/tvm.h
  * \brief Header to include all C++ API.
  */
 #ifndef TVM_TVM_H_

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file config.h
+ * \file tvm/runtime/config.h
  * \brief Runtime library related configurations.
  */
 #ifndef TVM_RUNTIME_CONFIG_H_

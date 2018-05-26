@@ -59,8 +59,8 @@ inline bool DotCorrectLayout(const NodeAttrs& attrs,
     // concat lhs and rhs layout
     const Layout& lhs_out = param.transpose_a ? lhs.reverse() : lhs;
     const Layout& rhs_out = param.transpose_b ? rhs.reverse() : rhs;
-    Layout out = std::move(lhs_out.sublayout(0, lhs_out.ndim()-1) +
-                           rhs_out.sublayout(1, rhs_out.ndim()-1));
+    Layout out = lhs_out.sublayout(0, lhs_out.ndim()-1) +
+        rhs_out.sublayout(1, rhs_out.ndim()-1);
     NNVM_ASSIGN_LAYOUT(*olayouts, 0, out);
   }
   return true;

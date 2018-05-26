@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file layout.h
+ * \file nnvm/layout.h
  * \brief Layout expression.
  *        The layout is composed of upper cases, lower cases and numbers,
  *        where upper case indicates a (super-)dimension and

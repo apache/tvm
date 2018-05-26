@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file pass.h
+ * \file nnvm/pass.h
  * \brief Pass that can be applied to a graph.
  */
 #ifndef NNVM_PASS_H_
@@ -83,7 +83,7 @@ struct PassFunctionReg
     return *this;
   }
   /*!
-   * \brief Declare this pass requires the given operator attribute to be 
+   * \brief Declare this pass requires the given operator attribute to be
    *        available before being applied on the graph.
    * \param attr_name Name of the attribute.
    * \return Reference to self.

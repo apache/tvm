@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file registry.h
+ * \file tvm/runtime/registry.h
  * \brief This file defines the TVM global function registry.
  *
  *  The registered functions will be made available to front-end

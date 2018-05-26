@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file op.h
+ * \file nnvm/op.h
  * \brief Operator information structor.
  */
 #ifndef NNVM_OP_H_

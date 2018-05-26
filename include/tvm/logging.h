@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file logging.h
+ * \file tvm/logging.h
  * \brief logging utilities on top of dmlc-core
  */
 #ifndef TVM_LOGGING_H_

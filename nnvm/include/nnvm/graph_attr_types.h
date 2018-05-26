@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file graph_attr_types.h
+ * \file nnvm/graph_attr_types.h
  * \brief Data structures that can appear in graph attributes.
  */
 #ifndef NNVM_GRAPH_ATTR_TYPES_H_

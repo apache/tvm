@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file util.h
+ * \file tvm/runtime/util.h
  * \brief Useful runtime util.
  */
 #ifndef TVM_RUNTIME_UTIL_H_

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file operation.h
+ * \file tvm/operation.h
  * \brief Operation node can generate one or multiple Tensors
  */
 #ifndef TVM_OPERATION_H_
