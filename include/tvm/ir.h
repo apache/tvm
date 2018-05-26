@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir.h
+ * \file tvm/ir.h
  * \brief Additional high level nodes in the IR
  */
 #ifndef TVM_IR_H_
