@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file tensor.h
+ * \file tvm/tensor.h
  * \brief Dataflow tensor object
  */
 #ifndef TVM_TENSOR_H_

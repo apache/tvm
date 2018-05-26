@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file node.h
+ * \file nnvm/node.h
  * \brief Graph node data structure.
  */
 #ifndef NNVM_NODE_H_

@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2016 by Contributors
-* \file util.h
+* \file nnvm/compiler/util.h
 * \brief Utility functions for nnvm compiler
 */
 #ifndef NNVM_COMPILER_UTIL_H_

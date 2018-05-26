@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file base.h
+ * \file nnvm/base.h
  * \brief Configuration of nnvm as well as basic data structure.
  */
 #ifndef NNVM_BASE_H_

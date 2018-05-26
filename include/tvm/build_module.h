@@ -1,6 +1,6 @@
 /*!
 *  Copyright (c) 2017 by Contributors
-* \file build_module.h
+* \file tvm/build_module.h
 * \brief Functions for compiling ops.
 */
 #ifndef TVM_BUILD_MODULE_H_

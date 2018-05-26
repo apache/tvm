@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file device_api.h
+ * \file tvm/runtime/device_api.h
  * \brief Abstract device memory management API
  */
 #ifndef TVM_RUNTIME_DEVICE_API_H_
@@ -124,7 +124,7 @@ class DeviceAPI {
   /*!
    * \brief Synchronize 2 streams of execution.
    *
-   * An event is created in event_src stream that the second then 
+   * An event is created in event_src stream that the second then
    * stream waits on.  Neither event_src or event_dst need to be of
    * the same device ID as the context, but they must be of the same
    * device type.

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file c_runtime_api.h
+ * \file tvm/runtime/c_runtime_api.h
  * \brief TVM runtime library.
  *
  *  The philosophy of TVM project is to customize the compilation
@@ -438,7 +438,7 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
                                TVMStreamHandle stream);
 
 /*!
- * \brief Create a new runtime stream.  
+ * \brief Create a new runtime stream.
  *
  * \param device_type The device type of context
  * \param device_id The device id of context

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir_mutator.h
+ * \file tvm/ir_mutator.h
  * \brief Defines general IRMutation pass
  */
 #ifndef TVM_IR_MUTATOR_H_

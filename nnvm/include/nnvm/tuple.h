@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file tuple.h
+ * \file nnvm/tuple.h
  * \brief Data structure Tuple and TShape to store dynamic sized shapes.
  */
 #ifndef NNVM_TUPLE_H_

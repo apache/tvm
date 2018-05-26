@@ -9,20 +9,16 @@ endif
 endif
 include $(config)
 
+TVMPATH = ..
+
 export LDFLAGS = -pthread -lm
 export CFLAGS = -std=c++11 -Wall -O2 -Iinclude -fPIC
-CFLAGS += -Itvm/include -Itvm/dlpack/include -Itvm/HalideIR/src -Itvm/topi/include
+CFLAGS += -I$(TVMPATH)/include -I$(TVMPATH)/dlpack/include -I$(TVMPATH)/HalideIR/src -I$(TVMPATH)/topi/include
 
 ifdef DMLC_CORE_PATH
   CFLAGS += -I$(DMLC_CORE_PATH)/include
 else
-  CFLAGS += -I$(ROOTDIR)/dmlc-core/include
-endif
-
-ifdef DMLC_CORE_PATH
-  CFLAGS += -I$(DMLC_CORE_PATH)/include
-else
-  CFLAGS += -I$(ROOTDIR)/dmlc-core/include
+  CFLAGS += -I$(ROOTDIR)/../dmlc-core/include
 endif
 
 ifneq ($(ADD_CFLAGS), NONE)
@@ -89,14 +85,14 @@ cyclean:
 
 lint: pylint cpplint
 
+doc:
+	doxygen docs/Doxyfile
+
 cpplint:
-	python dmlc-core/scripts/lint.py nnvm cpp include src
+	python ../dmlc-core/scripts/lint.py nnvm cpp include src
 
 pylint:
 	pylint python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-
-doc:
-	doxygen docs/Doxyfile
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o cli_test

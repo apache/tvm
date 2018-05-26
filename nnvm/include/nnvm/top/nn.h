@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file nn.h
+ * \file nnvm/top/nn.h
  * \brief Auxiliary param for tensor primitive.
  */
 #ifndef NNVM_TOP_NN_H_

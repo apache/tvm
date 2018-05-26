@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file packed_func_ext.h
+ * \file tvm/packed_func_ext.h
  * \brief Extension package to PackedFunc
  *   This enales pass NodeRef types into/from PackedFunc.
  */

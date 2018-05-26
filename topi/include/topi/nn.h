@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief NN op constructions
- * \file nn.h
+ * \file topi/nn.h
  */
 #ifndef TOPI_NN_H_
 #define TOPI_NN_H_
