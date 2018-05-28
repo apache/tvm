@@ -101,7 +101,7 @@ port = 9090
 if not use_mali:
     # run server locally
     host = 'localhost'
-    port = 9092
+    port = 9095
     server = rpc.Server(host=host, port=port, use_popen=True)
 
 ######################################################################
@@ -169,7 +169,7 @@ out_shape = (batch_size, num_classes)
 # Compile The Graph
 # -----------------
 # To compile the graph, we call the :any:`nnvm.compiler.build` function
-# with the graph configuration and parameters. As we use OpenCL for 
+# with the graph configuration and parameters. As we use OpenCL for
 # GPU computing, the tvm will generate both OpenCL kernel code and ARM
 # CPU host code. The CPU host code is used for calling OpenCL kernels.
 # In order to generate correct CPU code, we need to specify the target
@@ -182,12 +182,14 @@ out_shape = (batch_size, num_classes)
 
 if use_mali:
     target_host = "llvm -target=aarch64-linux-gnu -mattr=+neon"
+    target = tvm.target.mali()
 else:
     target_host = "llvm"
+    target = tvm.target.cuda()
 
 # set target as  `tvm.target.mali` instead of 'opencl' to enable
 # target-specified optimization
-graph, lib, params = nnvm.compiler.build(net, target=tvm.target.mali(),
+graph, lib, params = nnvm.compiler.build(net, target=target,
         shape={"data": data_shape}, params=params, target_host=target_host)
 
 # After `nnvm.compiler.build`, you will get three return values: graph,
@@ -212,7 +214,7 @@ remote = rpc.connect(host, port)
 remote.upload(lib_fname)
 rlib = remote.load_module('net.tar')
 
-ctx = remote.cl(0)
+ctx = remote.cl(0) if use_mali else remote.gpu(0)
 # upload the parameter
 rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
 

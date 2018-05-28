@@ -110,7 +110,7 @@ if tgt == "cuda":
 # function(including the inputs and outputs) as well as target language
 # we want to compile to.
 #
-# The result of compilation fadd is a GPU device function(if GPU is involved) 
+# The result of compilation fadd is a GPU device function(if GPU is involved)
 # that can as well as a host wrapper that calls into the GPU function.
 # fadd is the generated host wrapper function, it contains reference
 # to the generated device function internally.

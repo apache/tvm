@@ -1,23 +1,18 @@
 """
-Tutorial for running Yolo-V2 in Darknet Models
-=====================
+Compile YOLO-V2 in DarkNet Models
+=================================
 **Author**: `Siju Samuel <https://siju-samuel.github.io/>`_
 
 This article is an introductory tutorial to deploy darknet models with NNVM.
-
-All the required models and libraries will be downloaded from the internet
-
-by the script.
-
+All the required models and libraries will be downloaded from the internet by the script.
 This script runs the YOLO-V2 Model with the bounding boxes
-
 Darknet parsing have dependancy with CFFI and CV2 library
-
 Please install CFFI and CV2 before executing this script
 
-pip install cffi
+.. code-block:: bash
 
-pip install opencv-python
+  pip install cffi
+  pip install opencv-python
 """
 from ctypes import *
 import math
@@ -40,12 +35,11 @@ else:
 ######################################################################
 # Set the parameters here.
 # Supported models alexnet, resnet50, resnet152, extraction, yolo
-######################################################################
+#
 model_name = 'yolo'
 test_image = 'dog.jpg'
 target = 'llvm'
 ctx = tvm.cpu(0)
-######################################################################
 
 def dlProgress(count, block_size, total_size):
     """Show the download progress."""
@@ -105,8 +99,8 @@ def download(url, path, overwrite=False, sizecompare=False):
 
 ######################################################################
 # Prepare cfg and weights file
+# ----------------------------
 # Pretrained model available https://pjreddie.com/darknet/imagenet/
-# --------------------------------------------------------------------
 # Download cfg and weights file first time.
 
 cfg_name = model_name + '.cfg'
@@ -142,7 +136,7 @@ sym, params = nnvm.frontend.darknet.from_darknet(net, dtype)
 
 ######################################################################
 # Compile the model on NNVM
-# --------------------------------------------------------------------
+# -------------------------
 # compile the model
 data = np.empty([batch_size, net.c ,net.h, net.w], dtype);
 shape = {'data': data.shape}
@@ -151,8 +145,8 @@ with nnvm.compiler.build_config(opt_level=2):
     graph, lib, params = nnvm.compiler.build(sym, target, shape, dtype, params)
 
 #####################################################################
-# Save the json
-# --------------------------------------------------------------------
+# Save the JSON
+# -------------
 def save_lib():
     #Save the graph, params and .so to the current directory
     print("Saving the compiled output...")
@@ -178,8 +172,8 @@ download(img_url, test_image)
 data = nnvm.testing.darknet.load_image(test_image, net.w, net.h)
 
 ######################################################################
-# Execute on TVM
-# --------------------------------------------------------------------
+# Execute on TVM Runtime
+# ----------------------
 # The process is no different from other examples.
 from tvm.contrib import graph_runtime
 

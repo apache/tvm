@@ -238,8 +238,8 @@ print('%g secs/op' % cost)
 #    The target_host should be 'llvm -target=aarch64-linux-gnu'.
 #    But here we set 'llvm' to enable this tutorial to run locally.
 #
-#    Also we need to build the runtime with the flag `USE_OPENCL=1`.
-# build kernel (different from cpu, we need bind axis for OpenCL)
+#    Also we need to build the runtime with the flag `USE_OPENCL=1` to
+#    build the kernel (different from cpu, we need bind axis for OpenCL)
 #
 # The following functions shows how we can deploy CL
 def deploy_cl():

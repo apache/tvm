@@ -9,7 +9,8 @@ def compare_graph(onnx_file, nnvm_sym, ishape):
     onnx_sym, params = nnvm.frontend.from_onnx(onnx_model)
     g1 = nnvm.graph.create(onnx_sym)
     g2 = nnvm.graph.create(nnvm_sym)
-    ishapes = {'input_0': ishape}
+    input_name = onnx_model.graph.input[0].name
+    ishapes = {input_name: ishape}
     graph_attr.set_shape_inputs(g1, ishapes)
     graph_attr.set_shape_inputs(g2, ishapes)
     g1 = g1.apply("InferShape").apply("SimplifyInference")

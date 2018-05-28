@@ -22,36 +22,19 @@ git submodule update
 
 ## Build the Shared Library
 
-Our goal is to build the shared library:
-- On Linux/OSX the target library is `libtvm.so`
-- On Windows the target library is `libtvm.dll`
-
-The minimal building requirement is
-- A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
-
-You can edit `make/config.mk` to change the compile options, and then build by
-`make`. If everything goes well, we can go to the specific language installation section.
-
-### Building on Windows
-
-TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**. In order to generate the VS solution file using cmake,
-make sure you have a recent version of cmake added to your path and then from the tvm directory:
-
-```bash
-mkdir build
-cd build
-cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
-```
-This will generate the VS project using the MSVC 14 64 bit generator. Open the .sln file in the build directory and build with Visual Studio.
-
-### Customized Building
-
-Install prerequisites first:
+Our goal is to build the shared libraries:
+- On Linux/OSX the target library are `libtvm.so, libtvm_topi.so`
+- On Windows the target library are `libtvm.dll, libtvm_topi.dll`
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev
 ```
+
+The minimal building requirement is
+- A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
+- We highly recommend to build with LLVM to enable all the features.
+- It is possible to build without llvm dependency if we only want to use CUDA/OpenCL
 
 The configuration of tvm can be modified by ```config.mk```
 - First copy ```make/config.mk``` to the project root, on which
@@ -62,8 +45,36 @@ The configuration of tvm can be modified by ```config.mk```
     [LLVM Download Page](http://releases.llvm.org/download.html).
     - Unzip to a certain location, modify ```config.mk``` to add ```LLVM_CONFIG=/path/to/your/llvm/bin/llvm-config```
   - You can also use [LLVM Nightly Ubuntu Build](https://apt.llvm.org/)
-    - Note that apt-package append ```llvm-config``` with version number. For example, set ```LLVM_CONFIG=llvm-config-4.0``` if you installed 4.0 package
-  - By default CUDA and OpenCL code generator do not require llvm.
+    - Note that apt-package append ```llvm-config``` with version number.
+      For example, set ```LLVM_CONFIG=llvm-config-4.0``` if you installed 4.0 package
+
+We can then build tvm by `make`.
+After we build the tvm, we can proceed to build nnvm using the following script.
+
+```bash
+cd nnvm
+make -j4
+```
+
+This will creates `libnnvm_compiler.so` under the `nnvm/lib` folder.
+If everything goes well, we can go to the specific language installation section.
+
+
+### Building on Windows
+
+TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
+In order to generate the VS solution file using cmake,
+make sure you have a recent version of cmake added to your path and then from the tvm directory:
+
+```bash
+mkdir build
+cd build
+cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
+```
+This will generate the VS project using the MSVC 14 64 bit generator.
+Open the .sln file in the build directory and build with Visual Studio.
+In order to build with LLVM in windows, you will need to build LLVM from source.
+You need to run build the nnvm by running the same script under the nnvm folder.
 
 ## Python Package Installation
 
@@ -77,7 +88,7 @@ There are several ways to install the package:
     The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ```setup``` again)
 
     ```bash
-    export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:${PYTHONPATH}
+    export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:/path/to/tvm/nnvm/python:${PYTHONPATH}
     ```
 
 2. Install tvm python bindings by `setup.py`:
@@ -89,4 +100,5 @@ There are several ways to install the package:
     #       providing --user flag may trigger error during installation in such case.
     cd python; python setup.py install --user; cd ..
     cd topi/python; python setup.py install --user; cd ../..
+    cd nnvm/python; python setup.py install --user; cd ../..
     ```

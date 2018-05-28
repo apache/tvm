@@ -20,3 +20,4 @@ Python API
    contrib
    dev
    topi
+   nnvm/index

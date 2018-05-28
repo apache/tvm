@@ -1,20 +1,17 @@
 """
-Quick Start - End-to-End Tutorial for NNVM/TVM Pipeline
+Quick Start Tutorial for Compiling Deep Learning Models
 =======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_
 
 This example shows how to build a neural network with NNVM python frontend and
-generate runtime library for Nvidia GPU and Raspberry Pi with TVM. (Thanks to
-Tianqi's `tutorial for cuda <http://nnvm.tvmlang.org/tutorials/get_started.html>`_ and
-Ziheng's `tutorial for Raspberry Pi <http://nnvm.tvmlang.org/tutorials/deploy_model_on_rasp.html>`_)
-To run this notebook, you need to install tvm and nnvm following
-`these instructions <https://github.com/dmlc/nnvm/blob/master/docs/how_to/install.md>`_.
+generate runtime library for Nvidia GPU and Raspberry Pi with TVM.
+To run this notebook, you need to install tvm and nnvm.
 Notice that you need to build tvm with cuda and llvm.
 """
 
 ######################################################################
 # Overview for Supported Hardware Backend of TVM
-# -----------------------------
+# ----------------------------------------------
 # The image below shows hardware backend currently supported by TVM:
 #
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tvm_support_list.png
@@ -52,7 +49,7 @@ print(net.debug_str())
 
 ######################################################################
 # Compilation
-# ----------------------------
+# -----------
 # Next step is to compile the model using the NNVM/TVM pipeline.
 # Users can specify the optimization level of the compilation.
 # Currently this value can be 0 to 2, which corresponds to
@@ -69,7 +66,7 @@ print(net.debug_str())
 #
 # We'll first compile for Nvidia GPU. Behind the scene, `nnvm.compiler.build`
 # first does a number of graph-level optimizations, e.g. pruning, fusing, etc.,
-# then registers the operators (i.e. the nodes of the optmized graphs) to 
+# then registers the operators (i.e. the nodes of the optmized graphs) to
 # TVM implementations to generate a `tvm.module`.
 # To generate the module library, TVM will first transfer the HLO IR into the lower
 # intrinsic IR of the specified target backend, which is CUDA in this example.
@@ -120,7 +117,7 @@ print(out.asnumpy()[0][0:10])
 
 ######################################################################
 # Compile and Deploy the Model to Raspberry Pi Remotely with RPC
-# ------------------------------
+# --------------------------------------------------------------
 # Following the steps above, we can also compile the model for Raspberry Pi.
 # TVM provides rpc module to help with remote deploying.
 #
@@ -130,9 +127,9 @@ print(out.asnumpy()[0][0:10])
 # :code:`use_rasp` to True, also change the host and port with your
 # device's host address and port number.
 
-# If we run the example locally for demonstration, we can simply set the 
-# compilation target as `llvm`. 
-# To run it on the Raspberry Pi, you need to specify its instruction set. 
+# If we run the example locally for demonstration, we can simply set the
+# compilation target as `llvm`.
+# To run it on the Raspberry Pi, you need to specify its instruction set.
 # `llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon`
 # is the recommended compilation configuration, thanks to Ziheng's work.
 
@@ -145,7 +142,7 @@ port = 9090
 if not use_rasp:
     # run server locally
     host = 'localhost'
-    port = 9090
+    port = 9099
     server = rpc.Server(host=host, port=port, use_popen=True)
 
 # compile and save model library
@@ -190,4 +187,3 @@ print(out.asnumpy()[0][0:10])
 if not use_rasp:
     # terminate the local server
     server.terminate()
-
