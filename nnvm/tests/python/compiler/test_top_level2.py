@@ -225,7 +225,7 @@ def test_upsampling():
         data = tvm.nd.array(a_np)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        b_np = topi.testing.upsampling_python(a_np, scale)
+        b_np = topi.testing.upsampling_python(a_np, scale, "NCHW")
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 

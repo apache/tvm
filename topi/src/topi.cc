@@ -23,6 +23,7 @@
 #include <topi/nn/mapping.h>
 #include <topi/nn/pooling.h>
 #include <topi/nn/softmax.h>
+#include <topi/nn/scale.h>
 
 #include <topi/vision/reorg.h>
 #include <topi/vision/yolo2/region.h>
@@ -283,6 +284,12 @@ TVM_REGISTER_GLOBAL("topi.take")
 TVM_REGISTER_GLOBAL("topi.strided_slice")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = strided_slice(args[0], args[1], args[2], args[3]);
+  });
+
+/* Ops from nn/scale.h */
+TVM_REGISTER_GLOBAL("topi.nn.scale")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::scale(args[0], args[1], args[2], args[3]);
   });
 
 /* Ops from nn/batch_norm.h */
