@@ -100,4 +100,5 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
 
 # current version
-__version__ = "0.3.0"
+# We use the version of the incoming release for code that is under development
+__version__ = "0.4.0"
