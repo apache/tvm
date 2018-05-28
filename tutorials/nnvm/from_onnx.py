@@ -66,7 +66,9 @@ x = np.array(img_y)[np.newaxis, np.newaxis, :, :]
 # We should be familiar with the process right now.
 import nnvm.compiler
 target = 'cuda'
-shape_dict = {'input_0': x.shape}
+# assume first input name is data
+input_name = sym.list_input_names()[0]
+shape_dict = {input_name: x.shape}
 graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
 ######################################################################
@@ -78,7 +80,7 @@ ctx = tvm.gpu(0)
 dtype = 'float32'
 m = graph_runtime.create(graph, lib, ctx)
 # set inputs
-m.set_input('input_0', tvm.nd.array(x.astype(dtype)))
+m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
 m.set_input(**params)
 # execute
 m.run()

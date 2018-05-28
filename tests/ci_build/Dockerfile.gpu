@@ -28,12 +28,25 @@ RUN cd recommonmark; python setup.py install
 # Enable doxygen for c++ doc build
 RUN apt-get update && apt-get install -y doxygen graphviz libprotobuf-dev protobuf-compiler
 
+COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
+RUN bash /install/ubuntu_install_java.sh
+
+COPY install/ubuntu_install_nodejs.sh /install/ubuntu_install_nodejs.sh
+RUN bash /install/ubuntu_install_nodejs.sh
+
+COPY install/ubuntu_install_rocm.sh /install/ubuntu_install_rocm.sh
+RUN bash /install/ubuntu_install_rocm.sh
+
+COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
+RUN bash /install/ubuntu_install_opengl.sh
+
+COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
+RUN bash /install/ubuntu_install_vulkan.sh
+
+
 # DL Frameworks
 COPY install/ubuntu_install_mxnet.sh /install/ubuntu_install_mxnet.sh
 RUN bash /install/ubuntu_install_mxnet.sh
-
-COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
-RUN bash /install/ubuntu_install_onnx.sh
 
 COPY install/ubuntu_install_coreml.sh /install/ubuntu_install_coreml.sh
 RUN bash /install/ubuntu_install_coreml.sh
@@ -44,6 +57,9 @@ RUN bash /install/ubuntu_install_keras.sh
 COPY install/ubuntu_install_darknet.sh /install/ubuntu_install_darknet.sh
 RUN bash /install/ubuntu_install_darknet.sh
 
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh
+
 RUN pip install Pillow
 
 # Environment variables
@@ -53,3 +69,10 @@ ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
 ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
 ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
+
+ENV LD_LIBRARY_PATH=/opt/rocm/lib:${LD_LIBRARY_PATH}
+ENV PATH=/node_modules/.bin:${PATH}
+ENV VULKAN_SDK=/usr/local/VulkanSDK/1.0.65.0/x86_64
+ENV PATH=${PATH}:${VULKAN_SDK}/bin
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${VULKAN_SDK}/lib
+ENV VK_LAYER_PATH=${VULKAN_SDK}/etc/explicit_layer.d

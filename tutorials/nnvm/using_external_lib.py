@@ -1,6 +1,6 @@
 """
-Using external libraries with NNVM
-=====================
+Using External Libraries in NNVM
+================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
 This is a short tutorial on how to use external libraries such as cuDNN, or cuBLAS with NNVM.
@@ -24,7 +24,7 @@ from nnvm.testing import utils
 
 ######################################################################
 # Create a simple network
-# ---------------------------------------------
+# -----------------------
 # Let's create a very simple network for demonstration.
 # It consists of convolution, batch normalization, and ReLU activation.
 
@@ -40,7 +40,7 @@ net, params = utils.create_workload(simple_net, batch_size, data_shape[1:])
 
 ######################################################################
 # Build and run with cuda backend
-# ---------------------------------------------
+# -------------------------------
 # We build and run this network with cuda backend, as usual.
 # By setting the logging level to DEBUG, the result of NNVM graph compilation will be dumped as pseudo code.
 import logging
@@ -151,7 +151,7 @@ out_cuda = out.asnumpy()
 
 ######################################################################
 # Use cuDNN for a convolutional layer
-# ---------------------------------------------
+# -----------------------------------
 # We can use cuDNN to replace convolution kernels with cuDNN ones.
 # To do that, all we need to do is to append the option " -libs=cudnn" to the target string.
 net, params = utils.create_workload(simple_net, batch_size, data_shape[1:])
@@ -192,14 +192,14 @@ out_cudnn = out.asnumpy()
 
 ######################################################################
 # Verify the result
-# ---------------------------------------------
+# -----------------
 # We can check that the results of two runs match.
 
 np.testing.assert_allclose(out_cuda, out_cudnn, rtol=1e-5)
 
 #####################################################################
 # Conclusion
-# ---------------------------------------------
+# ----------
 # This tutorial covered the usage of cuDNN with NNVM.
 # We also have support for cuBLAS. If cuBLAS is enabled, it will be used inside a fully connected layer (nnvm.symbol.dense).
 # To use cuBLAS, set a target string as "cuda -libs=cublas".
