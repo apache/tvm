@@ -1,10 +1,11 @@
 ### NNPACK for Multi-Core CPU Support in TVM
+
 [NNPACK](https://github.com/Maratyszcza/NNPACK) is an acceleration package
 for neural network computations, which can run on x86-64, ARMv7, or ARM64 architecture CPUs.
 Using NNPACK, higher-level libraries like _MXNet_ can speed up
 the execution on multi-core CPU computers, including laptops and mobile devices.
 
-***Note***: AS TVM already has natively tuned schedules, NNPACK is here mainly for reference and comparison purpose. 
+***Note***: AS TVM already has natively tuned schedules, NNPACK is here mainly for reference and comparison purpose.
 For regular use prefer native tuned TVM implementation.
 
 _TVM_ supports NNPACK for forward propagation (inference only) in convolution, max-pooling, and fully-connected layers.
@@ -29,7 +30,7 @@ The following table explains under which conditions NNPACK will work.
 ### Build/Install LLVM
 LLVM is required for CPU codegen that needs LLVM.
 Since LLVM takes long time to build from source, you can download pre-built version of LLVM from [LLVM Download Page](http://releases.llvm.org/download.html).
-For llvm 4.0 you can do the following step : 
+For llvm 4.0 you can do the following step :
 
 ```bash
 # Add llvm repository in apt source list
@@ -63,7 +64,7 @@ apt-get install -y \
 
 If the trained model meets some conditions of using NNPACK,
 you can build TVM with NNPACK support.
-Follow these simple steps:  
+Follow these simple steps:
 * Build NNPACK shared library with the following commands. _TVM_ will link NNPACK dynamically.
 
 Note: The following NNPACK installation instructions have been tested on Ubuntu 16.04.
@@ -77,7 +78,7 @@ cd ninja
 ./configure.py --bootstrap
 ```
 
-Set the environment variable PATH to tell bash where to find the ninja executable. For example, assume we cloned ninja on the home directory ~. then we can added the following line in ~/.bashrc. 
+Set the environment variable PATH to tell bash where to find the ninja executable. For example, assume we cloned ninja on the home directory ~. then we can added the following line in ~/.bashrc.
 ```bash
 export PATH="${PATH}:~/ninja"
 ```
@@ -118,27 +119,4 @@ after configuration use `make` to build TVM
 
 ```bash
 make
-make install
-```
-
-#### Python Package Installation
-
-The python package for [tvm](https://github.com/dmlc/tvm) depends of [topi](https://github.com/dmlc/tvm/tree/master/topi).
-The tvm python package is located at `tvm/python` and topi python package is located in `tvm/topi/python` folder.
-There are several ways to install the package, in all these cases the TVM library and TOPI must be present in the python env:
-
-1. Set the environment variable PYTHONPATH to tell python where to find the libraries. For example, assume we cloned tvm on the home directory ~. then we can added the following line in ~/.bashrc. It is recommended for developers who may change the codes. The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call setup again)
-
-```bash
-export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:${PYTHONPATH}
-```
-
-2. Install tvm and topi python bindings by setup.py:
-
-```bash
-# install tvm package for the current user
-cd topi/python
-python setup.py install --user; 
-cd ../../python
-python setup.py install --user; 
 ```

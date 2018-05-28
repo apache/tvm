@@ -1,2 +1,2 @@
-Lanuage and Schedules
----------------------
+Tensor Expression and Schedules
+-------------------------------

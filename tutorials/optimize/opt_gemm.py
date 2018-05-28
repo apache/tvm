@@ -174,7 +174,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ###################################################################################################
 # Loop Permutation
-# -------------
+# ----------------
 # If we look at the above IR, we can see the inner loop row data is vectorized and
 # B is transformed into PackedB. The traversal of PackedB is sequential now.
 # So we will look at the access pattern of A. In current schedule, A is accessed column by column
@@ -262,7 +262,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ################################################################################################
 # Write cache for blocks
-# --------
+# ----------------------
 # After blocking, the program will write result to C block by block, the access pattern
 # is not sequential. So we can use a sequential cache array to hold the block results and
 # write to C when all the block results are ready.
@@ -308,7 +308,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ###################################################################################################
 # Parallel
-# -------------
+# --------
 # Futhermore, we can also utilize multi-core processors to do the thread-level parallelization.
 
 s = tvm.create_schedule(C.op)

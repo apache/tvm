@@ -1,11 +1,9 @@
-TVM Operator Inventory
-----------------------
+TOPI
+----
 .. automodule:: topi
 
-Index
-~~~~~
-
-**List of operators**
+List of operators
+~~~~~~~~~~~~~~~~~
 
 .. autosummary::
 
@@ -52,8 +50,8 @@ Index
    topi.broadcast_minimum
 
 
-**List of schedules**
-
+List of schedules
+~~~~~~~~~~~~~~~~~
 .. autosummary::
 
    topi.generic.schedule_conv2d_nchw

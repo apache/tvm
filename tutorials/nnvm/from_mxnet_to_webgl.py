@@ -1,14 +1,11 @@
 """
-Quick Start - End-to-End Tutorial for NNVM/TVM Pipeline for OpenGL and WebGL
-============================================================================
+Deploy Deep Learning Models to OpenGL and WebGL
+===============================================
 **Author**: `Zhixun Tan <https://github.com/phisiart>`_
 
 This example shows how to build a neural network with NNVM python frontend and
-generate runtime library for WebGL running in a browser with TVM. (Thanks to
-Tianqi's `tutorial for cuda <http://nnvm.tvmlang.org/tutorials/get_started.html>`_ and
-Ziheng's `tutorial for Raspberry Pi <http://nnvm.tvmlang.org/tutorials/deploy_model_on_rasp.html>`_)
-To run this notebook, you need to install tvm and nnvm following
-`these instructions <https://github.com/dmlc/nnvm/blob/master/docs/how_to/install.md>`_.
+generate runtime library for WebGL running in a browser with TVM.
+To run this notebook, you need to install tvm and nnvm.
 Notice that you need to build tvm with OpenGL.
 """
 
@@ -50,13 +47,13 @@ run_deploy_local = False
 run_deploy_rpc = False
 
 # To run the WebGL deploy demo, set this flag to True.
-run_deploy_web = True
+run_deploy_web = False
 
 ######################################################################
 # Download a Pre-trained Resnet18 Model
 # -------------------------------------
 # Here we define 2 functions:
-# 
+#
 # - A function that downloads a pre-trained resnet18 model from Gluon Model Zoo.
 #   The model that we download is in MXNet format, we then transform it into an
 #   NNVM computation graph.
@@ -75,7 +72,7 @@ def load_mxnet_resnet():
 
     params : dict[str -> NDArray]
         The pretrained model parameters.
-    
+
     data_shape: tuple
         The shape of the input tensor (an image).
 
@@ -116,11 +113,11 @@ def download_synset():
           "596b27d23537e5a1b5751d2b0481ef172f58b539/" + \
           "imagenet1000_clsid_to_human.txt"
     file_name = "synset.txt"
-    
+
     gluon.utils.download(url, file_name)
     with open(file_name) as f:
         synset = eval(f.read())
-    
+
     print("- Synset downloaded!")
     return synset
 
@@ -432,7 +429,7 @@ def deploy_web():
 
     from tvm.contrib import emscripten
 
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(os.getcwd())))
     working_dir = os.getcwd()
     output_dir = os.path.join(working_dir, "resnet")
     if not os.path.exists(output_dir):
@@ -471,7 +468,7 @@ def deploy_web():
                     os.path.join(output_dir, "tvm_runtime.js"))
     shutil.copyfile(os.path.join(curr_path, "web/resnet.html"),
                     os.path.join(output_dir, "resnet.html"))
-    
+
     # Now we want to save some extra files so that we can execute the model from
     # JavaScript.
     # - data shape

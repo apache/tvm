@@ -80,7 +80,8 @@ from tvm.contrib import graph_runtime as runtime
 #
 #      Loading runtime library /home/YOURNAME/code/tvm/lib/libtvm_runtime.so... exec only
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
-#
+
+
 ######################################################################
 # For demonstration, we simply start an RPC server on the same machine,
 # if :code:`use_rasp` is False. If you have set up the remote
