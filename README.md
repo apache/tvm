@@ -1,22 +1,22 @@
-<img src=https://raw.githubusercontent.com/tqchen/tvmlang.org/master/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
+<img src=https://raw.githubusercontent.com/tqchen/tvm.ai/master/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
 ==============================================
 
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=dmlc/tvm/master)](http://mode-gpu.cs.washington.edu:8080/job/dmlc/job/tvm/job/master/)
 
 [Installation](docs/how_to/install.md) |
-[Documentation](http://docs.tvmlang.org) |
-[Tutorials](http://tutorials.tvmlang.org) |
+[Documentation](http://docs.tvm.ai) |
+[Tutorials](http://tutorials.tvm.ai) |
 [Operator Inventory](topi) |
 [FAQ](docs/faq.md) |
 [Contributors](CONTRIBUTORS.md) |
-[Community](http://tvmlang.org/community.html) |
+[Community](http://tvm.ai/community.html) |
 [Release Notes](NEWS.md)
 
 TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
 TVM works with deep learning frameworks to provide end to end compilation to different backends.
-Checkout the [tvm stack homepage](http://tvmlang.org/)  for more information.
+Checkout the [tvm stack homepage](http://tvm.ai/)  for more information.
 
 License
 -------

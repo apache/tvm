@@ -27,7 +27,7 @@ TVM4J contains three modules:
 
 ### Build
 
-First please refer to [Installation Guide](http://docs.tvmlang.org/how_to/install.html) and build runtime shared library from the C++ codes (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX).
+First please refer to [Installation Guide](http://docs.tvm.ai/how_to/install.html) and build runtime shared library from the C++ codes (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX).
 
 Then you can compile tvm4j by
 
@@ -117,12 +117,12 @@ public class LoadAddFunc {
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
     TVMContext ctx = TVMContext.cpu();
-    
+
     long[] shape = new long[]{2};
     NDArray arr = NDArray.empty(shape, ctx);
     arr.copyFrom(new float[]{3f, 4f});
     NDArray res = NDArray.empty(shape, ctx);
-    
+
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     System.out.println(Arrays.toString(res.asFloatArray()));
 
@@ -135,7 +135,7 @@ public class LoadAddFunc {
 
 ## RPC Server
 
-There are two ways to start an RPC server on JVM. A standalone server can be started by 
+There are two ways to start an RPC server on JVM. A standalone server can be started by
 
 ```java
 Server server = new Server(port);
