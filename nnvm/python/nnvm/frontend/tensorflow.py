@@ -416,7 +416,7 @@ class GraphProto(object):
         Follow the tensorflow graph definition to parse and convert it to NNVM.
         Some of the assumptions listed below.
 
-            -> First Const node will be comsidered as graph input.
+            -> First Const or Placeholder node will be considered as graph input.
             -> Rest all Const nodes are params.
             -> Last node is assumed as graph output.
             -> _output_shapes : Attribute should present in the tenserflow forzen graph.
