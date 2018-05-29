@@ -50,11 +50,16 @@ cd ~/vta
 make -j2
 ```
 
+Add VTA and TVM to PYTHONPATH:
+```
+export PYTHONPATH=$PYTHONPATH:/home/xilinx/vta/python:/home/xilinx/vta/nnvm/tvm/python
+```
+
 The last stage will build the `vta/lib/libvta.so` library file. We are now ready to launch the RPC server on the Pynq. In order to enable the FPGA drivers, we need to run the RPC server with `sudo` privileges.
 ```bash
 ssh xilinx@192.168.2.99 # ssh if you haven't done so
 cd ~/vta
-sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is xilinx
+sudo PYTHONPATH=$PYTHONPATH ./apps/pynq_rpc/start_rpc_server.sh # pw is xilinx
 ```
 
 You should see the following being displayed when starting the RPC server:
