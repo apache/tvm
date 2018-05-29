@@ -270,6 +270,20 @@ def build(graph, target=None, shape=None, dtype="float32",
     # Apply optimization
     with target:
         graph = optimize(graph, shape, dtype, layout)
+
+    # Clear extra params without nodes.
+    arg_list = []
+    graph_idx = _graph.GraphIndex(graph)
+    for node in graph_idx.nodes:
+        if node['op'] == 'null':
+            arg_list.append(node['name'])
+
+    if params:
+        param_keys = list(params.keys())
+        for key in param_keys:
+            if key not in arg_list:
+                params.pop(key)
+
     # Precompute prune
     if params and cfg.pass_enabled("PrecomputePrune"):
         graph, params = precompute_prune(graph, params)
