@@ -7,8 +7,7 @@ This is an example of using NNVM to compile a ResNet model and
 deploy it on Firefly-RK3399 with ARM Mali GPU.  We will use the
 Mali-T860 MP4 GPU on this board to accelerate the inference.
 
-This tutorial is based on the `tutorial <http://nnvm.tvmlang.org/tutorials/deploy_model_on_rasp.html>`_
-for deploying on Raspberry Pi by `Ziheng Jiang <https://ziheng.org/>`_.
+This tutorial is based on the tutorial for deploying on Raspberry Pi by `Ziheng Jiang <https://ziheng.org/>`_.
 Great thanks to the original author, I only do several lines of modification.
 
 To begin with, we import nnvm (for compilation) and TVM (for deployment).

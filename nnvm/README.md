@@ -1,23 +1,4 @@
-# NNVM: Open Compiler for AI Frameworks
-[![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=dmlc/nnvm/master)](http://mode-gpu.cs.washington.edu:8080/job/dmlc/job/nnvm/job/master/)
-[![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
-
-[Installation](docs/how_to/install.md) |
-[Documentation](http://nnvm.tvmlang.org) |
-[Tutorials](http://nnvm.tvmlang.org/tutorials/index.html) |
-[Release Notes](NEWS.md)
-
-NNVM compiler offers reusable computation graph optimization and compilation for deep learning systems.
-It is backed by the [TVM stack](http://tvmlang.org) and provides modules to:
-
-- Represent deep learning workloads from front-end frameworks via a graph IR.
-- Optimize computation graphs to improve performance.
-- Compile into executable modules and deploy to different hardware backends with minimum dependency.
-
-NNVM is designed to add new frontend, operators and graph optimizations in a decentralized fashion without changing the core interface.
-The compiled module can be deployed to server, mobile, embedded devices and browsers with minimum dependency, in languages including c++, python, javascript, java, objective-c. Checkout [our release announcement](http://www.tvmlang.org/2017/10/06/nnvm-compiler-announcement.html)
-
-The following code snippet demonstrates the general workflow of nnvm compiler.
+# NNVM Compiler Module of TVM Stack
 
 ```python
 import tvm
@@ -52,13 +33,3 @@ rmodule = graph_runtime.create(graph, rlib, remote.gpu(0))
 rmodule.set_input(**params)
 rmodule.run()
 ```
-
-License
--------
-Licensed under an [Apache-2.0](https://github.com/dmlc/nnvm/blob/master/LICENSE) license.
-
-
-Links
------
-- [TinyFlow](https://github.com/tqchen/tinyflow) on how you can use  NNVM to build a TensorFlow like API.
-- [Apache MXNet](http://mxnet.io/) uses NNVM as a backend.
