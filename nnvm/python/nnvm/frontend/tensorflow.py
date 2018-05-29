@@ -250,12 +250,26 @@ def _expand_dims():
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        # Making a copy node assuming the preprocessing already done.
         # Change this when we have corresponding resize bilinear operation.
-        print ("ResizeBilinear: It's a pass through, please handle preprocessing before input")
-        pop_node = inputs.pop(1)
-        params.pop(pop_node.list_output_names()[0])
-        return AttrCvt(op_name="copy", ignores=['align_corners'])(inputs, attr)
+        print ("ResizeBilinear:Only NN (nearest neighbor) supported in symetric mode of dimensions")
+        print ("Change this when we have corresponding resize bilinear operation")
+
+        # NHWC
+        input_shape = attr['_input_shapes'][inputs[0]][0]
+        in_hw = (input_shape[1], input_shape[2])
+        out_hw = params[inputs[1].list_output_names()[0]]
+        inputs.pop(1)
+        attr['layout'] = 'NHWC'
+
+        if in_hw[0] < 0 or in_hw[1] < 0:
+            scale = 1
+        else:
+            # Considering height alone for scale
+            scale = out_hw[0] / in_hw[0]
+
+        return AttrCvt(op_name="upsampling",
+                       ignores=['Tdim', 'align_corners'],
+                       extras={'scale': scale})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -438,6 +452,9 @@ class GraphProto(object):
                 attr = self._parse_attr(node.attr)
                 self._output_shapes[node.name] = \
                      [tensor_util.TensorShapeProtoToList(shape) for shape in attr['_output_shapes']]
+
+                # Pass the parsed shapes instead
+                attr["_output_shapes"] = self._output_shapes[node.name]
 
                 try:
                     inputs = [self._nodes[i] for i in node.input]
