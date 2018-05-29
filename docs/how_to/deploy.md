@@ -12,7 +12,7 @@ cd apps/howto_deploy
 Get TVM Runtime Library
 -----------------------
 
-![](http://www.tvmlang.org/images/release/tvm_flexible.png)
+![](http://www.tvm.ai/images/release/tvm_flexible.png)
 
 The only thing we need is to link to a TVM runtime in your target platform.
 TVM provides a minimum runtime, which costs around 300K to 600K depending on how much modules we use.
@@ -64,7 +64,7 @@ From android java TVM API to load model & execute can be refered at this [java](
 Deploy NNVM Modules
 -------------------
 NNVM compiled modules are fully embedded in TVM runtime as long as ```GRAPH_RUNTIME``` option
-is enabled in tvm runtime. Check out the [TVM documentation](http://docs.tvmlang.org/) for
+is enabled in tvm runtime. Check out the [TVM documentation](http://docs.tvm.ai/) for
 how to deploy TVM runtime to your system.
 
 In a nutshell, we will need three items to deploy a compiled module.
