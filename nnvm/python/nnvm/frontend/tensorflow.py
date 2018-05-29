@@ -1,10 +1,6 @@
-# pylint: disable=import-self, invalid-name, unused-argument, too-many-nested-blocks, no-else-return, line-too-long
+# pylint: disable=import-self, invalid-name, unused-argument
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
-
-# Tensorflow imports
-from tensorflow.python.framework import tensor_util
-from tensorflow.python.framework import dtypes
 
 # Numpy support
 import numpy as np
@@ -33,19 +29,23 @@ class AttrCvt(object):
 
     def __call__(self, inputs, attrs, *args):
         self._ignores.append('_output_shapes')
+        self._ignores.append('_input_shapes')
         self._ignores.append('T')
         self._ignores.append('use_cudnn_on_gpu')
         return AttrConvert(self._op_name, self._transforms, self._excludes,
-                           self._disables, self._ignores, self._extras, self._custom_check)(inputs, attrs, *args)
+                           self._disables, self._ignores, self._extras,
+                           self._custom_check)(inputs, attrs, *args)
 
-def _get_input_shapes(attr):
-    return [tensor_util.TensorShapeProtoToList(shape) for shape in attr['_output_shapes']]
+def _get_pad_pair(input1d, kernel1d, stride1d):
+    if input1d % stride1d == 0:
+        pad = max(kernel1d - stride1d, 0)
+    else:
+        pad = max(kernel1d - (input1d % stride1d), 0)
 
-def _get_pad(input1d, kernel1d, stride1d):
-    out1d = (input1d + stride1d - 1) // stride1d
-    pad = np.maximum((out1d - 1) * stride1d + kernel1d - input1d, 0)
-    pad = pad // 2
-    return pad
+    pad_before = pad // 2
+    pad_after = pad - pad_before
+
+    return [pad_before, pad_after]
 
 def _math_name_picker(surfix):
     def _impl(attr):
@@ -69,7 +69,7 @@ def _dimension_constraint():
     return _dim_check, "Only 2d kernel supported."
 
 def _infer_channels(inputs, params, transpose=False):
-    """A hack for getting 'channles' or 'units' since onnx don't provide
+    """A hack for getting 'channles' or 'units' since tensorflow don't provide
     these attributes. We check the shape of weights provided to get the number.
     """
     g = _graph.create(inputs)
@@ -97,14 +97,16 @@ def _pooling(name):
 
         if attr['data_format'] == 'NHWC':
             attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
-        if attr['data_format'] == 'NCHW':
+        elif attr['data_format'] == 'NCHW':
             attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
+        else:
+            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
 
         # Fix strides
         attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
-        input_shapes = _get_input_shapes(attr)
+        input_shapes = attr['_input_shapes'][inputs[0]]
         attr['padding'] = attr['padding'].decode("utf-8")
 
         if attr['padding'] == 'VALID':
@@ -112,11 +114,29 @@ def _pooling(name):
         elif attr['padding'] == 'SAME':
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
-            in_h = input_shapes[0][1]
-            in_w = input_shapes[0][2]
-            pad_t = _get_pad(in_h, kernel_h, stride_h)
-            pad_l = _get_pad(in_w, kernel_w, stride_w)
-            attr['padding'] = [pad_t, pad_l]
+            if attr['data_format'] == 'NHWC':
+                in_h = input_shapes[0][1]
+                in_w = input_shapes[0][2]
+            else:
+                in_h = input_shapes[0][2]
+                in_w = input_shapes[0][3]
+
+            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+
+            if attr['data_format'] == 'NHWC':
+                inputs[0] = _sym.pad(data=inputs[0],
+                                     pad_width=((0, 0),
+                                                (pad_v[0], pad_v[1]),
+                                                (pad_h[0], pad_h[1]),
+                                                (0, 0)))
+            else:
+                inputs[0] = _sym.pad(data=inputs[0],
+                                     pad_width=((0, 0),
+                                                (0, 0),
+                                                (pad_v[0], pad_v[1]),
+                                                (pad_h[0], pad_h[1])))
+            attr['padding'] = [0, 0]
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
 
@@ -142,17 +162,19 @@ def _conv():
             attr['channels'] = conv_param_weights.shape[3]
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
-        if attr['data_format'] == 'NCHW':
+        elif attr['data_format'] == 'NCHW':
             attr['kernel_shape'] = (conv_param_weights.shape[2], conv_param_weights.shape[3])
             attr['channels'] = conv_param_weights.shape[1]
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
+        else:
+            raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
 
         # Fix strides
         attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
-        input_shapes = _get_input_shapes(attr)
+        input_shapes = attr['_input_shapes'][inputs[0]]
         attr['padding'] = attr['padding'].decode("utf-8")
 
         if attr['padding'] == 'VALID':
@@ -160,11 +182,30 @@ def _conv():
         elif attr['padding'] == 'SAME':
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
-            in_h = input_shapes[0][1]
-            in_w = input_shapes[0][2]
-            pad_t = _get_pad(in_h, kernel_h, stride_h)
-            pad_l = _get_pad(in_w, kernel_w, stride_w)
-            attr['padding'] = [pad_t, pad_l]
+            if attr['data_format'] == 'NHWC':
+                in_h = input_shapes[0][1]
+                in_w = input_shapes[0][2]
+            else:
+                in_h = input_shapes[0][2]
+                in_w = input_shapes[0][3]
+
+            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+
+            if attr['data_format'] == 'NHWC':
+                inputs[0] = _sym.pad(data=inputs[0],
+                                     pad_width=((0, 0),
+                                                (pad_v[0], pad_v[1]),
+                                                (pad_h[0], pad_h[1]),
+                                                (0, 0)))
+            else:
+                inputs[0] = _sym.pad(data=inputs[0],
+                                     pad_width=((0, 0),
+                                                (0, 0),
+                                                (pad_v[0], pad_v[1]),
+                                                (pad_h[0], pad_h[1])))
+
+            attr['padding'] = [0, 0]
 
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
@@ -201,12 +242,13 @@ def _expand_dims():
         dim_input = inputs.pop(1)
         axis = params[dim_input.list_output_names()[0]]
         params.pop(dim_input.list_output_names()[0])
-        return AttrCvt(op_name="expand_dims", ignores=['Tdim'], extras={'axis': axis.asnumpy()[0]})(inputs, attr)
+        return AttrCvt(op_name="expand_dims", ignores=['Tdim'],
+                       extras={'axis': axis.asnumpy()[0]})(inputs, attr)
     return _impl
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        # TODO: Making a copy node assuming the input image shape is 299x299
+        # Making a copy node assuming the input image shape is 299x299
         # Change this when we have corresponding resize bilinear operation.
         pop_node = inputs.pop(1)
         params.pop(pop_node.list_output_names()[0])
@@ -215,7 +257,7 @@ def _resize_bilinear():
 
 def _check_numerics():
     def _impl(inputs, attr, params):
-        # TODO: Making a copy node assuming no need to verify
+        # Making a copy node assuming no need to verify
         return AttrCvt(op_name="copy", ignores=['message'])(inputs, attr)
     return _impl
 
@@ -235,7 +277,7 @@ def _matmul():
 
 def _identity():
     def _impl(inputs, attr, params):
-        # TODO: Tensorflow takes CheckNumerics as
+        # Tensorflow takes CheckNumerics as
         # second argument which we could ignore for time being.
         if len(inputs) == 2:
             pop_node = inputs.pop(1)
@@ -272,7 +314,7 @@ def _bias_add():
 def _batch_norm():
     def _impl(inputs, attr, params):
         # Rearrange inputs from
-        # (data, moving_mean, moving_variance, beta, gamma) to
+        # (data, moving_mean, moving_variance, beta, gamma)
         #     to
         # (data, gamma, beta, moving_mean, moving_var)
         new_inputs = [inputs[0], inputs[4], inputs[3], inputs[1], inputs[2]]
@@ -297,7 +339,7 @@ _convert_map = {
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BiasAdd'                           : _bias_add(),
     'Cast'                              : _cast(),
-    'CheckNumerics'                     : _check_numerics(),                      # TODO
+    'CheckNumerics'                     : _check_numerics(),
     'Concat'                            : _concat(),
     'Conv2D'                            : _conv(),
     'DecodeJpeg'                        : _decode_image(),
@@ -308,14 +350,14 @@ _convert_map = {
     'Mul'                               : _elemwise('mul'),
     'Relu'                              : AttrCvt('relu'),
     'Reshape'                           : _reshape(),
-    'ResizeBilinear'                    : _resize_bilinear(),                     # TODO
+    'ResizeBilinear'                    : _resize_bilinear(),
     'Softmax'                           : AttrCvt('softmax', {'axis': ('axis', 1)}),
     'Sub'                               : _elemwise('sub'),
 }
 
 
 class GraphProto(object):
-    """ TODO: A helper class for handling nnvm graph copying from Tensorflow GraphDef.
+    """ A helper class for handling nnvm graph copying from Tensorflow GraphDef.
     Definition:
         https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/graph.proto
     """
@@ -331,7 +373,19 @@ class GraphProto(object):
 
     def from_tensorflow(self, graph):
         """Construct nnvm nodes from tensor flow  graph definition - GraphDef.
-        TODO: Detailed explanation of TF GraphDef parsing.
+
+        Follow the tensorflow graph definition to parse and convert it to NNVM.
+        Some of the assumptions listed below.
+
+            -> First Const node will be comsidered as graph input.
+            -> Rest all Const nodes are params.
+            -> Last node is assumed as graph output.
+            -> _output_shapes : Attribute should present in the tenserflow forzen graph.
+            -> DecodeJpeg, ResizeBilinear: These are dymmy operators.
+                                           Hence user should handle preprocessing outside.
+            -> CheckNumerics: No implementation as of now for this.
+                              Just copies input to output.
+
 
         Parameters
         ----------
@@ -350,11 +404,17 @@ class GraphProto(object):
         # input nodes  : First const node
         # normal nodes : other normal nodes
 
+        try:
+            from tensorflow.python.framework import tensor_util
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
         for node in graph.node:
             # Tensor flow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
             if node.op == "Const":
-                # TODO: Assuming first Const node as Graph Input node
+                # Assuming first Const node as Graph Input node
                 if self._input_node == '':
                     self._input_node = node.name
                     self._num_input += 1
@@ -363,40 +423,58 @@ class GraphProto(object):
                     # Rest all nodes are Param nodes, lets parse
                     self._num_param += 1
                     for key, value in node.attr.items():
-                        if key == 'value':
-                            np_array = tensor_util.MakeNdarray(value.tensor)
-                            array_ndim = len(np_array.shape)
-                            if array_ndim == 0:
-                                new_array = np.empty([1], dtype=np_array.dtype)
-                                new_array[0] = np_array
-                                self._params[node.name] = tvm.nd.array(new_array)
-                            else:
-                                self._params[node.name] = tvm.nd.array(np_array)
-                            self._nodes[node.name] = _sym.Variable(name=node.name, shape=self._params[node.name].shape)
-                        else:
-                            if key != 'dtype' and key != '_output_shapes':
-                                raise NotImplementedError("Other attributes for a Const(param) Node {} ? .".format(key))
+                        self._parse_param(key, value, node.name)
                     if node.name not in self._nodes:
-                        raise NotImplementedError("Some thing Wrong : Const {} couldn't be converted to Param.".format(node.name))
+                        raise NotImplementedError( \
+                            "Const {} couldn't be converted to Param.".format(node.name))
             else:
                 attr = self._parse_attr(node.attr)
-                self._output_shapes[node.name] = [tensor_util.TensorShapeProtoToList(shape) for shape in attr['_output_shapes']]
+                self._output_shapes[node.name] = \
+                     [tensor_util.TensorShapeProtoToList(shape) for shape in attr['_output_shapes']]
 
                 try:
                     inputs = [self._nodes[i] for i in node.input]
+                    input_shapes = {}
+                    for i in node.input:
+                        if i not in self._params:
+                            input_shapes[self._nodes[i]] = self._output_shapes[i]
+                    attr['_input_shapes'] = input_shapes
                 except KeyError:
-                    # TODO: Need to find clean way to handle dropout of optional nodes like '^CheckNumerics'
+                    # TODO: Need to find clean way to handle '^CheckNumerics'
                     print ("Some Exception while inputs list:", node.input, " ignoring...")
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
 
                 op = self._convert_operator(node.op, inputs, attr)
-                # TODO: Assuming only one output.
+                # Assuming only one output.
                 self._nodes[node.name] = op
                 node_output = op
-        # TODO: Assume the final node is the output node
+        # Assume the final node is the output node
         out = node_output
         return out, self._params
+
+    def _parse_param(self, key, value, name):
+        try:
+            from tensorflow.python.framework import tensor_util
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
+        if key == 'value':
+            np_array = tensor_util.MakeNdarray(value.tensor)
+            array_ndim = len(np_array.shape)
+            if array_ndim == 0:
+                new_array = np.empty([1], dtype=np_array.dtype)
+                new_array[0] = np_array
+                self._params[name] = tvm.nd.array(new_array)
+            else:
+                self._params[name] = tvm.nd.array(np_array)
+            self._nodes[name] = _sym.Variable(name=name,
+                                              shape=self._params[name].shape)
+        else:
+            if key != 'dtype' and key != '_output_shapes':
+                raise NotImplementedError \
+                    ("Other attributes for a Const(param) Node {} ? .".format(key))
 
     def _get_attr(self, buf):
         """Returns the value of the attr of this buf with the given `name`.
@@ -414,26 +492,32 @@ class GraphProto(object):
 
         x = buf
 
+        ret = []
+
+        try:
+            from tensorflow.python.framework import dtypes
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
         # Treat an empty oneof value as an empty list.
         if not x.WhichOneof("value"):
-            return []
+            return ret
         if x.HasField("list"):
             for f in fields:
                 if getattr(x.list, f):
                     if f == "type":
-                        return [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
+                        ret = [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
                     else:
-                        return list(getattr(x.list, f))
-            return []
+                        ret = list(getattr(x.list, f))
         else:
             for f in fields:
                 if x.HasField(f):
                     if f == "type":
-                        return dtypes.as_dtype(getattr(x, f))
+                        ret = dtypes.as_dtype(getattr(x, f))
                     else:
-                        return getattr(x, f)
-            assert False, "Unsupported field type in " + str(x)
-            return []
+                        ret = getattr(x, f)
+        return ret
 
     def _parse_attr(self, attr_proto):
         """Convert a list of AttributeProto to a dict, with names as keys."""
@@ -480,7 +564,7 @@ class GraphProto(object):
 
     def _fix_extranodes(self, op_name, attr, inputs):
         if op_name == "Softmax":
-            # TODO: require some times flatten of data before it goes to softmax
+            # Require some times flatten of data before it goes to softmax
             # Need to relook into this with latest softmax axis support.
             op = AttrCvt(op_name='flatten')(inputs, {})
             node_output = op.list_output_names()
@@ -491,7 +575,7 @@ class GraphProto(object):
         return inputs
 
 def from_tensorflow(graph):
-    """  TODO: Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
+    """  Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
     The companion parameters will be handled automatically.
 
     Parameters
