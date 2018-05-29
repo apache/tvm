@@ -132,6 +132,32 @@ xcuserdata/
 .emscripten*
 .m2
 
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
 ## Other
 *.moved-aside
 *.xccheckout
@@ -144,3 +170,19 @@ cscope*
 # vim temporary files
 *.swp
 *.swo
+
+# TVM generated code
+perf
+
+*.json
+*.params
+*.onnx
+*.h5
+synset.txt
+cat.jpg
+
+# Mac OS X
+.DS_Store
+
+# Jetbrain
+.idea
