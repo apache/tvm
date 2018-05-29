@@ -1,6 +1,7 @@
 # pylint: disable=import-self, invalid-name, unused-argument
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
+from __future__ import print_function
 
 # Numpy support
 import numpy as np
@@ -227,6 +228,7 @@ def _conv():
 def _decode_image():
     def _impl(inputs, attr, params):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
+        print ("DecodeJpeg: It's a pass through, please handle preprocessing before input")
         return inputs[0]
     return _impl
 
@@ -248,8 +250,9 @@ def _expand_dims():
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        # Making a copy node assuming the input image shape is 299x299
+        # Making a copy node assuming the preprocessing already done.
         # Change this when we have corresponding resize bilinear operation.
+        print ("ResizeBilinear: It's a pass through, please handle preprocessing before input")
         pop_node = inputs.pop(1)
         params.pop(pop_node.list_output_names()[0])
         return AttrCvt(op_name="copy", ignores=['align_corners'])(inputs, attr)
@@ -427,6 +430,10 @@ class GraphProto(object):
                     if node.name not in self._nodes:
                         raise NotImplementedError( \
                             "Const {} couldn't be converted to Param.".format(node.name))
+
+                self._output_shapes[node.name] = \
+                     [tensor_util.TensorShapeProtoToList(shape) \
+                     for shape in self._parse_attr(node.attr)['_output_shapes']]
             else:
                 attr = self._parse_attr(node.attr)
                 self._output_shapes[node.name] = \
