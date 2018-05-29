@@ -360,6 +360,12 @@ installdev: lib/libtvm.$(SHARED_LIBRARY_SUFFIX) lib/libtvm_runtime.$(SHARED_LIBR
 	cp lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX) $(DESTDIR)$(PREFIX)/lib
 	cp lib/libtvm.a $(DESTDIR)$(PREFIX)/lib
 
+# Python setup env
+setup:
+	cd python; python setup.py install --user; cd ../
+	cd topi/python; python setup.py install --user; cd ../../
+	cd nnvm/python; python setup.py install --user; cd ../../
+
 # Cython build
 cython:
 	cd python; python setup.py build_ext --inplace

@@ -101,4 +101,7 @@ There are several ways to install the package:
     cd python; python setup.py install --user; cd ..
     cd topi/python; python setup.py install --user; cd ../..
     cd nnvm/python; python setup.py install --user; cd ../..
+
+    # Or invoke below command which does the same job (except for homebrew).
+    make setup
     ```
