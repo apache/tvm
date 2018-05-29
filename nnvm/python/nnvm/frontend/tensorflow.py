@@ -79,6 +79,11 @@ def _infer_channels(inputs, params, transpose=False):
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
 
+def _rsqrt():
+    def _impl(inputs, attr, *args):
+        return AttrCvt(op_name="__pow_scalar__", extras={'scalar': -0.5})(inputs, attr)
+    return _impl
+
 def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
@@ -294,12 +299,17 @@ def _matmul():
 
 def _identity():
     def _impl(inputs, attr, params):
-        # Tensorflow takes CheckNumerics as
-        # second argument which we could ignore for time being.
-        if len(inputs) == 2:
-            pop_node = inputs.pop(1)
-            params.pop(pop_node.list_output_names()[0])
-        return AttrCvt(op_name="copy", ignores=['T'])(inputs, attr)
+        return inputs[0]
+    return _impl
+
+def _concatV2():
+    def _impl(inputs, attr, params):
+        pop_node = inputs.pop(len(inputs)-1)
+        axis = params[pop_node.list_output_names()[0]]
+        params.pop(pop_node.list_output_names()[0])
+        return AttrCvt(
+            op_name="concatenate", ignores=['T', 'N', 'Tidx'],
+            extras={'axis': axis.asnumpy()[0]})(inputs, attr)
     return _impl
 
 def _concat():
@@ -326,6 +336,14 @@ def _reshape():
 def _bias_add():
     def _impl(inputs, attr, params):
         return _sym.broadcast_add(inputs[0], inputs[1])
+    return _impl
+
+def _squeeze():
+    def _impl(inputs, attr, params):
+        return AttrCvt(
+            op_name="squeeze",
+            transforms={'squeeze_dims':'axis'},
+            ignores=['T'])(inputs, attr)
     return _impl
 
 def _batch_norm():
@@ -358,6 +376,7 @@ _convert_map = {
     'Cast'                              : _cast(),
     'CheckNumerics'                     : _check_numerics(),
     'Concat'                            : _concat(),
+    'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv(),
     'DecodeJpeg'                        : _decode_image(),
     'ExpandDims'                        : _expand_dims(),
@@ -370,6 +389,9 @@ _convert_map = {
     'ResizeBilinear'                    : _resize_bilinear(),
     'Softmax'                           : AttrCvt('softmax', {'axis': ('axis', 1)}),
     'Sub'                               : _elemwise('sub'),
+    'Add'                               : _elemwise('add'),
+    'Rsqrt'                             : _rsqrt(),
+    'Squeeze'                           : _squeeze(),
 }
 
 
@@ -430,7 +452,16 @@ class GraphProto(object):
         for node in graph.node:
             # Tensor flow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
-            if node.op == "Const":
+            if node.op == "Placeholder":
+                # Assuming only one input graph with type 'Placeholder'
+                self._input_node = node.name
+                self._num_input += 1
+                self._nodes[node.name] = _sym.Variable(name=node.name)
+
+                self._output_shapes[node.name] = \
+                     [tensor_util.TensorShapeProtoToList(shape) \
+                     for shape in self._parse_attr(node.attr)['_output_shapes']]
+            elif node.op == "Const":
                 # Assuming first Const node as Graph Input node
                 if self._input_node == '':
                     self._input_node = node.name
