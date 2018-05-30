@@ -24,11 +24,34 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
   std::unordered_set<nnvm::Node*> pruned;
   nnvm::NodeEntryMap<nnvm::NodePtr> entry_var;
   std::unordered_set<std::string> unique_name;
+  std::unordered_map<std::string, NodeEntry> unique_expressn;
   // number of edges that are not variable
   int non_var_edge = 0;
+  std::string expressn = "";
+  std::function<std::string(const NodeEntry& node, std::string)>find_cummulative_expression
+    = [&find_cummulative_expression] (const NodeEntry& node, std::string expressn)->std::string {
+    if (node.node->is_variable()) {
+      expressn += node.node->attrs.name;
+    } else {
+      for (const auto& e : node.node->inputs) {
+        expressn = find_cummulative_expression(e, expressn);
+      }
+      // Append all the params name & value also in the expressn
+      for (auto kv : node.node->attrs.dict) {
+        expressn = kv.first + kv.second + expressn;
+      }
+      expressn = node.node->op()->name + expressn;
+    }
+    return expressn;
+  };
 
   auto replace_pruned_entry = [&] (const NodeEntry& e) {
     if (!entry_var.count(e)) {
+      expressn = "";
+      expressn = find_cummulative_expression(e, expressn);
+      if (unique_expressn.count(expressn)) {
+          return nnvm::NodeEntry{entry_var.at(unique_expressn.at(expressn)), 0, 0};
+      }
       if (!e.node->is_variable()) {
         ++non_var_edge;
       }
@@ -43,6 +66,7 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       entry_var.emplace(e, var);
       CHECK(!unique_name.count(var->attrs.name));
       unique_name.insert(var->attrs.name);
+      unique_expressn.emplace(expressn, e);
       return nnvm::NodeEntry{var, 0, 0};
     } else {
       return nnvm::NodeEntry{entry_var.at(e), 0, 0};
@@ -57,7 +81,6 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       }
       can_be_pruned = false;
     }
-
     for (const auto& e : n->inputs) {
       if (!pruned.count(e.node.get())) {
         can_be_pruned = false;
