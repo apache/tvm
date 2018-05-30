@@ -124,23 +124,23 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library):
                         unmatch_period_count = 0
                     continue
             conn, addr = listen_sock.accept()
-            magic = struct.unpack("@i", base.recvall(conn, 4))[0]
+            magic = struct.unpack("<i", base.recvall(conn, 4))[0]
             if magic != base.RPC_MAGIC:
                 conn.close()
                 continue
-            keylen = struct.unpack("@i", base.recvall(conn, 4))[0]
+            keylen = struct.unpack("<i", base.recvall(conn, 4))[0]
             key = py_str(base.recvall(conn, keylen))
             arr = key.split()
             expect_header = "client:" + matchkey
             server_key = "server:" + rpc_key
             if arr[0] != expect_header:
-                conn.sendall(struct.pack("@i", base.RPC_CODE_MISMATCH))
+                conn.sendall(struct.pack("<i", base.RPC_CODE_MISMATCH))
                 conn.close()
                 logging.info("RPCServer: mismatch key from %s", addr)
                 continue
             else:
-                conn.sendall(struct.pack("@i", base.RPC_CODE_SUCCESS))
-                conn.sendall(struct.pack("@i", len(server_key)))
+                conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
+                conn.sendall(struct.pack("<i", len(server_key)))
                 conn.sendall(server_key.encode("utf-8"))
                 return conn, addr, _parse_server_opt(arr[1:])
 
@@ -151,8 +151,8 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library):
             # step 1: setup tracker and report to tracker
             if tracker_addr and tracker_conn is None:
                 tracker_conn = base.connect_with_retry(tracker_addr)
-                tracker_conn.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
-                magic = struct.unpack("@i", base.recvall(tracker_conn, 4))[0]
+                tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
+                magic = struct.unpack("<i", base.recvall(tracker_conn, 4))[0]
                 if magic != base.RPC_TRACKER_MAGIC:
                     raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
                 # report status of current queue
@@ -193,17 +193,17 @@ def _connect_proxy_loop(addr, key, load_library):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect(addr)
-            sock.sendall(struct.pack("@i", base.RPC_MAGIC))
-            sock.sendall(struct.pack("@i", len(key)))
+            sock.sendall(struct.pack("<i", base.RPC_MAGIC))
+            sock.sendall(struct.pack("<i", len(key)))
             sock.sendall(key.encode("utf-8"))
-            magic = struct.unpack("@i", base.recvall(sock, 4))[0]
+            magic = struct.unpack("<i", base.recvall(sock, 4))[0]
             if magic == base.RPC_CODE_DUPLICATE:
                 raise RuntimeError("key: %s has already been used in proxy" % key)
             elif magic == base.RPC_CODE_MISMATCH:
                 logging.info("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
                 raise RuntimeError("%s is not RPC Proxy" % str(addr))
-            keylen = struct.unpack("@i", base.recvall(sock, 4))[0]
+            keylen = struct.unpack("<i", base.recvall(sock, 4))[0]
             remote_key = py_str(base.recvall(sock, keylen))
             opts = _parse_server_opt(remote_key.split()[1:])
             logging.info("RPCProxy connected to %s", str(addr))

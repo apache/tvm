@@ -7,6 +7,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/serializer.h>
 #include "./graph_runtime.h"
 
 namespace nnvm {
@@ -38,46 +39,53 @@ NNVM_REGISTER_OP(tvm_op)
 
 bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor) {
   uint64_t header = kTVMNDArrayMagic, reserved = 0;
-  strm->Write(&header, sizeof(header));
-  strm->Write(&reserved, sizeof(reserved));
-
-  strm->Write(&tensor->ctx, sizeof(tensor->ctx));
-  strm->Write(&tensor->ndim, sizeof(tensor->ndim));
-  strm->Write(&tensor->dtype, sizeof(tensor->dtype));
-
+  strm->Write(header);
+  strm->Write(reserved);
+  strm->Write(tensor->ctx);
+  strm->Write(tensor->ndim);
+  strm->Write(tensor->dtype);
   int ndim = tensor->ndim;
-  strm->Write(tensor->shape, sizeof(int64_t) * ndim);
+  strm->WriteArray(tensor->shape, ndim);
 
-  int type_size = tensor->dtype.bits / 8;
-  int64_t size = 1;
+  int type_bytes = tensor->dtype.bits / 8;
+  int64_t num_elems = 1;
   for (int i = 0; i < ndim; ++i) {
-    size *= tensor->shape[i];
+    num_elems *= tensor->shape[i];
   }
-  int64_t data_byte_size = type_size * size;
-  strm->Write(&data_byte_size, sizeof(data_byte_size));
-  strm->Write(tensor->data, data_byte_size);
+  int64_t data_byte_size = type_bytes * num_elems;
+  strm->Write(data_byte_size);
+  // handle endianness of data correctly.
+  if (DMLC_IO_NO_ENDIAN_SWAP) {
+    strm->Write(tensor->data, data_byte_size);
+  } else {
+    uint8_t* dptr = reinterpret_cast<uint8_t*>(tensor->data);
+    std::vector<uint8_t> bytes(dptr, dptr + data_byte_size);
+    dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
+    strm->Write(dmlc::BeginPtr(bytes), data_byte_size);
+  }
   return true;
 }
 
 DLTensor* LoadDLTensor(dmlc::Stream* strm) {
   uint64_t header, reserved;
-  CHECK(strm->Read(&header, sizeof(header)))
+  CHECK(strm->Read(&header))
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(&reserved, sizeof(reserved)))
+  CHECK(strm->Read(&reserved))
       << "Invalid DLTensor file format";
   CHECK(header == kTVMNDArrayMagic)
       << "Invalid DLTensor file format";
-
   DLTensor tensor;
-  CHECK(strm->Read(&tensor.ctx, sizeof(tensor.ctx)))
+  CHECK(strm->Read(&(tensor.ctx)))
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(&tensor.ndim, sizeof(tensor.ndim)))
+  CHECK(strm->Read(&(tensor.ndim)))
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(&tensor.dtype, sizeof(tensor.dtype)))
+  CHECK(strm->Read(&(tensor.dtype)))
       << "Invalid DLTensor file format";
   std::vector<int64_t> shape(tensor.ndim);
-  CHECK(strm->Read(&shape[0], sizeof(int64_t) * tensor.ndim))
-      << "Invalid DLTensor file format";
+  if (tensor.ndim != 0) {
+    CHECK(strm->ReadArray(&shape[0], tensor.ndim))
+        << "Invalid DLTensor file format";
+  }
   DLTensor* ret;
   CHECK_EQ(TVMArrayAlloc(shape.data(),
                          tensor.ndim,
@@ -87,18 +95,21 @@ DLTensor* LoadDLTensor(dmlc::Stream* strm) {
                          static_cast<int>(tensor.ctx.device_type),
                          tensor.ctx.device_id,
                          &ret), 0) << TVMGetLastError();
-  int64_t size = 1;
-  int type_size = ret->dtype.bits / 8;
+  int64_t num_elems = 1;
+  int elem_bytes = (ret->dtype.bits + 7) / 8;
   for (int i = 0; i < ret->ndim; ++i) {
-    size *= ret->shape[i];
+    num_elems *= ret->shape[i];
   }
   int64_t data_byte_size;
-  CHECK(strm->Read(&data_byte_size, sizeof(data_byte_size)))
+  CHECK(strm->Read(&data_byte_size))
       << "Invalid DLTensor file format";
-  CHECK(data_byte_size == type_size * size)
+  CHECK(data_byte_size == num_elems * elem_bytes)
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(ret->data, type_size * size))
+  CHECK(strm->Read(ret->data, data_byte_size))
       << "Invalid DLTensor file format";
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
+    dmlc::ByteSwap(ret->data, elem_bytes, num_elems);
+  }
   return ret;
 }
 
@@ -118,12 +129,12 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._save_param_dict")
     dmlc::MemoryStringStream strm(&bytes);
     dmlc::Stream* fo = &strm;
     uint64_t header = kTVMNDArrayListMagic, reserved = 0;
-    fo->Write(&header, sizeof(header));
-    fo->Write(&reserved, sizeof(reserved));
+    fo->Write(header);
+    fo->Write(reserved);
     fo->Write(names);
     {
       uint64_t sz = static_cast<uint64_t>(arrays.size());
-      fo->Write(&sz, sizeof(sz));
+      fo->Write(sz);
       for (size_t i = 0; i < sz; ++i) {
         SaveDLTensor(fo, arrays[i]);
       }
@@ -150,7 +161,6 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._load_param_dict")
         << "Invalid parameters file format";
     CHECK(strm->Read(&reserved))
         << "Invalid parameters file format";
-
     CHECK(strm->Read(&names))
         << "Invalid parameters file format";
     uint64_t sz;
