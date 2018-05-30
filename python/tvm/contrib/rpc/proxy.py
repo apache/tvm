@@ -58,14 +58,14 @@ class ForwardHandler(object):
     def _init_step(self, message):
         if self._magic is None:
             assert len(message) == 4
-            self._magic = struct.unpack('@i', message)[0]
+            self._magic = struct.unpack('<i', message)[0]
             if self._magic != base.RPC_MAGIC:
                 logging.info("Invalid RPC magic from %s", self.name())
                 self.close()
             self._init_req_nbytes = 4
         elif self._rpc_key_length is None:
             assert len(message) == 4
-            self._rpc_key_length = struct.unpack('@i', message)[0]
+            self._rpc_key_length = struct.unpack('<i', message)[0]
             self._init_req_nbytes = self._rpc_key_length
         elif self.rpc_key is None:
             assert len(message) == self._rpc_key_length
@@ -269,12 +269,12 @@ class ProxyServerHandler(object):
         lhs.forward_proxy = rhs
         rhs.forward_proxy = lhs
 
-        lhs.send_data(struct.pack('@i', base.RPC_CODE_SUCCESS))
-        lhs.send_data(struct.pack('@i', len(rhs.rpc_key)))
+        lhs.send_data(struct.pack('<i', base.RPC_CODE_SUCCESS))
+        lhs.send_data(struct.pack('<i', len(rhs.rpc_key)))
         lhs.send_data(rhs.rpc_key.encode("utf-8"))
 
-        rhs.send_data(struct.pack('@i', base.RPC_CODE_SUCCESS))
-        rhs.send_data(struct.pack('@i', len(lhs.rpc_key)))
+        rhs.send_data(struct.pack('<i', base.RPC_CODE_SUCCESS))
+        rhs.send_data(struct.pack('<i', len(lhs.rpc_key)))
         rhs.send_data(lhs.rpc_key.encode("utf-8"))
         logging.info("Pairup connect %s  and %s", lhs.name(), rhs.name())
 
@@ -299,8 +299,8 @@ class ProxyServerHandler(object):
             if self._tracker_conn is None:
                 self._tracker_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self._tracker_conn.connect(self._tracker_addr)
-                self._tracker_conn.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
-                magic = struct.unpack("@i", base.recvall(self._tracker_conn, 4))[0]
+                self._tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
+                magic = struct.unpack("<i", base.recvall(self._tracker_conn, 4))[0]
                 if magic != base.RPC_TRACKER_MAGIC:
                     self.loop.stop()
                     raise RuntimeError("%s is not RPC Tracker" % str(self._tracker_addr))
@@ -371,7 +371,7 @@ class ProxyServerHandler(object):
             if handler.match_key in self._server_pool:
                 self._pair_up(self._server_pool.pop(handler.match_key), handler)
             else:
-                handler.send_data(struct.pack('@i', base.RPC_CODE_MISMATCH))
+                handler.send_data(struct.pack('<i', base.RPC_CODE_MISMATCH))
                 handler.signal_close()
 
     def _handler_ready_proxy_mode(self, handler):
@@ -395,12 +395,12 @@ class ProxyServerHandler(object):
                     logging.info("Timeout client connection %s, cannot find match key=%s",
                                  handler.name(), key)
                     pool_dst.pop(key)
-                    handler.send_data(struct.pack('@i', base.RPC_CODE_MISMATCH))
+                    handler.send_data(struct.pack('<i', base.RPC_CODE_MISMATCH))
                     handler.signal_close()
             self.loop.call_later(timeout, cleanup)
         else:
             logging.info("Duplicate connection with same key=%s", key)
-            handler.send_data(struct.pack('@i', base.RPC_CODE_DUPLICATE))
+            handler.send_data(struct.pack('<i', base.RPC_CODE_DUPLICATE))
             handler.signal_close()
 
     def handler_ready(self, handler):
@@ -538,13 +538,13 @@ def websocket_proxy_server(url, key=""):
         on_message = create_on_message(conn)
         temp = _server_env(None)
         # Start connecton
-        conn.write_message(struct.pack('@i', base.RPC_MAGIC), binary=True)
+        conn.write_message(struct.pack('<i', base.RPC_MAGIC), binary=True)
         key = "server:" + key
-        conn.write_message(struct.pack('@i', len(key)), binary=True)
+        conn.write_message(struct.pack('<i', len(key)), binary=True)
         conn.write_message(key.encode("utf-8"), binary=True)
         msg = yield conn.read_message()
         assert len(msg) >= 4
-        magic = struct.unpack('@i', msg[:4])[0]
+        magic = struct.unpack('<i', msg[:4])[0]
         if magic == base.RPC_CODE_DUPLICATE:
             raise RuntimeError("key: %s has already been used in proxy" % key)
         elif magic == base.RPC_CODE_MISMATCH:

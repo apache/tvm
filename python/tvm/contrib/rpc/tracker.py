@@ -143,11 +143,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
         if len(message) != 4:
             logging.info("Invalid connection from %s", self.name())
             self.close()
-        magic = struct.unpack('@i', message)[0]
+        magic = struct.unpack('<i', message)[0]
         if magic != RPC_TRACKER_MAGIC:
             logging.info("Invalid magic from %s", self.name())
             self.close()
-        self.write_message(struct.pack('@i', RPC_TRACKER_MAGIC), binary=True)
+        self.write_message(struct.pack('<i', RPC_TRACKER_MAGIC), binary=True)
         self._init_req_nbytes = 0
 
     def on_message(self, message):
@@ -168,7 +168,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         while True:
             if self._msg_size == 0:
                 if len(self._data) >= 4:
-                    self._msg_size = struct.unpack('@i', self._data[:4])[0]
+                    self._msg_size = struct.unpack('<i', self._data[:4])[0]
                 else:
                     return
             if self._msg_size != 0 and len(self._data) >= self._msg_size + 4:
@@ -184,7 +184,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         """return value to the output"""
         data = json.dumps(data)
         self.write_message(
-            struct.pack('@i', len(data)), binary=True)
+            struct.pack('<i', len(data)), binary=True)
         self.write_message(data.encode("utf-8"), binary=True)
 
     def call_handler(self, args):
@@ -355,8 +355,8 @@ class Tracker(object):
     def _stop_tracker(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((self.host, self.port))
-        sock.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
-        magic = struct.unpack("@i", base.recvall(sock, 4))[0]
+        sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
+        magic = struct.unpack("<i", base.recvall(sock, 4))[0]
         assert magic == base.RPC_TRACKER_MAGIC
         base.sendjson(sock, [TrackerCode.STOP, self.stop_key])
         assert base.recvjson(sock) == TrackerCode.SUCCESS

@@ -192,8 +192,8 @@ class TrackerSession(object):
 
     def _connect(self):
         self._sock = base.connect_with_retry(self._addr)
-        self._sock.sendall(struct.pack("@i", base.RPC_TRACKER_MAGIC))
-        magic = struct.unpack("@i", base.recvall(self._sock, 4))[0]
+        self._sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
+        magic = struct.unpack("<i", base.recvall(self._sock, 4))[0]
         if magic != base.RPC_TRACKER_MAGIC:
             raise RuntimeError("%s is not RPC Tracker" % str(self._addr))
 
