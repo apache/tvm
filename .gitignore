@@ -98,7 +98,6 @@ build_*
 Win32
 *.dir
 perf
-nnvm
 *.wasm
 .emscripten
 
