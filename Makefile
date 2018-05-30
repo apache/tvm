@@ -298,7 +298,7 @@ build/%.o: src/%.cc
 
 build/topi/%.o: topi/src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) $(CFLAGS) -MM -MT build/topi/$*.o $< >build/topi/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
 lib/libtvm.${SHARED_LIBRARY_SUFFIX}: $(ALL_DEP) $(RUNTIME_DEP)
