@@ -243,3 +243,36 @@ def schedule_upsampling(_, outs, target):
         return topi.generic.schedule_injective(outs)
 
 reg.register_pattern("upsampling", OpPattern.INJECTIVE)
+
+@reg.register_compute("lrn")
+def compute_lrn(attrs, inputs, _):
+    """Compute definition of lrn"""
+    size = attrs.get_int("size")
+    axis = attrs.get_int("axis")
+    alpha = attrs.get_float("alpha")
+    beta = attrs.get_float("beta")
+    bias = attrs.get_float("bias")
+    return topi.nn.lrn(inputs[0], size, axis, alpha, beta, bias)
+
+@reg.register_schedule("lrn")
+def schedule_lrn(attrs, outs, target):
+    """Schedule definition of lrn"""
+    with tvm.target.create(target):
+        return topi.generic.schedule_lrn(outs)
+
+reg.register_pattern("lrn", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("l2norm")
+def compute_l2norm(attrs, inputs, _):
+    """Compute definition of l2norm"""
+    eps = attrs.get_float("eps")
+    axis = attrs.get_int_tuple("axis")
+    return topi.nn.l2norm_instance(inputs[0], eps, axis)
+
+@reg.register_schedule("l2norm")
+def schedule_l2norm(attrs, outs, target):
+    """Schedule definition of l2norm"""
+    with tvm.target.create(target):
+        return topi.generic.schedule_l2norm(outs)
+
+reg.register_pattern("l2norm", OpPattern.OUT_ELEMWISE_FUSABLE)

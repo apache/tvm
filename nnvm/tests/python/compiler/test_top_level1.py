@@ -365,6 +365,129 @@ def test_pad():
     inputs = [('x', (1, 3, 28, 28), x)]
     helper(y, inputs, dtype, forward)
 
+def verify_lrn(n, c, h, w, size, axis, bias, alpha, beta):
+    x = sym.Variable("x")
+    y = sym.lrn(x, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+    dtype = "float32"
+    dshape = (n, c, h, w)
+    x_np = np.random.uniform(size=dshape).astype(dtype)
+
+    def lrn_python(a_np, size, axis, bias, alpha, beta):
+        """Local response norm operator in NCHW layout.
+
+        Parameters
+        ----------
+        a_np : numpy.ndarray
+            4-D with shape [batch, in_channel, in_height, in_width]
+
+        size : int
+            normalisation window size
+
+        axis : int
+            input data layout channel axis
+
+        bias : float
+            offset to avoid dividing by 0. constant value
+
+        alpha : float
+            contant valie
+
+        beta : float
+            exponent constant value
+
+        Returns
+        -------
+        b_np : np.ndarray
+            4-D with shape [batch, out_channel, out_height, out_width]
+        """
+        axis0, axis1, axis2, axis3 = a_np.shape
+        radius = size // 2
+        sqr_sum = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+        sqr_sum_up = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+        lrn_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+        def sum_dot_values(i, j, k, l):
+            axis_size = a_np.shape[axis]
+            if (axis == 1):
+                #NCHW layout
+                sum_start = j-radius if j-radius >= 0 else 0
+                sum_end = j+radius+1 if j+radius+1 < axis_size else axis_size
+                sqr_sum[i, j, k, l] = sum(a_np[i, sum_start:sum_end, k, l] * \
+                                          a_np[i, sum_start:sum_end, k, l])
+            elif (axis == 3):
+                #NHWC layout
+                sum_start = l-radius if l-radius >= 0 else 0
+                sum_end = l+radius+1 if l+radius+1 < axis_size else axis_size
+                sqr_sum[i, j, k, l] = sum(a_np[i, j, k, sum_start:sum_end] * \
+                                          a_np[i, j, k, sum_start:sum_end])
+
+        for i in range(axis0):
+            for j in range(axis1):
+                for k in range(axis2):
+                    for l in range(axis3):
+                        sum_dot_values(i, j, k, l)
+
+        sqr_sum_up = np.power((bias + (alpha * sqr_sum /size)), beta)
+        return np.divide(a_np, sqr_sum_up)
+
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(dshape))
+        out_np = np.zeros(shape=(n, c, h, w)).astype(dtype)
+        out_np = lrn_python(x_np, size, axis, bias, alpha, beta)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def verify_l2norm(batch, channel, height, width, eps, axis):
+    x = sym.Variable("x")
+    y = sym.l2norm(x, eps=eps, axis=axis)
+    dtype = "float32"
+    dshape = (batch, channel, height, width)
+    x_np = np.random.uniform(size=dshape).astype(dtype)
+
+    def l2norm_instance_python(a_np, eps, axis=None):
+        """L2 norm operator in NCHW layout.
+
+        Parameters
+        ----------
+        a_np : numpy.ndarray
+            4-D with shape [batch, in_channel, in_height, in_width]
+
+        eps : float
+            epsilon constant value
+        axis : list of int
+            axis over the normalization applied
+
+        Returns
+        -------
+        l2norm_out : np.ndarray
+            4-D with shape [batch, out_channel, out_height, out_width]
+        """
+        batch, axis1, axis2, axis3 = a_np.shape
+        sqr_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
+        sqrt_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
+        l2norm_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+        dot_value = np.power(a_np, 2.0)
+        sqr_sum = np.sum(dot_value, axis, keepdims=True)
+        sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
+        return np.divide(a_np, sqrt_sum)
+
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(dshape))
+        out_np = np.zeros(shape=(batch, channel, height, width)).astype(dtype)
+        out_np = l2norm_instance_python(x_np, eps, axis)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def test_lrn():
+    verify_lrn(1, 3, 20, 20, 3, 1, 1.0, 1.0, 0.5)
+    verify_lrn(1, 3, 20, 20, 3, 1, 2.0, 1.0, 0.75)
+
+def test_l2norm():
+    verify_l2norm(1, 3, 20, 20, 0.001, (1,))
+    verify_l2norm(1, 3, 20, 20, 0.001, (1, 2))
 
 if __name__ == "__main__":
     test_split()
@@ -384,3 +507,5 @@ if __name__ == "__main__":
     test_softmax()
     test_squeeze()
     test_pad()
+    test_lrn()
+    test_l2norm()
