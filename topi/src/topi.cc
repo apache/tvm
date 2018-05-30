@@ -289,7 +289,7 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
 /* Ops from nn/scale.h */
 TVM_REGISTER_GLOBAL("topi.nn.scale")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::scale(args[0], args[1], args[2], args[3]);
+  *rv = nn::scale(args[0], args[1], args[2], args[3], args[4]);
   });
 
 /* Ops from nn/batch_norm.h */

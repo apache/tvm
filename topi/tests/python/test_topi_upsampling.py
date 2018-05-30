@@ -5,7 +5,7 @@ import topi
 import topi.testing
 import math
 
-def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCHW'):
+def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCHW', align_corners=False):
 
 
     if layout == 'NCHW':
@@ -22,9 +22,9 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    B = topi.nn.upsampling(A, scale, layout=layout)
+    B = topi.nn.upsampling(A, scale, layout=layout, align_corners=align_corners)
 
-    b_np = topi.testing.upsampling_python(a_np, scale, layout)
+    b_np = topi.testing.upsampling_python(a_np, scale, layout, align_corners)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -46,8 +46,10 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
         check_device(device)
 
 def test_upsampling():
+    # NCHW
     verify_upsampling(8, 16, 32, 32, 2)
     verify_upsampling(12, 32, 64, 64, 3)
+    # NHWC
     verify_upsampling(8, 16, 32, 32, 2, "NHWC")
     verify_upsampling(12, 32, 64, 64, 3, "NHWC")
 

@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import topi
 
 
-def bilinear_scale(data, weights, out_size, layout="NCHW"):
+def bilinear_scale(data, weights, out_size, layout="NCHW", align_corners=False):
     """Perform bilinear scaling on the data.
 
     Parameters
@@ -28,4 +28,4 @@ def bilinear_scale(data, weights, out_size, layout="NCHW"):
         4-D with shape [batch, channel, out_height, out_width]
         or [batch, out_height, out_width, channel]
     """
-    return topi.cpp.nn.scale([data, weights], out_size, layout, "BILINEAR")
+    return topi.cpp.nn.scale([data, weights], out_size, layout, align_corners, "BILINEAR")

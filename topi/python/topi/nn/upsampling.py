@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import topi
 
 
-def upsampling(data, scale, layout="NCHW"):
+def upsampling(data, scale, layout="NCHW", align_corners=False):
     """Perform nearest neighbor upsampling on the data.
        Bilinear upsampling is not supported.
 
@@ -26,7 +26,6 @@ def upsampling(data, scale, layout="NCHW"):
         or [batch, in_height*scale, in_width*scale, channel]
     """
 
-
     if layout == "NCHW":
         out_shape = (data.shape[2] * scale, data.shape[3] * scale)
     elif layout == "NHWC":
@@ -34,4 +33,4 @@ def upsampling(data, scale, layout="NCHW"):
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
-    return topi.cpp.nn.scale([data], out_shape, layout, "NN")
+    return topi.cpp.nn.scale([data], out_shape, layout, align_corners, "NN")

@@ -25,15 +25,17 @@ using namespace tvm;
 *
 * \param inputs The input tensor array.
 * \param shape Output shape to scale to.
+* \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
 inline Tensor scale_nn_nhwc(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+                            const Array<Expr> shape,
+                            bool align_corners = false,
+                            std::string name = "tensor",
+                            std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(shape[0]);
@@ -60,15 +62,17 @@ inline Tensor scale_nn_nhwc(const Array<Tensor>& inputs,
 *
 * \param inputs The input tensor array.
 * \param shape Output shape to scale to.
+* \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
 inline Tensor scale_nn_nchw(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+                            const Array<Expr> shape,
+                            bool align_corners = false,
+                            std::string name = "tensor",
+                            std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(inputs[0]->shape[1]);
@@ -96,20 +100,24 @@ inline Tensor scale_nn_nchw(const Array<Tensor>& inputs,
 * \param inputs The input tensor array.
 * \param shape Output shape to scale to.
 * \param layout input layout
+* \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
 inline Tensor scale_nn(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
-                    std::string layout = "NCHW",
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+                       const Array<Expr> shape,
+                       std::string layout = "NCHW",
+                       bool align_corners = false,
+                       std::string name = "tensor",
+                       std::string tag = kInjective) {
+  CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
+
   if (layout == "NHWC") {
-    return scale_nn_nhwc(inputs, shape);
+    return scale_nn_nhwc(inputs, shape, align_corners);
   } else {
-    return scale_nn_nchw(inputs, shape);
+    return scale_nn_nchw(inputs, shape, align_corners);
   }
 }
 
@@ -118,15 +126,17 @@ inline Tensor scale_nn(const Array<Tensor>& inputs,
 *
 * \param inputs The input tensor array.
 * \param shape Output shape to scale to.
+* \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
 inline Tensor scale_bilinear_nhwc(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+                                  const Array<Expr> shape,
+                                  bool align_corners = false,
+                                  std::string name = "tensor",
+                                  std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(shape[0]);
@@ -141,18 +151,24 @@ inline Tensor scale_bilinear_nhwc(const Array<Tensor>& inputs,
   Tensor coords = cast(weights[0], Int(32));
 
   Expr cone = make_const(UInt(32), 1);
+  Expr other_y = tvm::ir::Simplify(inputs[0]->shape[1] - cone);
+  Expr other_x = tvm::ir::Simplify(inputs[0]->shape[2] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    auto y1 = coords(indices[1], indices[2], 0);
-    auto x1 = coords(indices[1], indices[2], 1);
+    auto y0 = coords(indices[1], indices[2], 0);
+    auto x0 = coords(indices[1], indices[2], 1);
+
+    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
+    auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
+
     auto h = weights[1](indices[1], indices[2], 0);
     auto w = weights[1](indices[1], indices[2], 1);
 
-    auto A = inputs[0](indices[0], y1, x1, indices[3]);
-    auto B = inputs[0](indices[0], y1, x1+cone, indices[3]);
-    auto C = inputs[0](indices[0], y1+cone, x1, indices[3]);
-    auto D = inputs[0](indices[0], y1+cone, x1+cone, indices[3]);
+    auto A = inputs[0](indices[0], y0, x0, indices[3]);
+    auto B = inputs[0](indices[0], y0, x1, indices[3]);
+    auto C = inputs[0](indices[0], y1, x0, indices[3]);
+    auto D = inputs[0](indices[0], y1, x1, indices[3]);
 
     return  (A*(cone-w)*(cone-h) + B*(w)*(cone-h) + C*(h)*(cone-w) + D*w*h);
     }, name, tag);
@@ -163,15 +179,17 @@ inline Tensor scale_bilinear_nhwc(const Array<Tensor>& inputs,
 *
 * \param inputs The input tensor array.
 * \param shape Output shape to scale to.
+* \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
 inline Tensor scale_bilinear_nchw(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+                                  const Array<Expr> shape,
+                                  bool align_corners = false,
+                                  std::string name = "tensor",
+                                  std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(inputs[0]->shape[1]);
@@ -184,17 +202,25 @@ inline Tensor scale_bilinear_nchw(const Array<Tensor>& inputs,
   Array<Tensor> weights = split(inputs[1], split_ind, 2);
   Tensor coords = cast(weights[0], Int(32));
 
+  Expr cone = make_const(UInt(32), 1);
+  Expr other_y = tvm::ir::Simplify(inputs[0]->shape[2] - cone);
+  Expr other_x = tvm::ir::Simplify(inputs[0]->shape[3] - cone);
+
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    auto y1 = coords(indices[2], indices[3], 0);
-    auto x1 = coords(indices[2], indices[3], 1);
+    auto y0 = coords(indices[2], indices[3], 0);
+    auto x0 = coords(indices[2], indices[3], 1);
+
+    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
+    auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
+
     auto h = weights[1](indices[2], indices[3], 0);
     auto w = weights[1](indices[2], indices[3], 1);
 
-    auto A = inputs[0](indices[0], indices[1], y1, x1);
-    auto B = inputs[0](indices[0], indices[1], y1, x1+1);
-    auto C = inputs[0](indices[0], indices[1], y1+1, x1);
-    auto D = inputs[0](indices[0], indices[1], y1+1, x1+1);
+    auto A = inputs[0](indices[0], indices[1], y0, x0);
+    auto B = inputs[0](indices[0], indices[1], y0, x1);
+    auto C = inputs[0](indices[0], indices[1], y1, x0);
+    auto D = inputs[0](indices[0], indices[1], y1, x1);
 
     return  (A*(1-w)*(1-h) + B*(w)*(1-h) + C*(h)*(1-w) + D*w*h);
     }, name, tag);
@@ -206,22 +232,24 @@ inline Tensor scale_bilinear_nchw(const Array<Tensor>& inputs,
 * \param inputs The input tensor array.
 * \param shape Output shape to scale to.
 * \param layout input layout
+* \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
 inline Tensor scale_bilinear(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
-                    std::string layout = "NCHW",
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+                             const Array<Expr> shape,
+                             std::string layout = "NCHW",
+                             bool align_corners = false,
+                             std::string name = "tensor",
+                             std::string tag = kInjective) {
   Tensor ret;
 
   if (layout == "NHWC") {
-    ret = scale_bilinear_nhwc(inputs, shape);
+    ret = scale_bilinear_nhwc(inputs, shape, align_corners);
   } else {
-    ret = scale_bilinear_nchw(inputs, shape);
+    ret = scale_bilinear_nchw(inputs, shape, align_corners);
   }
 
   return cast(ret, inputs[0]->dtype);
@@ -234,6 +262,7 @@ inline Tensor scale_bilinear(const Array<Tensor>& inputs,
 * Bilinear will have 2 inputs one being the weights.
 * \param shape Output shape to scale to.
 * \param layout input layout
+* \param align_corners To preserve centers of 4 corner pixels
 * \param mode Angorithm to use (NN / BILINEAR)
 * \param name Name of the operation
 * \param tag The tag to mark the operation
@@ -241,15 +270,16 @@ inline Tensor scale_bilinear(const Array<Tensor>& inputs,
 * \return A Tensor resized to given shape
 */
 inline Tensor scale(const Array<Tensor>& inputs,
-                    Array<Expr> shape,
+                    const Array<Expr> shape,
                     std::string layout = "NCHW",
+                    bool align_corners = false,
                     std::string mode = "BILINEAR",
                     std::string name = "tensor",
                     std::string tag = kInjective) {
   if (mode == "NN") {
-    return scale_nn(inputs, shape, layout);
+    return scale_nn(inputs, shape, layout, align_corners);
   } else {
-    return scale_bilinear(inputs, shape, layout);
+    return scale_bilinear(inputs, shape, layout, align_corners);
   }
 }
 
