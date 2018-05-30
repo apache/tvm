@@ -366,13 +366,16 @@ NNVM_REGISTER_OP(softmax)
     // [ ...                  ,-ynyn + yn]
     //
     // grad_x =
-    // [-y1*(ograd1*y1 - 1 + ograd2*y2 + ..., -y2*(ograd1*y1 - 1 + ograd2*y2, ..., ...]]
+    // [-y1*(ograd1*y1 - ograd1 + ograd2*y2 + ...),
+    //  -y2*(ograd1*y1 - ograd2 + ograd2*y2 + ...),
+    //  ...
+    //  -yn*(ograd1*y1 - ogradn + ograd2*y2 + ...)]
 
     // grad_x = ograd elemwise_mul output
     // grad_x = sum(grad_x, keepdim, axis)
     // grad_x = grad_x broadcast_mul output
     // grad_x = neg grad_x
-    // grad_x = grad_x + output
+    // grad_x = grad_x + ograd elemwise_mul output
     const SoftmaxParam& param = nnvm::get<SoftmaxParam>(n->attrs.parsed);
     NodeEntry output =  NodeEntry{n, 0, 0};
     NodeEntry sub0 = MakeNode("elemwise_mul", n->attrs.name + "_grad_sub0", {ograds[0], output});
@@ -381,7 +384,7 @@ NNVM_REGISTER_OP(softmax)
     NodeEntry sub2 = MakeNode("broadcast_mul", n->attrs.name + "_grad_sub2", {sub1, output});
     NodeEntry sub3 = MakeNode("negative", n->attrs.name + "_grad_sub3", {sub2});
     return std::vector<NodeEntry> {
-      MakeNode("elemwise_add", n->attrs.name + "_grad", {sub3, output})
+      MakeNode("elemwise_add", n->attrs.name + "_grad", {sub3, sub0})
     };
 });
 
