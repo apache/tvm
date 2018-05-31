@@ -69,9 +69,15 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 #endif
       llvm::legacy::PassManager pass;
       CHECK(tm_);
+#if TVM_LLVM_VERSION <= 60
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+#endif
       pass.run(*m);
     } else if (fmt == "s" || fmt == "asm") {
 #if TVM_LLVM_VERSION <= 60
@@ -81,9 +87,15 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 #endif
       llvm::legacy::PassManager pass;
       CHECK(tm_);
+#if TVM_LLVM_VERSION <= 60
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+#endif
       pass.run(*m);
     } else if (fmt == "ll") {
       mptr_->print(dest, nullptr);
