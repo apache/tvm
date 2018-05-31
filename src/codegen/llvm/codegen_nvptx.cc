@@ -194,9 +194,15 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   std::string ll(data_ll.begin(), data_ll.end());
   // emit ptx
   llvm::legacy::PassManager pass;
+#if TVM_LLVM_VERSION <= 60
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+      pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_ObjectFile";
+#endif
   pass.run(*module);
   std::string ptx(data_ptx.begin(), data_ptx.end());
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
