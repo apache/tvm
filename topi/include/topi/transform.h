@@ -379,16 +379,20 @@ inline Array<Tensor> split(const Tensor& x,
 * \return A Tensor whose op member is the split operation
 */
 inline Tensor strided_slice(const Tensor& x,
-                            Array<Expr> begin,
-                            Array<Expr> end,
-                            Array<Expr> stride,
+                            const Array<Expr> begin,
+                            const Array<Expr> end,
+                            const Array<Expr> stride,
                             std::string name = "tensor",
                             std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
-  auto begin_val = GetConstIntValues(begin, "begin");
-  auto end_val = GetConstIntValues(end, "end");
-  auto stride_val = GetConstIntValues(stride, "stride");
+  std::vector<int> begin_val = GetConstIntValues(begin, "begin");
+  std::vector<int> end_val = GetConstIntValues(end, "end");
+  std::vector<int> stride_val = GetConstIntValues(stride, "stride");
 
+  /* User can give begin, end & stride for only few axes, in that case */
+  /* expand the array for begin,end & stride to match num of axes of input data */
+  /* and fill with corresponding default values. */
+  /* If user has not provided stride, then construct stride with default values as 1 */
   auto expand_axis = [x](std::vector<int> list_ids,
                          size_t src_tensor_dim, int fill_value, bool end) {
     if (list_ids.size() < src_tensor_dim) {
@@ -422,7 +426,7 @@ inline Tensor strided_slice(const Tensor& x,
   for (size_t i = 0; i < src_tensor_dim; ++i) {
     int begin_range = stride_ids[i] < 0 ? -1 : 0;
     int end_range = stride_ids[i] < 0 ? GetConstInt(x->shape[i]) - 1 : GetConstInt(x->shape[i]);
-
+    /* canonicalindices() transform the user input begin/end to input Tensor dimension space */
     auto canonicalindices = [x, i, begin_range, end_range](int a) {
       if (a < 0) {
         a += GetConstInt(x->shape[i]);
