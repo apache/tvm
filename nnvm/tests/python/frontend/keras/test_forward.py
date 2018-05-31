@@ -181,12 +181,23 @@ def test_forward_multi_inputs():
 
 
 def test_forward_reuse_layers():
+    # reuse conv2d
     data = keras.layers.Input(shape=(32,32,3))
     conv2d = keras.layers.Conv2D(8, (3, 3), padding="same")
     x = conv2d(data)
     y = conv2d(data)
     z = keras.layers.add([x, y])
     z = keras.layers.GlobalAveragePooling2D()(z)
+    keras_model = keras.models.Model(data, z)
+    verify_keras_frontend(keras_model)
+
+    # reuse add
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
+    add = keras.layers.Add()
+    x = add([x, x])
+    x = add([x, x])
+    z = keras.layers.GlobalAveragePooling2D()(x)
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 

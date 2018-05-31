@@ -478,36 +478,30 @@ def from_keras(model):
             keras_layer.name = keras_layer.name
             symtab.get_var(keras_layer.name, must_contain=False)
         else:
-            predecessors = []
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
                        else None
             if inbound_nodes is None:
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
-            for node in inbound_nodes:
+            for my_idx, node in enumerate(inbound_nodes):
+                insym = []
+
                 # Since Keras allows creating multiple layers from the same name instance,
                 # we append node index to the symbol name to make it unique.
                 # The one exception is InputLayer.  Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible.  Fortunately,
                 # it's safe because all the input layers have unique names in Keras.
-                for i, pred in zip(node.node_indices, node.inbound_layers):
+                for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
                     if isinstance(pred, keras.engine.topology.InputLayer):
-                        predecessors.append(pred.name)
+                        _sym = symtab.get_var(pred.name, must_contain=True)
                     else:
-                        predecessors.append(pred.name + str(i))
+                        _sym = symtab.get_var(pred.name + str(pred_idx), must_contain=True)
+                    insym.append(_sym)
 
-            # With the current implementation, _convert_merge and _convert_concat
-            # expects their inputs to be List.  For now, we handle them differently,
-            # but in future, we could have a unified way here.
-            if _convert_map[type(keras_layer).__name__] == _convert_merge \
-                    or _convert_map[type(keras_layer).__name__] == _convert_concat:
-                insym = [symtab.get_var(pred, must_contain=True) for pred in predecessors]
-                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + '0', symtab)
-            else:
-                for i, pred in enumerate(predecessors):
-                    insym = symtab.get_var(pred, must_contain=True)
-                    keras_op_to_nnvm(insym, keras_layer, keras_layer.name + str(i), symtab)
+                if len(insym) == 1:
+                    insym = insym[0]
+                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + str(my_idx), symtab)
 
     outsym = symtab.get_var(model.output_layers[0].name + '0')
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
