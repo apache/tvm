@@ -49,6 +49,7 @@ class RPCDeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final {
     int from_dev_type = ctx_from.device_type;
     int to_dev_type = ctx_to.device_type;
@@ -60,19 +61,18 @@ class RPCDeviceAPI final : public DeviceAPI {
           RPCCode::kCopyAmongRemote,
           static_cast<const RemoteSpace*>(from)->data, from_offset,
           static_cast<const RemoteSpace*>(to)->data, to_offset,
-          size,  ctx_from, ctx_to, stream);
+          size,  ctx_from, ctx_to, type_hint, stream);
     } else if (from_dev_type > kRPCSessMask &&
                to_dev_type == kDLCPU) {
       GetSess(ctx_from)->CopyFromRemote(
           static_cast<const RemoteSpace*>(from)->data, from_offset,
-          to, to_offset, size,
-          ctx_from);
+          to, to_offset, size, ctx_from, type_hint);
     } else if (from_dev_type == kDLCPU &&
                to_dev_type > kRPCSessMask) {
       GetSess(ctx_to)->CopyToRemote(
           (void*)from, from_offset,  // NOLINT(*)
           static_cast<const RemoteSpace*>(to)->data, to_offset,
-          size, ctx_to);
+          size, ctx_to, type_hint);
     } else {
       LOG(FATAL) << "expect copy from/to remote or between remote";
     }

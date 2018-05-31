@@ -158,6 +158,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
                                     size_t size,
                                     TVMContext ctx_from,
                                     TVMContext ctx_to,
+                                    TVMType type_hint,
                                     TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
