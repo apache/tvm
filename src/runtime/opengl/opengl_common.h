@@ -175,6 +175,7 @@ class OpenGLWorkspace final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
 
