@@ -3,8 +3,8 @@
 """Definition of nn ops"""
 from __future__ import absolute_import
 
-import topi
 import tvm
+import topi
 from . import registry as reg
 from .registry import OpPattern
 

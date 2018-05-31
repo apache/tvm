@@ -71,7 +71,7 @@ def _batch_norm(inputs, attrs):
     new_attrs['axis'] = attrs.get('axis', 1)
     new_attrs['epsilon'] = attrs.get('eps', 0.001)
     new_attrs['center'] = True
-    new_attrs['scale'] = True
+    new_attrs['scale'] = not _parse_bool_str(attrs, 'fix_gamma', default="False")
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 def _concat(inputs, attrs):

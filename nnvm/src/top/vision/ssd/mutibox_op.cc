@@ -48,10 +48,10 @@ bool MultiBoxPriorShape(const NodeAttrs& attrs,
   return true;
 }
 
-inline bool MultiBoxPriorInferLayout(const NodeAttrs& attrs,
-                                     std::vector<Layout> *ilayouts,
-                                     const std::vector<Layout> *last_ilayouts,
-                                     std::vector<Layout> *olayouts) {
+inline bool MultiBoxPriorLayout(const NodeAttrs& attrs,
+                                std::vector<Layout> *ilayouts,
+                                const std::vector<Layout> *last_ilayouts,
+                                std::vector<Layout> *olayouts) {
   static const Layout kNCHW("NCHW");
   CHECK_EQ(ilayouts->size(), 1U);
   CHECK_EQ(olayouts->size(), 1U);
@@ -70,7 +70,7 @@ NNVM_REGISTER_OP(multibox_prior)
 .add_argument("data", "Tensor", "Input data")
 .set_attr<FInferShape>("FInferShape", MultiBoxPriorShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", MultiBoxPriorInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", MultiBoxPriorLayout)
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
@@ -107,10 +107,10 @@ bool MultiBoxDetectionShape(const NodeAttrs& attrs,
   return true;
 }
 
-inline bool MultiBoxDetectionInferLayout(const NodeAttrs& attrs,
-                                         std::vector<Layout> *ilayouts,
-                                         const std::vector<Layout> *last_ilayouts,
-                                         std::vector<Layout> *olayouts) {
+inline bool MultiBoxDetectionLayout(const NodeAttrs& attrs,
+                                    std::vector<Layout> *ilayouts,
+                                    const std::vector<Layout> *last_ilayouts,
+                                    std::vector<Layout> *olayouts) {
   CHECK_EQ(ilayouts->size(), 3U);
   CHECK_EQ(last_ilayouts->size(), 3U);
   CHECK_EQ(olayouts->size(), 1U);
@@ -140,7 +140,7 @@ NNVM_REGISTER_OP(multibox_detection)
 })
 .set_attr<FInferShape>("FInferShape", MultiBoxDetectionShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<3, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", MultiBoxDetectionInferLayout)
+.set_attr<FCorrectLayout>("FCorrectLayout", MultiBoxDetectionLayout)
 .set_support_level(4);
 
 }  // namespace top

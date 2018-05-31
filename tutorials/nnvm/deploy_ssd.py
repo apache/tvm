@@ -13,7 +13,6 @@ import zipfile
 import tvm
 import cv2
 import numpy as np
-import mxnet as mx
 
 from nnvm import compiler
 from nnvm.frontend import from_mxnet
@@ -36,8 +35,8 @@ from mxnet.model import load_checkpoint
 
 model_name = "ssd_resnet50_512"
 model_file = "%s.zip" % model_name
-test_image = "person.jpg"
-target = "llvm -mcpu=core-avx2"
+test_image = "dog.jpg"
+target = "llvm"
 dshape = (1, 3, 512, 512)
 dtype = "float32"
 ctx = tvm.cpu()
@@ -73,8 +72,9 @@ def download(url, path, overwrite=False):
 
 model_url = "https://github.com/zhreshold/mxnet-ssd/releases/download/v0.6/" \
             "resnet50_ssd_512_voc0712_trainval.zip"
-image_url = "https://cloud.githubusercontent.com/assets/3307514/20012563/" \
-            "cbb41382-a27d-11e6-92a9-18dab4fd1ad3.jpg"
+image_url = "https://cloud.githubusercontent.com/assets/3307514/20012567/" \
+            "cbb60336-a27d-11e6-93ff-cbc3f09f5c9e.jpg"
+            
 dir = "ssd_model"
 if not os.path.exists(dir):
     os.makedirs(dir)
@@ -99,17 +99,58 @@ with compiler.build_config(opt_level=3):
 ######################################################################
 # Create TVM runtime and do inference
 
-img_data = cv2.imread(test_image_path)
-img_data = cv2.resize(img_data, (dshape[2], dshape[3]))
+# Preprocess image
+image = cv2.imread(test_image_path)
+img_data = cv2.resize(image, (dshape[2], dshape[3]))
+img_data = img_data[:, :, (2, 1, 0)].astype(np.float32)
+img_data -= np.array([123, 117, 104])
 img_data = np.transpose(np.array(img_data), (2, 0, 1))
 img_data = np.expand_dims(img_data, axis=0)
-np_data = np.random.uniform(0, 255, size=dshape).astype(dtype)
+# Build TVM runtime
 m = graph_runtime.create(graph, lib, ctx)
 m.set_input('data', tvm.nd.array(img_data.astype(dtype)))
 m.set_input(**params)
 # execute
 m.run()
 # get outputs
-_, oshape = compiler.graph_util.infer_shape(graph, {"data": dshape})
-tvm_output = m.get_output(0, tvm.nd.empty(oshape, dtype))
-print(tvm_output.shape)
+_, oshape = compiler.graph_util.infer_shape(graph, shape={"data": dshape})
+tvm_output = m.get_output(0, tvm.nd.empty(tuple(oshape[0]), dtype))
+
+
+######################################################################
+# Display result
+
+class_names = ["aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair",
+               "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant",
+               "sheep", "sofa", "train", "tvmonitor"]
+def display(img, out, thresh=0.5):
+    import random
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    mpl.rcParams['figure.figsize'] = (10,10)
+    pens = dict()
+    plt.clf()
+    plt.imshow(img)
+    for det in out:
+        cid = int(det[0])
+        if cid < 0:
+            continue
+        score = det[1]
+        if score < thresh:
+            continue
+        if cid not in pens:
+            pens[cid] = (random.random(), random.random(), random.random())
+        scales = [img.shape[1], img.shape[0]] * 2
+        xmin, ymin, xmax, ymax = [int(p * s) for p, s in zip(det[2:6].tolist(), scales)]
+        rect = plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin, fill=False,
+                             edgecolor=pens[cid], linewidth=3)
+        plt.gca().add_patch(rect)
+        text = class_names[cid]
+        plt.gca().text(xmin, ymin-2, '{:s} {:.3f}'.format(text, score),
+                       bbox=dict(facecolor=pens[cid], alpha=0.5),
+                       fontsize=12, color='white')
+    plt.show()
+
+image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+display(image, tvm_output.asnumpy()[0], thresh=0.45)
+
