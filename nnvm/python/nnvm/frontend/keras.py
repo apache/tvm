@@ -50,27 +50,45 @@ def _convert_activation(insym, keras_layer, _):
     elif act_type == 'softplus':
         return _sym.log(_sym.__add_scalar__(_sym.exp(insym), scalar=1))
     elif act_type == 'elu':
-        raise NotImplementedError('elu not implemented')
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
+        return -alpha * _sym.relu(1 - _sym.exp(insym)) + _sym.relu(insym)
+    elif act_type == 'selu':
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1.6732
+        gamma = keras_layer.gamma if hasattr(keras_layer, "gamma") else 1.0507
+        return gamma * (-alpha * _sym.relu(1 - _sym.exp(insym)) + _sym.relu(insym))
     elif act_type == 'relu6':
         return _sym.clip(insym, a_min=0, a_max=6)
     elif act_type == 'softsign':
-        raise NotImplementedError('softsign not implemented')
+        return insym / (1 + (_sym.relu(insym) + _sym.relu(_sym.negative(insym))))
     elif act_type == 'hard_sigmoid':
-        raise NotImplementedError('hard_sigmoid not implemented')
+        transformX = (0.2 * insym) + 0.5
+        return _sym.clip(transformX, a_min=0, a_max=1)
     else:
         raise TypeError("Unsupported activation type : {}".format(act_type))
 
 
-def _convert_advanced_activation(insym, keras_layer, _):
+def _convert_advanced_activation(insym, keras_layer, symtab):
     act_type = type(keras_layer).__name__
     if act_type == 'LeakyReLU':
         return _sym.leaky_relu(insym, alpha=keras_layer.alpha)
     elif act_type == 'ELU':
-        raise NotImplementedError('ELU not implemented')
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
+        return -alpha * _sym.relu(1 - _sym.exp(insym)) + _sym.relu(insym)
     elif act_type == 'PReLU':
-        raise NotImplementedError('PReLU not implemented')
+        assert hasattr(keras_layer, "alpha"), \
+            "alpha required for PReLU."
+        _check_data_format(keras_layer)
+        transposeShape = []
+        size = len(keras_layer.alpha.shape)
+        transposeShape.append(size - 1)
+        for i in range(size - 1):
+            transposeShape.append(i)
+        return -symtab.new_const(keras_layer.get_weights()[0].transpose(transposeShape)) \
+                                 * _sym.relu(-insym) + _sym.relu(insym)
     elif act_type == 'ThresholdedReLU':
-        raise NotImplementedError('ThresholdedReLU not implemented')
+        theta = keras_layer.theta if hasattr(keras_layer, "theta") else 1.0
+        theta_tensor = _sym.full_like(insym[0], fill_value=float(theta))
+        return _sym.elemwise_mul(insym[0], _sym.greater(insym[0], theta_tensor, out_type="float32"))
     else:
         raise TypeError("Unsupported advanced activation type : {}".format(act_type))
 

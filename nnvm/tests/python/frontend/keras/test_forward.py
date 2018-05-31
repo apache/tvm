@@ -85,6 +85,57 @@ def test_forward_leaky_relu():
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
 
+def test_forward_prelu():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
+    weights = np.random.rand(1, 16, 16, 10)
+    x = keras.layers.PReLU(weights=weights, alpha_initializer="zero")(x)
+    x = keras.layers.Add()([x, x])
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+def test_forward_elu():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
+    x = keras.layers.ELU(alpha=0.5)(x)
+    x = keras.layers.Add()([x, x])
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+def test_forward_selu():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Activation('selu')(data)
+    x = keras.layers.Concatenate()([x, x])
+    x = keras.layers.GlobalMaxPooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+def test_forward_thresholdedrelu():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
+    x = keras.layers.ThresholdedReLU(theta=0.5)(x)
+    x = keras.layers.Add()([x, x])
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+def test_forward_softsign():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Activation('softsign')(data)
+    x = keras.layers.Concatenate()([x, x])
+    x = keras.layers.GlobalMaxPooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+def test_forward_hardsigmoid():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Activation('hard_sigmoid')(data)
+    x = keras.layers.Concatenate()([x, x])
+    x = keras.layers.GlobalMaxPooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
 
 def test_forward_dense():
     data = keras.layers.Input(shape=(32,32,3))
@@ -171,13 +222,18 @@ if __name__ == '__main__':
     test_forward_softmax()
     test_forward_softrelu()
     test_forward_leaky_relu()
+    test_forward_prelu()
+    test_forward_elu()
+    test_forward_selu()
+    test_forward_thresholdedrelu()
+    test_forward_softsign()
+    test_forward_hardsigmoid()
     test_forward_dense()
     test_forward_transpose_conv()
     test_forward_separable_conv()
     test_forward_upsample()
     test_forward_relu6()
     test_forward_reshape()
-
     test_forward_vgg16()
     test_forward_xception()
     test_forward_resnet50()
