@@ -146,3 +146,39 @@ def gradients(ys, xs, grad_ys=None):
         if isinstance(xs, list) else len(xs.list_output_names())
     ret = [grad_g.symbol[i] for i in range(nx)]
     return ret
+
+def split_last_op(graph):
+    """Split graph into the last operator
+    and all other parts before.
+
+    Parameters
+    ----------
+    graph : Graph
+        The original graph.
+
+    Returns
+    -------
+    main_graph: Graph
+        The graph before last operator.
+
+    last_op_graph: Graph
+        The graph for the last operator.
+    """
+    graph_idx = graph.index
+    last_op_node = graph_idx.nodes[-1]
+    last_op_func = getattr(sym, last_op_node["op"])
+    if "attrs" in last_op_node:
+        last_op_attr = last_op_node["attrs"]
+    else:
+        last_op_attr = {}
+    last_op_num_inputs = len(last_op_node["inputs"])
+    last_op_inputs = []
+    for i in range(last_op_num_inputs):
+        input_idx = last_op_node["inputs"][i][0]
+        input_name = graph_idx.nodes[input_idx]["name"]
+        last_op_inputs.append(sym.Variable(input_name))
+    last_op_sym = last_op_func(*last_op_inputs, **last_op_attr)
+    last_op_graph = create(last_op_sym)
+    main_graph_sym = graph.symbol.get_children()
+    main_graph = create(main_graph_sym)
+    return main_graph, last_op_graph

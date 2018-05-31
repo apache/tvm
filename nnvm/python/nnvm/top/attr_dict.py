@@ -83,6 +83,21 @@ class AttrDict(object):
         """
         return int(self[key])
 
+    def get_float_tuple(self, key):
+        """Get tuple of float from attr dict
+
+        Parameters
+        ----------
+        key : str
+            The attr key
+
+        Returns
+        -------
+        tuple : tuple of float
+            The result tuple
+        """
+        return tuple(float(x) for x in self[key][1:-1].split(",") if x)
+
     def get_float(self, key):
         """Get float from attr dict
 

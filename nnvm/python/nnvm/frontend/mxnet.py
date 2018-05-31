@@ -195,6 +195,12 @@ def _split(inputs, attrs):
     new_attrs['axis'] = attrs.get('axis', 1)
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _softmax_activation(inputs, attrs):
+    op_name, new_attrs = 'softmax', {}
+    mode = attrs.get('mode', 'instance')
+    new_attrs['axis'] = 0 if mode == 'instance' else 1
+    return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
+
 def _softmax_output(inputs, attrs):
     op_name, new_attrs = 'softmax', {}
     if _parse_bool_str(attrs, 'multi_output'):
@@ -212,6 +218,30 @@ def _clip(inputs, attrs):
     new_attrs['a_max'] = _required_attr(attrs, 'a_max')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _contrib_multibox_detection(inputs, attrs):
+    clip = _parse_bool_str(attrs, 'clip', default='True')
+    threshold = attrs.get('threshold') or 0.01
+    nms_threshold = attrs.get('nms_threshold') or 0.5
+    force_suppress = _parse_bool_str(attrs, 'force_suppress', default='False')
+    variances = tuple([float(x.strip()) for x in attrs.get('variances').strip('()').split(',')]) \
+        if attrs.get('variances') is not None else (0.1, 0.1, 0.2, 0.2)
+    nms_topk = attrs.get('nms_topk') or -1
+    new_attrs = {'clip': clip, 'threshold': float(threshold),
+                 'nms_threshold': float(nms_threshold),
+                 'force_suppress': force_suppress,
+                 'variances': variances, 'nms_topk': int(nms_topk)}
+    return _get_nnvm_op('multibox_detection')(inputs[0],inputs[1],
+                                              inputs[2], **new_attrs)
+
+def _crop_like(inputs, _):
+    if len(inputs) < 2:
+        raise RuntimeError("Only support crop_like pattern.")
+    return _get_nnvm_op('crop_like')(inputs[0], inputs[1])
+
+def _elemwise_sum(inputs, _):
+    new_attrs = {'num_args':len(inputs)}
+    return _get_nnvm_op('elemwise_sum')(*inputs, **new_attrs)
+
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
@@ -224,12 +254,15 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'relu', 'sigmoid', 'softmax', 'sum', 'tanh', 'transpose']
 
 _convert_map = {
+    '_copy'         : _rename('copy'),
     '_div_scalar'   : _rename('__div_scalar__'),
     '_minus_scalar' : _rename('__sub_scalar__'),
     '_mul_scalar'   : _rename('__mul_scalar__'),
     '_plus_scalar'  : _rename('__add_scalar__'),
     '_rdiv_scalar'  : _rename('__rdiv_scalar__'),
     '_rminus_scalar': _rename('__rsub_scalar__'),
+    '_contrib_MultiBoxPrior' : _rename('multibox_prior'),
+    '_contrib_MultiBoxDetection' : _contrib_multibox_detection,
     'Activation'    : _activations,
     'BatchNorm'     : _batch_norm,
     'BatchNorm_v1'  : _batch_norm,
@@ -237,6 +270,7 @@ _convert_map = {
     'Concat'        : _concat,
     'Convolution'   : _conv2d,
     'Convolution_v1': _conv2d,
+    'Crop'          : _crop_like,
     'Deconvolution' : _conv2d_transpose,
     'Dropout'       : _dropout,
     'Flatten'       : _rename('flatten'),
@@ -248,7 +282,9 @@ _convert_map = {
     'SliceChannel'  : _split,
     'split'         : _split,
     'Softmax'       : _rename('softmax'),
+    'SoftmaxActivation' : _softmax_activation,
     'SoftmaxOutput' : _softmax_output,
+    'add_n'         : _elemwise_sum,
     'concat'        : _concat,
     'max_axis'      : _rename('max'),
     'min_axis'      : _rename('min'),

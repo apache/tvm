@@ -32,6 +32,8 @@ class BuildConfig(object):
     defaults = {
         "opt_level": 2,
         "add_pass": None,
+        "extra_lib_op": None,
+        "extra_lib_target": None,
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -232,6 +234,11 @@ def build(graph, target=None, shape=None, dtype="float32",
     params : dict of str to NDArray
         The updated parameters of graph if params is passed.
         This can be different from the params passed in.
+
+    extra_lib : tuple of (Graph, tvm.Module, dict of str to NDArray)
+        Extra runtime library for the last operator of the graph.
+        This return value only exists when extra_lib_op and
+        extra_lib_target are set in build_config.
     """
     target = target if target else tvm.target.current_target()
     if target is None:
@@ -247,6 +254,36 @@ def build(graph, target=None, shape=None, dtype="float32",
 
     cfg = BuildConfig.current
     graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
+    # Build extra operator runtime library
+    extra_lib = ()
+    build_extra = False
+    if cfg.extra_lib_op is not None:
+        build_extra = True
+        graph, extra_op_graph = graph_util.split_last_op(graph)
+        last_op_name = extra_op_graph.index.nodes[-1]["op"]
+        if cfg.extra_lib_op != last_op_name:
+            raise RuntimeError("Currently only supports splitting the "
+                               "last operator of the input graph. "
+                               "extra_lib_op in build_config is %s, "
+                               "but the last op of the graph is %s." %
+                               (cfg.extra_lib_op, last_op_name))
+        extra_op_params = {}
+        if params is not None:
+            for input_name in extra_op_graph.symbol.list_input_names():
+                if input_name in params:
+                    extra_op_params[input_name] = params[input_name]
+                    params.remove(input_name)
+        _, graph_oshape = graph_util.infer_shape(graph, **shape)
+        extra_op_ishape = {}
+        shape_idx = 0
+        for input_name in extra_op_graph.symbol.list_input_names():
+            if input_name not in extra_op_params:
+                extra_op_ishape[input_name] = graph_oshape[shape_idx]
+            shape_idx += 1
+        # Disable extra_lib option in cfg to ensure extra_op only built once.
+        cfg.extra_lib_op = None
+        extra_lib = build(extra_op_graph, cfg.extra_lib_target,
+                          shape=extra_op_ishape, params=extra_op_params)
     shape, dtype = _update_shape_dtype(shape, dtype, params)
 
     # correct layout if necessary
@@ -298,7 +335,10 @@ def build(graph, target=None, shape=None, dtype="float32",
         if params is None:
             params = {}
         params.update(init_var)
-    return graph, libmod, params
+    if not build_extra:
+        return graph, libmod, params
+    else:
+        return graph, libmod, params, extra_lib
 
 def _remove_noref_params(params, graph):
     """ Helper to clear non referenced params
