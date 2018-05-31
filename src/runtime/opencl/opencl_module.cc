@@ -32,8 +32,9 @@ class OpenCLModuleNode : public ModuleNode {
   };
   explicit OpenCLModuleNode(std::string data,
                             std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap)
-      : data_(data), fmt_(fmt), fmap_(fmap) {}
+                            std::unordered_map<std::string, FunctionInfo> fmap,
+                            std::string source)
+      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
   // destructor
   ~OpenCLModuleNode() {
     {
@@ -81,7 +82,7 @@ class OpenCLModuleNode : public ModuleNode {
     if (fmt_ == "cl") {
       return data_;
     } else {
-      return "";
+      return source_;
     }
   }
 
@@ -97,6 +98,15 @@ class OpenCLModuleNode : public ModuleNode {
       program_ = clCreateProgramWithSource(
           workspace_->context, 1, &s, &len, &err);
       OPENCL_CHECK_ERROR(err);
+    } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin") {
+      const unsigned char* s = (const unsigned char *)data_.c_str();
+      size_t len = data_.length();
+      cl_int err;
+      program_ = clCreateProgramWithBinary(
+          workspace_->context, 1, &(workspace_->devices[0]), &len, &s, NULL, &err);
+      if (err != CL_SUCCESS) {
+        LOG(ERROR) << "OpenCL Error: " << cl::CLGetErrorString(err);
+      }
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;
     }
@@ -162,6 +172,8 @@ class OpenCLModuleNode : public ModuleNode {
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // Module local mutex
   std::mutex build_lock_;
+  // The OpenCL source.
+  std::string source_;
   // the binary data
   cl_program program_{nullptr};
   // build info
@@ -270,9 +282,10 @@ PackedFunc OpenCLModuleNode::GetFunction(
 Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap) {
+    std::unordered_map<std::string, FunctionInfo> fmap,
+    std::string source) {
   std::shared_ptr<OpenCLModuleNode> n =
-      std::make_shared<OpenCLModuleNode>(data, fmt, fmap);
+      std::make_shared<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }
@@ -286,7 +299,7 @@ Module OpenCLModuleLoadFile(const std::string& file_name,
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenCLModuleCreate(data, fmt, fmap);
+  return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
 Module OpenCLModuleLoadBinary(void* strm) {
@@ -297,7 +310,7 @@ Module OpenCLModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return OpenCLModuleCreate(data, fmt, fmap);
+  return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_cl")
@@ -306,6 +319,16 @@ TVM_REGISTER_GLOBAL("module.loadfile_cl")
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_clbin")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("module.loadfile_xclbin")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("module.loadfile_awsxclbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = OpenCLModuleLoadFile(args[0], args[1]);
   });

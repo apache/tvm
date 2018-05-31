@@ -121,6 +121,22 @@ def vpi(dev_id=0):
     return TVMContext(9, dev_id)
 
 
+def sdaccel(dev_id=0):
+    """Construct a SDAccel device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
+    """
+    return TVMContext(4, dev_id)
+
+
 def vulkan(dev_id=0):
     """Construct a Vulkan device
 
