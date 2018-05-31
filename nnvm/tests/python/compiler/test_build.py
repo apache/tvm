@@ -112,7 +112,7 @@ def test_compile_extra_lib():
     m.set_input("data", in_data)
     m.run()
     _, oshape = nnvm.compiler.graph_util.infer_shape(graph, shape={"data": dshape})
-    expected_out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+    expected_out = m.get_output(0, tvm.nd.empty(oshape[0], dtype))
 
     with nnvm.compiler.build_config(opt_level=opt_level, extra_lib_op="flatten", extra_lib_target=extra_lib_target):
         graph, lib, _, extra_libmod = nnvm.compiler.build(out, target, {"data": dshape})
@@ -125,8 +125,8 @@ def test_compile_extra_lib():
     extra_input_name = extra_graph.symbol.list_input_names()[0]
     extra_m.set_input(extra_input_name, major_out)
     extra_m.run()
-    final_out = extra_m.get_output(0, tvm.nd.empty(oshape, dtype))
-    np.testing.assert_allclose(major_out.asnumpy(), final_out.asnumpy(), atol=1e-5, rtol=1e-5)
+    final_out = extra_m.get_output(0, tvm.nd.empty(oshape[0], dtype))
+    np.testing.assert_allclose(expected_out.asnumpy(), final_out.asnumpy(), atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":

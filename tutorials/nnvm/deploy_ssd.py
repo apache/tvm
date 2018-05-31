@@ -19,19 +19,9 @@ from nnvm.frontend import from_mxnet
 from tvm.contrib import graph_runtime
 from mxnet.model import load_checkpoint
 
-######################################################################
-# To get started, clone mxnet repo from github
-# and extract ssd symbol directory:
-#
-#   .. code-block:: bash
-#
-#     git clone https://github.com/apache/incubator-mxnet mxnet
-#     mkdir symbol && cp -a mxnet/example/ssd/symbol/* symbol
-
 
 ######################################################################
 # Set the parameters here.
-#
 
 model_name = "ssd_resnet50_512"
 model_file = "%s.zip" % model_name
@@ -88,7 +78,10 @@ zip_ref.close()
 
 ######################################################################
 # Convert and compile model with NNVM for CPU.
+# First we need to download MXNet SSD example and create inference model.
 
+os.system("git clone https://github.com/apache/incubator-mxnet mxnet")
+os.system("cp -avr mxnet/example/ssd/symbol symbol")
 from symbol.symbol_factory import get_symbol
 sym = get_symbol("resnet50", dshape[2], num_classes=20)
 _, arg_params, aux_params = load_checkpoint("%s/%s" % (dir, model_name), 0)
