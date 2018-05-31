@@ -53,6 +53,7 @@ class CPUDeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final {
     memcpy(static_cast<char*>(to) + to_offset,
            static_cast<const char*>(from) + from_offset,

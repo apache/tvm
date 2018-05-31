@@ -434,7 +434,7 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
   DeviceAPIManager::Get(ctx)->CopyDataFromTo(
     from->data, static_cast<size_t>(from->byte_offset),
     to->data, static_cast<size_t>(to->byte_offset),
-    from_size, from->ctx, to->ctx, stream);
+    from_size, from->ctx, to->ctx, from->dtype, stream);
 
   API_END();
 }
@@ -452,7 +452,7 @@ int TVMArrayCopyFromBytes(TVMArrayHandle handle,
   DeviceAPIManager::Get(handle->ctx)->CopyDataFromTo(
       data, 0,
       handle->data, static_cast<size_t>(handle->byte_offset),
-      nbytes, cpu_ctx, handle->ctx, nullptr);
+      nbytes, cpu_ctx, handle->ctx, handle->dtype, nullptr);
   API_END();
 }
 
@@ -469,7 +469,7 @@ int TVMArrayCopyToBytes(TVMArrayHandle handle,
   DeviceAPIManager::Get(handle->ctx)->CopyDataFromTo(
       handle->data, static_cast<size_t>(handle->byte_offset),
       data, 0,
-      nbytes, handle->ctx, cpu_ctx, nullptr);
+      nbytes, handle->ctx, cpu_ctx, handle->dtype, nullptr);
   API_END();
 }
 
