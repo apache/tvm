@@ -23,7 +23,8 @@ git submodule update
 ## Build the Shared Library
 
 Our goal is to build the shared libraries:
-- On Linux/OSX the target library are `libtvm.so, libtvm_topi.so`
+- On Linux the target library are `libtvm.so, libtvm_topi.so`
+- On OSX the target library are `libtvm.dylib, libtvm_topi.dylib`
 - On Windows the target library are `libtvm.dll, libtvm_topi.dll`
 
 ```bash
@@ -39,6 +40,7 @@ The minimal building requirement is
 The configuration of tvm can be modified by ```config.mk```
 - First copy ```make/config.mk``` to the project root, on which
   any local modification will be ignored by git, then modify the according flags.
+  - On macOS, for some versions of XCode, you need to add ```-lc++abi``` in the LDFLAGS or you'll get link errors.
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
   - LLVM 4.0 or higher is needed for build with LLVM. Note that verison of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
@@ -49,7 +51,12 @@ The configuration of tvm can be modified by ```config.mk```
       For example, set ```LLVM_CONFIG=llvm-config-4.0``` if you installed 4.0 package
 
 We can then build tvm by `make`.
-After we build the tvm, we can proceed to build nnvm using the following script.
+
+```bash
+make -j4
+```
+
+After we build tvm, we can proceed to build nnvm using the following script.
 
 ```bash
 cd nnvm
@@ -98,6 +105,7 @@ There are several ways to install the package:
     # NOTE: if you installed python via homebrew, --user is not needed during installaiton
     #       it will be automatically installed to your user directory.
     #       providing --user flag may trigger error during installation in such case.
+    export MACOSX_DEPLOYMENT_TARGET=10.9  # This is required for mac to avoid symbol conflicts with libstdc++
     cd python; python setup.py install --user; cd ..
     cd topi/python; python setup.py install --user; cd ../..
     cd nnvm/python; python setup.py install --user; cd ../..
