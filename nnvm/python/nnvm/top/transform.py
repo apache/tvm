@@ -37,22 +37,6 @@ def compute_reshape_like(attrs, inputs, out_info):
 reg.register_pattern("reshape_like", OpPattern.INJECTIVE)
 reg.register_schedule("reshape_like", _fschedule_injective)
 
-# crop_like
-@reg.register_compute("crop_like")
-def compute_crop_like(_, inputs, out_info):
-    """Compute definition of crop_like"""
-    data0 = inputs[0]
-    data1 = inputs[1]
-    h0, w0 = data0.shape[2], data0.shape[3]
-    h1, w1 = data1.shape[2], data1.shape[3]
-    if h0.value <= h1.value and w0.value <= w1.value:
-        return data0
-    out = tvm.compute(data1.shape, lambda *shape: data0(*shape))
-    return out
-
-reg.register_pattern("crop_like", OpPattern.INJECTIVE)
-reg.register_schedule("crop_like", _fschedule_injective)
-
 # transpose
 reg.register_pattern("transpose", OpPattern.INJECTIVE)
 reg.register_schedule("transpose", _fschedule_injective)

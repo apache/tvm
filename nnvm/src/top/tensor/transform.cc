@@ -616,31 +616,6 @@ the input array into an output array with the same shape as the second input arr
 })
 .set_support_level(4);
 
-NNVM_REGISTER_OP(crop_like)
-.describe(R"code(Crop the 3rd and 4th dim of the first input data, with the corresponding
-size of the second input data.
-.. note::
-    Input arrays should have the same number of dimensions.
-)code" NNVM_ADD_FILELINE)
-.add_argument("data", "Tensor", "Input data.")
-.add_argument("shape_like", "Tensor", "Input data.")
-.set_num_inputs(2)
-.set_num_outputs(1)
-.set_attr<FInferShape>(
-  "FInferShape", [](const NodeAttrs& attrs,
-                    std::vector<TShape>* in_attrs,
-                    std::vector<TShape>* out_attrs) {
-    CHECK_EQ(in_attrs->at(0).ndim(), in_attrs->at(1).ndim())
-      << "Input arrays should have the same number of dimensions.";
-    TShape oshape = in_attrs->at(0);
-    oshape[2] = std::min(in_attrs->at(0)[2], in_attrs->at(1)[2]);
-    oshape[3] = std::min(in_attrs->at(0)[3], in_attrs->at(1)[3]);
-    NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, oshape);
-    return true;
-})
-.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
-.set_support_level(4);
-
 // squeeze
 DMLC_REGISTER_PARAMETER(SqueezeParam);
 
