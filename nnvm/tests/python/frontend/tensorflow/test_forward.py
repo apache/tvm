@@ -327,6 +327,42 @@ def test_forward_concat_v2():
     test_concat_v2([t1, t2], 1)
 
 #######################################################################
+# Multi Input to graph
+# --------------------
+
+def test_forward_multi_input():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.int32, shape=[3, 3], name='in1')
+        in2 = tf.placeholder(tf.int32, shape=[3, 3], name='in2')
+        in3 = tf.placeholder(tf.int32, shape=[3, 3], name='in3')
+        in4 = tf.placeholder(tf.int32, shape=[3, 3], name='in4')
+
+        out1 = tf.add(in1, in2, name='out1')
+        out2 = tf.subtract(in3, in4, name='out2')
+
+        out = tf.multiply(out1, out2, name='out')
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph.as_graph_def(add_shapes=True),
+                ['out'],
+                )
+
+            in_data = np.arange(9, dtype='int32').reshape([3, 3])
+
+            tf_output = run_tf_graph(sess, [in_data, in_data, in_data, in_data ],
+                                     ['in1:0', 'in2:0', 'in3:0', 'in4:0'], 'out:0')
+            tvm_output = run_tvm_graph(graph_def,
+                                       [in_data, in_data, in_data, in_data ],
+                                       ['in1', 'in2', 'in3', 'in4'],
+                                       tf_output.shape, tf_output.dtype)
+
+            np.testing.assert_allclose(tf_output, tvm_output)
+
+            sess.close()
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -335,3 +371,4 @@ if __name__ == '__main__':
     test_forward_reshape()
     test_forward_squeeze()
     test_forward_concat_v2()
+    test_forward_multi_input()
