@@ -83,6 +83,12 @@ Open the .sln file in the build directory and build with Visual Studio.
 In order to build with LLVM in windows, you will need to build LLVM from source.
 You need to run build the nnvm by running the same script under the nnvm folder.
 
+### Building ROCm support
+Currently, ROCm is supported only on linux, so all the instructions are written with linux in mind.
+- Set ```USE_ROCM=1```, set ROCM_PATH to the correct path.
+- You need to first install HIP runtime from ROCm. Make sure the installation system has ROCm installed in it.
+- Install latest stable version of LLVM (v6.0.1), and LLD, make sure ```ld.lld``` is available via command line.
+
 ## Python Package Installation
 
 The python package is located at python
