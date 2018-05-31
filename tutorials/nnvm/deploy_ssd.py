@@ -11,6 +11,7 @@ import os
 import urllib
 import zipfile
 import tvm
+import mxnet as mx
 import cv2
 import numpy as np
 
@@ -78,12 +79,8 @@ zip_ref.close()
 
 ######################################################################
 # Convert and compile model with NNVM for CPU.
-# First we need to download MXNet SSD example and create inference model.
 
-os.system("git clone https://github.com/apache/incubator-mxnet mxnet")
-os.system("cp -avr mxnet/example/ssd/symbol symbol")
-from symbol.symbol_factory import get_symbol
-sym = get_symbol("resnet50", dshape[2], num_classes=20)
+sym = mx.sym.load("ssd/ssd_resnet50_inference.json")
 _, arg_params, aux_params = load_checkpoint("%s/%s" % (dir, model_name), 0)
 net, params = from_mxnet(sym, arg_params, aux_params)
 with compiler.build_config(opt_level=3):
