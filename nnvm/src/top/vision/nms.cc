@@ -41,10 +41,18 @@ bool NMSShape(const NodeAttrs& attrs,
   return true;
 }
 
+inline bool NMSInferType(const NodeAttrs &attrs,
+                         std::vector<int> *in_attrs,
+                         std::vector<int> *out_attrs) {
+  DTYPE_ASSIGN(out_attrs->at(0), in_attrs->at(0));
+  return true;
+
+}
+
 inline bool NMSInferLayout(const NodeAttrs& attrs,
-                                     std::vector<Layout> *ilayouts,
-                                     const std::vector<Layout> *last_ilayouts,
-                                     std::vector<Layout> *olayouts) {
+                           std::vector<Layout> *ilayouts,
+                           const std::vector<Layout> *last_ilayouts,
+                           std::vector<Layout> *olayouts) {
   static const Layout kNCHW("NCHW");
   CHECK_EQ(ilayouts->size(), 2U);
   CHECK_EQ(olayouts->size(), 1U);
@@ -68,7 +76,7 @@ NNVM_REGISTER_OP(nms)
   return std::vector<std::string>{"data", "valid_count"};
 })
 .set_attr<FInferShape>("FInferShape", NMSShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FInferType>("FInferType", NMSInferType)
 .set_attr<FCorrectLayout>("FCorrectLayout", NMSInferLayout)
 .set_support_level(4);
 

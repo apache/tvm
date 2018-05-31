@@ -65,22 +65,31 @@ model_url = "https://github.com/zhreshold/mxnet-ssd/releases/download/v0.6/" \
             "resnet50_ssd_512_voc0712_trainval.zip"
 image_url = "https://cloud.githubusercontent.com/assets/3307514/20012567/" \
             "cbb60336-a27d-11e6-93ff-cbc3f09f5c9e.jpg"
+inference_symbol_folder = "c1904e900848df4548ce5dfb18c719c7-a28c4856c827fe766aa3da0e35bad41d44f0fb26"
+inference_symbol_url = "https://gist.github.com/kevinthesun/c1904e900848df4548ce5dfb18c719c7/" \
+                       "archive/a28c4856c827fe766aa3da0e35bad41d44f0fb26.zip"
             
 dir = "ssd_model"
 if not os.path.exists(dir):
     os.makedirs(dir)
 model_file_path = "%s/%s" % (dir, model_file)
 test_image_path = "%s/%s" % (dir, test_image)
+inference_symbol_path = "%s/inference_model.zip" % dir
 download(model_url, model_file_path)
 download(image_url, test_image_path)
+download(inference_symbol_url, inference_symbol_path)
+
 zip_ref = zipfile.ZipFile(model_file_path, 'r')
+zip_ref.extractall(dir)
+zip_ref.close()
+zip_ref = zipfile.ZipFile(inference_symbol_path)
 zip_ref.extractall(dir)
 zip_ref.close()
 
 ######################################################################
 # Convert and compile model with NNVM for CPU.
 
-sym = mx.sym.load("ssd/ssd_resnet50_inference.json")
+sym = mx.sym.load("%s/%s/ssd_resnet50_inference.json" % (dir, inference_symbol_folder))
 _, arg_params, aux_params = load_checkpoint("%s/%s" % (dir, model_name), 0)
 net, params = from_mxnet(sym, arg_params, aux_params)
 with compiler.build_config(opt_level=3):
