@@ -99,6 +99,7 @@ class CUDADeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final {
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
