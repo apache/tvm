@@ -210,13 +210,13 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   llvm::legacy::PassManager pass;
 
   CHECK(tm->addPassesToEmitFile(
-            pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+            pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
   pass.run(*mObj);
   std::string obj(dataObj.begin(), dataObj.end());
 
   llvm::legacy::PassManager passAsm;
-  CHECK(tm->addPassesToEmitFile(passAsm, destAsm,
+  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
   passAsm.run(*mAsm);

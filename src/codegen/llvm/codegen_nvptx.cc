@@ -195,7 +195,7 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   // emit ptx
   llvm::legacy::PassManager pass;
   CHECK(tm->addPassesToEmitFile(
-      pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
   pass.run(*module);
   std::string ptx(data_ptx.begin(), data_ptx.end());

@@ -70,7 +70,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       llvm::legacy::PassManager pass;
       CHECK(tm_);
       CHECK(tm_->addPassesToEmitFile(
-          pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          pass, dest, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
       pass.run(*m);
     } else if (fmt == "s" || fmt == "asm") {
@@ -82,7 +82,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       llvm::legacy::PassManager pass;
       CHECK(tm_);
       CHECK(tm_->addPassesToEmitFile(
-          pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          pass, dest, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
       pass.run(*m);
     } else if (fmt == "ll") {
