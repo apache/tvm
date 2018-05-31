@@ -93,6 +93,7 @@ class VPIDeviceAPI final : public runtime::DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final {
     if (static_cast<int>(ctx_from.device_type) == kDLVPI) {
       from = RealAddr(static_cast<const char*>(from) + from_offset, size);

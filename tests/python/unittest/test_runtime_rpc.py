@@ -1,8 +1,40 @@
 import tvm
+import os
 import logging
 import numpy as np
 import time
 from tvm.contrib import rpc, util
+
+
+def test_bigendian_rpc():
+    """Test big endian rpc when there is a PowerPC RPC server available"""
+    host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
+    port = os.environ.get("TVM_POWERPC_TEST_PORT", 9090)
+    if host is None:
+        return
+    def verify_rpc(remote, target, shape, dtype):
+        A = tvm.placeholder(shape, dtype=dtype)
+        B = tvm.compute(A.shape, lambda i: A[i]+tvm.const(1, A.dtype))
+        s = tvm.create_schedule(B.op)
+        f = tvm.build(s, [A, B], target, name="myadd")
+
+        ctx = remote.cpu(0)
+        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), ctx=ctx)
+        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), ctx=ctx)
+        temp = util.tempdir()
+        path_dso = temp.relpath("dev_lib.o")
+        f.save(path_dso)
+        remote.upload(path_dso)
+        f = remote.load_module("dev_lib.o")
+        f(a, b)
+        np.testing.assert_allclose(a.asnumpy() + 1, b.asnumpy())
+
+    print("Test RPC connection to PowerPC...")
+    remote = rpc.connect(host, port)
+    target = "llvm -mtriple=powerpc-linux-gnu"
+    for dtype in ["float32", "float64", "int32", "int8"]:
+        verify_rpc(remote, target, (10,), dtype)
+
 
 def test_rpc_simple():
     if not tvm.module.enabled("rpc"):
@@ -166,6 +198,7 @@ def test_local_func():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_bigendian_rpc()
     test_rpc_remote_module()
     test_rpc_return_func()
     test_rpc_file_exchange()

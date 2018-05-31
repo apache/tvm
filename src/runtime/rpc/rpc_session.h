@@ -116,30 +116,34 @@ class RPCSession {
    * \param from_offset The byte offeset in the from.
    * \param to The target array.
    * \param to_offset The byte offset in the to.
-   * \param size The size of the memory.
+   * \param nbytes The size of the memory in bytes.
    * \param ctx_to The target context.
+   * \param type_hint Hint of content data type.
    */
   void CopyToRemote(void* from,
                     size_t from_offset,
                     void* to,
                     size_t to_offset,
-                    size_t size,
-                    TVMContext ctx_to);
+                    size_t nbytes,
+                    TVMContext ctx_to,
+                    TVMType type_hint);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
    * \param from_offset The byte offeset in the from.
    * \param to The target array.
    * \param to_offset The byte offset in the to.
-   * \param size The size of the memory.
+   * \param nbytes The size of the memory in bytes.
    * \param ctx_from The source context.
+   * \param type_hint Hint of content data type.
    */
   void CopyFromRemote(void* from,
                       size_t from_offset,
                       void* to,
                       size_t to_offset,
-                      size_t size,
-                      TVMContext ctx_from);
+                      size_t nbytes,
+                      TVMContext ctx_from,
+                      TVMType type_hint);
   /*!
    * \brief Get a remote timer function on ctx.
    *  This function consumes fhandle, caller should not call Free on fhandle.

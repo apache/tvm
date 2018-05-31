@@ -303,6 +303,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
   std::string temp_data_;
   // Temp variables for copy request state.
   TVMContext copy_ctx_;
+  TVMType copy_dtype_;
   uint64_t copy_handle_, copy_offset_, copy_size_;
   // State switcher
   void SwitchToState(State state) {
@@ -344,11 +345,13 @@ class RPCSession::EventHandler : public dmlc::Stream {
       case kDoCopyFromRemote: {
         this->RequestBytes(sizeof(uint64_t) * 3);
         this->RequestBytes(sizeof(TVMContext));
+        this->RequestBytes(sizeof(TVMType));
         break;
       }
       case kDoCopyToRemote: {
         this->RequestBytes(sizeof(uint64_t) * 3);
         this->RequestBytes(sizeof(TVMContext));
+        this->RequestBytes(sizeof(TVMType));
         break;
       }
       case kCopyAckReceived:
@@ -554,18 +557,30 @@ class RPCSession::EventHandler : public dmlc::Stream {
   }
 
   void HandleCopyFromRemote() {
-    uint64_t handle, offset, size;
+    uint64_t handle, offset, num_bytes;
     TVMContext ctx;
+    TVMType type_hint;
     this->Read(&handle);
     this->Read(&offset);
-    this->Read(&size);
+    this->Read(&num_bytes);
     this->Read(&ctx);
+    this->Read(&type_hint);
+    size_t elem_bytes = (type_hint.bits * type_hint.lanes + 7) / 8;
+
     if (ctx.device_type == kDLCPU) {
       RPCCode code = RPCCode::kCopyAck;
       this->Write(code);
-      this->WriteArray(reinterpret_cast<char*>(handle) + offset, size);
+      char* dptr = reinterpret_cast<char*>(handle) + offset;
+      if (!DMLC_IO_NO_ENDIAN_SWAP) {
+        temp_data_.resize(0);
+        temp_data_.insert(temp_data_.end(), dptr, dptr + num_bytes);
+        dmlc::ByteSwap(dmlc::BeginPtr(temp_data_), elem_bytes, num_bytes / elem_bytes);
+        this->WriteArray(temp_data_.data(), num_bytes);
+      } else {
+        this->WriteArray(dptr, num_bytes);
+      }
     } else {
-      temp_data_.resize(size + 1);
+      temp_data_.resize(num_bytes + 1);
       try {
         TVMContext cpu_ctx;
         cpu_ctx.device_type = kDLCPU;
@@ -573,10 +588,13 @@ class RPCSession::EventHandler : public dmlc::Stream {
         DeviceAPI::Get(ctx)->CopyDataFromTo(
             reinterpret_cast<void*>(handle), offset,
             dmlc::BeginPtr(temp_data_), 0,
-            size, ctx, cpu_ctx, nullptr);
+            num_bytes, ctx, cpu_ctx, type_hint, nullptr);
         RPCCode code = RPCCode::kCopyAck;
         this->Write(code);
-        this->WriteArray(&temp_data_[0], size);
+        if (!DMLC_IO_NO_ENDIAN_SWAP) {
+          dmlc::ByteSwap(dmlc::BeginPtr(temp_data_), elem_bytes, num_bytes / elem_bytes);
+        }
+        this->WriteArray(&temp_data_[0], num_bytes);
       } catch (const std::runtime_error &e) {
         RPCCode code = RPCCode::kException;
         this->Write(code);
@@ -597,6 +615,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
       CHECK(this->Read(&copy_offset_));
       CHECK(this->Read(&copy_size_));
       CHECK(this->Read(&copy_ctx_));
+      CHECK(this->Read(&copy_dtype_));
       arg_recv_stage_ = 1;
       CHECK_EQ(pending_request_bytes_, 0U);
       this->RequestBytes(copy_size_);
@@ -607,12 +626,20 @@ class RPCSession::EventHandler : public dmlc::Stream {
       int ret_tcode = kNull;
       RPCCode code = RPCCode::kReturn;
       std::string errmsg;
+
+      size_t elem_bytes = (copy_dtype_.bits * copy_dtype_.lanes + 7) / 8;
       if (copy_ctx_.device_type == kDLCPU) {
-        this->ReadArray(
-            reinterpret_cast<char*>(copy_handle_) + copy_offset_, copy_size_);
+        char* dptr = reinterpret_cast<char*>(copy_handle_) + copy_offset_;
+        this->ReadArray(dptr, copy_size_);
+        if (!DMLC_IO_NO_ENDIAN_SWAP) {
+          dmlc::ByteSwap(dptr, elem_bytes, copy_size_ / elem_bytes);
+        }
       } else {
         temp_data_.resize(copy_size_ + 1);
         this->ReadArray(&temp_data_[0], copy_size_);
+        if (!DMLC_IO_NO_ENDIAN_SWAP) {
+          dmlc::ByteSwap(dmlc::BeginPtr(temp_data_), elem_bytes, copy_size_ / elem_bytes);
+        }
         try {
           TVMContext cpu_ctx;
           cpu_ctx.device_type = kDLCPU;
@@ -620,7 +647,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
           DeviceAPI::Get(copy_ctx_)->CopyDataFromTo(
               temp_data_.data(), 0,
               reinterpret_cast<void*>(copy_handle_), copy_offset_,
-              copy_size_, cpu_ctx, copy_ctx_, nullptr);
+              copy_size_, cpu_ctx, copy_ctx_, copy_dtype_, nullptr);
         } catch (const std::runtime_error &e) {
           code = RPCCode::kException;
           errmsg = e.what();
@@ -873,7 +900,8 @@ void RPCSession::CopyToRemote(void* from,
                               void* to,
                               size_t to_offset,
                               size_t data_size,
-                              TVMContext ctx_to) {
+                              TVMContext ctx_to,
+                              TVMType type_hint) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   ctx_to = handler_->StripSessMask(ctx_to);
   RPCCode code = RPCCode::kCopyToRemote;
@@ -885,6 +913,7 @@ void RPCSession::CopyToRemote(void* from,
   uint64_t size = static_cast<uint64_t>(data_size);
   handler_->Write(size);
   handler_->Write(ctx_to);
+  handler_->Write(type_hint);
   handler_->WriteArray(reinterpret_cast<char*>(from) + from_offset, data_size);
   TVMRetValue rv;
   CHECK(HandleUntilReturnEvent(&rv, true, nullptr) == RPCCode::kReturn);
@@ -895,7 +924,8 @@ void RPCSession::CopyFromRemote(void* from,
                                 void* to,
                                 size_t to_offset,
                                 size_t data_size,
-                                TVMContext ctx_from) {
+                                TVMContext ctx_from,
+                                TVMType type_hint) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   ctx_from = handler_->StripSessMask(ctx_from);
   RPCCode code = RPCCode::kCopyFromRemote;
@@ -907,6 +937,7 @@ void RPCSession::CopyFromRemote(void* from,
   uint64_t size = static_cast<uint64_t>(data_size);
   handler_->Write(size);
   handler_->Write(ctx_from);
+  handler_->Write(type_hint);
   TVMRetValue rv;
   CHECK(HandleUntilReturnEvent(&rv, true, nullptr) == RPCCode::kCopyAck);
   reader_.Reserve(data_size);
@@ -996,7 +1027,8 @@ void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
   uint64_t size = args[4];
   TVMContext ctx_from = args[5];
   TVMContext ctx_to = args[6];
-  TVMStreamHandle stream = args[7];
+  TVMType type_hint = args[7];
+  TVMStreamHandle stream = args[8];
   TVMContext ctx = ctx_from;
   if (ctx.device_type == kDLCPU) {
     ctx = ctx_to;
@@ -1008,7 +1040,7 @@ void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
   DeviceAPI::Get(ctx)->CopyDataFromTo(
       from, from_offset,
       to, to_offset,
-      size, ctx_from, ctx_to, stream);
+      size, ctx_from, ctx_to, type_hint, stream);
 }
 
 void RPCModuleLoad(TVMArgs args, TVMRetValue *rv) {
