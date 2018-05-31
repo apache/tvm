@@ -138,7 +138,9 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     channels = attrs.get_int("channels")
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
+        # pylint: disable=assignment-from-no-return
         out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], channels, (kh, kw), strides, padding)
+        # pylint: enable=assignment-from-no-return
     else:
         raise ValueError("not support arbitrary group number > 1 for now")
     if attrs.get_bool("use_bias"):
