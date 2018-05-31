@@ -46,7 +46,6 @@ inline bool NMSInferType(const NodeAttrs &attrs,
                          std::vector<int> *out_attrs) {
   DTYPE_ASSIGN(out_attrs->at(0), in_attrs->at(0));
   return true;
-
 }
 
 inline bool NMSInferLayout(const NodeAttrs& attrs,
