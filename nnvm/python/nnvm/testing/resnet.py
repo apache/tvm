@@ -108,7 +108,7 @@ def resnet(units, num_stages, filter_list, num_classes, image_shape,
     num_unit = len(units)
     assert num_unit == num_stages
     data = sym.Variable(name='data')
-    data = sym.batch_norm(data=data, epsilon=2e-5, name='bn_data')
+    data = sym.batch_norm(data=data, epsilon=2e-5, scale=False, name='bn_data')
     (_, height, _) = image_shape
     if height <= 32:            # such as cifar10
         body = sym.conv2d(
