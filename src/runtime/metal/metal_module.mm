@@ -215,7 +215,7 @@ class MetalWrappedFunc {
     MTLSize dimGrid = MTLSizeMake(
         wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
     MTLSize dimBlock = MTLSizeMake(
-        wl.block_dim(0), wl.block_dim(1), wl.work_size[2]);
+        wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
     [encoder dispatchThreadgroups: dimGrid
              threadsPerThreadgroup: dimBlock];
     [encoder endEncoding];
