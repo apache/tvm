@@ -27,7 +27,7 @@ TVM4J contains three modules:
 
 ### Build
 
-First please refer to [Installation Guide](http://docs.tvm.ai/how_to/install.html) and build runtime shared library from the C++ codes (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX).
+First please refer to [Installation Guide](http://docs.tvm.ai/install/) and build runtime shared library from the C++ codes (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX).
 
 Then you can compile tvm4j by
 
