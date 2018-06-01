@@ -41,7 +41,7 @@ def verify_leaky_relu(m, alpha):
     target = topi.cpp.TEST_create_target(device)
     s = topi.cpp.generic.schedule_injective(target, [B])
 
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
+    a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0) + a_np * (a_np < 0) * alpha
     ctx = tvm.cpu(0)
     a = tvm.nd.array(a_np, ctx)
@@ -78,7 +78,7 @@ def test_relu():
         verify_relu(10, 128, dtype)
 
 def test_leaky_relu():
-    verify_leaky_relu(100, 0.1)
+    verify_leaky_relu(100, 0.5)
 
 def test_prelu():
     verify_prelu((1, 3, 2, 2), (3,))
