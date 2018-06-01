@@ -576,13 +576,16 @@ def reduce_axis(dom, name="rv"):
 
 
 def select(cond, t, f):
-    """Construct a select branch
+    """Construct a select branch.
+
     Parameters
     ----------
     cond : Expr
         The condition
+
     t : Expr
         The result expression if cond is true.
+
     f : Expr
         The result expression if cond is false.
 
@@ -592,6 +595,7 @@ def select(cond, t, f):
         The tvm.expr.Select node
     """
     return _make.Select(convert(cond), convert(t), convert(f))
+
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
     """Create a commutative reducer for reduction.

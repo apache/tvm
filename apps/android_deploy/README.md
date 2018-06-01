@@ -65,15 +65,15 @@ Here's a piece of example for `config.mk`.
 
 ```makefile
 APP_ABI = arm64-v8a
- 
+
 APP_PLATFORM = android-17
- 
+
 # whether enable OpenCL during compile
 USE_OPENCL = 1
- 
+
 # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 ADD_C_INCLUDES = /opt/adrenosdk-osx/Development/Inc
- 
+
 # the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
 ADD_LDLIBS = libOpenCL.so
 ```
@@ -99,7 +99,7 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 ### Place compiled model on Android application assets folder
 
-Follow instruction to get compiled version model for android target [here.](https://github.com/dmlc/tvm/blob/master/docs/how_to/deploy_android.md#build-model-for-android-target)
+Follow instruction to get compiled version model for android target [here.](https://tvm.ai/deploy/android.html)
 
 Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java#L81)
 
