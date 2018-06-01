@@ -371,7 +371,7 @@ inline Array<Tensor> split(const Tensor& x,
 * \param x The input tensor
 * \param begin The indices to begin with in the slicing
 * \param end Indicies indicating end of the slice
-* \param stride Specifies the stride values, it can be negative
+* \param strides Specifies the stride values, it can be negative
 * in that case, the input tensor will be reversed in that particular axis
 * \param name The name of the operation
 * \param tag The tag to mark the operation
@@ -379,82 +379,65 @@ inline Array<Tensor> split(const Tensor& x,
 * \return A Tensor whose op member is the split operation
 */
 inline Tensor strided_slice(const Tensor& x,
-                            const Array<Expr> begin,
-                            const Array<Expr> end,
-                            const Array<Expr> stride,
+                            const Array<Expr>& begin,
+                            const Array<Expr>& end,
+                            const Array<Expr>& strides,
                             std::string name = "tensor",
                             std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
-  std::vector<int> begin_val = GetConstIntValues(begin, "begin");
-  std::vector<int> end_val = GetConstIntValues(end, "end");
-  std::vector<int> stride_val = GetConstIntValues(stride, "stride");
-
-  /* User can give begin, end & stride for only few axes, in that case */
-  /* expand the array for begin,end & stride to match num of axes of input data */
-  /* and fill with corresponding default values. */
-  /* If user has not provided stride, then construct stride with default values as 1 */
-  auto expand_axis = [x](std::vector<int> list_ids,
-                         size_t src_tensor_dim, int fill_value, bool end) {
-    if (list_ids.size() < src_tensor_dim) {
-      for (size_t i = list_ids.size(); i < src_tensor_dim; ++i) {
-        if (end) {
-          list_ids.push_back(GetConstInt(x->shape[i]));
-        } else {
-          list_ids.push_back(fill_value);
-        }
-      }
-    }
-    return list_ids;
-  };
-
-  std::vector<int> begin_ids;
-  std::copy(begin_val.begin(), begin_val.end(), std::back_inserter(begin_ids));
-  begin_ids = expand_axis(begin_ids, src_tensor_dim, 0, false);
-
-  std::vector<int> end_ids;
-  std::copy(end_val.begin(), end_val.end(), std::back_inserter(end_ids));
-  end_ids = expand_axis(end_ids, src_tensor_dim, 0, true);
-
-  std::vector<int> stride_ids;
-  if (stride.size() != 0) {
-    std::copy(stride_val.begin(), stride_val.end(), std::back_inserter(stride_ids));
+  std::vector<int> begin_vec = GetConstIntValues(begin, "begin");
+  std::vector<int> end_vec = GetConstIntValues(end, "end");
+  std::vector<int> stride_vec = GetConstIntValues(strides, "strides");
+  // in case user has not provided begin indices for all the axes,
+  // then inflate it with default value = 0
+  for (size_t i = begin_vec.size(); i < src_tensor_dim; ++i) {
+    begin_vec.push_back(0);
   }
-  stride_ids = expand_axis(stride_ids, src_tensor_dim, 1, false);
+  // in case user has not provided end indices for all the axes,
+  // then inflate it with default value = input_tensor.shape[axis]
+  for (size_t i = end_vec.size(); i < src_tensor_dim; ++i) {
+    end_vec.push_back(GetConstInt(x->shape[i]));
+  }
+  // in case user has not provided stride values,
+  // then inflate it with default value = 1
+  for (size_t i = stride_vec.size(); i < src_tensor_dim; ++i) {
+    stride_vec.push_back(1);
+  }
 
   Array<Expr> out_shape;
 
   for (size_t i = 0; i < src_tensor_dim; ++i) {
-    int begin_range = stride_ids[i] < 0 ? -1 : 0;
-    int end_range = stride_ids[i] < 0 ? GetConstInt(x->shape[i]) - 1 : GetConstInt(x->shape[i]);
-    /* canonicalindices() transform the user input begin/end to input Tensor dimension space */
-    auto canonicalindices = [x, i, begin_range, end_range](int a) {
-      if (a < 0) {
-        a += GetConstInt(x->shape[i]);
+    int begin_range = stride_vec[i] < 0 ? -1 : 0;
+    int end_range = stride_vec[i] < 0 ? GetConstInt(x->shape[i]) - 1 : GetConstInt(x->shape[i]);
+    // transform negative indices to positive value, clips on the correct range
+    auto index_canonicalization = [x, i, begin_range, end_range](int index) {
+      if (index < 0) {
+        index += GetConstInt(x->shape[i]);
       }
-      return std::min(std::max(a, begin_range), end_range);
+      return std::min(std::max(index, begin_range), end_range);
     };
 
-    int begin_i = begin_ids[i];
-    int end_i = end_ids[i];
-    begin_i = canonicalindices(begin_i);
-    end_i = canonicalindices(end_i);
+    int begin_i = begin_vec[i];
+    int end_i = end_vec[i];
+    begin_i = index_canonicalization(begin_i);
+    end_i = index_canonicalization(end_i);
 
     int interval = std::abs(end_i - begin_i);
-    int sliceinp = static_cast<int>((interval
-                                     + std::abs(stride_ids[i]) - 1) / std::abs(stride_ids[i]));
-    CHECK(stride_ids[i] < 0 ? (end_i < begin_i) : (begin_i < end_i))
-      << ": Input [Begin=" << begin_ids[i] << ", End=" << end_ids[i]
+    int slice_size = static_cast<int>((interval
+                                     + std::abs(stride_vec[i]) - 1) / std::abs(stride_vec[i]));
+    CHECK(stride_vec[i] < 0 ? (end_i < begin_i) : (begin_i < end_i))
+      << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
       << "] is invalid for axis=" << i;
-    begin_ids[i] = begin_i;
-    end_ids[i] = end_i;
-    out_shape.push_back(sliceinp);
+    begin_vec[i] = begin_i;
+    end_vec[i] = end_i;
+    out_shape.push_back(slice_size);
   }
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
       Array<Expr> real_indices;
       for (size_t i = 0; i < src_tensor_dim; ++i) {
-        real_indices.push_back(indices[i] * stride_ids[i] + begin_ids[i]);
+        real_indices.push_back(indices[i] * stride_vec[i] + begin_vec[i]);
       }
       return x(real_indices);
     }, name, tag);
