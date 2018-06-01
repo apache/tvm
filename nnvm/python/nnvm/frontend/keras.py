@@ -475,7 +475,6 @@ def from_keras(model):
     symtab = SymbolTable()
     for keras_layer in model.layers:
         if isinstance(keras_layer, keras.engine.topology.InputLayer):
-            keras_layer.name = keras_layer.name
             symtab.get_var(keras_layer.name, must_contain=False)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
@@ -491,18 +490,18 @@ def from_keras(model):
                 # we append node index to the symbol name to make it unique.
                 # The one exception is InputLayer.  Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible.  Fortunately,
-                # it's safe because all the input layers have unique names in Keras.
+                # they are named uniquely to input_1, input_2, input_3 ... by default.
                 for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
                     if isinstance(pred, keras.engine.topology.InputLayer):
                         _sym = symtab.get_var(pred.name, must_contain=True)
                     else:
-                        _sym = symtab.get_var(pred.name + str(pred_idx), must_contain=True)
+                        _sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
                     insym.append(_sym)
 
                 if len(insym) == 1:
                     insym = insym[0]
-                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + str(my_idx), symtab)
+                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
 
-    outsym = symtab.get_var(model.output_layers[0].name + '0')
+    outsym = symtab.get_var(model.output_layers[0].name + ':0')
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
     return outsym, tvmparams
