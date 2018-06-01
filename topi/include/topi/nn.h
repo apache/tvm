@@ -60,17 +60,14 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 * \brief Creates an operation that performs a leaky rectified linear unit
 *
 * \param t The input tensor
-* \param threshold The relu threshold (default 0)
-* \param alpha The slope for the small gradient when t < threshold
+* \param alpha The slope for the small gradient when t < 0
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the relu operation
 */
-template <typename T>
 inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
-                              T threshold = static_cast<T>(0),
-                              T alpha = static_cast<T>(0.1),
+                              double alpha = 0.1,
                               std::string name = "tensor",
                               std::string tag = kElementWise) {
   return tvm::compute(

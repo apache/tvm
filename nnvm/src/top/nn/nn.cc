@@ -466,7 +466,7 @@ NNVM_REGISTER_OP(leaky_relu)
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const LeakyReLUParam& param = nnvm::get<LeakyReLUParam>(attrs.parsed);
-    return Array<Tensor>{ topi::leaky_relu<float>(inputs[0], 0.0, param.alpha) };
+    return Array<Tensor>{ topi::leaky_relu(inputs[0], param.alpha) };
   })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
