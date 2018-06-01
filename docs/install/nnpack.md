@@ -1,4 +1,4 @@
-### NNPACK for Multi-Core CPU Support in TVM
+# NNPACK Contrib Installation
 
 [NNPACK](https://github.com/Maratyszcza/NNPACK) is an acceleration package
 for neural network computations, which can run on x86-64, ARMv7, or ARM64 architecture CPUs.
@@ -11,7 +11,7 @@ For regular use prefer native tuned TVM implementation.
 _TVM_ supports NNPACK for forward propagation (inference only) in convolution, max-pooling, and fully-connected layers.
 In this document, we give a high level overview of how to use NNPACK with _TVM_.
 
-### Conditions
+## Conditions
 The underlying implementation of NNPACK utilizes several acceleration methods,
 including [fft](https://arxiv.org/abs/1312.5851) and [winograd](https://arxiv.org/abs/1509.09308).
 These algorithms work better on some special `batch size`, `kernel size`, and `stride` settings than on other,
@@ -19,48 +19,8 @@ so depending on the context, not all convolution, max-pooling, or fully-connecte
 When favorable conditions for running NNPACKS are not met,
 
 NNPACK only supports Linux and OS X systems. Windows is not supported at present.
-The following table explains under which conditions NNPACK will work.
 
-| operation      | conditions |
-|:---------      |:---------- |
-|convolution     |2d convolution `and` no-bias=False `and` dilate=(1,1) `and` num_group=1 `and` batch-size = 1 or batch-size > 1 && stride = (1,1);|
-|pooling         | max-pooling `and` kernel=(2,2) `and` stride=(2,2) `and` pooling_convention=full    |
-|fully-connected| without any restrictions |
-
-### Build/Install LLVM
-LLVM is required for CPU codegen that needs LLVM.
-Since LLVM takes long time to build from source, you can download pre-built version of LLVM from [LLVM Download Page](http://releases.llvm.org/download.html).
-For llvm 4.0 you can do the following step :
-
-```bash
-# Add llvm repository in apt source list
-echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-4.0 main" >> /etc/apt/sources.list
-
-# Update apt source list
-apt-get update
-# Install clang and full llvm
-apt-get install -y \
-    clang-4.0 \
-    clang-4.0-doc \
-    libclang-common-4.0-dev \
-    libclang-4.0-dev \
-    libclang1-4.0 \
-    libclang1-4.0-dbg \
-    libllvm-4.0-ocaml-dev \
-    libllvm4.0 \
-    libllvm4.0-dbg \
-    lldb-4.0 \
-    llvm-4.0 \
-    llvm-4.0-dev \
-    llvm-4.0-doc \
-    llvm-4.0-examples \
-    llvm-4.0-runtime \
-    clang-format-4.0 \
-    python-clang-4.0 \
-    libfuzzer-4.0-dev
-```
-
-### Build/Install NNPACK
+## Build/Install NNPACK
 
 If the trained model meets some conditions of using NNPACK,
 you can build TVM with NNPACK support.
@@ -69,7 +29,7 @@ Follow these simple steps:
 
 Note: The following NNPACK installation instructions have been tested on Ubuntu 16.04.
 
-#### Build [Ninja](https://ninja-build.org/)
+### Build [Ninja](https://ninja-build.org/)
 
 NNPACK need a recent version of Ninja. So we need to install ninja from source.
 ```bash
@@ -83,7 +43,7 @@ Set the environment variable PATH to tell bash where to find the ninja executabl
 export PATH="${PATH}:~/ninja"
 ```
 
-#### Build [NNPACK](https://github.com/Maratyszcza/NNPACK)
+### Build [NNPACK](https://github.com/Maratyszcza/NNPACK)
 
 The new CMAKE version of NNPACK download [Peach](https://github.com/Maratyszcza/PeachPy) and other dependencies alone
 
@@ -105,7 +65,7 @@ echo "/usr/local/lib" > /etc/ld.so.conf.d/nnpack.conf
 sudo ldconfig
 ```
 
-### Build TVM with NNPACK support
+## Build TVM with NNPACK support
 
 ```bash
 git clone --recursive https://github.com/dmlc/tvm

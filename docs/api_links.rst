@@ -1,5 +1,5 @@
-Links to C++/JS API References
-==============================
+Links to C++ and JS API References
+==================================
 
 This page contains links to API references that are build with different doc build system.
 
