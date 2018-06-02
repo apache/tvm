@@ -1,20 +1,21 @@
-import tvm.contrib.pyfrontend as frontend
 import tvm, inspect, sys, traceback, numpy
+from tvm.hybrid import hybrid_script
 
-#tests basic features
+@hybrid_script
 def outer_product(n, m, a, b, c):
-    for i in range(n):
-        for j in range(m):
+    for i in serial(n):
+        for j in serial(m):
             c[i, j] = a[i] * b[j]
 
+#Test global function
+#Test bridge between frontend and backend
 def test_outer_product():
     n = tvm.var('n')
     m = tvm.var('m')
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
     c = tvm.placeholder((n, m), name='c')
-    ir, _ = frontend.parse(outer_product, [n, m, a, b, c])
-    #print(ir)
+    ir, _ = outer_product(n, m, a, b, c)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i'
@@ -39,7 +40,7 @@ def test_outer_product():
     assert mul.a.name == 'a'
     assert mul.b.name == 'b'
 
-    func = frontend.lower(outer_product, [n, m, a, b, c])
+    func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
     _n = 999
@@ -54,41 +55,44 @@ def test_outer_product():
     tvm_c = tvm.ndarray.array(numpy.zeros((_n, _m), dtype='float32'))
     func(_n, _m, tvm_a, tvm_b, tvm_c)
     numpy.testing.assert_allclose(tvm_c.asnumpy(), c_python, rtol=1e-5)
-    #print(func)
 
-def fanout(n, a, b):
-    three = 3.0
-    for i in range(a.shape[0] - 3):
-        sigma = 0.0
-        for j in range(3):
-            sigma = sigma + a[i + j]
-        sigma = sigma / three
-        b[i] = sigma
-
+#Test local function
+#Test allocation of local variable
 def test_fanout():
+    @hybrid_script
+    def fanout(n, a, b):
+        three = 3.0
+        for i in serial(a.shape[0] - 3):
+            sigma = 0.0
+            for j in serial(3):
+                sigma = sigma + a[i + j]
+            sigma = sigma / three
+            b[i] = sigma
+
     n = tvm.var('n')
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((n-3, ), name='b')
-    ir, _ = frontend.parse(fanout, [n, a, b])
-    #print(ir)
-    assert isinstance(ir, tvm.stmt.Realize)
-    assert ir.bounds[0].min.value == 0
-    assert ir.bounds[0].extent.value == 1
-    assert ir.func.name == 'sigma'
-    rbody = ir.body
+    ir, _ = fanout(n, a, b)
+
     #Check for i in (0, n-3)
-    assert isinstance(rbody, tvm.stmt.For)
-    assert rbody.loop_var.name == 'i'
-    assert rbody.min.value == 0
-    assert tvm.ir_pass.Equal(rbody.extent, n - 3)
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'i'
+    assert ir.min.value == 0
+    assert tvm.ir_pass.Equal(ir.extent, n - 3)
+    #Check loopbody
+    ibody = ir.body
+    assert isinstance(ibody, tvm.stmt.Realize)
+    assert ibody.bounds[0].min.value == 0
+    assert ibody.bounds[0].extent.value == 1
+    assert ibody.func.name == 'sigma'
     #Check i loop body
-    ibody = rbody.body
-    assert isinstance(ibody.first, tvm.stmt.Provide)
-    assert ibody.first.func.name == 'sigma'
-    assert len(ibody.first.args) == 1
-    assert ibody.first.args[0].value == 0
+    rbody = ibody.body
+    assert isinstance(rbody.first, tvm.stmt.Provide)
+    assert rbody.first.func.name == 'sigma'
+    assert len(rbody.first.args) == 1
+    assert rbody.first.args[0].value == 0
     #Check fanout loop
-    jloop = ibody.rest.first
+    jloop = rbody.rest.first
     assert jloop.loop_var.name == 'j'
     assert jloop.min.value == 0
     assert jloop.extent.value == 3
@@ -105,8 +109,8 @@ def test_fanout():
     assert value.a.args[0].value == 0
     assert value.b.name == 'a'
     assert len(value.b.args) == 1
-    assert tvm.ir_pass.Equal(value.b.args[0], rbody.loop_var + jloop.loop_var)
-    divide= ibody.rest.rest.first
+    assert tvm.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
+    divide= rbody.rest.rest.first
     assert isinstance(divide, tvm.stmt.Provide)
     assert len(divide.args) == 1
     assert divide.args[0].value == 0
@@ -116,43 +120,38 @@ def test_fanout():
     assert len(value.a.args) == 1
     assert value.a.args[0].value == 0
     assert abs(value.b.value - (1 / 3.0)) < 1e-5
-    write = ibody.rest.rest.rest
+    write = rbody.rest.rest.rest
     assert isinstance(write, tvm.stmt.Provide)
     assert write.func.name == 'b'
     assert write.value.name == 'sigma'
     assert len(write.value.args) == 1
     assert write.value.args[0].value == 0
-    #print(write)
-
-
-def failure():
-    for i in range(1, 100):
-        i = 0
 
 def test_failure():
+    @hybrid_script
+    def failure():
+        for i in serial(1, 100):
+            i = 0
     try:
-        frontend.parse(failure, [])
+        tvm.hybrid.parse(failure, [])
     except AssertionError:
         _, _, tb = sys.exc_info()
         _, _, func, text = traceback.extract_tb(tb)[-1]
-        assert func == 'visit_Name'
-        assert text == 'assert node.id not in self.loops_above'
+        assert func == 'visit_Assign'
+        assert text == 'assert lhs not in self.loops_above.keys()'
 
-@tvm.contrib.pyfrontend.py_frontend
-def annotation(a):
-    with Parallel() as i:
-        for i in range(6):
+
+def test_looptype():
+    @hybrid_script
+    def looptype(a):
+        for i in parallel(6):
             a[i] = i
-    with Vectorized() as j:
-        for j in range(6):
+        for j in vectorized(6):
             a[j] = j
-    with Unrolled() as k:
-        for k in range(6):
+        for k in unrolled(6):
             a[k] = k
-
-def test_annotation():
     a = tvm.placeholder((6, ), name='a')
-    ir, _ = tvm.contrib.pyfrontend.parse(annotation, [a])
+    ir, _ = looptype(a)
     iloop = ir.first
     jloop = ir.rest.first
     kloop = ir.rest.rest
@@ -160,19 +159,21 @@ def test_annotation():
     assert jloop.for_type == tvm.stmt.For.Vectorized
     assert kloop.for_type == tvm.stmt.For.Unrolled
 
-def if_then_else(a, b):
-    for i in range(10):
-        if i % 2 == 0:
-            a[i] = -1
-        else:
-            a[i] = 1
-    for i in range(10):
-        b[i] = -1 if i % 2 == 0 else 1
-
 def test_if():
+    @hybrid_script
+    def if_then_else(a, b):
+        for i in serial(10):
+            if i % 2 == 0:
+                a[i] = -1
+            else:
+                a[i] = 1
+        for i in unrolled(10):
+            b[i] = -1 if i % 2 == 0 else 1
+
     a = tvm.placeholder((10, ), dtype='int32', name='a')
     b = tvm.placeholder((10, ), dtype='int32', name='b')
-    func = frontend.lower(if_then_else, [a, b])
+    ir, _ = if_then_else(a, b)
+    func = tvm.lower(ir, [a, b])
     func = tvm.build(func)
     assert func
 
@@ -192,6 +193,6 @@ if __name__ == "__main__":
     test_outer_product()
     test_fanout()
     test_failure()
-    test_annotation()
+    test_looptype()
     test_if()
 
