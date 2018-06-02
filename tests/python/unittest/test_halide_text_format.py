@@ -1,5 +1,6 @@
 import tvm, inspect, sys, traceback, numpy
 from tvm.hybrid import hybrid_script
+from tvm.hybrid._intrin import HYBRID_GLOBALS
 
 @hybrid_script
 def outer_product(n, m, a, b, c):
@@ -55,6 +56,9 @@ def test_outer_product():
     tvm_c = tvm.ndarray.array(numpy.zeros((_n, _m), dtype='float32'))
     func(_n, _m, tvm_a, tvm_b, tvm_c)
     numpy.testing.assert_allclose(tvm_c.asnumpy(), c_python, rtol=1e-5)
+    for key, _ in HYBRID_GLOBALS.items():
+        assert key not in globals().keys()
+        assert key not in outer_product.__globals__.keys()
 
 #Test local function
 #Test allocation of local variable
