@@ -235,7 +235,8 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
 void DFSSubgraph(std::shared_ptr<Symbol> root, JSONGraph *jroot) {
   // a standard DFS.
   // the JGraphPtr in the stack forms a path from root to current node.
-  // the uint32_t indicates how many children of the corresponding JGraphPtr have been pushed to stack.
+  // the uint32_t indicates how many children of the corresponding JGraphPtr
+  // have been pushed to stack.
   Symbol2JSONGraph(root, jroot);
   std::vector<std::pair<JSONGraph*, uint32_t> > stack;
   stack.emplace_back(jroot, 0U);
@@ -257,8 +258,7 @@ void DFSSubgraph(std::shared_ptr<Symbol> root, JSONGraph *jroot) {
     }
     if (next_subgraph == jgraph->subgraphs.size()) {
       stack.pop_back();
-    }
-    else {
+    } else {
       JSONGraph *subgraph = jgraph->subgraphs[next_subgraph++];
       stack.emplace_back(subgraph, 0U);
     }
