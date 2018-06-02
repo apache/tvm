@@ -18,6 +18,7 @@ namespace nnvm {
 
 // Forward declare node.
 class Node;
+class Symbol;
 
 /*!
  * \brief we always used NodePtr for a reference pointer
@@ -90,6 +91,14 @@ struct NodeAttrs {
    * The object can be used to quickly access attributes.
    */
   any parsed;
+  /*!
+   * \brief Some operators take graphs as input. These operators include
+   * control flow operators and high-order functions.
+   * These graphs don't change when the operators are invoked for different
+   * mini-batches. In this sense, the subgraphs are kind of similar to
+   * the parameters and show be kept as node attributes.
+   */
+  std::vector<std::shared_ptr<Symbol> > subgraphs;
 };
 
 /*!
