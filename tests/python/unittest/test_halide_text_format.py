@@ -127,13 +127,18 @@ def test_fanout():
     assert len(write.value.args) == 1
     assert write.value.args[0].value == 0
 
+@hybrid_script
+def failure():
+    for i in serial(1, 100):
+        i = 0
+
 def test_failure():
-    @hybrid_script
-    def failure():
-        for i in serial(1, 100):
-            i = 0
     try:
         tvm.hybrid.parse(failure, [])
+    except IOError:
+        assert sys.version_info[0] == 2
+        lineno = inspect.currentframe().f_back.f_lineno
+        print('[Warning] Python2 cannot do the failure case @line #%d' % lineno)
     except AssertionError:
         _, _, tb = sys.exc_info()
         _, _, func, text = traceback.extract_tb(tb)[-1]

@@ -30,8 +30,7 @@ class PyVariableUsage(ast.NodeVisitor):
         # If it is from the argument list or loop variable, we do not worry about it!
         if node.id in self.args.keys():
             return
-        fors = filter(lambda x: isinstance(x, ast.For), self.scope_level)
-        fors = list(map(lambda x: x.target.id, fors))
+        fors = [loop.target.id for loop in self.scope_level if isinstance(loop, ast.For)]
         if node.id in fors:
             return
         # The loop variable cannot be overwritten when iteration

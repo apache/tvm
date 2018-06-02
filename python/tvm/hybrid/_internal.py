@@ -16,7 +16,7 @@ TRUE = _api.convert(True)
 ZERO = _api.const(0)
 
 # Node types represent constants in HalideIR
-HALIDE_IMM = (expr.FloatImm, _expr.IntImm, _expr.UIntImm)
+HALIDE_IMM = (_expr.FloatImm, _expr.IntImm, _expr.UIntImm)
 
 def _pruned_source(func):
     """Prune source code's extra leading spaces"""

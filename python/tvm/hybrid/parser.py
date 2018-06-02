@@ -6,6 +6,7 @@ import sys
 from ._internal import NOP, TRUE, RANGE_ONE, HALIDE_IMM, ZERO
 from .var_decl import determine_variable_usage
 from .. import expr as _expr
+from .. import stmt as _stmt
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
@@ -73,9 +74,9 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.func_name = func_name # The name of the function to be lowered
         self.iter_axis = []
 
-    # pylint: disable=missing-docstring, invalid-name
+    #pylint: disable=missing-docstring, invalid-name
     #pylint: consider-merging-isinstance, no-else-return
-    #pylint: disable=inconsistent-return-statements, eval-used
+    #pylint: disable=inconsistent-return-statements
 
     def wrap_up_realize(self, node, body):
         """Wrap up all the variables which will no longer be used"""
@@ -94,9 +95,9 @@ class PyAST2HalideIR(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         assert len(node.args.args) == len(self.args)
-        for idx, arg in enumerate(node.args.args): #pylint: disable=unused-variable
+        for idx, arg in enumerate(node.args.args):
             _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
-            self._args[eval('arg.%s' % _attr)] = self.args[idx]
+            self._args[getattr(arg, _attr)] = self.args[idx]
         res = list_to_block(self.visit, node.body)
         res = self.wrap_up_realize(node, res)
         if self.func_name is None:
@@ -234,7 +235,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.iter_axis.append(iter_var.name)
         assert isinstance(node.iter, ast.Call)
         assert node.iter.func.id in ['serial', 'unrolled', 'parallel', 'vectorized']
-        _for_type = eval('_stmt.For.%s' % node.iter.func.id.title())
+        _for_type = getattr(_stmt.For, node.iter.func.id.title())
         assert len(node.iter.args) == 1 or len(node.iter.args) == 2
         if len(node.iter.args) == 1:
             low, ext = _api.const(0), self.visit(node.iter.args[0])
