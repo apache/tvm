@@ -171,14 +171,14 @@ struct JSONGraph {
   }
 };
 
-void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph &jgraph) {
+void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph *jgraph) {
   std::unordered_map<Node*, uint32_t> node2index;
-  jgraph.node_row_ptr.push_back(0);
-  DFSVisit(src->outputs, [&node2index, &jgraph](const NodePtr& n) {
-    uint32_t nid = static_cast<uint32_t>(jgraph.nodes.size());
+  jgraph->node_row_ptr.push_back(0);
+  DFSVisit(src->outputs, [&node2index, jgraph](const NodePtr& n) {
+    uint32_t nid = static_cast<uint32_t>(jgraph->nodes.size());
     node2index[n.get()] = nid;
     if (n->is_variable()) {
-      jgraph.arg_nodes.push_back(nid);
+      jgraph->arg_nodes.push_back(nid);
     }
     JSONNode jnode;
     jnode.node = n;
@@ -189,15 +189,15 @@ void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph &jgraph) {
     for (const NodePtr& c : n->control_deps) {
       jnode.control_deps.push_back(node2index.at(c.get()));
     }
-    jgraph.node_row_ptr.push_back(jgraph.node_row_ptr.back() + n->num_outputs());
-    jgraph.nodes.emplace_back(std::move(jnode));
+    jgraph->node_row_ptr.push_back(jgraph->node_row_ptr.back() + n->num_outputs());
+    jgraph->nodes.emplace_back(std::move(jnode));
   });
   for (const NodeEntry& e : src->outputs) {
-    jgraph.heads.emplace_back(node2index.at(e.node.get()), e.index, e.version);
+    jgraph->heads.emplace_back(node2index.at(e.node.get()), e.index, e.version);
   }
 }
 
-std::shared_ptr<Symbol> JSONGraph2Symbol(JSONGraph &jgraph, bool no_parse) {
+std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse) {
   for (JSONNode &n : jgraph.nodes) {
     n.node->inputs.reserve(n.inputs.size());
     for (const JSONNode::Entry &e : n.inputs) {
@@ -232,13 +232,13 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(JSONGraph &jgraph, bool no_parse) {
   return symbol;
 }
 
-void DFSSubgraph(std::shared_ptr<Symbol> root, JSONGraph &jroot) {
+void DFSSubgraph(std::shared_ptr<Symbol> root, JSONGraph *jroot) {
   // a standard DFS.
   // the JGraphPtr in the stack forms a path from root to current node.
   // the uint32_t indicates how many children of the corresponding JGraphPtr have been pushed to stack.
   Symbol2JSONGraph(root, jroot);
   std::vector<std::pair<JSONGraph*, uint32_t> > stack;
-  stack.emplace_back(&jroot, 0U);
+  stack.emplace_back(jroot, 0U);
   while (!stack.empty()) {
     std::pair<JSONGraph*, uint32_t> &top = stack.back();
     JSONGraph *jgraph = top.first;
@@ -250,7 +250,7 @@ void DFSSubgraph(std::shared_ptr<Symbol> root, JSONGraph &jroot) {
         const std::vector<std::shared_ptr<Symbol>> &subgraphs = jnode.node->attrs.subgraphs;
         jnode.subgraphs.resize(subgraphs.size());
         for (uint32_t i = 0; i < subgraphs.size(); ++i) {
-          Symbol2JSONGraph(subgraphs[i], jnode.subgraphs[i]);
+          Symbol2JSONGraph(subgraphs[i], &jnode.subgraphs[i]);
           jgraph->subgraphs.push_back(&jnode.subgraphs[i]);
         }
       }
