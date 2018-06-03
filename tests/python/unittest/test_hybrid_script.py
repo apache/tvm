@@ -198,10 +198,39 @@ def test_if():
     numpy.testing.assert_allclose(tvm_b.asnumpy(), _b, rtol=1e-5)
     numpy.testing.assert_allclose(tvm_a.asnumpy(), tvm_b.asnumpy(), rtol=1e-5)
 
+def test_bind():
+    @hybrid_script
+    def vec_add(a, b, c):
+        for tx in bind(1000, 'threadIdx.x'):
+            c[tx] = b[tx] + c[tx]
+
+    a = tvm.placeholder((1000, ), dtype='float32', name='a')
+    b = tvm.placeholder((1000, ), dtype='float32', name='b')
+    c = tvm.placeholder((1000, ), dtype='float32', name='c')
+    ir, _ = vec_add(a, b, c)
+    #print(tvm.lower(ir, [a, b, c], simple_mode=True))
+    func = tvm.lower(ir, [a, b, c])
+    func = tvm.build(func, target = 'cuda')
+
+    _a = numpy.random.rand(1000).astype('float32')
+    _b = numpy.random.rand(1000).astype('float32')
+    _c = numpy.zeros((1000, ), dtype = 'float32')
+
+
+    tvm_a = tvm.ndarray.array(_a, tvm.gpu(0))
+    tvm_b = tvm.ndarray.array(_b, tvm.gpu(0))
+    tvm_c = tvm.ndarray.array(_c, tvm.gpu(0))
+
+    func(tvm_a, tvm_b, tvm_c)
+    vec_add(_a, _b, _c)
+
+    numpy.testing.assert_allclose(_c, tvm_c.asnumpy(), rtol=1e-5)
+
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
     test_failure()
     test_looptype()
     test_if()
+    test_bind()
 
