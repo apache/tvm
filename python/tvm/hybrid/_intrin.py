@@ -18,6 +18,11 @@ class _range(object):
             yield i + self.low
             i += 1
 
+class bind(_range):
+    def __init__(self, ext, tag):
+        super(range, self).__init__(ext)
+        self.tag = tag
+
 serial = unrolled = vectorized = parallel = _range #pylint: disable=invalid-name
 
 def allocate(shape, dtype=None):
@@ -28,5 +33,8 @@ HYBRID_GLOBALS = {
     'unrolled'  : unrolled,
     'vectorized': vectorized,
     'parallel'  : parallel,
-    'allocate'  : allocate
+    'allocate'  : allocate,
+    'bind'      : bind
 }
+
+LOOP_INTRIN = ['serial', 'unrolled', 'parallel', 'vectorized', 'bind']

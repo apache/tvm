@@ -1,4 +1,4 @@
-"""Utilities for parsing Python subset to HalideIR"""
+"""Internal utilities for parsing Python subset to HalideIR"""
 
 import sys
 import inspect
@@ -33,8 +33,7 @@ else:
 
 def _is_tvm_arg_types(args):
     """Determine a list of element is either a list of tvm arguments of a list of numpy arguments.
-    If neither is true, raise a assertion error.
-    """
+    If neither is true, raise a assertion error."""
     if isinstance(args[0], TVM_ARG_TYPES):
         for elem in args[1:]:
             assert isinstance(elem, TVM_ARG_TYPES)
@@ -46,7 +45,6 @@ def _is_tvm_arg_types(args):
 
 def _enter_hybrid_runtime(func):
     """Put hybrid runtime variables into the global scope"""
-    #_globals = globals(func)
     _globals = func.__globals__
     intersect = []
     for elem in list(HYBRID_GLOBALS.keys()):
@@ -57,7 +55,6 @@ def _enter_hybrid_runtime(func):
 
 def _restore_runtime(func, intersect):
     """Rollback the modification caused by hybrid runtime"""
-    #_globals = globals(func)
     _globals = func.__globals__
     for elem in list(HYBRID_GLOBALS.keys()):
         _globals.pop(elem)
