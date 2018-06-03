@@ -26,7 +26,19 @@ class bind(_range): #pylint: disable=invalid-name
 serial = unrolled = vectorized = parallel = _range #pylint: disable=invalid-name
 
 def allocate(shape, dtype=None):
+    """Allocate a buffer with given shape"""
+    dtype = 'float32' if dtype is None else dtype
     return numpy.zeros(shape).astype(dtype)
+
+def popcount(x):
+    cnt = 0
+    while x:
+        x -= x & -x
+        cnt += 1
+    return cnt
+
+def sigmoid(x):
+    return 1 / (1 + numpy.exp(-x))
 
 HYBRID_GLOBALS = {
     'serial'    : serial,
@@ -34,7 +46,16 @@ HYBRID_GLOBALS = {
     'vectorized': vectorized,
     'parallel'  : parallel,
     'allocate'  : allocate,
-    'bind'      : bind
+    'bind'      : bind,
+    'sqrt'      : numpy.sqrt,
+    'log'       : numpy.log,
+    'tanh'      : numpy.tanh,
+    'power'     : numpy.power,
+    'exp'       : numpy.exp,
+    'sigmoid'   : sigmoid,
+    'popcount'  : popcount
 }
 
 LOOP_INTRIN = ['serial', 'unrolled', 'parallel', 'vectorized', 'bind']
+
+MATH_INTRIN = ['sqrt', 'log', 'exp', 'tanh', 'sigmoid', 'power', 'popcount']

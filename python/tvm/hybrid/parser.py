@@ -4,12 +4,13 @@ import ast
 import operator
 import sys
 from ._internal import NOP, TRUE, RANGE_ONE, HALIDE_IMM, ZERO
-from ._intrin import LOOP_INTRIN
+from ._intrin import LOOP_INTRIN, MATH_INTRIN
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
 from .. import expr as _expr
 from .. import stmt as _stmt
 from .. import make as _make
+from .. import intrin
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
@@ -228,10 +229,11 @@ class PyAST2HalideIR(ast.NodeVisitor):
         return PyAST2HalideIR._binop_maker[type(node.op)](lhs, rhs)
 
     def visit_Call(self, node):
-        # Yet, no function point supported
+        # Yet, no function pointer supported
         assert isinstance(node.func, ast.Name)
         n = len(node.args)
-        if node.func.id in LOOP_INTRIN[:-1]:
+        func_id = node.func.id
+        if func_id in LOOP_INTRIN[:-1]:
             if n == 1:
                 low, ext = ZERO, self.visit(node.args[0])
             else:
@@ -240,7 +242,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
             for_type = getattr(_stmt.For, node.func.id.title())
             iter_var = None
             return iter_var, low, ext, for_type
-        elif node.func.id == LOOP_INTRIN[-1]:
+        elif func_id == LOOP_INTRIN[-1]:
             assert n == 2
             low, ext = ZERO, self.visit(node.args[0])
             for_type = None
@@ -248,6 +250,8 @@ class PyAST2HalideIR(ast.NodeVisitor):
             _vn = node.args[1].s
             iter_var = thread_axis(node.args[1].s)
             return iter_var, low, ext, for_type
+        elif func_id in MATH_INTRIN:
+            return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
         else:
             assert False and "Not supported yet!"
 

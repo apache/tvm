@@ -1,5 +1,7 @@
 """Determines the declaration, r/w status, and last use of each variable"""
 import ast
+import sys
+from ._intrin import HYBRID_GLOBALS
 
 class PyVariableUsage(ast.NodeVisitor):
     """The vistor class to determine the declaration, r/w status, and last use of each variable"""
@@ -8,17 +10,22 @@ class PyVariableUsage(ast.NodeVisitor):
     def __init__(self, args):
         self.status = {}
         self.scope_level = []
-        self.args = {}
-        for elem in args:
-            self.args[elem.name] = elem
+        self._args = {}
+        self.args = args
 
     def visit_FunctionDef(self, node):
         self.scope_level.append(node)
+        assert len(node.args.args) == len(self.args)
+        for idx, arg in enumerate(node.args.args):
+            _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
+            self._args[getattr(arg, _attr)] = self.args[idx]
         for i in node.body:
             self.visit(i)
 
     def visit_For(self, node):
         assert isinstance(node.target, ast.Name)
+
+        self.visit(node.iter)
         self.scope_level.append(node)
 
         for i in node.body:
@@ -26,9 +33,16 @@ class PyVariableUsage(ast.NodeVisitor):
 
         self.scope_level.pop()
 
+    def visit_Call(self, node):
+        #No function pointer supported so far
+        assert isinstance(node.func, ast.Name)
+        assert node.func.id in HYBRID_GLOBALS.keys()
+        for elem in node.args:
+            self.visit(elem)
+
     def visit_Name(self, node):
         # If it is from the argument list or loop variable, we do not worry about it!
-        if node.id in self.args.keys():
+        if node.id in self._args.keys():
             return
         fors = [loop.target.id for loop in self.scope_level if isinstance(loop, ast.For)]
         if node.id in fors:
