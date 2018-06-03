@@ -4,6 +4,7 @@ import ast
 import operator
 import sys
 from ._internal import NOP, TRUE, RANGE_ONE, HALIDE_IMM, ZERO
+from ._intrin import LOOP_INTRIN
 from .var_decl import determine_variable_usage
 from .. import expr as _expr
 from .. import stmt as _stmt
@@ -132,12 +133,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
         lhs = node.targets[0]
         rhs = _ir_pass.Simplify(self.visit(node.value))
         if isinstance(lhs, ast.Name):
+            #TODO: support defined intermediate buffer later
             lhs_ = lhs
             lhs = lhs.id
             assert lhs not in self.loops_above.keys()
-            #if lhs not in self.usage.keys():
-                # This means variable is not used after declaration! Discard it!
-                #return NOP
             decl, _, rw = self.usage[lhs]
             if decl == lhs_:
                 assert lhs not in self.var_consts.keys()
@@ -155,7 +154,6 @@ class PyAST2HalideIR(ast.NodeVisitor):
             lhs = self.visit(lhs)
             assert isinstance(lhs, _expr.Call)
             #TODO: support slice later
-            #TODO: support defined intermediate buffer later
             assert lhs.name in self._args.keys()
             return _make.Provide(self._args[lhs.name].op, 0, rhs, lhs.args)
 
@@ -234,17 +232,23 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.loops_above[iter_var.name] = iter_var
         self.iter_axis.append(iter_var.name)
         assert isinstance(node.iter, ast.Call)
-        assert node.iter.func.id in ['serial', 'unrolled', 'parallel', 'vectorized']
-        _for_type = getattr(_stmt.For, node.iter.func.id.title())
-        assert len(node.iter.args) == 1 or len(node.iter.args) == 2
-        if len(node.iter.args) == 1:
-            low, ext = _api.const(0), self.visit(node.iter.args[0])
-        elif len(node.iter.args) == 2:
-            low, ext = self.visit(node.iter.args[0]), self.visit(node.iter.args[1])
-        #ext = high if isinstance(low, _expr.IntImm) and low.value == 0 else high - low
+        assert node.iter.func.id in LOOP_INTRIN
+        _for_type = node.iter.func.id
         _body = list_to_block(self.visit, node.body)
         _body = self.wrap_up_realize(node, _body)
-        res = _make.For(iter_var, low, ext, _for_type, 0, _body)
+        if _for_type != 'bind':
+            if len(node.iter.args) == 1:
+                low, ext = ZERO, self.visit(node.iter.args[0])
+            else:
+                assert len(node.iter.args) == 2
+                low, ext = self.visit(node.iter.args[0]), self.visit(node.iter.args[1])
+            _for_type = getattr(_stmt.For, node.iter.func.id.title())
+            assert len(node.iter.args) == 1 or len(node.iter.args) == 2
+            res = _make.For(iter_var, low, ext, _for_type, 0, _body)
+        else:
+            assert len(node.iter.args) == 2
+            low, ext = ZERO, self.visit(node.iter.args[0])
+            pass
         self.loops_above.pop(iter_var.name)
         return res
 

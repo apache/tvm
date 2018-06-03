@@ -22,8 +22,8 @@ def parse(func, args):
     Parameters
     ----------
     func : str or types.FunctionType
-        If it is a string, parse the source code.
-        If it is a function, parse the function.
+        If it is a string, parse the source code
+        If it is a function, parse the function
 
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
@@ -33,8 +33,7 @@ def parse(func, args):
     -------
     (halide_ir, parser) : (Stmt, PyAST2HalideIR)
         The result Halide IR and the parser class instance.
-        TODO: The parser class isinstance will later provide some interface for hybrid
-              programming model.
+        TODO: Later we deprecate this return value, use a dedicated OP node type instead
     """
     if isinstance(func, str):
         src = func
