@@ -5,7 +5,7 @@ from .parser import parse_python
 from ._internal import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types, _pruned_source
 
 @decorator.decorator
-def hybrid_script(func, *args):
+def script(func, *args):
     """If the arguments are tvm types, compile it to HalideIR.
     O.W. return the python emulated result"""
     if _is_tvm_arg_types(args):

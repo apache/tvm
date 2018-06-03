@@ -1,8 +1,8 @@
 import tvm, inspect, sys, traceback, numpy
-from tvm.hybrid import hybrid_script
+from tvm.hybrid import script
 from tvm.hybrid._intrin import HYBRID_GLOBALS
 
-@hybrid_script
+@script
 def outer_product(n, m, a, b, c):
     for i in serial(n):
         for j in serial(m):
@@ -63,7 +63,7 @@ def test_outer_product():
 #Test local function
 #Test allocation of local variable
 def test_fanout():
-    @hybrid_script
+    @script
     def fanout(n, a, b):
         three = 3.0
         for i in serial(a.shape[0] - 3):
@@ -131,7 +131,7 @@ def test_fanout():
     assert len(write.value.args) == 1
     assert write.value.args[0].value == 0
 
-@hybrid_script
+@script
 def failure():
     for i in serial(1, 100):
         i = 0
@@ -151,7 +151,7 @@ def test_failure():
 
 
 def test_looptype():
-    @hybrid_script
+    @script
     def looptype(a):
         for i in parallel(6):
             a[i] = i
@@ -169,7 +169,7 @@ def test_looptype():
     assert kloop.for_type == tvm.stmt.For.Unrolled
 
 def test_if():
-    @hybrid_script
+    @script
     def if_then_else(a, b):
         for i in serial(10):
             if i % 2 == 0:
@@ -199,7 +199,7 @@ def test_if():
     numpy.testing.assert_allclose(tvm_a.asnumpy(), tvm_b.asnumpy(), rtol=1e-5)
 
 def test_bind():
-    @hybrid_script
+    @script
     def vec_add(a, b, c):
         for tx in bind(1000, 'threadIdx.x'):
             c[tx] = b[tx] + c[tx]
@@ -226,6 +226,40 @@ def test_bind():
 
     numpy.testing.assert_allclose(_c, tvm_c.asnumpy(), rtol=1e-5)
 
+def test_math_intrin():
+    @script
+    def intrin_real(a):
+        a[0] = sqrt(a[0])
+        a[1] = log(a[1])
+        a[2] = exp(a[2])
+        a[3] = sigmoid(a[3])
+        a[4] = power(a[4], a[5])
+        a[5] = tanh(a[5])
+
+    a6 = tvm.placeholder((6, ), dtype='float32', name='a')
+    ir, _ = intrin_real(a6)
+    func = tvm.build(tvm.lower(ir, [a6]))
+    assert func
+    a = numpy.arange(2, 8).astype('float32')
+    tvm_a = tvm.ndarray.array(a)
+    func(tvm_a)
+    intrin_real(a)
+    numpy.testing.assert_allclose(a, tvm_a.asnumpy(), rtol=1e-5)
+
+    @script
+    def intrin_int(a):
+        a[0] = popcount(a[0])
+
+    a1 = tvm.placeholder((1, ), dtype='int32')
+    ir, _ = intrin_int(a1)
+    func = tvm.build(tvm.lower(ir, [a1]))
+    assert func
+    a = numpy.array([1234567890]).astype('int32')
+    tvm_a = tvm.ndarray.array(a)
+    intrin_int(a)
+    func(tvm_a)
+    assert tvm_a.asnumpy()[0] == a[0]
+
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
@@ -233,4 +267,5 @@ if __name__ == "__main__":
     test_looptype()
     test_if()
     test_bind()
+    test_math_intrin()
 

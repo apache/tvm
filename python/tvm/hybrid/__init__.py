@@ -7,4 +7,4 @@ python semantic emulation.
 2. Developers can build HalideIR by writing Python code.
 """
 
-from .api import hybrid_script, parse
+from .api import script, parse
