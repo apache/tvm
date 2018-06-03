@@ -18,7 +18,7 @@ class _range(object):
             yield i + self.low
             i += 1
 
-class bind(_range):
+class bind(_range): #pylint: disable=invalid-name
     def __init__(self, ext, tag):
         super(bind, self).__init__(ext)
         self.tag = tag
