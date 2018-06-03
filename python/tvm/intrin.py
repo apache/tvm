@@ -218,7 +218,7 @@ def log(x):
 
 
 def sqrt(x):
-    """Take log of input x.
+    """Take sqrt of input x.
 
     Parameters
     ----------
