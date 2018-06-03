@@ -20,7 +20,7 @@ class _range(object):
 
 class bind(_range):
     def __init__(self, ext, tag):
-        super(range, self).__init__(ext)
+        super(bind, self).__init__(ext)
         self.tag = tag
 
 serial = unrolled = vectorized = parallel = _range #pylint: disable=invalid-name

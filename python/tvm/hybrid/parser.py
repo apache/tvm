@@ -6,6 +6,7 @@ import sys
 from ._internal import NOP, TRUE, RANGE_ONE, HALIDE_IMM, ZERO
 from ._intrin import LOOP_INTRIN
 from .var_decl import determine_variable_usage
+from ..api import thread_axis
 from .. import expr as _expr
 from .. import stmt as _stmt
 from .. import make as _make
@@ -76,7 +77,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.iter_axis = []
 
     #pylint: disable=missing-docstring, invalid-name
-    #pylint: consider-merging-isinstance, no-else-return
+    #pylint: disable=consider-merging-isinstance, no-else-return
     #pylint: disable=inconsistent-return-statements
 
     def wrap_up_realize(self, node, body):
@@ -226,30 +227,48 @@ class PyAST2HalideIR(ast.NodeVisitor):
         rhs = self.visit(node.right)
         return PyAST2HalideIR._binop_maker[type(node.op)](lhs, rhs)
 
+    def visit_Call(self, node):
+        # Yet, no function point supported
+        assert isinstance(node.func, ast.Name)
+        n = len(node.args)
+        if node.func.id in LOOP_INTRIN[:-1]:
+            if n == 1:
+                low, ext = ZERO, self.visit(node.args[0])
+            else:
+                assert n == 2
+                low, ext = self.visit(node.args[0]), self.visit(node.args[1])
+            for_type = getattr(_stmt.For, node.func.id.title())
+            iter_var = None
+            return iter_var, low, ext, for_type
+        elif node.func.id == LOOP_INTRIN[-1]:
+            assert n == 2
+            low, ext = ZERO, self.visit(node.args[0])
+            for_type = None
+            assert isinstance(node.args[1], ast.Str)
+            _vn = node.args[1].s
+            iter_var = thread_axis(node.args[1].s)
+            return iter_var, low, ext, for_type
+        else:
+            assert False and "Not supported yet!"
+
     def visit_For(self, node):
+        iter_var, low, ext, for_type = self.visit(node.iter)
         assert isinstance(node.target, ast.Name)
-        iter_var = _api.var(node.target.id)
-        self.loops_above[iter_var.name] = iter_var
-        self.iter_axis.append(iter_var.name)
-        assert isinstance(node.iter, ast.Call)
-        assert node.iter.func.id in LOOP_INTRIN
-        _for_type = node.iter.func.id
+        _name = node.target.id
+        if iter_var is None:
+            assert for_type is not None
+            iter_var = _api.var(_name)
+            self.loops_above[_name] = iter_var
+        else:
+            self.loops_above[_name] = iter_var.var
+            assert for_type is None
         _body = list_to_block(self.visit, node.body)
         _body = self.wrap_up_realize(node, _body)
-        if _for_type != 'bind':
-            if len(node.iter.args) == 1:
-                low, ext = ZERO, self.visit(node.iter.args[0])
-            else:
-                assert len(node.iter.args) == 2
-                low, ext = self.visit(node.iter.args[0]), self.visit(node.iter.args[1])
-            _for_type = getattr(_stmt.For, node.iter.func.id.title())
-            assert len(node.iter.args) == 1 or len(node.iter.args) == 2
-            res = _make.For(iter_var, low, ext, _for_type, 0, _body)
+        if for_type is None:
+            res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
         else:
-            assert len(node.iter.args) == 2
-            low, ext = ZERO, self.visit(node.iter.args[0])
-            pass
-        self.loops_above.pop(iter_var.name)
+            res = _make.For(iter_var, low, ext, for_type, 0, _body)
+        self.loops_above.pop(_name)
         return res
 
 def parse_python(src, args):
