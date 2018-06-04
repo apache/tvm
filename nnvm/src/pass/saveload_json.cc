@@ -293,7 +293,7 @@ Graph SaveJSON(Graph src) {
   std::shared_ptr<Symbol> src_symbol = std::make_shared<Symbol>();
   src_symbol->outputs = src.outputs;
   JSONGraph jgraph;
-  DFSSubgraph(src_symbol, jgraph);
+  DFSSubgraph(src_symbol, &jgraph);
   jgraph.attrs = src.attrs;
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);
