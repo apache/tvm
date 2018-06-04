@@ -45,7 +45,12 @@ def schedule_softmax(_, outs, target):
 
 reg.register_pattern("softmax", OpPattern.OPAQUE)
 
-
+@reg.register_compute("softmax")
+def compute_softmax(attrs, inputs, _):
+    """Compute definition of dense"""
+    axis = attrs.get_int("axis")
+    return topi.nn.softmax(inputs[0], axis)
+    
 # log softmax
 @reg.register_schedule("log_softmax")
 def schedule_log_softmax(_, outs, target):

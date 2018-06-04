@@ -1,7 +1,8 @@
 import tvm
 from tvm.contrib import cudnn
 import numpy as np
-
+import topi.testing
+from topi.util import get_const_tuple
 
 def test_conv2d():
     in_channel = 3
@@ -56,6 +57,43 @@ def test_conv2d():
     
     verify()
 
+def test_softmax(alg):
+    alg = "accurate"
+    mode = "instance"
+
+    dshape = [32, 32]
+    if not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled...")
+        return
+    if not tvm.get_global_func("tvm.contrib.cudnn.conv2d.output_shape", True):
+        print("skip because cudnn is not enabled...")
+        return
+
+    X = tvm.placeholder(dshape, name='X')
+    Y = cudnn.softmax_forward(X,
+                              alg,
+                              mode)
+    s =  tvm.create_schedule(Y.op)
+
+    x_np = np.random.uniform(-1, 1, dshape).astype(np.float32)
+    
+    if (alg == "accurate"):
+        y_np = topi.testing.softmax_python(x_np)
+    else:
+        y_np = topi.tesiting.log_softmax_python(x_np)
+
+    def verify():
+        ctx = tvm.gpu(0)
+        f = tvm.build(s, [X, Y], "cuda", target_host="llvm", name="softmax")
+        x = tvm.nd.array(x_np, ctx)
+        y = tvm.nd.array(np.zeros(get_const_tuple(Y.shape), dtype=Y.dtype), ctx)
+        f(x, y)
+        np.testing.assert_allclose(y.asnumpy(), y_np, rtol=1e-5)
+    
+    verify()
+
     
 if __name__ == "__main__":
     test_conv2d()
+    test_softmax("accurate")
+    test_softmax("log")

@@ -347,13 +347,6 @@ NNVM_REGISTER_OP(softmax)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_support_level(1)
-.set_attr<FTVMCompute>(
-  "FTVMCompute", [](const NodeAttrs& attrs,
-                    const Array<Tensor>& inputs,
-                    const Array<Tensor>& out_info) {
-    const SoftmaxParam& param = nnvm::get<SoftmaxParam>(attrs.parsed);
-    return Array<Tensor>{ topi::nn::softmax(inputs[0], param.axis) };
-  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {

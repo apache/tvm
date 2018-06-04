@@ -59,11 +59,23 @@ struct ConvEntry {
 };  // ConvThreadEntry
 
 
+struct SoftmaxEntry {
+  cudnnSoftmaxAlgorithm_t alg;
+  cudnnSoftmaxMode_t mode;
+  cudnnDataType_t data_type;  
+  cudnnTensorDescriptor_t input_desc;
+  cudnnTensorDescriptor_t output_desc;
+  SoftmaxEntry();
+  ~SoftmaxEntry();
+}; // SoftmaxThreadEntry
+
+
 struct CuDNNThreadEntry {
   CuDNNThreadEntry();
   ~CuDNNThreadEntry();
   cudnnHandle_t handle{nullptr};
   ConvEntry conv_entry;
+  SoftmaxEntry softmax_entry;
   runtime::DeviceAPI *cuda_api{nullptr};
   static CuDNNThreadEntry* ThreadLocal();
 };  // CuDNNThreadEntry

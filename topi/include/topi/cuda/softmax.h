@@ -10,6 +10,7 @@
 #include "topi/detail/fuse.h"
 #include "tvm/tvm.h"
 #include "tvm/build_module.h"
+#include "topi/nn/softmax.h"
 
 namespace topi {
 using namespace tvm;
@@ -25,6 +26,11 @@ namespace cuda {
  * \return A schedule for the given ops.
  */
 inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs) {
+  if (target->target_name == "cuda" &&
+      target->libs().count("cudnn")) {
+    return topi::generic::schedule_extern(target, outs);
+  }
+  
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
