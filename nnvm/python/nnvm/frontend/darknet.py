@@ -302,6 +302,8 @@ def _darknet_activations(inputs, attrs):
         return inputs, None
     elif ACTIVATION.LEAKY == act:
         act_type = 'leaky_relu'
+    elif ACTIVATION.ELU == act:
+        act_type = 'elu'
     else:
         _darknet_raise_not_supported('act: ' + act)
 
@@ -312,6 +314,8 @@ def _darknet_activations(inputs, attrs):
         op_name, new_attrs = act_type, {}
         new_attrs['alpha'] = attrs.get('slope', 0.1)
         sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
+    elif act_type in ['elu']:
+        sym = -1 * _sym.relu(1 - _sym.exp(*inputs)) + _sym.relu(*inputs)
     else:
         _darknet_raise_not_supported('act_type: ' + act_type)
     return sym, None
