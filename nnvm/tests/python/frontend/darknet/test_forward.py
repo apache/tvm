@@ -138,7 +138,7 @@ def test_forward_resnet50():
 
 def test_forward_yolo():
     '''test yolo model'''
-    model_name = 'yolo'
+    model_name = 'yolov2'
     cfg_name = model_name + '.cfg'
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
@@ -242,6 +242,17 @@ def test_forward_region():
     test_forward(net)
     LIB.free_network(net)
 
+def test_forward_elu():
+    '''test elu activation layer'''
+    net = LIB.make_network(1)
+    layer_1 = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 0, 0, 0, 0)
+    layer_1.activation = 8
+    net.layers[0] = layer_1
+    net.w = net.h = 224
+    LIB.resize_network(net, 224, 224)
+    test_forward(net)
+    LIB.free_network(net)
+
 if __name__ == '__main__':
     test_forward_resnet50()
     test_forward_alexnet()
@@ -255,3 +266,4 @@ if __name__ == '__main__':
     test_forward_dense()
     test_forward_reorg()
     test_forward_region()
+    test_forward_elu()
