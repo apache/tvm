@@ -217,7 +217,7 @@ def test_softmax():
     dtype = "float32"
     dshape = (10, 1000)
     inputs = [('x', dshape, x)]
-    helper(y, inputs, dtype, forward), backward
+    helper(y, inputs, dtype, forward, backward)
 
 
 def test_log_softmax():
@@ -229,7 +229,7 @@ def test_log_softmax():
 
     def backward(head_grads, x):
         y = topi.testing.log_softmax_python(x)
-        grad = head_grads - np.sum(y * head_grads, axis=1, keepdims=True)
+        grad = head_grads - np.exp(y) * np.sum(head_grads, axis=1, keepdims=True)
         return [grad]
 
     dtype = "float32"
