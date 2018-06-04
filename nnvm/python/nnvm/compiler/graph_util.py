@@ -167,6 +167,9 @@ def split_last_op(graph):
     """
     graph_idx = graph.index
     last_op_node = graph_idx.nodes[-1]
+    if last_op_node["op"] == "null":
+        raise RuntimeError("split_last_op doesn't support sast operator "
+                           "to be null.")
     last_op_func = getattr(sym, last_op_node["op"])
     if "attrs" in last_op_node:
         last_op_attr = last_op_node["attrs"]

@@ -27,17 +27,13 @@ bool NMSShape(const NodeAttrs& attrs,
   CHECK_EQ(in_attrs->size(), 2U) << "Inputs: [data, valid_count]";
   TShape dshape = in_attrs->at(0);
   TShape vshape = in_attrs->at(1);
-  CHECK_EQ(dshape.ndim(), 3U) << "Provided: " << dshape;
-  CHECK_EQ(vshape.ndim(), 1U) << "Provided: " << vshape;
+  CHECK_EQ(dshape.ndim(), 3U) << "Input data should be 3-D.";
+  CHECK_EQ(vshape.ndim(), 1U) << "Input valid count should be 1-D.";
   CHECK_EQ(dshape[2], 6U) << "Data input should have shape "
     "(batch_size, num_anchors, 6).";
   CHECK_EQ(dshape[0], vshape[0]) << "batch_size mismatch.";
-  TShape oshape = TShape(3);
-  oshape[0] = dshape[0];
-  oshape[1] = dshape[1];
-  oshape[2] = 6;  // [id, prob, xmin, ymin, xmax, ymax]
   out_attrs->clear();
-  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, oshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, dshape);
   return true;
 }
 

@@ -91,12 +91,12 @@ bool MultiBoxDetectionShape(const NodeAttrs& attrs,
   TShape cshape = in_attrs->at(0);
   TShape lshape = in_attrs->at(1);
   TShape ashape = in_attrs->at(2);
-  CHECK_EQ(cshape.ndim(), 3U) << "Provided: " << cshape;
-  CHECK_EQ(lshape.ndim(), 2U) << "Provided: " << lshape;
-  CHECK_EQ(ashape.ndim(), 3U) << "Provided: " << ashape;
-  CHECK_EQ(cshape[2], ashape[1]) << "Number of anchors mismatch";
-  CHECK_EQ(cshape[2] * 4, lshape[1]) << "# anchors mismatch with # loc";
-  CHECK_GT(ashape[1], 0U) << "Number of anchors must > 0";
+  CHECK_EQ(cshape.ndim(), 3U) << "Class probability should be 3-D.";
+  CHECK_EQ(lshape.ndim(), 2U) << "Location prediction should be 2-D.";
+  CHECK_EQ(ashape.ndim(), 3U) << "Anchor should be 3-D.";
+  CHECK_EQ(cshape[2], ashape[1]) << "Number of anchors mismatch.";
+  CHECK_EQ(cshape[2] * 4, lshape[1]) << "# anchors mismatch with # loc.";
+  CHECK_GT(ashape[1], 0U) << "Number of anchors must > 0.";
   CHECK_EQ(ashape[2], 4U);
   TShape oshape = TShape(3);
   oshape[0] = cshape[0];

@@ -335,9 +335,9 @@ def build(graph, target=None, shape=None, dtype="float32",
         if params is None:
             params = {}
         params.update(init_var)
-    if not build_extra:
-        return graph, libmod, params
-    return graph, libmod, params, extra_lib
+    if build_extra:
+        return graph, libmod, params, extra_lib
+    return graph, libmod, params
 
 def _remove_noref_params(params, graph):
     """ Helper to clear non referenced params
