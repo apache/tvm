@@ -198,7 +198,7 @@ void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph *jgraph) {
 }
 
 std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse) {
-  for (JSONNode &n : jgraph.nodes) {
+  for (const JSONNode &n : jgraph.nodes) {
     n.node->inputs.reserve(n.inputs.size());
     for (const JSONNode::Entry &e : n.inputs) {
       n.node->inputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
@@ -211,7 +211,7 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
     if (!no_parse && n.node->op() != nullptr && n.node->op()->attr_parser != nullptr) {
       n.node->op()->attr_parser(&(n.node->attrs));
     }
-    for (JSONGraph &subgraph : n.subgraphs) {
+    for (const JSONGraph &subgraph : n.subgraphs) {
       // The "no_parse" option here, is to be compatible with
       // commit cfd3075e85807dcd8f9534c37e053583dee87524
       // (https://github.com/apache/incubator-mxnet/tree/cfd3075e85807dcd8f9534c37e053583dee87524),
