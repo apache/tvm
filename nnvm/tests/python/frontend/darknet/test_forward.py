@@ -102,7 +102,7 @@ def test_forward_extraction():
     model_name = 'extraction'
     cfg_name = model_name + '.cfg'
     weights_name = model_name + '.weights'
-    cfg_url = 'https://github.com/siju-samuel/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
+    cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
     _download(cfg_url, cfg_name)
     _download(weights_url, weights_name)
@@ -115,7 +115,7 @@ def test_forward_alexnet():
     model_name = 'alexnet'
     cfg_name = model_name + '.cfg'
     weights_name = model_name + '.weights'
-    cfg_url = 'https://github.com/siju-samuel/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
+    cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
     _download(cfg_url, cfg_name)
     _download(weights_url, weights_name)
@@ -128,7 +128,7 @@ def test_forward_resnet50():
     model_name = 'resnet50'
     cfg_name = model_name + '.cfg'
     weights_name = model_name + '.weights'
-    cfg_url = 'https://github.com/siju-samuel/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
+    cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
     _download(cfg_url, cfg_name)
     _download(weights_url, weights_name)
@@ -138,10 +138,10 @@ def test_forward_resnet50():
 
 def test_forward_yolo():
     '''test yolo model'''
-    model_name = 'yolo'
+    model_name = 'yolov2'
     cfg_name = model_name + '.cfg'
     weights_name = model_name + '.weights'
-    cfg_url = 'https://github.com/siju-samuel/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
+    cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
     _download(cfg_url, cfg_name)
     _download(weights_url, weights_name)
