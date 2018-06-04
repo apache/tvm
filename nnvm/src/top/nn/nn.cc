@@ -417,29 +417,32 @@ NNVM_REGISTER_OP(log_softmax)
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
-    // grad_x = grad_y dot jacobian of softmax
+    // grad_x = grad_y dot jacobian of logsoftmax
     //
-    // jacobian of softmax
+    // jacobian of logsoftmax
     // [-y1 + 1, -y2,        ...    ]
     // [ ...   , -y2 + 1,    ...    ]
     // [ ...                 ...    ]
     // [ ...                ,-yn + 1]
     //
     // grad_x =
-    // [-(ograd1*y1 - 1 + ograd2*y2 + ..., -(ograd1*y1 - 1 + ograd2*y2, ..., ...]]
+    // [ograd1 - exp(y1)*(ograd1 + ... + ogradn),
+    //  ograd2 - exp(y2)*(ograd1 + ... + ogradn),
+    //  ...
+    //  ogradn - exp(yn)*(ograd1 + ... + ogradn)]
 
-    // grad_x = ograd elemwise_mul output
-    // grad_x = sum(grad_x, keepdim, axis)
+    // grad_x = sum(ograd, keepdim, axis)
+    // sigma = exp(output)
+    // grad_x = grad_x elemwise_mul sigma
     // grad_x = neg grad_x
-    // grad_x = grad_x + ones_like(grad_x)
+    // grad_x = grad_x + ograd
     const SoftmaxParam& param = nnvm::get<SoftmaxParam>(n->attrs.parsed);
     NodeEntry output =  NodeEntry{n, 0, 0};
-    NodeEntry sub0 = MakeNode("elemwise_mul", n->attrs.name + "_grad_sub0", {ograds[0], output});
-    NodeEntry sub1 = MakeNode("sum", n->attrs.name + "_grad_sub1", {sub0},
+    NodeEntry sub0 = MakeNode("sum", n->attrs.name + "_grad_sub0", {ograds[0]},
                               {{"axis", std::to_string(param.axis)}, {"keepdims", "true"}});
-    NodeEntry sub2 = MakeNode("full_like", n->attrs.name + "_grad_sub2", {n->inputs[0]},
-                              {{"fill_value", "-1"}});
-    NodeEntry sub3 = MakeNode("broadcast_mul", n->attrs.name + "_grad_sub3", {sub1, sub2});
+    NodeEntry sub1 = MakeNode("exp", n->attrs.name + "_grad_sub1", {output});
+    NodeEntry sub2 = MakeNode("broadcast_mul", n->attrs.name + "_grad_sub2", {sub0, sub1});
+    NodeEntry sub3 = MakeNode("negative", n->attrs.name + "_grad_sub3", {sub2});
     return std::vector<NodeEntry> {
       MakeNode("elemwise_add", n->attrs.name + "_grad", {sub3, ograds[0]})
     };
