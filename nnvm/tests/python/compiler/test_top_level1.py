@@ -373,7 +373,7 @@ def verify_lrn(n, c, h, w, size, axis, bias, alpha, beta):
     x_np = np.random.uniform(size=dshape).astype(dtype)
 
     def lrn_python(a_np, size, axis, bias, alpha, beta):
-        """Local response norm operator in NCHW layout.
+        """Local response norm operator numpy implementation.
 
         Parameters
         ----------
