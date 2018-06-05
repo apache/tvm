@@ -35,7 +35,7 @@ get_output(0, out)
 print(out.asnumpy())
 ```
 
-An example in c++.
+Here is an example in c++, where the required model files based on MobileNetV2 are provided at https://github.com/liangfu/mxnet-mobilenet-v2/tree/master/deploy/mobilenetv2-1_0 .
 ```cpp
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/module.h>
