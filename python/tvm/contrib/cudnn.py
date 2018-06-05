@@ -379,7 +379,7 @@ def softmax_forward(x, alg, mode="instance"):
 
     alg: str
         softmax algorithm name (fast, accurate, log)
-    
+
     mode: str
         softmax mode name (instance, channel)
 
@@ -389,23 +389,23 @@ def softmax_forward(x, alg, mode="instance"):
         The result tensor
     """
     oshape = x.shape
-    
+
     if mode == "instance":
         softmax_mode = 0
     elif mode == "channel":
         softmax_mode = 1
-    else :
+    else:
         raise ValueError("unexpected softmax mode name : {}".format(mode))
-    
+
     if alg == "fast":
         softmax_alg = 0
     elif alg == "accurate":
         softmax_alg = 1
     elif alg == "log":
         softmax_alg = 2
-    else :
+    else:
         raise ValueError("unexpected softmax algorithm name : {}".format(alg))
-    
+
     return _api.extern(
         oshape, [x],
         lambda ins, outs: _intrin.call_packed(

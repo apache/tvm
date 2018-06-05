@@ -23,14 +23,16 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
   DLTensor *dst = args[3];
   int dshape[4];
 
-  if (mode == 0) { // SOFTMAX_MODE_INSTANCE
+  if (mode == 0) {
+    // SOFTMAX_MODE_INSTANCE
     CHECK_EQ(src->ndim, 2)
         << "cudnn.softmax only support 2 dimensions tensor when mode=instance";
     dshape[0] = static_cast<int>(src->shape[0]);
     dshape[1] = static_cast<int>(src->shape[1]);
     dshape[2] = 1;
     dshape[3] = 1;
-  } else { // SOFTMAX_MODE_CHANNEL
+  } else {
+    // SOFTMAX_MODE_CHANNEL
     CHECK_GE(src->ndim, 3)
         << "cudnn.softmax need only support greater than 3 dimensions tensor when mode=channel";
     int i = 0;
@@ -52,14 +54,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
       dshape[3] = 1;
     }
   }
-  
+
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   // Set Algorithm
-  entry_ptr->softmax_entry.alg = static_cast<cudnnSoftmaxAlgorithm_t>(alg);  
+  entry_ptr->softmax_entry.alg = static_cast<cudnnSoftmaxAlgorithm_t>(alg);
   // Set Mode
   entry_ptr->softmax_entry.mode = static_cast<cudnnSoftmaxMode_t>(mode);
   // Set Data Type
-  entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(src->dtype);  
+  entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(src->dtype);
   // Set Input
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.input_desc,
                                         CUDNN_TENSOR_NCHW,
@@ -78,8 +80,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
                                         dshape[3]));
 
   CUDNN_CALL(cudnnSoftmaxForward(entry_ptr->handle,
-                                 entry_ptr->softmax_entry.alg, //softmax algorithm
-                                 entry_ptr->softmax_entry.mode, //mode
+                                 entry_ptr->softmax_entry.alg,
+                                 entry_ptr->softmax_entry.mode,
                                  &alpha,
                                  entry_ptr->softmax_entry.input_desc,
                                  src->data,

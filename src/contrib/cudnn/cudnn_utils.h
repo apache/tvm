@@ -62,12 +62,12 @@ struct ConvEntry {
 struct SoftmaxEntry {
   cudnnSoftmaxAlgorithm_t alg;
   cudnnSoftmaxMode_t mode;
-  cudnnDataType_t data_type;  
+  cudnnDataType_t data_type;
   cudnnTensorDescriptor_t input_desc;
   cudnnTensorDescriptor_t output_desc;
   SoftmaxEntry();
   ~SoftmaxEntry();
-}; // SoftmaxThreadEntry
+};  // SoftmaxThreadEntry
 
 
 struct CuDNNThreadEntry {

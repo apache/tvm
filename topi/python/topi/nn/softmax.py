@@ -84,7 +84,7 @@ def log_softmax(x):
     output : tvm.Tensor
         2-D output with same shape
     """
-    return tvm.compute_log_softmax(x, axis)    
+    return tvm.compute_log_softmax(x, axis)
 
 @tvm.tag_scope(tag='log_softmax_output')
 def compute_log_softmax(x):

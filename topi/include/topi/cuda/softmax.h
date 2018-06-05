@@ -30,7 +30,7 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
       target->libs().count("cudnn")) {
     return topi::generic::schedule_extern(target, outs);
   }
-  
+
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
