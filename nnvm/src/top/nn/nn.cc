@@ -388,7 +388,7 @@ NNVM_REGISTER_OP(softmax)
 });
 
 // log_softmax
-NVM_REGISTER_OP(log_softmax)
+NNVM_REGISTER_OP(log_softmax)
 .describe(R"code(Computes log softmax.
 
 .. math:: \text{log_softmax}(x)_i = \log \frac{exp(x_i)}{\sum_j exp(x_j)}
