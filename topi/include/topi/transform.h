@@ -366,6 +366,87 @@ inline Array<Tensor> split(const Tensor& x,
 }
 
 /*!
+* \brief strided_slice of a tensor
+*
+* \param x The input tensor
+* \param begin The indices to begin with in the slicing
+* \param end Indicies indicating end of the slice
+* \param strides Specifies the stride values, it can be negative
+* in that case, the input tensor will be reversed in that particular axis
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the split operation
+*/
+inline Tensor strided_slice(const Tensor& x,
+                            const Array<Expr>& begin,
+                            const Array<Expr>& end,
+                            const Array<Expr>& strides,
+                            std::string name = "tensor",
+                            std::string tag = kInjective) {
+  size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
+  std::vector<int64_t> begin_vec = GetConstInt64Values(begin, "begin");
+  std::vector<int64_t> end_vec = GetConstInt64Values(end, "end");
+  std::vector<int64_t> stride_vec = GetConstInt64Values(strides, "strides");
+  // in case user has not provided begin indices for all the axes,
+  // then inflate it with default value = 0
+  for (size_t i = begin_vec.size(); i < src_tensor_dim; ++i) {
+    begin_vec.push_back(0);
+  }
+  // in case user has not provided end indices for all the axes,
+  // then inflate it with default value = input_tensor.shape[axis]
+  for (size_t i = end_vec.size(); i < src_tensor_dim; ++i) {
+    end_vec.push_back(GetConstInt(x->shape[i]));
+  }
+  // in case user has not provided stride values,
+  // then inflate it with default value = 1
+  for (size_t i = stride_vec.size(); i < src_tensor_dim; ++i) {
+    stride_vec.push_back(1);
+  }
+
+  Array<Expr> out_shape;
+  Array<Expr> begin_expr;
+  Array<Expr> strides_expr;
+
+  for (size_t i = 0; i < src_tensor_dim; ++i) {
+    int64_t begin_range = stride_vec[i] < 0 ? -1 : 0;
+    int64_t dim_i = GetConstInt(x->shape[i]);
+    int64_t end_range = stride_vec[i] < 0 ? dim_i - 1 : dim_i;
+    // transform negative indices to positive value, clips on the correct range
+    auto index_canonicalization = [dim_i, begin_range, end_range](int64_t index) {
+      if (index < 0) {
+        index += dim_i;
+      }
+      return std::min(std::max(index, begin_range), end_range);
+    };
+
+    int64_t begin_i = index_canonicalization(begin_vec[i]);
+    int64_t end_i = index_canonicalization(end_vec[i]);
+
+    int interval = std::abs(end_i - begin_i);
+    int slice_size = static_cast<int>((interval
+                                     + std::abs(stride_vec[i]) - 1) / std::abs(stride_vec[i]));
+    CHECK(stride_vec[i] < 0 ? (end_i < begin_i) : (begin_i < end_i))
+      << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
+      << "] is invalid for axis=" << i;
+
+    begin_expr.push_back(make_const(begin[0].type(), begin_i));
+    strides_expr.push_back(make_const((strides.size() != 0 ? strides[0].type() : begin[0].type()),
+                                     stride_vec[i]));
+    out_shape.push_back(slice_size);
+  }
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+      Array<Expr> real_indices;
+      for (size_t i = 0; i < src_tensor_dim; ++i) {
+        real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
+      }
+      return x(real_indices);
+    }, name, tag);
+}
+
+/*!
 * \brief Split a tensor into a number of sub-tensors
 *
 * \param x The input tensor
