@@ -107,6 +107,19 @@ ConvEntry::~ConvEntry() {
   CleanWorkspace();
 }
 
+
+SoftmaxEntry::SoftmaxEntry() {
+  CUDNN_CALL(cudnnCreateTensorDescriptor(&input_desc));
+  CUDNN_CALL(cudnnCreateTensorDescriptor(&output_desc));
+}
+
+
+SoftmaxEntry::~SoftmaxEntry() {
+  CUDNN_CALL(cudnnDestroyTensorDescriptor(input_desc));
+  CUDNN_CALL(cudnnDestroyTensorDescriptor(output_desc));
+}
+
+
 void ConvEntry::UpdateWorkspace(const size_t wsize) {
   if (workspace_size < wsize) {
     if (workspace != nullptr) {

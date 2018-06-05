@@ -368,3 +368,49 @@ def conv2d_forward(x,
             ins[0],
             ins[1],
             outs[0]), name="y")
+
+def softmax_forward(x, alg, mode="instance"):
+    """Create an extern op that compute softmax with CuDNN
+
+    Parameters
+    ----------
+    x: Tensor
+        input feature map
+
+    alg: str
+        softmax algorithm name (fast, accurate, log)
+
+    mode: str
+        softmax mode name (instance, channel)
+
+    Returns
+    -------
+    y: Tensor
+        The result tensor
+    """
+    oshape = x.shape
+
+    if mode == "instance":
+        softmax_mode = 0
+    elif mode == "channel":
+        softmax_mode = 1
+    else:
+        raise ValueError("unexpected softmax mode name : {}".format(mode))
+
+    if alg == "fast":
+        softmax_alg = 0
+    elif alg == "accurate":
+        softmax_alg = 1
+    elif alg == "log":
+        softmax_alg = 2
+    else:
+        raise ValueError("unexpected softmax algorithm name : {}".format(alg))
+
+    return _api.extern(
+        oshape, [x],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.cudnn.softmax.forward",
+            softmax_alg,
+            softmax_mode,
+            ins[0],
+            outs[0]), name="y")
