@@ -273,7 +273,7 @@ def verify_strided_slice(in_shape, begin, end, stride=None):
     for device in ["llvm", "opencl"]:
         check_device(device)
 
-def test_stridedslice():
+def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
     verify_strided_slice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1])
@@ -356,4 +356,4 @@ if __name__ == "__main__":
     test_flip()
     test_expand_like()
     test_take()
-    test_stridedslice()
+    test_strided_slice()

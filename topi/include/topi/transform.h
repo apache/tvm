@@ -385,9 +385,9 @@ inline Tensor strided_slice(const Tensor& x,
                             std::string name = "tensor",
                             std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
-  std::vector<int> begin_vec = GetConstIntValues(begin, "begin");
-  std::vector<int> end_vec = GetConstIntValues(end, "end");
-  std::vector<int> stride_vec = GetConstIntValues(strides, "strides");
+  std::vector<int64_t> begin_vec = GetConstInt64Values(begin, "begin");
+  std::vector<int64_t> end_vec = GetConstInt64Values(end, "end");
+  std::vector<int64_t> stride_vec = GetConstInt64Values(strides, "strides");
   // in case user has not provided begin indices for all the axes,
   // then inflate it with default value = 0
   for (size_t i = begin_vec.size(); i < src_tensor_dim; ++i) {
@@ -405,22 +405,23 @@ inline Tensor strided_slice(const Tensor& x,
   }
 
   Array<Expr> out_shape;
+  Array<Expr> begin_expr;
+  Array<Expr> strides_expr;
 
   for (size_t i = 0; i < src_tensor_dim; ++i) {
-    int begin_range = stride_vec[i] < 0 ? -1 : 0;
-    int end_range = stride_vec[i] < 0 ? GetConstInt(x->shape[i]) - 1 : GetConstInt(x->shape[i]);
+    int64_t begin_range = stride_vec[i] < 0 ? -1 : 0;
+    int64_t dim_i = GetConstInt(x->shape[i]);
+    int64_t end_range = stride_vec[i] < 0 ? dim_i - 1 : dim_i;
     // transform negative indices to positive value, clips on the correct range
-    auto index_canonicalization = [x, i, begin_range, end_range](int index) {
+    auto index_canonicalization = [dim_i, begin_range, end_range](int64_t index) {
       if (index < 0) {
-        index += GetConstInt(x->shape[i]);
+        index += dim_i;
       }
       return std::min(std::max(index, begin_range), end_range);
     };
 
-    int begin_i = begin_vec[i];
-    int end_i = end_vec[i];
-    begin_i = index_canonicalization(begin_i);
-    end_i = index_canonicalization(end_i);
+    int64_t begin_i = index_canonicalization(begin_vec[i]);
+    int64_t end_i = index_canonicalization(end_vec[i]);
 
     int interval = std::abs(end_i - begin_i);
     int slice_size = static_cast<int>((interval
@@ -428,8 +429,10 @@ inline Tensor strided_slice(const Tensor& x,
     CHECK(stride_vec[i] < 0 ? (end_i < begin_i) : (begin_i < end_i))
       << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
       << "] is invalid for axis=" << i;
-    begin_vec[i] = begin_i;
-    end_vec[i] = end_i;
+
+    begin_expr.push_back(make_const(begin[0].type(), begin_i));
+    strides_expr.push_back(make_const((strides.size() != 0 ? strides[0].type() : begin[0].type()),
+                                     stride_vec[i]));
     out_shape.push_back(slice_size);
   }
 
@@ -437,7 +440,7 @@ inline Tensor strided_slice(const Tensor& x,
     out_shape, [&](const Array<Var>& indices) {
       Array<Expr> real_indices;
       for (size_t i = 0; i < src_tensor_dim; ++i) {
-        real_indices.push_back(indices[i] * stride_vec[i] + begin_vec[i]);
+        real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
       }
       return x(real_indices);
     }, name, tag);

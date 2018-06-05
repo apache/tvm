@@ -67,6 +67,24 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
 }
 
 /*!
+ * \brief Get the value of all the constant integer expressions in the given array
+ *
+ * \param exprs The array of expressions to get the values of
+ * \param var_name The name to be used when logging an error in the event that any
+ * of the expressions are not constant integers.
+ *
+ * \return A vector of the int64_t values
+ */
+inline std::vector<int64_t> GetConstInt64Values(Array<Expr> exprs, const std::string& var_name) {
+  std::vector<int64_t> result;
+  for (auto expr : exprs) {
+    CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    result.push_back(GetConstInt(expr));
+  }
+  return result;
+}
+
+/*!
  * \brief Check weather the two expressions are equal or not, if not simplify the expressions and check again
  * \note This is stronger equality check than tvm::ir::Equal
  *
