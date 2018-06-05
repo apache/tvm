@@ -55,10 +55,10 @@ def test_conv2d():
     
     verify()
 
-def test_softmax(alg):
+def test_softmax():
     mode = "instance"
-
     dshape = [32, 32]
+    
     if not tvm.module.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
@@ -66,25 +66,27 @@ def test_softmax(alg):
         print("skip because cudnn is not enabled...")
         return
 
-    X = tvm.placeholder(dshape, name='X')
-    Y = cudnn.softmax_forward(X,
-                              alg,
-                              mode)
-    s =  tvm.create_schedule(Y.op)
+    def verify(alg):
+        X = tvm.placeholder(dshape, name='X')
+        Y = cudnn.softmax_forward(X,
+                                  alg,
+                                  mode)
+        s =  tvm.create_schedule(Y.op)
 
-    x_np = np.random.uniform(-1, 1, dshape).astype(np.float32)
-
-    def verify():
+        x_np = np.random.uniform(-1, 1, dshape).astype(np.float32)
+        
         ctx = tvm.gpu(0)
         f = tvm.build(s, [X, Y], "cuda", target_host="llvm", name="softmax")
         x = tvm.nd.array(x_np, ctx)
         y = tvm.nd.array(np.zeros(dshape, dtype=Y.dtype), ctx)
         f(x, y)
-    
-    verify()
+
+    # testing softmax
+    verify("accurate")
+    # testing log_softmax
+    verify("log")
 
     
 if __name__ == "__main__":
     test_conv2d()
-    test_softmax("accurate")
-    test_softmax("log")
+    test_softmax()
