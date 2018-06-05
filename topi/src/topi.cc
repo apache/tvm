@@ -280,6 +280,11 @@ TVM_REGISTER_GLOBAL("topi.take")
   }
   });
 
+TVM_REGISTER_GLOBAL("topi.strided_slice")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = strided_slice(args[0], args[1], args[2], args[3]);
+  });
+
 /* Ops from nn/batch_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.batch_norm_inference")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
