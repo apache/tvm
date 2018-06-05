@@ -18,3 +18,4 @@ from .extern import schedule_extern
 from .vision import schedule_region
 from .vision import schedule_reorg
 from .nn import schedule_lrn, schedule_l2norm
+from .grouped_conv2d import schedule_grouped_conv2d

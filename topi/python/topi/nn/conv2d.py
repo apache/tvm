@@ -3,8 +3,9 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+import topi
 from .pad import pad
-from .util import get_pad_tuple
+from .util import get_pad_tuple, get_const_int
 from ..util import simplify
 
 # workload description of conv2d
@@ -485,3 +486,169 @@ _SCH_TO_DECL_FUNC = {
     SpatialPack: _spatial_pack,
     Im2ColPack: _im2col_pack,
 }
+
+
+def grouped_conv2d_nchw(Input, Filter, groups, strides, padding):
+    """Grouped convolution NCHW
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    Filter : tvm.Tensor
+        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+
+    groups : int
+        Filter groups, this indicate the number of split convolution have to
+        perform
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    batch, in_channel, in_height, in_width = Input.shape
+    num_filter, channel, kernel_h, kernel_w = Filter.shape
+
+    assert get_const_int(in_channel) % groups == 0, \
+            "Input channel % groups must be zero"
+    assert get_const_int(num_filter) % groups == 0, \
+            "Filter's output channel % groups must be zero"
+    input_data = topi.split(Input, groups, axis=1)
+    kernel_data = topi.split(Filter, groups, axis=0)
+
+    conv_out = []
+    for input_, kernel_ in zip(input_data, kernel_data):
+        conv_out.append(topi.nn.conv2d_nchw(input_, kernel_, strides,
+                                            padding, out_dtype=Input.dtype))
+
+    return topi.concatenate(conv_out, axis=1)
+
+def grouped_conv2d_hwcn(Input, Filter, groups, strides, padding):
+    """Grouped convolution HWCN
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [in_height, in_width, in_channel, batch]
+
+    Filter : tvm.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+
+    groups : int
+        Filter groups, this indicate the number of split convolution have to
+        perform
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [out_height, out_width, out_channel, batch]
+    """
+    in_height, in_width, in_channel, batch = Input.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
+    assert get_const_int(in_channel) % groups == 0, \
+            "Input channel % groups must be zero"
+    assert get_const_int(num_filter) % groups == 0, \
+            "Filter's output channel % groups must be zero"
+    input_data = topi.split(Input, groups, axis=2)
+    kernel_data = topi.split(Filter, groups, axis=3)
+
+    conv_out = []
+    for input_, kernel_ in zip(input_data, kernel_data):
+        conv_out.append(topi.nn.conv2d_hwcn(input_, kernel_, strides,
+                                            padding, out_dtype=Input.dtype))
+
+    return topi.concatenate(conv_out, axis=2)
+
+def grouped_conv2d_nhwc(Input, Filter, groups, strides, padding):
+    """Convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    Filter : tvm.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+
+    groups : int
+        Filter groups, this indicate the number of split convolution have to
+        perform
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_height,  out_width, out_channel]
+    """
+    batch, in_height, in_width, in_channel = Input.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
+    assert get_const_int(in_channel) % groups == 0, \
+            "Input channel % groups must be zero"
+    assert get_const_int(num_filter) % groups == 0, \
+            "Filter's output channel % groups must be zero"
+    input_data = topi.split(Input, groups, axis=3)
+    kernel_data = topi.split(Filter, groups, axis=3)
+
+    conv_out = []
+    for input_, kernel_ in zip(input_data, kernel_data):
+        conv_out.append(topi.nn.conv2d_nhwc(input_, kernel_, strides,
+                                            padding, out_dtype=Input.dtype))
+
+    return topi.concatenate(conv_out, axis=3)
+    #return topi.nn.conv2d_nhwc(Input, Filter, strides, padding)
+
+def grouped_conv2d(Input, Filter, groups, strides, padding, layout='NCHW'):
+    """Grouped convolution
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        4-D with shape
+
+    Filter : tvm.Tensor
+        4-D with shape
+
+    groups : int
+        Filter groups, this indicate the number of split convolution have to
+        perform
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    layout : str
+        Input data layout, or ['NCHW', HWCN]
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape
+    """
+    if layout == 'NCHW':
+        return grouped_conv2d_nchw(Input, Filter, groups, strides, padding)
+    elif layout == 'HWCN':
+        return grouped_conv2d_hwcn(Input, Filter, groups, strides, padding)
+    elif layout == 'NHWC':
+        return grouped_conv2d_nhwc(Input, Filter, groups, strides, padding)
+    else:
+        raise ValueError("not support this layout {} yet".format(layout))
