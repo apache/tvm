@@ -382,14 +382,13 @@ NNVM_REGISTER_OP(softmax)
     NodeEntry sub1 = MakeNode("sum", n->attrs.name + "_grad_sub1", {sub0},
                               {{"axis", std::to_string(param.axis)}, {"keepdims", "true"}});
     NodeEntry sub2 = MakeNode("broadcast_mul", n->attrs.name + "_grad_sub2", {sub1, output});
-    NodeEntry sub3 = MakeNode("negative", n->attrs.name + "_grad_sub3", {sub2});
     return std::vector<NodeEntry> {
-      MakeNode("elemwise_add", n->attrs.name + "_grad", {sub3, sub0})
+      MakeNode("elemwise_sub", n->attrs.name + "_grad", {sub0, sub2})
     };
 });
 
 // log_softmax
-NNVM_REGISTER_OP(log_softmax)
+NVM_REGISTER_OP(log_softmax)
 .describe(R"code(Computes log softmax.
 
 .. math:: \text{log_softmax}(x)_i = \log \frac{exp(x_i)}{\sum_j exp(x_j)}
@@ -442,9 +441,8 @@ NNVM_REGISTER_OP(log_softmax)
                               {{"axis", std::to_string(param.axis)}, {"keepdims", "true"}});
     NodeEntry sub1 = MakeNode("exp", n->attrs.name + "_grad_sub1", {output});
     NodeEntry sub2 = MakeNode("broadcast_mul", n->attrs.name + "_grad_sub2", {sub0, sub1});
-    NodeEntry sub3 = MakeNode("negative", n->attrs.name + "_grad_sub3", {sub2});
     return std::vector<NodeEntry> {
-      MakeNode("elemwise_add", n->attrs.name + "_grad", {sub3, ograds[0]})
+      MakeNode("elemwise_sub", n->attrs.name + "_grad", {ograds[0], sub2})
     };
 })
 .set_support_level(1);
