@@ -216,9 +216,7 @@ def test_forward_mobilenet():
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
-
-if __name__ == '__main__':
-    test_forward_elemwise_add()
+def test_forward_activations():
     test_forward_softmax()
     test_forward_softrelu()
     test_forward_leaky_relu()
@@ -228,6 +226,10 @@ if __name__ == '__main__':
     test_forward_thresholdedrelu()
     test_forward_softsign()
     test_forward_hardsigmoid()
+
+if __name__ == '__main__':
+    test_forward_elemwise_add()
+    test_forward_activations()
     test_forward_dense()
     test_forward_transpose_conv()
     test_forward_separable_conv()
