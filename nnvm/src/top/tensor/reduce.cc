@@ -3,13 +3,13 @@
  * \file reduce.cc
  * \brief reduce operator.
  */
-#include <numeric>
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/compiler/util.h>
 #include <nnvm/top/tensor.h>
+#include <numeric>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/detail/constant_utils.h"
