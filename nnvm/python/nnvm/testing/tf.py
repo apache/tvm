@@ -5,6 +5,8 @@ Compile Tensorflow Models
 Some helper definitions for tensorflow models.
 """
 import re
+import os.path
+import numpy as np
 
 # Tensorflow imports
 import tensorflow as tf
@@ -77,3 +79,75 @@ class NodeLookup(object):
         if node_id not in self.node_lookup:
             return ''
         return self.node_lookup[node_id]
+
+def read_normalized_tensor_from_image_file(file_name,
+                                           input_height=299,
+                                           input_width=299,
+                                           input_mean=0,
+                                           input_std=255):
+    """ Preprocessing of image """
+
+    input_name = "file_reader"
+    output_name = "normalized"
+    file_reader = tf.read_file(file_name, input_name)
+
+    image_reader = tf.image.decode_jpeg(file_reader, channels=3,
+                                        name='jpeg_reader')
+    float_caster = tf.cast(image_reader, tf.float32)
+    dims_expander = tf.expand_dims(float_caster, 0)
+    resized = tf.image.resize_bilinear(dims_expander, [input_height, input_width])
+    normalized = tf.divide(tf.subtract(resized, [input_mean]), [input_std])
+    tf.InteractiveSession()
+    np_array = normalized.eval()
+    return np_array
+
+def get_workload_inception_v3():
+    """ Import Inception V3 workload from frozen protobuf """
+
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV3/'
+    model_name = 'inception_v3_2016_08_28_frozen-with_shapes.pb'
+    model_url = os.path.join(repo_base, model_name)
+    image_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, image_name)
+
+    from mxnet.gluon.utils import download
+    download(model_url, model_name)
+    download(image_url, image_name)
+
+    normalized = read_normalized_tensor_from_image_file(os.path.join("./", image_name))
+
+    # Creates graph from saved graph_def.pb.
+    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+        graph = tf.import_graph_def(graph_def, name='')
+        return (normalized, graph_def)
+
+def get_workload_inception_v1():
+    """ Import Inception V1 workload from frozen protobuf """
+
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
+    model_name = 'classify_image_graph_def-with_shapes.pb'
+    model_url = os.path.join(repo_base, model_name)
+    image_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, image_name)
+
+    from mxnet.gluon.utils import download
+    download(model_url, model_name)
+    download(image_url, image_name)
+
+    if not tf.gfile.Exists(os.path.join("./", image_name)):
+        tf.logging.fatal('File does not exist %s', image)
+    image_data = tf.gfile.FastGFile(os.path.join("./", image_name), 'rb').read()
+
+    # TVM doesn't handle decode, hence decode it.
+    from PIL import Image
+    tvm_data = Image.open(os.path.join("./", image_name)).resize((299, 299))
+    tvm_data = np.array(tvm_data)
+
+    # Creates graph from saved graph_def.pb.
+    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+        graph = tf.import_graph_def(graph_def, name='')
+        return (image_data, tvm_data, graph_def)

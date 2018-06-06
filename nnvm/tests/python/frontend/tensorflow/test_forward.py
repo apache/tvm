@@ -13,6 +13,9 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
+from tensorflow.core.framework import graph_pb2
+
+import nnvm.testing.tf
 
 #######################################################################
 # Generic run functions for TVM & tensorflow
@@ -363,6 +366,59 @@ def test_forward_multi_input():
             sess.close()
 
 #######################################################################
+# Inception V3
+# ------------
+def _ProcessGraphDefParam(graph_def):
+  """Type-checks and possibly canonicalizes `graph_def`."""
+  if not isinstance(graph_def, graph_pb2.GraphDef):
+    # `graph_def` could be a dynamically-created message, so try a duck-typed
+    # approach
+    try:
+      old_graph_def = graph_def
+      graph_def = graph_pb2.GraphDef()
+      graph_def.MergeFrom(old_graph_def)
+    except TypeError:
+      raise TypeError('graph_def must be a GraphDef proto.')
+  return graph_def
+
+
+def test_forward_inception_v3():
+    '''test inception V3 model'''
+    with tf.Graph().as_default():
+        (data, graph_def) = nnvm.testing.tf.get_workload_inception_v3()
+        graph_def = _ProcessGraphDefParam(graph_def)
+
+        tvm_output = run_tvm_graph(graph_def, data, 'input', (1, 1001), 'float32')
+        with tf.Session() as sess:
+            tf_output = run_tf_graph(sess, data, 'input:0', 'InceptionV3/Predictions/Reshape_1:0')
+
+            top_tvm = np.squeeze(tvm_output).argsort()[-3:][::-1]
+            top_tf = np.squeeze(tf_output).argsort()[-3:][::-1]
+
+            # TVM implementation of SAME padding some times make a slight deviation.
+            # Hence check for top predictions.
+            top_tvm = np.sort(top_tvm)
+            top_tf = np.sort(top_tf)
+
+            np.testing.assert_allclose(top_tf, top_tvm)
+
+#######################################################################
+# Inception V1
+# ------------
+def test_forward_inception_v1():
+    '''test inception V1 model'''
+    with tf.Graph().as_default():
+        (data, tvm_data, graph_def) = nnvm.testing.tf.get_workload_inception_v1()
+        graph_def = _ProcessGraphDefParam(graph_def)
+
+        tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents', (1, 1008), 'float32')
+
+        with tf.Session() as sess:
+            tf_output = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'softmax:0')
+
+        np.testing.assert_allclose(tf_output, tvm_output, rtol=2e-2, atol=2e-2)
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -372,3 +428,6 @@ if __name__ == '__main__':
     test_forward_squeeze()
     test_forward_concat_v2()
     test_forward_multi_input()
+
+    test_forward_inception_v3()
+    test_forward_inception_v1()
