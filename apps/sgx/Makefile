@@ -78,7 +78,7 @@ lib/test_addone.so: $(TVM_ROOT)/src/runtime/sgx/trusted/runtime.cc lib/tvm_t.o l
 
 # The signed enclave
 lib/test_addone.signed.so: lib/test_addone.so enclave_config.xml
-	$(sgx_enclave_signer) sign -key enclave_private.pem -enclave $< -out $@ -config enclave_config.xml
+	$(sgx_enclave_signer) sign -key lib/enclave.pem -enclave $< -out $@ -config enclave_config.xml
 
 clean:
 	rm -rf lib

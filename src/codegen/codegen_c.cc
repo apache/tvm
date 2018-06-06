@@ -27,6 +27,7 @@ void CodeGenC::AddFunction(LoweredFunc f) {
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
+  GetUniqueName("extern");
   // add to alloc buffer type.
   for (const auto & kv : f->handle_data_type) {
     RegisterHandleType(kv.first.get(), kv.second.type());

@@ -14,28 +14,31 @@ set_session(tf.Session(config=config))
 
 
 def verify_keras_frontend(keras_model):
-    in_shape = [dim.value if dim.value is not None else 1 for dim in keras_model.input_layers[0].input.shape]
+    in_shapes = []
+    for layer in keras_model.input_layers:
+        in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
     out_shape = [dim.value if dim.value is not None else 1 for dim in keras_model.output_layers[0].output.shape]
 
-    def get_keras_output(x, dtype='float32'):
-        return keras_model.predict(x)
+    def get_keras_output(xs, dtype='float32'):
+        return keras_model.predict(xs)
 
-    def get_tvm_output(x, target, ctx, input_name='data', dtype='float32'):
+    def get_tvm_output(xs, target, ctx, dtype='float32'):
         sym, params = nnvm.frontend.from_keras(keras_model)
-        shape_dict = {input_name : x.shape}
+        shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
         with nnvm.compiler.build_config(opt_level=2):
             graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
         m = graph_runtime.create(graph, lib, ctx)
-        m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
+        for name, x in zip(keras_model.input_names, xs):
+            m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.set_input(**params)
         m.run()
         out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
         return out.asnumpy()
 
-    x = np.random.uniform(size=in_shape)
-    keras_out = get_keras_output(x)
+    xs = [np.random.uniform(size=shape) for shape in in_shapes]
+    keras_out = get_keras_output(xs)
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(x.transpose([0,3,1,2]), target, ctx)
+        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
         np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
 
     
@@ -166,6 +169,39 @@ def test_forward_mobilenet():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_multi_inputs():
+    data1 = keras.layers.Input(shape=(32,32,3))
+    data2 = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(data1)
+    y = keras.layers.Conv2D(8, (3, 3), padding="same")(data2)
+    z = keras.layers.add([x, y])
+    z = keras.layers.GlobalAveragePooling2D()(z)
+    keras_model = keras.models.Model([data1, data2], z)
+    verify_keras_frontend(keras_model)
+
+
+def test_forward_reuse_layers():
+    # reuse conv2d
+    data = keras.layers.Input(shape=(32,32,3))
+    conv2d = keras.layers.Conv2D(8, (3, 3), padding="same")
+    x = conv2d(data)
+    y = conv2d(data)
+    z = keras.layers.add([x, y])
+    z = keras.layers.GlobalAveragePooling2D()(z)
+    keras_model = keras.models.Model(data, z)
+    verify_keras_frontend(keras_model)
+
+    # reuse add
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
+    add = keras.layers.Add()
+    x = add([x, x])
+    x = add([x, x])
+    z = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, z)
+    verify_keras_frontend(keras_model)
+
+
 if __name__ == '__main__':
     test_forward_elemwise_add()
     test_forward_softmax()
@@ -182,3 +218,6 @@ if __name__ == '__main__':
     test_forward_xception()
     test_forward_resnet50()
     test_forward_mobilenet()
+
+    test_forward_multi_inputs()
+    test_forward_reuse_layers()
