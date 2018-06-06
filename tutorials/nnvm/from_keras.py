@@ -63,7 +63,7 @@ plt.show()
 # input preprocess
 data = np.array(img)[np.newaxis, :].astype('float32')
 data = preprocess_input(data).transpose([0, 3, 1, 2])
-print('data', data.shape)
+print('input_1', data.shape)
 
 ######################################################################
 # Compile the model on NNVM
@@ -74,7 +74,7 @@ print('data', data.shape)
 sym, params = nnvm.frontend.from_keras(keras_resnet50)
 # compile the model
 target = 'cuda'
-shape_dict = {'data': data.shape}
+shape_dict = {'input_1': data.shape}
 with nnvm.compiler.build_config(opt_level=2):
 	graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
@@ -86,7 +86,7 @@ from tvm.contrib import graph_runtime
 ctx = tvm.gpu(0)
 m = graph_runtime.create(graph, lib, ctx)
 # set inputs
-m.set_input('data', tvm.nd.array(data.astype('float32')))
+m.set_input('input_1', tvm.nd.array(data.astype('float32')))
 m.set_input(**params)
 # execute
 m.run()
