@@ -69,14 +69,14 @@ class ParallelLauncher {
       tvm::runtime::threading::Yield();
     }
     if (!has_error_.load()) return 0;
-    std::string err("");
+    std::stringstream err;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
-        err += "Task " + std::to_string(i) + " error: " + par_errors_[i] + '\n';
+        err << "Task " << i << " error: " << par_errors_[i] << std::endl;
         par_errors_[i].clear();
       }
     }
-    TVMAPISetLastError(err.c_str());
+    TVMAPISetLastError(err.str().c_str());
     return -1;
   }
   // Signal that one job has finished.
