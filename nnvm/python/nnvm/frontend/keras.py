@@ -152,8 +152,8 @@ def _convert_convolution(insym, keras_layer, symtab):
         pass
     # we insert a separate pad operator
     elif keras_layer.padding == 'same':
-        in_h = keras_layer.input.shape[1].value
-        in_w = keras_layer.input.shape[2].value
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
         pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
         pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         insym = _sym.pad(data=insym, pad_width=((0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
@@ -192,8 +192,8 @@ def _convert_separable_convolution(insym, keras_layer, symtab):
         pass
     # we insert a separate pad operator
     elif keras_layer.padding == 'same':
-        in_h = keras_layer.input.shape[1].value
-        in_w = keras_layer.input.shape[2].value
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
         pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
         pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         insym = _sym.pad(data=insym, pad_width=(
@@ -249,8 +249,8 @@ def _convert_pooling(insym, keras_layer, symtab):
             pass
         # we insert a separate pad operator
         elif keras_layer.padding == 'same':
-            in_h = keras_layer.input.shape[1].value
-            in_w = keras_layer.input.shape[2].value
+            in_h = keras_layer.input_shape[1]
+            in_w = keras_layer.input_shape[2]
             pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
             pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
             insym = _sym.pad(data=insym, pad_width=(
@@ -475,25 +475,33 @@ def from_keras(model):
     symtab = SymbolTable()
     for keras_layer in model.layers:
         if isinstance(keras_layer, keras.engine.topology.InputLayer):
-            keras_layer.name = 'data'
             symtab.get_var(keras_layer.name, must_contain=False)
         else:
-            predecessors = []
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
                        else None
             if inbound_nodes is None:
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
-            for node in inbound_nodes:
-                for pred in node.inbound_layers:
-                    predecessors.append(pred.name)
-            if len(predecessors) == 1:
-                insym = symtab.get_var(predecessors[0], must_contain=True)
-            else:
-                insym = [symtab.get_var(pred, must_contain=True) for pred in predecessors]
-            keras_op_to_nnvm(insym, keras_layer, keras_layer.name, symtab)
+            for my_idx, node in enumerate(inbound_nodes):
+                insym = []
 
-    returns = [symtab.get_var(i.name, must_contain=False) for i in model.output_layers]
+                # Since Keras allows creating multiple layers from the same name instance,
+                # we append node index to the symbol name to make it unique.
+                # The one exception is InputLayer.  Changing input variable names after conversion
+                # would confuse users, so we should keep them as far as possible.  Fortunately,
+                # they are named uniquely to input_1, input_2, input_3 ... by default.
+                for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
+                    if isinstance(pred, keras.engine.topology.InputLayer):
+                        _sym = symtab.get_var(pred.name, must_contain=True)
+                    else:
+                        _sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
+                    insym.append(_sym)
+
+                if len(insym) == 1:
+                    insym = insym[0]
+                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
+
+    outsym = symtab.get_var(model.output_layers[0].name + ':0')
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
-    return returns[0], tvmparams
+    return outsym, tvmparams
