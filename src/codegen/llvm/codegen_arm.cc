@@ -39,7 +39,6 @@ llvm::Value* CodeGenARM::CreateIntrinsic(const Call* op) {
 Expr CodeGenARM::ARMPopcount(const Call *call) {
   using namespace ir;
   const Expr& e = call->args[2];
-
   ::llvm::Intrinsic::ID ctpop_id = ::llvm::Intrinsic::ctpop;
   ::llvm::Intrinsic::ID vpaddlu_id = ::llvm::Intrinsic::arm_neon_vpaddlu;
 
