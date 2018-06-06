@@ -8,7 +8,6 @@ import sys
 import logging
 from ..contrib import rpc
 
-
 def main(args):
     """Main function"""
 
@@ -50,7 +49,9 @@ if __name__ == "__main__":
                         help="Use spawn mode to avoid fork. This option \
                          is able to avoid potential fork problems with Metal, OpenCL \
                          and ROCM compilers.")
-    parser.add_argument('--custom-addr', type=str) 
+    parser.add_argument('--custom-addr', type=str,
+                        help="Custom IP Address to Report to RPC Tracker") 
+
     parser.set_defaults(fork=True)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
