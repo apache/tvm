@@ -366,7 +366,7 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
   int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
   if (extent == num_elems && begin == 0) return vec;
-  CHECK_LT(begin + extent, num_elems+1);
+  CHECK_LE(begin + extent, num_elems);
   std::vector<unsigned> indices;
   for (int i = 0; i < extent; ++i) {
     indices.push_back(begin + i);

@@ -117,11 +117,41 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   }
 
   std::string GetSource(const std::string& format) final {
+    std::string fmt = runtime::GetFileFormat("", format);
     std::string type_str;
-    llvm::raw_string_ostream rso(type_str);
-    CHECK(mptr_ != nullptr);
-    mptr_->print(rso, nullptr);
-    return rso.str();
+    llvm::SmallString<256> str;
+    llvm::raw_svector_ostream rso(str);
+
+    if (fmt == "s" || fmt == "asm") {
+    #if TVM_LLVM_VERSION <= 60
+          std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+    #else
+          std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+    #endif
+          llvm::legacy::PassManager pass;
+          CHECK(tm_);
+    #if TVM_LLVM_VERSION <= 60
+          CHECK(tm_->addPassesToEmitFile(
+              pass, rso, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+              << "Cannot emit target CGFT_AssemblyFile";
+    #else
+          CHECK(tm_->addPassesToEmitFile(
+              pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+              << "Cannot emit target CGFT_AssemblyFile";
+    #endif
+          pass.run(*m);
+          return rso.str().str();
+    } else if (fmt == "" || fmt == "ll") {
+      std::string type_str;
+      llvm::raw_string_ostream rso(type_str);
+      CHECK(mptr_ != nullptr);
+      mptr_->print(rso, nullptr);
+      return rso.str();
+    } else {
+      LOG(FATAL) << "Do not know how to get source code with format: "
+                 << format << "\'";
+    }
+    return "";
   }
 
   void Init(const Array<LoweredFunc>& funcs, std::string target) {

@@ -39,13 +39,9 @@ llvm::Value* CodeGenARM::CreateIntrinsic(const Call* op) {
 Expr CodeGenARM::ARMPopcount(const Call *call) {
   using namespace ir;
   const Expr& e = call->args[2];
+
   ::llvm::Intrinsic::ID ctpop_id = ::llvm::Intrinsic::ctpop;
-  ::llvm::Intrinsic::ID vpaddu_id = ::llvm::Intrinsic::arm_neon_vpaddlu;
-
-
-  Type uint8_type = Type(e.type().code(), 8, e.type().bits() * e.type().lanes() / 8);
-  Type uint16_type = Type(uint8_type.code(), 16, uint8_type.bits() * uint8_type.lanes() / 16);
-  Type uint32_type = Type(uint16_type.code(), 32, uint8_type.bits() * uint8_type.lanes() / 32);
+  ::llvm::Intrinsic::ID vpaddlu_id = ::llvm::Intrinsic::arm_neon_vpaddlu;
 
   // Fallback to default llvm lowering rule if input type not a full vector or half vector length
   int total_size =  call->type.bits() * call->type.lanes();
@@ -57,6 +53,16 @@ Expr CodeGenARM::ARMPopcount(const Call *call) {
     vcnt_args.push_back(e);
     return ir::Call::make(call->type,  "llvm_intrin", vcnt_args, Call::PureIntrinsic);
   }
+
+  // Popcount lowering rule:
+  // Reinterpret input vector as a vector of 8bit values and preform popcount
+  // Pairwise add between adjacent elements and double width with vpaddlu
+  // to return back to original input type
+
+  // Dvisions are always divisible (number of bits = 64 or 128)
+  Type uint8_type = Type(e.type().code(), 8, e.type().bits() * e.type().lanes() / 8);
+  Type uint16_type = Type(uint8_type.code(), 16, uint8_type.bits() * uint8_type.lanes() / 16);
+  Type uint32_type = Type(uint16_type.code(), 32, uint8_type.bits() * uint8_type.lanes() / 32);
 
   // Interpret input as vector of 8bit values
   Expr input8 = reinterpret(uint8_type, e);
@@ -71,7 +77,7 @@ Expr CodeGenARM::ARMPopcount(const Call *call) {
 
   // Accumulation 8->16bit
   Array<Expr> vcnt16_args;
-  vcnt16_args.push_back(ir::UIntImm::make(UInt(32), vpaddu_id));
+  vcnt16_args.push_back(ir::UIntImm::make(UInt(32), vpaddlu_id));
   vcnt16_args.push_back(ir::UIntImm::make(UInt(32), 1));
   vcnt16_args.push_back(vcnt8);
   Expr vcnt16 = ir::Call::make(uint16_type, "llvm_intrin", vcnt16_args, Call::PureIntrinsic);
@@ -81,7 +87,7 @@ Expr CodeGenARM::ARMPopcount(const Call *call) {
 
   // Accumulation 16->32bit
   Array<Expr> vcnt32_args;
-  vcnt32_args.push_back(ir::UIntImm::make(UInt(32), vpaddu_id));
+  vcnt32_args.push_back(ir::UIntImm::make(UInt(32), vpaddlu_id));
   vcnt32_args.push_back(ir::UIntImm::make(UInt(32), 1));
   vcnt32_args.push_back(vcnt16);
   Expr vcnt32 = ir::Call::make(uint32_type,  "llvm_intrin", vcnt32_args, Call::PureIntrinsic);
@@ -91,7 +97,7 @@ Expr CodeGenARM::ARMPopcount(const Call *call) {
 
   // Accumulation 32->64bit
   Array<Expr> vcnt64_args;
-  vcnt64_args.push_back(ir::UIntImm::make(UInt(32), vpaddu_id));
+  vcnt64_args.push_back(ir::UIntImm::make(UInt(32), vpaddlu_id));
   vcnt64_args.push_back(ir::UIntImm::make(UInt(32), 1));
   vcnt64_args.push_back(vcnt32);
   return ir::Call::make(call->type,  "llvm_intrin", vcnt64_args, Call::PureIntrinsic);
