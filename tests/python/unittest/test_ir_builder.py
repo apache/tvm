@@ -1,4 +1,5 @@
 import tvm
+import numpy as np
 
 def test_for():
     ib = tvm.ir_builder.create()
@@ -53,8 +54,84 @@ def test_prefetch():
     body = ib.get()
     assert body.body.bounds[0].extent.value == 2
 
+def test_cpu():
+    n = 1024
+    dtype = "float32"
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.placeholder((n,), name='B')
+    def test_device_ir(A, B, C):
+        n = A.shape[0]
+        max_threads = 8
+        ib = tvm.ir_builder.create()
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+        with ib.for_range(0, n, name="i") as i:
+            Cptr[i] = Aptr[i] + Bptr[i]
+        body = ib.get()
+        return body
+    C = tvm.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+                   name="vector_add", dtype=dtype)
+    s = tvm.create_schedule(C.op)
+    def check_target(target):
+        if not tvm.module.enabled(target):
+            return
+        # build and invoke the kernel.
+        fadd = tvm.build(s, [A, B, C], target)
+        ctx = tvm.context(target, 0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        fadd(a, b, c)
+        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    check_target("llvm")
+
+def test_gpu():
+    n = tvm.var('n')
+    dtype = "float32"
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.placeholder((n,), name='B')
+    def test_device_ir(A, B, C):
+        n = A.shape[0]
+        max_threads = 32
+        ib = tvm.ir_builder.create()
+        bx = tvm.thread_axis("blockIdx.x")
+        tx = tvm.thread_axis("threadIdx.x")
+        ib.scope_attr(bx, "thread_extent", (n+max_threads-1) // max_threads)
+        ib.scope_attr(tx, "thread_extent", max_threads)
+        idx = bx.var * max_threads + tx.var
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+        with ib.if_scope(ib.likely(idx<n)):
+            Cptr[idx] = Aptr[idx] + Bptr[idx]
+        body = ib.get()
+        return body
+    C = tvm.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+                   name="vector_add", dtype=dtype)
+    s = tvm.create_schedule(C.op)
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    def check_target(target):
+        n = 1024
+        if not tvm.module.enabled(target):
+            return
+        # build and invoke the kernel.
+        fadd = tvm.build(s, [A, B, C], target)
+        ctx = tvm.context(target, 0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        fadd(a, b, c)
+        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    check_target("opencl")
+    check_target("cuda")
 
 if __name__ == "__main__":
     test_prefetch()
     test_if()
     test_for()
+    test_cpu()
+    test_gpu()

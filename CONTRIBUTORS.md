@@ -28,7 +28,7 @@ list of contributions that are welcomed
 
 How to Contribute
 -----------------
-See [Contributor guide](docs/how_to/contribute.md) on tips for contributions.
+See [Contributor guide](http://tvm.ai/contribute/) on tips for contributions.
 
 
 Committers

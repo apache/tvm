@@ -3,7 +3,6 @@ Integrate TVM into Your Project
 
 TVM's runtime is designed to be lightweight and portable.
 There are several ways you can integrate TVM into your project.
-If you are looking for minimum deployment of a compiled module, take a look at [deployment guide](deploy.md)
 
 This article introduces possible ways to integrate TVM
 as a JIT compiler to generate functions on your system.

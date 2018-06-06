@@ -6,11 +6,10 @@ Get Started
 .. toctree::
    :maxdepth: 1
 
-   how_to/install
+   install/index
    tutorials/index
-   how_to/deploy
-   how_to/integrate
-   how_to/contribute
+   deploy/index
+   contribute/index
    faq
 
 API Reference

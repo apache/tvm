@@ -1,5 +1,5 @@
-TVM Design and Developer Guide
-==============================
+Design and Developer Guide
+==========================
 
 Building a compiler stack for deep learning systems involves many many systems-level design decisions.
 In this part of documentation, we share the rationale for the specific choices made when designing TVM.

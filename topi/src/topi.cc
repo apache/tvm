@@ -191,7 +191,7 @@ TVM_REGISTER_GLOBAL("topi.nn.relu")
 
 TVM_REGISTER_GLOBAL("topi.nn.leaky_relu")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = leaky_relu<float>(args[0]);
+  *rv = leaky_relu(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.prelu")
@@ -278,6 +278,11 @@ TVM_REGISTER_GLOBAL("topi.take")
     int axis = args[2];
     *rv = take(args[0], args[1], axis);
   }
+  });
+
+TVM_REGISTER_GLOBAL("topi.strided_slice")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = strided_slice(args[0], args[1], args[2], args[3]);
   });
 
 /* Ops from nn/batch_norm.h */
