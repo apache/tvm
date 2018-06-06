@@ -31,9 +31,12 @@ tvm_option(USE_LLVM "Build with LLVM" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
+tvm_option(BUILD_SHARED_NNVM "Build a shared nnvm lib" ON)
+tvm_option(BUILD_STATIC_NNVM "Build a static nnvm lib" OFF)
 
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 
+include_directories(BEFORE "nnvm/include")
 include_directories("include")
 include_directories("HalideIR/src")
 include_directories("dlpack/include")
@@ -41,6 +44,8 @@ include_directories("dlpack/include")
 
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
+set(NNVM_LINKER_LIBS "")
+set(NNVM_COMPILER_LINKER_LIBS "")
 
 # compile
 if(MSVC)
@@ -68,8 +73,9 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp")
-FILE(GLOB_RECURSE GROUP_Include "src/*.h" "include/*.h" "HalideIR/src/*.h")
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp" "nnvm/src/*.cc")
+FILE(GLOB_RECURSE GROUP_Include "src/*.h" "include/*.h" "HalideIR/src/*.h"
+                                "nnvm/src/*.h" "nnvm/include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_Include})
 
@@ -82,7 +88,19 @@ file(GLOB COMPILER_SRCS
     src/pass/*.cc
     src/op/*.cc
     src/schedule/*.cc
-)
+    )
+
+file(GLOB_RECURSE NNVM_SOURCE
+    nnvm/src/c_api/*.cc
+    nnvm/src/core/*.cc
+    nnvm/src/pass/*.cc
+    )
+
+  file(GLOB_RECURSE NNVM_COMPILER_SRCS
+    nnvm/src/compiler/*.cc
+    nnvm/src/top/*.cc
+    )
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/topi/include)
 file(GLOB TOPI_SRCS
     topi/src/*.cc
@@ -255,7 +273,35 @@ add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
+
+if(BUILD_SHARED_NNVM)
+  add_library(nnvm SHARED ${NNVM_SOURCE})
+endif()
+if(BUILD_STATIC_NNVM)
+  add_library(nnvm_static STATIC ${NNVM_SOURCE})
+  set_target_properties(nnvm_static PROPERTIES OUTPUT_NAME "nnvm")
+endif()
+
+add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS} ${NNVM_SOURCE})
+target_link_libraries(nnvm_compiler tvm)
+
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+
+if(BUILD_SHARED_NNVM)
+  if(WIN32)
+    install(TARGETS nnvm RUNTIME DESTINATION bin)
+    install(TARGETS nnvm ARCHIVE DESTINATION lib)
+    install(TARGETS nnvm_compiler RUNTIME DESTINATION bin)
+    install(TARGETS nnvm_compiler ARCHIVE DESTINATION lib)
+  else()
+    install(TARGETS nnvm LIBRARY DESTINATION lib)
+    install(TARGETS nnvm_compiler LIBRARY DESTINATION lib)
+  endif()
+endif()
+if(BUILD_STATIC_NNVM)
+  install(TARGETS nnvm_static ARCHIVE DESTINATION lib)
+endif()
+
 if (INSTALL_DEV)
   install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
   install(
@@ -277,13 +323,18 @@ if (INSTALL_DEV)
     DIRECTORY "dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
+  install(
+    DIRECTORY "nnvm/include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+    )
 else(INSTALL_DEV)
   install(
     DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
 endif(INSTALL_DEV)
 
 if(MSVC)
@@ -291,4 +342,8 @@ if(MSVC)
   target_compile_definitions(tvm_runtime PRIVATE -DHalide_EXPORTS)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
+  if(BUILD_SHARED_NNVM)
+    target_compile_definitions(nnvm PRIVATE -DNNVM_EXPORTS)
+  endif()
+  target_compile_definitions(nnvm_compiler PRIVATE -DNNVM_EXPORTS)
 endif()
