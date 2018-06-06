@@ -164,7 +164,7 @@ def _run_op_grad(op):
         outs.append(mod.get_output(
             i,tvm.nd.array(np.zeros(s, dtype='float32'))).asnumpy())
 
-    return (arrs['a'], arrs['b'], arrs['g'], *outs)
+    return [arrs['a'], arrs['b'], arrs['g']] + outs
 
 def test_broadcast_grads():
     # add
