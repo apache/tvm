@@ -71,7 +71,6 @@ def _parse_server_opt(opts):
             ret["timeout"] = float(kv[9:])
     return ret
 
-print("load listen loop func")
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
     """Lisenting loop of the server master."""
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
@@ -92,7 +91,6 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         # Report resource to tracker
         if tracker_conn:
             matchkey = base.random_key(rpc_key + ":")
-            print("SEND JSON PUT (FIRST)")
             if custom_addr is not None:
                 base.sendjson(tracker_conn,
                               [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
@@ -161,7 +159,6 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             # step 1: setup tracker and report to tracker
             if tracker_addr and tracker_conn is None:
                 tracker_conn = base.connect_with_retry(tracker_addr)
-                print("ABOUT TO SEND:", struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 magic = struct.unpack("<i", base.recvall(tracker_conn, 4))[0]
                 if magic != base.RPC_TRACKER_MAGIC:
