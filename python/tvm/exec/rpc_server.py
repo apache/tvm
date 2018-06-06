@@ -2,8 +2,11 @@
 from __future__ import absolute_import
 
 import argparse
+import multiprocessing
+import sys
 import logging
 from ..contrib import rpc
+
 
 def main():
     """Main funciton"""
@@ -33,6 +36,10 @@ def main():
         tracker_addr = None
 
     logging.basicConfig(level=logging.INFO)
+
+    if sys.version_info[0] < 3:
+        logging.warning("Python3 is recommended for RPC service!")
+
     server = rpc.Server(args.host,
                         args.port,
                         args.port_end,
@@ -42,4 +49,6 @@ def main():
     server.proc.join()
 
 if __name__ == "__main__":
+    if sys.version_info[0] >= 3:
+        multiprocessing.set_start_method('spawn')
     main()

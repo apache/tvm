@@ -3,6 +3,8 @@ from __future__ import absolute_import
 
 import logging
 import argparse
+import multiprocessing
+import sys
 import os
 from ..contrib.rpc.proxy import Proxy
 
@@ -38,6 +40,9 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
+    if sys.version_info[0] < 3:
+        logging.warning("Python3 is recommended for RPC service!")
+
     if args.tracker:
         url, port = args.tracker.split(":")
         port = int(port)
@@ -61,4 +66,6 @@ def main():
     prox.proc.join()
 
 if __name__ == "__main__":
+    if sys.version_info[0] >= 3:
+        multiprocessing.set_start_method('spawn')
     main()
