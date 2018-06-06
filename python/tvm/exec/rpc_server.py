@@ -10,7 +10,7 @@ from ..contrib import rpc
 
 
 def main(args):
-    """Main funciton"""
+    """Main function"""
 
     if args.tracker:
         url, port = args.tracker.split(":")
@@ -27,7 +27,8 @@ def main(args):
                         args.port_end,
                         key=args.key,
                         tracker_addr=tracker_addr,
-                        load_library=args.load_library)
+                        load_library=args.load_library,
+                        custom_addr=args.custom_addr)
     server.proc.join()
 
 
@@ -49,6 +50,7 @@ if __name__ == "__main__":
                         help="Use spawn mode to avoid fork. This option \
                          is able to avoid potential fork problems with Metal, OpenCL \
                          and ROCM compilers.")
+    parser.add_argument('--custom-addr', type=str) 
     parser.set_defaults(fork=True)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
