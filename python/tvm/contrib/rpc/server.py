@@ -95,7 +95,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 base.sendjson(tracker_conn,
                               [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
             else:
-                 base.sendjson(tracker_conn,
+                base.sendjson(tracker_conn,
                               [TrackerCode.PUT, rpc_key, (port, matchkey)])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         else:
@@ -112,7 +112,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                     pending_keys = base.recvjson(tracker_conn)
                     old_keyset.add(matchkey)
                     # if match key not in pending key set
-                    # it means the key is aqquired by a client but not used.
+                    # it means the key is acquired by a client but not used.
                     if matchkey not in pending_keys:
                         unmatch_period_count += 1
                     else:
@@ -124,9 +124,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                         if custom_addr is not None:
                             base.sendjson(tracker_conn,
                                           [TrackerCode.PUT, rpc_key, (port, matchkey),
-                                          custom_addr])
+                                           custom_addr])
                         else:
-                             base.sendjson(tracker_conn,
+                            base.sendjson(tracker_conn,
                                           [TrackerCode.PUT, rpc_key, (port, matchkey)])
                         assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
                         unmatch_period_count = 0
