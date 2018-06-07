@@ -267,17 +267,18 @@ NNVM_REGISTER_COLLAPSE_OP(sum)
     std::vector<dim_t> r_axes;
     bool keepdims = false;
     std::vector<dim_t> squeeze_axes;
-    for (int i = ishape.size() - 1, j = oshape.size() - 1; i >= 0; --i) {
-      if (j < 0 || ishape[i] != oshape[j]) {
-        r_axes.push_back(i);
-        if (j < 0) {
-          squeeze_axes.push_back(i);
-        } else {
-          keepdims |= oshape[j] == 1;
-          j -= oshape[j] == 1;
-        }
-      } else {
-        --j;
+    for (int i_ax = ishape.size() - 1,
+             o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
+      if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
+        --o_ax;
+        continue;
+      }
+      r_axes.push_back(i_ax);
+      if (o_ax < 0) {  // squeeze o_ax if was added during expansion
+        squeeze_axes.push_back(i_ax);
+      } else if (oshape[o_ax] == 1) {
+        keepdims = true;
+        --o_ax;
       }
     }
 
