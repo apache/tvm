@@ -99,9 +99,11 @@ struct NodeAttrs {
    * the parameters and show be kept as node attributes.
    *
    * Users need to make sure the subgraphs are disjoint with the main graph.
-   * Otherwise, loading a graph with subgraphs by using LoadJSON may generate
-   * a graph that has a different structure from the original graph (some of
-   * the nodes are duplicated).
+   * If a graph shares nodes with subgraphs, loading the graph from LoadJSON
+   * may generate a graph that has a different structure from the original graph
+   * (some of the nodes are duplicated). If nodes are shared between two graphs,
+   * shared nodes might be executed multiple times, which can be a problem for
+   * stateful operators.
    */
   std::vector<std::shared_ptr<Symbol> > subgraphs;
 };
