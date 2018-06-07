@@ -50,7 +50,7 @@ if __name__ == "__main__":
                          is able to avoid potential fork problems with Metal, OpenCL \
                          and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
-                        help="Custom IP Address to Report to RPC Tracker") 
+                        help="Custom IP Address to Report to RPC Tracker")
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

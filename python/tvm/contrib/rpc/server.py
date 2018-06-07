@@ -91,12 +91,8 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         # Report resource to tracker
         if tracker_conn:
             matchkey = base.random_key(rpc_key + ":")
-            if custom_addr is not None:
-                base.sendjson(tracker_conn,
-                              [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
-            else:
-                base.sendjson(tracker_conn,
-                              [TrackerCode.PUT, rpc_key, (port, matchkey)])
+            base.sendjson(tracker_conn,
+                          [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         else:
             matchkey = rpc_key
@@ -121,13 +117,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                     if unmatch_period_count * ping_period > unmatch_timeout + ping_period:
                         logging.info("RPCServer: no incoming connections, regenerate key ...")
                         matchkey = base.random_key(rpc_key + ":", old_keyset)
-                        if custom_addr is not None:
-                            base.sendjson(tracker_conn,
-                                          [TrackerCode.PUT, rpc_key, (port, matchkey),
-                                           custom_addr])
-                        else:
-                            base.sendjson(tracker_conn,
-                                          [TrackerCode.PUT, rpc_key, (port, matchkey)])
+                        base.sendjson(tracker_conn,
+                                      [TrackerCode.PUT, rpc_key, (port, matchkey),
+                                       custom_addr])
                         assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
                         unmatch_period_count = 0
                     continue
