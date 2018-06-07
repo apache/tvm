@@ -1,11 +1,9 @@
-"""TVM operator upsampling compute."""
+"""TVM operator input resize compute."""
 from __future__ import absolute_import
 import topi
 
-
-def upsampling(data, scale, layout="NCHW", align_corners=False, mode='NN', weights=None):
-    """Perform upsampling on the data.
-       Nearest neighbourhood and bilinear are supported.
+def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", weights=None):
+    """Perform resize operation on the data.
 
     Parameters
     ----------
@@ -38,13 +36,6 @@ def upsampling(data, scale, layout="NCHW", align_corners=False, mode='NN', weigh
         or [batch, in_height*scale, in_width*scale, channel]
     """
 
-    if layout == "NCHW":
-        out_shape = (data.shape[2] * scale, data.shape[3] * scale)
-    elif layout == "NHWC":
-        out_shape = (data.shape[1] * scale, data.shape[2] * scale)
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+    inputs = [data, weights] if mode == "BILINEAR" else [data]
 
-    scale_inputs = [data, weights] if mode == "BILINEAR" else [data]
-
-    return topi.cpp.nn.upsampling(scale_inputs, out_shape, layout, align_corners, mode)
+    return topi.cpp.vision.resize(inputs, out_size, layout, align_corners, mode)

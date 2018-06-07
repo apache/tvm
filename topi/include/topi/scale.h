@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file topi/transform.h
- * \brief Transform op constructors
+ * \file topi/scale.h
+ * \brief scaling constructors
  */
-#ifndef TOPI_NN_SCALE_H_
-#define TOPI_NN_SCALE_H_
+#ifndef TOPI_SCALE_H_
+#define TOPI_SCALE_H_
 
 #include <string>
 #include <vector>
@@ -17,7 +17,6 @@
 #include "tvm/tvm.h"
 
 namespace topi {
-namespace nn {
 using namespace tvm;
 
 /*!
@@ -283,6 +282,5 @@ inline Tensor scale(const Array<Tensor>& inputs,
   }
 }
 
-}  // namespace nn
 }  // namespace topi
-#endif  // TOPI_NN_SCALE_H_
+#endif  // TOPI_SCALE_H_

@@ -25,7 +25,7 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
     W = tvm.placeholder((out_height, out_width, 4), name='A')
     weights = bilinear_weights(a_np, out_height, out_width, layout, align_corners)
 
-    B = topi.nn.bilinear_scale(A, W, (out_height, out_width), layout=layout)
+    B = topi.vision.resize(A, (out_height, out_width), layout=layout, weights=W)
 
     b_np = topi.testing.bilinear_scale_python(a_np, weights, (out_height, out_width), layout)
 
@@ -49,7 +49,7 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
     for device in ['llvm', 'cuda', 'vulkan']:
         check_device(device)
 
-def test_bilinear_scale():
+def test_resize():
     # Scale NCHW
     verify_bilinear_scale(4, 16, 32, 32, 50, 50, 'NCHW')
     # Scale NCHW + Align Corners
@@ -60,4 +60,4 @@ def test_bilinear_scale():
     verify_bilinear_scale(6, 32, 64, 64, 20, 20, "NHWC", True)
 
 if __name__ == "__main__":
-    test_bilinear_scale()
+    test_resize()

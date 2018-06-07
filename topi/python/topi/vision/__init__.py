@@ -6,3 +6,4 @@ from . import yolo2, ssd
 from .shortcut import *
 from .reorg import *
 from .nms import *
+from .resize import *
