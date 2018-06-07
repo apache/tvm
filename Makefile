@@ -256,6 +256,8 @@ all: ${BUILD_TARGETS}
 runtime: lib/libtvm_runtime.$(SHARED_LIBRARY_SUFFIX)
 web: lib/libtvm_web_runtime.js lib/libtvm_web_runtime.bc
 topi: lib/libtvm_topi.$(SHARED_LIBRARY_SUFFIX)
+nnvm:
+	$(MAKE) -C nnvm
 
 
 include tests/cpp/unittest.mk
@@ -387,6 +389,7 @@ jvminstall:
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
 	cd HalideIR; make clean; cd $(ROOTDIR)
+	$(MAKE) -C nnvm clean
 
 -include build/*.d
 -include build/*/*.d
