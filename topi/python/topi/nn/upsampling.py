@@ -14,19 +14,19 @@ def upsampling(data, scale, layout="NCHW", align_corners=False, mode='NN', weigh
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    out_shape: Tuple
-        Output resolution scale to
+    scale :
+        Scaling factor
 
-    layout: string
+    layout : string
         either "NCHW" or "NHWC"
 
-    align_corners: Boolean
+    align_corners : Boolean
         To preserve the values at the corner pixels
 
-    mode: string
+    mode : string
         either "NN" or "BILINEAR"
 
-    weights:
+    weights : tvm.Tensor
         weights is valid only for mode=BILINEAR
         A 4-D Tensor with shape [out_shape[0], out_shape[1], 4]
         helper function tvm.contrib.image.bilinear_weights available to generate this.

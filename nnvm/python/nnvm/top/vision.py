@@ -38,3 +38,12 @@ def schedule_region(attrs, outs, target):
         return topi.generic.vision.schedule_region(outs)
 
 reg.register_pattern("yolo2_region", OpPattern.OPAQUE)
+
+# resize
+@reg.register_schedule("resize")
+def schedule_upsampling(_, outs, target):
+    """Schedule definition of resize"""
+    with tvm.target.create(target):
+        return topi.generic.schedule_injective(outs)
+
+reg.register_pattern("resize", OpPattern.INJECTIVE)

@@ -238,7 +238,7 @@ reg.register_pattern("global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # upsampling
 @reg.register_schedule("upsampling")
 def schedule_upsampling(_, outs, target):
-    """Compute definition of upsampling"""
+    """Schedule definition of upsampling"""
     with tvm.target.create(target):
         return topi.generic.schedule_injective(outs)
 

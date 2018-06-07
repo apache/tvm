@@ -15,6 +15,5 @@ from .softmax import *
 from .conv2d_transpose import *
 from .bnn import *
 from .upsampling import *
-from .bilinear_scale import *
 from .local_response_norm import *
 from .l2_norm import *

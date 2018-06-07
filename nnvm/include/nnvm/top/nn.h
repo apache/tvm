@@ -295,9 +295,9 @@ struct UpSamplingParam : public dmlc::Parameter<UpSamplingParam> {
       .describe("upsampling scaling factor");
     DMLC_DECLARE_FIELD(layout)
       .set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                "dimensions respectively. Convolution is applied on the 'H' and"
+                "dimensions respectively. Upsampling is applied on the 'H' and"
                 "'W' dimensions.");
     DMLC_DECLARE_FIELD(mode)
       .set_default("NN")

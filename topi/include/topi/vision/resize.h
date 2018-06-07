@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief Resize op constructions
- * \file topi/vision/rresize.h
+ * \file topi/vision/resize.h
  */
 #ifndef TOPI_VISION_RESIZE_H_
 #define TOPI_VISION_RESIZE_H_
