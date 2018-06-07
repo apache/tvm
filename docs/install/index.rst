@@ -67,12 +67,11 @@ We can then build tvm by `make`.
 
   make -j4
 
-After we build tvm, we can proceed to build nnvm using the following script.
+After we build tvm, we can proceed to build nnvm using the following command.
 
 .. code:: bash
 
-  cd nnvm
-  make -j4
+  make nnvm -j4
 
 
 This will creates `libnnvm_compiler.so` under the `nnvm/lib` folder.
