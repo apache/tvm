@@ -390,7 +390,7 @@ def verify_lrn(n, c, h, w, size, axis, bias, alpha, beta):
             offset to avoid dividing by 0. constant value
 
         alpha : float
-            contant valie
+            contant value
 
         beta : float
             exponent constant value

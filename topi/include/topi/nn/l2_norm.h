@@ -15,7 +15,7 @@ namespace nn {
 using namespace tvm;
 
 /*!
-* \brief L2 normalization inference operator 
+* \brief L2 normalization inference operator
 *
 * \param data The input tensor. 4-D with shape [batch, channel, height, width]
 * \param eps Epsilon to prevent div by 0

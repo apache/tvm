@@ -1,10 +1,10 @@
 /*!
 *  Copyright (c) 2018 by Contributors
-* \file rocm/nn.h
+* \file rocm/normalization.h
 * \brief rocm schedule for lrn and l2 normalization operations
 */
-#ifndef TOPI_ROCM_NN_H_
-#define TOPI_ROCM_NN_H_
+#ifndef TOPI_ROCM_NORMALIZATION_H_
+#define TOPI_ROCM_NORMALIZATION_H_
 
 #include "tvm/tvm.h"
 #include "tvm/build_module.h"
@@ -38,4 +38,4 @@ inline Schedule schedule_l2norm(const Target &target, const Array<Tensor>& outs)
 }
 }  // namespace rocm
 }  // namespace topi
-#endif  // TOPI_ROCM_NN_H_
+#endif  // TOPI_ROCM_NORMALIZATION_H_

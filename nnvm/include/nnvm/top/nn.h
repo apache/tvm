@@ -381,11 +381,11 @@ struct LrnParam : public dmlc::Parameter<LrnParam> {
     DMLC_DECLARE_FIELD(axis)
       .describe("input data layout channel axis");
     DMLC_DECLARE_FIELD(alpha)
-      .describe("alpha constant.");
+      .describe("The scaling parameter.");
     DMLC_DECLARE_FIELD(beta)
-      .describe("beta constant.");
+      .describe("The exponent parameter.");
     DMLC_DECLARE_FIELD(bias)
-      .describe("bias constant.");
+      .describe("The offset parameter.");
   }
   // constants
   static const constexpr int kData = 0;

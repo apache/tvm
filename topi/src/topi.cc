@@ -41,7 +41,7 @@
 #include <topi/cuda/reduction.h>
 #include <topi/cuda/softmax.h>
 #include <topi/cuda/vision.h>
-#include <topi/cuda/nn.h>
+#include <topi/cuda/normalization.h>
 
 #include <topi/x86/bnn.h>
 #include <topi/x86/default.h>
@@ -49,7 +49,7 @@
 
 #include <topi/rocm/dense.h>
 #include <topi/rocm/vision.h>
-#include <topi/rocm/nn.h>
+#include <topi/rocm/normalization.h>
 
 namespace topi {
 
