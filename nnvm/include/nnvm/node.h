@@ -97,6 +97,11 @@ struct NodeAttrs {
    * These graphs don't change when the operators are invoked for different
    * mini-batches. In this sense, the subgraphs are kind of similar to
    * the parameters and show be kept as node attributes.
+   *
+   * Users need to make sure the subgraphs are disjoint with the main graph.
+   * Otherwise, loading a graph with subgraphs by using LoadJSON may generate
+   * a graph that has a different structure from the original graph (some of
+   * the nodes are duplicated).
    */
   std::vector<std::shared_ptr<Symbol> > subgraphs;
 };
