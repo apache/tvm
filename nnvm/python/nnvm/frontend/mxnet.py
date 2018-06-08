@@ -151,9 +151,10 @@ def _dropout(inputs, attrs):
 
 def _leaky_relu(inputs, attrs):
     act_type = _required_attr(attrs, 'act_type')
-    if act_type in ['leaky']:
-        op_name, new_attrs = 'leaky_relu', {}
-        new_attrs['alpha'] = attrs.get('slope', 0.25)
+    if act_type in ['leaky', 'prelu']:
+        op_name, new_attrs = act_type, {}
+        if act_type == 'leaky':
+            new_attrs['alpha'] = attrs.get('slope', 0.25)
         sym = _get_nnvm_op(op_name)(*inputs, **new_attrs)
     elif act_type == 'elu':
         slope = attrs.get('slope', 0.25)
