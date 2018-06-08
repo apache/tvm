@@ -199,6 +199,9 @@ def test_if():
     numpy.testing.assert_allclose(tvm_a.asnumpy(), tvm_b.asnumpy(), rtol=1e-5)
 
 def test_bind():
+    if not tvm.gpu(0).exist:
+        print('No GPU found! Skip this test!')
+        return
     @script
     def vec_add(a, b, c):
         for tx in bind('threadIdx.x', 1000):
@@ -208,7 +211,7 @@ def test_bind():
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
     c = tvm.placeholder((1000, ), dtype='float32', name='c')
     ir, _ = vec_add(a, b, c)
-    #print(tvm.lower(ir, [a, b, c], simple_mode=True))
+
     func = tvm.lower(ir, [a, b, c])
     func = tvm.build(func, target = 'cuda')
 
