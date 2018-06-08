@@ -3,16 +3,8 @@ from __future__ import absolute_import as _abs
 import math
 import numpy as np
 
-def bilinear_weights(image, new_h, new_w, layout, align_corners=False):
+def bilinear_weights(height, width, new_h, new_w, align_corners=False):
     """ Helper function to generate weights for bilinear scaling """
-
-    if layout == "NHWC":
-        (height, width) = image.shape[1:3]
-    elif layout == "NCHW":
-        (height, width) = image.shape[2:]
-    else:
-        raise NotImplementedError(
-            'Layout not supported {} '.format(layout))
 
     if align_corners:
         x_ratio = width/new_w

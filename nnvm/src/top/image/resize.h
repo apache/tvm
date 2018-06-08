@@ -2,8 +2,8 @@
  *  Copyright (c) 2018 by Contributors
  * \file resize.h
  */
-#ifndef NNVM_TOP_VISION_RESIZE_H_
-#define NNVM_TOP_VISION_RESIZE_H_
+#ifndef NNVM_TOP_IMAGE_RESIZE_H_
+#define NNVM_TOP_IMAGE_RESIZE_H_
 
 #include <string>
 #include <vector>
@@ -22,9 +22,7 @@ struct ResizeParam : public dmlc::Parameter<ResizeParam> {
 
   DMLC_DECLARE_PARAMETER(ResizeParam) {
     DMLC_DECLARE_FIELD(out_size)
-      .describe("Scale output size."
-                "actual out size if is_factor false"
-                "or a multiply factor if is_factor is true");
+      .describe("Output size");
     DMLC_DECLARE_FIELD(layout)
       .set_default("NCHW")
       .describe("Dimension ordering of data. Can be 'NCHW', 'NHWC', etc."
@@ -44,4 +42,4 @@ struct ResizeParam : public dmlc::Parameter<ResizeParam> {
 
 }  // namespace top
 }  // namespace nnvm
-#endif  // NNVM_TOP_VISION_RESIZE_H_
+#endif  // NNVM_TOP_IMAGE_RESIZE_H_

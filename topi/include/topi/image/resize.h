@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file topi/scale.h
- * \brief scaling constructors
+ * \file topi/image/resize.h
+ * \brief image resize constructors
  */
-#ifndef TOPI_SCALE_H_
-#define TOPI_SCALE_H_
+#ifndef TOPI_IMAGE_RESIZE_H_
+#define TOPI_IMAGE_RESIZE_H_
 
 #include <string>
 #include <vector>
@@ -17,39 +17,40 @@
 #include "tvm/tvm.h"
 
 namespace topi {
+namespace image {
 using namespace tvm;
 
 /*!
 * \brief Resize given tensor to given shape using nearest neighbour for NHWC
 *
 * \param inputs The input tensor array.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale_nn_nhwc(const Array<Tensor>& inputs,
-                            const Array<Expr> shape,
-                            bool align_corners = false,
-                            std::string name = "tensor",
-                            std::string tag = kInjective) {
+inline Tensor resize_nn_nhwc(const Array<Tensor>& inputs,
+                             const Array<Expr>& shape,
+                             bool align_corners = false,
+                             std::string name = "tensor",
+                             std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(shape[0]);
   out_shape.push_back(shape[1]);
   out_shape.push_back(inputs[0]->shape[3]);
 
-  Expr h_scale = shape[0] / inputs[0]->shape[1];
-  Expr w_scale = shape[1] / inputs[0]->shape[2];
+  Expr h_ratio = shape[0] / inputs[0]->shape[1];
+  Expr w_ratio = shape[1] / inputs[0]->shape[2];
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
     Array<Expr> idx;
     idx.push_back(indices[0]);
-    idx.push_back(indices[1] / h_scale);
-    idx.push_back(indices[2] / w_scale);
+    idx.push_back(indices[1] / h_ratio);
+    idx.push_back(indices[2] / w_ratio);
     idx.push_back(indices[3]);
 
     return inputs[0](idx);
@@ -60,34 +61,34 @@ inline Tensor scale_nn_nhwc(const Array<Tensor>& inputs,
 * \brief Resize given tensor to given shape using nearest neighbour for NCHW
 *
 * \param inputs The input tensor array.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale_nn_nchw(const Array<Tensor>& inputs,
-                            const Array<Expr> shape,
-                            bool align_corners = false,
-                            std::string name = "tensor",
-                            std::string tag = kInjective) {
+inline Tensor resize_nn_nchw(const Array<Tensor>& inputs,
+                             const Array<Expr>& shape,
+                             bool align_corners = false,
+                             std::string name = "tensor",
+                             std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(inputs[0]->shape[1]);
   out_shape.push_back(shape[0]);
   out_shape.push_back(shape[1]);
 
-  Expr h_scale = shape[0] / inputs[0]->shape[2];
-  Expr w_scale = shape[1] / inputs[0]->shape[3];
+  Expr h_ratio = shape[0] / inputs[0]->shape[2];
+  Expr w_ratio = shape[1] / inputs[0]->shape[3];
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
     Array<Expr> idx;
     idx.push_back(indices[0]);
     idx.push_back(indices[1]);
-    idx.push_back(indices[2] / h_scale);
-    idx.push_back(indices[3] / w_scale);
+    idx.push_back(indices[2] / h_ratio);
+    idx.push_back(indices[3] / w_ratio);
 
     return inputs[0](idx);
     }, name, tag);
@@ -97,7 +98,7 @@ inline Tensor scale_nn_nchw(const Array<Tensor>& inputs,
 * \brief Resize given tensor to given shape using nearest neighbour
 *
 * \param inputs The input tensor array.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
@@ -105,18 +106,18 @@ inline Tensor scale_nn_nchw(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale_nn(const Array<Tensor>& inputs,
-                       const Array<Expr> shape,
-                       std::string layout = "NCHW",
-                       bool align_corners = false,
-                       std::string name = "tensor",
-                       std::string tag = kInjective) {
+inline Tensor resize_nn(const Array<Tensor>& inputs,
+                        const Array<Expr>& shape,
+                        std::string layout = "NCHW",
+                        bool align_corners = false,
+                        std::string name = "tensor",
+                        std::string tag = kInjective) {
   CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
 
   if (layout == "NHWC") {
-    return scale_nn_nhwc(inputs, shape, align_corners);
+    return resize_nn_nhwc(inputs, shape, align_corners);
   } else {
-    return scale_nn_nchw(inputs, shape, align_corners);
+    return resize_nn_nchw(inputs, shape, align_corners);
   }
 }
 
@@ -124,18 +125,18 @@ inline Tensor scale_nn(const Array<Tensor>& inputs,
 * \brief Resize given tensor to given shape using bilinear interpolation for NHWC
 *
 * \param inputs The input tensor array.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale_bilinear_nhwc(const Array<Tensor>& inputs,
-                                  const Array<Expr> shape,
-                                  bool align_corners = false,
-                                  std::string name = "tensor",
-                                  std::string tag = kInjective) {
+inline Tensor resize_bilinear_nhwc(const Array<Tensor>& inputs,
+                                   const Array<Expr>& shape,
+                                   bool align_corners = false,
+                                   std::string name = "tensor",
+                                   std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(shape[0]);
@@ -177,18 +178,18 @@ inline Tensor scale_bilinear_nhwc(const Array<Tensor>& inputs,
 * \brief Resize given tensor to given shape using bilinear interpolation for NCHW
 *
 * \param inputs The input tensor array.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale_bilinear_nchw(const Array<Tensor>& inputs,
-                                  const Array<Expr> shape,
-                                  bool align_corners = false,
-                                  std::string name = "tensor",
-                                  std::string tag = kInjective) {
+inline Tensor resize_bilinear_nchw(const Array<Tensor>& inputs,
+                                   const Array<Expr>& shape,
+                                   bool align_corners = false,
+                                   std::string name = "tensor",
+                                   std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(inputs[0]->shape[1]);
@@ -229,7 +230,7 @@ inline Tensor scale_bilinear_nchw(const Array<Tensor>& inputs,
 * \brief Resize given tensor to given shape using bilinear interpolation
 *
 * \param inputs The input tensor array.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
@@ -237,18 +238,18 @@ inline Tensor scale_bilinear_nchw(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale_bilinear(const Array<Tensor>& inputs,
-                             const Array<Expr> shape,
-                             std::string layout = "NCHW",
-                             bool align_corners = false,
-                             std::string name = "tensor",
-                             std::string tag = kInjective) {
+inline Tensor resize_bilinear(const Array<Tensor>& inputs,
+                              const Array<Expr>& shape,
+                              std::string layout = "NCHW",
+                              bool align_corners = false,
+                              std::string name = "tensor",
+                              std::string tag = kInjective) {
   Tensor ret;
 
   if (layout == "NHWC") {
-    ret = scale_bilinear_nhwc(inputs, shape, align_corners);
+    ret = resize_bilinear_nhwc(inputs, shape, align_corners);
   } else {
-    ret = scale_bilinear_nchw(inputs, shape, align_corners);
+    ret = resize_bilinear_nchw(inputs, shape, align_corners);
   }
 
   return cast(ret, inputs[0]->dtype);
@@ -259,7 +260,7 @@ inline Tensor scale_bilinear(const Array<Tensor>& inputs,
 *
 * \param inputs The input tensor array.
 * Bilinear will have 2 inputs one being the weights.
-* \param shape Output shape to scale to.
+* \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
 * \param mode Angorithm to use (NN / BILINEAR)
@@ -268,19 +269,20 @@ inline Tensor scale_bilinear(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor scale(const Array<Tensor>& inputs,
-                    const Array<Expr> shape,
-                    std::string layout = "NCHW",
-                    bool align_corners = false,
-                    std::string mode = "BILINEAR",
-                    std::string name = "tensor",
-                    std::string tag = kInjective) {
+inline Tensor resize(const Array<Tensor>& inputs,
+                     const Array<Expr>& shape,
+                     std::string layout = "NCHW",
+                     bool align_corners = false,
+                     std::string mode = "BILINEAR",
+                     std::string name = "tensor",
+                     std::string tag = kInjective) {
   if (mode == "NN") {
-    return scale_nn(inputs, shape, layout, align_corners);
+    return resize_nn(inputs, shape, layout, align_corners);
   } else {
-    return scale_bilinear(inputs, shape, layout, align_corners);
+    return resize_bilinear(inputs, shape, layout, align_corners);
   }
 }
 
+}  // namespace image
 }  // namespace topi
-#endif  // TOPI_SCALE_H_
+#endif  // TOPI_IMAGE_RESIZE_H_

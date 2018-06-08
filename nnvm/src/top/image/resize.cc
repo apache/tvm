@@ -16,7 +16,7 @@
 #include "../elemwise_op_common.h"
 #include "topi/elemwise.h"
 #include "topi/transform.h"
-#include "topi/vision/resize.h"
+#include "topi/image/resize.h"
 #include "resize.h"
 
 namespace nnvm {
@@ -69,11 +69,15 @@ inline bool ResizeLayout(const NodeAttrs& attrs,
 NNVM_REGISTER_OP(resize)
 .describe(R"(Perform resize to input array with nearest neighbour or bilinear interpolation.
 
-- **data**: Input[0] is 4D array of shape (batch_size, channels, in_height, in_width).
+- **data**: Input[0] is 4D array of shape
+            (batch_size, channels, in_height, in_width) for NCHW
+            (batch_size, in_height, in_width, channels) for NHWC
+
             Input[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
             weights is valid only for mode=BILINEAR
             helper function tvm.contrib.image.bilinear_weights
             available to generate this param at frontend.
+
 - **out**: Output is 4D array of shape
            for layout NCHW
            (batch_size, channels, out_size[0], out_size[1])
@@ -105,7 +109,7 @@ NNVM_REGISTER_OP(resize)
     oshape.push_back(out_info[0]->shape[2]);
   }
 
-  return Array<Tensor>{ topi::vision::resize(inputs, oshape, param.layout,
+  return Array<Tensor>{ topi::image::resize(inputs, oshape, param.layout,
                                              param.align_corners, param.mode)};
 })
 .set_support_level(2);

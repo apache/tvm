@@ -35,7 +35,6 @@ def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", 
         4-D with shape [batch, channel, in_height*scale, in_width*scale]
         or [batch, in_height*scale, in_width*scale, channel]
     """
-
     inputs = [data, weights] if mode == "BILINEAR" else [data]
 
-    return topi.cpp.vision.resize(inputs, out_size, layout, align_corners, mode)
+    return topi.cpp.image.resize(inputs, out_size, layout, align_corners, mode)

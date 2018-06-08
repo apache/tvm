@@ -11,11 +11,12 @@
 #include <iterator>
 #include <algorithm>
 
-#include "topi/scale.h"
+#include "topi/image/resize.h"
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace topi::image;
 
 /*!
 * \brief Upsample given tensor to given shape
@@ -38,7 +39,7 @@ inline Tensor upsampling(const Array<Tensor>& inputs,
                          std::string mode = "NN",
                          std::string name = "tensor",
                          std::string tag = kInjective) {
-  return scale(inputs, shape, layout, align_corners, mode);
+  return resize(inputs, shape, layout, align_corners, mode);
 }
 
 }  // namespace nn

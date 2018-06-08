@@ -2,7 +2,7 @@
 """Bilinear Scale in python"""
 import numpy as np
 
-def bilinear_scale_python(image, weights, out_size, layout):
+def bilinear_resize_python(image, weights, out_size, layout):
     """ Bilinear scaling using python"""
     (new_h, new_w) = out_size
 

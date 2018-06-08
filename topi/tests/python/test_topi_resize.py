@@ -22,12 +22,12 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    W = tvm.placeholder((out_height, out_width, 4), name='A')
-    weights = bilinear_weights(a_np, out_height, out_width, layout, align_corners)
+    W = tvm.placeholder((out_height, out_width, 4), name='W')
+    weights = bilinear_weights(in_height, in_width, out_height, out_width, align_corners)
 
-    B = topi.vision.resize(A, (out_height, out_width), layout=layout, weights=W)
+    B = topi.image.resize(A, (out_height, out_width), layout=layout, weights=W)
 
-    b_np = topi.testing.bilinear_scale_python(a_np, weights, (out_height, out_width), layout)
+    b_np = topi.testing.bilinear_resize_python(a_np, weights, (out_height, out_width), layout)
 
     def check_device(device):
         ctx = tvm.context(device, 0)

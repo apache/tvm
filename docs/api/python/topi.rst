@@ -51,6 +51,7 @@ List of operators
    topi.broadcast_div
    topi.broadcast_maximum
    topi.broadcast_minimum
+   topi.image.resize
 
 
 List of schedules

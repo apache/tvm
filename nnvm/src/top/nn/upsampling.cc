@@ -63,7 +63,15 @@ inline bool UpsamplingLayout(const NodeAttrs& attrs,
 NNVM_REGISTER_OP(upsampling)
 .describe(R"(Perform upsampling to input array with nearest neighbour or bilinear interpolation.
 
-- **data**: Input is 4D array of shape (batch_size, channels, in_height, in_width).
+- **data**: Input is 4D array of shape
+            (batch_size, channels, in_height, in_width) for NCHW
+            (batch_size, in_height, in_width, channels) for NHWC
+
+            Input[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
+            weights is valid only for mode=BILINEAR
+            helper function tvm.contrib.image.bilinear_weights
+            available to generate this param at frontend.
+
 - **out**: Output is 4D array of shape
            for layout NCHW
            (batch_size, channels, in_height*scale, in_width*scale)
