@@ -36,7 +36,7 @@ class PyVariableUsage(ast.NodeVisitor):
     def visit_Call(self, node):
         #No function pointer supported so far
         assert isinstance(node.func, ast.Name)
-        assert node.func.id in HYBRID_GLOBALS.keys()
+        assert node.func.id in HYBRID_GLOBALS.keys() or node.func.id == 'range'
         for elem in node.args:
             self.visit(elem)
 

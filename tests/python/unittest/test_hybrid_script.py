@@ -5,7 +5,7 @@ from tvm.hybrid._intrin import HYBRID_GLOBALS
 @script
 def outer_product(n, m, a, b, c):
     for i in serial(n):
-        for j in serial(m):
+        for j in range(m):
             c[i, j] = a[i] * b[j]
 
 #Test global function
@@ -155,9 +155,9 @@ def test_looptype():
     def looptype(a):
         for i in parallel(6):
             a[i] = i
-        for j in vectorized(6):
+        for j in vectorize(6):
             a[j] = j
-        for k in unrolled(6):
+        for k in unroll(6):
             a[k] = k
     a = tvm.placeholder((6, ), name='a')
     ir, _ = looptype(a)
@@ -176,7 +176,7 @@ def test_if():
                 a[i] = -1
             else:
                 a[i] = 1
-        for i in unrolled(10):
+        for i in unroll(10):
             b[i] = -1 if i % 2 == 0 else 1
 
     a = tvm.placeholder((10, ), dtype='int32', name='a')
@@ -201,7 +201,7 @@ def test_if():
 def test_bind():
     @script
     def vec_add(a, b, c):
-        for tx in bind(1000, 'threadIdx.x'):
+        for tx in bind('threadIdx.x', 1000):
             c[tx] = b[tx] + c[tx]
 
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
@@ -259,6 +259,23 @@ def test_math_intrin():
     intrin_int(a)
     func(tvm_a)
     assert tvm_a.asnumpy()[0] == a[0]
+
+def test_allocate_buffer():
+    def blur(a):
+        for i in serail(32):
+            h_blur = allocate((4, 36))
+            for j in serail(4):
+                for k in serail(36):
+                    s = allocate((1, ), 'float32')
+                    for dj in serail(4):
+                        s[0] = s[0] + a[i, j + dj]
+                    h_blur[j, k] = s[0] / 4.
+            for j in serail(32):
+                s = 0.
+                for di in serail(4):
+                    s = s + h_blur[di, j]
+                h_blur[i, j] = s / 4.
+                                
 
 if __name__ == "__main__":
     test_outer_product()

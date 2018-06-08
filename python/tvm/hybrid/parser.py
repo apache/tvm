@@ -55,16 +55,17 @@ class PyAST2HalideIR(ast.NodeVisitor):
 
     def __init__(self, args, usage, func_name=None):
         """
+        Parameters
+        ----------
         args: A list of tvm.placeholder or tvm.var
-        ----------------------------------------
-        Provided by the user, the argument list of the function to be lowered.
+            Provided by the user, the argument list of the function to be lowered.
 
         usage: A dict of variables used in last in this function
-        --------------------------------------------------------
-        Provided by last lower pass, which collects this information
+            Provided by last lower pass, which collects this information
 
+        Returns
+        -------
         func_name: str
-        --------------
         The name of the function to be lowered; if not provided,
         the compiler will use the name in the AST
         """
@@ -231,27 +232,35 @@ class PyAST2HalideIR(ast.NodeVisitor):
     def visit_Call(self, node):
         # Yet, no function pointer supported
         assert isinstance(node.func, ast.Name)
-        n = len(node.args)
         func_id = node.func.id
-        if func_id in LOOP_INTRIN[:-1]:
+        n = len(node.args)
+        if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
             if n == 1:
                 low, ext = ZERO, self.visit(node.args[0])
             else:
                 assert n == 2
                 low, ext = self.visit(node.args[0]), self.visit(node.args[1])
-            for_type = getattr(_stmt.For, node.func.id.title())
+            if not _ir_pass.Equal(low, ZERO):
+                ext = ext - low
+            for_type = LOOP_INTRIN[func_id]
             iter_var = None
             return iter_var, low, ext, for_type
-        elif func_id == LOOP_INTRIN[-1]:
+        elif func_id == 'bind':
             assert n == 2
-            low, ext = ZERO, self.visit(node.args[0])
+            assert isinstance(node.args[0], ast.Str)
+            _vn = node.args[0].s
+            iter_var = thread_axis(node.args[0].s)
+            low, ext = ZERO, self.visit(node.args[1])
             for_type = None
-            assert isinstance(node.args[1], ast.Str)
-            _vn = node.args[1].s
-            iter_var = thread_axis(node.args[1].s)
             return iter_var, low, ext, for_type
         elif func_id in MATH_INTRIN:
             return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
+        elif func_id == 'allocate':
+            if n == 1:
+                print(ast.dump(args[0]))
+            else:
+                assert n == 2
+                pass
         else:
             assert False and "Not supported yet!"
 

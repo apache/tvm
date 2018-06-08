@@ -1,6 +1,7 @@
 """Intrinsics of Python-Halide DSL for Python runtime"""
 
 import numpy
+from ..stmt import For
 
 class _range(object):
     """Base class of the loop ranges in hybrid script"""
@@ -23,7 +24,7 @@ class bind(_range): #pylint: disable=invalid-name
         super(bind, self).__init__(ext)
         self.tag = tag
 
-serial = unrolled = vectorized = parallel = _range #pylint: disable=invalid-name
+serial = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 def allocate(shape, dtype=None):
     """Allocate a buffer with given shape"""
@@ -42,8 +43,8 @@ def sigmoid(x):
 
 HYBRID_GLOBALS = {
     'serial'    : serial,
-    'unrolled'  : unrolled,
-    'vectorized': vectorized,
+    'unroll'    : unroll,
+    'vectorize' : vectorize,
     'parallel'  : parallel,
     'allocate'  : allocate,
     'bind'      : bind,
@@ -56,6 +57,13 @@ HYBRID_GLOBALS = {
     'popcount'  : popcount
 }
 
-LOOP_INTRIN = ['serial', 'unrolled', 'parallel', 'vectorized', 'bind']
+LOOP_INTRIN = {
+    'range'    : For.Serial,
+    'serial'   : For.Serial,
+    'unroll'   : For.Unrolled,
+    'parallel' : For.Parallel,
+    'vectorize': For.Vectorized,
+    'bind'     : None
+}
 
 MATH_INTRIN = ['sqrt', 'log', 'exp', 'tanh', 'sigmoid', 'power', 'popcount']
