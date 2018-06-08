@@ -20,7 +20,7 @@ class _range(object):
             i += 1
 
 class bind(_range): #pylint: disable=invalid-name
-    def __init__(self, ext, tag):
+    def __init__(self, tag, ext):
         super(bind, self).__init__(ext)
         self.tag = tag
 
