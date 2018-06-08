@@ -45,7 +45,6 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
 
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-
     for device in ['llvm', 'cuda', 'vulkan']:
         check_device(device)
 

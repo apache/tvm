@@ -29,8 +29,8 @@ using nnvm::compiler::FTVMCompute;
 DMLC_REGISTER_PARAMETER(ResizeParam);
 
 inline bool ResizeInferShape(const nnvm::NodeAttrs& attrs,
-                                   std::vector<TShape>* in_shape,
-                                   std::vector<TShape>* out_shape) {
+                             std::vector<TShape>* in_shape,
+                             std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   const ResizeParam& param = nnvm::get<ResizeParam>(attrs.parsed);
   CHECK_EQ(in_shape->size(), 1U);
@@ -54,9 +54,9 @@ inline bool ResizeInferShape(const nnvm::NodeAttrs& attrs,
 }
 
 inline bool ResizeLayout(const NodeAttrs& attrs,
-                             std::vector<Layout> *in_layouts,
-                             const std::vector<Layout> *last_in_layouts,
-                             std::vector<Layout> *out_layouts) {
+                         std::vector<Layout> *in_layouts,
+                         const std::vector<Layout> *last_in_layouts,
+                         std::vector<Layout> *out_layouts) {
   const ResizeParam& param = nnvm::get<ResizeParam>(attrs.parsed);
   CHECK_EQ(in_layouts->size(), 1U);
   CHECK_EQ(out_layouts->size(), 1U);
@@ -74,6 +74,7 @@ NNVM_REGISTER_OP(resize)
             (batch_size, in_height, in_width, channels) for NHWC
 
             Input[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
+            holds (srcx, srcy, x_diff, y_diff) for each out value.
             weights is valid only for mode=BILINEAR
             helper function tvm.contrib.image.bilinear_weights
             available to generate this param at frontend.

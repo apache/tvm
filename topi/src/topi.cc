@@ -380,7 +380,6 @@ TVM_REGISTER_GLOBAL("topi.vision.yolo2.region")
   *rv = vision::yolo2::region(args[0], args[1], args[2], args[3], args[4], args[5]);
   });
 
-
 /* Ops from image/resize.h */
 TVM_REGISTER_GLOBAL("topi.image.resize")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

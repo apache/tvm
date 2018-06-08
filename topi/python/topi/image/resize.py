@@ -12,7 +12,7 @@ def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", 
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    out_shape: Tuple
+    out_size: Tuple
         Output resolution scale to
 
     layout: string

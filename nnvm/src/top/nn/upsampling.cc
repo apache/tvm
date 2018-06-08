@@ -28,8 +28,8 @@ using nnvm::compiler::FTVMCompute;
 DMLC_REGISTER_PARAMETER(UpSamplingParam);
 
 inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
-                                   std::vector<TShape>* in_shape,
-                                   std::vector<TShape>* out_shape) {
+                                 std::vector<TShape>* in_shape,
+                                 std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
   CHECK_EQ(in_shape->size(), 1U);
@@ -63,11 +63,12 @@ inline bool UpsamplingLayout(const NodeAttrs& attrs,
 NNVM_REGISTER_OP(upsampling)
 .describe(R"(Perform upsampling to input array with nearest neighbour or bilinear interpolation.
 
-- **data**: Input is 4D array of shape
+- **data**: data[0] is 4D array of shape
             (batch_size, channels, in_height, in_width) for NCHW
             (batch_size, in_height, in_width, channels) for NHWC
 
-            Input[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
+            data[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
+            holds (srcx, srcy, x_diff, y_diff) for each out value.
             weights is valid only for mode=BILINEAR
             helper function tvm.contrib.image.bilinear_weights
             available to generate this param at frontend.

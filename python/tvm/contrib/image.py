@@ -21,6 +21,7 @@ def bilinear_weights(height, width, new_h, new_w, align_corners=False):
 
         return [y_coord, x_coord, y_diff, x_diff]
 
+    # weights to hold (srcx, srcy, x_diff, y_diff) for each out value.
     weights = np.empty([new_h, new_w, 4], dtype='float32')
 
     for i in range(new_h):
