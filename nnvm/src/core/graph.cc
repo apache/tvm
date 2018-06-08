@@ -16,25 +16,22 @@ const IndexedGraph& Graph::indexed_graph() const {
   return *indexed_graph_;
 }
 
-// implement constructor from graph
-IndexedGraph::IndexedGraph(const Graph &g) {
-  entry_rptr_.push_back(0);
-  std::vector<size_t> inputs_rptr{0}, control_rptr{0};
-  // sanity check here
-  // a subgraph should not refer to any nodes with higher level
-  // where "level" refers to the nested depth of the subgraph
-  // e.g. the main graph is level 0
-  // subgraphs of the main graph is level 1
-  // subgraphs of the subgraphs of the main graph is level 2
+// a subgraph should not refer to any nodes with higher level
+// where "level" refers to the nested depth of the subgraph
+// e.g. the main graph is level 0
+// subgraphs of the main graph is level 1
+// subgraphs of the subgraphs of the main graph is level 2
+static void SubgraphSanityCheck(const std::vector<std::shared_ptr<Symbol>> &subgraphs) {
   std::vector<const std::vector<nnvm::NodeEntry>*> curr_level;
   std::vector<const std::vector<nnvm::NodeEntry>*> next_level;
   std::unordered_map<nnvm::Node*, uint32_t> node2level;
-  next_level.push_back(&g.outputs);
+  for (auto &subgraph : subgraphs)
+    next_level.push_back(&subgraph->outputs);
   for (uint32_t level = 0; !next_level.empty(); ++level) {
     curr_level.swap(next_level);
     next_level.clear();
-    for (const std::vector<nnvm::NodeEntry> *graph_ptr : curr_level) {
-      const std::vector<nnvm::NodeEntry> &graph = *graph_ptr;
+    for (const std::vector<NodeEntry> *graph_ptr : curr_level) {
+      const std::vector<NodeEntry> &graph = *graph_ptr;
       DFSVisit(graph, [&next_level, &node2level, level](const NodePtr& n) {
         nnvm::Node *node = n.get();
         // if the node is visited, but on a different level, then check failed
@@ -50,11 +47,20 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       });
     }
   }
-  // sanity check finishes, then we build the indexed graph
-  DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr]
+}
+
+// implement constructor from graph
+IndexedGraph::IndexedGraph(const Graph &g) {
+  entry_rptr_.push_back(0);
+  std::vector<size_t> inputs_rptr{0}, control_rptr{0};
+  std::vector<std::shared_ptr<Symbol>> subgraphs;
+
+  DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr, &subgraphs]
              (const NodePtr& n) {
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
       uint32_t nid = static_cast<uint32_t>(nodes_.size());
+      for (const auto &subgraph : n->attrs.subgraphs)
+        subgraphs.push_back(subgraph);
       // nodes_
       IndexedGraph::Node new_node;
       new_node.source = n.get();
@@ -83,6 +89,8 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       }
       control_rptr.push_back(control_deps_.size());
   });
+  if (!subgraphs.empty())
+    SubgraphSanityCheck(subgraphs);
 
   for (const auto& e : g.outputs) {
     outputs_.emplace_back(NodeEntry{
