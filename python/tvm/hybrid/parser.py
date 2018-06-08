@@ -256,8 +256,9 @@ class PyAST2HalideIR(ast.NodeVisitor):
         elif func_id in MATH_INTRIN:
             return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
         elif func_id == 'allocate':
+            #TODO: Support it later!
             if n == 1:
-                print(ast.dump(args[0]))
+                pass
             else:
                 assert n == 2
                 pass
