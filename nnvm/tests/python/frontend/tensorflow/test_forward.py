@@ -1,7 +1,7 @@
 # pylint: disable=import-self, invalid-name, unused-argument
 """
 Tensorflow testcases
-=====================
+====================
 This article is a test script to test tensorflow operator with NNVM.
 """
 from __future__ import print_function
@@ -193,7 +193,7 @@ def test_forward_convolution():
 
 #######################################################################
 # Reshape
-# -----------
+# -------
 
 def test_reshape(data, out_shape):
     """ One iteration of reshape operation with given sata and out shape """
@@ -230,7 +230,7 @@ def test_forward_reshape():
 
 #######################################################################
 # Squeeze
-# -----------
+# -------
 
 def test_squeeze(data, squeeze_dims=None):
     """ One iteration of squeeze """
@@ -290,7 +290,7 @@ def test_forward_squeeze():
 
 #######################################################################
 # ConcatV2
-# -----------
+# --------
 
 def test_concat_v2(data, dim):
     """ One iteration of ConcatV2 """

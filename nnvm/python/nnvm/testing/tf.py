@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name, unused-variable, unused-argument, no-init
 """
-Compile Tensorflow Models
-=========================
+Tensorflow Model Helpers
+========================
 Some helper definitions for tensorflow models.
 """
 import re
@@ -36,7 +36,7 @@ class NodeLookup(object):
 
         Returns
         -------
-        node_id_to_name : dict
+        node_id_to_name: dict
             dict from integer node ID to human-readable string.
 
         """
@@ -85,7 +85,32 @@ def read_normalized_tensor_from_image_file(file_name,
                                            input_width=299,
                                            input_mean=0,
                                            input_std=255):
-    """ Preprocessing of image """
+    """ Preprocessing of image
+    Parameters
+    ----------
+
+    file_name: String
+        Image filename.
+
+    input_height: int
+        model input height.
+
+    input_width: int
+        model input width
+
+    input_mean: int
+        Mean to be substracted in normalization.
+
+    input_std: int
+        Standard deviation used in normalization.
+
+    Returns
+    -------
+
+    np_array: Numpy array
+        Normalized image data as a numpy array.
+
+    """
 
     input_name = "file_reader"
     output_name = "normalized"
@@ -102,7 +127,18 @@ def read_normalized_tensor_from_image_file(file_name,
     return np_array
 
 def get_workload_inception_v3():
-    """ Import Inception V3 workload from frozen protobuf """
+    """ Import Inception V3 workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    (normalized, graph_def) : Tuple
+        normalized is normalized input for graph testing.
+        graph_def is the tensorflow workload for Inception V3.
+    """
 
     repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV3/'
     model_name = 'inception_v3_2016_08_28_frozen-with_shapes.pb'
@@ -124,7 +160,20 @@ def get_workload_inception_v3():
         return (normalized, graph_def)
 
 def get_workload_inception_v1():
-    """ Import Inception V1 workload from frozen protobuf """
+    """ Import Inception V1 workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    (image_data, tvm_data, graph_def) : Tuple
+        image_data is raw encoded image data for TF input.
+        tvm_data is the decoded image data for TVM input.
+        graph_def is the tensorflow workload for Inception V1.
+
+    """
 
     repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
     model_name = 'classify_image_graph_def-with_shapes.pb'

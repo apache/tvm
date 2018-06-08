@@ -1,6 +1,6 @@
 """
 Compile Tensorflow Models
-====================
+=========================
 This article is an introductory tutorial to deploy tensorflow models with NNVM.
 
 For us to begin with, tensorflow module is required to be installed.
@@ -95,7 +95,6 @@ def transform_image(image):
     return image
 
 x = transform_image(image)
-print('x', x.shape)
 
 ######################################################################
 # Import the graph to NNVM
