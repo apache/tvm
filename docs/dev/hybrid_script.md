@@ -52,17 +52,12 @@ jo, ji = sch.split(j, 4)
 sch.vectorize(ji)
 ````
 `split`, `reorder`, and loop_annotation will be supported!
-<<<<<<< HEAD
-## Attributes
-So far, ONLY tensors' `shape` attribute is supported!
 
-## Loops
-=======
 ### Attributes
 So far, ONLY tensors' `shape` attribute is supported!
 
 ### Loops
->>>>>>> bf343fe5fae324faf81255b55f099d965bd373ad
+
 In HalideIR, loops have in total 4 types: `serail`, `unrolled`, `parallel`, and `vectorized`.
 
 Here we use `range`, `serial`, `unroll`, `parallel`, and `vectorize`, these **5** keywords to annotate the types of for loops.
