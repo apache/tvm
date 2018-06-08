@@ -8,7 +8,6 @@ from ._intrin import LOOP_INTRIN, MATH_INTRIN
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
 from .. import expr as _expr
-from .. import stmt as _stmt
 from .. import make as _make
 from .. import intrin
 from .. import api  as _api
@@ -261,7 +260,6 @@ class PyAST2HalideIR(ast.NodeVisitor):
                 pass
             else:
                 assert n == 2
-                pass
         else:
             assert False and "Not supported yet!"
 
