@@ -28,7 +28,7 @@ def find_lib_path():
     else:
         lib_name = "nnvm_compiler" if sys.platform.startswith('win32') else "libnnvm_compiler"
 
-    api_path = os.path.join(base_path, '../../../lib/')
+    api_path = os.path.join(base_path, '../../lib/')
     cmake_build_path = os.path.join(base_path, '../../../build/Release/')
     cmake_build_path = os.path.join(base_path, '../../../build/')
     dll_path = [base_path, api_path, cmake_build_path]
