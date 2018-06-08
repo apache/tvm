@@ -34,6 +34,7 @@ tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 
+include_directories(BEFORE "nnvm/include")
 include_directories("include")
 include_directories("HalideIR/src")
 include_directories("dlpack/include")
@@ -68,8 +69,9 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp")
-FILE(GLOB_RECURSE GROUP_Include "src/*.h" "include/*.h" "HalideIR/src/*.h")
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp" "nnvm/src/*.cc")
+FILE(GLOB_RECURSE GROUP_Include "src/*.h" "include/*.h" "HalideIR/src/*.h"
+                                "nnvm/src/*.h" "nnvm/include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_Include})
 
@@ -82,7 +84,16 @@ file(GLOB COMPILER_SRCS
     src/pass/*.cc
     src/op/*.cc
     src/schedule/*.cc
-)
+    )
+
+file(GLOB_RECURSE NNVM_COMPILER_SRCS
+    nnvm/src/c_api/*.cc
+    nnvm/src/core/*.cc
+    nnvm/src/pass/*.cc
+    nnvm/src/compiler/*.cc
+    nnvm/src/top/*.cc
+    )
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/topi/include)
 file(GLOB TOPI_SRCS
     topi/src/*.cc
@@ -252,10 +263,21 @@ list(APPEND RUNTIME_SRCS ${GROUP_Include})
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_runtime  ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(nnvm_compiler tvm)
+
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+
+if(WIN32)
+  install(TARGETS nnvm_compiler RUNTIME DESTINATION bin)
+  install(TARGETS nnvm_compiler ARCHIVE DESTINATION lib)
+else()
+  install(TARGETS nnvm_compiler LIBRARY DESTINATION lib)
+endif()
+
 if (INSTALL_DEV)
   install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
   install(
@@ -277,13 +299,18 @@ if (INSTALL_DEV)
     DIRECTORY "dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
+  install(
+    DIRECTORY "nnvm/include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+    )
 else(INSTALL_DEV)
   install(
     DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
 endif(INSTALL_DEV)
 
 if(MSVC)
@@ -291,4 +318,5 @@ if(MSVC)
   target_compile_definitions(tvm_runtime PRIVATE -DHalide_EXPORTS)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(nnvm_compiler PRIVATE -DNNVM_EXPORTS)
 endif()
