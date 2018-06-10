@@ -94,44 +94,9 @@ def test_dtypes():
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         np.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
 
-def test_compile_extra_lib():
-    data = sym.Variable("data")
-    net = sym.relu(data)
-    net = sym.sqrt(net)
-    out = sym.flatten(net)
-    
-    target = "cuda"
-    extra_lib_target = "llvm"
-    dshape = (1, 3, 56, 56)
-    dtype = "float32"
-    in_data = np.random.uniform(size=dshape).astype(dtype)
-    opt_level = 2
-    with nnvm.compiler.build_config(opt_level=opt_level):
-        graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
-    m = graph_runtime.create(graph, lib, tvm.gpu(0))
-    m.set_input("data", in_data)
-    m.run()
-    _, oshape = nnvm.compiler.graph_util.infer_shape(graph, shape={"data": dshape})
-    expected_out = m.get_output(0, tvm.nd.empty(oshape[0], dtype))
-
-    with nnvm.compiler.build_config(opt_level=opt_level, extra_lib_op="flatten", extra_lib_target=extra_lib_target):
-        graph, lib, _, extra_libmod = nnvm.compiler.build(out, target, {"data": dshape})
-    major_m = graph_runtime.create(graph, lib, tvm.gpu(0))
-    major_m.set_input("data", in_data)
-    major_m.run()
-    major_out = major_m.get_output(0, tvm.nd.empty(dshape, dtype))
-    extra_graph, extra_lib, _ = extra_libmod
-    extra_m = graph_runtime.create(extra_graph, extra_lib, tvm.cpu())
-    extra_input_name = extra_graph.symbol.list_input_names()[0]
-    extra_m.set_input(extra_input_name, major_out)
-    extra_m.run()
-    final_out = extra_m.get_output(0, tvm.nd.empty(oshape[0], dtype))
-    np.testing.assert_allclose(expected_out.asnumpy(), final_out.asnumpy(), atol=1e-5, rtol=1e-5)
-
 
 if __name__ == "__main__":
     test_precompute_prune()
     test_compile()
     test_run()
     test_dtypes()
-    test_compile_extra_lib()

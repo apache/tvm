@@ -229,7 +229,7 @@ def _contrib_multibox_detection(inputs, attrs):
     new_attrs0 = {'clip': clip, 'threshold': float(threshold), 'variances': variances}
     new_attrs1 = {'nms_threshold': float(nms_threshold), 'force_suppress': force_suppress,
                   'nms_topk': int(nms_topk)}
-    data, valid_count = _get_nnvm_op('multibox_detection')(inputs[0], inputs[1],
+    data, valid_count = _get_nnvm_op('multibox_transform_loc')(inputs[0], inputs[1],
                                               inputs[2], **new_attrs0)
     return _get_nnvm_op('nms')(data, valid_count, **new_attrs1)
 
