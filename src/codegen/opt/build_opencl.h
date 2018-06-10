@@ -1,15 +1,18 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  *  Build opencl modules from source.
- * \file build_opencl.cc
+ * \file build_opencl.h
  */
+#ifndef TVM_CODEGEN_OPT_BUILD_OPENCL_H_
+#define TVM_CODEGEN_OPT_BUILD_OPENCL_H_
+
 #include <tvm/base.h>
-#include <tvm/runtime/config.h>
-#include "./codegen_opencl.h"
-#include "./build_common.h"
+#include <string>
+#include "../codegen_opencl.h"
+#include "../build_common.h"
 
 #if TVM_OPENCL_RUNTIME
-#include "../runtime/opencl/opencl_module.h"
+#include "../../runtime/opencl/opencl_module.h"
 #endif   // TVM_OPENCL_RUNTIME
 
 namespace tvm {
@@ -42,3 +45,4 @@ TVM_REGISTER_API("codegen.build_opencl")
   });
 }  // namespace codegen
 }  // namespace tvm
+#endif  // TVM_CODEGEN_OPT_BUILD_OPENCL_H_
