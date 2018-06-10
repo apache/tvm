@@ -82,11 +82,11 @@ NNVM_REGISTER_OP(multibox_prior)
 })
 .set_support_level(4);
 
-DMLC_REGISTER_PARAMETER(MultiBoxDetectionParam);
+DMLC_REGISTER_PARAMETER(MultiBoxTransformLocParam);
 
-bool MultiBoxDetectionShape(const NodeAttrs& attrs,
-                            std::vector<TShape> *in_attrs,
-                            std::vector<TShape> *out_attrs) {
+bool MultiBoxTransformLocShape(const NodeAttrs& attrs,
+                               std::vector<TShape> *in_attrs,
+                               std::vector<TShape> *out_attrs) {
   CHECK_EQ(in_attrs->size(), 3U) << "Inputs: [cls_prob, loc_pred, anchor]";
   TShape cshape = in_attrs->at(0);
   TShape lshape = in_attrs->at(1);
@@ -98,22 +98,25 @@ bool MultiBoxDetectionShape(const NodeAttrs& attrs,
   CHECK_EQ(cshape[2] * 4, lshape[1]) << "# anchors mismatch with # loc.";
   CHECK_GT(ashape[1], 0U) << "Number of anchors must > 0.";
   CHECK_EQ(ashape[2], 4U);
-  TShape oshape = TShape(3);
-  oshape[0] = cshape[0];
-  oshape[1] = ashape[1];
-  oshape[2] = 6;  // [id, prob, xmin, ymin, xmax, ymax]
+  TShape oshape0 = TShape(3);
+  oshape0[0] = cshape[0];
+  oshape0[1] = ashape[1];
+  oshape0[2] = 6;  // [id, prob, xmin, ymin, xmax, ymax]
+  TShape oshape1 = TShape(1);
+  oshape1[0] = cshape[0];
   out_attrs->clear();
-  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, oshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, oshape0);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 1, oshape1);
   return true;
 }
 
-inline bool MultiBoxDetectionLayout(const NodeAttrs& attrs,
-                                    std::vector<Layout> *ilayouts,
-                                    const std::vector<Layout> *last_ilayouts,
-                                    std::vector<Layout> *olayouts) {
+inline bool MultiBoxTransformLocLayout(const NodeAttrs& attrs,
+                                       std::vector<Layout> *ilayouts,
+                                       const std::vector<Layout> *last_ilayouts,
+                                       std::vector<Layout> *olayouts) {
   CHECK_EQ(ilayouts->size(), 3U);
   CHECK_EQ(last_ilayouts->size(), 3U);
-  CHECK_EQ(olayouts->size(), 1U);
+  CHECK_EQ(olayouts->size(), 2U);
   for (size_t i = 0; i < last_ilayouts->size(); ++i) {
     const Layout& last_layout = last_ilayouts->at(i);
     if (last_layout.defined()) {
@@ -123,24 +126,32 @@ inline bool MultiBoxDetectionLayout(const NodeAttrs& attrs,
   return true;
 }
 
-NNVM_REGISTER_OP(multibox_detection)
-  .describe(R"doc("Convert multibox detection predictions."
+inline bool MultiBoxTransformLocInferType(const NodeAttrs &attrs,
+                                          std::vector<int> *in_attrs,
+                                          std::vector<int> *out_attrs) {
+  DTYPE_ASSIGN(out_attrs->at(0), in_attrs->at(0));
+  DTYPE_ASSIGN(out_attrs->at(1), 4U);
+  return true;
+}
+
+NNVM_REGISTER_OP(multibox_transform_loc)
+  .describe(R"doc("Location transformation for multibox detection."
 )doc" NNVM_ADD_FILELINE)
 .set_num_inputs(3)
-.set_num_outputs(1)
-.set_attr_parser(ParamParser<MultiBoxDetectionParam>)
+.set_num_outputs(2)
+.set_attr_parser(ParamParser<MultiBoxTransformLocParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict",
-                        ParamGetAttrDict<MultiBoxDetectionParam>)
-.add_arguments(MultiBoxDetectionParam::__FIELDS__())
+                        ParamGetAttrDict<MultiBoxTransformLocParam>)
+.add_arguments(MultiBoxTransformLocParam::__FIELDS__())
 .add_argument("cls_prob", "Tensor", "Class probabilities.")
 .add_argument("loc_pred", "Tensor", "Location regression predictions.")
 .add_argument("anchor", "Tensor", "Multibox prior anchor boxes")
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
     return std::vector<std::string>{"cls_prob", "loc_pred", "anchor"};
 })
-.set_attr<FInferShape>("FInferShape", MultiBoxDetectionShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<3, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", MultiBoxDetectionLayout)
+.set_attr<FInferShape>("FInferShape", MultiBoxTransformLocShape)
+.set_attr<FInferType>("FInferType", MultiBoxTransformLocInferType)
+.set_attr<FCorrectLayout>("FCorrectLayout", MultiBoxTransformLocLayout)
 .set_support_level(4);
 
 }  // namespace top

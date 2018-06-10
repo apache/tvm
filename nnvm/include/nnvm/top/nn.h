@@ -340,26 +340,17 @@ struct MultiBoxPriorParam : public dmlc::Parameter<MultiBoxPriorParam> {
   }
 };
 
-struct MultiBoxDetectionParam : public dmlc::Parameter<MultiBoxDetectionParam> {
+struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocParam> {
   bool clip;
   float threshold;
-  float nms_threshold;
-  bool force_suppress;
-  int nms_topk;
   Tuple<float> variances;
-  DMLC_DECLARE_PARAMETER(MultiBoxDetectionParam) {
+  DMLC_DECLARE_PARAMETER(MultiBoxTransformLocParam) {
     DMLC_DECLARE_FIELD(clip).set_default(true)
       .describe("Clip out-of-boundary boxes.");
     DMLC_DECLARE_FIELD(threshold).set_default(0.01)
     .describe("Threshold to be a positive prediction.");
-    DMLC_DECLARE_FIELD(nms_threshold).set_default(0.5)
-    .describe("Non-maximum suppression threshold.");
-    DMLC_DECLARE_FIELD(force_suppress).set_default(false)
-    .describe("Suppress all detections regardless of class_id.");
     DMLC_DECLARE_FIELD(variances).set_default(Tuple<float>{0.1, 0.1, 0.2, 0.2})
     .describe("Variances to be decoded from box regression output.");
-    DMLC_DECLARE_FIELD(nms_topk).set_default(-1)
-    .describe("Keep maximum top k detections before nms, -1 for no limit.");
   }
 };
 

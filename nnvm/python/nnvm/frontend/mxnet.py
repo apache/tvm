@@ -226,12 +226,12 @@ def _contrib_multibox_detection(inputs, attrs):
     variances = tuple([float(x.strip()) for x in attrs.get('variances').strip('()').split(',')]) \
         if attrs.get('variances') is not None else (0.1, 0.1, 0.2, 0.2)
     nms_topk = attrs.get('nms_topk') or -1
-    new_attrs = {'clip': clip, 'threshold': float(threshold),
-                 'nms_threshold': float(nms_threshold),
-                 'force_suppress': force_suppress,
-                 'variances': variances, 'nms_topk': int(nms_topk)}
-    return _get_nnvm_op('multibox_detection')(inputs[0], inputs[1],
-                                              inputs[2], **new_attrs)
+    new_attrs0 = {'clip': clip, 'threshold': float(threshold), 'variances': variances}
+    new_attrs1 = {'nms_threshold': float(nms_threshold), 'force_suppress': force_suppress,
+                  'nms_topk': int(nms_topk)}
+    data, valid_count = _get_nnvm_op('multibox_detection')(inputs[0], inputs[1],
+                                              inputs[2], **new_attrs0)
+    return _get_nnvm_op('nms')(data, valid_count, **new_attrs1)
 
 def _elemwise_sum(inputs, _):
     new_attrs = {'num_args':len(inputs)}

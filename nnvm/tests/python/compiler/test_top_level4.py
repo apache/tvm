@@ -408,14 +408,16 @@ def test_multibox_prior():
     verify_multibox_prior((1, 3, 224, 224), sizes=(0.5, 0.25, 0.1), ratios=(1, 2, 0.5))
     verify_multibox_prior((1, 32, 32, 32), sizes=(0.5, 0.25), ratios=(1, 2), steps=(2, 2), clip=True)
 
-def test_multibox_detection():
+def test_multibox_transform_loc():
     batch_size = 1
     num_anchors = 3
     num_classes = 3
     cls_prob = sym.Variable("cls_prob")
     loc_preds = sym.Variable("loc_preds")
     anchors = sym.Variable("anchors")
-    out = sym.multibox_detection(cls_prob=cls_prob, loc_pred=loc_preds, anchor=anchors)
+    transform_loc_data, valid_count = sym.multibox_transform_loc(cls_prob=cls_prob, loc_pred=loc_preds,
+                                                                 anchor=anchors)
+    out = sym.nms(data=transform_loc_data, valid_count=valid_count)
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -437,7 +439,6 @@ def test_multibox_detection():
     m.run()
     out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
     np.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
-
 
 def test_nms():
     dshape = (1, 5, 6)
@@ -483,6 +484,6 @@ if __name__ == "__main__":
     test_full()
     test_flip()
     test_multibox_prior()
-    test_multibox_detection()
+    test_multibox_transform_loc()
     test_nms()
-    print(nnvm.compiler.engine.dump())
+    #print(nnvm.compiler.engine.dump())
