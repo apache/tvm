@@ -212,7 +212,7 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
 
 @tvm.target.generic_func
 def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
-                          variances=(0.1, 0.1, 0.2, 0.2)):
+                           variances=(0.1, 0.1, 0.2, 0.2)):
     """Location transformation for multibox detection
 
     Parameters
@@ -298,6 +298,6 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
         3-D tensor with shape (batch_size, num_anchors, 6)
     """
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                                   clip, threshold, variances)
+                                       clip, threshold, variances)
     out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
     return out
