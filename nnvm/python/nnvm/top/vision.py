@@ -67,7 +67,7 @@ def schedule_multibox_transform_loc(_, outs, target):
         return topi.generic.schedule_multibox_transform_loc(outs)
 
 @reg.register_compute("multibox_transform_loc")
-def compute_multibox_detection(attrs, inputs, _):
+def compute_multibox_transform_loc(attrs, inputs, _):
     """Compute definition of multibox_detection"""
     clip = attrs.get_bool('clip')
     threshold = attrs.get_float('threshold')

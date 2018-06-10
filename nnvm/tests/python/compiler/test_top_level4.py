@@ -486,4 +486,4 @@ if __name__ == "__main__":
     test_multibox_prior()
     test_multibox_transform_loc()
     test_nms()
-    #print(nnvm.compiler.engine.dump())
+    print(nnvm.compiler.engine.dump())
