@@ -314,8 +314,7 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
     int root_id = group_vec[nid];
     FuseEntry& fe = fuse_vec[root_id];
     // copy and create subgraph node.
-    NodePtr gnode = Node::Create();
-    gnode->attrs = inode.source->attrs;
+    NodePtr gnode = Node::Create(inode.source->attrs);
     // input loading
     for (const auto& e : inode.inputs) {
       if (group_vec[e.node_id] != root_id) {
@@ -386,8 +385,9 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) {
       // only copy over name since that is sufficient.
-      nnvm::NodePtr np = nnvm::Node::Create();
-      np->attrs.name = inode.source->attrs.name;
+      NodeAttrs attrs;
+      attrs.name = inode.source->attrs.name;
+      nnvm::NodePtr np = nnvm::Node::Create(std::move(attrs));
       old_new[nid] = np;
       continue;
     }
@@ -397,9 +397,11 @@ nnvm::Graph GraphFuseCompile(nnvm::Graph g) {
     // Handle normal op
     FuseEntry& fe = fuse_vec[root_id];
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
-    nnvm::NodePtr np = nnvm::Node::Create();
-    np->attrs.op = tvm_op;
-    np->attrs.name = inode.source->attrs.name;
+    NodeAttrs attrs;
+    attrs.op = tvm_op;
+    attrs.name = inode.source->attrs.name;
+
+    nnvm::NodePtr np = nnvm::Node::Create(std::move(attrs));
     TVMOpParam param;
     param.func_name = fe.compiled_func->func_name;
     param.num_inputs = static_cast<uint32_t>(fe.imap.size());

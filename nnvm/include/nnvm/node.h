@@ -108,6 +108,7 @@ class NNVM_DLL Node {
   std::vector<NodePtr> control_deps;
   /*! \brief additional fields for this node */
   any info;
+  Node(NodeAttrs attrs_ = {}, std::vector<NodeEntry> inputs_ = {}, std::vector<NodePtr> control_deps_ = {});
   /*! \brief destructor of node */
   ~Node();
   /*! \return operator in this node */
@@ -123,10 +124,13 @@ class NNVM_DLL Node {
   /*! \return number of inputs from this node */
   inline uint32_t num_inputs() const;
   /*!
-   * \brief create a new empty shared_ptr of Node.
-   * \return a created empty node.
+   * \brief create a new hared_ptr of Node.
+   * \return a created node.
    */
-  static NodePtr Create();
+  template <typename ...Args>
+  static NodePtr Create(Args... args) {
+	  return std::make_shared<Node>(std::forward<Args>(args)...);
+  }
 };
 
 /*!
@@ -143,14 +147,14 @@ inline NodeEntry MakeNode(
     std::vector<NodeEntry> inputs,
     std::unordered_map<std::string, std::string> attrs =
     std::unordered_map<std::string, std::string>()) {
-  NodePtr p = Node::Create();
-  p->attrs.op = nnvm::Op::Get(op_name);
-  p->attrs.name = std::move(node_name);
-  p->attrs.dict = attrs;
-  if (p->attrs.op->attr_parser) {
-    p->attrs.op->attr_parser(&(p->attrs));
+  NodeAttrs attrs_;
+  attrs_.op = nnvm::Op::Get(op_name),
+  attrs_.name = std::move(node_name),
+  attrs_.dict = std::move(attrs);
+  if (attrs_.op->attr_parser) {
+    attrs_.op->attr_parser(&attrs_);
   }
-  p->inputs = std::move(inputs);
+  NodePtr p = Node::Create(std::move(attrs_), std::move(inputs));
   return NodeEntry{p, 0, 0};
 }
 

@@ -66,9 +66,7 @@ Graph OrderMutation(const Graph& src) {
       if (old_new.count(p.get()) != 0) need_repl = true;
     }
     if (need_repl) {
-      NodePtr np = Node::Create();
-      np->attrs = n->attrs;
-      old_new[n.get()] = std::move(np);
+      old_new[n.get()] = Node::Create(n->attrs);
     }
   };
   DFSVisit(src.outputs, prepare);

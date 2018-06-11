@@ -124,8 +124,7 @@ Graph PlaceDevice(Graph src) {
       CHECK(!need_mutate) << "consistency check";
     }
     if (need_mutate) {
-      NodePtr new_node = Node::Create();
-      new_node->attrs = inode.source->attrs;
+      NodePtr new_node = Node::Create(inode.source->attrs);
       new_node->inputs.reserve(inode.inputs.size());
       for (size_t i = 0; i < inode.inputs.size(); ++i) {
         const IndexedGraph::NodeEntry& e = inode.inputs[i];
@@ -136,11 +135,12 @@ Graph PlaceDevice(Graph src) {
             new_node->inputs.emplace_back(
                 NodeEntry{it->second, 0, 0});
           } else {
-            NodePtr copy_node = Node::Create();
             std::ostringstream os;
             os << inode.source->inputs[i].node->attrs.name << "_" << e.index <<"_copy";
-            copy_node->attrs.op = copy_op;
-            copy_node->attrs.name = os.str();
+            NodeAttrs attrs;
+            attrs.op = copy_op;
+            attrs.name = os.str();
+            NodePtr copy_node = Node::Create(std::move(attrs));
             if (new_node_map[e.node_id] != nullptr) {
               copy_node->inputs.emplace_back(
                 NodeEntry{new_node_map[e.node_id], e.index, 0});

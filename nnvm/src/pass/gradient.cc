@@ -19,18 +19,19 @@ NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
   if (v.size() == 1) {
     return std::move(v[0]);
   } else if (v.size() == 0) {
-    NodePtr zero_node = Node::Create();
-    zero_node->attrs.op = Op::Get("zeros");
-    zero_node->attrs.name = "zero_grad";
-    zero_node->attrs.op->attr_parser(&(zero_node->attrs));
+    NodeAttrs attrs;
+    attrs.op = Op::Get("zeros");
+    attrs.name = "zero_grad";
+    attrs.op->attr_parser(&attrs);
+    NodePtr zero_node = Node::Create(std::move(attrs));
     return NodeEntry{zero_node, 0, 0};
   } else {
-    NodePtr sum_node = Node::Create();
-    sum_node->attrs.op = Op::Get("elemwise_sum");
-    sum_node->inputs = std::move(v);
-    sum_node->attrs.name = "grad_sum";
-    sum_node->attrs.dict["num_args"] = std::to_string(sum_node->inputs.size());
-    sum_node->attrs.op->attr_parser(&(sum_node->attrs));
+    NodeAttrs attrs;
+    attrs.op = Op::Get("elemwise_sum");
+    attrs.name = "grad_sum";
+    attrs.dict["num_args"] = std::to_string(v.size());
+    attrs.op->attr_parser(&attrs);
+    NodePtr sum_node = Node::Create(std::move(attrs), std::move(v));
     return NodeEntry{sum_node, 0, 0};
   }
 }
@@ -129,8 +130,7 @@ Graph Gradient(Graph src) {
   if (mirror_fun != nullptr) {
     for (const NodePtr& n : topo_order) {
       if (mirror_fun(*n)) {
-        NodePtr new_node = Node::Create();
-        *new_node = *n;
+        NodePtr new_node = Node::Create(*n);
         new_node->attrs.name += "_mirror";
         for (auto& e : new_node->inputs) {
           e.node = mirror_map.at(e.node.get());
@@ -178,14 +178,15 @@ Graph Gradient(Graph src) {
           } else {
             os << fwd_node->attrs.name << "_in" << i << "_backward";
           }
-          auto p = Node::Create();
-          p->attrs.op = zero_ops[0];
-          p->attrs.name = os.str();
-          p->inputs.push_back(fwd_node->inputs[i]);
-          p->control_deps.emplace_back(fwd_node);
-          if (p->op()->attr_parser != nullptr) {
-            p->op()->attr_parser(&(p->attrs));
+          NodeAttrs attrs;
+          attrs.op = zero_ops[0];
+          attrs.name = os.str();
+          if (attrs.op->attr_parser != nullptr) {
+            attrs.op->attr_parser(&attrs);
           }
+          std::vector<NodeEntry> input {fwd_node->inputs[i]};
+          std::vector<NodePtr> control_deps {fwd_node};
+          auto p = Node::Create(std::move(attrs), std::move(input), std::move(control_deps));
           input_grads.emplace_back(nnvm::NodeEntry{p, 0, 0});
         }
       } else {
@@ -222,16 +223,17 @@ Graph Gradient(Graph src) {
       if (kv == unique_grads.end()) {
         unique_grads.emplace(std::move(entry.sum), std::make_pair(1, counter));
       } else {
-        NodePtr copy_node = Node::Create();
         std::ostringstream os;
         os << entry.sum.node->attrs.name << "_" << kv->second.first << "_copy";
         kv->second.first++;
-        copy_node->attrs.op = copy_op;
-        copy_node->attrs.name = os.str();
-        copy_node->inputs.emplace_back(entry.sum);
-        if (copy_node->attrs.op->attr_parser != nullptr) {
-            copy_node->attrs.op->attr_parser(&(copy_node->attrs));
+        NodeAttrs attrs;
+        attrs.op = copy_op;
+        attrs.name = os.str();
+        if (attrs.op->attr_parser != nullptr) {
+            attrs.op->attr_parser(&attrs);
         }
+        std::vector<NodeEntry> inputs {entry.sum};
+        NodePtr copy_node = Node::Create(std::move(attrs), std::move(inputs));
         unique_grads.emplace(NodeEntry{std::move(copy_node), 0, 0}, std::make_pair(1, counter));
       }
     } else {
