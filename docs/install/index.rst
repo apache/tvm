@@ -77,6 +77,7 @@ The configuration of tvm can be modified by `config.cmake`.
 - We can then build tvm and related libraries.
 
   .. code:: bash
+
       cd build
       cmake ..
       make -j4
