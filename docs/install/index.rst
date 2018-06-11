@@ -38,7 +38,7 @@ Our goal is to build the shared libraries:
 The minimal building requirements are
 
 - A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
-- CMake 3.7 or higher
+- CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
 - It is possible to build without llvm dependency if we only want to use CUDA/OpenCL
 
@@ -49,6 +49,7 @@ The configuration of tvm can be modified by `config.cmake`.
 - First, check the cmake in your system, you do not have cmake
   you can obtain the latest version from `official website <https://cmake.org/download/>`_
 - First create a build directory, copy the ``cmake/config.cmake`` to the directory.
+
   .. code:: bash
 
       mkdir build
@@ -76,6 +77,7 @@ The configuration of tvm can be modified by `config.cmake`.
 - We can then build tvm and related libraries.
 
   .. code:: bash
+
       cd build
       cmake ..
       make -j4

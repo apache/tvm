@@ -5,6 +5,7 @@ import numpy as np
 
 import tvm
 from .. import symbol as _sym
+from .._base import string_types
 from .common import SymbolTable
 
 __all__ = ['from_coreml']
@@ -281,7 +282,7 @@ def coreml_op_to_nnvm(op, inname, outname, symtab):
     classname = type(op).__name__
     if classname not in _convert_map:
         raise NotImplementedError("%s is not supported" % (classname))
-    if isinstance(inname, (str, unicode)):
+    if isinstance(inname, string_types):
         insym = symtab.get_var(inname)
     else:
         insym = [symtab.get_var(i) for i in inname]

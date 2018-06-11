@@ -23,7 +23,7 @@ RUN bash /install/ubuntu_install_sphinx.sh
 
 # Fix recommonmark to latest version
 RUN git clone https://github.com/rtfd/recommonmark
-RUN cd recommonmark; python setup.py install
+RUN cd recommonmark; python3 setup.py install
 
 # Enable doxygen for c++ doc build
 RUN apt-get update && apt-get install -y doxygen graphviz libprotobuf-dev protobuf-compiler
@@ -39,9 +39,6 @@ RUN bash /install/ubuntu_install_rocm.sh
 
 COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
 RUN bash /install/ubuntu_install_opengl.sh
-
-COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
-RUN bash /install/ubuntu_install_vulkan.sh
 
 
 # DL Frameworks
@@ -60,7 +57,11 @@ RUN bash /install/ubuntu_install_darknet.sh
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
-RUN pip install Pillow
+RUN pip3 install Pillow
+
+# disable vulkan for now
+# COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
+# RUN bash /install/ubuntu_install_vulkan.sh
 
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}

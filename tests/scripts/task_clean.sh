@@ -1,3 +1,3 @@
 #!/bin/bash
 echo "Cleanup data..."
-rm -rf $1
+cd $1 && rm -rf Cmake* && cd ..
