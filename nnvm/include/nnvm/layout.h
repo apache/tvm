@@ -348,7 +348,7 @@ class Layout {
     return false;
   }
 
-  inline const LayoutDim operator[](size_t i) const {
+  inline LayoutDim operator[](size_t i) const {
     return layout_simplified_[i];
   }
 
