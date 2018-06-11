@@ -4,8 +4,6 @@
  */
 #include "./cuda_module.h"
 
-#if TVM_CUDA_RUNTIME
-
 #include <tvm/runtime/registry.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -305,4 +303,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_cuda")
   });
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_CUDA_RUNTIME

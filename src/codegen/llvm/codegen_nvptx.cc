@@ -4,7 +4,6 @@
  * \brief NVPTX code generator.
  */
 #ifdef TVM_LLVM_VERSION
-#if TVM_CUDA_RUNTIME
 
 #include <tvm/runtime/device_api.h>
 #include "./codegen_llvm.h"
@@ -215,5 +214,4 @@ TVM_REGISTER_API("codegen.build_nvptx")
 
 }  // namespace codegen
 }  // namespace tvm
-#endif   // TVM_CUDA_RUNTIME
 #endif  // TVM_LLVM_VERSION

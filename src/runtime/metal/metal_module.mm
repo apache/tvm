@@ -2,16 +2,13 @@
  *  Copyright (c) 2017 by Contributors
  * \file metal_module.cc
  */
-#include "./metal_module.h"
-
-#if TVM_METAL_RUNTIME
-
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <array>
 #include <string>
 #include <mutex>
+#include "./metal_module.h"
 #include "./metal_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
@@ -304,4 +301,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_metal")
   });
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_METAL_RUNTIME

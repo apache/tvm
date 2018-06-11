@@ -2,16 +2,13 @@
  *  Copyright (c) 2017 by Contributors
  * \file rocm_module.cc
  */
-#include "./rocm_module.h"
-
-#if TVM_ROCM_RUNTIME
-
 #include <tvm/runtime/registry.h>
 #include <hip/hip_runtime_api.h>
 #include <vector>
 #include <array>
 #include <string>
 #include <mutex>
+#include "./rocm_module.h"
 #include "./rocm_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
@@ -237,4 +234,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_hip")
   });
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_ROCM_RUNTIME
