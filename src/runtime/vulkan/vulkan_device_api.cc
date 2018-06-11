@@ -2,14 +2,10 @@
  *  Copyright (c) 2017 by Contributors
  * \file vulkan_device_api.cc
  */
-#include "./vulkan_common.h"
-
-#if TVM_VULKAN_RUNTIME
-
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
 #include <cstring>
-
+#include "./vulkan_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -693,5 +689,3 @@ TVM_REGISTER_GLOBAL("device_api.vulkan")
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_VULKAN_RUNTIME

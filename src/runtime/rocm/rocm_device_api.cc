@@ -3,10 +3,8 @@
  * \file rocm_device_api.cc
  * \brief GPU specific API
  */
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/device_api.h>
 
-#if TVM_ROCM_RUNTIME
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
@@ -162,4 +160,3 @@ TVM_REGISTER_GLOBAL("device_api.rocm")
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_ROCM_RUNTIME

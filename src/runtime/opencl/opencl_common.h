@@ -6,13 +6,11 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
 
-#if TVM_OPENCL_RUNTIME
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
@@ -192,5 +190,4 @@ class OpenCLThreadEntry {
 }  // namespace cl
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_OPENCL_RUNTIME
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_

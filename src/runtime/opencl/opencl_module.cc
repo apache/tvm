@@ -2,16 +2,14 @@
  *  Copyright (c) 2017 by Contributors
  * \file opencl_module.cc
  */
-#include "./opencl_common.h"
-#include "./opencl_module.h"
-
-#if TVM_OPENCL_RUNTIME
-
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include "./opencl_common.h"
+#include "./opencl_module.h"
+
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"
@@ -318,5 +316,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
   });
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_OPENCL_RUNTIME
