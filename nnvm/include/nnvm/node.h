@@ -108,7 +108,9 @@ class NNVM_DLL Node {
   std::vector<NodePtr> control_deps;
   /*! \brief additional fields for this node */
   any info;
-  Node(NodeAttrs attrs_ = {}, std::vector<NodeEntry> inputs_ = {}, std::vector<NodePtr> control_deps_ = {});
+  Node(NodeAttrs attrs_ = {},
+      std::vector<NodeEntry> inputs_ = {},
+      std::vector<NodePtr> control_deps_ = {});
   /*! \brief destructor of node */
   ~Node();
   /*! \return operator in this node */
@@ -129,7 +131,7 @@ class NNVM_DLL Node {
    */
   template <typename ...Args>
   static NodePtr Create(Args... args) {
-	  return std::make_shared<Node>(std::forward<Args>(args)...);
+    return std::make_shared<Node>(std::forward<Args>(args)...);
   }
 };
 

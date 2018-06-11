@@ -10,8 +10,7 @@ namespace nnvm {
 Node::Node(NodeAttrs attrs_, std::vector<NodeEntry> inputs_, std::vector<NodePtr> control_deps_)
 : attrs(std::move(attrs_)),
   inputs(std::move(inputs_)),
-  control_deps(control_deps_)
-{
+  control_deps(control_deps_) {
 }
 
 Node::~Node() {
