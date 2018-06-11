@@ -144,8 +144,6 @@ struct JSONGraph {
   std::vector<uint32_t> node_row_ptr;
   std::vector<JSONNode::Entry> heads;
   std::unordered_map<std::string, std::shared_ptr<any> > attrs;
-  // all subgraphs of the JSONGraph, used only in saving.
-  std::vector<JSONGraph*> subgraphs;
 
   void Save(dmlc::JSONWriter *writer) const {
     writer->BeginObject();
@@ -195,6 +193,16 @@ void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph *jgraph) {
   for (const NodeEntry& e : src->outputs) {
     jgraph->heads.emplace_back(node2index.at(e.node.get()), e.index, e.version);
   }
+  // recursively construct subgraphs
+  for (JSONNode &jnode : jgraph->nodes) {
+    // construct jnode's subgraphs
+    const std::vector<std::shared_ptr<Symbol>> &subgraphs = jnode.node->attrs.subgraphs;
+    std::vector<JSONGraph> &jsubgraphs = jnode.subgraphs;
+    jsubgraphs.resize(subgraphs.size());
+    for (uint32_t i = 0; i < subgraphs.size(); ++i) {
+      Symbol2JSONGraph(subgraphs[i], &jsubgraphs[i]);
+    }
+  }
 }
 
 std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse) {
@@ -220,7 +228,7 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
       n.node->attrs.subgraphs.push_back(JSONGraph2Symbol(subgraph, false));
     }
   }
-  // consistent check
+  // consistency check
   for (uint32_t nid : jgraph.arg_nodes) {
     CHECK(jgraph.nodes[nid].node->is_variable());
   }
@@ -230,39 +238,6 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
     symbol->outputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
   }
   return symbol;
-}
-
-void DFSSubgraph(std::shared_ptr<Symbol> root, JSONGraph *jroot) {
-  // a standard DFS.
-  // the JGraphPtr in the stack forms a path from root to current node.
-  // the uint32_t indicates how many children of the corresponding JGraphPtr
-  // have been pushed to stack.
-  Symbol2JSONGraph(root, jroot);
-  std::vector<std::pair<JSONGraph*, uint32_t> > stack;
-  stack.emplace_back(jroot, 0U);
-  while (!stack.empty()) {
-    std::pair<JSONGraph*, uint32_t> &top = stack.back();
-    JSONGraph *jgraph = top.first;
-    uint32_t &next_subgraph = top.second;
-    if (next_subgraph == 0U) {
-      // this is the first time we visit this jgraph
-      // convert each jnode's symbolic subgraphs to JSONGraph
-      for (JSONNode &jnode : jgraph->nodes) {
-        const std::vector<std::shared_ptr<Symbol>> &subgraphs = jnode.node->attrs.subgraphs;
-        jnode.subgraphs.resize(subgraphs.size());
-        for (uint32_t i = 0; i < subgraphs.size(); ++i) {
-          Symbol2JSONGraph(subgraphs[i], &jnode.subgraphs[i]);
-          jgraph->subgraphs.push_back(&jnode.subgraphs[i]);
-        }
-      }
-    }
-    if (next_subgraph == jgraph->subgraphs.size()) {
-      stack.pop_back();
-    } else {
-      JSONGraph *subgraph = jgraph->subgraphs[next_subgraph++];
-      stack.emplace_back(subgraph, 0U);
-    }
-  }
 }
 
 // Load a graph from JSON file.
@@ -293,7 +268,7 @@ Graph SaveJSON(Graph src) {
   std::shared_ptr<Symbol> src_symbol = std::make_shared<Symbol>();
   src_symbol->outputs = src.outputs;
   JSONGraph jgraph;
-  DFSSubgraph(src_symbol, &jgraph);
+  Symbol2JSONGraph(src_symbol, &jgraph);
   jgraph.attrs = src.attrs;
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);
