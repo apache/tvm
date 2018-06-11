@@ -1,11 +1,14 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  *  Build opengl modules from source.
- * \file build_opengl.cc
+ * \file build_opengl.h
  */
+#ifndef TVM_CODEGEN_OPT_BUILD_OPENGL_H_
+#define TVM_CODEGEN_OPT_BUILD_OPENGL_H_
+
 #include <tvm/base.h>
-#include "./codegen_opengl.h"
-#include "./build_common.h"
+#include "../codegen_opengl.h"
+#include "../build_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -33,3 +36,4 @@ TVM_REGISTER_API("codegen.build_opengl")
 });
 }  // namespace codegen
 }  // namespace tvm
+#endif  // TVM_CODEGEN_OPT_BUILD_OPENGL_H_

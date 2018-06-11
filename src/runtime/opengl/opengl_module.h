@@ -6,7 +6,6 @@
 #ifndef TVM_RUNTIME_OPENGL_OPENGL_MODULE_H_
 #define TVM_RUNTIME_OPENGL_OPENGL_MODULE_H_
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/packed_func.h>
 #include <algorithm>
 #include <memory>
