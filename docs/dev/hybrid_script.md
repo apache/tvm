@@ -20,7 +20,7 @@ def outer_product(a, b, c):
 a = numpy.random.rand(100)
 b = numpy.random.rand(99)
 c = numpy.zeros((100, 99))
-outer_product(a, b)
+outer_product(a, b, c)
 ````
 This decorator will help you to import [key words](#keywords) required spontaneously when software emulation.
 Every element in the argument list is either a python variable or `numpy` tensor.
