@@ -19,11 +19,12 @@ struct VariableParam {
 };
 
 NodePtr CreateVariableNode(const std::string& name) {
-  NodePtr n = Node::Create();
-  n->attrs.op = nullptr;
-  n->attrs.name = name;
-  n->attrs.parsed = VariableParam();
-  return n;
+  NodeAttrs attrs;
+  attrs.op = nullptr;
+  attrs.name = name;
+  attrs.parsed = VariableParam();
+
+  return Node::Create(std::move(attrs));
 }
 
 // scan over a node's input, update the version to latest
@@ -99,8 +100,7 @@ Symbol Symbol::Copy() const {
   std::unordered_map<Node*, NodePtr> old_new;
   // use DFSVisit to copy all the nodes
   DFSVisit(this->outputs, [&old_new](const NodePtr& node) {
-      NodePtr np = Node::Create();
-      np->attrs = node->attrs;
+      NodePtr np = Node::Create(node->attrs);
       old_new[node.get()] = std::move(np);
     });
   // connect nodes of new graph
@@ -540,12 +540,14 @@ Symbol Symbol::CreateFunctor(const Op* op,
                              std::unordered_map<std::string, std::string> attrs) {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol s;
-  NodePtr n = Node::Create();
-  n->attrs.op = op;
-  n->attrs.dict = std::move(attrs);
-  if (n->op()->attr_parser != nullptr) {
-    n->op()->attr_parser(&(n->attrs));
+  NodeAttrs attrs_;
+  attrs_.op = op;
+  attrs_.dict = std::move(attrs);
+  if (attrs_.op->attr_parser != nullptr) {
+    attrs_.op->attr_parser(&attrs_);
   }
+
+  NodePtr n = Node::Create(std::move(attrs_));
 
   uint32_t nout = n->num_outputs();
   if (fnum_vis_output.count(n->op())) {
@@ -560,8 +562,7 @@ Symbol Symbol::CreateFunctor(const Op* op,
 Symbol Symbol::CreateFunctor(const NodeAttrs& attrs) {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol s;
-  NodePtr n = Node::Create();
-  n->attrs = attrs;
+  NodePtr n = Node::Create(attrs);
 
   uint32_t nout = n->num_outputs();
   if (fnum_vis_output.count(n->op())) {

@@ -7,6 +7,12 @@
 
 namespace nnvm {
 
+Node::Node(NodeAttrs attrs_, std::vector<NodeEntry> inputs_, std::vector<NodePtr> control_deps_)
+: attrs(std::move(attrs_)),
+  inputs(std::move(inputs_)),
+  control_deps(control_deps_) {
+}
+
 Node::~Node() {
   if (inputs.size() != 0) {
     // explicit deletion via DFS
@@ -35,10 +41,6 @@ Node::~Node() {
       n->inputs.clear();
     }
   }
-}
-
-NodePtr Node::Create() {
-  return std::make_shared<Node>();
 }
 
 }  // namespace nnvm

@@ -32,14 +32,15 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       if (!e.node->is_variable()) {
         ++non_var_edge;
       }
-      nnvm::NodePtr var = nnvm::Node::Create();
-      var->attrs.name = e.node->attrs.name;
+      NodeAttrs attrs;
+      attrs.name = e.node->attrs.name;
       if (e.version) {
-          var->attrs.name += "_" + std::to_string(e.version);
+        attrs.name += "_" + std::to_string(e.version);
       }
       if (e.node->num_outputs() != 1) {
-        var->attrs.name += "_output" + std::to_string(e.index);
+        attrs.name += "_output" + std::to_string(e.index);
       }
+      nnvm::NodePtr var = nnvm::Node::Create(std::move(attrs));
       entry_var.emplace(e, var);
       CHECK(!unique_name.count(var->attrs.name));
       unique_name.insert(var->attrs.name);

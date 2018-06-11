@@ -16,13 +16,14 @@ nnvm::NodePtr CreateLayoutTransformNode(const Layout& src,
                                         const Layout& dst) {
   static const nnvm::Op* trans_op = nnvm::Op::Get("__layout_transform__");
   static int count = 0;
-  nnvm::NodePtr n = nnvm::Node::Create();
-  n->attrs.op = trans_op;
-  n->attrs.name = src.name() + "_to_" + dst.name() + std::to_string(count++);
-  n->attrs.dict["src_layout"] = src.name();
-  n->attrs.dict["dst_layout"] = dst.name();
-  n->op()->attr_parser(&(n->attrs));
-  return n;
+  NodeAttrs attr;
+  attr.op = trans_op;
+  attr.name = src.name() + "_to_" + dst.name() + std::to_string(count++);
+  attr.dict["src_layout"] = src.name();
+  attr.dict["dst_layout"] = dst.name();
+  trans_op->attr_parser(&attr);
+
+  return nnvm::Node::Create(std::move(attr));
 }
 
 using LayoutAttrDict = std::unordered_map<const Node*, std::vector<Layout> >;
@@ -43,8 +44,7 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
 
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
-    nnvm::NodePtr new_node = nnvm::Node::Create();
-    *new_node = *(inode.source);
+    nnvm::NodePtr new_node = nnvm::Node::Create(*(inode.source));
     if (new_node->is_variable()) {
       // Variable node. No operator. Only one output entry.
       auto input_iter = std::find(

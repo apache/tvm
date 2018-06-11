@@ -309,14 +309,14 @@ inline std::vector<NodeEntry> MakeGradNode(
   const NodePtr& n,
   std::vector<NodeEntry> inputs,
   std::unordered_map<std::string, std::string> attr = {{}}) {
-  NodePtr p = Node::Create();
-  p->attrs.op = nnvm::Op::Get(op_name);
-  p->attrs.name = n->attrs.name + "_grad";
-  p->inputs = std::move(inputs);
-  p->attrs.dict = std::move(attr);
-  if (p->attrs.op->attr_parser) {
-    p->attrs.op->attr_parser(&p->attrs);
+  NodeAttrs attrs;
+  attrs.op = nnvm::Op::Get(op_name);
+  attrs.name = n->attrs.name + "_grad";
+  attrs.dict = std::move(attr);
+  if (attrs.op->attr_parser) {
+    attrs.op->attr_parser(&attrs);
   }
+  NodePtr p = Node::Create(std::move(attrs), std::move(inputs));
   std::vector<NodeEntry> ret;
   for (uint32_t i = 0; i < p->num_outputs(); ++i) {
     ret.emplace_back(NodeEntry{p, i, 0});

@@ -64,16 +64,16 @@ Graph GraphTransform(Graph graph, FTransform ftransform) {
         }
       }
     } else {
-      NodePtr node = Node::Create();
-      node->attrs = inode.source->attrs;
+      std::vector<NodeEntry> inputs;
       for (size_t i = 0; i < inode.inputs.size(); ++i) {
         const IndexedGraph::NodeEntry& e = inode.inputs[i];
         if (updated[idx.entry_id(e)]) {
-          node->inputs.push_back(new_entry_map[idx.entry_id(e)]);
+          inputs.push_back(new_entry_map[idx.entry_id(e)]);
         } else {
-          node->inputs.push_back(inode.source->inputs[i]);
+          inputs.push_back(inode.source->inputs[i]);
         }
       }
+      std::vector<NodePtr> control_deps;
       for (size_t i = 0; i < inode.control_deps.size(); ++i) {
         const uint32_t cid = inode.control_deps[i];
         const auto& cnode = idx[cid];
@@ -89,8 +89,9 @@ Graph GraphTransform(Graph graph, FTransform ftransform) {
                 << "Control dependency node changed to more than one node";
           }
         }
-        node->control_deps.push_back(selected_ptr);
+        control_deps.push_back(selected_ptr);
       }
+      NodePtr node = Node::Create(inode.source->attrs, std::move(inputs), std::move(control_deps));
       std::vector<NodeEntry> ret;
       if (ftransform(nid, node, &ret)) {
         CHECK_EQ(ret.size(), static_cast<size_t>(inode.source->num_outputs()));
