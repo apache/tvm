@@ -25,8 +25,6 @@
 # whether enable CUDA during compile
 set(USE_CUDA OFF)
 
-set(BUILD_TEST OFF)
-
 # ROCM
 set(USE_ROCM OFF)
 set(ROCM_PATH "/opt/rocm")

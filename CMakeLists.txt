@@ -4,7 +4,6 @@ project(tvm C CXX)
 # Utility functions
 include(cmake/util/Util.cmake)
 include(cmake/util/FindLLVM.cmake)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
   include(${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
@@ -96,12 +95,16 @@ file(GLOB COMPILER_SRCS
     src/arithmetic/*.cc
     src/codegen/*.cc
     src/codegen/stack_vm/*.cc
-    src/codegen/verilog/*.cc
     src/lang/*.cc
     src/pass/*.cc
     src/op/*.cc
     src/schedule/*.cc
     )
+
+if(NOT MSVC)
+  file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
+  list(APPEND COMPILER_SRCS ${COMPILER_VERILOG_SRCS})
+endif()
 
 file(GLOB_RECURSE NNVM_COMPILER_SRCS
     nnvm/src/c_api/*.cc

@@ -16,7 +16,9 @@ if(USE_CUDA)
   find_library(CUDA_NVRTC_LIBRARIES nvrtc
     PATHS ${CUDA_TOOLKIT_ROOT_DIR}
     PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs)
-  set(CUDA_CUDA_LIBRARY ${CUDA_CUDA_LIBRARIES})
+  if(CUDA_CUDA_LIBRARIES)
+    set(CUDA_CUDA_LIBRARY ${CUDA_CUDA_LIBRARIES})
+  endif()
   message(STATUS "Build with CUDA support")
   file(GLOB RUNTIME_CUDA_SRCS src/runtime/cuda/*.cc)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDART_LIBRARY})
