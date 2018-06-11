@@ -100,8 +100,7 @@ def test_forward_rrelu():
 def test_forward_prelu():
     data = mx.sym.var('data')
     data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
-    gamma = mx.sym.zeros(shape=(6,))
-    mx_sym = mx.sym.LeakyReLU(data, gamma=gamma, act_type='prelu')
+    mx_sym = mx.sym.LeakyReLU(data, act_type='prelu')
     verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
 
 def test_forward_softrelu():
