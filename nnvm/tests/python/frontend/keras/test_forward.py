@@ -15,9 +15,9 @@ set_session(tf.Session(config=config))
 
 def verify_keras_frontend(keras_model):
     in_shapes = []
-    for layer in keras_model.input_layers:
+    for layer in keras_model._input_layers:
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
-    out_shape = [dim.value if dim.value is not None else 1 for dim in keras_model.output_layers[0].output.shape]
+    out_shape = [dim.value if dim.value is not None else 1 for dim in keras_model._output_layers[0].output.shape]
 
     def get_keras_output(xs, dtype='float32'):
         return keras_model.predict(xs)
@@ -41,7 +41,7 @@ def verify_keras_frontend(keras_model):
         tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
         np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
 
-    
+
 def test_forward_elemwise_add():
     r = []
     data = keras.layers.Input(shape=(32,32,3))
@@ -74,7 +74,7 @@ def test_forward_dense():
 def test_forward_transpose_conv():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
-    x = keras.applications.mobilenet.DepthwiseConv2D(kernel_size=(3,3), padding='same')(x)
+    x = keras.layers.DepthwiseConv2D(kernel_size=(3,3), padding='same')(x)
     x = keras.layers.Conv2DTranspose(filters=64, kernel_size=(3,3), padding='valid')(x)
     x = keras.layers.GlobalMaxPooling2D()(x)
     keras_model = keras.models.Model(data, x)
@@ -136,7 +136,6 @@ def test_forward_activations():
     act_funcs = [keras.layers.Activation('softmax'),
                  keras.layers.Activation('softplus'),
                  keras.layers.LeakyReLU(alpha=0.3),
-                 keras.layers.Activation(keras.applications.mobilenet.relu6),
                  keras.layers.PReLU(weights=weights, alpha_initializer="zero"),
                  keras.layers.ELU(alpha=0.5),
                  keras.layers.Activation('selu'),
