@@ -48,18 +48,18 @@ build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
 
 # Lint scripts
 cpplint:
-	python dmlc-core/scripts/lint.py topi cpp topi/include;
-	python dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
-	python dmlc-core/scripts/lint.py tvm cpp include src verilog\
+	python3 dmlc-core/scripts/lint.py topi cpp topi/include;
+	python3 dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
+	python3 dmlc-core/scripts/lint.py tvm cpp include src verilog\
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
-	pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-	pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-	pylint nnvm/python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	python3 -m pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	python3 -m pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	python3 -m pylint nnvm/python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 jnilint:
-	python dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
+	python3 dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
 lint: cpplint pylint jnilint
 
