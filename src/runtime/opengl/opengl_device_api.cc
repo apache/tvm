@@ -2,13 +2,10 @@
  *  Copyright (c) 2017 by Contributors
  * \file opengl_device_api.cc
  */
-#include "./opengl_common.h"
-#include "./opengl_module.h"
-
-#if TVM_OPENGL_RUNTIME
-
 #include <tvm/runtime/registry.h>
 #include <cstring>
+#include "./opengl_common.h"
+#include "./opengl_module.h"
 
 namespace tvm {
 namespace runtime {
@@ -613,5 +610,3 @@ TVM_REGISTER_GLOBAL("device_api.opengl")
 }  // namespace gl
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_OPENGL_RUNTIME

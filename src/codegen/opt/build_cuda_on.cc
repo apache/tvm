@@ -1,17 +1,17 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  *  Build cuda modules from source.
+ *  requires cuda to be available.
+ *
  * \file build_cuda.cc
  */
 #include <tvm/base.h>
-#include <tvm/runtime/config.h>
-#include "./codegen_cuda.h"
-#include "./build_common.h"
-
-#if TVM_CUDA_RUNTIME
 #include <nvrtc.h>
-#include "../runtime/cuda/cuda_common.h"
-#include "../runtime/cuda/cuda_module.h"
+
+#include "../codegen_cuda.h"
+#include "../build_common.h"
+#include "../../runtime/cuda/cuda_common.h"
+#include "../../runtime/cuda/cuda_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -79,4 +79,3 @@ TVM_REGISTER_API("codegen.build_cuda")
   });
 }  // namespace codegen
 }  // namespace tvm
-#endif   // TVM_CUDA_RUNTIME

@@ -6,7 +6,6 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/packed_func.h>
 #include <dmlc/type_traits.h>
 #include <memory>

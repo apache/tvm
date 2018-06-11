@@ -2,7 +2,6 @@
  *  Copyright (c) 2017 by Contributors
  * \file codegen_opencl.cc
  */
-#include <tvm/runtime/config.h>
 #include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>

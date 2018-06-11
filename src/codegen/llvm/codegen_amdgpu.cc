@@ -105,7 +105,6 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   llvm::Value* CreateStorageSync(const Call* op) final {
     const std::string& sync = op->args[0].as<StringImm>()->value;
     if (sync == "warp") {
-      // TODO(tqchen) warp sync in CUDA9
       return nullptr;
     } else if (sync == "shared") {
       llvm::Function* f = llvm::Intrinsic::getDeclaration(

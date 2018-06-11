@@ -6,12 +6,9 @@
 #ifndef TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 #define TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 
-#include <tvm/runtime/config.h>
+#include <cuda_runtime.h>
 #include <tvm/runtime/packed_func.h>
 #include <string>
-
-#if TVM_CUDA_RUNTIME
-#include <cuda_runtime.h>
 #include "../workspace_pool.h"
 
 namespace tvm {
@@ -49,5 +46,4 @@ class CUDAThreadEntry {
 };
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_CUDA_RUNTIME
 #endif  // TVM_RUNTIME_CUDA_CUDA_COMMON_H_

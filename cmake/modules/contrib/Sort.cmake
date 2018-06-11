@@ -1,0 +1,5 @@
+if(USE_SORT)
+  message(STATUS "Build with contrib.sort")
+  file(GLOB SORT_CONTRIB_SRC src/contrib/sort/*.cc)
+  list(APPEND RUNTIME_SRCS ${SORT_CONTRIB_SRC})
+endif(USE_SORT)

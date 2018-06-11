@@ -1,7 +1,2 @@
 #!/bin/bash
-echo "Build TVM..."
-make "$@"
-cd nnvm
-
-echo "Build NNVM..."
-make "$@"
+cd $1 && cmake .. && make $2 && cd ..

@@ -13,7 +13,6 @@
 #import <Metal/MTLDevice.h>
 #import <Metal/MTLLibrary.h>
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
