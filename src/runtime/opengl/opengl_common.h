@@ -6,7 +6,6 @@
 #ifndef TVM_RUNTIME_OPENGL_OPENGL_COMMON_H_
 #define TVM_RUNTIME_OPENGL_OPENGL_COMMON_H_
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>

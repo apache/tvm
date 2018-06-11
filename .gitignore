@@ -172,16 +172,19 @@ cscope*
 
 # TVM generated code
 perf
-
+.bash_history
 *.json
 *.params
 *.onnx
 *.h5
 synset.txt
 cat.jpg
-
+docs.tgz
+cat.png
+*.mlmodel
 # Mac OS X
 .DS_Store
+build*
 
 # Jetbrain
 .idea

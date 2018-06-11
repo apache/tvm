@@ -2,12 +2,9 @@
  *  Copyright (c) 2017 by Contributors
  * \file opencl_device_api.cc
  */
-#include "./opencl_common.h"
-
-#if TVM_OPENCL_RUNTIME
-
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
+#include "./opencl_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -277,5 +274,3 @@ TVM_REGISTER_GLOBAL("device_api.opencl")
 }  // namespace cl
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_OPENCL_RUNTIME

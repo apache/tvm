@@ -2,10 +2,6 @@
  *  Copyright (c) 2018 by Contributors
  * \file vulkan_module.cc
  */
-#include "./vulkan_module.h"
-
-#if TVM_VULKAN_RUNTIME
-
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
@@ -13,6 +9,7 @@
 #include <string>
 #include <mutex>
 #include "./vulkan_common.h"
+#include "./vulkan_module.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"
@@ -421,4 +418,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_vulkan")
   });
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_VULKAN_RUNTIME

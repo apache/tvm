@@ -2,14 +2,10 @@
  *  Copyright (c) 2017 by Contributors
  * \file opengl_module.cc
  */
+#include <tvm/runtime/registry.h>
 #include <utility>
-
 #include "./opengl_common.h"
 #include "./opengl_module.h"
-
-#if TVM_OPENGL_RUNTIME
-
-#include <tvm/runtime/registry.h>
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../file_util.h"
@@ -280,5 +276,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_opengl")
 
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_OPENGL_RUNTIME

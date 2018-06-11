@@ -1,6 +1,5 @@
 #!/bin/bash
-export PYTHONPATH=python:apps/extension/python
-export PYTHONPATH=${PYTHONPATH}:apps/graph_executor/python:apps/graph_executor/nnvm/python
+export PYTHONPATH=python
 export LD_LIBRARY_PATH=lib:${LD_LIBRARY_PATH}
 
 CURR_DIR=$(cd `dirname $0`; pwd)
