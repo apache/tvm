@@ -231,7 +231,7 @@ def test_upsampling_nearest_neighbor():
 def test_upsampling_bilinear():
     x = sym.Variable("x")
     scale = 2
-    y = sym.upsampling(x, scale=scale, mode="BILINEAR", name="y", layout="NCHW")
+    y = sym.upsampling(x, scale=scale, method="BILINEAR", name="y", layout="NCHW")
     dtype = "float32"
     dshape = (1, 4, 32, 32)
     oshape = (1, 4, 32*scale, 32*scale)
@@ -254,7 +254,7 @@ def test_upsampling_bilinear():
 def test_resize_bilinear():
     x = sym.Variable("x")
     scale = 2
-    y = sym.upsampling(x, scale=scale, mode="BILINEAR", name="y", layout="NHWC")
+    y = sym.upsampling(x, scale=scale, method="BILINEAR", name="y", layout="NHWC")
     dtype = "float32"
     dshape = (1, 32, 32, 4)
     oshape = (1, 32*scale, 32*scale, 4)

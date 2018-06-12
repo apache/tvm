@@ -115,6 +115,10 @@ topi.nn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
 
+topi.image
+~~~~~~~~~~
+.. autofunction:: topi.image.resize
+
 
 topi.generic
 ~~~~~~~~~~~~

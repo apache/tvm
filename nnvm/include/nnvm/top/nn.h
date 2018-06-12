@@ -288,7 +288,7 @@ struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
 struct UpSamplingParam : public dmlc::Parameter<UpSamplingParam> {
   int scale;
   std::string layout;
-  std::string mode;
+  std::string method;
 
   DMLC_DECLARE_PARAMETER(UpSamplingParam) {
     DMLC_DECLARE_FIELD(scale)
@@ -299,10 +299,10 @@ struct UpSamplingParam : public dmlc::Parameter<UpSamplingParam> {
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Upsampling is applied on the 'H' and"
                 "'W' dimensions.");
-    DMLC_DECLARE_FIELD(mode)
-      .set_default("NN")
+    DMLC_DECLARE_FIELD(method)
+      .set_default("NEAREST_NEIGHBOR")
       .describe("Specify the mode to use for scaling."
-                "NN -  Nearest Neighbour"
+                "NEAREST_NEIGHBOR -  Nearest Neighbor"
                 "BILINEAR - Bilinear Interpolation");
   }
 };

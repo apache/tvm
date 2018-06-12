@@ -263,7 +263,7 @@ inline Tensor resize_bilinear(const Array<Tensor>& inputs,
 * \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
-* \param mode Angorithm to use (NN / BILINEAR)
+* \param mode Angorithm to use (NEAREST_NEIGHBOR / BILINEAR)
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
@@ -276,7 +276,7 @@ inline Tensor resize(const Array<Tensor>& inputs,
                      std::string mode = "BILINEAR",
                      std::string name = "tensor",
                      std::string tag = kInjective) {
-  if (mode == "NN") {
+  if (mode == "NEAREST_NEIGHBOR") {
     return resize_nearest_neighbor(inputs, shape, layout, align_corners);
   } else {
     return resize_bilinear(inputs, shape, layout, align_corners);

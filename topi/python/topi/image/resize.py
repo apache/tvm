@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import topi
 
-def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", weights=None):
+def resize(data, size, layout="NCHW", align_corners=False, method="BILINEAR", weights=None):
     """Perform resize operation on the data.
 
     Parameters
@@ -12,20 +12,20 @@ def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", 
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    out_size: Tuple
+    size: Tuple
         Output resolution scale to
 
-    layout: string
+    layout: string, optional
         either "NCHW" or "NHWC"
 
-    align_corners: Boolean
+    align_corners: Boolean, optional
         To preserve the values at the corner pixels
 
-    mode: string
-        either "NN" or "BILINEAR"
+    method: {"BILINEAR", "NEAREST_NEIGHBOR"}
+        Method to be used for resizing.
 
-    weights:
-        weights is valid only for mode=BILINEAR
+    weights: tvm.Tensor, optional
+        weights is valid only for method=BILINEAR
         A 3-D Tensor with shape [out_shape[0], out_shape[1], 4]
         helper function tvm.contrib.image.bilinear_weights available to generate this.
 
@@ -35,6 +35,6 @@ def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", 
         4-D with shape [batch, channel, in_height*scale, in_width*scale]
         or [batch, in_height*scale, in_width*scale, channel]
     """
-    inputs = [data, weights] if mode == "BILINEAR" else [data]
+    inputs = [data, weights] if method == "BILINEAR" else [data]
 
-    return topi.cpp.image.resize(inputs, out_size, layout, align_corners, mode)
+    return topi.cpp.image.resize(inputs, size, layout, align_corners, method)

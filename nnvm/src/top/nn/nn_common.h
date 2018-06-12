@@ -37,13 +37,13 @@ inline std::vector<std::string> UseBiasListInputNames(const NodeAttrs& attrs) {
 template<typename ParamType>
 inline uint32_t UseBilinearNumInputs(const NodeAttrs& attrs) {
   const ParamType& param = get<ParamType>(attrs.parsed);
-  return param.mode == "BILINEAR" ? 2 : 1;
+  return param.method == "BILINEAR" ? 2 : 1;
 }
 
 template<typename ParamType>
 inline std::vector<std::string> UseBilinearListInputNames(const NodeAttrs& attrs) {
   const ParamType& param = nnvm::get<ParamType>(attrs.parsed);
-  if (param.mode == "BILINEAR") {
+  if (param.method == "BILINEAR") {
     return {"data", "weight"};
   } else {
     return {"data"};

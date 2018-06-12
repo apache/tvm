@@ -17,7 +17,7 @@ namespace top {
 struct ResizeParam : public dmlc::Parameter<ResizeParam> {
   TShape out_size;
   std::string layout;
-  std::string mode;
+  std::string method;
   bool align_corners;
 
   DMLC_DECLARE_PARAMETER(ResizeParam) {
@@ -29,10 +29,10 @@ struct ResizeParam : public dmlc::Parameter<ResizeParam> {
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Resize is applied on the 'H' and"
                 "'W' dimensions.");
-    DMLC_DECLARE_FIELD(mode)
-      .set_default("NN")
+    DMLC_DECLARE_FIELD(method)
+      .set_default("BILINEAR")
       .describe("Specify the mode to use for scaling."
-                "NN -  Nearest Neighbour"
+                "NEAREST_NEIGHBOR -  Nearest Neighbor"
                 "BILINEAR - Bilinear Interpolation");
     DMLC_DECLARE_FIELD(align_corners)
       .set_default(false)

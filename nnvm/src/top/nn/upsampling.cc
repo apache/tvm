@@ -32,7 +32,7 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
                                  std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
-  CHECK_EQ(in_shape->size(), (param.mode == "BILINEAR") ? 2U : 1U);
+  CHECK_EQ(in_shape->size(), (param.method == "BILINEAR") ? 2U : 1U);
   CHECK_EQ(out_shape->size(), 1U);
   TShape dshape = (*in_shape)[0];
   if (dshape.ndim() ==  0) return false;
@@ -44,7 +44,7 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
   oshape = ConvertLayout(oshape, kNCHW, param.layout);
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
 
-  if (param.mode == "BILINEAR") {
+  if (param.method == "BILINEAR") {
     // frame wise (srcx, srcy, x_diff, y_diff)
     TShape wshape({dshape[2] * param.scale,
                    dshape[3] * param.scale,
@@ -61,7 +61,7 @@ inline bool UpsamplingLayout(const NodeAttrs& attrs,
                              const std::vector<Layout> *last_in_layouts,
                              std::vector<Layout> *out_layouts) {
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
-  CHECK_EQ(in_layouts->size(), (param.mode == "BILINEAR") ? 2U : 1U);
+  CHECK_EQ(in_layouts->size(), (param.method == "BILINEAR") ? 2U : 1U);
   CHECK_EQ(out_layouts->size(), 1U);
   const Layout layout(param.layout);
   NNVM_ASSIGN_LAYOUT(*in_layouts, 0, layout);
@@ -78,7 +78,7 @@ NNVM_REGISTER_OP(upsampling)
 
             data[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
             holds (srcx, srcy, x_diff, y_diff) for each out value.
-            weights is valid only for mode=BILINEAR
+            weights is valid only for method=BILINEAR
             helper function tvm.contrib.image.bilinear_weights
             available to generate this param at frontend.
 
@@ -115,7 +115,7 @@ NNVM_REGISTER_OP(upsampling)
     oshape.push_back(out_info[0]->shape[2]);
   }
 
-  return Array<Tensor>{ topi::nn::upsampling(inputs, oshape, param.layout, param.mode)};
+  return Array<Tensor>{ topi::nn::upsampling(inputs, oshape, param.layout, param.method)};
 })
 .set_support_level(2);
 
