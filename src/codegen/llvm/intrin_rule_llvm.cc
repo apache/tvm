@@ -25,6 +25,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.floor")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.ceil")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
 .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
   Expr e = targs[0];

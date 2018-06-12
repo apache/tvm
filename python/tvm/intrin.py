@@ -233,6 +233,38 @@ def sqrt(x):
     return call_pure_intrin(x.dtype, "sqrt", x)
 
 
+def floor(x):
+    """Take floor of float input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "floor", x)
+
+
+def ceil(x):
+    """Take ceil of float input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "ceil", x)
+
+
 def power(x, y):
     """x power y
 

@@ -26,6 +26,12 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
 
 namespace llvm {
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 
