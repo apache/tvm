@@ -103,7 +103,7 @@ NNVM_REGISTER_OP(matmul)
                     const Array<Tensor>& out_info) {
     const MatMulParam& param = nnvm::get<MatMulParam>(attrs.parsed);
     return Array<Tensor>{
-      topi::matmult(inputs[0], inputs[1], param.transpose_a, param.transpose_b)
+      topi::matmul(inputs[0], inputs[1], param.transpose_a, param.transpose_b)
     };
   })
 .set_attr<FGradient>(
