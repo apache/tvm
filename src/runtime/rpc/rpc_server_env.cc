@@ -20,7 +20,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.upload").
 set_body([](TVMArgs args, TVMRetValue *rv) {
     std::string file_name = RPCGetPath(args[0]);
     std::string data = args[1];
-    LOG(INFO) << "Upload " << file_name << "... nbytes=" << data.length();
     SaveBinaryToFile(file_name, data);
   });
 
