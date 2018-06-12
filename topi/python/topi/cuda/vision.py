@@ -4,6 +4,8 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
 from .. import cpp
+from .. import tag
+import topi
 
 @generic.schedule_reorg.register(["cuda", "gpu"])
 def schedule_reorg(outs):
@@ -42,7 +44,7 @@ def schedule_region(outs):
     return cpp.cuda.schedule_region(cpp_target, outs)
 
 @generic.schedule_multibox_prior.register(["cuda", "gpu"])
-def schedule_multibox_prior(out):
+def schedule_multibox_prior(outs):
     """Schedule for multibox_prior operator.
 
     Parameters
@@ -56,10 +58,31 @@ def schedule_multibox_prior(out):
     s: Schedule
         The computation schedule for multibox_prior.
     """
-    raise RuntimeError("Currently multibox_prior only supports CPU.")
+    target = tvm.target.current_target()
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    def traverse(op):
+        """inline all one-to-one-mapping operators except the last stage (output)"""
+        if tag.is_broadcast(op.tag):
+            if op not in s.outputs:
+                s[op].compute_inline()
+            #TODO: should be injected automatically
+            else:
+                x = op.output(0)
+                fused = s[x].fuse(*s[x].op.axis)
+                num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+                bx, tx = s[x].split(fused, factor=num_thread)
+                s[x].bind(bx, tvm.thread_axis("blockIdx.x"))
+                s[x].bind(tx, tvm.thread_axis("threadIdx.x"))
+            for tensor in op.input_tensors:
+                if tensor.op.input_tensors:
+                    traverse(tensor.op)
+
+    traverse(outs[0].op)
+    return s
 
 @generic.schedule_multibox_detection.register(["cuda", "gpu"])
-def schedule_multibox_detection(out):
+def schedule_multibox_detection(outs):
     """Schedule for multibox_detection operator.
 
     Parameters
