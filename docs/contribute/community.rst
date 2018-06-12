@@ -22,11 +22,13 @@ Committer
 ---------
 
 Committers are individuals who are granted the write access to the project. Committers oversee the general project directions and participates in the evaluation of the RFCs involving major design changes. We look for the following traits from potential comitters
-Own at least one module in the project
-Good understanding of general project structure, demonstrated by discussion over RFCs, code reviews and proposals of new features
-Active history of code reviews that demonstrate a good technical ability
-Contribution history of high-quality documentation and tutorials to the promote project
-History of creating clean, maintainable code and including good test cases.
+
+- Own at least one module in the project
+- Good understanding of general project structure, demonstrated by discussion over RFCs, code reviews and proposals of new features
+- Active history of code reviews that demonstrate a good technical ability
+- Contribution history of high-quality documentation and tutorials to the promote project
+- History of creating clean, maintainable code and including good test cases.
+
 New committers are nominated by current committers from current code owners by providing evidence of these perspectives.
 
 Code Owner
@@ -35,12 +37,15 @@ Code Owner
 A code owner is an individual who is responsible for a specific area of the code-base. Code owners are responsible for the areas they are in charge of and oversee the code review process of the corresponding module. Changes to a specific area need to be approved by one of its owners in order to be merged. Once a pull request is approved by the designated code owner, the code can be directly merged into the repo.
 
 Code owners are promoted from contributors. In order to become code owner, one needs to make substantial contributions to a module. A candidate for code owner also needs to demonstrate good code quality, testing, and documentation in specific areas. These traits of code owners are essential for a high quality and healthy codebase. These traits are evaluated by the contributor’s participation in the project, including, but not limited to:
-High-quality, readable code contributions indicated by pull requests that can be merged without a substantial code review
-Good coverage of tests and documentation in the contributions
-Informative code reviews to help other contributors that adhere to a good standard, spot problems in contributions etc.
-Active participation in the discussion forum
+
+- High-quality, readable code contributions indicated by pull requests that can be merged without a substantial code review
+- Good coverage of tests and documentation in the contributions
+- Informative code reviews to help other contributors that adhere to a good standard, spot problems in contributions etc.
+- Active participation in the discussion forum
 
 Reviewer
 --------
 
-A reviewer is an individual who actively contributed to the project and is willing to participate in the code review of new contributions. We invite reviewers from active contributors. The reviewer invitation will be sent to the potential reviewer’s email, so please log in to the discussion forum so that we can know which email address we could send an invitation to. Code owners should actively seek reviews from reviewers. High-quality code reviews prevent technical debt for long-term and are crucial to the success of the project.  A pull request to the project has to be reviewed by a reviewer in order to be merged.  The contributor and code owner can request code reviews from multiple reviewers. Code owner can decide if the code can be merged in case by case if some of the reviewers did not respond in time(e.g. a week) and existing reviews are sufficient. A good way to get quick reviews from others in the community is to also help to review other’s code -- so they can do the same in return.
+A reviewer is an individual who actively contributed to the project and is willing to participate in the code review of new contributions. We invite reviewers from active contributors. The reviewer invitation will be sent to the potential reviewer’s email, so please log in to the discussion forum so that we can know which email address we could send an invitation to.
+We actively seek reviews from reviewers. High-quality code reviews prevent technical debt for long-term and are crucial to the success of the project.
+A pull request to the project has to be reviewed by a reviewer in order to be merged.
