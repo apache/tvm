@@ -18,12 +18,11 @@ def test_ewise():
 
     shape = (20, 3)
 
-    def test_apply(func, name, f_numpy):
+    def test_apply(func, name, f_numpy, low, high):
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         assert B.op.body[0].name == name
-        a_np = np.random.uniform(low=1e-5, size=shape).astype(A.dtype)
-        a_np = np.abs(a_np)
+        a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
         b_np = f_numpy(a_np)
 
         def check_device(device):
@@ -43,11 +42,14 @@ def test_ewise():
         for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'llvm']:
             check_device(device)
 
-    test_apply(topi.exp, "exp", np.exp)
-    test_apply(topi.tanh, "tanh", np.tanh)
-    test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)))
-    test_apply(topi.log, "log", np.log)
-    test_apply(topi.sqrt, "sqrt", np.sqrt)
+
+    test_apply(topi.floor, "floor", np.floor, -100, 100)
+    test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
+    test_apply(topi.exp, "exp", np.exp, -1, 1)
+    test_apply(topi.tanh, "tanh", np.tanh, -10, 10)
+    test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)), -1, 1)
+    test_apply(topi.log, "log", np.log, 0, 100)
+    test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
 
 if __name__ == "__main__":
     test_util()

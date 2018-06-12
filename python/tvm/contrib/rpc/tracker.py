@@ -194,7 +194,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
             key = args[1]
             port, matchkey = args[2]
             self.pending_matchkeys.add(matchkey)
-            self._tracker.put(key, (self, self._addr[0], port, matchkey))
+            # got custom address (from rpc server)
+            if args[3] is not None:
+                self._tracker.put(key, (self, args[3], port, matchkey))
+            else:
+                self._tracker.put(key, (self, self._addr[0], port, matchkey))
             self.ret_value(TrackerCode.SUCCESS)
         elif code == TrackerCode.REQUEST:
             key = args[1]

@@ -1,6 +1,3 @@
 #!/bin/bash
 echo "Cleanup data..."
-cd nnvm
-make clean
-cd ..
-make clean
+cd $1 && rm -rf Cmake* && cd ..

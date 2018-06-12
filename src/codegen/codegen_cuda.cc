@@ -3,7 +3,6 @@
  * \file codegen_cuda.cc
  */
 #include <tvm/base.h>
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <vector>

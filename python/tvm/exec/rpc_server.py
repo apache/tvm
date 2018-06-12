@@ -1,12 +1,37 @@
+# pylint: disable=redefined-outer-name, invalid-name
 """Start an RPC server"""
 from __future__ import absolute_import
 
 import argparse
+import multiprocessing
+import sys
 import logging
 from ..contrib import rpc
 
-def main():
-    """Main funciton"""
+def main(args):
+    """Main function"""
+
+    if args.tracker:
+        url, port = args.tracker.split(":")
+        port = int(port)
+        tracker_addr = (url, port)
+        if not args.key:
+            raise RuntimeError(
+                "Need key to present type of resource when tracker is available")
+    else:
+        tracker_addr = None
+
+    server = rpc.Server(args.host,
+                        args.port,
+                        args.port_end,
+                        key=args.key,
+                        tracker_addr=tracker_addr,
+                        load_library=args.load_library,
+                        custom_addr=args.custom_addr)
+    server.proc.join()
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
@@ -20,26 +45,23 @@ def main():
                         help="Additional library to load")
     parser.add_argument('--tracker', type=str, default="",
                         help="Report to RPC tracker")
+    parser.add_argument('--no-fork', dest='fork', action='store_false',
+                        help="Use spawn mode to avoid fork. This option \
+                         is able to avoid potential fork problems with Metal, OpenCL \
+                         and ROCM compilers.")
+    parser.add_argument('--custom-addr', type=str,
+                        help="Custom IP Address to Report to RPC Tracker")
+
+    parser.set_defaults(fork=True)
     args = parser.parse_args()
-
-    if args.tracker:
-        url, port = args.tracker.split(":")
-        port = int(port)
-        tracker_addr = (url, port)
-        if not args.key:
-            raise RuntimeError(
-                "Need key to present type of resource when tracker is available")
-    else:
-        tracker_addr = None
-
     logging.basicConfig(level=logging.INFO)
-    server = rpc.Server(args.host,
-                        args.port,
-                        args.port_end,
-                        key=args.key,
-                        tracker_addr=tracker_addr,
-                        load_library=args.load_library)
-    server.proc.join()
-
-if __name__ == "__main__":
-    main()
+    if args.fork is False:
+        if sys.version_info[0] < 3:
+            raise RuntimeError(
+                "Python3 is required for spawn mode."
+            )
+        multiprocessing.set_start_method('spawn')
+    else:
+        logging.info("If you are running ROCM/Metal, \
+        fork with cause compiler internal error. Try to launch with arg ```--no-fork```")
+    main(args)

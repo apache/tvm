@@ -186,6 +186,7 @@ class Gemm(OnnxOpConverter):
             inputs[0] = _sym.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = _sym.transpose(inputs[1], axes=(1, 0))
+        inputs[0] = _sym.flatten(inputs[0])
         return _sym.dense(
             alpha * inputs[0], inputs[1], beta * inputs[2], units=channels)
 

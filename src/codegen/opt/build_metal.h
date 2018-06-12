@@ -1,15 +1,17 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  *  Build metal modules from source.
- * \file build_metal.cc
+ * \file build_metal.h
  */
-#include <tvm/base.h>
-#include <tvm/runtime/config.h>
-#include "./codegen_metal.h"
-#include "./build_common.h"
+#ifndef TVM_CODEGEN_OPT_BUILD_METAL_H_
+#define TVM_CODEGEN_OPT_BUILD_METAL_H_
+
+#include <string>
+#include "../codegen_metal.h"
+#include "../build_common.h"
 
 #if TVM_METAL_RUNTIME
-#include "../runtime/metal/metal_module.h"
+#include "../../runtime/metal/metal_module.h"
 #endif   // TVM_METAL_RUNTIME
 
 namespace tvm {
@@ -45,3 +47,4 @@ TVM_REGISTER_API("codegen.build_metal")
   });
 }  // namespace codegen
 }  // namespace tvm
+#endif  // TVM_CODEGEN_OPT_BUILD_METAL_H_

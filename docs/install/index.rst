@@ -38,13 +38,24 @@ Our goal is to build the shared libraries:
 The minimal building requirements are
 
 - A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
+- CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
 - It is possible to build without llvm dependency if we only want to use CUDA/OpenCL
 
-The configuration of tvm can be modified by `config.mk`
+We use cmake to build the library.
+The configuration of tvm can be modified by `config.cmake`.
 
-- First copy ``make/config.mk`` to the project root, on which
-  any local modification will be ignored by git, then modify the according flags.
+
+- First, check the cmake in your system, you do not have cmake
+  you can obtain the latest version from `official website <https://cmake.org/download/>`_
+- First create a build directory, copy the ``cmake/config.cmake`` to the directory.
+
+  .. code:: bash
+
+      mkdir build
+      cp cmake/config.cmake build
+
+- Edit ``build/config.cmake`` to customize the compilation options
 
   - On macOS, for some versions of XCode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
 
@@ -54,28 +65,23 @@ The configuration of tvm can be modified by `config.mk`
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
     [LLVM Download Page](http://releases.llvm.org/download.html).
 
-    - Unzip to a certain location, modify ``config.mk`` to add ``LLVM_CONFIG=/path/to/your/llvm/bin/llvm-config``
+
+    - Unzip to a certain location, modify ``build/config.cmake`` to add ``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``
+    - You can also directly set ``set(USE_LLVM ON)`` and let cmake search for a usable version of LLVM.
 
   - You can also use [LLVM Nightly Ubuntu Build](https://apt.llvm.org/)
 
     - Note that apt-package append ``llvm-config`` with version number.
-      For example, set ``LLVM_CONFIG=llvm-config-4.0`` if you installed 4.0 package
+      For example, set ``set(LLVM_CONFIG llvm-config-4.0)`` if you installed 4.0 package
 
-We can then build tvm by `make`.
+- We can then build tvm and related libraries.
 
-.. code:: bash
+  .. code:: bash
 
-  make -j4
+      cd build
+      cmake ..
+      make -j4
 
-After we build tvm, we can proceed to build nnvm using the following script.
-
-.. code:: bash
-
-  cd nnvm
-  make -j4
-
-
-This will creates `libnnvm_compiler.so` under the `nnvm/lib` folder.
 If everything goes well, we can go to the specific language installation section.
 
 
@@ -102,7 +108,7 @@ Building ROCm support
 
 Currently, ROCm is supported only on linux, so all the instructions are written with linux in mind.
 
-- Set ``USE_ROCM=1``, set ROCM_PATH to the correct path.
+- Set ``set(USE_ROCM ON)``, set ROCM_PATH to the correct path.
 - You need to first install HIP runtime from ROCm. Make sure the installation system has ROCm installed in it.
 - Install latest stable version of LLVM (v6.0.1), and LLD, make sure ``ld.lld`` is available via command line.
 

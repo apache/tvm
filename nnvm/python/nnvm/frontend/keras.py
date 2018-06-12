@@ -23,6 +23,10 @@ def _get_pad_pair(input1d, kernel1d, stride1d):
     pad_after = pad - pad_before
     return [pad_before, pad_after]
 
+def _get_elu(insym, alpha):
+    """ A helper method for elu.
+    """
+    return -alpha * _sym.relu(1 - _sym.exp(insym)) + _sym.relu(insym)
 
 def _convert_activation(insym, keras_layer, _):
     if isinstance(keras_layer, str):
@@ -50,27 +54,43 @@ def _convert_activation(insym, keras_layer, _):
     elif act_type == 'softplus':
         return _sym.log(_sym.__add_scalar__(_sym.exp(insym), scalar=1))
     elif act_type == 'elu':
-        raise NotImplementedError('elu not implemented')
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
+        return _get_elu(insym, alpha)
+    elif act_type == 'selu':
+        # Alpha, Gamma values, obtained from  https://arxiv.org/abs/1706.02515
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1.6732
+        gamma = keras_layer.gamma if hasattr(keras_layer, "gamma") else 1.0507
+        return gamma * _get_elu(insym, alpha)
     elif act_type == 'relu6':
         return _sym.clip(insym, a_min=0, a_max=6)
     elif act_type == 'softsign':
-        raise NotImplementedError('softsign not implemented')
+        return insym / (1 + (_sym.relu(insym) + _sym.relu(_sym.negative(insym))))
     elif act_type == 'hard_sigmoid':
-        raise NotImplementedError('hard_sigmoid not implemented')
+        transformX = (0.2 * insym) + 0.5
+        return _sym.clip(transformX, a_min=0, a_max=1)
     else:
         raise TypeError("Unsupported activation type : {}".format(act_type))
 
 
-def _convert_advanced_activation(insym, keras_layer, _):
+def _convert_advanced_activation(insym, keras_layer, symtab):
     act_type = type(keras_layer).__name__
     if act_type == 'LeakyReLU':
         return _sym.leaky_relu(insym, alpha=keras_layer.alpha)
     elif act_type == 'ELU':
-        raise NotImplementedError('ELU not implemented')
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
+        return _get_elu(insym, alpha)
     elif act_type == 'PReLU':
-        raise NotImplementedError('PReLU not implemented')
+        assert hasattr(keras_layer, "alpha"), \
+            "alpha required for PReLU."
+        _check_data_format(keras_layer)
+        size = len(keras_layer.alpha.shape)
+        return -symtab.new_const(keras_layer.get_weights()[0] \
+                                 .transpose(np.roll(range(size), 1))) \
+                                 * _sym.relu(-insym) + _sym.relu(insym)
     elif act_type == 'ThresholdedReLU':
-        raise NotImplementedError('ThresholdedReLU not implemented')
+        theta = keras_layer.theta if hasattr(keras_layer, "theta") else 1.0
+        theta_tensor = _sym.full_like(insym[0], fill_value=float(theta))
+        return _sym.elemwise_mul(insym[0], _sym.greater(insym[0], theta_tensor, out_type="float32"))
     else:
         raise TypeError("Unsupported advanced activation type : {}".format(act_type))
 
@@ -467,6 +487,7 @@ def from_keras(model):
         import keras
     except ImportError:
         raise ImportError('Keras must be installed')
+
     assert isinstance(model, keras.engine.training.Model)
     if keras.backend.image_data_format() != 'channels_last':
         raise ValueError("Keras frontend currently supports data_format = channels_last only.")
@@ -474,7 +495,7 @@ def from_keras(model):
 
     symtab = SymbolTable()
     for keras_layer in model.layers:
-        if isinstance(keras_layer, keras.engine.topology.InputLayer):
+        if isinstance(keras_layer, keras.engine.InputLayer):
             symtab.get_var(keras_layer.name, must_contain=False)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
@@ -492,7 +513,7 @@ def from_keras(model):
                 # would confuse users, so we should keep them as far as possible.  Fortunately,
                 # they are named uniquely to input_1, input_2, input_3 ... by default.
                 for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
-                    if isinstance(pred, keras.engine.topology.InputLayer):
+                    if isinstance(pred, keras.engine.InputLayer):
                         _sym = symtab.get_var(pred.name, must_contain=True)
                     else:
                         _sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
@@ -502,6 +523,6 @@ def from_keras(model):
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
 
-    outsym = symtab.get_var(model.output_layers[0].name + ':0')
+    outsym = symtab.get_var(model._output_layers[0].name + ':0')
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
     return outsym, tvmparams
