@@ -562,9 +562,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
         sig_type.push_back(arg_value.back()->getType());
       }
     }
-    llvm::Type *returnType = LLVMType(op->type);
-    if (returnType != sig_type[0]) {
-      sig_type.insert(sig_type.begin(), returnType);
+    llvm::Type *return_type = LLVMType(op->type);
+    if (sig_type.size() > 0 && return_type != sig_type[0]) {
+      sig_type.insert(sig_type.begin(), return_type);
     }
     llvm::Function* f = llvm::Intrinsic::getDeclaration(
         module_.get(), id, sig_type);
