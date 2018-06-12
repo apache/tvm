@@ -16,15 +16,51 @@ const IndexedGraph& Graph::indexed_graph() const {
   return *indexed_graph_;
 }
 
+// a subgraph should not refer to any nodes with higher level
+// where "level" refers to the nested depth of the subgraph
+// e.g. the main graph is level 0
+// subgraphs of the main graph is level 1
+// subgraphs of the subgraphs of the main graph is level 2
+static void SubgraphSanityCheck(const std::vector<std::shared_ptr<Symbol>> &subgraphs) {
+  std::vector<const std::vector<nnvm::NodeEntry>*> curr_level;
+  std::vector<const std::vector<nnvm::NodeEntry>*> next_level;
+  std::unordered_map<nnvm::Node*, uint32_t> node2level;
+  for (auto &subgraph : subgraphs)
+    next_level.push_back(&subgraph->outputs);
+  for (uint32_t level = 0; !next_level.empty(); ++level) {
+    curr_level.swap(next_level);
+    next_level.clear();
+    for (const std::vector<NodeEntry> *graph_ptr : curr_level) {
+      const std::vector<NodeEntry> &graph = *graph_ptr;
+      DFSVisit(graph, [&next_level, &node2level, level](const NodePtr& n) {
+        nnvm::Node *node = n.get();
+        // if the node is visited, but on a different level, then check failed
+        // if check failed here or before, we stop doing anything, but raise an error
+        CHECK(!node2level.count(node) || node2level[node] == level)
+          << "A subgraph should not depend on the outputs of nodes on higher levels";
+        // otherwise, this node belongs to the current level
+        node2level[node] = level;
+        // subgraphs of current node belongs to next level
+        for (const auto& subgraph : n->attrs.subgraphs) {
+          next_level.push_back(&subgraph->outputs);
+        }
+      });
+    }
+  }
+}
+
 // implement constructor from graph
 IndexedGraph::IndexedGraph(const Graph &g) {
   entry_rptr_.push_back(0);
   std::vector<size_t> inputs_rptr{0}, control_rptr{0};
+  std::vector<std::shared_ptr<Symbol>> subgraphs;
 
-  DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr]
+  DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr, &subgraphs]
              (const NodePtr& n) {
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
       uint32_t nid = static_cast<uint32_t>(nodes_.size());
+      for (const auto &subgraph : n->attrs.subgraphs)
+        subgraphs.push_back(subgraph);
       // nodes_
       IndexedGraph::Node new_node;
       new_node.source = n.get();
@@ -53,6 +89,8 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       }
       control_rptr.push_back(control_deps_.size());
   });
+  if (!subgraphs.empty())
+    SubgraphSanityCheck(subgraphs);
 
   for (const auto& e : g.outputs) {
     outputs_.emplace_back(NodeEntry{
