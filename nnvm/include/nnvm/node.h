@@ -18,6 +18,7 @@ namespace nnvm {
 
 // Forward declare node.
 class Node;
+class Symbol;
 
 /*!
  * \brief we always used NodePtr for a reference pointer
@@ -90,6 +91,21 @@ struct NodeAttrs {
    * The object can be used to quickly access attributes.
    */
   any parsed;
+  /*!
+   * \brief Some operators take graphs as input. These operators include
+   * control flow operators and high-order functions.
+   * These graphs don't change when the operators are invoked for different
+   * mini-batches. In this sense, the subgraphs are kind of similar to
+   * the parameters and show be kept as node attributes.
+   *
+   * Users need to make sure the subgraphs are disjoint with the main graph.
+   * If a graph shares nodes with subgraphs, loading the graph from LoadJSON
+   * may generate a graph that has a different structure from the original graph
+   * (some of the nodes are duplicated). If nodes are shared between two graphs,
+   * shared nodes might be executed multiple times, which can be a problem for
+   * stateful operators.
+   */
+  std::vector<std::shared_ptr<Symbol> > subgraphs;
 };
 
 /*!
