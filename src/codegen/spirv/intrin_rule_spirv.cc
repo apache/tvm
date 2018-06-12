@@ -2,8 +2,6 @@
  *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_spirv.cc
  */
-#if TVM_VULKAN_RUNTIME
-
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 #include <vulkan/GLSL.std.450.h>
@@ -31,6 +29,12 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
       call->type, "spirv_glsl450", cargs, ir::Call::PureIntrinsic);
 }
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Floor>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.ceil")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
@@ -43,8 +47,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.sqrt")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.pow")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.tanh")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+
 }  // namespace spirv
 }  // namespace codegen
 }  // namespace tvm
-
-#endif  // TVM_VULKAN_RUNTIME

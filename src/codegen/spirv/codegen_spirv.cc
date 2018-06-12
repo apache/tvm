@@ -3,9 +3,6 @@
  * \file codegen_spirv.cc
  * \brief Generate SPIRV block
  */
-
-#if TVM_VULKAN_RUNTIME
-
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include "../codegen_common.h"
@@ -634,5 +631,3 @@ void CodeGenSPIRV::VisitStmt_(const ProducerConsumer* op) {
 
 }  // namespace codegen
 }  // namespace tvm
-
-#endif  // TVM_VULKAN_RUNTIME

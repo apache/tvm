@@ -3,9 +3,6 @@
  * \file ir_builder.cc
  * \brief IRBuilder for SPIRV block
  */
-
-#if TVM_VULKAN_RUNTIME
-
 #include "./ir_builder.h"
 
 namespace tvm {
@@ -555,5 +552,3 @@ Value IRBuilder::Select(Value cond, Value a, Value b) {
 }  // namespace spirv
 }  // namespace codegen
 }  // namespace tvm
-
-#endif  // TVM_VULKAN_RUNTIME
