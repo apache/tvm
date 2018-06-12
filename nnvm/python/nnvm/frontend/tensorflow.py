@@ -233,7 +233,7 @@ def _conv():
 def _decode_image():
     def _impl(inputs, attr, params):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
-        print ("DecodeJpeg: It's a pass through, please handle preprocessing before input")
+        print("DecodeJpeg: It's a pass through, please handle preprocessing before input")
         return inputs[0]
     return _impl
 
@@ -256,8 +256,8 @@ def _expand_dims():
 def _resize_bilinear():
     def _impl(inputs, attr, params):
         # Change this when we have corresponding resize bilinear operation.
-        print ("ResizeBilinear:Only NN (nearest neighbor) supported in symetric mode of dimensions")
-        print ("Change this when we have corresponding resize bilinear operation")
+        print("ResizeBilinear:Only NN (nearest neighbor) supported in symetric mode of dimensions")
+        print("Change this when we have corresponding resize bilinear operation")
 
         # NHWC
         input_shape = attr['_input_shapes'][inputs[0]][0]
@@ -496,7 +496,7 @@ class GraphProto(object):
                     attr['_input_shapes'] = input_shapes
                 except KeyError:
                     # TODO: Need to find clean way to handle '^CheckNumerics'
-                    print ("Some Exception while inputs list:", node.input, " ignoring...")
+                    print("Some Exception while inputs list:", node.input, " ignoring...")
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
 
