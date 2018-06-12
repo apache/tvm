@@ -14,22 +14,6 @@
 namespace nnvm {
 namespace top {
 
-template<typename ParamType>
-inline uint32_t UseResizeNumInputs(const NodeAttrs& attrs) {
-  const ParamType& param = get<ParamType>(attrs.parsed);
-  return param.mode == "BILINEAR" ? 2 : 1;
-}
-
-template<typename ParamType>
-inline std::vector<std::string> UseResizeListInputNames(const NodeAttrs& attrs) {
-  const ParamType& param = nnvm::get<ParamType>(attrs.parsed);
-  if (param.mode == "BILINEAR") {
-    return {"data", "weight"};
-  } else {
-    return {"data"};
-  }
-}
-
 struct ResizeParam : public dmlc::Parameter<ResizeParam> {
   TShape out_size;
   std::string layout;

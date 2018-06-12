@@ -95,12 +95,12 @@ NNVM_REGISTER_OP(upsampling)
 .add_arguments(UpSamplingParam::__FIELDS__())
 .set_attr_parser(ParamParser<UpSamplingParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<UpSamplingParam>)
-.set_attr<FListInputNames>("FListInputNames", UseUpsamplingListInputNames<UpSamplingParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBilinearListInputNames<UpSamplingParam>)
 .set_attr<FInferShape>("FInferShape", UpSamplingInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", UpsamplingLayout)
 .set_num_outputs(1)
-.set_num_inputs(UseUpsamplingNumInputs<UpSamplingParam>)
+.set_num_inputs(UseBilinearNumInputs<UpSamplingParam>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,

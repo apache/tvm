@@ -101,12 +101,12 @@ NNVM_REGISTER_OP(resize)
 .add_arguments(ResizeParam::__FIELDS__())
 .set_attr_parser(ParamParser<ResizeParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ResizeParam>)
-.set_attr<FListInputNames>("FListInputNames", UseResizeListInputNames<ResizeParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBilinearListInputNames<ResizeParam>)
 .set_attr<FInferShape>("FInferShape", ResizeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ResizeLayout)
 .set_num_outputs(1)
-.set_num_inputs(UseResizeNumInputs<ResizeParam>)
+.set_num_inputs(UseBilinearNumInputs<ResizeParam>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,

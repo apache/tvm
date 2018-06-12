@@ -14,7 +14,7 @@ def upsampling(data, scale, layout="NCHW", mode='NN', weights=None):
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    scale :
+    scale : int
         Scaling factor
 
     layout : string
