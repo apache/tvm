@@ -9,6 +9,12 @@ namespace tvm {
 namespace codegen {
 namespace intrin {
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.floor")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.ceil")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp")
 .set_body(DispatchExtern<Direct>);
 

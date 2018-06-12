@@ -74,6 +74,40 @@ def tanh(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def floor(x):
+    """Take floor of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.floor(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def ceil(x):
+    """Take ceil of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.ceil(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def log(x):
     """Take logarithm of input x.
 
