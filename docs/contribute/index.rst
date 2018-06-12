@@ -23,6 +23,7 @@ Here are guidelines for contributing to various aspect of the project:
 .. toctree::
    :maxdepth: 2
 
+   community
    code_review
    document
    code_guide

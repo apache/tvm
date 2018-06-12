@@ -38,6 +38,9 @@ set(USE_METAL OFF)
 # Whether enable Vulkan runtime
 set(USE_VULKAN OFF)
 
+# Whether enable OpenGL runtime
+set(USE_OPENGL OFF)
+
 # Whether enable RPC runtime
 set(USE_RPC ON)
 

@@ -45,3 +45,9 @@ so the lessons can be shared to all the community.
 Respect each other
 ------------------
 The code reviewers and contributors are paying the most precious currencies in the world -- time. We are volunteers in the community to spend the time to build good code, help each other, learn and have fun hacking.
+
+Approve Changes
+---------------
+The contributor and code owner can request code reviews from multiple reviewers.
+Code owner can decide if the code can be merged in case by case if some of the reviewers did not respond in time(e.g. a week) and existing reviews are sufficient. 
+Remember to approve changes when your comments are addressed in a code review.

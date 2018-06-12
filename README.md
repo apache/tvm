@@ -21,10 +21,7 @@ License
 Contribute to TVM
 -----------------
 TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-
-- [Contributor Guide](docs/how_to/contribute.md)
-- Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- Please also update [NEWS.md](NEWS.md) on changes and improvements in API and codes.
+Checkout the [Contributor Guide](http://docs.tvm.ai/contribute/)
 
 Acknowledgement
 ---------------

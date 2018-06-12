@@ -29,6 +29,8 @@ TOPI_DECLARE_UNARY_OP(tanh);
 TOPI_DECLARE_UNARY_OP(sigmoid);
 TOPI_DECLARE_UNARY_OP(sqrt);
 TOPI_DECLARE_UNARY_OP(log);
+TOPI_DECLARE_UNARY_OP(floor);
+TOPI_DECLARE_UNARY_OP(ceil);
 
 /*!
 * \brief Creates an operation that returns identity of a given tensor

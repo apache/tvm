@@ -69,6 +69,8 @@ class ParallelLauncher {
       tvm::runtime::threading::Yield();
     }
     if (!has_error_.load()) return 0;
+    // the following is intended to use string due to
+    // security issue raised in SGX backend
     std::string err("");
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
