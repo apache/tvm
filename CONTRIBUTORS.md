@@ -20,6 +20,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Nick Hynes](https://github.com/nhynes) SGX and secured computing
 
 ## Reviewers
+- [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
 - [Eddie Yan](https://github.com/eqy)
 - [Lianmin Zheng](https://github.com/merrymercy)
 
