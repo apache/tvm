@@ -17,14 +17,14 @@ def bilinear_resize_python(image, weights, out_size, layout):
         for i in range(channel):
             for j in range(new_h):
                 for k in range(new_w):
-                    x0 = int(weights[j][k][0])
-                    y0 = int(weights[j][k][1])
+                    y0 = int(weights[j][k][0])
+                    x0 = int(weights[j][k][1])
 
                     x1 = min((x0+1), (w-1))
                     y1 = min((y0+1), (h-1))
 
-                    x_diff = weights[j][k][2]
-                    y_diff = weights[j][k][3]
+                    y_diff = weights[j][k][2]
+                    x_diff = weights[j][k][3]
 
                     if layout == 'NHWC':
                         A = image[b][y0][x0][i]

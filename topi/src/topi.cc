@@ -290,7 +290,7 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
 /* Ops from nn/upsampling.h */
 TVM_REGISTER_GLOBAL("topi.nn.upsampling")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::upsampling(args[0], args[1], args[2], args[3], args[4]);
+  *rv = nn::upsampling(args[0], args[1], args[2], args[3]);
   });
 
 /* Ops from nn/batch_norm.h */

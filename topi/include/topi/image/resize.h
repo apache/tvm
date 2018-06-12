@@ -31,11 +31,11 @@ using namespace tvm;
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_nn_nhwc(const Array<Tensor>& inputs,
-                             const Array<Expr>& shape,
-                             bool align_corners = false,
-                             std::string name = "tensor",
-                             std::string tag = kInjective) {
+inline Tensor resize_nearest_neighbor_nhwc(const Array<Tensor>& inputs,
+                                           const Array<Expr>& shape,
+                                           bool align_corners = false,
+                                           std::string name = "tensor",
+                                           std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(shape[0]);
@@ -68,11 +68,11 @@ inline Tensor resize_nn_nhwc(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_nn_nchw(const Array<Tensor>& inputs,
-                             const Array<Expr>& shape,
-                             bool align_corners = false,
-                             std::string name = "tensor",
-                             std::string tag = kInjective) {
+inline Tensor resize_nearest_neighbor_nchw(const Array<Tensor>& inputs,
+                                           const Array<Expr>& shape,
+                                           bool align_corners = false,
+                                           std::string name = "tensor",
+                                           std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(inputs[0]->shape[0]);
   out_shape.push_back(inputs[0]->shape[1]);
@@ -106,18 +106,18 @@ inline Tensor resize_nn_nchw(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_nn(const Array<Tensor>& inputs,
-                        const Array<Expr>& shape,
-                        std::string layout = "NCHW",
-                        bool align_corners = false,
-                        std::string name = "tensor",
-                        std::string tag = kInjective) {
+inline Tensor resize_nearest_neighbor(const Array<Tensor>& inputs,
+                                      const Array<Expr>& shape,
+                                      std::string layout = "NCHW",
+                                      bool align_corners = false,
+                                      std::string name = "tensor",
+                                      std::string tag = kInjective) {
   CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
 
   if (layout == "NHWC") {
-    return resize_nn_nhwc(inputs, shape, align_corners);
+    return resize_nearest_neighbor_nhwc(inputs, shape, align_corners);
   } else {
-    return resize_nn_nchw(inputs, shape, align_corners);
+    return resize_nearest_neighbor_nchw(inputs, shape, align_corners);
   }
 }
 
@@ -211,8 +211,8 @@ inline Tensor resize_bilinear_nchw(const Array<Tensor>& inputs,
     auto y0 = coords(indices[2], indices[3], 0);
     auto x0 = coords(indices[2], indices[3], 1);
 
-    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
     auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
+    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
 
     auto h = weights[1](indices[2], indices[3], 0);
     auto w = weights[1](indices[2], indices[3], 1);
@@ -222,7 +222,7 @@ inline Tensor resize_bilinear_nchw(const Array<Tensor>& inputs,
     auto C = inputs[0](indices[0], indices[1], y1, x0);
     auto D = inputs[0](indices[0], indices[1], y1, x1);
 
-    return  (A*(1-w)*(1-h) + B*(w)*(1-h) + C*(h)*(1-w) + D*w*h);
+    return  ((A*(cone-w)*(cone-h)) + (B*(w)*(cone-h)) + (C*(h)*(cone-w)) + (D*w*h));
     }, name, tag);
 }
 
@@ -277,7 +277,7 @@ inline Tensor resize(const Array<Tensor>& inputs,
                      std::string name = "tensor",
                      std::string tag = kInjective) {
   if (mode == "NN") {
-    return resize_nn(inputs, shape, layout, align_corners);
+    return resize_nearest_neighbor(inputs, shape, layout, align_corners);
   } else {
     return resize_bilinear(inputs, shape, layout, align_corners);
   }

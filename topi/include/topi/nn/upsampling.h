@@ -25,7 +25,6 @@ using namespace topi::image;
 * Bilinear will have 2 inputs one being the weights.
 * \param shape Output shape to upsample.
 * \param layout input layout
-* \param align_corners To preserve centers of 4 corner pixels
 * \param mode Angorithm to use (NN / BILINEAR)
 * \param name Name of the operation
 * \param tag The tag to mark the operation
@@ -35,11 +34,10 @@ using namespace topi::image;
 inline Tensor upsampling(const Array<Tensor>& inputs,
                          const Array<Expr> shape,
                          std::string layout = "NCHW",
-                         bool align_corners = false,
                          std::string mode = "NN",
                          std::string name = "tensor",
                          std::string tag = kInjective) {
-  return resize(inputs, shape, layout, align_corners, mode);
+  return resize(inputs, shape, layout, false, mode);
 }
 
 }  // namespace nn

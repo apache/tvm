@@ -6,10 +6,9 @@ def upsample_nearest(arr, scale):
     """ Populate the array by scale factor"""
     return arr.repeat(scale, axis=0).repeat(scale, axis=1)
 
-def upsampling_python(data, scale, layout='NCHW', align_corners=False):
+def upsampling_python(data, scale, layout='NCHW'):
     """ Python version of scaling using nearest neighbour """
 
-    assert align_corners is False, "align_corners not supported in now"
     ishape = data.shape
     if layout == 'NCHW':
         oshape = (ishape[0], ishape[1], ishape[2]*scale, ishape[3]*scale)

@@ -33,7 +33,7 @@ inline bool ResizeInferShape(const nnvm::NodeAttrs& attrs,
                              std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   const ResizeParam& param = nnvm::get<ResizeParam>(attrs.parsed);
-  CHECK_EQ(in_shape->size(), 1U);
+  CHECK_EQ(in_shape->size(), (param.mode == "BILINEAR") ? 2U : 1U);
   CHECK_EQ(out_shape->size(), 1U);
   TShape dshape = (*in_shape)[0];
   if (dshape.ndim() ==  0) return false;
@@ -50,6 +50,15 @@ inline bool ResizeInferShape(const nnvm::NodeAttrs& attrs,
 
   oshape = ConvertLayout(oshape, kNCHW, param.layout);
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+
+  if (param.mode == "BILINEAR") {
+    // frame wise (srcx, srcy, x_diff, y_diff)
+    TShape wshape({param.out_size[0],
+                   param.out_size[1],
+                   4U});
+
+    NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *in_shape, 1, wshape);
+  }
   return true;
 }
 
@@ -58,7 +67,7 @@ inline bool ResizeLayout(const NodeAttrs& attrs,
                          const std::vector<Layout> *last_in_layouts,
                          std::vector<Layout> *out_layouts) {
   const ResizeParam& param = nnvm::get<ResizeParam>(attrs.parsed);
-  CHECK_EQ(in_layouts->size(), 1U);
+  CHECK_EQ(in_layouts->size(), (param.mode == "BILINEAR") ? 2U : 1U);
   CHECK_EQ(out_layouts->size(), 1U);
   const Layout layout(param.layout);
   NNVM_ASSIGN_LAYOUT(*in_layouts, 0, layout);
@@ -88,14 +97,16 @@ NNVM_REGISTER_OP(resize)
 
 )" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
+.add_argument("weight", "3D Tensor", "Weight matrix.")
 .add_arguments(ResizeParam::__FIELDS__())
 .set_attr_parser(ParamParser<ResizeParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ResizeParam>)
+.set_attr<FListInputNames>("FListInputNames", UseResizeListInputNames<ResizeParam>)
 .set_attr<FInferShape>("FInferShape", ResizeInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ResizeLayout)
 .set_num_outputs(1)
-.set_num_inputs(1)
+.set_num_inputs(UseResizeNumInputs<ResizeParam>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,

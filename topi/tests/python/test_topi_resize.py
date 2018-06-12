@@ -9,12 +9,12 @@ from tvm.contrib.image import bilinear_weights
 def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=False):
 
     if layout == 'NCHW':
-        A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='uint8')
+        A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='float32')
         dtype = A.dtype
         out_shape = (batch, in_channel, out_height, out_width)
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
     elif layout == 'NHWC':
-        A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='uint8')
+        A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='float32')
         dtype = A.dtype
         out_shape = (batch, out_height, out_width, in_channel)
         a_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(dtype)

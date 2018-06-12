@@ -26,7 +26,7 @@ def resize(data, out_size, layout="NCHW", align_corners=False, mode="BILINEAR", 
 
     weights:
         weights is valid only for mode=BILINEAR
-        A 4-D Tensor with shape [out_shape[0], out_shape[1], 4]
+        A 3-D Tensor with shape [out_shape[0], out_shape[1], 4]
         helper function tvm.contrib.image.bilinear_weights available to generate this.
 
     Returns

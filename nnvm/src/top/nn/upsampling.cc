@@ -32,7 +32,7 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
                                  std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
-  CHECK_EQ(in_shape->size(), 1U);
+  CHECK_EQ(in_shape->size(), (param.mode == "BILINEAR") ? 2U : 1U);
   CHECK_EQ(out_shape->size(), 1U);
   TShape dshape = (*in_shape)[0];
   if (dshape.ndim() ==  0) return false;
@@ -44,6 +44,15 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
   oshape = ConvertLayout(oshape, kNCHW, param.layout);
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
 
+  if (param.mode == "BILINEAR") {
+    // frame wise (srcx, srcy, x_diff, y_diff)
+    TShape wshape({dshape[2] * param.scale,
+                   dshape[3] * param.scale,
+                   4U});
+
+    NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *in_shape, 1, wshape);
+  }
+
   return true;
 }
 
@@ -52,7 +61,7 @@ inline bool UpsamplingLayout(const NodeAttrs& attrs,
                              const std::vector<Layout> *last_in_layouts,
                              std::vector<Layout> *out_layouts) {
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
-  CHECK_EQ(in_layouts->size(), 1U);
+  CHECK_EQ(in_layouts->size(), (param.mode == "BILINEAR") ? 2U : 1U);
   CHECK_EQ(out_layouts->size(), 1U);
   const Layout layout(param.layout);
   NNVM_ASSIGN_LAYOUT(*in_layouts, 0, layout);
@@ -82,14 +91,16 @@ NNVM_REGISTER_OP(upsampling)
 
 )" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
+.add_argument("weight", "3D Tensor", "Weight matrix.")
 .add_arguments(UpSamplingParam::__FIELDS__())
 .set_attr_parser(ParamParser<UpSamplingParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<UpSamplingParam>)
+.set_attr<FListInputNames>("FListInputNames", UseUpsamplingListInputNames<UpSamplingParam>)
 .set_attr<FInferShape>("FInferShape", UpSamplingInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", UpsamplingLayout)
 .set_num_outputs(1)
-.set_num_inputs(1)
+.set_num_inputs(UseUpsamplingNumInputs<UpSamplingParam>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
@@ -104,8 +115,7 @@ NNVM_REGISTER_OP(upsampling)
     oshape.push_back(out_info[0]->shape[2]);
   }
 
-  return Array<Tensor>{ topi::nn::upsampling(inputs, oshape, param.layout,
-                                             false, param.mode)};
+  return Array<Tensor>{ topi::nn::upsampling(inputs, oshape, param.layout, param.mode)};
 })
 .set_support_level(2);
 

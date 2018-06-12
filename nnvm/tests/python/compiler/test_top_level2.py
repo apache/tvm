@@ -210,7 +210,7 @@ def test_global_avg_pool2d():
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
-def test_upsampling():
+def test_upsampling_nearest_neighbor():
     x = sym.Variable("x")
     scale = 2
     y = sym.upsampling(x, scale=scale, name="y")
@@ -228,6 +228,51 @@ def test_upsampling():
         b_np = topi.testing.upsampling_python(a_np, scale, "NCHW")
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
+def test_upsampling_bilinear():
+    x = sym.Variable("x")
+    scale = 2
+    y = sym.upsampling(x, scale=scale, mode="BILINEAR", name="y", layout="NCHW")
+    dtype = "float32"
+    dshape = (1, 4, 32, 32)
+    oshape = (1, 4, 32*scale, 32*scale)
+    wshape = (32*scale, 32*scale, 4)
+    shape_dict = {"x": dshape}
+    dtype_dict = {"x": dtype}
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict, dtype_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+        a_np = np.random.uniform(size=dshape).astype(dtype)
+        data = tvm.nd.array(a_np)
+        from tvm.contrib.image import bilinear_weights
+        weights_np = bilinear_weights(32, 32, 32*scale, 32*scale, False)
+        weights = tvm.nd.array(weights_np)
+        m.run(x=data, y_weight=weights)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        b_np = topi.testing.bilinear_resize_python(a_np, weights_np, (32*scale, 32*scale), "NCHW")
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+
+def test_resize_bilinear():
+    x = sym.Variable("x")
+    scale = 2
+    y = sym.upsampling(x, scale=scale, mode="BILINEAR", name="y", layout="NHWC")
+    dtype = "float32"
+    dshape = (1, 32, 32, 4)
+    oshape = (1, 32*scale, 32*scale, 4)
+    wshape = (32*scale, 32*scale, 4)
+    shape_dict = {"x": dshape}
+    dtype_dict = {"x": dtype}
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict, dtype_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+        a_np = np.random.uniform(size=dshape).astype(dtype)
+        data = tvm.nd.array(a_np)
+        from tvm.contrib.image import bilinear_weights
+        weights_np = bilinear_weights(32, 32, 32*scale, 32*scale, False)
+        weights = tvm.nd.array(weights_np)
+        m.run(x=data, y_weight=weights)
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        b_np = topi.testing.bilinear_resize_python(a_np, weights_np, (32*scale, 32*scale), "NHWC")
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 if __name__ == "__main__":
     test_conv2d()
@@ -239,4 +284,6 @@ if __name__ == "__main__":
     test_avg_pool2d_no_count_pad()
     test_global_max_pool2d()
     test_global_avg_pool2d()
-    test_upsampling()
+    test_upsampling_nearest_neighbor()
+    test_upsampling_bilinear()
+    test_resize_bilinear()
