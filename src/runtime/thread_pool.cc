@@ -69,14 +69,16 @@ class ParallelLauncher {
       tvm::runtime::threading::Yield();
     }
     if (!has_error_.load()) return 0;
-    std::stringstream err;
+    // the following is intended to use string due to
+    // security issue raised in SGX backend
+    std::string err("");
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
-        err << "Task " << i << " error: " << par_errors_[i] << std::endl;
+        err += "Task " + std::to_string(i) + " error: " + par_errors_[i] + '\n';
         par_errors_[i].clear();
       }
     }
-    TVMAPISetLastError(err.str().c_str());
+    TVMAPISetLastError(err.c_str());
     return -1;
   }
   // Signal that one job has finished.
