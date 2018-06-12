@@ -411,7 +411,7 @@ class GraphProto(object):
         self._input_node = ''
 
     def from_tensorflow(self, graph):
-        """Construct nnvm nodes from tensor flow  graph definition - GraphDef.
+        """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to NNVM.
         Some of the assumptions listed below.
@@ -420,7 +420,7 @@ class GraphProto(object):
             -> Rest all Const nodes are params.
             -> Last node is assumed as graph output.
             -> _output_shapes : Attribute should present in the tenserflow forzen graph.
-            -> DecodeJpeg, ResizeBilinear: These are dymmy operators.
+            -> DecodeJpeg, ResizeBilinear: These are dummy operators.
                                            Hence user should handle preprocessing outside.
             -> CheckNumerics: No implementation as of now for this.
                               Just copies input to output.
@@ -450,7 +450,7 @@ class GraphProto(object):
                 "Unable to import tensorflow which is required {}".format(e))
 
         for node in graph.node:
-            # Tensor flow doesn't have seperate list for params extraction.
+            # Tensorflow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
             if node.op == "Placeholder":
                 # Assuming only one input graph with type 'Placeholder'

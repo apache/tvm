@@ -10,10 +10,37 @@ import numpy as np
 
 # Tensorflow imports
 import tensorflow as tf
+from tensorflow.core.framework import graph_pb2
 
 ######################################################################
 # Some helper functions
 # ---------------------
+
+def ProcessGraphDefParam(graph_def):
+    """Type-checks and possibly canonicalizes `graph_def`.
+
+    Parameters
+    ----------
+    graph_def : Obj
+        tensorflow graph definition.
+
+    Returns
+    -------
+    graph_def : Obj
+        tensorflow graph devinition
+
+    """
+
+    if not isinstance(graph_def, graph_pb2.GraphDef):
+        # `graph_def` could be a dynamically-created message, so try a duck-typed
+        # approach
+        try:
+            old_graph_def = graph_def
+            graph_def = graph_pb2.GraphDef()
+            graph_def.MergeFrom(old_graph_def)
+        except TypeError:
+            raise TypeError('graph_def must be a GraphDef proto.')
+    return graph_def
 
 class NodeLookup(object):
     """Converts integer node ID's to human readable labels."""

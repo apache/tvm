@@ -50,38 +50,13 @@ download(lable_map_url, lable_map)
 # Creates graph from saved graph_def.pb.
 # --------------------------------------
 
-def _ProcessGraphDefParam(graph_def):
-    """Type-checks and possibly canonicalizes `graph_def`.
-
-    Parameters
-    ----------
-    graph_def : Obj
-        tensorflow graph definition.
-
-    Returns
-    -------
-    graph_def : Obj
-        tensorflow graph devinition
-
-    """
-
-    if not isinstance(graph_def, graph_pb2.GraphDef):
-        # `graph_def` could be a dynamically-created message, so try a duck-typed
-        # approach
-        try:
-            old_graph_def = graph_def
-            graph_def = graph_pb2.GraphDef()
-            graph_def.MergeFrom(old_graph_def)
-        except TypeError:
-            raise TypeError('graph_def must be a GraphDef proto.')
-    return graph_def
-
 with tf.gfile.FastGFile(os.path.join(
         "./", model_name), 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')
-    graph_def = _ProcessGraphDefParam(graph_def)
+    # Call the utility to import the graph definition into default graph.
+    graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
 
 ######################################################################
@@ -108,19 +83,6 @@ target = 'llvm'
 shape_dict = {'DecodeJpeg/contents': x.shape}
 dtype_dict = {'DecodeJpeg/contents': 'uint8'}
 graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, dtype=dtype_dict, params=params)
-
-
-
-######################################################################
-# Save the compilation output.
-# ----------------------------
-"""
-lib.export_library("imagenet_tensorflow.so")
-with open("imagenet_tensorflow.json", "w") as fo:
-    fo.write(graph.json())
-with open("imagenet_tensorflow.params", "wb") as fo:
-    fo.write(nnvm.compiler.save_param_dict(params))
-"""
 
 ######################################################################
 # Execute the portable graph on TVM
@@ -166,7 +128,8 @@ def create_graph():
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
-        graph_def = _ProcessGraphDefParam(graph_def)
+        # Call the utility to import the graph definition into default graph.
+        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
 def run_inference_on_image(image):
     """Runs inference on an image.

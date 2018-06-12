@@ -56,7 +56,7 @@ def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype)
     return tvm_output.asnumpy()
 
 def run_tf_graph(sess, input_data, input_node, output_node):
-    """ Generic function to execute tensor flow """
+    """ Generic function to execute tensorflow """
 
     tensor = sess.graph.get_tensor_by_name(output_node)
 
@@ -368,25 +368,12 @@ def test_forward_multi_input():
 #######################################################################
 # Inception V3
 # ------------
-def _ProcessGraphDefParam(graph_def):
-  """Type-checks and possibly canonicalizes `graph_def`."""
-  if not isinstance(graph_def, graph_pb2.GraphDef):
-    # `graph_def` could be a dynamically-created message, so try a duck-typed
-    # approach
-    try:
-      old_graph_def = graph_def
-      graph_def = graph_pb2.GraphDef()
-      graph_def.MergeFrom(old_graph_def)
-    except TypeError:
-      raise TypeError('graph_def must be a GraphDef proto.')
-  return graph_def
-
-
 def test_forward_inception_v3():
     '''test inception V3 model'''
     with tf.Graph().as_default():
         (data, graph_def) = nnvm.testing.tf.get_workload_inception_v3()
-        graph_def = _ProcessGraphDefParam(graph_def)
+        # Call the utility to import the graph definition into default graph.
+        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
         tvm_output = run_tvm_graph(graph_def, data, 'input', (1, 1001), 'float32')
         with tf.Session() as sess:
@@ -409,7 +396,8 @@ def test_forward_inception_v1():
     '''test inception V1 model'''
     with tf.Graph().as_default():
         (data, tvm_data, graph_def) = nnvm.testing.tf.get_workload_inception_v1()
-        graph_def = _ProcessGraphDefParam(graph_def)
+        # Call the utility to import the graph definition into default graph.
+        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
         tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents', (1, 1008), 'float32')
 
@@ -426,7 +414,8 @@ if __name__ == '__main__':
     test_forward_pooling()
     test_forward_reshape()
     test_forward_squeeze()
-    test_forward_concat_v2()
+    if tf.__version__ == '1.4.1':
+        test_forward_concat_v2()
     test_forward_multi_input()
 
     test_forward_inception_v3()
