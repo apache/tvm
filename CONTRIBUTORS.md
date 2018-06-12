@@ -3,7 +3,7 @@ TVM Contributors
 TVM adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use,
 contribute to, and influence the direction of the project. We actively invite contributors who have earned the merit to be part of the development community.
 
-See the [community structure document](http://tvm.ai/contribute/community.html) for the explanation of community structure and contribution guidelines.
+See the [community structure document](http://docs.tvm.ai/contribute/community.html) for the explanation of community structure and contribution guidelines.
 
 ## Committers
 - [Tianqi Chen](https://github.com/tqchen) (PMC), University of Washington
