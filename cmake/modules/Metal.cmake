@@ -5,7 +5,6 @@ if(USE_METAL)
   file(GLOB RUNTIME_METAL_SRCS src/runtime/metal/*.mm)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${METAL_LIB} ${FOUNDATION_LIB})
   list(APPEND RUNTIME_SRCS ${RUNTIME_METAL_SRCS})
-  list(APPEND COMPILER_SRCS src/codegen/opt/build_metal_on.cc)
 
   if(USE_MPS)
     file(GLOB MPS_CONTRIB_SRC src/contrib/mps/*.mm)
