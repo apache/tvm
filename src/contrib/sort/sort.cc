@@ -78,12 +78,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
         int64_t full_idx = base_idx + k * axis_mul_after;
         sorter.emplace_back(std::make_pair(k, *(data_ptr + full_idx)));
       }
-      std::stable_sort(sorter.begin(), sorter.end(),
-                       is_descend ? CompareDescend<float>
-                                  : CompareAscend<float>);
+      if (is_descend) {
+        std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
+      } else {
+        std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<float>);
+      }
       for (int32_t k = 0; k < input->shape[axis]; ++k) {
         *(static_cast<int32_t *>(output->data) + base_idx + k * axis_mul_after)
-          = k < sorter.size() ? sorter[k].first : k;
+            = k < static_cast<int32_t>(sorter.size()) ? sorter[k].first : k;
       }
     }
   }

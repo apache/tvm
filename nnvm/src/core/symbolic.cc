@@ -200,7 +200,7 @@ std::vector<NodePtr> Symbol::ListInputs(ListInputOption option) const {
     std::vector<NodePtr> vlist;
     vlist.reserve(this->outputs.size());
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
-    DFSVisit(this->outputs, [&ret, &mutable_set, &vlist](const NodePtr &node) {
+    DFSVisit(this->outputs, [&mutable_set, &vlist](const NodePtr &node) {
         if (node->is_variable()) {
           vlist.push_back(node);
         } else if (fmutate_inputs.count(node->op())) {
