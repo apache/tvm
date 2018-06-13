@@ -536,7 +536,7 @@ def websocket_proxy_server(url, key=""):
     def _connect(key):
         conn = yield websocket.websocket_connect(url)
         on_message = create_on_message(conn)
-        temp = _server_env(None)
+        temp = _server_env(None, None)
         # Start connecton
         conn.write_message(struct.pack('<i', base.RPC_MAGIC), binary=True)
         key = "server:" + key
