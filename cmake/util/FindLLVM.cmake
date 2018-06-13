@@ -1,24 +1,26 @@
 #######################################################
-# Enhanced version of find llvm that allows set of LLVM_CONFIG
-# When LLVM_CONFIG_PATH is AUTO,
-# it defaults to system find llvm
+# Enhanced version of find llvm.
 #
 # Usage:
-#   find_llvm(LLVM_CONFIG_PATH)
+#   find_llvm(${USE_LLVM})
+#
+# - When USE_LLVM=ON, use auto search
+# - When USE_LLVM=/path/to/llvm-config, use corresponding config
 #
 # Provide variables:
 # - LLVM_INCLUDE_DIRS
 # - LLVM_LIBS
 # - LLVM_DEFINITIONS
-# - LLVM_VERSION_CONCAT
+# - TVM_LLVM_VERISON
 #
-macro(find_llvm)
-  if(LLVM_CONFIG STREQUAL "")
+macro(find_llvm use_llvm)
+  set(LLVM_CONFIG ${use_llvm})
+  if(LLVM_CONFIG STREQUAL "ON")
     find_package(LLVM REQUIRED CONFIG)
     llvm_map_components_to_libnames(LLVM_LIBS all)
     list(REMOVE_ITEM LLVM_LIBS LTO)
     set(TVM_LLVM_VERSION ${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR})
-  else()
+  elseif(NOT LLVM_CONFIG STREQUAL "OFF")
     # use llvm config
     message(STATUS "Use llvm-config=" ${LLVM_CONFIG})
     execute_process(COMMAND ${LLVM_CONFIG} --includedir

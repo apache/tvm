@@ -3,7 +3,11 @@ project(tvm C CXX)
 
 # Utility functions
 include(cmake/util/Util.cmake)
+include(cmake/util/FindCUDA.cmake)
+include(cmake/util/FindVulkan.cmake)
 include(cmake/util/FindLLVM.cmake)
+include(cmake/util/FindROCM.cmake)
+
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
   include(${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
