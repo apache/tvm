@@ -270,6 +270,10 @@ def build(graph, target=None, shape=None, dtype="float32",
     # Apply optimization
     with target:
         graph = optimize(graph, shape, dtype, layout)
+
+    # Clear extra params without nodes.
+    _remove_noref_params(params, graph)
+
     # Precompute prune
     if params and cfg.pass_enabled("PrecomputePrune"):
         graph, params = precompute_prune(graph, params)
@@ -296,6 +300,24 @@ def build(graph, target=None, shape=None, dtype="float32",
         params.update(init_var)
     return graph, libmod, params
 
+def _remove_noref_params(params, graph):
+    """ Helper to clear non referenced params
+
+    Parameters
+    ----------
+    graph : Graph
+        The input graph
+
+    params: dict of str to ndarray
+        The parameter dictionary
+    """
+    arg_list = set(graph.symbol.list_input_names())
+
+    if params:
+        param_keys = list(params.keys())
+        for key in param_keys:
+            if key not in arg_list:
+                params.pop(key)
 
 def _run_graph(graph, params):
     """Helper utility to build and run and get outputs, only use cpu mode.
