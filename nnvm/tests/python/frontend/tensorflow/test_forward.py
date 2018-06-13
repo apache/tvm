@@ -73,7 +73,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 #######################################################################
 # Pooling
 # -------
-def test_pooling(input_shape, **kwargs):
+def _test_pooling(input_shape, **kwargs):
     """ One iteration of pool operation with given shapes and attributes """
 
     x = -np.arange(
@@ -109,26 +109,26 @@ def test_pooling(input_shape, **kwargs):
 def test_forward_pooling():
     """ Pooling """
 
-    test_pooling(input_shape=[2, 9, 10, 2],
+    _test_pooling(input_shape=[2, 9, 10, 2],
                  window_shape=[1, 1],
                  padding='SAME',
                  pooling_type='MAX',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
 
-    test_pooling(input_shape=[2, 9, 10, 2],
+    _test_pooling(input_shape=[2, 9, 10, 2],
                  window_shape=[1, 1],
                  padding='SAME',
                  pooling_type='AVG',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
-    test_pooling(input_shape=[2, 10, 9, 2],
+    _test_pooling(input_shape=[2, 10, 9, 2],
                  window_shape=[1, 1],
                  padding='SAME',
                  pooling_type='MAX',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
-    test_pooling(input_shape=[2, 10, 9, 2],
+    _test_pooling(input_shape=[2, 10, 9, 2],
                  window_shape=[1, 1],
                  padding='SAME',
                  pooling_type='AVG',
@@ -139,8 +139,8 @@ def test_forward_pooling():
 # Convolution
 # -----------
 
-def test_convolution(tensor_in_sizes, filter_in_sizes,
-                     dilations, strides, padding, data_format):
+def _test_convolution(tensor_in_sizes, filter_in_sizes,
+                      dilations, strides, padding, data_format):
     """ One iteration of convolution with given shapes and attributes """
 
     total_size_1 = 1
@@ -186,16 +186,16 @@ def test_convolution(tensor_in_sizes, filter_in_sizes,
             sess.close()
 
 def test_forward_convolution():
-    test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
-    test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
-    test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
-    test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
+    _test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
+    _test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
 
 #######################################################################
 # Reshape
 # -------
 
-def test_reshape(data, out_shape):
+def _test_reshape(data, out_shape):
     """ One iteration of reshape operation with given data and out shape """
 
     with tf.Graph().as_default():
@@ -223,16 +223,16 @@ def test_reshape(data, out_shape):
             sess.close()
 
 def test_forward_reshape():
-    test_reshape(np.arange(6.0), [2, 3])
-    test_reshape(np.arange(6), [-1, 2])
-    test_reshape(np.arange(6), [3, -1])
-    test_reshape(np.arange(6), [-1])
+    _test_reshape(np.arange(6.0), [2, 3])
+    _test_reshape(np.arange(6), [-1, 2])
+    _test_reshape(np.arange(6), [3, -1])
+    _test_reshape(np.arange(6), [-1])
 
 #######################################################################
 # Squeeze
 # -------
 
-def test_squeeze(data, squeeze_dims=None):
+def _test_squeeze(data, squeeze_dims=None):
     """ One iteration of squeeze """
 
     if squeeze_dims is None:
@@ -269,30 +269,30 @@ def test_forward_squeeze():
     """ Squeeze """
 
     # Nothing to squeeze.
-    test_squeeze(np.arange(2).reshape((2)))
-    test_squeeze(np.arange(6).reshape((2, 3)))
+    _test_squeeze(np.arange(2).reshape((2)))
+    _test_squeeze(np.arange(6).reshape((2, 3)))
 
     # Squeeze the middle element away.
-    test_squeeze(np.arange(4).reshape((2, 1, 2)))
+    _test_squeeze(np.arange(4).reshape((2, 1, 2)))
 
     # Squeeze on both ends.
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)))
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)))
 
     # Positive squeeze dim index.
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [0])
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [2, 4])
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [0, 4, 2])
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [0])
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [2, 4])
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [0, 4, 2])
 
     # Negative squeeze dim index.
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-1])
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5])
-    test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5, -1])
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-1])
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5])
+    _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5, -1])
 
 #######################################################################
 # ConcatV2
 # --------
 
-def test_concat_v2(data, dim):
+def _test_concat_v2(data, dim):
     """ One iteration of ConcatV2 """
 
     with tf.Graph().as_default():
@@ -319,7 +319,7 @@ def test_concat_v2(data, dim):
 
             sess.close()
 
-def test_forward_concat_v2():
+def _test_forward_concat_v2():
     t1 = np.array([])
     t2 = np.array([])
     test_concat_v2([t1, t2], 0)
@@ -327,7 +327,7 @@ def test_forward_concat_v2():
     t1 = np.array([[1, 2, 3], [4, 5, 6]])
     t2 = np.array([[7, 8, 9], [10, 11, 12]])
 
-    test_concat_v2([t1, t2], 1)
+    _test_concat_v2([t1, t2], 1)
 
 #######################################################################
 # Multi Input to graph
@@ -415,8 +415,7 @@ if __name__ == '__main__':
     test_forward_reshape()
     test_forward_squeeze()
     if tf.__version__ == '1.4.1':
-        test_forward_concat_v2()
+        _test_forward_concat_v2()
     test_forward_multi_input()
-
     test_forward_inception_v3()
     test_forward_inception_v1()
