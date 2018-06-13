@@ -88,8 +88,10 @@ inline std::string OpenGLArgKind2String(OpenGLArgKind kind) {
       return "input_texture";
     case OpenGLArgKind::kUniform:
       return "uniform";
+    default:
+      LOG(FATAL) << "invalid arg kind";
+      return "";
   }
-  assert(false);
 }
 
 inline OpenGLArgKind String2OpenGLArgKind(const std::string& str) {
@@ -101,7 +103,7 @@ inline OpenGLArgKind String2OpenGLArgKind(const std::string& str) {
     return OpenGLArgKind::kUniform;
   } else {
     LOG(FATAL) << "Invalid OpenGL arg kind.";
-    assert(false);
+    return OpenGLArgKind::kUniform;
   }
 }
 
