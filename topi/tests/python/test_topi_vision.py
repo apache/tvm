@@ -149,6 +149,6 @@ def test_multibox_detection():
 
 
 if __name__ == "__main__":
-#    test_nms()
+    test_nms()
     test_multibox_prior()
-#    test_multibox_detection()
+    test_multibox_detection()
