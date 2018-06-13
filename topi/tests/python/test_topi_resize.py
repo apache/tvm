@@ -4,7 +4,6 @@ import tvm
 import topi
 import topi.testing
 import math
-from tvm.contrib.image import bilinear_weights
 
 def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=False):
 
@@ -22,12 +21,9 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    W = tvm.placeholder((out_height, out_width, 4), name='W')
-    weights = bilinear_weights(in_height, in_width, out_height, out_width, align_corners)
+    B = topi.image.resize(A, (out_height, out_width), layout=layout, align_corners=align_corners)
 
-    B = topi.image.resize(A, (out_height, out_width), layout=layout, weights=W)
-
-    b_np = topi.testing.bilinear_resize_python(a_np, weights, (out_height, out_width), layout)
+    b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, align_corners)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -38,12 +34,11 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
         a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(weights, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, W, B], device)
-        f(a, w, b)
+        f = tvm.build(s, [A, B], device)
+        f(a, b)
 
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
     for device in ['llvm', 'cuda', 'vulkan']:
         check_device(device)

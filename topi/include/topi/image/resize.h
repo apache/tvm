@@ -23,7 +23,7 @@ using namespace tvm;
 /*!
 * \brief Resize given tensor to given shape using nearest neighbour for NHWC
 *
-* \param inputs The input tensor array.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
@@ -31,19 +31,19 @@ using namespace tvm;
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_nearest_neighbor_nhwc(const Array<Tensor>& inputs,
+inline Tensor resize_nearest_neighbor_nhwc(const Tensor& input,
                                            const Array<Expr>& shape,
                                            bool align_corners = false,
                                            std::string name = "tensor",
                                            std::string tag = kInjective) {
   Array<Expr> out_shape;
-  out_shape.push_back(inputs[0]->shape[0]);
+  out_shape.push_back(input->shape[0]);
   out_shape.push_back(shape[0]);
   out_shape.push_back(shape[1]);
-  out_shape.push_back(inputs[0]->shape[3]);
+  out_shape.push_back(input->shape[3]);
 
-  Expr h_ratio = shape[0] / inputs[0]->shape[1];
-  Expr w_ratio = shape[1] / inputs[0]->shape[2];
+  Expr h_ratio = shape[0] / input->shape[1];
+  Expr w_ratio = shape[1] / input->shape[2];
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
@@ -53,14 +53,14 @@ inline Tensor resize_nearest_neighbor_nhwc(const Array<Tensor>& inputs,
     idx.push_back(indices[2] / w_ratio);
     idx.push_back(indices[3]);
 
-    return inputs[0](idx);
+    return input(idx);
     }, name, tag);
 }
 
 /*!
 * \brief Resize given tensor to given shape using nearest neighbour for NCHW
 *
-* \param inputs The input tensor array.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
@@ -68,19 +68,19 @@ inline Tensor resize_nearest_neighbor_nhwc(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_nearest_neighbor_nchw(const Array<Tensor>& inputs,
+inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
                                            const Array<Expr>& shape,
                                            bool align_corners = false,
                                            std::string name = "tensor",
                                            std::string tag = kInjective) {
   Array<Expr> out_shape;
-  out_shape.push_back(inputs[0]->shape[0]);
-  out_shape.push_back(inputs[0]->shape[1]);
+  out_shape.push_back(input->shape[0]);
+  out_shape.push_back(input->shape[1]);
   out_shape.push_back(shape[0]);
   out_shape.push_back(shape[1]);
 
-  Expr h_ratio = shape[0] / inputs[0]->shape[2];
-  Expr w_ratio = shape[1] / inputs[0]->shape[3];
+  Expr h_ratio = shape[0] / input->shape[2];
+  Expr w_ratio = shape[1] / input->shape[3];
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
@@ -90,14 +90,14 @@ inline Tensor resize_nearest_neighbor_nchw(const Array<Tensor>& inputs,
     idx.push_back(indices[2] / h_ratio);
     idx.push_back(indices[3] / w_ratio);
 
-    return inputs[0](idx);
+    return input(idx);
     }, name, tag);
 }
 
 /*!
 * \brief Resize given tensor to given shape using nearest neighbour
 *
-* \param inputs The input tensor array.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
@@ -106,7 +106,7 @@ inline Tensor resize_nearest_neighbor_nchw(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_nearest_neighbor(const Array<Tensor>& inputs,
+inline Tensor resize_nearest_neighbor(const Tensor& input,
                                       const Array<Expr>& shape,
                                       std::string layout = "NCHW",
                                       bool align_corners = false,
@@ -115,16 +115,16 @@ inline Tensor resize_nearest_neighbor(const Array<Tensor>& inputs,
   CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
 
   if (layout == "NHWC") {
-    return resize_nearest_neighbor_nhwc(inputs, shape, align_corners);
+    return resize_nearest_neighbor_nhwc(input, shape, align_corners);
   } else {
-    return resize_nearest_neighbor_nchw(inputs, shape, align_corners);
+    return resize_nearest_neighbor_nchw(input, shape, align_corners);
   }
 }
 
 /*!
 * \brief Resize given tensor to given shape using bilinear interpolation for NHWC
 *
-* \param inputs The input tensor array.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
@@ -132,43 +132,57 @@ inline Tensor resize_nearest_neighbor(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_bilinear_nhwc(const Array<Tensor>& inputs,
+inline Tensor resize_bilinear_nhwc(const Tensor& input,
                                    const Array<Expr>& shape,
                                    bool align_corners = false,
                                    std::string name = "tensor",
                                    std::string tag = kInjective) {
   Array<Expr> out_shape;
-  out_shape.push_back(inputs[0]->shape[0]);
+  out_shape.push_back(input->shape[0]);
   out_shape.push_back(shape[0]);
   out_shape.push_back(shape[1]);
-  out_shape.push_back(inputs[0]->shape[3]);
+  out_shape.push_back(input->shape[3]);
 
-  Array<Expr> split_ind;
-  split_ind.push_back(make_const(UInt(32), 2));
+  Expr cone = make_const(Int(32), 1);
 
-  Array<Tensor> weights = split(inputs[1], split_ind, 2);
+  auto in_height = as_const_int(input->shape[1]);
+  auto in_width = as_const_int(input->shape[2]);
+  auto out_height = as_const_int(shape[0]);
+  auto out_width = as_const_int(shape[1]);
 
-  Tensor coords = cast(weights[0], Int(32));
+  Expr y_ratio;
+  Expr x_ratio;
 
-  Expr cone = make_const(UInt(32), 1);
-  Expr other_y = tvm::ir::Simplify(inputs[0]->shape[1] - cone);
-  Expr other_x = tvm::ir::Simplify(inputs[0]->shape[2] - cone);
+  if (align_corners) {
+    y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
+                                     static_cast<float>(*out_height)));
+    x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
+                                     static_cast<float>(*out_width)));
+  } else {
+    y_ratio = make_const(Float(32), (static_cast<float>(*in_height - 1) /
+                                     static_cast<float>(*out_height - 1)));
+    x_ratio = make_const(Float(32), (static_cast<float>(*in_width - 1) /
+                                     static_cast<float>(*out_width - 1)));
+  }
+
+  Expr other_y = tvm::ir::Simplify(input->shape[1] - cone);
+  Expr other_x = tvm::ir::Simplify(input->shape[2] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    auto y0 = coords(indices[1], indices[2], 0);
-    auto x0 = coords(indices[1], indices[2], 1);
+    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(y_ratio * indices[1]));
+    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(x_ratio * indices[2]));
 
-    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
     auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
+    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
 
-    auto h = weights[1](indices[1], indices[2], 0);
-    auto w = weights[1](indices[1], indices[2], 1);
+    auto h = (y_ratio * indices[1]) - y0;
+    auto w = (x_ratio * indices[2]) - x0;;
 
-    auto A = inputs[0](indices[0], y0, x0, indices[3]);
-    auto B = inputs[0](indices[0], y0, x1, indices[3]);
-    auto C = inputs[0](indices[0], y1, x0, indices[3]);
-    auto D = inputs[0](indices[0], y1, x1, indices[3]);
+    auto A = input(indices[0], y0, x0, indices[3]);
+    auto B = input(indices[0], y0, x1, indices[3]);
+    auto C = input(indices[0], y1, x0, indices[3]);
+    auto D = input(indices[0], y1, x1, indices[3]);
 
     return  (A*(cone-w)*(cone-h) + B*(w)*(cone-h) + C*(h)*(cone-w) + D*w*h);
     }, name, tag);
@@ -177,7 +191,7 @@ inline Tensor resize_bilinear_nhwc(const Array<Tensor>& inputs,
 /*!
 * \brief Resize given tensor to given shape using bilinear interpolation for NCHW
 *
-* \param inputs The input tensor array.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param align_corners To preserve centers of 4 corner pixels
 * \param name Name of the operation
@@ -185,42 +199,57 @@ inline Tensor resize_bilinear_nhwc(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_bilinear_nchw(const Array<Tensor>& inputs,
+inline Tensor resize_bilinear_nchw(const Tensor& input,
                                    const Array<Expr>& shape,
                                    bool align_corners = false,
                                    std::string name = "tensor",
                                    std::string tag = kInjective) {
   Array<Expr> out_shape;
-  out_shape.push_back(inputs[0]->shape[0]);
-  out_shape.push_back(inputs[0]->shape[1]);
+  out_shape.push_back(input->shape[0]);
+  out_shape.push_back(input->shape[1]);
   out_shape.push_back(shape[0]);
   out_shape.push_back(shape[1]);
 
-  Array<Expr> split_ind;
-  split_ind.push_back(make_const(UInt(32), 2));
+  Expr cone = make_const(Int(32), 1);
 
-  Array<Tensor> weights = split(inputs[1], split_ind, 2);
-  Tensor coords = cast(weights[0], Int(32));
+  auto in_height = as_const_int(input->shape[2]);
+  auto in_width = as_const_int(input->shape[3]);
+  auto out_height = as_const_int(shape[0]);
+  auto out_width = as_const_int(shape[1]);
 
-  Expr cone = make_const(UInt(32), 1);
-  Expr other_y = tvm::ir::Simplify(inputs[0]->shape[2] - cone);
-  Expr other_x = tvm::ir::Simplify(inputs[0]->shape[3] - cone);
+  Expr y_ratio;
+  Expr x_ratio;
+
+  if (align_corners) {
+    y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
+                                     static_cast<float>(*out_height)));
+    x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
+                                     static_cast<float>(*out_width)));
+  } else {
+    y_ratio = make_const(Float(32), (static_cast<float>(*in_height - 1) /
+                                     static_cast<float>(*out_height - 1)));
+    x_ratio = make_const(Float(32), (static_cast<float>(*in_width - 1) /
+                                     static_cast<float>(*out_width - 1)));
+  }
+
+  Expr other_y = tvm::ir::Simplify(input->shape[2] - cone);
+  Expr other_x = tvm::ir::Simplify(input->shape[3] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    auto y0 = coords(indices[2], indices[3], 0);
-    auto x0 = coords(indices[2], indices[3], 1);
+    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(y_ratio * indices[2]));
+    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(x_ratio * indices[3]));
 
     auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
     auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
 
-    auto h = weights[1](indices[2], indices[3], 0);
-    auto w = weights[1](indices[2], indices[3], 1);
+    auto h = (y_ratio * indices[2]) - y0;
+    auto w = (x_ratio * indices[3]) - x0;;
 
-    auto A = inputs[0](indices[0], indices[1], y0, x0);
-    auto B = inputs[0](indices[0], indices[1], y0, x1);
-    auto C = inputs[0](indices[0], indices[1], y1, x0);
-    auto D = inputs[0](indices[0], indices[1], y1, x1);
+    auto A = input(indices[0], indices[1], y0, x0);
+    auto B = input(indices[0], indices[1], y0, x1);
+    auto C = input(indices[0], indices[1], y1, x0);
+    auto D = input(indices[0], indices[1], y1, x1);
 
     return  ((A*(cone-w)*(cone-h)) + (B*(w)*(cone-h)) + (C*(h)*(cone-w)) + (D*w*h));
     }, name, tag);
@@ -229,7 +258,7 @@ inline Tensor resize_bilinear_nchw(const Array<Tensor>& inputs,
 /*!
 * \brief Resize given tensor to given shape using bilinear interpolation
 *
-* \param inputs The input tensor array.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
@@ -238,7 +267,7 @@ inline Tensor resize_bilinear_nchw(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize_bilinear(const Array<Tensor>& inputs,
+inline Tensor resize_bilinear(const Tensor& input,
                               const Array<Expr>& shape,
                               std::string layout = "NCHW",
                               bool align_corners = false,
@@ -247,19 +276,18 @@ inline Tensor resize_bilinear(const Array<Tensor>& inputs,
   Tensor ret;
 
   if (layout == "NHWC") {
-    ret = resize_bilinear_nhwc(inputs, shape, align_corners);
+    ret = resize_bilinear_nhwc(input, shape, align_corners);
   } else {
-    ret = resize_bilinear_nchw(inputs, shape, align_corners);
+    ret = resize_bilinear_nchw(input, shape, align_corners);
   }
 
-  return cast(ret, inputs[0]->dtype);
+  return cast(ret, input->dtype);
 }
 
 /*!
 * \brief Resize given tensor to given shape
 *
-* \param inputs The input tensor array.
-* Bilinear will have 2 inputs one being the weights.
+* \param input The input tensor.
 * \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
@@ -269,7 +297,7 @@ inline Tensor resize_bilinear(const Array<Tensor>& inputs,
 *
 * \return A Tensor resized to given shape
 */
-inline Tensor resize(const Array<Tensor>& inputs,
+inline Tensor resize(const Tensor& input,
                      const Array<Expr>& shape,
                      std::string layout = "NCHW",
                      bool align_corners = false,
@@ -277,9 +305,9 @@ inline Tensor resize(const Array<Tensor>& inputs,
                      std::string name = "tensor",
                      std::string tag = kInjective) {
   if (mode == "NEAREST_NEIGHBOR") {
-    return resize_nearest_neighbor(inputs, shape, layout, align_corners);
+    return resize_nearest_neighbor(input, shape, layout, align_corners);
   } else {
-    return resize_bilinear(inputs, shape, layout, align_corners);
+    return resize_bilinear(input, shape, layout, align_corners);
   }
 }
 

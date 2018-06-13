@@ -21,8 +21,7 @@ using namespace topi::image;
 /*!
 * \brief Upsample given tensor to given shape
 *
-* \param inputs The input tensor array.
-* Bilinear will have 2 inputs one being the weights.
+* \param input The input tensor.
 * \param shape Output shape to upsample.
 * \param layout input layout
 * \param mode Angorithm to use (NEAREST_NEIGHBOR / BILINEAR)
@@ -31,13 +30,13 @@ using namespace topi::image;
 *
 * \return A Tensor upsampled to given shape
 */
-inline Tensor upsampling(const Array<Tensor>& inputs,
+inline Tensor upsampling(const Tensor& input,
                          const Array<Expr> shape,
                          std::string layout = "NCHW",
                          std::string mode = "NEAREST_NEIGHBOR",
                          std::string name = "tensor",
                          std::string tag = kInjective) {
-  return resize(inputs, shape, layout, false, mode);
+  return resize(input, shape, layout, false, mode);
 }
 
 }  // namespace nn

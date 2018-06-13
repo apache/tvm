@@ -32,7 +32,7 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
                                  std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
-  CHECK_EQ(in_shape->size(), (param.method == "BILINEAR") ? 2U : 1U);
+  CHECK_EQ(in_shape->size(), 1U);
   CHECK_EQ(out_shape->size(), 1U);
   TShape dshape = (*in_shape)[0];
   if (dshape.ndim() ==  0) return false;
@@ -44,15 +44,6 @@ inline bool UpSamplingInferShape(const nnvm::NodeAttrs& attrs,
   oshape = ConvertLayout(oshape, kNCHW, param.layout);
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
 
-  if (param.method == "BILINEAR") {
-    // frame wise (srcx, srcy, x_diff, y_diff)
-    TShape wshape({dshape[2] * param.scale,
-                   dshape[3] * param.scale,
-                   4U});
-
-    NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *in_shape, 1, wshape);
-  }
-
   return true;
 }
 
@@ -61,7 +52,7 @@ inline bool UpsamplingLayout(const NodeAttrs& attrs,
                              const std::vector<Layout> *last_in_layouts,
                              std::vector<Layout> *out_layouts) {
   const UpSamplingParam& param = nnvm::get<UpSamplingParam>(attrs.parsed);
-  CHECK_EQ(in_layouts->size(), (param.method == "BILINEAR") ? 2U : 1U);
+  CHECK_EQ(in_layouts->size(), 1U);
   CHECK_EQ(out_layouts->size(), 1U);
   const Layout layout(param.layout);
   NNVM_ASSIGN_LAYOUT(*in_layouts, 0, layout);
@@ -72,15 +63,9 @@ inline bool UpsamplingLayout(const NodeAttrs& attrs,
 NNVM_REGISTER_OP(upsampling)
 .describe(R"(Perform upsampling to input array with nearest neighbour or bilinear interpolation.
 
-- **data**: data[0] is 4D array of shape
+- **data**: data is 4D array of shape
             (batch_size, channels, in_height, in_width) for NCHW
             (batch_size, in_height, in_width, channels) for NHWC
-
-            data[1] is 3D Tensor with shape [out_shape[0], out_shape[1], 4]
-            holds (srcx, srcy, x_diff, y_diff) for each out value.
-            weights is valid only for method=BILINEAR
-            helper function tvm.contrib.image.bilinear_weights
-            available to generate this param at frontend.
 
 - **out**: Output is 4D array of shape
            for layout NCHW
@@ -95,12 +80,11 @@ NNVM_REGISTER_OP(upsampling)
 .add_arguments(UpSamplingParam::__FIELDS__())
 .set_attr_parser(ParamParser<UpSamplingParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<UpSamplingParam>)
-.set_attr<FListInputNames>("FListInputNames", UseBilinearListInputNames<UpSamplingParam>)
 .set_attr<FInferShape>("FInferShape", UpSamplingInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", UpsamplingLayout)
 .set_num_outputs(1)
-.set_num_inputs(UseBilinearNumInputs<UpSamplingParam>)
+.set_num_inputs(1)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
@@ -115,7 +99,7 @@ NNVM_REGISTER_OP(upsampling)
     oshape.push_back(out_info[0]->shape[2]);
   }
 
-  return Array<Tensor>{ topi::nn::upsampling(inputs, oshape, param.layout, param.method)};
+  return Array<Tensor>{ topi::nn::upsampling(inputs[0], oshape, param.layout, param.method)};
 })
 .set_support_level(2);
 

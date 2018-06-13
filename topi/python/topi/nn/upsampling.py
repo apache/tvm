@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import topi
 
 
-def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR', weights=None):
+def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -23,11 +23,6 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR', weights=No
     method : {"BILINEAR", "NEAREST_NEIGHBOR"}
         Method to be used for upsampling.
 
-    weights : tvm.Tensor, optional
-        weights is valid only for method=BILINEAR
-        A 3-D Tensor with shape [out_shape[0], out_shape[1], 4]
-        helper function tvm.contrib.image.bilinear_weights available to generate this.
-
     Returns
     -------
     output : tvm.Tensor
@@ -42,6 +37,4 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR', weights=No
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
-    scale_inputs = [data, weights] if method == "BILINEAR" else [data]
-
-    return topi.cpp.nn.upsampling(scale_inputs, out_shape, layout, method)
+    return topi.cpp.nn.upsampling(data, out_shape, layout, method)

@@ -15,13 +15,13 @@ namespace nnvm {
 namespace top {
 
 struct ResizeParam : public dmlc::Parameter<ResizeParam> {
-  TShape out_size;
+  TShape size;
   std::string layout;
   std::string method;
   bool align_corners;
 
   DMLC_DECLARE_PARAMETER(ResizeParam) {
-    DMLC_DECLARE_FIELD(out_size)
+    DMLC_DECLARE_FIELD(size)
       .describe("Output size");
     DMLC_DECLARE_FIELD(layout)
       .set_default("NCHW")

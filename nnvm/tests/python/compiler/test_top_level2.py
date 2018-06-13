@@ -235,7 +235,6 @@ def test_upsampling_bilinear():
     dtype = "float32"
     dshape = (1, 4, 32, 32)
     oshape = (1, 4, 32*scale, 32*scale)
-    wshape = (32*scale, 32*scale, 4)
     shape_dict = {"x": dshape}
     dtype_dict = {"x": dtype}
     for target, ctx in ctx_list():
@@ -243,13 +242,10 @@ def test_upsampling_bilinear():
         m = graph_runtime.create(graph, lib, ctx)
         a_np = np.random.uniform(size=dshape).astype(dtype)
         data = tvm.nd.array(a_np)
-        from tvm.contrib.image import bilinear_weights
-        weights_np = bilinear_weights(32, 32, 32*scale, 32*scale, False)
-        weights = tvm.nd.array(weights_np)
-        m.run(x=data, y_weight=weights)
+        m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        b_np = topi.testing.bilinear_resize_python(a_np, weights_np, (32*scale, 32*scale), "NCHW")
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        b_np = topi.testing.bilinear_resize_python(a_np, (32*scale, 32*scale), "NCHW")
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
 def test_resize_bilinear():
     x = sym.Variable("x")
@@ -258,7 +254,6 @@ def test_resize_bilinear():
     dtype = "float32"
     dshape = (1, 32, 32, 4)
     oshape = (1, 32*scale, 32*scale, 4)
-    wshape = (32*scale, 32*scale, 4)
     shape_dict = {"x": dshape}
     dtype_dict = {"x": dtype}
     for target, ctx in ctx_list():
@@ -266,13 +261,10 @@ def test_resize_bilinear():
         m = graph_runtime.create(graph, lib, ctx)
         a_np = np.random.uniform(size=dshape).astype(dtype)
         data = tvm.nd.array(a_np)
-        from tvm.contrib.image import bilinear_weights
-        weights_np = bilinear_weights(32, 32, 32*scale, 32*scale, False)
-        weights = tvm.nd.array(weights_np)
-        m.run(x=data, y_weight=weights)
+        m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        b_np = topi.testing.bilinear_resize_python(a_np, weights_np, (32*scale, 32*scale), "NHWC")
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        b_np = topi.testing.bilinear_resize_python(a_np, (32*scale, 32*scale), "NHWC")
+        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
 if __name__ == "__main__":
     test_conv2d()
