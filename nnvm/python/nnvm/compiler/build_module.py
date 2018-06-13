@@ -15,8 +15,9 @@ OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
     "PrecomputePrune": 2,
     "OpFusion": 1,
-    "FoldScaleAxis": 3,
-    "AlterOpLayout": 3,
+    "FoldScaleAxis": 4,
+    "AlterOpLayout": 4,
+    "CommonSubExpression": 3,
 }
 
 # List of optimization pass and level when switch on
@@ -270,6 +271,9 @@ def build(graph, target=None, shape=None, dtype="float32",
     # Apply optimization
     with target:
         graph = optimize(graph, shape, dtype, layout)
+    # Apply Common Sub Expression elimination
+    if params and cfg.pass_enabled("CommonSubExpression"):
+        graph = graph.apply("CommonSubExpression")
     # Precompute prune
     if params and cfg.pass_enabled("PrecomputePrune"):
         graph, params = precompute_prune(graph, params)
