@@ -18,3 +18,6 @@ python3 -m nose -v nnvm/tests/python/frontend/mxnet || exit -1
 
 echo "Running Keras frontend test..."
 python3 -m nose -v nnvm/tests/python/frontend/keras || exit -1
+
+echo "Running Tensorflow frontend test..."
+python3 -m nose -v nnvm/tests/python/frontend/tensorflow || exit -1

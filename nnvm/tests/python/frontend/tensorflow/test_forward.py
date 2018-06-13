@@ -196,7 +196,7 @@ def test_forward_convolution():
 # -------
 
 def test_reshape(data, out_shape):
-    """ One iteration of reshape operation with given sata and out shape """
+    """ One iteration of reshape operation with given data and out shape """
 
     with tf.Graph().as_default():
         in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
