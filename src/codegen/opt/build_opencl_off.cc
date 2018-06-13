@@ -1,6 +1,20 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- *  Build opencl modules off
+ *  Optional module when build opencl is switched to off
  */
-#define TVM_OPENCL_RUNTIME 0
-#include "./build_opencl.h"
+#include "../codegen_source_base.h"
+#include "../../runtime/opencl/opencl_module.h"
+
+namespace tvm {
+namespace runtime {
+
+Module OpenCLModuleCreate(
+    std::string data,
+    std::string fmt,
+    std::unordered_map<std::string, FunctionInfo> fmap) {
+  LOG(WARNING) << "OpenCL runtime not enabled, return a source module...";
+  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "opencl");
+}
+
+}  // namespace runtime
+}  // namespace tvm
