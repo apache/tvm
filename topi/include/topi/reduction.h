@@ -238,8 +238,8 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
     for (size_t i = 0; i < exprs.size(); ++i) {
       auto dtype = exprs[i].type();
       dtypes.push_back(dtype);
-      lhs.push_back(var("lhs_" + std::to_string(i), dtype));
-      rhs.push_back(var("rhs_" + std::to_string(i), dtype));
+      lhs.push_back(var(name + "_lhs_" + std::to_string(i), dtype));
+      rhs.push_back(var(name + "_rhs_" + std::to_string(i), dtype));
     }
 
     auto result = fcombine(lhs, rhs);

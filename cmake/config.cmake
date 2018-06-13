@@ -22,12 +22,22 @@
 #---------------------------------------------
 # Backend runtimes.
 #---------------------------------------------
-# whether enable CUDA during compile
+
+# Whether enable CUDA during compile,
+#
+# Possible values:
+# - ON: enable CUDA with cmake's auto search
+# - OFF: disbale CUDA
+# - /path/to/cuda: use specific path to cuda toolkit
 set(USE_CUDA OFF)
 
-# ROCM
+# Whether enable ROCM runtime
+#
+# Possible values:
+# - ON: enable ROCM with cmake's auto search
+# - OFF: disbale ROCM
+# - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
-set(ROCM_PATH "/opt/rocm")
 
 # Whether enable OpenCL runtime
 set(USE_OPENCL OFF)
@@ -36,6 +46,11 @@ set(USE_OPENCL OFF)
 set(USE_METAL OFF)
 
 # Whether enable Vulkan runtime
+#
+# Possible values:
+# - ON: enable Vulkan with cmake's auto search
+# - OFF: disbale vulkan
+# - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
 # Whether enable OpenGL runtime
@@ -54,9 +69,9 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 # Requires LLVM version >= 4.0
 #
 # Possible values:
-# - ON: enable llvm with cmake's find llvm
+# - ON: enable llvm with cmake's find search
 # - OFF: disbale llvm
-# - /path/to/llvm-config enable specific LLVM when multiple llvm-dev is available.
+# - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 set(USE_LLVM OFF)
 
 #---------------------------------------------

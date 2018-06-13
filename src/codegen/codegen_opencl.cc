@@ -6,7 +6,9 @@
 #include <vector>
 #include <string>
 #include "./codegen_opencl.h"
+#include "./build_common.h"
 #include "../runtime/thread_storage_scope.h"
+#include "../runtime/opencl/opencl_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -202,5 +204,26 @@ void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOL
   }
   os << "))";
 }
+
+
+runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
+  using tvm::runtime::Registry;
+  bool output_ssa = false;
+  CodeGenOpenCL cg;
+  cg.Init(output_ssa);
+  for (LoweredFunc f : funcs) {
+    cg.AddFunction(f);
+  }
+  std::string code = cg.Finish();
+  if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
+    code = (*f)(code).operator std::string();
+  }
+  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs));
+}
+
+TVM_REGISTER_API("codegen.build_opencl")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildOpenCL(args[0]);
+  });
 }  // namespace codegen
 }  // namespace tvm

@@ -120,7 +120,7 @@ def random_key(prefix, cmap=None):
         return prefix + str(random.random())
 
 
-def connect_with_retry(addr, timeout=60, retry_period=5):
+def connect_with_retry(addr, timeout=60, retry_period=5, silent=False):
     """Connect to a TPC address with retry
 
     This function is only reliable to short period of server restart.
@@ -135,6 +135,9 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
 
     retry_period : float
          Number of seconds before we retry again.
+
+    silent: bool
+        whether run in silent mode
     """
     tstart = time.time()
     while True:
@@ -149,8 +152,9 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
             if period > timeout:
                 raise RuntimeError(
                     "Failed to connect to server %s" % str(addr))
-            logging.info("Cannot connect to tracker%s, retry in %g secs...",
-                         str(addr), retry_period)
+            if not silent:
+                logging.info("Cannot connect to tracker%s, retry in %g secs...",
+                             str(addr), retry_period)
             time.sleep(retry_period)
 
 

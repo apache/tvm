@@ -27,7 +27,8 @@ def main(args):
                         key=args.key,
                         tracker_addr=tracker_addr,
                         load_library=args.load_library,
-                        custom_addr=args.custom_addr)
+                        custom_addr=args.custom_addr,
+                        silent=args.silent)
     server.proc.join()
 
 
@@ -51,6 +52,8 @@ if __name__ == "__main__":
                          and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
                         help="Custom IP Address to Report to RPC Tracker")
+    parser.add_argument('--silent', action='store_true',
+                        help="Whether run in silent mode.")
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()
@@ -62,6 +65,7 @@ if __name__ == "__main__":
             )
         multiprocessing.set_start_method('spawn')
     else:
-        logging.info("If you are running ROCM/Metal, \
-        fork with cause compiler internal error. Try to launch with arg ```--no-fork```")
+        if not args.silent:
+            logging.info("If you are running ROCM/Metal, fork will cause "
+                         "compiler internal error. Try to launch with arg ```--no-fork```")
     main(args)
