@@ -311,7 +311,7 @@ def _remove_noref_params(params, graph):
     params: dict of str to ndarray
         The parameter dictionary
     """
-    arg_list = graph.symbol.list_input_names()
+    arg_list = set(graph.symbol.list_input_names())
 
     if params:
         param_keys = list(params.keys())
