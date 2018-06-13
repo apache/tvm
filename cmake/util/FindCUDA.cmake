@@ -41,9 +41,9 @@ macro(find_cuda use_cuda)
   # additional libraries
   if(CUDA_FOUND)
     if(MSVC)
-      find_library(CUDA_CUDA_LIBRARY cuda
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+      find_library(CUDA_NVRTC_LIBRARY cuda
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
       find_library(CUDA_NVRTC_LIBRARY nvrtc
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
@@ -51,12 +51,15 @@ macro(find_cuda use_cuda)
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
     else(MSVC)
-      find_library(CUDA_CUDA_LIBRARY cuda
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+      find_library(_CUDA_CUDA_LIBRARY cuda
+        PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+        PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs)
+      if(_CUDA_CUDA_LIBRARY)
+        set(CUDA_CUDA_LIBRARY ${_CUDA_CUDA_LIBRARY})
+      endif()
       find_library(CUDA_NVRTC_LIBRARY nvrtc
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+        PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+        PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs)
       find_library(CUDA_CUDNN_LIBRARY cudnn
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)

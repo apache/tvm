@@ -40,7 +40,8 @@ macro(find_vulkan use_vulkan)
        find_package(Vulkan QUIET)
      endif()
    endif()
-  # additional libraries
+   # additional libraries
+
   if(Vulkan_FOUND)
     get_filename_component(VULKAN_LIBRARY_PATH ${Vulkan_LIBRARY} DIRECTORY)
     find_library(Vulkan_SPIRV_TOOLS_LIBRARY SPIRV-Tools
