@@ -1,6 +1,6 @@
 """
 Deploy Single Shot Multibox Detector(SSD) model
-======================================
+===============================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_
 
 This article is an introductory tutorial to deploy SSD models with TVM.
