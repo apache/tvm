@@ -34,13 +34,15 @@ b = tvm.placeholder((99, ), name='b')
 c = tvm.placeholder((100, 99), name='c')
 tvm.hybrid.parse(outer_product, [a, b, c]) # return an ir root of this function
 ````
-**TODO**: If we pass these tvm tensors to this function, it returns a op node:
+If we pass these tvm tensors to this function, it returns a op node:
 ````Python
 a = tvm.placeholder((100, ), name='a')
 b = tvm.placeholder((99, ), name='b')
 c = tvm.placeholder((100, 99), name='c')
 op = outer_product(a, b, c) # return the corresponding op node
 ````
+**This function is still under construction**
+
 #### Scheduling
 
 **Under construction, not truly supported yet.**
@@ -58,7 +60,7 @@ So far, ONLY tensors' `shape` attribute is supported!
 
 ### Loops
 
-In HalideIR, loops have in total 4 types: `serail`, `unrolled`, `parallel`, and `vectorized`.
+In HalideIR, loops have in total 4 types: `serial`, `unrolled`, `parallel`, and `vectorized`.
 
 Here we use `range`, `serial`, `unroll`, `parallel`, and `vectorize`, these **5** keywords to annotate the types of for loops.
 
@@ -73,12 +75,12 @@ It takes the first store of a variable as its declaration.
 **NOTE**: Unlike conventional Python, the declared array can only be used in the scope level it is declared.
 ````Python
 for i in range(5):
-    sum = 0
+    s = 0
     for j in range(5):
-    	sum += a[i, j] #do something with sum
+    	s += a[i, j] #do something with sum
     b[i] = sum #you can still use sum in this level
 #you can NEVER use some here, even though it is allowed in conventional Python
-a[0] = sum
+a[0] = s
 ````
 ### Conditional Statement and Expression
 
@@ -92,7 +94,9 @@ However, NO `True` and `False` keyword supported yet.
 ### Math intrinsics
 So far, these math intrinsics, `log`, `exp`, `sigmoid`, `tanh`, `power`, and `popcount`, are supported. No import is required, just use it!
 ### Array allocation
-**TODO**: Use a function call `allocation(shape, type, share/local)` to declare an array buffer. The basic usage is roughly the same as variables
+Use a function call `allocation(shape, type, share/local)` to declare an array buffer. The basic usage is roughly the same as variables.
+
+**This function is still under construction.**
 ### Thread bind
 You can also do loop-thread bind by writing code like this:
 ````Python
