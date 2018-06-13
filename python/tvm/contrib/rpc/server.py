@@ -32,6 +32,9 @@ from . base import TrackerCode
 def _server_env(load_library, logger):
     """Server environment function return temp dir"""
     temp = util.tempdir()
+    if logger is None:
+        logger = logging.getLogger()
+
     # pylint: disable=unused-variable
     @register_func("tvm.contrib.rpc.server.workpath")
     def get_workpath(path):
@@ -76,10 +79,10 @@ def _parse_server_opt(opts):
     return ret
 
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr, silent):
-    """Lisenting loop of the server master."""
+    """Listening loop of the server master."""
     logger = logging.getLogger("RPCServer")
     if silent:
-       logger.disabled = True
+        logger.disabled = True
 
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.
@@ -177,11 +180,11 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr, s
                 tracker_conn.close()
                 tracker_conn = None
             continue
-        except RuntimeError as e:
+        except RuntimeError as exc:
             if silent:
                 return
             else:
-                raise e
+                raise exc
 
         # step 3: serving
         logger.info("connection from %s", addr)
@@ -356,7 +359,8 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop, args=(
-                    self.sock, self.port, key, tracker_addr, load_library, self.custom_addr, silent))
+                    self.sock, self.port, key, tracker_addr, load_library,
+                    self.custom_addr, silent))
             self.proc.deamon = True
             self.proc.start()
         else:
