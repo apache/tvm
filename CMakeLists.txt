@@ -82,8 +82,8 @@ if(MSVC)
 else(MSVC)
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
-  set(CMAKE_C_FLAGS "-O3 -Wall -fPIC")
-  set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++11")
+  set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS}")
 endif(MSVC)
 
 # add source group
