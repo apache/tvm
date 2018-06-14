@@ -26,14 +26,18 @@ macro(find_llvm use_llvm)
     execute_process(COMMAND ${LLVM_CONFIG} --includedir
       OUTPUT_VARIABLE LLVM_INCLUDE_DIRS)
     execute_process(COMMAND ${LLVM_CONFIG} --libfiles
-      OUTPUT_VARIABLE LLVM_LIBS)
+      OUTPUT_VARIABLE __llvm_libfiles)
+    execute_process(COMMAND ${LLVM_CONFIG} --system-libs
+      OUTPUT_VARIABLE __llvm_system_libs)
     execute_process(COMMAND ${LLVM_CONFIG} --cxxflags
       OUTPUT_VARIABLE __llvm_cxxflags)
     execute_process(COMMAND ${LLVM_CONFIG} --version
       COMMAND cut -b 1,3
       OUTPUT_VARIABLE TVM_LLVM_VERSION)
     string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" LLVM_DEFINITIONS ${__llvm_cxxflags})
-    string(STRIP ${LLVM_LIBS} LLVM_LIBS)
+    string(STRIP ${__llvm_libfiles} __llvm_libfiles)
+    string(STRIP ${__llvm_system_libs} __llvm_system_libs)
+    set(LLVM_LIBS "${__llvm_libfiles} ${__llvm_system_libs}")
     separate_arguments(LLVM_LIBS)
     string(STRIP ${LLVM_INCLUDE_DIRS} LLVM_INCLUDE_DIRS)
     string(STRIP ${TVM_LLVM_VERSION} TVM_LLVM_VERSION)
