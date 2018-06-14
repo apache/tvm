@@ -8,7 +8,6 @@ We will use mxnet pretrained SSD model with Resnet50 as body network and
 convert it to NNVM graph.
 """
 import os
-import urllib
 import zipfile
 import tvm
 import mxnet as mx

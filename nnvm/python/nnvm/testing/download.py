@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name, no-member, import-error, no-name-in-module, global-variable-undefined, bare-except
 """Helper utility for downloading"""
 from __future__ import print_function
+from __future__ import absolute_import as _abs
 
 import os
 import sys
