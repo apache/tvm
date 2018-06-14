@@ -328,10 +328,11 @@ static TextureFormat GetTextureFormat(TVMType type) {
           LOG(FATAL) << "Unsupported type bits " << type.bits;
       }
     }
-    default:
+    default: {
       LOG(FATAL) << "Unsupported type code" << type.code;
+    }
   }
-  assert(false);
+  return {GL_R32F, GL_RED, GL_FLOAT};
 }
 
 Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {

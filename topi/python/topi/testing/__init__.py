@@ -12,6 +12,7 @@ from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_con
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python
 from .upsampling_python import upsampling_python
+from .bilinear_resize_python import bilinear_resize_python
 from .reorg_python import reorg_python
 from .region_python import region_python
 from .shortcut_python import shortcut_python

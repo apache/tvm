@@ -52,6 +52,15 @@ reg.register_schedule("_assign", _fschedule_broadcast)
 reg.register_pattern("copy", OpPattern.ELEMWISE)
 reg.register_schedule("copy", _fschedule_broadcast)
 
+# cast
+@reg.register_compute("cast")
+def compute_cast(attrs, inputs, _):
+    """Compute definition of cast"""
+    dtype = attrs.get_string("dtype")
+    return topi.cast(inputs[0], dtype)
+reg.register_pattern("cast", OpPattern.ELEMWISE)
+reg.register_schedule("cast", _fschedule_broadcast)
+
 # exp
 reg.register_pattern("exp", OpPattern.ELEMWISE)
 reg.register_schedule("exp", _fschedule_broadcast)

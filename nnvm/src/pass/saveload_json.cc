@@ -29,6 +29,11 @@ namespace nnvm {
 namespace pass {
 namespace {
 
+// JSONNode represents an nnvm::Node in JSON
+struct JSONNode;
+// JSONGraph represents an nnvm::Graph or nnvm::Symbol in JSON
+struct JSONGraph;
+
 // auxiliary node structure for serialization.
 struct JSONNode {
   // the node entry structure in serialized format
@@ -36,6 +41,10 @@ struct JSONNode {
     uint32_t node_id;
     uint32_t index;
     uint32_t version;
+    Entry() = default;
+    Entry(uint32_t node_id, uint32_t index, uint32_t version):
+      node_id(node_id), index(index), version(version) {
+    }
     void Save(dmlc::JSONWriter *writer) const {
       writer->BeginArray(false);
       writer->WriteArrayItem(node_id);
@@ -64,6 +73,8 @@ struct JSONNode {
   std::vector<Entry> inputs;
   // control flow dependencies
   std::vector<uint32_t> control_deps;
+  // subgraphs
+  std::vector<JSONGraph> subgraphs;
 
   // function to save JSON node.
   void Save(dmlc::JSONWriter *writer) const {
@@ -85,6 +96,9 @@ struct JSONNode {
     if (control_deps.size() != 0) {
       writer->WriteObjectKeyValue("control_deps", control_deps);
     }
+    if (subgraphs.size() != 0) {
+      writer->WriteObjectKeyValue("subgraphs", subgraphs);
+    }
     writer->EndObject();
   }
 
@@ -99,6 +113,7 @@ struct JSONNode {
     helper.DeclareOptionalField("attrs", &(node->attrs.dict));
     helper.DeclareOptionalField("attr", &(node->attrs.dict));
     helper.DeclareOptionalField("control_deps", &control_deps);
+    helper.DeclareOptionalField("subgraphs", &subgraphs);
     // backward compatible code with mxnet graph.
     int backward_source_id;
     std::unordered_map<std::string, std::string> param;
@@ -154,6 +169,77 @@ struct JSONGraph {
   }
 };
 
+void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph *jgraph) {
+  std::unordered_map<Node*, uint32_t> node2index;
+  jgraph->node_row_ptr.push_back(0);
+  DFSVisit(src->outputs, [&node2index, jgraph](const NodePtr& n) {
+    uint32_t nid = static_cast<uint32_t>(jgraph->nodes.size());
+    node2index[n.get()] = nid;
+    if (n->is_variable()) {
+      jgraph->arg_nodes.push_back(nid);
+    }
+    JSONNode jnode;
+    jnode.node = n;
+    jnode.inputs.reserve(n->inputs.size());
+    for (const NodeEntry& e : n->inputs) {
+      jnode.inputs.emplace_back(node2index.at(e.node.get()), e.index, e.version);
+    }
+    for (const NodePtr& c : n->control_deps) {
+      jnode.control_deps.push_back(node2index.at(c.get()));
+    }
+    jgraph->node_row_ptr.push_back(jgraph->node_row_ptr.back() + n->num_outputs());
+    jgraph->nodes.emplace_back(std::move(jnode));
+  });
+  for (const NodeEntry& e : src->outputs) {
+    jgraph->heads.emplace_back(node2index.at(e.node.get()), e.index, e.version);
+  }
+  // recursively construct subgraphs
+  for (JSONNode &jnode : jgraph->nodes) {
+    // construct jnode's subgraphs
+    const std::vector<std::shared_ptr<Symbol>> &subgraphs = jnode.node->attrs.subgraphs;
+    std::vector<JSONGraph> &jsubgraphs = jnode.subgraphs;
+    jsubgraphs.resize(subgraphs.size());
+    for (uint32_t i = 0; i < subgraphs.size(); ++i) {
+      Symbol2JSONGraph(subgraphs[i], &jsubgraphs[i]);
+    }
+  }
+}
+
+std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse) {
+  for (const JSONNode &n : jgraph.nodes) {
+    n.node->inputs.reserve(n.inputs.size());
+    for (const JSONNode::Entry &e : n.inputs) {
+      n.node->inputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
+    }
+    n.node->control_deps.reserve(n.control_deps.size());
+    for (uint32_t nid : n.control_deps) {
+      n.node->control_deps.push_back(jgraph.nodes[nid].node);
+    }
+    // rebuild attribute parser
+    if (!no_parse && n.node->op() != nullptr && n.node->op()->attr_parser != nullptr) {
+      n.node->op()->attr_parser(&(n.node->attrs));
+    }
+    for (const JSONGraph &subgraph : n.subgraphs) {
+      // The "no_parse" option here, is to be compatible with
+      // commit cfd3075e85807dcd8f9534c37e053583dee87524
+      // (https://github.com/apache/incubator-mxnet/tree/cfd3075e85807dcd8f9534c37e053583dee87524),
+      // where the parsing of main graph is deferred until
+      // incubator-mxnet/src/nnvm/legacy_json_util.cc:UpgradeJSON_Parse
+      n.node->attrs.subgraphs.push_back(JSONGraph2Symbol(subgraph, false));
+    }
+  }
+  // consistency check
+  for (uint32_t nid : jgraph.arg_nodes) {
+    CHECK(jgraph.nodes[nid].node->is_variable());
+  }
+  std::shared_ptr<Symbol> symbol = std::make_shared<Symbol>();
+  symbol->outputs.reserve(jgraph.heads.size());
+  for (const JSONNode::Entry &e : jgraph.heads) {
+    symbol->outputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
+  }
+  return symbol;
+}
+
 // Load a graph from JSON file.
 Graph LoadJSON(Graph src) {
   CHECK_NE(src.attrs.count("json"), 0U)
@@ -169,71 +255,21 @@ Graph LoadJSON(Graph src) {
   JSONGraph jgraph;
   // load in json graph.
   jgraph.Load(&reader);
-  // connects the nodes
-  for (JSONNode &n : jgraph.nodes) {
-    n.node->inputs.reserve(n.inputs.size());
-    for (const JSONNode::Entry &e : n.inputs) {
-      n.node->inputs.emplace_back(
-          NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
-    }
-    n.node->control_deps.reserve(n.control_deps.size());
-    for (uint32_t nid : n.control_deps) {
-      n.node->control_deps.push_back(jgraph.nodes[nid].node);
-    }
-    // rebuild attribute parser
-    if (!no_parse && n.node->op() != nullptr &&
-        n.node->op()->attr_parser != nullptr) {
-      n.node->op()->attr_parser(&(n.node->attrs));
-    }
-  }
-  // consistent check
-  for (uint32_t nid : jgraph.arg_nodes) {
-    CHECK(jgraph.nodes[nid].node->is_variable());
-  }
-
+  std::shared_ptr<Symbol> symbol = JSONGraph2Symbol(jgraph, no_parse);
   // return the graph
   Graph ret;
   ret.attrs = std::move(jgraph.attrs);
-  ret.outputs.reserve(jgraph.heads.size());
-  for (const JSONNode::Entry &e : jgraph.heads) {
-    ret.outputs.emplace_back(
-        NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
-  }
+  ret.outputs = symbol->outputs;
   return ret;
 }
 
 // save a graph to json
 Graph SaveJSON(Graph src) {
+  std::shared_ptr<Symbol> src_symbol = std::make_shared<Symbol>();
+  src_symbol->outputs = src.outputs;
   JSONGraph jgraph;
+  Symbol2JSONGraph(src_symbol, &jgraph);
   jgraph.attrs = src.attrs;
-  std::unordered_map<Node*, uint32_t> node2index;
-  jgraph.node_row_ptr.push_back(0);
-  DFSVisit(src.outputs, [&node2index, &jgraph](const NodePtr& n) {
-      uint32_t nid = static_cast<uint32_t>(jgraph.nodes.size());
-      node2index[n.get()] = nid;
-      if (n->is_variable()) {
-        jgraph.arg_nodes.push_back(nid);
-      }
-      JSONNode jnode;
-      jnode.node = n;
-      jnode.inputs.reserve(n->inputs.size());
-      for (const NodeEntry& e : n->inputs) {
-        jnode.inputs.emplace_back(
-            JSONNode::Entry{node2index.at(e.node.get()), e.index, e.version});
-      }
-      for (const NodePtr& c : n->control_deps) {
-        jnode.control_deps.push_back(node2index.at(c.get()));
-      }
-      jgraph.node_row_ptr.push_back(
-          jgraph.node_row_ptr.back() + n->num_outputs());
-      jgraph.nodes.emplace_back(std::move(jnode));
-    });
-
-  for (const NodeEntry& e : src.outputs) {
-    jgraph.heads.push_back(
-        JSONNode::Entry{node2index.at(e.node.get()), e.index, e.version});
-  }
-
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);
   jgraph.Save(&writer);

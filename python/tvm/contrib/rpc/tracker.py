@@ -309,7 +309,6 @@ class TrackerServerHandler(object):
 def _tracker_server(listen_sock, stop_key):
     handler = TrackerServerHandler(listen_sock, stop_key)
     handler.run()
-    logging.info("Tracker Stop signal received, terminating...")
 
 
 class Tracker(object):
@@ -327,11 +326,19 @@ class Tracker(object):
 
     port_end : int, optional
         The end TCP port to search
+
+    silent: bool, optional
+        Whether run in silent mode
     """
     def __init__(self,
                  host,
                  port=9190,
-                 port_end=9199):
+                 port_end=9199,
+                 silent=False):
+        self.logger = logging.getLogger("RPCTracker")
+        if silent:
+            self.logger.disabled = True
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.port = None
         self.stop_key = base.random_key("tracker")
@@ -347,7 +354,7 @@ class Tracker(object):
                     raise sock_err
         if not self.port:
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
-        logging.info("RPCTracker: bind to %s:%d", host, self.port)
+        self.logger.info("bind to %s:%d", host, self.port)
         sock.listen(1)
         self.proc = multiprocessing.Process(
             target=_tracker_server, args=(sock, self.stop_key))
@@ -373,7 +380,7 @@ class Tracker(object):
                 self._stop_tracker()
                 self.proc.join(1)
             if self.proc.is_alive():
-                logging.info("Terminating Tracker Server...")
+                self.logger.info("Terminating Tracker Server...")
                 self.proc.terminate()
             self.proc = None
 

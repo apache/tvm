@@ -288,16 +288,22 @@ struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
 struct UpSamplingParam : public dmlc::Parameter<UpSamplingParam> {
   int scale;
   std::string layout;
+  std::string method;
 
   DMLC_DECLARE_PARAMETER(UpSamplingParam) {
     DMLC_DECLARE_FIELD(scale)
       .describe("upsampling scaling factor");
     DMLC_DECLARE_FIELD(layout)
       .set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                "dimensions respectively. Convolution is applied on the 'H' and"
+                "dimensions respectively. Upsampling is applied on the 'H' and"
                 "'W' dimensions.");
+    DMLC_DECLARE_FIELD(method)
+      .set_default("NEAREST_NEIGHBOR")
+      .describe("Specify the mode to use for scaling."
+                "NEAREST_NEIGHBOR -  Nearest Neighbor"
+                "BILINEAR - Bilinear Interpolation");
   }
 };
 

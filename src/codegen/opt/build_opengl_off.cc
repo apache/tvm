@@ -1,6 +1,20 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- *  Build OpenGL modules off
+ *  Optional module when build opencl is switched to off
  */
-#define TVM_OPENGL_RUNTIME 0
-#include "./build_opengl.h"
+#include "../codegen_source_base.h"
+#include "../../runtime/opengl/opengl_module.h"
+
+namespace tvm {
+namespace runtime {
+
+Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
+                          std::string fmt,
+                          std::unordered_map<std::string, FunctionInfo> fmap) {
+  LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
+  auto data = ToJSON(shaders);
+  return codegen::DeviceSourceModuleCreate(data, "gl", fmap, "opengl");
+}
+
+}  // namespace runtime
+}  // namespace tvm

@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 #include "./codegen_metal.h"
+#include "./build_common.h"
+#include "../runtime/metal/metal_module.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -220,5 +222,29 @@ void CodeGenMetal::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLI
   }
   os << ')';
 }
+
+runtime::Module BuildMetal(Array<LoweredFunc> funcs) {
+  using tvm::runtime::Registry;
+  bool output_ssa = false;
+  CodeGenMetal cg;
+  cg.Init(output_ssa);
+  for (LoweredFunc f : funcs) {
+    cg.AddFunction(f);
+  }
+  std::string code = cg.Finish();
+  std::string fmt = "metal";
+  std::string source = "";
+  if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
+    source = code;
+    code = (*f)(code).operator std::string();
+    fmt = "metallib";
+  }
+  return MetalModuleCreate(code, fmt, ExtractFuncInfo(funcs), source);
+}
+
+TVM_REGISTER_API("codegen.build_metal")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildMetal(args[0]);
+  });
 }  // namespace codegen
 }  // namespace tvm
