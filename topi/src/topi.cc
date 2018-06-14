@@ -47,21 +47,10 @@
 #include <topi/rocm/dense.h>
 #include <topi/rocm/vision.h>
 
-namespace tvm {
-namespace runtime {
-template<>
-struct extension_class_info<tvm::Target> {
-  static const int code = 28;
-};
-}  // namespace tvm
-} // namespace runtime
-
 namespace topi {
 
 using namespace tvm;
 using namespace tvm::runtime;
-
-TVM_REGISTER_EXT_TYPE(tvm::Target);
 
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
 Array<Expr> ArrayOrInt(TVMArgValue arg) {
