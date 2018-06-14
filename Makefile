@@ -110,4 +110,4 @@ jvminstall:
 
 # clean rule
 clean:
-	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o */*.d */*/*.d */*/*/*.d
+	@mkdir -p build && cd build && cmake .. && $(MAKE) clean
