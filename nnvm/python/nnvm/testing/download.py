@@ -46,12 +46,6 @@ def download(url, path, overwrite=False, size_compare=False):
 
     size_compare : bool, optional
         Whether to do size compare to check downloaded file.
-
-    Returns
-    -------
-    out_name : converted out name of operation
-    sym : nnvm.Symbol
-        Converted nnvm Symbol
     """
     if os.path.isfile(path) and not overwrite:
         if size_compare:
