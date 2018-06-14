@@ -50,6 +50,8 @@ vision = _create_module("vision")
 _init_api_prefix("topi.cpp.vision", "topi.vision")
 yolo2 = _create_module("vision.yolo2")
 _init_api_prefix("topi.cpp.vision.yolo2", "topi.vision.yolo2")
+image = _create_module("image")
+_init_api_prefix("topi.cpp.image", "topi.image")
 
 class IntVector(object):
     """Handle to std::vector<int> instance """
