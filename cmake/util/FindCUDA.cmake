@@ -50,6 +50,9 @@ macro(find_cuda use_cuda)
       find_library(CUDA_CUDNN_LIBRARY cudnn
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
+      find_library(CUDA_CUBLAS_LIBRARY cublas
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
     else(MSVC)
       find_library(_CUDA_CUDA_LIBRARY cuda
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
@@ -61,6 +64,9 @@ macro(find_cuda use_cuda)
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
         PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs)
       find_library(CUDA_CUDNN_LIBRARY cudnn
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+      find_library(CUDA_CUBLAS_LIBRARY cublas
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
     endif(MSVC)
