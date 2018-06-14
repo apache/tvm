@@ -13,10 +13,10 @@ import tvm
 import mxnet as mx
 import cv2
 import numpy as np
-import nnvm.testing.download as download
 
 from nnvm import compiler
 from nnvm.frontend import from_mxnet
+from nnvm.testing.download import download
 from tvm.contrib import graph_runtime
 from mxnet.model import load_checkpoint
 

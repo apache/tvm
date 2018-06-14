@@ -14,18 +14,18 @@ Please install CFFI and CV2 before executing this script
   pip install cffi
   pip install opencv-python
 """
-from ctypes import *
-import math
-import random
+
 import nnvm
 import nnvm.frontend.darknet
 import nnvm.testing.darknet
-import nnvm.testing.download as download
-from nnvm.testing.darknet import __darknetffi__
 import matplotlib.pyplot as plt
 import numpy as np
 import tvm
 import os
+
+from ctypes import *
+from nnvm.testing.download import download
+from nnvm.testing.darknet import __darknetffi__
 
 ######################################################################
 # Set the parameters here.
