@@ -14,6 +14,7 @@ import tvm
 import mxnet as mx
 import cv2
 import numpy as np
+import nnvm.testing.download as download
 
 from nnvm import compiler
 from nnvm.frontend import from_mxnet
@@ -22,42 +23,24 @@ from mxnet.model import load_checkpoint
 
 
 ######################################################################
-# Set the parameters here.
+# Set the parameters here
+# -----------------------
+# .. note::
+#
+#   Currently we support compiling SSD on CPU only.
+#   GPU support is in progress.
 
 model_name = "ssd_resnet50_512"
 model_file = "%s.zip" % model_name
 test_image = "dog.jpg"
-target = "llvm"
 dshape = (1, 3, 512, 512)
 dtype = "float32"
+target = "llvm"
 ctx = tvm.cpu()
 
-def download(url, path, overwrite=False):
-    """Downloads the file from the internet.
-    Set the input options correctly to overwrite or do the size comparison
-
-    Parameters
-    ----------
-    url : str
-        Download file url
-    path : str
-        File saved path.
-    overwrite : boolean
-        Dict of operator attributes
-    """
-    if os.path.isfile(path) and not overwrite:
-        print('File {} exists, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        urllib.request.urlretrieve(url, path)
-        print('')
-    except:
-        urllib.urlretrieve(url, path)
-
 ######################################################################
-# Download MXNet SSD pre-trained model and demo image.
-# ----------------------------
+# Download MXNet SSD pre-trained model and demo image
+# ---------------------------------------------------
 # Pre-trained model available at
 # https://github.com/apache/incubator-\mxnet/tree/master/example/ssd
 

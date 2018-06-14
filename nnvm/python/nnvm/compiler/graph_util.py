@@ -7,7 +7,6 @@ from . import graph_attr
 
 from ..graph import create
 from ..symbol import Group, ones_like
-from .. import symbol as sym
 
 def infer_shape(graph, **shape):
     """Infer the shape given the shape of inputs.
