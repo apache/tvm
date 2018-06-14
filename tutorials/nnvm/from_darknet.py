@@ -14,23 +14,18 @@ Please install CFFI and CV2 before executing this script
   pip install cffi
   pip install opencv-python
 """
-from ctypes import *
-import math
-import random
+
 import nnvm
 import nnvm.frontend.darknet
 import nnvm.testing.darknet
-from nnvm.testing.darknet import __darknetffi__
 import matplotlib.pyplot as plt
 import numpy as np
 import tvm
-import os, sys, time, urllib, requests
-if sys.version_info >= (3,):
-    import urllib.request as urllib2
-    import urllib.parse as urlparse
-else:
-    import urllib2
-    import urlparse
+import os
+
+from ctypes import *
+from nnvm.testing.download import download
+from nnvm.testing.darknet import __darknetffi__
 
 ######################################################################
 # Set the parameters here.
@@ -40,62 +35,6 @@ model_name = 'yolo'
 test_image = 'dog.jpg'
 target = 'llvm'
 ctx = tvm.cpu(0)
-
-def dlProgress(count, block_size, total_size):
-    """Show the download progress."""
-    global start_time
-    if count == 0:
-        start_time = time.time()
-        return
-    duration = time.time() - start_time
-    progress_size = int(count * block_size)
-    speed = int(progress_size / (1024 * duration))
-    percent = int(count * block_size * 100 / total_size)
-    sys.stdout.write("\r...%d%%, %d MB, %d KB/s, %d seconds passed" %
-          (percent, progress_size / (1024 * 1024), speed, duration))
-    sys.stdout.flush()
-
-def download(url, path, overwrite=False, sizecompare=False):
-    """Downloads the file from the internet.
-    Set the input options correctly to overwrite or do the size comparison
-
-    Parameters
-    ----------
-    url : str
-        Operator name, such as Convolution, Connected, etc
-    path : str
-        List of input symbols.
-    overwrite : dict
-        Dict of operator attributes
-    sizecompare : dict
-        Dict of operator attributes
-
-    Returns
-    -------
-    out_name : converted out name of operation
-    sym : nnvm.Symbol
-        Converted nnvm Symbol
-    """
-    if os.path.isfile(path) and not overwrite:
-        if (sizecompare):
-            fileSize = os.path.getsize(path)
-            resHead = requests.head(url)
-            resGet = requests.get(url,stream=True)
-            if 'Content-Length' not in resHead.headers :
-                resGet = urllib2.urlopen(url)
-            urlFileSize = int(resGet.headers['Content-Length'])
-            if urlFileSize != fileSize:
-                print ("exist file got corrupted, downloading", path , " file freshly")
-                download(url, path, True, False)
-                return
-        print('File {} exists, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        urllib.request.urlretrieve(url, path, reporthook=dlProgress)
-        print('')
-    except:
-        urllib.urlretrieve(url, path, reporthook=dlProgress)
 
 ######################################################################
 # Prepare cfg and weights file
