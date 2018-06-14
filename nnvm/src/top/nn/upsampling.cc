@@ -76,7 +76,6 @@ NNVM_REGISTER_OP(upsampling)
 
 )" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tensor", "Input data.")
-.add_argument("weight", "3D Tensor", "Weight matrix.")
 .add_arguments(UpSamplingParam::__FIELDS__())
 .set_attr_parser(ParamParser<UpSamplingParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<UpSamplingParam>)
