@@ -88,6 +88,7 @@ stage('Build') {
            mkdir -p build
            cd build
            cp ../cmake/config.cmake .
+           echo set\\(USE_CUBLAS ON\\) >> config.cmake
            echo set\\(USE_CUDNN ON\\) >> config.cmake
            echo set\\(USE_CUDA ON\\) >> config.cmake
            echo set\\(USE_OPENGL ON\\) >> config.cmake
