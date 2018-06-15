@@ -328,7 +328,7 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
       TShape new_oshape = TShape(oshape.ndim() - 1);
       int idx = 0;
       for (uint32_t i = 0; i < oshape.ndim() - 1; i++) {
-        if (i == param.axis) continue;
+        if (i == static_cast<uint32_t>(param.axis)) continue;
         new_oshape[idx++] = oshape[i];
       }
       oshape.swap(new_oshape);
