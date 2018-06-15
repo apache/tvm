@@ -3,8 +3,8 @@
 
 from __future__ import absolute_import as _abs
 
-import numpy as np
 import tvm
+import nnvm.symbol as sym
 
 from .. import generic
 from .. import util
@@ -14,9 +14,6 @@ from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
 from ..nn.util import get_pad_tuple
 from ..util import simplify
 
-import nnvm
-import nnvm.symbol as sym
-from nnvm.top import registry as reg
 
 
 ##### SCHEDULE UTILITIES #####
@@ -27,7 +24,7 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     zo, zi = s[tensor].split(z, z_factor)
     yo, yi = s[tensor].split(y, y_factor)
     xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].reorder(zo, yo, xo ,zi, yi, xi)
+    s[tensor].reorder(zo, yo, xo, zi, yi, xi)
 
     thread_z = tvm.thread_axis((0, z_factor), "threadIdx.z")
     thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
@@ -49,7 +46,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
     import ast
     padding = ast.literal_eval(attrs['padding'])
-    stride  = ast.literal_eval(attrs['strides'])
+    stride = ast.literal_eval(attrs['strides'])
 
     wkl = _get_workload(data, kernel, stride, padding, data.dtype)
     oc_bn = 16
@@ -60,7 +57,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 @conv2d_NCHWc.register(["intel_gpu"])
-def _decl_conv2d(data, kernel, num_filter, kernel_size,  stride, padding, out_dtype='float32'):
+def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, out_dtype='float32'):
     """Conv2D operator for Intel GPU backend.
 
     Parameters
@@ -124,12 +121,14 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag or "1_16" in op.tag:
-            _schedule_cl_spatialpack_NCHWc(s,op)
+        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
+           or "1_16" in op.tag:
+            _schedule_cl_spatialpack_NCHWc(s, op)
 
     traverse(outs[0].op)
+
     return s
-    
+
 def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16'):
     batch, in_channel, in_height, in_width = [util.get_const_int(x) for x in data.shape]
     num_filter, channel, kernel_h, kernel_w, nv = [util.get_const_int(x) for x in kernel.shape]
@@ -193,15 +192,15 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
         cshape,
         lambda nn, ff, yy, xx, vc:\
           tvm.sum(
-            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
-            kernel[ff, rc, ry, rx, vc].astype(out_dtype),
-            axis=[rc, ry, rx]), tag=conv_tag, name='conv')
+              temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
+              kernel[ff, rc, ry, rx, vc].astype(out_dtype),
+              axis=[rc, ry, rx]), tag=conv_tag, name='conv')
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
-            conv[nn][ff//nv][yy][xx][ff%nv],
-            name='output_unpack', tag=conv_tag)
+        conv[nn][ff//nv][yy][xx][ff%nv],
+        name='output_unpack', tag=conv_tag)
 
     return output
 
@@ -219,19 +218,19 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH  = 16
+        OUTPUT_BLOCK_WIDTH = 16
     elif "2_14" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH  = 14
+        OUTPUT_BLOCK_WIDTH = 14
     elif "2_7" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH  = 7
+        OUTPUT_BLOCK_WIDTH = 7
     elif "4_5" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH  = 5
+        OUTPUT_BLOCK_WIDTH = 5
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH  = 4
+        OUTPUT_BLOCK_WIDTH = 4
 
     # schedule conv
     z_factor = 1
@@ -241,13 +240,13 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
     thread_x = tvm.thread_axis((0, x_factor), "threadIdx.x")
     _, co, oh, ow, vc = s[conv].op.axis
-    ooh, ioh = s[conv].split(oh, factor = OUTPUT_BLOCK_HEIGHT)
-    oow, iow = s[conv].split(ow, factor = OUTPUT_BLOCK_WIDTH)
+    ooh, ioh = s[conv].split(oh, factor=OUTPUT_BLOCK_HEIGHT)
+    oow, iow = s[conv].split(ow, factor=OUTPUT_BLOCK_WIDTH)
     s[conv].reorder(_, co, ooh, oow, vc, ioh, iow)
-    coo, coi = s[conv].split(co, nparts = 1)
-    ooho, oohi = s[conv].split(ooh, factor = z_factor) 
-    oowo, oowi = s[conv].split(oow, factor = y_factor)
-    vco, vci = s[conv].split(vc, factor = x_factor)
+    coo, coi = s[conv].split(co, nparts=1)
+    ooho, oohi = s[conv].split(ooh, factor=z_factor)
+    oowo, oowi = s[conv].split(oow, factor=y_factor)
+    vco, vci = s[conv].split(vc, factor=x_factor)
     s[conv].reorder(_, coo, vco, ooho, oowo, coi, oohi, oowi, vci, ioh, iow)
     s[conv].bind(oohi, thread_z)
     s[conv].bind(oowi, thread_y)
@@ -261,7 +260,7 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     i, oc, h, w, vc = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
     if in_channel == 2048:
-        rco, rci = s[conv_L].split(rc, nparts = 128)
+        rco, rci = s[conv_L].split(rc, nparts=128)
         s[conv_L].unroll(rci)
         s[conv_L].reorder(i, oc, rco, rci, ry, rx, vc, h, w)
         s[temp_W].compute_at(s[conv_L], rco)
@@ -277,7 +276,7 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
     # schedule temp
     _, ci, h, w = s[temp].op.axis
-    tile_and_bind3d(s, temp, ci,  h, w, 1, 16, 16)
+    tile_and_bind3d(s, temp, ci, h, w, 1, 16, 16)
 
     # schedule temp_W
     _, ci, h, w = s[temp_W].op.axis
@@ -367,12 +366,13 @@ def schedule_conv2d_nchw(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag or "1_16" in op.tag:
-            _schedule_cl_spatialpack(s,op)
+        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
+           or "1_16" in op.tag:
+            _schedule_cl_spatialpack(s, op)
 
     traverse(outs[0].op)
     return s
-    
+ 
 def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float16'):
     batch, in_channel, in_height, in_width = [util.get_const_int(x) for x in data.shape]
     num_filter, channel, kernel_h, kernel_w = [util.get_const_int(x) for x in kernel.shape]
@@ -434,23 +434,23 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
     kvshape = (num_filter // nv, channel, kernel_h, kernel_w, nv)
 
     kernel_vec = tvm.compute(
-            kvshape, 
-            lambda co, ci, kh, kw, vc:
-                kernel[co*nv + vc][ci][kh][kw], name='kernel_vec')
+        kvshape,
+        lambda co, ci, kh, kw, vc:
+        kernel[co*nv + vc][ci][kh][kw], name='kernel_vec')
 
     conv = tvm.compute(
         cshape,
         lambda nn, ff, yy, xx, vc:\
           tvm.sum(
-            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
-            kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
-            axis=[rc, ry, rx]), tag=conv_tag, name='conv')
+              temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
+              kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
+              axis=[rc, ry, rx]), tag=conv_tag, name='conv')
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
-            conv[nn][ff//nv][yy][xx][ff%nv],
-            name='output_unpack', tag=conv_tag)
+        conv[nn][ff//nv][yy][xx][ff%nv],
+        name='output_unpack', tag=conv_tag)
 
     return output
 
@@ -470,19 +470,19 @@ def _schedule_cl_spatialpack(s, op):
 
     if "1_16" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH  = 16
+        OUTPUT_BLOCK_WIDTH = 16
     elif "2_14" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH  = 14
+        OUTPUT_BLOCK_WIDTH = 14
     elif "2_7" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH  = 7
+        OUTPUT_BLOCK_WIDTH = 7
     elif "4_5" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH  = 5
+        OUTPUT_BLOCK_WIDTH = 5
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH  = 4
+        OUTPUT_BLOCK_WIDTH = 4
 
     # schedule conv
     z_factor = 1
@@ -492,13 +492,13 @@ def _schedule_cl_spatialpack(s, op):
     thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
     thread_x = tvm.thread_axis((0, x_factor), "threadIdx.x")
     _, co, oh, ow, vc = s[conv].op.axis
-    ooh, ioh = s[conv].split(oh, factor = OUTPUT_BLOCK_HEIGHT)
-    oow, iow = s[conv].split(ow, factor = OUTPUT_BLOCK_WIDTH)
+    ooh, ioh = s[conv].split(oh, factor=OUTPUT_BLOCK_HEIGHT)
+    oow, iow = s[conv].split(ow, factor=OUTPUT_BLOCK_WIDTH)
     s[conv].reorder(_, co, ooh, oow, vc, ioh, iow)
-    coo, coi = s[conv].split(co, nparts = 1)
-    ooho, oohi = s[conv].split(ooh, factor = z_factor) 
-    oowo, oowi = s[conv].split(oow, factor = y_factor)
-    vco, vci = s[conv].split(vc, factor = x_factor)
+    coo, coi = s[conv].split(co, nparts=1)
+    ooho, oohi = s[conv].split(ooh, factor=z_factor) 
+    oowo, oowi = s[conv].split(oow, factor=y_factor)
+    vco, vci = s[conv].split(vc, factor=x_factor)
     s[conv].reorder(_, coo, vco, ooho, oowo, coi, oohi, oowi, vci, ioh, iow)
     s[conv].bind(oohi, thread_z)
     s[conv].bind(oowi, thread_y)
@@ -512,7 +512,7 @@ def _schedule_cl_spatialpack(s, op):
     i, oc, h, w, vc = s[conv_L].op.axis
     rc, ry, rx = s[conv_L].op.reduce_axis
     if in_channel == 2048:
-        rco, rci = s[conv_L].split(rc, nparts = 128)
+        rco, rci = s[conv_L].split(rc, nparts=128)
         s[conv_L].unroll(rci)
         s[conv_L].reorder(i, oc, rco, rci, ry, rx, vc, h, w)
         s[temp_W].compute_at(s[conv_L], rco)
@@ -525,7 +525,7 @@ def _schedule_cl_spatialpack(s, op):
 
     # schedule temp
     _, ci, h, w = s[temp].op.axis
-    tile_and_bind3d(s, temp, ci,  h, w, 1, 16, 16)
+    tile_and_bind3d(s, temp, ci, h, w, 1, 16, 16)
 
     # schedule temp_W
     _, ci, h, w = s[temp_W].op.axis
