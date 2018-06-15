@@ -4,7 +4,6 @@
 from __future__ import absolute_import as _abs
 
 import tvm
-import nnvm.symbol as sym
 
 from .. import generic
 from .. import util
@@ -39,6 +38,7 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
 
 @conv2d_alter_layout.register(["intel_gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos):
+    import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
 
     data = tinfos[0]
