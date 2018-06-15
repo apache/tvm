@@ -80,14 +80,7 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
 
   wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
 
-  // Depthwise Expects weights in
-  // NCHW : CNHW(IOHW) - Conversion is handled in frontend.
-  // NHWC : HWCN(HWIO) - Original format
-  if (param.layout == "NHWC") {
-    wshape[kernel_layout.indexof('I')] *= param.groups;
-  } else {
-    wshape[0] *= param.groups;
-  }
+  wshape[kernel_layout.indexof('O')] *= param.groups;
 
   NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
   if (param.use_bias) {

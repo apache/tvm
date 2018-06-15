@@ -83,7 +83,7 @@ def test_grouped_conv2d_nchw():
 def test_grouped_conv2d_nhwc():
     x = sym.Variable("x")
     y = sym.conv2d(x, channels=32, kernel_size=(3,3), groups=32,
-                   name="y", padding=(1,1), layout="NHWC", kernel_layout ='HWIO')
+                   name="y", padding=(1,1), layout="NHWC", kernel_layout ='HWOI')
     dtype = "float32"
     dshape = (1, 18, 18, 32)
     kshape = (3, 3, 32, 1)
