@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief l2 normalization op constructions
- * \file nn/l2_norm.h
+ * \file nn/l2_normalize.h
  */
-#ifndef TOPI_NN_L2_NORM_H_
-#define TOPI_NN_L2_NORM_H_
+#ifndef TOPI_NN_L2_NORMALIZE_H_
+#define TOPI_NN_L2_NORMALIZE_H_
 
 #include <string>
 #include <algorithm>
@@ -25,12 +25,12 @@ using namespace tvm;
 *
 * \return A Tensor whose op member is the l2 normalization operation
 */
-inline Tensor l2norm_instance(const Tensor& data,
+inline Tensor l2normalize_instance(const Tensor& data,
                               float eps,
                               const Array<Expr>& axis,
                               std::string name = "tensor",
-                              std::string tag = "l2norm") {
-  CHECK_EQ(data->shape.size(), 4) << "L2 norm requires 4-D input";
+                              std::string tag = "l2normalize") {
+  CHECK_EQ(data->shape.size(), 4) << "L2 normalization requires 4-D input";
   auto input_shape = data->shape;
   Tensor dot_value = pow(data, static_cast<float>(2.0));
   Tensor sum_value = topi::sum(dot_value, axis, true);
@@ -43,4 +43,4 @@ inline Tensor l2norm_instance(const Tensor& data,
 }
 }  // namespace nn
 }  // namespace topi
-#endif  // TOPI_NN_L2_NORM_H_
+#endif  // TOPI_NN_L2_NORMALIZE_H_

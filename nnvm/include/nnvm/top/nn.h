@@ -368,14 +368,14 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
   }
 };
 
-struct LrnParam : public dmlc::Parameter<LrnParam> {
+struct LRNParam : public dmlc::Parameter<LRNParam> {
   int size;
   int axis;
   float alpha;
   float beta;
   float bias;
 
-  DMLC_DECLARE_PARAMETER(LrnParam) {
+  DMLC_DECLARE_PARAMETER(LRNParam) {
     DMLC_DECLARE_FIELD(size)
       .describe("The size of the local region to be considered for normalization.");
     DMLC_DECLARE_FIELD(axis)
@@ -391,11 +391,11 @@ struct LrnParam : public dmlc::Parameter<LrnParam> {
   static const constexpr int kData = 0;
 };
 
-struct L2normParam : public dmlc::Parameter<L2normParam> {
-    float eps;
-    Tuple<int> axis;
+struct L2normalizeParam : public dmlc::Parameter<L2normalizeParam> {
+  float eps;
+  Tuple<int> axis;
 
-  DMLC_DECLARE_PARAMETER(L2normParam) {
+  DMLC_DECLARE_PARAMETER(L2normalizeParam) {
     DMLC_DECLARE_FIELD(eps)
       .describe("float type epsilon value.");
     DMLC_DECLARE_FIELD(axis)

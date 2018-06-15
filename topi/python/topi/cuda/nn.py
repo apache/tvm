@@ -25,14 +25,14 @@ def schedule_lrn(outs):
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.cuda.schedule_lrn(cpp_target, outs)
 
-@generic.schedule_l2norm.register(["cuda"])
-def schedule_l2norm(outs):
-    """Schedule for L2norm
+@generic.schedule_l2normalize.register(["cuda"])
+def schedule_l2normalize(outs):
+    """Schedule for L2normalize
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of L2norm
+          The computation graph description of L2normalize
           in the format of an array of tensors.
 
     Returns
@@ -42,4 +42,4 @@ def schedule_l2norm(outs):
     """
     target = tvm.target.current_target(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
-    return cpp.cuda.schedule_l2norm(cpp_target, outs)
+    return cpp.cuda.schedule_l2normalize(cpp_target, outs)

@@ -1,13 +1,12 @@
 """Test code for l2 normalization"""
-import os
 import numpy as np
 import tvm
 import topi
 import logging
 from topi.util import get_const_tuple
 
-def l2norm_instance_python(a_np, eps, axis=None):
-    """L2 norm operator in NCHW layout.
+def l2normalize_instance_python(a_np, eps, axis=None):
+    """L2 normalize operator in NCHW layout.
 
     Parameters
     ----------
@@ -21,26 +20,24 @@ def l2norm_instance_python(a_np, eps, axis=None):
 
     Returns
     -------
-    l2norm_out : np.ndarray
+    l2normalize_out : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    batch, axis1, axis2, axis3 = a_np.shape
-    sqr_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
-    sqrt_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
-    l2norm_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+    batch = a_np.shape[0]
     dot_value = np.power(a_np, 2.0)
     sqr_sum = np.sum(dot_value, axis, keepdims=True)
     sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
-    return np.divide(a_np, sqrt_sum)
+    l2normalize_out = np.divide(a_np, sqrt_sum)
+    return l2normalize_out
 
-def verify_l2norm(n, c, h, w, eps, axis=None):
+def verify_l2normalize(shape, eps, axis=None):
     '''Verify l2 normalization operator by comparing outputs from tvm and numpy implementation'''
-    A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.cpp.nn.l2norm_instance(A, eps, axis)
+    A = tvm.placeholder(shape, name='A')
+    B = topi.cpp.nn.l2normalize_instance(A, eps, axis)
     dtype = A.dtype
 
-    a_np = np.random.uniform(size=(n, c, h, w)).astype(dtype)
-    b_np = l2norm_instance_python(a_np, eps, axis)
+    a_np = np.random.uniform(size=shape).astype(dtype)
+    b_np = l2normalize_instance_python(a_np, eps, axis)
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -51,25 +48,25 @@ def verify_l2norm(n, c, h, w, eps, axis=None):
         if device == "llvm":
             s = topi.cpp.generic.default_schedule(target, [B], False)
         else:
-            s = topi.cpp.cuda.schedule_l2norm(target, [B])
+            s = topi.cpp.cuda.schedule_l2normalize(target, [B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-        func = tvm.build(s, [A, B], device, name="l2_norm")
+        func = tvm.build(s, [A, B], device, name="l2_normalize")
         func(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ['cuda', 'opencl', 'metal', 'rocm', 'llvm']:
         check_device(device)
 
-def test_l2_norm():
-    verify_l2norm(1, 3, 20, 20, 0.001)
-    verify_l2norm(1, 3, 20, 20, 0.001, (1,))
-    verify_l2norm(1, 3, 20, 20, 0.001, (1, 2))
-    verify_l2norm(1, 3, 20, 20, 0.001, (2, 3))
-    verify_l2norm(1, 3, 20, 20, 0.001, (0, 3))
-    verify_l2norm(1, 3, 20, 20, 0.001, (0, 2, 3))
+def test_l2_normalize():
+    verify_l2normalize((1, 3, 20, 20), 0.001)
+    verify_l2normalize((1, 3, 20, 20), 0.001, (1,))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (1, 2))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (2, 3))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (0, 3))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (0, 2, 3))
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    test_l2_norm()
+    test_l2_normalize()

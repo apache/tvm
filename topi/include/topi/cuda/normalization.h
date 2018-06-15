@@ -1,7 +1,7 @@
 /*!
 *  Copyright (c) 2018 by Contributors
 * \file cuda/normalization.h
-* \brief CUDA schedule for lrn and l2 normalization operations
+* \brief CUDA schedule for LRN and l2 normalization operations
 */
 #ifndef TOPI_CUDA_NORMALIZATION_H_
 #define TOPI_CUDA_NORMALIZATION_H_
@@ -59,7 +59,7 @@ inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
 *
 * \return A schedule for the given ops.
 */
-inline Schedule schedule_l2norm(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_l2normalize(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -69,7 +69,7 @@ inline Schedule schedule_l2norm(const Target &target, const Array<Tensor>& outs)
   std::function<void(Operation)> traverse;
   traverse = [&](const Operation& op) {
     // Inline all one-to-one-mapping operators except the last stage (output)
-    if (is_injective(op->tag) || op->tag == "l2norm") {
+    if (is_injective(op->tag) || op->tag == "l2normalize") {
       if (!detail::contains(s->outputs, op)) {
         s[op].compute_inline();
       }
@@ -90,13 +90,14 @@ inline Schedule schedule_l2norm(const Target &target, const Array<Tensor>& outs)
 
   traverse(outs[0]->op);
   int num_thread = 64;
-  Tensor l2norm = outs[0];
+  Tensor l2normalize = outs[0];
   IterVar block_x = tvm::thread_axis(Range(), "blockIdx.x");
   IterVar thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
   IterVar xto, xti;
-  s[l2norm].split_by_nparts(l2norm->op.as<ComputeOpNode>()->axis[1], num_thread, &xto, &xti);
-  s[l2norm].bind(l2norm->op.as<ComputeOpNode>()->axis[0], block_x);
-  s[l2norm].bind(xto, thread_x);
+  s[l2normalize].split_by_nparts(l2normalize->op.as<ComputeOpNode>()->axis[1],
+                                 num_thread, &xto, &xti);
+  s[l2normalize].bind(l2normalize->op.as<ComputeOpNode>()->axis[0], block_x);
+  s[l2normalize].bind(xto, thread_x);
   return s;
 }
 }  // namespace cuda

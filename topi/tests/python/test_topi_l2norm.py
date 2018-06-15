@@ -1,11 +1,11 @@
-"""Test code for L2 norm"""
+"""Test code for L2 normalization"""
 import numpy as np
 import tvm
 import topi
 from topi.util import get_const_tuple
 
-def l2norm_instance_python(a_np, eps, axis=None):
-    """L2 norm operator in NCHW layout.
+def l2normalize_instance_python(a_np, eps, axis=None):
+    """L2 normalize operator in NCHW layout.
 
     Parameters
     ----------
@@ -19,26 +19,24 @@ def l2norm_instance_python(a_np, eps, axis=None):
 
     Returns
     -------
-    l2norm_out : np.ndarray
+    l2normalize_out : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    batch, axis1, axis2, axis3 = a_np.shape
-    sqr_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
-    sqrt_sum = np.zeros(shape=(batch,)).astype(a_np.dtype)
-    l2norm_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
+    batch = a_np.shape[0]
     dot_value = np.power(a_np, 2.0)
     sqr_sum = np.sum(dot_value, axis, keepdims=True)
     sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
-    return np.divide(a_np, sqrt_sum)
+    l2normalize_out = np.divide(a_np, sqrt_sum)
+    return l2normalize_out
 
-def verify_l2norm(n, c, h, w, eps, axis=None):
+def verify_l2normalize(ishape, eps, axis=None):
 
-    A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.l2norm_instance(A, eps, axis)
+    A = tvm.placeholder(ishape, name='A')
+    B = topi.nn.l2normalize_instance(A, eps, axis)
     dtype = A.dtype
 
-    a_np = np.random.uniform(size=(n, c, h, w)).astype(dtype)
-    b_np = l2norm_instance_python(a_np, eps, axis)
+    a_np = np.random.uniform(size=ishape).astype(dtype)
+    b_np = l2normalize_instance_python(a_np, eps, axis)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -48,9 +46,9 @@ def verify_l2norm(n, c, h, w, eps, axis=None):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             if device == 'llvm':
-                s = topi.generic.schedule_l2norm([B])
+                s = topi.generic.schedule_l2normalize([B])
             else:
-                s = topi.cuda.schedule_l2norm([B])
+                s = topi.cuda.schedule_l2normalize([B])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -60,14 +58,14 @@ def verify_l2norm(n, c, h, w, eps, axis=None):
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
-def test_l2norm():
-    verify_l2norm(1, 3, 20, 20, 0.001)
-    verify_l2norm(1, 3, 20, 20, 0.001, (1,))
-    verify_l2norm(1, 3, 20, 20, 0.001, (1, 2))
-    verify_l2norm(1, 3, 20, 20, 0.001, (2, 3))
-    verify_l2norm(1, 3, 20, 20, 0.001, (0, 3))
-    verify_l2norm(1, 3, 20, 20, 0.001, (0, 2, 3))
+def test_l2normalize():
+    verify_l2normalize((1, 3, 20, 20), 0.001)
+    verify_l2normalize((1, 3, 20, 20), 0.001, (1,))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (1, 2))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (2, 3))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (0, 3))
+    verify_l2normalize((1, 3, 20, 20), 0.001, (0, 2, 3))
 
 
 if __name__ == "__main__":
-    test_l2norm()
+    test_l2normalize()

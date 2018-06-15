@@ -278,13 +278,13 @@ def schedule_lrn(outs):
     return cpp.generic.default_schedule(cpp_target, outs, False)
 
 @tvm.target.generic_func
-def schedule_l2norm(outs):
-    """Schedule for l2norm
+def schedule_l2normalize(outs):
+    """Schedule for l2normalize
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of l2norm
+          The computation graph description of l2normalize
           in the format of an array of tensors.
 
     Returns

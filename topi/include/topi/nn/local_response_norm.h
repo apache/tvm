@@ -39,7 +39,7 @@ inline Tensor lrn(const Tensor& data,
                   std::string tag = kBroadcast) {
   CHECK_EQ(data->shape.size(), 4) << "LRN requires 4-D input";
   CHECK_EQ(size % 2, 1) << "size should be odd number";
-  CHECK_EQ((axis - 1) && (axis - 3), 0) << "axis should be 1 or 3 for NCHW and NHWC";
+  CHECK(axis == 1 || axis == 3) << "axis should be 1 or 3 for NCHW and NHWC";
   auto input_shape = data->shape;
   Array<Expr> pad_before{ 0, 0, 0, 0};
   Array<Expr> pad_after{ 0, 0, 0, 0};

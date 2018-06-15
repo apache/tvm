@@ -13,7 +13,7 @@ def lrn_python(a_np, size, axis, bias, alpha, beta):
         4-D with shape [batch, in_channel, in_height, in_width]
 
     size : int
-        normalisation window size
+        normalization window size
 
     axis : int
         input data layout channel axis
@@ -22,21 +22,19 @@ def lrn_python(a_np, size, axis, bias, alpha, beta):
         offset to avoid dividing by 0. constant value
 
     alpha : float
-        contant valie
+        constant value
 
     beta : float
         exponent constant value
 
     Returns
     -------
-    b_np : np.ndarray
+    lrn_out : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     axis0, axis1, axis2, axis3 = a_np.shape
     radius = size // 2
     sqr_sum = np.zeros(shape=a_np.shape).astype(a_np.dtype)
-    sqr_sum_up = np.zeros(shape=a_np.shape).astype(a_np.dtype)
-    lrn_out = np.zeros(shape=a_np.shape).astype(a_np.dtype)
     def sum_dot_values(i, j, k, l):
         axis_size = a_np.shape[axis]
         if (axis == 1):
@@ -59,7 +57,8 @@ def lrn_python(a_np, size, axis, bias, alpha, beta):
                     sum_dot_values(i, j, k, l)
 
     sqr_sum_up = np.power((bias + (alpha * sqr_sum /size)), beta)
-    return np.divide(a_np, sqr_sum_up)
+    lrn_out = np.divide(a_np, sqr_sum_up)
+    return lrn_out
 
 def verify_lrn(shape, size, axis, bias, alpha, beta):
     A = tvm.placeholder(shape, name='A')

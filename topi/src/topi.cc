@@ -24,7 +24,7 @@
 #include <topi/nn/pooling.h>
 #include <topi/nn/softmax.h>
 #include <topi/nn/upsampling.h>
-#include <topi/nn/l2_norm.h>
+#include <topi/nn/l2_normalize.h>
 #include <topi/nn/local_response_norm.h>
 
 #include <topi/vision/reorg.h>
@@ -363,10 +363,10 @@ TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
   *rv = nn::log_softmax(args[0]);
   });
 
-/* Ops from nn/l2_norm.h */
-TVM_REGISTER_GLOBAL("topi.nn.l2norm_instance")
+/* Ops from nn/l2_normalize.h */
+TVM_REGISTER_GLOBAL("topi.nn.l2normalize_instance")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::l2norm_instance(args[0], static_cast<double>(args[1]), args[2]);
+  *rv = nn::l2normalize_instance(args[0], static_cast<double>(args[1]), args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.lrn")
@@ -459,9 +459,9 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
   *rv = topi::rocm::schedule_lrn(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.rocm.schedule_l2norm")
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_l2normalize")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_l2norm(args[0], args[1]);
+  *rv = topi::rocm::schedule_l2normalize(args[0], args[1]);
   });
 
 /* CUDA schedules */
@@ -515,9 +515,9 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")
   *rv = topi::cuda::schedule_lrn(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.cuda.schedule_l2norm")
+TVM_REGISTER_GLOBAL("topi.cuda.schedule_l2normalize")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_l2norm(args[0], args[1]);
+  *rv = topi::cuda::schedule_l2normalize(args[0], args[1]);
   });
 
 /*! \brief Builder function for instantiating schedules. */

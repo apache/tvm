@@ -712,9 +712,9 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 })
 .set_support_level(1);
 
-DMLC_REGISTER_PARAMETER(LrnParam);
+DMLC_REGISTER_PARAMETER(LRNParam);
 
-inline bool LrnInferShape(const nnvm::NodeAttrs& attrs,
+inline bool LRNInferShape(const nnvm::NodeAttrs& attrs,
                           std::vector<TShape>* in_shape,
                           std::vector<TShape>* out_shape) {
   TShape dshape = (*in_shape)[0];
@@ -727,19 +727,19 @@ inline bool LrnInferShape(const nnvm::NodeAttrs& attrs,
 NNVM_REGISTER_OP(lrn)
 .describe(R"code(LRN layer)code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tesndor", "Input data.")
-.set_attr_parser(ParamParser<LrnParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<LrnParam>)
+.set_attr_parser(ParamParser<LRNParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<LRNParam>)
 .set_num_inputs(1)
 .set_num_outputs(1)
-.set_attr<FInferShape>("FInferShape", LrnInferShape)
+.set_attr<FInferShape>("FInferShape", LRNInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1);
 
-DMLC_REGISTER_PARAMETER(L2normParam);
+DMLC_REGISTER_PARAMETER(L2normalizeParam);
 
-inline bool L2normInferShape(const nnvm::NodeAttrs& attrs,
-                          std::vector<TShape>* in_shape,
-                          std::vector<TShape>* out_shape) {
+inline bool L2normalizeInferShape(const nnvm::NodeAttrs& attrs,
+                                  std::vector<TShape>* in_shape,
+                                  std::vector<TShape>* out_shape) {
   TShape dshape = (*in_shape)[0];
   TShape oshape = dshape;
 
@@ -747,14 +747,14 @@ inline bool L2normInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-NNVM_REGISTER_OP(l2norm)
-.describe(R"code(L2NORM layer)code" NNVM_ADD_FILELINE)
+NNVM_REGISTER_OP(l2normalize)
+.describe(R"code(L2NORMALIZE layer)code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tesndor", "Input data.")
-.set_attr_parser(ParamParser<L2normParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<L2normParam>)
+.set_attr_parser(ParamParser<L2normalizeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<L2normalizeParam>)
 .set_num_inputs(1)
 .set_num_outputs(1)
-.set_attr<FInferShape>("FInferShape", L2normInferShape)
+.set_attr<FInferShape>("FInferShape", L2normalizeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1);
 

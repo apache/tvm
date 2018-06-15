@@ -1,7 +1,7 @@
 /*!
 *  Copyright (c) 2018 by Contributors
 * \file rocm/normalization.h
-* \brief rocm schedule for lrn and l2 normalization operations
+* \brief rocm schedule for LRN and l2 normalization operations
 */
 #ifndef TOPI_ROCM_NORMALIZATION_H_
 #define TOPI_ROCM_NORMALIZATION_H_
@@ -33,8 +33,8 @@ inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
 *
 * \return A schedule for the given ops.
 */
-inline Schedule schedule_l2norm(const Target &target, const Array<Tensor>& outs) {
-  return topi::cuda::schedule_l2norm(target, outs);
+inline Schedule schedule_l2normalize(const Target &target, const Array<Tensor>& outs) {
+  return topi::cuda::schedule_l2normalize(target, outs);
 }
 }  // namespace rocm
 }  // namespace topi
