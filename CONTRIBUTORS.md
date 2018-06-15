@@ -23,6 +23,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Masahiro Masuda](https://github.com/masahi)
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
 - [Eddie Yan](https://github.com/eqy)
+- [Joshua Z. Zhang](https://github.com/zhreshold)
 - [Lianmin Zheng](https://github.com/merrymercy)
 
 ## List of Contributors
