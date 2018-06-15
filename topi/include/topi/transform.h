@@ -336,9 +336,7 @@ inline Array<Tensor> split(const Tensor& x,
     for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
       shape.push_back(x->shape[i]);
     }
-    if (!squeeze_axis) {
-      shape.push_back(out_axis_size);
-    }
+    shape.push_back(out_axis_size);
     for (size_t i = axis + 1; i < x->shape.size(); ++i) {
       shape.push_back(x->shape[i]);
     }
@@ -347,25 +345,26 @@ inline Array<Tensor> split(const Tensor& x,
 
   Array<Tensor> result;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
-    result.push_back(
-      compute(
+      const Tensor& split_out = compute(
         out_shapes[i], [&](const Array<Var>& indices) {
           auto begin = begin_ids[i];
           Array<Expr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(indices[j]);
           }
-          if (!squeeze_axis) {
-            real_indices.push_back(indices[axis] + begin);
-          } else {
-            real_indices.push_back(begin);
-            real_indices.push_back(indices[axis]);
-          }
+          real_indices.push_back(indices[axis] + begin);
           for (size_t j = static_cast<size_t>(axis) + 1; j < indices.size(); ++j) {
             real_indices.push_back(indices[j]);
           }
           return x(real_indices);
-        }, name, tag));
+        }, name, tag);
+      if (squeeze_axis) {
+        Array<Expr> ae_axis;
+        ae_axis.push_back(axis);
+        result.push_back(squeeze(split_out, ae_axis));
+      } else {
+        result.push_back(split_out);
+      }
   }
 
   return result;

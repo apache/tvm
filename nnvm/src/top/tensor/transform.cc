@@ -327,7 +327,7 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
           << "squeeze_axis can be set to true only if input.shape[axis] == num_outputs";
       TShape new_oshape = TShape(oshape.ndim() - 1);
       int idx = 0;
-      for (int i = 0; i < oshape.ndim() - 1; i++) {
+      for (uint32_t i = 0; i < oshape.ndim() - 1; i++) {
         if (i == param.axis) continue;
         new_oshape[idx++] = oshape[i];
       }

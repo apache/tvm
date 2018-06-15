@@ -265,8 +265,8 @@ def concatenate(a_tuple, axis=0):
         return ret
     return tvm.compute(out_shape, _compute)
 
-
-@tvm.tag_scope(tag=tag.INJECTIVE)
+# Note: split should not be separated from __split.
+#       But, currently it is needed to avoid nested op_tag.
 def split(ary, indices_or_sections, axis=0, squeeze_axis=False):
     """Split an array into multiple sub-arrays.
 
@@ -284,11 +284,29 @@ def split(ary, indices_or_sections, axis=0, squeeze_axis=False):
     -------
     ret : tuple of tvm.Tensor
     """
+    split_outs = __split(ary, indices_or_sections, axis)
+    if squeeze_axis:
+        return [squeeze(split_out, axis) for split_out in split_outs]
+    return split_outs
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def __split(ary, indices_or_sections, axis=0):
+    """Split an array into multiple sub-arrays.
+
+    Parameters
+    ----------
+    ary : tvm.Tensor
+
+    indices_or_sections : int or 1-D array
+
+    axis : int
+
+    Returns
+    -------
+    ret : tuple of tvm.Tensor
+    """
     def _compute(begin, *indices):
-        if squeeze_axis:
-            real_indices = indices[:axis] + (begin, ) + (indices[axis], ) + indices[axis + 1:]
-        else:
-            real_indices = indices[:axis] + (indices[axis] + begin, ) + indices[axis + 1:]
+        real_indices = indices[:axis] + (indices[axis] + begin, ) + indices[axis + 1:]
         return ary(*real_indices)
 
     if axis < 0:
@@ -311,18 +329,13 @@ def split(ary, indices_or_sections, axis=0, squeeze_axis=False):
             out_axis_size = src_axis_size - begin_ids[i]
         else:
             out_axis_size = begin_ids[i + 1] - begin_ids[i]
-        if squeeze_axis:
-            out_axis = []
-        else:
-            out_axis = [out_axis_size]
-        out_shapes.append([ary.shape[i] for i in range(axis)] + out_axis +\
+        out_shapes.append([ary.shape[i] for i in range(axis)] + [out_axis_size] +\
                           [ary.shape[i] for i in range(axis + 1, len(ary.shape))])
     # pylint: disable=cell-var-from-loop
     return [tvm.compute(out_shape,
                         lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
             for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]
     # pylint: enable=cell-var-from-loop
-
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
 def take(a, indices, axis=None):
