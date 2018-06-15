@@ -52,6 +52,7 @@ tvm_option(USE_RANDOM "Build with random support" OFF)
 
 # include directories
 include_directories(BEFORE "nnvm/include")
+
 include_directories("include")
 include_directories("HalideIR/src")
 include_directories("dlpack/include")
@@ -87,9 +88,8 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp" "nnvm/src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h" "HalideIR/src/*.h"
-                                "nnvm/src/*.h" "nnvm/include/*.h")
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp")
+FILE(GLOB_RECURSE GROUP_Include "src/*.h" "include/*.h" "HalideIR/src/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
@@ -110,14 +110,7 @@ if(NOT MSVC)
   list(APPEND COMPILER_SRCS ${COMPILER_VERILOG_SRCS})
 endif()
 
-file(GLOB_RECURSE NNVM_COMPILER_SRCS
-    nnvm/src/c_api/*.cc
-    nnvm/src/core/*.cc
-    nnvm/src/pass/*.cc
-    nnvm/src/compiler/*.cc
-    nnvm/src/top/*.cc
-    )
-
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/topi/include)
 file(GLOB TOPI_SRCS
     topi/src/*.cc
 )
@@ -237,18 +230,13 @@ if (INSTALL_DEV)
     DIRECTORY "dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
-    )
-  install(
-    DIRECTORY "nnvm/include/." DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-    )
+  )
 else(INSTALL_DEV)
   install(
     DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
-    )
+  )
 endif(INSTALL_DEV)
 
 # More target definitions
@@ -257,5 +245,4 @@ if(MSVC)
   target_compile_definitions(tvm_runtime PRIVATE -DHalide_EXPORTS)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
-  target_compile_definitions(nnvm_compiler PRIVATE -DNNVM_EXPORTS)
 endif()
