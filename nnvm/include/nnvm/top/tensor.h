@@ -36,6 +36,7 @@ struct SplitParam : public dmlc::Parameter<SplitParam> {
   // numpy convention, only support indices, not support list.
   Tuple<int> indices_or_sections;
   int axis;
+  bool squeeze_axis;
   // additional hint whether it is equal_split mode
   // deduced from indices_or_sections
   bool equal_split;
@@ -45,6 +46,8 @@ struct SplitParam : public dmlc::Parameter<SplitParam> {
         .describe("Number of outputs to be splitted");
     DMLC_DECLARE_FIELD(axis).set_lower_bound(0).set_default(1)
         .describe("the axis to be splitted.");
+    DMLC_DECLARE_FIELD(squeeze_axis).set_default(false)
+        .describe("whether output is squeezed at the axis.");
   }
 };
 

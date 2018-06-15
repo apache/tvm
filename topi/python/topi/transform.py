@@ -267,7 +267,7 @@ def concatenate(a_tuple, axis=0):
 
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
-def split(ary, indices_or_sections, axis=0):
+def split(ary, indices_or_sections, axis=0, squeeze_axis=False):
     """Split an array into multiple sub-arrays.
 
     Parameters
@@ -278,12 +278,17 @@ def split(ary, indices_or_sections, axis=0):
 
     axis : int
 
+    squeeze_axis : bool
+
     Returns
     -------
     ret : tuple of tvm.Tensor
     """
     def _compute(begin, *indices):
-        real_indices = indices[:axis] + (indices[axis] + begin, ) + indices[axis + 1:]
+        if squeeze_axis:
+            real_indices = indices[:axis] + (begin, ) + (indices[axis], ) + indices[axis + 1:]
+        else:
+            real_indices = indices[:axis] + (indices[axis] + begin, ) + indices[axis + 1:]
         return ary(*real_indices)
 
     if axis < 0:
@@ -306,7 +311,11 @@ def split(ary, indices_or_sections, axis=0):
             out_axis_size = src_axis_size - begin_ids[i]
         else:
             out_axis_size = begin_ids[i + 1] - begin_ids[i]
-        out_shapes.append([ary.shape[i] for i in range(axis)] + [out_axis_size] +\
+        if squeeze_axis:
+            out_axis = []
+        else:
+            out_axis = [out_axis_size]
+        out_shapes.append([ary.shape[i] for i in range(axis)] + out_axis +\
                           [ary.shape[i] for i in range(axis + 1, len(ary.shape))])
     # pylint: disable=cell-var-from-loop
     return [tvm.compute(out_shape,

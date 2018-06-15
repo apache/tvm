@@ -297,6 +297,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
 * \param split_indices The indices to split the input at. This must be in ascending
 * order.
 * \param axis The axis to split along.
+* \param squeeze_axis The flag whether the output is squeezed at the axis or not.
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *
@@ -305,6 +306,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
 inline Array<Tensor> split(const Tensor& x,
                            Array<Expr> split_indices,
                            int axis,
+                           bool squeeze_axis = false,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
   if (axis < 0) {
@@ -330,16 +332,16 @@ inline Array<Tensor> split(const Tensor& x,
     } else {
       out_axis_size = begin_ids[i + 1] - begin_ids[i];
     }
-
     Array<Expr> shape;
     for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
       shape.push_back(x->shape[i]);
     }
-    shape.push_back(out_axis_size);
+    if (!squeeze_axis) {
+      shape.push_back(out_axis_size);
+    }
     for (size_t i = axis + 1; i < x->shape.size(); ++i) {
       shape.push_back(x->shape[i]);
     }
-
     out_shapes.push_back(shape);
   }
 
@@ -353,11 +355,15 @@ inline Array<Tensor> split(const Tensor& x,
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(indices[j]);
           }
-          real_indices.push_back(indices[axis] + begin);
-          for (size_t j = axis + 1; j < indices.size(); ++j) {
+          if (!squeeze_axis) {
+            real_indices.push_back(indices[axis] + begin);
+          } else {
+            real_indices.push_back(begin);
+            real_indices.push_back(indices[axis]);
+          }
+          for (size_t j = static_cast<size_t>(axis) + 1; j < indices.size(); ++j) {
             real_indices.push_back(indices[j]);
           }
-
           return x(real_indices);
         }, name, tag));
   }
@@ -453,6 +459,7 @@ inline Tensor strided_slice(const Tensor& x,
 * \param num_sections The number of sections to split the tensor into.
 * this must be an integer factor of the size of the axis being split.
 * \param axis The axis to split along.
+* \param squeeze_axis The flag whether the output is squeezed at the axis or not.
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *
@@ -461,6 +468,7 @@ inline Tensor strided_slice(const Tensor& x,
 inline Array<Tensor> split_sections(const Tensor& x,
                            int num_sections,
                            int axis,
+                           bool squeeze_axis = false,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
@@ -479,7 +487,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
     }
   }
 
-  return split(x, split_indices, axis, name, tag);
+  return split(x, split_indices, axis, squeeze_axis, name, tag);
 }
 
 /*!
