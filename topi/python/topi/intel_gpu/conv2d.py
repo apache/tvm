@@ -372,7 +372,7 @@ def schedule_conv2d_nchw(outs):
 
     traverse(outs[0].op)
     return s
- 
+
 def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float16'):
     batch, in_channel, in_height, in_width = [util.get_const_int(x) for x in data.shape]
     num_filter, channel, kernel_h, kernel_w = [util.get_const_int(x) for x in kernel.shape]
@@ -496,7 +496,7 @@ def _schedule_cl_spatialpack(s, op):
     oow, iow = s[conv].split(ow, factor=OUTPUT_BLOCK_WIDTH)
     s[conv].reorder(_, co, ooh, oow, vc, ioh, iow)
     coo, coi = s[conv].split(co, nparts=1)
-    ooho, oohi = s[conv].split(ooh, factor=z_factor) 
+    ooho, oohi = s[conv].split(ooh, factor=z_factor)
     oowo, oowi = s[conv].split(oow, factor=y_factor)
     vco, vci = s[conv].split(vc, factor=x_factor)
     s[conv].reorder(_, coo, vco, ooho, oowo, coi, oohi, oowi, vci, ioh, iow)
