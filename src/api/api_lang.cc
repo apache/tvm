@@ -76,63 +76,108 @@ TVM_REGISTER_API("_ArraySize")
 TVM_REGISTER_API("_Map")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK_EQ(args.size() % 2, 0);
-    MapNode::ContainerType data;
-    for (int i = 0; i < args.num_args; i += 2) {
-      CHECK(args[i].type_code() == kNodeHandle)
-          << "need content of array to be NodeBase";
-      CHECK(args[i + 1].type_code() == kNodeHandle)
-          << "need content of array to be NodeBase";
-      data.emplace(std::make_pair(args[i].node_sptr(),
-                                  args[i + 1].node_sptr()));
+    if (args.size() != 0 && args[0].type_code() == kStr) {
+      // StrMap
+      StrMapNode::ContainerType data;
+      for (int i = 0; i < args.num_args; i += 2) {
+        CHECK(args[i].type_code() == kStr)
+            << "key of str map need to be str";
+        CHECK(args[i + 1].type_code() == kNodeHandle)
+            << "value of the map to be NodeRef";
+        data.emplace(std::make_pair(args[i].operator std::string(),
+                                    args[i + 1].node_sptr()));
+      }
+      auto node = std::make_shared<StrMapNode>();
+      node->data = std::move(data);
+      *ret = node;
+    } else {
+      // Container node.
+      MapNode::ContainerType data;
+      for (int i = 0; i < args.num_args; i += 2) {
+        CHECK(args[i].type_code() == kNodeHandle)
+            << "key of str map need to be str";
+        CHECK(args[i + 1].type_code() == kNodeHandle)
+            << "value of map to be NodeRef";
+        data.emplace(std::make_pair(args[i].node_sptr(),
+                                    args[i + 1].node_sptr()));
+      }
+      auto node = std::make_shared<MapNode>();
+      node->data = std::move(data);
+      *ret = node;
     }
-    auto node = std::make_shared<MapNode>();
-    node->data = std::move(data);
-    *ret = node;
   });
 
 TVM_REGISTER_API("_MapSize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     auto& sptr = args[0].node_sptr();
-    CHECK(sptr->is_type<MapNode>());
-    auto* n = static_cast<const MapNode*>(sptr.get());
-    *ret = static_cast<int64_t>(n->data.size());
+    if (sptr->is_type<MapNode>()) {
+      auto* n = static_cast<const MapNode*>(sptr.get());
+      *ret = static_cast<int64_t>(n->data.size());
+    } else {
+      CHECK(sptr->is_type<StrMapNode>());
+      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      *ret = static_cast<int64_t>(n->data.size());
+    }
   });
 
 TVM_REGISTER_API("_MapGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK(args[0].type_code() == kNodeHandle);
-    CHECK(args[1].type_code() == kNodeHandle);
     auto& sptr = args[0].node_sptr();
-    CHECK(sptr->is_type<MapNode>());
-    auto* n = static_cast<const MapNode*>(sptr.get());
-    auto it = n->data.find(args[1].node_sptr());
-    CHECK(it != n->data.end())
-        << "cannot find the corresponding key in the Map";
-    *ret = (*it).second;
+    if (sptr->is_type<MapNode>()) {
+      CHECK(args[1].type_code() == kNodeHandle);
+      auto* n = static_cast<const MapNode*>(sptr.get());
+      auto it = n->data.find(args[1].node_sptr());
+      CHECK(it != n->data.end())
+          << "cannot find the corresponding key in the Map";
+      *ret = (*it).second;
+    } else {
+      CHECK(sptr->is_type<StrMapNode>());
+      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      auto it = n->data.find(args[1].operator std::string());
+      CHECK(it != n->data.end())
+          << "cannot find the corresponding key in the Map";
+      *ret = (*it).second;
+    }
   });
 
 TVM_REGISTER_API("_MapCount")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK(args[0].type_code() == kNodeHandle);
-    CHECK(args[1].type_code() == kNodeHandle);
     auto& sptr = args[0].node_sptr();
-    CHECK(sptr->is_type<MapNode>());
-    auto* n = static_cast<const MapNode*>(sptr.get());
-    *ret = static_cast<int64_t>(
-        n->data.count(args[1].node_sptr()));
+    if (sptr->is_type<MapNode>()) {
+      auto* n = static_cast<const MapNode*>(sptr.get());
+      CHECK(args[1].type_code() == kNodeHandle);
+      *ret = static_cast<int64_t>(
+          n->data.count(args[1].node_sptr()));
+    } else {
+      CHECK(sptr->is_type<StrMapNode>());
+      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      *ret = static_cast<int64_t>(
+          n->data.count(args[1].operator std::string()));
+    }
   });
 
 TVM_REGISTER_API("_MapItems")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     auto& sptr = args[0].node_sptr();
-    CHECK(sptr->is_type<MapNode>());
-    auto* n = static_cast<const MapNode*>(sptr.get());
-    auto rkvs = std::make_shared<ArrayNode>();
-    for (const auto& kv : n->data) {
-      rkvs->data.push_back(kv.first);
-      rkvs->data.push_back(kv.second);
+    if (sptr->is_type<MapNode>()) {
+      auto* n = static_cast<const MapNode*>(sptr.get());
+      auto rkvs = std::make_shared<ArrayNode>();
+      for (const auto& kv : n->data) {
+        rkvs->data.push_back(kv.first);
+        rkvs->data.push_back(kv.second);
+      }
+      *ret = rkvs;
+    } else {
+      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      auto rkvs = std::make_shared<ArrayNode>();
+      for (const auto& kv : n->data) {
+        rkvs->data.push_back(ir::StringImm::make(kv.first).node_);
+        rkvs->data.push_back(kv.second);
+      }
+      *ret = rkvs;
     }
-    *ret = rkvs;
   });
 
 TVM_REGISTER_API("Range")

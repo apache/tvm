@@ -60,6 +60,25 @@ struct NodeTypeChecker<Array<T> > {
   }
 };
 
+template<typename V>
+struct NodeTypeChecker<Map<std::string, V> > {
+  static inline bool Check(Node* sptr) {
+    if (sptr == nullptr) return false;
+    if (!sptr->is_type<StrMapNode>()) return false;
+    StrMapNode* n = static_cast<StrMapNode*>(sptr);
+    for (const auto& kv : n->data) {
+      if (!NodeTypeChecker<V>::Check(kv.second.get())) return false;
+    }
+    return true;
+  }
+  static inline void PrintName(std::ostringstream& os) { // NOLINT(*)
+    os << "map<string";
+    os << ',';
+    NodeTypeChecker<V>::PrintName(os);
+    os << '>';
+  }
+};
+
 template<typename K, typename V>
 struct NodeTypeChecker<Map<K, V> > {
   static inline bool Check(Node* sptr) {
