@@ -232,7 +232,8 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     }
   }
   Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, compute->tag, new_axis, body_list);
+      compute->name + "." + scope, compute->tag, compute->attrs,
+      new_axis, body_list);
   Array<Tensor> cache_tensor_list;
   Array<Expr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
@@ -241,7 +242,8 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     cache_expr_list.push_back(cache_tensor(args));
   }
   Operation orig_new_op = ComputeOpNode::make(
-      compute->name, compute->tag, compute->axis, cache_expr_list);
+      compute->name, compute->tag, compute->attrs,
+      compute->axis, cache_expr_list);
   // The replace of the dataflow
   std::unordered_map<Tensor, Tensor> vmap;
   std::unordered_map<Tensor, Tensor> rvmap;
@@ -430,7 +432,8 @@ void InjectInline(ScheduleNode* sch) {
       Operation op = s->op;
       if (changed[i]) {
         op = ComputeOpNode::make(
-            compute->name, compute->tag, compute->axis, new_body[i]);
+            compute->name, compute->tag, compute->attrs,
+            compute->axis, new_body[i]);
       }
       op = op->ReplaceInputs(op, repl);
       if (!op.same_as(s->op)) {
