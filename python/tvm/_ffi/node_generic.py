@@ -13,11 +13,13 @@ def _set_class_node_base(cls):
     global _CLASS_NODE_BASE
     _CLASS_NODE_BASE = cls
 
+
 class NodeGeneric(object):
     """Base class for all classes that can be converted to node."""
     def asnode(self):
         """Convert value to node"""
         raise NotImplementedError()
+
 
 def convert_to_node(value):
     """Convert a python value to corresponding node type.
@@ -46,7 +48,8 @@ def convert_to_node(value):
     elif isinstance(value, dict):
         vlist = []
         for item in value.items():
-            if not isinstance(item[0], _CLASS_NODE_BASE):
+            if (not isinstance(item[0], _CLASS_NODE_BASE) and
+                    not isinstance(item[0], string_types)):
                 raise ValueError("key of map must already been a container type")
             vlist.append(item[0])
             vlist.append(convert_to_node(item[1]))
@@ -55,6 +58,7 @@ def convert_to_node(value):
         return value.asnode()
     else:
         raise ValueError("don't know how to convert type %s to node" % type(value))
+
 
 def const(value, dtype=None):
     """Construct a constant value for a given type.
