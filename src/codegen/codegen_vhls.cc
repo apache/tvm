@@ -81,6 +81,9 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
     cg.AddFunction(f);
   }
   std::string code = cg.Finish();
+  if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
+    code = (*f)(code).operator std::string();
+  }
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
