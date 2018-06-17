@@ -1,3 +1,4 @@
+import json
 import tvm
 
 @tvm.tag_scope(tag="conv")
@@ -25,7 +26,7 @@ def test_with():
     with tvm.tag_scope(tag="gemm"):
         k = tvm.reduce_axis((0, l), name='k')
         C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k),
-                        attrs={"hello" : 1})
+                        attrs={"hello" : 1, "arr": [10, 12]})
 
     assert C.op.tag == 'gemm'
     assert "hello" in C.op.attrs
@@ -33,6 +34,9 @@ def test_with():
     assert C.op.attrs["hello"].value == 1
     CC = tvm.load_json(tvm.save_json(C))
     assert CC.op.attrs["hello"].value == 1
+    assert CC.op.attrs["arr"][0].value == 10
+    # str format happened to be json compatible
+    assert json.loads(str(CC.op.attrs))["arr"][1] == 12
 
 
 def test_decorator():
@@ -68,5 +72,6 @@ def test_nested():
 
 
 if __name__ == "__main__":
-    import nose
-    nose.runmodule()
+    test_with()
+    test_decorator()
+    test_nested()

@@ -67,7 +67,7 @@ Tensor compute(Array<Expr> shape,
                FCompute fcompute,
                std::string name,
                std::string tag,
-               Map<std::string, Expr> attrs) {
+               Map<std::string, NodeRef> attrs) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -89,7 +89,7 @@ Array<Tensor> compute(Array<Expr> shape,
                       FBatchCompute fcompute,
                       std::string name,
                       std::string tag,
-                      Map<std::string, Expr> attrs) {
+                      Map<std::string, NodeRef> attrs) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -113,7 +113,7 @@ Array<Tensor> compute(Array<Expr> shape,
 
 Operation ComputeOpNode::make(std::string name,
                               std::string tag,
-                              Map<std::string, Expr> attrs,
+                              Map<std::string, NodeRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
   auto n = std::make_shared<ComputeOpNode>();

@@ -38,7 +38,7 @@ Array<Expr> ExternOpNode::output_shape(size_t i) const {
 
 Operation ExternOpNode::make(std::string name,
                              std::string tag,
-                             Map<std::string, Expr> attrs,
+                             Map<std::string, NodeRef> attrs,
                              Array<Tensor> inputs,
                              Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders,

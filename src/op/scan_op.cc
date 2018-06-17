@@ -45,7 +45,7 @@ Array<Expr> ScanOpNode::output_shape(size_t i) const {
 
 Operation ScanOpNode::make(std::string name,
                            std::string tag,
-                           Map<std::string, Expr> attrs,
+                           Map<std::string, NodeRef> attrs,
                            IterVar axis,
                            Array<Tensor> init,
                            Array<Tensor> update,
@@ -104,7 +104,7 @@ Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> inputs,
                    std::string name,
                    std::string tag,
-                   Map<std::string, Expr> attrs) {
+                   Map<std::string, NodeRef> attrs) {
   IterVar scan_axis =
       IterVarNode::make(
           Range::make_by_min_extent(
