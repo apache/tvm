@@ -262,7 +262,8 @@ TVM_REGISTER_API("_ComputeOp")
     *ret = ComputeOpNode::make(args[0],
                                args[1],
                                args[2],
-                               args[3]);
+                               args[3],
+                               args[4]);
   });
 
 TVM_REGISTER_API("_ScanOp")
@@ -273,7 +274,8 @@ TVM_REGISTER_API("_ScanOp")
                             args[3],
                             args[4],
                             args[5],
-                            args[6]);
+                            args[6],
+                            args[7]);
   });
 
 TVM_REGISTER_API("_ExternOp")
@@ -283,7 +285,8 @@ TVM_REGISTER_API("_ExternOp")
                               args[2],
                               args[3],
                               args[4],
-                              args[5]);
+                              args[5],
+                              args[6]);
   });
 
 TVM_REGISTER_API("_OpGetOutput")

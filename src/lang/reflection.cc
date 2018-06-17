@@ -84,6 +84,11 @@ class NodeIndexer : public AttrVisitor {
         MakeIndex(kv.first.get());
         MakeIndex(kv.second.get());
       }
+    } else if (node->is_type<StrMapNode>()) {
+      StrMapNode* n = static_cast<StrMapNode*>(node);
+      for (const auto& kv : n->data) {
+        MakeIndex(kv.second.get());
+      }
     } else {
       node->VisitAttrs(this);
     }
@@ -99,6 +104,8 @@ struct JSONNode {
   std::string type_key;
   // the attributes
   AttrMap attrs;
+  // container keys
+  std::vector<std::string> keys;
   // container data
   std::vector<size_t> data;
 
@@ -107,6 +114,9 @@ struct JSONNode {
     writer->WriteObjectKeyValue("type_key", type_key);
     if (attrs.size() != 0) {
       writer->WriteObjectKeyValue("attrs", attrs);
+    }
+    if (keys.size() != 0) {
+      writer->WriteObjectKeyValue("keys", keys);
     }
     if (data.size() != 0) {
       writer->WriteObjectKeyValue("data", data);
@@ -121,6 +131,7 @@ struct JSONNode {
     dmlc::JSONObjectReadHelper helper;
     helper.DeclareOptionalField("type_key", &type_key);
     helper.DeclareOptionalField("attrs", &attrs);
+    helper.DeclareOptionalField("keys", &keys);
     helper.DeclareOptionalField("data", &data);
     helper.ReadAllFields(reader);
   }
@@ -176,10 +187,16 @@ class JSONAttrGetter : public AttrVisitor {
       }
     } else if (node->is_type<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      std::vector<std::pair<size_t, size_t> > elems;
       for (const auto& kv : n->data) {
         node_->data.push_back(
             node_index_->at(kv.first.get()));
+        node_->data.push_back(
+            node_index_->at(kv.second.get()));
+      }
+    } else if (node->is_type<StrMapNode>()) {
+      StrMapNode* n = static_cast<StrMapNode*>(node);
+      for (const auto& kv : n->data) {
+        node_->keys.push_back(kv.first);
         node_->data.push_back(
             node_index_->at(kv.second.get()));
       }
@@ -256,6 +273,13 @@ class JSONAttrSetter : public AttrVisitor {
         n->data[node_list_->at(node_->data[i])]
             = node_list_->at(node_->data[i + 1]);
       }
+    } else if (node->is_type<StrMapNode>()) {
+      StrMapNode* n = static_cast<StrMapNode*>(node);
+      CHECK_EQ(node_->data.size(), node_->keys.size());
+      for (size_t i = 0; i < node_->data.size(); ++i) {
+        n->data[node_->keys[i]]
+            = node_list_->at(node_->data[i]);
+      }
     } else {
       node->VisitAttrs(this);
     }
@@ -302,7 +326,7 @@ struct JSONGraph {
       getter.Get(n);
       g.nodes.emplace_back(std::move(jnode));
     }
-    g.attrs["tvm_version"] = "0.1.0";
+    g.attrs["tvm_version"] = TVM_VERSION;
     g.root = indexer.node_index.at(root.node_.get());
     return g;
   }
