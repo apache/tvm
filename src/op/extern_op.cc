@@ -38,23 +38,25 @@ Array<Expr> ExternOpNode::output_shape(size_t i) const {
 
 Operation ExternOpNode::make(std::string name,
                              std::string tag,
+                             Map<std::string, NodeRef> attrs,
                              Array<Tensor> inputs,
                              Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders,
                              Stmt body) {
   auto n = std::make_shared<ExternOpNode>();
-  n->name = name;
-  n->tag = tag;
+  n->name = std::move(name);
+  n->tag = std::move(tag);
+  n->attrs = std::move(attrs);
   CHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
     CHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
     CHECK(inputs[i]->shape.same_as(input_placeholders[i]->shape));
     CHECK_EQ(input_placeholders[i]->strides.size(), 0U);
   }
-  n->inputs = inputs;
-  n->input_placeholders = input_placeholders;
-  n->output_placeholders = output_placeholders;
-  n->body = body;
+  n->inputs = std::move(inputs);
+  n->input_placeholders = std::move(input_placeholders);
+  n->output_placeholders = std::move(output_placeholders);
+  n->body = std::move(body);
   return Operation(n);
 }
 

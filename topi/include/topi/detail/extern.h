@@ -6,10 +6,10 @@
 #ifndef TOPI_DETAIL_EXTERN_H_
 #define TOPI_DETAIL_EXTERN_H_
 
+#include <tvm/tvm.h>
 #include <vector>
 #include <string>
 
-#include "tvm/tvm.h"
 
 namespace topi {
 namespace detail {
@@ -25,8 +25,8 @@ using namespace tvm;
  * \return The Buffer object
  */
 inline Buffer DeclExternBuffer(Array<Expr> shape,
-                        Type dtype,
-                        std::string name) {
+                               Type dtype,
+                               std::string name) {
   auto data = var(name, Handle());
   auto elem_offset = Expr();
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
@@ -51,17 +51,19 @@ using FExtern = std::function<Expr(Array<Buffer>, Array<Buffer>)>;
  * the external function given the input and output buffers.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
+ * \param attrs The additional auxiliary attributes of the operation.
  *
  * \return An array of Tensors representing the outputs of the function invocation. There will
  * be one output Tensor for each element of out_shapes, with dtype equal to the corresponding
  * element of out_types.
  */
 inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
-                          const std::vector<Type>& out_types,
-                          const Array<Tensor>& inputs,
-                          FExtern fextern,
-                          std::string name,
-                          std::string tag) {
+                                 const std::vector<Type>& out_types,
+                                 const Array<Tensor>& inputs,
+                                 FExtern fextern,
+                                 std::string name,
+                                 std::string tag,
+                                 ::tvm::Map<std::string, NodeRef> attrs) {
   CHECK_EQ(out_shapes.size(), out_types.size())
     << "make_extern: out_shapes and out_types must have equal size";
 
@@ -78,7 +80,8 @@ inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
   auto body_stmt = tvm::ir::Evaluate::make(body);
 
   auto op = ExternOpNode::make(
-    name, tag, inputs, input_placeholders, output_placeholders, body_stmt);
+      name, tag, attrs, inputs,
+      input_placeholders, output_placeholders, body_stmt);
 
   Array<Tensor> outputs;
   for (size_t i = 0; i < output_placeholders.size(); ++i) {
