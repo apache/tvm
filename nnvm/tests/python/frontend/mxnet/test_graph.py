@@ -32,6 +32,18 @@ def test_resnet():
         nnvm_sym = model_zoo.nnvm_resnet[n]
         compare_graph(from_mx_sym, nnvm_sym)
 
+def test_dqn():
+    mx_sym = model_zoo.mx_dqn
+    from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
+    nnvm_sym = model_zoo.nnvm_dqn
+    compare_graph(from_mx_sym, nnvm_sym)
+
+def test_dcgan():
+    mx_sym = model_zoo.mx_dcgan
+    from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
+    nnvm_sym = model_zoo.nnvm_dcgan
+    compare_graph(from_mx_sym, nnvm_sym)
+
 def test_multi_outputs():
     def compose(F, **kwargs):
         x = F.sym.Variable('x')
@@ -48,3 +60,5 @@ if __name__ == '__main__':
     test_vgg()
     test_resnet()
     test_multi_outputs()
+    test_dqn()
+    test_dcgan()
