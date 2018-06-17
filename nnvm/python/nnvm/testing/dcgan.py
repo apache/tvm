@@ -72,7 +72,7 @@ def get_workload(batch_size, oshape=(3, 32, 32), ngf=128, random_len=100, dtype=
         The batch size used in the model
     oshape : tuple, optional
         The shape of output image, layout="CHW"
-    ngf: int
+    ngf: int, optional
         The number of final feature maps in the generator
     random_len : int, optional
         The length of random input
