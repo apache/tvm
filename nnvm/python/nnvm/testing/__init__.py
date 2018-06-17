@@ -7,4 +7,6 @@ from . import mobilenet
 from . import mlp
 from . import resnet
 from . import vgg
+from . import dqn
+from . import dcgan
 from . import yolo2_detection

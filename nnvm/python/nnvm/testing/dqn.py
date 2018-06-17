@@ -57,6 +57,7 @@ def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="flo
         The input image shape
     dtype : str, optional
         The data type
+
     Returns
     -------
     net : nnvm.symbol
