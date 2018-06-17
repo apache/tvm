@@ -27,6 +27,7 @@ from .. import symbol as sym
 from . utils import create_workload
 
 def get_symbol(num_actions=18):
+    """get symbol of nature dqn"""
     data = sym.Variable(name='data')
     net = sym.conv2d(data, kernel_size=(8, 8), strides=(4, 4), padding=(0, 0),
                      channels=32, name='conv1')
@@ -46,7 +47,8 @@ def get_symbol(num_actions=18):
 
 
 def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="float32"):
-    """Get benchmark workload for a simple multilayer perceptron
+    """Get benchmark workload for a Deep Q Network
+
     Parameters
     ----------
     batch_size : int

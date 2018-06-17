@@ -1,3 +1,4 @@
+# pylint: disable=unused-argument
 """
 Symbol of the generator of DCGAN
 
@@ -32,6 +33,7 @@ def deconv2d(data, ishape, oshape, kshape, name, stride=(2, 2)):
     return net
 
 def deconv2d_bn_relu(data, prefix, **kwargs):
+    """a block of deconv + batch norm + relu"""
     eps = 1e-5 + 1e-12
     net = deconv2d(data, name="%s_deconv" % prefix, **kwargs)
     net = sym.batch_norm(net, epsilon=eps, name="%s_bn" % prefix)
@@ -39,6 +41,7 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
     return net
 
 def get_symbol(oshape, ngf=128, code=None):
+    """get symbol of dcgan generator"""
     assert oshape[-1] == 32, "Only support 32x32 image"
     assert oshape[-2] == 32, "Only support 32x32 image"
 
@@ -61,17 +64,18 @@ def get_symbol(oshape, ngf=128, code=None):
 
 
 def get_workload(batch_size, oshape=(3, 32, 32), ngf=128, random_len=100, dtype="float32"):
-    """Get benchmark workload for a simple multilayer perceptron
+    """Get benchmark workload for a DCGAN generator
 
     Parameters
     ----------
     batch_size : int
         The batch size used in the model
     oshape : tuple, optional
-        shape of output image, layout="CHW"
+        The shape of output image, layout="CHW"
     ngf: int
+        The number of final feature maps in the generator
     random_len : int, optional
-        length of random input
+        The length of random input
     dtype : str, optional
         The data type
 
