@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
-"""conv2d schedule on Intel GPU"""
+"""conv2d schedule on Intel Graphics"""
 
 from __future__ import absolute_import as _abs
 
@@ -58,7 +58,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
 @conv2d_NCHWc.register(["intel_graphics"])
 def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, out_dtype='float32'):
-    """Conv2D operator for Intel GPU backend.
+    """Conv2D operator for Intel Graphics backend.
 
     Parameters
     ----------
@@ -97,7 +97,7 @@ def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, out_dty
 
 @generic.schedule_conv2d_NCHWc.register(["intel_graphics"])
 def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, outs):
-    """Schedule for conv2d_nchw for Intel GPU
+    """Schedule for conv2d_nchw for Intel Graphics
 
     Parameters
     ----------
@@ -310,7 +310,7 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
 @conv2d.register(["intel_graphics"])
 def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
-    """Conv2D operator for Intel GPU backend.
+    """Conv2D operator for Intel Graphics backend.
 
     Parameters
     ----------
@@ -345,7 +345,7 @@ def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
 
 @generic.schedule_conv2d_nchw.register(["intel_graphics"])
 def schedule_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw for Intel GPU
+    """Schedule for conv2d_nchw for Intel Graphics
 
     Parameters
     ----------
