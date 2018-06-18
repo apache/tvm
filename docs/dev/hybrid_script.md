@@ -1,14 +1,13 @@
 # Hybrid Frontend Developer Guide
 
-This hybrid frontend is aimed at:
-1. Building IR in a more intuitive way
-2. Writing preliminary versions of some idioms that yet have not been supported by
+This hybrid frontend is not only aimed at writing preliminary versions of some idioms that yet have
+been supported for users. Developers can also use this feature to build IR rapidly.
 
 ## Features
 
 ### Software emulation
 
-This feature supports both software emulation and compilation of the code.
+Both software emulation and compilation are supported.
 
 To define a function, you need to use `tvm.hybrid.script` decorator to indicate this is a hybrid function:
 ````Python
@@ -22,7 +21,7 @@ b = numpy.random.rand(99)
 c = numpy.zeros((100, 99))
 outer_product(a, b, c)
 ````
-This decorator will help you to import [key words](#keywords) required spontaneously when software emulation.
+This decorator will import [key words](#keywords) required spontaneously when software emulation.
 Every element in the argument list is either a python variable or `numpy` tensor.
 
 ### Backend Compilation
