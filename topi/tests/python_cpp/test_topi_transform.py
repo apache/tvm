@@ -139,9 +139,9 @@ def verify_concatenate(shapes, axis):
         check_device(device)
 
 
-def verify_split(src_shape, indices_or_sections, axis, squeeze_axis = False):
+def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
-    tensor_l = topi.cpp.split(A, indices_or_sections, axis, squeeze_axis)
+    tensor_l = topi.cpp.split(A, indices_or_sections, axis)
     tensor_l = list(tensor_l)
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -158,8 +158,6 @@ def verify_split(src_shape, indices_or_sections, axis, squeeze_axis = False):
         foo = tvm.build(s, [A] + tensor_l, device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npys = np.split(data_npy, indices_or_sections, axis=axis)
-        if squeeze_axis:
-            out_npys = [np.squeeze(out_npy, axis=axis) for out_npy in out_npys]
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys]
         foo(*([data_nd] + out_nds))
@@ -313,9 +311,6 @@ def test_split():
     verify_split((2, 12, 3), 3, 1)
     verify_split((2, 12, 3), [2, 4], 1)
     verify_split((10, 12, 24), [5, 7, 9], -1)
-    # test split with squeeze_axis
-    verify_split((2, 12, 3), 2, 0, True)
-    verify_split((1, 4, 3, 3), 4, 1, True)
 
 def test_take():
     verify_take((4,), [1])

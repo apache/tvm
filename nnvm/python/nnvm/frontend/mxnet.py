@@ -190,9 +190,14 @@ def _reshape(inputs, attrs):
 def _split(inputs, attrs):
     op_name, new_attrs = 'split', {}
     new_attrs['indices_or_sections'] = _required_attr(attrs, 'num_outputs')
-    new_attrs['axis'] = attrs.get('axis', 1)
-    new_attrs['squeeze_axis'] = attrs.get('squeeze_axis', False)
-    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+    axis = attrs.get('axis', 1)
+    new_attrs['axis'] = axis
+    outputs = _get_nnvm_op(op_name)(*inputs, **new_attrs)
+    if _parse_bool_str(attrs, 'squeeze_axis'):
+        squeeze_attrs = {'axis': axis}
+        for o in outputs:
+            o = _get_nnvm_op('squeeze')(o, **squeeze_attrs)
+    return outputs
 
 def _softmax_activation(inputs, attrs):
     op_name, new_attrs = 'softmax', {}

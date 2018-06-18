@@ -298,8 +298,6 @@ inline void SplitParamParser(nnvm::NodeAttrs* attrs) {
   SplitParam param;
   param.Init(attrs->dict);
   if (!std::isdigit(attrs->dict.at("indices_or_sections")[0])) {
-    CHECK_EQ(param.squeeze_axis, false)
-        << "squeeze_axis is only supported when indices_or_sections is a number";
     param.equal_split = false;
   } else {
     CHECK_EQ(param.indices_or_sections.ndim(), 1);
@@ -322,19 +320,7 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
     TShape oshape = dshape;
     CHECK_EQ(oshape[param.axis] % num_outputs, 0)
         << "indices_or_sections need to be able to divide input.shape[axis]";
-    if (param.squeeze_axis) {
-      CHECK_EQ(dshape[param.axis], num_outputs)
-          << "squeeze_axis can be set to true only if input.shape[axis] == num_outputs";
-      TShape new_oshape = TShape(oshape.ndim() - 1);
-      int idx = 0;
-      for (uint32_t i = 0; i < oshape.ndim() - 1; i++) {
-        if (i == static_cast<uint32_t>(param.axis)) continue;
-        new_oshape[idx++] = oshape[i];
-      }
-      oshape.swap(new_oshape);
-    } else {
-      oshape[param.axis] /= num_outputs;
-    }
+    oshape[param.axis] /= num_outputs;
 
     for (size_t i = 0; i < out_shape->size(); ++i) {
       NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
@@ -392,15 +378,13 @@ along which to split the array.
     const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
     if (param.equal_split) {
       return Array<Tensor>{
-        topi::split_sections(inputs[0], param.indices_or_sections[0],
-                             param.axis, param.squeeze_axis) };
+        topi::split_sections(inputs[0], param.indices_or_sections[0], param.axis) };
     } else {
       Array<Expr> indices;
       for (auto i : param.indices_or_sections) {
         indices.push_back(tvm::make_const(tvm::Int(32), i));
       }
-      return Array<Tensor>{ topi::split(inputs[0], indices,
-                                        param.axis, param.squeeze_axis) };
+      return Array<Tensor>{ topi::split(inputs[0], indices, param.axis) };
     }
 })
 .set_support_level(1);

@@ -255,12 +255,7 @@ TVM_REGISTER_GLOBAL("topi.concatenate")
 TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   if (args[1].type_code() == kDLInt || args[1].type_code() == kDLUInt) {
-    if (args.num_args > 3) {
-      // args[3] is squeeze_axis
-      *rv = split_sections(args[0], args[1], args[2], args[3]);
-    } else {
-      *rv = split_sections(args[0], args[1], args[2]);
-    }
+    *rv = split_sections(args[0], args[1], args[2]);
   } else {
     *rv = split(args[0], args[1], args[2]);
   }

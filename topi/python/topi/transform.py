@@ -265,32 +265,9 @@ def concatenate(a_tuple, axis=0):
         return ret
     return tvm.compute(out_shape, _compute)
 
-# Note: split should not be separated from __split.
-#       But, currently it is needed to avoid nested op_tag.
-def split(ary, indices_or_sections, axis=0, squeeze_axis=False):
-    """Split an array into multiple sub-arrays.
-
-    Parameters
-    ----------
-    ary : tvm.Tensor
-
-    indices_or_sections : int or 1-D array
-
-    axis : int
-
-    squeeze_axis : bool
-
-    Returns
-    -------
-    ret : tuple of tvm.Tensor
-    """
-    split_outs = __split(ary, indices_or_sections, axis)
-    if squeeze_axis:
-        return [squeeze(split_out, axis) for split_out in split_outs]
-    return split_outs
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
-def __split(ary, indices_or_sections, axis=0):
+def split(ary, indices_or_sections, axis=0):
     """Split an array into multiple sub-arrays.
 
     Parameters
@@ -336,6 +313,7 @@ def __split(ary, indices_or_sections, axis=0):
                         lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
             for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]
     # pylint: enable=cell-var-from-loop
+
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
 def take(a, indices, axis=None):
