@@ -4,19 +4,25 @@ import sys
 import inspect
 import numpy
 from ._intrin import HYBRID_GLOBALS
+from .._ffi.base import np_arg_types
 from .. import api as _api
 from .. import make as _make
 from .. import expr as _expr
 from ..tensor import Tensor
 
-# Useful constants
-NOP = _make.Evaluate(_api.const(0, dtype='int32'))
-RANGE_ONE = _make.range_by_min_extent(0, 1)
-TRUE = _api.convert(True)
-ZERO = _api.const(0)
+# If it is a 
+tvm_arg_types = (Tensor, _expr.Var)
+halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
 
-# Node types represent constants in HalideIR
-HALIDE_IMM = (_expr.FloatImm, _expr.IntImm, _expr.UIntImm)
+# Useful constants
+def make_nop():
+    return _make.Evaluate(_api.const(0, dtype='int32'))
+
+def make_range_one():
+    return _make.range_by_min_extent(0, 1)
+
+def make_const_true():
+    return _api.convert(True)
 
 def _pruned_source(func):
     """Prune source code's extra leading spaces"""
@@ -25,22 +31,19 @@ def _pruned_source(func):
     lines = [line[leading_space:] for line in lines]
     return '\n'.join(lines)
 
-TVM_ARG_TYPES = (_expr.Var, Tensor)
-if sys.version_info[0] == 3:
-    NUMPY_ARG_TYPES = (float, int, numpy.float32, numpy.int32, numpy.ndarray)
-else:
-    NUMPY_ARG_TYPES = (float, int, long, numpy.float32, numpy.int32, numpy.ndarray)
-
 def _is_tvm_arg_types(args):
     """Determine a list of element is either a list of tvm arguments of a list of numpy arguments.
-    If neither is true, raise a assertion error."""
-    if isinstance(args[0], TVM_ARG_TYPES):
+    If neither is true, raise a value error."""
+    if isinstance(args[0], tvm_arg_types):
         for elem in args[1:]:
-            assert isinstance(elem, TVM_ARG_TYPES)
+            if not isinstance(elem, tvm_arg_types):
+                raise ValueError("Expect a Var or Tensor instance but % get!" % str(type(elem)))
         return True
-    assert isinstance(args[0], NUMPY_ARG_TYPES)
+    if not isinstance(args[0], np_arg_types):
+        raise ValueError("Expect a numpy type but % get!" % str(type(elem)))
     for elem in args[1:]:
-        assert isinstance(elem, NUMPY_ARG_TYPES)
+        if not isinstance(elem, np_arg_types):
+            raise ValueError("Expect a numpy type but % get!" % str(type(elem)))
     return False
 
 def _enter_hybrid_runtime(func):

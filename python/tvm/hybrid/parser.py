@@ -1,9 +1,9 @@
-"""Compiling a subset of Python to HalideIR"""
+"""Compiling a TVM Hybrid Script Python to HalideIR"""
 #pylint: disable=no-else-return
 import ast
 import operator
 import sys
-from ._internal import NOP, TRUE, RANGE_ONE, HALIDE_IMM, ZERO
+from ._internal import make_nop, make_const_true, make_range_one, halide_imm_types
 from ._intrin import LOOP_INTRIN, MATH_INTRIN
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
@@ -16,9 +16,9 @@ from .. import ir_pass as _ir_pass
 def list_to_block(visit, lst):
     """Convert a list of Python IR nodes to HalideIR Block"""
     lst = list(map(visit, lst))
-    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, NOP)]
+    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, make_nop())]
     if not lst:
-        return NOP
+        return make_nop()
     if len(lst) == 1:
         return lst[0]
     body = lst[0]
@@ -89,7 +89,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
             _, scope, _ = val
             if scope == node:
                 _buf = self.buffers[key]
-                body = _make.Realize(_buf.op, 0, _buf.dtype, [RANGE_ONE], TRUE, body)
+                _dtype = _buf.dtype
+                _one = make_range_one()
+                _true = make_const_true()
+                body = _make.Realize(_buf.op, 0, _dtype, [_one], _true, body)
         return body
 
     def visit_Module(self, node):
@@ -143,15 +146,15 @@ class PyAST2HalideIR(ast.NodeVisitor):
             if decl == lhs_:
                 assert lhs not in self.var_consts.keys()
                 assert lhs not in self.buffers.keys()
-                if isinstance(rhs, HALIDE_IMM) and ast.Store not in rw:
+                if isinstance(rhs, halide_imm_types) and ast.Store not in rw:
                     self.var_consts[lhs] = rhs
                 else:
                     self.buffers[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
             if lhs in self.var_consts.keys():
-                return NOP
+                return make_nop()
             else:
                 assert lhs in self.buffers.keys()
-                return _make.Provide(self.buffers[lhs].op, 0, rhs, [ZERO])
+                return _make.Provide(self.buffers[lhs].op, 0, rhs, [_api.const(0, dtype=rhs.dtype)])
         else:
             lhs = self.visit(lhs)
             assert isinstance(lhs, _expr.Call)
@@ -203,7 +206,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         if node.orelse:
             else_body = list_to_block(self.visit, node.orelse)
         else:
-            else_body = NOP
+            else_body = make_nop()
         return _make.IfThenElse(cond, if_body, else_body)
 
     def visit_IfExp(self, node):
@@ -234,6 +237,7 @@ class PyAST2HalideIR(ast.NodeVisitor):
         func_id = node.func.id
         n = len(node.args)
         if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
+            ZERO = _api.const(0, dtype='int32')
             if n == 1:
                 low, ext = ZERO, self.visit(node.args[0])
             else:
