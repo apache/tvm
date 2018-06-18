@@ -10,13 +10,11 @@ been supported by TVM officially.
 Features
 ========
 
-#. Software emulation
-
-Both software emulation and compilation are supported.
-To define a function, you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
-
+1. Software emulation: Both software emulation and compilation are supported. To define a function,
+you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
 
 .. code-block:: python
+
     @tvm.hybrid.script
     def outer_product(a, b, c):
         for i in range(a.shape[0]):
