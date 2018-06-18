@@ -1,8 +1,10 @@
 """APIs of lowering the Python subset to HalideIR"""
+from __future__ import absolute_import as _abs
+
 import types
 import decorator
 from .parser import parse_python
-from ._internal import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types, _pruned_source
+from ._util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types, _pruned_source
 
 @decorator.decorator
 def script(func, *args):
@@ -15,6 +17,7 @@ def script(func, *args):
         func(*args)
         _restore_runtime(func, intersect)
     return func
+
 
 def parse(func, args):
     """Parse a subset of Python to HalideIR

@@ -3,7 +3,7 @@
 import ast
 import operator
 import sys
-from ._internal import make_nop, make_const_true, make_range_one, halide_imm_types
+from ._util import make_nop, make_const_true, make_range_one, halide_imm_types
 from ._intrin import LOOP_INTRIN, MATH_INTRIN
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
@@ -26,8 +26,10 @@ def list_to_block(visit, lst):
         body = _make.Block(body, i)
     return body
 
-class PyAST2HalideIR(ast.NodeVisitor):
+
+class HybridParser(ast.NodeVisitor):
     """Python AST visitor pass which finally lowers it to HalideIR"""
+
 
     _binop_maker = {
         ast.Add   : operator.add,
@@ -46,11 +48,13 @@ class PyAST2HalideIR(ast.NodeVisitor):
         ast.NotEq : operator.ne,
     }
 
+
     _unaryop_maker = {
         ast.USub   : operator.neg,
         ast.Invert : operator.invert,
         ast.Not    : operator.not_
     }
+
 
     def __init__(self, args, usage, func_name=None):
         """
@@ -77,10 +81,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.func_name = func_name # The name of the function to be lowered
         self.iter_axis = []
 
-    #pylint: disable=missing-docstring, invalid-name
+
+    #pylint: disable=invalid-name
     #pylint: disable=consider-merging-isinstance, no-else-return
     #pylint: disable=inconsistent-return-statements
-
     def wrap_up_realize(self, node, body):
         """Wrap up all the variables which will no longer be used"""
         for key, val in self.usage.items():
@@ -95,12 +99,22 @@ class PyAST2HalideIR(ast.NodeVisitor):
                 body = _make.Realize(_buf.op, 0, _dtype, [_one], _true, body)
         return body
 
+
+    def _check_id_a_buffer(self, s):
+        if s not in self._args.keys():
+            raise ValueError("This %s is expected to be in argument list or allocated buffer!" % s)
+
+
     def visit_Module(self, node):
-        assert len(node.body) == 1
+        if len(node.body) != 1:
+            raise ValueError("Only one-function source code can be fed to this parser!")
         return self.visit(node.body[0])
 
+
     def visit_FunctionDef(self, node):
-        assert len(node.args.args) == len(self.args)
+        if len(node.args.args) != len(self.args):
+            raise ValueError("The number of arguments passed to the function\
+                should be the same as it is defined!")
         for idx, arg in enumerate(node.args.args):
             _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
             self._args[getattr(arg, _attr)] = self.args[idx]
@@ -110,8 +124,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
             self.func_name = node.name
         return res
 
+
     def visit_Expr(self, node):
         return self.visit(node.value)
+
 
     def visit_Name(self, node):
         _id = node.id
@@ -119,33 +135,39 @@ class PyAST2HalideIR(ast.NodeVisitor):
             return self._args[_id]
         elif _id in self.loops_above.keys():
             return self.loops_above[_id]
-        # This id cannot be a buffer; buffer will be handled in subscript
-        assert _id not in self._args.keys()
-        assert _id in self.usage.keys()
+        if _id in self._args.keys():
+            raise ValueError("This id %s should be handled in visit_Subscript!" % _id)
+        if _id  not in self.usage.keys():
+            raise ValueError("This id %s is expected to be a defined variable!" % _id)
         # Buffer
         if _id in self.buffers.keys():
             _buf = self.buffers[_id]
             return _make.Call(_buf.dtype, _id, [_api.const(0)], _expr.Call.Halide, _buf.op, 0)
         # Compilation time constant
-        assert _id in self.var_consts.keys()
+        if _id not in self.var_consts.keys():
+            raise ValueError("This id %s is expected to a compilation time constant!" % _id)
         return self.var_consts[_id]
 
     def visit_Num(self, node):
         return _api.const(node.n)
 
     def visit_Assign(self, node):
-        assert len(node.targets) == 1
+        if len(node.targets) != 1:
+            raise ValueError("So far only one-valued assignment is supported!")
         lhs = node.targets[0]
         rhs = _ir_pass.Simplify(self.visit(node.value))
         if isinstance(lhs, ast.Name):
             #TODO: support defined intermediate buffer later
             lhs_ = lhs
             lhs = lhs.id
-            assert lhs not in self.loops_above.keys()
+            if lhs in self.loops_above.keys():
+                raise ValueError("You CAN NEVER overwrite a loop variable!")
             decl, _, rw = self.usage[lhs]
             if decl == lhs_:
-                assert lhs not in self.var_consts.keys()
-                assert lhs not in self.buffers.keys()
+                if lhs in self.var_consts.keys():
+                    raise ValueError("BUG: A constant cannot be overwritten!")
+                if lhs in self.buffers.keys():
+                    raise ValueError("BUG: This value should not be defined before this point!")
                 if isinstance(rhs, halide_imm_types) and ast.Store not in rw:
                     self.var_consts[lhs] = rhs
                 else:
@@ -153,13 +175,15 @@ class PyAST2HalideIR(ast.NodeVisitor):
             if lhs in self.var_consts.keys():
                 return make_nop()
             else:
-                assert lhs in self.buffers.keys()
+                if lhs not in self.buffers.keys():
+                    raise ValueError("BUG: This value should be defined before!")
                 return _make.Provide(self.buffers[lhs].op, 0, rhs, [_api.const(0, dtype=rhs.dtype)])
         else:
             lhs = self.visit(lhs)
-            assert isinstance(lhs, _expr.Call)
+            if not isinstance(lhs, _expr.Call):
+                raise ValueError("An array access's LHS is expected to be a expr.Call!")
             #TODO: support slice later
-            assert lhs.name in self._args.keys()
+            self._check_id_a_buffer(lhs.name)
             return _make.Provide(self._args[lhs.name].op, 0, rhs, lhs.args)
 
     def visit_Index(self, node):
@@ -168,35 +192,41 @@ class PyAST2HalideIR(ast.NodeVisitor):
         return [self.visit(node.value)]
 
     def visit_Subscript(self, node):
-        #assert isinstance(node.value, ast.Name) or isinstance(node.value, ast.Attribute)
         args = self.visit(node.slice)
         if isinstance(node.value, ast.Name):
             array = node.value.id
-            assert array in self._args.keys()
+            self._check_id_a_buffer(array)
             _buf = self._args[array]
             return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, 0)
         elif isinstance(node.value, ast.Attribute):
-            assert isinstance(node.value.value, ast.Name)
-            assert node.value.attr == "shape"
-            assert len(args) == 1
+            if not isinstance(node.value.value, ast.Name):
+                raise ValueError("The root of array access is expect to be a id!")
+            if node.value.attr != "shape":
+                raise ValueError("Attribute access so far only 'shape' is supported!")
+            if len(args) != 1:
+                raise ValueError("For 'shape' access the argument should be only one!")
             args = args[0]
             #TODO: maybe support non-constant value later?
-            assert isinstance(args, (_expr.IntImm, _expr.UIntImm))
-            assert node.value.value.id in self._args.keys()
+            if not isinstance(args, (_expr.IntImm, _expr.UIntImm)):
+                raise ValueError("So far only constant shape access supported!")
+            self._check_id_a_buffer(node.value.value.id)
             return self._args[node.value.value.id].shape[args.value]
         else:
-            assert False
+            raise ValueError("Not supported yet!")
 
     def visit_With(self, node):
         if sys.version_info[0] < 3:
             context = node.context_expr
             option = node.optional_vars
         else:
-            assert len(node.items) == 1
+            if len(node.items) != 1:
+                raise ValueError("Only one with element is supported so far!")
             context = node.items[0].context_expr
             option = node.items[0].optional_vars
-        assert isinstance(context, ast.Call)
-        assert isinstance(option, ast.Name)
+        if not isinstance(context, ast.Call):
+            raise ValueError("The object must be a Python function call!")
+        if not isinstance(option, ast.Name):
+            raise ValueError("The object after 'as' must be an id!")
         self.annotation[option.id] = context.func.id
         return list_to_block(self.visit, node.body)
 
@@ -217,23 +247,26 @@ class PyAST2HalideIR(ast.NodeVisitor):
 
     def visit_Compare(self, node):
         lhs = self.visit(node.left)
-        assert len(node.ops) == 1
-        assert len(node.comparators) == 1
+        if len(node.ops) != 1:
+            raise ValueError("Only one compare op is supported!")
+        if len(node.comparators) != 1:
+            raise ValueError("Only one comparator is supported!")
         rhs = self.visit(node.comparators[0])
-        return PyAST2HalideIR._binop_maker[type(node.ops[0])](lhs, rhs)
+        return HybridParser._binop_maker[type(node.ops[0])](lhs, rhs)
 
     def visit_UnaryOp(self, node):
         operand = self.visit(node.operand)
-        return PyAST2HalideIR._unaryop_maker[type(node.op)](operand)
+        return HybridParser._unaryop_maker[type(node.op)](operand)
 
     def visit_BinOp(self, node):
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)
-        return PyAST2HalideIR._binop_maker[type(node.op)](lhs, rhs)
+        return HybridParser._binop_maker[type(node.op)](lhs, rhs)
 
     def visit_Call(self, node):
         # Yet, no function pointer supported
-        assert isinstance(node.func, ast.Name)
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("Only id-function function call is supported so far!")
         func_id = node.func.id
         n = len(node.args)
         if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
@@ -241,7 +274,8 @@ class PyAST2HalideIR(ast.NodeVisitor):
             if n == 1:
                 low, ext = ZERO, self.visit(node.args[0])
             else:
-                assert n == 2
+                if n != 2:
+                    raise ValueError("A loop intrinsic should only have 1 or 2 arguments!")
                 low, ext = self.visit(node.args[0]), self.visit(node.args[1])
             if not _ir_pass.Equal(low, ZERO):
                 ext = ext - low
@@ -249,8 +283,10 @@ class PyAST2HalideIR(ast.NodeVisitor):
             iter_var = None
             return iter_var, low, ext, for_type
         elif func_id == 'bind':
-            assert n == 2
-            assert isinstance(node.args[0], ast.Str)
+            if n != 2:
+                raise ValueError("A loop bind should only have 2 arguments!")
+            if not isinstance(node.args[0], ast.Str):
+                raise ValueError("A loop bind's first argument should be a string!")
             _vn = node.args[0].s
             iter_var = thread_axis(node.args[0].s)
             low, ext = ZERO, self.visit(node.args[1])
@@ -265,19 +301,22 @@ class PyAST2HalideIR(ast.NodeVisitor):
             else:
                 assert n == 2
         else:
-            assert False and "Not supported yet!"
+            raise ValueError("Function call not supported yet!")
 
     def visit_For(self, node):
         iter_var, low, ext, for_type = self.visit(node.iter)
-        assert isinstance(node.target, ast.Name)
+        if not isinstance(node.target, ast.Name):
+            raise ValueError("The loop iterator should be a variable!")
         _name = node.target.id
         if iter_var is None:
-            assert for_type is not None
+            if for_type is None:
+                raise ValueError("The loop bind function parse error!")
             iter_var = _api.var(_name)
             self.loops_above[_name] = iter_var
         else:
+            if for_type is not None:
+                raise ValueError("The loop iterating function parse error!")
             self.loops_above[_name] = iter_var.var
-            assert for_type is None
         _body = list_to_block(self.visit, node.body)
         _body = self.wrap_up_realize(node, _body)
         if for_type is None:
@@ -287,10 +326,11 @@ class PyAST2HalideIR(ast.NodeVisitor):
         self.loops_above.pop(_name)
         return res
 
+
 def parse_python(src, args):
-    """ The helper function of calling the AST visitor"""
+    """The helper function of calling the AST visitor"""
     root = ast.parse(src)
     var_usage = determine_variable_usage(root, args)
-    parser = PyAST2HalideIR(args, var_usage)
+    parser = HybridParser(args, var_usage)
     halide_ir = parser.visit(root)
-    return (halide_ir, parser)
+    return halide_ir

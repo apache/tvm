@@ -1,4 +1,4 @@
-"""Intrinsics of Python-Halide DSL for Python runtime"""
+"""Intrinsics of TVM-Python Hybrid Script for Python runtime"""
 
 import numpy
 from ..stmt import For
@@ -19,27 +19,35 @@ class _range(object):
             yield i + self.low
             i += 1
 
+
 class bind(_range): #pylint: disable=invalid-name
     def __init__(self, tag, ext):
         super(bind, self).__init__(ext)
         self.tag = tag
 
+
 serial = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
+
 
 def allocate(shape, dtype=None):
     """Allocate a buffer with given shape"""
     dtype = 'float32' if dtype is None else dtype
     return numpy.zeros(shape).astype(dtype)
 
+
 def popcount(x):
+    """Software emulated popcount function which counts 1's in a number's binary representation."""
     cnt = 0
     while x:
         x -= x & -x
         cnt += 1
     return cnt
 
+
 def sigmoid(x):
+    """Software emulated sigmoid function, which returns 1/(1+exp(-x))."""
     return 1 / (1 + numpy.exp(-x))
+
 
 HYBRID_GLOBALS = {
     'serial'    : serial,
@@ -57,6 +65,7 @@ HYBRID_GLOBALS = {
     'popcount'  : popcount
 }
 
+
 LOOP_INTRIN = {
     'range'    : For.Serial,
     'serial'   : For.Serial,
@@ -65,5 +74,6 @@ LOOP_INTRIN = {
     'vectorize': For.Vectorized,
     'bind'     : None
 }
+
 
 MATH_INTRIN = ['sqrt', 'log', 'exp', 'tanh', 'sigmoid', 'power', 'popcount']

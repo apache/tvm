@@ -16,7 +16,7 @@ def test_outer_product():
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
     c = tvm.placeholder((n, m), name='c')
-    ir, _ = outer_product(n, m, a, b, c)
+    ir = outer_product(n, m, a, b, c)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i'
@@ -76,7 +76,7 @@ def test_fanout():
     n = tvm.var('n')
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((n-3, ), name='b')
-    ir, _ = fanout(n, a, b)
+    ir = fanout(n, a, b)
 
     #Check for i in (0, n-3)
     assert isinstance(ir, tvm.stmt.For)
@@ -139,15 +139,11 @@ def failure():
 def test_failure():
     try:
         tvm.hybrid.parse(failure, [])
-    except IOError:
+    except IOError as err:
         assert sys.version_info[0] == 2
-        lineno = inspect.currentframe().f_back.f_lineno
-        print('[Warning] Python2 cannot do the failure case @line #%d' % lineno)
-    except AssertionError:
-        _, _, tb = sys.exc_info()
-        _, _, func, text = traceback.extract_tb(tb)[-1]
-        assert func == 'visit_Assign'
-        assert text == 'assert lhs not in self.loops_above.keys()'
+        print('[Warning] Python2 cannot do the failure case because "%s"' % str(err))
+    except Exception as err:
+        assert str(err) == 'You CAN NEVER overwrite a loop variable!'
 
 
 def test_looptype():
@@ -160,7 +156,7 @@ def test_looptype():
         for k in unroll(6):
             a[k] = k
     a = tvm.placeholder((6, ), name='a')
-    ir, _ = looptype(a)
+    ir = looptype(a)
     iloop = ir.first
     jloop = ir.rest.first
     kloop = ir.rest.rest
@@ -181,7 +177,7 @@ def test_if():
 
     a = tvm.placeholder((10, ), dtype='int32', name='a')
     b = tvm.placeholder((10, ), dtype='int32', name='b')
-    ir, _ = if_then_else(a, b)
+    ir = if_then_else(a, b)
     func = tvm.lower(ir, [a, b])
     func = tvm.build(func)
     assert func
@@ -210,7 +206,7 @@ def test_bind():
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
     c = tvm.placeholder((1000, ), dtype='float32', name='c')
-    ir, _ = vec_add(a, b, c)
+    ir = vec_add(a, b, c)
 
     func = tvm.lower(ir, [a, b, c])
     func = tvm.build(func, target = 'cuda')
@@ -240,7 +236,7 @@ def test_math_intrin():
         a[5] = tanh(a[5])
 
     a6 = tvm.placeholder((6, ), dtype='float32', name='a')
-    ir, _ = intrin_real(a6)
+    ir = intrin_real(a6)
     func = tvm.build(tvm.lower(ir, [a6]))
     assert func
     a = numpy.arange(2, 8).astype('float32')
@@ -254,7 +250,7 @@ def test_math_intrin():
         a[0] = popcount(a[0])
 
     a1 = tvm.placeholder((1, ), dtype='int32')
-    ir, _ = intrin_int(a1)
+    ir = intrin_int(a1)
     func = tvm.build(tvm.lower(ir, [a1]))
     assert func
     a = numpy.array([1234567890]).astype('int32')

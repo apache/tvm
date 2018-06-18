@@ -23,7 +23,6 @@ else:
     numeric_types = (float, int, long, np.float32, np.int32)
     py_str = lambda x: x
 
-np_arg_types = (*numeric_types, np.ndarray)
 
 class TVMError(Exception):
     """Error thrown by TVM function"""
