@@ -40,7 +40,7 @@ void OpenCLWorkspace::GetAttr(
     }
     case kWarpSize: {
       /* TODO: the warp size of OpenCL device is not always 1
-               e.g. Intel GPU has a sub group concept which contains 8 - 32 work items,
+               e.g. Intel Graphics has a sub group concept which contains 8 - 32 work items,
                corresponding to the number of SIMD entries the heardware configures.
                We need to figure out a way to query this information from the hardware.
       */
