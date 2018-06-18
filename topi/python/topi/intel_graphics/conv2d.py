@@ -36,7 +36,7 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     s[tensor].bind(xi, thread_x)
     return xi, thread_z, thread_y, thread_x
 
-@conv2d_alter_layout.register(["intel_gpu"])
+@conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfos):
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
@@ -56,7 +56,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
-@conv2d_NCHWc.register(["intel_gpu"])
+@conv2d_NCHWc.register(["intel_graphics"])
 def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, out_dtype='float32'):
     """Conv2D operator for Intel GPU backend.
 
@@ -95,7 +95,7 @@ def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, out_dty
 
     return _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype)
 
-@generic.schedule_conv2d_NCHWc.register(["intel_gpu"])
+@generic.schedule_conv2d_NCHWc.register(["intel_graphics"])
 def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, outs):
     """Schedule for conv2d_nchw for Intel GPU
 
@@ -308,9 +308,10 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
     tile_and_bind3d(s, out, w, h, co, 4, 8, 8)
 
 
-@conv2d.register(["intel_gpu"])
+@conv2d.register(["intel_graphics"])
 def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for Intel GPU backend.
+
     Parameters
     ----------
     data : tvm.Tensor
@@ -342,9 +343,10 @@ def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32
 
     return _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype)
 
-@generic.schedule_conv2d_nchw.register(["intel_gpu"])
+@generic.schedule_conv2d_nchw.register(["intel_graphics"])
 def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw for Intel GPU
+
     Parameters
     ----------
     outs: Array of Tensor
