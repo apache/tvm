@@ -163,8 +163,6 @@ You can also do loop-thread bind by writing code like this:
        a[tx] = b[tx]
 
 
-.. _keywords-label:
-
 Keywords
 --------
 - For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``
