@@ -10,7 +10,10 @@ been supported by TVM officially.
 Features
 ========
 
-1. Software emulation: Both software emulation and compilation are supported. To define a function,
+Software emulation
+==================
+
+Both software emulation and compilation are supported. To define a function,
 you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
 
 .. code-block:: python
@@ -32,18 +35,23 @@ worry about keyword conflict and pollution.
 Every element passed for software emulation in the argument list is either a python variable
 or ``numpy`` numeric type.
 
-#. Backend Compilation
+2. Backend Compilation
 
 The current parse interface looks like:
+
 .. code-block:: python
+
    a = tvm.placeholder((100, ), name='a')
    b = tvm.placeholder((99, ), name='b')
    c = tvm.placeholder((100, 99), name='c')
    tvm.hybrid.parse(outer_product, [a, b, c]) # return an ir root of this function
 
 If we pass these tvm tensors to this function, it returns a op node:
+
 **Under construction, we are still deciding what kind of node should be returned.**
+
 .. code-block:: python
+
    a = tvm.placeholder((100, ), name='a')
    b = tvm.placeholder((99, ), name='b')
    c = tvm.placeholder((100, 99), name='c')
@@ -52,8 +60,11 @@ If we pass these tvm tensors to this function, it returns a op node:
 #. Tuning
 
 **Under construction, not truly supported yet.**
+
 Follow up the example above, you can use some tvm like interfaces to manipulate the structure of IR:
+
 .. code-block:: python
+
    sch = tvm.create_schedule(op)
    jo, ji = sch.split(j, 4)
    sch.vectorize(ji)
@@ -87,6 +98,7 @@ It regards the first store of a variable as its declaration.
           variable should be either ``float32``, or ``int32``.
 
 .. code-block:: python
+
    for i in range(5):
        s = 0 # declaration
        for j in range(5):
@@ -99,7 +111,9 @@ It regards the first store of a variable as its declaration.
 
 So far, ONLY tensors' ``shape`` attribute is supported! The ``shape`` atrribute is essentailly a
 tuple, so you MUST access it as an array. Also, currently, only constant-indexed access is supported.
+
 .. code-block:: python
+
    x = a.shape[2] # OK!
    for i in range(3):
       for j in a.shape[i]: # BAD! i is not a constant!
@@ -110,6 +124,7 @@ tuple, so you MUST access it as an array. Also, currently, only constant-indexed
 
 
 .. code-block:: python
+
    if condition:
         # do something
    a = b if condition else c
@@ -123,14 +138,18 @@ So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``,
 No import is required, just as it is mentioned in 1., just use it!
 
 #. Array allocation
+
 **Under construction, this function will be supported later!**
+
 Use a function call ``allocation(shape, type, share/local)`` to declare an array buffer.
 The basic usage is roughly the same as a normal array.
 
 
 #. Thread bind
 You can also do loop-thread bind by writing code like this:
+
 .. code-block:: python
+
    for tx in bind("threadIdx.x", 100):
        a[tx] = b[tx]
 
