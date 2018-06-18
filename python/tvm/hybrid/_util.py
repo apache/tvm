@@ -1,6 +1,5 @@
 """Internal utilities for parsing Python subset to HalideIR"""
 
-import sys
 import inspect
 import numpy
 from ._intrin import HYBRID_GLOBALS
@@ -11,13 +10,13 @@ from .. import expr as _expr
 from ..tensor import Tensor
 
 
-# If it is a 
+#pylint: disable=invalid-name
 np_arg_types = tuple(list(numeric_types) + [numpy.ndarray])
 tvm_arg_types = (Tensor, _expr.Var)
 halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
 
 
-# Useful constants
+# Useful constants. In avoid of runtime dependences, we use function calls to return them.
 def make_nop():
     return _make.Evaluate(_api.const(0, dtype='int32'))
 
@@ -47,7 +46,7 @@ def _is_tvm_arg_types(args):
                 raise ValueError("Expect a Var or Tensor instance but % get!" % str(type(elem)))
         return True
     if not isinstance(args[0], np_arg_types):
-        raise ValueError("Expect a numpy type but % get!" % str(type(elem)))
+        raise ValueError("Expect a numpy type but % get!" % str(type(args[0])))
     for elem in args[1:]:
         if not isinstance(elem, np_arg_types):
             raise ValueError("Expect a numpy type but % get!" % str(type(elem)))

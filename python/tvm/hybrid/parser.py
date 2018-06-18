@@ -1,5 +1,5 @@
 """Compiling a TVM Hybrid Script Python to HalideIR"""
-#pylint: disable=no-else-return
+
 import ast
 import operator
 import sys
@@ -69,8 +69,8 @@ class HybridParser(ast.NodeVisitor):
         Returns
         -------
         func_name: str
-        The name of the function to be lowered; if not provided,
-        the compiler will use the name in the AST
+            The name of the function to be lowered; if not provided,
+            the compiler will use the name in the AST
         """
         self.args = args[:]
         self.usage = usage.copy()
@@ -82,9 +82,6 @@ class HybridParser(ast.NodeVisitor):
         self.iter_axis = []
 
 
-    #pylint: disable=invalid-name
-    #pylint: disable=consider-merging-isinstance, no-else-return
-    #pylint: disable=inconsistent-return-statements
     def wrap_up_realize(self, node, body):
         """Wrap up all the variables which will no longer be used"""
         for key, val in self.usage.items():
@@ -105,6 +102,7 @@ class HybridParser(ast.NodeVisitor):
             raise ValueError("This %s is expected to be in argument list or allocated buffer!" % s)
 
 
+    #pylint: disable=invalid-name, missing-docstring
     def visit_Module(self, node):
         if len(node.body) != 1:
             raise ValueError("Only one-function source code can be fed to this parser!")
@@ -148,8 +146,10 @@ class HybridParser(ast.NodeVisitor):
             raise ValueError("This id %s is expected to a compilation time constant!" % _id)
         return self.var_consts[_id]
 
+
     def visit_Num(self, node):
         return _api.const(node.n)
+
 
     def visit_Assign(self, node):
         if len(node.targets) != 1:
@@ -186,10 +186,12 @@ class HybridParser(ast.NodeVisitor):
             self._check_id_a_buffer(lhs.name)
             return _make.Provide(self._args[lhs.name].op, 0, rhs, lhs.args)
 
+
     def visit_Index(self, node):
         if isinstance(node.value, ast.Tuple):
             return [self.visit(i) for i in node.value.elts]
         return [self.visit(node.value)]
+
 
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
@@ -214,6 +216,7 @@ class HybridParser(ast.NodeVisitor):
         else:
             raise ValueError("Not supported yet!")
 
+
     def visit_With(self, node):
         if sys.version_info[0] < 3:
             context = node.context_expr
@@ -230,6 +233,7 @@ class HybridParser(ast.NodeVisitor):
         self.annotation[option.id] = context.func.id
         return list_to_block(self.visit, node.body)
 
+
     def visit_If(self, node):
         cond = self.visit(node.test)
         if_body = list_to_block(self.visit, node.body)
@@ -239,11 +243,13 @@ class HybridParser(ast.NodeVisitor):
             else_body = make_nop()
         return _make.IfThenElse(cond, if_body, else_body)
 
+
     def visit_IfExp(self, node):
         cond = self.visit(node.test)
         if_body = self.visit(node.body)
         else_body = self.visit(node.orelse)
         return _make.Select(cond, if_body, else_body)
+
 
     def visit_Compare(self, node):
         lhs = self.visit(node.left)
@@ -254,14 +260,17 @@ class HybridParser(ast.NodeVisitor):
         rhs = self.visit(node.comparators[0])
         return HybridParser._binop_maker[type(node.ops[0])](lhs, rhs)
 
+
     def visit_UnaryOp(self, node):
         operand = self.visit(node.operand)
         return HybridParser._unaryop_maker[type(node.op)](operand)
+
 
     def visit_BinOp(self, node):
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)
         return HybridParser._binop_maker[type(node.op)](lhs, rhs)
+
 
     def visit_Call(self, node):
         # Yet, no function pointer supported
@@ -296,12 +305,10 @@ class HybridParser(ast.NodeVisitor):
             return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
         elif func_id == 'allocate':
             #TODO: Support it later!
-            if n == 1:
-                pass
-            else:
-                assert n == 2
+            return make_nop()
         else:
             raise ValueError("Function call not supported yet!")
+
 
     def visit_For(self, node):
         iter_var, low, ext, for_type = self.visit(node.iter)
