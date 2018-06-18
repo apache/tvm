@@ -11,7 +11,7 @@ Features
 ========
 
 Software emulation
-==================
+^^^^^^^^^^^^^^^^^^
 
 Both software emulation and compilation are supported. To define a function,
 you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
