@@ -142,7 +142,7 @@ Math Intrinsics
 
 So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``,
 ``tanh``, ``power``, and ``popcount``, are supported.
-No import is required, just as it is mentioned in 1., just use it!
+No import is required, just as it is mentioned in `Software Emulation`_, just use it!
 
 Array Allocation
 ^^^^^^^^^^^^^^^^
