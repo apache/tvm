@@ -28,7 +28,7 @@ you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid fun
     c = numpy.zeros((100, 99))
     outer_product(a, b, c)
 
-This decorator will import :ref:`keywords-label` required spontaneously when software emulation.
+This decorator will import :ref:`keywords <keywords-label>` required spontaneously when software emulation.
 After software emulation is done, the imported keywords will be cleaned up. Users do not need
 worry about keyword conflict and pollution.
 
@@ -162,7 +162,9 @@ You can also do loop-thread bind by writing code like this:
    for tx in bind("threadIdx.x", 100):
        a[tx] = b[tx]
 
+
 .. _keywords-label:
+
 Keywords
 --------
     - Statement keywords: ``for``, ``in``, ``if``, ``else``
