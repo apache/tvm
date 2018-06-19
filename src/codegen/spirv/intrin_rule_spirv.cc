@@ -4,7 +4,7 @@
  */
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
-#include <vulkan/GLSL.std.450.h>
+#include <GLSL.std.450.h>
 
 namespace tvm {
 namespace codegen {
