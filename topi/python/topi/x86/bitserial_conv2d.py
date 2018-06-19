@@ -109,19 +109,6 @@ def schedule_bitserial_conv2d(outs):
                 _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
                                               kernel, kernel_q, kernel_vec,
                                               conv_out, output, outs[0])
-        else:
-            kernel = op.input_tensors[1]
-            data_q = op.input_tensors[0]
-            data = data_q.op.input_tensors[0]
-            data_pad = None
-            if isinstance(data_q.op, tvm.tensor.ComputeOp) and "pad" in data_q.op.tag:
-                data_pad = data_q
-                data_q = data
-                data = data_q.op.input_tensors[0]
-            if 'conv2d_nchw_q' in op.tag:
-                _schedule_conv2d_nchw(s, data, data_q, data_pad, kernel, output)
-            elif 'conv2d_nhwc_q' in op.tag:
-                _schedule_conv2d_nhwc(s, data, data_q, data_pad, kernel, output)
 
     traverse(outs[0].op)
     return s
@@ -324,80 +311,4 @@ def _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
     s[last].pragma(paxis, "parallel_stride_pattern")
     s[last].pragma(oaxis, "parallel_barrier_when_finish")
 
-    return s
-
-# Very simple schedules
-def schedule_qconv2d_nchw(outs):
-    """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
-
-    def traverse(op):
-        if 'qconv2d_nchw' in op.tag:
-            output = op.output(0)
-            kernel = op.input_tensors[1]
-            data_q = op.input_tensors[0]
-            data = data_q.op.input_tensors[0]
-            data_pad = None
-            if isinstance(data_q.op, tvm.tensor.ComputeOp) and "pad" in data_q.op.tag:
-                data_pad = data_q
-                data_q = data
-                data = data_q.op.input_tensors[0]
-
-            # Schedule for padding
-            n_pad, c_pad, b_pad, h_pad, w_pad = data_pad.op.axis
-            pad_fused = s[data_pad].fuse(n_pad, c_pad)
-            s[data_pad].parallel(pad_fused)
-
-            # Schedule for convolution
-            nn, ff, yy, xx = s[output].op.axis
-            rc, ry, rx, b2, b1 = s[output].op.reduce_axis
-
-            # Tiling
-            yo, xo, yi, xi = s[output].tile(yy, xx, 4, 4)
-            fused = s[output].fuse(nn, ff)
-            s[output].reorder(fused, rc, yo, xo, ry, rx, yi, b1, b2, xi)
-            # Vectorize, unroll, parallel
-            s[output].vectorize(xi)
-            s[output].unroll(b1)
-            s[output].unroll(b2)
-            s[output].parallel(fused)
-
-    traverse(outs[0].op)
-    return s
-
-def schedule_qconv2d_nhwc(outs):
-    """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
-
-    def traverse(op):
-        if 'qconv2d_nhwc' in op.tag:
-            output = op.output(0)
-            kernel = op.input_tensors[1]
-            data_q = op.input_tensors[0]
-            data = data_q.op.input_tensors[0]
-            data_pad = None
-            if isinstance(data_q.op, tvm.tensor.ComputeOp) and "pad" in data_q.op.tag:
-                data_pad = data_q
-                data_q = data
-                data = data_q.op.input_tensors[0]
-
-            # Schedule for padding
-            n_pad, h_pad, w_pad, c_pad, b_pad = data_pad.op.axis
-            pad_fused = s[data_pad].fuse(n_pad, h_pad)
-            s[data_pad].parallel(pad_fused)
-
-            # Schedule for convolution
-            nn, yy, xx, ff = s[output].op.axis
-            ry, rx, rc, b1, b2 = s[output].op.reduce_axis
-
-            # Tiling
-            xo, fo, xi, fi = s[output].tile(xx, ff, 4, 4)
-            fused = s[output].fuse(nn, yy)
-            s[output].reorder(fused, xo, fo, ry, rx, xi, rc, b1, b2, fi)
-            # Vectorize, unroll, parallel
-            s[output].vectorize(fi)
-            s[output].unroll(b1)
-            s[output].unroll(b2)
-            s[output].parallel(fused)
-    traverse(outs[0].op)
     return s
