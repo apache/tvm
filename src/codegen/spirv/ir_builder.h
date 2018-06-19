@@ -15,7 +15,7 @@
 #include <string>
 #include <map>
 
-#include <vulkan/spirv.hpp>
+#include <spirv.hpp>
 
 namespace tvm {
 namespace codegen {
