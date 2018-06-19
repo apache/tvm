@@ -279,14 +279,13 @@ class HybridParser(ast.NodeVisitor):
         func_id = node.func.id
         n = len(node.args)
         if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
-            ZERO = _api.const(0, dtype='int32')
             if n == 1:
-                low, ext = ZERO, self.visit(node.args[0])
+                low, ext = _api.const(0, dtype='int32'), self.visit(node.args[0])
             else:
                 if n != 2:
                     raise ValueError("A loop intrinsic should only have 1 or 2 arguments!")
                 low, ext = self.visit(node.args[0]), self.visit(node.args[1])
-            if not _ir_pass.Equal(low, ZERO):
+            if not _ir_pass.Equal(low, _api.const(0, dtype='int32')):
                 ext = ext - low
             for_type = LOOP_INTRIN[func_id]
             iter_var = None
@@ -298,7 +297,7 @@ class HybridParser(ast.NodeVisitor):
                 raise ValueError("A loop bind's first argument should be a string!")
             _vn = node.args[0].s
             iter_var = thread_axis(node.args[0].s)
-            low, ext = ZERO, self.visit(node.args[1])
+            low, ext = _api.const(0, dtype='int32'), self.visit(node.args[1])
             for_type = None
             return iter_var, low, ext, for_type
         elif func_id in MATH_INTRIN:
