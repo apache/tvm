@@ -84,6 +84,7 @@ def compute_conv2d(attrs, inputs, _):
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
+    kernel_layout = attrs["kernel_layout"]
     assert layout == "NCHW" or layout == "NHWC"
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
@@ -97,11 +98,14 @@ def compute_conv2d(attrs, inputs, _):
 
     if groups == 1:
         out = topi.nn.conv2d(inputs[0], kernel, strides, padding, layout)
-    elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
-        # NCHW
+    elif layout == "NCHW" and \
+         groups == get_const_int(inputs[0].shape[1]) and \
+         groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(inputs[0], kernel, strides, padding)
-    elif groups == get_const_int(inputs[0].shape[3]) and groups == channels:
-        # NHWC
+    elif layout == "NHWC" and \
+         kernel_layout == "HWOI" and \
+         groups == get_const_int(inputs[0].shape[3]) and \
+         groups == channels:
         out = topi.nn.depthwise_conv2d_nhwc(inputs[0], kernel, strides, padding)
     else:
         raise ValueError("not support arbitrary group number for now")
@@ -119,6 +123,7 @@ def schedule_conv2d(attrs, outs, target):
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
+    kernel_layout = attrs["kernel_layout"]
     with tvm.target.create(target):
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
@@ -126,7 +131,7 @@ def schedule_conv2d(attrs, outs, target):
             return topi.generic.schedule_conv2d_nhwc(outs)
         elif groups == channels and layout == "NCHW":
             return topi.generic.schedule_depthwise_conv2d_nchw(outs)
-        elif groups == channels and layout == "NHWC":
+        elif groups == channels and layout == "NHWC" and kernel_layout == "HWOI":
             return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
         else:
             raise ValueError("No compatible schedule")
