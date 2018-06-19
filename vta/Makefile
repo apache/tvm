@@ -53,10 +53,10 @@ lib/libvta.so: $(VTA_LIB_OBJ)
 lint: pylint cpplint
 
 cpplint:
-	python nnvm/dmlc-core/scripts/lint.py vta cpp include src
+	python3 tvm/dmlc-core/scripts/lint.py vta cpp include src
 
 pylint:
-	pylint python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	python3 -m pylint python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 doc:
 	doxygen docs/Doxyfile

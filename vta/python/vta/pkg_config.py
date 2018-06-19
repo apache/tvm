@@ -41,9 +41,9 @@ class PkgConfig(object):
         # include path
         self.include_path = [
             "-I%s/include" % proj_root,
-            "-I%s/nnvm/tvm/include" % proj_root,
-            "-I%s/nnvm/tvm/dlpack/include" % proj_root,
-            "-I%s/nnvm/dmlc-core/include" % proj_root
+            "-I%s/tvm/include" % proj_root,
+            "-I%s/tvm/dlpack/include" % proj_root,
+            "-I%s/tvm/dmlc-core/include" % proj_root
         ]
         # List of source files that can be used to build standalone library.
         self.lib_source = []

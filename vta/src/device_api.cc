@@ -8,7 +8,7 @@
 #include <dmlc/thread_local.h>
 #include <vta/runtime.h>
 
-#include "../nnvm/tvm/src/runtime/workspace_pool.h"
+#include "../tvm/src/runtime/workspace_pool.h"
 
 
 namespace tvm {
@@ -42,6 +42,7 @@ class VTADeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final {
     int kind_mask = 0;
     if (ctx_from.device_type != kDLCPU) {
