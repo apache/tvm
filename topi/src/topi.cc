@@ -23,8 +23,10 @@
 #include <topi/nn/mapping.h>
 #include <topi/nn/pooling.h>
 #include <topi/nn/softmax.h>
+#include <topi/nn/upsampling.h>
 
 #include <topi/vision/reorg.h>
+#include <topi/image/resize.h>
 #include <topi/vision/yolo2/region.h>
 #include <topi/generic/default.h>
 #include <topi/generic/extern.h>
@@ -45,21 +47,10 @@
 #include <topi/rocm/dense.h>
 #include <topi/rocm/vision.h>
 
-namespace tvm {
-namespace runtime {
-template<>
-struct extension_class_info<tvm::Target> {
-  static const int code = 28;
-};
-}  // namespace tvm
-} // namespace runtime
-
 namespace topi {
 
 using namespace tvm;
 using namespace tvm::runtime;
-
-TVM_REGISTER_EXT_TYPE(tvm::Target);
 
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
 Array<Expr> ArrayOrInt(TVMArgValue arg) {
@@ -285,6 +276,12 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
   *rv = strided_slice(args[0], args[1], args[2], args[3]);
   });
 
+/* Ops from nn/upsampling.h */
+TVM_REGISTER_GLOBAL("topi.nn.upsampling")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::upsampling(args[0], args[1], args[2], args[3]);
+  });
+
 /* Ops from nn/batch_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.batch_norm_inference")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -366,10 +363,18 @@ TVM_REGISTER_GLOBAL("topi.vision.reorg")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = vision::reorg(args[0], args[1]);
   });
+
 TVM_REGISTER_GLOBAL("topi.vision.yolo2.region")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = vision::yolo2::region(args[0], args[1], args[2], args[3], args[4], args[5]);
   });
+
+/* Ops from image/resize.h */
+TVM_REGISTER_GLOBAL("topi.image.resize")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = image::resize(args[0], args[1], args[2], args[3], args[4]);
+  });
+
 /* Generic schedules */
 TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

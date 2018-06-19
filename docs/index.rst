@@ -17,6 +17,7 @@ API Reference
 .. toctree::
    :maxdepth: 2
 
+   langref/index
    api/python/index
    api_links
 

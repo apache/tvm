@@ -51,6 +51,7 @@ List of operators
    topi.broadcast_div
    topi.broadcast_maximum
    topi.broadcast_minimum
+   topi.image.resize
 
 
 List of schedules
@@ -113,6 +114,10 @@ topi.nn
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
+
+topi.image
+~~~~~~~~~~
+.. autofunction:: topi.image.resize
 
 
 topi.generic

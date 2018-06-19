@@ -35,6 +35,15 @@ TEST(Map, Expr) {
   CHECK(!dict.count(zz));
 }
 
+TEST(StrMap, Expr) {
+  using namespace tvm;
+  Var x("x");
+  auto z = max(x + 1 + 2, 100);
+  Map<std::string, Expr> dict{{"x", z}, {"z", 2}};
+  CHECK(dict.size() == 2);
+  CHECK(dict["x"].same_as(z));
+}
+
 TEST(Map, Mutate) {
   using namespace tvm;
   Var x("x");

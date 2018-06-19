@@ -30,6 +30,7 @@ RETURN_SWITCH[TypeCode.NODE_HANDLE] = _return_node
 C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
     _return_node, TypeCode.NODE_HANDLE)
 
+
 class NodeBase(object):
     __slots__ = ["handle"]
     # pylint: disable=no-member

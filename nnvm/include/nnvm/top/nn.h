@@ -288,16 +288,22 @@ struct GlobalPool2DParam : public dmlc::Parameter<GlobalPool2DParam> {
 struct UpSamplingParam : public dmlc::Parameter<UpSamplingParam> {
   int scale;
   std::string layout;
+  std::string method;
 
   DMLC_DECLARE_PARAMETER(UpSamplingParam) {
     DMLC_DECLARE_FIELD(scale)
       .describe("upsampling scaling factor");
     DMLC_DECLARE_FIELD(layout)
       .set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                "dimensions respectively. Convolution is applied on the 'H' and"
+                "dimensions respectively. Upsampling is applied on the 'H' and"
                 "'W' dimensions.");
+    DMLC_DECLARE_FIELD(method)
+      .set_default("NEAREST_NEIGHBOR")
+      .describe("Specify the mode to use for scaling."
+                "NEAREST_NEIGHBOR -  Nearest Neighbor"
+                "BILINEAR - Bilinear Interpolation");
   }
 };
 
@@ -310,6 +316,55 @@ struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
     .describe("Dimension ordering of data");
     DMLC_DECLARE_FIELD(dst_layout).set_default("__undef__")
     .describe("Dimension ordering of data.");
+  }
+};
+
+struct MultiBoxPriorParam : public dmlc::Parameter<MultiBoxPriorParam> {
+  Tuple<float> sizes;
+  Tuple<float> ratios;
+  Tuple<float> steps;
+  Tuple<float> offsets;
+  bool clip;
+
+  DMLC_DECLARE_PARAMETER(MultiBoxPriorParam) {
+    DMLC_DECLARE_FIELD(sizes).set_default(Tuple<float>({1.0}))
+      .describe("List of sizes of generated MultiBoxPriores.");
+    DMLC_DECLARE_FIELD(ratios).set_default(Tuple<float>({1.0}))
+    .describe("List of aspect ratios of generated MultiBoxPriores.");
+    DMLC_DECLARE_FIELD(steps).set_default(Tuple<float>({-1.0, -1.0}))
+    .describe("Priorbox step across y and x, -1 for auto calculation.");
+    DMLC_DECLARE_FIELD(offsets).set_default(Tuple<float>({0.5, 0.5}))
+    .describe("Priorbox center offsets, y and x respectively.");
+    DMLC_DECLARE_FIELD(clip).set_default(false)
+    .describe("Whether to clip out-of-boundary boxes.");
+  }
+};
+
+struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocParam> {
+  bool clip;
+  float threshold;
+  Tuple<float> variances;
+  DMLC_DECLARE_PARAMETER(MultiBoxTransformLocParam) {
+    DMLC_DECLARE_FIELD(clip).set_default(true)
+      .describe("Clip out-of-boundary boxes.");
+    DMLC_DECLARE_FIELD(threshold).set_default(0.01)
+    .describe("Threshold to be a positive prediction.");
+    DMLC_DECLARE_FIELD(variances).set_default(Tuple<float>{0.1, 0.1, 0.2, 0.2})
+    .describe("Variances to be decoded from box regression output.");
+  }
+};
+
+struct NMSParam : public dmlc::Parameter<NMSParam> {
+  float nms_threshold;
+  bool force_suppress;
+  int nms_topk;
+  DMLC_DECLARE_PARAMETER(NMSParam) {
+    DMLC_DECLARE_FIELD(nms_threshold).set_default(0.5)
+      .describe("Non-maximum suppression threshold.");
+    DMLC_DECLARE_FIELD(force_suppress).set_default(false)
+    .describe("Suppress all detections regardless of class_id.");
+    DMLC_DECLARE_FIELD(nms_topk).set_default(-1)
+    .describe("Keep maximum top k detections before nms, -1 for no limit.");
   }
 };
 

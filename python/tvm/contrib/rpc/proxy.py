@@ -333,7 +333,7 @@ class ProxyServerHandler(object):
                 rpc_key = key.split(":")[0]
                 base.sendjson(self._tracker_conn,
                               [TrackerCode.PUT, rpc_key,
-                               (self._listen_port, key)])
+                               (self._listen_port, key), None])
                 assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
                 if rpc_key not in self._key_set:
                     self._key_set.add(rpc_key)
