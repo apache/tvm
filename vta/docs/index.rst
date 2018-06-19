@@ -17,4 +17,3 @@ Contents
    api/python/index
    dev/index
    api_links
-   genindex

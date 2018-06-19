@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export PYTHONPATH=python:nnvm/python:nnvm/tvm/python:nnvm/tvm/topi/python
+export PYTHONPATH=python:tvm/nnvm/python:tvm/python:tvm/topi/python
 
 echo "Running unittest..."
 python -m nose -v tests/python/unittest || exit -1

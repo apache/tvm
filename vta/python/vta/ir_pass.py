@@ -350,7 +350,7 @@ def inject_dma_intrin(stmt_in):
         shape = [elem_block]
         strides = [1]
 
-        if (base < ndim + 1 and not util.equal_const_int(buf.strides[ndim - base], elem_block)):
+        if base < ndim + 1 and not util.equal_const_int(buf.strides[ndim - base], elem_block):
             shape.append(1)
             strides.append(elem_block)
 
@@ -628,7 +628,7 @@ def inject_alu_intrin(stmt_in):
                 next_dst = dst_coeff.pop()
                 next_ext = extents.pop()
 
-                if (_equal(next_src, vsrc * vext) and _equal(next_dst, vdst * vext)):
+                if _equal(next_src, vsrc * vext) and _equal(next_dst, vdst * vext):
                     vext = tvm.ir_pass.Simplify(vext * next_ext)
                 else:
                     rev_src_coeff.append(vsrc)

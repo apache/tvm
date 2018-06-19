@@ -5,7 +5,7 @@
 
 // nnvm libraries
 vta_lib = "lib/libvta.so, lib/libvta.so.json"
-vta_lib += ", nnvm/tvm/lib/libtvm.so, nnvm/tvm/lib/libtvm_topi.so, nnvm/lib/libnnvm_compiler.so"
+vta_lib += ", tvm/build/libtvm.so, tvm/build/libtvm_topi.so, tvm/build/libnnvm_compiler.so"
 
 
 // command to start a docker container
